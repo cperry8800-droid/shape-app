@@ -1498,11 +1498,18 @@ changelog whenever something ships.
 
 - **Sentry's dedupe was VERIFIED, not assumed** (owner requirement — a render loop on the free
   tier burns the monthly quota in minutes). A test fires the identical capture twice and
-  asserts exactly **one** envelope leaves. It does, through the Capacitor init path, so **no
-  local guard was added**. Two honest limits: Sentry's dedupe only suppresses **consecutive
-  identical** events (an A-B-A alternation passes through), and the premise it rests on —
-  that `bsInitSentry()` never disables the SDK's default integrations — is **not itself
-  test-guarded**. Registered, not built.
+  asserts exactly **one** envelope leaves. It does, so **no local guard was added**. ⚠ That
+  test initializes `@sentry/react` directly against a mock transport and never touches
+  `@sentry/capacitor`, so it evidences the shared **core** dedupe — not the Capacitor init
+  path the app actually boots through. Two honest limits: Sentry's dedupe only suppresses
+  **consecutive identical** events (an A-B-A alternation passes through), and the premise the
+  app's own path rests on — that `bsInitSentry()` never disables the SDK's default
+  integrations — is still **not test-guarded**, but it is now **VERIFIED AT SOURCE**
+  (2026-08-02): `@sentry/capacitor`'s `getDefaultIntegrations`
+  (`dist/esm/integrations/default.js`) explicitly pushes `dedupeIntegration()`, `sdk.js`
+  applies those defaults whenever `passedOptions.defaultIntegrations === undefined`, and
+  `bsInitSentry` passes neither a `defaultIntegrations` nor an `integrations` key. A test
+  pinning it: registered, not built.
 
 - **Two deliberate crash triggers ship with this, because the end-to-end gate needs something
   to pull.** `/m/?crash=1` (same URL-param pattern as the `?mem=1` HUD) and

@@ -117,7 +117,7 @@ React 19's `act`.
 4. **Dedupe verification (owner requirement 2026-08-02 — verify, don't
    assume):** in the same mock-transport test, fire the identical capture
    twice consecutively and assert exactly **one** envelope leaves — proving
-   `dedupeIntegration` is active through the Capacitor init path and a render
+   `dedupeIntegration` is active and a render
    loop can't burn the monthly quota in minutes. If this test comes back red,
    `bsCaptureBoundaryError` gains a local guard (suppress a repeat of the
    same message + stack) and the test then asserts the guard instead. Two
