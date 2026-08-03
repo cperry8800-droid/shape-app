@@ -195,8 +195,10 @@ changelog whenever something ships.
 > passes — 1439/1439 tests, `tsc`, `next build`, mobile build, CI — passes identically against
 > a broken DSN or an org that doesn't exist. Owner steps once the org exists: pull the two
 > deliberate triggers (`/m/?crash=1`, and `/dashboard/crash-test` signed in **as an admin,
-> coach, or active member** — a signed-in non-member gets the paywall instead of the page and
-> the test silently produces nothing), confirm one event
+> trainer, nutritionist, or active subscriber — the only four that pass**; anyone else gets
+> the paywall instead of the page and the test silently produces nothing. ⚠ NOT "coach":
+> a **dietitian** is canonically a coach role but `dashboard/layout.tsx` doesn't honor it —
+> a live pre-existing access bug, see the full entry), confirm one event
 > each lands in `shape-mobile` / `shape-web`, symbolicated, carrying the distinctive
 > `Deliberate crash test (…)` messages.
 >
@@ -1553,10 +1555,20 @@ changelog whenever something ships.
   build clean, CI green — would pass **identically against a broken DSN, a wrong project slug,
   or an org that does not exist**. A mock transport proves the seam, not the delivery (the
   same rule set for Layer 2's alert routing). **Owner steps once the Sentry org exists:** open
-  `/m/?crash=1` and `/dashboard/crash-test`. ⚠ **Sign in as an admin, coach, or ACTIVE
-  member for the web one** — `src/app/dashboard/layout.tsx` renders the members-only paywall
-  *instead of* `children` for a signed-in non-member, so a plain test account never mounts the
-  page, throws nothing, and the gate fails silently while looking like a Sentry problem.
+  `/m/?crash=1` and `/dashboard/crash-test`. ⚠ **For the web one, sign in as an ADMIN, a
+  TRAINER, a NUTRITIONIST, or an ACTIVE subscriber — those are the only four that pass** —
+  because `src/app/dashboard/layout.tsx` renders the members-only paywall *instead of*
+  `children` for anyone else, so the page never mounts, throws nothing, and the gate fails
+  silently while looking like a Sentry problem.
+  ⚠ **"Coach" is NOT a safe shorthand here, and the reason is a real pre-existing bug**
+  (found by Codex on #1868, NOT introduced by it and deliberately NOT fixed in it):
+  `src/lib/roles.mjs:13` defines the canonical `COACH_ROLES` as trainer + nutritionist +
+  **dietitian**, and `src/lib/membership-core.ts:56` mirrors all three by explicit comment —
+  but `dashboard/layout.tsx:28` grants coach access to `trainer` and `nutritionist` only. So
+  **an approved dietitian with no active subscription is shown the paywall on `/dashboard`**,
+  contradicting both the canonical role model and membership-core's own stated rule. That is a
+  live access bug for real dietitian coaches, far wider than this crash-test page; it needs its
+  own PR, because changing a `/dashboard` auth gate is not a drive-by edit in a Sentry PR.
   Confirm **one** event each arrives in
   `shape-mobile` and `shape-web` respectively, with a **symbolicated, readable stack** and the
   distinctive messages `Deliberate crash test (mobile boundary)` / `Deliberate crash test (web

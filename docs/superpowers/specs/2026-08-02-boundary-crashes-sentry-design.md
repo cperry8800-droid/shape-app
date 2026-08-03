@@ -152,7 +152,17 @@ Both triggers ship here, inert unless explicitly invoked:
   deliberately NOT exempted from that check — an auth-only exemption would
   widen the gate on a page whose whole purpose is to crash, for the sake of a
   test convenience. The runbook carries the requirement instead: sign in as an
-  **admin, coach, or active member**.
+  **admin, trainer, nutritionist, or active subscriber** — the only four that
+  pass.
+  ⚠ **Do not shorten that to "coach."** `src/lib/roles.mjs:13` defines the
+  canonical `COACH_ROLES` as trainer + nutritionist + **dietitian**, and
+  `src/lib/membership-core.ts:56` mirrors all three by explicit comment, but
+  `dashboard/layout.tsx:28` grants coach access to trainer and nutritionist
+  only — so an approved dietitian with no subscription hits the paywall. That
+  is a real pre-existing access bug affecting dietitian coaches generally (not
+  just this page), found by Codex on PR #1868 and deliberately left for its own
+  PR: changing a `/dashboard` auth gate is not a drive-by edit inside a Sentry
+  change.
 
 ### Explicitly out of scope
 
