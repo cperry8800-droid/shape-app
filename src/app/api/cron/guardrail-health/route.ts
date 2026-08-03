@@ -316,6 +316,16 @@ export async function GET(request: Request) {
     // ── 2. The evaluations, last 7d — newest first, bounded, truncation-aware.
     const { rows: rawEvals, matched, truncated, state } = await readEvaluations(admin, since7d);
     const read = { evaluations: rawEvals.length, matched, truncated, state };
+    // ⚠ HELD, NOT JUST EMITTED. The truncation finding is reported immediately
+    // below (so it still reaches Sentry even if the evaluation throws), but it
+    // must ALSO reach the run's `alerted` aggregate. Routing it through
+    // reportAlerts and stopping there was half a fix: the row persisted
+    // `alerted: false` and the response returned `alerted: 0` on a run whose
+    // ONLY finding was "this read may have lost rows" — so a query asking which
+    // runs alerted would skip precisely the run that says do not trust the
+    // others. That is the same "dashboard reads clean" failure the comment
+    // below exists to prevent, one layer up.
+    const readAlerts: Array<{ check: string; severity: string; message: string; state?: string }> = [];
     if (truncated || matched === null) {
       // ⚠ ONE FLAG, FOUR DIFFERENT FACTS — AND THE LOG MUST SAY WHICH. Every
       // verdict below was computed on a read that cannot PROVE it saw the whole
@@ -339,12 +349,13 @@ export async function GET(request: Request) {
       // on a read that may have lost rows. A degraded read reaching only Vercel
       // logs while the verdicts it undermines reach Sentry is worse than not
       // alerting at all: the dashboard reads clean.
-      reportAlerts([{
+      readAlerts.push({
         check: 'evaluation_read',
         severity,
         state,
         message: bsReadStateNote({ state, rows: rawEvals.length, matched, ceiling: EVAL_MAX_ROWS }),
-      }]);
+      });
+      reportAlerts(readAlerts);
     }
 
     const evaluations = rawEvals.map((r: { props: unknown }) => {
@@ -378,6 +389,13 @@ export async function GET(request: Request) {
 
     reportAlerts(alerts);
 
+    // ⚠ THE RUN'S ALERT COUNT IS BOTH SOURCES, NOT JUST THE EVALUATOR'S. See the
+    // note beside `readAlerts`: a truncated read is a finding about this run, and
+    // a run whose only finding was a degraded read must not record `alerted:
+    // false`. Order is read-first because it is the finding that qualifies every
+    // other one.
+    const allAlerts = [...readAlerts, ...alerts];
+
     // ── 5. Persist. A failed insert is logged, never thrown: losing the record
     //       costs the next run its transition test, which is far better than
     //       losing the alerts that were just raised.
@@ -390,13 +408,13 @@ export async function GET(request: Request) {
     // ever looks the previous run up by check name, so it is inert as input.
     const { error: insErr } = await admin
       .from('guardrail_health_runs')
-      .insert({ ran_at: nowISO, verdicts: { ...verdicts, _read: read }, alerted: alerts.length > 0 });
+      .insert({ ran_at: nowISO, verdicts: { ...verdicts, _read: read }, alerted: allAlerts.length > 0 });
     if (insErr) console.error('[shape-health] run record not saved:', insErr.message);
 
     // ── 6. The heartbeat, last, and only on a completed run.
     const heartbeat = await sendHeartbeat();
 
-    return NextResponse.json({ ok: true, verdicts, read, alerted: alerts.length, heartbeat });
+    return NextResponse.json({ ok: true, verdicts, read, alerted: allAlerts.length, heartbeat });
   } catch (e) {
     // ⚠ NO HEARTBEAT ON THIS PATH. A job that threw did not do its work, and a
     // dead-man's switch that pings anyway is worse than none — it reports health

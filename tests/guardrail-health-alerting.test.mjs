@@ -51,8 +51,39 @@ test('every structured alert is emitted through reportAlerts — no inline alert
 test('the truncation finding is routed through reportAlerts', () => {
   assert.match(
     src,
-    /reportAlerts\(\[\{[\s\S]{0,200}check:\s*'evaluation_read'/,
-    "the evaluation_read finding must be handed to reportAlerts, not logged inline",
+    /readAlerts\.push\(\{[\s\S]{0,200}check:\s*'evaluation_read'/,
+    "the evaluation_read finding must be collected as an alert, not logged inline",
+  );
+  assert.match(
+    src,
+    /reportAlerts\(readAlerts\)/,
+    'the collected read alert must still be REPORTED at the read site, so it reaches ' +
+      'Sentry even if the evaluation below it throws',
+  );
+});
+
+test('the run\'s alert count includes the truncation finding, not just the evaluator\'s', () => {
+  // Routing evaluation_read through reportAlerts and stopping there was half a
+  // fix. `alerted` was computed from bsEvaluateHealth's alerts alone, so a run
+  // whose ONLY finding was "this read may have lost rows" persisted
+  // `alerted: false` and returned `alerted: 0` — and that is the finding which
+  // says do not trust the other verdicts. A query asking which runs alerted
+  // would skip precisely the run that disqualifies the rest.
+  assert.match(
+    src,
+    /const allAlerts = \[\s*\.\.\.readAlerts,\s*\.\.\.alerts\s*\]/,
+    'the run must aggregate the read alerts with the evaluator alerts',
+  );
+  const uses = src.match(/alerted: allAlerts\./g) || [];
+  assert.equal(
+    uses.length,
+    2,
+    `both the persisted row and the HTTP response must report the combined count, found ${uses.length}. ` +
+      'One of the two reading `alerts.length` is the split-brain this test exists to catch.',
+  );
+  assert.ok(
+    !/alerted: alerts\./.test(src),
+    'no alerted field may be computed from the evaluator alerts alone',
   );
 });
 
