@@ -232,3 +232,69 @@ test('BSSettings: every takeover flag that hides the root is cleared on shape:op
   assert.deepEqual(missing, [],
     'a Settings pane early-returns above the root but its flag is never reset — the corner avatar is a dead control on that pane, and still burns a back');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BSApp: the ?crash=1 trigger must stay armed.
+//
+// WHY THIS EXISTS: one line arms the whole deliberate-crash feature —
+// `{bsCrashTestRequested() && <BSCrashProbe />}` inside BSApp's tree, which the
+// module's top-level render wraps in <BSErrorBoundary>. No test EXECUTES that
+// line: tests/error-boundary-mount.test.mjs stubs `react-dom/client`, so BSApp
+// never renders, and both probe tests mount BSCrashProbe directly inside the
+// boundary. So moving it above the boundary, dropping it in a merge, or
+// wrapping it in another condition makes `/m/?crash=1` silently render nothing
+// while parse, tsc, both builds and every test stay green — surfacing only
+// during the owner's post-DSN end-to-end gate, live, with no local repro.
+//
+// Shaped against the AST, not the source text: reformatting, line wrapping and
+// added props can't break it, and a rename of either identifier can't sneak past.
+function bsAppArmsCrashProbe(ast) {
+  let fn = null;
+  traverse(ast, {
+    FunctionDeclaration(p) { if (p.node.id?.name === 'BSApp') fn = p; },
+  });
+  if (!fn) return { found: false, armed: false };
+
+  let armed = false;
+  fn.traverse({
+    LogicalExpression(p) {
+      if (p.node.operator !== '&&') return;
+      const { left, right } = p.node;
+      const guarded = left.type === 'CallExpression'
+        && left.callee.type === 'Identifier'
+        && left.callee.name === 'bsCrashTestRequested';
+      if (!guarded) return;
+      if (right.type !== 'JSXElement') return;
+      const name = right.openingElement.name;
+      if (name.type === 'JSXIdentifier' && name.name === 'BSCrashProbe') armed = true;
+    },
+  });
+  return { found: true, armed };
+}
+
+test('BSApp: the ?crash=1 probe is still wired into the rendered tree', () => {
+  const ast = asts.get('iosAppBroadsheetMain.jsx');
+  assert.ok(ast, 'main module parsed');
+  const { found, armed } = bsAppArmsCrashProbe(ast);
+  assert.ok(found, 'BSApp found');
+  assert.ok(armed,
+    'BSApp no longer renders `bsCrashTestRequested() && <BSCrashProbe/>` — /m/?crash=1 is a no-op and the post-DSN e2e gate has nothing to pull');
+});
+
+test('BSApp crash-probe gate: the detector flags what it should, and only that', () => {
+  const scan = (src) => bsAppArmsCrashProbe(parse(src, { sourceType: 'module', plugins: ['jsx'] }));
+
+  // Armed, in every formatting the source could legitimately take.
+  assert.deepEqual(scan('function BSApp(){ return <div>{bsCrashTestRequested() && <BSCrashProbe />}</div>; }'), { found: true, armed: true });
+  assert.deepEqual(scan('function BSApp(){ return <div>{\n  bsCrashTestRequested()\n  && <BSCrashProbe key="x" />\n}</div>; }'), { found: true, armed: true }, 'formatting-tolerant');
+  assert.deepEqual(scan('function BSApp(){ return <A><B>{bsCrashTestRequested() && <BSCrashProbe />}</B></A>; }'), { found: true, armed: true }, 'nesting-tolerant');
+
+  // Disarmed — each of the ways this line has plausibly rotted.
+  assert.deepEqual(scan('function BSApp(){ return <div><BSAppShell /></div>; }'), { found: true, armed: false }, 'dropped in a merge');
+  assert.deepEqual(scan('function BSApp(){ return <div>{bsCrashTestRequested() && <BSMemHud />}</div>; }'), { found: true, armed: false }, 'guard kept, probe swapped');
+  assert.deepEqual(scan('function BSApp(){ return <div>{devMode && <BSCrashProbe />}</div>; }'), { found: true, armed: false }, 'probe kept, guard swapped');
+  // Moved OUT of BSApp (e.g. above the boundary at module scope) — the class of
+  // regression the mount test's `props.children` assertion cannot see either.
+  assert.deepEqual(scan('function BSApp(){ return <div />; }\nconst R = <div>{bsCrashTestRequested() && <BSCrashProbe />}</div>;'), { found: true, armed: false }, 'moved outside BSApp');
+  assert.deepEqual(scan('const x = 1;'), { found: false, armed: false }, 'BSApp itself renamed/removed');
+});
