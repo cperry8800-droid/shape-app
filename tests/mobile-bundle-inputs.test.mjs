@@ -109,3 +109,32 @@ test('the hook consults the deriver and refuses to treat failure as "none"', () 
     'verify-staged.sh must FAIL when the deriver exits non-zero, rather than falling back to empty',
   );
 });
+
+test('the hook classifies what a commit DELETES, not only what it adds', () => {
+  // A deleted file is invisible to the deriver by construction — it walks the
+  // WORKING TREE, where the now-broken import resolves to nothing. So deletions
+  // need their own arm, and this test exists because both halves of that were
+  // wrong at once: `--diff-filter=ACM` dropped deletions entirely, so a
+  // deletion-only commit ran NOTHING (no tsc, no suite, no build) and exited 0,
+  // and a mixed commit that removed a shared module skipped the mobile build
+  // that would have caught the unresolved import.
+  const hook = readFileSync(join(ROOT, 'scripts', 'verify-staged.sh'), 'utf8');
+  assert.match(
+    hook,
+    /--diff-filter=D/,
+    'verify-staged.sh must collect deleted paths — a deletion-only commit otherwise exits having run nothing',
+  );
+  assert.match(
+    hook,
+    /--no-renames/,
+    "--no-renames decomposes a rename into delete+add so the OLD path is seen; " +
+      "with rename detection on, --name-only prints only the new path and the removal is invisible",
+  );
+  // The early-exit must require BOTH lists empty. `#STAGED -eq 0 && exit 0`
+  // alone is exactly the deletion-only hole.
+  assert.match(
+    hook,
+    /\[ "\$\{#STAGED\[@\]\}" -eq 0 \]\s*&&\s*\[ "\$\{#DELETED\[@\]\}" -eq 0 \]\s*&&\s*exit 0/,
+    'the early exit must require BOTH the added/modified AND the deleted list to be empty',
+  );
+});

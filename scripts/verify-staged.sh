@@ -7,8 +7,14 @@
 #
 #   - any .js/.jsx/.mjs/.cjs     -> babel parse-check (by extension, not by dir)
 #   - src/** or TS config staged -> tsc --noEmit  (needs root node_modules)
-#   - mobile-app/src/** staged   -> mobile build
+#   - mobile-app build inputs    -> mobile build
+#   - a shared bundle input      -> mobile build  (derived from the import graph)
+#   - any code DELETED           -> mobile build + the suite
 #   - any code staged            -> npm test
+#
+# Note the last three: this hook classifies what a commit REMOVES as well as what
+# it adds, because a deletion breaks importers and a deletion-only commit used to
+# run nothing at all.
 #
 # ⚠ THIS HOOK IS NOT THE GATE. It can be skipped with --no-verify or
 # SKIP_VERIFY=1, so treat it as a fast local mirror of CI, never as the thing
@@ -26,8 +32,23 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
-mapfile -t STAGED < <(git diff --cached --name-only --diff-filter=ACM)
-[ "${#STAGED[@]}" -eq 0 ] && exit 0
+# Files this commit ADDS or MODIFIES — they exist on disk, so they are safe to
+# read, parse and build against.
+mapfile -t STAGED < <(git diff --cached --name-only --no-renames --diff-filter=ACM)
+# Files this commit REMOVES.
+#
+# ⚠ THE FILTER USED TO BE ACM ONLY, AND THAT WAS A HOLE IN BOTH DIRECTIONS.
+# A deletion-only commit produced an EMPTY list and exited 0 having run NOTHING
+# — no tsc, no suite, no build — which is the worst possible outcome for the one
+# change most likely to break an importer. And a mixed commit that deleted a
+# shared module never counted the deletion toward any trigger, so the build that
+# would have caught the unresolved import was skipped.
+#
+# --no-renames decomposes a rename into a delete + an add, so the OLD path shows
+# up here rather than vanishing behind rename detection (`--name-only` prints
+# only the new path for an R entry).
+mapfile -t DELETED < <(git diff --cached --name-only --no-renames --diff-filter=D)
+[ "${#STAGED[@]}" -eq 0 ] && [ "${#DELETED[@]}" -eq 0 ] && exit 0
 
 ts_changed=0
 mobile_changed=0
@@ -38,7 +59,9 @@ parse_mod=()
 parse_script=()
 parse_auto=()
 
-for f in "${STAGED[@]}"; do
+# Trigger classification runs over ADDED, MODIFIED **and** DELETED paths — what a
+# commit removes changes the build just as surely as what it adds.
+for f in "${STAGED[@]}" "${DELETED[@]}"; do
   case "$f" in
     # NOTE: in `case`, * matches '/' too, so these patterns also match nested paths
     src/*.ts|src/*.tsx|tsconfig*.json|next.config.*|src/proxy.ts)
@@ -56,6 +79,34 @@ for f in "${STAGED[@]}"; do
     mobile-app/capacitor.config.*|mobile-app/tsconfig*.json)
       mobile_changed=1; code_changed=1 ;;
   esac
+done
+
+# --- What this commit DELETES -------------------------------------------------
+#
+# A deleted file cannot be parsed (it is gone) and cannot be found by the
+# import-graph deriver below (that walks the working tree, where the broken
+# import now resolves to nothing). So deletions are handled on their own terms:
+# any code file removed from OUTSIDE mobile-app/ enables the mobile build.
+#
+# That is a DELIBERATE over-approximation. It cannot under-trigger, and it costs
+# almost nothing: over a 300-commit window only 5 commits deleted anything at all
+# and only 2 deleted code outside mobile-app/ — so this runs on roughly 0.7% of
+# commits, versus a graph walk that would have to reconstruct the pre-deletion
+# tree to answer the question correctly.
+for f in "${DELETED[@]}"; do
+  case "$f" in
+    public/vendor/*|*.min.js|chat-design-v2/*)
+      ;;
+    mobile-app/*)
+      # The mobile arm above already decided whether this one matters.
+      case "$f" in *.mjs|*.cjs|*.js|*.jsx|*.ts|*.tsx) code_changed=1 ;; esac ;;
+    *.mjs|*.cjs|*.js|*.jsx|*.ts|*.tsx)
+      mobile_changed=1; code_changed=1 ;;
+  esac
+done
+
+# --- Parse-check candidates (existing files only) -----------------------------
+for f in "${STAGED[@]}"; do
   # ⚠ THIS MATCHES BY EXTENSION, NOT BY DIRECTORY, DELIBERATELY.
   #
   # The old arms listed directories, so anything outside them set code_changed=0
