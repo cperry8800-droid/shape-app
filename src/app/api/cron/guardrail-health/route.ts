@@ -250,7 +250,13 @@ function reportAlerts(
     try {
       Sentry.captureMessage(a.message, {
         level: a.severity === 'info' ? 'info' : a.severity === 'warning' ? 'warning' : 'error',
-        tags: { alert: 'guardrail-health', check: a.check },
+        // `state` rides along when the alert carries one (today: the
+        // evaluation_read truncation finding). The console line already gets it
+        // via the `...a` spread above; without it here the ONE field that
+        // distinguishes "this run read everything" from "this run lost rows" is
+        // filterable in the log and invisible in the dashboard — which is the
+        // wrong way round, since the dashboard is where a human looks.
+        tags: { alert: 'guardrail-health', check: a.check, ...(a.state ? { state: a.state } : {}) },
       });
     } catch {
       // deliberately empty — see the comment above.

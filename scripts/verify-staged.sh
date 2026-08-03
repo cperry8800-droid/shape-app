@@ -45,7 +45,15 @@ for f in "${STAGED[@]}"; do
       ts_changed=1; code_changed=1 ;;
   esac
   case "$f" in
-    mobile-app/src/*|mobile-app/vite.config.*|mobile-app/*.html)
+    # ⚠ The BUILD INPUTS, not just the sources. package.json / the lockfile /
+    # capacitor.config / tsconfig all change what `npm run build` produces, and
+    # a dependency bump touching only those used to skip the mobile build
+    # entirely — the same "gate silently not firing" class this file's other
+    # arms exist to close. (`mobile-app/*.html` already matches nested paths,
+    # since `*` matches '/' in a case pattern.)
+    mobile-app/src/*|mobile-app/vite.config.*|mobile-app/*.html|\
+    mobile-app/package.json|mobile-app/package-lock.json|\
+    mobile-app/capacitor.config.*|mobile-app/tsconfig*.json)
       mobile_changed=1; code_changed=1 ;;
   esac
   # ⚠ THIS MATCHES BY EXTENSION, NOT BY DIRECTORY, DELIBERATELY.
