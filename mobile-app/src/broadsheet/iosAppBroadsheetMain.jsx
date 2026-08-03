@@ -2272,6 +2272,16 @@ function bsCrashTestRequested(search) {
   } catch (e) { return false; }
 }
 function BSCrashProbe() {
+  // Disarm before throwing: strip the param from the URL so the crash card's
+  // own Reload / Restart buttons actually recover. Without this, both buttons
+  // re-read the same ?crash=1 and re-fire the crash — stranding anyone who
+  // opens the link. Persists nothing (history entry only), and touches no
+  // fallback-card code.
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('crash');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  } catch (e) { /* History API unavailable — the crash below is still the point */ }
   throw new Error('Deliberate crash test (mobile boundary)');
 }
 

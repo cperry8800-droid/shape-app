@@ -115,6 +115,10 @@ test('bsCrashTestRequested: pure, total, exact-match on ?crash=1', () => {
   assert.equal(MOD.bsCrashTestRequested(''), false);
   // No argument → reads window.location.search (jsdom URL has no params here).
   assert.equal(MOD.bsCrashTestRequested(), false);
+  // A Symbol throws on the implicit string coercion inside `new URLSearchParams(...)`
+  // (verified: `new URLSearchParams(Symbol('x'))` → TypeError) — this is the vector
+  // that actually reaches the catch block, not just a well-formed-but-wrong input.
+  assert.equal(MOD.bsCrashTestRequested(Symbol('x')), false);
 });
 
 test('the crash probe is boundary-caught and reported, like any real crash', () => {
@@ -131,6 +135,37 @@ test('the crash probe is boundary-caught and reported, like any real crash', () 
   assert.match(host.textContent, /Something went wrong/);
   assert.equal(captured.length, before + 1);
   assert.equal(captured[before].err.message, 'Deliberate crash test (mobile boundary)');
+  React.act(() => root.unmount());
+  host.remove();
+});
+
+test('the crash probe disarms itself: the crash card can actually recover from ?crash=1', () => {
+  // The shared jsdom instance boots with a fixed URL carrying no query string
+  // (see the top of this file), so this test needs a real ?crash=1 to disarm.
+  // Uses `dom.reconfigure({ url })` (same window/document objects, just a new
+  // navigation state) rather than a second JSDOM — reconfiguring back to the
+  // original URL in a `finally` leaves every other test's environment untouched.
+  const before = captured.length;
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  dom.reconfigure({ url: 'https://shape.test/m/?crash=1' });
+  try {
+    const { stray } = withTrappedConsole([/Deliberate crash test/, /BSErrorBoundary/, /BSCrashProbe/], () => {
+      React.act(() => {
+        root.render(React.createElement(MOD.BSErrorBoundary, null, React.createElement(MOD.BSCrashProbe)));
+      });
+    });
+    assert.equal(stray.length, 0, stray.join('\n'));
+    assert.match(host.textContent, /Something went wrong/);
+    assert.equal(captured.length, before + 1);
+    // Disarmed: the param is gone, so the card's own Reload (re-render) / Restart
+    // (reload the same URL) buttons no longer read a URL that re-fires the crash.
+    assert.equal(MOD.bsCrashTestRequested(), false);
+    assert.equal(window.location.search, '');
+  } finally {
+    dom.reconfigure({ url: 'https://shape.test/m/' });
+  }
   React.act(() => root.unmount());
   host.remove();
 });
