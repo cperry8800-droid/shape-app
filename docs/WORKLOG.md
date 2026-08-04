@@ -178,10 +178,25 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-02): BOUNDARY-CAUGHT REACT CRASHES NOW REACH SENTRY, ON BOTH APP
+> **Latest (2026-08-04): THE GATES ACTUALLY GATE — CI RUNS THE SUITE, THE HOOK STOPS
+> LYING (#1869 → `77a064895`).** `npm test` now runs in CI for the first time
+> (**`Tests (unit + mount)`**) — ⚠ **advisory until the owner adds it to `main` branch
+> protection**, which today requires only Web · Mobile · gitleaks. And
+> `scripts/verify-staged.sh` stopped reporting clean passes on unverified code three
+> ways: the mobile arm judged **321 of 791** tracked mobile files while a skip claimed
+> it judged all of them, `--diff-filter=ACM` let a deletion-only commit run **nothing**
+> and exit 0, and the deletion arm's list of "what counts as code" went stale twice in
+> one PR. ⚠ **A `mobile-app/public/` asset deletion remains UNGATED end to end** —
+> measured, and written down at the deletion arm rather than dropped.
+> Handoff: **[`docs/HANDOFF-2026-08-04.md`](HANDOFF-2026-08-04.md)**.
+>
+> See the full entry below.
+
+> **Prior (2026-08-02): BOUNDARY-CAUGHT REACT CRASHES NOW REACH SENTRY, ON BOTH APP
 > SURFACES** (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` ·
-> `d2a99def8` on `claude/sentry-boundary-crashes`, based on the unmerged
-> `claude/error-tracking-layer-1-sentry`, not yet merged). An error boundary that catches a
+> `d2a99def8` on `claude/sentry-boundary-crashes`, stacked on
+> `claude/error-tracking-layer-1-sentry` — **MERGED as #1868 → `5e16898b6`**). An error
+> boundary that catches a
 > crash **prevents it from ever reaching `window.onerror`** — so Layer 1's global handlers
 > were structurally blind to exactly the crash class this repo has shipped (TDZ / hook-order,
 > #1781). Mobile `/m/` now captures from `componentDidCatch` through one total seam; the Next
@@ -218,7 +233,7 @@ changelog whenever something ships.
 > **Prior (2026-08-01): ERROR TRACKING LAYER 1 — SENTRY WIRED INTO ALL THREE RUNTIMES,
 > COMPLETELY INERT** (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` ·
 > `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab` on
-> `claude/error-tracking-layer-1-sentry`, not yet merged). Next.js pages + all 156 API routes
+> `claude/error-tracking-layer-1-sentry`; **MERGED as #1866 → `9d0bf52c5`**). Next.js pages + all 156 API routes
 > (`@sentry/nextjs`), the `/m/` mobile app (`@sentry/capacitor` + `@sentry/react`), and the
 > static website (a dependency-free `sentryInit.js` classic script — no bundler there) each
 > now carry a Sentry SDK.
@@ -376,7 +391,7 @@ changelog whenever something ships.
 > **Prior (2026-07-31): ERROR TRACKING LAYER 2 — THE GUARDRAIL-HEALTH CRON, FOUR CHECKS
 > OVER `analytics_events`, DAILY AT 09:00 UTC** (`51e0bbc05` / `2004209ef` / `8e61f4687` /
 > `810110fdc` / `46dc67be0` / `47729fe8b` / `3b51f7271` / `943eafb43` / `af3b8f6ac` on
-> `claude/error-tracking-layer2`, not yet merged). A scheduled check for the
+> `claude/error-tracking-layer2`; **MERGED as #1857 → `eedc78dc5`**). A scheduled check for the
 > failure modes Sentry can never see, because the progression guardrail never throws by
 > contract — `/api/cron/guardrail-health`, mirroring the existing `funnel.mjs` /
 > `guardrail-gate.mjs` split: a pure, tested evaluation core (`src/lib/guardrail-health.mjs`)
@@ -1457,7 +1472,75 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
-### 2026-08-02 — Boundary-caught React crashes now reach Sentry, on BOTH app surfaces (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` · `d2a99def8`, branch `claude/sentry-boundary-crashes`, based on the unmerged `claude/error-tracking-layer-1-sentry`, not yet merged)
+### 2026-08-04 — The gates actually gate: CI runs the suite, the hook stops lying (#1869 → `77a064895`)
+
+- **`npm test` now RUNS in CI on every PR — it is NOT yet a merge gate.** The whole
+  suite — every mount test included — was enforced ONLY by the local pre-commit hook,
+  which is bypassable (`SKIP_VERIFY=1`) and only armed on a machine that ran the
+  SessionStart hook. New **`Tests (unit + mount)`** job in `ci.yml`. ⚠ **OWNER: add it to
+  `main` branch protection (Settings → Branches)** — a job in `ci.yml` is **advisory**
+  until it is in the required list, so until then a PR can merge with the suite RED and
+  the hook is still the only thing standing between a broken test and `main`. Verified
+  live 2026-08-04: the required contexts are **three** — `Web (typecheck + build)`,
+  `Mobile (build + public/m sync)`, `Secret scan (gitleaks)`. Re-check before ever
+  writing that the suite is enforced.
+- **The hook's classifier was wrong three ways, each producing a false "all checks
+  passed" on unverified code:**
+  - **The mobile arm judged 321 of 791 tracked `mobile-app/` files**, while the deletion
+    arm skipped **all** of them on the stated grounds that the mobile arm had already
+    judged them. It had not. And the skip pattern `mobile-app/*` matches all 791 (`*`
+    crosses `/` in a `case`), so it contributed a mobile build for **exactly zero**
+    paths while reading like a decision.
+  - **`--diff-filter=ACM` made deletions invisible**: a deletion-only commit ran
+    NOTHING — no parse, no tsc, no suite, no build — and exited 0. Deletions are now
+    collected (`--diff-filter=D --no-renames`, so a rename shows its OLD path) with a
+    both-lists-empty early exit.
+  - **The deletion arm enumerated what counts as code, and the list went stale twice in
+    one PR.** First it inherited the parse arm's path exclusions, so deleting
+    `public/vendor/supabase-js` (loaded by **67** pages) reported a clean pass; the fix
+    left a JS/TS **extension** list, so deleting `gridstack.min.css` (**8** pages) did
+    the same. It now enumerates **nothing**: both flags, every deleted path. Measured
+    cost — 5 of the last 300 commits delete anything at all.
+- ⚠ **A `mobile-app/public/` asset deletion is UNGATED end to end, deliberately, and it
+  is written down at the deletion arm rather than dropped.** Measured, not assumed: with
+  `shape-logo.png` moved out, `VITE_BASE=/m/ npm run build` **exits 0** without naming
+  it, the emitted bundle still requests `shape-logo.png?v=2` **three times**, and `dist/`
+  does not contain it. `tsc`, `next build`, gitleaks and the suite are equally blind —
+  the only referenced-file-exists check in the repo is `build-newdesign.mjs:110`, which
+  covers website `.jsx` script tags. **The first sign is a broken image in the app.**
+- **A checker for exactly that was built here and CUT before merge.** It worked — it
+  caught the deletion by file and line. But it decided code-vs-comment with a line-local
+  regex, and that is a **lexing** problem a regex cannot solve: seven review rounds all
+  landed on that one seam, and an adversarial reproduction pass found **seven defects
+  across four mechanisms** still open, **two of them false ALARMS** (red CI on a correct
+  tree — a commented-out `${BASE_URL}x.png`, and a commented-out URL composition sitting
+  above a live one). A check a developer cannot fix except by editing the checker teaches
+  `--no-verify`, which also disables the mount tests. **Registered, not solved:** an
+  AST-based version. ⚠ **`90f92f743` (branch `claude/asset-refs-checker-parked`) is a
+  STARTING POINT, not something to re-land as-is** — it is the file with the seven open
+  defects above, and its `isCommented` regex IS the defect. Replace the lexing with a
+  real parse before any of it returns; re-landing it verbatim revives every false alarm
+  listed here. The forward/reverse pass structure and the three declared maps are the
+  parts worth keeping. It needs
+  `@babel/parser` declared (it is in NEITHER manifest today — root resolves **8.0.4**,
+  mobile-app **7.29.7**), which regenerates `mobile-app/package-lock.json` — the lockfile
+  **`codemagic.yaml` consumes to build the iOS TestFlight IPA on every push to `main`**.
+- **12 Codex rounds.** ⚠ **The durable lesson, logged because it recurred six times: a
+  because-clause is a claim.** Six comments in this PR asserted a mechanism that was
+  false — including one written to fix the previous false one, and one that named a
+  "step 5" the file does not have (there are four). Two guards written to ban
+  enumeration **were themselves enumerations**. Rounds 9–11 found the same defect from
+  three sides: *derive* a rule and it switches itself off when its subject appears;
+  *declare* it and it stays on after its subject leaves; read the declaration from raw
+  text and a comment keeps it alive with no subject at all.
+- Suite **1458/1458** · tsc clean · CI green (Web · Mobile · gitleaks · Tests). Branch
+  kept.
+- **Session handoff: [`docs/HANDOFF-2026-08-04.md`](HANDOFF-2026-08-04.md)** — covers
+  2026-07-31 → 2026-08-04 (four sessions shipped in that window without one), the
+  outstanding owner actions, and the records sweep that flipped six false "not yet
+  merged" claims in this file.
+
+### 2026-08-02 — Boundary-caught React crashes now reach Sentry, on BOTH app surfaces (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` · `d2a99def8`, branch `claude/sentry-boundary-crashes` — **MERGED as #1868 → `5e16898b6`**)
 
 - **Five build tasks, spec at `docs/superpowers/specs/2026-08-02-boundary-crashes-sentry-design.md`,
   plan at `docs/superpowers/plans/2026-08-02-boundary-crashes-sentry.md`.** Layer 1 wired the
@@ -1599,7 +1682,7 @@ changelog whenever something ships.
   shipped `sentryInit.js` global handlers already cover); user context on the two web surfaces
   (already a registered Layer 1 follow-up).
 
-### 2026-08-01 — Error tracking Layer 1: Sentry wired into all three runtimes, completely inert (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` · `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab`, branch `claude/error-tracking-layer-1-sentry`, not yet merged)
+### 2026-08-01 — Error tracking Layer 1: Sentry wired into all three runtimes, completely inert (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` · `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab`, branch `claude/error-tracking-layer-1-sentry` — **MERGED as #1866 → `9d0bf52c5`**)
 
 - **Six tasks, plan at `docs/superpowers/plans/2026-08-01-error-tracking-layer-1-sentry.md`.**
   Governing constraint: no Sentry DSN exists anywhere, so every surface must build and run
@@ -2017,6 +2100,24 @@ changelog whenever something ships.
   the mobile build's source-map strip verified end to end (26 stripped, **0** left in
   `dist/`, **0** in `public/m`).
 
+### 2026-08-01 — Dependency sweep: 4 Dependabot PRs merged (#1860–#1863)
+
+Recorded 2026-08-04 — these merged without a changelog entry and are listed here so
+the lockfile churn is attributable.
+
+- **#1863 → `7e95b9ee5`** — mobile-deps group, **15 updates**. Touched
+  `mobile-app/package.json` + `mobile-app/package-lock.json`. ⚠ That lockfile is what
+  **`codemagic.yaml` consumes to build the iOS TestFlight IPA on every push to
+  `main`** — a mobile dependency bump is an iOS-build-input change, not a chore.
+- **#1862 → `a46078475`** — web-deps group, **9 updates** (root `package.json` +
+  `package-lock.json`).
+- **#1861 → `997f1a84f`** — `actions/upload-artifact` **4 → 7** in
+  `.github/workflows/android-build.yml`.
+- **#1860 → `f7916ca8e`** — `actions/setup-node` **6 → 7** in `android-build.yml`
+  **and `ci.yml`**. In `ci.yml` it hit the two **Node-based** jobs — `Web (typecheck +
+  build)` and `Mobile (build + public/m sync)`, 2 of the 3 required checks at the time.
+  `Secret scan (gitleaks)` runs no Node and was untouched.
+
 ### 2026-08-01 — The masthead contract: one row, one inset, every page
 
 - **Owner ruling** (with a screenshot of the chat page's masthead): *"please make sure this
@@ -2351,7 +2452,7 @@ changelog whenever something ships.
   across papers, on both roles, plus a scroll past 64px on a corner-less page (the live monitor
   or the health gate) to confirm the pinned corner stays away.
 
-### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
+### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2` — **MERGED as #1857 → `eedc78dc5`**)
 
 - **A daily scheduled check over `analytics_events`, at `/api/cron/guardrail-health`, 09:00
   UTC on Vercel cron.** Design: `docs/superpowers/specs/2026-07-31-error-tracking-design.md`;
@@ -2498,7 +2599,7 @@ changelog whenever something ships.
   is done, plus the eight env vars, a redeploy and both alert rules, nothing notifies a human.
   (⚠ This said "four projects" — corrected 2026-08-01; four DSN values, three projects.)
 
-### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3)
+### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3) (**#1859 → `37a7fbd3e`**)
 
 - **Owner screenshot: a strip of page content showed between the message composer
   and the bottom tab bar.** Root cause: the #1603 chrome pass trimmed the tab bar
@@ -2514,7 +2615,7 @@ changelog whenever something ships.
   docked flush (the house instrument-chrome language — the gap only READ as
   floating because it was broken).
 
-### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board)
+### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board) (**#1858 → `95e129274`**)
 
 - **The "Front Page" cream curtain (owner pick 2026-07-23) is replaced** on
   `public/newdesign/index.html`. The critique that triggered it (owner: "i dont love
