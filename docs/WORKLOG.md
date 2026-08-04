@@ -561,7 +561,9 @@ changelog whenever something ships.
 > real fix needs the server to evaluate the resulting *slotted* schedule and that is a design
 > change, not a guard. **A load guarantee about a ROW is not a load guarantee about the
 > SCHEDULE that row appears in.** Suite **1347**; tsc clean; mobile build clean.
-> Open: OWNER on-device pass · the migration above.
+> Open: OWNER on-device pass. ⚠ **The migration this line used to name is APPLIED**
+> (verified against production 2026-08-04, see the ✅ note at the top of this entry) —
+> nothing in this wave is owed.
 >
 > **Prior (2026-07-27→28): PROGRESSION GUARDRAILS — session-RPE capture + the pure
 > advisory core (#1846).** Advisory load flags on a coach-authored training week: the
