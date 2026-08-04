@@ -132,6 +132,30 @@ const DECLARED_UNREFERENCED = {
 
 const norm = (p) => p.split(path.sep).join('/');
 
+// ⚠ A DECLARATION INSIDE A COMMENT IS NOT A DECLARATION. Prefix discovery ran
+// over raw source, so a retirement line — `// Retired: const BS_FACE_BASE =
+// \`${BASE_URL}faces/\`;` — still registered `faces` as live and kept its opaque
+// exemption alive over the residual files. Reproduced.
+//
+// ⚠ AND THIS IS LINE-LOCAL ON PURPOSE, BECAUSE THE FIRST VERSION WASN'T AND BROKE
+// THE BASELINE IMMEDIATELY. It scanned backwards for an unclosed `/* */`, and
+// iosAppBroadsheetClient.jsx:12330 contains the GLOB `/m/demo/*` inside a line
+// comment — so every declaration after it, including BS_DEMO_MEDIA three lines
+// down, read as commented and five live demo assets were reported orphaned. A
+// backwards scan over 30k lines will always find something that looks like `/*`.
+//
+// Deliberately not a comment stripper either: tokenising JS means getting regex
+// literals right, and one that guesses wrong DELETES code. This asks only about
+// the match's OWN line, so nothing elsewhere in the file can poison it, and a
+// wrong guess drops a live declaration — surfacing as a loud STALE failure
+// rather than a silent exemption.
+function isCommented(src, index) {
+  const start = src.lastIndexOf('\n', index - 1) + 1;
+  const line = src.slice(start, index);
+  if (/(^|[^:])\/\//.test(line)) return true; // a line comment; `://` is a URL
+  return /^\s*(\*|\/\*)/.test(line); // a `/* … */` block's opening or body line
+}
+
 function walk(dir, out = []) {
   let entries;
   try {
@@ -157,13 +181,19 @@ const sources = walk(SRC).filter((f) => SCANNABLE.test(f));
 // Collected across EVERY file before any reference is judged: a constant defined
 // in one file and used in another would otherwise depend on walk() order.
 const prefixByName = new Map(); // constant name -> the directory it prefixes
+// Files that compose a served URL from a variable (`${BASE_URL}${x}`). Used only
+// to keep RUNTIME_COMPOSED entries honest — see the manifest check below.
+const composingFiles = [];
 for (const file of sources) {
   const src = fs.readFileSync(file, 'utf8');
   PREFIX_RE.lastIndex = 0;
   let m;
   while ((m = PREFIX_RE.exec(src))) {
+    if (isCommented(src, m.index)) continue;
     prefixByName.set(m[1], m[2]);
   }
+  const idx = src.search(/BASE_URL[^}]*\}\s*\$\{/);
+  if (idx >= 0 && !isCommented(src, idx)) composingFiles.push(src);
 }
 
 // --- Pass 1: every anchored asset reference must resolve ---------------------
@@ -252,6 +282,20 @@ const staleOpaque = [...opaqueDirs].filter((d) => !prefixDirs.has(d));
 // these — that is the whole point of declaring them.
 const missingComposed = Object.keys(RUNTIME_COMPOSED).filter((rel) => !publicSet.has(rel));
 
+// ⚠ AND IT MUST STILL HAVE A LIVE CALLER — the same permanence bug as OPAQUE_DIRS,
+// on the other declaration. Remove the BSRadioLogo composition while leaving both
+// files in place and `missingComposed` stays empty while the manifest goes on
+// exempting them from the orphan pass forever. Reproduced. Binding: the file's
+// own basename must still appear in a source file that ALSO composes
+// `${BASE_URL}${var}`. That is the exact shape these entries describe, and it is
+// a staleness test rather than a resolution one — it can only keep a declaration
+// alive, never clear a reference, so the basename matching that was wrong in the
+// forward pass cannot do damage here.
+const staleComposed = Object.keys(RUNTIME_COMPOSED).filter((rel) => {
+  const base = rel.split('/').pop();
+  return !composingFiles.some((src) => src.includes(base));
+});
+
 // `resolved` now holds full publicDir paths, so a bare basename can no longer
 // exempt a nested file from this pass — the other half of the fallback defect.
 const unaccounted = publicFiles.filter((rel) => {
@@ -291,6 +335,12 @@ if (missingComposed.length) {
   console.error('\nMISSING RUNTIME-COMPOSED ASSET — declared as required, but not in mobile-app/public:');
   for (const r of missingComposed) console.error(`  ${r}\n      ${RUNTIME_COMPOSED[r]}`);
   console.error('  Restore it, or drop the entry if the code that composed the URL is gone.');
+}
+if (staleComposed.length) {
+  bad = 1;
+  console.error('\nSTALE RUNTIME-COMPOSED DECLARATION — no live `${BASE_URL}${var}` caller names it:');
+  for (const r of staleComposed) console.error(`  ${r}\n      declared because: ${RUNTIME_COMPOSED[r]}`);
+  console.error('  Delete the asset with the feature, or drop the entry so it is orphan-checked again.');
 }
 if (staleOpaque.length) {
   bad = 1;

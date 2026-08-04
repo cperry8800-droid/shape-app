@@ -62,16 +62,21 @@ function fixture({ src = {}, pub = {}, seedDeclared = true }) {
   const seedSrc = {};
   const seedPub = {};
   if (seedDeclared) {
-    for (const f of declaredKeys('RUNTIME_COMPOSED')) seedPub[f] = 'x';
+    const lines = [];
+    // Each RUNTIME_COMPOSED file needs BOTH the file itself and a live
+    // `${BASE_URL}${var}` caller naming it, else the entry reads as stale.
+    const composed = declaredKeys('RUNTIME_COMPOSED');
+    for (const f of composed) seedPub[f] = 'x';
+    if (composed.length) {
+      lines.push(`const _pick = cond ? ${composed.map((f) => `'${f}'`).join(' : ')};`);
+      lines.push('const _composed = `' + BASE + '${_pick}`;');
+    }
     // Each opaque directory needs BOTH a live prefix constant (else the entry
     // reads as stale) and at least one file (else the directory reads as empty).
     const dirs = declaredKeys('OPAQUE_DIRS');
-    if (dirs.length) {
-      seedSrc['__seed.jsx'] = dirs
-        .map((d, i) => 'const _seed' + i + ' = `' + BASE + d + '/`;')
-        .join('\n');
-      for (const d of dirs) seedPub[`${d}/__seed.jpg`] = 'x';
-    }
+    dirs.forEach((d, i) => lines.push('const _seed' + i + ' = `' + BASE + d + '/`;'));
+    for (const d of dirs) seedPub[`${d}/__seed.jpg`] = 'x';
+    if (lines.length) seedSrc['__seed.jsx'] = lines.join('\n');
   }
 
   write(join(dir, 'src'), { ...seedSrc, ...src });
@@ -333,6 +338,62 @@ test('an opaque declaration goes STALE when nothing composes it any more', () =>
   });
   assert.equal(res.code, 1, `a stale opaque declaration must fail:\n${res.out}`);
   assert.match(res.out, /STALE OPAQUE DECLARATION/, 'and must name the cause, not just the orphans');
+});
+
+test('a runtime-composed declaration goes STALE when its caller is removed', () => {
+  // The same permanence bug as OPAQUE_DIRS, on the other declaration: remove the
+  // composition that reached these files while leaving the files in place and
+  // the manifest exempts them from the orphan pass forever. seedDeclared:false
+  // withholds the seeded caller, i.e. simulates retiring the feature.
+  const res = fixture({
+    src: { 'a.jsx': '// the composition that reached the radio logos was deleted\n' },
+    pub: Object.fromEntries(declaredKeys('RUNTIME_COMPOSED').map((f) => [f, 'x'])),
+    seedDeclared: false,
+  });
+  assert.equal(res.code, 1, `a declaration with no live caller must fail:\n${res.out}`);
+  assert.match(res.out, /STALE RUNTIME-COMPOSED DECLARATION/);
+});
+
+test('a declaration inside a COMMENT does not keep an exemption alive', () => {
+  // Both realistic retirement shapes: a `//` line, and a `/* … */` body line.
+  for (const [shape, decl] of [
+    ['line comment', '// Retired: const BS_FACE_BASE = `' + BASE + 'faces/`;'],
+    ['block comment', '/*\n * const BS_FACE_BASE = `' + BASE + 'faces/`;\n */'],
+  ]) {
+    const res = fixture({
+      src: { 'a.jsx': decl + '\n' },
+      pub: { 'faces/member-01.jpg': 'x' },
+      seedDeclared: false,
+    });
+    assert.match(
+      res.out,
+      /STALE OPAQUE DECLARATION/,
+      `a ${shape} must not register a live prefix:\n${res.out}`,
+    );
+  }
+});
+
+test('a glob in a comment does not disable later declarations', () => {
+  // ⚠ REGRESSION GUARD FOR A BUG I SHIPPED AND CAUGHT IN THE SAME ROUND. The first
+  // comment check scanned backwards for an unclosed `/* */`, and
+  // iosAppBroadsheetClient.jsx:12330 carries the glob `/m/demo/*` inside a line
+  // comment — so every declaration after it read as commented and five live demo
+  // assets were reported orphaned. Any backwards scan over a 30k-line file will
+  // eventually find something shaped like `/*`; the check has to be line-local.
+  const res = fixture({
+    src: {
+      'a.jsx':
+        '// Media are same-origin /m/demo/* assets; the wall render takes a bypass.\n' +
+        'const P = `' + BASE + 'demo/`;\n' +
+        'const u = `${P}wall.webp`;\n',
+    },
+    pub: { 'demo/wall.webp': 'x' },
+  });
+  assert.equal(
+    res.code,
+    0,
+    `a glob in an earlier comment must not disable a real declaration:\n${res.out}`,
+  );
 });
 
 test('the hook classifies an ADDED public asset, not only a deleted one', () => {
