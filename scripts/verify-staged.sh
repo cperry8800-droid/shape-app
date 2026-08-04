@@ -107,13 +107,32 @@ done
 # under it becomes live. Not having one cannot go stale: the only cost is that
 # deleting genuinely-dead scratch runs one extra build, which is a once-ever
 # event and the safe direction.
+#
+# ⚠ AND IT ENUMERATES NOTHING EITHER — NOT PATHS, NOT EXTENSIONS. This arm has
+# now been wrong twice for the same reason. First it carried the parse arm's
+# path exclusions, which let a deletion of `public/vendor/supabase-js` (loaded by
+# 67 pages) report a clean pass. Then it listed JS/TS extensions only, which let
+# a deletion of `public/vendor/gridstack/gridstack.min.css` (loaded by 8 pages)
+# do exactly the same thing — and that file was in the output of the very audit
+# that produced the first fix.
+#
+# The pattern is the point: an allowlist of "what counts as code" is a bet that I
+# can name every asset type a deployed page can depend on. I lost that bet twice
+# in one PR. So there is no list — every deletion runs the checks, and the only
+# question left is whether the mobile build joins them.
+#
+# The cost is bounded and measured, not assumed: over a fixed 300-commit window
+# only 5 commits deleted anything at all, so this is ~1.7% of commits paying one
+# build. A false "no code staged — OK" on a removed live asset is worth more than
+# that. (This does NOT promise the gates catch every such deletion — nothing here
+# loads a vendor stylesheet. It promises the hook stops claiming there was
+# nothing to check.)
 for f in "${DELETED[@]}"; do
+  code_changed=1
   case "$f" in
-    mobile-app/*)
-      # The mobile arm above already decided whether this one matters.
-      case "$f" in *.mjs|*.cjs|*.js|*.jsx|*.ts|*.tsx) code_changed=1 ;; esac ;;
-    *.mjs|*.cjs|*.js|*.jsx|*.ts|*.tsx)
-      mobile_changed=1; code_changed=1 ;;
+    # The mobile arm above already judged anything under mobile-app/.
+    mobile-app/*) ;;
+    *) mobile_changed=1 ;;
   esac
 done
 

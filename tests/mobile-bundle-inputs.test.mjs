@@ -156,4 +156,23 @@ test('the hook classifies what a commit DELETES, not only what it adds', () => {
       'excluded from PARSING, and deleting a live vendored script is exactly the ' +
       'change that most needs the suite to run',
   );
+
+  // ⚠ AND IT MUST NOT ENUMERATE EXTENSIONS EITHER. Removing the path allowlist
+  // above left a JS/TS extension list, which let a deletion of
+  // `public/vendor/gridstack/gridstack.min.css` — loaded by 8 live pages —
+  // report the same false "no code staged" pass. Two allowlists, same bug, one
+  // PR. So `code_changed` is now set unconditionally for every deleted path and
+  // only the mobile build stays conditional. Reintroducing any `case` around
+  // `code_changed` here fails this.
+  assert.match(
+    delLoop,
+    /^\s*code_changed=1\s*$/m,
+    'every deleted path must set code_changed unconditionally — an extension allowlist here ' +
+      'already produced a false "no code staged" pass on a stylesheet 8 live pages load',
+  );
+  assert.ok(
+    !/\*\.mjs|\*\.jsx|\*\.tsx/.test(delLoop),
+    'the deletion loop must not gate on source extensions — a deleted asset can break a ' +
+      'deployed page without being JS/TS (css, html, json all qualify)',
+  );
 });
