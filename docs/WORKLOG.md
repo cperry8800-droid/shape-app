@@ -180,8 +180,9 @@ changelog whenever something ships.
 
 > **Latest (2026-08-02): BOUNDARY-CAUGHT REACT CRASHES NOW REACH SENTRY, ON BOTH APP
 > SURFACES** (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` ·
-> `d2a99def8` on `claude/sentry-boundary-crashes`, based on the unmerged
-> `claude/error-tracking-layer-1-sentry`, not yet merged). An error boundary that catches a
+> `d2a99def8` on `claude/sentry-boundary-crashes`, stacked on
+> `claude/error-tracking-layer-1-sentry` — **MERGED as #1868 → `5e16898b6`**). An error
+> boundary that catches a
 > crash **prevents it from ever reaching `window.onerror`** — so Layer 1's global handlers
 > were structurally blind to exactly the crash class this repo has shipped (TDZ / hook-order,
 > #1781). Mobile `/m/` now captures from `componentDidCatch` through one total seam; the Next
@@ -218,7 +219,7 @@ changelog whenever something ships.
 > **Prior (2026-08-01): ERROR TRACKING LAYER 1 — SENTRY WIRED INTO ALL THREE RUNTIMES,
 > COMPLETELY INERT** (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` ·
 > `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab` on
-> `claude/error-tracking-layer-1-sentry`, not yet merged). Next.js pages + all 156 API routes
+> `claude/error-tracking-layer-1-sentry`; **MERGED as #1866 → `9d0bf52c5`**). Next.js pages + all 156 API routes
 > (`@sentry/nextjs`), the `/m/` mobile app (`@sentry/capacitor` + `@sentry/react`), and the
 > static website (a dependency-free `sentryInit.js` classic script — no bundler there) each
 > now carry a Sentry SDK.
@@ -376,7 +377,7 @@ changelog whenever something ships.
 > **Prior (2026-07-31): ERROR TRACKING LAYER 2 — THE GUARDRAIL-HEALTH CRON, FOUR CHECKS
 > OVER `analytics_events`, DAILY AT 09:00 UTC** (`51e0bbc05` / `2004209ef` / `8e61f4687` /
 > `810110fdc` / `46dc67be0` / `47729fe8b` / `3b51f7271` / `943eafb43` / `af3b8f6ac` on
-> `claude/error-tracking-layer2`, not yet merged). A scheduled check for the
+> `claude/error-tracking-layer2`; **MERGED as #1857 → `eedc78dc5`**). A scheduled check for the
 > failure modes Sentry can never see, because the progression guardrail never throws by
 > contract — `/api/cron/guardrail-health`, mirroring the existing `funnel.mjs` /
 > `guardrail-gate.mjs` split: a pure, tested evaluation core (`src/lib/guardrail-health.mjs`)
@@ -1521,7 +1522,7 @@ changelog whenever something ships.
 - Suite **1458/1458** · tsc clean · CI green (Web · Mobile · gitleaks · Tests). Branch
   kept.
 
-### 2026-08-02 — Boundary-caught React crashes now reach Sentry, on BOTH app surfaces (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` · `d2a99def8`, branch `claude/sentry-boundary-crashes`, based on the unmerged `claude/error-tracking-layer-1-sentry`, not yet merged)
+### 2026-08-02 — Boundary-caught React crashes now reach Sentry, on BOTH app surfaces (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` · `d2a99def8`, branch `claude/sentry-boundary-crashes` — **MERGED as #1868 → `5e16898b6`**)
 
 - **Five build tasks, spec at `docs/superpowers/specs/2026-08-02-boundary-crashes-sentry-design.md`,
   plan at `docs/superpowers/plans/2026-08-02-boundary-crashes-sentry.md`.** Layer 1 wired the
@@ -1663,7 +1664,7 @@ changelog whenever something ships.
   shipped `sentryInit.js` global handlers already cover); user context on the two web surfaces
   (already a registered Layer 1 follow-up).
 
-### 2026-08-01 — Error tracking Layer 1: Sentry wired into all three runtimes, completely inert (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` · `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab`, branch `claude/error-tracking-layer-1-sentry`, not yet merged)
+### 2026-08-01 — Error tracking Layer 1: Sentry wired into all three runtimes, completely inert (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` · `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab`, branch `claude/error-tracking-layer-1-sentry` — **MERGED as #1866 → `9d0bf52c5`**)
 
 - **Six tasks, plan at `docs/superpowers/plans/2026-08-01-error-tracking-layer-1-sentry.md`.**
   Governing constraint: no Sentry DSN exists anywhere, so every surface must build and run
@@ -2081,6 +2082,22 @@ changelog whenever something ships.
   the mobile build's source-map strip verified end to end (26 stripped, **0** left in
   `dist/`, **0** in `public/m`).
 
+### 2026-08-01 — Dependency sweep: 4 Dependabot PRs merged (#1860–#1863)
+
+Recorded 2026-08-04 — these merged without a changelog entry and are listed here so
+the lockfile churn is attributable.
+
+- **#1863 → `7e95b9ee5`** — mobile-deps group, **15 updates**. Touched
+  `mobile-app/package.json` + `mobile-app/package-lock.json`. ⚠ That lockfile is what
+  **`codemagic.yaml` consumes to build the iOS TestFlight IPA on every push to
+  `main`** — a mobile dependency bump is an iOS-build-input change, not a chore.
+- **#1862 → `a46078475`** — web-deps group, **9 updates** (root `package.json` +
+  `package-lock.json`).
+- **#1861 → `997f1a84f`** — `actions/upload-artifact` **4 → 7** in
+  `.github/workflows/android-build.yml`.
+- **#1860 → `f7916ca8e`** — `actions/setup-node` **6 → 7** in `android-build.yml`
+  **and `ci.yml`** — i.e. it changed the runner setup for every required check.
+
 ### 2026-08-01 — The masthead contract: one row, one inset, every page
 
 - **Owner ruling** (with a screenshot of the chat page's masthead): *"please make sure this
@@ -2415,7 +2432,7 @@ changelog whenever something ships.
   across papers, on both roles, plus a scroll past 64px on a corner-less page (the live monitor
   or the health gate) to confirm the pinned corner stays away.
 
-### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
+### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2` — **MERGED as #1857 → `eedc78dc5`**)
 
 - **A daily scheduled check over `analytics_events`, at `/api/cron/guardrail-health`, 09:00
   UTC on Vercel cron.** Design: `docs/superpowers/specs/2026-07-31-error-tracking-design.md`;
@@ -2562,7 +2579,7 @@ changelog whenever something ships.
   is done, plus the eight env vars, a redeploy and both alert rules, nothing notifies a human.
   (⚠ This said "four projects" — corrected 2026-08-01; four DSN values, three projects.)
 
-### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3)
+### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3) (**#1859 → `37a7fbd3e`**)
 
 - **Owner screenshot: a strip of page content showed between the message composer
   and the bottom tab bar.** Root cause: the #1603 chrome pass trimmed the tab bar
@@ -2578,7 +2595,7 @@ changelog whenever something ships.
   docked flush (the house instrument-chrome language — the gap only READ as
   floating because it was broken).
 
-### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board)
+### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board) (**#1858 → `95e129274`**)
 
 - **The "Front Page" cream curtain (owner pick 2026-07-23) is replaced** on
   `public/newdesign/index.html`. The critique that triggered it (owner: "i dont love
