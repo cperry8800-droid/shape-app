@@ -1516,7 +1516,7 @@ changelog whenever something ships.
   tree — a commented-out `${BASE_URL}x.png`, and a commented-out URL composition sitting
   above a live one). A check a developer cannot fix except by editing the checker teaches
   `--no-verify`, which also disables the mount tests. **Registered, not solved:** an
-  AST-based version. ⚠ **`90f92f743` (branch `claude/asset-refs-checker-parked`) is a
+  AST-based version. ⚠ **`90f92f743` — tag **`parked/asset-refs-checker`** — is a
   STARTING POINT, not something to re-land as-is** — it is the file with the seven open
   defects above, and its `isCommented` regex IS the defect. Replace the lexing with a
   real parse before any of it returns; re-landing it verbatim revives every false alarm
