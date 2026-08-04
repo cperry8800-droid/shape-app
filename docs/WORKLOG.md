@@ -178,7 +178,21 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-02): BOUNDARY-CAUGHT REACT CRASHES NOW REACH SENTRY, ON BOTH APP
+> **Latest (2026-08-04): THE GATES ACTUALLY GATE — CI RUNS THE SUITE, THE HOOK STOPS
+> LYING (#1869 → `77a064895`).** `npm test` now runs in CI for the first time
+> (**`Tests (unit + mount)`**) — ⚠ **advisory until the owner adds it to `main` branch
+> protection**, which today requires only Web · Mobile · gitleaks. And
+> `scripts/verify-staged.sh` stopped reporting clean passes on unverified code three
+> ways: the mobile arm judged **321 of 791** tracked mobile files while a skip claimed
+> it judged all of them, `--diff-filter=ACM` let a deletion-only commit run **nothing**
+> and exit 0, and the deletion arm's list of "what counts as code" went stale twice in
+> one PR. ⚠ **A `mobile-app/public/` asset deletion remains UNGATED end to end** —
+> measured, and written down at the deletion arm rather than dropped.
+> Handoff: **[`docs/HANDOFF-2026-08-04.md`](HANDOFF-2026-08-04.md)**.
+>
+> See the full entry below.
+
+> **Prior (2026-08-02): BOUNDARY-CAUGHT REACT CRASHES NOW REACH SENTRY, ON BOTH APP
 > SURFACES** (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` ·
 > `d2a99def8` on `claude/sentry-boundary-crashes`, stacked on
 > `claude/error-tracking-layer-1-sentry` — **MERGED as #1868 → `5e16898b6`**). An error
@@ -1521,6 +1535,10 @@ changelog whenever something ships.
   text and a comment keeps it alive with no subject at all.
 - Suite **1458/1458** · tsc clean · CI green (Web · Mobile · gitleaks · Tests). Branch
   kept.
+- **Session handoff: [`docs/HANDOFF-2026-08-04.md`](HANDOFF-2026-08-04.md)** — covers
+  2026-07-31 → 2026-08-04 (four sessions shipped in that window without one), the
+  outstanding owner actions, and the records sweep that flipped six false "not yet
+  merged" claims in this file.
 
 ### 2026-08-02 — Boundary-caught React crashes now reach Sentry, on BOTH app surfaces (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` · `d2a99def8`, branch `claude/sentry-boundary-crashes` — **MERGED as #1868 → `5e16898b6`**)
 
