@@ -538,7 +538,16 @@ changelog whenever something ships.
 > **The general rule: a content-derived idempotency key is a promise about CONTENT — anything
 > it omits is a different assignment answering as an old one, silently.**
 >
-> ⚠ **ONE OWNER MIGRATION REMAINS**, and only **after** the deploy that ships the new publish
+> ✅ **ALL MIGRATIONS IN THIS WAVE ARE NOW APPLIED — verified against production 2026-08-04.**
+> The two below were carried as outstanding for days by this file, the 07-30 handoff and my
+> memory; all three were wrong. `2026-08-01-client-schedule-serialize.sql` is live
+> (`regenerate_client_workouts` holds a `pg_advisory_xact_lock`, which it took *no* lock
+> before that migration), and `2026-07-31-coach-insert-lockout.sql` is live
+> (`trainer_insert_on_client_workouts` is absent while everything the migration preserves
+> is present; only that migration drops it without recreating it). **Zero are owed.**
+> The original note, now historical:
+>
+> ⚠ ~~**ONE OWNER MIGRATION REMAINS**~~, and only **after** the deploy that ships the new publish
 > path (against the old code it breaks the website's publish button):
 > **`2026-07-31-coach-insert-lockout.sql`**. All six earlier migrations are applied and
 > verified live. Its structural assertion was itself fixed at review — it filtered
@@ -552,7 +561,9 @@ changelog whenever something ships.
 > real fix needs the server to evaluate the resulting *slotted* schedule and that is a design
 > change, not a guard. **A load guarantee about a ROW is not a load guarantee about the
 > SCHEDULE that row appears in.** Suite **1347**; tsc clean; mobile build clean.
-> Open: OWNER on-device pass · the migration above.
+> Open: OWNER on-device pass. ⚠ **The migration this line used to name is APPLIED**
+> (verified against production 2026-08-04, see the ✅ note at the top of this entry) —
+> nothing in this wave is owed.
 >
 > **Prior (2026-07-27→28): PROGRESSION GUARDRAILS — session-RPE capture + the pure
 > advisory core (#1846).** Advisory load flags on a coach-authored training week: the
@@ -1516,7 +1527,7 @@ changelog whenever something ships.
   tree — a commented-out `${BASE_URL}x.png`, and a commented-out URL composition sitting
   above a live one). A check a developer cannot fix except by editing the checker teaches
   `--no-verify`, which also disables the mount tests. **Registered, not solved:** an
-  AST-based version. ⚠ **`90f92f743` (branch `claude/asset-refs-checker-parked`) is a
+  AST-based version. ⚠ **`90f92f743` — tag **`parked/asset-refs-checker`** — is a
   STARTING POINT, not something to re-land as-is** — it is the file with the seven open
   defects above, and its `isCommented` regex IS the defect. Replace the lexing with a
   real parse before any of it returns; re-landing it verbatim revives every false alarm
@@ -2838,7 +2849,8 @@ findings, two fixed, one withdrawn by CodeRabbit, one deferred by agreement.
   (**applied + verified live**) → `2026-07-30-adjust-regeneration-ack.sql` (**applied +
   verified live 2026-07-30**) → `2026-07-30-week-publish-precondition.sql` (**applied +
   verified live 2026-07-30**) → `2026-07-31-week-publish-serialize.sql` (**applied +
-  verified live 2026-07-30**) → `2026-08-01-client-schedule-serialize.sql` (**outstanding**;
+  verified live 2026-07-30**) → `2026-08-01-client-schedule-serialize.sql` (⚠ said
+  **outstanding** here — **APPLIED, verified live 2026-08-04**;
   order-independent — safe before or after the deploy). The third **drops the eight-argument
   `publish_client_week`**; leaving both overloads would make every publish ambiguous
   under PostgREST, since an eight-argument call matches both once the ninth defaults.
@@ -2997,8 +3009,9 @@ findings, two fixed, one withdrawn by CodeRabbit, one deferred by agreement.
   "zero affected rows = the honest *Changed since* conflict" rule and never extended it to
   the **four coach-tool** undos (`assign_workout` · `assign_meal_plan` · `set_program_detail`
   · `add_review_note`). Both pre-date this wave.
-- **Open:** ⚠ **`2026-08-01-client-schedule-serialize.sql`** (order-independent) and
-  **`2026-07-31-coach-insert-lockout.sql` only AFTER the deploy** — the other four are
+- **Open:** ⚠ ~~**`2026-08-01-client-schedule-serialize.sql`** (order-independent) and
+  **`2026-07-31-coach-insert-lockout.sql` only AFTER the deploy**~~ — **BOTH APPLIED,
+  verified against production 2026-08-04; nothing here is owed.** The other four are
   applied + verified live; the earlier RE-RUN warning is superseded · Codex on the final
   head (CodeRabbit waived on this PR by the owner) · the owner's say. Handoff:
   **[`docs/HANDOFF-2026-07-30.md`](HANDOFF-2026-07-30.md)**.
