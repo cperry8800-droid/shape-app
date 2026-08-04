@@ -1459,11 +1459,16 @@ changelog whenever something ships.
 
 ### 2026-08-04 — The gates actually gate: CI runs the suite, the hook stops lying (#1869 → `77a064895`)
 
-- **`npm test` is a required CI check for the first time.** The whole suite — every
-  mount test included — was enforced ONLY by the local pre-commit hook, which is
-  bypassable (`SKIP_VERIFY=1`) and only armed on a machine that ran the SessionStart
-  hook. New **`Tests (unit + mount)`** job in `ci.yml`. ⚠ **OWNER: add it to `main`
-  branch protection** — a job in that file is advisory until it is in the required list.
+- **`npm test` now RUNS in CI on every PR — it is NOT yet a merge gate.** The whole
+  suite — every mount test included — was enforced ONLY by the local pre-commit hook,
+  which is bypassable (`SKIP_VERIFY=1`) and only armed on a machine that ran the
+  SessionStart hook. New **`Tests (unit + mount)`** job in `ci.yml`. ⚠ **OWNER: add it to
+  `main` branch protection (Settings → Branches)** — a job in `ci.yml` is **advisory**
+  until it is in the required list, so until then a PR can merge with the suite RED and
+  the hook is still the only thing standing between a broken test and `main`. Verified
+  live 2026-08-04: the required contexts are **three** — `Web (typecheck + build)`,
+  `Mobile (build + public/m sync)`, `Secret scan (gitleaks)`. Re-check before ever
+  writing that the suite is enforced.
 - **The hook's classifier was wrong three ways, each producing a false "all checks
   passed" on unverified code:**
   - **The mobile arm judged 321 of 791 tracked `mobile-app/` files**, while the deletion
@@ -1496,7 +1501,12 @@ changelog whenever something ships.
   tree — a commented-out `${BASE_URL}x.png`, and a commented-out URL composition sitting
   above a live one). A check a developer cannot fix except by editing the checker teaches
   `--no-verify`, which also disables the mount tests. **Registered, not solved:** an
-  AST-based version, re-landable **verbatim from `90f92f743`** as its own PR. It needs
+  AST-based version. ⚠ **`90f92f743` (branch `claude/asset-refs-checker-parked`) is a
+  STARTING POINT, not something to re-land as-is** — it is the file with the seven open
+  defects above, and its `isCommented` regex IS the defect. Replace the lexing with a
+  real parse before any of it returns; re-landing it verbatim revives every false alarm
+  listed here. The forward/reverse pass structure and the three declared maps are the
+  parts worth keeping. It needs
   `@babel/parser` declared (it is in NEITHER manifest today — root resolves **8.0.4**,
   mobile-app **7.29.7**), which regenerates `mobile-app/package-lock.json` — the lockfile
   **`codemagic.yaml` consumes to build the iOS TestFlight IPA on every push to `main`**.
