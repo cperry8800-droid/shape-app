@@ -6715,7 +6715,10 @@ function BSNutriPlans() {
         if (mode) {
           try {
             const res = await window.ShapeAI?.generatePlanDraft?.({ kind: mode, goal, client: '', level: diet, duration: '7 days', calories: String(kcalTarget), mealsPerDay: mealsDay, preferences: desc, protein: '' });
-            used = bsDraftFromResponse(mode, res && res.draft);
+            // The MEALS / DAY and DAILY CALORIES chips are asked for in the
+            // prompt AND enforced here — a draft that ignores them loses to the
+            // template, which honours both exactly.
+            used = bsDraftFromResponse(mode, res && res.draft, { meals: mealsDay, calories: kcalTarget });
           } catch (e) { used = null; }
         }
       }

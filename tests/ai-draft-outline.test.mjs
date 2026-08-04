@@ -324,3 +324,95 @@ test('the six-meal template survives its own validator (no self-refusal)', () =>
   });
   assert.ok(bsDraftOutline('meal_plan', asBlocks), 'our own template must pass our own gate');
 });
+
+// ── meal_plan `fit`: the coach's own two numbers ─────────────────────────────
+// Per-line and per-key checks both pass on a draft that ignores MEALS / DAY and
+// DAILY CALORIES, and that draft would then be used INSTEAD of the template that
+// honours them exactly.
+
+const mealBlocks = (...pairs) => pairs.map(([title, detail]) => ({ title, detail }));
+
+test('meal_plan refuses a draft with the wrong MEAL COUNT', () => {
+  // The exact vector: 6 meals / 3000 kcal asked for, two meals returned.
+  const two = mealBlocks(['Breakfast', 'Oats · 500 kcal'], ['Dinner', 'Salmon · 400 kcal']);
+  assert.ok(bsDraftOutline('meal_plan', two), 'valid grammar on its own');
+  assert.equal(bsDraftOutline('meal_plan', two, { meals: 6, calories: 3000 }), null);
+});
+
+test('meal_plan refuses a draft that misses the CALORIE target', () => {
+  const four = mealBlocks(
+    ['Breakfast', 'Oats · 300 kcal'], ['Lunch', 'Bowl · 300 kcal'],
+    ['Snack', 'Fruit · 150 kcal'], ['Dinner', 'Salmon · 350 kcal'],
+  );
+  // Right number of meals, 1100 kcal against a 3000 kcal target.
+  assert.equal(bsDraftOutline('meal_plan', four, { meals: 4, calories: 3000 }), null);
+  // The same draft is fine against the target it actually adds up to.
+  assert.ok(bsDraftOutline('meal_plan', four, { meals: 4, calories: 1100 }));
+});
+
+test('meal_plan allows the model to land NEAR the target, not exactly on it', () => {
+  // The prompt says "approximately" — a model rounding its own arithmetic must
+  // not be refused, or the AI path falls back to the template every time and is
+  // dead again. 3040 vs 3000 is inside the band; 3400 is not.
+  const near = mealBlocks(
+    ['Breakfast', 'Oats · 760 kcal'], ['Lunch', 'Bowl · 760 kcal'],
+    ['Snack', 'Fruit · 760 kcal'], ['Dinner', 'Salmon · 760 kcal'],
+  );
+  assert.ok(bsDraftOutline('meal_plan', near, { meals: 4, calories: 3000 }));
+  assert.equal(bsDraftOutline('meal_plan', near, { meals: 4, calories: 2000 }), null);
+});
+
+test('meal_plan requires calories on EVERY line (no 0 kcal beside real food)', () => {
+  assert.equal(bsDraftOutline('meal_plan', mealBlocks(
+    ['Breakfast', 'Oats · 400 kcal'], ['Lunch', 'Chicken rice bowl'],
+  )), null);
+});
+
+test('the template passes the gate WITH the chips enforced, at every meal count', () => {
+  // The regression that matters most: our own fallback must satisfy the rule we
+  // hold the model to, or the two halves of this feature disagree.
+  for (const meals of [3, 4, 5, 6]) {
+    for (const calories of [1800, 2100, 3000]) {
+      const asBlocks = bsMealPlanTemplate(meals, calories).map((l) => {
+        const [title, detail] = l.split(' — ');
+        return { title, detail };
+      });
+      assert.ok(
+        bsDraftOutline('meal_plan', asBlocks, { meals, calories }),
+        `template ${meals} meals / ${calories} kcal must pass its own gate`,
+      );
+    }
+  }
+});
+
+test('an unusable expectation fails CLOSED (degrades to the template)', () => {
+  const four = mealBlocks(
+    ['Breakfast', 'Oats · 500 kcal'], ['Lunch', 'Bowl · 500 kcal'],
+    ['Snack', 'Fruit · 500 kcal'], ['Dinner', 'Salmon · 500 kcal'],
+  );
+  const hostile = { get meals() { throw new Error('nope'); }, calories: 2000 };
+  assert.equal(bsDraftOutline('meal_plan', four, hostile), null);
+  // Junk numbers are simply not enforced — they are not a reason to refuse a
+  // grammatically valid draft.
+  assert.ok(bsDraftOutline('meal_plan', four, { meals: NaN, calories: null }));
+  assert.ok(bsDraftOutline('meal_plan', four, {}));
+});
+
+test('bsDraftFromResponse threads the expectation through', () => {
+  const draft = {
+    title: 'Cut menu',
+    blocks: mealBlocks(['Breakfast', 'Oats · 500 kcal'], ['Dinner', 'Salmon · 500 kcal']),
+  };
+  assert.ok(bsDraftFromResponse('meal_plan', draft), 'no expectation, accepted');
+  assert.equal(bsDraftFromResponse('meal_plan', draft, { meals: 5, calories: 2500 }), null);
+});
+
+test('the expectation is meal_plan ONLY (trainer templates ignore their chips)', () => {
+  // Enforcing a week count would refuse a good 10-week draft in favour of a
+  // fixed 6-week template — stricter than the fallback, and worse for the coach.
+  const weeks = blocks(['Week 1', 'Accumulation'], ['Week 2', 'Deload']);
+  assert.ok(bsDraftOutline('training_plan', weeks, { meals: 6, calories: 3000 }));
+  assert.ok(bsDraftOutline('nutrition_program', weeks, { meals: 6, calories: 3000 }));
+  const day = blocks(['Mon', 'Upper'], ['Tue', 'Lower'], ['Wed', 'Rest']);
+  assert.ok(bsDraftOutline('training_program', day, { meals: 7, calories: 3000 }));
+});

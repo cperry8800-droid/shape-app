@@ -204,15 +204,52 @@ function draftLine(block) {
 //
 // Deliberately absent for `meal_plan`: a day legitimately repeats `Snack`, and
 // for `workout`/`diet`, where repetition is the coach's business.
+
+// ⚠ `fit` is the THIRD half: does the accepted draft honour what the coach
+// actually chose? Per-line and per-key checks both pass on a two-meal, 900 kcal
+// answer to "6 meals / 3000 kcal" — and that draft would then be used INSTEAD of
+// a template that honours both chips exactly, so the AI path would silently undo
+// the only two numbers on the screen the coach set by hand.
+//
+// It applies to `meal_plan` alone, and the reason is a rule worth keeping: only
+// enforce a number the coach explicitly picked AND the deterministic fallback
+// already honours. MEALS / DAY and DAILY CALORIES are both. The trainer
+// templates are fixed lists that ignore their `duration` chip, so enforcing a
+// week count there would refuse a good 10-week draft in favour of a 6-week
+// template — stricter than the fallback, and worse for the coach.
+const DRAFT_KCAL_TOLERANCE = 0.1;
+
+function mealPlanFits(lines, expect) {
+  const meals = Math.round(Number(expect.meals));
+  if (Number.isFinite(meals) && meals > 0 && lines.length !== meals) return false;
+
+  const target = Math.round(Number(expect.calories));
+  if (Number.isFinite(target) && target > 0) {
+    // `ok` already required a real figure on every line, so this sums the
+    // draft's own stated calories, never a fabricated 0.
+    const total = lines.reduce((acc, line) => acc + bsAssignMeal(line).kcal, 0);
+    if (Math.abs(total - target) > target * DRAFT_KCAL_TOLERANCE) return false;
+  }
+  return true;
+}
+
 const DRAFT_MODE_RULES = Object.freeze({
   workout:           { min: 2, ok: (line) => { const x = bsAssignExercise(line); return !!(x && x.name); } },
   training_program:  { min: 3, ok: (line) => !!bsAssignDayLine(line), key: (line) => bsAssignDayLine(line).dow },
   training_plan:     { min: 2, ok: (line) => !!bsAssignWeekLine(line), key: (line) => bsAssignWeekLine(line).week },
   nutrition_program: { min: 2, ok: (line) => !!bsAssignWeekLine(line), key: (line) => bsAssignWeekLine(line).week },
-  // A meal line must resolve to a REAL slot. `bsAssignMeal` falls back to the
-  // slot 'MEAL' for anything it does not recognise, so accepting its non-null
-  // return would accept every string — the check has to be the slot itself.
-  meal_plan:         { min: 2, ok: (line) => { const m = bsAssignMeal(line); return !!(m && m.slot && m.slot !== 'MEAL'); } },
+  // A meal line must resolve to a REAL slot AND carry calories. `bsAssignMeal`
+  // falls back to the slot 'MEAL' for anything it does not recognise, so
+  // accepting its non-null return would accept every string — the check has to
+  // be the slot itself. The kcal requirement is the same rule the route's
+  // grammar already states ("MUST end with the calories"): a meal line with no
+  // figure parses to `kcal: 0`, and a menu printing 0 kcal beside real food is
+  // a worse starting template than the deterministic one.
+  meal_plan: {
+    min: 2,
+    ok: (line) => { const m = bsAssignMeal(line); return !!(m && m.slot && m.slot !== 'MEAL' && m.kcal > 0); },
+    fit: mealPlanFits,
+  },
   // Diet is an options list with no downstream parse, so it carries no grammar
   // requirement — only that the lines are non-empty.
   diet:              { min: 2, ok: (line) => !!line },
@@ -222,7 +259,9 @@ const DRAFT_MODE_RULES = Object.freeze({
 // "unusable — keep the template". Null is the honest answer, not an empty
 // array: an empty outline would open the editor on a blank plan and read as a
 // successful generation that produced nothing.
-export function bsDraftOutline(mode, blocks) {
+// `expect` carries the coach's own chosen numbers (see `fit` above). Omitting
+// it keeps every pre-existing caller's behaviour unchanged.
+export function bsDraftOutline(mode, blocks, expect) {
   const rule = DRAFT_MODE_RULES[String(mode || '')];
   if (!rule) return null;
   if (!Array.isArray(blocks) || !blocks.length) return null;
@@ -242,7 +281,16 @@ export function bsDraftOutline(mode, blocks) {
     }
     lines.push(line);
   }
-  return lines.length >= rule.min ? lines : null;
+  if (lines.length < rule.min) return null;
+
+  if (rule.fit && expect) {
+    // Fails CLOSED on a throw: an expectation we cannot evaluate degrades to
+    // the template, which is this whole path's floor.
+    let fits = false;
+    try { fits = !!rule.fit(lines, expect); } catch { fits = false; }
+    if (!fits) return null;
+  }
+  return lines;
 }
 
 // The ONE entry point the builders call. Returns `{ lines, name, note }` when
@@ -252,8 +300,8 @@ export function bsDraftOutline(mode, blocks) {
 // draft whose blocks were refused is a draft we did not accept, and stamping
 // its title over the builder's template outline would advertise a generation
 // that did not survive.
-export function bsDraftFromResponse(mode, draft) {
-  const lines = bsDraftOutline(mode, draft && safeProp(draft, 'blocks'));
+export function bsDraftFromResponse(mode, draft, expect) {
+  const lines = bsDraftOutline(mode, draft && safeProp(draft, 'blocks'), expect);
   if (!lines) return null;
 
   const name = draftProp(draft, 'title');
