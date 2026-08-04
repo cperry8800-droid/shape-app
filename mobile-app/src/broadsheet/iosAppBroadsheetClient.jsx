@@ -10370,6 +10370,16 @@ function BSChannelIcon({ name, size = 20 }) {
 // profiles. Real members (with a userId) never use these; they show their own
 // photo or initials. Self-hosted AI portraits (served from /m/faces/), the same
 // consistent set as the presence rail below.
+// ⚠ THESE FILENAMES ARE UNCOVERED BY EVERY GATE IN THE REPO, DELIBERATELY.
+// The URL is composed at runtime, so the string "member-07.jpg" appears nowhere
+// in mobile-app/src and "maya.jpg" appears nowhere in the repo at all. Vite
+// copies publicDir verbatim and exits 0 with any of them deleted, and nothing in
+// the repo verifies which members faces/ holds. A basename grep is not a weaker check
+// here, it is a WRONG one: maya.jpg gets cleared as unreferenced (it renders
+// Maya Okafor in the signed-out presence rail), while member-07.jpg looks
+// referenced only because the WEBSITE's separate public/newdesign/faces/ carries
+// the same basename. So deleting or renaming one file in mobile-app/public/faces/
+// is a silent break — check the slugs below by hand before touching that folder.
 const BS_FACE_BASE = `${import.meta.env.BASE_URL}faces/`;
 const bsFaceUrl = (slug) => slug ? `${BS_FACE_BASE}${slug}.jpg` : null;
 const BS_DEMO_FACES = ['member-01', 'member-02', 'member-03', 'member-04', 'member-05', 'member-06', 'member-07', 'member-08', 'member-09', 'member-10', 'member-11', 'member-12'];

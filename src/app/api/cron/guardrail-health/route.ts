@@ -228,9 +228,18 @@ function authorized(req: Request): boolean {
  * DSN is configured, which is precisely the silent-alerting failure Layer 2
  * exists to catch, one level up.
  */
-function reportAlerts(alerts: Array<{ check: string; severity: string; message: string }>): void {
+function reportAlerts(
+  alerts: Array<{ check: string; severity: string; message: string; state?: string }>,
+): void {
   for (const a of alerts) {
-    console.error('[shape-health]', JSON.stringify({ alert: 'guardrail-health', ...a }));
+    // ⚠ `info` MUST NOT LOG AT ERROR LEVEL. A read that merely spent its row
+    // budget with the count in agreement is not an incident, and an error-level
+    // line on a run with nothing known missing is exactly the noise that gets a
+    // check muted — after which the warning-level ones stop being read too.
+    // This mapping is why the truncation alert can now come through here
+    // instead of logging inline: routing it used to mean losing the split.
+    const log = a.severity === 'info' ? console.warn : console.error;
+    log('[shape-health]', JSON.stringify({ alert: 'guardrail-health', ...a }));
     // ⚠ A throw here — from the SDK itself, or from a future change to it —
     // must never cost an alert its console.error line above, which is the
     // ONLY sink that exists before a DSN is configured. Caught and swallowed,
@@ -240,8 +249,14 @@ function reportAlerts(alerts: Array<{ check: string; severity: string; message: 
     // reports the rest of the alerts to nobody, not even the log).
     try {
       Sentry.captureMessage(a.message, {
-        level: a.severity === 'warning' ? 'warning' : 'error',
-        tags: { alert: 'guardrail-health', check: a.check },
+        level: a.severity === 'info' ? 'info' : a.severity === 'warning' ? 'warning' : 'error',
+        // `state` rides along when the alert carries one (today: the
+        // evaluation_read truncation finding). The console line already gets it
+        // via the `...a` spread above; without it here the ONE field that
+        // distinguishes "this run read everything" from "this run lost rows" is
+        // filterable in the log and invisible in the dashboard — which is the
+        // wrong way round, since the dashboard is where a human looks.
+        tags: { alert: 'guardrail-health', check: a.check, ...(a.state ? { state: a.state } : {}) },
       });
     } catch {
       // deliberately empty — see the comment above.
@@ -301,6 +316,16 @@ export async function GET(request: Request) {
     // ── 2. The evaluations, last 7d — newest first, bounded, truncation-aware.
     const { rows: rawEvals, matched, truncated, state } = await readEvaluations(admin, since7d);
     const read = { evaluations: rawEvals.length, matched, truncated, state };
+    // ⚠ HELD, NOT JUST EMITTED. The truncation finding is reported immediately
+    // below (so it still reaches Sentry even if the evaluation throws), but it
+    // must ALSO reach the run's `alerted` aggregate. Routing it through
+    // reportAlerts and stopping there was half a fix: the row persisted
+    // `alerted: false` and the response returned `alerted: 0` on a run whose
+    // ONLY finding was "this read may have lost rows" — so a query asking which
+    // runs alerted would skip precisely the run that says do not trust the
+    // others. That is the same "dashboard reads clean" failure the comment
+    // below exists to prevent, one layer up.
+    const readAlerts: Array<{ check: string; severity: string; message: string; state?: string }> = [];
     if (truncated || matched === null) {
       // ⚠ ONE FLAG, FOUR DIFFERENT FACTS — AND THE LOG MUST SAY WHICH. Every
       // verdict below was computed on a read that cannot PROVE it saw the whole
@@ -317,14 +342,20 @@ export async function GET(request: Request) {
       // loss; `info` is for one that merely spent its budget — an error-level line
       // on a run with nothing known missing is the noise that gets a check muted.
       const severity = state === 'ceiling_exact' ? 'info' : 'warning';
-      const log = severity === 'info' ? console.warn : console.error;
-      log('[shape-health]', JSON.stringify({
-        alert: 'guardrail-health',
+      // ⚠ GOES THROUGH reportAlerts, NOT AN INLINE LOG. This used to emit its
+      // own console line, which meant it was the ONE finding structurally
+      // excluded from the Sentry path — and it is the finding that says "do not
+      // trust this run's other verdicts", because every one of them was computed
+      // on a read that may have lost rows. A degraded read reaching only Vercel
+      // logs while the verdicts it undermines reach Sentry is worse than not
+      // alerting at all: the dashboard reads clean.
+      readAlerts.push({
         check: 'evaluation_read',
         severity,
         state,
         message: bsReadStateNote({ state, rows: rawEvals.length, matched, ceiling: EVAL_MAX_ROWS }),
-      }));
+      });
+      reportAlerts(readAlerts);
     }
 
     const evaluations = rawEvals.map((r: { props: unknown }) => {
@@ -358,6 +389,13 @@ export async function GET(request: Request) {
 
     reportAlerts(alerts);
 
+    // ⚠ THE RUN'S ALERT COUNT IS BOTH SOURCES, NOT JUST THE EVALUATOR'S. See the
+    // note beside `readAlerts`: a truncated read is a finding about this run, and
+    // a run whose only finding was a degraded read must not record `alerted:
+    // false`. Order is read-first because it is the finding that qualifies every
+    // other one.
+    const allAlerts = [...readAlerts, ...alerts];
+
     // ── 5. Persist. A failed insert is logged, never thrown: losing the record
     //       costs the next run its transition test, which is far better than
     //       losing the alerts that were just raised.
@@ -370,18 +408,28 @@ export async function GET(request: Request) {
     // ever looks the previous run up by check name, so it is inert as input.
     const { error: insErr } = await admin
       .from('guardrail_health_runs')
-      .insert({ ran_at: nowISO, verdicts: { ...verdicts, _read: read }, alerted: alerts.length > 0 });
+      .insert({ ran_at: nowISO, verdicts: { ...verdicts, _read: read }, alerted: allAlerts.length > 0 });
     if (insErr) console.error('[shape-health] run record not saved:', insErr.message);
 
     // ── 6. The heartbeat, last, and only on a completed run.
     const heartbeat = await sendHeartbeat();
 
-    return NextResponse.json({ ok: true, verdicts, read, alerted: alerts.length, heartbeat });
+    return NextResponse.json({ ok: true, verdicts, read, alerted: allAlerts.length, heartbeat });
   } catch (e) {
     // ⚠ NO HEARTBEAT ON THIS PATH. A job that threw did not do its work, and a
     // dead-man's switch that pings anyway is worse than none — it reports health
     // it did not verify.
     console.error('[shape-health] run failed:', (e as Error).message);
+    // ⚠ THE JOB DYING IS THE ONE FAILURE NOTHING ELSE COVERS. Withheld
+    // heartbeat is the intended signal, but HEARTBEAT_PING_URL is unset today,
+    // so without this a thrown run reaches Vercel logs and nobody. Swallowed
+    // like reportAlerts' capture, for the same reason: a failure while
+    // reporting a failure must not replace it.
+    try {
+      Sentry.captureException(e, { tags: { alert: 'guardrail-health', check: 'run_failed' } });
+    } catch {
+      // deliberately empty — the console.error above is the sink that always runs.
+    }
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 200 });
   }
 }

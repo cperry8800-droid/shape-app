@@ -5,10 +5,21 @@
 # committing" loop, but only runs the checks the staged change can actually
 # break, so docs/copy commits stay instant.
 #
-#   - mobile/website JSX staged  -> babel parse-check
+#   - any .js/.jsx/.mjs/.cjs     -> babel parse-check (by extension, not by dir)
 #   - src/** or TS config staged -> tsc --noEmit  (needs root node_modules)
-#   - mobile-app/src/** staged   -> mobile build + public/m sync diff
+#   - mobile-app build inputs    -> mobile build
+#   - a shared bundle input      -> mobile build  (derived from the import graph)
+#   - any code DELETED           -> mobile build + the suite
 #   - any code staged            -> npm test
+#
+# Note the last three: this hook classifies what a commit REMOVES as well as what
+# it adds, because a deletion breaks importers and a deletion-only commit used to
+# run nothing at all.
+#
+# ⚠ THIS HOOK IS NOT THE GATE. It can be skipped with --no-verify or
+# SKIP_VERIFY=1, so treat it as a fast local mirror of CI, never as the thing
+# that keeps a bug out of main. The hard gate is .github/workflows/ci.yml plus
+# the branch-protection required-checks list.
 #
 # Bypass once (e.g. a known-safe WIP commit):  SKIP_VERIFY=1 git commit ...
 set -o pipefail
@@ -21,8 +32,23 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
-mapfile -t STAGED < <(git diff --cached --name-only --diff-filter=ACM)
-[ "${#STAGED[@]}" -eq 0 ] && exit 0
+# Files this commit ADDS or MODIFIES — they exist on disk, so they are safe to
+# read, parse and build against.
+mapfile -t STAGED < <(git diff --cached --name-only --no-renames --diff-filter=ACM)
+# Files this commit REMOVES.
+#
+# ⚠ THE FILTER USED TO BE ACM ONLY, AND THAT WAS A HOLE IN BOTH DIRECTIONS.
+# A deletion-only commit produced an EMPTY list and exited 0 having run NOTHING
+# — no tsc, no suite, no build — which is the worst possible outcome for the one
+# change most likely to break an importer. And a mixed commit that deleted a
+# shared module never counted the deletion toward any trigger, so the build that
+# would have caught the unresolved import was skipped.
+#
+# --no-renames decomposes a rename into a delete + an add, so the OLD path shows
+# up here rather than vanishing behind rename detection (`--name-only` prints
+# only the new path for an R entry).
+mapfile -t DELETED < <(git diff --cached --name-only --no-renames --diff-filter=D)
+[ "${#STAGED[@]}" -eq 0 ] && [ "${#DELETED[@]}" -eq 0 ] && exit 0
 
 ts_changed=0
 mobile_changed=0
@@ -31,26 +57,231 @@ code_changed=0
 # bash 3.2 (macOS) — a declared-but-unassigned array reads as unbound there.
 parse_mod=()
 parse_script=()
+parse_auto=()
 
-for f in "${STAGED[@]}"; do
+# Trigger classification runs over ADDED, MODIFIED **and** DELETED paths — what a
+# commit removes changes the build just as surely as what it adds.
+for f in "${STAGED[@]}" "${DELETED[@]}"; do
   case "$f" in
     # NOTE: in `case`, * matches '/' too, so these patterns also match nested paths
     src/*.ts|src/*.tsx|tsconfig*.json|next.config.*|src/proxy.ts)
       ts_changed=1; code_changed=1 ;;
   esac
   case "$f" in
-    mobile-app/src/*|mobile-app/vite.config.*|mobile-app/*.html)
+    # ⚠ The BUILD INPUTS, not just the sources. package.json / the lockfile /
+    # capacitor.config / tsconfig all change what `npm run build` produces, and
+    # a dependency bump touching only those used to skip the mobile build
+    # entirely — the same "gate silently not firing" class this file's other
+    # arms exist to close. (`mobile-app/*.html` already matches nested paths,
+    # since `*` matches '/' in a case pattern.)
+    # ⚠ mobile-app/public/* is deliberately NOT here. It was, briefly, to route
+    # added assets into a reference check that has since been cut (see the
+    # deletion arm below). With that check gone the only consequence would be a
+    # build that ignores publicDir entirely — a gate that runs and cannot fail,
+    # which is the exact thing this file exists to remove.
+    mobile-app/src/*|mobile-app/vite.config.*|mobile-app/*.html|\
+    mobile-app/package.json|mobile-app/package-lock.json|\
+    mobile-app/capacitor.config.*|mobile-app/tsconfig*.json)
       mobile_changed=1; code_changed=1 ;;
   esac
+done
+
+# --- What this commit DELETES -------------------------------------------------
+#
+# A deleted file cannot be parsed (it is gone) and cannot be found by the
+# import-graph deriver below (that walks the working tree, where the broken
+# import now resolves to nothing). So deletions are handled on their own terms:
+# any code file removed from OUTSIDE mobile-app/ enables the mobile build.
+#
+# That is a DELIBERATE over-approximation. It cannot under-trigger, and it costs
+# almost nothing: over a 300-commit window only 5 commits deleted anything at all
+# and only 2 deleted code outside mobile-app/ — so this runs on roughly 0.7% of
+# commits, versus a graph walk that would have to reconstruct the pre-deletion
+# tree to answer the question correctly.
+#
+# ⚠ THIS ARM CARRIES NO EXCLUSION LIST, DELIBERATELY — and the first version of
+# it did, which was a bug. It copied the parse arm's
+# `public/vendor/*|*.min.js|chat-design-v2/*` skip, but that list exists for ONE
+# reason: a parser-plugin mismatch on generated code would block a commit nobody
+# can fix. That rationale is about READING a file. It says nothing about whether
+# removing the file can break the app — and `public/vendor/supabase-js` and
+# `public/vendor/gridstack` are loaded by 67 pages, so a deletion-only commit
+# removing one of them would have run the suite ZERO times and exited 0.
+#
+# An exclusion list here would also have to be re-audited every time something
+# under it becomes live. Not having one cannot go stale: the only cost is that
+# deleting genuinely-dead scratch runs one extra build, which is a once-ever
+# event and the safe direction.
+#
+# ⚠ AND IT ENUMERATES NOTHING EITHER — NOT PATHS, NOT EXTENSIONS. This arm has
+# now been wrong twice for the same reason. First it carried the parse arm's
+# path exclusions, which let a deletion of `public/vendor/supabase-js` (loaded by
+# 67 pages) report a clean pass. Then it listed JS/TS extensions only, which let
+# a deletion of `public/vendor/gridstack/gridstack.min.css` (loaded by 8 pages)
+# do exactly the same thing — and that file was in the output of the very audit
+# that produced the first fix.
+#
+# The pattern is the point: an allowlist of "what counts as code" is a bet that I
+# can name every asset type a deployed page can depend on. I lost that bet twice
+# in one PR. So there is no list — every deletion runs the checks, and the only
+# question left is whether the mobile build joins them.
+#
+# The cost is bounded and measured, not assumed: over a fixed 300-commit window
+# only 5 commits deleted anything at all, so this is ~1.7% of commits paying one
+# build. A false "no code staged — OK" on a removed live asset is worth more than
+# that. (This does NOT promise the gates catch every such deletion — nothing here
+# loads a vendor stylesheet. It promises the hook stops claiming there was
+# nothing to check.)
+#
+# ⚠ AND IT NO LONGER DEFERS TO THE MOBILE ARM ABOVE, BECAUSE THAT DEFERRAL WAS A
+# FALSE CLAIM — the fourth wrong because-clause in this PR, and the one the fix
+# for the third introduced. This loop used to skip `mobile-app/*` "because the
+# mobile arm above already judged anything under mobile-app/". It does not. That
+# arm matches SEVEN patterns (src/ · vite.config · *.html · package.json ·
+# package-lock.json · capacitor.config · tsconfig*.json) = 321 of the 791 tracked
+# files under mobile-app/. The skip pattern `mobile-app/*` matches ALL 791 — `*`
+# crosses `/` in a case — so it contributed a mobile build for EXACTLY ZERO paths
+# while reading like a decision. The 470 it silently covered include every file in
+# mobile-app/public/, all of ios/ and android/, the committed Capacitor bridge,
+# and the patches/ file postinstall applies.
+#
+# So the arm now enumerates nothing at all: both flags, every deleted path. The
+# added cost is one mobile build on a commit that deletes ONLY mobile-app files.
+#
+# ⚠ BE PRECISE ABOUT WHAT THAT BUYS, BECAUSE THE FIRST DRAFT OF THIS VERY COMMENT
+# WAS WRONG ABOUT IT — it claimed the build was worth running here and pointed at
+# a "step 5" this file does not have (there are four). Reclassifying these paths
+# detects NOTHING new on its own: for a deleted publicDir asset the mobile build
+# passes regardless, since Vite copies publicDir verbatim and never resolves a
+# runtime template string. The reclassification is worth doing because the old
+# skip encoded a false claim and because an exclusion list here has to be
+# re-audited every time something under it becomes live — not because it catches
+# more today.
+#
+# ⚠ AND NOTHING IN THIS REPO CATCHES IT. A DELETED mobile-app/public/ ASSET IS
+# UNGATED END TO END — measured, not assumed. With shape-logo.png moved out of
+# the tree, `VITE_BASE=/m/ npm run build` exits 0 without naming it, the emitted
+# bundle still requests `shape-logo.png?v=2` three times, and dist/ simply does
+# not contain it. tsc, `next build`, gitleaks and the whole suite are equally
+# blind: the only referenced-file-exists check in the repo is
+# build-newdesign.mjs:110, and it covers website .jsx script tags. The first
+# sign is a broken image in the app.
+#
+# A checker for exactly this was built here and CUT before merge. It WORKED — it
+# caught that deletion by file and line. But it decided code-vs-comment with a
+# line-local regex, and that is a lexing problem a regex cannot solve. Seven
+# review rounds all landed on that one seam, and reproduced defects were still
+# open in BOTH directions when it was cut: a commented-out `${BASE_URL}x.png`
+# counted as a live reference, and a commented-out URL composition sitting above
+# a live one failed CI on correct code — a red build a developer could only fix
+# by deleting an unrelated comment.
+#
+# Doing it properly needs an AST, not a better regex. @babel/parser is declared
+# in NEITHER package.json today (root resolves 8.0.4, mobile-app 7.29.7) and CI's
+# mobile job installs mobile-app only, so it does not resolve at the repo root
+# where the check ran. Declaring it means regenerating mobile-app/package-lock
+# .json — which codemagic.yaml consumes to build the iOS TestFlight IPA on every
+# push to main. That is its own change, with its own review. Registered as a
+# follow-up, not solved here.
+#
+# Until then: before deleting or renaming anything under mobile-app/public/,
+# grep mobile-app/src for the basename BY HAND — and know the grep lies in both
+# directions. faces/ members are composed at runtime (`${BS_FACE_BASE}${slug}
+# .jpg`) and appear nowhere in the source, while some basenames collide with the
+# website's separate public/newdesign/faces/.
+for _ in "${DELETED[@]}"; do
+  code_changed=1
+  mobile_changed=1
+done
+
+# --- Parse-check candidates (existing files only) -----------------------------
+for f in "${STAGED[@]}"; do
+  # ⚠ THIS MATCHES BY EXTENSION, NOT BY DIRECTORY, DELIBERATELY.
+  #
+  # The old arms listed directories, so anything outside them set code_changed=0
+  # and the script printed "no code staged (docs/config only) — OK" and exited 0.
+  # That is not a gap in coverage, it is a gate reporting success on an unverified
+  # change. It covered public/supabase.js — 1045 lines, loaded by 56 pages,
+  # defining window.shapeDb, ShapeTurnstile, ShapeAnalytics and shapeSignOut —
+  # plus 20 other public/**/*.js and every scripts/*.mjs. An allowlist also means
+  # each new directory has to remember to add itself, and forgetting is silent.
+  #
+  # sourceType: the EXTENSION is authoritative only for .mjs/.cjs. For .js/.jsx it
+  # carries no information here — 28 tracked .js/.jsx files are ESM and 161 are
+  # classic scripts. public/newdesign/spotlightTour.js is a module (it imports
+  # ./spotlightGeom.mjs) while its 10 directory-siblings are scripts, so ANY fixed
+  # per-directory guess hard-blocks a commit of a valid file. 'unambiguous' lets
+  # the parser decide, which keeps this a SYNTAX check — the only thing it can
+  # honestly be — instead of an accidental module-system assertion.
   case "$f" in
-    mobile-app/src/*.jsx|mobile-app/src/*.js|mobile-app/src/*.mjs)
+    # Third-party/generated: never hand-edited, and a parser-plugin mismatch here
+    # would block a commit nobody can fix. chat-design-v2/ is design scratch (no
+    # build or deploy config references it) and holds ios-frame.jsx, which is an
+    # HTML document saved under a .jsx name — a real defect, but someone else's.
+    public/vendor/*|*.min.js|chat-design-v2/*)
+      ;;
+    *.mjs)
       parse_mod+=("$f"); code_changed=1 ;;
-    public/*.jsx)
+    *.cjs)
       parse_script+=("$f"); code_changed=1 ;;
-    tests/*.mjs|tests/*.js)
-      code_changed=1 ;;
+    *.js|*.jsx)
+      parse_auto+=("$f"); code_changed=1 ;;
   esac
 done
+
+# --- Shared bundle inputs -----------------------------------------------------
+#
+# The arms above match PATH PREFIXES. Vite's input set is the IMPORT GRAPH, and
+# the two disagree: mobile-app/src reaches outside its own tree 18 times, e.g.
+# iosAppBroadsheetRadio.jsx imports ../../../public/newdesign/noraStage.mjs and
+# sentry.mjs imports ../../../src/lib/sentry-context.mjs. Staging only one of
+# those set code_changed (parser + suite ran) but never mobile_changed, so the
+# one check that catches a renamed export or a deleted module was skipped and
+# the hook still printed "all checks passed".
+#
+# Derived rather than listed: public/newdesign holds 306 tracked files and is one
+# of the busiest trees in the repo, but only 15 are reachable from mobile. A
+# directory arm would put a full mobile build on nearly every commit, and a hook
+# slow enough to resent is a hook that gets --no-verify'd.
+if [ "$mobile_changed" -eq 0 ]; then
+  # Only pay for the graph walk when something outside mobile-app/ could plausibly
+  # be in it. A docs-only or SQL-only commit skips this entirely.
+  maybe_shared=0
+  for f in "${STAGED[@]}"; do
+    case "$f" in
+      mobile-app/*) ;;
+      *.mjs|*.cjs|*.js|*.jsx|*.ts|*.tsx|*.json) maybe_shared=1 ;;
+    esac
+  done
+  if [ "$maybe_shared" -eq 1 ]; then
+    if ! shared_inputs="$(node "$ROOT/scripts/mobile-bundle-inputs.mjs" 2>&1)"; then
+      # ⚠ MUST NOT DEGRADE TO "no shared inputs found". A deriver that errors and
+      # is treated as an empty result silently turns this check OFF, which is
+      # indistinguishable from a clean run — the exact failure this hook exists
+      # to stop. Unknown is not the same as none.
+      echo "verify: FAIL — could not derive the mobile bundle's shared inputs."
+      echo "        scripts/mobile-bundle-inputs.mjs exited non-zero:"
+      printf '%s\n' "$shared_inputs" | sed 's/^/        /'
+      echo "        Fix it, or bypass deliberately with SKIP_VERIFY=1."
+      exit 1
+    fi
+    if [ -z "$shared_inputs" ]; then
+      # Same reasoning: mobile has imported out of its tree since the Broadsheet
+      # split, so an empty graph means the walker broke, not that the coupling
+      # went away. tests/mobile-bundle-inputs.test.mjs pins this too.
+      echo "verify: FAIL — the mobile bundle's shared-input set came back EMPTY."
+      echo "        That means scripts/mobile-bundle-inputs.mjs stopped resolving,"
+      echo "        not that mobile stopped importing out of its tree."
+      exit 1
+    fi
+    for f in "${STAGED[@]}"; do
+      if printf '%s\n' "$shared_inputs" | grep -qxF -- "$f"; then
+        echo "verify: '$f' is a shared mobile bundle input — enabling the mobile build"
+        mobile_changed=1; code_changed=1
+      fi
+    done
+  fi
+fi
 
 if [ "$code_changed" -eq 0 ]; then
   echo "verify: no code staged (docs/config only) — OK"
@@ -67,10 +298,11 @@ parse_one() { # <abs-file> <sourceType>
       p.parse(fs.readFileSync(process.argv[1],"utf8"),{sourceType:process.argv[2],plugins:["jsx"]});
     ' "$1" "$2" )
 }
-if [ "${#parse_mod[@]}" -gt 0 ] || [ "${#parse_script[@]}" -gt 0 ]; then
+if [ "${#parse_mod[@]}" -gt 0 ] || [ "${#parse_script[@]}" -gt 0 ] || [ "${#parse_auto[@]}" -gt 0 ]; then
   step "parse-check staged JSX/JS"
-  for f in "${parse_mod[@]:-}";    do [ -n "$f" ] && { parse_one "$ROOT/$f" module && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
-  for f in "${parse_script[@]:-}"; do [ -n "$f" ] && { parse_one "$ROOT/$f" script && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
+  for f in "${parse_mod[@]:-}";    do [ -n "$f" ] && { parse_one "$ROOT/$f" module      && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
+  for f in "${parse_script[@]:-}"; do [ -n "$f" ] && { parse_one "$ROOT/$f" script      && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
+  for f in "${parse_auto[@]:-}";   do [ -n "$f" ] && { parse_one "$ROOT/$f" unambiguous && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
 fi
 
 # --- 2. TypeScript ---
@@ -79,24 +311,31 @@ if [ "$ts_changed" -eq 1 ]; then
     step "tsc --noEmit"
     npx tsc --noEmit || fail=1
   else
-    echo "verify: WARNING — root node_modules missing, skipping tsc (run 'npm install')"
+    # ⚠ WAS A WARNING THAT LET THE COMMIT THROUGH. "I could not check this"
+    # printed in the same run that ends "all checks passed" is a false pass —
+    # the developer reads the green line, not the yellow one. Blocking is the
+    # honest outcome; the message says exactly how to proceed either way.
+    echo "verify: FAIL — root node_modules missing, so tsc could NOT run."
+    echo "        Run 'npm install', or bypass deliberately with SKIP_VERIFY=1."
+    fail=1
   fi
 fi
 
-# --- 3. Mobile build + public/m sync (the classic 'forgot to republish' catch) ---
+# --- 3. Mobile build ---
+#
+# ⚠ The public/m SYNC DIFF THAT USED TO LIVE HERE IS GONE, DELIBERATELY.
+# public/m stopped being committed in #1470 — .gitignore:26 ignores it and
+# `git ls-files public/m` returns nothing; it is built at DEPLOY time by
+# scripts/build-m.sh. The old step diffed a fresh build against whatever stale
+# copy happened to be lying around locally, so it could only ever fail, and the
+# remedy it printed ("republish from repo root") told the developer to
+# re-create a directory the pipeline deliberately stopped tracking. A check
+# that fails for a reason the developer cannot fix teaches exactly one habit:
+# --no-verify — which also disables the mount tests in step 4. Removing it is
+# the point, not a regression.
 if [ "$mobile_changed" -eq 1 ]; then
-  step "mobile build + public/m sync"
+  step "mobile build"
   ( cd "$ROOT/mobile-app" && VITE_BASE=/m/ npm run build ) || fail=1
-  if [ "$fail" -eq 0 ]; then
-    if diff -qr "$ROOT/mobile-app/dist" "$ROOT/public/m" >/tmp/verify-m-diff.txt 2>&1; then
-      echo "  public/m is in sync"
-    else
-      echo "  FAIL public/m is OUT OF SYNC — republish from repo root:"
-      echo "    rm -rf public/m && cp -r mobile-app/dist public/m"
-      cat /tmp/verify-m-diff.txt
-      fail=1
-    fi
-  fi
 fi
 
 # --- 4. Tests ---
@@ -104,7 +343,11 @@ if [ -d node_modules ]; then
   step "npm test"
   npm test || fail=1
 else
-  echo "verify: WARNING — root node_modules missing, skipping npm test"
+  # Same reasoning as the tsc branch above — an unrun suite must not read as a
+  # passing one. This is the branch that hid the MOUNT tests specifically.
+  echo "verify: FAIL — root node_modules missing, so the test suite could NOT run."
+  echo "        Run 'npm install', or bypass deliberately with SKIP_VERIFY=1."
+  fail=1
 fi
 
 if [ "$fail" -ne 0 ]; then
