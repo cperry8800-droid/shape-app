@@ -89,12 +89,31 @@ $$;
 -- Asserts the END STATE, so a rebuild that silently failed to create a policy
 -- fails loudly here instead of shipping an invisible marketplace.
 --
--- ⚠ The command check accepts BOTH 'SELECT' and 'ALL'. `pg_policies.cmd`
--- reports 'ALL' for a `for all` policy, whose USING clause is exactly what a
--- SELECT is checked against — so filtering on 'SELECT' alone would report a
--- perfectly functional read policy as missing. This repo has now been bitten
--- twice by the inverse of that mistake (`2026-07-31-coach-insert-lockout.sql`
--- and the #1851 guard both filtered a cmd and certified the wrong thing).
+-- ⚠ The command check requires 'SELECT' EXACTLY, and rejects 'ALL'.
+-- `pg_policies.cmd` reports 'ALL' for a `for all` policy. An earlier revision
+-- of this guard accepted both, reasoning that a FOR ALL policy's USING clause
+-- is what a SELECT is checked against, so it reads fine — true, and beside the
+-- point. FOR ALL is WRITE-capable: `for all to anon, authenticated using (true)`
+-- with no WITH CHECK takes its write predicate from USING, so it also permits
+-- INSERT/UPDATE/DELETE to anonymous callers wherever the table grants allow.
+-- Since the create-block above is create-IF-ABSENT and matches on NAME alone,
+-- a live policy that had drifted to FOR ALL would be left standing — and a
+-- guard that accepted it would certify an anonymous write policy as this
+-- migration's stated read-only end state.
+--
+-- That is the SAME defect `2026-07-31-coach-insert-lockout.sql` and the #1851
+-- guard both hit, read from the other side: they filtered on a narrow cmd and
+-- so MISSED a FOR ALL policy that granted more than they were checking for.
+-- The lesson is not "accept ALL" — it is "FOR ALL grants writes, so never let
+-- it pass unexamined". Verified against production 2026-08-04: all three
+-- policies are PERMISSIVE / SELECT, so this tightening is a no-op there.
+--
+-- ⚠ `permissive = 'PERMISSIVE'` for the same class of reason. A RESTRICTIVE
+-- policy of the same name would satisfy every other clause here while granting
+-- NOTHING — restrictive policies only subtract, and with no permissive policy
+-- present the table denies all reads. The guard would report success over a
+-- marketplace that returns zero rows, which is precisely the silent failure
+-- this file exists to make loud.
 --
 -- ⚠ Each RAISE below carries EXACTLY ONE `%` for EXACTLY ONE argument.
 -- PL/pgSQL validates RAISE placeholder arity at COMPILE time, so a mismatch in
@@ -114,7 +133,8 @@ begin
     select 1 from pg_policies
     where schemaname = 'public' and tablename = 'trainers'
       and policyname = 'trainers public read'
-      and cmd in ('SELECT','ALL')
+      and cmd = 'SELECT'
+      and permissive = 'PERMISSIVE'
       and 'anon' = any (roles) and 'authenticated' = any (roles)
       and qual = 'true'
   ) then
@@ -125,7 +145,8 @@ begin
     select 1 from pg_policies
     where schemaname = 'public' and tablename = 'nutritionists'
       and policyname = 'nutritionists public read'
-      and cmd in ('SELECT','ALL')
+      and cmd = 'SELECT'
+      and permissive = 'PERMISSIVE'
       and 'anon' = any (roles) and 'authenticated' = any (roles)
       and qual = 'true'
   ) then
@@ -136,7 +157,8 @@ begin
     select 1 from pg_policies
     where schemaname = 'public' and tablename = 'gyms'
       and policyname = 'gyms public read'
-      and cmd in ('SELECT','ALL')
+      and cmd = 'SELECT'
+      and permissive = 'PERMISSIVE'
       and 'anon' = any (roles) and 'authenticated' = any (roles)
       and qual = 'true'
   ) then
