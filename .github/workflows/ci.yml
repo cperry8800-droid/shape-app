@@ -132,17 +132,6 @@ jobs:
         working-directory: mobile-app
         run: VITE_BASE=/m/ npm run build
 
-      # ⚠ The build above exits 0 with a DELETED publicDir asset. Vite copies
-      # publicDir verbatim and never resolves a runtime template string, so
-      # `${import.meta.env.BASE_URL}shape-logo.png` is just text to it — removing
-      # that file (loaded 3x by iosAppBroadsheetMain.jsx) is invisible to every
-      # other gate in this repo. This step is the only thing that reads it.
-      # It runs HERE rather than only in the pre-commit hook because the hook is
-      # bypassable (SKIP_VERIFY=1) and only armed on a machine that ran the
-      # SessionStart hook — a check nothing enforces is not a gate.
-      - name: Asset references resolve (mobile publicDir)
-        run: node scripts/mobile-asset-refs.mjs
-
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest

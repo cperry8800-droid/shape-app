@@ -10373,9 +10373,8 @@ function BSChannelIcon({ name, size = 20 }) {
 // ⚠ THESE FILENAMES ARE UNCOVERED BY EVERY GATE IN THE REPO, DELIBERATELY.
 // The URL is composed at runtime, so the string "member-07.jpg" appears nowhere
 // in mobile-app/src and "maya.jpg" appears nowhere in the repo at all. Vite
-// copies publicDir verbatim and exits 0 with any of them deleted;
-// scripts/mobile-asset-refs.mjs can only verify that faces/ EXISTS and is
-// non-empty, not which members it holds. A basename grep is not a weaker check
+// copies publicDir verbatim and exits 0 with any of them deleted, and nothing in
+// the repo verifies which members faces/ holds. A basename grep is not a weaker check
 // here, it is a WRONG one: maya.jpg gets cleared as unreferenced (it renders
 // Maya Okafor in the signed-out presence rail), while member-07.jpg looks
 // referenced only because the WEBSITE's separate public/newdesign/faces/ carries

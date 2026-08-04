@@ -74,16 +74,12 @@ for f in "${STAGED[@]}" "${DELETED[@]}"; do
     # entirely — the same "gate silently not firing" class this file's other
     # arms exist to close. (`mobile-app/*.html` already matches nested paths,
     # since `*` matches '/' in a case pattern.)
-    # mobile-app/public/* is here so an ADDED or MODIFIED asset reaches the
-    # reference check in step 3. The deletion arm below covers removals, but
-    # staging only `mobile-app/public/demo/orphan.webp` matched none of these
-    # patterns and printed "no code staged (docs/config only) — OK" — a false
-    # pass on precisely the addition the orphan pass exists to catch. Note this
-    # only became worth doing once a check could READ these files: classifying
-    # them as mobile inputs while the only consequence was a build that ignores
-    # publicDir would have been a gate that runs and cannot fail.
+    # ⚠ mobile-app/public/* is deliberately NOT here. It was, briefly, to route
+    # added assets into a reference check that has since been cut (see the
+    # deletion arm below). With that check gone the only consequence would be a
+    # build that ignores publicDir entirely — a gate that runs and cannot fail,
+    # which is the exact thing this file exists to remove.
     mobile-app/src/*|mobile-app/vite.config.*|mobile-app/*.html|\
-    mobile-app/public/*|\
     mobile-app/package.json|mobile-app/package-lock.json|\
     mobile-app/capacitor.config.*|mobile-app/tsconfig*.json)
       mobile_changed=1; code_changed=1 ;;
@@ -157,11 +153,42 @@ done
 # a "step 5" this file does not have (there are four). Reclassifying these paths
 # detects NOTHING new on its own: for a deleted publicDir asset the mobile build
 # passes regardless, since Vite copies publicDir verbatim and never resolves a
-# runtime template string. What detects it is the asset-reference check that runs
-# beside the build in step 3. The reclassification is worth doing because the old
+# runtime template string. The reclassification is worth doing because the old
 # skip encoded a false claim and because an exclusion list here has to be
 # re-audited every time something under it becomes live — not because it catches
 # more today.
+#
+# ⚠ AND NOTHING IN THIS REPO CATCHES IT. A DELETED mobile-app/public/ ASSET IS
+# UNGATED END TO END — measured, not assumed. With shape-logo.png moved out of
+# the tree, `VITE_BASE=/m/ npm run build` exits 0 without naming it, the emitted
+# bundle still requests `shape-logo.png?v=2` three times, and dist/ simply does
+# not contain it. tsc, `next build`, gitleaks and the whole suite are equally
+# blind: the only referenced-file-exists check in the repo is
+# build-newdesign.mjs:110, and it covers website .jsx script tags. The first
+# sign is a broken image in the app.
+#
+# A checker for exactly this was built here and CUT before merge. It WORKED — it
+# caught that deletion by file and line. But it decided code-vs-comment with a
+# line-local regex, and that is a lexing problem a regex cannot solve. Seven
+# review rounds all landed on that one seam, and reproduced defects were still
+# open in BOTH directions when it was cut: a commented-out `${BASE_URL}x.png`
+# counted as a live reference, and a commented-out URL composition sitting above
+# a live one failed CI on correct code — a red build a developer could only fix
+# by deleting an unrelated comment.
+#
+# Doing it properly needs an AST, not a better regex. @babel/parser is declared
+# in NEITHER package.json today (root resolves 8.0.4, mobile-app 7.29.7) and CI's
+# mobile job installs mobile-app only, so it does not resolve at the repo root
+# where the check ran. Declaring it means regenerating mobile-app/package-lock
+# .json — which codemagic.yaml consumes to build the iOS TestFlight IPA on every
+# push to main. That is its own change, with its own review. Registered as a
+# follow-up, not solved here.
+#
+# Until then: before deleting or renaming anything under mobile-app/public/,
+# grep mobile-app/src for the basename BY HAND — and know the grep lies in both
+# directions. faces/ members are composed at runtime (`${BS_FACE_BASE}${slug}
+# .jpg`) and appear nowhere in the source, while some basenames collide with the
+# website's separate public/newdesign/faces/.
 for _ in "${DELETED[@]}"; do
   code_changed=1
   mobile_changed=1
@@ -309,15 +336,6 @@ fi
 if [ "$mobile_changed" -eq 1 ]; then
   step "mobile build"
   ( cd "$ROOT/mobile-app" && VITE_BASE=/m/ npm run build ) || fail=1
-
-  # ⚠ THE BUILD ABOVE CANNOT SEE A DELETED publicDir ASSET, AND THAT IS MEASURED,
-  # NOT ASSUMED. Vite copies publicDir verbatim and never resolves a runtime
-  # template string, so removing mobile-app/public/shape-logo.png — loaded three
-  # times by iosAppBroadsheetMain.jsx — leaves this build exiting 0 with the file
-  # mentioned nowhere in its output. Classifying public assets as mobile inputs
-  # without this step would ship a gate that runs and still cannot catch the bug.
-  step "mobile asset references"
-  node "$ROOT/scripts/mobile-asset-refs.mjs" || fail=1
 fi
 
 # --- 4. Tests ---
