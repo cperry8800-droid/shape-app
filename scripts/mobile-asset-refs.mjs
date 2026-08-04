@@ -83,11 +83,33 @@ const SCANNABLE = /\.(mjs|cjs|js|jsx|ts|tsx|css|html)$/;
 // dependency-free, and matches how faces/ is handled: state what cannot be
 // checked rather than ship a rule whose failure mode is a false alarm a
 // developer cannot fix except by editing this file.
+// ⚠ AND THESE ARE REQUIRED TO EXIST — the map is a MANIFEST, not just an
+// exemption. Naming them without asserting them made the previous commit a
+// REGRESSION for exactly these two files: removed from the forward scan and
+// exempted from the reverse pass, deleting shape-radio-logo.png left neither
+// pass looking at it and the checker exited 0 while BSRadioLogo still requested
+// the URL. Reproduced. The map already enumerates the exact required paths, so
+// checking them costs nothing and needs no binding analysis — which makes this
+// strictly stronger for these files than the scope-blind scan it replaced.
 const RUNTIME_COMPOSED = {
   'shape-radio-logo.png':
     'iosAppBroadsheetRadio.jsx picks it through a ternary then interpolates ' +
     '`${BASE_URL}${file}` — the leaf never sits next to BASE_URL in the source',
   'shape-radio-logo-lt.png': 'the light-paper half of the same ternary',
+};
+
+// ⚠ OPACITY IS DECLARED, NOT INFERRED, AND INFERRING IT WAS A SELF-DISABLING
+// CHECK. The rule was "a prefix directory is opaque when nothing in it resolved
+// by a literal" — but that describes the CURRENT SNAPSHOT, not how the filenames
+// are composed. Remove the last literal `${BS_DEMO_MEDIA}...` reference while
+// leaving demo/ and its files in place and the directory silently reclassifies
+// as opaque, exempting every newly-orphaned asset while exiting 0. Reproduced:
+// the pass switches itself off at the precise moment its subject appears.
+// A directory earns opacity by how it is REACHED, so it has to be stated.
+const OPAQUE_DIRS = {
+  'faces':
+    'iosAppBroadsheetClient.jsx composes `${BS_FACE_BASE}${slug}.jpg` from a ' +
+    'hash-modulo over a slug array, so no member filename is ever a literal',
 };
 
 // ⚠ ONLY *ANCHORED* REFERENCES ARE CHECKED, AND THE FIRST DRAFT OF THIS FILE
@@ -214,11 +236,11 @@ for (const file of sources) {
 // Reproduced before fixing. A directory is opaque only when NOTHING in it was
 // resolved by a literal — if you can name one member you can name them all.
 const prefixDirs = new Set(prefixByName.values());
-const opaqueDirs = new Set(
-  [...prefixDirs].filter(
-    (d) => !publicFiles.some((rel) => rel.startsWith(`${d}/`) && resolved.has(rel)),
-  ),
-);
+const opaqueDirs = new Set(Object.keys(OPAQUE_DIRS));
+
+// A declared runtime-composed asset must still be on disk. Nothing else looks at
+// these — that is the whole point of declaring them.
+const missingComposed = Object.keys(RUNTIME_COMPOSED).filter((rel) => !publicSet.has(rel));
 
 // `resolved` now holds full publicDir paths, so a bare basename can no longer
 // exempt a nested file from this pass — the other half of the fallback defect.
@@ -253,6 +275,12 @@ if (unaccounted.length) {
   console.error('\nUNACCOUNTED PUBLIC FILES — shipped, but nothing in mobile-app/src reaches them:');
   for (const u of unaccounted) console.error(`  ${u}`);
   console.error('  Either reference it, or add it to DECLARED_UNREFERENCED in this script with a reason.');
+}
+if (missingComposed.length) {
+  bad = 1;
+  console.error('\nMISSING RUNTIME-COMPOSED ASSET — declared as required, but not in mobile-app/public:');
+  for (const r of missingComposed) console.error(`  ${r}\n      ${RUNTIME_COMPOSED[r]}`);
+  console.error('  Restore it, or drop the entry if the code that composed the URL is gone.');
 }
 if (emptyPrefix.length) {
   bad = 1;

@@ -33,10 +33,20 @@ function run(env = {}) {
   }
 }
 
-// Build a throwaway src/ + public/ pair and run the real checker against it. Each
-// of the three rules below was WRONG on its first draft in a way only behaviour
-// exposed — a source-shaped assertion would have passed on all three.
-function fixture({ src = {}, pub = {} }) {
+// RUNTIME_COMPOSED names files the real repo must ship, and the checker now
+// REQUIRES them — so every fixture seeds them or each one fails for a reason
+// unrelated to what it is testing. Derived from the script rather than hardcoded
+// here, so the two cannot drift apart.
+function requiredComposed() {
+  const src = readFileSync(SCRIPT, 'utf8');
+  const block = src.match(/const RUNTIME_COMPOSED = \{([\s\S]*?)\n\};/);
+  return (block?.[1].match(/^\s*'([^']+)':/gm) || []).map((l) => l.match(/'([^']+)'/)[1]);
+}
+
+// Build a throwaway src/ + public/ pair and run the real checker against it. Every
+// rule these exercise was WRONG on a first draft in a way only behaviour exposed —
+// a source-shaped assertion would have passed on all of them.
+function fixture({ src = {}, pub = {}, seedComposed = true }) {
   const dir = mkdtempSync(join(tmpdir(), 'shape-assets-'));
   const write = (root, files) => {
     for (const [rel, body] of Object.entries(files)) {
@@ -46,7 +56,10 @@ function fixture({ src = {}, pub = {} }) {
     }
   };
   write(join(dir, 'src'), src);
-  write(join(dir, 'public'), pub);
+  const seeded = seedComposed
+    ? Object.fromEntries(requiredComposed().map((r) => [r, 'x']))
+    : {};
+  write(join(dir, 'public'), { ...seeded, ...pub });
   const res = run({ SHAPE_ASSET_SRC: join(dir, 'src'), SHAPE_ASSET_PUBLIC: join(dir, 'public') });
   rmSync(dir, { recursive: true, force: true });
   return res;
@@ -236,10 +249,11 @@ test('only an UNENUMERABLE prefix directory is exempt from the orphan check', ()
 test('every exempted asset carries a reason', () => {
   // Both escape hatches have to cost something. An entry with an empty reason is
   // how an exemption list becomes a place to silence the check, and there are now
-  // two of them: files nothing reaches, and files reached by a composition this
-  // script deliberately does not parse.
+  // three of them: files nothing reaches, files reached by a composition this
+  // script deliberately does not parse, and directories whose members are
+  // composed at runtime.
   const src = readFileSync(SCRIPT, 'utf8');
-  for (const name of ['DECLARED_UNREFERENCED', 'RUNTIME_COMPOSED']) {
+  for (const name of ['DECLARED_UNREFERENCED', 'RUNTIME_COMPOSED', 'OPAQUE_DIRS']) {
     const block = src.match(new RegExp(`const ${name} = \\{([\\s\\S]*?)\\n\\};`));
     assert.ok(block, `could not locate ${name}`);
     const entries = block[1].match(/'[^']+':\s*(?:'[^']*'|\n?\s*'[\s\S]*?')/g) || [];
@@ -252,6 +266,39 @@ test('every exempted asset carries a reason', () => {
       );
     }
   }
+});
+
+test('a declared runtime-composed asset must still EXIST', () => {
+  // ⚠ THIS WAS A REGRESSION, NOT A GAP. Naming these files as unverifiable
+  // removed them from the forward scan AND exempted them from the reverse pass,
+  // so deleting shape-radio-logo.png left neither pass looking at it and the
+  // checker exited 0 while BSRadioLogo still requested the URL — strictly worse
+  // than the scope-blind scan it replaced. The map enumerates exact paths, so
+  // asserting them needs no analysis at all.
+  assert.equal(fixture({ src: {}, pub: {} }).code, 0, 'seeded manifest should pass');
+  const res = fixture({ src: {}, pub: {}, seedComposed: false });
+  assert.equal(res.code, 1, `a missing declared asset must fail:\n${res.out}`);
+  assert.match(res.out, /MISSING RUNTIME-COMPOSED ASSET/, 'and must say so by name');
+});
+
+test('opacity is DECLARED, so a directory cannot flip itself exempt', () => {
+  // ⚠ Deriving opacity from "nothing in it resolved" described the current
+  // snapshot, not how filenames are composed. Removing the last literal
+  // `${BS_DEMO_MEDIA}...` reference while leaving demo/ and its files in place
+  // reclassified the directory as opaque and exempted every newly-orphaned
+  // asset while exiting 0 — the pass switching itself off exactly when its
+  // subject appears.
+  const noLiterals = { 'a.jsx': 'const P = `' + BASE + 'demo/`;' };
+  const res = fixture({ src: noLiterals, pub: { 'demo/wall.webp': 'x', 'demo/orphan.webp': 'x' } });
+  assert.equal(res.code, 1, `an undeclared directory must not become exempt:\n${res.out}`);
+
+  // The declared one stays exempt on the same shape, because it earned it.
+  const declared = { 'a.jsx': 'const P = `' + BASE + 'faces/`;\nconst u = `${P}${slug}.jpg`;' };
+  assert.equal(
+    fixture({ src: declared, pub: { 'faces/a.jpg': 'x', 'faces/b.jpg': 'x' } }).code,
+    0,
+    'a declared runtime-composed directory must stay exempt',
+  );
 });
 
 test('the hook classifies an ADDED public asset, not only a deleted one', () => {
