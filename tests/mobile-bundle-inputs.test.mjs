@@ -145,11 +145,11 @@ test('the hook classifies what a commit DELETES, not only what it adds', () => {
   // it breaks the app: public/vendor/supabase-js and public/vendor/gridstack
   // are loaded by 67 pages, so excluding them here meant a deletion-only commit
   // removing one ran the suite zero times and exited 0.
-  const delLoop = hook.slice(
-    hook.indexOf('for f in "${DELETED[@]}"; do'),
-    hook.indexOf('# --- Parse-check candidates'),
-  );
-  assert.ok(delLoop.length > 0, 'could not locate the deletion classification loop');
+  // Match the loop by SHAPE, not by its variable name — the body below is the
+  // assertion target and renaming the loop variable must not silently empty it.
+  const loop = hook.match(/for\s+\S+\s+in\s+"\$\{DELETED\[@\]\}";\s*do([\s\S]*?)\n\s*done/);
+  assert.ok(loop, 'could not locate the deletion classification loop');
+  const delLoop = loop[1];
   assert.ok(
     !/public\/vendor|\*\.min\.js|chat-design-v2/.test(delLoop),
     'the deletion loop must not skip vendored/minified/scratch paths — those are ' +
@@ -157,22 +157,28 @@ test('the hook classifies what a commit DELETES, not only what it adds', () => {
       'change that most needs the suite to run',
   );
 
-  // ⚠ AND IT MUST NOT ENUMERATE EXTENSIONS EITHER. Removing the path allowlist
-  // above left a JS/TS extension list, which let a deletion of
-  // `public/vendor/gridstack/gridstack.min.css` — loaded by 8 live pages —
-  // report the same false "no code staged" pass. Two allowlists, same bug, one
-  // PR. So `code_changed` is now set unconditionally for every deleted path and
-  // only the mobile build stays conditional. Reintroducing any `case` around
-  // `code_changed` here fails this.
-  assert.match(
-    delLoop,
-    /^\s*code_changed=1\s*$/m,
-    'every deleted path must set code_changed unconditionally — an extension allowlist here ' +
-      'already produced a false "no code staged" pass on a stylesheet 8 live pages load',
-  );
+  // ⚠ THE ASSERTION THAT USED TO LIVE HERE ENUMERATED `*.mjs|*.jsx|*.tsx`, WHICH
+  // MADE THE GUARD AGAINST ALLOWLISTS AN ALLOWLIST. It permitted `*.js`, `*.ts`,
+  // `*.cjs` and `*.json` to reappear, so the exact bug it was written to prevent
+  // could return through a sibling extension and this test would still pass —
+  // the fourth instance of this PR's own root cause, in the test meant to close
+  // it. The fix is structural rather than a longer list: the loop may not branch
+  // AT ALL. No `case`, no `if` — both flags, every deleted path, no exceptions.
+  // Any future exclusion, by extension or by path, has to fail this to exist.
   assert.ok(
-    !/\*\.mjs|\*\.jsx|\*\.tsx/.test(delLoop),
-    'the deletion loop must not gate on source extensions — a deleted asset can break a ' +
-      'deployed page without being JS/TS (css, html, json all qualify)',
+    !/\bcase\b|\bif\b/.test(delLoop),
+    'the deletion loop must not branch on the deleted path. Two allowlists (paths, then ' +
+      'extensions) each produced a false "no code staged — OK" pass on a live asset; a third ' +
+      'is only a matter of which dimension gets enumerated next',
   );
+  for (const flag of ['code_changed', 'mobile_changed']) {
+    assert.match(
+      delLoop,
+      new RegExp(`^\\s*${flag}=1\\s*$`, 'm'),
+      `every deleted path must set ${flag} unconditionally. mobile_changed was previously ` +
+        'skipped for `mobile-app/*` on the false premise that the earlier arm judged it — ' +
+        'that arm matches 321 of 791 tracked mobile-app files, so the skip covered 470 ' +
+        'paths (all of public/, ios/, android/) while contributing a build for zero',
+    );
+  }
 });

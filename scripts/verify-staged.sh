@@ -127,13 +127,35 @@ done
 # that. (This does NOT promise the gates catch every such deletion — nothing here
 # loads a vendor stylesheet. It promises the hook stops claiming there was
 # nothing to check.)
-for f in "${DELETED[@]}"; do
+#
+# ⚠ AND IT NO LONGER DEFERS TO THE MOBILE ARM ABOVE, BECAUSE THAT DEFERRAL WAS A
+# FALSE CLAIM — the fourth wrong because-clause in this PR, and the one the fix
+# for the third introduced. This loop used to skip `mobile-app/*` "because the
+# mobile arm above already judged anything under mobile-app/". It does not. That
+# arm matches SEVEN patterns (src/ · vite.config · *.html · package.json ·
+# package-lock.json · capacitor.config · tsconfig*.json) = 321 of the 791 tracked
+# files under mobile-app/. The skip pattern `mobile-app/*` matches ALL 791 — `*`
+# crosses `/` in a case — so it contributed a mobile build for EXACTLY ZERO paths
+# while reading like a decision. The 470 it silently covered include every file in
+# mobile-app/public/, all of ios/ and android/, the committed Capacitor bridge,
+# and the patches/ file postinstall applies.
+#
+# So the arm now enumerates nothing at all: both flags, every deleted path. The
+# added cost is one mobile build on a commit that deletes ONLY mobile-app files.
+#
+# ⚠ BE PRECISE ABOUT WHAT THAT BUYS, BECAUSE THE FIRST DRAFT OF THIS VERY COMMENT
+# WAS WRONG ABOUT IT — it claimed the build was worth running here and pointed at
+# a "step 5" this file does not have (there are four). Reclassifying these paths
+# detects NOTHING new on its own: for a deleted publicDir asset the mobile build
+# passes regardless, since Vite copies publicDir verbatim and never resolves a
+# runtime template string. What detects it is the asset-reference check that runs
+# beside the build in step 3. The reclassification is worth doing because the old
+# skip encoded a false claim and because an exclusion list here has to be
+# re-audited every time something under it becomes live — not because it catches
+# more today.
+for _ in "${DELETED[@]}"; do
   code_changed=1
-  case "$f" in
-    # The mobile arm above already judged anything under mobile-app/.
-    mobile-app/*) ;;
-    *) mobile_changed=1 ;;
-  esac
+  mobile_changed=1
 done
 
 # --- Parse-check candidates (existing files only) -----------------------------
@@ -278,6 +300,15 @@ fi
 if [ "$mobile_changed" -eq 1 ]; then
   step "mobile build"
   ( cd "$ROOT/mobile-app" && VITE_BASE=/m/ npm run build ) || fail=1
+
+  # ⚠ THE BUILD ABOVE CANNOT SEE A DELETED publicDir ASSET, AND THAT IS MEASURED,
+  # NOT ASSUMED. Vite copies publicDir verbatim and never resolves a runtime
+  # template string, so removing mobile-app/public/shape-logo.png — loaded three
+  # times by iosAppBroadsheetMain.jsx — leaves this build exiting 0 with the file
+  # mentioned nowhere in its output. Classifying public assets as mobile inputs
+  # without this step would ship a gate that runs and still cannot catch the bug.
+  step "mobile asset references"
+  node "$ROOT/scripts/mobile-asset-refs.mjs" || fail=1
 fi
 
 # --- 4. Tests ---

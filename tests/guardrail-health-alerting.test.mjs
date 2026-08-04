@@ -48,17 +48,31 @@ test('every structured alert is emitted through reportAlerts — no inline alert
   );
 });
 
-test('the truncation finding is routed through reportAlerts', () => {
+test('the truncation finding is routed through reportAlerts, BEFORE the evaluation', () => {
+  // ⚠ ORDER IS THE POINT, so this compares source positions rather than matching
+  // the two fragments independently. The whole reason the read alert is reported
+  // at the read site is that the evaluation below it can throw — a version that
+  // collected the finding correctly and reported it AFTER the evaluator would
+  // satisfy "both strings are present" and still lose the alert on the exact run
+  // that needed it. Two passing substring matches are not a passing sequence.
+  const push = src.indexOf('readAlerts.push({');
+  assert.ok(push >= 0, 'the evaluation_read finding must be collected as an alert, not logged inline');
   assert.match(
-    src,
-    /readAlerts\.push\(\{[\s\S]{0,200}check:\s*'evaluation_read'/,
-    "the evaluation_read finding must be collected as an alert, not logged inline",
+    src.slice(push, push + 200),
+    /check:\s*'evaluation_read'/,
+    'the collected alert must be the evaluation_read finding',
   );
-  assert.match(
-    src,
-    /reportAlerts\(readAlerts\)/,
-    'the collected read alert must still be REPORTED at the read site, so it reaches ' +
-      'Sentry even if the evaluation below it throws',
+
+  const report = src.indexOf('reportAlerts(readAlerts)', push);
+  const evaluate = src.indexOf('const evaluations', report < 0 ? push : report);
+  assert.ok(
+    report > push,
+    'the collected read alert must be REPORTED at the read site, after it is collected',
+  );
+  assert.ok(
+    evaluate > report,
+    'reportAlerts(readAlerts) must run BEFORE the evaluation — the evaluation can throw, ' +
+      'and this alert is the one that says do not trust the other verdicts',
   );
 });
 
@@ -74,7 +88,10 @@ test('the run\'s alert count includes the truncation finding, not just the evalu
     /const allAlerts = \[\s*\.\.\.readAlerts,\s*\.\.\.alerts\s*\]/,
     'the run must aggregate the read alerts with the evaluator alerts',
   );
-  const uses = src.match(/alerted: allAlerts\./g) || [];
+  // ⚠ `alerted:\s*allAlerts\.length\b` exactly, not `allAlerts.` — the loose form
+  // matches ANY property, so `alerted: allAlerts.some(...)` (a boolean where a
+  // count belongs) or a typo'd `allAlerts.size` would both count as a pass.
+  const uses = src.match(/alerted:\s*allAlerts\.length\b/g) || [];
   assert.equal(
     uses.length,
     2,
