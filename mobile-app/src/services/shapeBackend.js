@@ -607,72 +607,44 @@ async function startStripeConnectOnboarding({ role } = {}) {
   return payload;
 }
 
+// Ask the server for a coach-editable STARTING TEMPLATE.
+//
+// Returns `{ source, draft }` on success, or **null** when no draft could be
+// obtained. Null is the whole contract: the caller owns the fallback template
+// and validates whatever comes back with the same parsers that will later read
+// it (`bsDraftOutline`), so a refusal here and a refusal there converge on one
+// outcome — the builder's own outline.
+//
+// ⚠ This used to carry a THIRD copy of the template content, which had already
+// drifted from both the route's copy and the builders' copy, and whose only
+// mode check was `kind === 'meal_plan'` — a value no caller ever sent (the
+// nutritionist builder sends `mealplan`, without the underscore), so the branch
+// was dead and every nutrition failure fell through to a STRENGTH WORKOUT
+// template. Deleted rather than repaired: template content belongs in exactly
+// one place, and that place is the builder the coach is looking at.
 async function generatePlanDraft(input = {}) {
-  const fallbackDraft = (kind = input.kind || 'workout') => {
-    if (kind === 'meal_plan') {
-      return {
-        source: 'template',
-        draft: {
-          title: `${input.goal || 'Performance'} fuel plan`,
-          summary: `${input.duration || '7-day'} meal-plan draft with editable portions, grocery sections, and coach notes.`,
-          tag: 'NUTRITION',
-          duration: input.duration || '7 days',
-          blocks: [
-            { label: '01', title: 'Breakfast base', detail: 'Greek yogurt, oats, berries, chia', note: 'Batch 3 servings.' },
-            { label: '02', title: 'Lunch anchor', detail: 'Chicken rice bowl, greens, olive oil', note: 'Prep protein and carbs ahead.' },
-            { label: '03', title: 'Training snack', detail: 'Banana, protein shake, rice cakes', note: 'Use 60-90 min pre-training.' },
-            { label: '04', title: 'Dinner rotation', detail: 'Salmon, potatoes, vegetables', note: 'Adjust carb serving to hit calories.' },
-          ],
-          coachNotes: ['Confirm allergies and dietary restrictions before sending.', 'Edit portions to match the client macro target.'],
-          shoppingList: [
-            { section: 'Protein', items: ['Greek yogurt', 'Chicken breast', 'Salmon', 'Protein powder'] },
-            { section: 'Carbs', items: ['Oats', 'Rice', 'Potatoes', 'Bananas'] },
-            { section: 'Produce', items: ['Berries', 'Greens', 'Mixed vegetables'] },
-          ],
-        },
-      };
-    }
-    return {
-      source: 'template',
-      draft: {
-        title: kind === 'program' ? `${input.goal || 'Strength'} block` : `${input.goal || 'Strength'} session`,
-        summary: `${input.duration || (kind === 'program' ? '4-week' : '60-minute')} editable draft for ${input.client || 'a client'}.`,
-        tag: String(input.goal || (kind === 'program' ? 'Program' : 'Workout')).toUpperCase().slice(0, 14),
-        duration: input.duration || (kind === 'program' ? '4 weeks' : '60 minutes'),
-        blocks: kind === 'program'
-          ? [
-              { label: 'W1', title: 'Base week', detail: 'Technical volume', note: 'RPE 6-7.' },
-              { label: 'W2', title: 'Build week', detail: 'Add reps or load', note: 'Progress only if recovery holds.' },
-              { label: 'W3', title: 'Peak week', detail: 'Highest workload', note: 'Cap accessories before fatigue climbs.' },
-              { label: 'W4', title: 'Deload/test', detail: 'Reduce volume', note: 'Retest one key metric.' },
-            ]
-          : [
-              { label: 'A', title: 'Warm-up', detail: '8 min prep + ramp sets', note: 'Clean positions.' },
-              { label: 'B', title: 'Primary lift', detail: '4 x 5 @ RPE 7', note: 'Stop before form breakdown.' },
-              { label: 'C1', title: 'Accessory superset', detail: '3 x 10-12', note: 'Controlled eccentric.' },
-              { label: 'D', title: 'Finisher', detail: '6 min intervals', note: 'Scale to readiness.' },
-            ],
-        coachNotes: ['Review injury history and equipment access.', 'Customize loads, substitutions, and cues before sending.'],
-        shoppingList: [],
+  if (!apiBaseUrl) return null;
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/ai/generate-plan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.session?.access_token ? { Authorization: `Bearer ${state.session.access_token}` } : {}),
       },
-    };
-  };
-
-  if (!apiBaseUrl) return fallbackDraft(input.kind);
-  const response = await fetch(`${apiBaseUrl}/api/ai/generate-plan`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(state.session?.access_token ? { Authorization: `Bearer ${state.session.access_token}` } : {}),
-    },
-    body: JSON.stringify(input),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    console.warn('[shape] AI generator API failed; using local template.', payload);
-    return fallbackDraft(input.kind);
+      body: JSON.stringify(input),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.warn('[shape] AI generator API failed; using the builder template.', payload);
+      return null;
+    }
+    return payload;
+  } catch (error) {
+    // Offline, aborted, or a native routing failure. The builder template
+    // stands; nothing about this is worth surfacing to the coach mid-draft.
+    console.warn('[shape] AI generator unreachable; using the builder template.', error);
+    return null;
   }
-  return payload;
 }
 
 async function requestRefund({ subscriptionId, oneTimePurchaseId, reason } = {}) {

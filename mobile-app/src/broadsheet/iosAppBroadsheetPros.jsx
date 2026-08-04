@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, bsDraftMode, bsDraftFromResponse, bsMealPlanTemplate, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -5755,16 +5755,34 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     );
     const generate = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
-      if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {} }
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
-      const outline = blankMode ? mk(['', '', '']) : (buildType === 'workout'
-        ? mk(['Warm-up · 8 min', `Main lift — ${focus}`, 'Secondary compound · 4×8', 'Accessory superset · 3×12', 'Core finisher', 'Cooldown · mobility'])
+      // The builder's own outline. This is the FLOOR — it is what ships when
+      // there is no model, no network, or a response whose block text will not
+      // parse. Its line grammar is not cosmetic: `Mon — …` / `Week N — …` are
+      // what bsAssignDayLine / bsAssignWeekLine read at assign time.
+      const template = buildType === 'workout'
+        ? ['Warm-up · 8 min', `Main lift — ${focus}`, 'Secondary compound · 4×8', 'Accessory superset · 3×12', 'Core finisher', 'Cooldown · mobility']
         : buildType === 'program'
-        ? mk(['Mon — Upper (push)', 'Tue — Lower (squat)', 'Wed — Rest / mobility', 'Thu — Upper (pull)', 'Fri — Lower (hinge)', 'Sat — Conditioning', 'Sun — Rest'])
-        : mk(['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification', 'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest']));
+        ? ['Mon — Upper (push)', 'Tue — Lower (squat)', 'Wed — Rest / mobility', 'Thu — Upper (pull)', 'Fri — Lower (hinge)', 'Sat — Conditioning', 'Sun — Rest']
+        : ['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification', 'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest'];
+      // ⚠ The generated draft is USED. It used to be awaited and thrown away —
+      // real money and a real wait, for an outline the model never saw.
+      // `bsDraftMode` maps the builder kind onto the wire mode; sending
+      // `buildType` raw is what made `plan` ask for a single session.
+      let used = null;
+      if (!blankMode) {
+        const mode = bsDraftMode('training', buildType);
+        if (mode) {
+          try {
+            const res = await window.ShapeAI?.generatePlanDraft?.({ kind: mode, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip });
+            used = bsDraftFromResponse(mode, res && res.draft);
+          } catch (e) { used = null; }
+        }
+      }
+      const outline = blankMode ? mk(['', '', '']) : mk((used && used.lines) || template);
       const blockLabel = buildType === 'workout' ? tr('coach:plans.blockExercises', { defaultValue: 'Exercises' }) : buildType === 'program' ? tr('coach:plans.blockWeeklySplit', { defaultValue: 'Weekly split' }) : tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' });
       setDrafting(false);
-      setEditDraft({ name: `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
+      setEditDraft({ name: (used && used.name) || `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
     };
     return (
       <BSPage>
@@ -6672,16 +6690,39 @@ function BSNutriPlans() {
     );
     const generate = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
-      if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {} }
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
-      const outline = blankMode ? mk(['', '', '']) : (buildType === 'program'
-        ? mk(['Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros', 'Week 4 — Lock it in', 'Grocery + prep guide'])
+      const kcalTarget = Number(String(cals).replace(/[^\d]/g, '')) || 2100;
+      // ⚠ The meal template now HONOURS the MEALS / DAY and DAILY CALORIES
+      // chips. It used to ignore both — always five fixed lines summing to
+      // ~2150 kcal — so a coach picking 3000 across 6 meals got 2150 across 5,
+      // and the last line ("Evening") was not even a slot `bsAssignMeal`
+      // recognises, so it delivered as a generic meal.
+      const template = buildType === 'program'
+        // The trailing 'Grocery + prep guide' line is NOT a week label and is
+        // kept deliberately: whether it should surface anywhere is a live open
+        // owner question (War Room, nutrition week-block wave), and dropping it
+        // here would silently answer it. `bsWeekUnits` ignores non-week lines.
+        ? ['Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros', 'Week 4 — Lock it in', 'Grocery + prep guide']
         : buildType === 'diet'
-        ? mk(['Breakfast options', 'Lunch options', 'Dinner options', 'Snacks', 'Foods to favour', 'Foods to avoid'])
-        : mk(['Breakfast · ~500 kcal', 'Lunch · ~600 kcal', 'Snack · ~250 kcal', 'Dinner · ~650 kcal', 'Evening · ~150 kcal']));
+        ? ['Breakfast options', 'Lunch options', 'Dinner options', 'Snacks', 'Foods to favour', 'Foods to avoid']
+        : bsMealPlanTemplate(mealsDay, kcalTarget);
+      // ⚠ The generated draft is USED. Sending `buildType` raw is what made
+      // BOTH nutrition builders ask the model for a strength workout —
+      // `mealplan` and `diet` are not route modes and were silently coerced.
+      let used = null;
+      if (!blankMode) {
+        const mode = bsDraftMode('nutrition', buildType);
+        if (mode) {
+          try {
+            const res = await window.ShapeAI?.generatePlanDraft?.({ kind: mode, goal, client: '', level: diet, duration: '7 days', calories: String(kcalTarget), mealsPerDay: mealsDay, preferences: desc, protein: '' });
+            used = bsDraftFromResponse(mode, res && res.draft);
+          } catch (e) { used = null; }
+        }
+      }
+      const outline = blankMode ? mk(['', '', '']) : mk((used && used.lines) || template);
       const blockLabel = buildType === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : buildType === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
       setDrafting(false);
-      setEditDraft({ name: `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
+      setEditDraft({ name: (used && used.name) || `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
     };
     return (
       <BSPage>
