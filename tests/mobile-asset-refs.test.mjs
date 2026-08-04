@@ -145,16 +145,40 @@ test('indirect anchoring is scoped to the composed VARIABLE, not the whole file'
   );
 });
 
-test('a path-bearing reference needs an EXACT match, not a basename match', () => {
-  // ⚠ The first draft cleared `nora/placeholder.vrm` after the file moved to
-  // `demo/placeholder.vrm` — the runtime URL /m/nora/placeholder.vrm was broken
-  // while the check reported success, because some file somewhere had that name.
-  const src = { 'a.jsx': 'const u = `' + BASE + 'nora/thing.vrm`;' };
-  assert.equal(fixture({ src, pub: { 'nora/thing.vrm': 'x' } }).code, 0, 'exact path should pass');
+test('every reference resolves to the EXACT path its URL requests', () => {
+  // ⚠ TWO ROUNDS OF REVIEW WENT INTO KILLING A BASENAME FALLBACK THAT SHOULD
+  // NEVER HAVE EXISTED, so both halves are pinned here.
+  //
+  // Round 1: a path-bearing ref was cleared after the file moved directory —
+  // /m/nora/thing.vrm broken, check green, because some file had that basename.
+  const pathBearing = { 'a.jsx': 'const u = `' + BASE + 'nora/thing.vrm`;' };
+  assert.equal(fixture({ src: pathBearing, pub: { 'nora/thing.vrm': 'x' } }).code, 0);
   assert.equal(
-    fixture({ src, pub: { 'other/thing.vrm': 'x' } }).code,
+    fixture({ src: pathBearing, pub: { 'other/thing.vrm': 'x' } }).code,
     1,
-    'a reference that states its directory must match that directory',
+    'a reference that states its directory must match THAT directory',
+  );
+
+  // Round 2: fixing that left the root case open — a bare leaf still matched any
+  // basename anywhere, so moving a root asset into a subdirectory kept the check
+  // green while /m/logo.png 404'd. A direct root reference needs a root match.
+  const rootRef = { 'a.jsx': 'const u = `' + BASE + 'logo.png`;' };
+  assert.equal(fixture({ src: rootRef, pub: { 'logo.png': 'x' } }).code, 0);
+  assert.equal(
+    fixture({ src: rootRef, pub: { 'demo/logo.png': 'x' } }).code,
+    1,
+    'a root reference must not be satisfied by a nested file of the same name',
+  );
+
+  // The one genuinely unstated directory — a leaf lifted out of a prefix
+  // constant — resolves against the directory that constant declares, and only
+  // that one.
+  const prefixLeaf = { 'a.jsx': 'const P = `' + BASE + 'demo/`;\nconst u = `${P}wall.webp`;' };
+  assert.equal(fixture({ src: prefixLeaf, pub: { 'demo/wall.webp': 'x' } }).code, 0);
+  assert.equal(
+    fixture({ src: prefixLeaf, pub: { 'wall.webp': 'x' } }).code,
+    1,
+    "a prefix leaf must resolve inside its prefix's directory, not at the root",
   );
 });
 

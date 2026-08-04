@@ -133,22 +133,20 @@ function walk(dir, out = []) {
 
 // --- Every file that ships in publicDir -------------------------------------
 const publicFiles = walk(PUBLIC).map((f) => norm(path.relative(PUBLIC, f)));
-const byBasename = new Set(publicFiles.map((rel) => rel.split('/').pop()));
+const publicSet = new Set(publicFiles);
 
 const sources = walk(SRC).filter((f) => SCANNABLE.test(f));
 
 // --- Pass 0: the `${BASE_URL}<dir>/` constants ------------------------------
 // Collected across EVERY file before any reference is judged: a constant defined
 // in one file and used in another would otherwise depend on walk() order.
-const prefixDirs = new Set();
-const prefixNames = new Set();
+const prefixByName = new Map(); // constant name -> the directory it prefixes
 for (const file of sources) {
   const src = fs.readFileSync(file, 'utf8');
   PREFIX_RE.lastIndex = 0;
   let m;
   while ((m = PREFIX_RE.exec(src))) {
-    prefixNames.add(m[1]);
-    prefixDirs.add(m[2]);
+    prefixByName.set(m[1], m[2]);
   }
 }
 
@@ -174,30 +172,35 @@ for (const file of sources) {
     const clean = raw.replace(/^\.?\//, '');
     // A leaf lifted out of `${BS_DEMO_MEDIA}wall-03.webp` has lost its directory
     // on the way here; a direct `${BASE_URL}nora/placeholder.vrm` has not.
-    const fromPrefix = [...prefixNames].some((n) =>
-      new RegExp(String.raw`\$\{${n}\}\s*$`).test(before),
-    );
-    const anchored = fromPrefix || indirectVals.has(clean) || /BASE_URL[^}]*\}\s*$/.test(before);
+    let prefixDir = null;
+    for (const [n, d] of prefixByName) {
+      if (new RegExp(String.raw`\$\{${n}\}\s*$`).test(before)) { prefixDir = d; break; }
+    }
+    const anchored =
+      prefixDir !== null || indirectVals.has(clean) || /BASE_URL[^}]*\}\s*$/.test(before);
     if (!anchored) continue;
 
     // Vite resolves a specifier relative to the importing file at BUILD time, so
     // a missing one already breaks `npm run build`. Not this check's problem.
     if (fs.existsSync(path.resolve(path.dirname(file), raw))) continue;
 
+    // ⚠ THERE IS NO BASENAME FALLBACK ANY MORE. Every reference resolves to the
+    // EXACT path its URL will request. Two review rounds went into narrowing a
+    // fallback that should never have existed: first it cleared
+    // nora/placeholder.vrm after that file moved to demo/, then — with
+    // path-bearing refs fixed — it STILL cleared a direct
+    // `${BASE_URL}shape-logo.png` after that file moved into demo/, because a
+    // bare leaf matched any basename anywhere while /m/shape-logo.png 404'd.
+    // Both reproduced before fixing. A leaf lifted out of a prefix constant is
+    // the only reference with a genuinely unstated directory, and that directory
+    // is known — it is the one the constant declares. Resolve it there, nowhere
+    // else, and record the FULL path so the orphan pass below cannot be exempted
+    // by a bare basename either.
+    const target = prefixDir ? `${prefixDir}/${clean}` : clean;
     refCount++;
-    if (resolved.has(clean) || missing.some((x) => x.ref === clean)) continue;
-
-    // ⚠ THE BASENAME FALLBACK IS FOR DIRECTORY-LESS LEAVES ONLY. Applying it to a
-    // path-bearing reference validated the WRONG FILE: moving
-    // public/nora/placeholder.vrm to public/demo/placeholder.vrm breaks the
-    // runtime URL /m/nora/placeholder.vrm, and the old check cleared it because
-    // some file somewhere had that basename. Reproduced before fixing. A
-    // reference that states its directory must match that directory.
-    const ok = clean.includes('/')
-      ? publicFiles.includes(clean)
-      : publicFiles.includes(clean) || byBasename.has(clean);
-    if (ok) resolved.add(clean);
-    else missing.push({ ref: clean, where, line: src.slice(0, m.index).split('\n').length });
+    if (resolved.has(target) || missing.some((x) => x.ref === target)) continue;
+    if (publicSet.has(target)) resolved.add(target);
+    else missing.push({ ref: target, where, line: src.slice(0, m.index).split('\n').length });
   }
 }
 
@@ -211,19 +214,18 @@ for (const file of sources) {
 // exempting it meant adding mobile-app/public/demo/orphan.webp still printed OK.
 // Reproduced before fixing. A directory is opaque only when NOTHING in it was
 // resolved by a literal — if you can name one member you can name them all.
+const prefixDirs = new Set(prefixByName.values());
 const opaqueDirs = new Set(
   [...prefixDirs].filter(
-    (d) =>
-      !publicFiles.some(
-        (rel) => rel.startsWith(`${d}/`) && (resolved.has(rel) || resolved.has(rel.split('/').pop())),
-      ),
+    (d) => !publicFiles.some((rel) => rel.startsWith(`${d}/`) && resolved.has(rel)),
   ),
 );
 
+// `resolved` now holds full publicDir paths, so a bare basename can no longer
+// exempt a nested file from this pass — the other half of the fallback defect.
 const unaccounted = publicFiles.filter((rel) => {
-  const base = rel.split('/').pop();
   const dir = rel.includes('/') ? rel.split('/')[0] : '';
-  if (resolved.has(rel) || resolved.has(base)) return false;
+  if (resolved.has(rel)) return false;
   if (dir && opaqueDirs.has(dir)) return false; // runtime-composed; see header
   return !DECLARED_UNREFERENCED[rel];
 });
