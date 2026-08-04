@@ -63,38 +63,32 @@ const ASSET_RE = new RegExp(String.raw`[A-Za-z0-9_@][A-Za-z0-9_./-]*\.(?:${ASSET
 // `const BS_DEMO_MEDIA = ${BASE_URL}demo/` — captures the constant NAME and the dir.
 const PREFIX_RE =
   /(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*`\$\{[^}]*BASE_URL[^}]*\}([A-Za-z0-9_-]+)\/`/g;
-// `${BASE_URL}${file}` — a served URL composed from a VARIABLE. The radio logo's
-// ternary reaches the DOM this way, a line after it is written.
-const INDIRECT_VAR_RE = /BASE_URL[^}]*\}\s*\$\{\s*([A-Za-z0-9_$]+)\s*\}/g;
 const SCANNABLE = /\.(mjs|cjs|js|jsx|ts|tsx|css|html)$/;
 
-// ⚠ THIS IS SCOPED TO THE COMPOSED VARIABLE, NOT THE FILE, AND THE FIRST VERSION
-// WASN'T — WHICH MADE IT THE LOOSEST RULE HERE. It promoted every asset-shaped
-// token in any file containing one `${BASE_URL}${var}`, so adding an unrelated
-// upload filename or a comment mentioning `recording.webm` to
-// iosAppBroadsheetRadio.jsx failed CI on a string never served from publicDir.
-// Reproduced before fixing. That is a failure a developer cannot fix except by
-// editing this script — the "cries wolf, gets bypassed" shape the whole file is
-// written against. Now only literals assigned to the interpolated variable count.
-function indirectLiterals(src) {
-  const vars = new Set();
-  INDIRECT_VAR_RE.lastIndex = 0;
-  let m;
-  while ((m = INDIRECT_VAR_RE.exec(src))) vars.add(m[1]);
-
-  const out = new Set();
-  for (const v of vars) {
-    const assign = new RegExp(String.raw`(?:(?:const|let|var)\s+)?\b${v}\s*=([^;\n]*)`, 'g');
-    let a;
-    while ((a = assign.exec(src))) {
-      const expr = a[1] || '';
-      const tok = new RegExp(ASSET_RE.source, 'g');
-      let t;
-      while ((t = tok.exec(expr))) out.add(t[0].replace(/^\.?\//, ''));
-    }
-  }
-  return out;
-}
+// ⚠ `${BASE_URL}${var}` IS NOT FORWARD-CHECKED, AND THAT IS A RETREAT I MADE ON
+// PURPOSE AFTER TWO REVIEW ROUNDS SPENT TRYING. The first attempt anchored every
+// asset-shaped token in any file containing one such composition. The second
+// narrowed it to literals assigned to the interpolated NAME — which still had no
+// notion of scope, so an unrelated `const file = 'recording.webm'` in a different
+// function of the same module failed CI on a string never served from publicDir.
+// Both reproduced.
+//
+// Doing it correctly needs binding resolution, and this script deliberately runs
+// on node builtins alone: CI's mobile job installs only mobile-app deps and never
+// creates a root node_modules, while @babel/parser is a DECLARED dependency of
+// neither package — it resolves transitively today and could stop tomorrow. A
+// gate that dies on a hoisting change is worse than one with a stated gap.
+//
+// So the two files reached this way are named below instead. That is honest,
+// dependency-free, and matches how faces/ is handled: state what cannot be
+// checked rather than ship a rule whose failure mode is a false alarm a
+// developer cannot fix except by editing this file.
+const RUNTIME_COMPOSED = {
+  'shape-radio-logo.png':
+    'iosAppBroadsheetRadio.jsx picks it through a ternary then interpolates ' +
+    '`${BASE_URL}${file}` — the leaf never sits next to BASE_URL in the source',
+  'shape-radio-logo-lt.png': 'the light-paper half of the same ternary',
+};
 
 // ⚠ ONLY *ANCHORED* REFERENCES ARE CHECKED, AND THE FIRST DRAFT OF THIS FILE
 // PROVED WHY. Treating every string that ends in an asset extension as a
@@ -158,7 +152,6 @@ let refCount = 0;
 for (const file of sources) {
   const src = fs.readFileSync(file, 'utf8');
   const where = norm(path.relative(ROOT, file));
-  const indirectVals = indirectLiterals(src);
 
   ASSET_RE.lastIndex = 0;
   let m;
@@ -177,12 +170,18 @@ for (const file of sources) {
       if (new RegExp(String.raw`\$\{${n}\}\s*$`).test(before)) { prefixDir = d; break; }
     }
     const anchored =
-      prefixDir !== null || indirectVals.has(clean) || /BASE_URL[^}]*\}\s*$/.test(before);
+      prefixDir !== null || /BASE_URL[^}]*\}\s*$/.test(before);
     if (!anchored) continue;
 
-    // Vite resolves a specifier relative to the importing file at BUILD time, so
-    // a missing one already breaks `npm run build`. Not this check's problem.
-    if (fs.existsSync(path.resolve(path.dirname(file), raw))) continue;
+    // ⚠ THE RELATIVE-RESOLVE ESCAPE THAT USED TO SIT HERE IS GONE. It skipped an
+    // anchored reference whenever a same-named file happened to sit beside the
+    // source module, so `${BASE_URL}logo.png` with a src/logo.png and no
+    // public/logo.png reported "0 anchored references" and exited 0 while the
+    // runtime URL 404'd. Reproduced. It was written for `url(./assets/fonts/
+    // font-01.woff2)` — build-time specifiers Vite resolves itself — but those
+    // are not BASE_URL-anchored, so the `anchored` gate above already excludes
+    // them. It could only ever fire on a reference that IS a publicDir URL,
+    // which is exactly where it must not.
 
     // ⚠ THERE IS NO BASENAME FALLBACK ANY MORE. Every reference resolves to the
     // EXACT path its URL will request. Two review rounds went into narrowing a
@@ -227,7 +226,7 @@ const unaccounted = publicFiles.filter((rel) => {
   const dir = rel.includes('/') ? rel.split('/')[0] : '';
   if (resolved.has(rel)) return false;
   if (dir && opaqueDirs.has(dir)) return false; // runtime-composed; see header
-  return !DECLARED_UNREFERENCED[rel];
+  return !DECLARED_UNREFERENCED[rel] && !RUNTIME_COMPOSED[rel];
 });
 
 // --- Pass 3: a prefix directory must still exist and hold files --------------

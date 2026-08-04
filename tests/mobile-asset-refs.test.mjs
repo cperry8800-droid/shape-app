@@ -59,16 +59,15 @@ test('the working tree passes — every asset reference resolves', () => {
   assert.equal(code, 0, `mobile-asset-refs failed on a clean tree:\n${out}`);
 });
 
-test('the three anchoring forms all still resolve', () => {
-  // Each of these reaches publicDir a DIFFERENT way, and each way is a separate
-  // regex that can break on its own. Pinning one anchor per form means a broken
-  // matcher turns the suite red instead of quietly shrinking the checked set.
+test('both anchoring forms still resolve', () => {
+  // Each reaches publicDir a DIFFERENT way through a separate matcher that can
+  // break on its own. Pinning one anchor per form means a broken matcher turns
+  // the suite red instead of quietly shrinking the checked set.
   const { out } = run();
   const anchors = {
     'shape-logo.png': 'direct `${import.meta.env.BASE_URL}x.png` interpolation',
     'nora/placeholder.vrm': 'direct interpolation carrying a subdirectory',
-    'wall-03.webp': 'prefix constant (`${BS_DEMO_MEDIA}wall-03.webp`) — the PREFIX_RE path',
-    'shape-radio-logo.png': 'indirect `${BASE_URL}${file}` composition — the INDIRECT_RE path',
+    'demo/wall-03.webp': 'prefix constant (`${BS_DEMO_MEDIA}wall-03.webp`) — the PREFIX_RE path',
   };
   for (const [ref, how] of Object.entries(anchors)) {
     assert.ok(
@@ -120,28 +119,52 @@ test('a deleted asset that the source still points at FAILS', () => {
   assert.equal(fixture({ src, pub: {} }).code, 1, 'a reference with no file must fail');
 });
 
-test('indirect anchoring is scoped to the composed VARIABLE, not the whole file', () => {
-  // ⚠ The first draft promoted every asset-shaped token in any file containing
-  // one `${BASE_URL}${var}`, so an unrelated upload filename failed CI on a
-  // string never served from publicDir — a failure a developer cannot fix except
-  // by editing the checker, which is how a check earns a permanent --no-verify.
+test('a `${BASE_URL}${var}` composition raises no false alarm', () => {
+  // ⚠ TWO ATTEMPTS AT FORWARD-CHECKING THIS FORM BOTH FAILED THE SAME WAY. The
+  // first anchored every asset-shaped token in any file containing one such
+  // composition; the second narrowed to literals assigned to the interpolated
+  // NAME, which still had no notion of scope — so an unrelated `const file` in
+  // ANOTHER FUNCTION of the same module failed CI on a string never served from
+  // publicDir. Both reproduced. Resolving it properly needs binding analysis and
+  // this script runs on node builtins by design, so the form is not checked and
+  // its two real files are named in RUNTIME_COMPOSED instead.
+  //
+  // What must never regress is the false ALARM: a developer cannot fix a failure
+  // that lives inside the checker, so they bypass the hook instead.
   const src = {
     'r.jsx':
-      "const file = t.light ? 'lt.png' : 'dk.png';\n" +
-      'const url = `' + BASE + '${file}`;\n' +
-      "fd.append('audio', blob, 'recording.webm');\n",
+      'function Wordmark(t) {\n' +
+      "  const file = t.light ? 'lt.png' : 'dk.png';\n" +
+      '  return `' + BASE + '${file}`;\n' +
+      '}\n' +
+      'function upload(blob) {\n' +
+      "  const file = 'recording.webm';\n" +
+      '  fd.append("audio", blob, file);\n' +
+      '}\n',
   };
-  const res = fixture({ src, pub: { 'lt.png': 'x', 'dk.png': 'x' } });
+  const res = fixture({ src, pub: {} });
   assert.equal(
     res.code,
     0,
-    `an upload filename in the same file must not be treated as a public asset:\n${res.out}`,
+    `a runtime-composed reference must not be reported as a missing public asset:\n${res.out}`,
   );
-  // ...but the literals that DO flow into the composition are still verified.
+});
+
+test('a file next to the source cannot satisfy a publicDir URL', () => {
+  // ⚠ A relative-resolve escape used to skip any anchored reference whose name
+  // matched a file beside the source module. It was written for build-time
+  // specifiers Vite resolves itself, but those are never BASE_URL-anchored — so
+  // it could only ever fire where it must not: `${BASE_URL}logo.png` with a
+  // src/logo.png and no public/logo.png reported "0 anchored references" and
+  // exited 0 while /m/logo.png 404'd. Reproduced.
+  const res = fixture({
+    src: { 'a.jsx': 'const u = `' + BASE + 'logo.png`;', 'logo.png': 'not the public one' },
+    pub: {},
+  });
   assert.equal(
-    fixture({ src, pub: { 'lt.png': 'x' } }).code,
+    res.code,
     1,
-    'a literal assigned to the interpolated variable must still be checked',
+    `a source-local file must not satisfy a publicDir URL:\n${res.out}`,
   );
 });
 
@@ -210,19 +233,40 @@ test('only an UNENUMERABLE prefix directory is exempt from the orphan check', ()
   );
 });
 
-test('every declared-unreferenced asset carries a reason', () => {
-  // The escape hatch has to cost something. An entry with an empty reason is how
-  // a dead-asset list becomes a place to silence the check.
+test('every exempted asset carries a reason', () => {
+  // Both escape hatches have to cost something. An entry with an empty reason is
+  // how an exemption list becomes a place to silence the check, and there are now
+  // two of them: files nothing reaches, and files reached by a composition this
+  // script deliberately does not parse.
   const src = readFileSync(SCRIPT, 'utf8');
-  const block = src.match(/const DECLARED_UNREFERENCED = \{([\s\S]*?)\n\};/);
-  assert.ok(block, 'could not locate DECLARED_UNREFERENCED');
-  const entries = block[1].match(/'[^']+':\s*(?:'[^']*'|\n?\s*'[\s\S]*?')/g) || [];
-  assert.ok(entries.length > 0, 'DECLARED_UNREFERENCED should list the known-dead assets');
-  for (const entry of entries) {
-    const reason = entry.slice(entry.indexOf(':') + 1).replace(/['\s+]/g, '');
-    assert.ok(
-      reason.length > 20,
-      `a declared-unreferenced asset needs a real reason, got: ${entry.slice(0, 80)}`,
-    );
+  for (const name of ['DECLARED_UNREFERENCED', 'RUNTIME_COMPOSED']) {
+    const block = src.match(new RegExp(`const ${name} = \\{([\\s\\S]*?)\\n\\};`));
+    assert.ok(block, `could not locate ${name}`);
+    const entries = block[1].match(/'[^']+':\s*(?:'[^']*'|\n?\s*'[\s\S]*?')/g) || [];
+    assert.ok(entries.length > 0, `${name} should list its exempted assets`);
+    for (const entry of entries) {
+      const reason = entry.slice(entry.indexOf(':') + 1).replace(/['\s+]/g, '');
+      assert.ok(
+        reason.length > 20,
+        `an exempted asset in ${name} needs a real reason, got: ${entry.slice(0, 80)}`,
+      );
+    }
   }
+});
+
+test('the hook classifies an ADDED public asset, not only a deleted one', () => {
+  // ⚠ Staging only `mobile-app/public/demo/orphan.webp` used to print
+  // "no code staged (docs/config only) — OK": the deletion arm covers removals,
+  // but an ADDED asset matched none of the mobile-input patterns, so the local
+  // verifier gave a false pass on exactly the addition the orphan pass exists to
+  // catch. CI rejected it; the hook did not, which is the gap that teaches people
+  // to trust the hook.
+  const hook = readFileSync(join(ROOT, 'scripts', 'verify-staged.sh'), 'utf8');
+  const arm = hook.match(/mobile-app\/src\/\*[\s\S]*?\)\n/);
+  assert.ok(arm, 'could not locate the mobile-input case arm');
+  assert.match(
+    arm[0],
+    /mobile-app\/public\/\*/,
+    'mobile-app/public/* must set mobile_changed so an added asset reaches the reference check',
+  );
 });

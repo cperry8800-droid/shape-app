@@ -74,7 +74,16 @@ for f in "${STAGED[@]}" "${DELETED[@]}"; do
     # entirely — the same "gate silently not firing" class this file's other
     # arms exist to close. (`mobile-app/*.html` already matches nested paths,
     # since `*` matches '/' in a case pattern.)
+    # mobile-app/public/* is here so an ADDED or MODIFIED asset reaches the
+    # reference check in step 3. The deletion arm below covers removals, but
+    # staging only `mobile-app/public/demo/orphan.webp` matched none of these
+    # patterns and printed "no code staged (docs/config only) — OK" — a false
+    # pass on precisely the addition the orphan pass exists to catch. Note this
+    # only became worth doing once a check could READ these files: classifying
+    # them as mobile inputs while the only consequence was a build that ignores
+    # publicDir would have been a gate that runs and cannot fail.
     mobile-app/src/*|mobile-app/vite.config.*|mobile-app/*.html|\
+    mobile-app/public/*|\
     mobile-app/package.json|mobile-app/package-lock.json|\
     mobile-app/capacitor.config.*|mobile-app/tsconfig*.json)
       mobile_changed=1; code_changed=1 ;;
