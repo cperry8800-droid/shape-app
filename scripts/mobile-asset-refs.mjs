@@ -238,6 +238,16 @@ for (const file of sources) {
 const prefixDirs = new Set(prefixByName.values());
 const opaqueDirs = new Set(Object.keys(OPAQUE_DIRS));
 
+// ⚠ A DECLARATION MUST STILL DESCRIBE THE CODE, OR IT IS JUST A PERMANENT
+// EXEMPTION. Declaring opacity fixed the directory that could flip itself exempt,
+// but left the mirror image: delete the `${BASE_URL}faces/` constant — retire the
+// feature — and nothing composes that directory any more, while OPAQUE_DIRS goes
+// on excusing every file left in it. Reproduced: a tree with no source references
+// and two files in faces/ reported "0 anchored references" and exited 0. So an
+// entry here is stale unless a `${BASE_URL}<dir>/` constant still exists for it,
+// and a stale entry FAILS rather than quietly outliving its reason.
+const staleOpaque = [...opaqueDirs].filter((d) => !prefixDirs.has(d));
+
 // A declared runtime-composed asset must still be on disk. Nothing else looks at
 // these — that is the whole point of declaring them.
 const missingComposed = Object.keys(RUNTIME_COMPOSED).filter((rel) => !publicSet.has(rel));
@@ -281,6 +291,16 @@ if (missingComposed.length) {
   console.error('\nMISSING RUNTIME-COMPOSED ASSET — declared as required, but not in mobile-app/public:');
   for (const r of missingComposed) console.error(`  ${r}\n      ${RUNTIME_COMPOSED[r]}`);
   console.error('  Restore it, or drop the entry if the code that composed the URL is gone.');
+}
+if (staleOpaque.length) {
+  bad = 1;
+  console.error('\nSTALE OPAQUE DECLARATION — exempted as runtime-composed, but nothing composes it:');
+  for (const d of staleOpaque) {
+    console.error(`  ${d}/ — no \`\${BASE_URL}${d}/\` constant exists any more`);
+    console.error(`      declared because: ${OPAQUE_DIRS[d]}`);
+  }
+  console.error('  Delete the directory with the feature, or drop the OPAQUE_DIRS entry so its');
+  console.error('  files are orphan-checked again. Left standing it excuses them forever.');
 }
 if (emptyPrefix.length) {
   bad = 1;
