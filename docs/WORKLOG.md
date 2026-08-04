@@ -2114,7 +2114,9 @@ the lockfile churn is attributable.
 - **#1861 → `997f1a84f`** — `actions/upload-artifact` **4 → 7** in
   `.github/workflows/android-build.yml`.
 - **#1860 → `f7916ca8e`** — `actions/setup-node` **6 → 7** in `android-build.yml`
-  **and `ci.yml`** — i.e. it changed the runner setup for every required check.
+  **and `ci.yml`**. In `ci.yml` it hit the two **Node-based** jobs — `Web (typecheck +
+  build)` and `Mobile (build + public/m sync)`, 2 of the 3 required checks at the time.
+  `Secret scan (gitleaks)` runs no Node and was untouched.
 
 ### 2026-08-01 — The masthead contract: one row, one inset, every page
 
