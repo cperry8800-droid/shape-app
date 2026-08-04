@@ -1457,6 +1457,60 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-04 — The gates actually gate: CI runs the suite, the hook stops lying (#1869 → `77a064895`)
+
+- **`npm test` is a required CI check for the first time.** The whole suite — every
+  mount test included — was enforced ONLY by the local pre-commit hook, which is
+  bypassable (`SKIP_VERIFY=1`) and only armed on a machine that ran the SessionStart
+  hook. New **`Tests (unit + mount)`** job in `ci.yml`. ⚠ **OWNER: add it to `main`
+  branch protection** — a job in that file is advisory until it is in the required list.
+- **The hook's classifier was wrong three ways, each producing a false "all checks
+  passed" on unverified code:**
+  - **The mobile arm judged 321 of 791 tracked `mobile-app/` files**, while the deletion
+    arm skipped **all** of them on the stated grounds that the mobile arm had already
+    judged them. It had not. And the skip pattern `mobile-app/*` matches all 791 (`*`
+    crosses `/` in a `case`), so it contributed a mobile build for **exactly zero**
+    paths while reading like a decision.
+  - **`--diff-filter=ACM` made deletions invisible**: a deletion-only commit ran
+    NOTHING — no parse, no tsc, no suite, no build — and exited 0. Deletions are now
+    collected (`--diff-filter=D --no-renames`, so a rename shows its OLD path) with a
+    both-lists-empty early exit.
+  - **The deletion arm enumerated what counts as code, and the list went stale twice in
+    one PR.** First it inherited the parse arm's path exclusions, so deleting
+    `public/vendor/supabase-js` (loaded by **67** pages) reported a clean pass; the fix
+    left a JS/TS **extension** list, so deleting `gridstack.min.css` (**8** pages) did
+    the same. It now enumerates **nothing**: both flags, every deleted path. Measured
+    cost — 5 of the last 300 commits delete anything at all.
+- ⚠ **A `mobile-app/public/` asset deletion is UNGATED end to end, deliberately, and it
+  is written down at the deletion arm rather than dropped.** Measured, not assumed: with
+  `shape-logo.png` moved out, `VITE_BASE=/m/ npm run build` **exits 0** without naming
+  it, the emitted bundle still requests `shape-logo.png?v=2` **three times**, and `dist/`
+  does not contain it. `tsc`, `next build`, gitleaks and the suite are equally blind —
+  the only referenced-file-exists check in the repo is `build-newdesign.mjs:110`, which
+  covers website `.jsx` script tags. **The first sign is a broken image in the app.**
+- **A checker for exactly that was built here and CUT before merge.** It worked — it
+  caught the deletion by file and line. But it decided code-vs-comment with a line-local
+  regex, and that is a **lexing** problem a regex cannot solve: seven review rounds all
+  landed on that one seam, and an adversarial reproduction pass found **seven defects
+  across four mechanisms** still open, **two of them false ALARMS** (red CI on a correct
+  tree — a commented-out `${BASE_URL}x.png`, and a commented-out URL composition sitting
+  above a live one). A check a developer cannot fix except by editing the checker teaches
+  `--no-verify`, which also disables the mount tests. **Registered, not solved:** an
+  AST-based version, re-landable **verbatim from `90f92f743`** as its own PR. It needs
+  `@babel/parser` declared (it is in NEITHER manifest today — root resolves **8.0.4**,
+  mobile-app **7.29.7**), which regenerates `mobile-app/package-lock.json` — the lockfile
+  **`codemagic.yaml` consumes to build the iOS TestFlight IPA on every push to `main`**.
+- **12 Codex rounds.** ⚠ **The durable lesson, logged because it recurred six times: a
+  because-clause is a claim.** Six comments in this PR asserted a mechanism that was
+  false — including one written to fix the previous false one, and one that named a
+  "step 5" the file does not have (there are four). Two guards written to ban
+  enumeration **were themselves enumerations**. Rounds 9–11 found the same defect from
+  three sides: *derive* a rule and it switches itself off when its subject appears;
+  *declare* it and it stays on after its subject leaves; read the declaration from raw
+  text and a comment keeps it alive with no subject at all.
+- Suite **1458/1458** · tsc clean · CI green (Web · Mobile · gitleaks · Tests). Branch
+  kept.
+
 ### 2026-08-02 — Boundary-caught React crashes now reach Sentry, on BOTH app surfaces (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` · `d2a99def8`, branch `claude/sentry-boundary-crashes`, based on the unmerged `claude/error-tracking-layer-1-sentry`, not yet merged)
 
 - **Five build tasks, spec at `docs/superpowers/specs/2026-08-02-boundary-crashes-sentry-design.md`,
