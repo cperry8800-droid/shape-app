@@ -34,16 +34,21 @@
 //                            public/newdesign/faces/member-07.jpg shares a
 //                            basename. Right answer, wrong file, no real coverage.
 // One line apart in the same object literal. So instead of pretending, the
-// reverse pass treats a prefix-covered directory as covered AS A DIRECTORY, and
-// the residual — deleting one member of it — is written down here as undetectable
+// reverse pass exempts only an OPAQUE prefix directory — one where not a single
+// member was resolved by a literal, which today is `faces/` and not `demo/` — and
+// the residual, deleting one member of it, is written down here as undetectable
 // rather than papered over with a check that returns noise.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = path.join(ROOT, 'mobile-app', 'src');
-const PUBLIC = path.join(ROOT, 'mobile-app', 'public');
+// The two env overrides exist so the rules below can be tested against a fixture
+// tree instead of asserted by grepping this file's source. Every rule here was
+// wrong on its first draft in a way only BEHAVIOUR revealed — a source-shaped
+// assertion would have passed on all three.
+const SRC = process.env.SHAPE_ASSET_SRC || path.join(ROOT, 'mobile-app', 'src');
+const PUBLIC = process.env.SHAPE_ASSET_PUBLIC || path.join(ROOT, 'mobile-app', 'public');
 
 // ⚠ THIS EXTENSION LIST RUNS IN THE RECOGNITION DIRECTION, WHICH IS WHY IT IS
 // SAFE WHERE THE HOOK'S OLD ALLOWLISTS WERE NOT. Those lists decided which
@@ -58,10 +63,38 @@ const ASSET_RE = new RegExp(String.raw`[A-Za-z0-9_@][A-Za-z0-9_./-]*\.(?:${ASSET
 // `const BS_DEMO_MEDIA = ${BASE_URL}demo/` — captures the constant NAME and the dir.
 const PREFIX_RE =
   /(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*`\$\{[^}]*BASE_URL[^}]*\}([A-Za-z0-9_-]+)\/`/g;
-// A file that composes served URLs from a variable (`${BASE_URL}${file}`) — the
-// radio logo's ternary reaches the DOM this way, a line after it is written.
-const INDIRECT_RE = /BASE_URL[^}]*\}\s*\$\{/;
+// `${BASE_URL}${file}` — a served URL composed from a VARIABLE. The radio logo's
+// ternary reaches the DOM this way, a line after it is written.
+const INDIRECT_VAR_RE = /BASE_URL[^}]*\}\s*\$\{\s*([A-Za-z0-9_$]+)\s*\}/g;
 const SCANNABLE = /\.(mjs|cjs|js|jsx|ts|tsx|css|html)$/;
+
+// ⚠ THIS IS SCOPED TO THE COMPOSED VARIABLE, NOT THE FILE, AND THE FIRST VERSION
+// WASN'T — WHICH MADE IT THE LOOSEST RULE HERE. It promoted every asset-shaped
+// token in any file containing one `${BASE_URL}${var}`, so adding an unrelated
+// upload filename or a comment mentioning `recording.webm` to
+// iosAppBroadsheetRadio.jsx failed CI on a string never served from publicDir.
+// Reproduced before fixing. That is a failure a developer cannot fix except by
+// editing this script — the "cries wolf, gets bypassed" shape the whole file is
+// written against. Now only literals assigned to the interpolated variable count.
+function indirectLiterals(src) {
+  const vars = new Set();
+  INDIRECT_VAR_RE.lastIndex = 0;
+  let m;
+  while ((m = INDIRECT_VAR_RE.exec(src))) vars.add(m[1]);
+
+  const out = new Set();
+  for (const v of vars) {
+    const assign = new RegExp(String.raw`(?:(?:const|let|var)\s+)?\b${v}\s*=([^;\n]*)`, 'g');
+    let a;
+    while ((a = assign.exec(src))) {
+      const expr = a[1] || '';
+      const tok = new RegExp(ASSET_RE.source, 'g');
+      let t;
+      while ((t = tok.exec(expr))) out.add(t[0].replace(/^\.?\//, ''));
+    }
+  }
+  return out;
+}
 
 // ⚠ ONLY *ANCHORED* REFERENCES ARE CHECKED, AND THE FIRST DRAFT OF THIS FILE
 // PROVED WHY. Treating every string that ends in an asset extension as a
@@ -127,7 +160,7 @@ let refCount = 0;
 for (const file of sources) {
   const src = fs.readFileSync(file, 'utf8');
   const where = norm(path.relative(ROOT, file));
-  const indirect = INDIRECT_RE.test(src);
+  const indirectVals = indirectLiterals(src);
 
   ASSET_RE.lastIndex = 0;
   let m;
@@ -138,33 +171,60 @@ for (const file of sources) {
     const before = src.slice(Math.max(0, m.index - 60), m.index);
     if (/(?:https?:)?\/\/[^\s'"`)]*$/.test(before)) continue; // inside a URL
 
-    const anchored =
-      indirect ||
-      /BASE_URL[^}]*\}\s*$/.test(before) ||
-      [...prefixNames].some((n) => new RegExp(String.raw`\$\{${n}\}\s*$`).test(before));
+    const clean = raw.replace(/^\.?\//, '');
+    // A leaf lifted out of `${BS_DEMO_MEDIA}wall-03.webp` has lost its directory
+    // on the way here; a direct `${BASE_URL}nora/placeholder.vrm` has not.
+    const fromPrefix = [...prefixNames].some((n) =>
+      new RegExp(String.raw`\$\{${n}\}\s*$`).test(before),
+    );
+    const anchored = fromPrefix || indirectVals.has(clean) || /BASE_URL[^}]*\}\s*$/.test(before);
     if (!anchored) continue;
 
     // Vite resolves a specifier relative to the importing file at BUILD time, so
     // a missing one already breaks `npm run build`. Not this check's problem.
     if (fs.existsSync(path.resolve(path.dirname(file), raw))) continue;
 
-    const clean = raw.replace(/^\.?\//, '');
     refCount++;
     if (resolved.has(clean) || missing.some((x) => x.ref === clean)) continue;
 
-    // Exact path under publicDir, else a basename match — a leaf lifted out of
-    // `${BS_DEMO_MEDIA}wall-03.webp` has lost its directory on the way here.
-    if (publicFiles.includes(clean) || byBasename.has(clean.split('/').pop())) resolved.add(clean);
+    // ⚠ THE BASENAME FALLBACK IS FOR DIRECTORY-LESS LEAVES ONLY. Applying it to a
+    // path-bearing reference validated the WRONG FILE: moving
+    // public/nora/placeholder.vrm to public/demo/placeholder.vrm breaks the
+    // runtime URL /m/nora/placeholder.vrm, and the old check cleared it because
+    // some file somewhere had that basename. Reproduced before fixing. A
+    // reference that states its directory must match that directory.
+    const ok = clean.includes('/')
+      ? publicFiles.includes(clean)
+      : publicFiles.includes(clean) || byBasename.has(clean);
+    if (ok) resolved.add(clean);
     else missing.push({ ref: clean, where, line: src.slice(0, m.index).split('\n').length });
   }
 }
 
 // --- Pass 2: every shipped file must be accounted for ------------------------
+//
+// ⚠ ONLY *OPAQUE* PREFIX DIRECTORIES ARE EXEMPT, AND THE FIRST VERSION EXEMPTED
+// ALL OF THEM — which quietly gutted this pass for `demo/`. Both directories are
+// declared through a `${BASE_URL}<dir>/` constant, but only `faces/` composes its
+// filenames at runtime; every one of `demo/`'s eight leaves is spelled out at its
+// call site (`${BS_DEMO_MEDIA}wall-03.webp`). So `demo/` is enumerable, and
+// exempting it meant adding mobile-app/public/demo/orphan.webp still printed OK.
+// Reproduced before fixing. A directory is opaque only when NOTHING in it was
+// resolved by a literal — if you can name one member you can name them all.
+const opaqueDirs = new Set(
+  [...prefixDirs].filter(
+    (d) =>
+      !publicFiles.some(
+        (rel) => rel.startsWith(`${d}/`) && (resolved.has(rel) || resolved.has(rel.split('/').pop())),
+      ),
+  ),
+);
+
 const unaccounted = publicFiles.filter((rel) => {
   const base = rel.split('/').pop();
   const dir = rel.includes('/') ? rel.split('/')[0] : '';
   if (resolved.has(rel) || resolved.has(base)) return false;
-  if (dir && prefixDirs.has(dir)) return false; // covered as a directory; see header
+  if (dir && opaqueDirs.has(dir)) return false; // runtime-composed; see header
   return !DECLARED_UNREFERENCED[rel];
 });
 
@@ -177,7 +237,7 @@ const emptyPrefix = [...prefixDirs].filter((d) => {
 // --- Report ------------------------------------------------------------------
 if (process.argv.includes('--verbose')) {
   console.log(`${refCount} anchored references, ${publicFiles.length} public files`);
-  console.log(`prefix dirs: ${[...prefixDirs].join(', ') || '(none)'}`);
+  console.log(`prefix dirs: ${[...prefixDirs].join(', ') || '(none)'} | opaque (unenumerable): ${[...opaqueDirs].join(', ') || '(none)'}`);
   console.log(`resolved: ${[...resolved].sort().join(', ')}`);
 }
 
@@ -201,8 +261,9 @@ if (emptyPrefix.length) {
 
 if (bad) {
   console.error(
-    `\nNote: this check CANNOT see individual members of a prefix directory ` +
-      `(${[...prefixDirs].join(', ')}) — those filenames are composed at runtime. See the header.`,
+    `\nNote: this check CANNOT see individual members of a runtime-composed directory ` +
+      `(${[...opaqueDirs].join(', ') || 'none'}) — those filenames never appear as literals ` +
+      `in the source, so nothing can verify them. See the header.`,
   );
   process.exit(1);
 }

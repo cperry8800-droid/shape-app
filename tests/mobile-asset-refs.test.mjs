@@ -12,20 +12,47 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(ROOT, 'scripts', 'mobile-asset-refs.mjs');
 
-function run() {
+function run(env = {}) {
   try {
-    return { code: 0, out: execFileSync(process.execPath, [SCRIPT, '--verbose'], { cwd: ROOT, encoding: 'utf8' }) };
+    const out = execFileSync(process.execPath, [SCRIPT, '--verbose'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: { ...process.env, ...env },
+    });
+    return { code: 0, out };
   } catch (e) {
     return { code: e.status ?? 1, out: `${e.stdout || ''}${e.stderr || ''}` };
   }
 }
+
+// Build a throwaway src/ + public/ pair and run the real checker against it. Each
+// of the three rules below was WRONG on its first draft in a way only behaviour
+// exposed — a source-shaped assertion would have passed on all three.
+function fixture({ src = {}, pub = {} }) {
+  const dir = mkdtempSync(join(tmpdir(), 'shape-assets-'));
+  const write = (root, files) => {
+    for (const [rel, body] of Object.entries(files)) {
+      const abs = join(root, rel);
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, body);
+    }
+  };
+  write(join(dir, 'src'), src);
+  write(join(dir, 'public'), pub);
+  const res = run({ SHAPE_ASSET_SRC: join(dir, 'src'), SHAPE_ASSET_PUBLIC: join(dir, 'public') });
+  rmSync(dir, { recursive: true, force: true });
+  return res;
+}
+
+const BASE = '${import.meta.env.BASE_URL}';
 
 test('the working tree passes — every asset reference resolves', () => {
   const { code, out } = run();
@@ -83,6 +110,79 @@ test('the checker is enforced by CI, not only by the bypassable hook', () => {
     hook,
     /scripts\/mobile-asset-refs\.mjs/,
     'verify-staged.sh must run mobile-asset-refs.mjs when the mobile build runs',
+  );
+});
+
+test('a deleted asset that the source still points at FAILS', () => {
+  // The whole reason this script exists: `vite build` exits 0 on exactly this.
+  const src = { 'a.jsx': 'const u = `' + BASE + 'logo.png`;' };
+  assert.equal(fixture({ src, pub: { 'logo.png': 'x' } }).code, 0, 'present asset should pass');
+  assert.equal(fixture({ src, pub: {} }).code, 1, 'a reference with no file must fail');
+});
+
+test('indirect anchoring is scoped to the composed VARIABLE, not the whole file', () => {
+  // ⚠ The first draft promoted every asset-shaped token in any file containing
+  // one `${BASE_URL}${var}`, so an unrelated upload filename failed CI on a
+  // string never served from publicDir — a failure a developer cannot fix except
+  // by editing the checker, which is how a check earns a permanent --no-verify.
+  const src = {
+    'r.jsx':
+      "const file = t.light ? 'lt.png' : 'dk.png';\n" +
+      'const url = `' + BASE + '${file}`;\n' +
+      "fd.append('audio', blob, 'recording.webm');\n",
+  };
+  const res = fixture({ src, pub: { 'lt.png': 'x', 'dk.png': 'x' } });
+  assert.equal(
+    res.code,
+    0,
+    `an upload filename in the same file must not be treated as a public asset:\n${res.out}`,
+  );
+  // ...but the literals that DO flow into the composition are still verified.
+  assert.equal(
+    fixture({ src, pub: { 'lt.png': 'x' } }).code,
+    1,
+    'a literal assigned to the interpolated variable must still be checked',
+  );
+});
+
+test('a path-bearing reference needs an EXACT match, not a basename match', () => {
+  // ⚠ The first draft cleared `nora/placeholder.vrm` after the file moved to
+  // `demo/placeholder.vrm` — the runtime URL /m/nora/placeholder.vrm was broken
+  // while the check reported success, because some file somewhere had that name.
+  const src = { 'a.jsx': 'const u = `' + BASE + 'nora/thing.vrm`;' };
+  assert.equal(fixture({ src, pub: { 'nora/thing.vrm': 'x' } }).code, 0, 'exact path should pass');
+  assert.equal(
+    fixture({ src, pub: { 'other/thing.vrm': 'x' } }).code,
+    1,
+    'a reference that states its directory must match that directory',
+  );
+});
+
+test('only an UNENUMERABLE prefix directory is exempt from the orphan check', () => {
+  // ⚠ The first draft exempted every `${BASE_URL}<dir>/` directory, which gutted
+  // the reverse pass for `demo/` — whose leaves are all spelled out at their call
+  // sites. A directory is opaque only when NOTHING in it resolved by a literal.
+  const enumerable = {
+    'a.jsx': 'const P = `' + BASE + 'demo/`;\nconst u = `${P}wall.webp`;',
+  };
+  assert.equal(
+    fixture({ src: enumerable, pub: { 'demo/wall.webp': 'x' } }).code,
+    0,
+    'a fully-referenced prefix directory should pass',
+  );
+  assert.equal(
+    fixture({ src: enumerable, pub: { 'demo/wall.webp': 'x', 'demo/orphan.webp': 'x' } }).code,
+    1,
+    'an orphan in an ENUMERABLE prefix directory must be reported',
+  );
+
+  // The genuinely runtime-composed shape stays exempt — that is the honest gap.
+  const opaque = { 'a.jsx': 'const P = `' + BASE + 'faces/`;\nconst u = `${P}${slug}.jpg`;' };
+  assert.equal(
+    fixture({ src: opaque, pub: { 'faces/a.jpg': 'x', 'faces/b.jpg': 'x' } }).code,
+    0,
+    'a directory whose filenames are composed at runtime cannot be enumerated, ' +
+      'so its members must not be reported as orphans',
   );
 });
 
