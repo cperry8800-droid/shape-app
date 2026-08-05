@@ -2367,10 +2367,38 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       fd.append('mealSummary', `${kcal} kcal · ${P}P · ${C}C · ${F}F`);
       if (hasMemo) fd.append('audio', voiceMemo.blob, 'memo.webm');
       if (hasPhoto) fd.append('photo', photo.blob, photo.blob.name || 'meal.jpg');
+      // ⚠ SAY SO WHEN IT DOESN'T ARRIVE. This only ever toasted on success, so a
+      // failed dispatch was indistinguishable from having no coach — which is how
+      // a missing server function went unnoticed (2026-08-08 schema-drift audit).
+      // Having no coach stays quiet; a real delivery failure does not, and it says
+      // the log itself was kept so the member doesn't re-log the meal.
+      const noteFailed = () => window.__bsToast?.('Log saved — but we couldn’t reach your coach', 'warn');
       fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(r => r.json().catch(() => ({})))
-        .then(d => { if (d && d.delivered) window.__bsToast?.('Sent to your coach', 'ok'); })
-        .catch(() => {});
+        .then(d => {
+          if (!d) { noteFailed(); return; }
+          if (d.delivered) {
+            // ⚠ DELIVERED IS NOT THE SAME AS COMPLETE. The memo/photo upload is
+            // best-effort server-side: a failed one still sends the message, with
+            // the body reading "recorded"/"added" instead of "attached" and a null
+            // url in metadata. The route reports each independently, so ignoring
+            // these two fields would show "Sent to your coach" for a memo the coach
+            // cannot play — the same silent shape as the coach leg this fixes, one
+            // layer in.
+            const lostMemo = hasMemo && !d.audioAttached;
+            const lostPhoto = hasPhoto && !d.photoAttached;
+            if (lostMemo || lostPhoto) {
+              const what = lostMemo && lostPhoto ? 'memo and photo' : lostMemo ? 'voice memo' : 'photo';
+              window.__bsToast?.(`Note sent — but the ${what} didn’t upload`, 'warn');
+              return;
+            }
+            window.__bsToast?.(d.failedCount ? 'Sent to some of your coaches' : 'Sent to your coach', 'ok');
+            return;
+          }
+          if (d.reason === 'no_coach') return;
+          noteFailed();
+        })
+        .catch(() => { noteFailed(); });
     } catch (e) {}
   };
   const doLog = () => {

@@ -121,13 +121,29 @@ export async function POST(request: Request) {
   // Fan the note out to every linked coach (trainer + nutritionist). Each gets
   // its own direct conversation + message; the memo/photo links ride along in
   // metadata so their chat thread can render a player / image.
+  // ⚠ A FAILED LEG IS REPORTED, NOT SWALLOWED. This loop used to `continue` past
+  // every error and still answer `ok: true`, and the client only toasts on
+  // success — so when `get_or_create_direct_conversation` turned out to be
+  // MISSING FROM PRODUCTION (2026-08-08 schema-drift audit), the member's voice
+  // memo uploaded to storage, reached no coach, and said nothing. The storage
+  // write succeeding is exactly what made it look fine. Count the failures,
+  // log them (Sentry captures console.error on this surface), and hand the
+  // caller enough to tell "you have no coach" apart from "we could not deliver".
   let delivered = 0;
+  let failed = 0;
   for (const p of providers) {
     const { data: conversationId, error: convErr } = await supabase.rpc('get_or_create_direct_conversation', {
       p_provider_role: p.role,
       p_provider_id: p.id,
     });
-    if (convErr || !conversationId) continue;
+    if (convErr || !conversationId) {
+      failed += 1;
+      console.error('[shape-app] meal-note: could not open a coach conversation', {
+        providerRole: p.role,
+        error: convErr?.message ?? 'no conversation id returned',
+      });
+      continue;
+    }
 
     const { error: msgErr } = await supabase.from('messages').insert({
       conversation_id: conversationId,
@@ -144,8 +160,27 @@ export async function POST(request: Request) {
         photo: hasPhoto ? { bucket: MEMO_BUCKET, path: photoPath, url: photoUrl } : null,
       },
     });
-    if (!msgErr) delivered += 1;
+    if (msgErr) {
+      failed += 1;
+      console.error('[shape-app] meal-note: could not write the coach message', {
+        providerRole: p.role,
+        error: msgErr.message,
+      });
+    } else {
+      delivered += 1;
+    }
   }
 
-  return NextResponse.json({ ok: true, delivered: delivered > 0, deliveredCount: delivered, audioAttached: !!audioUrl, photoAttached: !!photoUrl });
+  // `ok` means nothing went wrong, matching the `no_coach` early return above
+  // (which is `ok: true` — having no coach is a state, not a fault). A leg that
+  // could not be delivered IS a fault, so it must not read as success.
+  return NextResponse.json({
+    ok: failed === 0,
+    delivered: delivered > 0,
+    deliveredCount: delivered,
+    failedCount: failed,
+    reason: failed === 0 ? undefined : delivered > 0 ? 'partial_delivery' : 'delivery_failed',
+    audioAttached: !!audioUrl,
+    photoAttached: !!photoUrl,
+  });
 }
