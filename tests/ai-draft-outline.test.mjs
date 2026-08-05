@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   bsDraftMode,
   bsDraftOutline,
@@ -456,4 +459,30 @@ test('the expectation is meal_plan ONLY (trainer templates ignore their chips)',
   assert.ok(bsDraftOutline('nutrition_program', weeks, { meals: 6, calories: 3000 }));
   const day = blocks(['Mon', 'Upper'], ['Tue', 'Lower'], ['Wed', 'Rest']);
   assert.ok(bsDraftOutline('training_program', day, { meals: 7, calories: 3000 }));
+});
+
+// ── the route must honour Bearer auth ────────────────────────────────────────
+// A source guard, not a behaviour test, because nothing here can boot a Next
+// route handler. It exists because the failure is INVISIBLE: the route resolved
+// its user with the cookie-only server client, so every NATIVE coach (who sends
+// the Supabase session as `Authorization: Bearer` and no cookie — see
+// generatePlanDraft in mobile-app/src/services/shapeBackend.js) got a 401, fell
+// into the non-ok branch, and silently received the local template forever.
+// Every gate stayed green: the route compiles, the suite passes, and the `/m/`
+// web build works because it DOES carry the cookie.
+test('generate-plan resolves its user through currentUser, not the cookie-only client', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'api', 'ai', 'generate-plan', 'route.ts'),
+    'utf8',
+  );
+  assert.match(src, /import \{ currentUser \} from '@\/lib\/request-auth'/,
+    'must import currentUser (Bearer OR cookie) — see src/lib/request-auth.ts');
+  assert.match(src, /await currentUser\(request\)/,
+    'the auth check must run through currentUser(request)');
+  // Asserted on the IMPORT SPECIFIER, not on a `auth.getUser()` call site: the
+  // specifier is code (prose in a comment cannot satisfy it — the first draft of
+  // this guard matched its own explanatory comment and failed), and it survives
+  // aliasing, since `import { createClient as anything }` still names the module.
+  assert.doesNotMatch(src, /from '@\/lib\/supabase\/server'/,
+    'the cookie-only server client 401s every native coach — resolve auth with currentUser');
 });

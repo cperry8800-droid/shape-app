@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
@@ -457,8 +457,19 @@ export async function POST(request: Request) {
   // Gate the OpenAI proxy behind an authenticated session — the plan
   // generator is only reached from signed-in coach surfaces, and an open
   // endpoint would let anyone burn the server's OpenAI key.
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  //
+  // ⚠ This MUST resolve through `currentUser`, not the cookie-only server
+  // client. `generatePlanDraft` (mobile-app/src/services/shapeBackend.js) sends
+  // the Supabase session as an `Authorization: Bearer` header and no cookie, so
+  // a cookie-only `auth.getUser()` returns null for every NATIVE coach — they
+  // 401 here, hit the non-ok branch, and silently get the local template
+  // forever. `currentUser` accepts either (Bearer if present, else the cookie),
+  // which is the pattern the other mobile-bridge routes already use.
+  //
+  // The route still needs its own check even though `requireMembership` ran
+  // above: that helper has an edge-gate fast path that returns before resolving
+  // a user, and it fails OPEN on an enforcement fault.
+  const user = await currentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
