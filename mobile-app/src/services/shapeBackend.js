@@ -629,24 +629,46 @@ async function startStripeConnectOnboarding({ role } = {}) {
 // reached — the coach watches a spinner instead. A timeout aborts into the same
 // catch as any other failure and returns the same null.
 const GENERATE_TIMEOUT_MS = 45000;
+const GENERATE_TIMED_OUT = Symbol('generate-timeout');
 
 async function generatePlanDraft(input = {}) {
   if (!apiBaseUrl) return null;
   // AbortSignal.timeout is unavailable on older WebViews; fall back to a manual
   // controller rather than losing the bound on exactly the slow devices that
   // need it most.
+  //
+  // ⚠ The deadline is armed UNCONDITIONALLY, and that is the whole point. An
+  // earlier cut only started the timer when AbortController existed, so a
+  // WebView without it got NO bound at all — precisely inverting the sentence
+  // above, on precisely the old devices most likely to stall. With a controller
+  // we abort and the fetch rejects into the catch; without one we race the
+  // fetch and abandon it. Either way the caller sees null within the deadline
+  // and the builder reaches its template floor.
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS) : null;
+  let timer = null;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      if (controller) controller.abort();
+      resolve(GENERATE_TIMED_OUT);
+    }, GENERATE_TIMEOUT_MS);
+  });
   try {
-    const response = await fetch(`${apiBaseUrl}/api/ai/generate-plan`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(state.session?.access_token ? { Authorization: `Bearer ${state.session.access_token}` } : {}),
-      },
-      body: JSON.stringify(input),
-      ...(controller ? { signal: controller.signal } : {}),
-    });
+    const response = await Promise.race([
+      fetch(`${apiBaseUrl}/api/ai/generate-plan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(state.session?.access_token ? { Authorization: `Bearer ${state.session.access_token}` } : {}),
+        },
+        body: JSON.stringify(input),
+        ...(controller ? { signal: controller.signal } : {}),
+      }),
+      deadline,
+    ]);
+    if (response === GENERATE_TIMED_OUT) {
+      console.warn('[shape] AI generator timed out; using the builder template.');
+      return null;
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.warn('[shape] AI generator API failed; using the builder template.', payload);

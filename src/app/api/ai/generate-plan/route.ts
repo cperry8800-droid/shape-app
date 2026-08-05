@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { currentUser } from '@/lib/request-auth';
+import { currentUser, clientForRequest } from '@/lib/request-auth';
+import { computeMembership } from '@/lib/membership-core';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
@@ -451,6 +452,27 @@ async function generateWithOpenAI(body: GenerateBody): Promise<GeneratedDraft | 
   return JSON.parse(text) as GeneratedDraft;
 }
 
+// ⚠ ON THE WEEK MODES THE LABEL IS SERVER-OWNED, NOT MODEL-AUTHORED.
+//
+// `draftSchema` types `label` as a free string, and the website's program
+// builder derives the WEEK NUMBER from it —
+// `Number(String(block.label).match(/\d+/))` in public/newdesign/newProgram.jsx.
+// A model that labels week one "Phase one" leaves no digit to find, and that
+// page falls back to the array index: the same silent mis-numbering the legacy
+// `program` alias produced, arriving by a different route.
+//
+// Scoped to the two week-shaped modes on purpose. Their label ENCODES a number
+// something parses; every other mode's label is decorative (`01`, `A`, `MON`)
+// and no consumer reads it — the mobile builders never touch `label` at all,
+// they parse title+detail through `bsDraftOutline`. Stamping only where the
+// value is load-bearing keeps the model's own labelling everywhere it is
+// harmless, and matches the convention `fallbackDraft` already emits.
+function withServerLabels(draft: GeneratedDraft, body: GenerateBody): GeneratedDraft {
+  if (body.kind !== 'training_plan' && body.kind !== 'nutrition_program') return draft;
+  if (!Array.isArray(draft.blocks)) return draft;
+  return { ...draft, blocks: draft.blocks.map((b, i) => ({ ...b, label: `W${i + 1}` })) };
+}
+
 export async function POST(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
@@ -474,6 +496,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
+  // ⚠ Authenticated is NOT the same as authorized here (CWE-862).
+  // `requireMembership` passes any paid MEMBER, but this is an OpenAI proxy for
+  // the coach plan builders — the comment above says the gate exists so nobody
+  // can burn the server's key, and a membership check does not deliver that: a
+  // $5/mo client could drive it directly. Every real caller is a coach surface
+  // (the mobile pros module and the trainer website's New program / New workout
+  // pages), so nothing legitimate loses access. `computeMembership` is the same
+  // resolver `requireMembership` uses, and it reads BOTH `profiles.role` and the
+  // `roles` array against the canonical COACH_ROLES — so a dual-role account and
+  // a dietitian both resolve correctly.
+  const gate = await computeMembership(await clientForRequest(request), user.id, user.email ?? null);
+  if (!gate.isCoach && !gate.isAdmin) {
+    return NextResponse.json({ error: 'Coach access required.' }, { status: 403 });
+  }
+
   const jsonResult = await readJson<unknown>(request, { allowEmpty: true });
   if (!jsonResult.ok) return jsonResult.response;
   const json = jsonResult.data;
@@ -486,6 +523,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     source: generated ? 'openai' : 'template',
-    draft: generated || fallbackDraft(body),
+    draft: generated ? withServerLabels(generated, body) : fallbackDraft(body),
   });
 }

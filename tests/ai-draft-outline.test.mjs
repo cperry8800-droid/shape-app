@@ -475,7 +475,10 @@ test('generate-plan resolves its user through currentUser, not the cookie-only c
     join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'api', 'ai', 'generate-plan', 'route.ts'),
     'utf8',
   );
-  assert.match(src, /import \{ currentUser \} from '@\/lib\/request-auth'/,
+  // Matches currentUser anywhere in the request-auth import list — the route
+  // legitimately pulls `clientForRequest` from the same module, and pinning the
+  // exact brace contents made this guard fail on a correct change.
+  assert.match(src, /import \{[^}]*\bcurrentUser\b[^}]*\} from '@\/lib\/request-auth'/,
     'must import currentUser (Bearer OR cookie) — see src/lib/request-auth.ts');
   assert.match(src, /await currentUser\(request\)/,
     'the auth check must run through currentUser(request)');
@@ -485,4 +488,52 @@ test('generate-plan resolves its user through currentUser, not the cookie-only c
   // aliasing, since `import { createClient as anything }` still names the module.
   assert.doesNotMatch(src, /from '@\/lib\/supabase\/server'/,
     'the cookie-only server client 401s every native coach — resolve auth with currentUser');
+});
+
+// Authenticated ≠ authorized. `requireMembership` passes any paid member, but
+// this route is an OpenAI proxy for the coach builders, so a plain $5/mo client
+// could otherwise drive it and spend the server's key. Every real caller is a
+// coach surface, so the gate costs nothing legitimate.
+test('generate-plan authorizes coach/admin, not merely a paid member', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'api', 'ai', 'generate-plan', 'route.ts'),
+    'utf8',
+  );
+  assert.match(src, /import \{ computeMembership \} from '@\/lib\/membership-core'/,
+    'must resolve roles through the same helper requireMembership uses');
+  assert.match(src, /!gate\.isCoach && !gate\.isAdmin/,
+    'must refuse a caller who is neither a coach nor an admin');
+});
+
+// The website derives a week number from `block.label`; a model-authored label
+// with no digit makes that page fall back to the array index, silently
+// mis-numbering the weeks. Labels are stamped server-side on the week modes.
+test('generate-plan stamps its own labels on the week-shaped modes', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'api', 'ai', 'generate-plan', 'route.ts'),
+    'utf8',
+  );
+  assert.match(src, /function withServerLabels/, 'the label normaliser must exist');
+  assert.match(src, /draft: generated \? withServerLabels\(generated, body\)/,
+    'the generated draft must go through it before it is returned');
+  assert.match(src, /label: `W\$\{i \+ 1\}`/, 'week modes must be labelled W1, W2, …');
+});
+
+// Both coach builders must invalidate a cancelled generation run. Asserted by
+// COUNT rather than by driving the race: the defect shape here is asymmetry —
+// one builder fixed, its twin missed — and a flag that is declared but never
+// read (this file has shipped that exact bug before). Four paired sites: the
+// ref, the id captured at the start of the run, the check before committing,
+// and the CANCEL handler that bumps it.
+test('both coach builders invalidate a cancelled generation run', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetPros.jsx'),
+    'utf8',
+  );
+  const count = (re) => (src.match(re) || []).length;
+  assert.equal(count(/const draftRunRef = React\.useRef\(0\);/g), 2, 'one run ref per builder');
+  assert.equal(count(/const run = draftRunRef\.current;/g), 2, 'each run must capture its id');
+  assert.equal(count(/if \(run !== draftRunRef\.current\) return;/g), 2,
+    'each run must drop its result if it is no longer current');
+  assert.equal(count(/draftRunRef\.current \+= 1;/g), 2, 'each CANCEL must invalidate the in-flight run');
 });

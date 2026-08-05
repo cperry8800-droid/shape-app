@@ -5595,6 +5595,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [length, setLength] = useStateBSP('45 min');
   const [draftStatus, setDraftStatus] = useStateBSP('');
   const draftBusyRef = React.useRef(false);
+  // Bumped by CANCEL. A generation already in flight compares the id it started
+  // with against this and drops its result rather than committing it — see the
+  // note at the commit site in generateOnce.
+  const draftRunRef = React.useRef(0);
   const [sort, setSort] = useStateBSP('Popular');
   const [dupes, setDupes] = useStateBSP([]);
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans rows
@@ -5770,6 +5774,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       // real money and a real wait, for an outline the model never saw.
       // `bsDraftMode` maps the builder kind onto the wire mode; sending
       // `buildType` raw is what made `plan` ask for a single session.
+      const run = draftRunRef.current;
       let used = null;
       if (!blankMode) {
         const mode = bsDraftMode('training', buildType);
@@ -5782,6 +5787,13 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       }
       const outline = blankMode ? mk(['', '', '']) : mk((used && used.lines) || template);
       const blockLabel = buildType === 'workout' ? tr('coach:plans.blockExercises', { defaultValue: 'Exercises' }) : buildType === 'program' ? tr('coach:plans.blockWeeklySplit', { defaultValue: 'Weekly split' }) : tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' });
+      // ⚠ Commit ONLY if this run is still the current one. CANCEL bumps the
+      // run id, so a request already in flight resolves into a no-op instead of
+      // calling setEditDraft. That matters because a non-null editDraft renders
+      // the draft editor unconditionally on the next line of this component —
+      // so without this check a late response re-opens the editor on a draft
+      // the coach cancelled, seconds after they left the screen.
+      if (run !== draftRunRef.current) return;
       setDrafting(false);
       setEditDraft({ name: (used && used.name) || `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
     };
@@ -5806,7 +5818,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+            <button onClick={() => { draftRunRef.current += 1; setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
@@ -6593,6 +6605,10 @@ function BSNutriPlans() {
   const [mealsDay, setMealsDay] = useStateBSP(4);
   const [draftStatus, setDraftStatus] = useStateBSP('');
   const draftBusyRef = React.useRef(false);
+  // Bumped by CANCEL. A generation already in flight compares the id it started
+  // with against this and drops its result rather than committing it — see the
+  // note at the commit site in generateOnce.
+  const draftRunRef = React.useRef(0);
   const [dupes, setDupes] = useStateBSP([]);
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans (meal_plan)
   const [note, setNote] = useStateBSP('');
@@ -6723,6 +6739,7 @@ function BSNutriPlans() {
       // ⚠ The generated draft is USED. Sending `buildType` raw is what made
       // BOTH nutrition builders ask the model for a strength workout —
       // `mealplan` and `diet` are not route modes and were silently coerced.
+      const run = draftRunRef.current;
       let used = null;
       if (!blankMode) {
         const mode = bsDraftMode('nutrition', buildType);
@@ -6738,6 +6755,8 @@ function BSNutriPlans() {
       }
       const outline = blankMode ? mk(['', '', '']) : mk((used && used.lines) || template);
       const blockLabel = buildType === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : buildType === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
+      // Same cancel guard as the trainer builder — see the note there.
+      if (run !== draftRunRef.current) return;
       setDrafting(false);
       setEditDraft({ name: (used && used.name) || `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
     };
@@ -6757,7 +6776,7 @@ function BSNutriPlans() {
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+            <button onClick={() => { draftRunRef.current += 1; setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: gold }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
