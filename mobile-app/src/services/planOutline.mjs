@@ -97,6 +97,298 @@ export function bsAssignMeal(text) {
   return { slot: (slot || 'meal').toUpperCase(), title: p.tail || p.head, kcal: kcal ? Number(kcal) : 0 };
 }
 
+// ── The AI draft contract ────────────────────────────────────────────────────
+//
+// The ✦ AI DRAFT button generates a STARTING TEMPLATE the coach then edits and
+// personalises. It is not a finished plan, and nothing here is sent to a client
+// without a human pressing publish.
+//
+// ⚠ THE REASON THIS LIVES IN THIS FILE, NEXT TO THE PARSERS.
+// A draft block is not free text. Every line the editor publishes is later
+// PARSED by the functions above to decide what the plan even IS — a weekday
+// split (`bsAssignDayLine`), a multi-week arc (`bsAssignWeekLine`), a day's
+// menu (`bsAssignMeal`) or a session (`bsAssignExercise`). A model that writes
+// "Monday: upper body push" instead of "Mon — Upper (push)" produces a draft
+// that publishes cleanly, looks right in the editor, and then MIS-ASSIGNS to
+// the client, silently. So the generated outline is validated with the exact
+// parsers that will later read it, and a draft that does not parse is refused.
+//
+// The template is therefore always the floor: no key, no network, a malformed
+// response, or text that will not parse all degrade to precisely the outline
+// that shipped before the model was wired in. The worst case is today.
+
+// The six real builder modes. The route used to accept three
+// (`workout | program | meal_plan`) and SILENTLY COERCE anything else to
+// `workout`, so four of the six builder kinds asked for the wrong artifact —
+// both nutritionist meal builders were literally requesting strength workouts,
+// and `meal_plan`, the one nutrition mode the route implemented, was
+// unreachable from any interface. `program` is genuinely overloaded: a trainer
+// program is a weekly split, a nutrition program is a multi-week arc. They are
+// separate modes because they parse differently.
+export const BS_DRAFT_MODES = Object.freeze([
+  'workout',
+  'training_program',
+  'training_plan',
+  'meal_plan',
+  'nutrition_program',
+  'diet',
+]);
+
+const DRAFT_MODE_BY_KIND = Object.freeze({
+  training: Object.freeze({ workout: 'workout', program: 'training_program', plan: 'training_plan' }),
+  nutrition: Object.freeze({ mealplan: 'meal_plan', program: 'nutrition_program', diet: 'diet' }),
+});
+
+// (discipline, builder buildType) → wire mode. Returns null for an unknown
+// pair rather than guessing: a wrong mode is worse than no generation, because
+// it spends money to produce an artifact of the wrong kind.
+export function bsDraftMode(discipline, buildType) {
+  const table = DRAFT_MODE_BY_KIND[String(discipline || '').toLowerCase()];
+  if (!table) return null;
+  return table[String(buildType || '').toLowerCase()] || null;
+}
+
+// A draft arrives over the wire from a model. Treat every field as hostile:
+// strip control characters (they can hide or reorder rendered text), collapse
+// whitespace, and bound the length. Total by construction — a throwing getter
+// or a Symbol must not take down the builder.
+const DRAFT_LINE_MAX = 120;
+function draftText(value) {
+  let s;
+  try {
+    if (value == null) return '';
+    if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+    if (typeof value !== 'string') return '';
+    s = value;
+  } catch { return ''; }
+  return s
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, DRAFT_LINE_MAX);
+}
+
+// `{ title, detail }` → one outline line in the grammar the parsers expect.
+// The em dash is the separator `bsAssignSplitBlock` splits on, so `title`
+// becomes the parsed HEAD (the weekday, the week number, the meal slot, the
+// movement) and `detail` becomes the TAIL.
+// ⚠ The try must wrap the property ACCESS, not just the coercion. A hostile
+// payload can carry a throwing getter, and `block.title` throws before any
+// value reaches draftText — which is exactly how the first version of this
+// function failed its own totality test.
+function draftProp(block, key) {
+  try {
+    return block == null ? '' : draftText(block[key]);
+  } catch {
+    return '';
+  }
+}
+
+function draftLine(block) {
+  const title = draftProp(block, 'title');
+  const detail = draftProp(block, 'detail');
+  if (title && detail) return `${title} — ${detail}`.slice(0, DRAFT_LINE_MAX);
+  return title || detail || '';
+}
+
+// Per-mode acceptance. Each predicate is the SAME function that will read the
+// line at assign time — not a re-implementation of its grammar, which is how
+// the preview and the delivery drifted apart before this file existed.
+//
+// ⚠ `key` is the SECOND half of validation, and a per-line check alone is not
+// enough without it. A draft that answers "Mon — Upper" seven times passes
+// every line check and then stacks all seven sessions onto ONE calendar day:
+// `bsAssignWeekLine` output is deduped downstream by `bsWeekUnits`, but the
+// weekday path has no equivalent dedupe in `bsMaterializeOutline` or the Assign
+// page. Where a repeat is meaningless, the draft is refused.
+//
+// Deliberately absent for `meal_plan`: a day legitimately repeats `Snack`, and
+// for `workout`/`diet`, where repetition is the coach's business.
+
+// ⚠ `fit` is the THIRD half: does the accepted draft honour what the coach
+// actually chose? Per-line and per-key checks both pass on a two-meal, 900 kcal
+// answer to "6 meals / 3000 kcal" — and that draft would then be used INSTEAD of
+// a template that honours both chips exactly, so the AI path would silently undo
+// the only two numbers on the screen the coach set by hand.
+//
+// It applies to `meal_plan` alone, and the reason is a rule worth keeping: only
+// enforce a number the coach explicitly picked AND the deterministic fallback
+// already honours. MEALS / DAY and DAILY CALORIES are both. The trainer
+// templates are fixed lists that ignore their `duration` chip, so enforcing a
+// week count there would refuse a good 10-week draft in favour of a 6-week
+// template — stricter than the fallback, and worse for the coach.
+const DRAFT_KCAL_TOLERANCE = 0.1;
+
+function mealPlanFits(lines, expect) {
+  const meals = Math.round(Number(expect.meals));
+  if (Number.isFinite(meals) && meals > 0 && lines.length !== meals) return false;
+
+  const target = Math.round(Number(expect.calories));
+  if (Number.isFinite(target) && target > 0) {
+    // `ok` already required a real figure on every line, so this sums the
+    // draft's own stated calories, never a fabricated 0.
+    const total = lines.reduce((acc, line) => acc + bsAssignMeal(line).kcal, 0);
+    if (Math.abs(total - target) > target * DRAFT_KCAL_TOLERANCE) return false;
+  }
+  return true;
+}
+
+const DRAFT_MODE_RULES = Object.freeze({
+  workout:           { min: 2, ok: (line) => { const x = bsAssignExercise(line); return !!(x && x.name); } },
+  training_program:  { min: 3, ok: (line) => !!bsAssignDayLine(line), key: (line) => bsAssignDayLine(line).dow },
+  training_plan:     { min: 2, ok: (line) => !!bsAssignWeekLine(line), key: (line) => bsAssignWeekLine(line).week },
+  nutrition_program: { min: 2, ok: (line) => !!bsAssignWeekLine(line), key: (line) => bsAssignWeekLine(line).week },
+  // A meal line must resolve to a REAL slot AND carry calories. `bsAssignMeal`
+  // falls back to the slot 'MEAL' for anything it does not recognise, so
+  // accepting its non-null return would accept every string — the check has to
+  // be the slot itself. The kcal requirement is the same rule the route's
+  // grammar already states ("MUST end with the calories"): a meal line with no
+  // figure parses to `kcal: 0`, and a menu printing 0 kcal beside real food is
+  // a worse starting template than the deterministic one.
+  meal_plan: {
+    min: 2,
+    ok: (line) => { const m = bsAssignMeal(line); return !!(m && m.slot && m.slot !== 'MEAL' && m.kcal > 0); },
+    fit: mealPlanFits,
+  },
+  // Diet is an options list with no downstream parse, so it carries no grammar
+  // requirement — only that the lines are non-empty.
+  diet:              { min: 2, ok: (line) => !!line },
+});
+
+// Map a model's `blocks` onto the editor's outline, or return null to mean
+// "unusable — keep the template". Null is the honest answer, not an empty
+// array: an empty outline would open the editor on a blank plan and read as a
+// successful generation that produced nothing.
+// `expect` carries the coach's own chosen numbers (see `fit` above). Omitting
+// it keeps every pre-existing caller's behaviour unchanged.
+export function bsDraftOutline(mode, blocks, expect) {
+  // Own-property lookup, because this file promises totality: a `mode` of
+  // 'constructor' or 'toString' resolves an inherited function, which is truthy
+  // and has no `ok`, so a plain index would throw a TypeError out of a function
+  // whose entire contract is to return null instead.
+  const key = String(mode || '');
+  const rule = Object.prototype.hasOwnProperty.call(DRAFT_MODE_RULES, key)
+    ? DRAFT_MODE_RULES[key]
+    : null;
+  if (!rule) return null;
+  if (!Array.isArray(blocks) || !blocks.length) return null;
+
+  const lines = [];
+  const seen = new Set();
+  for (const block of blocks.slice(0, BS_DAY_BLOCK_MAX)) {
+    const line = draftLine(block);
+    // One unparseable line invalidates the whole draft rather than being
+    // dropped. A partial outline is the dangerous shape: it looks authored,
+    // and the coach has no way to see which day the model failed to write.
+    if (!line || !rule.ok(line)) return null;
+    if (rule.key) {
+      const k = rule.key(line);
+      if (seen.has(k)) return null;
+      seen.add(k);
+    }
+    lines.push(line);
+  }
+  if (lines.length < rule.min) return null;
+
+  if (rule.fit && expect) {
+    // Fails CLOSED on a throw: an expectation we cannot evaluate degrades to
+    // the template, which is this whole path's floor.
+    let fits = false;
+    try { fits = !!rule.fit(lines, expect); } catch { fits = false; }
+    if (!fits) return null;
+  }
+  return lines;
+}
+
+// The ONE entry point the builders call. Returns `{ lines, name, note }` when
+// the generated draft is usable, or null to mean "keep the template".
+//
+// name/note ride ALONG WITH the outline and are never taken on their own: a
+// draft whose blocks were refused is a draft we did not accept, and stamping
+// its title over the builder's template outline would advertise a generation
+// that did not survive.
+export function bsDraftFromResponse(mode, draft, expect) {
+  const lines = bsDraftOutline(mode, draft && safeProp(draft, 'blocks'), expect);
+  if (!lines) return null;
+
+  const name = draftProp(draft, 'title');
+
+  let note = '';
+  const notes = safeProp(draft, 'coachNotes');
+  if (Array.isArray(notes)) {
+    note = notes
+      .slice(0, 6)
+      .map((n) => draftText(n))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return { lines, name, note };
+}
+
+function safeProp(obj, key) {
+  try {
+    return obj == null ? undefined : obj[key];
+  } catch {
+    return undefined;
+  }
+}
+
+// ── A day's meals, from the builder's own chips ──────────────────────────────
+//
+// ⚠ THE BUG THESE EXIST TO FIX. The nutritionist builder offers MEALS / DAY
+// (3-6) and DAILY CALORIES (~1800-~3000) chips, and the outline template
+// ignored BOTH: it always emitted five fixed lines summing to ~2150 kcal. A
+// coach choosing 3000 kcal across 6 meals got 2150 across 5, with nothing
+// saying so.
+//
+// Shared with the generate-plan route (which imports this module) so the
+// server template and the builder template cannot describe different days.
+
+// Only the four words `bsAssignMeal` recognises are used — anything else parses
+// as the generic 'MEAL' slot and would be refused by bsDraftOutline.
+export function bsMealSlots(n) {
+  const count = Math.max(3, Math.min(Number(n) || 4, 6));
+  switch (count) {
+    case 3: return ['Breakfast', 'Lunch', 'Dinner'];
+    case 5: return ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Snack'];
+    case 6: return ['Breakfast', 'Snack', 'Lunch', 'Snack', 'Dinner', 'Snack'];
+    default: return ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
+  }
+}
+
+// Split a day's calories across those slots — main meals weighted heavier,
+// rounded to 10, with the rounding remainder pushed onto dinner so the parts
+// SUM EXACTLY to the target. A plan whose meals do not add up to the number
+// printed on it is the quiet dishonesty this codebase treats as a bug.
+export function bsMealCalories(total, slots) {
+  const list = Array.isArray(slots) && slots.length ? slots : bsMealSlots(4);
+  const target = Math.max(0, Math.round(Number(total) || 0));
+  const weight = (s) => (s === 'Snack' ? 1 : 2.4);
+  const sum = list.reduce((acc, s) => acc + weight(s), 0);
+  const parts = list.map((s) => Math.round((target * weight(s)) / sum / 10) * 10);
+  const drift = target - parts.reduce((a, b) => a + b, 0);
+  const dinner = list.lastIndexOf('Dinner');
+  parts[dinner >= 0 ? dinner : parts.length - 1] += drift;
+  return parts;
+}
+
+// The default day menu in the grammar `bsAssignMeal` reads. Exported so the
+// generate-plan route's fallback serves the same food as the builder's — a
+// second copy had already appeared there, which is how these drift.
+export const BS_MEAL_FOOD = Object.freeze({
+  Breakfast: 'Greek yogurt bowl, oats, berries',
+  Lunch: 'Chicken rice bowl, greens, olive oil',
+  Dinner: 'Salmon or lean beef, potato, vegetables',
+  Snack: 'Fruit, nuts or a protein shake',
+});
+
+export function bsMealPlanTemplate(mealsPerDay, calories) {
+  const slots = bsMealSlots(mealsPerDay);
+  const kcal = bsMealCalories(calories, slots);
+  return slots.map((slot, i) => `${slot} — ${BS_MEAL_FOOD[slot]} · ${kcal[i]} kcal`);
+}
+
 // ── The per-day menu contract ────────────────────────────────────────────────
 // docs/superpowers/specs/2026-07-26-per-day-menu-contract.md
 //

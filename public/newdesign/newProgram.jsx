@@ -175,8 +175,18 @@ function NewProgramPage() {
       setWorkouts(draft.blocks.map((block, index) => ({
         week: Number(String(block.label || "").match(/\d+/)?.[0]) || Math.min(index + 1, generatedWeeks || weeks),
         day: days[index % days.length],
-        title: block.title || "",
-        ref: [block.detail, block.note].filter(Boolean).join(" - "),
+        // ⚠ The PHASE is the row's name, and it lives in `detail`, not `title`.
+        // Since the six-mode split this page's drafts come back in the shared
+        // week grammar, where `title` is forced to the literal "Week N" so the
+        // mobile parser can read it (bsAssignWeekLine requires a line starting
+        // "Week N"; a phase-named title makes bsDraftOutline reject the whole
+        // draft, which is the "coach builders silently keep their template" bug
+        // that grammar exists to fix). So "Week 4" would land in this row's name
+        // beside a week column already reading W4, and the informative word —
+        // "Deload" — would be demoted into `ref`. Read the phase here instead;
+        // `title` is kept in `ref` so nothing is dropped.
+        title: block.detail || block.title || "",
+        ref: [block.note, block.title].filter(Boolean).join(" - "),
       })));
     }
   };

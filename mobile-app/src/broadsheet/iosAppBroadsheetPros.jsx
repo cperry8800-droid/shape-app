@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, bsDraftMode, bsDraftFromResponse, bsMealPlanTemplate, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -5594,6 +5594,11 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [equip, setEquip] = useStateBSP('Full gym');
   const [length, setLength] = useStateBSP('45 min');
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  const draftBusyRef = React.useRef(false);
+  // Bumped by CANCEL. A generation already in flight compares the id it started
+  // with against this and drops its result rather than committing it — see the
+  // note at the commit site in generateOnce.
+  const draftRunRef = React.useRef(0);
   const [sort, setSort] = useStateBSP('Popular');
   const [dupes, setDupes] = useStateBSP([]);
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans rows
@@ -5753,18 +5758,73 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </div>
       </div>
     );
-    const generate = async () => {
+    const generateOnce = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
-      if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {} }
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
-      const outline = blankMode ? mk(['', '', '']) : (buildType === 'workout'
-        ? mk(['Warm-up · 8 min', `Main lift — ${focus}`, 'Secondary compound · 4×8', 'Accessory superset · 3×12', 'Core finisher', 'Cooldown · mobility'])
+      // The builder's own outline. This is the FLOOR — it is what ships when
+      // there is no model, no network, or a response whose block text will not
+      // parse. Its line grammar is not cosmetic: `Mon — …` / `Week N — …` are
+      // what bsAssignDayLine / bsAssignWeekLine read at assign time.
+      const template = buildType === 'workout'
+        ? ['Warm-up · 8 min', `Main lift — ${focus}`, 'Secondary compound · 4×8', 'Accessory superset · 3×12', 'Core finisher', 'Cooldown · mobility']
         : buildType === 'program'
-        ? mk(['Mon — Upper (push)', 'Tue — Lower (squat)', 'Wed — Rest / mobility', 'Thu — Upper (pull)', 'Fri — Lower (hinge)', 'Sat — Conditioning', 'Sun — Rest'])
-        : mk(['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification', 'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest']));
+        ? ['Mon — Upper (push)', 'Tue — Lower (squat)', 'Wed — Rest / mobility', 'Thu — Upper (pull)', 'Fri — Lower (hinge)', 'Sat — Conditioning', 'Sun — Rest']
+        : ['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification', 'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest'];
+      // ⚠ The generated draft is USED. It used to be awaited and thrown away —
+      // real money and a real wait, for an outline the model never saw.
+      // `bsDraftMode` maps the builder kind onto the wire mode; sending
+      // `buildType` raw is what made `plan` ask for a single session.
+      const run = draftRunRef.current;
+      let used = null;
+      if (!blankMode) {
+        const mode = bsDraftMode('training', buildType);
+        if (mode) {
+          try {
+            const res = await window.ShapeAI?.generatePlanDraft?.({ kind: mode, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip });
+            used = bsDraftFromResponse(mode, res && res.draft);
+          } catch (e) { used = null; }
+        }
+      }
+      const outline = blankMode ? mk(['', '', '']) : mk((used && used.lines) || template);
       const blockLabel = buildType === 'workout' ? tr('coach:plans.blockExercises', { defaultValue: 'Exercises' }) : buildType === 'program' ? tr('coach:plans.blockWeeklySplit', { defaultValue: 'Weekly split' }) : tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' });
+      // ⚠ Commit ONLY if this run is still the current one. CANCEL bumps the
+      // run id, so a request already in flight resolves into a no-op instead of
+      // calling setEditDraft. That matters because a non-null editDraft renders
+      // the draft editor unconditionally on the next line of this component —
+      // so without this check a late response re-opens the editor on a draft
+      // the coach cancelled, seconds after they left the screen.
+      if (run !== draftRunRef.current) return;
       setDrafting(false);
-      setEditDraft({ name: `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
+      setEditDraft({ name: (used && used.name) || `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
+    };
+    // ⚠ The guard is a REF, not state: two taps in the same tick both read a
+    // state flag as false before React re-renders, which is exactly the
+    // double-tap it exists to stop — and the later response's setEditDraft
+    // would overwrite the earlier one, opening the editor on the draft the
+    // coach did not wait for. Clearing draftStatus is not cosmetic either: it
+    // is the button's label AND (now) its disabled state, and nothing else
+    // resets it, so leaving it set would lock the button out on the next open.
+    //
+    // ⚠ CANCEL had to release that pair ITSELF, and the sentence above is why.
+    // The `finally` below is the only other writer, and it cannot run until the
+    // abandoned fetch settles — up to GENERATE_TIMEOUT_MS (45s). So a coach who
+    // cancelled and reopened found the button reading "Generating…" and dead,
+    // for a run they had walked away from. Blank mode too, which never touches
+    // the network. This comment described that exact failure and it was applied
+    // to the settle path only.
+    //
+    // ⚠ And the release here is RUN-SCOPED, not unconditional. Now that CANCEL
+    // frees the pair, a second generation can already be in flight when an
+    // abandoned one settles; an unconditional release would clear the CURRENT
+    // run's busy flag mid-flight — re-enabling the button, defeating the
+    // double-tap guard, and letting two live runs (which share the post-cancel
+    // run id) both pass the commit check, the later setEditDraft overwriting
+    // the earlier. That is the very race the busy ref exists to stop.
+    const generate = async () => {
+      if (draftBusyRef.current) return;
+      draftBusyRef.current = true;
+      const run = draftRunRef.current;
+      try { await generateOnce(); } finally { if (run === draftRunRef.current) { draftBusyRef.current = false; setDraftStatus(''); } }
     };
     return (
       <BSPage>
@@ -5775,7 +5835,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+            <button onClick={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
@@ -5794,7 +5854,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           {chips(tr('coach:plans.experienceLabel', { defaultValue: 'EXPERIENCE' }), exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
           {chips(tr('coach:plans.equipmentLabel', { defaultValue: 'EQUIPMENT' }), equip, setEquip, ['Full gym', 'Dumbbells', 'Bodyweight'])}
           {chips(tr('coach:plans.lengthLabel', { defaultValue: 'LENGTH' }), length, setLength, ['30 min', '45 min', '60 min', '75 min'])}
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
+          <button onClick={generate} disabled={!!draftStatus} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: draftStatus ? 'default' : 'pointer', opacity: draftStatus ? 0.75 : 1 }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
           <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
         </div>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:plans.footerAiWorkout', { defaultValue: 'Workout' })} />
@@ -6561,6 +6621,11 @@ function BSNutriPlans() {
   const [cals, setCals] = useStateBSP('~2100');
   const [mealsDay, setMealsDay] = useStateBSP(4);
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  const draftBusyRef = React.useRef(false);
+  // Bumped by CANCEL. A generation already in flight compares the id it started
+  // with against this and drops its result rather than committing it — see the
+  // note at the commit site in generateOnce.
+  const draftRunRef = React.useRef(0);
   const [dupes, setDupes] = useStateBSP([]);
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans (meal_plan)
   const [note, setNote] = useStateBSP('');
@@ -6670,18 +6735,56 @@ function BSNutriPlans() {
         </div>
       </div>
     );
-    const generate = async () => {
+    const generateOnce = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
-      if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {} }
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
-      const outline = blankMode ? mk(['', '', '']) : (buildType === 'program'
-        ? mk(['Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros', 'Week 4 — Lock it in', 'Grocery + prep guide'])
+      const kcalTarget = Number(String(cals).replace(/[^\d]/g, '')) || 2100;
+      // ⚠ The meal template now HONOURS the MEALS / DAY and DAILY CALORIES
+      // chips. It used to ignore both — always five fixed lines summing to
+      // ~2150 kcal — so a coach picking 3000 across 6 meals got 2150 across 5,
+      // and the last line ("Evening") was not even a slot `bsAssignMeal`
+      // recognises, so it delivered as a generic meal.
+      const template = buildType === 'program'
+        // The trailing 'Grocery + prep guide' line is NOT a week label and is
+        // kept deliberately: whether it should surface anywhere is a live open
+        // owner question (War Room, nutrition week-block wave), and dropping it
+        // here would silently answer it. `bsWeekUnits` ignores non-week lines.
+        ? ['Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros', 'Week 4 — Lock it in', 'Grocery + prep guide']
         : buildType === 'diet'
-        ? mk(['Breakfast options', 'Lunch options', 'Dinner options', 'Snacks', 'Foods to favour', 'Foods to avoid'])
-        : mk(['Breakfast · ~500 kcal', 'Lunch · ~600 kcal', 'Snack · ~250 kcal', 'Dinner · ~650 kcal', 'Evening · ~150 kcal']));
+        ? ['Breakfast options', 'Lunch options', 'Dinner options', 'Snacks', 'Foods to favour', 'Foods to avoid']
+        : bsMealPlanTemplate(mealsDay, kcalTarget);
+      // ⚠ The generated draft is USED. Sending `buildType` raw is what made
+      // BOTH nutrition builders ask the model for a strength workout —
+      // `mealplan` and `diet` are not route modes and were silently coerced.
+      const run = draftRunRef.current;
+      let used = null;
+      if (!blankMode) {
+        const mode = bsDraftMode('nutrition', buildType);
+        if (mode) {
+          try {
+            const res = await window.ShapeAI?.generatePlanDraft?.({ kind: mode, goal, client: '', level: diet, duration: '7 days', calories: String(kcalTarget), mealsPerDay: mealsDay, preferences: desc, protein: '' });
+            // The MEALS / DAY and DAILY CALORIES chips are asked for in the
+            // prompt AND enforced here — a draft that ignores them loses to the
+            // template, which honours both exactly.
+            used = bsDraftFromResponse(mode, res && res.draft, { meals: mealsDay, calories: kcalTarget });
+          } catch (e) { used = null; }
+        }
+      }
+      const outline = blankMode ? mk(['', '', '']) : mk((used && used.lines) || template);
       const blockLabel = buildType === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : buildType === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
+      // Same cancel guard as the trainer builder — see the note there.
+      if (run !== draftRunRef.current) return;
       setDrafting(false);
-      setEditDraft({ name: `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
+      setEditDraft({ name: (used && used.name) || `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
+    };
+    // Same guard as the trainer builder — see the note there for why it is a
+    // ref, why CANCEL has to release the busy/status pair itself, and why this
+    // release is run-scoped rather than unconditional.
+    const generate = async () => {
+      if (draftBusyRef.current) return;
+      draftBusyRef.current = true;
+      const run = draftRunRef.current;
+      try { await generateOnce(); } finally { if (run === draftRunRef.current) { draftBusyRef.current = false; setDraftStatus(''); } }
     };
     return (
       <BSPage>
@@ -6692,7 +6795,7 @@ function BSNutriPlans() {
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+            <button onClick={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: gold }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
@@ -6716,7 +6819,7 @@ function BSNutriPlans() {
               {[3, 4, 5, 6].map(n => { const on = mealsDay === n; return <button key={n} onClick={() => setMealsDay(n)} style={{ width: 40, height: 40, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', color: on ? '#241c08' : t.INK, fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>{n}</button>; })}
             </div>
           </div>
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
+          <button onClick={generate} disabled={!!draftStatus} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: draftStatus ? 'default' : 'pointer', opacity: draftStatus ? 0.75 : 1 }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
           <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
         </div>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:diet.footerAiMealPlan', { defaultValue: 'Meal plan' })} />
