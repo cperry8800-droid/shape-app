@@ -669,7 +669,24 @@ async function generatePlanDraft(input = {}) {
       console.warn('[shape] AI generator timed out; using the builder template.');
       return null;
     }
-    const payload = await response.json().catch(() => ({}));
+    // ⚠ THE BODY READ IS INSIDE THE DEADLINE TOO, and that is not belt-and-braces.
+    // `fetch` resolves as soon as the HEADERS arrive, so winning the race above
+    // bounds the connection and nothing more. A server or proxy that answers 200
+    // and then stalls the JSON body left this await with nothing watching it.
+    // With a controller the timer's `abort()` still rejects the read, so that
+    // path was covered — but the no-controller fallback, which is the entire
+    // reason this branch exists, had no second bound at all. The draft sheet sat
+    // on "Generating…" indefinitely, on exactly the old WebViews the deadline
+    // was armed for.
+    //
+    // Racing the SAME `deadline` promise rather than a fresh one keeps the budget
+    // a TOTAL: headers plus body settle within GENERATE_TIMEOUT_MS, instead of
+    // each phase drawing its own 45s and the caller waiting ninety.
+    const payload = await Promise.race([response.json().catch(() => ({})), deadline]);
+    if (payload === GENERATE_TIMED_OUT) {
+      console.warn('[shape] AI generator stalled mid-body; using the builder template.');
+      return null;
+    }
     if (!response.ok) {
       console.warn('[shape] AI generator API failed; using the builder template.', payload);
       return null;

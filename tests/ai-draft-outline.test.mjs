@@ -517,6 +517,19 @@ test('generate-plan stamps its own labels on the week-shaped modes', () => {
   assert.match(src, /draft: generated \? withServerLabels\(generated, body\)/,
     'the generated draft must go through it before it is returned');
   assert.match(src, /label: `W\$\{i \+ 1\}`/, 'week modes must be labelled W1, W2, …');
+  // Stamping the label is only half the invariant. `newProgram.jsx` sizes its
+  // week <select> from `duration` and reads each row's week from `label`, so a
+  // model answering a "4 weeks" request with six blocks produced W5/W6 — values
+  // that range has no option for, which the browser paints as W1 while state
+  // holds 5 and 6. `arcWeeks` fixed this on the FALLBACK path only; the model
+  // path needs the same rule, and gets it by reporting the count it emitted.
+  assert.match(src, /duration: `\$\{blocks\.length\} weeks`/,
+    'the model path must report the week count it actually emitted');
+  assert.doesNotMatch(
+    src,
+    /return \{ \.\.\.draft, blocks: draft\.blocks\.map\(\(b, i\) => \(\{ \.\.\.b, label: `W\$\{i \+ 1\}` \}\)\) \};/,
+    'stamping labels without reconciling duration reintroduces out-of-range weeks',
+  );
 });
 
 // Both coach builders must invalidate a cancelled generation run. Asserted by
@@ -594,6 +607,54 @@ test('the week-shaped fallbacks size their arc to the requested duration', () =>
   assert.doesNotMatch(src, /blocks: NUTRITION_ARC\.map\(/, 'nutrition_program must not emit a fixed-length arc');
 });
 
+// Sizing the arc to the request opened a second question the clamp answered
+// badly: what fills the weeks past the arc's own length. `arcWeeks` accepts up
+// to twelve, WEEK_ARC holds six and NUTRITION_ARC only four, so clamping to the
+// final index answered a long request with seven consecutive "Retest" rows —
+// nine "Lock it in" on the nutrition side — with no deload and no progression.
+test('the week-shaped fallbacks cycle their arc instead of clamping to its end', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'api', 'ai', 'generate-plan', 'route.ts'),
+    'utf8',
+  );
+  assert.doesNotMatch(src, /WEEK_ARC\[Math\.min\(i, WEEK_ARC\.length - 1\)\]/,
+    'training_plan must not clamp to its last phase');
+  assert.doesNotMatch(src, /NUTRITION_ARC\[Math\.min\(i, NUTRITION_ARC\.length - 1\)\]/,
+    'nutrition_program must not clamp to its last phase');
+  assert.equal((src.match(/i === weeks - 1$/gm) || []).length, 2,
+    'both arcs must reserve the last week for the terminal phase');
+
+  // Behavioural — and BOTH inputs are read from the route rather than restated
+  // here: the arcs as declared, and the divisor the cycling expression actually
+  // uses. Hardcoding `length - 1` in this file would have tested the rule I typed
+  // into the test instead of the one the route runs, leaving a change from
+  // `- 1` to `.length` green.
+  const arc = (name) => {
+    const m = src.match(new RegExp('const ' + name + " = \\[([^\\]]*)\\]"));
+    assert.ok(m, name + ' must be a flat array literal for this guard to read it');
+    return m[1].split(',').map((s) => s.trim().replace(/^'|'$/g, ''));
+  };
+  const back = (name) => {
+    const m = src.match(new RegExp(name + '\\[i % \\(' + name + '\\.length - (\\d+)\\)\\]'));
+    assert.ok(m, name + ' must cycle by a length-relative divisor');
+    return Number(m[1]);
+  };
+  const cycle = (a, weeks, b) => Array.from({ length: weeks }, (_, i) =>
+    (i === weeks - 1 ? a[a.length - 1] : a[i % (a.length - b)]));
+  for (const name of ['WEEK_ARC', 'NUTRITION_ARC']) {
+    const a = arc(name);
+    assert.deepEqual(cycle(a, a.length, back(name)), a,
+      name + ' at its own length must be the arc unchanged');
+  }
+  // …and at the ceiling the terminal phase must appear once, with the deload
+  // still present. This is the defect stated as an outcome rather than a shape.
+  const w = arc('WEEK_ARC');
+  const long = cycle(w, 12, back('WEEK_ARC'));
+  assert.equal(long.filter((p) => p === w[w.length - 1]).length, 1,
+    'a 12-week block must reach its terminal phase exactly once');
+  assert.ok(long.includes('Deload'), 'a 12-week block must still contain a deload');
+});
+
 // A 200 from /api/ai/generate-plan does not mean an AI draft exists: the route
 // answers OK carrying its OWN fallback outline when it has no OPENAI_API_KEY or
 // the model call throws. Passing that back shadows the builder's local template,
@@ -619,4 +680,40 @@ test('the mobile bridge refuses the route own-template payload', () => {
     /if \(payload\?\.source !== 'openai'\) \{[^}]*return null;\s*\}/,
     'the guard must return null so the builder reaches its own template',
   );
+});
+
+// `fetch` resolves on HEADERS, so racing it bounds the connection and nothing
+// more. A 200 followed by a stalled body left the JSON read unwatched: with an
+// AbortController the timer's abort() still rejects it, but the no-controller
+// fallback — the older WebViews this branch exists for — had no bound at all,
+// and the draft sheet sat on "Generating…" for good.
+test('the mobile draft fetch bounds the body read, not just the connection', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'mobile-app', 'src', 'services', 'shapeBackend.js'),
+    'utf8',
+  );
+  // ⚠ Scoped to the FUNCTION, not the file. A plain unraced `await
+  // response.json().catch(() => ({}))` is the ordinary shape everywhere else in
+  // this module — bridgeSessionToApi and friends — so a file-wide doesNotMatch
+  // fails on code that is not the defect. Only the draft path carries a deadline
+  // to race against, so only the draft path can be held to it. The slice runs to
+  // the first closing brace in column zero, which for a top-level function is
+  // its own.
+  const start = src.indexOf('async function generatePlanDraft(');
+  assert.ok(start !== -1, 'generatePlanDraft must exist');
+  const end = src.indexOf('\n}\n', start);
+  assert.ok(end !== -1, 'generatePlanDraft must close at top level');
+  const fn = src.slice(start, end);
+
+  assert.match(
+    fn,
+    /const payload = await Promise\.race\(\[response\.json\(\)\.catch\(\(\) => \(\{\}\)\), deadline\]\);/,
+    'the body read must race the SAME deadline, keeping the budget a total',
+  );
+  assert.doesNotMatch(fn, /const payload = await response\.json\(\)\.catch\(\(\) => \(\{\}\)\);/,
+    'an unraced body read leaves the no-AbortController path unbounded');
+  // Pinned to a real bail-out, as with the source guard above: a timeout that
+  // fell through would leave the race in place and this guard still green.
+  assert.match(fn, /if \(payload === GENERATE_TIMED_OUT\) \{[^}]*return null;\s*\}/,
+    'a stalled body must fall to the builder template');
 });

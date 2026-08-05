@@ -335,7 +335,14 @@ function fallbackDraft(body: GenerateBody): GeneratedDraft {
       blocks: Array.from({ length: weeks }, (_, i) => ({
         label: `W${i + 1}`,
         title: `Week ${i + 1}`,
-        detail: NUTRITION_ARC[Math.min(i, NUTRITION_ARC.length - 1)],
+        // Cycle the arc, don't clamp to its end — same rule as the training arc
+        // below, and it bit harder here: four phases against the same 12-week
+        // ceiling meant a long request ended in NINE consecutive "Lock it in"
+        // weeks. The last week keeps the terminal phase; the rest repeat the
+        // build. At the default four-week length this is the arc unchanged.
+        detail: i === weeks - 1
+          ? NUTRITION_ARC[NUTRITION_ARC.length - 1]
+          : NUTRITION_ARC[i % (NUTRITION_ARC.length - 1)],
         note: 'Adjust the emphasis to the client\'s adherence data.',
       })),
       coachNotes: ['Confirm allergies and medical constraints before sending.'],
@@ -399,7 +406,16 @@ function fallbackDraft(body: GenerateBody): GeneratedDraft {
       blocks: Array.from({ length: weeks }, (_, i) => {
         // The deload note follows the PHASE it describes, not a fixed index —
         // once the arc length varies, index 3 is not reliably the deload week.
-        const detail = WEEK_ARC[Math.min(i, WEEK_ARC.length - 1)];
+        // ⚠ Longer blocks REPEAT the arc; they do not sit on its final phase.
+        // `arcWeeks` accepts up to twelve weeks and this arc holds six, so
+        // clamping answered a 12-week request with seven consecutive "Retest"
+        // rows and no deload after week four — not a plan a coach edits down,
+        // just one word seven times. The last week keeps the terminal phase; the
+        // ones before it cycle the build, which puts a deload back on weeks four
+        // and nine. At the default six-week length this is the arc unchanged.
+        const detail = i === weeks - 1
+          ? WEEK_ARC[WEEK_ARC.length - 1]
+          : WEEK_ARC[i % (WEEK_ARC.length - 1)];
         return {
           label: `W${i + 1}`,
           title: `Week ${i + 1}`,
@@ -508,7 +524,27 @@ async function generateWithOpenAI(body: GenerateBody): Promise<GeneratedDraft | 
 function withServerLabels(draft: GeneratedDraft, body: GenerateBody): GeneratedDraft {
   if (body.kind !== 'training_plan' && body.kind !== 'nutrition_program') return draft;
   if (!Array.isArray(draft.blocks)) return draft;
-  return { ...draft, blocks: draft.blocks.map((b, i) => ({ ...b, label: `W${i + 1}` })) };
+  const blocks = draft.blocks.map((b, i) => ({ ...b, label: `W${i + 1}` }));
+  // ⚠ THE COUNT WE EMIT OWNS THE DURATION STRING — the rule `arcWeeks` applies to
+  // the two fallback branches, applied here to the MODEL path, which had no such
+  // rule and so still carried the defect the fallback fix removed.
+  //
+  // Stamping labels is only half the invariant. `newProgram.jsx` sizes its week
+  // `<select>` from `duration` and then reads each row's week out of `label`, so a
+  // model answering a "4 weeks" request with six blocks produced W5 and W6 —
+  // values that range does not contain. A `<select>` whose value is not among its
+  // options paints the first one, so the page showed W1 while state held 5 and 6,
+  // and touching the row committed the wrong week.
+  //
+  // Rewriting `duration` rather than truncating `blocks` is deliberate: dropping
+  // the model's surplus weeks would discard authored content with nothing on
+  // screen to say so, and a coach can shorten a six-week block far more easily
+  // than they can recover two weeks that never arrived.
+  //
+  // Safe on mobile, which never reads this field — its builders parse title and
+  // detail through `bsDraftOutline` and ignore the duration chip — so a trainer's
+  // "45 min" session request is not rewritten into "6 weeks" anywhere visible.
+  return { ...draft, blocks, duration: `${blocks.length} weeks` };
 }
 
 export async function POST(request: Request) {
