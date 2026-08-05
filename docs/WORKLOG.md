@@ -178,7 +178,30 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-04): THE GATES ACTUALLY GATE — CI RUNS THE SUITE, THE HOOK STOPS
+> **Latest (2026-08-05): THE ✦ AI DRAFT IS REAL — the coach builders finally use the
+> answer they were already paying for (#1873 → `98a46340f`).** Both plan builders
+> awaited `generatePlanDraft`, rendered an ✦ AI DRAFT eyebrow, and then built the
+> outline from a **hardcoded template** — every coach got the same template and the
+> model call cost money to produce nothing. ⚠ **The fix was never "stop discarding the
+> result":** the builders send buildType `mealplan|program|diet` (nutritionist) and
+> `plan|workout|program` (trainer) while the route accepted **three** modes and
+> NORMALIZED anything unrecognized to `workout` — so a nutritionist asking for a meal
+> plan got **exercises back**, invisible only because the answer was thrown away, and
+> the two `program` modes collided. A **six-mode contract** was the prerequisite.
+> ⚠ **Three constraints this cost seven review rounds to establish, and they bind any
+> future work on this path:** the shared week grammar forces `title` to the literal
+> **"Week N"** (`bsAssignWeekLine` requires it; one bad line makes `bsDraftOutline`
+> return null and the whole draft is refused — this bug arriving by another route), so
+> the phase lives in `detail`; **the count we emit owns the `duration` string** on BOTH
+> the fallback and the model path, or the website's week `<select>` gets values its
+> range has no option for and paints W1 while state holds 5; and **CANCEL must release
+> the busy/status pair itself, run-scoped** — the `finally` cannot run until the
+> abandoned fetch settles (up to 45s). **No migration.** Suite **1505**; Codex clean +
+> CodeRabbit confirmed on the final head.
+>
+> See the full entry below.
+
+> **Prior (2026-08-04): THE GATES ACTUALLY GATE — CI RUNS THE SUITE, THE HOOK STOPS
 > LYING (#1869 → `77a064895`).** `npm test` now runs in CI for the first time
 > (**`Tests (unit + mount)`**) — ⚠ **advisory until the owner adds it to `main` branch
 > protection**, which today requires only Web · Mobile · gitleaks. And
@@ -1482,6 +1505,97 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-08-05 — The ✦ AI DRAFT is real: the six-mode contract (#1873 → `98a46340f`)
+
+- **The bug, as the records had it since 2026-07-26:** both coach plan builders in
+  `iosAppBroadsheetPros.jsx` `await window.ShapeAI?.generatePlanDraft?.({…})` **with no
+  assignment**, render a "Generating…" state and an **✦ AI DRAFT** eyebrow, then build
+  the outline from a hardcoded array. Every coach who tapped it got the same template,
+  and the model call cost money to produce nothing.
+
+- ⚠ **It was never "stop discarding the result", and that is the durable part.** The
+  builders send buildType `mealplan|program|diet` (nutritionist) and
+  `plan|workout|program` (trainer); `/api/ai/generate-plan` accepted **three** modes and
+  **normalized anything unrecognized to `workout`**. So a nutritionist asking for a meal
+  plan got **exercises back** — invisible only because the answer was thrown away — and
+  the two `program` modes **collided without resolving wrongly**, so a rename could not
+  fix it. The **six-mode contract** is the prerequisite; consuming the draft is the easy
+  half. **No migration, no new route.**
+
+- ⚠ **THE SHARED WEEK GRAMMAR FORCES `title` TO THE LITERAL "Week N".**
+  `bsAssignWeekLine` (`planOutline.mjs:50`) requires a line to start `Week N`; one bad
+  line makes `bsDraftOutline` return null (`:290`) and the **whole draft is refused** —
+  which is this same bug arriving by a different route. So the server cannot put the
+  phase in the title, and `newProgram.jsx` reads the phase out of **`detail`** instead,
+  keeping `title` in `ref` so nothing is dropped. Review proposed the literal opposite
+  fix; it was declined with the parser evidence and the equivalent effect implemented
+  client-side.
+
+- ⚠ **THE COUNT WE EMIT OWNS THE `duration` STRING — on BOTH paths.** `newProgram.jsx`
+  sizes its week `<select>` from `duration` (`:172`) and reads each row's week from
+  `label` (`:176`), so a six-block arc answering a "4 weeks" request produced `W5`/`W6`
+  — values that range has no option for. A `<select>` whose value is not among its
+  options **paints the first one**, so the page showed W1 while state held 5 and 6, and
+  touching the row committed the wrong week. Fixed on the fallback branches
+  (`arcWeeks`), then found **still live on the MODEL path** (`withServerLabels` stamped
+  labels without reconciling duration) and fixed there too. `arcWeeks` only trusts a
+  caller's number when it actually says **weeks** — the mobile trainer sends its
+  session-length chip ("45 min") in that same field, and reading 45 out of it would
+  answer a one-hour request with a 45-week arc. Rewriting `duration` rather than
+  truncating `blocks` is deliberate: dropping surplus weeks discards authored content
+  with nothing on screen to say so.
+
+- ⚠ **CANCEL MUST RELEASE THE BUSY/STATUS PAIR ITSELF, AND THE RELEASE IS RUN-SCOPED.**
+  Cancel bumped the run id but left `draftBusyRef`/`draftStatus` set; the only other
+  writer is the `finally`, which cannot run until the abandoned fetch settles — up to
+  `GENERATE_TIMEOUT_MS` (45s). So a coach who cancelled and reopened found the button
+  reading "Generating…" and dead, for a run they had walked away from — **blank mode
+  too, which never touches the network**. And once CANCEL frees the pair, a second
+  generation can already be in flight when an abandoned one settles, so an
+  unconditional release would clear the **current** run's flag mid-flight and let two
+  live runs both reach `setEditDraft`. The release is scoped to the run that acquired it.
+
+- ⚠ **`fetch` RESOLVES ON HEADERS, so racing it bounds the CONNECTION, not the answer.**
+  A 200 followed by a stalled JSON body left `response.json()` unwatched. With an
+  `AbortController` the timer's `abort()` still rejects the read; the **no-controller
+  fallback — the older WebViews the whole branch exists for — had no second bound at
+  all**, and the draft sheet sat on "Generating…" indefinitely. The body read now races
+  the **same** `deadline`, keeping the budget a total rather than giving each phase its
+  own 45s.
+
+- ⚠ **A 200 IS NOT PROOF AN AI DRAFT EXISTS.** The route answers OK carrying
+  `source: 'template'` when it has no `OPENAI_API_KEY` or the model call throws, and
+  that payload would **shadow the builder's own floor**, which is strictly more specific
+  on both surfaces (the workout floor names the coach's chosen FOCUS; the nutrition
+  floor carries a `Grocery + prep guide` line the server's blocks drop). Mobile now
+  asserts positively on `source === 'openai'` and falls to its documented floor. This is
+  **MOBILE-only** — the website calls the route directly and WANTS the server template.
+
+- **Longer arcs cycle rather than clamp.** `arcWeeks` accepts up to twelve weeks;
+  `WEEK_ARC` holds six and `NUTRITION_ARC` only **four**, so clamping to the final index
+  answered a long request with seven consecutive "Retest" rows — **nine "Lock it in"** on
+  the nutrition side, which review did not flag. Both arcs now cycle with the last week
+  reserved for the terminal phase; at each arc's own length the output is unchanged.
+
+- **Seven review rounds, and the shape of them is the lesson:** every round after the
+  first found a defect **adjacent to the previous fix** — fallback path → model path,
+  training arc → nutrition arc, connection bound → body bound. Round 7 was the first
+  that surfaced nothing new. ⚠ **A guard is only trustworthy if it fails via the RIGHT
+  test:** every guard here was mutation-checked, and one nearly shipped weak — the
+  arc-cycling test first hardcoded `length - 1`, which would have tested the rule typed
+  into the test rather than the one the route runs (a change to `.length` would have
+  stayed green). It now reads **both** the arcs and the divisor out of the source.
+  ⚠ **Scope a source guard to the function, not the file:** an unraced
+  `await response.json().catch(() => ({}))` is the ordinary shape everywhere else in
+  `shapeBackend.js`, so a file-wide `doesNotMatch` fails on code that is not the defect.
+
+- Suite **1505/1505** · `tsc --noEmit` clean · mobile build exit 0 · newdesign
+  precompile check exit 0 · CI green (Web · Mobile · gitleaks · Tests) · **Codex clean**
+  on the final head and **CodeRabbit confirmed** every finding with none outstanding.
+  Branch `claude/ai-draft-real` kept. **Open:** the OWNER on-device pass — tap ✦ AI DRAFT
+  in both builders across all six modes, cancel mid-generation and reopen (the button
+  must be live), and confirm a website program's week rows match their labels.
 
 ### 2026-08-04 — The gates actually gate: CI runs the suite, the hook stops lying (#1869 → `77a064895`)
 
