@@ -5804,10 +5804,27 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     // coach did not wait for. Clearing draftStatus is not cosmetic either: it
     // is the button's label AND (now) its disabled state, and nothing else
     // resets it, so leaving it set would lock the button out on the next open.
+    //
+    // ⚠ CANCEL had to release that pair ITSELF, and the sentence above is why.
+    // The `finally` below is the only other writer, and it cannot run until the
+    // abandoned fetch settles — up to GENERATE_TIMEOUT_MS (45s). So a coach who
+    // cancelled and reopened found the button reading "Generating…" and dead,
+    // for a run they had walked away from. Blank mode too, which never touches
+    // the network. This comment described that exact failure and it was applied
+    // to the settle path only.
+    //
+    // ⚠ And the release here is RUN-SCOPED, not unconditional. Now that CANCEL
+    // frees the pair, a second generation can already be in flight when an
+    // abandoned one settles; an unconditional release would clear the CURRENT
+    // run's busy flag mid-flight — re-enabling the button, defeating the
+    // double-tap guard, and letting two live runs (which share the post-cancel
+    // run id) both pass the commit check, the later setEditDraft overwriting
+    // the earlier. That is the very race the busy ref exists to stop.
     const generate = async () => {
       if (draftBusyRef.current) return;
       draftBusyRef.current = true;
-      try { await generateOnce(); } finally { draftBusyRef.current = false; setDraftStatus(''); }
+      const run = draftRunRef.current;
+      try { await generateOnce(); } finally { if (run === draftRunRef.current) { draftBusyRef.current = false; setDraftStatus(''); } }
     };
     return (
       <BSPage>
@@ -5818,7 +5835,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => { draftRunRef.current += 1; setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+            <button onClick={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
@@ -6761,11 +6778,13 @@ function BSNutriPlans() {
       setEditDraft({ name: (used && used.name) || `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
     };
     // Same guard as the trainer builder — see the note there for why it is a
-    // ref and why draftStatus has to be cleared.
+    // ref, why CANCEL has to release the busy/status pair itself, and why this
+    // release is run-scoped rather than unconditional.
     const generate = async () => {
       if (draftBusyRef.current) return;
       draftBusyRef.current = true;
-      try { await generateOnce(); } finally { draftBusyRef.current = false; setDraftStatus(''); }
+      const run = draftRunRef.current;
+      try { await generateOnce(); } finally { if (run === draftRunRef.current) { draftBusyRef.current = false; setDraftStatus(''); } }
     };
     return (
       <BSPage>
@@ -6776,7 +6795,7 @@ function BSNutriPlans() {
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => { draftRunRef.current += 1; setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+            <button onClick={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: gold }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}

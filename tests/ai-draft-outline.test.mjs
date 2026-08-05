@@ -532,10 +532,66 @@ test('both coach builders invalidate a cancelled generation run', () => {
   );
   const count = (re) => (src.match(re) || []).length;
   assert.equal(count(/const draftRunRef = React\.useRef\(0\);/g), 2, 'one run ref per builder');
-  assert.equal(count(/const run = draftRunRef\.current;/g), 2, 'each run must capture its id');
+  // FOUR, not two: each builder captures the run id twice — once in
+  // generateOnce (guards the COMMIT) and once in generate (guards the
+  // RELEASE). This assertion read 2 and failed when the release guard landed,
+  // which is the guard doing its job; it is widened to the new shape, not
+  // loosened, because the two paired assertions below pin each capture's use.
+  assert.equal(count(/const run = draftRunRef\.current;/g), 4, 'each builder captures its run id for commit AND release');
   assert.equal(count(/if \(run !== draftRunRef\.current\) return;/g), 2,
     'each run must drop its result if it is no longer current');
   assert.equal(count(/draftRunRef\.current \+= 1;/g), 2, 'each CANCEL must invalidate the in-flight run');
+
+  // CANCEL must release the busy/status pair ITSELF. generate's finally cannot
+  // run until the abandoned fetch settles (up to 45s), and draftStatus is the
+  // generate button's label AND its disabled state — so without this, cancel
+  // then reopen finds the button reading "Generating…" and dead.
+  assert.equal(
+    count(/draftRunRef\.current \+= 1; draftBusyRef\.current = false; setDraftStatus\(''\); setDrafting\(false\);/g),
+    2,
+    'each CANCEL must release the busy ref and clear the status',
+  );
+  // ...and the release in generate must be RUN-SCOPED. Unconditional, an
+  // abandoned run settling at t+45s would clear a NEWER run's busy flag
+  // mid-flight, re-enabling the button and letting two live runs (which share
+  // the post-cancel run id) both reach setEditDraft — the exact double-commit
+  // the busy ref exists to prevent.
+  assert.equal(
+    count(/if \(run === draftRunRef\.current\) \{ draftBusyRef\.current = false; setDraftStatus\(''\); \}/g),
+    2,
+    'each release must be scoped to the run that acquired it',
+  );
+  assert.doesNotMatch(
+    src,
+    /\} finally \{ draftBusyRef\.current = false; setDraftStatus\(''\); \}/,
+    'an unconditional release lets an abandoned run clobber a newer one',
+  );
+});
+
+// The week-shaped fallbacks must emit as many blocks as the caller asked for.
+// `newProgram.jsx` sets its week count from the returned `duration` and builds
+// one row per BLOCK, so a fixed six-block arc answering a "4 weeks" request
+// left rows W5/W6 pointing at a week <select> with no matching option. Asserted
+// at the source because a Next route handler cannot be booted from node --test.
+test('the week-shaped fallbacks size their arc to the requested duration', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'api', 'ai', 'generate-plan', 'route.ts'),
+    'utf8',
+  );
+  assert.match(src, /function arcWeeks\(/, 'the arc-length helper must exist');
+  // Only trust a number that is actually WEEKS — the mobile trainer sends its
+  // session-length chip ("45 min") in this same field.
+  assert.match(src, /if \(!\/week\/i\.test\(raw\)\) return fallback;/,
+    'a non-week duration must fall back, not be read as a week count');
+  assert.match(src, /Math\.max\(2, Math\.min\(n, 12\)\)/, 'the arc length must be clamped');
+  // Both week-shaped branches, and each must REPORT the length it emitted
+  // rather than echoing the request — the rule training_program already follows.
+  assert.equal((src.match(/const weeks = arcWeeks\(body\.duration, /g) || []).length, 2,
+    'both training_plan and nutrition_program must size their arc');
+  assert.equal((src.match(/duration: `\$\{weeks\} weeks`/g) || []).length, 2,
+    'each must report the duration it actually emitted');
+  assert.doesNotMatch(src, /blocks: WEEK_ARC\.map\(/, 'training_plan must not emit a fixed-length arc');
+  assert.doesNotMatch(src, /blocks: NUTRITION_ARC\.map\(/, 'nutrition_program must not emit a fixed-length arc');
 });
 
 // A 200 from /api/ai/generate-plan does not mean an AI draft exists: the route

@@ -59,8 +59,17 @@ const GENERATE_KINDS: GenerateKind[] = [
 // `training_program` and the page receives `MON…SUN` — no digit to find — so
 // seven weekday rows get spread across the block's weeks by array index. The
 // coach asks for a 12-week program and gets "Mon, Tue, Wed…" scattered down a
-// calendar. `training_plan` emits `W1 / Week 1`, which is byte-for-byte the
-// shape that page has always consumed.
+// calendar. `training_plan` emits `W1 / Week 1`, so the LABEL — the only field
+// that page derives its week number from — matches what it has always consumed.
+//
+// ⚠ Narrowed deliberately: this said the whole shape was "byte-for-byte" what
+// the page had always consumed, and that was false in two ways the page can
+// see. Its TITLE was `Base week`/`Build week`/`Peak week`/`Deload/test`, and is
+// now the literal `Week N`; and its fallback was four blocks, not six. The
+// title cannot be given back on this side — the shared week grammar is what
+// lets the mobile parser read these blocks at all — so `newProgram.jsx` reads
+// the phase out of `detail` instead, and `arcWeeks` restores the block count to
+// what the caller asked for. Claim only the label here.
 //
 // The MOBILE trainer builder's `program` build type genuinely IS a weekday
 // split, but it no longer travels through this map — `bsDraftMode` sends
@@ -257,6 +266,28 @@ function blockGrammar(body: GenerateBody): string {
 const WEEK_ARC = ['Accumulation', 'Accumulation', 'Intensification', 'Deload', 'Peak', 'Retest'];
 const NUTRITION_ARC = ['Reset & habits', 'Build routine', 'Dial macros', 'Lock it in'];
 
+// ⚠ COUNT THE ARC WE ACTUALLY EMIT — the same rule `training_program` below
+// already follows, applied to the two week-shaped branches that were still
+// restating the CALLER's duration over a FIXED-length arc.
+//
+// `newProgram.jsx` sets its week count from the returned `duration` and then
+// builds one row per BLOCK, reading each row's week out of `block.label`. So a
+// six-block arc answering the website's default "4 weeks" request produced rows
+// W5 and W6 whose week `<select>` has no matching option — the browser painted
+// W1 while state held 5 and 6, and touching the row committed the wrong week.
+// Before the six-mode split that caller's fallback emitted exactly four blocks
+// against "4 weeks" and they agreed; the alias onto `training_plan` is what
+// broke the pairing.
+function arcWeeks(duration: string | undefined, fallback: number): number {
+  const raw = String(duration || '');
+  // Only trust the number when the caller actually said WEEKS. The mobile
+  // trainer sends its session-length chip in this same field ("45 min"), and
+  // reading 45 out of that would answer a one-hour request with a 45-week arc.
+  if (!/week/i.test(raw)) return fallback;
+  const n = Number(raw.match(/\d+/)?.[0]);
+  return Number.isFinite(n) ? Math.max(2, Math.min(n, 12)) : fallback;
+}
+
 function fallbackDraft(body: GenerateBody): GeneratedDraft {
   const goal = body.goal || 'general';
   const tag = String(goal).toUpperCase().slice(0, 14);
@@ -295,15 +326,16 @@ function fallbackDraft(body: GenerateBody): GeneratedDraft {
   }
 
   if (body.kind === 'nutrition_program') {
+    const weeks = arcWeeks(body.duration, NUTRITION_ARC.length);
     return {
       title: `${goal} nutrition block`,
-      summary: `${body.duration} nutrition arc for ${body.client}.`,
+      summary: `${weeks}-week nutrition arc for ${body.client}.`,
       tag,
-      duration: body.duration || '4 weeks',
-      blocks: NUTRITION_ARC.map((phase, i) => ({
+      duration: `${weeks} weeks`,
+      blocks: Array.from({ length: weeks }, (_, i) => ({
         label: `W${i + 1}`,
         title: `Week ${i + 1}`,
-        detail: phase,
+        detail: NUTRITION_ARC[Math.min(i, NUTRITION_ARC.length - 1)],
         note: 'Adjust the emphasis to the client\'s adherence data.',
       })),
       coachNotes: ['Confirm allergies and medical constraints before sending.'],
@@ -358,17 +390,23 @@ function fallbackDraft(body: GenerateBody): GeneratedDraft {
   }
 
   if (body.kind === 'training_plan') {
+    const weeks = arcWeeks(body.duration, WEEK_ARC.length);
     return {
       title: `${goal} block`,
-      summary: `${body.duration} ${body.level} block for ${body.client} with ${body.equipment}.`,
+      summary: `${weeks}-week ${body.level} block for ${body.client} with ${body.equipment}.`,
       tag,
-      duration: body.duration || '6 weeks',
-      blocks: WEEK_ARC.map((phase, i) => ({
-        label: `W${i + 1}`,
-        title: `Week ${i + 1}`,
-        detail: phase,
-        note: i === 3 ? 'Reduce volume; keep intensity honest.' : '',
-      })),
+      duration: `${weeks} weeks`,
+      blocks: Array.from({ length: weeks }, (_, i) => {
+        // The deload note follows the PHASE it describes, not a fixed index —
+        // once the arc length varies, index 3 is not reliably the deload week.
+        const detail = WEEK_ARC[Math.min(i, WEEK_ARC.length - 1)];
+        return {
+          label: `W${i + 1}`,
+          title: `Week ${i + 1}`,
+          detail,
+          note: detail === 'Deload' ? 'Reduce volume; keep intensity honest.' : '',
+        };
+      }),
       coachNotes: [
         'Review injury history and equipment access before assigning.',
         'Retest one key metric at the end and set the next block.',
