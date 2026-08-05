@@ -50,6 +50,38 @@ test('every mode bsDraftMode can emit is a declared mode', () => {
   }
 });
 
+// The reverse direction, which is the dangerous one. If a mode joins
+// BS_DRAFT_MODES and the route without a matching entry in DRAFT_MODE_RULES,
+// bsDraftOutline returns null for EVERY draft in that mode — the builder falls
+// back to its template forever and nothing fails. That is precisely the
+// silently-dead feature this whole PR exists to fix, so it gets a test.
+const WELL_FORMED = {
+  workout: [['Back squat', '4 × 6 · RPE 8'], ['Bench press', '3 × 8']],
+  training_program: [['Mon', 'Upper (push)'], ['Tue', 'Lower (squat)'], ['Wed', 'Rest']],
+  training_plan: [['Week 1', 'Accumulation'], ['Week 2', 'Deload']],
+  nutrition_program: [['Week 1', 'Reset'], ['Week 2', 'Dial macros']],
+  meal_plan: [['Breakfast', 'Oats · 400 kcal'], ['Dinner', 'Salmon · 600 kcal']],
+  diet: [['Breakfast options', 'oats, eggs'], ['Foods to avoid', 'fried food']],
+};
+
+test('every DECLARED mode has a rule and accepts a well-formed draft', () => {
+  for (const mode of BS_DRAFT_MODES) {
+    const sample = WELL_FORMED[mode];
+    assert.ok(sample, `${mode} has no well-formed sample — add one when adding a mode`);
+    const out = bsDraftOutline(mode, sample.map(([title, detail]) => ({ title, detail })));
+    assert.ok(out, `${mode} refused a well-formed draft — is it missing from DRAFT_MODE_RULES?`);
+  }
+});
+
+test('an unknown or inherited mode name returns null, never throws', () => {
+  // A plain index on the rules object resolves inherited members, and
+  // Object.prototype.constructor is truthy with no `ok` — a TypeError out of a
+  // function whose contract is to return null.
+  for (const mode of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'nope', '']) {
+    assert.equal(bsDraftOutline(mode, [{ title: 'Mon', detail: 'Upper' }]), null, mode);
+  }
+});
+
 // ── bsDraftOutline: the grammar gate ─────────────────────────────────────────
 const blocks = (...pairs) => pairs.map(([title, detail]) => ({ title, detail }));
 
@@ -269,8 +301,10 @@ test('the meal template reflects BOTH chips and parses back', () => {
   assert.equal(total, 3000);
   for (const l of lines) assert.notEqual(bsAssignMeal(l).slot, 'MEAL');
 
-  // The old behaviour, pinned as the regression: 5 lines summing to ~2150
-  // regardless of what the coach picked.
+  // The regression this pins: the old template emitted five fixed lines summing
+  // to ~2150 whatever the coach picked. So the proof is that a DIFFERENT pair of
+  // chips produces a different line count and a different total — three lines
+  // at 1800 here, against the six at 3000 above.
   const three = bsMealPlanTemplate(3, 1800);
   assert.equal(three.length, 3);
   assert.equal(three.reduce((s, l) => s + bsAssignMeal(l).kcal, 0), 1800);
@@ -353,13 +387,20 @@ test('meal_plan refuses a draft that misses the CALORIE target', () => {
 test('meal_plan allows the model to land NEAR the target, not exactly on it', () => {
   // The prompt says "approximately" — a model rounding its own arithmetic must
   // not be refused, or the AI path falls back to the template every time and is
-  // dead again. 3040 vs 3000 is inside the band; 3400 is not.
+  // dead again. The draft below totals 3040 kcal, and the band is ±10%.
   const near = mealBlocks(
     ['Breakfast', 'Oats · 760 kcal'], ['Lunch', 'Bowl · 760 kcal'],
     ['Snack', 'Fruit · 760 kcal'], ['Dinner', 'Salmon · 760 kcal'],
   );
+  // 40 under a 3000 target — comfortably inside.
   assert.ok(bsDraftOutline('meal_plan', near, { meals: 4, calories: 3000 }));
+  // 1040 over a 2000 target — comfortably outside.
   assert.equal(bsDraftOutline('meal_plan', near, { meals: 4, calories: 2000 }), null);
+  // The edges, so the band is pinned rather than merely asserted in a comment:
+  // 2800 tolerates 280 and the gap is 240 (in); 2700 tolerates 270 and the gap
+  // is 340 (out).
+  assert.ok(bsDraftOutline('meal_plan', near, { meals: 4, calories: 2800 }));
+  assert.equal(bsDraftOutline('meal_plan', near, { meals: 4, calories: 2700 }), null);
 });
 
 test('meal_plan requires calories on EVERY line (no 0 kcal beside real food)', () => {

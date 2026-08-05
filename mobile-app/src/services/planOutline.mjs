@@ -262,7 +262,14 @@ const DRAFT_MODE_RULES = Object.freeze({
 // `expect` carries the coach's own chosen numbers (see `fit` above). Omitting
 // it keeps every pre-existing caller's behaviour unchanged.
 export function bsDraftOutline(mode, blocks, expect) {
-  const rule = DRAFT_MODE_RULES[String(mode || '')];
+  // Own-property lookup, because this file promises totality: a `mode` of
+  // 'constructor' or 'toString' resolves an inherited function, which is truthy
+  // and has no `ok`, so a plain index would throw a TypeError out of a function
+  // whose entire contract is to return null instead.
+  const key = String(mode || '');
+  const rule = Object.prototype.hasOwnProperty.call(DRAFT_MODE_RULES, key)
+    ? DRAFT_MODE_RULES[key]
+    : null;
   if (!rule) return null;
   if (!Array.isArray(blocks) || !blocks.length) return null;
 

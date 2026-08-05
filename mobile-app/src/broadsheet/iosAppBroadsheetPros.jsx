@@ -5594,6 +5594,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [equip, setEquip] = useStateBSP('Full gym');
   const [length, setLength] = useStateBSP('45 min');
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  const draftBusyRef = React.useRef(false);
   const [sort, setSort] = useStateBSP('Popular');
   const [dupes, setDupes] = useStateBSP([]);
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans rows
@@ -5753,7 +5754,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </div>
       </div>
     );
-    const generate = async () => {
+    const generateOnce = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
       // The builder's own outline. This is the FLOOR — it is what ships when
@@ -5784,6 +5785,18 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       setDrafting(false);
       setEditDraft({ name: (used && used.name) || `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
     };
+    // ⚠ The guard is a REF, not state: two taps in the same tick both read a
+    // state flag as false before React re-renders, which is exactly the
+    // double-tap it exists to stop — and the later response's setEditDraft
+    // would overwrite the earlier one, opening the editor on the draft the
+    // coach did not wait for. Clearing draftStatus is not cosmetic either: it
+    // is the button's label AND (now) its disabled state, and nothing else
+    // resets it, so leaving it set would lock the button out on the next open.
+    const generate = async () => {
+      if (draftBusyRef.current) return;
+      draftBusyRef.current = true;
+      try { await generateOnce(); } finally { draftBusyRef.current = false; setDraftStatus(''); }
+    };
     return (
       <BSPage>
         {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
@@ -5812,7 +5825,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           {chips(tr('coach:plans.experienceLabel', { defaultValue: 'EXPERIENCE' }), exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
           {chips(tr('coach:plans.equipmentLabel', { defaultValue: 'EQUIPMENT' }), equip, setEquip, ['Full gym', 'Dumbbells', 'Bodyweight'])}
           {chips(tr('coach:plans.lengthLabel', { defaultValue: 'LENGTH' }), length, setLength, ['30 min', '45 min', '60 min', '75 min'])}
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
+          <button onClick={generate} disabled={!!draftStatus} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: draftStatus ? 'default' : 'pointer', opacity: draftStatus ? 0.75 : 1 }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
           <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
         </div>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:plans.footerAiWorkout', { defaultValue: 'Workout' })} />
@@ -6579,6 +6592,7 @@ function BSNutriPlans() {
   const [cals, setCals] = useStateBSP('~2100');
   const [mealsDay, setMealsDay] = useStateBSP(4);
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  const draftBusyRef = React.useRef(false);
   const [dupes, setDupes] = useStateBSP([]);
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans (meal_plan)
   const [note, setNote] = useStateBSP('');
@@ -6688,7 +6702,7 @@ function BSNutriPlans() {
         </div>
       </div>
     );
-    const generate = async () => {
+    const generateOnce = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
       const kcalTarget = Number(String(cals).replace(/[^\d]/g, '')) || 2100;
@@ -6727,6 +6741,13 @@ function BSNutriPlans() {
       setDrafting(false);
       setEditDraft({ name: (used && used.name) || `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
     };
+    // Same guard as the trainer builder — see the note there for why it is a
+    // ref and why draftStatus has to be cleared.
+    const generate = async () => {
+      if (draftBusyRef.current) return;
+      draftBusyRef.current = true;
+      try { await generateOnce(); } finally { draftBusyRef.current = false; setDraftStatus(''); }
+    };
     return (
       <BSPage>
         {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
@@ -6760,7 +6781,7 @@ function BSNutriPlans() {
               {[3, 4, 5, 6].map(n => { const on = mealsDay === n; return <button key={n} onClick={() => setMealsDay(n)} style={{ width: 40, height: 40, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', color: on ? '#241c08' : t.INK, fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>{n}</button>; })}
             </div>
           </div>
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
+          <button onClick={generate} disabled={!!draftStatus} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: draftStatus ? 'default' : 'pointer', opacity: draftStatus ? 0.75 : 1 }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
           <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
         </div>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:diet.footerAiMealPlan', { defaultValue: 'Meal plan' })} />

@@ -622,8 +622,21 @@ async function startStripeConnectOnboarding({ role } = {}) {
 // was dead and every nutrition failure fell through to a STRENGTH WORKOUT
 // template. Deleted rather than repaired: template content belongs in exactly
 // one place, and that place is the builder the coach is looking at.
+// ⚠ The wait is BOUNDED, and that is part of the contract above rather than
+// defensive dressing. The builder awaits this call behind a "Generating…"
+// button; a stalled connection never settles, so without a deadline the
+// documented "a failure degrades to the template" floor is simply never
+// reached — the coach watches a spinner instead. A timeout aborts into the same
+// catch as any other failure and returns the same null.
+const GENERATE_TIMEOUT_MS = 45000;
+
 async function generatePlanDraft(input = {}) {
   if (!apiBaseUrl) return null;
+  // AbortSignal.timeout is unavailable on older WebViews; fall back to a manual
+  // controller rather than losing the bound on exactly the slow devices that
+  // need it most.
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS) : null;
   try {
     const response = await fetch(`${apiBaseUrl}/api/ai/generate-plan`, {
       method: 'POST',
@@ -632,6 +645,7 @@ async function generatePlanDraft(input = {}) {
         ...(state.session?.access_token ? { Authorization: `Bearer ${state.session.access_token}` } : {}),
       },
       body: JSON.stringify(input),
+      ...(controller ? { signal: controller.signal } : {}),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -640,10 +654,12 @@ async function generatePlanDraft(input = {}) {
     }
     return payload;
   } catch (error) {
-    // Offline, aborted, or a native routing failure. The builder template
+    // Offline, timed out, or a native routing failure. The builder template
     // stands; nothing about this is worth surfacing to the coach mid-draft.
     console.warn('[shape] AI generator unreachable; using the builder template.', error);
     return null;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

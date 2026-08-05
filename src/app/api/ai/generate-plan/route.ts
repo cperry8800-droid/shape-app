@@ -44,12 +44,30 @@ const GENERATE_KINDS: GenerateKind[] = [
   'diet',
 ];
 
-// Back-compat for the three names this route accepted before the split. Only
-// `program` is ambiguous; it resolves to the trainer meaning, which is what the
-// sole legacy caller sent.
+// Back-compat for the three names this route accepted before the split.
+//
+// ⚠ `program` MAPS TO `training_plan` (a multi-week arc), NOT `training_program`
+// (a weekday split), and that is not a coin toss — it is what the one legacy
+// caller has always meant and still parses.
+//
+// The only sender of the legacy name is the website's New Program page
+// (`public/newdesign/newProgram.jsx` → `AIGeneratorCard kind="program"`). Before
+// the six-mode split, `kind: 'program'` emitted blocks labelled `W1…W4`, and
+// `applyDraft` there reads a WEEK NUMBER out of `block.label`
+// (`Number(String(block.label).match(/\d+/))`). Point that alias at
+// `training_program` and the page receives `MON…SUN` — no digit to find — so
+// seven weekday rows get spread across the block's weeks by array index. The
+// coach asks for a 12-week program and gets "Mon, Tue, Wed…" scattered down a
+// calendar. `training_plan` emits `W1 / Week 1`, which is byte-for-byte the
+// shape that page has always consumed.
+//
+// The MOBILE trainer builder's `program` build type genuinely IS a weekday
+// split, but it no longer travels through this map — `bsDraftMode` sends
+// `training_program` explicitly. Same English word, two different products;
+// only the wire names disambiguate them.
 const LEGACY_KIND: Record<string, GenerateKind> = {
   workout: 'workout',
-  program: 'training_program',
+  program: 'training_plan',
   meal_plan: 'meal_plan',
 };
 
@@ -152,14 +170,23 @@ function cleanBody(value: unknown): GenerateBody {
     ? (raw as GenerateKind)
     : LEGACY_KIND[raw] || 'workout';
   const isNutrition = NUTRITION_KINDS.has(kind);
+  // ⚠ NO `...body` SPREAD. This object is serialized whole into the model's
+  // user message, so a spread forwards every unknown key a caller invented
+  // straight into the prompt. The endpoint is membership-gated and `readJson`
+  // bounds the payload, so the blast radius is the caller's own draft and their
+  // own token spend — but "unvalidated input reaches a downstream service" is
+  // not a thing to leave standing when the fix is an allowlist. Every field
+  // this route reads is named below; adding one here is the only way in.
   return {
-    ...body,
     kind,
     goal: String(body.goal || '').trim() || (isNutrition ? 'general nutrition' : 'general fitness'),
     client: String(body.client || '').trim() || 'Shape client',
     level: String(body.level || '').trim() || 'intermediate',
     duration: String(body.duration || '').trim() || (kind === 'workout' ? '60 minutes' : '4 weeks'),
-    daysPerWeek: Number(body.daysPerWeek || (kind === 'workout' ? 1 : 4)),
+    // Clamped like mealsPerDay, and for the same reason it needed clamping:
+    // `Number('every day')` is NaN, NaN survives every Math.min/max downstream,
+    // and the fallback summary renders the literal string "NaN sessions".
+    daysPerWeek: Math.max(1, Math.min(Number(body.daysPerWeek) || (kind === 'workout' ? 1 : 4), 7)),
     // Clamped to the chip range the nutritionist builder offers (3-6). The
     // template used to ignore this value entirely and always emit five meals.
     mealsPerDay: Math.max(3, Math.min(Number(body.mealsPerDay) || 4, 6)),
@@ -303,8 +330,13 @@ function fallbackDraft(body: GenerateBody): GeneratedDraft {
   }
 
   if (body.kind === 'training_program') {
-    const days = Math.max(2, Math.min(Number(body.daysPerWeek || 4), 6));
     const split = ['Upper (push)', 'Lower (squat)', 'Rest / mobility', 'Upper (pull)', 'Lower (hinge)', 'Conditioning', 'Rest'];
+    // ⚠ COUNT THE SPLIT WE ACTUALLY EMIT — do not restate the request. The
+    // summary used to read `daysPerWeek`, while `blocks` is this fixed
+    // seven-day week with two rest days, so a coach who asked for 3 days read
+    // "3 sessions" above a five-session plan. A summary is a claim about the
+    // thing beneath it; deriving it is the only way the two cannot disagree.
+    const days = split.filter((s) => !/rest/i.test(s)).length;
     return {
       title: `${goal} split`,
       summary: `${body.level} weekly split for ${body.client}, ${days} sessions with ${body.equipment}.`,
