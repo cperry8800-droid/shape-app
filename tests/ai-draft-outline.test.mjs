@@ -537,3 +537,30 @@ test('both coach builders invalidate a cancelled generation run', () => {
     'each run must drop its result if it is no longer current');
   assert.equal(count(/draftRunRef\.current \+= 1;/g), 2, 'each CANCEL must invalidate the in-flight run');
 });
+
+// A 200 from /api/ai/generate-plan does not mean an AI draft exists: the route
+// answers OK carrying its OWN fallback outline when it has no OPENAI_API_KEY or
+// the model call throws. Passing that back shadows the builder's local template,
+// which is strictly more specific — it names the coach's chosen focus, and the
+// nutrition-program floor carries a `Grocery + prep guide` line the server's
+// four week blocks drop. A source guard, not a behaviour test, because nothing
+// here can boot the route; and the failure is invisible without one — the draft
+// parses, the editor opens, and the coach simply gets a blander outline.
+test('the mobile bridge refuses the route own-template payload', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'mobile-app', 'src', 'services', 'shapeBackend.js'),
+    'utf8',
+  );
+  // Asserted on the executable statement, not on the word 'template': this file
+  // is full of prose about the builder template, and a looser pattern would be
+  // satisfied by the comment sitting directly above the check.
+  assert.match(src, /if \(payload\?\.source !== 'openai'\) \{/,
+    "generatePlanDraft must treat a non-'openai' source as no draft");
+  // Pins the guard to a real bail-out. Without this, flipping the body to a
+  // fall-through would leave the condition in place and the guard still green.
+  assert.match(
+    src,
+    /if \(payload\?\.source !== 'openai'\) \{[^}]*return null;\s*\}/,
+    'the guard must return null so the builder reaches its own template',
+  );
+});

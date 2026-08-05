@@ -674,6 +674,29 @@ async function generatePlanDraft(input = {}) {
       console.warn('[shape] AI generator API failed; using the builder template.', payload);
       return null;
     }
+    // ⚠ A 200 is not proof an AI draft exists. The route answers OK carrying
+    // `source: 'template'` whenever it produced nothing itself — no
+    // OPENAI_API_KEY, or the model call threw — and that payload is a generic
+    // server outline, not a generation. Handing it back would SHADOW the
+    // builder's own template, which is strictly more specific on both surfaces:
+    // the workout floor names the coach's chosen FOCUS (`Main lift — ${focus}`)
+    // where the server's says `Primary lift`, and the nutrition-program floor
+    // carries the `Grocery + prep guide` line the server's four week blocks drop
+    // — a line kept deliberately, because whether it surfaces is a live open
+    // owner question and dropping it here would silently answer it.
+    //
+    // Null is the same answer this function already gives for every other
+    // "no draft was produced" path (no base URL, timeout, non-ok, throw), so the
+    // builder reaches its documented floor rather than a second, worse template.
+    // Asserted positively on 'openai' so an unrecognized source also falls to the
+    // local floor. This is MOBILE-only: the website calls the route directly and
+    // WANTS the server template (aiGenerator.jsx reads `payload.source` itself and
+    // says "Add OPENAI_API_KEY for AI output") — it has no local template to fall
+    // back to.
+    if (payload?.source !== 'openai') {
+      console.warn('[shape] AI generator returned its own template; using the builder template.');
+      return null;
+    }
     return payload;
   } catch (error) {
     // Offline, timed out, or a native routing failure. The builder template
