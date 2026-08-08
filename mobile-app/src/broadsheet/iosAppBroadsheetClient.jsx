@@ -2369,30 +2369,64 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       if (hasPhoto) fd.append('photo', photo.blob, photo.blob.name || 'meal.jpg');
       // ⚠ SAY SO WHEN IT DOESN'T ARRIVE. This only ever toasted on success, so a
       // failed dispatch was indistinguishable from having no coach — which is how
-      // a missing server function went unnoticed (2026-08-08 schema-drift audit).
+      // a missing server function went unnoticed (2026-08-05 schema-drift audit).
       // Having no coach stays quiet; a real delivery failure does not, and it says
       // the log itself was kept so the member doesn't re-log the meal.
-      const noteFailed = () => window.__bsToast?.('Log saved — but we couldn’t reach your coach', 'warn');
+      //
+      // ⚠ THIS DOES NOT USE window.__bsToast, AND THAT IS THE WHOLE POINT. That
+      // global is `() => {}` (iosAppBroadsheet.jsx — toasts were switched off
+      // app-wide on 2026-06-03, #938), so the first version of this fix reported
+      // every failure into a void: the route told the truth, the client branched on
+      // it correctly, and the member still saw nothing. A confirm-sheet notice is
+      // the mechanism proven to render — BSConfirmHost is mounted in both phone
+      // branches, and bsAskConfirm falls back to the platform `confirm` when the
+      // host has not mounted, so this cannot degrade back into silence.
+      const noteNotice = (title, message) => {
+        try {
+          const ask = window.bsAskConfirm;
+          if (typeof ask === 'function') {
+            // Fire-and-forget: nothing branches on the acknowledgement. The
+            // catch is not decoration — bsAskConfirm resolves through a Promise
+            // whose executor calls setState, so a throw there would surface as
+            // an unhandled rejection from a path whose whole job is to report a
+            // failure quietly.
+            Promise.resolve(ask({ notice: true, eyebrow: 'Your coach', title, message, confirmLabel: 'Got it' })).catch(() => {});
+            return;
+          }
+        } catch (e) {}
+        try { window.__bsToast?.(title, 'warn'); } catch (e2) {}
+      };
+      const noteFailed = () => noteNotice(
+        'We couldn’t reach your coach',
+        'Your meal log is saved — only the note didn’t send. Try again from your chat, or send it to them directly.',
+      );
       fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(r => r.json().catch(() => ({})))
         .then(d => {
           if (!d) { noteFailed(); return; }
           if (d.delivered) {
-            // ⚠ DELIVERED IS NOT THE SAME AS COMPLETE. The memo/photo upload is
-            // best-effort server-side: a failed one still sends the message, with
-            // the body reading "recorded"/"added" instead of "attached" and a null
-            // url in metadata. The route reports each independently, so ignoring
-            // these two fields would show "Sent to your coach" for a memo the coach
-            // cannot play — the same silent shape as the coach leg this fixes, one
-            // layer in.
+            // ⚠ DELIVERED IS NOT THE SAME AS COMPLETE, AND IT IS NOT THE SAME AS
+            // COMPLETE FOR EVERY COACH. The memo/photo upload is best-effort
+            // server-side (a failed one still sends the message, body reading
+            // "recorded"/"added" instead of "attached"), and a member with two
+            // coaches can have one leg land while the other fails. Those are
+            // independent, so they are reported TOGETHER — an earlier version
+            // returned inside the attachment case and swallowed failedCount, so a
+            // member whose note reached one of two coaches was told about their
+            // photo and nothing about the coach who never got it.
             const lostMemo = hasMemo && !d.audioAttached;
             const lostPhoto = hasPhoto && !d.photoAttached;
-            if (lostMemo || lostPhoto) {
-              const what = lostMemo && lostPhoto ? 'memo and photo' : lostMemo ? 'voice memo' : 'photo';
-              window.__bsToast?.(`Note sent — but the ${what} didn’t upload`, 'warn');
+            const partial = Number(d.failedCount) > 0;
+            if (lostMemo || lostPhoto || partial) {
+              const what = lostMemo && lostPhoto ? 'voice memo and photo' : lostMemo ? 'voice memo' : lostPhoto ? 'photo' : '';
+              const bits = [];
+              if (partial) bits.push('it only reached some of your coaches');
+              if (what) bits.push(`the ${what} didn’t upload`);
+              noteNotice('Your note sent — partly', `Your meal log is saved and the note went out, but ${bits.join(' and ')}.`);
               return;
             }
-            window.__bsToast?.(d.failedCount ? 'Sent to some of your coaches' : 'Sent to your coach', 'ok');
+            // Fully delivered stays SILENT. A success popup is exactly the noise
+            // #938 removed, and the member already sees the meal on their log.
             return;
           }
           if (d.reason === 'no_coach') return;

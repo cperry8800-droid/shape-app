@@ -124,7 +124,7 @@ export async function POST(request: Request) {
   // ⚠ A FAILED LEG IS REPORTED, NOT SWALLOWED. This loop used to `continue` past
   // every error and still answer `ok: true`, and the client only toasts on
   // success — so when `get_or_create_direct_conversation` turned out to be
-  // MISSING FROM PRODUCTION (2026-08-08 schema-drift audit), the member's voice
+  // MISSING FROM PRODUCTION (2026-08-05 schema-drift audit), the member's voice
   // memo uploaded to storage, reached no coach, and said nothing. The storage
   // write succeeding is exactly what made it look fine. Count the failures,
   // log them (Sentry captures console.error on this surface), and hand the

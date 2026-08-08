@@ -1410,7 +1410,16 @@ function BSConfirmSheet({ opts, onCancel, onConfirm }) {
   const [typed, setTyped] = useStateBS('');
   const need = o.requireType ? String(o.requireType) : '';
   const gateOk = !need || (typed || '').trim().toUpperCase() === need.toUpperCase();
-  const eyebrow = o.eyebrow || (danger ? "Confirm · this can't be undone" : 'Confirm');
+  // ⚠ NOTICE MODE EXISTS BECAUSE window.__bsToast IS A NO-OP. Toasts were switched
+  // off app-wide on 2026-06-03 (#938), so every `window.__bsToast?.(…)` call in this
+  // codebase reports into a void — which is how a meal note that reached no coach
+  // could report the failure honestly at every layer and still say nothing to the
+  // member. A notice is this sheet with the cancel button dropped: one acknowledge
+  // button, no second choice to make. Use it for a transient failure the member
+  // needs to know about; do NOT use it for success confirmations, which is the
+  // popup noise #938 deliberately removed.
+  const notice = o.notice === true;
+  const eyebrow = o.eyebrow || (notice ? 'Notice' : danger ? "Confirm · this can't be undone" : 'Confirm');
   return (
     <div onClick={onCancel} style={{ position: 'absolute', inset: 0, zIndex: 4200, background: 'rgba(8,7,6,0.6)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, padding: `20px ${t.padX || 18}px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
@@ -1423,9 +1432,9 @@ function BSConfirmSheet({ opts, onCancel, onConfirm }) {
             style={{ width: '100%', boxSizing: 'border-box', marginTop: 13, padding: '12px 14px', borderRadius: 12, border: `1px solid ${gateOk && typed ? accent : t.HAIR}`, background: `${t.INK}09`, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, letterSpacing: '0.04em', outline: 'none' }} />
         )}
         <div style={{ display: 'flex', gap: 9, marginTop: 16 }}>
-          <button onClick={onCancel} style={{ flex: '0 0 auto', padding: '14px 24px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{o.cancelLabel || 'Cancel'}</button>
+          {!notice && <button onClick={onCancel} style={{ flex: '0 0 auto', padding: '14px 24px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{o.cancelLabel || 'Cancel'}</button>}
           <button onClick={() => gateOk && onConfirm()} disabled={!gateOk}
-            style={{ flex: 1, minHeight: 48, borderRadius: 999, border: 0, background: gateOk ? accent : `${accent}55`, color: t.PAPER, fontFamily: t.BODY, fontSize: 14, fontWeight: 700, letterSpacing: '0.01em', cursor: gateOk ? 'pointer' : 'default', opacity: gateOk ? 1 : 0.7 }}>{o.confirmLabel || 'Confirm'}</button>
+            style={{ flex: 1, minHeight: 48, borderRadius: 999, border: 0, background: gateOk ? accent : `${accent}55`, color: t.PAPER, fontFamily: t.BODY, fontSize: 14, fontWeight: 700, letterSpacing: '0.01em', cursor: gateOk ? 'pointer' : 'default', opacity: gateOk ? 1 : 0.7 }}>{o.confirmLabel || (notice ? 'Got it' : 'Confirm')}</button>
         </div>
       </div>
     </div>

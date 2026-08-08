@@ -2,7 +2,7 @@
 --
 -- WHY THIS EXISTS
 -- `2026-05-02-conversations-messages.sql` declares this function, but it is
--- ABSENT FROM PRODUCTION. Found by the 2026-08-08 schema-drift audit, which
+-- ABSENT FROM PRODUCTION. Found by the 2026-08-05 schema-drift audit, which
 -- diffed all 174 live functions and all 218 live policies against
 -- supabase-migrations/. It is one of eight functions the repo declares that the
 -- database does not have; it is the only one of those eight that live product
