@@ -112,9 +112,14 @@ test('notice mode renders exactly one acknowledge button', () => {
   assert.equal(label(btns[0]), 'Got it', 'the acknowledge button reads "Got it" by default');
 });
 
-test('notice mode honours an explicit confirm label', () => {
+test('notice mode honours an explicit confirm label — and is still one button', () => {
+  // The count assertion is not redundant with the test above: passing a
+  // confirmLabel is a different branch through the button row, and checking only
+  // buttons[0]'s text would pass even if a cancel button rendered beside it.
   const tree = render({ notice: true, title: 'Heads up', confirmLabel: 'Understood' });
-  assert.equal(label(buttons(tree)[0]), 'Understood');
+  const btns = buttons(tree);
+  assert.equal(btns.length, 1, 'a custom label must not reintroduce a second choice');
+  assert.equal(label(btns[0]), 'Understood');
 });
 
 test('a notice never renders the destructive "this can\'t be undone" eyebrow', () => {
