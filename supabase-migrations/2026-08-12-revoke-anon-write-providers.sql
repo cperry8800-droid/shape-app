@@ -63,7 +63,6 @@ do $guard$
 declare
   v_tbl text;
   v_bad text;
-  v_col int;
 begin
   foreach v_tbl in array array['trainers', 'nutritionists'] loop
 
@@ -85,22 +84,43 @@ begin
       raise exception 'anon still holds % on public.% — TRUNCATE there is ungated by RLS', v_bad, v_tbl;
     end if;
 
-    -- 2. No column-level residue. REVOKE ALL ON TABLE never touches pg_attribute.attacl, so a
-    --    per-column INSERT/UPDATE/REFERENCES grant would survive step 1 completely unseen --
-    --    has_table_privilege reports FALSE for column-level grants, which is precisely why
-    --    check 1 cannot be trusted to catch this on its own.
-    select count(*) into v_col
+    -- 2. No column-level residue -- measured by EFFECTIVE privilege, never by anon's own ACL entry.
+    --    A per-column INSERT/UPDATE/REFERENCES grant survives check 1 completely unseen, because
+    --    has_table_privilege reports FALSE for a column-level grant. That much was always true.
+    --
+    --    ⚠ WHAT THE FIRST CUT GOT WRONG, and it failed in the one direction that matters. It read
+    --    pg_attribute.attacl through aclexplode looking for grantee = 'anon'. aclexplode reports
+    --    the role a grant was MADE TO, so a column-level grant made to PUBLIC -- or to any role
+    --    anon inherits -- is invisible to it while anon holds the privilege in full. `revoke ...
+    --    from anon` does not reach a PUBLIC grant either, so the migration would have completed
+    --    with its own guard certifying that anon cannot write, over a database where it could.
+    --    A guard that cannot see the state it exists to catch is worse than no guard: it is a
+    --    false all-clear on the security posture of the two most public tables in the schema.
+    --
+    --    has_column_privilege resolves PUBLIC and role inheritance, which is the entire point of
+    --    using it. It is asked ONLY about the three privilege types that HAVE a column-level form:
+    --    DELETE, TRUNCATE, TRIGGER and MAINTAIN have none, and the column-aware functions RAISE
+    --    when asked about them -- a blanket swap would abort this migration rather than harden it.
+    --    Those four exist only at table level, where check 1 already covers them.
+    --
+    --    A TRUE here can only mean a column grant: has_column_privilege answers TRUE for a
+    --    privilege held at EITHER level, and check 1 has already raised if anon held any of these
+    --    three at table level. Columns are named rather than counted, because "3 grants survive"
+    --    sends the next reader hunting for something this query already knows.
+    select string_agg(distinct a.attname || ' (' || p || ')', ', ' order by a.attname || ' (' || p || ')')
+      into v_bad
     from pg_attribute a
     join pg_class c on c.oid = a.attrelid
     join pg_namespace n on n.oid = c.relnamespace
-    cross join lateral aclexplode(a.attacl) x
+    cross join unnest(array['INSERT','UPDATE','REFERENCES']) p
     where n.nspname = 'public'
       and c.relname = v_tbl
-      and x.grantee = 'anon'::regrole
-      and x.privilege_type <> 'SELECT';
+      and a.attnum > 0
+      and not a.attisdropped
+      and has_column_privilege('anon', c.oid, a.attnum, p);
 
-    if v_col > 0 then
-      raise exception '% column-level grant(s) to anon survive on public.%', v_col, v_tbl;
+    if v_bad is not null then
+      raise exception 'anon holds column-level % on public.% — REVOKE ALL ON TABLE does not reach a grant made to PUBLIC', v_bad, v_tbl;
     end if;
 
     -- 3. SELECT survives. An over-revoke takes the public marketplace dark, which is a worse
