@@ -81,7 +81,38 @@ function unpinnedDefiners(sql) {
       // here. Stripping comments above is what makes the loose match safe; the anchor bought
       // nothing it does not already cover.
       const sp = /search_path\s*(?:to|=)\s*([^\n;]+)/i.exec(h);
-      return !sp || !sp[1].includes('pg_temp');
+      if (!sp) return true; // no clause at all -- unpinned.
+
+      const value = sp[1].trim();
+
+      // A substring test for `pg_temp` was the whole check here once, and it waved through two
+      // declarations that are WRONG in opposite ways. Both were measured against production
+      // (a throwaway function in pg_temp, read back via proconfig + current_setting), because
+      // the failure is in how Postgres PARSES the clause and that is not worth reasoning about:
+      //
+      //   set search_path = pg_temp, public      -> stored `pg_temp, public`, resolves pg_temp FIRST,
+      //                                             so a temp object shadows every trusted schema.
+      //   set search_path to 'public, pg_temp'   -> stored `"public, pg_temp"` -- ONE quoted
+      //                                             IDENTIFIER, not a list. That schema does not
+      //                                             exist, so unqualified names resolve to nothing
+      //                                             and the function fails at CALL time.
+      //
+      // Both contain the substring. Neither is pinned.
+
+      // The quoted-whole-list form: one pair of quotes spanning a comma. Quoting an INDIVIDUAL
+      // element (`"public", "pg_temp"`) is legal and safe, so the comma inside the quotes is what
+      // this keys on -- not the presence of a quote.
+      if (/^(['"])[^'"]*,[^'"]*\1/.test(value)) return true;
+
+      // Ordering: pg_temp must be the LAST entry. Deliberately NOT "the last entry must equal
+      // pg_temp" -- the header slice can carry trailing modifiers on the same line (`... set
+      // search_path = public, pg_temp security definer`), and demanding an exact match there
+      // reds a correctly pinned declaration. Requiring the pg_temp ELEMENT to be last says the
+      // same thing about ordering without caring what follows it on the line.
+      const parts = value.split(',');
+      const idx = parts.findIndex((p) => /^"?pg_temp"?\b/.test(p.trim()));
+      if (idx === -1) return true; // pinned to something, but not to pg_temp.
+      return idx !== parts.length - 1;
     })
     .map((h) => {
       const name = /(?:function|procedure)\s+([A-Za-z0-9_."]+)/i.exec(h);
