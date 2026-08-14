@@ -7,6 +7,7 @@ import { createClient as createBearerClient, type SupabaseClient } from '@supaba
 import { NextResponse, type NextRequest } from 'next/server';
 import { computeMembership, GATE_STAMP_HEADER, GATE_STAMP_VALUE } from '@/lib/membership-core';
 import { checkRateLimit, jwtSub } from '@/lib/rate-limit';
+import { SHAPE_SESSION_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
 
@@ -102,6 +103,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SHAPE_SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll();
