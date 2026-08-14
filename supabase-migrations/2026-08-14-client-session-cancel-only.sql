@@ -113,6 +113,48 @@ create trigger sessions_guard_client_update
   before update on public.sessions
   for each row execute function public.sessions_guard_client_update();
 
+-- ===== The provider policy this fix DEPENDS ON =====
+-- ⚠ Permissive policies are OR-combined PER COMMAND PHASE. An UPDATE is allowed when ANY
+-- permissive policy's USING admits the OLD row and ANY permissive policy's WITH CHECK admits the
+-- NEW one — and they need not be the same policy. So the cancel-only rule above pins the status
+-- only if every OTHER permissive UPDATE policy also refuses a client's `confirmed` row.
+--
+-- Production already satisfies that, verified behaviourally rather than by reading: impersonating
+-- a booking's own client under `set local role authenticated`, `status = 'confirmed'` is refused
+-- with "new row violates row-level security policy", while `status = 'cancelled'` succeeds.
+--
+-- But `2026-04-18-sessions-and-availability.sql` — which advertises itself as re-runnable —
+-- declares this policy with `with check (true)`. A database rebuilt from this directory, or one
+-- where that file is replayed, would therefore OR straight past the fix. Restated here so this
+-- migration ESTABLISHES the state it depends on instead of assuming it. On production this is a
+-- no-op; the two definitions are identical.
+drop policy if exists "provider_update_sessions" on public.sessions;
+create policy "provider_update_sessions"
+  on public.sessions for update
+  to authenticated
+  using (
+    (provider_role = 'trainer' and exists (
+      select 1 from public.trainers t
+      where t.id = sessions.provider_id and t.owner_id = auth.uid()
+    ))
+    or
+    (provider_role = 'nutritionist' and exists (
+      select 1 from public.nutritionists n
+      where n.id = sessions.provider_id and n.owner_id = auth.uid()
+    ))
+  )
+  with check (
+    (provider_role = 'trainer' and exists (
+      select 1 from public.trainers t
+      where t.id = sessions.provider_id and t.owner_id = auth.uid()
+    ))
+    or
+    (provider_role = 'nutritionist' and exists (
+      select 1 from public.nutritionists n
+      where n.id = sessions.provider_id and n.owner_id = auth.uid()
+    ))
+  );
+
 -- ===== Guard =====
 -- RAISE arity checked: every format string below takes exactly the arguments it names.
 do $guard$

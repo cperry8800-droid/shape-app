@@ -110,15 +110,43 @@ create policy "provider_update_sessions"
       where n.id = sessions.provider_id and n.owner_id = auth.uid()
     ))
   )
-  with check (true);
+  -- ⚠ WAS `with check (true)`, REWRITTEN HERE 2026-08-14 rather than left with a warning.
+  -- Permissive policies are OR-combined per command phase, so an unconditional WITH CHECK on ANY
+  -- update policy lets a row admitted by a DIFFERENT policy's USING land in any shape at all --
+  -- which defeats the cancel-only client rule below. Production already carries this owner-scoped
+  -- form; this file was the last place the permissive version survived.
+  with check (
+    (provider_role = 'trainer' and exists (
+      select 1 from public.trainers t
+      where t.id = sessions.provider_id and t.owner_id = auth.uid()
+    ))
+    or
+    (provider_role = 'nutritionist' and exists (
+      select 1 from public.nutritionists n
+      where n.id = sessions.provider_id and n.owner_id = auth.uid()
+    ))
+  );
 
--- Client may cancel their own request.
+-- Client may cancel their own request -- and ONLY cancel it.
+-- ⚠ SUPERSEDED 2026-08-14 by 2026-08-14-client-session-cancel-only.sql, AND REWRITTEN HERE
+-- RATHER THAN LEFT WITH A WARNING COMMENT, for the same reason the anon insert policy above was:
+-- this file advertises itself as re-runnable, so replaying it would drop the hardened policy and
+-- restore an ownership-only one -- under which a member can PATCH their own booking to
+-- `status = 'confirmed'` and put an appointment the coach never accepted onto their schedule.
+-- The companion trigger cannot catch that: it deliberately ignores `status`, because moving the
+-- status is the one thing a cancelling client is supposed to do.
 drop policy if exists "client_cancel_sessions" on public.sessions;
 create policy "client_cancel_sessions"
   on public.sessions for update
   to authenticated
-  using (client_id = auth.uid())
-  with check (client_id = auth.uid());
+  using (
+    client_id = auth.uid()
+    and status in ('requested', 'confirmed')
+  )
+  with check (
+    client_id = auth.uid()
+    and status = 'cancelled'
+  );
 
 -- ===== provider_availability =====
 -- Weekly recurring slots. One row per (provider, weekday, start_minute).
