@@ -1442,6 +1442,39 @@ Object.assign(window, { ShapeHomeCards });
   else start();
 })();
 
+// ── Per-day key garbage collection ───────────────────────────────────────────
+// Four families write one localStorage key per day/week and nothing ever
+// removed them: shape.habits.<date>, shape.dashMealLog.<date>,
+// shape.dashMealSwap.<date> (daily) and shape.dashQueueDone.<monday> (weekly).
+// localStorage quota (~5–10 MB) is shared with everything else on this origin
+// — including the auth session — and most writes here sit in bare try/catch,
+// so a long-tenured member would hit QuotaExceededError as several unrelated
+// features failing SILENTLY at once. Keep a bounded window; prune the rest.
+//
+// Dates are compared as ISO strings (YYYY-MM-DD sorts lexicographically) —
+// deliberately NO Date.parse on stored values, which silently normalizes
+// malformed days (2026-02-30 → Mar 2) instead of rejecting them. A key whose
+// suffix doesn't match the strict pattern is left alone.
+(function shapePerDayGc() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    // Every reader of these families builds its key for TODAY or the CURRENT
+    // Monday (habits.jsx:56, dashClient.jsx:533/676, dashToday.jsx:346,
+    // dashBuilder.jsx:250, dashMealBuilder.jsx:353) — nothing reads back past
+    // the current week, so 60 days is a wide safety margin, not a tight fit.
+    var KEEP_DAYS = 60;
+    var cutoffMs = Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000;
+    var cutoff = new Date(cutoffMs).toLocaleDateString("en-CA"); // local YYYY-MM-DD (house pattern)
+    var FAMILY = /^shape\.(habits|dashMealLog|dashMealSwap|dashQueueDone)\.(\d{4}-\d{2}-\d{2})$/;
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var key = localStorage.key(i);
+      if (!key) continue;
+      var m = FAMILY.exec(key);
+      if (m && m[2] < cutoff) localStorage.removeItem(key);
+    }
+  } catch (e) {}
+})();
+
 // ── Hover prefetch ────────────────────────────────────────────────────────────
 // The site is an MPA: each nav is a full page load. Prefetch the destination
 // document on first hover/touch of an internal link so the HTML is already in
