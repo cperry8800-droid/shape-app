@@ -95,7 +95,13 @@ function unpinnedDefiners(sql) {
       // declaration written `set search_path = public, pg_temp security definer` now stops the
       // capture at `pg_temp`, because ` security` is not preceded by a comma — so the ordering
       // test below can be exact instead of tolerant.
-      const IDENT = String.raw`(?:"[^"]*"|'[^']*'|[A-Za-z0-9_$]+)`;
+      // ⚠ `""` inside a quoted identifier is an ESCAPED QUOTE, not the end of the token. A
+      // pattern of `"[^"]*"` stops at the first closing quote, so `"pg_temp""evil"` — one
+      // identifier named `pg_temp"evil` — reads as the token `"pg_temp"` and passes. The
+      // function still searches the real temporary schema implicitly first while CI calls it
+      // pinned. Doubled quotes are therefore consumed as part of the token here, and decoded
+      // before the comparison below.
+      const IDENT = String.raw`(?:"(?:[^"]|"")*"|'(?:[^']|'')*'|[A-Za-z0-9_$]+)`;
       const sp = new RegExp(
         String.raw`search_path\s*(?:to|=)\s*(${IDENT}(?:\s*,\s*${IDENT})*)`,
         'i',
@@ -143,7 +149,12 @@ function unpinnedDefiners(sql) {
       //   "quoted"  -> exact, so `"PG_TEMP"` is a different schema and must NOT pass
       const isPgTemp = (raw) => {
         const s = raw.trim();
-        if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) return s.slice(1, -1) === 'pg_temp';
+        // Quoted: exact, after decoding the doubled-quote escape. Single quotes are accepted the
+        // same way because Postgres takes a quoted GUC value as ONE schema name (measured: `to
+        // 'public, pg_temp'` stores as the single identifier `"public, pg_temp"`), so a lone
+        // `'pg_temp'` is a legitimate pin and must not read as unpinned.
+        if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) return s.slice(1, -1).replace(/""/g, '"') === 'pg_temp';
+        if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) return s.slice(1, -1).replace(/''/g, "'") === 'pg_temp';
         return /^pg_temp$/i.test(s);
       };
 
