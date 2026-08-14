@@ -186,9 +186,11 @@ changelog whenever something ships.
 > to coach" uploaded the voice memo and photo **successfully**, then hit
 > `if (convErr || !conversationId) continue;` and returned **HTTP 200 with
 > `delivered:false`** — no error, no warning, no note. ⚠ **The third caller is the one
-> to remember: `shapeBackend.js:1990` calls the RPC DIRECTLY FROM THE CLIENT** as
-> `authenticated`, not through any API route — which is why the `authenticated` grant is
-> load-bearing and must not be narrowed to `service_role`. ⚠ **Nobody has been affected**:
+> to remember: `shapeBackend.js:1990` calls the RPC DIRECTLY FROM THE CLIENT**, through
+> no API route — reached from the marketplace panel, and only for a real listing.
+> ⚠ **All three callers execute as `authenticated`** — both API routes use the anon key
+> with the caller's own session, so **nothing** calls this RPC as `service_role` and the
+> grant must never be narrowed to one. ⚠ **Nobody has been affected**:
 > `conversations` and `messages` are both **empty (0 rows)** in production, so this
 > would have fired on first real use; there is nothing to backfill.
 > ⚠ **The restore is NOT a verbatim replay.** The 2026-05-02 original guarded with
@@ -211,9 +213,10 @@ changelog whenever something ships.
 > either, because null cannot distinguish *failed* from *never attempted* and
 > `add_meal_macros` is an **accumulating upsert with no idempotency key**, so copy that
 > nudges a re-log double-counts the day. Two sites carried the claim; review named one.
-> ⚠ **MIGRATION OWED — it must be RE-RUN** (an earlier form was applied mid-review, so
-> production has the RPC *without* the NULL-role fix and still carries the orphaned
-> `conversations_direct_pair_uniq` index). Idempotent; nothing else will remove it.
+> ✅ **MIGRATION APPLIED AND VERIFIED LIVE 2026-08-14** — re-run by the owner after an
+> earlier form went in mid-review; nine invariants checked against production, plus a
+> **behavioural** null-role probe (`Invalid provider role.`, `conversations` still 0,
+> rolled back) rather than trusting the migration's own `prosrc` text guard.
 > Suite **1514**; CI green on six checks and Codex clean on the final head.
 >
 > See the full entry below.
@@ -1567,24 +1570,35 @@ changelog whenever something ships.
   2. `api/messages/direct/route.ts:84` — the "message this provider" button on
      `/trainers/[id]` and `/nutritionists/[id]`. **Loud** (400).
   3. `mobile-app/src/services/shapeBackend.js:1990` — `supabase.rpc(…)` called
-     **directly from the client** as `authenticated`, through no API route at all.
-     Reached via `sendProviderMessage` (`:2022`) from the marketplace listing panel
-     (`iosAppBroadsheetMarketplace.jsx:2119`) and from the meal- and exercise-swap
-     flows (`iosAppBroadsheetClient.jsx:9235`, `:5212`). **Semi-loud**: the catch
-     writes the thread locally and shows "Message saved locally" with the error text —
-     copy that already anticipates this exact migration being unrun.
+     **directly from the client**, through no API route at all, via
+     `sendProviderMessage` (`:2022`). ⚠ **Reached from the marketplace listing panel
+     (`iosAppBroadsheetMarketplace.jsx:2119`) and ONLY for a REAL listing.**
+     `resolveCoachProvider` (`:1886`) requires `provider_id`/`db_id`, so demo coaches
+     (`bsmIsDemoCoach`, `:540`) — **and the meal/exercise-swap flows, which pass
+     `{ name, provider_role }` with no id at all** (`iosAppBroadsheetClient.jsx:5212`,
+     `:9235`) — resolve to null and save locally **without ever calling the RPC**.
+     When it does call, it is **semi-loud**: the catch writes the thread locally and
+     shows "Message saved locally" with the error text — copy that already anticipates
+     this exact migration being unrun.
 
-- ⚠ **CALLER 3 IS WHY THE `authenticated` GRANT IS LOAD-BEARING.** Working from the
-  two-caller list, a future reader would reasonably conclude that only server routes
-  reach this function and narrow the grant to `service_role` — which would break the
-  marketplace "message this coach" button, **silently**, because caller 3 swallows the
-  error into a local-save notice. That is the concrete cost of the undercount, and it
-  is larger than the tidiness of the list. **Caller 3 does not widen the null-role
-  hole**, though: `normalizeProviderRoleForMessages` (`:1879`) falls through to
+- ⚠ **ALL THREE CALLERS EXECUTE AS `authenticated`. NOTHING CALLS THIS RPC AS
+  `service_role` — DO NOT NARROW THE GRANT.** Both API routes use the anon key with the
+  caller's own session, not a service key: `messages/direct` via `createClient()`
+  (`lib/supabase/server.ts:13`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`), and `meal-note` via
+  `clientForRequest` (`lib/request-auth.ts:14-24`), which forwards a Bearer token when
+  the native app sends one and otherwise falls back to the same cookie client. So a
+  narrowing would break **all three** callers — and the mobile one **silently**, since
+  it swallows the error into a local-save notice.
+
+- **No in-app path can send a null role, so the RPC's null guard is a backstop rather
+  than a hot path.** `normalizeProviderRoleForMessages` (`:1879`) falls through to
   `normalizeRole`, which returns `'client'` for anything unrecognised and **can never
-  return null**, and `resolveCoachProvider` (`:1886`) rejects anything outside
-  trainer/nutritionist before the call — so both in-app paths get the loud
-  `Invalid provider role.` and the null path still needs a hand-made PostgREST call.
+  return null**. For a role outside trainer/nutritionist, `resolveCoachProvider` returns
+  null and `sendProviderMessage` saves locally — **it never calls the RPC, so it never
+  surfaces `Invalid provider role.`**. That raise is reachable only by calling
+  `window.ShapeMessages.getOrCreateDirectConversation` directly (exported raw at
+  `:5456`, with no membership gate), and a genuine **null** requires a hand-made
+  PostgREST call, because no JS path can produce one.
 
 - **Nobody has been affected, and that was verified rather than assumed.**
   `conversations` and `messages` are both **empty (0 rows)** in production, so no
@@ -1663,14 +1677,24 @@ changelog whenever something ships.
   comments before asserting, or it would fire on its own rationale.
   `tests/broadsheet-confirm-notice.test.mjs` drives the confirm sheet. Suite **1514**.
 
-- ⚠ **MIGRATION OWED — `2026-08-08-restore-direct-conversation.sql` MUST BE RE-RUN.**
-  An earlier form was applied mid-review, so production currently has the RPC
-  **without** the NULL-role fix and still carries the orphaned
-  `conversations_direct_pair_uniq` index that the later revision drops. **Nothing else
-  will remove it.** The migration is idempotent and safe against the already-applied
-  state; its verification block raises loudly if any of the four guarantees is missing,
-  so a silent partial apply is not possible. Guard assertions are mutation-tested (they
-  fail against the pre-fix shape) and compile-tested in `pg_temp`.
+- ✅ **MIGRATION APPLIED AND VERIFIED LIVE (2026-08-14).**
+  `2026-08-08-restore-direct-conversation.sql` was first applied mid-review in an
+  earlier form; the owner re-ran the final revision, and nine invariants were then
+  checked against production directly: function exists · `SECURITY DEFINER` ·
+  `search_path=public, pg_temp` · rejects a null role · handles `unique_violation` ·
+  `anon` holds **no** EXECUTE · `authenticated` **does** · the orphaned
+  `conversations_direct_pair_uniq` is **dropped** · `conversations_direct_unique_idx`
+  is present.
+
+- **The null-role rejection was confirmed BEHAVIOURALLY, not just by source shape** —
+  worth recording because the migration's own guard is a `prosrc` text match, which is
+  the weaker instrument. The function gates on `auth.uid()` before the role check, so a
+  plain call can only ever raise the authentication error; impersonating a signed-in
+  member with `set_config('request.jwt.claims', …, true)` gets past that, and a
+  null-role call then returns **`Invalid provider role.`** with the `conversations`
+  count unchanged at 0. The probe was wrapped in a `raise exception` so the whole block
+  rolls back regardless of outcome — reusable for any `SECURITY DEFINER` function whose
+  guard needs testing live without leaving rows behind.
 
 - **Registered, not fixed here:** the pre-existing unconditional `MEAL · FILED` /
   `Logged ✓` stamp with a client-computed `dayCal = dayBaseCal + kcal` that never

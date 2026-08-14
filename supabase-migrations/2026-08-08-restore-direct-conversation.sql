@@ -23,28 +23,35 @@
 --      button on the live /trainers/[id] and /nutritionists/[id] pages. This one
 --      at least fails loudly (400).
 --   3. mobile-app/src/services/shapeBackend.js:1990 — `supabase.rpc(...)` called
---      DIRECTLY FROM THE CLIENT as `authenticated`, not through any API route.
---      Reached via `sendProviderMessage` (:2022) from the marketplace listing
---      panel (iosAppBroadsheetMarketplace.jsx:2119) and from the meal- and
---      exercise-swap flows (iosAppBroadsheetClient.jsx:9235, :5212). It degrades
---      semi-loudly: the catch writes the thread locally and shows "Message saved
---      locally" with the error text — copy that already anticipates exactly this
---      migration being unrun.
+--      DIRECTLY FROM THE CLIENT, through no API route, via `sendProviderMessage`
+--      (:2022). ⚠ Reached from the marketplace listing panel
+--      (iosAppBroadsheetMarketplace.jsx:2119) and ONLY for a REAL listing:
+--      `resolveCoachProvider` (:1886) requires provider_id/db_id, so demo coaches
+--      (bsmIsDemoCoach, :540) — and the meal/exercise-swap flows, which pass
+--      { name, provider_role } with no id (iosAppBroadsheetClient.jsx:5212, :9235)
+--      — resolve to null and save locally WITHOUT calling this function at all.
+--      When it does call, it degrades semi-loudly: the catch writes the thread
+--      locally and shows "Message saved locally" with the error text — copy that
+--      already anticipates exactly this migration being unrun.
 --
--- ⚠ CALLER 3 IS WHY THE `authenticated` GRANT BELOW IS LOAD-BEARING. Reading the
--- old two-caller list, a future reader would conclude only server routes reach
--- this function and that the grant could be narrowed to service_role. That would
--- silently break the marketplace "message this coach" button — silently because
--- caller 3 swallows the error into a local-save notice. Do not narrow it without
--- re-running this inventory.
+-- ⚠ ALL THREE CALLERS EXECUTE AS `authenticated`. NOTHING CALLS THIS FUNCTION AS
+-- service_role, so DO NOT narrow the grant below to one. Both API routes use the
+-- anon key with the caller's own session, not a service key: messages/direct via
+-- createClient() (lib/supabase/server.ts:13, NEXT_PUBLIC_SUPABASE_ANON_KEY), and
+-- meal-note via clientForRequest (lib/request-auth.ts:14-24), which forwards a
+-- Bearer token when the native app sends one and otherwise falls back to the same
+-- cookie client. A narrowing breaks all three — and the mobile one SILENTLY, since
+-- it swallows the error into a local-save notice.
 --
--- Caller 3 does NOT widen the null-role hole fixed below:
--- `normalizeProviderRoleForMessages` (shapeBackend.js:1879) falls through to
+-- No in-app path can send a null role, so the guard below is a backstop, not a hot
+-- path. `normalizeProviderRoleForMessages` (shapeBackend.js:1879) falls through to
 -- `normalizeRole`, which returns 'client' for anything unrecognised and can never
--- return null, and `resolveCoachProvider` (:1886) rejects anything outside
--- trainer/nutritionist before the call. Both send a non-null role, so they get the
--- loud 'Invalid provider role.' — the null path still requires a hand-made
--- PostgREST call.
+-- return null. For a role outside trainer/nutritionist, `resolveCoachProvider`
+-- (:1886) returns null and `sendProviderMessage` saves locally — it never calls
+-- this function, so it never surfaces 'Invalid provider role.'. That raise is
+-- reachable only by calling window.ShapeMessages.getOrCreateDirectConversation
+-- directly (exported raw at :5456, no membership gate), and a genuine NULL needs a
+-- hand-made PostgREST call, because no JS path can produce one.
 --
 -- ⚠ NOBODY HAS BEEN AFFECTED. Verified against production before writing this:
 -- `messages` and `conversations` are both EMPTY (0 rows), so no member has ever
