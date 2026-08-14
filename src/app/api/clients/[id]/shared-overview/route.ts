@@ -85,6 +85,13 @@ export async function GET(
     supabase.rpc('get_my_shared_clients', { p_client_id: clientId }),
   ]);
 
+  // A failed counterpart read drops every co-coach from Care Team while the rest of the page
+  // renders normally — an incomplete team presented as a complete one, which is the exact
+  // silent-failure shape /api/me/shared-clients was changed to stop doing. This route cannot
+  // answer 500 for it (one leg of a whole-page payload), so it degrades LOUDLY instead: the
+  // partial flag rides out with the data so the surface can say the team may be incomplete
+  // rather than quietly showing a short list.
+  const careTeamPartial = Boolean(cpRes.error);
   if (cpRes.error) console.error('[shared-overview] get_my_shared_clients failed:', cpRes.error.message);
 
   const trainers = (trainersRes.data ?? []).map(t => ({
@@ -309,6 +316,9 @@ export async function GET(
       : { id: clientId, name: 'Client', avatarUrl: null },
     me: { trainerId: myTrainerId, nutritionistId: myNutritionistId },
     careTeam,
+    // true = the counterpart read failed, so careTeam may be missing co-coaches. Never omit
+    // this on the assumption the list is complete; an absent flag means "known complete".
+    careTeamPartial,
     sessions,
     plans,
     goals: goals ?? null,

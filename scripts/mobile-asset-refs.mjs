@@ -103,6 +103,13 @@ for (const file of walk(DIST)) {
   const isCss = /\.css$/i.test(file);
   const text = readFileSync(file, 'utf8');
   for (const match of text.matchAll(refRe)) {
+    // ⚠ Under the relative `./` base the pattern happily starts matching at index 1 of `../x.png`,
+    // capturing `./x.png` — so a PARENT-relative reference gets resolved as though it were
+    // sibling-relative and reported missing on a correct tree. Vite emits that form when a CSS
+    // file in dist/assets/ points at a public/ root asset. Skip anything preceded by a dot: this
+    // checker exists to catch a genuinely absent file, and a false alarm nobody can fix except by
+    // editing this script is what got the previous attempt cut.
+    if (match.index > 0 && text[match.index - 1] === '.') continue;
     const ref = match[0];
     checked++;
     const target = join(DIST, toDistPath(ref, file, base, isCss));

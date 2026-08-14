@@ -24,8 +24,18 @@
 -- WHY NOT SIMPLY DROP IT
 -- Dropping without replacing would break in-app booking for signed-in members: both
 -- public/supabase.js requestSession and mobile shapeBackend createSessionRequest insert into
--- `sessions` DIRECTLY under the caller's own session, not through any API route. Both already
--- set client_id from the live session (verified), so the tightened policy leaves them working.
+-- `sessions` DIRECTLY under the caller's own session, not through any API route. Both set
+-- client_id from the live session, so the tightened policy leaves the signed-in path working.
+--
+-- ⚠ ONE CALLER IS NOT UNCONDITIONALLY SAFE, and an earlier draft of this paragraph said it was.
+-- public/supabase.js requestSession hard-fails without a session, so it genuinely cannot be
+-- affected. mobile shapeBackend createSessionRequest does `client_id: state.user?.id || null`
+-- and TOLERATES a null user (its email can come from the clientEmail argument). Under this
+-- policy that insert is rejected -- `NULL = auth.uid()` is NULL, so WITH CHECK fails -- and the
+-- function falls through to saveLocalRecord(..., error). So a booking attempted while auth
+-- state is still unhydrated now lands ONLY in local storage. That is the intended direction of
+-- the hardening (an unidentified caller must not hold a coach's slot) and it degrades to the
+-- path that function already has for failure, but it is a behaviour change, not a no-op.
 --
 -- The consultation route itself is unaffected by RLS -- it inserts with the service-role
 -- client, which bypasses row-level security. Only the direct-from-browser path changes.
@@ -54,12 +64,29 @@ declare
   v_new_roles   text;
   v_new_check   text;
 begin
-  -- 1. No INSERT policy on sessions may reach `anon` any more. Checked by role membership
-  --    rather than by name, so re-adding the hole under a different policy name still fails.
+  -- 1. No INSERT-capable policy on sessions may reach `anon` any more. Checked by role
+  --    membership rather than by name, so re-adding the hole under a different policy name
+  --    still fails.
+  --
+  -- ⚠ TWO WAYS A NAIVE VERSION OF THIS CHECK CERTIFIES THE HOLE IT EXISTS TO CATCH, both of
+  --    which this repo has already been bitten by once:
+  --
+  --    `'anon' = any (roles)` MISSES A POLICY WRITTEN WITHOUT A `TO` CLAUSE. Postgres defaults
+  --    that to PUBLIC, pg_policies renders it as roles = {public}, and 'anon' = any('{public}')
+  --    is FALSE -- while PUBLIC in fact grants every role, anon included. This is the LIKELIEST
+  --    regression shape, not a hypothetical: omitting `TO` is the prevailing style in this
+  --    repo's own migrations (see clients create own refund requests in
+  --    2026-04-17-stripe-connect-and-purchases.sql), and 24 live policies in `public` carry
+  --    roles = {public} today, 4 of them INSERT or ALL. Hence the array-overlap operator.
+  --
+  --    `cmd = 'INSERT'` MISSES A `for all` POLICY, which pg_policies reports as cmd = 'ALL' and
+  --    which grants INSERT just as surely. The same blind spot was caught on
+  --    2026-07-31-coach-insert-lockout.sql.
   select count(*) into v_anon_insert
   from pg_policies
   where schemaname = 'public' and tablename = 'sessions'
-    and cmd = 'INSERT' and 'anon' = any (roles);
+    and cmd in ('INSERT', 'ALL')
+    and (roles && array['anon', 'public']::name[]);
 
   if v_anon_insert > 0 then
     raise exception '% INSERT policy/policies on public.sessions still grant anon — an anonymous caller can still write a booking straight to PostgREST',

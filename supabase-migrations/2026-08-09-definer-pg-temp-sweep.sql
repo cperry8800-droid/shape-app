@@ -4,9 +4,17 @@
 -- An omitted pg_temp is not merely absent from the search path. Postgres searches the
 -- session's TEMPORARY schema FIRST -- ahead of pg_catalog -- whenever pg_temp is not named
 -- explicitly. Every role on this database holds TEMPORARY (anon, authenticated, service_role
--- and PUBLIC, verified live 2026-08-14), so a caller can plant a table, view, function or
--- operator in pg_temp that shadows a name a SECURITY DEFINER body resolves, and have it run
--- as the function's owner (postgres). Naming pg_temp LAST moves it behind pg_catalog and
+-- and PUBLIC, verified live 2026-08-14), so a caller can plant a RELATION (table, view,
+-- sequence) or a DATA TYPE in pg_temp that shadows a name a SECURITY DEFINER body resolves,
+-- and have it run as the function's owner (postgres).
+--
+-- ⚠ RELATIONS AND TYPES ONLY -- an earlier draft of this header also claimed functions and
+-- operators, and that is wrong. Postgres documents that the temporary schema "is only searched
+-- for relation (table, view, sequence, etc) and data type names ... it is never searched for
+-- function or operator names." The hazard is real and worth sweeping; overstating its surface
+-- would just teach the next reader to distrust the rest of this file.
+--
+-- Naming pg_temp LAST moves it behind pg_catalog and
 -- public. Listing it FIRST would be a no-op on the vulnerability -- position is the fix, not
 -- presence, which is why the guard below asserts position and not just membership.
 --

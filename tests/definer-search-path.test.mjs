@@ -29,14 +29,38 @@ const DIR = 'supabase-migrations';
 const SWEEP = '2026-08-09-definer-pg-temp-sweep.sql';
 
 /**
- * Pull every function declaration HEADER out of a migration: the text from `create function` up
- * to the body delimiter (`as $...$`). Everything that matters -- `security definer` and
- * `set search_path` -- lives in that header, and stopping at the body keeps a function whose
- * BODY mentions another function from being mistaken for a second declaration.
+ * Strip SQL comments BEFORE any parsing. This is load-bearing, not tidiness -- the parser below
+ * reads the FIRST `search_path` clause it finds in a declaration header, so a comment mentioning
+ * pg_temp ahead of the real clause makes a genuinely unpinned function report clean. The trap is
+ * not hypothetical: the failure message this very test prints instructs authors to write
+ * `set search_path = public, pg_temp`, so documenting a fix in a comment above the declaration
+ * would DISARM the check that demanded it.
+ *
+ * The reverse bites too. Prose containing the words "create function ... security definer"
+ * manufactures a phantom declaration and reds a clean tree -- the false-alarm class that got the
+ * parked source-based asset checker cut (see scripts/mobile-asset-refs.mjs).
+ *
+ * Comments collapse to a NEWLINE rather than to nothing, so line structure survives and the
+ * line-anchored match below still means what it says. An unterminated `/*` is left alone (the
+ * block pattern requires its closing delimiter), so it cannot eat the rest of the file.
+ */
+function stripComments(sql) {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, '\n').replace(/--[^\n]*/g, '\n');
+}
+
+/**
+ * Pull every routine declaration HEADER out of a migration: the text from `create function` (or
+ * `create procedure`) up to the body delimiter (`as $...$`). Everything that matters --
+ * `security definer` and `set search_path` -- lives in that header, and stopping at the body
+ * keeps a routine whose BODY mentions another routine from being mistaken for a declaration.
+ *
+ * PROCEDURES are in scope deliberately. `public` holds none today, so this catches nothing now,
+ * but a future `create procedure ... security definer` carries the identical temp-schema hazard
+ * and would otherwise pass every check here.
  */
 function declarationHeaders(sql) {
   const out = [];
-  const re = /create\s+(?:or\s+replace\s+)?function/gi;
+  const re = /create\s+(?:or\s+replace\s+)?(?:function|procedure)/gi;
   for (const m of sql.matchAll(re)) {
     const rest = sql.slice(m.index, m.index + 2000);
     const body = /\bas\s*\$/i.exec(rest);
@@ -46,14 +70,21 @@ function declarationHeaders(sql) {
 }
 
 function unpinnedDefiners(sql) {
-  return declarationHeaders(sql)
+  return declarationHeaders(stripComments(sql))
     .filter((h) => /security\s+definer/i.test(h))
     .filter((h) => {
+      // Deliberately NOT anchored to a line start. An earlier cut of this guard required the
+      // clause to begin its own line, which reds a CORRECTLY pinned declaration written on one
+      // line (`create ... security definer set search_path = public, pg_temp as $$`) -- a legal
+      // style, and a false alarm the author can only silence by editing this file. That is the
+      // failure mode that got the parked source-based asset checker cut, so it is not repeated
+      // here. Stripping comments above is what makes the loose match safe; the anchor bought
+      // nothing it does not already cover.
       const sp = /search_path\s*(?:to|=)\s*([^\n;]+)/i.exec(h);
       return !sp || !sp[1].includes('pg_temp');
     })
     .map((h) => {
-      const name = /function\s+([A-Za-z0-9_."]+)/i.exec(h);
+      const name = /(?:function|procedure)\s+([A-Za-z0-9_."]+)/i.exec(h);
       return name ? name[1] : '(unnamed)';
     });
 }
@@ -113,4 +144,89 @@ test('the guard actually detects an unpinned declaration (mutation check)', () =
   // shadowing buys an attacker nothing they did not already have.
   const invoker = bad.replace('security definer', 'security invoker');
   assert.deepEqual(unpinnedDefiners(invoker), []);
+});
+
+test('a comment can neither disarm the guard nor manufacture a false alarm', () => {
+  // Both directions of the comment bug, pinned. Before comments were stripped the parser read
+  // the FIRST search_path in a raw text window, so each of these was wrong.
+
+  // (1) FALSE PASS — the comment is verbatim what this test's own failure message tells authors
+  //     to write, so the natural way to document a fix used to switch the check off.
+  const disarmed = `
+    create or replace function public.probe_bad(p uuid)
+    returns void
+    language plpgsql
+    security definer
+    -- Remember: every definer must set search_path = public, pg_temp (see the sweep).
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(
+    unpinnedDefiners(disarmed),
+    ['public.probe_bad'],
+    'a comment mentioning pg_temp must not satisfy the check for the clause below it'
+  );
+
+  // (2) FALSE ALARM — prose describing the wrong form must not become a phantom declaration.
+  const prose = `
+    -- Do NOT write: create or replace function foo() ... security definer
+    -- set search_path to 'public'   <- the old wrong form
+    create or replace function public.probe_good(p uuid)
+    returns void
+    language plpgsql
+    security definer
+    set search_path = public, pg_temp
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(unpinnedDefiners(prose), [], 'commented-out prose must not red a clean tree');
+
+  // (3) FALSE PASS — a TRAILING comment on the clause line. The capture runs to end-of-line, so
+  //     without stripping it swallows the comment and finds pg_temp in it. This is the likeliest
+  //     shape of all: annotating the very line you are supposed to fix.
+  const trailing = `
+    create or replace function public.probe_trail(p uuid)
+    returns void
+    language plpgsql
+    security definer
+    set search_path to 'public'  -- TODO: should be public, pg_temp
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(
+    unpinnedDefiners(trailing),
+    ['public.probe_trail'],
+    'a trailing comment must not be read as part of the search_path value'
+  );
+
+  // (4) FALSE PASS — a BLOCK comment whose text sits at a line start, which defeats the
+  //     line-anchored match on its own.
+  const block = `
+    create or replace function public.probe_block(p uuid)
+    returns void
+    language plpgsql
+    security definer
+    /*
+    set search_path = public, pg_temp
+    */
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(unpinnedDefiners(block), ['public.probe_block']);
+
+  // (5) FALSE ALARM — a correctly pinned declaration written on ONE line. Guards this against a
+  //     line-start anchor being reintroduced: a check that reds a clean tree teaches --no-verify,
+  //     which also disables every mount test.
+  const oneLine =
+    'create or replace function public.probe_line() returns void language plpgsql ' +
+    'security definer set search_path = public, pg_temp as $$ begin return; end $$;';
+  assert.deepEqual(unpinnedDefiners(oneLine), [], 'a one-line pinned declaration is correct code');
+
+  // (6) A procedure carries the identical hazard and must be in scope.
+  const proc = `
+    create or replace procedure public.probe_proc(p uuid)
+    language plpgsql
+    security definer
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(unpinnedDefiners(proc), ['public.probe_proc']);
 });
