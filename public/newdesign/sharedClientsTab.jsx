@@ -21,10 +21,14 @@ function SharedClientsTab({ role, onCountChange }) {
 
   React.useEffect(() => {
     let cancelled = false;
+    // A FAILED load must not render as "no shared clients". The route was changed to answer 500
+    // rather than 200-with-empty precisely because a silent empty roster is what hid the original
+    // defect for as long as it lasted -- swallowing that 500 here would hand the coach the same
+    // lie with a red line in a log they never read. `false` is the load-failed sentinel.
     fetch('/api/me/shared-clients', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled) setRows(d && Array.isArray(d.shared) ? d.shared : []); })
-      .catch(() => { if (!cancelled) setRows([]); });
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then(d => { if (!cancelled) setRows(Array.isArray(d && d.shared) ? d.shared : []); })
+      .catch(() => { if (!cancelled) setRows(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -85,6 +89,16 @@ function SharedClientsTab({ role, onCountChange }) {
     return (
       <div style={{ padding: 28, color: "rgba(242,237,228,0.55)", fontSize: 13.5, textAlign: "center" }}>
         Loading shared clients…
+      </div>
+    );
+  }
+  // Load failed. Deliberately NOT the empty state below: "no shared clients yet" is a claim
+  // about the roster, and a request that never answered cannot support it.
+  if (rows === false) {
+    return (
+      <div style={{ padding: 36, textAlign: "center", color: "rgba(242,237,228,0.6)", fontSize: 13.5, lineHeight: 1.6 }}>
+        Couldn't load your shared clients. This is a loading problem, not an empty roster —
+        refresh to try again.
       </div>
     );
   }

@@ -45,13 +45,33 @@ create unique index if not exists sessions_no_conflict_idx
 
 alter table public.sessions enable row level security;
 
--- Anyone (including anon visitors on /consultation.html) may insert a
--- requested session. The API route validates fields before forwarding.
+-- ⚠ SUPERSEDED 2026-08-14 by 2026-08-11-consultation-requires-account.sql, AND REWRITTEN HERE
+-- RATHER THAN LEFT WITH A WARNING COMMENT. This file's own header says "Idempotent, safe to
+-- re-run", and it was: it dropped and recreated `anon_insert_sessions` for `anon, authenticated`
+-- with `status = 'requested'` as its ONLY test. Postgres OR-combines permissive policies, so
+-- replaying this file after the 08-11 migration would have re-opened anonymous booking straight
+-- to PostgREST -- past the Next route, its Turnstile check and the proxy rate limiter -- while
+-- the tightened policy sat there looking correct. A header pointing at the newer file would not
+-- have stopped that; only removing the vulnerable statement does.
+--
+-- The block now creates the SAME policy the 08-11 migration installs, so replaying these two
+-- files in EITHER order converges on the safe state, and a fresh rebuild from this file alone
+-- still leaves signed-in members able to book. The drop of the old policy name is kept
+-- deliberately: it is what removes a lingering copy on a database that predates the change.
+--
+-- The rationale for the two tests lives in 2026-08-11-consultation-requires-account.sql; the
+-- short version is that `client_id = auth.uid()` stops a member booking as somebody else, and
+-- `status = 'requested'` stops a member self-confirming and seizing the slot. The consultation
+-- API route is unaffected either way -- it inserts with the service-role client, which bypasses RLS.
 drop policy if exists "anon_insert_sessions" on public.sessions;
-create policy "anon_insert_sessions"
+drop policy if exists "client_insert_own_sessions" on public.sessions;
+create policy "client_insert_own_sessions"
   on public.sessions for insert
-  to anon, authenticated
-  with check (status = 'requested');
+  to authenticated
+  with check (
+    client_id = auth.uid()
+    and status = 'requested'
+  );
 
 -- Clients see their own sessions; providers see sessions booked against them.
 drop policy if exists "read_own_sessions" on public.sessions;
@@ -90,15 +110,43 @@ create policy "provider_update_sessions"
       where n.id = sessions.provider_id and n.owner_id = auth.uid()
     ))
   )
-  with check (true);
+  -- ⚠ WAS `with check (true)`, REWRITTEN HERE 2026-08-14 rather than left with a warning.
+  -- Permissive policies are OR-combined per command phase, so an unconditional WITH CHECK on ANY
+  -- update policy lets a row admitted by a DIFFERENT policy's USING land in any shape at all --
+  -- which defeats the cancel-only client rule below. Production already carries this owner-scoped
+  -- form; this file was the last place the permissive version survived.
+  with check (
+    (provider_role = 'trainer' and exists (
+      select 1 from public.trainers t
+      where t.id = sessions.provider_id and t.owner_id = auth.uid()
+    ))
+    or
+    (provider_role = 'nutritionist' and exists (
+      select 1 from public.nutritionists n
+      where n.id = sessions.provider_id and n.owner_id = auth.uid()
+    ))
+  );
 
--- Client may cancel their own request.
+-- Client may cancel their own request -- and ONLY cancel it.
+-- ⚠ SUPERSEDED 2026-08-14 by 2026-08-14-client-session-cancel-only.sql, AND REWRITTEN HERE
+-- RATHER THAN LEFT WITH A WARNING COMMENT, for the same reason the anon insert policy above was:
+-- this file advertises itself as re-runnable, so replaying it would drop the hardened policy and
+-- restore an ownership-only one -- under which a member can PATCH their own booking to
+-- `status = 'confirmed'` and put an appointment the coach never accepted onto their schedule.
+-- The companion trigger cannot catch that: it deliberately ignores `status`, because moving the
+-- status is the one thing a cancelling client is supposed to do.
 drop policy if exists "client_cancel_sessions" on public.sessions;
 create policy "client_cancel_sessions"
   on public.sessions for update
   to authenticated
-  using (client_id = auth.uid())
-  with check (client_id = auth.uid());
+  using (
+    client_id = auth.uid()
+    and status in ('requested', 'confirmed')
+  )
+  with check (
+    client_id = auth.uid()
+    and status = 'cancelled'
+  );
 
 -- ===== provider_availability =====
 -- Weekly recurring slots. One row per (provider, weekday, start_minute).

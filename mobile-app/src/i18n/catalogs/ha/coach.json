@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "JIKI · MA'AUNAN BAYA-BAYAN NAN",
   "case.byDate": " · KAFIN {date}",
   "case.careTeam": "TAWAGAR KULA",
+  "case.careTeamUnavailable": "An kasa loda tawagar kulawa — matsalar lodi ce, ba tawaga mara kowa ba.",
   "case.caseFile": "FAYILIN LAMARI",
   "case.checkin": "RAHOTO",
   "case.checkinRedact": "RAHOTO · BAI MIƘA BA",

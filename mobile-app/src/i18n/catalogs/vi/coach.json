@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "CƠ THỂ · SỐ ĐO MỚI NHẤT",
   "case.byDate": " · TRƯỚC {date}",
   "case.careTeam": "ĐỘI NGŨ CHĂM SÓC",
+  "case.careTeamUnavailable": "Không tải được đội ngũ hỗ trợ — đây là lỗi tải, không phải đội ngũ trống.",
   "case.caseFile": "HỒ SƠ",
   "case.checkin": "CHECK-IN",
   "case.checkinRedact": "CHECK-IN · CHƯA GỬI",

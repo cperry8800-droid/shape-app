@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "ТІЛО · ОСТАННІ ЗАМІРИ",
   "case.byDate": " · ДО {date}",
   "case.careTeam": "КОМАНДА СУПРОВОДУ",
+  "case.careTeamUnavailable": "Не вдалося завантажити команду супроводу — це помилка завантаження, а не порожня команда.",
   "case.caseFile": "ОСОБОВА СПРАВА",
   "case.checkin": "ЧЕК-ІН",
   "case.checkinRedact": "ЧЕК-ІН · НЕ НАДІСЛАНО",

@@ -328,10 +328,16 @@
         return;
       }
       // Honor ?next= if same-origin (e.g. /radio.html, /pricing.html).
+      // Mirrors src/lib/safe-redirect.mjs (safeReturnPath) — the canonical rule, restated here
+      // because a classic script cannot import it. A leading-slash check ALONE is not enough:
+      // `/\evil.example` passes it, and browsers normalise the backslash to `/`, making the
+      // redirect protocol-relative and off-site. Control characters are stripped by the URL
+      // parser, so they are rejected too.
       var nextParam = null;
       try {
         var raw = new URLSearchParams(location.search).get('next');
-        if (raw && raw.charAt(0) === '/' && !raw.startsWith('//')) nextParam = raw;
+        if (raw && raw.charAt(0) === '/' && !raw.startsWith('//') && raw.charAt(1) !== '\\'
+            && !/[\x00-\x1f\x7f]/.test(raw)) nextParam = raw;
       } catch (e) {}
 
       var has = window.shapeDb.profileHasRole(res.profile, type);

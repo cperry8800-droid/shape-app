@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "CORPO · ÚLTIMAS MEDIDAS",
   "case.byDate": " · PARA {date}",
   "case.careTeam": "EQUIPE DE CUIDADO",
+  "case.careTeamUnavailable": "Não foi possível carregar a equipe de cuidado — é um problema de carregamento, não uma equipe vazia.",
   "case.caseFile": "PRONTUÁRIO",
   "case.checkin": "ACOMPANHAMENTO",
   "case.checkinRedact": "ACOMPANHAMENTO · NÃO ENVIADO",

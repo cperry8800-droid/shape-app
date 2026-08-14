@@ -344,9 +344,13 @@
       }
 
       // Honor ?next= (e.g. pricing checkout flow) if present and same-origin.
+      // Mirrors src/lib/safe-redirect.mjs — `/\evil.example` clears a leading-slash check and
+      // browsers normalise it to a protocol-relative, off-site URL; control chars are stripped
+      // by the URL parser. Both are rejected here.
       try {
         var nextParam = new URLSearchParams(location.search).get('next');
-        if (nextParam && nextParam.charAt(0) === '/' && !nextParam.startsWith('//')) {
+        if (nextParam && nextParam.charAt(0) === '/' && !nextParam.startsWith('//')
+            && nextParam.charAt(1) !== '\\' && !/[\x00-\x1f\x7f]/.test(nextParam)) {
           window.location.href = nextParam;
           return;
         }

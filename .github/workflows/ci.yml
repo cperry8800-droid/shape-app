@@ -132,6 +132,18 @@ jobs:
         working-directory: mobile-app
         run: VITE_BASE=/m/ npm run build
 
+      # ⚠ The build above EXITS 0 when an asset the bundle requests is missing.
+      # Measured: with shape-logo.png moved out of mobile-app/public/, the build
+      # succeeds without naming it, the emitted bundle still requests it three
+      # times, and dist/ does not contain it. tsc, next build, gitleaks and the
+      # suite are equally blind — the first sign is a broken image in the app.
+      # This step reads the ARTIFACT, so a comment or a dead branch cannot raise
+      # a false alarm: the bundler removed both before it runs.
+      # Rides this job on purpose — "Mobile" is already a required check on main,
+      # so the gate is real on day one without a branch-protection change.
+      - name: Asset references resolve
+        run: node scripts/mobile-asset-refs.mjs mobile-app/dist
+
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest

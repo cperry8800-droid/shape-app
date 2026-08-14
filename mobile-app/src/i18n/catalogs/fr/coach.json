@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "CORPS · DERNIÈRES MESURES",
   "case.byDate": " · POUR LE {date}",
   "case.careTeam": "ÉQUIPE DE SUIVI",
+  "case.careTeamUnavailable": "Impossible de charger l'équipe de suivi — c'est un problème de chargement, pas une équipe vide.",
   "case.caseFile": "DOSSIER",
   "case.checkin": "BILAN",
   "case.checkinRedact": "BILAN · NON SOUMIS",

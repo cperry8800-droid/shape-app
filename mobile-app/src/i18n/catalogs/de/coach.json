@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "KÖRPER · NEUESTE MESSUNGEN",
   "case.byDate": " · BIS {date}",
   "case.careTeam": "BETREUUNGSTEAM",
+  "case.careTeamUnavailable": "Betreuungsteam konnte nicht geladen werden — ein Ladeproblem, kein leeres Team.",
   "case.caseFile": "AKTE",
   "case.checkin": "CHECK-IN",
   "case.checkinRedact": "CHECK-IN · NICHT EINGEREICHT",

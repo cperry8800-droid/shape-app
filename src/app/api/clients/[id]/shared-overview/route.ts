@@ -54,8 +54,13 @@ export async function GET(
     ? { id: identity.user_id, full_name: identity.full_name, avatar_url: identity.avatar_url }
     : null;
 
-  // Every active subscription on this client. RLS lets shared coaches read
-  // their counterpart's row by design (both providers want to see the team).
+  // Active subscriptions on this client that the CALLER can read -- which is only the caller's
+  // OWN. ⚠ The comment here used to read "RLS lets shared coaches read their counterpart's row by
+  // design (both providers want to see the team)". That is FALSE, and it is why the Care Team was
+  // always just "me": RLS on `subscriptions` is client-reads-own + provider-reads-own with NO
+  // cross-provider clause. Verified against production by impersonation (real owner 1 row, a
+  // different coach 0, control 21 both). The counterpart half now comes from a projecting definer
+  // -- see 2026-08-10-shared-clients-roster.sql for why a definer and not a new RLS policy.
   const { data: subs } = await supabase
     .from('subscriptions')
     .select('provider_role, provider_id, status, current_period_end')
@@ -65,20 +70,35 @@ export async function GET(
   const trainerIds = (subs ?? []).filter(s => s.provider_role === 'trainer').map(s => s.provider_id);
   const nutriIds = (subs ?? []).filter(s => s.provider_role === 'nutritionist').map(s => s.provider_id);
 
-  const [trainersRes, nutriRes] = await Promise.all([
+  // ⚠ `avatar_url` is NOT selected here any more, and that was a SECOND bug that emptied this
+  // list on its own: the column exists on NEITHER trainers nor nutritionists (it lives on
+  // `profiles`). PostgREST 400s an unknown column, the error was dropped with `?? []`, and even
+  // the caller's OWN care-team entry vanished. Providers have no avatar column; the UI falls back
+  // to initials.
+  const [trainersRes, nutriRes, cpRes] = await Promise.all([
     trainerIds.length
-      ? supabase.from('trainers').select('id, name, avatar_url, owner_id').in('id', trainerIds)
-      : Promise.resolve({ data: [] as Array<{ id: number; name: string; avatar_url: string | null; owner_id: string | null }> }),
+      ? supabase.from('trainers').select('id, name, owner_id').in('id', trainerIds)
+      : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null }> }),
     nutriIds.length
-      ? supabase.from('nutritionists').select('id, name, avatar_url, owner_id').in('id', nutriIds)
-      : Promise.resolve({ data: [] as Array<{ id: number; name: string; avatar_url: string | null; owner_id: string | null }> }),
+      ? supabase.from('nutritionists').select('id, name, owner_id').in('id', nutriIds)
+      : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null }> }),
+    supabase.rpc('get_my_shared_clients', { p_client_id: clientId }),
   ]);
+
+  // A failed counterpart read drops every co-coach from Care Team while the rest of the page
+  // renders normally — an incomplete team presented as a complete one, which is the exact
+  // silent-failure shape /api/me/shared-clients was changed to stop doing. This route cannot
+  // answer 500 for it (one leg of a whole-page payload), so it degrades LOUDLY instead: the
+  // partial flag rides out with the data so the surface can say the team may be incomplete
+  // rather than quietly showing a short list.
+  const careTeamPartial = Boolean(cpRes.error);
+  if (cpRes.error) console.error('[shared-overview] get_my_shared_clients failed:', cpRes.error.message);
 
   const trainers = (trainersRes.data ?? []).map(t => ({
     role: 'trainer' as const,
     providerId: t.id,
     name: t.name,
-    avatarUrl: t.avatar_url,
+    avatarUrl: null as string | null,
     userId: t.owner_id,
     isMe: myTrainerId === t.id,
   }));
@@ -86,11 +106,28 @@ export async function GET(
     role: 'nutritionist' as const,
     providerId: n.id,
     name: n.name,
-    avatarUrl: n.avatar_url,
+    avatarUrl: null as string | null,
     userId: n.owner_id,
     isMe: myNutritionistId === n.id,
   }));
-  const careTeam = [...trainers, ...nutritionists];
+
+  // The definer already excludes the caller's own provider rows (and a dual-role coach's second
+  // row), so these can never duplicate the entries above.
+  const counterparts = ((cpRes.data ?? []) as Array<{
+    counterpart_user_id: string;
+    counterpart_role: 'trainer' | 'nutritionist';
+    counterpart_provider_id: number;
+    counterpart_name: string | null;
+  }>).map(c => ({
+    role: c.counterpart_role,
+    providerId: c.counterpart_provider_id,
+    name: c.counterpart_name ?? 'Coach',
+    avatarUrl: null as string | null,
+    userId: c.counterpart_user_id,
+    isMe: false,
+  }));
+
+  const careTeam = [...trainers, ...nutritionists, ...counterparts];
 
   // Sessions window: 30d back, 60d ahead.
   const now = new Date();
@@ -279,6 +316,9 @@ export async function GET(
       : { id: clientId, name: 'Client', avatarUrl: null },
     me: { trainerId: myTrainerId, nutritionistId: myNutritionistId },
     careTeam,
+    // true = the counterpart read failed, so careTeam may be missing co-coaches. Never omit
+    // this on the assumption the list is complete; an absent flag means "known complete".
+    careTeamPartial,
     sessions,
     plans,
     goals: goals ?? null,

@@ -2,10 +2,27 @@
 // Writes a row to `sessions`, looks up the coach via provider_id + role,
 // and emails both parties with a calendar invite attached.
 //
-// Uses the service-role client for the insert so anon visitors can book
-// without an account — RLS on sessions allows anon inserts with status
-// = 'requested' but we also need to read the coach's email and name
-// which isn't in a public view.
+// ⚠ BOOKING REQUIRES A SIGNED-IN SHAPE ACCOUNT (owner ruling, 2026-08-14).
+// It used to be fully anonymous, and that was a denial-of-availability vector: the
+// row is written with status 'requested', /api/availability treats 'requested' as
+// booked, and a partial unique index denies the slot a second way — so anyone with
+// no account could fill a coach's calendar with fakes until real prospects saw no
+// availability.
+//
+// ⚠ THE ROUTE-LEVEL CHECK BELOW IS ONLY HALF THE FIX, and on its own it would be
+// decorative. RLS carried an `anon_insert_sessions` policy granted to BOTH anon and
+// authenticated whose only test was `status = 'requested'`, so a caller could write
+// the row STRAIGHT TO POSTGREST with the publishable key that ships in every page —
+// bypassing this route, its captcha and the proxy rate limiter entirely.
+// 2026-08-11-consultation-requires-account.sql replaces that policy. Do not restore
+// an anon INSERT path without also re-opening this hole.
+//
+// Identity is taken from the ACCOUNT, not from the request body. That is deliberate:
+// the old shape let a caller put anyone's address in `clientEmail` and have Shape mail
+// them a calendar invite. `client_id` is now stamped too, so a booking has an owner.
+//
+// Still uses the service-role client for the insert — it needs to read the coach's
+// email and name, which are not in any public view.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -18,6 +35,7 @@ import { buildIcs, sendEmail } from '@/lib/email';
 const ORGANIZER_EMAIL = process.env.CALENDAR_ORGANIZER_EMAIL || 'no-reply@theshapecommunity.com';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 import { verifyTurnstile } from '@/lib/turnstile';
+import { currentUser } from '@/lib/request-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,22 +81,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Captcha check failed — please retry.' }, { status: 400 });
   }
 
+  // ⚠ An account is required. Returned as 401 with a machine-readable code so the
+  // booking page can show a sign-in prompt rather than a generic failure.
+  const user = await currentUser(req);
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Sign in to your Shape account to book a consultation.', code: 'auth_required' },
+      { status: 401 }
+    );
+  }
+
   const providerIdRaw = Number(body.providerId ?? body.provider_id ?? 0);
   const providerRoleRaw = clean(body.professionalType ?? body.provider_role, 20).toLowerCase();
   const providerRole: 'trainer' | 'nutritionist' =
     providerRoleRaw === 'nutritionist' ? 'nutritionist' : 'trainer';
   const date = clean(body.date, 20);
   const time = clean(body.time, 20);
-  const clientName = clean(body.clientName, 200);
-  const clientEmail = clean(body.clientEmail, 200).toLowerCase();
   const topic = clean(body.topic, 2000);
+
+  // Identity comes from the ACCOUNT, never the body — a caller must not be able to
+  // point Shape's invite mail at an address they do not own.
+  // ⚠ The one exception is deliberate: a phone-OTP account can legitimately have no
+  // email at all, and refusing to let those members book would be a worse bug than the
+  // one being fixed. In that case only, a submitted address is accepted — from a
+  // signed-in, identified caller whose user id is stamped on the row.
+  const accountEmail = clean(user.email ?? '', 200).toLowerCase();
+  const submittedEmail = clean(body.clientEmail, 200).toLowerCase();
+  const clientEmail = accountEmail || submittedEmail;
+  const clientName =
+    clean((user.user_metadata as Record<string, unknown> | null)?.full_name, 200) ||
+    clean(body.clientName, 200) ||
+    clientEmail.split('@')[0] ||
+    'Shape member';
 
   if (!providerIdRaw || !Number.isFinite(providerIdRaw)) {
     return NextResponse.json({ error: 'Invalid provider.' }, { status: 400 });
   }
-  if (!date || !time || !clientName || !clientEmail) {
+  if (!date || !time) {
+    return NextResponse.json({ error: 'Date and time are required.' }, { status: 400 });
+  }
+  if (!clientEmail) {
     return NextResponse.json(
-      { error: 'Date, time, name, and email are required.' },
+      { error: 'Add an email to your account before booking a consultation.' },
       { status: 400 }
     );
   }
@@ -137,6 +181,10 @@ export async function POST(req: NextRequest) {
   const { data: inserted, error: insertError } = await admin
     .from('sessions')
     .insert({
+      // Stamped so a booking has an owner: it now shows up in the member's own
+      // sessions list, and the RLS policy that replaced the anon insert pins
+      // client_id = auth.uid() on every non-service-role write.
+      client_id: user.id,
       provider_id: providerIdRaw,
       provider_role: providerRole,
       scheduled_at: scheduled.toISOString(),

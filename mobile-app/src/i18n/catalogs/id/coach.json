@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "TUBUH · PENGUKURAN TERBARU",
   "case.byDate": " · SEBELUM {date}",
   "case.careTeam": "TIM PENDAMPING",
+  "case.careTeamUnavailable": "Tidak bisa memuat tim pendamping — ini masalah pemuatan, bukan tim yang kosong.",
   "case.caseFile": "BERKAS KASUS",
   "case.checkin": "LAPORAN",
   "case.checkinRedact": "LAPORAN · BELUM DIKIRIM",
