@@ -29,135 +29,104 @@ const DIR = 'supabase-migrations';
 const SWEEP = '2026-08-09-definer-pg-temp-sweep.sql';
 
 /**
- * Strip SQL comments BEFORE any parsing. This is load-bearing, not tidiness -- the parser below
- * reads the FIRST `search_path` clause it finds in a declaration header, so a comment mentioning
- * pg_temp ahead of the real clause makes a genuinely unpinned function report clean. The trap is
- * not hypothetical: the failure message this very test prints instructs authors to write
- * `set search_path = public, pg_temp`, so documenting a fix in a comment above the declaration
- * would DISARM the check that demanded it.
+ * ONE left-to-right scan that neutralises comments and routine bodies together.
  *
- * The reverse bites too. Prose containing the words "create function ... security definer"
- * manufactures a phantom declaration and reds a clean tree -- the false-alarm class that got the
- * parked source-based asset checker cut (see scripts/mobile-asset-refs.mjs).
+ * ⚠ WHY A SCANNER AND NOT MORE PASSES. This started as layered regex passes -- strip comments,
+ * then mask dollar bodies, then mask string bodies -- and review landed on that seam three rounds
+ * running, each fix exposing the next: modifiers after the body, then a semicolon inside a string
+ * body, then a `--` inside a string body eating the closing quote and every modifier after it.
+ * The layering IS the defect. Each pass rewrites the text the next one parses, so comment-vs-string
+ * precedence is decided by pass ORDER instead of by position, and whichever runs first corrupts the
+ * other's input. There is no ordering that fixes it: comments can contain quotes and strings can
+ * contain comment markers, so either pass first is wrong for some input. The repo's own rule for a
+ * flat findings curve is to change approach rather than patch again (and the parked asset checker
+ * was cut for exactly this -- regex lexing of a thing that needs a lexer).
  *
- * Comments collapse to a NEWLINE rather than to nothing, so line structure survives and the
- * line-anchored match below still means what it says. An unterminated `/*` is left alone (the
- * block pattern requires its closing delimiter), so it cannot eat the rest of the file.
+ * A single pass has no order to get wrong: whichever construct OPENS first wins, which is what
+ * Postgres itself does. Output is the same length with the same newlines, so offsets and line
+ * structure survive.
+ *
+ * WHAT IS BLANKED, AND WHY EACH:
+ *   comments             a comment mentioning pg_temp ahead of the real clause would DISARM the
+ *                        check (the parser reads the first `search_path` it finds), and prose
+ *                        containing "create function ... security definer" would manufacture a
+ *                        phantom declaration and red a clean tree.
+ *   dollar-quoted text   bodies and `do $guard$` blocks are full of these exact words.
+ *   `as '...'` bodies    the string-constant spelling of a body, same reasoning.
+ *
+ * WHAT IS KEPT, AND WHY IT MATTERS:
+ *   other string constants are RECOGNISED but not blanked. `set search_path to 'pg_temp'` is a
+ *   legitimate pin -- Postgres stores a quoted GUC value as ONE schema name -- so blanking every
+ *   quoted string would report correct SQL as unpinned. Recognising them is still required: a `;`
+ *   or `--` inside `default 'a;b'` must not end the statement or start a comment. A body is told
+ *   apart from a value POSITIONALLY: a body follows `as`, a value follows `search_path =`.
+ *
+ * Unterminated constructs are left intact rather than blanked to end-of-file, so one stray `$` or
+ * quote cannot hide every real declaration behind a silent all-clear.
  */
-function stripComments(sql) {
-  return sql.replace(/\/\*[\s\S]*?\*\//g, '\n').replace(/--[^\n]*/g, '\n');
-}
-
-/**
- * Blank the CONTENTS of every dollar-quoted region ($$...$$ / $tag$...$tag$), keeping the
- * delimiters and the line structure. Two jobs, both load-bearing:
- *
- *   1. A routine's body can no longer be read as declaration text. Body prose containing
- *      `create function ... security definer` would otherwise manufacture a phantom declaration
- *      (the false-alarm class that got the parked asset checker cut), and a `do $guard$` block --
- *      every migration here ends in one -- is full of exactly those words.
- *   2. It makes "slice to the statement's `;`" safe, which is what lets the parser below read
- *      modifiers written AFTER the body.
- *
- * A dollar-quote with no matching close is left ALONE rather than blanked to end-of-file: a lone
- * `$` in ordinary text must not swallow the rest of the migration and hide real declarations.
- */
-function maskDollarBodies(sql) {
-  const open = /\$([A-Za-z_][A-Za-z0-9_]*)?\$/g;
-  let out = '';
+function scrubSql(sql) {
+  const out = sql.split('');
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < sql.length; k++) if (sql[k] !== '\n') out[k] = ' ';
+  };
+  let prevWord = '';
   let i = 0;
-  for (;;) {
-    open.lastIndex = i;
-    const m = open.exec(sql);
-    if (!m) { out += sql.slice(i); return out; }
-    const tag = m[0];
-    const bodyStart = m.index + tag.length;
-    const close = sql.indexOf(tag, bodyStart);
-    if (close === -1) { out += sql.slice(i); return out; } // unterminated -> not a body
-    out += sql.slice(i, bodyStart);
-    out += sql.slice(bodyStart, close).replace(/[^\n]/g, ' '); // blank, keep newlines
-    out += tag;
-    i = close + tag.length;
-  }
-}
+  while (i < sql.length) {
+    const c = sql[i];
 
-/**
- * Blank the contents of a STRING-CONSTANT body -- `as 'select 1'`, the older spelling of a
- * routine body that PostgreSQL still accepts. Two failures, in opposite directions:
- *
- *   as 'SELECT 1;' language sql security definer set search_path to 'public';
- *       -> the body's semicolon read as the statement terminator, cutting the slice before
- *          `security definer`, so the routine left the check's scope and CI reported clean.
- *   as 'select 1 -- set search_path = public, pg_temp' ... set search_path to 'public';
- *       -> the value parser reads the FIRST search_path in the slice, which is the one inside the
- *          body, so a genuinely unpinned routine reports PINNED. The comment-disarm bug, arriving
- *          through a string instead of a comment.
- *
- * ⚠ ONLY THE BODY IS MASKED, not every single-quoted string. Blanking all of them would take
- * `set search_path to 'pg_temp'` with it -- a form this file deliberately accepts as a legitimate
- * pin (Postgres stores a quoted GUC value as ONE schema name) -- and report it unpinned. That is
- * a false alarm on correct SQL, which is the failure mode that gets a check bypassed rather than
- * fixed. The distinction is positional: a body follows `as`, a search_path value follows
- * `search_path =`.
- *
- * Run AFTER maskDollarBodies, so quotes inside a dollar-quoted body are already gone.
- */
-function maskStringBodies(sql) {
-  const re = /\bas\s*'/gi;
-  let out = '';
-  let i = 0;
-  for (;;) {
-    re.lastIndex = i;
-    const m = re.exec(sql);
-    if (!m) { out += sql.slice(i); return out; }
-    const bodyStart = m.index + m[0].length; // first char inside the quote
-    let j = bodyStart;
-    for (; j < sql.length; j++) {
-      if (sql[j] !== "'") continue;
-      if (sql[j + 1] === "'") { j++; continue; } // '' is an escaped quote, still inside
-      break;
+    if (c === '-' && sql[i + 1] === '-') {
+      let j = i;
+      while (j < sql.length && sql[j] !== '\n') j++;
+      blank(i, j); i = j; continue;
     }
-    if (j >= sql.length) { out += sql.slice(i); return out; } // unterminated -> leave alone
-    out += sql.slice(i, bodyStart);
-    out += sql.slice(bodyStart, j).replace(/[^\n]/g, ' ');
-    out += "'";
-    i = j + 1;
+    if (c === '/' && sql[i + 1] === '*') {
+      const close = sql.indexOf('*/', i + 2);
+      const j = close === -1 ? sql.length : close + 2;
+      blank(i, j); i = j; continue;
+    }
+    if (c === '$') {
+      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+      if (m) {
+        const close = sql.indexOf(m[0], i + m[0].length);
+        if (close !== -1) { blank(i + m[0].length, close); i = close + m[0].length; prevWord = ''; continue; }
+      }
+      i++; continue; // a lone `$` is ordinary text
+    }
+    if (c === "'" || c === '"') {
+      let j = i + 1;
+      for (; j < sql.length; j++) {
+        if (sql[j] !== c) continue;
+        if (sql[j + 1] === c) { j++; continue; } // doubled -> escaped, still inside
+        break;
+      }
+      if (j >= sql.length) { i = sql.length; continue; } // unterminated -> leave it alone
+      if (c === "'" && prevWord === 'as') blank(i + 1, j);
+      i = j + 1; prevWord = ''; continue;
+    }
+    if (/[A-Za-z_]/.test(c)) {
+      let j = i;
+      while (j < sql.length && /[A-Za-z0-9_]/.test(sql[j])) j++;
+      prevWord = sql.slice(i, j).toLowerCase();
+      i = j; continue;
+    }
+    // Whitespace keeps the previous word in view (`as   '...'`); anything else ends it.
+    if (!/\s/.test(c)) prevWord = '';
+    i++;
   }
+  return out.join('');
 }
 
-/**
- * Pull every routine DECLARATION out of a migration: from `create function` (or
- * `create procedure`) to the statement's terminating `;`, with the body blanked out by
- * maskDollarBodies above.
- *
- * ⚠ IT IS NOT ENOUGH TO STOP AT THE BODY. An earlier cut sliced the declaration at `as $...$` on
- * the reasoning that "everything that matters lives in that header" -- but PostgreSQL's
- * CREATE FUNCTION attributes are an UNORDERED list and `AS` is one of them, so
- *
- *     create function f() returns int as $$ select 1 $$ language sql security definer;
- *
- * is equally legal and puts both `security definer` and `set search_path` past that cut. Such a
- * routine did not read as unpinned -- it dropped out of scope entirely, because the slice carried
- * no `security definer` for the filter below to match, and CI reported clean on an unpinned
- * definer. A guard that only works when the author happens to pick one of two legal orderings is
- * the "green because it went blind" failure this whole file exists to close. Measured: no
- * migration in the repo writes that ordering today, so this was latent, not live.
- *
- * PROCEDURES are in scope deliberately. `public` holds none today, so this catches nothing now,
- * but a future `create procedure ... security definer` carries the identical temp-schema hazard
- * and would otherwise pass every check here.
- */
 /**
  * Index of the statement's terminating `;`, skipping quoted text.
  *
  * A plain `indexOf(';')` would end the declaration at a semicolon inside a string literal --
  * `create function f(p text default 'a;b') ... security definer` would be cut before its
- * modifiers and drop out of scope. That is the SAME blind-spot class this parser was just fixed
- * for, so it is closed here rather than left for the next reader to rediscover. Measured: no
- * declaration in the repo carries one today, which is exactly why it would have gone unnoticed.
+ * modifiers and drop out of scope. Measured: no declaration in the repo carries one today, which
+ * is exactly why it would have gone unnoticed.
  *
- * Dollar-quoted bodies are already blanked by the caller, so only quote pairs need tracking.
- * Doubled quotes (`''`, `""`) are escapes and stay inside the literal.
+ * Runs on scrubSql'd text, so comments and body strings are already blank and cannot fake a
+ * terminator. VALUE strings are still present by design (`set search_path to 'pg_temp'` must
+ * survive), so quote pairs still need tracking here. Doubled quotes are escapes, not terminators.
  */
 function statementEnd(s, start) {
   for (let i = start; i < s.length; i++) {
@@ -176,7 +145,7 @@ function statementEnd(s, start) {
 }
 
 function declarationHeaders(sql) {
-  const masked = maskStringBodies(maskDollarBodies(sql));
+  const masked = scrubSql(sql);
   const out = [];
   const re = /create\s+(?:or\s+replace\s+)?(?:function|procedure)/gi;
   for (const m of masked.matchAll(re)) {
@@ -189,7 +158,7 @@ function declarationHeaders(sql) {
 }
 
 function unpinnedDefiners(sql) {
-  return declarationHeaders(stripComments(sql))
+  return declarationHeaders(sql)
     .filter((h) => /security\s+definer/i.test(h))
     .filter((h) => {
       // Deliberately NOT anchored to a line start. An earlier cut of this guard required the
@@ -437,11 +406,10 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
   //     ordinary thing for a body to do -- used to report clean off the body's clause while the
   //     real one said otherwise. Masking the body is what makes the real clause the first one.
   //
-  //     ⚠ Residual, named rather than papered over: stripComments runs BEFORE this mask, so a `--`
-  //     INSIDE a string-constant body still eats to end-of-line and can take the modifiers with
-  //     it. Closing that needs a real lexer, which is what got the parked asset checker cut. The
-  //     exposure is a string-constant body -- unused anywhere in this repo -- carrying a `--` on
-  //     the same line as its modifiers.
+  //     This residual was carried openly for one commit -- comment-stripping ran BEFORE the body
+  //     mask, so a `--` inside a string body ate the closing quote and every modifier after it --
+  //     and vector (9) below is that exact case. It is closed now, by scrubSql handling comments
+  //     and bodies in ONE pass instead of two ordered ones.
   const stringBodyDisarm =
     "create function public.probe_disarm() returns int\n" +
     "as 'set search_path = public, pg_temp; select 1' language sql security definer " +
@@ -452,7 +420,38 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
     'a string body must not be able to satisfy the check for the clause outside it'
   );
 
-  // (9) ⚠ AND THE MASK MUST NOT BE WIDER THAN THE BODY. `set search_path to 'pg_temp'` is a
+  // (9) THE ORDERING BUG ITSELF: a `--` inside a string-constant body. With comment-stripping as a
+  //     separate earlier pass this ate the closing quote AND every modifier on the line, so the
+  //     declaration lost its `security definer` and left the check's scope — an unpinned routine
+  //     reported clean. One scan cannot get this wrong: the quote opens before the `--`, so the
+  //     `--` is body text, not a comment.
+  const stringBodyComment =
+    'create function public.probe_bodycomment() returns int\n' +
+    "as 'select 1 -- harmless text' language sql security definer set search_path to 'public';";
+  assert.deepEqual(
+    unpinnedDefiners(stringBodyComment),
+    ['public.probe_bodycomment'],
+    'a comment marker inside a string body must not consume the declaration'
+  );
+
+  // (10) The mirror: a quote inside a REAL comment must not open a string and swallow what follows.
+  //      Whichever construct opens first wins — here the `--` does.
+  const commentWithQuote = `
+    create or replace function public.probe_cquote(p uuid)
+    returns void
+    language plpgsql
+    security definer
+    -- don't pin this one yet
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(
+    unpinnedDefiners(commentWithQuote),
+    ['public.probe_cquote'],
+    "an apostrophe inside a comment must not be read as a string opener"
+  );
+
+  // (11) ⚠ AND THE MASK MUST NOT BE WIDER THAN THE BODY. `set search_path to 'pg_temp'` is a
   //     legitimate pin (a quoted GUC value is ONE schema name), so blanking every single-quoted
   //     string -- the obvious over-broad reading of (7)/(8) -- would red correct SQL.
   const quotedPin =
@@ -464,7 +463,7 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
     "a single-quoted pg_temp pin is correct code and must not be masked away"
   );
 
-  // (10) A lone unmatched `$` must not swallow the rest of the file and hide real declarations --
+  // (12) A lone unmatched `$` must not swallow the rest of the file and hide real declarations --
   //     blanking to end-of-file would turn one stray character into a silent all-clear.
   const strayDollar = `
     -- price$ is not a dollar quote
