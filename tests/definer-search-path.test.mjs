@@ -46,30 +46,57 @@ const SWEEP = '2026-08-09-definer-pg-temp-sweep.sql';
  * Postgres itself does. Output is the same length with the same newlines, so offsets and line
  * structure survive.
  *
+ * ⚠ AND IT REFUSES RATHER THAN GUESSES. One scan fixed the ORDERING bug; it did not make a
+ * hand-rolled lexer complete, and the next review round proved it -- nested block comments,
+ * `E'...'` backslash escapes, and a clause hiding in an ordinary literal, all found at once.
+ * PostgreSQL's lexer has more corners than this file will ever model (`U&'...'`, bit/hex
+ * literals, `standard_conforming_strings`), and every gap here is a FALSE NEGATIVE: the guard
+ * says clean about a declaration that is unpinned. So the scan now reports `unverifiable` when
+ * it meets a construct it does not model EXACTLY, and the caller flags every definer in that
+ * file. A parsing gap becomes a loud failure the author can act on instead of a silent
+ * all-clear -- the only direction a security guard may fail in.
+ *
  * WHAT IS BLANKED, AND WHY EACH:
  *   comments             a comment mentioning pg_temp ahead of the real clause would DISARM the
  *                        check (the parser reads the first `search_path` it finds), and prose
  *                        containing "create function ... security definer" would manufacture a
- *                        phantom declaration and red a clean tree.
+ *                        phantom declaration and red a clean tree. Block comments NEST in
+ *                        Postgres, so they are consumed by DEPTH: stopping at the first closing
+ *                        delimiter leaks the outer comment's tail back in as live code.
  *   dollar-quoted text   bodies and `do $guard$` blocks are full of these exact words.
- *   `as '...'` bodies    the string-constant spelling of a body, same reasoning.
+ *   every other quoted   including `as '...'` bodies AND ordinary literals. A parameter default
+ *   run                  holding `default 'set search_path = public, pg_temp'` sits EARLIER in
+ *                        the declaration than the real clause, and the value parser reads the
+ *                        first `search_path` it finds -- so an unpinned routine reported clean.
  *
- * WHAT IS KEPT, AND WHY IT MATTERS:
- *   other string constants are RECOGNISED but not blanked. `set search_path to 'pg_temp'` is a
- *   legitimate pin -- Postgres stores a quoted GUC value as ONE schema name -- so blanking every
- *   quoted string would report correct SQL as unpinned. Recognising them is still required: a `;`
- *   or `--` inside `default 'a;b'` must not end the statement or start a comment. A body is told
- *   apart from a value POSITIONALLY: a body follows `as`, a value follows `search_path =`.
+ * WHAT IS KEPT, AND WHY IT IS EXACTLY THIS:
+ *   only a run that is syntactically the VALUE of a real `set search_path = ...` clause.
+ *   `set search_path to 'pg_temp'` is a legitimate pin (Postgres stores a quoted GUC value as
+ *   ONE schema name) and `set search_path = public, "pg_temp"` quotes a list ELEMENT, so both
+ *   must survive to be judged. Position decides it -- not the presence of a quote, and no longer
+ *   "anything that is not a body", which was the wider reading that let a literal fake a clause.
  *
- * Unterminated constructs are left intact rather than blanked to end-of-file, so one stray `$` or
- * quote cannot hide every real declaration behind a silent all-clear.
+ * Quotes are still RECOGNISED everywhere even when blanked: a `;` or `--` inside `default 'a;b'`
+ * must not end the statement or start a comment.
  */
 function scrubSql(sql) {
   const out = sql.split('');
+  let unverifiable = null;
+  const bail = (why) => { if (!unverifiable) unverifiable = why; };
   const blank = (from, to) => {
     for (let k = from; k < to && k < sql.length; k++) if (sql[k] !== '\n') out[k] = ' ';
   };
-  let prevWord = '';
+  // Backslashes are ordinary inside a normal literal only while standard_conforming_strings is
+  // on. It has defaulted on since 9.1 and no migration turns it off -- but a file that did would
+  // silently change what every quote means, so it is refused rather than mis-scanned.
+  if (/standard_conforming_strings\s*(?:=|\bto\b)\s*(?:off|'off'|false|0)\b/i.test(sql)) {
+    bail('standard_conforming_strings is turned off');
+  }
+  // The value of a `set search_path` clause: the clause head, then any already-closed list
+  // elements. Anchored at the quote, so it can only ever describe THIS run's position.
+  const VALUE_POS =
+    /search_path\s*(?:=|\bto\b)\s*(?:(?:[A-Za-z0-9_$]+|"(?:[^"]|"")*"|'(?:[^']|'')*')\s*,\s*)*$/i;
+  const idChar = (ch) => /[A-Za-z0-9_$]/.test(ch || '');
   let i = 0;
   while (i < sql.length) {
     const c = sql[i];
@@ -80,40 +107,50 @@ function scrubSql(sql) {
       blank(i, j); i = j; continue;
     }
     if (c === '/' && sql[i + 1] === '*') {
-      const close = sql.indexOf('*/', i + 2);
-      const j = close === -1 ? sql.length : close + 2;
+      let depth = 1, j = i + 2;
+      while (j < sql.length && depth > 0) {
+        if (sql[j] === '/' && sql[j + 1] === '*') { depth++; j += 2; }
+        else if (sql[j] === '*' && sql[j + 1] === '/') { depth--; j += 2; }
+        else j++;
+      }
+      if (depth > 0) bail('unterminated block comment');
       blank(i, j); i = j; continue;
     }
     if (c === '$') {
       const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
       if (m) {
         const close = sql.indexOf(m[0], i + m[0].length);
-        if (close !== -1) { blank(i + m[0].length, close); i = close + m[0].length; prevWord = ''; continue; }
+        if (close === -1) { bail('unterminated dollar-quoted string'); i = sql.length; continue; }
+        blank(i + m[0].length, close);
+        i = close + m[0].length; continue;
       }
       i++; continue; // a lone `$` is ordinary text
     }
     if (c === "'" || c === '"') {
-      let j = i + 1;
+      // `E'...'` and `U&'...'` honour backslash escapes, so `E'\''` is ONE string, not two.
+      // Reading them as doubled-quote-only ends the run at the escaped quote and hands the rest
+      // of the declaration to the scanner as code.
+      const p1 = sql[i - 1], p2 = sql[i - 2];
+      const escapes = c === "'" &&
+        ((/[Ee]/.test(p1 || '') && !idChar(p2)) ||
+         (p1 === '&' && /[Uu]/.test(p2 || '') && !idChar(sql[i - 3])));
+      let j = i + 1, closed = false;
       for (; j < sql.length; j++) {
+        if (escapes && sql[j] === '\\') { j++; continue; }
         if (sql[j] !== c) continue;
         if (sql[j + 1] === c) { j++; continue; } // doubled -> escaped, still inside
-        break;
+        closed = true; break;
       }
-      if (j >= sql.length) { i = sql.length; continue; } // unterminated -> leave it alone
-      if (c === "'" && prevWord === 'as') blank(i + 1, j);
-      i = j + 1; prevWord = ''; continue;
+      if (!closed) { bail('unterminated string literal'); i = sql.length; continue; }
+      // Look back over the ALREADY-MASKED text, so a `search_path` sitting inside a comment or a
+      // body cannot make the next literal read as a clause value.
+      const before = out.slice(Math.max(0, i - 500), i).join('');
+      if (!VALUE_POS.test(before)) blank(i + 1, j);
+      i = j + 1; continue;
     }
-    if (/[A-Za-z_]/.test(c)) {
-      let j = i;
-      while (j < sql.length && /[A-Za-z0-9_]/.test(sql[j])) j++;
-      prevWord = sql.slice(i, j).toLowerCase();
-      i = j; continue;
-    }
-    // Whitespace keeps the previous word in view (`as   '...'`); anything else ends it.
-    if (!/\s/.test(c)) prevWord = '';
     i++;
   }
-  return out.join('');
+  return { masked: out.join(''), unverifiable };
 }
 
 /**
@@ -126,13 +163,17 @@ function scrubSql(sql) {
  *
  * Runs on scrubSql'd text, so comments and body strings are already blank and cannot fake a
  * terminator. VALUE strings are still present by design (`set search_path to 'pg_temp'` must
- * survive), so quote pairs still need tracking here. Doubled quotes are escapes, not terminators.
+ * survive), so quote pairs still need tracking here. Doubled quotes are escapes, not terminators,
+ * and an `E'...'` value honours backslashes for the same reason the scanner does.
  */
 function statementEnd(s, start) {
+  const idChar = (ch) => /[A-Za-z0-9_$]/.test(ch || '');
   for (let i = start; i < s.length; i++) {
     const ch = s[i];
     if (ch === "'" || ch === '"') {
+      const escapes = ch === "'" && /[Ee]/.test(s[i - 1] || '') && !idChar(s[i - 2]);
       for (i++; i < s.length; i++) {
+        if (escapes && s[i] === '\\') { i++; continue; }
         if (s[i] !== ch) continue;
         if (s[i + 1] === ch) { i++; continue; } // escaped quote -- still inside
         break;
@@ -144,8 +185,7 @@ function statementEnd(s, start) {
   return -1;
 }
 
-function declarationHeaders(sql) {
-  const masked = scrubSql(sql);
+function declarationHeaders(masked) {
   const out = [];
   const re = /create\s+(?:or\s+replace\s+)?(?:function|procedure)/gi;
   for (const m of masked.matchAll(re)) {
@@ -158,7 +198,16 @@ function declarationHeaders(sql) {
 }
 
 function unpinnedDefiners(sql) {
-  return declarationHeaders(sql)
+  const { masked, unverifiable } = scrubSql(sql);
+  // A construct the scanner does not model exactly means every "pinned" verdict in this file is a
+  // guess. Report rather than certify -- but only when there is a definer at stake, so a
+  // malformed file with nothing to protect stays quiet instead of teaching people to ignore this.
+  if (unverifiable) {
+    return /security\s+definer/i.test(sql)
+      ? [`(unverifiable: ${unverifiable} — pin pg_temp explicitly and add a vector to this test)`]
+      : [];
+  }
+  return declarationHeaders(masked)
     .filter((h) => /security\s+definer/i.test(h))
     .filter((h) => {
       // Deliberately NOT anchored to a line start. An earlier cut of this guard required the
@@ -476,6 +525,88 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
     as $$ begin return; end $$;
   `;
   assert.deepEqual(unpinnedDefiners(strayDollar), ['public.probe_stray']);
+
+  // (13) BLOCK COMMENTS NEST in Postgres. Stopping at the first `*/` ends the comment early and
+  //      hands the OUTER comment's tail back to the scanner as live code -- and a `pg_temp` in
+  //      that tail satisfies the check before the real, unpinned clause is ever reached.
+  const nestedComment = `
+    create or replace function public.probe_nested(p uuid)
+    returns void
+    language plpgsql
+    security definer
+    /* note /* aside */ set search_path = public, pg_temp */
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(
+    unpinnedDefiners(nestedComment),
+    ['public.probe_nested'],
+    'a nested block comment must not leak its tail back in as a clause'
+  );
+
+  // (14) The same nesting, hiding nothing: consuming by depth must not red a clean tree either.
+  const nestedClean = nestedComment
+    .replace('/* note /* aside */ set search_path = public, pg_temp */', '/* note /* aside */ still the note */')
+    .replace("set search_path to 'public'", 'set search_path = public, pg_temp');
+  assert.deepEqual(unpinnedDefiners(nestedClean), [], 'a nested comment over correct SQL is clean code');
+
+  // (15) `E'...'` honours BACKSLASH escapes, so `E'it\'s'` is ONE string. Reading it as
+  //      doubled-quote-only ends the run at the escaped quote, and the `;` that follows inside
+  //      the literal then reads as the statement terminator -- cutting the declaration before
+  //      `security definer` and dropping it out of scope entirely.
+  const eString =
+    "create function public.probe_estring(p_note text default E'it\\'s a;b')\n" +
+    "returns int language sql security definer set search_path to 'public' as $$ select 1 $$;";
+  assert.deepEqual(
+    unpinnedDefiners(eString),
+    ['public.probe_estring'],
+    'a backslash-escaped quote must not end an escape-string literal'
+  );
+
+  // (16) ⚠ AN ORDINARY LITERAL CAN FAKE THE CLAUSE. A parameter default sits EARLIER in the
+  //      declaration than the modifiers, and the value parser reads the first `search_path` it
+  //      finds -- so the routine's own real `to 'public'` was never reached. Masking only bodies
+  //      was too narrow: what matters is not "is this a body" but "is this the clause's VALUE".
+  const literalFake = `
+    create or replace function public.probe_literal(p_note text default 'set search_path = public, pg_temp')
+    returns void
+    language plpgsql
+    security definer
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(
+    unpinnedDefiners(literalFake),
+    ['public.probe_literal'],
+    'a literal holding a pinned-looking clause must not satisfy the check'
+  );
+
+  // (17) ...and the narrowing must not eat a QUOTED LIST ELEMENT. `"pg_temp"` is a legal way to
+  //      write the pin, so masking every non-body string would have reported correct SQL unpinned.
+  const quotedElement =
+    'create function public.probe_quoted_elem() returns int\n' +
+    'language sql security definer set search_path = public, "pg_temp" as $$ select 1 $$;';
+  assert.deepEqual(
+    unpinnedDefiners(quotedElement),
+    [],
+    'a quoted element inside the search_path list is correct code'
+  );
+
+  // (18) THE BACKSTOP. A construct the scanner does not model exactly makes every "pinned"
+  //      verdict in the file a guess, so it reports instead of certifying. This is what stops
+  //      the next unmodelled corner from being another silent all-clear.
+  const unterminated =
+    "create or replace function public.probe_unterminated()\n" +
+    "returns void language plpgsql security definer set search_path = public, pg_temp\n" +
+    "as $$ begin return; end $$;\n" +
+    "select 'oops;";
+  const bailed = unpinnedDefiners(unterminated);
+  assert.equal(bailed.length, 1, 'an unscannable file reports rather than certifying');
+  assert.match(bailed[0], /^\(unverifiable: unterminated string literal/);
+
+  // ...but a file with no definer at stake stays quiet. A guard that reds a tree it has nothing
+  // to protect in teaches people to ignore it, which is how the parked asset checker died.
+  assert.deepEqual(unpinnedDefiners("select 'oops;"), []);
 });
 
 test('a comment can neither disarm the guard nor manufacture a false alarm', () => {
