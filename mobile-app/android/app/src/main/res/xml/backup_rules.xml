@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and below (fullBackupContent). The WebView profile directory
+     (app_webview/) holds this origin's localStorage, cookies, and IndexedDB —
+     including the Supabase session token — so it must never leave the device
+     in a Google Auto Backup: a restored backup is a live session on whatever
+     device it lands on. -->
+<full-backup-content>
+    <exclude domain="root" path="app_webview" />
+</full-backup-content>
