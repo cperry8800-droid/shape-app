@@ -51,24 +51,12 @@ export async function signup(
   const role = ['client', 'trainer', 'nutritionist'].includes(rawRole) ? rawRole : 'client';
   const captchaToken = String(formData.get('captchaToken') ?? '');
 
-  // Same contract as `login` above: an internal path only, or nothing. Signup had no `next` at
-  // all, so a visitor sent here mid-task (the consultation page, which carries the coach and the
-  // slot they picked) was returned to a dashboard with that context gone — on BOTH exits below.
-  // Same guard as `login` above — see the note there for why the inline prefix check was not
-  // enough. Both exits below consume this: `redirect(next)` emits a RELATIVE Location, which is
-  // the form a `/\` payload turns into an off-site jump.
-  const rawNext = String(formData.get('next') ?? '');
-  const next = safeReturnPath(rawNext, '') || null;
-
   const supabase = await createClient();
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      // The confirm-email exit. `/auth/callback` reads `next` and applies the identical
-      // same-origin guard, so the destination is validated on both sides of the round trip.
-      emailRedirectTo: `${origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`,
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback`,
       ...(captchaToken ? { captchaToken } : {}),
       data: { role },
     },
@@ -80,9 +68,8 @@ export async function signup(
   const needsConfirm = !data.session;
 
   if (!needsConfirm) {
-    // The auto-confirm exit (no email step): a session already exists, so honor `next` directly.
     revalidatePath('/', 'layout');
-    redirect(next ?? '/newdesign/ClientDashboard.html');
+    redirect('/newdesign/ClientDashboard.html');
   }
 
   return { ok: true, needsConfirm: true };

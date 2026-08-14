@@ -11,9 +11,10 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
   // Validate the redirect target — only a same-origin absolute path, never an
   // external host (e.g. //evil.com) — matching the login action's guard.
-  // Via the shared helper. The inline prefix check this replaced accepted `/\evil.example` and
-  // control characters — and signup now routes its confirm-email link through here carrying a
-  // caller-supplied `next`, so this is a live path for that payload, not a theoretical one.
+  // Via the shared helper. The inline prefix check this replaced accepted `/\evil.example`,
+  // which browsers normalise into a protocol-relative off-site redirect, and embedded control
+  // characters, which the URL parser strips. `next` is caller-supplied here (the password-reset
+  // link builds it), so this is a live path for that payload rather than a theoretical one.
   const rawNext = searchParams.get('next') ?? '/';
   const next = safeReturnPath(rawNext, '/');
 

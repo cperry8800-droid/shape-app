@@ -14,13 +14,7 @@ async function signupAction(_prev: State, formData: FormData): Promise<State> {
 
 const roles = ['client', 'trainer', 'nutritionist'] as const;
 
-export default function SignupForm({
-  defaultRole,
-  next,
-}: {
-  defaultRole?: string;
-  next?: string;
-}) {
+export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
   const [state, formAction, pending] = useActionState<State, FormData>(signupAction, null);
   const [role, setRole] = useState<string>(
     defaultRole && roles.includes(defaultRole as (typeof roles)[number]) ? defaultRole : 'client',
@@ -52,10 +46,6 @@ export default function SignupForm({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="role" value={role} />
-      {/* Carries the caller's return path through the server action, the same way `login`
-          already receives its `next`. The action re-validates it — a hidden input is caller
-          input like any other. */}
-      {next ? <input type="hidden" name="next" value={next} /> : null}
 
       <label className="flex flex-col gap-1.5">
         <span className="text-xs uppercase tracking-wider text-neutral-400">Email</span>
@@ -116,13 +106,7 @@ export default function SignupForm({
 
       <p className="text-sm text-neutral-400 text-center">
         Already have an account?{' '}
-        {/* Carries `next` across the auth-mode switch. Without it a consultation visitor who
-            lands on /signup?next=… and then realises they already have an account loses the
-            coach and the slot at the last step — the same drop the direct exits just fixed. */}
-        <Link
-          href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}
-          className="text-teal-400 hover:text-teal-300"
-        >
+        <Link href="/login" className="text-teal-400 hover:text-teal-300">
           Sign in
         </Link>
       </p>

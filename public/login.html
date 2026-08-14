@@ -349,24 +349,6 @@
       // User holds the requested role — route to ?next= if provided, else dashboard.
       window.location.href = nextParam || window.shapeDb.dashboardFor(type);
     }
-
-    // Forward ?next= across the auth-mode switch. The "Sign up" links are static hrefs, so a
-    // visitor who arrived here mid-task (the consultation page, carrying a coach and a slot)
-    // and then realised they need an account used to lose it at that click. The signup pages
-    // honor ?next= themselves, so forwarding it is what makes the round trip complete.
-    // Same rule as above — see the safeReturnPath note.
-    (function forwardNextToSignup() {
-      try {
-        var raw = new URLSearchParams(location.search).get('next');
-        if (!raw || raw.charAt(0) !== '/' || raw.startsWith('//') || raw.charAt(1) === '\\'
-            || /[\x00-\x1f\x7f]/.test(raw)) return;
-        var links = document.querySelectorAll('a[href^="signup-"]');
-        for (var i = 0; i < links.length; i++) {
-          var h = links[i].getAttribute('href');
-          links[i].setAttribute('href', h + (h.indexOf('?') === -1 ? '?' : '&') + 'next=' + encodeURIComponent(raw));
-        }
-      } catch (e) {}
-    })();
   </script>
 
   <script src="app.js"></script>
