@@ -8,8 +8,12 @@
 -- database does not have; it is the only one of those eight that live product
 -- code calls.
 --
--- ⚠ TWO LIVE CALLERS, AND THE WORSE ONE FAILS SILENTLY.
---   1. src/app/api/nutrition/meal-note/route.ts:126 — the mobile meal logger's
+-- ⚠ THREE LIVE CALLERS, AND THE WORST ONE FAILS SILENTLY.
+-- (This header said "TWO" until 2026-08-14; the third was found by Codex on the
+-- changelog PR. Corrected in place rather than quietly, because an inventory that
+-- undercounts is worse than no inventory — see the grant warning at the foot of
+-- this list.)
+--   1. src/app/api/nutrition/meal-note/route.ts:135 — the mobile meal logger's
 --      "dispatch to coach". It uploads the voice memo and photo to storage
 --      SUCCESSFULLY, then loops the member's coaches, calls this function, and
 --      hits `if (convErr || !conversationId) continue;`. The route returns HTTP
@@ -18,6 +22,36 @@
 --   2. src/app/api/messages/direct/route.ts:84 — the "message this provider"
 --      button on the live /trainers/[id] and /nutritionists/[id] pages. This one
 --      at least fails loudly (400).
+--   3. mobile-app/src/services/shapeBackend.js:1990 — `supabase.rpc(...)` called
+--      DIRECTLY FROM THE CLIENT, through no API route, via `sendProviderMessage`
+--      (:2022). ⚠ Reached from the marketplace listing panel
+--      (iosAppBroadsheetMarketplace.jsx:2119) and ONLY for a REAL listing:
+--      `resolveCoachProvider` (:1886) requires provider_id/db_id, so demo coaches
+--      (bsmIsDemoCoach, :540) — and the meal/exercise-swap flows, which pass
+--      { name, provider_role } with no id (iosAppBroadsheetClient.jsx:5212, :9235)
+--      — resolve to null and save locally WITHOUT calling this function at all.
+--      When it does call, it degrades semi-loudly: the catch writes the thread
+--      locally and shows "Message saved locally" with the error text — copy that
+--      already anticipates exactly this migration being unrun.
+--
+-- ⚠ ALL THREE CALLERS EXECUTE AS `authenticated`. NOTHING CALLS THIS FUNCTION AS
+-- service_role, so DO NOT narrow the grant below to one. Both API routes use the
+-- anon key with the caller's own session, not a service key: messages/direct via
+-- createClient() (lib/supabase/server.ts:13, NEXT_PUBLIC_SUPABASE_ANON_KEY), and
+-- meal-note via clientForRequest (lib/request-auth.ts:14-24), which forwards a
+-- Bearer token when the native app sends one and otherwise falls back to the same
+-- cookie client. A narrowing breaks all three — and the mobile one SILENTLY, since
+-- it swallows the error into a local-save notice.
+--
+-- No in-app path can send a null role, so the guard below is a backstop, not a hot
+-- path. `normalizeProviderRoleForMessages` (shapeBackend.js:1879) falls through to
+-- `normalizeRole`, which returns 'client' for anything unrecognised and can never
+-- return null. For a role outside trainer/nutritionist, `resolveCoachProvider`
+-- (:1886) returns null and `sendProviderMessage` saves locally — it never calls
+-- this function, so it never surfaces 'Invalid provider role.'. That raise is
+-- reachable only by calling window.ShapeMessages.getOrCreateDirectConversation
+-- directly (exported raw at :5456, no membership gate), and a genuine NULL needs a
+-- hand-made PostgREST call, because no JS path can produce one.
 --
 -- ⚠ NOBODY HAS BEEN AFFECTED. Verified against production before writing this:
 -- `messages` and `conversations` are both EMPTY (0 rows), so no member has ever
