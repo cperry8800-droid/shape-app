@@ -178,7 +178,37 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-14): THE DIRECT-CONVERSATION RPC IS BACK, AND THE MEAL NOTE STOPS
+> **Latest (2026-08-14): A LIVE PRIVILEGE-ESCALATION P1, CLOSED — PLUS THE BOOKING ACCOUNT
+> GATE, THE ROSTER DEDUP, AND AN OPEN-REDIRECT SWEEP (#1880 → `e3de8790c`).**
+> Four items off the standing audit list, and a **P1 the review found in this PR's own work,
+> live on production**. The cancel-only trigger's provider exemption keyed on the **NEW** row,
+> with a comment describing the mirror image of what mattered: it let a caller repoint a booking
+> **TO** their own listing and be exempted for it. Not exotic — **coaches are members**, so anyone
+> with an approved listing who books another coach is simultaneously the client and a provider
+> owner. One PostgREST UPDATE moved `provider_id` to their own listing, set `status='confirmed'`,
+> reassigned `client_id` to a **different member**, and set an attacker-controlled `meeting_url`.
+> Keyed on the **OLD** row now, with `provider_id`/`provider_role`/`client_id` frozen even for the
+> coach: *owning a booking is not the same as owning who it is with.* **Nothing was exploited** —
+> `sessions` holds 0 rows.
+> ⚠ **The route-level booking gate is only half the fix.** RLS carried an `anon_insert_sessions`
+> policy granted to BOTH anon and authenticated whose only test was `status='requested'`, so a
+> caller could write the row **straight to PostgREST with the publishable key that ships in every
+> page** — bypassing the route, its captcha and the rate limiter.
+> ⚠ **Permissive policies OR-combine PER PHASE**, so an UPDATE passes if ANY policy's `USING`
+> admits the old row and ANY policy's `WITH CHECK` admits the new one — *not necessarily the same
+> policy*. A `with check (true)` in a sibling policy would have OR-ed past the whole fix.
+> ⚠ **THE `pg_temp` CI GUARD IS SPLIT OUT OF THIS PR** onto `parked/definer-pg-temp-guard`
+> (`64fef55ed`) and **is NOT merged** — six review rounds landed on its SQL scanner, every finding a
+> real false negative but **latent** (0 occurrences across 198 migrations), so it was separated
+> rather than keep blocking security fixes that had been stable since `c95373fbe`.
+> **Until it merges nothing enforces the forward pin rule:** the sweep still pins the live
+> database, but a replayed pre-sweep migration is caught by nothing.
+> All four migrations **applied + verified live**; behavioural attack proof run on production and
+> rolled back. Suite **1514**; CI green on the final head. Branch kept.
+>
+> See the full entry below.
+
+> **Prior (2026-08-14): THE DIRECT-CONVERSATION RPC IS BACK, AND THE MEAL NOTE STOPS
 > ASSERTING SOMETHING IT NEVER CHECKED (#1876 → `ed3582a1f`).**
 > `get_or_create_direct_conversation` has been **absent from production since
 > 2026-05-02** — declared in `2026-05-02-conversations-messages.sql`, never created.
@@ -1567,6 +1597,140 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-08-14 — The security sweep: a live privilege-escalation P1, the booking account gate, the roster dedup, an open-redirect sweep (#1880 → `e3de8790c`)
+
+- **Four items off the standing audit list in one PR**, plus a P1 the review found in this PR's
+  own work. Four migrations, all applied and re-verified live. Handoff:
+  **[`docs/HANDOFF-2026-08-14b.md`](HANDOFF-2026-08-14b.md)**.
+
+- ⚠ **THE P1 WAS LIVE ON PRODUCTION, AND ITS COMMENT NAMED THE WRONG DIRECTION.** The
+  cancel-only trigger's provider exemption checked the **NEW** row's provider, with a comment
+  saying that stopped "a repoint away from their own row". True, and the mirror image of what
+  matters: it let a caller repoint a booking **TO** their own listing and be exempted for it.
+  Not exotic — **coaches are members**, so anyone with an approved listing who books another
+  coach is simultaneously the client and a provider owner. As that caller, one PostgREST UPDATE
+  moved `provider_id` to their own listing, set `status='confirmed'`, reassigned `client_id` to
+  a **different member**, and set an attacker-controlled `meeting_url` — attaching a confirmed
+  session, with a link they control, to someone who never booked it. Fixed by keying the
+  exemption on the **OLD** row and freezing `provider_id`, `provider_role` and `client_id` even
+  for the coach: *owning a booking is not the same as owning who it is with.* Nothing was
+  exploited — `sessions` holds 0 rows.
+
+- **Booking requires a signed-in account, and the route check is only half of it.** Anonymous
+  booking was a denial-of-availability vector: the row is written `status='requested'`,
+  `/api/availability` treats `requested` as booked, and a partial unique index denies the slot a
+  second way — so anyone with no account could fill a coach's calendar until real prospects saw
+  no availability. ⚠ **On its own the route-level check would have been decorative:** RLS carried
+  an `anon_insert_sessions` policy granted to BOTH anon and authenticated whose only test was
+  `status = 'requested'`, so a caller could write the row **straight to PostgREST with the
+  publishable key that ships in every page**, bypassing this route, its captcha and the proxy rate
+  limiter. `2026-08-11-consultation-requires-account.sql` replaces that policy. Identity is taken
+  from the **account**, never the request body — the old shape let a caller put anyone's address
+  in `clientEmail` and have Shape mail them a calendar invite.
+
+- **RLS on `sessions`.** `client_cancel_sessions` is `requested|confirmed → cancelled` only, and
+  a `BEFORE UPDATE` trigger freezes the booking **wholesale** via an allowlist
+  (`to_jsonb(new) - 'status' - 'updated_at'`), so a column added later is frozen by default.
+  ⚠ **The provider policy it depends on had to converge too:** permissive policies OR-combine
+  **per phase**, so an UPDATE passes if ANY policy's USING admits the old row and ANY policy's
+  WITH CHECK admits the new one — *not necessarily the same policy*. `2026-04-18` declared
+  `provider_update_sessions` with `with check (true)`, which would have OR-ed past the whole fix
+  on a rebuild-from-files.
+
+- **Open-redirect sweep, 7 sites.** `/\evil.example` clears a `startsWith('/')` check and
+  browsers normalise the backslash into a protocol-relative jump. Four server sites now call
+  `safeReturnPath` (`src/lib/safe-redirect.mjs`, from #1471 — it already existed, and its own
+  comment falsely claimed to "mirror" the inline guards); three client copies that cannot import
+  it restate the rule.
+
+- ⚠ **ONE COACH COUNTED TWICE.** `get_my_shared_clients` emitted one row per **subscription**, not
+  per counterpart. Neither `owner_id` column is unique and `subscriptions` has no uniqueness on
+  `(client_id, provider_role)` (both re-verified live), so one coach holding two listings of the
+  counterpart role — with the client subscribed to both — came back twice. Every consumer keys the
+  pair by **owner** (`shared_client_acks` is `(coach_user_id, client_id, counterpart_user_id)`, the
+  thread RPC takes `p_other_user_id`, the React `rowKey` is `clientId|counterpart.userId`), so that
+  lands as duplicate keys, a **doubled badge for one person**, a shared busy state, and one
+  acknowledgment dismissing both rows. Deduped per owner, ordered so the surviving listing is stable
+  between reads. Collapsing cannot hide a second discipline: the caller covers at least one role for
+  that client and every covered role is excluded for everyone, so all surviving rows share the one
+  role the caller does not cover.
+
+- ⚠ **THE `pg_temp` CI GUARD IS SPLIT OUT OF THIS PR AND IS NOT MERGED.** It lives on
+  **`parked/definer-pg-temp-guard` (`64fef55ed`)** with all 20 vectors and 8 mutation-checked
+  properties intact. **Until it merges nothing enforces the forward rule** — the
+  `2026-08-09` sweep still pins the live database (0 of 134 definers missing `pg_temp`), but a
+  replayed pre-sweep migration is caught by nothing. Do not read the sweep as covering the forward
+  case. The registered replacement is **a real parse, or applying the migrations to a throwaway
+  Postgres and reading `pg_proc.proconfig`** — the authoritative check that ends the class instead
+  of closing it one corner per round.
+
+- ⚠ **WHY IT WAS SPLIT, BECAUSE THE SHAPE OF THE LOOP IS THE LESSON.** Six consecutive review
+  rounds (8–13) landed on that one 746-line SQL scanner, and **every finding was a genuine false
+  negative** — the guard reporting *clean* about an unpinned `SECURITY DEFINER`, which is strictly
+  worse than a false alarm. They were also **every one latent**: measured, not assumed, the guard's
+  live scope is **4 post-sweep migrations and 2 definer declarations**, with **0** occurrences of
+  the exotic constructs across all 198 migrations. Round 13 was round 12 one character class wider
+  (Postgres treats **any non-ASCII byte** as an identifier character, so an ASCII-only token
+  boundary closed `foo$tag$` and left `é$tag$` open — reachable only because the rule existed in
+  **two copies**, one per scanner). The repo's own rule (`the-miss-is-next-to-the-fix`) says a flat
+  findings curve means *change approach, not patch again*. A hand-rolled lexer will keep differing
+  from Postgres's in ways no backstop catches, because **"I mis-recognised a token" cannot be
+  self-detected** — the `unverifiable` refusal added in round 12 catches what the scan cannot
+  *finish*, not what it mis-reads and then finishes cleanly. Meanwhile the security work had not
+  moved since `c95373fbe`. Separating them let verified fixes ship and ended the loop in one step.
+
+- **The four migrations, all applied + verified live 2026-08-14:**
+  `2026-08-09-definer-pg-temp-sweep` (**0 of 134** definers missing `pg_temp`) ·
+  `2026-08-10-shared-clients-roster` (definer, `search_path=public, pg_temp`, anon denied) ·
+  `2026-08-11-consultation-requires-account` (exactly one INSERT policy on `sessions`;
+  `anon_insert_sessions` gone) · `2026-08-14-client-session-cancel-only` (trigger live in the
+  **fixed** old-row shape).
+  ⚠ **`2026-08-14` was applied TWICE** — the first application shipped the P1 above. A database
+  whose `sessions_guard_client_update` matches `new.provider_id and t.owner_id` is the
+  **vulnerable** version and must be re-run.
+  ⚠ **`2026-08-10` was RE-RUN by the owner for the dedup and verified live 2026-08-14** — the live
+  `get_my_shared_clients` carries `distinct on`, the `coalesce(t.owner_id, n.owner_id)` key, an
+  `order by` leading with `s.client_id` (which `DISTINCT ON` requires) and the deterministic
+  `s.provider_id` tiebreak, i.e. the **current file** rather than an older copy replaying over it.
+  Its guard now fails loudly if an older copy is ever replayed.
+
+- **Behavioural proof on production** (rolled back; `sessions` holds 0 rows):
+  `ATTACK repoint + self-confirm + reassign : BLOCKED` · `client self-confirm : BLOCKED` ·
+  `client cancels own booking : works` · `coach confirms own booking : works` ·
+  `coach reschedules own booking : works`. The roster dedup was proven the same way on temp
+  mirrors: **2 rows before, 1 after, one distinct human throughout.**
+
+- ⚠ **A because-clause is a claim, and it can be backwards.** The P1's comment described one
+  direction correctly and missed its mirror. Two comments in this PR asserted mechanisms that were
+  false; both were corrected rather than softened. **Enumerating fields is a losing game** — the
+  field freeze named five columns and left six writable, including the coach's own `notes`; the
+  allowlist is the shape that survives a new column. And **the repo cannot reproduce production's
+  security posture**: `provider_update_sessions` is owner-scoped live but was `with check (true)`
+  in the migration file — the same class as the already-registered `trainers`/`nutritionists`
+  anon-read policies. **Verify live; do not read the file and conclude.**
+
+- ⚠ **THE FINAL ROUND'S P1 WAS A FALSE ALARM, AND VERIFYING IT BEAT COMPLYING WITH IT.** Review
+  reported that booking would 401 for existing users: `/login` redirects to `/login.html`, whose
+  plain client persists the session to **localStorage** (`shape.auth`), not the SSR cookies
+  `currentUser` reads. Both of those clauses are **true** — `src/app/login/page.tsx` is literally
+  `redirect('/login.html')`. The consequence is not: `login.jsx`'s `finishLogin` POSTs the tokens to
+  **`/api/auth/session`**, which calls `setSession` on the SSR client and sets the cookies, on both
+  the password and phone-OTP paths; the bridge is present in the precompiled `nd/login.js` that
+  production actually serves. Refuted with the file-by-file chain rather than patched. The residual
+  it does point at — the bridge swallows failures (`.catch(() => {})`) — is already handled
+  deliberately: the booking path honours a server 401 over its own local check, with a comment
+  naming exactly that divergence. **Forwarding a Bearer on the booking fetch would close it and is
+  registered with the auth-return-path follow-up**, not bolted onto a security PR at merge time.
+
+- Suite **1514** (the 5 guard tests moved to the parked branch); `tsc` clean; CI green on the final
+  head (Web · Mobile · gitleaks · Tests). Branch **kept**.
+  **Open:** the `pg_temp` guard follow-up (from `parked/definer-pg-temp-guard`, which cannot base
+  on pre-merge `main` — its `SWEEP` cutoff references `2026-08-09-definer-pg-temp-sweep.sql`, which
+  this PR introduces) · the auth-return-path follow-up (recovery point `7e7c3f044`;
+  `git diff 39b4c3a26 7e7c3f044` is the patch to re-apply, plus the **unwritten** legacy signup
+  email-confirm leg — `signup-client.html` bounces to a bare `login.html` and `public/supabase.js`
+  sets no `emailRedirectTo`, so `next` survives only auto-confirm).
 
 ### 2026-08-14 — The direct-conversation RPC restored + the meal note stops asserting what it never checked (#1876 → `ed3582a1f`)
 
