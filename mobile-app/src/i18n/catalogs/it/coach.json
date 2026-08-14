@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "CORPO · ULTIME MISURE",
   "case.byDate": " · ENTRO IL {date}",
   "case.careTeam": "GRUPPO DI ASSISTENZA",
+  "case.careTeamUnavailable": "Impossibile caricare il team di supporto: è un problema di caricamento, non un team vuoto.",
   "case.caseFile": "FASCICOLO",
   "case.checkin": "RESOCONTO",
   "case.checkinRedact": "RESOCONTO · NON INVIATO",

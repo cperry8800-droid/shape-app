@@ -53,12 +53,17 @@ as $$
     union all
     select 'nutritionist',          n.id from public.nutritionists n where n.owner_id = auth.uid()
   ),
-  mine as (
-    -- the clients I actively coach
-    select distinct s.client_id
+  my_roles as (
+    -- The clients I actively coach, AND the role I coach each of them under. A dual-role coach
+    -- who coaches one client through both a trainer row and a nutritionist row appears twice for
+    -- that client, which is exactly what the counterpart exclusion at the bottom needs.
+    select distinct s.client_id, s.provider_role
     from public.subscriptions s
     join me on me.role = s.provider_role and me.id = s.provider_id
     where s.status in ('active', 'trialing')
+  ),
+  mine as (
+    select distinct client_id from my_roles
   )
   select s.client_id,
          coalesce(t.owner_id, n.owner_id) as counterpart_user_id,
@@ -79,9 +84,23 @@ as $$
     -- own care team. The ack route rejects that (400) and the thread RPC raises
     -- 'Invalid counterpart.', so it renders as a dead row rather than erroring visibly.
     and coalesce(t.owner_id, n.owner_id) <> auth.uid()
-    -- Exclude MY OWN provider rows by identity rather than by "the opposite role": a dual-role
-    -- coach has no opposite, which is what made the role-flip approach wrong in the first place.
-    and not exists (select 1 from me where me.role = s.provider_role and me.id = s.provider_id);
+    -- ⚠ EXCLUDE EVERY ROLE I ALREADY COVER FOR THIS CLIENT -- not merely my own provider row.
+    -- The earlier version excluded my row by identity, which left a SAME-ROLE coach standing as a
+    -- "counterpart": `subscriptions` carries no uniqueness on (client_id, provider_role) (verified
+    -- live -- only the PK and a unique stripe_subscription_id), so a client with two active trainers
+    -- is representable, and the second trainer came back as the counterpart under a column the UI
+    -- heads NUTRITIONIST. This roster is defined as trainer <-> nutritionist by both
+    -- /api/me/shared-clients and SharedClientsTab, so that row was simply wrong.
+    --
+    -- Keyed on the ROLE I coach THIS client under rather than on "the opposite role", because a
+    -- dual-role coach has no opposite -- the trap that made the role-flip approach wrong the first
+    -- time. It also subsumes the old identity check: my own row's role is by definition a role I
+    -- coach that client under. A coach covering one client through BOTH disciplines therefore has
+    -- no counterparts at all, which is correct -- they are the entire care team.
+    and not exists (
+      select 1 from my_roles mr
+      where mr.client_id = s.client_id and mr.provider_role = s.provider_role
+    );
 $$;
 
 -- ⚠ `revoke from public` alone does NOT remove Supabase's EXPLICIT anon/authenticated default

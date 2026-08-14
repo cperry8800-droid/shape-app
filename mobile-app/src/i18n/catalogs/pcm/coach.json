@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "BODY · LATEST MEASUREMENTS",
   "case.byDate": " · BY {date}",
   "case.careTeam": "CARE TEAM",
+  "case.careTeamUnavailable": "We no fit load di care team — na loading wahala, no be say e empty.",
   "case.caseFile": "CASE FILE",
   "case.checkin": "CHECK-IN",
   "case.checkinRedact": "CHECK-IN · DEM NO SUBMIT",

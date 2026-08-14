@@ -4190,6 +4190,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // The same overview fetch also carries the client's objective sleep (coach read).
   const [careTeam, setCareTeam] = useStateBSP(null);
   const [careLoaded, setCareLoaded] = useStateBSP(false);
+  // ⚠ A FAILED care-team read is NOT an empty care team, and the two must not render alike.
+  // /api/clients/[id]/shared-overview still answers 200 when the underlying get_my_shared_clients
+  // read errors (code deployed ahead of its migration, a revoked grant) and flags careTeamPartial.
+  // What actually goes empty is the COUNTERPART leg: the payload's careTeam is
+  // [...trainers, ...nutritionists, ...counterparts] and only the last comes from that RPC, so the
+  // caller's own provider row still rides along — but `careTeam` below holds the !isMe filter of
+  // it, which does collapse to []. Without this flag the station simply doesn't render and a coach
+  // reads "no counterpart" off a request that never answered — the same silent-empty-roster defect
+  // this wave fixed in SharedClientsTab. A thrown fetch sets it too: same user-visible state.
+  const [carePartial, setCarePartial] = useStateBSP(false);
   const [sleepRec, setSleepRec] = useStateBSP(null); // objective sleep + recovery
   // THE CYCLE (spec 2026-07-19) — share-gated, derived from the SAME overview
   // payload (d.cycle) so there's no second roundtrip / duplicate get_client_cycle
@@ -4206,12 +4216,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
     // client A's care team / sleep / cycle / prep on client B's profile.
-    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCareLoaded(false);
+    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCareLoaded(false); setCarePartial(false);
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCareLoaded(true); })
-      .catch(() => { if (!ignore) setCareLoaded(true); });
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCarePartial(!!(d && d.careTeamPartial)); setCareLoaded(true); })
+      .catch(() => { if (!ignore) { setCarePartial(true); setCareLoaded(true); } });
     return () => { ignore = true; };
   }, [clientUid]);
   // Weekend-adherence split for THIS client — reset per-client, ignore stale.
@@ -5020,6 +5030,20 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* CARE TEAM — press-credit rows (counterpart's ROLE-color spine · name ·
           CO-MANAGING · MESSAGE heat-underline → existing shape:proMessageCoach). */}
+      {/* Care-team read FAILED. Rendered instead of the station, never as silence — which a coach
+          would read as "no counterpart". The length guard is belt-and-braces rather than the load
+          -bearing part: the flag is only set when the counterparts leg errored, so the filtered
+          list below is already []. It exists so a future payload that carries both can never
+          double-render. */}
+      {clientUid && careLoaded && carePartial && !(careTeam && careTeam.length > 0) && (
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.careTeam', { defaultValue: 'CARE TEAM' })} />}
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
+            {tr('coach:case.careTeamUnavailable', { defaultValue: "Couldn't load the care team — a loading problem, not an empty one." })}
+          </div>
+        </div>
+      )}
+
       {clientUid && careLoaded && careTeam && careTeam.length > 0 && (
         <div style={{ marginTop: 22 }}>
           {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.careTeam', { defaultValue: 'CARE TEAM' })} />}

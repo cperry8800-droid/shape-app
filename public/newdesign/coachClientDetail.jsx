@@ -427,6 +427,15 @@ function CoachClientDetailPage() {
   const firstName = data.client.name.split(/\s+/)[0];
 
   const counterparts = data.careTeam.filter(c => !c.isMe);
+  // A FAILED care-team read must never render as "you are the only coach". When
+  // get_my_shared_clients errors (code deployed ahead of its migration, a revoked grant) the route
+  // still answers 200 and flags careTeamPartial. Note WHAT goes empty: careTeam is
+  // [...trainers, ...nutritionists, ...counterparts], and only the counterparts leg comes from that
+  // RPC — the caller's own provider row still rides along, so `data.careTeam` is NOT empty and only
+  // `counterparts` collapses. That is why this is checked BEFORE counterparts.length below;
+  // otherwise the subtitle asserts sole coverage of a client who may well have a nutritionist the
+  // caller should be coordinating with.
+  const careTeamPartial = data.careTeamPartial === true;
   const upcoming = data.sessions.filter(s => new Date(s.at).getTime() >= Date.now() && s.status !== "completed");
   const past = data.sessions.filter(s => new Date(s.at).getTime() < Date.now() || s.status === "completed").slice(-12).reverse();
 
@@ -482,7 +491,9 @@ function CoachClientDetailPage() {
       payoutCard={payout}
       eyebrow="CLIENT"
       title={data.client.name}
-      subtitle={counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}
+      subtitle={careTeamPartial
+        ? `Couldn't load this client's care team — that's a loading problem, not an empty one. Refresh to try again.`
+        : counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}
     >
       <React.Fragment>
           {/* key={clientId} REMOUNTS the station per client. Without it React

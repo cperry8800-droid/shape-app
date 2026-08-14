@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "ТЕЛО · ПОСЛЕДНИЕ ЗАМЕРЫ",
   "case.byDate": " · К {date}",
   "case.careTeam": "КОМАНДА СОПРОВОЖДЕНИЯ",
+  "case.careTeamUnavailable": "Не удалось загрузить команду сопровождения — это ошибка загрузки, а не пустая команда.",
   "case.caseFile": "ЛИЧНОЕ ДЕЛО",
   "case.checkin": "ЧЕК-ИН",
   "case.checkinRedact": "ЧЕК-ИН · НЕ ОТПРАВЛЕН",

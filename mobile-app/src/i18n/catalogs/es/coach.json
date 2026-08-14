@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "CUERPO · ÚLTIMAS MEDIDAS",
   "case.byDate": " · PARA {date}",
   "case.careTeam": "EQUIPO DE CUIDADO",
+  "case.careTeamUnavailable": "No se pudo cargar el equipo de cuidado: es un problema de carga, no un equipo vacío.",
   "case.caseFile": "EXPEDIENTE",
   "case.checkin": "CONTROL",
   "case.checkinRedact": "CONTROL · NO ENVIADO",

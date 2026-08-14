@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "BODY · LATEST MEASUREMENTS",
   "case.byDate": " · BY {date}",
   "case.careTeam": "CARE TEAM",
+  "case.careTeamUnavailable": "Couldn't load the care team — a loading problem, not an empty one.",
   "case.caseFile": "CASE FILE",
   "case.checkin": "CHECK-IN",
   "case.checkinRedact": "CHECK-IN · NOT SUBMITTED",

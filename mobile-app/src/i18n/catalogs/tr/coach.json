@@ -180,6 +180,7 @@
   "case.bodyMeasurements": "VÜCUT · SON ÖLÇÜMLER",
   "case.byDate": " · {date} TARİHİNE KADAR",
   "case.careTeam": "BAKIM EKİBİ",
+  "case.careTeamUnavailable": "Bakım ekibi yüklenemedi — bu bir yükleme sorunu, boş bir ekip değil.",
   "case.caseFile": "DOSYA",
   "case.checkin": "CHECK-IN",
   "case.checkinRedact": "CHECK-IN · GÖNDERİLMEDİ",

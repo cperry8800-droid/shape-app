@@ -44,6 +44,13 @@
 -- exist and the permissive one still wins, since Postgres ORs permissive policies together.
 drop policy if exists anon_insert_sessions on public.sessions;
 
+-- Dropped first so this file is re-runnable. Without it a second run aborts on "policy already
+-- exists" -- which matters because the ONLY safe response to a half-applied security migration is
+-- to run it again. The window this opens holds NO insert policy at all, i.e. it fails closed;
+-- that is the opposite of the OR-combination hazard described directly above, which is why the
+-- ordering there is preserved rather than relaxed.
+drop policy if exists client_insert_own_sessions on public.sessions;
+
 create policy client_insert_own_sessions on public.sessions
   for insert
   to authenticated
