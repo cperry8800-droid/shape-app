@@ -154,6 +154,33 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         localStorage.removeItem('shapeLastName');
         localStorage.removeItem('shapeEmail');
       } catch (e) {}
+      shapeDb.clearLocalUserContent();
+    },
+
+    // Shared-device hygiene: user CONTENT must not survive sign-out — the next
+    // person on this browser could read it. Scope is content that is sensitive
+    // or account-scoped; device-only personal lists with no cloud copy
+    // (saved recipes, grocery lists, today's plan) are deliberately KEPT,
+    // because clearing them destroys the member's own data, not just a cache.
+    // Also called by the account-deletion flows.
+    clearLocalUserContent() {
+      try {
+        [
+          'shapeClientIntake_v1',   // signup intake — can carry health details
+          'shapeConsultations',     // bookings — contact details
+          'shape.dashMealDrafts',   // coach drafts about named clients
+          'shape.dashBuilderDrafts',
+          'shape.viewerRole'
+        ].forEach(function (k) { localStorage.removeItem(k); });
+        // Prefixed families: per-user chat threads + per-client goal drafts.
+        for (var i = localStorage.length - 1; i >= 0; i--) {
+          var key = localStorage.key(i);
+          if (!key) continue;
+          if (key.indexOf('shape.chat.v2.') === 0 || key.indexOf('shape.dashGoals.') === 0) {
+            localStorage.removeItem(key);
+          }
+        }
+      } catch (e) {}
     },
 
     async getSession() {

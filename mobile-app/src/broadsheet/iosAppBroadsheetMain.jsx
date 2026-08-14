@@ -1823,6 +1823,28 @@ function BSAppShell({ tweaks, setTweak }) {
     setBrowseMode(false);
     setPreviewMode(false);
     try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); localStorage.removeItem('shape.dailySeen'); } catch (e) {}
+    // Shared-device hygiene: user CONTENT must not survive an explicit sign-out —
+    // the next person on this device could read it. The two offline durability
+    // queues (shape.pendingAssignments, shape.careerAwardPending) are deliberately
+    // NOT cleared: wiping them silently loses a coach's held week / an earned
+    // award, and their drain is re-verified server-side, so the only exposure is
+    // content at rest — an owner ruling on that trade-off is on the PR.
+    // Preferences (tweaks, locale, voice, tour flags) are not user content and stay.
+    try {
+      [
+        'shape.clientCoachThreads',   // DM fallback message text
+        'shape.recentSearch',         // other members' names/ids
+        'shape.errorLog',             // stacks can embed app-state strings
+        'shape.library',              // cloud copy is authoritative
+        'shape.recipeGroceryLists',   // cloud-synced via user_goals
+        'shape.deletedGroceryIds',    // account-scoped sync tombstones
+        'shape.storeCart',
+        'shape.cookResume',
+        'shape.radio.musicLibraries',
+        'bs_coach_soundtracks',
+        'bs_coach_soundtrack_assign'
+      ].forEach((k) => localStorage.removeItem(k));
+    } catch (e) {}
     // Land on the membership wall (the gate), not the bare login screen.
     setStage('app');
   };
