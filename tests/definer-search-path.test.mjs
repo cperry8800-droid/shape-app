@@ -82,6 +82,50 @@ function maskDollarBodies(sql) {
 }
 
 /**
+ * Blank the contents of a STRING-CONSTANT body -- `as 'select 1'`, the older spelling of a
+ * routine body that PostgreSQL still accepts. Two failures, in opposite directions:
+ *
+ *   as 'SELECT 1;' language sql security definer set search_path to 'public';
+ *       -> the body's semicolon read as the statement terminator, cutting the slice before
+ *          `security definer`, so the routine left the check's scope and CI reported clean.
+ *   as 'select 1 -- set search_path = public, pg_temp' ... set search_path to 'public';
+ *       -> the value parser reads the FIRST search_path in the slice, which is the one inside the
+ *          body, so a genuinely unpinned routine reports PINNED. The comment-disarm bug, arriving
+ *          through a string instead of a comment.
+ *
+ * ⚠ ONLY THE BODY IS MASKED, not every single-quoted string. Blanking all of them would take
+ * `set search_path to 'pg_temp'` with it -- a form this file deliberately accepts as a legitimate
+ * pin (Postgres stores a quoted GUC value as ONE schema name) -- and report it unpinned. That is
+ * a false alarm on correct SQL, which is the failure mode that gets a check bypassed rather than
+ * fixed. The distinction is positional: a body follows `as`, a search_path value follows
+ * `search_path =`.
+ *
+ * Run AFTER maskDollarBodies, so quotes inside a dollar-quoted body are already gone.
+ */
+function maskStringBodies(sql) {
+  const re = /\bas\s*'/gi;
+  let out = '';
+  let i = 0;
+  for (;;) {
+    re.lastIndex = i;
+    const m = re.exec(sql);
+    if (!m) { out += sql.slice(i); return out; }
+    const bodyStart = m.index + m[0].length; // first char inside the quote
+    let j = bodyStart;
+    for (; j < sql.length; j++) {
+      if (sql[j] !== "'") continue;
+      if (sql[j + 1] === "'") { j++; continue; } // '' is an escaped quote, still inside
+      break;
+    }
+    if (j >= sql.length) { out += sql.slice(i); return out; } // unterminated -> leave alone
+    out += sql.slice(i, bodyStart);
+    out += sql.slice(bodyStart, j).replace(/[^\n]/g, ' ');
+    out += "'";
+    i = j + 1;
+  }
+}
+
+/**
  * Pull every routine DECLARATION out of a migration: from `create function` (or
  * `create procedure`) to the statement's terminating `;`, with the body blanked out by
  * maskDollarBodies above.
@@ -132,7 +176,7 @@ function statementEnd(s, start) {
 }
 
 function declarationHeaders(sql) {
-  const masked = maskDollarBodies(sql);
+  const masked = maskStringBodies(maskDollarBodies(sql));
   const out = [];
   const re = /create\s+(?:or\s+replace\s+)?(?:function|procedure)/gi;
   for (const m of masked.matchAll(re)) {
@@ -377,7 +421,50 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
     'a semicolon inside a literal must not truncate the declaration'
   );
 
-  // (7) A lone unmatched `$` must not swallow the rest of the file and hide real declarations --
+  // (7) A STRING-CONSTANT body -- the older `as 'select 1'` spelling Postgres still accepts --
+  //     whose semicolon would otherwise read as the statement terminator.
+  const stringBody =
+    "create function public.probe_strbody() returns int\n" +
+    "as 'SELECT 1;' language sql security definer set search_path to 'public';";
+  assert.deepEqual(
+    unpinnedDefiners(stringBody),
+    ['public.probe_strbody'],
+    "a semicolon inside a string-constant body must not end the declaration"
+  );
+
+  // (8) The DISARM direction of the same form: the value parser reads the first `search_path` in
+  //     the slice, so an unpinned routine whose BODY sets its own search_path -- an entirely
+  //     ordinary thing for a body to do -- used to report clean off the body's clause while the
+  //     real one said otherwise. Masking the body is what makes the real clause the first one.
+  //
+  //     ⚠ Residual, named rather than papered over: stripComments runs BEFORE this mask, so a `--`
+  //     INSIDE a string-constant body still eats to end-of-line and can take the modifiers with
+  //     it. Closing that needs a real lexer, which is what got the parked asset checker cut. The
+  //     exposure is a string-constant body -- unused anywhere in this repo -- carrying a `--` on
+  //     the same line as its modifiers.
+  const stringBodyDisarm =
+    "create function public.probe_disarm() returns int\n" +
+    "as 'set search_path = public, pg_temp; select 1' language sql security definer " +
+    "set search_path to 'public';";
+  assert.deepEqual(
+    unpinnedDefiners(stringBodyDisarm),
+    ['public.probe_disarm'],
+    'a string body must not be able to satisfy the check for the clause outside it'
+  );
+
+  // (9) ⚠ AND THE MASK MUST NOT BE WIDER THAN THE BODY. `set search_path to 'pg_temp'` is a
+  //     legitimate pin (a quoted GUC value is ONE schema name), so blanking every single-quoted
+  //     string -- the obvious over-broad reading of (7)/(8) -- would red correct SQL.
+  const quotedPin =
+    'create function public.probe_quoted_pin() returns int\n' +
+    "language sql security definer set search_path to 'pg_temp' as $$ select 1 $$;";
+  assert.deepEqual(
+    unpinnedDefiners(quotedPin),
+    [],
+    "a single-quoted pg_temp pin is correct code and must not be masked away"
+  );
+
+  // (10) A lone unmatched `$` must not swallow the rest of the file and hide real declarations --
   //     blanking to end-of-file would turn one stray character into a silent all-clear.
   const strayDollar = `
     -- price$ is not a dollar quote
