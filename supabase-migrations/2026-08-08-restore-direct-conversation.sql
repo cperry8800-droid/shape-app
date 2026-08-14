@@ -24,9 +24,12 @@
 -- sent a meal note or a direct message. This is a defect that would fire on the
 -- first real use, not damage already done. There is nothing to backfill.
 --
--- The body below is the 2026-05-02 original, verbatim, with three deliberate
--- changes noted at their sites: pg_temp pinned, the lost-race error handled, and
--- the grant tightened. Every column and CHECK constraint it writes was verified
+-- The body below is the 2026-05-02 original, verbatim, with four deliberate
+-- changes noted at their sites: pg_temp pinned, the lost-race error handled, the
+-- NULL-role validation bypass closed, and the grant tightened. ⚠ That third one is
+-- a BEHAVIOUR fix, not hardening — the original's role check was bypassable by the
+-- one value it existed to reject; see the comment at its site.
+-- Every column and CHECK constraint it writes was verified
 -- against the LIVE schema first (kind/provider_role CHECKs both admit the values
 -- it uses; conversation_participants' primary key is exactly the (conversation_id,
 -- user_id) pair its ON CONFLICT infers).
@@ -96,7 +99,34 @@ begin
     raise exception 'Authentication is required.';
   end if;
 
-  if p_provider_role not in ('trainer','nutritionist') then
+  -- ⚠ THE `is null` HALF IS LOAD-BEARING — DO NOT "SIMPLIFY" IT BACK TO A BARE
+  -- MEMBERSHIP CHECK. `null not in ('trainer','nutritionist')` evaluates to NULL, not
+  -- true, and PL/pgSQL's IF treats NULL as false — so the 2026-05-02 original's bare
+  -- check was BYPASSED by the one value it most needed to reject. Verified against
+  -- production 2026-08-14; a NULL role then does all three of these:
+  --   · `p_provider_role = 'trainer'` is also NULL, so execution falls to the ELSE
+  --     branch and looks the id up in `nutritionists` regardless of what was meant.
+  --   · The existing-conversation lookup below compares `provider_role =
+  --     p_provider_role` — NULL = NULL is NULL, so it can never match and every call
+  --     inserts a new row.
+  --   · `conversations.provider_role` is NULLABLE and its CHECK is
+  --     `provider_role = any(array['trainer','nutritionist'])`. A CHECK passes when it
+  --     evaluates to TRUE **or NULL**, so the role-less row inserts cleanly — and
+  --     conversations_direct_unique_idx's predicate requires `provider_role is not
+  --     null`, so the row is not indexed and uniqueness never applies. Repeated calls
+  --     accumulate unbounded duplicates. (For a CLAIMED provider it is louder but not
+  --     safer: the participants insert below fails the NOT NULL on
+  --     `conversation_participants.role` and the whole transaction rolls back. 41 of
+  --     the 43 live listings are unclaimed, so the silent-junk path is the common one.)
+  -- Reachability: /api/messages/direct rejects an unknown role before calling
+  -- (`normalizeProviderRole` returns null → 400), and the meal-note fan-out passes
+  -- literals — but this function is granted to `authenticated`, so any signed-in
+  -- member can call it directly through PostgREST and skip both.
+  --
+  -- `p_provider_id` needs no matching guard: `where id = null` matches no rows, so
+  -- v_provider_name stays null and 'Provider was not found.' already raises below.
+  if p_provider_role is null
+     or p_provider_role not in ('trainer','nutritionist') then
     raise exception 'Invalid provider role.';
   end if;
 
@@ -230,6 +260,18 @@ begin
   -- shape the migration exists to create is decoration.
   if position('unique_violation' in v_src) = 0 then
     raise exception 'get_or_create_direct_conversation must handle unique_violation, or a lost race against conversations_direct_unique_idx surfaces a raw 23505 to the member';
+  end if;
+
+  -- ⚠ AND ASSERT THE NULL-ROLE REJECTION, because every other check here passes on a
+  -- function carrying the bypassable bare membership test. The match is on the null
+  -- test rather than the role list, since the list is present in BOTH the correct and
+  -- the broken shape. Honest limit: prosrc includes comments, so this is a source-shape
+  -- assertion, not a behavioural one — the function gates on `auth.uid() is not null`
+  -- first, and auth.uid() is NULL during a migration, so calling it here can only ever
+  -- raise the authentication error. The phrase below is deliberately code-shaped and
+  -- appears nowhere in this file's prose; keep it that way.
+  if position('if p_provider_role is null' in v_src) = 0 then
+    raise exception 'get_or_create_direct_conversation must reject a null p_provider_role explicitly — a bare membership test is bypassed by NULL, and the role-less conversation it then creates is invisible to both the lookup and conversations_direct_unique_idx';
   end if;
 
   select has_function_privilege('anon', p.oid, 'EXECUTE'),
