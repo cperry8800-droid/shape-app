@@ -103,16 +103,43 @@ function maskDollarBodies(sql) {
  * but a future `create procedure ... security definer` carries the identical temp-schema hazard
  * and would otherwise pass every check here.
  */
+/**
+ * Index of the statement's terminating `;`, skipping quoted text.
+ *
+ * A plain `indexOf(';')` would end the declaration at a semicolon inside a string literal --
+ * `create function f(p text default 'a;b') ... security definer` would be cut before its
+ * modifiers and drop out of scope. That is the SAME blind-spot class this parser was just fixed
+ * for, so it is closed here rather than left for the next reader to rediscover. Measured: no
+ * declaration in the repo carries one today, which is exactly why it would have gone unnoticed.
+ *
+ * Dollar-quoted bodies are already blanked by the caller, so only quote pairs need tracking.
+ * Doubled quotes (`''`, `""`) are escapes and stay inside the literal.
+ */
+function statementEnd(s, start) {
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "'" || ch === '"') {
+      for (i++; i < s.length; i++) {
+        if (s[i] !== ch) continue;
+        if (s[i + 1] === ch) { i++; continue; } // escaped quote -- still inside
+        break;
+      }
+      continue;
+    }
+    if (ch === ';') return i;
+  }
+  return -1;
+}
+
 function declarationHeaders(sql) {
   const masked = maskDollarBodies(sql);
   const out = [];
   const re = /create\s+(?:or\s+replace\s+)?(?:function|procedure)/gi;
   for (const m of masked.matchAll(re)) {
-    const rest = masked.slice(m.index);
-    const semi = rest.indexOf(';');
+    const end = statementEnd(masked, m.index);
     // No terminator (a truncated or malformed file): fall back to a bounded window rather than
     // reading the rest of the migration as one declaration.
-    out.push(semi === -1 ? rest.slice(0, 2000) : rest.slice(0, semi));
+    out.push(end === -1 ? masked.slice(m.index, m.index + 2000) : masked.slice(m.index, end));
   }
   return out;
 }
@@ -334,7 +361,23 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
   `;
   assert.deepEqual(unpinnedDefiners(guardBlock), [], 'a DO block is not a declaration');
 
-  // (6) A lone unmatched `$` must not swallow the rest of the file and hide real declarations --
+  // (6) A semicolon inside a STRING LITERAL must not end the declaration early. Cutting there
+  //     would drop the modifiers that follow — the same blind spot as (1), reached another way.
+  const semicolonInDefault = `
+    create or replace function public.probe_semi(p_note text default 'a;b')
+    returns void
+    language plpgsql
+    security definer
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(
+    unpinnedDefiners(semicolonInDefault),
+    ['public.probe_semi'],
+    'a semicolon inside a literal must not truncate the declaration'
+  );
+
+  // (7) A lone unmatched `$` must not swallow the rest of the file and hide real declarations --
   //     blanking to end-of-file would turn one stray character into a silent all-clear.
   const strayDollar = `
     -- price$ is not a dollar quote
