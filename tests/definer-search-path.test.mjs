@@ -49,22 +49,70 @@ function stripComments(sql) {
 }
 
 /**
- * Pull every routine declaration HEADER out of a migration: the text from `create function` (or
- * `create procedure`) up to the body delimiter (`as $...$`). Everything that matters --
- * `security definer` and `set search_path` -- lives in that header, and stopping at the body
- * keeps a routine whose BODY mentions another routine from being mistaken for a declaration.
+ * Blank the CONTENTS of every dollar-quoted region ($$...$$ / $tag$...$tag$), keeping the
+ * delimiters and the line structure. Two jobs, both load-bearing:
+ *
+ *   1. A routine's body can no longer be read as declaration text. Body prose containing
+ *      `create function ... security definer` would otherwise manufacture a phantom declaration
+ *      (the false-alarm class that got the parked asset checker cut), and a `do $guard$` block --
+ *      every migration here ends in one -- is full of exactly those words.
+ *   2. It makes "slice to the statement's `;`" safe, which is what lets the parser below read
+ *      modifiers written AFTER the body.
+ *
+ * A dollar-quote with no matching close is left ALONE rather than blanked to end-of-file: a lone
+ * `$` in ordinary text must not swallow the rest of the migration and hide real declarations.
+ */
+function maskDollarBodies(sql) {
+  const open = /\$([A-Za-z_][A-Za-z0-9_]*)?\$/g;
+  let out = '';
+  let i = 0;
+  for (;;) {
+    open.lastIndex = i;
+    const m = open.exec(sql);
+    if (!m) { out += sql.slice(i); return out; }
+    const tag = m[0];
+    const bodyStart = m.index + tag.length;
+    const close = sql.indexOf(tag, bodyStart);
+    if (close === -1) { out += sql.slice(i); return out; } // unterminated -> not a body
+    out += sql.slice(i, bodyStart);
+    out += sql.slice(bodyStart, close).replace(/[^\n]/g, ' '); // blank, keep newlines
+    out += tag;
+    i = close + tag.length;
+  }
+}
+
+/**
+ * Pull every routine DECLARATION out of a migration: from `create function` (or
+ * `create procedure`) to the statement's terminating `;`, with the body blanked out by
+ * maskDollarBodies above.
+ *
+ * ⚠ IT IS NOT ENOUGH TO STOP AT THE BODY. An earlier cut sliced the declaration at `as $...$` on
+ * the reasoning that "everything that matters lives in that header" -- but PostgreSQL's
+ * CREATE FUNCTION attributes are an UNORDERED list and `AS` is one of them, so
+ *
+ *     create function f() returns int as $$ select 1 $$ language sql security definer;
+ *
+ * is equally legal and puts both `security definer` and `set search_path` past that cut. Such a
+ * routine did not read as unpinned -- it dropped out of scope entirely, because the slice carried
+ * no `security definer` for the filter below to match, and CI reported clean on an unpinned
+ * definer. A guard that only works when the author happens to pick one of two legal orderings is
+ * the "green because it went blind" failure this whole file exists to close. Measured: no
+ * migration in the repo writes that ordering today, so this was latent, not live.
  *
  * PROCEDURES are in scope deliberately. `public` holds none today, so this catches nothing now,
  * but a future `create procedure ... security definer` carries the identical temp-schema hazard
  * and would otherwise pass every check here.
  */
 function declarationHeaders(sql) {
+  const masked = maskDollarBodies(sql);
   const out = [];
   const re = /create\s+(?:or\s+replace\s+)?(?:function|procedure)/gi;
-  for (const m of sql.matchAll(re)) {
-    const rest = sql.slice(m.index, m.index + 2000);
-    const body = /\bas\s*\$/i.exec(rest);
-    out.push(body ? rest.slice(0, body.index) : rest);
+  for (const m of masked.matchAll(re)) {
+    const rest = masked.slice(m.index);
+    const semi = rest.indexOf(';');
+    // No terminator (a truncated or malformed file): fall back to a bounded window rather than
+    // reading the rest of the migration as one declaration.
+    out.push(semi === -1 ? rest.slice(0, 2000) : rest.slice(0, semi));
   }
   return out;
 }
@@ -223,6 +271,82 @@ test('the guard actually detects an unpinned declaration (mutation check)', () =
   // shadowing buys an attacker nothing they did not already have.
   const invoker = bad.replace('security definer', 'security invoker');
   assert.deepEqual(unpinnedDefiners(invoker), []);
+});
+
+test('modifiers written AFTER the body are scanned, and a body cannot manufacture a declaration', () => {
+  // PostgreSQL's CREATE FUNCTION attributes are an unordered list and `AS` is one of them, so a
+  // declaration may legally put `security definer` / `set search_path` on EITHER side of its body.
+  // A parser that stops at the body sees neither, drops the routine as "not a definer", and
+  // reports clean -- the blind-spot direction, which is strictly worse than a false alarm.
+
+  // (1) Post-body ordering, UNPINNED -> must be caught. Before the rewrite this returned [].
+  const afterBad = `
+    create or replace function public.probe_after(p uuid)
+    returns void
+    as $$ begin return; end $$
+    language plpgsql
+    security definer
+    set search_path to 'public';
+  `;
+  assert.deepEqual(
+    unpinnedDefiners(afterBad),
+    ['public.probe_after'],
+    'a definer whose modifiers follow the body must still be in scope'
+  );
+
+  // (2) Post-body ordering, PINNED -> must stay clean. The fix must not buy detection with a
+  //     false alarm on the same legal style: that is the trade that got the asset checker cut.
+  const afterGood = afterBad.replace("set search_path to 'public'", 'set search_path = public, pg_temp');
+  assert.deepEqual(unpinnedDefiners(afterGood), [], 'the same ordering, correctly pinned, is clean code');
+
+  // (3) The one-line form of the same ordering, which has no newline to lean on.
+  const afterOneLine =
+    'create or replace function public.probe_after_line() returns void as $$ begin return; end $$ ' +
+    "language plpgsql security definer set search_path to 'public';";
+  assert.deepEqual(unpinnedDefiners(afterOneLine), ['public.probe_after_line']);
+
+  // (4) A BODY that talks about declarations must not become one. The declaration now runs to the
+  //     statement terminator, so the body is blanked rather than merely skipped -- without that,
+  //     widening the slice would have re-opened the phantom-declaration false alarm.
+  const talkativeBody = `
+    create or replace function public.probe_talk()
+    returns void
+    language plpgsql
+    security definer
+    set search_path = public, pg_temp
+    as $$
+    begin
+      -- create or replace function public.ghost() security definer set search_path to 'public'
+      return;
+    end
+    $$;
+  `;
+  assert.deepEqual(unpinnedDefiners(talkativeBody), [], 'body text must not manufacture a phantom definer');
+
+  // (5) Every migration in this repo ends in a `do $guard$ ... $guard$` block whose prose names
+  //     these exact words. It is a dollar-quoted region too, so it is masked for the same reason.
+  const guardBlock = `
+    do $guard$
+    begin
+      raise exception 'create or replace function ... security definer set search_path to ''public''';
+    end
+    $guard$;
+  `;
+  assert.deepEqual(unpinnedDefiners(guardBlock), [], 'a DO block is not a declaration');
+
+  // (6) A lone unmatched `$` must not swallow the rest of the file and hide real declarations --
+  //     blanking to end-of-file would turn one stray character into a silent all-clear.
+  const strayDollar = `
+    -- price$ is not a dollar quote
+    select 'a$b' as x;
+    create or replace function public.probe_stray()
+    returns void
+    language plpgsql
+    security definer
+    set search_path to 'public'
+    as $$ begin return; end $$;
+  `;
+  assert.deepEqual(unpinnedDefiners(strayDollar), ['public.probe_stray']);
 });
 
 test('a comment can neither disarm the guard nor manufacture a false alarm', () => {

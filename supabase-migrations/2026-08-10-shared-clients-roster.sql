@@ -65,7 +65,31 @@ as $$
   mine as (
     select distinct client_id from my_roles
   )
-  select s.client_id,
+  -- ⚠ ONE ROW PER (CLIENT, COUNTERPART **OWNER**) -- not per subscription row.
+  -- Neither `trainers.owner_id` nor `nutritionists.owner_id` is unique, and `subscriptions`
+  -- carries no uniqueness on (client_id, provider_role) (both re-verified live 2026-08-14: the
+  -- only unique constraints are the PKs, the partial stripe_account_id indexes, and
+  -- subscriptions' unique stripe_subscription_id). So ONE coach holding TWO provider rows of the
+  -- counterpart role, with the client actively subscribed to both, is representable -- and this
+  -- select would then emit that one human twice.
+  --
+  -- Every consumer keys the pair by OWNER, not by listing: `shared_client_acks` is
+  -- (coach_user_id, client_id, counterpart_user_id), the thread RPC takes p_other_user_id, and
+  -- SharedClientsTab's rowKey is `${clientId}|${counterpart.userId}`. Duplicates therefore land as
+  -- duplicate React keys, a doubled "needs acknowledging" badge for one person, a shared busy
+  -- state (pressing Message on one row spins both), and a single ack that dismisses both -- the
+  -- ack is correct, the two rows were never two things.
+  --
+  -- Deduping is SAFE here rather than lossy, and the exclusion below is why: the caller covers at
+  -- least one role for this client, and every role the caller covers is excluded for everyone. So
+  -- all surviving rows for a client share the ONE role the caller does not cover -- collapsing
+  -- them can never hide a second discipline. `counterpart_provider_id` is the only field that
+  -- differs, and no surface reads it (both routes pass it through; nothing renders it).
+  --
+  -- Ordered by provider_id so the surviving listing is STABLE: which name a coach sees must not
+  -- flip between reads.
+  select distinct on (s.client_id, coalesce(t.owner_id, n.owner_id))
+         s.client_id,
          coalesce(t.owner_id, n.owner_id) as counterpart_user_id,
          s.provider_role                  as counterpart_role,
          s.provider_id                    as counterpart_provider_id,
@@ -100,7 +124,10 @@ as $$
     and not exists (
       select 1 from my_roles mr
       where mr.client_id = s.client_id and mr.provider_role = s.provider_role
-    );
+    )
+  -- DISTINCT ON requires its expressions to lead the sort; provider_id is the tiebreak that makes
+  -- the surviving row deterministic rather than plan-dependent.
+  order by s.client_id, coalesce(t.owner_id, n.owner_id), s.provider_id;
 $$;
 
 -- ⚠ `revoke from public` alone does NOT remove Supabase's EXPLICIT anon/authenticated default
@@ -134,6 +161,21 @@ begin
   end if;
   if v_path is null or v_path !~ '(^|,)[[:space:]]*pg_temp[[:space:]]*$' then
     raise exception 'get_my_shared_clients must pin pg_temp LAST in search_path; found: %', coalesce(v_path, '(none)');
+  end if;
+
+  -- Replay guard, and it is only that. This file is `create or replace`, so re-applying an OLDER
+  -- copy of it silently reverts the per-owner dedup -- the same replay hazard the pg_temp sweep
+  -- documents about itself. A prosrc match is the WEAKER instrument (it reads the shape, not the
+  -- behaviour); the behaviour was proven separately against production 2026-08-14 on temp mirrors
+  -- -- one owner, two same-role listings, one client subscribed to both: 2 rows before, 1 after,
+  -- deterministically the lowest provider_id. Keep both: this one fires on replay, which is when
+  -- nobody is watching.
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'get_my_shared_clients'
+      and p.prosrc ~* 'distinct[[:space:]]+on'
+  ) then
+    raise exception 'get_my_shared_clients lost its per-owner dedup — an older copy of this file was replayed. One coach may hold several provider rows of one role, and every consumer keys the pair by owner, so the roster would double-count that person and one acknowledgment would dismiss both rows.';
   end if;
 
   v_anon   := has_function_privilege('anon',          'public.get_my_shared_clients(uuid)', 'execute');
