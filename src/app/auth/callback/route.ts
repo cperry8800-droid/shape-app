@@ -4,14 +4,18 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   // Validate the redirect target — only a same-origin absolute path, never an
   // external host (e.g. //evil.com) — matching the login action's guard.
+  // Via the shared helper. The inline prefix check this replaced accepted `/\evil.example` and
+  // control characters — and signup now routes its confirm-email link through here carrying a
+  // caller-supplied `next`, so this is a live path for that payload, not a theoretical one.
   const rawNext = searchParams.get('next') ?? '/';
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
+  const next = safeReturnPath(rawNext, '/');
 
   if (code) {
     const supabase = await createClient();

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 
 export async function login(formData: FormData): Promise<{ error: string } | void> {
   const email = String(formData.get('email') ?? '');
@@ -20,7 +21,12 @@ export async function login(formData: FormData): Promise<{ error: string } | voi
       : role === 'nutritionist'
       ? '/newdesign/NutritionistDashboard.html'
       : '/newdesign/ClientDashboard.html';
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : roleDefaultNext;
+  // `safeReturnPath` rather than the inline prefix check this line used to carry. That check
+  // accepted `/\evil.example` — one leading slash, so it passed — and browsers normalise `\` to
+  // `/`, resolving the emitted relative Location to `//evil.example`, i.e. off-site immediately
+  // after authentication. It also accepted embedded control characters, which the URL parser
+  // strips. The helper rejects both; it has existed since #1471 and simply was not used here.
+  const next = safeReturnPath(rawNext, roleDefaultNext);
   const captchaToken = String(formData.get('captchaToken') ?? '');
 
   const supabase = await createClient();
@@ -48,8 +54,11 @@ export async function signup(
   // Same contract as `login` above: an internal path only, or nothing. Signup had no `next` at
   // all, so a visitor sent here mid-task (the consultation page, which carries the coach and the
   // slot they picked) was returned to a dashboard with that context gone — on BOTH exits below.
+  // Same guard as `login` above — see the note there for why the inline prefix check was not
+  // enough. Both exits below consume this: `redirect(next)` emits a RELATIVE Location, which is
+  // the form a `/\` payload turns into an off-site jump.
   const rawNext = String(formData.get('next') ?? '');
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
+  const next = safeReturnPath(rawNext, '') || null;
 
   const supabase = await createClient();
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';

@@ -85,14 +85,19 @@ begin
     return new;
   end if;
 
-  -- Anything else that reached an UPDATE is the client, under the policy above. The booking
-  -- itself is immutable to them; only its status moves, and the policy pins that to
-  -- 'cancelled'.
-  if new.provider_id  is distinct from old.provider_id
-     or new.provider_role is distinct from old.provider_role
-     or new.scheduled_at  is distinct from old.scheduled_at
-     or new.duration_min  is distinct from old.duration_min
-     or new.client_id     is distinct from old.client_id
+  -- Anything else that reached an UPDATE is the client, under the policy above. The booking is
+  -- immutable to them; only its status moves, and the policy pins that to 'cancelled'.
+  --
+  -- ⚠ AN ALLOWLIST, NOT A LIST OF FROZEN COLUMNS. An earlier cut named five fields
+  -- (provider_id, provider_role, scheduled_at, duration_min, client_id) and left every other
+  -- one writable in the same cancelling statement — `client_name`, `client_email`, `type`,
+  -- `topic`, `meeting_url`, and `notes`, which is the COACH's own note on the booking. That is
+  -- not academic: `api/trainer/dashboard/route.ts` selects `type, status, topic, client_name`
+  -- for the coach's own sessions with NO status filter and counts every row, so a cancelled
+  -- record still renders and still tallies. Comparing the row wholesale means a column added to
+  -- `sessions` later is frozen by default instead of silently joining the writable set.
+  if (to_jsonb(new) - 'status' - 'updated_at')
+       is distinct from (to_jsonb(old) - 'status' - 'updated_at')
   then
     -- No format placeholders: PL/pgSQL checks RAISE arity at COMPILE time, so a stray % here
     -- would abort this whole migration on a healthy database.

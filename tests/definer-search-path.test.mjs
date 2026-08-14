@@ -80,7 +80,26 @@ function unpinnedDefiners(sql) {
       // failure mode that got the parked source-based asset checker cut, so it is not repeated
       // here. Stripping comments above is what makes the loose match safe; the anchor bought
       // nothing it does not already cover.
-      const sp = /search_path\s*(?:to|=)\s*([^\n;]+)/i.exec(h);
+      // Capture the value as a comma-separated identifier LIST, not "the rest of the line".
+      // `[^\n;]+` stopped at the first newline, so a legal declaration that wraps its list --
+      //
+      //     set search_path = public,
+      //                       pg_temp
+      //
+      // -- was reported UNPINNED. This guard gates every post-sweep migration, so that false
+      // alarm reds CI on correct SQL and can only be cleared by reformatting the correct SQL or
+      // bypassing the check: exactly the failure mode that got the parked asset checker cut, and
+      // the one this file's own header warns about.
+      //
+      // Matching the list SHAPE also removes the trailing-modifier problem for free. A
+      // declaration written `set search_path = public, pg_temp security definer` now stops the
+      // capture at `pg_temp`, because ` security` is not preceded by a comma — so the ordering
+      // test below can be exact instead of tolerant.
+      const IDENT = String.raw`(?:"[^"]*"|'[^']*'|[A-Za-z0-9_$]+)`;
+      const sp = new RegExp(
+        String.raw`search_path\s*(?:to|=)\s*(${IDENT}(?:\s*,\s*${IDENT})*)`,
+        'i',
+      ).exec(h);
       if (!sp) return true; // no clause at all -- unpinned.
 
       const value = sp[1].trim();

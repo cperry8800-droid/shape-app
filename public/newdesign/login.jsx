@@ -150,8 +150,13 @@ function LoginCard() {
       : role === 'nutritionist' ? '/newdesign/NutritionistDashboard.html'
       : '/newdesign/ClientDashboard.html';
     try {
+      // Mirrors src/lib/safe-redirect.mjs (safeReturnPath), restated because a browser-babel
+      // module cannot import it. The leading-slash test alone lets `/\evil.example` through, and
+      // browsers normalise the backslash into a protocol-relative, off-site redirect; control
+      // characters are stripped by the URL parser, so they are rejected too.
       const next = new URLSearchParams(window.location.search).get('next');
-      if (next && next.startsWith('/') && !next.startsWith('//')) nextDashboard = next;
+      if (next && next.startsWith('/') && !next.startsWith('//') && next.charAt(1) !== '\\'
+          && !/[\x00-\x1f\x7f]/.test(next)) nextDashboard = next;
     } catch (e) {}
     window.location.href = nextDashboard;
   };

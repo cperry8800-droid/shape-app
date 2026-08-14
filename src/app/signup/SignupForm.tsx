@@ -116,7 +116,13 @@ export default function SignupForm({
 
       <p className="text-sm text-neutral-400 text-center">
         Already have an account?{' '}
-        <Link href="/login" className="text-teal-400 hover:text-teal-300">
+        {/* Carries `next` across the auth-mode switch. Without it a consultation visitor who
+            lands on /signup?next=… and then realises they already have an account loses the
+            coach and the slot at the last step — the same drop the direct exits just fixed. */}
+        <Link
+          href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}
+          className="text-teal-400 hover:text-teal-300"
+        >
           Sign in
         </Link>
       </p>
