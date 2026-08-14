@@ -128,8 +128,26 @@ function unpinnedDefiners(sql) {
       // search_path = public, pg_temp security definer`), and demanding an exact match there
       // reds a correctly pinned declaration. Requiring the pg_temp ELEMENT to be last says the
       // same thing about ordering without caring what follows it on the line.
-      const parts = value.split(',');
-      const idx = parts.findIndex((p) => /^"?pg_temp"?\b/.test(p.trim()));
+      // Re-extract the elements with the SAME identifier pattern rather than `split(',')`, so a
+      // quoted name containing a comma stays one element instead of being torn in half.
+      const parts = value.match(new RegExp(IDENT, 'g')) || [];
+
+      // Match the WHOLE element, with Postgres's own identifier rules. A prefix test (`/^"?pg_temp"?\b/`)
+      // accepted `"pg_temp.old"` and `"pg_temp "` — `\b` matches before the punctuation or the
+      // space — while Postgres treats each of those as a DIFFERENT schema and therefore still
+      // searches the real temporary schema implicitly first. That is the failure the pin exists to
+      // prevent, reported as pinned.
+      //
+      // Quoting decides case-sensitivity, so the two cases are not the same test:
+      //   bare      -> folded to lower case by Postgres, so `PG_TEMP` IS `pg_temp`
+      //   "quoted"  -> exact, so `"PG_TEMP"` is a different schema and must NOT pass
+      const isPgTemp = (raw) => {
+        const s = raw.trim();
+        if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) return s.slice(1, -1) === 'pg_temp';
+        return /^pg_temp$/i.test(s);
+      };
+
+      const idx = parts.findIndex(isPgTemp);
       if (idx === -1) return true; // pinned to something, but not to pg_temp.
       return idx !== parts.length - 1;
     })
