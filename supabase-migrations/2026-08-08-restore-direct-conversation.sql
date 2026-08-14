@@ -1,4 +1,4 @@
--- Restore public.get_or_create_direct_conversation, and close its create race.
+-- Restore public.get_or_create_direct_conversation and handle its lost-race error.
 --
 -- WHY THIS EXISTS
 -- `2026-05-02-conversations-messages.sql` declares this function, but it is
@@ -25,36 +25,54 @@
 -- first real use, not damage already done. There is nothing to backfill.
 --
 -- The body below is the 2026-05-02 original, verbatim, with three deliberate
--- changes noted at their sites: pg_temp pinned, the create race closed, and the
--- grant tightened. Every column and CHECK constraint it writes was verified
+-- changes noted at their sites: pg_temp pinned, the lost-race error handled, and
+-- the grant tightened. Every column and CHECK constraint it writes was verified
 -- against the LIVE schema first (kind/provider_role CHECKs both admit the values
 -- it uses; conversation_participants' primary key is exactly the (conversation_id,
 -- user_id) pair its ON CONFLICT infers).
 
 -- ===== The race guard =====
--- ⚠ THE ORIGINAL WAS SELECT-THEN-INSERT WITH NOTHING SERIALIZING IT, so two
--- overlapping calls for the SAME (provider_role, provider_id, client_id) triple
--- could both miss the SELECT and create two direct conversations for one pair —
--- splitting a coach's thread in half with nothing erroring. This index makes that
--- unrepresentable rather than merely unlikely.
---
--- ⚠ THE COACH FAN-OUT IS **NOT** THAT RACE, and an earlier draft of this comment
--- claimed it was. Recorded rather than quietly deleted, because asserting a
+-- ⚠ THIS MIGRATION SHIPPED A DUPLICATE INDEX ON A FALSE PREMISE, and the
+-- correction is recorded rather than quietly deleted, because asserting a
 -- mechanism that turns out to be false is this repo's most-repeated defect class.
--- Two reasons it cannot be: meal-note's loop is a sequential `for … await`, so the
--- trainer and nutritionist legs never run at the same time; and even concurrent
--- they carry different provider_role AND provider_id, so they occupy different
--- index entries and could not collide. The real window is two overlapping
--- REQUESTS on ONE pair — a double-tapped Log, a client retry, or meal-note racing
--- /api/messages/direct for the same coach.
 --
--- Safe to add: production holds ZERO conversations, so it cannot fail on legacy
--- rows. Partial, because `kind` also admits 'room' and 'community', and the
--- member-to-member DMs added in 2026-06-03 dedupe on `dm_key` instead and leave
--- provider_id/client_id null.
-create unique index if not exists conversations_direct_pair_uniq
+-- The original text here claimed "the original was SELECT-THEN-INSERT with
+-- nothing serializing it … this index makes that unrepresentable". The first
+-- clause is true of the FUNCTION and false of the DATABASE:
+-- `2026-05-02-conversations-messages.sql:18` already created
+-- **conversations_direct_unique_idx** on exactly (provider_role, provider_id,
+-- client_id) where kind = 'direct'. So the duplicate-thread race was closed on
+-- 2026-05-02, and the index added here enforced nothing the database was not
+-- already enforcing. (Its predicate omitted `provider_role is not null`, which
+-- is inert: NULLs are distinct in a unique index, so a NULL provider_role can
+-- never conflict either way. Two indexes, one constraint, double the write cost.)
+--
+-- WHAT WAS GENUINELY MISSING is the `unique_violation` handler below. With the
+-- 2026-05-02 index live and no handler, a lost race did not duplicate the
+-- thread — it surfaced a raw 23505 to a member who did nothing wrong. The
+-- handler is the real fix; the index was noise.
+--
+-- Dropping it is safe for the same reason it was redundant: every constraint it
+-- expressed is still expressed by conversations_direct_unique_idx, and the
+-- function's insert uses an exception handler rather than ON CONFLICT, so no
+-- inference depends on this index existing by name.
+--
+-- ⚠ RE-DECLARE THE CANONICAL INDEX FIRST RATHER THAN ASSUMING IT. It is present
+-- in production today (checked 2026-08-08), but this migration exists precisely
+-- because 2026-05-02 did NOT fully apply — the function it declares was missing
+-- from the database. Having proven that file is not a reliable premise, this one
+-- should not depend on another of its objects being there. `if not exists` makes
+-- it a no-op on the live database and a real create on a fresh rebuild.
+--
+-- Order is create-then-drop so the pair is never momentarily unconstrained.
+create unique index if not exists conversations_direct_unique_idx
   on public.conversations (provider_role, provider_id, client_id)
-  where kind = 'direct' and provider_id is not null and client_id is not null;
+  where kind = 'direct'
+    and provider_role is not null
+    and provider_id is not null
+    and client_id is not null;
+
+drop index if exists public.conversations_direct_pair_uniq;
 
 create or replace function public.get_or_create_direct_conversation(
   p_provider_role text,
@@ -129,6 +147,27 @@ begin
   values (v_conversation_id, v_client_id, 'client')
   on conflict (conversation_id, user_id) do nothing;
 
+  -- ⚠ THE NULL-OWNER SKIP IS CORRECT — DO NOT "FIX" IT BY RAISING. 41 of the 43
+  -- live provider listings have a NULL owner_id (verified against production
+  -- 2026-08-08: trainers 20/21, nutritionists 21/22), so this branch is the
+  -- ordinary path, and it looks like it strands the member's message with nobody
+  -- on the other end. It does not, because coach access to a conversation is NOT
+  -- carried by this participants row:
+  --   · RLS reads it through a LIVE JOIN — `can_access_conversation`
+  --     (2026-05-02-conversations-messages.sql:77-89) grants access to whoever
+  --     satisfies `trainers.owner_id = auth.uid()` / `nutritionists.owner_id =
+  --     auth.uid()` at query time.
+  --   · The coach inbox never joins participants either — /api/trainer/messages
+  --     resolves providerId from `owner_id = user.id`, then lists conversations by
+  --     (kind, provider_role, provider_id). Same shape for nutritionists.
+  -- So the moment a coach claims the listing they see the thread AND every message
+  -- already in it. The conversation self-heals on claim rather than being lost.
+  --
+  -- Raising here would be a REGRESSION twice over: it would break that
+  -- deliver-on-claim path, and because owner_id is `on delete set null`, a
+  -- previously-claimed listing reverts to NULL when the coach's auth user is
+  -- deleted — so a raise would newly fail the meal-note coach fan-out for a
+  -- provider that still has live subscriptions.
   if v_owner_id is not null then
     insert into public.conversation_participants (conversation_id, user_id, role)
     values (v_conversation_id, v_owner_id, p_provider_role)
@@ -184,14 +223,13 @@ begin
 
   -- ⚠ ASSERT THE SHAPE, NOT JUST THE METADATA. Every other check here passes on a
   -- function whose unique_violation handler has been stripped back to the bare
-  -- 2026-05-02 insert — still SECURITY DEFINER, still pg_temp-pinned, same grants,
-  -- and the index is a separate object so it survives untouched. That end state is
-  -- strictly WORSE than before this migration: the index would turn a lost race
-  -- into a raw 23505 for a member who did nothing wrong, which the comment on the
-  -- handler explicitly says is not an improvement. A guard that cannot fail on the
-  -- one shape the migration exists to create is decoration.
+  -- 2026-05-02 insert — still SECURITY DEFINER, still pg_temp-pinned, same grants.
+  -- And conversations_direct_unique_idx is an object this migration does not own,
+  -- so it stays live either way: without the handler a lost race surfaces a raw
+  -- 23505 to a member who did nothing wrong. A guard that cannot fail on the one
+  -- shape the migration exists to create is decoration.
   if position('unique_violation' in v_src) = 0 then
-    raise exception 'get_or_create_direct_conversation must handle unique_violation, or the new unique index turns a lost race into an error';
+    raise exception 'get_or_create_direct_conversation must handle unique_violation, or a lost race against conversations_direct_unique_idx surfaces a raw 23505 to the member';
   end if;
 
   select has_function_privilege('anon', p.oid, 'EXECUTE'),
@@ -210,8 +248,15 @@ begin
     raise exception 'authenticated must hold EXECUTE on get_or_create_direct_conversation';
   end if;
 
-  if to_regclass('public.conversations_direct_pair_uniq') is null then
-    raise exception 'conversations_direct_pair_uniq index is missing after this migration';
+  -- The pre-existing index is what actually closes the duplicate-thread race, and
+  -- the unique_violation handler above is written against it — so assert it is
+  -- present rather than asserting the duplicate this migration used to add.
+  if to_regclass('public.conversations_direct_unique_idx') is null then
+    raise exception 'conversations_direct_unique_idx (2026-05-02) is missing — the unique_violation handler has nothing to catch and duplicate direct threads become possible';
+  end if;
+
+  if to_regclass('public.conversations_direct_pair_uniq') is not null then
+    raise exception 'conversations_direct_pair_uniq still exists — it duplicates conversations_direct_unique_idx and should have been dropped by this migration';
   end if;
 end
 $guard$;
