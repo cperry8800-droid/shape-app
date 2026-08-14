@@ -8,8 +8,12 @@
 -- database does not have; it is the only one of those eight that live product
 -- code calls.
 --
--- ⚠ TWO LIVE CALLERS, AND THE WORSE ONE FAILS SILENTLY.
---   1. src/app/api/nutrition/meal-note/route.ts:126 — the mobile meal logger's
+-- ⚠ THREE LIVE CALLERS, AND THE WORST ONE FAILS SILENTLY.
+-- (This header said "TWO" until 2026-08-14; the third was found by Codex on the
+-- changelog PR. Corrected in place rather than quietly, because an inventory that
+-- undercounts is worse than no inventory — see the grant warning at the foot of
+-- this list.)
+--   1. src/app/api/nutrition/meal-note/route.ts:135 — the mobile meal logger's
 --      "dispatch to coach". It uploads the voice memo and photo to storage
 --      SUCCESSFULLY, then loops the member's coaches, calls this function, and
 --      hits `if (convErr || !conversationId) continue;`. The route returns HTTP
@@ -18,6 +22,29 @@
 --   2. src/app/api/messages/direct/route.ts:84 — the "message this provider"
 --      button on the live /trainers/[id] and /nutritionists/[id] pages. This one
 --      at least fails loudly (400).
+--   3. mobile-app/src/services/shapeBackend.js:1990 — `supabase.rpc(...)` called
+--      DIRECTLY FROM THE CLIENT as `authenticated`, not through any API route.
+--      Reached via `sendProviderMessage` (:2022) from the marketplace listing
+--      panel (iosAppBroadsheetMarketplace.jsx:2119) and from the meal- and
+--      exercise-swap flows (iosAppBroadsheetClient.jsx:9235, :5212). It degrades
+--      semi-loudly: the catch writes the thread locally and shows "Message saved
+--      locally" with the error text — copy that already anticipates exactly this
+--      migration being unrun.
+--
+-- ⚠ CALLER 3 IS WHY THE `authenticated` GRANT BELOW IS LOAD-BEARING. Reading the
+-- old two-caller list, a future reader would conclude only server routes reach
+-- this function and that the grant could be narrowed to service_role. That would
+-- silently break the marketplace "message this coach" button — silently because
+-- caller 3 swallows the error into a local-save notice. Do not narrow it without
+-- re-running this inventory.
+--
+-- Caller 3 does NOT widen the null-role hole fixed below:
+-- `normalizeProviderRoleForMessages` (shapeBackend.js:1879) falls through to
+-- `normalizeRole`, which returns 'client' for anything unrecognised and can never
+-- return null, and `resolveCoachProvider` (:1886) rejects anything outside
+-- trainer/nutritionist before the call. Both send a non-null role, so they get the
+-- loud 'Invalid provider role.' — the null path still requires a hand-made
+-- PostgREST call.
 --
 -- ⚠ NOBODY HAS BEEN AFFECTED. Verified against production before writing this:
 -- `messages` and `conversations` are both EMPTY (0 rows), so no member has ever

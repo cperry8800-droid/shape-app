@@ -182,10 +182,13 @@ changelog whenever something ships.
 > ASSERTING SOMETHING IT NEVER CHECKED (#1876 → `ed3582a1f`).**
 > `get_or_create_direct_conversation` has been **absent from production since
 > 2026-05-02** — declared in `2026-05-02-conversations-messages.sql`, never created.
-> Two live callers, and the worse one failed silently: the meal logger's "dispatch to
-> coach" uploaded the voice memo and photo **successfully**, then hit
+> **Three** live callers, and the worst one failed silently: the meal logger's "dispatch
+> to coach" uploaded the voice memo and photo **successfully**, then hit
 > `if (convErr || !conversationId) continue;` and returned **HTTP 200 with
-> `delivered:false`** — no error, no warning, no note. ⚠ **Nobody has been affected**:
+> `delivered:false`** — no error, no warning, no note. ⚠ **The third caller is the one
+> to remember: `shapeBackend.js:1990` calls the RPC DIRECTLY FROM THE CLIENT** as
+> `authenticated`, not through any API route — which is why the `authenticated` grant is
+> load-bearing and must not be narrowed to `service_role`. ⚠ **Nobody has been affected**:
 > `conversations` and `messages` are both **empty (0 rows)** in production, so this
 > would have fired on first real use; there is nothing to backfill.
 > ⚠ **The restore is NOT a verbatim replay.** The 2026-05-02 original guarded with
@@ -1551,15 +1554,37 @@ changelog whenever something ships.
   diffed against `supabase-migrations/`); it is one of **eight** declared-but-absent
   functions and **the only one live product code calls**.
 
-- ⚠ **Two live callers, and the worse one failed silently.**
-  `api/nutrition/meal-note/route.ts:126` — the mobile meal logger's "dispatch to
-  coach" — uploaded the voice memo and photo to storage **successfully**, looped the
-  member's coaches, called the missing function, and hit
-  `if (convErr || !conversationId) continue;`. The route returned **HTTP 200 with
-  `delivered:false`** and the client only toasted on success, so the note reached
-  nobody and the member was never told. `api/messages/direct/route.ts:84` — the
-  "message this provider" button on `/trainers/[id]` and `/nutritionists/[id]` — at
-  least failed loudly with a 400.
+- ⚠ **THREE live callers, three different failure modes, and the worst one failed
+  silently.** ⚠ *The first published version of this entry — and the migration header
+  it was drawn from — said **two**. Codex caught the omission on the changelog PR;
+  both are corrected, and the miss is left on the record because an inventory that
+  undercounts is worse than no inventory.*
+  1. `api/nutrition/meal-note/route.ts:135` — the mobile meal logger's "dispatch to
+     coach". Uploaded the voice memo and photo to storage **successfully**, looped the
+     member's coaches, called the missing function, and hit
+     `if (convErr || !conversationId) continue;`. Returned **HTTP 200 with
+     `delivered:false`**, and the client only toasted on success — **silent**.
+  2. `api/messages/direct/route.ts:84` — the "message this provider" button on
+     `/trainers/[id]` and `/nutritionists/[id]`. **Loud** (400).
+  3. `mobile-app/src/services/shapeBackend.js:1990` — `supabase.rpc(…)` called
+     **directly from the client** as `authenticated`, through no API route at all.
+     Reached via `sendProviderMessage` (`:2022`) from the marketplace listing panel
+     (`iosAppBroadsheetMarketplace.jsx:2119`) and from the meal- and exercise-swap
+     flows (`iosAppBroadsheetClient.jsx:9235`, `:5212`). **Semi-loud**: the catch
+     writes the thread locally and shows "Message saved locally" with the error text —
+     copy that already anticipates this exact migration being unrun.
+
+- ⚠ **CALLER 3 IS WHY THE `authenticated` GRANT IS LOAD-BEARING.** Working from the
+  two-caller list, a future reader would reasonably conclude that only server routes
+  reach this function and narrow the grant to `service_role` — which would break the
+  marketplace "message this coach" button, **silently**, because caller 3 swallows the
+  error into a local-save notice. That is the concrete cost of the undercount, and it
+  is larger than the tidiness of the list. **Caller 3 does not widen the null-role
+  hole**, though: `normalizeProviderRoleForMessages` (`:1879`) falls through to
+  `normalizeRole`, which returns `'client'` for anything unrecognised and **can never
+  return null**, and `resolveCoachProvider` (`:1886`) rejects anything outside
+  trainer/nutritionist before the call — so both in-app paths get the loud
+  `Invalid provider role.` and the null path still needs a hand-made PostgREST call.
 
 - **Nobody has been affected, and that was verified rather than assumed.**
   `conversations` and `messages` are both **empty (0 rows)** in production, so no
@@ -1657,6 +1682,19 @@ changelog whenever something ships.
   succeeds — **no native build was run**); abuse-volume rate limiting on the RPC; and
   the open product call that an unclaimed provider listing is hidden from the
   marketplace list but its detail page is not.
+
+- **Found while tracing caller 3, registered not fixed — `resolveCoachProvider` never
+  applies `providerDiscipline()`.** `shapeBackend.js:1890` gates on
+  `['trainer','nutritionist'].includes(providerRole)`, but
+  `normalizeProviderRoleForMessages` can return `'dietitian'` — a role the file's own
+  comment at `:79-83` says must be mapped onto the nutritionist rails "anywhere we pick
+  a discipline". So a dietitian coach fails the gate, `resolveCoachProvider` returns
+  null, and `sendProviderMessage` **silently saves the member's message to
+  localStorage** instead of sending it. ⚠ **Currently dormant, and only for one
+  reason:** the DB CHECK forbids `dietitian` as a stored `provider_role`, so no live
+  provider row carries it. It becomes reachable the moment that ruling changes — which
+  is the open question already tracked for the dietitian role. Not fixed here because
+  this is a docs PR and the correct fix depends on that ruling.
 
 ### 2026-08-05 — The ✦ AI DRAFT is real: the six-mode contract (#1873 → `98a46340f`)
 
