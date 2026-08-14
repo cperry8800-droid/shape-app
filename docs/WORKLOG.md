@@ -218,6 +218,7 @@ changelog whenever something ships.
 > **behavioural** null-role probe (`Invalid provider role.`, `conversations` still 0,
 > rolled back) rather than trusting the migration's own `prosrc` text guard.
 > Suite **1514**; CI green on six checks and Codex clean on the final head.
+> Handoff: **[`docs/HANDOFF-2026-08-14.md`](HANDOFF-2026-08-14.md)**.
 >
 > See the full entry below.
 
@@ -304,8 +305,26 @@ changelog whenever something ships.
 > static website (a dependency-free `sentryInit.js` classic script — no bundler there) each
 > now carry a Sentry SDK.
 >
-> ⚠ **Do not read this as "error tracking is live." It is not — nothing is being captured
-> anywhere yet.** There is no Sentry organisation and no DSN, so all three SDKs sit in the
+> ⚠ **CORRECTED 2026-08-14 — THE PARAGRAPH BELOW IS A SNAPSHOT OF 2026-08-01 AND IS NO
+> LONGER TRUE. The Sentry org and DSNs are LIVE.** Verified against production on
+> 2026-08-14: `https://www.theshapecommunity.com/` returns real Sentry baggage headers
+> (`sentry-environment=production`, a release, an org id, live trace ids). This banner
+> sits in the region readers skim as *current state*, and it read "there is no Sentry
+> organisation" for days after that stopped being so. ⚠ **BUT THE WEB BEING LIVE SAYS
+> NOTHING ABOUT THE BINARIES — both the APK and the IPA still ship with Sentry
+> DISABLED.** Two different secret stores: **Android** needs four **GitHub Actions**
+> secrets (`VITE_SENTRY_DSN` — the only one that enables capture — plus
+> `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT_MOBILE`, all source-map upload),
+> and the repo has **zero Actions secrets** as of 2026-08-14; **iOS** needs a Codemagic
+> **variable group created first**, then referenced from `codemagic.yaml` — which is
+> deliberately unwired today because referencing a group that does not exist would break
+> the iOS build on the next push to `main`. Also owed: alert rules (including a
+> guardrail-health issue rule) and the **e2e crash triggers**. The org existing is not
+> the same as delivery ever having been observed.
+> See [`HANDOFF-2026-08-14.md`](HANDOFF-2026-08-14.md) for the full breakdown.
+>
+> ~~⚠ **Do not read this as "error tracking is live." It is not — nothing is being captured
+> anywhere yet.**~~ There *was* no Sentry organisation and no DSN, so all three SDKs sat in the
 > supported pre-account state (`Sentry.init({dsn:''})` and its Capacitor/classic-script
 > equivalents construct no transport at all; every `capture*` call is a documented no-op).
 > This is scaffolding, wired to switch on the moment a DSN exists and switched off until
