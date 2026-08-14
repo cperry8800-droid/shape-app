@@ -1,4 +1,8 @@
-const CACHE_NAME = 'shape-v132';
+// v133: runtime caching narrowed to SAME-ORIGIN assets — the version bump also
+// deletes every prior cache generation on install/activate, which matters
+// beyond hygiene: older generations could hold cross-origin signed media
+// (progress photos, credential files) cached token-and-all.
+const CACHE_NAME = 'shape-v133';
 const ASSETS = [
   '/',
   '/index.html',
@@ -54,10 +58,18 @@ self.addEventListener('fetch', e => {
   // server actions / API calls we never want to cache anyway.
   if (e.request.method !== 'GET') return;
 
+  // NEVER touch cross-origin requests. The old cache.put had no origin check,
+  // so authenticated SIGNED media URLs (Supabase storage: progress photos,
+  // meal-note memos, application/credential files — extension-bearing, token in
+  // the query string) were written into CacheStorage and outlived sign-out.
+  // Cross-origin subresources lose nothing here: they were only ever served
+  // from cache as an offline fallback.
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
+
   // Always go network-first, never serve stale HTML pages from cache.
   // "HTML" here means both legacy .html files AND app-router routes
   // (which have no file extension — e.g. /pricing, /login, /dashboard).
-  const url = new URL(e.request.url);
   const hasExtension = /\.[a-z0-9]{1,6}$/i.test(url.pathname);
   const isHTML = !hasExtension || url.pathname.endsWith('.html') || url.pathname === '/';
 

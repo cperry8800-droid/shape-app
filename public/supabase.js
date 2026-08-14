@@ -176,6 +176,24 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         localStorage.removeItem('shapeLastName');
         localStorage.removeItem('shapeEmail');
       } catch (e) {}
+      // Purge the PWA caches on sign-out — AWAITED here because this is the
+      // last stop before callers navigate/redirect. The service worker only
+      // caches same-origin static assets as of shape-v133, but a cache built
+      // by an OLDER worker generation can hold cross-origin signed media
+      // (progress photos, meal-note voice memos, credential files — token and
+      // all), and CacheStorage otherwise only clears on a deploy version bump,
+      // never for a departing user on a shared device. The scrub below also
+      // fires a purge (fire-and-forget, for the paths that call it without
+      // coming through signOut, e.g. the Next.js dashboard's client button);
+      // caches.delete on an already-deleted key is a harmless no-op.
+      try {
+        if (window.caches && caches.keys) {
+          var cacheKeys = await caches.keys();
+          await Promise.all(cacheKeys
+            .filter(function (k) { return k.indexOf('shape-') === 0; })
+            .map(function (k) { return caches.delete(k); }));
+        }
+      } catch (e) {}
       shapeDb.clearLocalUserContent();
     },
 
@@ -243,6 +261,19 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       // member's exercises/reps/weights and completed record on the device.
       try {
         ['shapeLiveWorkout', 'shapeLiveWorkoutResult'].forEach(function (k) { sessionStorage.removeItem(k); });
+      } catch (e) {}
+      // PWA cache purge (fire-and-forget): the canonical scrub carries one so
+      // sign-out paths that call the scrub WITHOUT coming through signOut()
+      // still drop cached signed media. signOut() above additionally AWAITS
+      // its own purge before callers navigate; double-delete is a no-op.
+      try {
+        if (window.caches && caches.keys) {
+          caches.keys().then(function (cacheKeys) {
+            cacheKeys
+              .filter(function (k) { return k.indexOf('shape-') === 0; })
+              .forEach(function (k) { caches.delete(k); });
+          }).catch(function () {});
+        }
       } catch (e) {}
     },
 
