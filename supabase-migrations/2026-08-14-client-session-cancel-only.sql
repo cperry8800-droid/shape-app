@@ -73,15 +73,34 @@ begin
   end if;
 
   -- The provider who owns this booking may change what a coach is entitled to change --
-  -- confirm, decline, complete, reschedule, attach a meeting URL. Checked against NEW so a
-  -- repoint away from their own row cannot buy an exemption.
-  if (new.provider_role = 'trainer' and exists (
+  -- confirm, decline, complete, reschedule, attach a meeting URL.
+  --
+  -- ⚠ KEYED ON THE **OLD** ROW. An earlier cut checked NEW, reasoning that it stopped a coach
+  -- repointing a booking AWAY from their own listing — true, and the wrong direction. It let
+  -- someone repoint a booking *TO* their own listing and be exempted for it. That is not exotic
+  -- on this platform: coaches are members too, so anyone with an approved listing who books
+  -- another coach is both the client and a provider owner. Demonstrated end to end against
+  -- production before this change (rolled back): as such a caller, a single PostgREST UPDATE
+  -- moved `provider_id` to their own listing, set `status = 'confirmed'`, reassigned `client_id`
+  -- to a DIFFERENT member and set an attacker-controlled `meeting_url` — because
+  -- `client_cancel_sessions`' USING admitted the old row, `provider_update_sessions`' WITH CHECK
+  -- admitted the new one, and this exemption then returned before the field freeze below.
+  if (old.provider_role = 'trainer' and exists (
         select 1 from public.trainers t
-        where t.id = new.provider_id and t.owner_id = auth.uid()))
-     or (new.provider_role = 'nutritionist' and exists (
+        where t.id = old.provider_id and t.owner_id = auth.uid()))
+     or (old.provider_role = 'nutritionist' and exists (
         select 1 from public.nutritionists n
-        where n.id = new.provider_id and n.owner_id = auth.uid()))
+        where n.id = old.provider_id and n.owner_id = auth.uid()))
   then
+    -- Owning the booking is not the same as owning WHO IT IS WITH. A coach manages their own
+    -- booking; they do not hand it to another listing or to another member. Without this, the
+    -- exemption above is still a door — just one row narrower.
+    if new.provider_id is distinct from old.provider_id
+       or new.provider_role is distinct from old.provider_role
+       or new.client_id is distinct from old.client_id
+    then
+      raise exception 'sessions: a coach may manage their own booking, not reassign it';
+    end if;
     return new;
   end if;
 
