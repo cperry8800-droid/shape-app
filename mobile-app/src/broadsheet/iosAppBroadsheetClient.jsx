@@ -2370,8 +2370,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       // ⚠ SAY SO WHEN IT DOESN'T ARRIVE. This only ever toasted on success, so a
       // failed dispatch was indistinguishable from having no coach — which is how
       // a missing server function went unnoticed (2026-08-05 schema-drift audit).
-      // Having no coach stays quiet; a real delivery failure does not, and it says
-      // the log itself was kept so the member doesn't re-log the meal.
+      // Having no coach stays quiet; a real delivery failure does not.
       //
       // ⚠ THIS DOES NOT USE window.__bsToast, AND THAT IS THE WHOLE POINT. That
       // global is `() => {}` (iosAppBroadsheet.jsx — toasts were switched off
@@ -2396,9 +2395,31 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         } catch (e) {}
         try { window.__bsToast?.(title, 'warn'); } catch (e2) {}
       };
+      // ⚠ THIS NOTICE SPEAKS ONLY FOR THE NOTE. It must never claim the meal log was
+      // saved, and must never claim it wasn't. The sentence here first read "Your meal
+      // log is saved — only the note didn't send", which is exactly backwards in the
+      // state that reaches it most: doLog() fires this dispatch and the macro write as
+      // two independent unawaited requests, and `logMealMacros` resolves to null on
+      // EVERY failure with no queue and no retry (shapeBackend.js:4979-5005) — so one
+      // offline moment, or one 402 from the requireMembership gate BOTH routes sit
+      // behind, takes down both legs and the notice asserted the one thing that had
+      // not happened. Worse, the assertion was worded to stop the member re-logging.
+      //
+      // ⚠ AND DO NOT "FIX" IT BY WARNING THAT THE LOG FAILED — three reasons, each
+      // load-bearing. (1) A null from ShapeMealLog.log means "failed" OR "never
+      // attempted": it returns null BEFORE issuing a request when signed out
+      // (shapeBackend.js:4980) and the global may be absent outright, so a warning
+      // keyed on it fires on the signed-out preview, which reaches this path — the
+      // same never-attempted class as the no_coach branch below. (2) Awaiting the log
+      // promise to find out is worse: its fetch carries no AbortController and no
+      // timeout, so a hung socket would leave this notice unrendered, which is the
+      // void-reporting bug the whole notice exists to end. (3) add_meal_macros is an
+      // ACCUMULATING upsert with no idempotency key (2026-06-29-atomic-daily-snapshot-
+      // accumulators.sql), so copy that nudges a re-log permanently double-counts the
+      // day. Report the note; stay silent on what this path cannot observe.
       const noteFailed = () => noteNotice(
         'We couldn’t reach your coach',
-        'Your meal log is saved — only the note didn’t send. Try again from your chat, or send it to them directly.',
+        'Your note didn’t send. Try again from your chat, or send it to them directly.',
       );
       fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(r => r.json().catch(() => ({})))
@@ -2422,7 +2443,9 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
               const bits = [];
               if (partial) bits.push('it only reached some of your coaches');
               if (what) bits.push(`the ${what} didn’t upload`);
-              noteNotice('Your note sent — partly', `Your meal log is saved and the note went out, but ${bits.join(' and ')}.`);
+              // Same rule as noteFailed above — the second instance of the claim, which
+              // the review did not name. Patching only the other one leaves it standing.
+              noteNotice('Your note sent — partly', `Your note went out, but ${bits.join(' and ')}.`);
               return;
             }
             // Fully delivered stays SILENT. A success popup is exactly the noise
