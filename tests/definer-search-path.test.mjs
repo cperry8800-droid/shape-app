@@ -29,6 +29,19 @@ const DIR = 'supabase-migrations';
 const SWEEP = '2026-08-09-definer-pg-temp-sweep.sql';
 
 /**
+ * PostgreSQL's identifier-CONTINUATION rule, ported faithfully.
+ *
+ * Its lexer is `[A-Za-z\200-\377_0-9\$]` -- ASCII letters, digits, `_`, `$`, and ANY non-ASCII
+ * byte. It does not test a Unicode letter property, so `é` and `字` continue an identifier just
+ * as `a` does. An ASCII-only version of this rule let `é$tag$` open a false dollar quote while
+ * `foo$tag$` no longer could -- the same defect, one character class wider.
+ *
+ * ⚠ ONE definition, used by both scanners. It was briefly two, which is the drift that produced
+ * exactly this finding; a rule copied is a rule that gets fixed in one place.
+ */
+const isIdentChar = (ch) => !!ch && (/[A-Za-z0-9_$]/.test(ch) || ch.codePointAt(0) > 127);
+
+/**
  * ONE left-to-right scan that neutralises comments and routine bodies together.
  *
  * ⚠ WHY A SCANNER AND NOT MORE PASSES. This started as layered regex passes -- strip comments,
@@ -102,7 +115,6 @@ function scrubSql(sql) {
   // elements. Anchored at the quote, so it can only ever describe THIS run's position.
   const VALUE_POS =
     /search_path\s*(?:=|\bto\b)\s*(?:(?:[A-Za-z0-9_$]+|"(?:[^"]|"")*"|'(?:[^']|'')*')\s*,\s*)*$/i;
-  const idChar = (ch) => /[A-Za-z0-9_$]/.test(ch || '');
   let i = 0;
   while (i < sql.length) {
     const c = sql[i];
@@ -127,7 +139,7 @@ function scrubSql(sql) {
       // A delimiter cannot CONTINUE an identifier. `$` is legal inside one, so `foo$tag$` is a
       // single token to Postgres (longest match) -- accepting it here made the stretch between
       // two such identifiers mask the declaration's own `security definer` and unsafe clause.
-      if (m && !idChar(sql[i - 1])) {
+      if (m && !isIdentChar(sql[i - 1])) {
         const close = sql.indexOf(m[0], i + m[0].length);
         if (close === -1) { bail('unterminated dollar-quoted string'); i = sql.length; continue; }
         blank(i + m[0].length, close);
@@ -141,8 +153,8 @@ function scrubSql(sql) {
       // of the declaration to the scanner as code.
       const p1 = sql[i - 1], p2 = sql[i - 2];
       const escapes = c === "'" &&
-        ((/[Ee]/.test(p1 || '') && !idChar(p2)) ||
-         (p1 === '&' && /[Uu]/.test(p2 || '') && !idChar(sql[i - 3])));
+        ((/[Ee]/.test(p1 || '') && !isIdentChar(p2)) ||
+         (p1 === '&' && /[Uu]/.test(p2 || '') && !isIdentChar(sql[i - 3])));
       let j = i + 1, closed = false;
       for (; j < sql.length; j++) {
         if (escapes && sql[j] === '\\') { j++; continue; }
@@ -176,11 +188,10 @@ function scrubSql(sql) {
  * and an `E'...'` value honours backslashes for the same reason the scanner does.
  */
 function statementEnd(s, start) {
-  const idChar = (ch) => /[A-Za-z0-9_$]/.test(ch || '');
   for (let i = start; i < s.length; i++) {
     const ch = s[i];
     if (ch === "'" || ch === '"') {
-      const escapes = ch === "'" && /[Ee]/.test(s[i - 1] || '') && !idChar(s[i - 2]);
+      const escapes = ch === "'" && /[Ee]/.test(s[i - 1] || '') && !isIdentChar(s[i - 2]);
       for (i++; i < s.length; i++) {
         if (escapes && s[i] === '\\') { i++; continue; }
         if (s[i] !== ch) continue;
@@ -309,10 +320,10 @@ function unpinnedDefiners(sql) {
       return idx !== parts.length - 1;
     })
     .map((h) => {
-      // `$` is a legal identifier character in Postgres, so it belongs in the reported name --
-      // otherwise the offender `public.foo$tag$` is reported as `public.foo`, which is a
-      // different routine and sends the author looking in the wrong place.
-      const name = /(?:function|procedure)\s+([A-Za-z0-9_.$"]+)/i.exec(h);
+      // The name must use the SAME identifier alphabet the scanner does -- `$` and non-ASCII
+      // letters included -- or the offender `public.foo$tag$` is reported as `public.foo`, a
+      // different routine, and `public.é` as `public.`, sending the author to nothing at all.
+      const name = /(?:function|procedure)\s+((?:[A-Za-z0-9_.$"]|[^\x00-\x7F])+)/i.exec(h);
       return name ? name[1] : '(unnamed)';
     });
 }
@@ -633,6 +644,19 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
     unpinnedDefiners(dollarIdent),
     ['public.foo$tag$'],
     'a dollar sign continuing an identifier must not open a dollar-quoted string'
+  );
+
+  // (20) ⚠ THE SAME DEFECT, ONE CHARACTER CLASS WIDER. Postgres accepts any non-ASCII byte as an
+  //      identifier character, so `é$tag$` is one token exactly as `foo$tag$` is. An ASCII-only
+  //      boundary check closed (19) and left this open -- which is why the rule now lives in ONE
+  //      place both scanners read, rather than in two copies that get fixed one at a time.
+  const unicodeIdent =
+    'create function public.é$tag$(p int) returns int language sql security definer ' +
+    'set search_path = public, x$tag$ as $$ select 1 $$;';
+  assert.deepEqual(
+    unpinnedDefiners(unicodeIdent),
+    ['public.é$tag$'],
+    'a non-ASCII letter continues an identifier, so the `$` after it is not a delimiter'
   );
 });
 
