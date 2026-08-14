@@ -46,15 +46,21 @@ const SWEEP = '2026-08-09-definer-pg-temp-sweep.sql';
  * Postgres itself does. Output is the same length with the same newlines, so offsets and line
  * structure survive.
  *
- * ⚠ AND IT REFUSES RATHER THAN GUESSES. One scan fixed the ORDERING bug; it did not make a
+ * ⚠ AND IT REFUSES WHAT IT CANNOT FINISH. One scan fixed the ORDERING bug; it did not make a
  * hand-rolled lexer complete, and the next review round proved it -- nested block comments,
  * `E'...'` backslash escapes, and a clause hiding in an ordinary literal, all found at once.
  * PostgreSQL's lexer has more corners than this file will ever model (`U&'...'`, bit/hex
  * literals, `standard_conforming_strings`), and every gap here is a FALSE NEGATIVE: the guard
- * says clean about a declaration that is unpinned. So the scan now reports `unverifiable` when
- * it meets a construct it does not model EXACTLY, and the caller flags every definer in that
- * file. A parsing gap becomes a loud failure the author can act on instead of a silent
- * all-clear -- the only direction a security guard may fail in.
+ * says clean about a declaration that is unpinned. So the scan reports `unverifiable` for a
+ * construct it cannot COMPLETE -- an unterminated comment, dollar-quote or literal -- and the
+ * caller flags every definer in that file rather than certifying it.
+ *
+ * ⚠ THAT BACKSTOP DOES NOT COVER WHAT THE SCAN MIS-READS AND THEN FINISHES CLEANLY, and an
+ * earlier draft of this comment claimed it did. A `$` CONTINUING AN IDENTIFIER read as a dollar
+ * quote terminates normally, raises nothing, and returns a silent all-clear -- so the token
+ * rules below have to be RIGHT, not backstopped. Registered follow-up: replace this scanner with
+ * a real parse, or apply the migrations to a throwaway Postgres and read `pg_proc.proconfig`,
+ * which is the only thing that ends this class rather than deferring it one corner at a time.
  *
  * WHAT IS BLANKED, AND WHY EACH:
  *   comments             a comment mentioning pg_temp ahead of the real clause would DISARM the
@@ -118,13 +124,16 @@ function scrubSql(sql) {
     }
     if (c === '$') {
       const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
-      if (m) {
+      // A delimiter cannot CONTINUE an identifier. `$` is legal inside one, so `foo$tag$` is a
+      // single token to Postgres (longest match) -- accepting it here made the stretch between
+      // two such identifiers mask the declaration's own `security definer` and unsafe clause.
+      if (m && !idChar(sql[i - 1])) {
         const close = sql.indexOf(m[0], i + m[0].length);
         if (close === -1) { bail('unterminated dollar-quoted string'); i = sql.length; continue; }
         blank(i + m[0].length, close);
         i = close + m[0].length; continue;
       }
-      i++; continue; // a lone `$` is ordinary text
+      i++; continue; // a lone `$`, or one continuing an identifier, is ordinary text
     }
     if (c === "'" || c === '"') {
       // `E'...'` and `U&'...'` honour backslash escapes, so `E'\''` is ONE string, not two.
@@ -300,7 +309,10 @@ function unpinnedDefiners(sql) {
       return idx !== parts.length - 1;
     })
     .map((h) => {
-      const name = /(?:function|procedure)\s+([A-Za-z0-9_."]+)/i.exec(h);
+      // `$` is a legal identifier character in Postgres, so it belongs in the reported name --
+      // otherwise the offender `public.foo$tag$` is reported as `public.foo`, which is a
+      // different routine and sends the author looking in the wrong place.
+      const name = /(?:function|procedure)\s+([A-Za-z0-9_.$"]+)/i.exec(h);
       return name ? name[1] : '(unnamed)';
     });
 }
@@ -607,6 +619,21 @@ test('modifiers written AFTER the body are scanned, and a body cannot manufactur
   // ...but a file with no definer at stake stays quiet. A guard that reds a tree it has nothing
   // to protect in teaches people to ignore it, which is how the parked asset checker died.
   assert.deepEqual(unpinnedDefiners("select 'oops;"), []);
+
+  // (19) ⚠ AND THE CASE THE BACKSTOP CANNOT CATCH. `$` is a legal identifier character, so
+  //      `foo$tag$` is ONE token to Postgres by longest match. Read as a dollar quote, the run
+  //      from that identifier to the next one masks the declaration's own `security definer` and
+  //      its unsafe clause -- and because it TERMINATES cleanly nothing is unverifiable, so the
+  //      file reported clean. Refusing what the scan cannot finish does not help here; the token
+  //      rule itself has to be right.
+  const dollarIdent =
+    'create function public.foo$tag$(p int) returns int language sql security definer ' +
+    'set search_path = public, x$tag$ as $$ select 1 $$;';
+  assert.deepEqual(
+    unpinnedDefiners(dollarIdent),
+    ['public.foo$tag$'],
+    'a dollar sign continuing an identifier must not open a dollar-quoted string'
+  );
 });
 
 test('a comment can neither disarm the guard nor manufacture a false alarm', () => {
