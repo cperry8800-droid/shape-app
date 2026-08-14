@@ -178,7 +178,44 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-05): THE ✦ AI DRAFT IS REAL — the coach builders finally use the
+> **Latest (2026-08-14): THE DIRECT-CONVERSATION RPC IS BACK, AND THE MEAL NOTE STOPS
+> ASSERTING SOMETHING IT NEVER CHECKED (#1876 → `ed3582a1f`).**
+> `get_or_create_direct_conversation` has been **absent from production since
+> 2026-05-02** — declared in `2026-05-02-conversations-messages.sql`, never created.
+> Two live callers, and the worse one failed silently: the meal logger's "dispatch to
+> coach" uploaded the voice memo and photo **successfully**, then hit
+> `if (convErr || !conversationId) continue;` and returned **HTTP 200 with
+> `delivered:false`** — no error, no warning, no note. ⚠ **Nobody has been affected**:
+> `conversations` and `messages` are both **empty (0 rows)** in production, so this
+> would have fired on first real use; there is nothing to backfill.
+> ⚠ **The restore is NOT a verbatim replay.** The 2026-05-02 original guarded with
+> `p_provider_role not in ('trainer','nutritionist')` — and **`null not in (…)`
+> evaluates to NULL, which PL/pgSQL's `IF` treats as false**, so the check was bypassed
+> by the one value it existed to reject. `conversations.provider_role` is **nullable**,
+> a CHECK **passes when it evaluates to NULL**, and `conversations_direct_unique_idx`'s
+> predicate requires `provider_role is not null` — so a role-less conversation inserted
+> cleanly, could never match the existing-conversation lookup (`null = null` is null),
+> and accumulated without bound, reachable by **any `authenticated` caller** through
+> PostgREST. Sibling sweep done **by measurement, not assertion**: of five comparable
+> `x not in (…)` guards, this was the **only nullable target** — the other four are NOT
+> NULL and fail loud with 23502, so nothing else was owed.
+> ⚠ **And this PR's own fix asserted something it never checked.** The new failure
+> notice said *"Your meal log is saved"* on a path that cannot observe the macro write:
+> `doLog()` fires both requests unawaited and `logMealMacros` resolves to null on every
+> failure with no queue or retry, so one offline moment — or one 402 from the
+> `requireMembership` gate fronting **both** routes — takes down both legs. It now
+> speaks **only for the note**, in both directions: it must not claim the log failed
+> either, because null cannot distinguish *failed* from *never attempted* and
+> `add_meal_macros` is an **accumulating upsert with no idempotency key**, so copy that
+> nudges a re-log double-counts the day. Two sites carried the claim; review named one.
+> ⚠ **MIGRATION OWED — it must be RE-RUN** (an earlier form was applied mid-review, so
+> production has the RPC *without* the NULL-role fix and still carries the orphaned
+> `conversations_direct_pair_uniq` index). Idempotent; nothing else will remove it.
+> Suite **1514**; CI green on six checks and Codex clean on the final head.
+>
+> See the full entry below.
+
+> **Prior (2026-08-05): THE ✦ AI DRAFT IS REAL — the coach builders finally use the
 > answer they were already paying for (#1873 → `98a46340f`).** Both plan builders
 > awaited `generatePlanDraft`, rendered an ✦ AI DRAFT eyebrow, and then built the
 > outline from a **hardcoded template** — every coach got the same template and the
@@ -1505,6 +1542,121 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-08-14 — The direct-conversation RPC restored + the meal note stops asserting what it never checked (#1876 → `ed3582a1f`)
+
+- **The bug:** `public.get_or_create_direct_conversation` is declared by
+  `2026-05-02-conversations-messages.sql` but was **never created in production**.
+  Found by the 2026-08-05 schema-drift audit (174 live functions and 218 live policies
+  diffed against `supabase-migrations/`); it is one of **eight** declared-but-absent
+  functions and **the only one live product code calls**.
+
+- ⚠ **Two live callers, and the worse one failed silently.**
+  `api/nutrition/meal-note/route.ts:126` — the mobile meal logger's "dispatch to
+  coach" — uploaded the voice memo and photo to storage **successfully**, looped the
+  member's coaches, called the missing function, and hit
+  `if (convErr || !conversationId) continue;`. The route returned **HTTP 200 with
+  `delivered:false`** and the client only toasted on success, so the note reached
+  nobody and the member was never told. `api/messages/direct/route.ts:84` — the
+  "message this provider" button on `/trainers/[id]` and `/nutritionists/[id]` — at
+  least failed loudly with a 400.
+
+- **Nobody has been affected, and that was verified rather than assumed.**
+  `conversations` and `messages` are both **empty (0 rows)** in production, so no
+  member has ever sent a meal note or a direct message. This is a defect that would
+  fire on first real use, not damage already done. Nothing to backfill.
+
+- **The restore is the 2026-05-02 original verbatim, with four deliberate changes**,
+  each documented at its site: `search_path` pinned to `pg_temp`, the lost-race
+  `unique_violation` handled, the grant narrowed to `authenticated`, and — the one
+  that is a **behaviour fix rather than hardening** — the NULL-role bypass closed.
+
+- ⚠ **`null not in (…)` IS NOT TRUE, AND THAT BYPASSED THE GUARD.** The original
+  validated with a bare `p_provider_role not in ('trainer','nutritionist')`. Three-valued
+  logic makes that **NULL** for a null role, and PL/pgSQL's `IF` treats NULL as false —
+  so the one value the check most needed to reject walked straight through. Verified
+  against production, a NULL role then did **all three** of these:
+  - `p_provider_role = 'trainer'` is also NULL, so execution fell to the `ELSE` branch
+    and looked the id up in `nutritionists` regardless of intent.
+  - The existing-conversation lookup compares `provider_role = p_provider_role`, and
+    `null = null` is null — so it could never match, and every call inserted a new row.
+  - `conversations.provider_role` is **nullable** and its CHECK is
+    `provider_role = any(array['trainer','nutritionist'])`. **A CHECK passes when it
+    evaluates to TRUE *or NULL***, so the role-less row inserted cleanly — and
+    `conversations_direct_unique_idx`'s predicate requires `provider_role is not null`,
+    so the row was **not indexed** and uniqueness never applied. Repeated calls
+    accumulate unbounded duplicates.
+
+  For a **claimed** provider it is louder but not safer: the participants insert fails
+  the NOT NULL on `conversation_participants.role` and the transaction rolls back.
+  **41 of the 43 live listings are unclaimed**, so the silent-junk path is the common
+  one. Reachability: `/api/messages/direct` rejects an unknown role before calling and
+  the meal-note fan-out passes literals — but the function is granted to
+  `authenticated`, so any signed-in member can call it directly through PostgREST and
+  skip both.
+
+- **The sibling sweep was closed by measurement, not by assertion.** The deciding
+  question is the *target column's nullability*: nullable means silent junk, NOT NULL
+  means a loud 23502. Of the five comparable `x not in (…)` guards,
+  `conversations.provider_role` was the **only nullable one** —
+  `coach_referrals.provider_role`, `ai_audit_log.source`, `analytics_events.event` and
+  `consent_log.kind` are all NOT NULL. **Nothing out-of-scope was owed.**
+
+- ⚠ **AND THIS PR'S OWN FIX ASSERTED SOMETHING IT NEVER CHECKED.** The honest failure
+  notice added here told the member *"Your meal log is saved — only the note didn't
+  send"*, which is exactly backwards in the state that reaches it most: `doLog()` fires
+  the note dispatch and the macro write as **two independent unawaited requests**, and
+  `logMealMacros` resolves to null on **every** failure with no queue and no retry
+  (`shapeBackend.js:4979-5005`), so one offline moment — or one **402** from the
+  `requireMembership` gate fronting **both** routes — takes down both legs. Worse, the
+  wording was chosen to stop the member re-logging, and the affordance is *removed*
+  either way (`mealTick` swaps the log button for a static `✓`).
+
+- ⚠ **The remedy the review proposed would have regressed three ways, so it was not
+  implemented as written.** (1) Keying on the log result uses a `null` that **cannot
+  distinguish *failed* from *never attempted*** — `logMealMacros` returns null *before
+  issuing a request* when signed out, so the warning would fire on the signed-out
+  preview, the same never-attempted class as the `no_coach` branch. (2) Awaiting the
+  sibling promise to find out is worse: its fetch has no AbortController and no
+  timeout, so a hung socket would leave the notice unrendered — the void-reporting bug
+  the notice exists to end. (3) `add_meal_macros` is an **accumulating upsert with no
+  idempotency key**, so copy nudging a re-log permanently double-counts the day.
+  **The notice now speaks only for the note, in both directions** — it claims neither
+  that the log saved nor that it failed. **Two sites carried the claim; review named
+  one.**
+
+- **Scope, split honestly:** the *assertion* was added by this PR (64/2 inside
+  `sendMealNote`); the *mechanism* — discarded result, unconditional `setLogged(true)` —
+  is byte-identical on `main`. This PR did not break persistence reporting; it turned a
+  silent wrong state into a confidently mis-stated one.
+
+- **Tests:** `tests/meal-note-copy.test.mjs` guards the rule **in both directions**
+  plus the two deliberately-silent paths (`no_coach`, nothing-attached). It is an
+  honest **source-text** guard — the copy is inline literals in a ~9.7k-line component
+  with no seam to mount — so it is **mutation-tested against the real file**:
+  reintroducing the shipped sentence fails it, restoring the fix passes. It strips
+  comments before asserting, or it would fire on its own rationale.
+  `tests/broadsheet-confirm-notice.test.mjs` drives the confirm sheet. Suite **1514**.
+
+- ⚠ **MIGRATION OWED — `2026-08-08-restore-direct-conversation.sql` MUST BE RE-RUN.**
+  An earlier form was applied mid-review, so production currently has the RPC
+  **without** the NULL-role fix and still carries the orphaned
+  `conversations_direct_pair_uniq` index that the later revision drops. **Nothing else
+  will remove it.** The migration is idempotent and safe against the already-applied
+  state; its verification block raises loudly if any of the four guarantees is missing,
+  so a silent partial apply is not possible. Guard assertions are mutation-tested (they
+  fail against the pre-fix shape) and compile-tested in `pg_temp`.
+
+- **Registered, not fixed here:** the pre-existing unconditional `MEAL · FILED` /
+  `Logged ✓` stamp with a client-computed `dayCal = dayBaseCal + kcal` that never
+  consults the server — strictly wider than the notice fixed here, and gating it on a
+  server result breaks the signed-out preview and offline logging, so it is a design
+  change; a **routing asymmetry flagged UNVERIFIED** (`sendMealNote` uses a bare
+  root-relative fetch with no `apiBaseUrl` and no Bearer while `logMealMacros` uses
+  both, which on a native Capacitor build would fail the note leg while the macro write
+  succeeds — **no native build was run**); abuse-volume rate limiting on the RPC; and
+  the open product call that an unclaimed provider listing is hidden from the
+  marketplace list but its detail page is not.
 
 ### 2026-08-05 — The ✦ AI DRAFT is real: the six-mode contract (#1873 → `98a46340f`)
 
