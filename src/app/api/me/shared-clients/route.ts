@@ -12,14 +12,13 @@ import { createClient } from '@/lib/supabase/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type SubRow = {
+type CounterpartRow = {
   client_id: string;
-  provider_role: 'trainer' | 'nutritionist';
-  provider_id: number;
-  status: string;
+  counterpart_user_id: string;
+  counterpart_role: 'trainer' | 'nutritionist';
+  counterpart_provider_id: number;
+  counterpart_name: string | null;
 };
-
-const ACTIVE = ['active', 'trialing'];
 
 export async function GET() {
   const supabase = await createClient();
@@ -39,88 +38,63 @@ export async function GET() {
     return NextResponse.json({ shared: [], myRoles: [] });
   }
 
-  // 1. Fetch every active subscription belonging to me.
-  const myFilters: Array<{ role: 'trainer' | 'nutritionist'; id: number }> = [];
-  if (myTrainerId != null) myFilters.push({ role: 'trainer', id: myTrainerId });
-  if (myNutritionistId != null) myFilters.push({ role: 'nutritionist', id: myNutritionistId });
+  const myRoles: Array<'trainer' | 'nutritionist'> = [];
+  if (myTrainerId != null) myRoles.push('trainer');
+  if (myNutritionistId != null) myRoles.push('nutritionist');
 
-  const mineRes = await supabase
-    .from('subscriptions')
-    .select('client_id, provider_role, provider_id, status')
-    .in('status', ACTIVE)
-    .or(myFilters.map(f => `and(provider_role.eq.${f.role},provider_id.eq.${f.id})`).join(','));
+  // 1. My shared clients AND their counterpart coaches, in ONE definer call.
+  //
+  // ⚠ This was two caller-scoped reads of `subscriptions`, and the second could NEVER return a
+  // row. RLS there is client-reads-own + provider-reads-own with no cross-provider clause, so
+  // asking for the COUNTERPART's subscription always yielded [] and this route answered HTTP 200
+  // with an empty roster -- silent, and indistinguishable from "no shared clients yet". Verified
+  // by impersonation against production: the real owner sees 1 row, a different coach sees 0,
+  // with a control read returning 21 in both. See 2026-08-10-shared-clients-roster.sql.
+  //
+  // ⚠ There was a SECOND, independent bug that also emptied this list on its own, so fixing only
+  // the permission half would have changed nothing: the provider lookups below used to select
+  // `avatar_url` from trainers/nutritionists, a column that exists on NEITHER table (it lives on
+  // `profiles`). PostgREST 400s an unknown column, the error was discarded with `?? []`, and every
+  // row then failed the `if (!cp)` filter. The definer returns no avatar because there is none to
+  // return; the UI already renders initials when it is absent.
+  const { data: rpcRows, error: rpcError } = await supabase.rpc('get_my_shared_clients');
 
-  const mine = (mineRes.data ?? []) as SubRow[];
-  const myClientIds = [...new Set(mine.map(r => r.client_id).filter(Boolean))];
-  if (myClientIds.length === 0) {
-    return NextResponse.json({ shared: [], myRoles: myFilters.map(f => f.role) });
+  if (rpcError) {
+    // Surface it rather than degrading to []. Answering 200-with-empty is precisely what kept the
+    // original defect invisible for as long as it lasted.
+    console.error('[shared-clients] get_my_shared_clients failed:', rpcError.message);
+    return NextResponse.json({ error: 'Could not load shared clients.' }, { status: 500 });
   }
 
-  // 2. Find subscriptions for the OPPOSITE role on those same clients.
-  const oppositeRoles = new Set<'trainer' | 'nutritionist'>();
-  if (myTrainerId != null) oppositeRoles.add('nutritionist');
-  if (myNutritionistId != null) oppositeRoles.add('trainer');
+  const counterparts = (rpcRows ?? []) as CounterpartRow[];
+  if (counterparts.length === 0) return NextResponse.json({ shared: [], myRoles });
 
-  const counterpartRes = await supabase
-    .from('subscriptions')
-    .select('client_id, provider_role, provider_id, status')
-    .in('status', ACTIVE)
-    .in('client_id', myClientIds)
-    .in('provider_role', [...oppositeRoles]);
-
-  const counterparts = (counterpartRes.data ?? []) as SubRow[];
-  if (counterparts.length === 0) {
-    return NextResponse.json({ shared: [], myRoles: myFilters.map(f => f.role) });
-  }
-
-  // 3. Resolve counterpart provider details + the client's name.
-  const trainerIds = counterparts.filter(r => r.provider_role === 'trainer').map(r => r.provider_id);
-  const nutriIds = counterparts.filter(r => r.provider_role === 'nutritionist').map(r => r.provider_id);
+  // 2. Resolve the client's display name + which pairs I have already acknowledged.
   const clientIds = [...new Set(counterparts.map(r => r.client_id))];
-
-  const [trainersRes, nutriRes, clientProfilesRes, acksRes] = await Promise.all([
-    trainerIds.length
-      ? supabase.from('trainers').select('id, name, owner_id, avatar_url').in('id', trainerIds)
-      : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null; avatar_url: string | null }> }),
-    nutriIds.length
-      ? supabase.from('nutritionists').select('id, name, owner_id, avatar_url').in('id', nutriIds)
-      : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null; avatar_url: string | null }> }),
+  const [clientProfilesRes, acksRes] = await Promise.all([
     supabase.from('profiles').select('id, full_name').in('id', clientIds),
     supabase.from('shared_client_acks').select('client_id, counterpart_user_id').eq('coach_user_id', user.id),
   ]);
 
-  const trainerById = new Map<number, { name: string; owner_id: string | null; avatar_url: string | null }>();
-  for (const t of trainersRes.data ?? []) trainerById.set(t.id, { name: t.name, owner_id: t.owner_id, avatar_url: t.avatar_url });
-  const nutriById = new Map<number, { name: string; owner_id: string | null; avatar_url: string | null }>();
-  for (const n of nutriRes.data ?? []) nutriById.set(n.id, { name: n.name, owner_id: n.owner_id, avatar_url: n.avatar_url });
   const clientName = new Map<string, string>();
   for (const p of clientProfilesRes.data ?? []) clientName.set(p.id, (p.full_name ?? '').trim() || 'Client');
   const ackKey = (clientId: string, counterpartUserId: string) => `${clientId}|${counterpartUserId}`;
   const acks = new Set<string>();
   for (const a of acksRes.data ?? []) acks.add(ackKey(a.client_id, a.counterpart_user_id));
 
-  // 4. Build response rows.
-  const shared = counterparts
-    .map(r => {
-      const cp = r.provider_role === 'trainer' ? trainerById.get(r.provider_id) : nutriById.get(r.provider_id);
-      if (!cp || !cp.owner_id) return null;
-      return {
-        clientId: r.client_id,
-        clientName: clientName.get(r.client_id) ?? 'Client',
-        counterpart: {
-          userId: cp.owner_id,
-          role: r.provider_role,
-          providerId: r.provider_id,
-          name: cp.name,
-          avatarUrl: cp.avatar_url,
-        },
-        acknowledged: acks.has(ackKey(r.client_id, cp.owner_id)),
-      };
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null);
+  // 3. Build response rows. Shape is unchanged, so no client-side change is needed.
+  const shared = counterparts.map(r => ({
+    clientId: r.client_id,
+    clientName: clientName.get(r.client_id) ?? 'Client',
+    counterpart: {
+      userId: r.counterpart_user_id,
+      role: r.counterpart_role,
+      providerId: r.counterpart_provider_id,
+      name: r.counterpart_name ?? 'Coach',
+      avatarUrl: null as string | null,
+    },
+    acknowledged: acks.has(ackKey(r.client_id, r.counterpart_user_id)),
+  }));
 
-  return NextResponse.json({
-    shared,
-    myRoles: myFilters.map(f => f.role),
-  });
+  return NextResponse.json({ shared, myRoles });
 }
