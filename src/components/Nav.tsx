@@ -179,13 +179,6 @@ export default async function Nav() {
                 <Link href="/newdesign/NutritionistDashboard.html">Nutritionist dashboard</Link>
               </div>
             </div>
-            <div className="nav-dropdown">
-              <Link href="/for-gyms">Gyms</Link>
-              <div className="nav-dropdown-menu">
-                <Link href="/for-gyms">Shape Pass</Link>
-                <Link href="/gyms">Gym directory</Link>
-              </div>
-            </div>
             <Link href="/newdesign/Pricing.html">Pricing</Link>
             <Link href="/contact">Contact</Link>
           </div>
