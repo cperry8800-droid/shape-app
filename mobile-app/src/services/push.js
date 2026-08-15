@@ -51,6 +51,16 @@ let registered = false;
 // can unassign it (unregisterPush needs the value, and the platform only hands
 // it to the 'registration' listener).
 let lastToken = null;
+// The in-flight registration POST, tracked so teardownPush() can SERIALIZE
+// against it. Without this, a sign-out that begins after the POST is
+// dispatched but before it settles can have the teardown DELETE reach the API
+// first — deleting nothing — and the stale POST then (admin-powered since the
+// re-point fix) assigns the token back to the account that just signed out.
+// The generation check can't close this: it runs before dispatch, and neither
+// it nor removeAllListeners() can recall a request already on the wire.
+// Awaiting settlement IS airtight for ordering — a received response means the
+// server finished processing the POST before the DELETE is even dispatched.
+let pendingRegister = null;
 
 export async function registerPush() {
   const PushNotifications = nativePush();
@@ -86,12 +96,14 @@ export async function registerPush() {
         const accessToken = auth && auth.session && auth.session.access_token;
         const headers = { 'Content-Type': 'application/json' };
         if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-        await fetch(`${apiBase()}/api/push/register`, {
+        const req = fetch(`${apiBase()}/api/push/register`, {
           method: 'POST',
           credentials: 'same-origin',
           headers,
           body: JSON.stringify({ token: value, platform: platform() }),
         });
+        pendingRegister = req;
+        try { await req; } finally { if (pendingRegister === req) pendingRegister = null; }
       } catch (e) { /* best-effort */ }
     });
 
@@ -172,6 +184,23 @@ export async function teardownPush() {
   if (PushNotifications && PushNotifications.removeAllListeners) {
     try { await PushNotifications.removeAllListeners(); } catch (e) {}
   }
-  if (!token) return;
-  if (await unregisterPush(token)) lastToken = null;
+  // Serialize against an in-flight registration POST before deleting: the
+  // DELETE must be dispatched only after the POST has settled, or the two race
+  // server-side and a stale POST can re-assign the token to the account that
+  // just signed out. Bounded — teardown runs before the sign-out reload, and
+  // the shared-device guarantee must not hang on a stalled socket (the round-9
+  // rule: the scrub and reload always run). Residual, accepted + narrow: a
+  // POST still unsettled after the bound can land after the DELETE; the row it
+  // re-creates is then cleaned by the next registration's admin re-point.
+  if (pendingRegister) {
+    try {
+      await Promise.race([pendingRegister, new Promise((r) => setTimeout(r, 4000))]);
+    } catch (e) {}
+  }
+  // Re-read AFTER the await: the settled registration may have set lastToken
+  // between teardown entry and here, and the snapshot taken at entry would
+  // miss it — leaving the just-registered token assigned.
+  const settledToken = lastToken || token;
+  if (!settledToken) return;
+  if (await unregisterPush(settledToken)) lastToken = null;
 }
