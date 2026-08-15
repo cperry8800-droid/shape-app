@@ -217,7 +217,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       try {
         [
           // newdesign families
-          'shapeClientIntake_v1', 'shapeConsultations',
+          'shapeClientIntake_v1', 'shapeClientIntake_v1_synced', 'shapeConsultations',
           'shape.dashMealDrafts', 'shape.dashBuilderDrafts', 'shape.viewerRole',
           // legacy root-page keys
           'shapeMealLog', 'shapeWorkoutLog', 'shapeMealSchedule', 'shapeSchedule',
@@ -297,14 +297,52 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // them the first time a real session exists — which is the confirm-then-
     // log-in step. Idempotent via a synced marker; failure leaves the payload
     // in place to retry on the next session.
+    // ⚠ THE PENDING RECORD HAS AN OWNER, AND THE OWNER IS NOT "WHOEVER IS
+    // SIGNED IN NOW". localStorage is origin-wide and survives sign-out, so on
+    // a shared browser person A can sign up (email confirmation required → no
+    // session → answers left pending) and person B can then sign into their
+    // own account. /api/intake keys the row to the AUTHENTICATED user, so an
+    // unbound flush would file A's injuries, medications, allergies and
+    // emergency contact onto B's record — and show them to B's coach. The
+    // record is therefore bound to the email that typed it and refused when it
+    // does not match the session.
     async flushPendingIntake(session) {
       try {
-        if (!session) return false;
+        var email = session && session.user && session.user.email;
+        if (!email) return false;
+        var me = String(email).trim().toLowerCase();
         var raw = localStorage.getItem('shapeClientIntake_v1');
         if (!raw) return false;
-        if (localStorage.getItem('shapeClientIntake_v1_synced') === '1') return false;
         var data = JSON.parse(raw);
         if (!data || typeof data !== 'object') return false;
+
+        // Ownership. Every payload signup-client.html has ever written carries
+        // `email` (it is a required step-1 field), so the no-email branch is a
+        // belt-and-braces refusal rather than a live path.
+        var owner = data.email ? String(data.email).trim().toLowerCase() : '';
+        if (!owner || owner !== me) return false;
+
+        // Refuse, do NOT delete: this is someone else's session, and deleting
+        // here would destroy the owner's PAR-Q before they ever sign in. The
+        // sign-out scrub is what clears the payload.
+
+        // Marker is scoped to the owner, so a stale one from a previous person
+        // on this device cannot make a new member's questionnaire skip. The
+        // capture in signup-client.html also clears it; both hold independently.
+        var SYNCED = 'shapeClientIntake_v1_synced';
+        if (localStorage.getItem(SYNCED) === owner) return false;
+
+        // Send only the questionnaire fields the endpoint reads. The stored
+        // record should already be password-free, but a payload written before
+        // that fix can still be sitting in this browser — so the credential is
+        // excluded here too rather than trusted to be absent.
+        var f = ['firstName','lastName','dob','sex','goal','level','frequency',
+                 'injuries','medical','dietary','emergencyContact',
+                 'accountability','interests','budget'];
+        var body = {}; for (var i = 0; i < f.length; i++) { if (data[f[i]] != null) body[f[i]] = data[f[i]]; }
+        var details = {}; for (var k in data) { if (k !== 'password') details[k] = data[k]; }
+        body.details = details;
+
         var res = await fetch('/api/intake', {
           method: 'POST',
           credentials: 'include',
@@ -312,13 +350,13 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
             'Content-Type': 'application/json',
             Authorization: 'Bearer ' + session.access_token,
           },
-          body: JSON.stringify(data),
+          body: JSON.stringify(body),
         });
         // Only mark synced on a real success. A 4xx that is NOT auth (e.g. the
         // row already exists) is also terminal — retrying forever would be
         // worse than stopping. Auth failures and 5xx stay pending.
         if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) {
-          localStorage.setItem('shapeClientIntake_v1_synced', '1');
+          localStorage.setItem(SYNCED, owner);
           return res.ok;
         }
         return false;

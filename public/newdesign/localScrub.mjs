@@ -34,6 +34,7 @@
 export const SHAPE_SCRUB_KEYS = [
   // ── website / newdesign families ──────────────────────────────────────────
   'shapeClientIntake_v1',   // signup intake — can carry health details
+  'shapeClientIntake_v1_synced', // owner email of the intake above — goes with it
   'shapeConsultations',     // bookings — contact details
   'shape.dashMealDrafts',   // coach drafts about named clients
   'shape.dashBuilderDrafts',

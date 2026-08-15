@@ -1706,7 +1706,7 @@ function useBSSetsSchedule() {
   useEffectBR(() => {
     let on = true;
     const derive = () => { if (on) setState({ ...bsSetsNow(rowsRef.current, Date.now()), real: realRef.current }); };
-    Promise.all([
+    const load = () => Promise.all([
       window.ShapeNoraSets ? window.ShapeNoraSets.list() : Promise.resolve([]),
       window.ShapeRadioLive ? window.ShapeRadioLive.station() : Promise.resolve(null),
     ]).then(([rows, cfg]) => {
@@ -1715,8 +1715,18 @@ function useBSSetsSchedule() {
       realRef.current = !!(cfg && cfg.configured);
       derive();
     }).catch(() => {});
+    load();
+    // ⚠ The station route is SIGNED-IN ONLY, so a mount that beats the session
+    // resolve reads configured:false. That errs SAFE — it under-reports rather
+    // than painting a LIVE badge over a stream that cannot play, which is this
+    // hook's stated contract — but under-reporting is still wrong, so re-read
+    // once auth lands. The 60s interval only re-DERIVES from cached rows; it
+    // never re-fetches, so without this the first read would stand for the
+    // whole mount.
+    const onAuth = () => { load(); };
+    window.addEventListener('shape:identity', onAuth);
     const id = setInterval(derive, 60000);
-    return () => { on = false; clearInterval(id); };
+    return () => { on = false; clearInterval(id); window.removeEventListener('shape:identity', onAuth); };
   }, []);
   return state;
 }

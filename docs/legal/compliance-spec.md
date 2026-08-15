@@ -298,6 +298,19 @@ of `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx`, where the code lives.
   ⚠ **Reintroducing any signed-out listening re-opens the non-subscription rate
   ($0.0025) and permanently splits SoundExchange reporting.** It is a licensing
   decision, not a growth experiment.
+  ⚠ **A UI gate is not an access control, and both halves are now required.**
+  The first pass closed only the players; `GET /api/radio/station` still handed
+  `streamUrl` to any anonymous caller, so the signed-out path survived one curl
+  past a removed preview. That route is **signed-in only (401 anonymous)** as of
+  2026-08-15, and both callers send a Bearer token (`public/radio.html`
+  explicitly, because supabase-js keeps the session in localStorage on that page
+  rather than in cookies; `shapeBackend.js` because a native build has no
+  cookies at all). **Honest residual, not closed:** the URL points at the
+  provider's public endpoint, so anyone who already resolved it can keep hitting
+  the provider directly — what changed is that Shape no longer distributes it.
+  Fully closing it needs a subscriber-scoped stream token or a proxy in front of
+  the provider; registered in the War Room, and a provider-capability question
+  rather than an implementation one.
 - **Which licences Radio.co carries — SETTLED 2026-08-15: none.** Radio.co's own
   help documentation states they do **not** provide music licensing or royalty
   coverage. **Proceed on the basis that Shape pays SoundExchange and the PROs

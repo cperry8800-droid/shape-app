@@ -7072,8 +7072,16 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     if (!el) { el = new Audio(); el.preload = 'none'; el.crossOrigin = 'anonymous'; }
     return el;
   }
+  // ⚠ The station route is SIGNED-IN ONLY (see the route's own header). A
+  // native build has no cookies, so the Bearer token is required or every
+  // station read 401s and the player reads permanently "not configured".
   async function station() {
-    try { const r = await fetch(api('/api/radio/station'), { cache: 'no-store' }); return r.ok ? r.json() : null; }
+    try {
+      const headers = {};
+      if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+      const r = await fetch(api('/api/radio/station'), { cache: 'no-store', headers });
+      return r.ok ? r.json() : null;
+    }
     catch { return null; }
   }
   async function nowPlaying(signal) {

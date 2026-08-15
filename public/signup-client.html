@@ -284,6 +284,12 @@
       if (!data.email || !data.password) { alert('Email and password are required.'); return; }
       if (!window.shapeDb) { alert('Auth client not loaded. Please refresh.'); return; }
 
+      // `data` carries the PASSWORD: gatherIntakeData() sweeps every [name] in
+      // steps 1-4 and the password input is one of them. Only signUp() below may
+      // read it. Everything that stores or transmits the questionnaire uses
+      // `intake` instead, so the credential cannot ride along by omission.
+      var intake = {}; for (var _k in data) { if (_k !== 'password') intake[_k] = data[_k]; }
+
       var btn = document.querySelector('#step4 .btn-submit');
       if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
 
@@ -302,7 +308,13 @@
         return;
       }
       // Persist intake locally so the client dashboard can show it later.
-      try { localStorage.setItem('shapeClientIntake_v1', JSON.stringify(data)); } catch(e){}
+      // Clearing the synced marker is what lets a SECOND person on this device
+      // reach their coach at all: the marker is origin-wide and no sign-out
+      // scrub removes it, so a stale one makes flushPendingIntake skip forever.
+      try {
+        localStorage.setItem('shapeClientIntake_v1', JSON.stringify(intake));
+        localStorage.removeItem('shapeClientIntake_v1_synced');
+      } catch(e){}
 
       var session = await window.shapeDb.getSession();
       if (!session) {
@@ -336,7 +348,10 @@
             accountability: data.accountability,
             interests: data.interests,
             budget: data.budget,
-            details: data
+            // NOT `data`: /api/intake stores body.details verbatim through
+            // sanitizeDetails(), which copies every string entry - so sending
+            // the raw object wrote the plaintext password into client_intakes.
+            details: intake
           })
         });
       } catch (err) {

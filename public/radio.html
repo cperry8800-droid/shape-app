@@ -429,8 +429,17 @@
     }
 
     function loadStation() {
-      return fetch('/api/radio/station', { cache: 'no-store' })
-        .then(function (r) { return r.json(); })
+      // ⚠ The station route is SIGNED-IN ONLY. On this page supabase-js keeps
+      // the session in localStorage rather than cookies, so the token is sent
+      // explicitly instead of relying on the cookie bridge being in place.
+      return Promise.resolve()
+        .then(function () { return window.shapeDb ? window.shapeDb.getSession() : null; })
+        .then(function (session) {
+          var headers = {};
+          if (session && session.access_token) headers.Authorization = 'Bearer ' + session.access_token;
+          return fetch('/api/radio/station', { cache: 'no-store', credentials: 'include', headers: headers });
+        })
+        .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (cfg) {
           STREAM_URL = cfg && cfg.configured ? cfg.streamUrl : null;
           if (STREAM_URL) { audio.src = STREAM_URL; }

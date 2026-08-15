@@ -1396,7 +1396,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Shape Radio — real licensed player (Phase 1)',
       items: [
         { label: 'radio_station singleton config table (provider / stream_url / now_playing_url, public-read RLS) — migration 2026-06-19-radio-station.sql', status: 'done' },
-        { label: 'GET /api/radio/station — public, returns {name, streamUrl, provider, configured}', status: 'done' },
+        { label: 'GET /api/radio/station — SIGNED-IN ONLY (401 anonymous; the statutory licence covers signed-in listeners, so an anonymous caller is not a licensed one), returns {name, streamUrl, provider, configured}', status: 'done' },
+        { label: 'Subscriber-scoped stream token or a proxy in front of the provider — the station route no longer hands streamUrl to anonymous callers, but the URL still points at the provider\'s public endpoint, so anyone who already resolved it can hit the provider directly', status: 'pending' },
         { label: 'GET /api/radio/now-playing — public, returns {title, artist, isNora}; degrades to nulls on any provider error', status: 'done' },
         { label: 'RadioProvider adapter (provider.ts interface + NowPlaying type, now-playing.mjs pure normalizer, mock.ts, http.ts, index.ts getProvider selector); unit-tested (tests/radio-now-playing.test.mjs)', status: 'done' },
         { label: 'Web player (public/radio.html) streams the live provider URL + polls /api/radio/now-playing; off-air / coming-soon / auto-retry states', status: 'done' },
