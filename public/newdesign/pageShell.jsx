@@ -341,6 +341,17 @@ function Header({ active }) {
     try {
       await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
     } catch {}
+    // The cookie sign-out alone leaves the persisted Supabase SDK session
+    // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns
+    // it before ever consulting the now-cleared cookie, so the next visitor
+    // could still act as this account through client-side Supabase APIs.
+    // Prefer the full local sign-out (shapeDb.signOut clears that session AND
+    // runs the content scrub); fall back to the scrub alone on any page that
+    // doesn't load supabase.js.
+    try {
+      if (window.shapeDb && window.shapeDb.signOut) await window.shapeDb.signOut();
+      else if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent();
+    } catch {}
     window.location.href = '/';
   }
   async function switchRole(nextRole) {
@@ -1367,6 +1378,94 @@ Object.assign(window, { ShapeHomeCards });
 // see a banner; GPC is honored everywhere; the choice is recorded (and, when
 // signed in, logged to consent_log). No-ops once a choice exists. Loaded via
 // pageShell, so it covers every page that renders the shared shell.
+// ── Sign-out content scrub (shared-device hygiene) ───────────────────────────
+// ⚠ THE INVENTORY IS THE UNION in /newdesign/localScrub.mjs — this file is a
+// classic script and cannot import an ES module, so it carries an inline copy;
+// tests/local-scrub-sync.test.mjs fails the suite if this copy drifts from the
+// canonical. The union exists because the mobile app ships at /m/ under THIS
+// origin (scripts/build-m.sh), sharing one localStorage — so a website
+// sign-out must also scrub the mobile families, and a /m/ sign-out scrubs the
+// website's (its handleLogout imports the canonical directly).
+// Every newdesign sign-out path calls this: the navbar handleLogout above, and
+// shapeDb.signOut() / the account-deletion flows (supabase.js prefers this
+// copy when it's loaded). ⚠ Legacy root pages (clients.html,
+// nutrition-schedule.html, the shapeSignOut() navbars) DO carry sign-out
+// controls but never load pageShell — so supabase.js keeps a FALLBACK TWIN of
+// these lists for those pages (same sync test covers it). Scope: user content
+// that is sensitive or account-scoped. Device-only personal lists with no
+// cloud copy (saved recipes incl. legacy shapeRecipes_v1, grocery lists incl.
+// legacy shapeGrocery*, today's plan) are deliberately KEPT — clearing them
+// destroys the member's own data, not a cache. The merch cart
+// (shape.storeCart — item ids + quantities only, no address) falls under the
+// same carve-out ON THE WEBSITE; the mobile sign-out clears it (its
+// long-standing behavior, passed as an extraKey there).
+window.shapeClearLocalUserContent = function () {
+  try {
+    [
+      "shapeClientIntake_v1",   // signup intake — can carry health details
+      "shapeConsultations",     // bookings — contact details
+      "shape.dashMealDrafts",   // coach drafts about named clients
+      "shape.dashBuilderDrafts",
+      "shape.viewerRole",
+      // Legacy root-page keys (pre-newdesign pages still write these):
+      "shapeMealLog", "shapeWorkoutLog",          // health-behavior logs
+      "shapeMealSchedule", "shapeSchedule",       // the account's schedule
+      "shapeWaterToday",                          // hydration log
+      "shapeMessagingSetting",                    // messaging privacy setting
+      "shapePurchasedWorkouts", "shapeRedeemedRewards", // purchases + reward codes
+      "shapeLibRemovedWorkouts",                  // library tombstones — would hide the next user's items
+      "shapeRadioLoggedIn",
+      "trainerSalesGoalWeekly", "trainerSalesGoalMonthly", "trainerSalesGoalAnnual",
+      "nutritionistSalesGoalWeekly", "nutritionistSalesGoalMonthly", "nutritionistSalesGoalAnnual",
+      // Mobile /m/ families (same origin — see the union note above):
+      "shape.clientCoachThreads", "shape.recentSearch", "shape.errorLog",
+      "shape.library", "shape.recipeGroceryLists", "shape.deletedGroceryIds",
+      "shape.cookResume", "shape.radio.musicLibraries",
+      "shape.stepGoal", "shape.notify.last",
+      "bs_coach_soundtracks", "bs_coach_soundtrack_assign",
+      "shape.clientIntakes", "shape.clientProfiles", "shape.clientWorkoutUpdates",
+      "shape.coachWorkoutReviewNotes", "shape.communityComments", "shape.communityPosts",
+      "shape.messages", "shape.providerApplications", "shape.providerAvailability",
+      "shape.providerMessages", "shape.refundRequests", "shape.sessionUpdates",
+      "shape.sessions", "shape.trainerPlaylists", "shape.workoutSessions"
+    ].forEach(function (k) { localStorage.removeItem(k); });
+    // Prefixed families — all account-scoped state a next user would inherit.
+    var prefixes = [
+      "shape.chat.v2.",       // per-user chat threads
+      "shape.dashGoals.",     // per-client goal drafts
+      "shape.habits.",        // same-day habit completion (health behavior — habits.jsx)
+      "shape.dashQueueDone.", // coach programming queue — client IDs marked done today
+      "shape.dashMealLog.",   // today's meal-log ticks (dashClient.jsx)
+      "shape.dashMealSwap.",  // today's meal swaps (dashClient.jsx)
+      "shape.dashNutriSwap.", // nutritionist-side day swaps (dashNutri.jsx)
+      // Legacy role families (profiles, client messages/check-ins, plans,
+      // assigned content, widget libs — all account-scoped; the KEEP-list keys
+      // shapeGrocery*/shapeRecipes_v1/shape-pwa-* don't match these prefixes):
+      "shapeTrainer", "shapeNutritionist", "shapeClient"
+    ];
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var key = localStorage.key(i);
+      if (!key) continue;
+      for (var j = 0; j < prefixes.length; j++) {
+        if (key.indexOf(prefixes[j]) === 0) { localStorage.removeItem(key); break; }
+      }
+    }
+  } catch (e) {}
+  // sessionStorage — a SEPARATE store this scrub used to miss entirely. It is
+  // per-tab, so a same-tab sign-out → next user keeps it, and (unlike a page
+  // reload, which clears nothing here) only an explicit removal drops it. The
+  // legacy live-workout flow is the only writer of user CONTENT:
+  //   clients.html      → shapeLiveWorkout        (title, exercises, reps, weights)
+  //   live-workout.html → shapeLiveWorkoutResult  (the completed health record)
+  // Everything else written to sessionStorage site-wide is a nav/UI flag or
+  // device playback state (shapeDashTab, shape.introSeen, shapeForceDesktop,
+  // shapeAppBannerDismissed, shapeStoreContext, shape.globalRadio.state) — the
+  // same carve-out reasoning that keeps the merch cart.
+  try {
+    ["shapeLiveWorkout", "shapeLiveWorkoutResult"].forEach(function (k) { sessionStorage.removeItem(k); });
+  } catch (e) {}
+};
+
 (function shapeConsent() {
   if (typeof document === "undefined") return;
   // Resolves true only when a consent_log row was actually written (so callers

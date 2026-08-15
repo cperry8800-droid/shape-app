@@ -1188,9 +1188,20 @@
       out.textContent='Sign out';
       out.addEventListener('click',function(e){
         e.preventDefault();
+        var go=function(){window.location.href='/newdesign/index.html';};
         fetch('/api/auth/signout',{method:'POST',credentials:'same-origin'})
           .catch(function(){})
-          .then(function(){window.location.href='/newdesign/index.html';});
+          .then(function(){
+            // The cookie sign-out alone leaves the Supabase localStorage session
+            // and cached user content on the device — run the full local
+            // sign-out too (shapeDb.signOut scrubs via shapeClearLocalUserContent).
+            var p=null;
+            try{
+              if(window.shapeDb&&window.shapeDb.signOut)p=window.shapeDb.signOut();
+              else if(window.shapeClearLocalUserContent)window.shapeClearLocalUserContent();
+            }catch(err){}
+            if(p&&p.then){p.then(go,go);}else{go();}
+          });
       });
       nauth.insertBefore(hi,radio);
       nauth.insertBefore(dashLink,radio);

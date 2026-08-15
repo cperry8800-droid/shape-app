@@ -90,9 +90,13 @@ function _bsHydrateProScore() {
   const role = String(window.ShapeAuth?.getCachedState?.()?.profile?.role || '').toLowerCase();
   const coachRole = role === 'trainer' ? 'trainer' : (role === 'nutritionist' || role === 'dietitian') ? 'nutritionist' : null;
   if (!coachRole) return;
+  // Session generation guard (window.__bsSessionGen — bumped by the client
+  // module's signedOut sweep, which always loads before this bundle): a fetch
+  // in flight at sign-out must not restore the previous coach's tier.
+  const gen = window.__bsSessionGen || 0;
   fetch(`/api/coach/score?role=${coachRole}`, { credentials: 'same-origin' })
     .then(r => (r.ok ? r.json() : null))
-    .then(d => { if (d && typeof d.total === 'number') { try { window.ShapeScore = { points: d.total || 0, tier: d.current_tier || 'Certified' }; } catch (e) {} } })
+    .then(d => { if (gen !== (window.__bsSessionGen || 0)) return; if (d && typeof d.total === 'number') { try { window.ShapeScore = { points: d.total || 0, tier: d.current_tier || 'Certified' }; } catch (e) {} } })
     .catch(() => {});
 }
 

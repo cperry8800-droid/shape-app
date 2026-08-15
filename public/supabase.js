@@ -140,7 +140,29 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     },
 
     async signOut() {
-      await client.auth.signOut();
+      // GUARDED, and the scope:'local' retry is LOAD-BEARING here — not the
+      // belt-and-braces it is on mobile. The website pins auth-js 2.108.2
+      // (public/vendor/supabase-js-2.108.2.umd.js, SRI-locked, loaded by every
+      // page), whose _signOut returns a failed global revocation WITHOUT
+      // reaching _removeSession(): `if (t && !(...404|401|403...)) return
+      // this._returnResult({error: t})` sits above the removal. So after an
+      // offline/retryable sign-out the persisted session survives, and
+      // shapeDb.getSession() restores the previous account on the next visit —
+      // past the scrub below, which clears content but not `shape.auth`.
+      // ⚠ Mobile ships 2.111.0, which DOES remove the session on that path. The
+      // two bundles genuinely differ; do not "harmonize" this by assuming the
+      // mobile behaviour, and do not drop the retry when the vendored bundle is
+      // next bumped without re-reading _signOut in the new version.
+      // The guard itself is why the retry can run at all: unguarded, a rejection
+      // here skipped the bridged cookie DELETE, the legacy-key removal and the
+      // content scrub, leaving the previous member signed in with their content
+      // on screen.
+      try {
+        const { error } = await client.auth.signOut();
+        if (error) { try { await client.auth.signOut({ scope: 'local' }); } catch (e) {} }
+      } catch (e) {
+        try { await client.auth.signOut({ scope: 'local' }); } catch (e2) {}
+      }
       // Clear the Next.js cookie session too so server-rendered routes
       // don't think the user is still signed in.
       try {
@@ -153,6 +175,74 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         localStorage.removeItem('shapeFirstName');
         localStorage.removeItem('shapeLastName');
         localStorage.removeItem('shapeEmail');
+      } catch (e) {}
+      shapeDb.clearLocalUserContent();
+    },
+
+    // Shared-device hygiene: user CONTENT must not survive sign-out. The
+    // CANONICAL implementation lives in pageShell.jsx
+    // (window.shapeClearLocalUserContent) and is preferred when loaded.
+    // ⚠ But legacy root pages (clients.html, nutrition-schedule.html, the
+    // shapeSignOut() navbars site-wide) DO expose sign-out controls and load
+    // THIS file without pageShell — an earlier comment here claimed they had
+    // none, and that claim was false: on those pages the delegation was a
+    // silent no-op, leaving shapeTrainerMessages / shapeTrainerCheckIns /
+    // shapeMealLog etc. for the next device user. So a complete FALLBACK TWIN
+    // runs when the canonical scrub is absent. KEEP THE TWO IN SYNC
+    // (pageShell.jsx → window.shapeClearLocalUserContent).
+    clearLocalUserContent() {
+      try {
+        if (window.shapeClearLocalUserContent) { window.shapeClearLocalUserContent(); return; }
+      } catch (e) {}
+      try {
+        [
+          // newdesign families
+          'shapeClientIntake_v1', 'shapeConsultations',
+          'shape.dashMealDrafts', 'shape.dashBuilderDrafts', 'shape.viewerRole',
+          // legacy root-page keys
+          'shapeMealLog', 'shapeWorkoutLog', 'shapeMealSchedule', 'shapeSchedule',
+          'shapeWaterToday', 'shapeMessagingSetting', 'shapePurchasedWorkouts',
+          'shapeRedeemedRewards', 'shapeLibRemovedWorkouts', 'shapeRadioLoggedIn',
+          'trainerSalesGoalWeekly', 'trainerSalesGoalMonthly', 'trainerSalesGoalAnnual',
+          'nutritionistSalesGoalWeekly', 'nutritionistSalesGoalMonthly', 'nutritionistSalesGoalAnnual',
+          // mobile /m/ families — /m/ ships under this origin, so the stores
+          // are shared; the union inventory is /newdesign/localScrub.mjs and
+          // tests/local-scrub-sync.test.mjs gates this copy against it
+          'shape.clientCoachThreads', 'shape.recentSearch', 'shape.errorLog',
+          'shape.library', 'shape.recipeGroceryLists', 'shape.deletedGroceryIds',
+          'shape.cookResume', 'shape.radio.musicLibraries',
+          'shape.stepGoal', 'shape.notify.last',
+          'bs_coach_soundtracks', 'bs_coach_soundtrack_assign',
+          'shape.clientIntakes', 'shape.clientProfiles', 'shape.clientWorkoutUpdates',
+          'shape.coachWorkoutReviewNotes', 'shape.communityComments', 'shape.communityPosts',
+          'shape.messages', 'shape.providerApplications', 'shape.providerAvailability',
+          'shape.providerMessages', 'shape.refundRequests', 'shape.sessionUpdates',
+          'shape.sessions', 'shape.trainerPlaylists', 'shape.workoutSessions'
+        ].forEach(function (k) { localStorage.removeItem(k); });
+        var prefixes = [
+          'shape.chat.v2.', 'shape.dashGoals.', 'shape.habits.',
+          'shape.dashQueueDone.', 'shape.dashMealLog.', 'shape.dashMealSwap.',
+          'shape.dashNutriSwap.',
+          // legacy role families (KEEP-list keys shapeGrocery*/shapeRecipes_v1
+          // /shape-pwa-* don't match these prefixes)
+          'shapeTrainer', 'shapeNutritionist', 'shapeClient'
+        ];
+        for (var i = localStorage.length - 1; i >= 0; i--) {
+          var key = localStorage.key(i);
+          if (!key) continue;
+          for (var j = 0; j < prefixes.length; j++) {
+            if (key.indexOf(prefixes[j]) === 0) { localStorage.removeItem(key); break; }
+          }
+        }
+      } catch (e) {}
+      // sessionStorage — see the canonical twin's note. The legacy live-workout
+      // flow (clients.html → shapeLiveWorkout, live-workout.html →
+      // shapeLiveWorkoutResult) is the only writer of user CONTENT there, and
+      // those pages are EXACTLY the ones that reach this fallback rather than
+      // the canonical scrub, so omitting it here would leave the previous
+      // member's exercises/reps/weights and completed record on the device.
+      try {
+        ['shapeLiveWorkout', 'shapeLiveWorkoutResult'].forEach(function (k) { sessionStorage.removeItem(k); });
       } catch (e) {}
     },
 

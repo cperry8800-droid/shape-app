@@ -2,7 +2,8 @@ import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
-import { registerPush } from './push.js';
+import { registerPush, teardownPush } from './push.js';
+import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -513,14 +514,104 @@ async function getCurrentSession() {
 }
 
 async function signOut() {
-  if (supabase) await supabase.auth.signOut();
+  // FIRST STATEMENT, before any teardown step: invalidates every operation
+  // already parked on an await (a push registration awaiting its token, a habit
+  // save awaiting its cancel) so none of them can resume after the sweep and
+  // re-create the state it just removed. Bumping here rather than inside each
+  // teardown means the guard can never race the step it protects.
+  bumpSignOutGen();
+  // Native push FIRST, while the session is still valid: the token-unassign
+  // DELETE is Bearer-authed. Also resets push.js's `registered` sentinel so the
+  // next account's registerPush() actually runs — without this a shared device
+  // keeps receiving the previous account's notifications.
+  try { await teardownPush(); } catch (e) {}
+  // Device-local scheduled habit reminders carry the member's habit label and
+  // fire from the OS, so they survive both the storage scrub and the sign-out
+  // reload. Device-enumerated, so this works offline and needs no session —
+  // but it runs here, beside the other teardown, so no exit path skips it.
+  try { await cancelAllLocalHabits(); } catch (e) {}
+  // GUARDED: everything below — the bridged cookie DELETE, the viewer-relative
+  // cache clears, and (in handleLogout) the storage scrub and the reload — runs
+  // after this line, so an unguarded rejection here would skip the whole
+  // teardown and leave the previous member signed in with their content on
+  // screen. The local retry is belt-and-braces: auth-js 2.111.0 already clears
+  // the persisted session on a failed global revocation (GoTrueClient._signOut
+  // calls removeCurrentSession() before returning the error), but that error
+  // path has differed across versions, and this is a shared-device privacy
+  // guarantee that shouldn't rest on a transitive dep's internals.
+  if (supabase) {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) { try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) {} }
+    } catch (e) {
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch (e2) {}
+    }
+  }
+  // The bridged Next.js API session cookie (bridgeSessionToApi POSTs it on every
+  // sign-in/session restore) outlives the SDK sign-out — on the hosted /m/ build
+  // every same-origin /api/* call would keep authenticating as the signed-out
+  // account, incl. from the signed-out preview. Delete it the way the website
+  // sign-out does. Best-effort: there is no cookie when the bridge never ran.
+  try {
+    if (apiBaseUrl) await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
+  } catch (e) {}
   invalidateClientMetrics();
+  // The notification-evaluation throttle is account-scoped state under an
+  // unscoped key: evaluateNotifications() stamps shape.notify.last on every
+  // successful evaluation and returns without evaluating while it is under 30
+  // minutes old. Left standing, account B signing in on a shared device is
+  // silenced by account A's timestamp — B's own roster/self record goes
+  // unevaluated until A's throttle expires. The content scrub doesn't cover it
+  // (it's not user CONTENT), so it clears here with the other cross-account
+  // state.
+  try { window.localStorage.removeItem('shape.notify.last'); } catch (e) {}
   // Clear viewer-relative caches so the next account never sees the previous user's
   // follow state / avatars (these are keyed by target id but hold viewer-relative data).
   for (const k in _followCache) delete _followCache[k];
   for (const k in _avatarCache) delete _avatarCache[k];
   _followingIdsCache = { uid: null, ids: null, at: 0 };
   _prepCache = null;   // PREPPED records are member data — never cross accounts
+  // The MusicKit singleton holds the AUTHORIZED USER's Apple Music token — left
+  // authorized, the next account on this device can list/save into the previous
+  // member's Apple Music library. unauthorize() drops the user token only; the
+  // developer-token setup (_musicKitPromise) is account-neutral and can stay.
+  try {
+    const mk = window.MusicKit && window.MusicKit.getInstance && window.MusicKit.getInstance();
+    if (mk && mk.isAuthorized && mk.unauthorize) await mk.unauthorize();
+  } catch (e) {}
+  // The realtime managers are account-bound and guard on module-scope sentinels
+  // (started / channel) that would otherwise survive an in-app A→logout→B switch —
+  // each start*() early-returns for B, so B inherits A's unread map, never gets its
+  // own activity hydration, and the presence channel stays keyed to A's user id.
+  // Tear all three down so the next sign-in initializes fresh.
+  try {
+    _unread.gen += 1; // invalidate any bootstrap parked on an await — it must not resume into the torn-down state
+    _unread.subs.forEach((off) => { try { off(); } catch (e) {} });
+    _unread.subs = [];
+    _unread.map = {};
+    _unread.myChannels = new Set();
+    _unread.started = false;
+    _unread.demoSeeded = false; // the logged-out marketing state may reseed its demo badges
+    _unreadEmit();
+  } catch (e) {}
+  try {
+    if (_presence.channel && supabase) { try { supabase.removeChannel(_presence.channel); } catch (e) {} }
+    _presence.channel = null;
+    _presence.ids = new Set();
+    _presence.count = 0;
+    _presence.visible = true; // startPresence re-reads the NEXT account's pref; A's opt-out must not carry over
+    _presenceEmit();
+  } catch (e) {}
+  try {
+    _activity.gen += 1; // invalidate an in-flight hydrate the same way
+    if (_activity.channel && supabase) { try { supabase.removeChannel(_activity.channel); } catch (e) {} }
+    _activity.channel = null;
+    _activity.map = new Map();
+    _activity.mine = null;
+    _activity.started = false;
+    try { window.ShapeMyActivity = null; } catch (e) {}
+    _activityEmit();
+  } catch (e) {}
   // The Sentry user tags drop with the rest of the viewer-relative state: setCached below
   // sees a null user and clears them, so a signed-out session can never inherit the
   // previous account's id/roles. Handled at that one chokepoint, not repeated here.
@@ -6016,7 +6107,7 @@ window.ShapeAdjustRegen = { apply: applyAdjustRegeneration };
 // ── Unread manager — app-wide so the Chat-tab badge + per-row badges work even
 //    when the chat screen isn't mounted. Seeds persisted counts, then keeps a
 //    live map via realtime. Keys: `ch:<id>` / `dm:<id>`.
-const _unread = { map: {}, started: false, listeners: new Set(), myChannels: new Set(), subs: [] };
+const _unread = { map: {}, started: false, gen: 0, listeners: new Set(), myChannels: new Set(), subs: [] };
 function _unreadEmit() { _unread.listeners.forEach(fn => { try { fn(_unread.map); } catch (e) {} }); }
 // Logged-out demo seed so the Chat-tab badge + per-row badges work in the
 // marketing state, for every profile. Keys match the sample channels/DMs the
@@ -6031,11 +6122,17 @@ function seedDemoUnread() {
 async function startUnread() {
   if (_unread.started || !supabase || !state.user?.id) return;
   _unread.started = true;
+  // Generation guard: a sign-out mid-bootstrap bumps _unread.gen, so a
+  // coroutine parked on any await below must not resume into the torn-down
+  // state — without this it would repopulate the map with the PREVIOUS
+  // account's counts and attach subscriptions after the teardown removed them.
+  const gen = _unread.gen;
   // Drop any demo seed once real data takes over.
   if (_unread.demoSeeded) { _unread.map = {}; _unread.demoSeeded = false; }
-  try { const ch = await listChannels(); (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
-  try { const { data } = await supabase.rpc('channel_unread'); (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
-  try { const { data } = await supabase.rpc('dm_unread'); (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
+  try { const ch = await listChannels(); if (gen !== _unread.gen) return; (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
+  try { const { data } = await supabase.rpc('channel_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
+  try { const { data } = await supabase.rpc('dm_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
+  if (gen !== _unread.gen) return; // a failed await lands here via its catch — never attach stale subs
   _unreadEmit();
   _unread.subs.push(subscribeChannelMessages((row) => {
     if (!row || row.sender_id === state.user?.id || !_unread.myChannels.has(row.channel_id)) return;
@@ -6085,20 +6182,26 @@ function startPresence() {
 // ── Live activity ("doing right now") — DB-backed so it PERSISTS across screen
 //    changes / app backgrounding and only clears when the user ends it. Source of
 //    truth is the user_activity table (+ realtime); presence stays for "online".
-const _activity = { map: new Map(), mine: null, channel: null, started: false };
+const _activity = { map: new Map(), mine: null, channel: null, started: false, gen: 0 };
 function _activityEmit() { try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {} }
 async function startActivity() {
   if (_activity.started || !supabase || !state.user?.id) return;
   _activity.started = true;
+  // Same generation guard as startUnread: a sign-out while the hydrate RPC is
+  // in flight must not let this coroutine resume, restore the previous
+  // account's activity map, and attach a channel after the teardown.
+  const gen = _activity.gen;
   // Hydrate the currently-active set in one call.
   try {
     const { data } = await supabase.rpc('get_active_activities');
+    if (gen !== _activity.gen) return;
     const m = new Map();
     (data || []).forEach((r) => { if (r && r.user_id && r.kind) m.set(String(r.user_id), r.kind); });
     _activity.map = m;
     _activity.mine = m.get(String(state.user.id)) || null;
     try { window.ShapeMyActivity = _activity.mine; } catch (e) {}
   } catch (e) {}
+  if (gen !== _activity.gen) return; // a rejected hydrate lands here via its catch — never attach a stale channel
   // Keep it live as people start/stop.
   try {
     const ch = supabase.channel('user-activity')
@@ -6690,8 +6793,35 @@ async function cancelLocalHabit(habitId) {
   const base = _habitNotifBase(habitId);
   try { await LN.cancel({ notifications: [0, 1, 2, 3, 4, 5, 6].map(d => ({ id: base + d })) }); } catch (e) {}
 }
+// Sign-out teardown for the device-LOCAL half of habit reminders. These are
+// recurring weekly OS notifications carrying the member's own habit label
+// ("Time for: {label}"), scheduled outside the page — so neither the storage
+// scrub nor the sign-out reload touches them, and they keep firing the previous
+// member's habits on a shared device after they sign out.
+//
+// Enumerated from the DEVICE (getPending) rather than from habit_reminders on
+// the server: the device list needs no session and no network, so it still works
+// on an offline sign-out, and it catches rows scheduled by any account that used
+// this device — a server enumeration would miss both. Every notification this
+// module schedules carries extra.route === 'habits' (scheduleLocalHabit is the
+// only scheduler in the app), which is the filter; ids are hashed from habit_id
+// and can't be reversed, so the tag is what makes them identifiable.
+async function cancelAllLocalHabits() {
+  const LN = _localNotifs(); if (!LN || !LN.cancel || !LN.getPending) return;
+  try {
+    const pending = await LN.getPending();
+    const mine = (pending && pending.notifications || []).filter((n) => n && n.extra && n.extra.route === 'habits');
+    if (mine.length) await LN.cancel({ notifications: mine.map((n) => ({ id: n.id })) });
+  } catch (e) { /* best-effort — never block sign-out */ }
+}
 async function scheduleLocalHabit(r) {
   const LN = _localNotifs(); if (!LN || !LN.schedule) return;
+  // setHabitReminder calls this UNAWAITED, so a save can still be parked on the
+  // cancel below when the member signs out. cancelAllLocalHabits() would then
+  // sweep, this coroutine would resume, and LN.schedule() would re-arm account
+  // A's recurring, label-bearing notification behind the sweep — in the OS,
+  // where neither the storage scrub nor the sign-out reload can reach it.
+  const gen = signOutGen();
   await cancelLocalHabit(r.habit_id);
   if (r.enabled === false) return;
   const parts = String(r.at_time || '09:00').split(':');
@@ -6703,6 +6833,9 @@ async function scheduleLocalHabit(r) {
     schedule: { on: { weekday: dow + 1, hour, minute }, allowWhileIdle: true }, // Capacitor weekday 1=Sun…7=Sat
     extra: { route: 'habits', habitId: r.habit_id },
   }));
+  // Re-checked immediately before the write, not just at entry: the await above
+  // is exactly where this coroutine parks, so the sweep can land between them.
+  if (signOutGen() !== gen) return;
   try { if (notifications.length) await LN.schedule({ notifications }); } catch (e) {}
 }
 async function listHabitReminders() {

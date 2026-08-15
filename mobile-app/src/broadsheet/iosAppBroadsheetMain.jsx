@@ -5,6 +5,7 @@ import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
+import { shapeScrubLocalUserContent } from '../services/localScrub.mjs';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -1818,19 +1819,54 @@ function BSAppShell({ tweaks, setTweak }) {
   };
 
   const handleLogout = async () => {
-    await window.ShapeAuth?.signOut?.();
+    // Non-fatal: the scrub and the reload below are the shared-device guarantee
+    // and must run even if the SDK sign-out rejects (offline, lock timeout).
+    try { await window.ShapeAuth?.signOut?.(); } catch (e) {}
     setAuthState({});
     setBrowseMode(false);
     setPreviewMode(false);
     try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); localStorage.removeItem('shape.dailySeen'); } catch (e) {}
-    // Land on the membership wall (the gate), not the bare login screen.
-    setStage('app');
+    // Shared-device hygiene: user CONTENT must not survive an explicit sign-out —
+    // the next person on this device could read it. The inventory is the
+    // CANONICAL UNION in public/newdesign/localScrub.mjs (imported, not copied):
+    // /m/ ships under the WEBSITE's origin (scripts/build-m.sh), so the two
+    // surfaces share ONE localStorage — a mobile-only list left the website's
+    // keys (shapeClientIntake_v1 health details, shapeConsultations contact
+    // details, the legacy shapeLiveWorkout session records) for the next
+    // device user. The two offline durability queues (shape.pendingAssignments,
+    // shape.careerAwardPending) are deliberately NOT in the inventory: wiping
+    // them silently loses a coach's held week / an earned award, and their
+    // drain is re-verified server-side — an owner ruling on that trade-off is
+    // on the PR. Preferences (tweaks, locale, voice, tour flags) stay.
+    // shape.storeCart rides as an extraKey: the website's scrub KEEPS the cart
+    // under its device-personal carve-out (pageShell.jsx records that ruling);
+    // the mobile sign-out has always cleared it, preserved here.
+    shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'] });
+    // The in-memory sibling of shape.errorLog — the last error record can embed
+    // app-state strings, and the storage sweep alone doesn't touch it.
+    try { window.__BS_LAST_ERROR = null; } catch (e) {}
+    // Tell in-memory holders of user content to drop it. The reload below is
+    // the authoritative wipe; this event is the fallback if the reload is ever
+    // blocked, and the contract other surfaces' teardown listeners key on.
+    try { window.dispatchEvent(new Event('shape:signedOut')); } catch (e) {}
+    // Hard reload, AFTER every awaited teardown above (push unassign + bridged
+    // cookie DELETE + storage scrub) has settled. This handler never navigates,
+    // so every module-scoped cache in the bundle survives an in-app sign-out
+    // unless it is individually wired to shape:signedOut — a class of leak that
+    // has to be closed per-cache and reopens with the next cache someone adds
+    // (e.g. shapeSignals' role-keyed triage promise, which would serve account
+    // A's roster to account B). The reload retires the whole class: a fresh JS
+    // context boots signed-out onto the membership wall. localStorage survives
+    // a reload, so the scrub above still does the at-rest work.
+    try { window.location.reload(); } catch (e) { setStage('app'); }
   };
 
   // BSRadioProvider hoisted ABOVE the stage switch so radio state
-  // (radioOn, askedPrompt, fxMode) survives logout → re-login. Without
-  // hoisting, BSRadioProvider remounts on login and re-fires its 600ms
-  // auto-prompt, causing a brief Home flash before the overlay covers it.
+  // (radioOn, askedPrompt, fxMode) survives stage transitions (gate, browse,
+  // preview) without remounting — a remount re-fires its 600ms auto-prompt,
+  // causing a brief Home flash before the overlay covers it. An explicit
+  // sign-out hard-reloads (see handleLogout), so radio state resets there
+  // by design; the hoisting covers every in-session transition.
   return (
     <BSRadioProvider>
       {/* ── Deliberate crash trigger (?crash=1), armed here on purpose ────────

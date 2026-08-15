@@ -368,7 +368,10 @@ function ClientMeSettings() {
       if (res.status === 401) { window.location.href = "/login.html"; return; }
       if (!res.ok) throw new Error("delete failed");
       alert("Your account and data have been deleted.");
-      try { if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut(); } catch (e) {}
+      try {
+        if (window.shapeDb && window.shapeDb.signOut) await window.shapeDb.signOut();
+        else if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut();
+      } catch (e) {}
       window.location.href = "/";
     } catch (e) {
       alert("Could not delete your account right now. Email privacy@theshapecommunity.com and we'll handle it.");
