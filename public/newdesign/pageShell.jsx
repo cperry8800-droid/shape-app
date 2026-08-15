@@ -1435,6 +1435,19 @@ window.shapeClearLocalUserContent = function () {
       }
     }
   } catch (e) {}
+  // sessionStorage — a SEPARATE store this scrub used to miss entirely. It is
+  // per-tab, so a same-tab sign-out → next user keeps it, and (unlike a page
+  // reload, which clears nothing here) only an explicit removal drops it. The
+  // legacy live-workout flow is the only writer of user CONTENT:
+  //   clients.html      → shapeLiveWorkout        (title, exercises, reps, weights)
+  //   live-workout.html → shapeLiveWorkoutResult  (the completed health record)
+  // Everything else written to sessionStorage site-wide is a nav/UI flag or
+  // device playback state (shapeDashTab, shape.introSeen, shapeForceDesktop,
+  // shapeAppBannerDismissed, shapeStoreContext, shape.globalRadio.state) — the
+  // same carve-out reasoning that keeps the merch cart.
+  try {
+    ["shapeLiveWorkout", "shapeLiveWorkoutResult"].forEach(function (k) { sessionStorage.removeItem(k); });
+  } catch (e) {}
 };
 
 (function shapeConsent() {

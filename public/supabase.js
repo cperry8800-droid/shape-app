@@ -200,6 +200,15 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           }
         }
       } catch (e) {}
+      // sessionStorage — see the canonical twin's note. The legacy live-workout
+      // flow (clients.html → shapeLiveWorkout, live-workout.html →
+      // shapeLiveWorkoutResult) is the only writer of user CONTENT there, and
+      // those pages are EXACTLY the ones that reach this fallback rather than
+      // the canonical scrub, so omitting it here would leave the previous
+      // member's exercises/reps/weights and completed record on the device.
+      try {
+        ['shapeLiveWorkout', 'shapeLiveWorkoutResult'].forEach(function (k) { sessionStorage.removeItem(k); });
+      } catch (e) {}
     },
 
     async getSession() {

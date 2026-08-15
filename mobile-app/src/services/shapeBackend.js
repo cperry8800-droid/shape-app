@@ -518,6 +518,11 @@ async function signOut() {
   // next account's registerPush() actually runs — without this a shared device
   // keeps receiving the previous account's notifications.
   try { await teardownPush(); } catch (e) {}
+  // Device-local scheduled habit reminders carry the member's habit label and
+  // fire from the OS, so they survive both the storage scrub and the sign-out
+  // reload. Device-enumerated, so this works offline and needs no session —
+  // but it runs here, beside the other teardown, so no exit path skips it.
+  try { await cancelAllLocalHabits(); } catch (e) {}
   if (supabase) await supabase.auth.signOut();
   // The bridged Next.js API session cookie (bridgeSessionToApi POSTs it on every
   // sign-in/session restore) outlives the SDK sign-out — on the hosted /m/ build
@@ -6755,6 +6760,27 @@ async function cancelLocalHabit(habitId) {
   const LN = _localNotifs(); if (!LN || !LN.cancel) return;
   const base = _habitNotifBase(habitId);
   try { await LN.cancel({ notifications: [0, 1, 2, 3, 4, 5, 6].map(d => ({ id: base + d })) }); } catch (e) {}
+}
+// Sign-out teardown for the device-LOCAL half of habit reminders. These are
+// recurring weekly OS notifications carrying the member's own habit label
+// ("Time for: {label}"), scheduled outside the page — so neither the storage
+// scrub nor the sign-out reload touches them, and they keep firing the previous
+// member's habits on a shared device after they sign out.
+//
+// Enumerated from the DEVICE (getPending) rather than from habit_reminders on
+// the server: the device list needs no session and no network, so it still works
+// on an offline sign-out, and it catches rows scheduled by any account that used
+// this device — a server enumeration would miss both. Every notification this
+// module schedules carries extra.route === 'habits' (scheduleLocalHabit is the
+// only scheduler in the app), which is the filter; ids are hashed from habit_id
+// and can't be reversed, so the tag is what makes them identifiable.
+async function cancelAllLocalHabits() {
+  const LN = _localNotifs(); if (!LN || !LN.cancel || !LN.getPending) return;
+  try {
+    const pending = await LN.getPending();
+    const mine = (pending && pending.notifications || []).filter((n) => n && n.extra && n.extra.route === 'habits');
+    if (mine.length) await LN.cancel({ notifications: mine.map((n) => ({ id: n.id })) });
+  } catch (e) { /* best-effort — never block sign-out */ }
 }
 async function scheduleLocalHabit(r) {
   const LN = _localNotifs(); if (!LN || !LN.schedule) return;
