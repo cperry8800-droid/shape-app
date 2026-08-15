@@ -1379,21 +1379,26 @@ Object.assign(window, { ShapeHomeCards });
 // signed in, logged to consent_log). No-ops once a choice exists. Loaded via
 // pageShell, so it covers every page that renders the shared shell.
 // ── Sign-out content scrub (shared-device hygiene) ───────────────────────────
-// The CANONICAL implementation. Every newdesign sign-out path calls it: the
-// navbar handleLogout above, and shapeDb.signOut() / the account-deletion
-// flows (supabase.js prefers this copy when it's loaded). ⚠ Legacy root pages
-// (clients.html, nutrition-schedule.html, the shapeSignOut() navbars) DO carry
-// sign-out controls but never load pageShell — an earlier comment here claimed
-// they had none, and that claim was false — so supabase.js keeps a FALLBACK
-// TWIN of these lists for those pages. KEEP THE TWO IN SYNC (supabase.js →
-// clearLocalUserContent). Scope: user content that is sensitive or
-// account-scoped, including the legacy root-page families (same origin — a
-// legacy visit's keys linger into newdesign sessions). Device-only personal
-// lists with no cloud copy (saved recipes incl. legacy shapeRecipes_v1,
-// grocery lists incl. legacy shapeGrocery*, today's plan) are deliberately
-// KEPT — clearing them destroys the member's own data, not a cache. The merch
-// cart (shape.storeCart — item ids + quantities only, no address) falls under
-// the same carve-out.
+// ⚠ THE INVENTORY IS THE UNION in /newdesign/localScrub.mjs — this file is a
+// classic script and cannot import an ES module, so it carries an inline copy;
+// tests/local-scrub-sync.test.mjs fails the suite if this copy drifts from the
+// canonical. The union exists because the mobile app ships at /m/ under THIS
+// origin (scripts/build-m.sh), sharing one localStorage — so a website
+// sign-out must also scrub the mobile families, and a /m/ sign-out scrubs the
+// website's (its handleLogout imports the canonical directly).
+// Every newdesign sign-out path calls this: the navbar handleLogout above, and
+// shapeDb.signOut() / the account-deletion flows (supabase.js prefers this
+// copy when it's loaded). ⚠ Legacy root pages (clients.html,
+// nutrition-schedule.html, the shapeSignOut() navbars) DO carry sign-out
+// controls but never load pageShell — so supabase.js keeps a FALLBACK TWIN of
+// these lists for those pages (same sync test covers it). Scope: user content
+// that is sensitive or account-scoped. Device-only personal lists with no
+// cloud copy (saved recipes incl. legacy shapeRecipes_v1, grocery lists incl.
+// legacy shapeGrocery*, today's plan) are deliberately KEPT — clearing them
+// destroys the member's own data, not a cache. The merch cart
+// (shape.storeCart — item ids + quantities only, no address) falls under the
+// same carve-out ON THE WEBSITE; the mobile sign-out clears it (its
+// long-standing behavior, passed as an extraKey there).
 window.shapeClearLocalUserContent = function () {
   try {
     [
@@ -1411,7 +1416,17 @@ window.shapeClearLocalUserContent = function () {
       "shapeLibRemovedWorkouts",                  // library tombstones — would hide the next user's items
       "shapeRadioLoggedIn",
       "trainerSalesGoalWeekly", "trainerSalesGoalMonthly", "trainerSalesGoalAnnual",
-      "nutritionistSalesGoalWeekly", "nutritionistSalesGoalMonthly", "nutritionistSalesGoalAnnual"
+      "nutritionistSalesGoalWeekly", "nutritionistSalesGoalMonthly", "nutritionistSalesGoalAnnual",
+      // Mobile /m/ families (same origin — see the union note above):
+      "shape.clientCoachThreads", "shape.recentSearch", "shape.errorLog",
+      "shape.library", "shape.recipeGroceryLists", "shape.deletedGroceryIds",
+      "shape.cookResume", "shape.radio.musicLibraries",
+      "bs_coach_soundtracks", "bs_coach_soundtrack_assign",
+      "shape.clientIntakes", "shape.clientProfiles", "shape.clientWorkoutUpdates",
+      "shape.coachWorkoutReviewNotes", "shape.communityComments", "shape.communityPosts",
+      "shape.messages", "shape.providerApplications", "shape.providerAvailability",
+      "shape.providerMessages", "shape.refundRequests", "shape.sessionUpdates",
+      "shape.sessions", "shape.trainerPlaylists", "shape.workoutSessions"
     ].forEach(function (k) { localStorage.removeItem(k); });
     // Prefixed families — all account-scoped state a next user would inherit.
     var prefixes = [

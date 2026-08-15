@@ -204,7 +204,19 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           'shapeWaterToday', 'shapeMessagingSetting', 'shapePurchasedWorkouts',
           'shapeRedeemedRewards', 'shapeLibRemovedWorkouts', 'shapeRadioLoggedIn',
           'trainerSalesGoalWeekly', 'trainerSalesGoalMonthly', 'trainerSalesGoalAnnual',
-          'nutritionistSalesGoalWeekly', 'nutritionistSalesGoalMonthly', 'nutritionistSalesGoalAnnual'
+          'nutritionistSalesGoalWeekly', 'nutritionistSalesGoalMonthly', 'nutritionistSalesGoalAnnual',
+          // mobile /m/ families — /m/ ships under this origin, so the stores
+          // are shared; the union inventory is /newdesign/localScrub.mjs and
+          // tests/local-scrub-sync.test.mjs gates this copy against it
+          'shape.clientCoachThreads', 'shape.recentSearch', 'shape.errorLog',
+          'shape.library', 'shape.recipeGroceryLists', 'shape.deletedGroceryIds',
+          'shape.cookResume', 'shape.radio.musicLibraries',
+          'bs_coach_soundtracks', 'bs_coach_soundtrack_assign',
+          'shape.clientIntakes', 'shape.clientProfiles', 'shape.clientWorkoutUpdates',
+          'shape.coachWorkoutReviewNotes', 'shape.communityComments', 'shape.communityPosts',
+          'shape.messages', 'shape.providerApplications', 'shape.providerAvailability',
+          'shape.providerMessages', 'shape.refundRequests', 'shape.sessionUpdates',
+          'shape.sessions', 'shape.trainerPlaylists', 'shape.workoutSessions'
         ].forEach(function (k) { localStorage.removeItem(k); });
         var prefixes = [
           'shape.chat.v2.', 'shape.dashGoals.', 'shape.habits.',

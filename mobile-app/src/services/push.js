@@ -136,10 +136,19 @@ export async function unregisterPush(token) {
     const accessToken = auth && auth.session && auth.session.access_token;
     const headers = { 'Content-Type': 'application/json' };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    // keepalive: the sign-out reload can fire while this DELETE is still on
+    // the wire (teardown's outer bound resolves and handleLogout reloads
+    // within milliseconds) — without keepalive the navigation ABORTS it and
+    // the token stays assigned even on the ordinary, fully-serialized path.
+    // keepalive lets a dispatched DELETE complete across the reload. The
+    // register POST deliberately does NOT get keepalive: the reload's abort
+    // is the kill-switch for a stale POST — letting it outlive the page would
+    // re-assign the token with no ordered DELETE ever following.
     const response = await fetch(`${apiBase()}/api/push/register`, {
       method: 'DELETE',
       credentials: 'same-origin',
       headers,
+      keepalive: true,
       body: JSON.stringify({ token }),
     });
     if (!response.ok) return false;
@@ -204,9 +213,17 @@ export async function teardownPush() {
   // (the round-9 rule: the scrub and reload must never hang on a stalled
   // socket — and that covers the DELETE's own fetch, not just the POST-wait).
   // Past the bound the chain keeps running until the sign-out reload tears the
-  // page down; a request the reload aborts leaves at most an assigned row,
-  // which the next registration's admin re-point cleans — the long-accepted
-  // offline residual, now strictly narrower: a stale POST landing AFTER a
-  // successful DELETE is impossible within the page's lifetime.
+  // page down. What the reload can still cost, and why each case is accepted:
+  //   - a DISPATCHED DELETE survives it (keepalive on the fetch — see
+  //     unregisterPush), so the ordinary serialized path completes even when
+  //     the response hasn't landed at reload time;
+  //   - a POST still unsettled at the bound is ABORTED by the reload
+  //     (deliberately non-keepalive), so it usually never lands; the narrow
+  //     residual — the server received it fully and commits after the client
+  //     died — leaves an assigned row with no ordered DELETE possible
+  //     (post-reload there is no session to authenticate one), cleaned by the
+  //     next registration's admin re-point. Strictly narrower than before:
+  //     a stale POST landing AFTER a successful DELETE is impossible within
+  //     the page's lifetime.
   await Promise.race([chain, new Promise((r) => setTimeout(r, 4000))]);
 }

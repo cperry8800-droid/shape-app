@@ -5,6 +5,7 @@ import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
+import { shapeScrubLocalUserContent } from '../services/localScrub.mjs';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -1826,47 +1827,21 @@ function BSAppShell({ tweaks, setTweak }) {
     setPreviewMode(false);
     try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); localStorage.removeItem('shape.dailySeen'); } catch (e) {}
     // Shared-device hygiene: user CONTENT must not survive an explicit sign-out —
-    // the next person on this device could read it. The two offline durability
-    // queues (shape.pendingAssignments, shape.careerAwardPending) are deliberately
-    // NOT cleared: wiping them silently loses a coach's held week / an earned
-    // award, and their drain is re-verified server-side, so the only exposure is
-    // content at rest — an owner ruling on that trade-off is on the PR.
-    // Preferences (tweaks, locale, voice, tour flags) are not user content and stay.
-    try {
-      [
-        'shape.clientCoachThreads',   // DM fallback message text
-        'shape.recentSearch',         // other members' names/ids
-        'shape.errorLog',             // stacks can embed app-state strings
-        'shape.library',              // cloud copy is authoritative
-        'shape.recipeGroceryLists',   // cloud-synced via user_goals
-        'shape.deletedGroceryIds',    // account-scoped sync tombstones
-        'shape.storeCart',
-        'shape.cookResume',
-        'shape.radio.musicLibraries',
-        'bs_coach_soundtracks',
-        'bs_coach_soundtrack_assign',
-        // The saveLocalRecord() fallback families (shapeBackend.js): records a
-        // failed Supabase write keeps on-device — intake with DOB/medical
-        // details, messages, sessions, refund requests, applications. Nothing
-        // ever replays them to the server (readLocalRecords has two
-        // display-fallback callers only), so clearing loses no durable data.
-        'shape.clientIntakes',
-        'shape.clientProfiles',
-        'shape.clientWorkoutUpdates',
-        'shape.coachWorkoutReviewNotes',
-        'shape.communityComments',
-        'shape.communityPosts',
-        'shape.messages',
-        'shape.providerApplications',
-        'shape.providerAvailability',
-        'shape.providerMessages',
-        'shape.refundRequests',
-        'shape.sessionUpdates',
-        'shape.sessions',
-        'shape.trainerPlaylists',
-        'shape.workoutSessions'
-      ].forEach((k) => localStorage.removeItem(k));
-    } catch (e) {}
+    // the next person on this device could read it. The inventory is the
+    // CANONICAL UNION in public/newdesign/localScrub.mjs (imported, not copied):
+    // /m/ ships under the WEBSITE's origin (scripts/build-m.sh), so the two
+    // surfaces share ONE localStorage — a mobile-only list left the website's
+    // keys (shapeClientIntake_v1 health details, shapeConsultations contact
+    // details, the legacy shapeLiveWorkout session records) for the next
+    // device user. The two offline durability queues (shape.pendingAssignments,
+    // shape.careerAwardPending) are deliberately NOT in the inventory: wiping
+    // them silently loses a coach's held week / an earned award, and their
+    // drain is re-verified server-side — an owner ruling on that trade-off is
+    // on the PR. Preferences (tweaks, locale, voice, tour flags) stay.
+    // shape.storeCart rides as an extraKey: the website's scrub KEEPS the cart
+    // under its device-personal carve-out (pageShell.jsx records that ruling);
+    // the mobile sign-out has always cleared it, preserved here.
+    shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'] });
     // The in-memory sibling of shape.errorLog — the last error record can embed
     // app-state strings, and the storage sweep alone doesn't touch it.
     try { window.__BS_LAST_ERROR = null; } catch (e) {}
