@@ -178,7 +178,36 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-14): A LIVE PRIVILEGE-ESCALATION P1, CLOSED — PLUS THE BOOKING ACCOUNT
+> **Latest (2026-08-15): SIGN-OUT NOW SCRUBS THE SIGNING-OUT TAB — WITH DOCUMENTED RESIDUALS
+> (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`).**
+> Content in local/sessionStorage, **signed media in CacheStorage**, the push registration,
+> and every in-memory cache survived a sign-out on a shared device. The service worker was
+> caching **cross-origin signed media token-and-all** (`sw.js` v133 narrows it to
+> same-origin); `handleLogout` ends in a hard reload, which retires the whole
+> in-memory-survivor class **in that tab** instead of one cache at a time.
+> ⚠ **`/m/` ships under the WEBSITE's origin**, so both surfaces share one localStorage —
+> the scrub inventory is now a single union in `public/newdesign/localScrub.mjs`, imported
+> by mobile and gated against the two website copies by a sync test.
+> ⚠ **The website's `scope:'local'` retry is LOAD-BEARING** (auth-js **2.108.2** returns a
+> failed global revocation *before* removing the session; mobile's 2.111.0 does not) —
+> never harmonize the two.
+> ⚠ **Async cleanup fired immediately before a navigation is dead code** — the purge is
+> returned and awaited under a bound, and `signOut()` scrubs synchronously FIRST.
+> ⚠ **A page cannot retire its own controller**, so the purge is not the last word — v133's
+> install delete-all reduces the residual but, being async to the navigation, does not
+> guarantee it away.
+> ⚠ **The scrub is TAB-LOCAL.** `sessionStorage` is per tab and there is **no**
+> `onAuthStateChange`, `storage` or `SIGNED_OUT` handler anywhere in source, so a sibling
+> tab keeps `shapeLiveWorkout`/`shapeLiveWorkoutResult` and its in-memory state until it is
+> closed. Cross-tab cleanup is unbuilt, not shipped.
+> Gyms is off the canonical `Nav`/`Footer` chrome (#1889) — ⚠ **no reachability claim**:
+> `sitemap.xml`, the `/gyms` rewrite and `404.html` are all still live doors. **No legacy
+> page was deleted**; the "safe to delete" list was refuted by its own transitive analysis.
+> Suite **1528**.
+>
+> See the full entry below.
+
+> **Prior (2026-08-14): A LIVE PRIVILEGE-ESCALATION P1, CLOSED — PLUS THE BOOKING ACCOUNT
 > GATE, THE ROSTER DEDUP, AND AN OPEN-REDIRECT SWEEP (#1880 → `e3de8790c`).**
 > Four items off the standing audit list, and a **P1 the review found in this PR's own work,
 > live on production**. The cancel-only trigger's provider exemption keyed on the **NEW** row,
@@ -1597,6 +1626,164 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-08-15 — The shared-device sign-out wave: user content, PWA caches, and gyms off the nav chrome (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`)
+
+- **The problem, in one line: signing out left the previous person's data on the device.**
+  Content in localStorage/sessionStorage, signed media in CacheStorage, a live push
+  registration, and in-memory caches that no navigation ever cleared. Three merged PRs,
+  **28 review rounds** between them; suite **1528**. Siblings merged earlier in the wave:
+  #1881, #1884 → `34b7010f2d`, #1886 → `6325570605`, #1887 → `c5b5ebfda`.
+
+- **#1883 — the content scrub + a structural reload.** `handleLogout` now ends in a hard
+  `location.reload()`, which retires an entire leak class rather than one instance: every
+  module-scoped cache in the bundle (e.g. shapeSignals' role-keyed triage promise, which
+  would otherwise serve account A's roster to account B) dies with the JS context. Wiring
+  each cache to `shape:signedOut` individually is a list the next cache silently fails to
+  join. `signOutGen.mjs` closes both resume-after-sweep races (the push callback and an
+  unawaited `scheduleLocalHabit`).
+
+- ⚠ **THE `scope:'local'` RETRY IS LOAD-BEARING ON THE WEBSITE, AND ONLY THERE.** The site
+  pins auth-js **2.108.2** (`public/vendor/supabase-js-2.108.2.umd.js`, SRI-locked), whose
+  `_signOut` returns a failed global revocation **before reaching `_removeSession()`** — so
+  after an offline sign-out the persisted session survives and `getSession()` restores the
+  previous account, past a scrub that clears content but not `shape.auth`. **Mobile ships
+  2.111.0, which does remove the session on that path.** The two bundles genuinely differ:
+  do not "harmonize" them, and re-read `_signOut` before bumping the vendored bundle.
+
+- ⚠ **ONE ORIGIN, ONE SCRUB INVENTORY.** `scripts/build-m.sh` publishes the mobile app at
+  `/m/` **under the website's origin**, so both surfaces share one localStorage. Separate
+  per-surface lists left holes in *both* directions (a `/m/` sign-out kept the website's
+  `shapeClientIntake_v1` health details; a website sign-out kept `shape.clientIntakes`).
+  The canonical union now lives in **`public/newdesign/localScrub.mjs`**; mobile *imports*
+  it, and the two website classic scripts (which cannot import ESM) carry inline copies
+  gated by **`tests/local-scrub-sync.test.mjs`**, which fails on one-key drift in either
+  direction. **Any future key change must touch all three copies — that is the design.**
+  One sanctioned divergence: `shape.storeCart` (website keeps it, mobile clears it).
+
+- **Push teardown: bound the WAIT, never the WORK.** Serialize-then-delete runs as ONE
+  detached chain (the DELETE is never dispatched before the registration POST settles, so
+  ordering is airtight), and `teardownPush()` awaits that chain under a single outer 4s
+  race so sign-out always completes. The DELETE carries **`keepalive: true`** — the reload
+  fires milliseconds later and would otherwise abort even a dispatched DELETE; the POST is
+  deliberately **non**-keepalive, because the reload aborting a stale POST is the
+  kill-switch. Residual, documented at the call site: a POST fully received server-side
+  that commits after page death has no post-reload auth for an ordered DELETE — the next
+  registration's admin re-point cleans it.
+
+- **#1885 — the service worker stopped caching other people's media.** The old fetch
+  handler had **no origin check**, so authenticated **signed** media (progress photos,
+  meal-note voice memos, credential files — token and all) was written into CacheStorage
+  and outlived sign-out. `sw.js` **v133** narrows runtime caching to same-origin assets,
+  and sign-out purges the `shape-*` caches on every browser path.
+
+- ⚠ **THE NEXT.JS DASHBOARD SIGN-OUT RUNS NO BROWSER CODE.** It is a **server action**, so
+  no scrub could ever have fired there. A client `SignOutButton` now runs the canonical
+  scrub + purge before invoking it, replacing the bare `<form action={logout}>` in
+  `dashboard/layout.tsx` and `Nav.tsx`.
+
+- ⚠ **ASYNC CLEANUP FIRED IMMEDIATELY BEFORE A NAVIGATION IS DEAD CODE.** Two review
+  rounds were spent on this one class. A fire-and-forget purge never dispatches its
+  `caches.delete` calls when the document is discarded microseconds later — which is
+  exactly what pageShell-only pages (About, Pricing) and the mobile hard reload do. The
+  scrub now **returns** its purge promise and every navigating caller awaits it under a 2s
+  bound. And `signOut()` runs the **synchronous scrub FIRST**: it previously awaited the
+  purge *ahead* of the scrub with no timeout, so a stalled CacheStorage would strand the
+  sensitive at-rest content on the device while callers waited to navigate.
+
+- ⚠ **A PAGE CANNOT RETIRE ITS OWN CONTROLLER — so the purge is not the last word.** On a
+  device still running the pre-v133 worker, that worker's handler ends in
+  `caches.open('shape-v132')` + put, and `caches.open` **re-creates a deleted cache**, so
+  an in-flight signed-media GET can repopulate after the purge. Nothing callable from the
+  document prevents it: `unregister()` does not stop a live page's controller, and neither
+  `skipWaiting` nor `clients.claim` can preempt a running fetch handler. **What reduces it**
+  is v133's install, which deletes EVERY cache unconditionally (no filter) and is triggered
+  by the navigation sign-out performs. ⚠ **That is a mitigation, NOT a guarantee, and this
+  record should not claim otherwise:** the worker update runs **asynchronously** alongside
+  the navigation, so the next page can be usable before v133 installs, and an in-flight
+  fetch from the discarded document can still land after the install-time delete. The
+  residual is therefore **wider than the offline case** — it is any window before v133
+  takes control (widest with no network, where it never installs, and on that device v132
+  caches signed media on every page load regardless). **If it is ever worth closing, the
+  remedy is a purge on first load UNDER v133 — cleanup after the new worker controls — not
+  coordination ahead of the navigation, which the page cannot do.**
+
+- ⚠ **SECOND RESIDUAL: THE SCRUB IS TAB-LOCAL, AND CROSS-TAB CLEANUP IS UNBUILT.**
+  `sessionStorage` is per tab by spec, and sign-out only clears the tab it runs in and then
+  reloads/redirects **that** document. There is **no** `onAuthStateChange`, `storage`-event
+  or `SIGNED_OUT` handler anywhere in source (verified by grep over `public/newdesign`,
+  `public/supabase.js`, `src` and `mobile-app/src` — zero hits for all three), so nothing
+  propagates a sign-out to sibling tabs. A second open tab therefore keeps
+  `shapeLiveWorkout`/`shapeLiveWorkoutResult` **and all of its in-memory user state** until
+  someone closes it — on a shared device, exactly the inheritance this wave set out to stop.
+  The remedy, if it is wanted, is a `storage`-event or `onAuthStateChange('SIGNED_OUT')`
+  listener that runs the same scrub and reloads the sibling tab. **Not built here.**
+
+- ⚠ **THE FLAT CURVE, AND WHAT ENDING IT LOOKED LIKE.** #1885 ran three rounds of exactly
+  one P1 each, all in the same purge seam, rounds 2 and 3 being defects in the previous
+  round's own fix. On round 3 the rule ([[the-miss-is-next-to-the-fix]]) was applied
+  literally: stop patching and **check whether the finding's own remedy already exists one
+  layer out**. Something was there — the review asked for "another purge after the
+  controlled document is replaced", and v133's install delete-all is the nearest existing
+  thing to it. ⚠ **But it is NOT that purge, and round 3's conclusion overstated it:**
+  install runs *before* activation and control, so the old handler can still repopulate the
+  cache afterwards. That correction came from review **on this very entry** (see the
+  residual above); the actual remedy is still a purge on first load UNDER v133. The
+  mechanism was conceded (verified from git history), the **consequence narrowed with
+  evidence**, and a cheap-looking `registration.update()` was declined because the
+  navigation runs the same check anyway. ⚠ So the honest lesson is not "the remedy already
+  existed one layer out" — it is **"stop patching the seam and go look one layer out",
+  which here found a mitigation that was then misread as a closure.**
+
+- **#1889 — Gyms off the canonical nav chrome.** A reachability
+  sweep of all 51 root `public/*.html` files found the canonical `public/newdesign/**`
+  surface carries **zero** links to any gym page — but `Nav.tsx`/`Footer.tsx` render on
+  every Next route via `layout.tsx`, and `gyms.html` / `for-gyms.html` carry their own
+  legacy navs into `marketplace.html`, `trainers.html`, `nutritionists.html`,
+  `pricing.html`, `home.html`, `clients.html` and the rest. Removing four links takes gyms
+  off the **canonical site chrome** — the Next `Nav`/`Footer` that render on every route.
+  ⚠ **This entry deliberately makes NO reachability claim, and no cleanup may read one into
+  it.** Two review rounds each found another live door right after one was written down:
+  `public/sitemap.xml` still advertises `/gyms.html` and `/for-gyms.html` to search engines;
+  `next.config.ts` still rewrites `/gyms` to the legacy page; and `public/404.html`'s
+  "Popular destinations" links `gyms.html`, reached from **every unmatched Next route** via
+  `src/app/not-found.tsx`. The general lesson is the one that cost three rounds: **an
+  enumeration of entry points is never a proof that no others exist.** Deleting any of these
+  pages requires its own fresh sweep at that time — not this paragraph.
+  ⚠ **NO legacy page was deleted, deliberately.** The sweep's own "safe to delete" list was
+  refuted by its own transitive analysis: five of its eight files are linked from
+  `gyms.html`'s nav, `workout.html` from `trainer-dashboard.html` (which coaches are
+  **redirected** to after claiming a profile), and `reset-password.html` from the live
+  `login.html`. Deleting them would have produced real 404s. `next.config.ts`, `sitemap.xml`,
+  `robots.txt`, `manifest.json` and `sw.js` are all untouched; the pages still answer by
+  direct URL. ⚠ Also checked and **refuted**: a claim that `sw.js` precaches a non-existent
+  `styles.css` (which would silently disable the worker, since `cache.addAll` rejects
+  wholesale on one 404) — the file exists and all 29 precache entries resolve on disk.
+
+- **Owner ruling carried — but review REFUTED half its rationale.** Both offline durability
+  queues (`shape.pendingAssignments`, `shape.careerAwardPending`) are still deliberately
+  **kept**. For the assignment queue the reasoning holds: `drainAssignmentQueue()` records
+  that client-side owner partitioning was removed on purpose, `publish_client_week`
+  re-verifies the coach server-side, and — the property that makes that safe — **a refusal
+  SURFACES** (house event + `console.error`) instead of vanishing.
+  ⚠ **`shape.careerAwardPending` copied the no-partitioning stance without EITHER property
+  that makes it safe** ([[copied-guard-loses-its-rationale]]):
+  it stores a bare post ID with **no owner**, and session init replays it for whoever is
+  signed in (`shapeBackend.js:507` → `ShapeCareerAward.catchUp()`); `award_work_milestone`
+  matches `author_id = v_uid`, so for a different account it returns
+  `{granted:false, 'not_a_milestone'}` **with no error**; and `careerAwardCatchUp()` removes
+  the key on any non-error response (`shapeBackend.js:5335-5338`).
+  So in exactly the shared-device scenario this wave is about — A signs out, B signs in —
+  B's session **submits A's post ID under B's identity and then silently destroys A's
+  retry**. Keeping the key does not preserve A's award; it guarantees its loss. **Both
+  halves of the carve-out's stated premise ("content at rest only", "wiping loses the
+  award") are false for this key.**
+  ⚠ **NOT fixed here** — this is the records PR and the fix changes behavior on the points
+  path. The fix is to owner-partition the key (store `{uid, postId}`, replay only on a uid
+  match), which keeps the durability intent that scrubbing would lose; surfacing the refusal
+  the way the assignment drain does is the second half. **Owner call, and it should not sit
+  long.**
+  Registered, untouched: the `/api/auth/session` GET-bridge redesign.
 
 ### 2026-08-14 — The security sweep: a live privilege-escalation P1, the booking account gate, the roster dedup, an open-redirect sweep (#1880 → `e3de8790c`)
 

@@ -124,19 +124,21 @@ export const SHAPE_SCRUB_SESSION_KEYS = ['shapeLiveWorkout', 'shapeLiveWorkoutRe
 // the cache after it. Nothing callable from the document prevents that:
 // unregister() does not stop the controller of a live page, and neither
 // skipWaiting nor clients.claim can preempt a fetch handler already running.
-// THE CLEANUP THAT CLOSES IT IS THE NEXT WORKER'S INSTALL, not this purge:
+// WHAT REDUCES IT IS THE NEXT WORKER'S INSTALL — reduces, does not close:
 // sw.js v133's install deletes EVERY cache unconditionally (caches.keys() →
 // delete all, no filter) before opening its own, and it carries skipWaiting()
-// + clients.claim(). Sign-out always navigates (reload on mobile, href on
-// web), a navigation always runs the worker update check, so v133 installs
-// and deletes any re-created cache on that same navigation — before the next
-// person on the device can browse. What remains uncovered is a post-sign-out
-// navigation with NO network: the update fetch fails, v133 never installs,
-// and a re-created cache survives until the next successful update. That
-// device is on v132 and is therefore caching signed media on every page load
-// regardless of sign-out — the control there is the version bump landing, not
-// this purge, so do not "fix" it by adding worker-lifecycle coordination
-// ahead of the navigation.
+// + clients.claim(). Sign-out always navigates, and a navigation runs the
+// worker update check, so v133 installs and deletes any re-created cache.
+// ⚠ THAT IS A MITIGATION, NOT A GUARANTEE — do not record it as one. The
+// update runs ASYNCHRONOUSLY alongside the navigation, so the next page can
+// be usable before v133 has installed, and an in-flight fetch from the
+// discarded document can still land after the install-time delete. The
+// uncovered window is therefore any time before v133 takes control — widest
+// with no network, where it never installs at all, and on that device v132
+// is caching signed media on every page load regardless of sign-out.
+// If this ever needs closing, the remedy is a purge on first load UNDER v133
+// (cleanup AFTER the new worker controls) — never coordination ahead of the
+// navigation, which the page cannot do.
 export function shapePurgeShapeCaches() {
   try {
     if (!(window.caches && window.caches.keys)) return Promise.resolve();
