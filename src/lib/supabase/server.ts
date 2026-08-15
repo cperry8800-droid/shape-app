@@ -4,6 +4,7 @@
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { applyShapeCookieOptions } from './cookie-options';
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -18,8 +19,10 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
+            // Policy applied at the WRITE, not via cookieOptions — the SDK
+            // overwrites a configured maxAge with its 400-day default.
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, applyShapeCookieOptions(options))
             );
           } catch {
             // setAll called from a Server Component — safe to ignore if

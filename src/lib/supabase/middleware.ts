@@ -7,6 +7,7 @@ import { createClient as createBearerClient, type SupabaseClient } from '@supaba
 import { NextResponse, type NextRequest } from 'next/server';
 import { computeMembership, GATE_STAMP_HEADER, GATE_STAMP_VALUE } from '@/lib/membership-core';
 import { checkRateLimit, jwtSub } from '@/lib/rate-limit';
+import { applyShapeCookieOptions } from '@/lib/supabase/cookie-options';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
 
@@ -109,8 +110,10 @@ export async function updateSession(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request: { headers: forwardedHeaders } });
+          // Policy applied at the WRITE, not via cookieOptions — the SDK
+          // overwrites a configured maxAge with its 400-day default.
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, applyShapeCookieOptions(options))
           );
         },
       },
