@@ -996,7 +996,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
 
       var style = document.createElement('style');
       style.textContent =
-        '#shapeRoleSwitcher{position:relative;display:inline-flex;align-items:center;align-self:center;font-family:Inter,system-ui,sans-serif;line-height:1;flex:0 0 auto;}' +
+        '#shapeRoleSwitcher{position:relative;display:inline-flex;align-items:center;align-self:center;font-family:"Space Grotesk",Inter,system-ui,sans-serif;line-height:1;flex:0 0 auto;}' +
         '#shapeRoleSwitcher .srs-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;line-height:1.4;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:var(--text,#fff);border-radius:999px;font-size:0.72rem;font-weight:500;cursor:pointer;font-family:inherit;vertical-align:middle;white-space:nowrap;}' +
         '#shapeRoleSwitcher .srs-btn:hover{border-color:rgba(255,255,255,0.3);}' +
         '#shapeRoleSwitcher .srs-btn .srs-caret{opacity:0.5;font-size:0.6rem;}' +
