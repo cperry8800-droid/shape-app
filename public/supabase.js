@@ -176,7 +176,24 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         localStorage.removeItem('shapeLastName');
         localStorage.removeItem('shapeEmail');
       } catch (e) {}
-      shapeDb.clearLocalUserContent();
+      // Run the SYNCHRONOUS content scrub FIRST — it must never sit behind an
+      // async CacheStorage call: if caches.keys() ever stalled, the sensitive
+      // local/session-storage content would survive on the shared device while
+      // the caller waited on the purge. The scrub also drops the PWA caches (a
+      // cache built by an OLDER worker generation can hold cross-origin signed
+      // media — progress photos, voice memos, credential files, token and all)
+      // and returns that delete promise; it is awaited here under a 2s bound
+      // because signOut is the last stop before callers navigate — bounded,
+      // like every other sign-out path, so a stalled CacheStorage can never
+      // hang the sign-out (bound the WAIT, never the WORK).
+      var purge = null;
+      try { purge = shapeDb.clearLocalUserContent(); } catch (e) {}
+      try {
+        await Promise.race([
+          Promise.resolve(purge),
+          new Promise(function (resolve) { setTimeout(resolve, 2000); })
+        ]);
+      } catch (e) {}
     },
 
     // Shared-device hygiene: user CONTENT must not survive sign-out. The
@@ -192,7 +209,10 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // (pageShell.jsx → window.shapeClearLocalUserContent).
     clearLocalUserContent() {
       try {
-        if (window.shapeClearLocalUserContent) { window.shapeClearLocalUserContent(); return; }
+        // Return the canonical scrub's purge promise so a caller that
+        // navigates next can await the cache deletes (the fallback below
+        // returns its own the same way).
+        if (window.shapeClearLocalUserContent) { return window.shapeClearLocalUserContent(); }
       } catch (e) {}
       try {
         [
@@ -243,6 +263,20 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       // member's exercises/reps/weights and completed record on the device.
       try {
         ['shapeLiveWorkout', 'shapeLiveWorkoutResult'].forEach(function (k) { sessionStorage.removeItem(k); });
+      } catch (e) {}
+      // PWA cache purge: the canonical scrub carries one so sign-out paths
+      // that call the scrub WITHOUT coming through signOut() still drop
+      // cached signed media. signOut() above additionally AWAITS its own
+      // purge before callers navigate; double-delete is a no-op. RETURNED so
+      // a caller that navigates right after can await the deletes.
+      try {
+        if (window.caches && caches.keys) {
+          return caches.keys().then(function (cacheKeys) {
+            return Promise.all(cacheKeys
+              .filter(function (k) { return k.indexOf('shape-') === 0; })
+              .map(function (k) { return caches.delete(k); }));
+          }).catch(function () {});
+        }
       } catch (e) {}
     },
 

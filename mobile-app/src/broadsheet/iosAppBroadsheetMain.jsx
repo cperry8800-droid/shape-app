@@ -1841,7 +1841,7 @@ function BSAppShell({ tweaks, setTweak }) {
     // shape.storeCart rides as an extraKey: the website's scrub KEEPS the cart
     // under its device-personal carve-out (pageShell.jsx records that ruling);
     // the mobile sign-out has always cleared it, preserved here.
-    shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'] });
+    const scrubPurge = shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'] });
     // The in-memory sibling of shape.errorLog — the last error record can embed
     // app-state strings, and the storage sweep alone doesn't touch it.
     try { window.__BS_LAST_ERROR = null; } catch (e) {}
@@ -1857,7 +1857,11 @@ function BSAppShell({ tweaks, setTweak }) {
     // (e.g. shapeSignals' role-keyed triage promise, which would serve account
     // A's roster to account B). The reload retires the whole class: a fresh JS
     // context boots signed-out onto the membership wall. localStorage survives
-    // a reload, so the scrub above still does the at-rest work.
+    // a reload, so the scrub above still does the at-rest work — but the
+    // scrub's CACHE purge is async, and the reload would discard the document
+    // before its caches.delete calls dispatch, so it is awaited here under a
+    // bound (a stalled CacheStorage must never hang the sign-out).
+    try { await Promise.race([scrubPurge, new Promise((r) => setTimeout(r, 2000))]); } catch (e) {}
     try { window.location.reload(); } catch (e) { setStage('app'); }
   };
 

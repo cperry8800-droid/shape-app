@@ -106,6 +106,46 @@ export const SHAPE_SCRUB_PREFIXES = [
 // live-workout.html → shapeLiveWorkoutResult (the completed health record).
 export const SHAPE_SCRUB_SESSION_KEYS = ['shapeLiveWorkout', 'shapeLiveWorkoutResult'];
 
+// Delete the PWA's CacheStorage buckets (all keys prefixed 'shape-'). The
+// service worker registers at scope '/' and only caches same-origin static
+// assets as of shape-v133 — but a cache built by an OLDER worker generation
+// can hold cross-origin SIGNED media (progress photos, meal-note voice memos,
+// credential files — token and all), and CacheStorage otherwise clears only on
+// a deploy version bump, never for a departing user on a shared device.
+// Returns a promise so a caller that must guarantee completion before a
+// navigation (supabase.js signOut) can await it; the scrub below fires it
+// fire-and-forget for every other path. Double-delete is a harmless no-op.
+//
+// ⚠ IRREDUCIBLE RESIDUAL — a page cannot retire its OWN controller, so this
+// purge cannot be the last word. On a device still running the pre-v133
+// worker, that worker's fetch handler has NO origin check and ends in
+// caches.open('shape-v132') + put — and caches.open CREATES a deleted cache —
+// so a signed-media GET still in flight when this purge lands can re-create
+// the cache after it. Nothing callable from the document prevents that:
+// unregister() does not stop the controller of a live page, and neither
+// skipWaiting nor clients.claim can preempt a fetch handler already running.
+// THE CLEANUP THAT CLOSES IT IS THE NEXT WORKER'S INSTALL, not this purge:
+// sw.js v133's install deletes EVERY cache unconditionally (caches.keys() →
+// delete all, no filter) before opening its own, and it carries skipWaiting()
+// + clients.claim(). Sign-out always navigates (reload on mobile, href on
+// web), a navigation always runs the worker update check, so v133 installs
+// and deletes any re-created cache on that same navigation — before the next
+// person on the device can browse. What remains uncovered is a post-sign-out
+// navigation with NO network: the update fetch fails, v133 never installs,
+// and a re-created cache survives until the next successful update. That
+// device is on v132 and is therefore caching signed media on every page load
+// regardless of sign-out — the control there is the version bump landing, not
+// this purge, so do not "fix" it by adding worker-lifecycle coordination
+// ahead of the navigation.
+export function shapePurgeShapeCaches() {
+  try {
+    if (!(window.caches && window.caches.keys)) return Promise.resolve();
+    return window.caches.keys().then((keys) => Promise.all(
+      keys.filter((k) => k.indexOf('shape-') === 0).map((k) => window.caches.delete(k))
+    )).catch(() => {});
+  } catch (e) { return Promise.resolve(); }
+}
+
 export function shapeScrubLocalUserContent({ extraKeys = [] } = {}) {
   try {
     const ls = window.localStorage;
@@ -121,4 +161,10 @@ export function shapeScrubLocalUserContent({ extraKeys = [] } = {}) {
   try {
     SHAPE_SCRUB_SESSION_KEYS.forEach((k) => { try { window.sessionStorage.removeItem(k); } catch (e) {} });
   } catch (e) {}
+  // Every scrub caller also drops the PWA caches (see above). RETURN the
+  // purge promise: a caller whose very next act is a navigation or reload
+  // (mobile handleLogout, pageShell's no-supabase fallback) must await it
+  // under its own bound, or the departing document is discarded before the
+  // caches.delete calls ever dispatch. Callers with no navigation may ignore it.
+  return shapePurgeShapeCaches();
 }
