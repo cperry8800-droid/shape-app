@@ -341,6 +341,10 @@ function Header({ active }) {
     try {
       await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
     } catch {}
+    // The navbar sign-out never touches shapeDb, so it must scrub user content
+    // itself — otherwise the site-wide logout path leaves chat threads, intake
+    // and coach drafts on a shared device (the exact gap this sweep closes).
+    try { window.shapeClearLocalUserContent && window.shapeClearLocalUserContent(); } catch {}
     window.location.href = '/';
   }
   async function switchRole(nextRole) {
@@ -1367,6 +1371,35 @@ Object.assign(window, { ShapeHomeCards });
 // see a banner; GPC is honored everywhere; the choice is recorded (and, when
 // signed in, logged to consent_log). No-ops once a choice exists. Loaded via
 // pageShell, so it covers every page that renders the shared shell.
+// ── Sign-out content scrub (shared-device hygiene) ───────────────────────────
+// THE ONE implementation. Every browser sign-out path calls it: the navbar
+// handleLogout above, and shapeDb.signOut() / the account-deletion flows
+// (supabase.js delegates here rather than keeping a second copy that could
+// drift). Scope: user content that is sensitive or account-scoped. Device-only
+// personal lists with no cloud copy (saved recipes, grocery lists, today's
+// plan) are deliberately KEPT — clearing them destroys the member's own data,
+// not a cache. Legacy root pages don't load pageShell, but no sign-out control
+// exists on them, so this covers every real sign-out surface.
+window.shapeClearLocalUserContent = function () {
+  try {
+    [
+      "shapeClientIntake_v1",   // signup intake — can carry health details
+      "shapeConsultations",     // bookings — contact details
+      "shape.dashMealDrafts",   // coach drafts about named clients
+      "shape.dashBuilderDrafts",
+      "shape.viewerRole"
+    ].forEach(function (k) { localStorage.removeItem(k); });
+    // Prefixed families: per-user chat threads + per-client goal drafts.
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var key = localStorage.key(i);
+      if (!key) continue;
+      if (key.indexOf("shape.chat.v2.") === 0 || key.indexOf("shape.dashGoals.") === 0) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (e) {}
+};
+
 (function shapeConsent() {
   if (typeof document === "undefined") return;
   // Resolves true only when a consent_log row was actually written (so callers

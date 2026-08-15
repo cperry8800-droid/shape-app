@@ -1842,9 +1842,33 @@ function BSAppShell({ tweaks, setTweak }) {
         'shape.cookResume',
         'shape.radio.musicLibraries',
         'bs_coach_soundtracks',
-        'bs_coach_soundtrack_assign'
+        'bs_coach_soundtrack_assign',
+        // The saveLocalRecord() fallback families (shapeBackend.js): records a
+        // failed Supabase write keeps on-device — intake with DOB/medical
+        // details, messages, sessions, refund requests, applications. Nothing
+        // ever replays them to the server (readLocalRecords has two
+        // display-fallback callers only), so clearing loses no durable data.
+        'shape.clientIntakes',
+        'shape.clientProfiles',
+        'shape.clientWorkoutUpdates',
+        'shape.coachWorkoutReviewNotes',
+        'shape.communityComments',
+        'shape.communityPosts',
+        'shape.messages',
+        'shape.providerApplications',
+        'shape.providerAvailability',
+        'shape.providerMessages',
+        'shape.refundRequests',
+        'shape.sessionUpdates',
+        'shape.sessions',
+        'shape.trainerPlaylists',
+        'shape.workoutSessions'
       ].forEach((k) => localStorage.removeItem(k));
     } catch (e) {}
+    // Tell in-memory holders of user content to drop it — storage removal alone
+    // doesn't clear state hoisted above the stage switch (BSRadioProvider keeps
+    // the saved-tracks library mounted across logout by design).
+    try { window.dispatchEvent(new Event('shape:signedOut')); } catch (e) {}
     // Land on the membership wall (the gate), not the bare login screen.
     setStage('app');
   };
