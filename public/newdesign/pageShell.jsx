@@ -1410,9 +1410,14 @@ Object.assign(window, { ShapeHomeCards });
       if (gpc) { try { localStorage.setItem(KEY, "reject"); } catch (e) {} return; } // GPC = opt out, no banner
       var tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
       if (!/^Europe\//.test(tz)) return;                     // region-aware: show only for EEA/UK
+      // ONE copy string, rendered AND recorded — the consent_log row must carry
+      // the exact text the visitor was shown (house rule from the cycle wave).
+      var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls the Shape app's first-party usage stats. See our Privacy Policy.";
       function record(choice) {
         try { localStorage.setItem(KEY, choice); } catch (e) {}
-        logConsent("cookies", choice === "accept", "Cookie/analytics consent banner choice: " + choice);
+        // consent_text is the VERBATIM copy shown — nothing appended; the
+        // `granted` column already records which button was pressed.
+        logConsent("cookies", choice === "accept", BANNER_COPY);
       }
       var bar = document.createElement("div");
       bar.setAttribute("role", "dialog"); bar.setAttribute("aria-label", "Cookie consent");
@@ -1422,7 +1427,13 @@ Object.assign(window, { ShapeHomeCards });
       bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:var(--paper,#1a1612);color:var(--ink,#f2ede4);border-top:1px solid rgba(242,237,228,0.15);padding:15px 20px;font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;box-shadow:0 -10px 40px rgba(0,0,0,0.5)";
       var txt = document.createElement("span");
       txt.style.cssText = "flex:1;min-width:240px;line-height:1.5";
-      txt.appendChild(document.createTextNode("We use essential cookies to run Shape, and — only with your consent — privacy-friendly analytics. See our "));
+      // Copy must describe what we actually do: this website runs NO
+      // consent-gated analytics — only essential cookies/storage. The choice
+      // still matters: the Shape app on this same origin gates its first-party,
+      // consent-gated usage stats on it (mobile-app analytics.js reads
+      // shape.consent.v1). Never promise analytics this surface doesn't run.
+      // KEEP IN SYNC with BANNER_COPY above (rendered text == recorded text).
+      txt.appendChild(document.createTextNode("We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls the Shape app's first-party usage stats. See our "));
       var pl = document.createElement("a"); pl.href = "/privacy.html"; pl.textContent = "Privacy Policy"; pl.style.color = "var(--teal-bright,#2ee0c4)";
       txt.appendChild(pl); txt.appendChild(document.createTextNode("."));
       bar.appendChild(txt);
