@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
-import { registerPush } from './push.js';
+import { registerPush, teardownPush } from './push.js';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -513,7 +513,20 @@ async function getCurrentSession() {
 }
 
 async function signOut() {
+  // Native push FIRST, while the session is still valid: the token-unassign
+  // DELETE is Bearer-authed. Also resets push.js's `registered` sentinel so the
+  // next account's registerPush() actually runs — without this a shared device
+  // keeps receiving the previous account's notifications.
+  try { await teardownPush(); } catch (e) {}
   if (supabase) await supabase.auth.signOut();
+  // The bridged Next.js API session cookie (bridgeSessionToApi POSTs it on every
+  // sign-in/session restore) outlives the SDK sign-out — on the hosted /m/ build
+  // every same-origin /api/* call would keep authenticating as the signed-out
+  // account, incl. from the signed-out preview. Delete it the way the website
+  // sign-out does. Best-effort: there is no cookie when the bridge never ran.
+  try {
+    if (apiBaseUrl) await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
+  } catch (e) {}
   invalidateClientMetrics();
   // Clear viewer-relative caches so the next account never sees the previous user's
   // follow state / avatars (these are keyed by target id but hold viewer-relative data).

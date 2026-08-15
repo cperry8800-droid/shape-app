@@ -24,6 +24,10 @@ function platform() {
 }
 
 let registered = false;
+// The device token from the last successful registration — retained so sign-out
+// can unassign it (unregisterPush needs the value, and the platform only hands
+// it to the 'registration' listener).
+let lastToken = null;
 
 export async function registerPush() {
   const PushNotifications = nativePush();
@@ -40,6 +44,7 @@ export async function registerPush() {
     PushNotifications.addListener('registration', async (token) => {
       const value = token && token.value;
       if (!value) return;
+      lastToken = value; // retained for the sign-out teardown
       try {
         const auth = window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState();
         const accessToken = auth && auth.session && auth.session.access_token;
@@ -80,4 +85,17 @@ export async function unregisterPush(token) {
       body: JSON.stringify({ token }),
     });
   } catch (e) { /* best-effort */ }
+}
+
+// Sign-out teardown. Call BEFORE the Supabase session is cleared — the DELETE
+// is Bearer-authed, so it needs the signing-out account's still-valid token.
+// Unassigns this device's token from the account in push_tokens AND resets the
+// module flag, so after an in-app A→logout→B switch, B's registerPush() runs a
+// real registration instead of early-returning on A's `registered` sentinel —
+// without this, the shared device keeps receiving A's notifications.
+export async function teardownPush() {
+  const token = lastToken;
+  lastToken = null;
+  registered = false;
+  if (token) await unregisterPush(token);
 }

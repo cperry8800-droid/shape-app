@@ -141,7 +141,14 @@ function bsMyPhoto() {
 // share these avatar helpers); fires shape:identity so on-screen avatars re-render.
 function bsHydrateIdentity() {
   if (typeof window === 'undefined' || !(window.shapeDb && window.shapeDb.getUserGoals)) return Promise.resolve();
+  // Session generation guard (window.__bsSessionGen, bumped by the signedOut
+  // sweep below): a hydration in flight when the account signs out must not
+  // resolve afterward and restore the previous member's photo/initials over
+  // the reset. Window-scoped because the pros bundle's score hydrator shares
+  // the same invalidation signal.
+  const gen = window.__bsSessionGen || 0;
   return window.shapeDb.getUserGoals('client_identity').then((d) => {
+    if (gen !== (window.__bsSessionGen || 0)) return; // stale: captured under the prior session
     try { window.ShapeIdentity = (d && typeof d === 'object' && Object.keys(d).length) ? { ...d } : {}; } catch (e) {}
     try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
   }).catch(() => {});
@@ -206,6 +213,10 @@ if (typeof window !== 'undefined' && !window.__bsSignOutCachesWired) {
   // with no addEventListener; a real browser always has it.
   try {
     window.addEventListener('shape:signedOut', () => {
+      // Bump the session generation FIRST: any identity/score hydration still
+      // in flight was captured under the old value and must discard its result
+      // instead of restoring the previous member's identity over the reset.
+      try { window.__bsSessionGen = (window.__bsSessionGen || 0) + 1; } catch (e) {}
       try { window.ShapeIdentity = {}; } catch (e) {}
       try { window.ShapeScore = null; } catch (e) {}
       try { window.ShapeOnlineVisible = undefined; } catch (e) {}
@@ -682,9 +693,10 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // identity doc into window.ShapeIdentity and fires shape:identity, which the
     // bump listener below turns into a re-render.
     bsHydrateIdentity();
+    const gen = window.__bsSessionGen || 0; // sign-out mid-flight orphans this fetch (same guard as bsHydrateIdentity)
     fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} setIdentityVersion(v => v + 1); } })
+      .then(d => { if (gen !== (window.__bsSessionGen || 0)) return; if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} setIdentityVersion(v => v + 1); } })
       .catch(() => {});
   }, []);
 
