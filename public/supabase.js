@@ -140,7 +140,29 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     },
 
     async signOut() {
-      await client.auth.signOut();
+      // GUARDED, and the scope:'local' retry is LOAD-BEARING here — not the
+      // belt-and-braces it is on mobile. The website pins auth-js 2.108.2
+      // (public/vendor/supabase-js-2.108.2.umd.js, SRI-locked, loaded by every
+      // page), whose _signOut returns a failed global revocation WITHOUT
+      // reaching _removeSession(): `if (t && !(...404|401|403...)) return
+      // this._returnResult({error: t})` sits above the removal. So after an
+      // offline/retryable sign-out the persisted session survives, and
+      // shapeDb.getSession() restores the previous account on the next visit —
+      // past the scrub below, which clears content but not `shape.auth`.
+      // ⚠ Mobile ships 2.111.0, which DOES remove the session on that path. The
+      // two bundles genuinely differ; do not "harmonize" this by assuming the
+      // mobile behaviour, and do not drop the retry when the vendored bundle is
+      // next bumped without re-reading _signOut in the new version.
+      // The guard itself is why the retry can run at all: unguarded, a rejection
+      // here skipped the bridged cookie DELETE, the legacy-key removal and the
+      // content scrub, leaving the previous member signed in with their content
+      // on screen.
+      try {
+        const { error } = await client.auth.signOut();
+        if (error) { try { await client.auth.signOut({ scope: 'local' }); } catch (e) {} }
+      } catch (e) {
+        try { await client.auth.signOut({ scope: 'local' }); } catch (e2) {}
+      }
       // Clear the Next.js cookie session too so server-rendered routes
       // don't think the user is still signed in.
       try {

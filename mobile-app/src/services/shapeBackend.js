@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush, teardownPush } from './push.js';
+import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -513,6 +514,12 @@ async function getCurrentSession() {
 }
 
 async function signOut() {
+  // FIRST STATEMENT, before any teardown step: invalidates every operation
+  // already parked on an await (a push registration awaiting its token, a habit
+  // save awaiting its cancel) so none of them can resume after the sweep and
+  // re-create the state it just removed. Bumping here rather than inside each
+  // teardown means the guard can never race the step it protects.
+  bumpSignOutGen();
   // Native push FIRST, while the session is still valid: the token-unassign
   // DELETE is Bearer-authed. Also resets push.js's `registered` sentinel so the
   // next account's registerPush() actually runs — without this a shared device
@@ -6800,6 +6807,12 @@ async function cancelAllLocalHabits() {
 }
 async function scheduleLocalHabit(r) {
   const LN = _localNotifs(); if (!LN || !LN.schedule) return;
+  // setHabitReminder calls this UNAWAITED, so a save can still be parked on the
+  // cancel below when the member signs out. cancelAllLocalHabits() would then
+  // sweep, this coroutine would resume, and LN.schedule() would re-arm account
+  // A's recurring, label-bearing notification behind the sweep — in the OS,
+  // where neither the storage scrub nor the sign-out reload can reach it.
+  const gen = signOutGen();
   await cancelLocalHabit(r.habit_id);
   if (r.enabled === false) return;
   const parts = String(r.at_time || '09:00').split(':');
@@ -6811,6 +6824,9 @@ async function scheduleLocalHabit(r) {
     schedule: { on: { weekday: dow + 1, hour, minute }, allowWhileIdle: true }, // Capacitor weekday 1=Sun…7=Sat
     extra: { route: 'habits', habitId: r.habit_id },
   }));
+  // Re-checked immediately before the write, not just at entry: the await above
+  // is exactly where this coroutine parks, so the sweep can land between them.
+  if (signOutGen() !== gen) return;
   try { if (notifications.length) await LN.schedule({ notifications }); } catch (e) {}
 }
 async function listHabitReminders() {

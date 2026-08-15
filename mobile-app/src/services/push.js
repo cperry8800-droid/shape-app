@@ -12,6 +12,8 @@
 // registerPush() once the user is signed in; call unregisterPush(token) on
 // logout.
 
+import { signOutGen } from './signOutGen.mjs';
+
 function nativePush() {
   const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
   if (!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return null;
@@ -33,6 +35,13 @@ export async function registerPush() {
   const PushNotifications = nativePush();
   if (!PushNotifications || registered) return;
   registered = true;
+  // Captured BEFORE the first await. The platform hands the token to the
+  // 'registration' listener asynchronously, so a sign-out can land between this
+  // call and the callback — at which point `lastToken` is still null,
+  // teardownPush() has nothing to unassign, and an ungated callback would POST
+  // this device's token back onto the account that just signed out. On a shared
+  // device the next member then receives the previous member's notifications.
+  const gen = signOutGen();
   try {
     let perm = await PushNotifications.checkPermissions();
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
@@ -44,6 +53,12 @@ export async function registerPush() {
     PushNotifications.addListener('registration', async (token) => {
       const value = token && token.value;
       if (!value) return;
+      // A sign-out ran while this registration was in flight — drop the token on
+      // the floor. Bailing BEFORE `lastToken` is set is deliberate: nothing was
+      // POSTed, so there is nothing for a later teardown to unassign, and
+      // retaining it would hand the next teardown a token that was never
+      // associated with any account.
+      if (signOutGen() !== gen) return;
       lastToken = value; // retained for the sign-out teardown
       try {
         const auth = window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState();
@@ -108,6 +123,17 @@ export async function unregisterPush(token) {
 export async function teardownPush() {
   const token = lastToken;
   registered = false;
+  // Drop the 'registration' listener. registerPush() adds a new pair on every
+  // sign-in, so without this they accumulate across an in-app A→logout→B switch;
+  // and the listener is the path a late token takes back onto the signed-out
+  // account. The generation check inside the callback is the guard that holds
+  // when the callback is ALREADY queued (removal can't recall a dispatched
+  // event); this removal is what stops the handle leaking. Both, deliberately —
+  // neither one alone closes the whole window.
+  const PushNotifications = nativePush();
+  if (PushNotifications && PushNotifications.removeAllListeners) {
+    try { await PushNotifications.removeAllListeners(); } catch (e) {}
+  }
   if (!token) return;
   if (await unregisterPush(token)) lastToken = null;
 }
