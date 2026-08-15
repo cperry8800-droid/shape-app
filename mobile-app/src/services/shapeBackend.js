@@ -298,7 +298,8 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
   // 18+ age gate — REQUIRED at account creation (no soft-fail): a missing or
   // unparseable date of birth is rejected, and under-18 is blocked. This is the
   // authoritative server-side check; over_18 is then recomputed from date_of_birth
-  // by a DB trigger, so neither the date nor the derived flag can be faked.
+  // by a DB trigger. The DATE is only unfakeable once
+  // 2026-08-15-profiles-dob-immutable.sql freezes it against self-rewrite.
   {
     const d = dob ? new Date(dob) : null;
     if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
@@ -366,7 +367,8 @@ async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCre
   // `shouldCreateUser` is tied to isCreate below, so an existing user signing in
   // (isCreate false) never provisions an account and needs no DOB, while a new
   // account can only be made through the DOB-required create path. over_18 is
-  // recomputed from date_of_birth by a trigger, so the value can't be faked.
+  // recomputed from date_of_birth by a trigger — unfakeable only once
+  // 2026-08-15-profiles-dob-immutable.sql freezes the date against self-rewrite.
   if (isCreate) {
     const d = dob ? new Date(dob) : null;
     if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }

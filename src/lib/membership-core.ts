@@ -40,7 +40,9 @@ export type Membership = {
    * TRUE only when we hold a date of birth that proves the account is a minor.
    *
    * `profiles.over_18` is DERIVED by the set_over_18() trigger from
-   * date_of_birth and can never be self-asserted, so `false` is trustworthy.
+   * date_of_birth, so it cannot be written directly. A `false` is trustworthy
+   * only once 2026-08-15-profiles-dob-immutable.sql freezes date_of_birth
+   * against self-rewrite — before that, editing the input flips the flag.
    * ⚠ It is NULL when no DOB was ever captured (accounts created before the age
    * gate, and phone sign-ups whose DOB claim did not persist), and NULL is NOT
    * evidence of anything — so this flags only a CONFIRMED minor. Blocking NULL

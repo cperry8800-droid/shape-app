@@ -14,6 +14,13 @@
 // that gate existed. Refusing on NULL would lock out the entire pre-existing
 // user base, so absence is not treated as a claim either way — the same rule
 // `membership-core.ts` applies.
+//
+// ⚠ AND `false` IS ONLY PROOF ONCE THE DOB FREEZE IS APPLIED.
+// `over_18` cannot be written directly, but until
+// 2026-08-15-profiles-dob-immutable.sql freezes `date_of_birth`, an identified
+// minor can rewrite the INPUT through PostgREST and clear this flag themselves
+// (proved against production 2026-08-15). This gate is only as good as that
+// migration — do not treat a refusal as durable before it is applied.
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
