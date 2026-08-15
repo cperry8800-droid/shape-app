@@ -139,6 +139,10 @@ export function shapeScrubLocalUserContent({ extraKeys = [] } = {}) {
   try {
     SHAPE_SCRUB_SESSION_KEYS.forEach((k) => { try { window.sessionStorage.removeItem(k); } catch (e) {} });
   } catch (e) {}
-  // Fire-and-forget: every scrub caller also drops the PWA caches (see above).
-  shapePurgeShapeCaches();
+  // Every scrub caller also drops the PWA caches (see above). RETURN the
+  // purge promise: a caller whose very next act is a navigation or reload
+  // (mobile handleLogout, pageShell's no-supabase fallback) must await it
+  // under its own bound, or the departing document is discarded before the
+  // caches.delete calls ever dispatch. Callers with no navigation may ignore it.
+  return shapePurgeShapeCaches();
 }

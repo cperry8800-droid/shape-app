@@ -113,6 +113,50 @@ test('supabase.js signOut awaits the cache purge before navigation', () => {
   assert.ok(slice.includes("'shape-'"), 'signOut() purge not scoped to shape- caches');
 });
 
+// ── purge survives the navigation ── a scrub site whose very next act is a
+// navigation/reload discards the document before a fire-and-forget purge can
+// dispatch its caches.delete calls. So the scrub RETURNS the purge promise
+// and every navigating caller awaits it under a bound (sign-out always
+// completes — a stalled CacheStorage must never hang it).
+test('canonical scrub RETURNS the purge promise', () => {
+  const src = readFileSync(new URL('../public/newdesign/localScrub.mjs', import.meta.url), 'utf8');
+  assert.match(src, /return shapePurgeShapeCaches\(\);/);
+});
+
+test('pageShell fallback logout awaits the purge before navigating', () => {
+  const src = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  // The inline copy must RETURN the delete promise (Promise.all over deletes)…
+  assert.match(src, /return caches\.keys\(\)\.then\(function \(keys\) \{\s*return Promise\.all\(/);
+  // …and handleLogout's no-supabase branch (About/Pricing never load
+  // supabase.js) must await it, bounded, before window.location.href.
+  const start = src.indexOf('async function handleLogout');
+  assert.ok(start >= 0, 'handleLogout not found');
+  const slice = src.slice(start, src.indexOf("window.location.href = '/'", start));
+  assert.match(slice, /await Promise\.race\(\[\s*Promise\.resolve\(window\.shapeClearLocalUserContent\(\)\)/);
+});
+
+test('index.html sign-out routes the scrub promise into go()', () => {
+  const src = readFileSync(new URL('../public/newdesign/index.html', import.meta.url), 'utf8');
+  assert.match(src, /else if\(window\.shapeClearLocalUserContent\)p=window\.shapeClearLocalUserContent\(\);/);
+});
+
+test('supabase.js twin returns the purge promise on both branches', () => {
+  const src = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
+  assert.match(src, /\{ return window\.shapeClearLocalUserContent\(\); \}/);
+  assert.match(src, /return caches\.keys\(\)\.then\(function \(cacheKeys\) \{\s*return Promise\.all\(/);
+});
+
+test('mobile handleLogout awaits the scrub purge before the reload', () => {
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', import.meta.url), 'utf8');
+  const start = src.indexOf('const handleLogout = async');
+  assert.ok(start >= 0, 'handleLogout not found');
+  const reloadIdx = src.indexOf('window.location.reload()', start);
+  assert.ok(reloadIdx > start, 'reload not found after handleLogout');
+  const slice = src.slice(start, reloadIdx);
+  assert.match(slice, /const scrubPurge = shapeScrubLocalUserContent\(/);
+  assert.match(slice, /await Promise\.race\(\[scrubPurge,/);
+});
+
 test('the Next.js dashboard sign-out runs the scrub + purge client-side', () => {
   const btn = readFileSync(new URL('../src/components/SignOutButton.tsx', import.meta.url), 'utf8');
   assert.match(btn, /from '\.\.\/\.\.\/public\/newdesign\/localScrub\.mjs'/);

@@ -350,7 +350,16 @@ function Header({ active }) {
     // doesn't load supabase.js.
     try {
       if (window.shapeDb && window.shapeDb.signOut) await window.shapeDb.signOut();
-      else if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent();
+      else if (window.shapeClearLocalUserContent) {
+        // Pages that never load supabase.js reach THIS branch, and the
+        // navigation below discards the document — so the scrub's async cache
+        // purge must be awaited here, bounded so a stalled CacheStorage can
+        // never hang the sign-out (sign-out always completes).
+        await Promise.race([
+          Promise.resolve(window.shapeClearLocalUserContent()),
+          new Promise((r) => setTimeout(r, 2000)),
+        ]);
+      }
     } catch {}
     window.location.href = '/';
   }
@@ -1464,17 +1473,20 @@ window.shapeClearLocalUserContent = function () {
   try {
     ["shapeLiveWorkout", "shapeLiveWorkoutResult"].forEach(function (k) { sessionStorage.removeItem(k); });
   } catch (e) {}
-  // PWA cache purge (fire-and-forget) — a cache built by an older worker
-  // generation can hold cross-origin SIGNED media (progress photos, voice
-  // memos, credential files), and CacheStorage otherwise clears only on a
-  // deploy version bump. Inline copy of localScrub.mjs shapePurgeShapeCaches
-  // (classic script — cannot import); supabase.js signOut() additionally
-  // AWAITS its own purge before callers navigate. Double-delete is a no-op.
+  // PWA cache purge — a cache built by an older worker generation can hold
+  // cross-origin SIGNED media (progress photos, voice memos, credential
+  // files), and CacheStorage otherwise clears only on a deploy version bump.
+  // Inline copy of localScrub.mjs shapePurgeShapeCaches (classic script —
+  // cannot import). RETURNS the delete promise: pages that render Header
+  // WITHOUT loading supabase.js (About, Pricing, …) take handleLogout's
+  // fallback branch and navigate right after this function, which would
+  // discard the document before a fire-and-forget purge ever dispatched its
+  // deletes — the caller awaits this under a bound. Double-delete is a no-op.
   try {
     if (window.caches && caches.keys) {
-      caches.keys().then(function (keys) {
-        keys.filter(function (k) { return k.indexOf("shape-") === 0; })
-          .forEach(function (k) { caches.delete(k); });
+      return caches.keys().then(function (keys) {
+        return Promise.all(keys.filter(function (k) { return k.indexOf("shape-") === 0; })
+          .map(function (k) { return caches.delete(k); }));
       }).catch(function () {});
     }
   } catch (e) {}

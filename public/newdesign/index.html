@@ -1198,7 +1198,10 @@
             var p=null;
             try{
               if(window.shapeDb&&window.shapeDb.signOut)p=window.shapeDb.signOut();
-              else if(window.shapeClearLocalUserContent)window.shapeClearLocalUserContent();
+              // Capture the scrub's purge promise so go() below waits for the
+              // cache deletes — a bare call raced the navigation (same class
+              // as pageShell's handleLogout fallback).
+              else if(window.shapeClearLocalUserContent)p=window.shapeClearLocalUserContent();
             }catch(err){}
             if(p&&p.then){p.then(go,go);}else{go();}
           });
