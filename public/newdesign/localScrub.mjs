@@ -57,6 +57,10 @@ export const SHAPE_SCRUB_KEYS = [
   'shape.deletedGroceryIds',    // account-scoped sync tombstones
   'shape.cookResume',
   'shape.radio.musicLibraries',
+  'shape.stepGoal',       // account-scoped step target (cloud copy in user_goals) —
+                          // inherited indefinitely by a next user with no cloud goal
+  'shape.notify.last',    // 30-min notification throttle stamp — suppresses the next
+                          // account's evaluation until the previous account's expires
   'bs_coach_soundtracks',
   'bs_coach_soundtrack_assign',
   // The saveLocalRecord() fallback families (shapeBackend.js): records a
