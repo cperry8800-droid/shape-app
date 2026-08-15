@@ -111,14 +111,12 @@ export default async function Footer() {
               <h4>Marketplace</h4>
               <Link href="/trainers">Trainers</Link>
               <Link href="/nutritionists">Nutritionists</Link>
-              <Link href="/gyms">Gyms</Link>
               <Link href="/newdesign/Pricing.html">Pricing</Link>
             </div>
             <div className="footer-col">
               <h4>For pros</h4>
               <Link href="/for-trainers">For trainers</Link>
               <Link href="/for-nutritionists">For nutritionists</Link>
-              <Link href="/for-gyms">Shape Pass</Link>
             </div>
             <div className="footer-col">
               <h4>Get started</h4>
