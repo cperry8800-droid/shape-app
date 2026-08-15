@@ -153,13 +153,32 @@
         <tr><td>Apple (HealthKit / MusicKit)</td><td>Health import on iOS; music playlists</td><td>Health metrics you authorize on your device; playlist references</td><td class="yes">Yes</td><td>On-device + US</td><td>Apple platform terms</td></tr>
         <tr><td>Spotify</td><td>Playlist sharing (in-workout audio)</td><td>Basic profile, playlist references</td><td class="no">No</td><td>US / global</td><td>Per Spotify terms</td></tr>
         <tr><td>Strava / Garmin / Whoop / Oura</td><td>Wearable import (only the ones you connect)</td><td>Activities, heart rate, HRV, sleep, recovery, calories</td><td class="yes">Yes</td><td>US / global</td><td>Per provider terms</td></tr>
+        <tr><td>Radio.co</td><td>Streams Shape Radio (non-interactive internet radio)</td><td>IP address and user agent of the listening device; no account details and no health data</td><td class="no">No</td><td>US / global (content delivery)</td><td>Per Radio.co terms &amp; data processing agreement</td></tr>
+        <tr><td>Sentry</td><td>Error and crash reporting, so we can find and fix faults</td><td>Error details and technical context (device, app version, page); your user ID and role where you are signed in</td><td class="no">No*</td><td>US / global</td><td>Standard Contractual Clauses (Sentry DPA)</td></tr>
+        <tr><td>Jitsi (meet.jit.si)</td><td>Video calls for coaching consultations</td><td>Audio and video of the call, IP address, display name</td><td class="yes">Yes*</td><td>US / global</td><td>Per Jitsi/8x8 terms — see the note below this table</td></tr>
+        <tr><td>FormSubmit.co</td><td>Relays the web sign-up and coach-application forms to our inbox</td><td>Everything on the submitted form — for the client questionnaire this includes injuries, medical conditions, medications, allergies and an emergency contact</td><td class="yes">Yes</td><td>US / global</td><td>Per FormSubmit terms — see the note below this table</td></tr>
+        <tr><td>Google (Android backup)</td><td>Android's operating-system backup of installed apps, if you have it enabled on your device</td><td>App settings and files from your device. We exclude the app's browser profile — which holds your session — from backup and device transfer</td><td class="no">No*</td><td>US / global</td><td>Google account terms; controlled by your Android backup setting</td></tr>
+        <tr><td>USDA FoodData Central</td><td>Food and nutrition search</td><td>The food search terms you type. No account details</td><td class="no">No</td><td>United States</td><td>US government public API</td></tr>
+        <tr><td>Open Food Facts</td><td>Food, brand and barcode search</td><td>The food search terms or barcode you enter. No account details</td><td class="no">No</td><td>EU (France)</td><td>Open database, public API</td></tr>
+        <tr><td>Google Fonts</td><td>Serves the typefaces used on our web pages</td><td>IP address and user agent, when your browser requests a font file</td><td class="no">No</td><td>US / global</td><td>Google terms — we intend to self-host these; see the note below this table</td></tr>
+        <tr><td>unpkg, esm.sh</td><td>Content-delivery networks that serve JavaScript libraries our web pages use</td><td>IP address and user agent, when your browser requests a file</td><td class="no">No</td><td>US / global</td><td>Per provider terms</td></tr>
+        <tr><td>YouTube, Vimeo, Unsplash</td><td>Plays embedded video (for example a coach's form clip) and serves images</td><td>IP address and user agent, only on pages where such media loads or you press play</td><td class="no">No</td><td>US / global</td><td>Per provider terms (YouTube: Google)</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="body" style="margin-top:14px;font-size:13px;color:rgba(242,237,228,.55)">* Instacart receives the items on a grocery list you choose to send, which can reveal dietary information.</p>
+  <p class="body" style="margin-top:14px;font-size:13px;color:rgba(242,237,228,.55)">* Instacart receives the items on a grocery list you choose to send, which can reveal dietary information. Sentry and Android backup can incidentally include health-related content if it appears in an error report or an app file. Jitsi carries whatever you say and show on a coaching call, which is why it is marked yes.</p>
+
+  <h2>Notes on four of these</h2>
+  <p class="body">We would rather explain these than let a table imply everything is settled.</p>
+  <ul class="body" style="padding-left:20px">
+    <li><strong>Jitsi</strong> — coaching video currently runs on the public <code>meet.jit.si</code> service. We are moving this to a dedicated instance under a data processing agreement so that call media is covered by contract rather than by a public service's general terms.</li>
+    <li><strong>FormSubmit.co</strong> — the web sign-up questionnaire is relayed to our inbox through this service, which means health information you enter there passes through a third party. <strong>We are removing this relay</strong> and delivering the questionnaire straight to our own systems. It does not affect the mobile app, where the readiness screening never goes through it.</li>
+    <li><strong>Google Fonts</strong> — our web pages currently request fonts from Google, which means your IP address reaches Google on page load. We are self-hosting these fonts to remove that request entirely.</li>
+    <li><strong>Content-delivery networks</strong> — unpkg, esm.sh, YouTube, Vimeo and Unsplash receive your IP address only because your browser fetches a file or a video from them. They receive no account information and no health data.</li>
+  </ul>
 
   <h2>International transfers</h2>
-  <p class="body">Shape is operated from the United States, so data is processed in the U.S. For people in the EEA and the UK, transfers to the U.S. rely on the safeguard listed for each service above — the EU-US Data Privacy Framework where the service is certified, or European Commission Standard Contractual Clauses (with the UK International Data Transfer Addendum) and a transfer impact assessment where it is not. We maintain SCCs as a fallback even for Data-Privacy-Framework-certified services.</p>
+  <p class="body">Shape is available worldwide, and our infrastructure is hosted in the United States, so your data is processed in the U.S. and in the other locations listed for each service above. For people in the EEA and the UK, transfers rely on the safeguard listed for each service — the EU-US Data Privacy Framework where the service is certified, or European Commission Standard Contractual Clauses (with the UK International Data Transfer Addendum) and a transfer impact assessment where it is not. We maintain SCCs as a fallback even for Data-Privacy-Framework-certified services. Shape Radio is offered only in the United States and United Kingdom for music-licensing reasons; the rest of Shape is not limited that way.</p>
 
   <h2>Changes</h2>
   <p class="body">When we add, remove, or materially change a subprocessor, we update this page and the "Last updated" date above. For material changes that affect how your data is handled, we also give notice as described in the <a href="/privacy.html">Privacy Policy</a>. Questions: <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
@@ -206,7 +225,6 @@
     </div>
     <div class="footer-base">
       <span>© 2026 SHAPE</span>
-      <span>BROOKLYN · LISBON · MELBOURNE</span>
     </div>
   </div>
 </footer>

@@ -209,9 +209,9 @@
         <li>Per-user row-level security so each person (and only their linked coach) can reach their data.</li>
         <li>Private, signed-URL storage for sensitive files.</li>
         <li>API rate limiting and request size/shape validation.</li>
-        <li>Integration tokens stored server-side, never in the app bundle.</li>
+        <li>Integration tokens for the services we connect on your behalf are stored server-side and are never shipped in the app bundle. One exception worth naming: when you connect <strong>Apple Music</strong>, Apple's own MusicKit library places a music-user token in your browser's local storage on your device — that is Apple's mechanism, it stays on your device, and disconnecting Apple Music or clearing your browser storage removes it.</li>
         <li>Least-privilege service keys.</li>
-        <li>Automated dependency audits and code review on every change.</li>
+        <li>Automated dependency monitoring (Dependabot) that flags known vulnerabilities in the libraries we use and opens grouped update requests, automated secret scanning on every change, and code review before anything ships.</li>
       </ul>
     </section>
 
@@ -294,7 +294,6 @@
     </div>
     <div class="footer-base">
       <span>© 2026 SHAPE</span>
-      <span>BROOKLYN · LISBON · MELBOURNE</span>
     </div>
   </div>
 </footer>

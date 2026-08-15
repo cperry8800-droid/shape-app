@@ -497,7 +497,6 @@ function Footer({ logoHeight = 64 } = {}) {
         </div>
         <div className="shape-footer-base" style={{ marginTop: 36, paddingTop: 18, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.42)" }}>
           <span>© 2026 SHAPE</span>
-          <span>BROOKLYN · LISBON · MELBOURNE</span>
         </div>
       </div>
     </footer>

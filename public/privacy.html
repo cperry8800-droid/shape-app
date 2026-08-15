@@ -257,7 +257,7 @@
         <li>TLS 1.2+ for all traffic in transit.</li>
         <li>Encryption at rest for database tables and storage.</li>
         <li>Role-based access controls; engineering staff access logged and minimized.</li>
-        <li>Short-lived session tokens with automatic rotation.</li>
+        <li>Session cookies that are <code>httpOnly</code> — not readable by scripts in your browser — set to expire after 30 days and refreshed as you keep using Shape. Signing out invalidates the session.</li>
         <li>Payment data handled only by Stripe (PCI-DSS Level 1).</li>
         <li>Regular dependency audits and vulnerability patching.</li>
       </ul>
@@ -312,14 +312,22 @@
 
     <section class="section" id="s6">
       <div class="num">10</div>
-      <h2>Cookies &amp; tracking</h2>
+      <h2>Cookies, device storage &amp; tracking</h2>
       <p>We use cookies and similar technologies for these purposes:</p>
       <ul>
         <li><strong>Strictly necessary:</strong> session cookies that keep you logged in and protect against CSRF, and the Cloudflare Turnstile bot-protection challenge on login/signup forms (which processes your IP to tell humans from bots). Cannot be disabled without breaking the site.</li>
         <li><strong>Functional:</strong> remember your preferences (e.g., dashboard view, active role) across sessions.</li>
-        <li><strong>Analytics:</strong> Vercel Analytics collects aggregate, privacy-friendly usage data (page views, referrers) to help us improve the product — no advertising pixels and no cross-site tracking.</li>
-        <li><strong>Fraud prevention:</strong> on pages with payments, our processor Stripe sets its own cookies (e.g., <code>__stripe_mid</code>, <code>__stripe_sid</code>) to detect and prevent fraud.</li>
+        <li><strong>Analytics — no cookies:</strong> we use Vercel Analytics, which is <strong>cookieless</strong>: it collects aggregate usage data (page views, referrers) without setting a cookie or an identifier on your device, and does no advertising or cross-site tracking. It is listed here for transparency, not because it stores anything on your device.</li>
       </ul>
+      <p><strong>Storage on your device is a bigger footprint than cookies, and it is worth being specific about.</strong> Shape keeps working data in your browser's or app's local storage — this is how the app stays fast and usable offline. Depending on what you use, it can include:</p>
+      <ul>
+        <li><strong>Your session</strong> — the signed-in session for the app, and the account identifier used to restore it.</li>
+        <li><strong>Messages</strong> — cached chat threads and message text, including direct messages, so a conversation opens instantly.</li>
+        <li><strong>Health and intake information</strong> — if you complete the sign-up questionnaire on the web, your answers (which can include injuries, medications, allergies and an emergency contact) are kept in local storage on that device so the form survives a reload.</li>
+        <li><strong>Names and profile details</strong> of people you interact with, cached to render lists and threads.</li>
+        <li><strong>Your preferences</strong> — appearance and theme, units, saved layouts, Shape Radio settings and saved-track bookmarks (title and artist text only), onboarding progress, and your cookie/consent choice.</li>
+      </ul>
+      <p>This data stays on your device. It is not an advertising identifier and we do not use it to track you across other sites. <strong>Clearing your browser or app storage, or signing out, removes it</strong> — signing out clears the session and the caches tied to your account. On a shared device, sign out when you are done.</p>
       <p>We do not use advertising or cross-site tracking cookies. For visitors in the EEA and the UK we present a <strong>consent banner</strong> to control non-essential storage, and we honor the Global Privacy Control signal. You can also block or delete cookies in your browser settings; doing so may sign you out or disable certain features.</p>
     </section>
 
@@ -410,7 +418,6 @@
     </div>
     <div class="footer-base">
       <span>© 2026 SHAPE</span>
-      <span>BROOKLYN · LISBON · MELBOURNE</span>
     </div>
   </div>
 </footer>

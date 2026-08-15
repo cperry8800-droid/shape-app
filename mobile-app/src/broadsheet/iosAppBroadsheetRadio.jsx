@@ -9,6 +9,51 @@ import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 //   • BSRadioScreen    — full radio page (live + coach playlists)
 //   • BSRadioContext   — global "is radio on, what's playing" state
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚠ NON-INTERACTIVE BOUNDARY — A LICENSING CONSTRAINT, NOT A PRODUCT PREFERENCE
+//
+// Shape Radio streams under the US statutory licence for non-interactive
+// digital audio transmission (17 U.S.C. §114 / SoundExchange) plus the
+// performing-rights licences for the underlying compositions. That licence is
+// available ONLY to a service the listener cannot steer. Crossing any line
+// below removes the statutory licence entirely and puts Shape into direct
+// per-label negotiation for master rights — a different company, not a
+// different feature flag.
+//
+// The four prohibitions, verbatim in effect:
+//   1. NO TRACK SELECTION      — a listener may never choose what plays next.
+//   2. NO ON-DEMAND REPLAY     — a specific recording may never be replayed
+//                                on request.
+//   3. NO ADVANCE PLAYLIST     — never publish, or let anyone else publish,
+//                                the titles of upcoming recordings or their
+//                                featured artists before they air.
+//   4. NO SKIP-TO-SPECIFIC     — no seek, no "play this one", no per-track
+//                                skip that lets a listener converge on a
+//                                chosen recording.
+//
+// What is deliberately SAFE here, and why — do not "improve" these:
+//   • `nowPlaying` names the CURRENT recording only. Contemporaneous display
+//     is permitted; advance display is not.
+//   • `saveTrackToLibrary` stores TEXT METADATA ONLY (see makeRadioTrackPayload:
+//     key/title/artist/bpm/len/savedAt). It holds no audio, no stream handle and
+//     no addressable track id, so it is a bookmark for the member's own Spotify/
+//     Apple account — never a replay affordance. Keep it metadata-only.
+//   • Coach soundtracks are LINK-OUTS, guaranteed at the schema layer:
+//     `coach_soundtracks.provider` is CHECK-constrained to ('spotify','apple')
+//     and playback is `window.open(url)` into the member's own account under
+//     that provider's licence to them. They never enter Shape's stream. A coach
+//     ordering recordings inside OUR stream would be interactive — never build it.
+//   • Shape Sets (`nora_sets`) publishes SHOWS — title/dj/time — not track
+//     lists. A programme schedule is permitted; a recording schedule is not.
+//     ⚠ AUTHORING RULE: `title`, `dj` and `blurb` are unconstrained free text
+//     written by ops via service_role. A set titled or described with a
+//     FEATURED ARTIST or a specific recording becomes a prior announcement and
+//     breaks prohibition 3. Name shows for the DJ or the mood, never the music.
+//
+// Anything that would let a listener answer "play THAT track, now" is out of
+// scope permanently. Route such requests to the owner, not to a workaround.
+// ─────────────────────────────────────────────────────────────────────────────
+//
 // Visual rhythm: black ink, cream paper, hairlines + slabs.
 // Light effects:
 //   - Audio-bar EQ in mono ink (animated heights).
@@ -169,7 +214,10 @@ function BSRadioProvider({ children }) {
   const [paused, setPaused]         = useStateBR(_radioPref ? !_radioPref.on : true);
   // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW") — kept
   // for the muted/fallback display path; live now-playing overrides via nowPlaying state.
-  const [trackIdx, setTrackIdx]     = useStateBR(0);
+  // ⚠ No trackIdx/setTrackIdx here, deliberately. A track-index setter on this
+  // context is a ready-made "play track N" affordance — prohibition 1 + 4 of the
+  // NON-INTERACTIVE BOUNDARY at the top of this file. The pair existed with zero
+  // consumers and was removed rather than left as a foothold. Do not reintroduce.
   const [nowPlaying, setNowPlaying] = useStateBR(null);
   const [activeChannel, setChannel] = useStateBR('live');
   // The Shape Sets schedule + the stream gate, resolved ONCE here and shared
@@ -373,7 +421,7 @@ function BSRadioProvider({ children }) {
 
   const value = {
     radioOn, setRadioOn, setRadioPreference, paused, setPaused,
-    trackIdx, setTrackIdx, nowPlaying, activeChannel, setChannel,
+    nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
     fxMode, setFxMode, fxColor, setFxColor,
     songSocial, voteSong, commentSong, loadSongSocial, currentSongKey,
