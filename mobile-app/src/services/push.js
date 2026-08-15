@@ -184,23 +184,29 @@ export async function teardownPush() {
   if (PushNotifications && PushNotifications.removeAllListeners) {
     try { await PushNotifications.removeAllListeners(); } catch (e) {}
   }
-  // Serialize against an in-flight registration POST before deleting: the
-  // DELETE must be dispatched only after the POST has settled, or the two race
-  // server-side and a stale POST can re-assign the token to the account that
-  // just signed out. Bounded — teardown runs before the sign-out reload, and
-  // the shared-device guarantee must not hang on a stalled socket (the round-9
-  // rule: the scrub and reload always run). Residual, accepted + narrow: a
-  // POST still unsettled after the bound can land after the DELETE; the row it
-  // re-creates is then cleaned by the next registration's admin re-point.
-  if (pendingRegister) {
-    try {
-      await Promise.race([pendingRegister, new Promise((r) => setTimeout(r, 4000))]);
-    } catch (e) {}
-  }
-  // Re-read AFTER the await: the settled registration may have set lastToken
-  // between teardown entry and here, and the snapshot taken at entry would
-  // miss it — leaving the just-registered token assigned.
-  const settledToken = lastToken || token;
-  if (!settledToken) return;
-  if (await unregisterPush(settledToken)) lastToken = null;
+  // Serialize-then-delete as ONE detached chain, and bound the WAIT on that
+  // chain — never the work inside it. Inside the chain there is no cutoff, so
+  // the DELETE is dispatched only after the registration POST has settled and
+  // the two can never invert server-side (an earlier version put a timeout on
+  // the POST-wait itself, which resumed teardown while the ordering guarantee
+  // was still pending — the exact race it existed to close).
+  const pending = pendingRegister;
+  const chain = (async () => {
+    if (pending) { try { await pending; } catch (e) {} }
+    // Re-read AFTER the await: the settled registration may have set lastToken
+    // between teardown entry and here, and the snapshot taken at entry would
+    // miss it — leaving the just-registered token assigned.
+    const settledToken = lastToken || token;
+    if (!settledToken) return;
+    if (await unregisterPush(settledToken)) lastToken = null;
+  })();
+  // The bound lives HERE, at the outermost await, so sign-out ALWAYS continues
+  // (the round-9 rule: the scrub and reload must never hang on a stalled
+  // socket — and that covers the DELETE's own fetch, not just the POST-wait).
+  // Past the bound the chain keeps running until the sign-out reload tears the
+  // page down; a request the reload aborts leaves at most an assigned row,
+  // which the next registration's admin re-point cleans — the long-accepted
+  // offline residual, now strictly narrower: a stale POST landing AFTER a
+  // successful DELETE is impossible within the page's lifetime.
+  await Promise.race([chain, new Promise((r) => setTimeout(r, 4000))]);
 }
