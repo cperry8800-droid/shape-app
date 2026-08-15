@@ -178,13 +178,13 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-15): SIGN-OUT NOW SCRUBS THE DEVICE — WITH ONE DOCUMENTED RESIDUAL
+> **Latest (2026-08-15): SIGN-OUT NOW SCRUBS THE SIGNING-OUT TAB — WITH DOCUMENTED RESIDUALS
 > (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`).**
 > Content in local/sessionStorage, **signed media in CacheStorage**, the push registration,
 > and every in-memory cache survived a sign-out on a shared device. The service worker was
 > caching **cross-origin signed media token-and-all** (`sw.js` v133 narrows it to
 > same-origin); `handleLogout` ends in a hard reload, which retires the whole
-> in-memory-survivor class instead of one cache at a time.
+> in-memory-survivor class **in that tab** instead of one cache at a time.
 > ⚠ **`/m/` ships under the WEBSITE's origin**, so both surfaces share one localStorage —
 > the scrub inventory is now a single union in `public/newdesign/localScrub.mjs`, imported
 > by mobile and gated against the two website copies by a sync test.
@@ -196,6 +196,10 @@ changelog whenever something ships.
 > ⚠ **A page cannot retire its own controller**, so the purge is not the last word — v133's
 > install delete-all reduces the residual but, being async to the navigation, does not
 > guarantee it away.
+> ⚠ **The scrub is TAB-LOCAL.** `sessionStorage` is per tab and there is **no**
+> `onAuthStateChange`, `storage` or `SIGNED_OUT` handler anywhere in source, so a sibling
+> tab keeps `shapeLiveWorkout`/`shapeLiveWorkoutResult` and its in-memory state until it is
+> closed. Cross-tab cleanup is unbuilt, not shipped.
 > Gyms is off the canonical `Nav`/`Footer` chrome (#1889) — ⚠ **no reachability claim**:
 > `sitemap.xml`, the `/gyms` rewrite and `404.html` are all still live doors. **No legacy
 > page was deleted**; the "safe to delete" list was refuted by its own transitive analysis.
@@ -1703,6 +1707,17 @@ changelog whenever something ships.
   caches signed media on every page load regardless). **If it is ever worth closing, the
   remedy is a purge on first load UNDER v133 — cleanup after the new worker controls — not
   coordination ahead of the navigation, which the page cannot do.**
+
+- ⚠ **SECOND RESIDUAL: THE SCRUB IS TAB-LOCAL, AND CROSS-TAB CLEANUP IS UNBUILT.**
+  `sessionStorage` is per tab by spec, and sign-out only clears the tab it runs in and then
+  reloads/redirects **that** document. There is **no** `onAuthStateChange`, `storage`-event
+  or `SIGNED_OUT` handler anywhere in source (verified by grep over `public/newdesign`,
+  `public/supabase.js`, `src` and `mobile-app/src` — zero hits for all three), so nothing
+  propagates a sign-out to sibling tabs. A second open tab therefore keeps
+  `shapeLiveWorkout`/`shapeLiveWorkoutResult` **and all of its in-memory user state** until
+  someone closes it — on a shared device, exactly the inheritance this wave set out to stop.
+  The remedy, if it is wanted, is a `storage`-event or `onAuthStateChange('SIGNED_OUT')`
+  listener that runs the same scrub and reloads the sibling tab. **Not built here.**
 
 - ⚠ **THE FLAT CURVE, AND WHAT ENDING IT LOOKED LIKE.** #1885 ran three rounds of exactly
   one P1 each, all in the same purge seam, rounds 2 and 3 being defects in the previous
