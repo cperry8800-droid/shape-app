@@ -71,20 +71,24 @@ export async function registerPush() {
   }
 }
 
+// Returns true only when the server CONFIRMED the delete (2xx) — a thrown fetch
+// (offline) or a non-2xx both report false, so the caller can keep the token
+// for another attempt instead of discarding the only value that can retry.
 export async function unregisterPush(token) {
-  if (!token) return;
+  if (!token) return false;
   try {
     const auth = window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState();
     const accessToken = auth && auth.session && auth.session.access_token;
     const headers = { 'Content-Type': 'application/json' };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    await fetch('/api/push/register', {
+    const response = await fetch('/api/push/register', {
       method: 'DELETE',
       credentials: 'same-origin',
       headers,
       body: JSON.stringify({ token }),
     });
-  } catch (e) { /* best-effort */ }
+    return response.ok;
+  } catch (e) { return false; }
 }
 
 // Sign-out teardown. Call BEFORE the Supabase session is cleared — the DELETE
@@ -93,9 +97,17 @@ export async function unregisterPush(token) {
 // module flag, so after an in-app A→logout→B switch, B's registerPush() runs a
 // real registration instead of early-returning on A's `registered` sentinel —
 // without this, the shared device keeps receiving A's notifications.
+//
+// `lastToken` is cleared only on a CONFIRMED delete: discarding it before the
+// attempt leaves the push_tokens row assigned to the signed-out account with no
+// value left to retry with when the DELETE fails (offline, non-2xx). Retained,
+// a later teardown in this session can try again. Residual, accepted: a failed
+// unassign followed by no further sign-in on this device leaves the row until
+// the next registration — the register POST upserts on token and re-points the
+// row to the new account, which is the recovery path for the shared-device case.
 export async function teardownPush() {
   const token = lastToken;
-  lastToken = null;
   registered = false;
-  if (token) await unregisterPush(token);
+  if (!token) return;
+  if (await unregisterPush(token)) lastToken = null;
 }

@@ -1868,18 +1868,28 @@ function BSAppShell({ tweaks, setTweak }) {
     // The in-memory sibling of shape.errorLog — the last error record can embed
     // app-state strings, and the storage sweep alone doesn't touch it.
     try { window.__BS_LAST_ERROR = null; } catch (e) {}
-    // Tell in-memory holders of user content to drop it — storage removal alone
-    // doesn't clear state hoisted above the stage switch (BSRadioProvider keeps
-    // the saved-tracks library mounted across logout by design).
+    // Tell in-memory holders of user content to drop it. The reload below is
+    // the authoritative wipe; this event is the fallback if the reload is ever
+    // blocked, and the contract other surfaces' teardown listeners key on.
     try { window.dispatchEvent(new Event('shape:signedOut')); } catch (e) {}
-    // Land on the membership wall (the gate), not the bare login screen.
-    setStage('app');
+    // Hard reload, AFTER every awaited teardown above (push unassign + bridged
+    // cookie DELETE + storage scrub) has settled. This handler never navigates,
+    // so every module-scoped cache in the bundle survives an in-app sign-out
+    // unless it is individually wired to shape:signedOut — a class of leak that
+    // has to be closed per-cache and reopens with the next cache someone adds
+    // (e.g. shapeSignals' role-keyed triage promise, which would serve account
+    // A's roster to account B). The reload retires the whole class: a fresh JS
+    // context boots signed-out onto the membership wall. localStorage survives
+    // a reload, so the scrub above still does the at-rest work.
+    try { window.location.reload(); } catch (e) { setStage('app'); }
   };
 
   // BSRadioProvider hoisted ABOVE the stage switch so radio state
-  // (radioOn, askedPrompt, fxMode) survives logout → re-login. Without
-  // hoisting, BSRadioProvider remounts on login and re-fires its 600ms
-  // auto-prompt, causing a brief Home flash before the overlay covers it.
+  // (radioOn, askedPrompt, fxMode) survives stage transitions (gate, browse,
+  // preview) without remounting — a remount re-fires its 600ms auto-prompt,
+  // causing a brief Home flash before the overlay covers it. An explicit
+  // sign-out hard-reloads (see handleLogout), so radio state resets there
+  // by design; the hoisting covers every in-session transition.
   return (
     <BSRadioProvider>
       {/* ── Deliberate crash trigger (?crash=1), armed here on purpose ────────
