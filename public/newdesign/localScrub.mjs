@@ -124,7 +124,7 @@ export const SHAPE_SCRUB_SESSION_KEYS = ['shapeLiveWorkout', 'shapeLiveWorkoutRe
 // the cache after it. Nothing callable from the document prevents that:
 // unregister() does not stop the controller of a live page, and neither
 // skipWaiting nor clients.claim can preempt a fetch handler already running.
-// THE CLEANUP THAT CLOSES IT IS THE NEXT WORKER'S INSTALL, not this purge:
+// WHAT REDUCES IT IS THE NEXT WORKER'S INSTALL — reduces, does not close:
 // sw.js v133's install deletes EVERY cache unconditionally (caches.keys() →
 // delete all, no filter) before opening its own, and it carries skipWaiting()
 // + clients.claim(). Sign-out always navigates, and a navigation runs the

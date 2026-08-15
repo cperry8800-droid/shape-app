@@ -1760,9 +1760,29 @@ changelog whenever something ships.
   `styles.css` (which would silently disable the worker, since `cache.addAll` rejects
   wholesale on one 404) — the file exists and all 29 precache entries resolve on disk.
 
-- **Owner ruling carried:** the two offline durability queues (`shape.pendingAssignments`,
-  `shape.careerAwardPending`) are deliberately **kept** — wiping them silently loses a
-  coach's held week or an earned award, and their exposure is content-at-rest only.
+- **Owner ruling carried — but review REFUTED half its rationale.** Both offline durability
+  queues (`shape.pendingAssignments`, `shape.careerAwardPending`) are still deliberately
+  **kept**. For the assignment queue the reasoning holds: `drainAssignmentQueue()` records
+  that client-side owner partitioning was removed on purpose, `publish_client_week`
+  re-verifies the coach server-side, and — the property that makes that safe — **a refusal
+  SURFACES** (house event + `console.error`) instead of vanishing.
+  ⚠ **`shape.careerAwardPending` copied the no-partitioning stance without EITHER property
+  that makes it safe** ([[copied-guard-loses-its-rationale]]):
+  it stores a bare post ID with **no owner**, and session init replays it for whoever is
+  signed in (`shapeBackend.js:507` → `ShapeCareerAward.catchUp()`); `award_work_milestone`
+  matches `author_id = v_uid`, so for a different account it returns
+  `{granted:false, 'not_a_milestone'}` **with no error**; and `careerAwardCatchUp()` removes
+  the key on any non-error response (`shapeBackend.js:5335-5338`).
+  So in exactly the shared-device scenario this wave is about — A signs out, B signs in —
+  B's session **submits A's post ID under B's identity and then silently destroys A's
+  retry**. Keeping the key does not preserve A's award; it guarantees its loss. **Both
+  halves of the carve-out's stated premise ("content at rest only", "wiping loses the
+  award") are false for this key.**
+  ⚠ **NOT fixed here** — this is the records PR and the fix changes behavior on the points
+  path. The fix is to owner-partition the key (store `{uid, postId}`, replay only on a uid
+  match), which keeps the durability intent that scrubbing would lose; surfacing the refusal
+  the way the assignment drain does is the second half. **Owner call, and it should not sit
+  long.**
   Registered, untouched: the `/api/auth/session` GET-bridge redesign.
 
 ### 2026-08-14 — The security sweep: a live privilege-escalation P1, the booking account gate, the roster dedup, an open-redirect sweep (#1880 → `e3de8790c`)
