@@ -280,10 +280,61 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       } catch (e) {}
     },
 
+    // Flush a client questionnaire that was captured at sign-up but never
+    // reached the server.
+    //
+    // ⚠ THE BUG THIS FIXES IS A SAFETY BUG, not a storage nicety.
+    // signup-client.html POSTs the questionnaire to /api/intake AFTER its
+    // `if (!session) { ...; return; }` early return. With email confirmation
+    // required — the normal path — signUp() returns no session, so the POST
+    // never runs and the answers never reach the server. The member's coach
+    // therefore never sees their PAR-Q: injuries, medical conditions,
+    // medications, allergies, emergency contact.
+    //
+    // It cannot be fixed by moving the POST earlier: /api/intake keys the row
+    // to the AUTHENTICATED user, so with no session there is no owner to key
+    // it to. The answers are already in localStorage, so the fix is to flush
+    // them the first time a real session exists — which is the confirm-then-
+    // log-in step. Idempotent via a synced marker; failure leaves the payload
+    // in place to retry on the next session.
+    async flushPendingIntake(session) {
+      try {
+        if (!session) return false;
+        var raw = localStorage.getItem('shapeClientIntake_v1');
+        if (!raw) return false;
+        if (localStorage.getItem('shapeClientIntake_v1_synced') === '1') return false;
+        var data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return false;
+        var res = await fetch('/api/intake', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + session.access_token,
+          },
+          body: JSON.stringify(data),
+        });
+        // Only mark synced on a real success. A 4xx that is NOT auth (e.g. the
+        // row already exists) is also terminal — retrying forever would be
+        // worse than stopping. Auth failures and 5xx stay pending.
+        if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) {
+          localStorage.setItem('shapeClientIntake_v1_synced', '1');
+          return res.ok;
+        }
+        return false;
+      } catch (e) {
+        return false;
+      }
+    },
+
     async getSession() {
       var res = await client.auth.getSession();
       var session = res.data && res.data.session;
-      if (session) return session;
+      if (session) {
+        // Fire-and-forget: never delay session resolution on this.
+        try { shapeDb.flushPendingIntake(session); } catch (e) {}
+        return session;
+      }
       // Legacy pages persist sessions in localStorage but the Next.js app
       // stores them in HTTP cookies. If nothing is in localStorage yet,
       // try to bootstrap from the Next.js /api/auth/session bridge before
@@ -300,7 +351,12 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           access_token: bridge.access_token,
           refresh_token: bridge.refresh_token,
         });
-        return setRes.data && setRes.data.session;
+        var bridged = setRes.data && setRes.data.session;
+        // Same flush on the cookie-bridge path — this is the route a member
+        // takes after confirming their email and logging in on the website,
+        // which is precisely when the pending questionnaire needs to land.
+        if (bridged) { try { shapeDb.flushPendingIntake(bridged); } catch (e) {} }
+        return bridged;
       } catch (e) {
         console.warn('[shape] session bridge failed', e);
         return null;
