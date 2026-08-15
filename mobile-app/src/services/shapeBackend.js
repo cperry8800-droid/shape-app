@@ -556,6 +556,15 @@ async function signOut() {
     if (apiBaseUrl) await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
   } catch (e) {}
   invalidateClientMetrics();
+  // The notification-evaluation throttle is account-scoped state under an
+  // unscoped key: evaluateNotifications() stamps shape.notify.last on every
+  // successful evaluation and returns without evaluating while it is under 30
+  // minutes old. Left standing, account B signing in on a shared device is
+  // silenced by account A's timestamp — B's own roster/self record goes
+  // unevaluated until A's throttle expires. The content scrub doesn't cover it
+  // (it's not user CONTENT), so it clears here with the other cross-account
+  // state.
+  try { window.localStorage.removeItem('shape.notify.last'); } catch (e) {}
   // Clear viewer-relative caches so the next account never sees the previous user's
   // follow state / avatars (these are keyed by target id but hold viewer-relative data).
   for (const k in _followCache) delete _followCache[k];

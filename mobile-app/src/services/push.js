@@ -146,10 +146,18 @@ export async function unregisterPush(token) {
 // `lastToken` is cleared only on a CONFIRMED delete: discarding it before the
 // attempt leaves the push_tokens row assigned to the signed-out account with no
 // value left to retry with when the DELETE fails (offline, non-2xx). Retained,
-// a later teardown in this session can try again. Residual, accepted: a failed
-// unassign followed by no further sign-in on this device leaves the row until
-// the next registration — the register POST upserts on token and re-points the
-// row to the new account, which is the recovery path for the shared-device case.
+// a later teardown in this session can try again — though the sign-out reload
+// usually discards module memory first, which is why the retry is best-effort
+// and the re-point below is the real guarantee.
+//
+// Recovery for the shared-device case: the next account's register POST upserts
+// on token and re-points the row. ⚠ That re-point only works because the route
+// runs the upsert with the ADMIN client (push_tokens RLS is owner-only, so a
+// caller-scoped upsert against the previous account's row is refused — this
+// claim shipped unverified once and was false until the route was fixed; see
+// the rationale in src/app/api/push/register/route.ts). Residual, accepted: a
+// failed unassign followed by NO further sign-in on this device leaves the row
+// until someone registers.
 export async function teardownPush() {
   const token = lastToken;
   registered = false;

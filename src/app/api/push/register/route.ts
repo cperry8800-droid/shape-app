@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
@@ -27,10 +28,22 @@ export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const supabase = await clientForRequest(request);
-  // Token is globally unique → upsert re-points an existing token to this user
-  // (e.g. a shared device that switched accounts).
-  const { error } = await supabase
+  // ADMIN client, deliberately — a documented exception to the "service role is
+  // for system writes only" house rule, because this re-point is an authorization
+  // RLS cannot express. push_tokens RLS is owner-only for ALL operations
+  // (2026-05-30-push-tokens.sql: USING user_id = auth.uid()), so a caller-scoped
+  // upsert whose ON CONFLICT lands on ANOTHER account's row — the shared-device
+  // account switch, the exact case the "re-points to this user" contract exists
+  // for — is refused, the row stays assigned to the previous account, and the
+  // device keeps receiving the previous member's notifications. The real
+  // authorization here is POSSESSION: the FCM/APNs token is minted per-device
+  // and only the app instance running on that device holds it, so an
+  // authenticated caller presenting the token IS the device's current holder.
+  // The caller is still authenticated above (401 before any write); the token
+  // is high-entropy and unguessable, so this grants nothing to a caller who
+  // doesn't already hold the device.
+  const admin = createAdminClient();
+  const { error } = await admin
     .from('push_tokens')
     .upsert({ user_id: user.id, token, platform, updated_at: new Date().toISOString() }, { onConflict: 'token' });
   if (error) return dbError(error, 'push token register', 500);
