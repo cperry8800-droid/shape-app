@@ -193,8 +193,9 @@ changelog whenever something ships.
 > never harmonize the two.
 > ⚠ **Async cleanup fired immediately before a navigation is dead code** — the purge is
 > returned and awaited under a bound, and `signOut()` scrubs synchronously FIRST.
-> ⚠ **A page cannot retire its own controller**, so the purge is not the last word: v133's
-> install delete-all is, and it runs on the navigation sign-out performs.
+> ⚠ **A page cannot retire its own controller**, so the purge is not the last word — v133's
+> install delete-all reduces the residual but, being async to the navigation, does not
+> guarantee it away.
 > Gyms is off the nav (#1889), leaving the legacy page cluster with no reachable entry
 > point — **no legacy page was deleted**; the "safe to delete" list was refuted by its own
 > transitive analysis. Suite **1528**.
@@ -1690,13 +1691,17 @@ changelog whenever something ships.
   `caches.open('shape-v132')` + put, and `caches.open` **re-creates a deleted cache**, so
   an in-flight signed-media GET can repopulate after the purge. Nothing callable from the
   document prevents it: `unregister()` does not stop a live page's controller, and neither
-  `skipWaiting` nor `clients.claim` can preempt a running fetch handler. **The cleanup that
-  closes it is the next worker's install**, which deletes EVERY cache unconditionally (no
-  filter) and runs on the navigation sign-out always performs. Uncovered case, recorded in
-  `localScrub.mjs`: an **offline** post-sign-out navigation, where the update fetch fails
-  and v133 never installs — but that device is on v132 and caching signed media on every
-  page load regardless, so the control there is the version bump landing, not this purge.
-  **Do not add worker-lifecycle coordination ahead of the navigation to chase it.**
+  `skipWaiting` nor `clients.claim` can preempt a running fetch handler. **What reduces it**
+  is v133's install, which deletes EVERY cache unconditionally (no filter) and is triggered
+  by the navigation sign-out performs. ⚠ **That is a mitigation, NOT a guarantee, and this
+  record should not claim otherwise:** the worker update runs **asynchronously** alongside
+  the navigation, so the next page can be usable before v133 installs, and an in-flight
+  fetch from the discarded document can still land after the install-time delete. The
+  residual is therefore **wider than the offline case** — it is any window before v133
+  takes control (widest with no network, where it never installs, and on that device v132
+  caches signed media on every page load regardless). **If it is ever worth closing, the
+  remedy is a purge on first load UNDER v133 — cleanup after the new worker controls — not
+  coordination ahead of the navigation, which the page cannot do.**
 
 - ⚠ **THE FLAT CURVE, AND WHAT ENDING IT LOOKED LIKE.** #1885 ran three rounds of exactly
   one P1 each, all in the same purge seam, rounds 2 and 3 being defects in the previous
