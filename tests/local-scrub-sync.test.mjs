@@ -102,15 +102,22 @@ test('pageShell copy fires the cache purge', () => {
   assertPurge('pageShell.jsx', src, 'shapeLiveWorkoutResult"].forEach');
 });
 
-test('supabase.js signOut awaits the cache purge before navigation', () => {
+test('supabase.js signOut scrubs synchronously FIRST, then bound-awaits the purge', () => {
   const src = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
   const start = src.indexOf('async signOut()');
   assert.ok(start >= 0);
-  // Anchor on the METHOD DEFINITION — signOut's own comment block mentions
-  // "getSession()" in prose, and anchoring there truncates before the purge.
-  const slice = src.slice(start, src.indexOf('async getSession()', start));
-  assert.ok(/await caches\.keys\(\)/.test(slice), 'signOut() must AWAIT the purge');
-  assert.ok(slice.includes("'shape-'"), 'signOut() purge not scoped to shape- caches');
+  // Slice ends at the twin's METHOD DEFINITION (a code anchor — prose above
+  // it mentions the name, but only the definition carries "() {").
+  const slice = src.slice(start, src.indexOf('clearLocalUserContent() {', start));
+  // The synchronous scrub must run unconditionally (never gated behind an
+  // async CacheStorage call)…
+  const scrubIdx = slice.indexOf('purge = shapeDb.clearLocalUserContent()');
+  assert.ok(scrubIdx >= 0, 'signOut() must call the scrub and keep its purge promise');
+  // …and the purge it returns is awaited AFTER it, under a timeout bound so a
+  // stalled CacheStorage can never hang the sign-out.
+  const raceIdx = slice.indexOf('await Promise.race(');
+  assert.ok(raceIdx > scrubIdx, 'signOut() must bound-await the purge AFTER the scrub');
+  assert.match(slice.slice(raceIdx), /setTimeout\(\w+, 2000\)/);
 });
 
 // ── purge survives the navigation ── a scrub site whose very next act is a
@@ -135,9 +142,9 @@ test('pageShell fallback logout awaits the purge before navigating', () => {
   assert.match(slice, /await Promise\.race\(\[\s*Promise\.resolve\(window\.shapeClearLocalUserContent\(\)\)/);
 });
 
-test('index.html sign-out routes the scrub promise into go()', () => {
+test('index.html sign-out routes the scrub promise into go(), bounded', () => {
   const src = readFileSync(new URL('../public/newdesign/index.html', import.meta.url), 'utf8');
-  assert.match(src, /else if\(window\.shapeClearLocalUserContent\)p=window\.shapeClearLocalUserContent\(\);/);
+  assert.match(src, /else if\(window\.shapeClearLocalUserContent\)p=Promise\.race\(\[Promise\.resolve\(window\.shapeClearLocalUserContent\(\)\),new Promise\(function\(r\)\{setTimeout\(r,2000\);\}\)\]\);/);
 });
 
 test('supabase.js twin returns the purge promise on both branches', () => {

@@ -1200,8 +1200,11 @@
               if(window.shapeDb&&window.shapeDb.signOut)p=window.shapeDb.signOut();
               // Capture the scrub's purge promise so go() below waits for the
               // cache deletes — a bare call raced the navigation (same class
-              // as pageShell's handleLogout fallback).
-              else if(window.shapeClearLocalUserContent)p=window.shapeClearLocalUserContent();
+              // as pageShell's handleLogout fallback). The scrub itself runs
+              // synchronously inside the call; only the purge is async, and it
+              // is bounded at 2s so a stalled CacheStorage can never strand
+              // the navigation (sign-out always completes).
+              else if(window.shapeClearLocalUserContent)p=Promise.race([Promise.resolve(window.shapeClearLocalUserContent()),new Promise(function(r){setTimeout(r,2000);})]);
             }catch(err){}
             if(p&&p.then){p.then(go,go);}else{go();}
           });

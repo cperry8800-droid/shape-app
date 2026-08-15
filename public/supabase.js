@@ -176,25 +176,24 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         localStorage.removeItem('shapeLastName');
         localStorage.removeItem('shapeEmail');
       } catch (e) {}
-      // Purge the PWA caches on sign-out — AWAITED here because this is the
-      // last stop before callers navigate/redirect. The service worker only
-      // caches same-origin static assets as of shape-v133, but a cache built
-      // by an OLDER worker generation can hold cross-origin signed media
-      // (progress photos, meal-note voice memos, credential files — token and
-      // all), and CacheStorage otherwise only clears on a deploy version bump,
-      // never for a departing user on a shared device. The scrub below also
-      // fires a purge (fire-and-forget, for the paths that call it without
-      // coming through signOut, e.g. the Next.js dashboard's client button);
-      // caches.delete on an already-deleted key is a harmless no-op.
+      // Run the SYNCHRONOUS content scrub FIRST — it must never sit behind an
+      // async CacheStorage call: if caches.keys() ever stalled, the sensitive
+      // local/session-storage content would survive on the shared device while
+      // the caller waited on the purge. The scrub also drops the PWA caches (a
+      // cache built by an OLDER worker generation can hold cross-origin signed
+      // media — progress photos, voice memos, credential files, token and all)
+      // and returns that delete promise; it is awaited here under a 2s bound
+      // because signOut is the last stop before callers navigate — bounded,
+      // like every other sign-out path, so a stalled CacheStorage can never
+      // hang the sign-out (bound the WAIT, never the WORK).
+      var purge = null;
+      try { purge = shapeDb.clearLocalUserContent(); } catch (e) {}
       try {
-        if (window.caches && caches.keys) {
-          var cacheKeys = await caches.keys();
-          await Promise.all(cacheKeys
-            .filter(function (k) { return k.indexOf('shape-') === 0; })
-            .map(function (k) { return caches.delete(k); }));
-        }
+        await Promise.race([
+          Promise.resolve(purge),
+          new Promise(function (resolve) { setTimeout(resolve, 2000); })
+        ]);
       } catch (e) {}
-      shapeDb.clearLocalUserContent();
     },
 
     // Shared-device hygiene: user CONTENT must not survive sign-out. The
