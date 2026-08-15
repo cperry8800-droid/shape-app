@@ -1463,8 +1463,13 @@ Object.assign(window, { ShapeHomeCards });
     // dashBuilder.jsx:250, dashMealBuilder.jsx:353) — nothing reads back past
     // the current week, so 60 days is a wide safety margin, not a tight fit.
     var KEEP_DAYS = 60;
-    var cutoffMs = Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000;
-    var cutoff = new Date(cutoffMs).toLocaleDateString("en-CA"); // local YYYY-MM-DD (house pattern)
+    // Cutoff built from explicit local components — NOT toLocaleDateString:
+    // an engine whose en-CA data isn't ISO-shaped would make the lexicographic
+    // comparison delete CURRENT keys ("2026-08-14" < "6/15/2026"). The key
+    // writers build their dates from these same components, so both sides of
+    // the comparison share one deterministic format.
+    var c = new Date(Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000);
+    var cutoff = c.getFullYear() + "-" + String(c.getMonth() + 1).padStart(2, "0") + "-" + String(c.getDate()).padStart(2, "0");
     var FAMILY = /^shape\.(habits|dashMealLog|dashMealSwap|dashQueueDone)\.(\d{4}-\d{2}-\d{2})$/;
     for (var i = localStorage.length - 1; i >= 0; i--) {
       var key = localStorage.key(i);
