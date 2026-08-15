@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
-import { logout } from '@/app/login/actions';
+import SignOutButton from '@/components/SignOutButton';
 
 // Routes that get a minimal layout (no marketing nav). The pathname is
 // forwarded by the proxy via the x-pathname header.
@@ -194,9 +194,10 @@ export default async function Nav() {
             {user ? (
               <>
                 <Link href="/dashboard" className="nav-btn">Dashboard</Link>
-                <form action={logout}>
-                  <button type="submit" className="nav-btn">Sign out</button>
-                </form>
+                {/* Client button, not a bare server-action form: the browser
+                    runs the canonical scrub + PWA cache purge first
+                    (shared-device hygiene — see SignOutButton). */}
+                <SignOutButton className="nav-btn">Sign out</SignOutButton>
               </>
             ) : (
               <>

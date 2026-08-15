@@ -1464,6 +1464,20 @@ window.shapeClearLocalUserContent = function () {
   try {
     ["shapeLiveWorkout", "shapeLiveWorkoutResult"].forEach(function (k) { sessionStorage.removeItem(k); });
   } catch (e) {}
+  // PWA cache purge (fire-and-forget) — a cache built by an older worker
+  // generation can hold cross-origin SIGNED media (progress photos, voice
+  // memos, credential files), and CacheStorage otherwise clears only on a
+  // deploy version bump. Inline copy of localScrub.mjs shapePurgeShapeCaches
+  // (classic script — cannot import); supabase.js signOut() additionally
+  // AWAITS its own purge before callers navigate. Double-delete is a no-op.
+  try {
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (keys) {
+        keys.filter(function (k) { return k.indexOf("shape-") === 0; })
+          .forEach(function (k) { caches.delete(k); });
+      }).catch(function () {});
+    }
+  } catch (e) {}
 };
 
 (function shapeConsent() {

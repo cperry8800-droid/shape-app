@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUserAndProfile } from '@/lib/queries';
-import { logout } from '@/app/login/actions';
+import SignOutButton from '@/components/SignOutButton';
 import { getAdminEmails } from '@/lib/admin-access';
 import { createClient } from '@/lib/supabase/server';
 
@@ -60,14 +60,13 @@ export default async function DashboardLayout({
             {profile ? `${role}${(profile.roles ?? []).length > 1 ? ` · +${profile.roles.length - 1} more` : ''}` : 'Profile pending'}
           </p>
         </div>
-        <form action={logout}>
-          <button
-            type="submit"
-            className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-4 py-2 hover:bg-neutral-900 transition-colors"
-          >
-            Log out
-          </button>
-        </form>
+        {/* Client button, not a bare server-action form: the browser must run
+            the canonical content scrub + PWA cache purge before the server
+            action clears the session (shared-device hygiene — see
+            SignOutButton). */}
+        <SignOutButton className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-4 py-2 hover:bg-neutral-900 transition-colors">
+          Log out
+        </SignOutButton>
       </div>
 
       <nav className="flex gap-1 flex-wrap border-b border-neutral-800 mb-8">

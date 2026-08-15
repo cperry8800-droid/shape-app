@@ -75,3 +75,53 @@ test('the shim re-exports the canonical module', () => {
   const src = readFileSync(new URL('../mobile-app/src/services/localScrub.mjs', import.meta.url), 'utf8');
   assert.match(src, /export \* from '\.\.\/\.\.\/\.\.\/public\/newdesign\/localScrub\.mjs'/);
 });
+
+// ── PWA cache purge (P2b) — every sign-out path drops the 'shape-' caches ──
+// A cache built by an older service-worker generation can hold cross-origin
+// signed media, so the purge must ride every scrub/sign-out site: the
+// canonical scrub (fire-and-forget), the pageShell classic-script copy,
+// supabase.js signOut (awaited before navigation), and the Next.js
+// dashboard's client SignOutButton (the server-action path runs no browser
+// code, so the button is the only place a purge can happen).
+function assertPurge(label, src, marker) {
+  const start = src.indexOf(marker);
+  assert.ok(start >= 0, `${label}: marker not found`);
+  const slice = src.slice(start, start + 4000);
+  assert.ok(/caches\s*\.\s*keys\s*\(\)|shapePurgeShapeCaches\(\)/.test(slice), `${label}: no cache purge near ${marker}`);
+  assert.ok(slice.includes("'shape-'") || slice.includes('"shape-"') || slice.includes('shapePurgeShapeCaches()'), `${label}: purge not scoped to shape- caches`);
+}
+
+test('canonical scrub fires the cache purge', () => {
+  const src = readFileSync(new URL('../public/newdesign/localScrub.mjs', import.meta.url), 'utf8');
+  assert.match(src, /export function shapePurgeShapeCaches/);
+  assertPurge('localScrub.mjs', src, 'export function shapeScrubLocalUserContent');
+});
+
+test('pageShell copy fires the cache purge', () => {
+  const src = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  assertPurge('pageShell.jsx', src, 'shapeLiveWorkoutResult"].forEach');
+});
+
+test('supabase.js signOut awaits the cache purge before navigation', () => {
+  const src = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
+  const start = src.indexOf('async signOut()');
+  assert.ok(start >= 0);
+  // Anchor on the METHOD DEFINITION — signOut's own comment block mentions
+  // "getSession()" in prose, and anchoring there truncates before the purge.
+  const slice = src.slice(start, src.indexOf('async getSession()', start));
+  assert.ok(/await caches\.keys\(\)/.test(slice), 'signOut() must AWAIT the purge');
+  assert.ok(slice.includes("'shape-'"), 'signOut() purge not scoped to shape- caches');
+});
+
+test('the Next.js dashboard sign-out runs the scrub + purge client-side', () => {
+  const btn = readFileSync(new URL('../src/components/SignOutButton.tsx', import.meta.url), 'utf8');
+  assert.match(btn, /from '\.\.\/\.\.\/public\/newdesign\/localScrub\.mjs'/);
+  assert.match(btn, /shapeScrubLocalUserContent\(\)/);
+  assert.match(btn, /shapePurgeShapeCaches\(\)/);
+  assert.match(btn, /await logout\(\)/);
+  for (const f of ['../src/app/dashboard/layout.tsx', '../src/components/Nav.tsx']) {
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8');
+    assert.match(src, /<SignOutButton/, `${f} must render SignOutButton`);
+    assert.ok(!/<form action=\{logout\}>/.test(src), `${f} still has the bare server-action form`);
+  }
+});

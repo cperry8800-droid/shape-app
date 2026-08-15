@@ -106,6 +106,24 @@ export const SHAPE_SCRUB_PREFIXES = [
 // live-workout.html → shapeLiveWorkoutResult (the completed health record).
 export const SHAPE_SCRUB_SESSION_KEYS = ['shapeLiveWorkout', 'shapeLiveWorkoutResult'];
 
+// Delete the PWA's CacheStorage buckets (all keys prefixed 'shape-'). The
+// service worker registers at scope '/' and only caches same-origin static
+// assets as of shape-v133 — but a cache built by an OLDER worker generation
+// can hold cross-origin SIGNED media (progress photos, meal-note voice memos,
+// credential files — token and all), and CacheStorage otherwise clears only on
+// a deploy version bump, never for a departing user on a shared device.
+// Returns a promise so a caller that must guarantee completion before a
+// navigation (supabase.js signOut) can await it; the scrub below fires it
+// fire-and-forget for every other path. Double-delete is a harmless no-op.
+export function shapePurgeShapeCaches() {
+  try {
+    if (!(window.caches && window.caches.keys)) return Promise.resolve();
+    return window.caches.keys().then((keys) => Promise.all(
+      keys.filter((k) => k.indexOf('shape-') === 0).map((k) => window.caches.delete(k))
+    )).catch(() => {});
+  } catch (e) { return Promise.resolve(); }
+}
+
 export function shapeScrubLocalUserContent({ extraKeys = [] } = {}) {
   try {
     const ls = window.localStorage;
@@ -121,4 +139,6 @@ export function shapeScrubLocalUserContent({ extraKeys = [] } = {}) {
   try {
     SHAPE_SCRUB_SESSION_KEYS.forEach((k) => { try { window.sessionStorage.removeItem(k); } catch (e) {} });
   } catch (e) {}
+  // Fire-and-forget: every scrub caller also drops the PWA caches (see above).
+  shapePurgeShapeCaches();
 }
