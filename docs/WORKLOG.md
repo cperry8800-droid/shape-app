@@ -178,7 +178,30 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-14): A LIVE PRIVILEGE-ESCALATION P1, CLOSED — PLUS THE BOOKING ACCOUNT
+> **Latest (2026-08-15): SIGNING OUT NOW ACTUALLY LEAVES THE DEVICE CLEAN
+> (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`).**
+> Content in local/sessionStorage, **signed media in CacheStorage**, the push registration,
+> and every in-memory cache survived a sign-out on a shared device. The service worker was
+> caching **cross-origin signed media token-and-all** (`sw.js` v133 narrows it to
+> same-origin); `handleLogout` ends in a hard reload, which retires the whole
+> in-memory-survivor class instead of one cache at a time.
+> ⚠ **`/m/` ships under the WEBSITE's origin**, so both surfaces share one localStorage —
+> the scrub inventory is now a single union in `public/newdesign/localScrub.mjs`, imported
+> by mobile and gated against the two website copies by a sync test.
+> ⚠ **The website's `scope:'local'` retry is LOAD-BEARING** (auth-js **2.108.2** returns a
+> failed global revocation *before* removing the session; mobile's 2.111.0 does not) —
+> never harmonize the two.
+> ⚠ **Async cleanup fired immediately before a navigation is dead code** — the purge is
+> returned and awaited under a bound, and `signOut()` scrubs synchronously FIRST.
+> ⚠ **A page cannot retire its own controller**, so the purge is not the last word: v133's
+> install delete-all is, and it runs on the navigation sign-out performs.
+> Gyms is off the nav (#1889), leaving the legacy page cluster with no reachable entry
+> point — **no legacy page was deleted**; the "safe to delete" list was refuted by its own
+> transitive analysis. Suite **1528**.
+>
+> See the full entry below.
+
+> **Prior (2026-08-14): A LIVE PRIVILEGE-ESCALATION P1, CLOSED — PLUS THE BOOKING ACCOUNT
 > GATE, THE ROSTER DEDUP, AND AN OPEN-REDIRECT SWEEP (#1880 → `e3de8790c`).**
 > Four items off the standing audit list, and a **P1 the review found in this PR's own work,
 > live on production**. The cancel-only trigger's provider exemption keyed on the **NEW** row,
@@ -1597,6 +1620,115 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-08-15 — The shared-device sign-out wave: user content, PWA caches, and the last legacy door (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`)
+
+- **The problem, in one line: signing out left the previous person's data on the device.**
+  Content in localStorage/sessionStorage, signed media in CacheStorage, a live push
+  registration, and in-memory caches that no navigation ever cleared. Three merged PRs,
+  **28 review rounds** between them; suite **1528**. Siblings merged earlier in the wave:
+  #1881, #1884 → `34b7010f2d`, #1886 → `6325570605`, #1887 → `c5b5ebfda`.
+
+- **#1883 — the content scrub + a structural reload.** `handleLogout` now ends in a hard
+  `location.reload()`, which retires an entire leak class rather than one instance: every
+  module-scoped cache in the bundle (e.g. shapeSignals' role-keyed triage promise, which
+  would otherwise serve account A's roster to account B) dies with the JS context. Wiring
+  each cache to `shape:signedOut` individually is a list the next cache silently fails to
+  join. `signOutGen.mjs` closes both resume-after-sweep races (the push callback and an
+  unawaited `scheduleLocalHabit`).
+
+- ⚠ **THE `scope:'local'` RETRY IS LOAD-BEARING ON THE WEBSITE, AND ONLY THERE.** The site
+  pins auth-js **2.108.2** (`public/vendor/supabase-js-2.108.2.umd.js`, SRI-locked), whose
+  `_signOut` returns a failed global revocation **before reaching `_removeSession()`** — so
+  after an offline sign-out the persisted session survives and `getSession()` restores the
+  previous account, past a scrub that clears content but not `shape.auth`. **Mobile ships
+  2.111.0, which does remove the session on that path.** The two bundles genuinely differ:
+  do not "harmonize" them, and re-read `_signOut` before bumping the vendored bundle.
+
+- ⚠ **ONE ORIGIN, ONE SCRUB INVENTORY.** `scripts/build-m.sh` publishes the mobile app at
+  `/m/` **under the website's origin**, so both surfaces share one localStorage. Separate
+  per-surface lists left holes in *both* directions (a `/m/` sign-out kept the website's
+  `shapeClientIntake_v1` health details; a website sign-out kept `shape.clientIntakes`).
+  The canonical union now lives in **`public/newdesign/localScrub.mjs`**; mobile *imports*
+  it, and the two website classic scripts (which cannot import ESM) carry inline copies
+  gated by **`tests/local-scrub-sync.test.mjs`**, which fails on one-key drift in either
+  direction. **Any future key change must touch all three copies — that is the design.**
+  One sanctioned divergence: `shape.storeCart` (website keeps it, mobile clears it).
+
+- **Push teardown: bound the WAIT, never the WORK.** Serialize-then-delete runs as ONE
+  detached chain (the DELETE is never dispatched before the registration POST settles, so
+  ordering is airtight), and `teardownPush()` awaits that chain under a single outer 4s
+  race so sign-out always completes. The DELETE carries **`keepalive: true`** — the reload
+  fires milliseconds later and would otherwise abort even a dispatched DELETE; the POST is
+  deliberately **non**-keepalive, because the reload aborting a stale POST is the
+  kill-switch. Residual, documented at the call site: a POST fully received server-side
+  that commits after page death has no post-reload auth for an ordered DELETE — the next
+  registration's admin re-point cleans it.
+
+- **#1885 — the service worker stopped caching other people's media.** The old fetch
+  handler had **no origin check**, so authenticated **signed** media (progress photos,
+  meal-note voice memos, credential files — token and all) was written into CacheStorage
+  and outlived sign-out. `sw.js` **v133** narrows runtime caching to same-origin assets,
+  and sign-out purges the `shape-*` caches on every browser path.
+
+- ⚠ **THE NEXT.JS DASHBOARD SIGN-OUT RUNS NO BROWSER CODE.** It is a **server action**, so
+  no scrub could ever have fired there. A client `SignOutButton` now runs the canonical
+  scrub + purge before invoking it, replacing the bare `<form action={logout}>` in
+  `dashboard/layout.tsx` and `Nav.tsx`.
+
+- ⚠ **ASYNC CLEANUP FIRED IMMEDIATELY BEFORE A NAVIGATION IS DEAD CODE.** Two review
+  rounds were spent on this one class. A fire-and-forget purge never dispatches its
+  `caches.delete` calls when the document is discarded microseconds later — which is
+  exactly what pageShell-only pages (About, Pricing) and the mobile hard reload do. The
+  scrub now **returns** its purge promise and every navigating caller awaits it under a 2s
+  bound. And `signOut()` runs the **synchronous scrub FIRST**: it previously awaited the
+  purge *ahead* of the scrub with no timeout, so a stalled CacheStorage would strand the
+  sensitive at-rest content on the device while callers waited to navigate.
+
+- ⚠ **A PAGE CANNOT RETIRE ITS OWN CONTROLLER — so the purge is not the last word.** On a
+  device still running the pre-v133 worker, that worker's handler ends in
+  `caches.open('shape-v132')` + put, and `caches.open` **re-creates a deleted cache**, so
+  an in-flight signed-media GET can repopulate after the purge. Nothing callable from the
+  document prevents it: `unregister()` does not stop a live page's controller, and neither
+  `skipWaiting` nor `clients.claim` can preempt a running fetch handler. **The cleanup that
+  closes it is the next worker's install**, which deletes EVERY cache unconditionally (no
+  filter) and runs on the navigation sign-out always performs. Uncovered case, recorded in
+  `localScrub.mjs`: an **offline** post-sign-out navigation, where the update fetch fails
+  and v133 never installs — but that device is on v132 and caching signed media on every
+  page load regardless, so the control there is the version bump landing, not this purge.
+  **Do not add worker-lifecycle coordination ahead of the navigation to chase it.**
+
+- ⚠ **THE FLAT CURVE, AND WHAT ENDING IT LOOKED LIKE.** #1885 ran three rounds of exactly
+  one P1 each, all in the same purge seam, rounds 2 and 3 being defects in the previous
+  round's own fix. On round 3 the rule ([[the-miss-is-next-to-the-fix]]) was applied
+  literally: stop patching and **check whether the finding's own remedy already exists one
+  layer out**. It did — the review asked for "another purge after the controlled document
+  is replaced", and v133's install delete-all already is exactly that. The mechanism was
+  conceded (verified from git history), the **consequence refuted with evidence**, and a
+  cheap-looking `registration.update()` was declined because the navigation runs the same
+  check anyway. Codex accepted and went clean.
+
+- **#1889 — Gyms off the nav, and the legacy cluster loses its last door.** A reachability
+  sweep of all 51 root `public/*.html` files found the canonical `public/newdesign/**`
+  surface carries **zero** links to any gym page — but `Nav.tsx`/`Footer.tsx` render on
+  every Next route via `layout.tsx`, and `gyms.html` / `for-gyms.html` carry their own
+  legacy navs into `marketplace.html`, `trainers.html`, `nutritionists.html`,
+  `pricing.html`, `home.html`, `clients.html` and the rest. Removing four links takes gyms
+  off the live site and leaves that cluster with no reachable entry point.
+  ⚠ **NO legacy page was deleted, deliberately.** The sweep's own "safe to delete" list was
+  refuted by its own transitive analysis: five of its eight files are linked from
+  `gyms.html`'s nav, `workout.html` from `trainer-dashboard.html` (which coaches are
+  **redirected** to after claiming a profile), and `reset-password.html` from the live
+  `login.html`. Deleting them would have produced real 404s. `next.config.ts`, `sitemap.xml`,
+  `robots.txt`, `manifest.json` and `sw.js` are all untouched; the pages still answer by
+  direct URL. ⚠ Also checked and **refuted**: a claim that `sw.js` precaches a non-existent
+  `styles.css` (which would silently disable the worker, since `cache.addAll` rejects
+  wholesale on one 404) — the file exists and all 29 precache entries resolve on disk.
+
+- **Owner ruling carried:** the two offline durability queues (`shape.pendingAssignments`,
+  `shape.careerAwardPending`) are deliberately **kept** — wiping them silently loses a
+  coach's held week or an earned award, and their exposure is content-at-rest only.
+  Registered, untouched: the `/api/auth/session` GET-bridge redesign.
 
 ### 2026-08-14 — The security sweep: a live privilege-escalation P1, the booking account gate, the roster dedup, an open-redirect sweep (#1880 → `e3de8790c`)
 
