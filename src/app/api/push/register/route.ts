@@ -48,6 +48,17 @@ export async function DELETE(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const supabase = await clientForRequest(request);
-  await supabase.from('push_tokens').delete().eq('token', token);
-  return NextResponse.json({ ok: true });
+  // Report what actually happened — the client's sign-out teardown clears its
+  // retained token only on a CONFIRMED removal. The old unconditional
+  // `{ ok: true }` mis-confirmed two cases: a database error (swallowed), and
+  // an RLS zero-row delete (a token retried under a different account's
+  // session removes nothing while the row stays assigned to its owner). Both
+  // made the caller discard the one value that could retry, so the signed-out
+  // account kept receiving notifications on a shared device.
+  const { error, count } = await supabase
+    .from('push_tokens')
+    .delete({ count: 'exact' })
+    .eq('token', token);
+  if (error) return dbError(error, 'push token unregister', 500);
+  return NextResponse.json({ ok: true, deleted: count ?? 0 });
 }

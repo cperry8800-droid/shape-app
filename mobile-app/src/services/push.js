@@ -25,6 +25,27 @@ function platform() {
   return (cap && cap.getPlatform && cap.getPlatform()) || 'unknown';
 }
 
+// The deployed API's origin — MIRRORS shapeBackend.js's apiBaseUrl derivation
+// exactly (env first, else same-origin on web, else ''). A bare relative
+// '/api/…' works on the hosted /m/ build (same origin) but on a packaged
+// NATIVE build it resolves against the Capacitor WebView origin
+// (https://localhost — capacitor.config.ts sets no remote server.url), where
+// no API exists: both the register POST and the sign-out DELETE silently went
+// nowhere, so the token was never assigned or unassigned on the surface that
+// actually receives push. Not imported from shapeBackend — that module imports
+// THIS one, and reversing the edge would make the import cycle load-order-
+// sensitive.
+function apiBase() {
+  const env = ((import.meta.env && import.meta.env.VITE_API_BASE_URL) || '').replace(/\/$/, '');
+  if (env) return env;
+  const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
+  const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  if (!native && typeof window !== 'undefined' && window.location && window.location.origin) {
+    return window.location.origin.replace(/\/$/, '');
+  }
+  return '';
+}
+
 let registered = false;
 // The device token from the last successful registration — retained so sign-out
 // can unassign it (unregisterPush needs the value, and the platform only hands
@@ -65,7 +86,7 @@ export async function registerPush() {
         const accessToken = auth && auth.session && auth.session.access_token;
         const headers = { 'Content-Type': 'application/json' };
         if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-        await fetch('/api/push/register', {
+        await fetch(`${apiBase()}/api/push/register`, {
           method: 'POST',
           credentials: 'same-origin',
           headers,
@@ -86,9 +107,16 @@ export async function registerPush() {
   }
 }
 
-// Returns true only when the server CONFIRMED the delete (2xx) — a thrown fetch
-// (offline) or a non-2xx both report false, so the caller can keep the token
-// for another attempt instead of discarding the only value that can retry.
+// Returns true only when the server CONFIRMED a row was removed — the route
+// now reports `deleted` (affected-row count) and 500s on a database error, so
+// a bare 2xx is no longer treated as proof. The cases a status-only check
+// mis-read as confirmed: a DB failure the old route swallowed, and an RLS
+// zero-row delete (a retained token retried under a DIFFERENT account's
+// session — owner-scoped RLS removes nothing while the row stays assigned).
+// Both now report false, so the caller keeps the token for another attempt
+// instead of discarding the only value that can retry. `deleted: 0` from an
+// OLD deploy (no field) also reads false — over-retrying is the safe
+// direction, and the register upsert remains the recovery path.
 export async function unregisterPush(token) {
   if (!token) return false;
   try {
@@ -96,13 +124,15 @@ export async function unregisterPush(token) {
     const accessToken = auth && auth.session && auth.session.access_token;
     const headers = { 'Content-Type': 'application/json' };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const response = await fetch('/api/push/register', {
+    const response = await fetch(`${apiBase()}/api/push/register`, {
       method: 'DELETE',
       credentials: 'same-origin',
       headers,
       body: JSON.stringify({ token }),
     });
-    return response.ok;
+    if (!response.ok) return false;
+    const data = await response.json().catch(() => null);
+    return !!(data && typeof data.deleted === 'number' && data.deleted > 0);
   } catch (e) { return false; }
 }
 
