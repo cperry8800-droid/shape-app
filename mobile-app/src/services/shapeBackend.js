@@ -529,6 +529,37 @@ async function signOut() {
     const mk = window.MusicKit && window.MusicKit.getInstance && window.MusicKit.getInstance();
     if (mk && mk.isAuthorized && mk.unauthorize) await mk.unauthorize();
   } catch (e) {}
+  // The realtime managers are account-bound and guard on module-scope sentinels
+  // (started / channel) that would otherwise survive an in-app A→logout→B switch —
+  // each start*() early-returns for B, so B inherits A's unread map, never gets its
+  // own activity hydration, and the presence channel stays keyed to A's user id.
+  // Tear all three down so the next sign-in initializes fresh.
+  try {
+    _unread.subs.forEach((off) => { try { off(); } catch (e) {} });
+    _unread.subs = [];
+    _unread.map = {};
+    _unread.myChannels = new Set();
+    _unread.started = false;
+    _unread.demoSeeded = false; // the logged-out marketing state may reseed its demo badges
+    _unreadEmit();
+  } catch (e) {}
+  try {
+    if (_presence.channel && supabase) { try { supabase.removeChannel(_presence.channel); } catch (e) {} }
+    _presence.channel = null;
+    _presence.ids = new Set();
+    _presence.count = 0;
+    _presence.visible = true; // startPresence re-reads the NEXT account's pref; A's opt-out must not carry over
+    _presenceEmit();
+  } catch (e) {}
+  try {
+    if (_activity.channel && supabase) { try { supabase.removeChannel(_activity.channel); } catch (e) {} }
+    _activity.channel = null;
+    _activity.map = new Map();
+    _activity.mine = null;
+    _activity.started = false;
+    try { window.ShapeMyActivity = null; } catch (e) {}
+    _activityEmit();
+  } catch (e) {}
   // The Sentry user tags drop with the rest of the viewer-relative state: setCached below
   // sees a null user and clears them, so a signed-out session can never inherit the
   // previous account's id/roles. Handled at that one chokepoint, not repeated here.

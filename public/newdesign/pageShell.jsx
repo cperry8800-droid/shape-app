@@ -341,10 +341,17 @@ function Header({ active }) {
     try {
       await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
     } catch {}
-    // The navbar sign-out never touches shapeDb, so it must scrub user content
-    // itself — otherwise the site-wide logout path leaves chat threads, intake
-    // and coach drafts on a shared device (the exact gap this sweep closes).
-    try { window.shapeClearLocalUserContent && window.shapeClearLocalUserContent(); } catch {}
+    // The cookie sign-out alone leaves the persisted Supabase SDK session
+    // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns
+    // it before ever consulting the now-cleared cookie, so the next visitor
+    // could still act as this account through client-side Supabase APIs.
+    // Prefer the full local sign-out (shapeDb.signOut clears that session AND
+    // runs the content scrub); fall back to the scrub alone on any page that
+    // doesn't load supabase.js.
+    try {
+      if (window.shapeDb && window.shapeDb.signOut) await window.shapeDb.signOut();
+      else if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent();
+    } catch {}
     window.location.href = '/';
   }
   async function switchRole(nextRole) {
@@ -1378,8 +1385,10 @@ Object.assign(window, { ShapeHomeCards });
 // drift). Scope: user content that is sensitive or account-scoped. Device-only
 // personal lists with no cloud copy (saved recipes, grocery lists, today's
 // plan) are deliberately KEPT — clearing them destroys the member's own data,
-// not a cache. Legacy root pages don't load pageShell, but no sign-out control
-// exists on them, so this covers every real sign-out surface.
+// not a cache. The merch cart (shape.storeCart — item ids + quantities only,
+// no address) falls under the same carve-out. Legacy root pages don't load
+// pageShell, but no sign-out control exists on them, so this covers every real
+// sign-out surface.
 window.shapeClearLocalUserContent = function () {
   try {
     [
@@ -1389,12 +1398,21 @@ window.shapeClearLocalUserContent = function () {
       "shape.dashBuilderDrafts",
       "shape.viewerRole"
     ].forEach(function (k) { localStorage.removeItem(k); });
-    // Prefixed families: per-user chat threads + per-client goal drafts.
+    // Prefixed families — all account-scoped state a next user would inherit.
+    var prefixes = [
+      "shape.chat.v2.",       // per-user chat threads
+      "shape.dashGoals.",     // per-client goal drafts
+      "shape.habits.",        // same-day habit completion (health behavior — habits.jsx)
+      "shape.dashQueueDone.", // coach programming queue — client IDs marked done today
+      "shape.dashMealLog.",   // today's meal-log ticks (dashClient.jsx)
+      "shape.dashMealSwap.",  // today's meal swaps (dashClient.jsx)
+      "shape.dashNutriSwap."  // nutritionist-side day swaps (dashNutri.jsx)
+    ];
     for (var i = localStorage.length - 1; i >= 0; i--) {
       var key = localStorage.key(i);
       if (!key) continue;
-      if (key.indexOf("shape.chat.v2.") === 0 || key.indexOf("shape.dashGoals.") === 0) {
-        localStorage.removeItem(key);
+      for (var j = 0; j < prefixes.length; j++) {
+        if (key.indexOf(prefixes[j]) === 0) { localStorage.removeItem(key); break; }
       }
     }
   } catch (e) {}
