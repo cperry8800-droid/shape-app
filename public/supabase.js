@@ -352,12 +352,21 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           },
           body: JSON.stringify(body),
         });
-        // Only mark synced on a real success. A 4xx that is NOT auth (e.g. the
-        // row already exists) is also terminal — retrying forever would be
-        // worse than stopping. Auth failures and 5xx stay pending.
-        if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) {
+        // ⚠ ONLY a real success marks synced. This branch used to also treat
+        // any non-auth 4xx as terminal "e.g. the row already exists" — which
+        // was invented: /api/intake upserts on user_id, so it never rejects an
+        // existing row, and 401 is the ONLY 4xx it returns. The one non-auth
+        // 4xx that can actually reach here is the proxy's **429** rate limit
+        // (100/min on every /api route) — the single most retryable status
+        // there is. So the branch was wrong in every reachable case: a
+        // rate-limited flush recorded the owner as synced and every later
+        // getSession() skipped the payload permanently, leaving the coach
+        // without the member's injuries, medications, allergies and emergency
+        // contact. Retrying is cheap and bounded: once per session resolve, and
+        // sign-out scrubs the payload.
+        if (res.ok) {
           localStorage.setItem(SYNCED, owner);
-          return res.ok;
+          return true;
         }
         return false;
       } catch (e) {
