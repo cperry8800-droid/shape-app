@@ -115,6 +115,28 @@ export const SHAPE_SCRUB_SESSION_KEYS = ['shapeLiveWorkout', 'shapeLiveWorkoutRe
 // Returns a promise so a caller that must guarantee completion before a
 // navigation (supabase.js signOut) can await it; the scrub below fires it
 // fire-and-forget for every other path. Double-delete is a harmless no-op.
+//
+// ⚠ IRREDUCIBLE RESIDUAL — a page cannot retire its OWN controller, so this
+// purge cannot be the last word. On a device still running the pre-v133
+// worker, that worker's fetch handler has NO origin check and ends in
+// caches.open('shape-v132') + put — and caches.open CREATES a deleted cache —
+// so a signed-media GET still in flight when this purge lands can re-create
+// the cache after it. Nothing callable from the document prevents that:
+// unregister() does not stop the controller of a live page, and neither
+// skipWaiting nor clients.claim can preempt a fetch handler already running.
+// THE CLEANUP THAT CLOSES IT IS THE NEXT WORKER'S INSTALL, not this purge:
+// sw.js v133's install deletes EVERY cache unconditionally (caches.keys() →
+// delete all, no filter) before opening its own, and it carries skipWaiting()
+// + clients.claim(). Sign-out always navigates (reload on mobile, href on
+// web), a navigation always runs the worker update check, so v133 installs
+// and deletes any re-created cache on that same navigation — before the next
+// person on the device can browse. What remains uncovered is a post-sign-out
+// navigation with NO network: the update fetch fails, v133 never installs,
+// and a re-created cache survives until the next successful update. That
+// device is on v132 and is therefore caching signed media on every page load
+// regardless of sign-out — the control there is the version bump landing, not
+// this purge, so do not "fix" it by adding worker-lifecycle coordination
+// ahead of the navigation.
 export function shapePurgeShapeCaches() {
   try {
     if (!(window.caches && window.caches.keys)) return Promise.resolve();
