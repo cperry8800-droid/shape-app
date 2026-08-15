@@ -521,6 +521,14 @@ async function signOut() {
   for (const k in _avatarCache) delete _avatarCache[k];
   _followingIdsCache = { uid: null, ids: null, at: 0 };
   _prepCache = null;   // PREPPED records are member data — never cross accounts
+  // The MusicKit singleton holds the AUTHORIZED USER's Apple Music token — left
+  // authorized, the next account on this device can list/save into the previous
+  // member's Apple Music library. unauthorize() drops the user token only; the
+  // developer-token setup (_musicKitPromise) is account-neutral and can stay.
+  try {
+    const mk = window.MusicKit && window.MusicKit.getInstance && window.MusicKit.getInstance();
+    if (mk && mk.isAuthorized && mk.unauthorize) await mk.unauthorize();
+  } catch (e) {}
   // The Sentry user tags drop with the rest of the viewer-relative state: setCached below
   // sees a null user and clears them, so a signed-out session can never inherit the
   // previous account's id/roles. Handled at that one chokepoint, not repeated here.

@@ -195,6 +195,24 @@ function bsAmLive() {
 function bsIsUserOnline(uid) {
   try { return !!(uid && window.ShapePresence && window.ShapePresence.isOnline && window.ShapePresence.isOnline(uid)); } catch (e) { return false; }
 }
+// Sign-out: drop the account-scoped window caches this module owns. handleLogout
+// never navigates (same JS context into the next sign-in), so without this the
+// previous member's photo/initials (bsMyPhotoRaw reads ShapeIdentity BEFORE the
+// signedIn check), tier color, and online-visibility choice all render for the
+// next account until its own hydrates resolve.
+if (typeof window !== 'undefined' && !window.__bsSignOutCachesWired) {
+  window.__bsSignOutCachesWired = true;
+  // try/catch: the render-test harness evals this module against a window stub
+  // with no addEventListener; a real browser always has it.
+  try {
+    window.addEventListener('shape:signedOut', () => {
+      try { window.ShapeIdentity = {}; } catch (e) {}
+      try { window.ShapeScore = null; } catch (e) {}
+      try { window.ShapeOnlineVisible = undefined; } catch (e) {}
+      try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+    });
+  } catch (e) {}
+}
 // What is a member doing right now? 'workout' | 'cooking' | null — drives the
 // corner activity dot (teal = in a workout, amber = cooking). Live via presence.
 function bsUserActivity(uid) {
@@ -1402,11 +1420,20 @@ function bsProgramWeek() {
 // persisted in client_settings (Settings → Preferences), so a coach-set value
 // from the same store flows through here too.
 if (typeof window !== 'undefined' && !window.ShapeProgram) {
-  let _prog = { trainingPhase: 'Build', nutritionPhase: 'Cut', detail: {} };
+  const _progDefault = () => ({ trainingPhase: 'Build', nutritionPhase: 'Cut', detail: {} });
+  let _prog = _progDefault();
   window.ShapeProgram = {
     get: () => _prog,
     set: (p) => { if (p && typeof p === 'object') { _prog = { ..._prog, ...p, detail: { ...(_prog.detail || {}), ...(p.detail || {}) } }; try { window.dispatchEvent(new Event('bs-program')); } catch (e) {} } },
   };
+  // Account-scoped cache: without this reset, the previous account's coach-set
+  // phases survive a sign-out→sign-in and paint on the next member's headers.
+  try {
+    window.addEventListener('shape:signedOut', () => {
+      _prog = _progDefault();
+      try { window.dispatchEvent(new Event('bs-program')); } catch (e) {}
+    });
+  } catch (e) {}
 }
 function useBSProgram() {
   const [p, setP] = useStateBSC(() => (window.ShapeProgram?.get?.() || { trainingPhase: 'Build', nutritionPhase: 'Cut', detail: {} }));
@@ -5489,6 +5516,9 @@ if (typeof window !== 'undefined' && !window.ShapeMealTimes) {
       _mt = next;
     },
   };
+  // Account-scoped: without this the next sign-in inherits the previous
+  // member's eating schedule until they open Settings.
+  try { window.addEventListener('shape:signedOut', () => { _mt = { ...BS_DEFAULT_MEAL_TIMES }; }); } catch (e) {}
 }
 
 // Editable daily STEP GOAL — what the steps rings are measured against. Persisted
@@ -5513,6 +5543,18 @@ if (typeof window !== 'undefined' && !window.ShapeStepGoal) {
     // made this session always wins, so a slow getUserGoals can't revert a fresh save.
     hydrate: (n) => { if (_userSet) return; const v = Number(n); if (Number.isFinite(v) && v >= 1000 && _clampSg(v) !== _sg) _applySg(_clampSg(v)); },
   };
+  // Account-scoped, and the _userSet latch is the real trap: left set, hydrate()
+  // ignores the NEXT account's cloud goal for the whole page lifetime, so account
+  // A's goal would drive B's rings. Clear the latch, the value, AND the
+  // localStorage seed (it would re-seed A's goal on the next cold boot).
+  try {
+    window.addEventListener('shape:signedOut', () => {
+      _sg = BS_DEFAULT_STEP_GOAL;
+      _userSet = false;
+      try { localStorage.removeItem('shape.stepGoal'); } catch (e) {}
+      try { window.dispatchEvent(new CustomEvent('shape:stepGoal', { detail: _sg })); } catch (e) {}
+    });
+  } catch (e) {}
 }
 
 // Shared meal-time formatting so the schedule reads the same everywhere (the

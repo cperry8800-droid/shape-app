@@ -1865,6 +1865,9 @@ function BSAppShell({ tweaks, setTweak }) {
         'shape.workoutSessions'
       ].forEach((k) => localStorage.removeItem(k));
     } catch (e) {}
+    // The in-memory sibling of shape.errorLog — the last error record can embed
+    // app-state strings, and the storage sweep alone doesn't touch it.
+    try { window.__BS_LAST_ERROR = null; } catch (e) {}
     // Tell in-memory holders of user content to drop it — storage removal alone
     // doesn't clear state hoisted above the stage switch (BSRadioProvider keeps
     // the saved-tracks library mounted across logout by design).

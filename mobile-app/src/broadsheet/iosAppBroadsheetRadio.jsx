@@ -208,13 +208,19 @@ function BSRadioProvider({ children }) {
     }
   }, [askedPrompt]);
 
-  // Sign-out: drop the in-memory saved-tracks library. This provider is
-  // deliberately hoisted above the stage switch (it survives logout so radio
-  // state doesn't remount, #1783) — which means the storage sweep alone can't
-  // clear it: without this, an in-app account switch hands the previous
-  // member's Spotify/Apple library to the next sign-in.
+  // Sign-out: drop the in-memory saved-tracks library AND the per-song social
+  // state. This provider is deliberately hoisted above the stage switch (it
+  // survives logout so radio state doesn't remount, #1783) — which means the
+  // storage sweep alone can't clear either: without this, an in-app account
+  // switch hands the previous member's Spotify/Apple library to the next
+  // sign-in, and songSocial only reloads when the track key CHANGES, so the
+  // same track still playing renders the previous member's myVote and applies
+  // the next vote's optimistic math against it.
   useEffectBR(() => {
-    const onSignedOut = () => setMusicLibrariesState({ spotify: [], apple: [] });
+    const onSignedOut = () => {
+      setMusicLibrariesState({ spotify: [], apple: [] });
+      setSongSocial({});
+    };
     window.addEventListener('shape:signedOut', onSignedOut);
     return () => window.removeEventListener('shape:signedOut', onSignedOut);
   }, []);
