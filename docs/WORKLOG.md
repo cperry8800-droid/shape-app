@@ -196,10 +196,10 @@ changelog whenever something ships.
 > ⚠ **A page cannot retire its own controller**, so the purge is not the last word — v133's
 > install delete-all reduces the residual but, being async to the navigation, does not
 > guarantee it away.
-> Gyms is off the nav (#1889), leaving the legacy page cluster with no **in-site**
-> navigation entry — ⚠ not unreachable: `sitemap.xml` still advertises it to search
-> engines. **No legacy page was deleted**; the "safe to delete" list was refuted by its own
-> transitive analysis. Suite **1528**.
+> Gyms is off the canonical `Nav`/`Footer` chrome (#1889) — ⚠ **no reachability claim**:
+> `sitemap.xml`, the `/gyms` rewrite and `404.html` are all still live doors. **No legacy
+> page was deleted**; the "safe to delete" list was refuted by its own transitive analysis.
+> Suite **1528**.
 >
 > See the full entry below.
 
@@ -1708,24 +1708,33 @@ changelog whenever something ships.
   one P1 each, all in the same purge seam, rounds 2 and 3 being defects in the previous
   round's own fix. On round 3 the rule ([[the-miss-is-next-to-the-fix]]) was applied
   literally: stop patching and **check whether the finding's own remedy already exists one
-  layer out**. It did — the review asked for "another purge after the controlled document
-  is replaced", and v133's install delete-all already is exactly that. The mechanism was
-  conceded (verified from git history), the **consequence refuted with evidence**, and a
-  cheap-looking `registration.update()` was declined because the navigation runs the same
-  check anyway. Codex accepted and went clean.
+  layer out**. Something was there — the review asked for "another purge after the
+  controlled document is replaced", and v133's install delete-all is the nearest existing
+  thing to it. ⚠ **But it is NOT that purge, and round 3's conclusion overstated it:**
+  install runs *before* activation and control, so the old handler can still repopulate the
+  cache afterwards. That correction came from review **on this very entry** (see the
+  residual above); the actual remedy is still a purge on first load UNDER v133. The
+  mechanism was conceded (verified from git history), the **consequence narrowed with
+  evidence**, and a cheap-looking `registration.update()` was declined because the
+  navigation runs the same check anyway. ⚠ So the honest lesson is not "the remedy already
+  existed one layer out" — it is **"stop patching the seam and go look one layer out",
+  which here found a mitigation that was then misread as a closure.**
 
-- **#1889 — Gyms off the nav, and the legacy cluster loses its in-site doors.** A reachability
+- **#1889 — Gyms off the canonical nav chrome.** A reachability
   sweep of all 51 root `public/*.html` files found the canonical `public/newdesign/**`
   surface carries **zero** links to any gym page — but `Nav.tsx`/`Footer.tsx` render on
   every Next route via `layout.tsx`, and `gyms.html` / `for-gyms.html` carry their own
   legacy navs into `marketplace.html`, `trainers.html`, `nutritionists.html`,
   `pricing.html`, `home.html`, `clients.html` and the rest. Removing four links takes gyms
-  off the live site and leaves that cluster with **no in-site navigation entry**.
-  ⚠ **That is NOT the same as unreachable, and a future cleanup must not read it that way:**
-  `public/sitemap.xml` still advertises `/gyms.html` and `/for-gyms.html` to search engines
-  and `next.config.ts` still rewrites `/gyms` to the legacy page, so search traffic can
-  still land in the cluster. Removing the sitemap entries is the open follow-up; until it
-  runs, treat these pages as live-with-traffic, not orphaned.
+  off the **canonical site chrome** — the Next `Nav`/`Footer` that render on every route.
+  ⚠ **This entry deliberately makes NO reachability claim, and no cleanup may read one into
+  it.** Two review rounds each found another live door right after one was written down:
+  `public/sitemap.xml` still advertises `/gyms.html` and `/for-gyms.html` to search engines;
+  `next.config.ts` still rewrites `/gyms` to the legacy page; and `public/404.html`'s
+  "Popular destinations" links `gyms.html`, reached from **every unmatched Next route** via
+  `src/app/not-found.tsx`. The general lesson is the one that cost three rounds: **an
+  enumeration of entry points is never a proof that no others exist.** Deleting any of these
+  pages requires its own fresh sweep at that time — not this paragraph.
   ⚠ **NO legacy page was deleted, deliberately.** The sweep's own "safe to delete" list was
   refuted by its own transitive analysis: five of its eight files are linked from
   `gyms.html`'s nav, `workout.html` from `trainer-dashboard.html` (which coaches are
