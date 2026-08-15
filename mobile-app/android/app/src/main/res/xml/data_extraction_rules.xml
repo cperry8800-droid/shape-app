@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (dataExtractionRules). Same exclusion as backup_rules.xml and
+     for the same reason: app_webview/ carries the auth session. Excluded from
+     BOTH cloud backup and device-to-device transfer — a migrated session is
+     the same account-takeover path as a restored one. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="app_webview" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="app_webview" />
+    </device-transfer>
+</data-extraction-rules>
