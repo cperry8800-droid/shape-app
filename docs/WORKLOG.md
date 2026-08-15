@@ -196,8 +196,9 @@ changelog whenever something ships.
 > ⚠ **A page cannot retire its own controller**, so the purge is not the last word — v133's
 > install delete-all reduces the residual but, being async to the navigation, does not
 > guarantee it away.
-> Gyms is off the nav (#1889), leaving the legacy page cluster with no reachable entry
-> point — **no legacy page was deleted**; the "safe to delete" list was refuted by its own
+> Gyms is off the nav (#1889), leaving the legacy page cluster with no **in-site**
+> navigation entry — ⚠ not unreachable: `sitemap.xml` still advertises it to search
+> engines. **No legacy page was deleted**; the "safe to delete" list was refuted by its own
 > transitive analysis. Suite **1528**.
 >
 > See the full entry below.
@@ -1713,13 +1714,18 @@ changelog whenever something ships.
   cheap-looking `registration.update()` was declined because the navigation runs the same
   check anyway. Codex accepted and went clean.
 
-- **#1889 — Gyms off the nav, and the legacy cluster loses its last door.** A reachability
+- **#1889 — Gyms off the nav, and the legacy cluster loses its in-site doors.** A reachability
   sweep of all 51 root `public/*.html` files found the canonical `public/newdesign/**`
   surface carries **zero** links to any gym page — but `Nav.tsx`/`Footer.tsx` render on
   every Next route via `layout.tsx`, and `gyms.html` / `for-gyms.html` carry their own
   legacy navs into `marketplace.html`, `trainers.html`, `nutritionists.html`,
   `pricing.html`, `home.html`, `clients.html` and the rest. Removing four links takes gyms
-  off the live site and leaves that cluster with no reachable entry point.
+  off the live site and leaves that cluster with **no in-site navigation entry**.
+  ⚠ **That is NOT the same as unreachable, and a future cleanup must not read it that way:**
+  `public/sitemap.xml` still advertises `/gyms.html` and `/for-gyms.html` to search engines
+  and `next.config.ts` still rewrites `/gyms` to the legacy page, so search traffic can
+  still land in the cluster. Removing the sitemap entries is the open follow-up; until it
+  runs, treat these pages as live-with-traffic, not orphaned.
   ⚠ **NO legacy page was deleted, deliberately.** The sweep's own "safe to delete" list was
   refuted by its own transitive analysis: five of its eight files are linked from
   `gyms.html`'s nav, `workout.html` from `trainer-dashboard.html` (which coaches are
