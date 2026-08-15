@@ -1415,7 +1415,9 @@ Object.assign(window, { ShapeHomeCards });
       var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls the Shape app's first-party usage stats. See our Privacy Policy.";
       function record(choice) {
         try { localStorage.setItem(KEY, choice); } catch (e) {}
-        logConsent("cookies", choice === "accept", BANNER_COPY + " [choice: " + choice + "]");
+        // consent_text is the VERBATIM copy shown — nothing appended; the
+        // `granted` column already records which button was pressed.
+        logConsent("cookies", choice === "accept", BANNER_COPY);
       }
       var bar = document.createElement("div");
       bar.setAttribute("role", "dialog"); bar.setAttribute("aria-label", "Cookie consent");
