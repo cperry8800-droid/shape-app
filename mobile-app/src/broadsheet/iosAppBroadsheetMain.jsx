@@ -1818,7 +1818,9 @@ function BSAppShell({ tweaks, setTweak }) {
   };
 
   const handleLogout = async () => {
-    await window.ShapeAuth?.signOut?.();
+    // Non-fatal: the scrub and the reload below are the shared-device guarantee
+    // and must run even if the SDK sign-out rejects (offline, lock timeout).
+    try { await window.ShapeAuth?.signOut?.(); } catch (e) {}
     setAuthState({});
     setBrowseMode(false);
     setPreviewMode(false);

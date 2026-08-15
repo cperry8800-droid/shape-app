@@ -523,7 +523,23 @@ async function signOut() {
   // reload. Device-enumerated, so this works offline and needs no session —
   // but it runs here, beside the other teardown, so no exit path skips it.
   try { await cancelAllLocalHabits(); } catch (e) {}
-  if (supabase) await supabase.auth.signOut();
+  // GUARDED: everything below — the bridged cookie DELETE, the viewer-relative
+  // cache clears, and (in handleLogout) the storage scrub and the reload — runs
+  // after this line, so an unguarded rejection here would skip the whole
+  // teardown and leave the previous member signed in with their content on
+  // screen. The local retry is belt-and-braces: auth-js 2.111.0 already clears
+  // the persisted session on a failed global revocation (GoTrueClient._signOut
+  // calls removeCurrentSession() before returning the error), but that error
+  // path has differed across versions, and this is a shared-device privacy
+  // guarantee that shouldn't rest on a transitive dep's internals.
+  if (supabase) {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) { try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) {} }
+    } catch (e) {
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch (e2) {}
+    }
+  }
   // The bridged Next.js API session cookie (bridgeSessionToApi POSTs it on every
   // sign-in/session restore) outlives the SDK sign-out — on the hosted /m/ build
   // every same-origin /api/* call would keep authenticating as the signed-out
