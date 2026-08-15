@@ -178,7 +178,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-15): SIGNING OUT NOW ACTUALLY LEAVES THE DEVICE CLEAN
+> **Latest (2026-08-15): SIGN-OUT NOW SCRUBS THE DEVICE — WITH ONE DOCUMENTED RESIDUAL
 > (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`).**
 > Content in local/sessionStorage, **signed media in CacheStorage**, the push registration,
 > and every in-memory cache survived a sign-out on a shared device. The service worker was
@@ -1623,7 +1623,7 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
-### 2026-08-15 — The shared-device sign-out wave: user content, PWA caches, and the last legacy door (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`)
+### 2026-08-15 — The shared-device sign-out wave: user content, PWA caches, and gyms off the nav chrome (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`)
 
 - **The problem, in one line: signing out left the previous person's data on the device.**
   Content in localStorage/sessionStorage, signed media in CacheStorage, a live push
