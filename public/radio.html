@@ -317,7 +317,10 @@
   </div>
 
   <!-- Radio Content — shown by default; logged-out listeners get a timed preview -->
-  <div class="radio-content active" id="radioContent">
+  <!-- Starts WITHOUT .active on purpose: the player must be gated until auth
+       resolves. Hiding it asynchronously left a window in which a signed-out
+       visitor could press play and get an unlicensed-tier performance. -->
+  <div class="radio-content" id="radioContent">
   <section class="radio-hero">
     <div class="radio-logo"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio" /></div>
     <p class="radio-tagline">Live music to fuel your workout.</p>
@@ -622,7 +625,13 @@
       if (playing) startViz(); else stopViz();
     }
 
+    // Playback requires a confirmed session — see the auth-gate note below.
+    // togglePlay is reachable from the visible play button, so the check lives
+    // HERE and not only in the boot path: a click that lands before the async
+    // gate resolves must not start the stream.
+    var radioSessionOk = false;
     function togglePlay() {
+      if (!radioSessionOk) { showSignInGate(); return; }
       if (!STREAM_URL) { loadStation().then(function (u) { if (u) { audio.play().catch(function(){}); startNowPlayingPoll(); } }); return; }
       if (!audio.src) audio.src = STREAM_URL;
       if (audio.paused) {
@@ -709,7 +718,7 @@
         }
         if (window.shapeDb) {
           var session = await window.shapeDb.getSession();
-          if (session) { openRadio(false); return; }
+          if (session) { radioSessionOk = true; openRadio(false); return; }
         }
       } catch (e) {}
       showSignInGate();

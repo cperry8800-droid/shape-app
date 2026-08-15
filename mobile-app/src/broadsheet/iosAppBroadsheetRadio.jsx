@@ -211,6 +211,20 @@ function BSRadioProvider({ children }) {
   const [radioOn, setRadioOn]       = useStateBR(_radioPref ? !!_radioPref.on : false);
   const [askedPrompt, setAsked]     = useStateBR(_radioPref ? !!_radioPref.asked : false);
   const [showPrompt, setShowPrompt] = useStateBR(false);
+  // Ticks when the signed-in identity changes, so the playback effect below
+  // re-evaluates its auth gate. Needed because this provider mounts above the
+  // async auth gate: on a cold launch the cached session is not resolved yet,
+  // so the first evaluation must be allowed to fail closed and then re-run.
+  const [authTick, setAuthTick] = useStateBR(0);
+  useEffectBR(() => {
+    const bump = () => setAuthTick((n) => n + 1);
+    window.addEventListener('shape:identity', bump);
+    window.addEventListener('shape:signedOut', bump);
+    return () => {
+      window.removeEventListener('shape:identity', bump);
+      window.removeEventListener('shape:signedOut', bump);
+    };
+  }, []);
   const [paused, setPaused]         = useStateBR(_radioPref ? !_radioPref.on : true);
   // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW") — kept
   // for the muted/fallback display path; live now-playing overrides via nowPlaying state.
@@ -299,13 +313,22 @@ function BSRadioProvider({ children }) {
     }
     // Start poll once (covers both paused and playing states so now-playing stays fresh).
     window.ShapeRadioLive?.startPolling?.((np) => setNowPlaying(np));
-    if (paused) {
+    // ⚠ PLAYBACK REQUIRES A SIGNED-IN ACCOUNT — licensing, not product.
+    // `shape.radio.pref` persists {on:true} across sign-out by design (the
+    // prompt must not re-ask), and this provider mounts ABOVE the async auth
+    // gate. So without this check a signed-out launch — or a reload right
+    // after logout — resumes the stream for a non-subscriber, which is the
+    // non-subscription rate classification the signed-out path was removed to
+    // avoid (see the NON-INTERACTIVE BOUNDARY at the top of this file).
+    // Fails CLOSED: unresolved auth does not play.
+    const bsRadioSignedIn = !!window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (paused || !bsRadioSignedIn) {
       window.ShapeRadioLive?.pause?.();
     } else {
       window.ShapeRadioLive?.play?.();
     }
     return () => window.ShapeRadioLive?.stopPolling?.();
-  }, [radioOn, paused]);
+  }, [radioOn, paused, authTick]);
 
   // The key for the track on air, built from the RAW now-playing fields (NOT the
   // '—'-substituted display copy), so a title-only or artist-only track keys the
