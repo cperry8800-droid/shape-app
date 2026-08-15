@@ -157,15 +157,48 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       shapeDb.clearLocalUserContent();
     },
 
-    // Shared-device hygiene: user CONTENT must not survive sign-out. The ONE
-    // implementation lives in pageShell.jsx (window.shapeClearLocalUserContent)
-    // so the navbar logout — which never touches shapeDb — runs the identical
-    // scrub; keeping a second copy here is how the two would drift. Every real
-    // sign-out surface loads pageShell (legacy root pages have no sign-out
-    // control), so the delegation is never a silent no-op where it matters.
+    // Shared-device hygiene: user CONTENT must not survive sign-out. The
+    // CANONICAL implementation lives in pageShell.jsx
+    // (window.shapeClearLocalUserContent) and is preferred when loaded.
+    // ⚠ But legacy root pages (clients.html, nutrition-schedule.html, the
+    // shapeSignOut() navbars site-wide) DO expose sign-out controls and load
+    // THIS file without pageShell — an earlier comment here claimed they had
+    // none, and that claim was false: on those pages the delegation was a
+    // silent no-op, leaving shapeTrainerMessages / shapeTrainerCheckIns /
+    // shapeMealLog etc. for the next device user. So a complete FALLBACK TWIN
+    // runs when the canonical scrub is absent. KEEP THE TWO IN SYNC
+    // (pageShell.jsx → window.shapeClearLocalUserContent).
     clearLocalUserContent() {
       try {
-        if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent();
+        if (window.shapeClearLocalUserContent) { window.shapeClearLocalUserContent(); return; }
+      } catch (e) {}
+      try {
+        [
+          // newdesign families
+          'shapeClientIntake_v1', 'shapeConsultations',
+          'shape.dashMealDrafts', 'shape.dashBuilderDrafts', 'shape.viewerRole',
+          // legacy root-page keys
+          'shapeMealLog', 'shapeWorkoutLog', 'shapeMealSchedule', 'shapeSchedule',
+          'shapeWaterToday', 'shapeMessagingSetting', 'shapePurchasedWorkouts',
+          'shapeRedeemedRewards', 'shapeLibRemovedWorkouts', 'shapeRadioLoggedIn',
+          'trainerSalesGoalWeekly', 'trainerSalesGoalMonthly', 'trainerSalesGoalAnnual',
+          'nutritionistSalesGoalWeekly', 'nutritionistSalesGoalMonthly', 'nutritionistSalesGoalAnnual'
+        ].forEach(function (k) { localStorage.removeItem(k); });
+        var prefixes = [
+          'shape.chat.v2.', 'shape.dashGoals.', 'shape.habits.',
+          'shape.dashQueueDone.', 'shape.dashMealLog.', 'shape.dashMealSwap.',
+          'shape.dashNutriSwap.',
+          // legacy role families (KEEP-list keys shapeGrocery*/shapeRecipes_v1
+          // /shape-pwa-* don't match these prefixes)
+          'shapeTrainer', 'shapeNutritionist', 'shapeClient'
+        ];
+        for (var i = localStorage.length - 1; i >= 0; i--) {
+          var key = localStorage.key(i);
+          if (!key) continue;
+          for (var j = 0; j < prefixes.length; j++) {
+            if (key.indexOf(prefixes[j]) === 0) { localStorage.removeItem(key); break; }
+          }
+        }
       } catch (e) {}
     },
 

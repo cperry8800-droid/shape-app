@@ -1379,16 +1379,21 @@ Object.assign(window, { ShapeHomeCards });
 // signed in, logged to consent_log). No-ops once a choice exists. Loaded via
 // pageShell, so it covers every page that renders the shared shell.
 // ── Sign-out content scrub (shared-device hygiene) ───────────────────────────
-// THE ONE implementation. Every browser sign-out path calls it: the navbar
-// handleLogout above, and shapeDb.signOut() / the account-deletion flows
-// (supabase.js delegates here rather than keeping a second copy that could
-// drift). Scope: user content that is sensitive or account-scoped. Device-only
-// personal lists with no cloud copy (saved recipes, grocery lists, today's
-// plan) are deliberately KEPT — clearing them destroys the member's own data,
-// not a cache. The merch cart (shape.storeCart — item ids + quantities only,
-// no address) falls under the same carve-out. Legacy root pages don't load
-// pageShell, but no sign-out control exists on them, so this covers every real
-// sign-out surface.
+// The CANONICAL implementation. Every newdesign sign-out path calls it: the
+// navbar handleLogout above, and shapeDb.signOut() / the account-deletion
+// flows (supabase.js prefers this copy when it's loaded). ⚠ Legacy root pages
+// (clients.html, nutrition-schedule.html, the shapeSignOut() navbars) DO carry
+// sign-out controls but never load pageShell — an earlier comment here claimed
+// they had none, and that claim was false — so supabase.js keeps a FALLBACK
+// TWIN of these lists for those pages. KEEP THE TWO IN SYNC (supabase.js →
+// clearLocalUserContent). Scope: user content that is sensitive or
+// account-scoped, including the legacy root-page families (same origin — a
+// legacy visit's keys linger into newdesign sessions). Device-only personal
+// lists with no cloud copy (saved recipes incl. legacy shapeRecipes_v1,
+// grocery lists incl. legacy shapeGrocery*, today's plan) are deliberately
+// KEPT — clearing them destroys the member's own data, not a cache. The merch
+// cart (shape.storeCart — item ids + quantities only, no address) falls under
+// the same carve-out.
 window.shapeClearLocalUserContent = function () {
   try {
     [
@@ -1396,7 +1401,17 @@ window.shapeClearLocalUserContent = function () {
       "shapeConsultations",     // bookings — contact details
       "shape.dashMealDrafts",   // coach drafts about named clients
       "shape.dashBuilderDrafts",
-      "shape.viewerRole"
+      "shape.viewerRole",
+      // Legacy root-page keys (pre-newdesign pages still write these):
+      "shapeMealLog", "shapeWorkoutLog",          // health-behavior logs
+      "shapeMealSchedule", "shapeSchedule",       // the account's schedule
+      "shapeWaterToday",                          // hydration log
+      "shapeMessagingSetting",                    // messaging privacy setting
+      "shapePurchasedWorkouts", "shapeRedeemedRewards", // purchases + reward codes
+      "shapeLibRemovedWorkouts",                  // library tombstones — would hide the next user's items
+      "shapeRadioLoggedIn",
+      "trainerSalesGoalWeekly", "trainerSalesGoalMonthly", "trainerSalesGoalAnnual",
+      "nutritionistSalesGoalWeekly", "nutritionistSalesGoalMonthly", "nutritionistSalesGoalAnnual"
     ].forEach(function (k) { localStorage.removeItem(k); });
     // Prefixed families — all account-scoped state a next user would inherit.
     var prefixes = [
@@ -1406,7 +1421,11 @@ window.shapeClearLocalUserContent = function () {
       "shape.dashQueueDone.", // coach programming queue — client IDs marked done today
       "shape.dashMealLog.",   // today's meal-log ticks (dashClient.jsx)
       "shape.dashMealSwap.",  // today's meal swaps (dashClient.jsx)
-      "shape.dashNutriSwap."  // nutritionist-side day swaps (dashNutri.jsx)
+      "shape.dashNutriSwap.", // nutritionist-side day swaps (dashNutri.jsx)
+      // Legacy role families (profiles, client messages/check-ins, plans,
+      // assigned content, widget libs — all account-scoped; the KEEP-list keys
+      // shapeGrocery*/shapeRecipes_v1/shape-pwa-* don't match these prefixes):
+      "shapeTrainer", "shapeNutritionist", "shapeClient"
     ];
     for (var i = localStorage.length - 1; i >= 0; i--) {
       var key = localStorage.key(i);

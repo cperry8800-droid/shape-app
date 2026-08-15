@@ -199,6 +199,14 @@ function BSRadioProvider({ children }) {
   // retired. Each entry: { up, down, myVote, commentCount, comments, loading }.
   const [songSocial, setSongSocial] = useStateBR({});
   const [musicLibraries, setMusicLibrariesState] = useStateBR(() => safeReadRadioJSON('shape.radio.musicLibraries', { spotify: [], apple: [] }));
+  // Generation counter for the async social operations (load/vote/comment).
+  // Sign-out bumps it, so a request in flight when the account changes can
+  // never write its response — the previous member's myVote/optimistic
+  // baseline — over the state the signedOut reset just cleared.
+  const socialGenRef = useRefBR(0);
+  // Latest track key, readable from the []-dep signedOut listener (which would
+  // otherwise close over the first render's value).
+  const currentSongKeyRef = useRefBR(null);
 
   // Auto-prompt once after first render (post-login simulation)
   useEffectBR(() => {
@@ -218,8 +226,13 @@ function BSRadioProvider({ children }) {
   // the next vote's optimistic math against it.
   useEffectBR(() => {
     const onSignedOut = () => {
+      socialGenRef.current += 1; // orphan any in-flight load/vote/comment so its response can't overwrite the reset below
       setMusicLibrariesState({ spotify: [], apple: [] });
       setSongSocial({});
+      // Re-fetch the on-air track's PUBLIC social under the new generation so
+      // the still-playing track shows fresh counts (myVote honestly null for
+      // the signed-out viewer) instead of an empty entry until the track turns.
+      try { if (currentSongKeyRef.current) loadSongSocial(currentSongKeyRef.current); } catch (e) {}
     };
     window.addEventListener('shape:signedOut', onSignedOut);
     return () => window.removeEventListener('shape:signedOut', onSignedOut);
@@ -255,6 +268,7 @@ function BSRadioProvider({ children }) {
   // BSRadioProvider wraps the whole app shell).
   const currentSongKey = (nowPlaying && (nowPlaying.title || nowPlaying.artist))
     ? makeRadioTrackKey({ a: nowPlaying.title, b: nowPlaying.artist }) : null;
+  currentSongKeyRef.current = currentSongKey; // keep the []-dep signedOut listener reading the LIVE key
 
   function persistRadioPref(asked, on) {
     try { window.localStorage && window.localStorage.setItem('shape.radio.pref', JSON.stringify({ asked: !!asked, on: !!on })); } catch {}
@@ -285,12 +299,15 @@ function BSRadioProvider({ children }) {
   // and cache it. Public read — works signed-out (myVote just stays null).
   const loadSongSocial = useCallbackBR(async (key) => {
     if (!key || key === 'unknown') return;
+    const gen = socialGenRef.current; // a sign-out mid-flight orphans this request
     setSongSocial(prev => ({ ...prev, [key]: { ...RADIO_SOCIAL_EMPTY, ...(prev[key] || {}), loading: !prev[key] } }));
     try {
       const s = window.ShapeRadioSong ? await window.ShapeRadioSong.get(key) : null;
+      if (gen !== socialGenRef.current) return; // stale: the response carries the previous session's myVote
       if (s) setSongSocial(prev => ({ ...prev, [key]: { ...s, loading: false } }));
       else setSongSocial(prev => ({ ...prev, [key]: { ...(prev[key] || RADIO_SOCIAL_EMPTY), loading: false } }));
     } catch (e) {
+      if (gen !== socialGenRef.current) return;
       setSongSocial(prev => ({ ...prev, [key]: { ...(prev[key] || RADIO_SOCIAL_EMPTY), loading: false } }));
     }
   }, []);
@@ -301,13 +318,16 @@ function BSRadioProvider({ children }) {
   const voteSong = useCallbackBR(async (track, vote) => {
     const key = makeRadioTrackKey(track);
     if (!key || key === 'unknown') return false;
+    const gen = socialGenRef.current; // sign-out orphans this vote: no write-back AND no revert (the revert snapshot is the previous session's state)
     const before = songSocial[key] || { ...RADIO_SOCIAL_EMPTY };
     setSongSocial(prev => ({ ...prev, [key]: bsApplyOptimisticVote(prev[key] || RADIO_SOCIAL_EMPTY, vote) }));
     try {
       const s = window.ShapeRadioSong ? await window.ShapeRadioSong.vote(key, vote) : null;
+      if (gen !== socialGenRef.current) return false;
       if (s) setSongSocial(prev => ({ ...prev, [key]: { ...s, loading: false } }));
       return true;
     } catch (e) {
+      if (gen !== socialGenRef.current) return false;
       setSongSocial(prev => ({ ...prev, [key]: before }));   // revert
       return false;
     }
@@ -319,8 +339,10 @@ function BSRadioProvider({ children }) {
     const key = makeRadioTrackKey(track);
     const body = (text || '').trim();
     if (!key || key === 'unknown' || !body) return false;
+    const gen = socialGenRef.current;
     try {
       const s = window.ShapeRadioSong ? await window.ShapeRadioSong.comment(key, body) : null;
+      if (gen !== socialGenRef.current) return false; // stale: don't write the previous session's response back
       if (s) setSongSocial(prev => ({ ...prev, [key]: { ...s, loading: false } }));
       return true;
     } catch (e) {

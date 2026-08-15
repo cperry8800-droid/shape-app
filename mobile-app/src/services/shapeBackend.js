@@ -535,6 +535,7 @@ async function signOut() {
   // own activity hydration, and the presence channel stays keyed to A's user id.
   // Tear all three down so the next sign-in initializes fresh.
   try {
+    _unread.gen += 1; // invalidate any bootstrap parked on an await — it must not resume into the torn-down state
     _unread.subs.forEach((off) => { try { off(); } catch (e) {} });
     _unread.subs = [];
     _unread.map = {};
@@ -552,6 +553,7 @@ async function signOut() {
     _presenceEmit();
   } catch (e) {}
   try {
+    _activity.gen += 1; // invalidate an in-flight hydrate the same way
     if (_activity.channel && supabase) { try { supabase.removeChannel(_activity.channel); } catch (e) {} }
     _activity.channel = null;
     _activity.map = new Map();
@@ -6055,7 +6057,7 @@ window.ShapeAdjustRegen = { apply: applyAdjustRegeneration };
 // ── Unread manager — app-wide so the Chat-tab badge + per-row badges work even
 //    when the chat screen isn't mounted. Seeds persisted counts, then keeps a
 //    live map via realtime. Keys: `ch:<id>` / `dm:<id>`.
-const _unread = { map: {}, started: false, listeners: new Set(), myChannels: new Set(), subs: [] };
+const _unread = { map: {}, started: false, gen: 0, listeners: new Set(), myChannels: new Set(), subs: [] };
 function _unreadEmit() { _unread.listeners.forEach(fn => { try { fn(_unread.map); } catch (e) {} }); }
 // Logged-out demo seed so the Chat-tab badge + per-row badges work in the
 // marketing state, for every profile. Keys match the sample channels/DMs the
@@ -6070,11 +6072,17 @@ function seedDemoUnread() {
 async function startUnread() {
   if (_unread.started || !supabase || !state.user?.id) return;
   _unread.started = true;
+  // Generation guard: a sign-out mid-bootstrap bumps _unread.gen, so a
+  // coroutine parked on any await below must not resume into the torn-down
+  // state — without this it would repopulate the map with the PREVIOUS
+  // account's counts and attach subscriptions after the teardown removed them.
+  const gen = _unread.gen;
   // Drop any demo seed once real data takes over.
   if (_unread.demoSeeded) { _unread.map = {}; _unread.demoSeeded = false; }
-  try { const ch = await listChannels(); (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
-  try { const { data } = await supabase.rpc('channel_unread'); (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
-  try { const { data } = await supabase.rpc('dm_unread'); (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
+  try { const ch = await listChannels(); if (gen !== _unread.gen) return; (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
+  try { const { data } = await supabase.rpc('channel_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
+  try { const { data } = await supabase.rpc('dm_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
+  if (gen !== _unread.gen) return; // a failed await lands here via its catch — never attach stale subs
   _unreadEmit();
   _unread.subs.push(subscribeChannelMessages((row) => {
     if (!row || row.sender_id === state.user?.id || !_unread.myChannels.has(row.channel_id)) return;
@@ -6124,20 +6132,26 @@ function startPresence() {
 // ── Live activity ("doing right now") — DB-backed so it PERSISTS across screen
 //    changes / app backgrounding and only clears when the user ends it. Source of
 //    truth is the user_activity table (+ realtime); presence stays for "online".
-const _activity = { map: new Map(), mine: null, channel: null, started: false };
+const _activity = { map: new Map(), mine: null, channel: null, started: false, gen: 0 };
 function _activityEmit() { try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {} }
 async function startActivity() {
   if (_activity.started || !supabase || !state.user?.id) return;
   _activity.started = true;
+  // Same generation guard as startUnread: a sign-out while the hydrate RPC is
+  // in flight must not let this coroutine resume, restore the previous
+  // account's activity map, and attach a channel after the teardown.
+  const gen = _activity.gen;
   // Hydrate the currently-active set in one call.
   try {
     const { data } = await supabase.rpc('get_active_activities');
+    if (gen !== _activity.gen) return;
     const m = new Map();
     (data || []).forEach((r) => { if (r && r.user_id && r.kind) m.set(String(r.user_id), r.kind); });
     _activity.map = m;
     _activity.mine = m.get(String(state.user.id)) || null;
     try { window.ShapeMyActivity = _activity.mine; } catch (e) {}
   } catch (e) {}
+  if (gen !== _activity.gen) return; // a rejected hydrate lands here via its catch — never attach a stale channel
   // Keep it live as people start/stop.
   try {
     const ch = supabase.channel('user-activity')
