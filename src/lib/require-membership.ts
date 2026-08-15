@@ -38,7 +38,12 @@ export async function requireMembership(request: Request): Promise<NextResponse 
     const user = await currentUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     const client = await clientForRequest(request);
-    const { isMember } = await computeMembership(client, user.id, user.email ?? null);
+    const { isMember, isKnownMinor } = await computeMembership(client, user.id, user.email ?? null);
+    // Same 18+ refusal as the proxy — this is the per-endpoint half, so it must
+    // hold on its own when the proxy stamp is absent.
+    if (isKnownMinor) {
+      return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
+    }
     if (!isMember) {
       return NextResponse.json(
         { error: 'Shape membership required.', code: 'membership_required' },

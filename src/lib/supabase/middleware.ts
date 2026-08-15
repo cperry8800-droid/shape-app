@@ -222,7 +222,13 @@ export async function updateSession(request: NextRequest) {
         gateClient = bClient;
       }
       if (!gateUser) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-      const { isMember } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null);
+      const { isMember, isKnownMinor } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null);
+      // Shape is 18+, no exceptions. over_18 is derived by a DB trigger from
+      // date_of_birth and cannot be self-asserted, so an explicit false is a
+      // proven minor: refuse before any paid or personal data route runs. This
+      // was previously computed and read by NOTHING — the only age check was
+      // client-side at signup, bypassable by calling the API directly.
+      if (isKnownMinor) return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
       if (!isMember) return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
       // Verified — stamp the request for the route layer so requireMembership
       // (the per-endpoint half of this gate) passes without re-querying.

@@ -32,7 +32,23 @@ export function adminEmails(): string[] {
   return Array.from(new Set([...configured, ...DEFAULT_ADMIN_EMAILS]));
 }
 
-export type Membership = { isMember: boolean; isCoach: boolean; isAdmin: boolean };
+export type Membership = {
+  isMember: boolean;
+  isCoach: boolean;
+  isAdmin: boolean;
+  /**
+   * TRUE only when we hold a date of birth that proves the account is a minor.
+   *
+   * `profiles.over_18` is DERIVED by the set_over_18() trigger from
+   * date_of_birth and can never be self-asserted, so `false` is trustworthy.
+   * ⚠ It is NULL when no DOB was ever captured (accounts created before the age
+   * gate, and phone sign-ups whose DOB claim did not persist), and NULL is NOT
+   * evidence of anything — so this flags only a CONFIRMED minor. Blocking NULL
+   * would lock out every legacy account, which is a different change and needs a
+   * DOB-completion flow first.
+   */
+  isKnownMinor: boolean;
+};
 
 /** Entitlement: approved coach OR admin OR an active platform subscription. */
 export async function computeMembership(
@@ -42,7 +58,7 @@ export async function computeMembership(
 ): Promise<Membership> {
   const { data: profile } = await client
     .from('profiles')
-    .select('role, roles')
+    .select('role, roles, over_18')
     .eq('id', userId)
     .maybeSingle();
   const role = (profile?.role as string) || 'client';
@@ -68,5 +84,9 @@ export async function computeMembership(
       .maybeSingle();
     isMember = !!(sub && ACTIVE_SUB.has(String((sub as { status?: unknown }).status)));
   }
-  return { isMember, isCoach, isAdmin };
+  // Read the DERIVED flag: only an explicit false is a proven minor.
+  const over18 = (profile as { over_18?: unknown } | null)?.over_18;
+  const isKnownMinor = over18 === false;
+
+  return { isMember, isCoach, isAdmin, isKnownMinor };
 }
