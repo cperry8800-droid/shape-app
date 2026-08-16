@@ -21,7 +21,7 @@ const WEB = readFileSync(new URL('../public/newdesign/dashboardCommunity.jsx', i
 // The pending record must be an owner-tagged object, never a bare id.
 test('both surfaces persist the queue as {uid, postId}, never a bare post id', () => {
   for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
-    assert.match(src, /JSON\.stringify\(\{\s*uid:/, `${label}: queue is not owner-tagged`);
+    assert.match(src, /\{ uid: String\(uid\), postId: String\(p(?:ostId|id)\) \}/, `${label}: records are not owner-tagged`);
     // The exact pre-fix shape. If this ever comes back, the cross-account
     // replay comes back with it.
     assert.ok(
@@ -35,7 +35,7 @@ test('both surfaces persist the queue as {uid, postId}, never a bare post id', (
 // happens to be signed in — replaying it is precisely the defect.
 test('both surfaces drop the legacy bare-string record instead of replaying it', () => {
   for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
-    const at = src.indexOf('!parsed.uid');
+    const at = src.indexOf('!Array.isArray(parsed)');
     assert.ok(at > 0, `${label}: no unattributable-record guard`);
     const slice = src.slice(at, at + 300);
     assert.match(slice, /removeItem\(/, `${label}: unattributable record is not dropped`);
@@ -48,11 +48,12 @@ test('both surfaces refuse to replay another member\'s queued award', () => {
   assert.ok(mobileAt > 0);
   const mobileSlice = MOBILE.slice(mobileAt, MOBILE.indexOf('window.ShapeCareerAward', mobileAt));
   const rpcIdx = mobileSlice.indexOf("supabase.rpc('award_work_milestone'");
-  const guardIdx = mobileSlice.indexOf('String(pending.uid) !== String(state.user.id)');
-  assert.ok(guardIdx > 0, 'shapeBackend.js: no owner guard in the catch-up');
-  assert.ok(guardIdx < rpcIdx, 'shapeBackend.js: the owner guard must run BEFORE the RPC');
+  // The lookup itself is the guard: it can only ever return OUR record.
+  const guardIdx = mobileSlice.indexOf('readCareerPendingFor(state.user.id)');
+  assert.ok(guardIdx > 0, 'shapeBackend.js: catch-up does not look up its OWN entry');
+  assert.ok(guardIdx < rpcIdx, 'shapeBackend.js: the owner lookup must run BEFORE the RPC');
 
-  assert.match(WEB, /String\(pending\.uid\) !== String\(me\.id\)/, 'dashboardCommunity.jsx: no owner guard');
+  assert.match(WEB, /careerPendingRead\(me\.id\)/, 'dashboardCommunity.jsx: catch-up is not owner-keyed');
   // The web catch-up used to fire on mount with no signed-in check at all.
   assert.match(WEB, /shapeDb\.getUser\(\)/, 'dashboardCommunity.jsx: catch-up does not resolve the current user');
 });
@@ -66,14 +67,44 @@ test('the queue survives an unauthenticated answer and clears on a terminal one'
   assert.match(WEB, /data\.reason === 'unauthenticated'/, 'dashboardCommunity.jsx: terminal rule missing');
 });
 
-// A success for post Y must not delete a still-pending retry for post X — the
-// queue holds one slot, so the clear has to match on BOTH fields.
-test('clearing the queue matches on owner AND post', () => {
-  const at = MOBILE.indexOf('function clearCareerPending');
-  assert.ok(at > 0, 'shapeBackend.js: no scoped clear');
-  const slice = MOBILE.slice(at, at + 420);
-  assert.match(slice, /cur\.uid\) !== String\(uid\)/);
-  assert.match(slice, /cur\.postId\) !== String\(postId\)/);
+// ⚠ Owner-TAGGING alone still lost awards: with ONE slot, member B's failed
+// claim overwrote member A's queued record and A's retry was gone when they
+// returned. The queue must be PARTITIONED per owner, not merely labelled.
+test('both surfaces partition the queue per owner instead of overwriting one slot', () => {
+  for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
+    // A write keeps every other owner's record and replaces only its own.
+    assert.match(src, /filter\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) !== String\(uid\)/,
+      `${label}: a write does not preserve other owners' records`);
+    assert.match(src, /\.concat\(\[\{ uid: String\(uid\), postId: String\(p(?:ostId|id)\) \}\]\)/,
+      `${label}: a write does not append an owner-keyed record`);
+    // A read selects this owner's entry rather than assuming a single slot.
+    assert.match(src, /find\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) === String\(uid\)/,
+      `${label}: the read is not owner-keyed`);
+  }
+});
+
+// A success for post Y must not delete a still-pending retry for post X, and
+// must never touch another owner's entry.
+test('clearing removes only the matching owner+post record', () => {
+  for (const [label, src, marker] of [
+    ['shapeBackend.js', MOBILE, 'function clearCareerPending'],
+    ['dashboardCommunity.jsx', WEB, 'careerPendingClear = React.useCallback'],
+  ]) {
+    const at = src.indexOf(marker);
+    assert.ok(at > 0, `${label}: no scoped clear`);
+    const slice = src.slice(at, at + 520);
+    assert.match(slice, /String\(r\.uid\) === String\(uid\)/, `${label}: clear is not owner-matched`);
+    assert.match(slice, /String\(r\.postId\) === String\(p(?:ostId|id)\)/, `${label}: clear is not post-matched`);
+    assert.ok(!/removeItem\(\s*['"]shape\.careerAwardPending['"]\s*\)/.test(slice),
+      `${label}: clear nukes the whole key instead of one record`);
+  }
+});
+
+// The collection is bounded — a kiosk must not grow it without limit.
+test('the per-owner queue is capped', () => {
+  assert.match(MOBILE, /CAREER_AWARD_MAX = 20/);
+  assert.match(MOBILE, /slice\(-CAREER_AWARD_MAX\)/);
+  assert.match(WEB, /slice\(-20\)/);
 });
 
 // The key stays OUT of the sign-out scrub inventory (the owner ruling), which

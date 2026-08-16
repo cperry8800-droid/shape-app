@@ -170,7 +170,9 @@ test('mobile handleLogout awaits the scrub purge before the reload', () => {
 test('the Next.js dashboard sign-out runs the scrub + purge client-side', () => {
   const btn = readFileSync(new URL('../src/components/SignOutButton.tsx', import.meta.url), 'utf8');
   assert.match(btn, /from '\.\.\/\.\.\/public\/newdesign\/localScrub\.mjs'/);
-  assert.match(btn, /shapeScrubLocalUserContent\(\)/);
+  // broadcast:false — the stamp is deferred until after session invalidation
+  // (see the ordering test below); the scrub itself still runs first.
+  assert.match(btn, /shapeScrubLocalUserContent\(\{ broadcast: false \}\)/);
   assert.match(btn, /shapePurgeShapeCaches\(\)/);
   assert.match(btn, /await logout\(\)/);
   for (const f of ['../src/app/dashboard/layout.tsx', '../src/components/Nav.tsx']) {
@@ -193,12 +195,15 @@ test('canonical scrub stamps the cross-tab signal, last and with a nonce', () =>
   const fn = src.indexOf('export function shapeScrubLocalUserContent');
   assert.ok(fn > 0);
   const slice = src.slice(fn);
-  const stampIdx = slice.indexOf('SHAPE_SIGNOUT_STAMP_KEY,');
+  const stampIdx = slice.indexOf('shapeBroadcastSignOut()');
   const sessionIdx = slice.indexOf('SHAPE_SCRUB_SESSION_KEYS.forEach');
   assert.ok(stampIdx > sessionIdx, 'the stamp must be written AFTER the sweeps that could remove it');
   // `storage` fires only on a CHANGED value — a bare Date.now() would be
-  // silent for two sign-outs inside the same millisecond.
-  assert.match(slice.slice(stampIdx), /Math\.random\(\)/);
+  // silent for two sign-outs inside the same millisecond. The nonce lives in
+  // the shared broadcaster, which the Next path also calls directly.
+  const bcast = src.indexOf('export function shapeBroadcastSignOut');
+  assert.ok(bcast > 0, 'no shared broadcaster');
+  assert.match(src.slice(bcast, bcast + 500), /Math\.random\(\)/);
   // The broadcast must be suppressible, or a listening tab echoes the event
   // back to the tab that signed out and they scrub each other in a loop.
   assert.match(slice, /broadcast = true/);
@@ -337,4 +342,46 @@ test('the scrub still clears content when it stamps, and keeps the durability qu
     assert.equal(store.get('shape.careerAwardPending'), '{"uid":"a","postId":"p"}', 'durability queue was wiped');
     assert.equal(store.get('shapeRecipes_v1'), 'mine', 'device-personal carve-out was wiped');
   });
+});
+
+// ⚠ ORDERING: the broadcast must come AFTER the server session is invalidated.
+// A sibling reacts by RELOADING, and a reload re-renders against whatever the
+// server still believes. Stamped too early, a sibling dashboard tab reloads
+// while its cookie is still valid, comes back signed IN, and no second event
+// ever corrects it — the departed member left on screen.
+test('the Next dashboard invalidates the session BEFORE it broadcasts', () => {
+  const src = readFileSync(new URL('../src/components/SignOutButton.tsx', import.meta.url), 'utf8');
+  const start = src.indexOf('const onClick');
+  assert.ok(start > 0);
+  const slice = src.slice(start);
+  // The local scrub still runs first (at-rest content must never wait on the
+  // network) — but silently.
+  assert.match(slice, /shapeScrubLocalUserContent\(\{ broadcast: false \}\)/,
+    'the click handler must not broadcast before the session is cleared');
+  const deleteIdx = slice.indexOf("fetch('/api/auth/session', { method: 'DELETE'");
+  const stampIdx = slice.indexOf('shapeBroadcastSignOut()');
+  const logoutIdx = slice.indexOf('await logout()');
+  assert.ok(deleteIdx > 0, 'no cookie-session invalidation before the broadcast');
+  assert.ok(stampIdx > deleteIdx, 'the broadcast must follow session invalidation');
+  assert.ok(logoutIdx > stampIdx, 'the server action still runs last');
+  // A hanging invalidation must never strand the sign-out.
+  assert.match(slice.slice(deleteIdx - 200, stampIdx), /Promise\.race\(/);
+});
+
+test('the surfaces that clear the session first still broadcast through the scrub', () => {
+  // supabase.js: cookie DELETE, THEN the scrub (which stamps).
+  const sb = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
+  const start = sb.indexOf('async signOut()');
+  const slice = sb.slice(start, sb.indexOf('clearLocalUserContent(opts) {', start));
+  const del = slice.indexOf("'/api/auth/session', { method: 'DELETE'");
+  const scrub = slice.indexOf('purge = shapeDb.clearLocalUserContent()');
+  assert.ok(del > 0 && scrub > del, 'supabase.js must clear the cookie before the scrub broadcasts');
+
+  // mobile: ShapeAuth.signOut(), THEN the scrub.
+  const m = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', import.meta.url), 'utf8');
+  const at = m.indexOf('const handleLogout = async');
+  const ms = m.slice(at, m.indexOf('window.location.reload()', at));
+  const auth = ms.indexOf('ShapeAuth?.signOut?.()');
+  const mscrub = ms.indexOf('shapeScrubLocalUserContent(');
+  assert.ok(auth > 0 && mscrub > auth, 'mobile must sign out before the scrub broadcasts');
 });

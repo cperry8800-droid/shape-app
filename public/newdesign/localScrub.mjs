@@ -165,6 +165,26 @@ export function shapePurgeShapeCaches() {
 // silent with a bare Date.now().
 export const SHAPE_SIGNOUT_STAMP_KEY = 'shape.signedOutAt';
 
+// ⚠ BROADCAST ONLY AFTER THE SERVER SESSION IS GONE. A sibling reacts by
+// RELOADING, and a reload re-renders against whatever the server still
+// believes: stamped too early, a sibling dashboard tab reloads while its
+// cookie is still valid, comes back signed IN, and no second event ever
+// arrives to correct it — the departed member left on screen, which is the
+// exposure this whole mechanism exists to close. supabase.js and the mobile
+// shell already clear the session before their scrub runs; the Next dashboard
+// invokes its server action LAST, so it scrubs with broadcast:false and calls
+// this once the cookie is actually invalidated.
+export function shapeBroadcastSignOut() {
+  try {
+    // The nonce is required: `storage` fires only on a CHANGED value, so two
+    // sign-outs in the same millisecond would otherwise be silent.
+    window.localStorage.setItem(
+      SHAPE_SIGNOUT_STAMP_KEY,
+      String(Date.now()) + ':' + Math.random().toString(36).slice(2)
+    );
+  } catch (e) {}
+}
+
 // ⚠ broadcast:false is LOAD-BEARING for listeners — a sibling that re-stamped
 // while handling a stamp would echo the event back and the tabs would scrub
 // each other in a loop. Only a real sign-out broadcasts.
@@ -197,14 +217,7 @@ export function shapeScrubLocalUserContent({ extraKeys = [], broadcast = true } 
   } catch (e) {}
   // Stamp LAST, so the sweep above can never remove the signal that tells the
   // other tabs to scrub themselves.
-  if (broadcast) {
-    try {
-      window.localStorage.setItem(
-        SHAPE_SIGNOUT_STAMP_KEY,
-        String(Date.now()) + ':' + Math.random().toString(36).slice(2)
-      );
-    } catch (e) {}
-  }
+  if (broadcast) shapeBroadcastSignOut();
   // Every scrub caller also drops the PWA caches (see above). RETURN the
   // purge promise: a caller whose very next act is a navigation or reload
   // (mobile handleLogout, pageShell's no-supabase fallback) must await it

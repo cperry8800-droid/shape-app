@@ -233,20 +233,47 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // (a SUCCESSFUL response, not an error), and the removeItem then destroyed
   // A's retry. Keep this in step with shapeBackend.js's readCareerPending /
   // careerAwardIsTerminal — tests/career-award-scope.test.mjs parses BOTH.
-  const careerPendingRead = React.useCallback(() => {
+  // ⚠ A PER-OWNER COLLECTION, not one tagged slot: with a single slot, member
+  // B's failed claim overwrote member A's queued award and A's retry was gone
+  // when they came back. Owner-tagging stops the cross-account REPLAY;
+  // partitioning is what actually preserves each member's claim.
+  const careerQueueRead = React.useCallback(() => {
     let raw = null;
-    try { raw = localStorage.getItem('shape.careerAwardPending'); } catch (e) { return null; }
-    if (!raw) return null;
+    try { raw = localStorage.getItem('shape.careerAwardPending'); } catch (e) { return []; }
+    if (!raw) return [];
     let parsed = null;
     try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
     // Old bare-string format: no owner, so it can never be attributed. Drop it
     // rather than replay it under an arbitrary account.
-    if (!parsed || typeof parsed !== 'object' || !parsed.uid || !parsed.postId) {
+    if (!Array.isArray(parsed)) {
       try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
-      return null;
+      return [];
     }
-    return parsed;
+    return parsed.filter(function (r) { return r && typeof r === 'object' && r.uid && r.postId; });
   }, []);
+  const careerQueueWrite = React.useCallback((items) => {
+    try {
+      if (!items.length) { localStorage.removeItem('shape.careerAwardPending'); return; }
+      localStorage.setItem('shape.careerAwardPending', JSON.stringify(items.slice(-20)));
+    } catch (e) {}
+  }, []);
+  const careerPendingRead = React.useCallback((uid) => {
+    if (!uid) return null;
+    return careerQueueRead().find(function (r) { return String(r.uid) === String(uid); }) || null;
+  }, [careerQueueRead]);
+  // Replace only OUR entry — every other owner's record is carried through.
+  const careerPendingWrite = React.useCallback((uid, pid) => {
+    if (!uid || !pid) return;
+    const rest = careerQueueRead().filter(function (r) { return String(r.uid) !== String(uid); });
+    careerQueueWrite(rest.concat([{ uid: String(uid), postId: String(pid) }]));
+  }, [careerQueueRead, careerQueueWrite]);
+  const careerPendingClear = React.useCallback((uid, pid) => {
+    const queue = careerQueueRead();
+    const next = queue.filter(function (r) {
+      return !(String(r.uid) === String(uid) && String(r.postId) === String(pid));
+    });
+    if (next.length !== queue.length) careerQueueWrite(next);
+  }, [careerQueueRead, careerQueueWrite]);
   const claimCareerAward = React.useCallback(async (pid, showToast, uid) => {
     const sb = window.shapeDb && window.shapeDb.client;
     if (!pid || !sb || !sb.rpc) return;
@@ -254,39 +281,32 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       const { data, error } = await sb.rpc('award_work_milestone', { p_post_id: pid });
       if (error) throw error;
       // Terminal in every case but 'unauthenticated' — see shapeBackend.js.
-      if (!(data && data.reason === 'unauthenticated')) {
-        const cur = careerPendingRead();
-        if (cur && String(cur.uid) === String(uid) && String(cur.postId) === String(pid)) {
-          try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
-        }
-      } else if (uid) {
-        try { localStorage.setItem('shape.careerAwardPending', JSON.stringify({ uid: String(uid), postId: String(pid) })); } catch (e) {}
-      }
+      if (!(data && data.reason === 'unauthenticated')) careerPendingClear(uid, pid);
+      else careerPendingWrite(uid, pid);
       if (showToast && data && data.granted) {
         setCareerToast(true);
         setTimeout(() => setCareerToast(false), 3200);
       }
     } catch (e) {
-      if (uid) {
-        try { localStorage.setItem('shape.careerAwardPending', JSON.stringify({ uid: String(uid), postId: String(pid) })); } catch (e2) {}
-      }
+      careerPendingWrite(uid, pid);
     }
-  }, [careerPendingRead]);
+  }, [careerPendingClear, careerPendingWrite]);
   React.useEffect(() => {
     // Open-time catch-up for a claim that failed on a previous visit — only
     // ever for the signed-in member's OWN queued post.
     let cancelled = false;
     (async () => {
-      const pending = careerPendingRead();
-      if (!pending) return;
+      if (!careerQueueRead().length) return; // nothing queued by anyone — skip the user lookup
       let me = null;
       try { me = await (window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()); } catch (e) { return; }
       if (cancelled || !me || !me.id) return;
-      if (String(pending.uid) !== String(me.id)) return; // someone else's award — leave it for them
+      // Look up OUR OWN entry: another member's queued award stays untouched.
+      const pending = careerPendingRead(me.id);
+      if (!pending) return;
       claimCareerAward(pending.postId, false, me.id);
     })();
     return () => { cancelled = true; };
-  }, [claimCareerAward, careerPendingRead]);
+  }, [claimCareerAward, careerPendingRead, careerQueueRead]);
   const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
   const [filter, setFilter] = React.useState("ALL");

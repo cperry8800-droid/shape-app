@@ -5328,39 +5328,56 @@ const CAREER_AWARD_PENDING_KEY = 'shape.careerAwardPending';
 // partitioning ON PURPOSE and is safe because publish_client_week re-verifies
 // the coach AND the refusal SURFACES. This path had neither property, which is
 // what made the same stance a defect here rather than a considered trade.
-function readCareerPending() {
+// ⚠ IT IS A PER-OWNER COLLECTION, NOT ONE TAGGED SLOT. Owner-tagging alone
+// still lost awards on a shared device: A queues, B signs in and B's own claim
+// fails, B's write REPLACES A's record, and A's retry is gone when they return.
+// Tagging fixed the cross-account replay; only partitioning preserves each
+// member's durable claim, which is the whole reason the key survives the scrub.
+const CAREER_AWARD_MAX = 20; // a shared device's realistic account count, with room
+                             // to spare — a cap only so a kiosk cannot grow this
+                             // without bound. Oldest goes first; newest is last.
+function readCareerQueue() {
   let raw = null;
-  try { raw = localStorage.getItem(CAREER_AWARD_PENDING_KEY); } catch (e) { return null; }
-  if (!raw) return null;
+  try { raw = localStorage.getItem(CAREER_AWARD_PENDING_KEY); } catch (e) { return []; }
+  if (!raw) return [];
   let parsed = null;
   try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
-  // A bare string is the OLD format. It carries no owner, so it cannot be
-  // attributed to anyone — and replaying an unattributable id under whoever
-  // happens to be signed in is precisely the defect. Drop it rather than
-  // guess: the loss is bounded to a claim that was already failing when this
-  // shipped, and guessing risks another member's award.
-  if (!parsed || typeof parsed !== 'object' || !parsed.uid || !parsed.postId) {
+  // A bare string is the ORIGINAL format: no owner, so it cannot be attributed
+  // to anyone — and replaying an unattributable id under whoever happens to be
+  // signed in is precisely the defect. Drop it rather than guess: the loss is
+  // bounded to a claim that was already failing, and guessing risks handing one
+  // member's award to another. (The single {uid, postId} object never shipped —
+  // it existed only inside this PR — so there is nothing to migrate from it.)
+  if (!Array.isArray(parsed)) {
     try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
-    return null;
+    return [];
   }
-  return parsed;
+  return parsed.filter((r) => r && typeof r === 'object' && r.uid && r.postId);
+}
+function writeCareerQueue(items) {
+  try {
+    if (!items.length) { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); return; }
+    localStorage.setItem(CAREER_AWARD_PENDING_KEY, JSON.stringify(items.slice(-CAREER_AWARD_MAX)));
+  } catch (e) {}
+}
+function readCareerPendingFor(uid) {
+  if (!uid) return null;
+  return readCareerQueue().find((r) => String(r.uid) === String(uid)) || null;
 }
 function writeCareerPending(uid, postId) {
   if (!uid || !postId) return; // unattributable — never queue what we cannot own
-  try {
-    localStorage.setItem(
-      CAREER_AWARD_PENDING_KEY,
-      JSON.stringify({ uid: String(uid), postId: String(postId) })
-    );
-  } catch (e) {}
+  // Replace only OUR entry; every other owner's record is carried through.
+  const rest = readCareerQueue().filter((r) => String(r.uid) !== String(uid));
+  writeCareerQueue(rest.concat([{ uid: String(uid), postId: String(postId) }]));
 }
-// Clear ONLY our own record for this post: the queue holds one slot, and a
-// success for post Y must not delete a still-pending retry for post X.
+// Clear ONLY our own record for this post: a success for post Y must not delete
+// a still-pending retry for post X, and must never touch another owner's entry.
 function clearCareerPending(uid, postId) {
-  const cur = readCareerPending();
-  if (!cur) return;
-  if (String(cur.uid) !== String(uid) || String(cur.postId) !== String(postId)) return;
-  try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+  const queue = readCareerQueue();
+  const next = queue.filter(
+    (r) => !(String(r.uid) === String(uid) && String(r.postId) === String(postId))
+  );
+  if (next.length !== queue.length) writeCareerQueue(next);
 }
 // ⚠ A non-error answer is TERMINAL, with one exception. granted:true (awarded),
 // granted:false with no reason (same-month duplicate — a SUCCESSFUL no-op by
@@ -5387,12 +5404,11 @@ async function claimCareerAward(postId) {
 }
 async function careerAwardCatchUp() {
   if (!supabase || !state.user?.id) return null;
-  const pending = readCareerPending();
+  // ⚠ Look up OUR OWN entry. Another member's queued award is not ours to
+  // replay: sending it would put their post id in a request authenticated as
+  // us, and the refusal that came back would then delete their retry.
+  const pending = readCareerPendingFor(state.user.id);
   if (!pending) return null;
-  // ⚠ Another member's queued award is NOT ours to replay. Sending it would
-  // put their post id in a request authenticated as us, and the refusal that
-  // came back would then delete their retry. Leave it for its owner.
-  if (String(pending.uid) !== String(state.user.id)) return null;
   try {
     const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: pending.postId });
     if (error) return null; // still unreachable/pre-migration — keep the queue for next open

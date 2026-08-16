@@ -15,7 +15,12 @@ import { useState, useEffect } from 'react';
 import { logout } from '@/app/login/actions';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore -- plain .mjs module (allowJs), no declaration file
-import { shapeScrubLocalUserContent, shapePurgeShapeCaches, shapeInstallSignOutListener } from '../../public/newdesign/localScrub.mjs';
+import {
+  shapeScrubLocalUserContent,
+  shapePurgeShapeCaches,
+  shapeInstallSignOutListener,
+  shapeBroadcastSignOut,
+} from '../../public/newdesign/localScrub.mjs';
 
 export default function SignOutButton({ className, children }: { className?: string; children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
@@ -37,11 +42,30 @@ export default function SignOutButton({ className, children }: { className?: str
     if (busy) return;
     setBusy(true);
     try {
-      shapeScrubLocalUserContent();
+      // ⚠ broadcast:false HERE, deliberately. A sibling reacts by RELOADING,
+      // and this path invokes its server action LAST — so a stamp written now
+      // would land while the cookie session is still valid, the sibling would
+      // reload back into a signed-IN dashboard, and no second event would ever
+      // correct it. Scrub the at-rest content immediately (it must never sit
+      // behind a network call), then signal only once the session is gone.
+      shapeScrubLocalUserContent({ broadcast: false });
       await Promise.race([shapePurgeShapeCaches(), new Promise((r) => setTimeout(r, 2000))]);
     } catch {
       /* the scrub must never block the sign-out */
     }
+    // Invalidate the cookie session BEFORE telling the other tabs, mirroring
+    // supabase.js (which clears it, then scrubs). Bounded like every other
+    // teardown: a hanging request must never strand the sign-out, and the
+    // server action below clears the session again regardless.
+    try {
+      await Promise.race([
+        fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]);
+    } catch {
+      /* the broadcast below still runs — a stale sibling is worse than an early one */
+    }
+    shapeBroadcastSignOut();
     await logout();
   };
   return (
