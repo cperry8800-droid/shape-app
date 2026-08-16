@@ -5313,28 +5313,90 @@ window.ShapeMomentum = { check: awardMomentumBonus };
 // backgrounded / pre-migration) queues the post id so the open-time catch-up
 // re-fires it — the member can never permanently lose the award.
 const CAREER_AWARD_PENDING_KEY = 'shape.careerAwardPending';
+
+// ⚠ THE RETRY QUEUE IS OWNER-SCOPED, and that is correctness, not tidiness.
+// It used to hold a BARE post id. On a shared device that meant: member A's
+// claim fails and queues; A signs out; B signs in; B's session init replays
+// A's post id UNDER B's identity; award_work_milestone matches
+// `author_id = auth.uid()`, so it answers {granted:false,'not_a_milestone'} —
+// a SUCCESSFUL response, not an error — and the catch-up below then deleted
+// the key. Keeping the queue destroyed the very award it existed to protect,
+// and put A's post id in a request authenticated as B (found in review of
+// #1890). Store the owner; replay only for that owner.
+//
+// Compare the sibling queue: bsDrainAssignments drops client-side owner
+// partitioning ON PURPOSE and is safe because publish_client_week re-verifies
+// the coach AND the refusal SURFACES. This path had neither property, which is
+// what made the same stance a defect here rather than a considered trade.
+function readCareerPending() {
+  let raw = null;
+  try { raw = localStorage.getItem(CAREER_AWARD_PENDING_KEY); } catch (e) { return null; }
+  if (!raw) return null;
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+  // A bare string is the OLD format. It carries no owner, so it cannot be
+  // attributed to anyone — and replaying an unattributable id under whoever
+  // happens to be signed in is precisely the defect. Drop it rather than
+  // guess: the loss is bounded to a claim that was already failing when this
+  // shipped, and guessing risks another member's award.
+  if (!parsed || typeof parsed !== 'object' || !parsed.uid || !parsed.postId) {
+    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    return null;
+  }
+  return parsed;
+}
+function writeCareerPending(uid, postId) {
+  if (!uid || !postId) return; // unattributable — never queue what we cannot own
+  try {
+    localStorage.setItem(
+      CAREER_AWARD_PENDING_KEY,
+      JSON.stringify({ uid: String(uid), postId: String(postId) })
+    );
+  } catch (e) {}
+}
+// Clear ONLY our own record for this post: the queue holds one slot, and a
+// success for post Y must not delete a still-pending retry for post X.
+function clearCareerPending(uid, postId) {
+  const cur = readCareerPending();
+  if (!cur) return;
+  if (String(cur.uid) !== String(uid) || String(cur.postId) !== String(postId)) return;
+  try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+}
+// ⚠ A non-error answer is TERMINAL, with one exception. granted:true (awarded),
+// granted:false with no reason (same-month duplicate — a SUCCESSFUL no-op by
+// design), and 'not_a_milestone' for our OWN post (deleted or edited since) are
+// all final; retrying them forever would never change the answer. Only
+// 'unauthenticated' says the server had no caller, which is worth another try.
+function careerAwardIsTerminal(data) {
+  return !(data && data.reason === 'unauthenticated');
+}
 async function claimCareerAward(postId) {
   if (!supabase || !postId) return { granted: false };
+  const uid = state.user?.id || null;
   try {
     const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: postId });
     if (error) throw error;
-    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    if (careerAwardIsTerminal(data)) clearCareerPending(uid, postId);
+    else writeCareerPending(uid, postId);
     if (data && data.granted) invalidateClientMetrics();
     return data || { granted: false };
   } catch (e) {
-    try { localStorage.setItem(CAREER_AWARD_PENDING_KEY, String(postId)); } catch (e2) {}
+    writeCareerPending(uid, postId);
     return { granted: false, pending: true };
   }
 }
 async function careerAwardCatchUp() {
   if (!supabase || !state.user?.id) return null;
-  let pending = null;
-  try { pending = localStorage.getItem(CAREER_AWARD_PENDING_KEY); } catch (e) { return null; }
+  const pending = readCareerPending();
   if (!pending) return null;
+  // ⚠ Another member's queued award is NOT ours to replay. Sending it would
+  // put their post id in a request authenticated as us, and the refusal that
+  // came back would then delete their retry. Leave it for its owner.
+  if (String(pending.uid) !== String(state.user.id)) return null;
   try {
-    const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: pending });
+    const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: pending.postId });
     if (error) return null; // still unreachable/pre-migration — keep the queue for next open
-    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    if (careerAwardIsTerminal(data)) clearCareerPending(pending.uid, pending.postId);
     if (data && data.granted) invalidateClientMetrics();
     return data;
   } catch (e) { return null; }

@@ -148,7 +148,39 @@ export function shapePurgeShapeCaches() {
   } catch (e) { return Promise.resolve(); }
 }
 
-export function shapeScrubLocalUserContent({ extraKeys = [] } = {}) {
+// ── CROSS-TAB SIGN-OUT ───────────────────────────────────────────────────────
+// WHY: `sessionStorage` is PER TAB, and so is every in-memory cache. Signing
+// out in one tab scrubbed and reloaded only THAT document, so a second open tab
+// kept shapeLiveWorkout/shapeLiveWorkoutResult and its whole in-memory user
+// state until someone closed it — on a shared device, exactly the inheritance
+// the scrub exists to stop (recorded as the wave's second residual, #1890).
+//
+// The mechanism is the `storage` event, which fires in every OTHER same-origin
+// document but never in the writer. So the scrub stamps this key last, and each
+// surface installs the listener below; siblings scrub and reload themselves.
+//
+// ⚠ The stamp carries NO user data — a timestamp and a nonce, nothing else.
+// ⚠ The nonce is required, not decorative: `storage` fires only when the value
+// actually CHANGES, so two sign-outs inside the same millisecond would be
+// silent with a bare Date.now().
+export const SHAPE_SIGNOUT_STAMP_KEY = 'shape.signedOutAt';
+
+// ⚠ broadcast:false is LOAD-BEARING for listeners — a sibling that re-stamped
+// while handling a stamp would echo the event back and the tabs would scrub
+// each other in a loop. Only a real sign-out broadcasts.
+export function shapeInstallSignOutListener(onSignOut) {
+  try {
+    if (!(window.addEventListener && window.localStorage)) return () => {};
+    const fn = (e) => {
+      if (!e || e.key !== SHAPE_SIGNOUT_STAMP_KEY || !e.newValue) return;
+      try { onSignOut(); } catch (err) {}
+    };
+    window.addEventListener('storage', fn);
+    return () => { try { window.removeEventListener('storage', fn); } catch (err) {} };
+  } catch (e) { return () => {}; }
+}
+
+export function shapeScrubLocalUserContent({ extraKeys = [], broadcast = true } = {}) {
   try {
     const ls = window.localStorage;
     SHAPE_SCRUB_KEYS.concat(extraKeys).forEach((k) => { try { ls.removeItem(k); } catch (e) {} });
@@ -163,6 +195,16 @@ export function shapeScrubLocalUserContent({ extraKeys = [] } = {}) {
   try {
     SHAPE_SCRUB_SESSION_KEYS.forEach((k) => { try { window.sessionStorage.removeItem(k); } catch (e) {} });
   } catch (e) {}
+  // Stamp LAST, so the sweep above can never remove the signal that tells the
+  // other tabs to scrub themselves.
+  if (broadcast) {
+    try {
+      window.localStorage.setItem(
+        SHAPE_SIGNOUT_STAMP_KEY,
+        String(Date.now()) + ':' + Math.random().toString(36).slice(2)
+      );
+    } catch (e) {}
+  }
   // Every scrub caller also drops the PWA caches (see above). RETURN the
   // purge promise: a caller whose very next act is a navigation or reload
   // (mobile handleLogout, pageShell's no-supabase fallback) must await it

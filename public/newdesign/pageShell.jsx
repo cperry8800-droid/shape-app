@@ -1408,7 +1408,8 @@ Object.assign(window, { ShapeHomeCards });
 // (shape.storeCart — item ids + quantities only, no address) falls under the
 // same carve-out ON THE WEBSITE; the mobile sign-out clears it (its
 // long-standing behavior, passed as an extraKey there).
-window.shapeClearLocalUserContent = function () {
+window.shapeClearLocalUserContent = function (opts) {
+  var broadcast = !(opts && opts.broadcast === false);
   try {
     [
       "shapeClientIntake_v1",   // signup intake — can carry health details
@@ -1473,6 +1474,21 @@ window.shapeClearLocalUserContent = function () {
   try {
     ["shapeLiveWorkout", "shapeLiveWorkoutResult"].forEach(function (k) { sessionStorage.removeItem(k); });
   } catch (e) {}
+  // CROSS-TAB SIGN-OUT stamp — inline copy of localScrub.mjs's
+  // SHAPE_SIGNOUT_STAMP_KEY write. Everything above is per-TAB for
+  // sessionStorage and per-DOCUMENT for in-memory state, so without this a
+  // second open tab kept the departing member's live-workout record and its
+  // whole in-memory state until someone closed it. `storage` fires only in
+  // OTHER same-origin documents, so the listener below never hears our own
+  // write. Stamped AFTER the sweeps so they can't remove the signal; the nonce
+  // is required because `storage` fires only on a CHANGED value.
+  // ⚠ broadcast:false is passed by the listener itself — a sibling that
+  // re-stamped while handling a stamp would echo it back into a scrub loop.
+  if (broadcast) {
+    try {
+      localStorage.setItem("shape.signedOutAt", String(Date.now()) + ":" + Math.random().toString(36).slice(2));
+    } catch (e) {}
+  }
   // PWA cache purge — a cache built by an older worker generation can hold
   // cross-origin SIGNED media (progress photos, voice memos, credential
   // files), and CacheStorage otherwise clears only on a deploy version bump.
@@ -1491,6 +1507,32 @@ window.shapeClearLocalUserContent = function () {
     }
   } catch (e) {}
 };
+
+// CROSS-TAB SIGN-OUT LISTENER — the sibling half of the stamp written above.
+// Installed once per document that loads pageShell (every newdesign page), so
+// a sign-out in ANY tab (website or /m/, which shares this origin) scrubs and
+// reloads the rest. Without it the scrub was tab-local: sessionStorage is per
+// tab and in-memory state is per document, so the next person on a shared
+// device could pick up an already-signed-out member's other tab intact.
+// ⚠ Guarded: supabase.js installs the same listener for legacy pages that
+// never load pageShell, and pages loading BOTH must not scrub-and-reload twice.
+(function shapeSignOutListener() {
+  if (typeof window === "undefined" || !window.addEventListener) return;
+  if (window.__shapeSignOutListener) return;
+  window.__shapeSignOutListener = true;
+  window.addEventListener("storage", function (e) {
+    if (!e || e.key !== "shape.signedOutAt" || !e.newValue) return;
+    // ⚠ broadcast:false — re-stamping here would echo back to the tab that
+    // signed out, and the tabs would scrub each other in a loop.
+    try {
+      if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent({ broadcast: false });
+    } catch (err) {}
+    // The reload is the authoritative wipe of this document's in-memory state.
+    // No purge await: the tab that signed out already awaited it under a bound,
+    // and CacheStorage is shared across tabs, so there is nothing left to race.
+    try { window.location.reload(); } catch (err) {}
+  });
+})();
 
 (function shapeConsent() {
   if (typeof document === "undefined") return;

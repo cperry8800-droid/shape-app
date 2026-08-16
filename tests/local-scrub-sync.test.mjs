@@ -60,7 +60,7 @@ test('pageShell.jsx shapeClearLocalUserContent matches the canonical union', () 
 
 test('supabase.js clearLocalUserContent fallback twin matches the canonical union', () => {
   const src = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
-  assertMatchesUnion('supabase.js', extractKeys(src, 'clearLocalUserContent() {'));
+  assertMatchesUnion('supabase.js', extractKeys(src, 'clearLocalUserContent(opts) {'));
 });
 
 test('mobile handleLogout imports the canonical scrub (no inline inventory)', () => {
@@ -149,7 +149,10 @@ test('index.html sign-out routes the scrub promise into go(), bounded', () => {
 
 test('supabase.js twin returns the purge promise on both branches', () => {
   const src = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
-  assert.match(src, /\{ return window\.shapeClearLocalUserContent\(\); \}/);
+  // The delegation forwards its options object — the cross-tab listener calls
+  // this twin with { broadcast: false }, and swallowing that argument here
+  // would let a listening legacy tab echo the stamp back into a scrub loop.
+  assert.match(src, /\{ return window\.shapeClearLocalUserContent\(opts\); \}/);
   assert.match(src, /return caches\.keys\(\)\.then\(function \(cacheKeys\) \{\s*return Promise\.all\(/);
 });
 
@@ -175,4 +178,163 @@ test('the Next.js dashboard sign-out runs the scrub + purge client-side', () => 
     assert.match(src, /<SignOutButton/, `${f} must render SignOutButton`);
     assert.ok(!/<form action=\{logout\}>/.test(src), `${f} still has the bare server-action form`);
   }
+});
+
+// ── CROSS-TAB SIGN-OUT ───────────────────────────────────────────────────────
+// The scrub used to be TAB-LOCAL: sessionStorage is per tab and in-memory state
+// is per document, so a sign-out in one tab left a sibling holding an already
+// signed-out member's live-workout record and whole app state until someone
+// closed it — on a shared device, the inheritance the scrub exists to stop.
+// Every sign-out path must STAMP, and every surface must LISTEN.
+
+test('canonical scrub stamps the cross-tab signal, last and with a nonce', () => {
+  const src = readFileSync(new URL('../public/newdesign/localScrub.mjs', import.meta.url), 'utf8');
+  assert.match(src, /export const SHAPE_SIGNOUT_STAMP_KEY = 'shape\.signedOutAt'/);
+  const fn = src.indexOf('export function shapeScrubLocalUserContent');
+  assert.ok(fn > 0);
+  const slice = src.slice(fn);
+  const stampIdx = slice.indexOf('SHAPE_SIGNOUT_STAMP_KEY,');
+  const sessionIdx = slice.indexOf('SHAPE_SCRUB_SESSION_KEYS.forEach');
+  assert.ok(stampIdx > sessionIdx, 'the stamp must be written AFTER the sweeps that could remove it');
+  // `storage` fires only on a CHANGED value — a bare Date.now() would be
+  // silent for two sign-outs inside the same millisecond.
+  assert.match(slice.slice(stampIdx), /Math\.random\(\)/);
+  // The broadcast must be suppressible, or a listening tab echoes the event
+  // back to the tab that signed out and they scrub each other in a loop.
+  assert.match(slice, /broadcast = true/);
+  assert.match(slice, /if \(broadcast\)/);
+});
+
+test('every inline scrub copy stamps the cross-tab signal, suppressibly', () => {
+  for (const [label, file] of [
+    ['pageShell.jsx', '../public/newdesign/pageShell.jsx'],
+    ['supabase.js', '../public/supabase.js'],
+  ]) {
+    const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.ok(src.includes('shape.signedOutAt'), `${label}: no cross-tab stamp`);
+    assert.match(src, /broadcast === false/, `${label}: stamp is not suppressible`);
+    assert.match(src, /Math\.random\(\)/, `${label}: stamp has no nonce`);
+  }
+});
+
+test('every surface installs the cross-tab listener, and never re-broadcasts', () => {
+  for (const [label, file, marker] of [
+    ['pageShell.jsx', '../public/newdesign/pageShell.jsx', 'shapeSignOutListener'],
+    ['supabase.js', '../public/supabase.js', 'shapeSignOutListenerLegacy'],
+    // Anchor on the CALL, not the name: both files import the helper first,
+    // and the import line would truncate the slice before the handler body.
+    ['iosAppBroadsheetMain.jsx', '../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', 'shapeInstallSignOutListener(() =>'],
+    ['SignOutButton.tsx', '../src/components/SignOutButton.tsx', 'shapeInstallSignOutListener(() =>'],
+  ]) {
+    const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+    const at = src.indexOf(marker);
+    assert.ok(at > 0, `${label}: no sign-out listener installed`);
+    const slice = src.slice(at, at + 1400);
+    assert.match(slice, /broadcast: false/, `${label}: listener re-broadcasts — echo loop`);
+    assert.match(slice, /location\.reload\(\)/, `${label}: listener does not retire in-memory state`);
+  }
+});
+
+test('the two classic-script listeners share one install guard', () => {
+  // A legacy page can load supabase.js AND pageShell.jsx; without the shared
+  // flag it would scrub and reload twice on one sign-out.
+  for (const file of ['../public/newdesign/pageShell.jsx', '../public/supabase.js']) {
+    const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.match(src, /__shapeSignOutListener/, `${file} must guard the install`);
+  }
+});
+
+// ── BEHAVIOUR, not source-shape ──────────────────────────────────────────────
+// The greps above pin that each surface WIRES the listener; these drive the
+// canonical implementation itself. Worth doing directly: the mount harness
+// covers the draft editor, not BSAppShell, so nothing else exercises the
+// handler's filtering, and a listener that fires on the wrong event would
+// reload tabs at random.
+function withWindow(run) {
+  const store = new Map();
+  const listeners = [];
+  const prev = globalThis.window;
+  globalThis.window = {
+    addEventListener: (type, fn) => listeners.push([type, fn]),
+    removeEventListener: (type, fn) => {
+      const i = listeners.findIndex(([t, f]) => t === type && f === fn);
+      if (i >= 0) listeners.splice(i, 1);
+    },
+    localStorage: {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k),
+      key: (i) => [...store.keys()][i] ?? null,
+      get length() { return store.size; },
+    },
+    sessionStorage: { removeItem: (k) => store.delete('session:' + k) },
+  };
+  try { return run({ store, listeners }); } finally { globalThis.window = prev; }
+}
+
+test('the sign-out listener fires only on the stamp key, and unsubscribes', async () => {
+  const { shapeInstallSignOutListener, SHAPE_SIGNOUT_STAMP_KEY } =
+    await import('../public/newdesign/localScrub.mjs');
+  withWindow(({ listeners }) => {
+    let fired = 0;
+    const off = shapeInstallSignOutListener(() => { fired++; });
+    assert.equal(typeof off, 'function', 'must return an unsubscribe (it is a React effect cleanup)');
+    const emit = (e) => listeners.forEach(([t, fn]) => { if (t === 'storage') fn(e); });
+
+    emit({ key: 'shape.library', newValue: 'x' });      // another key
+    emit({ key: SHAPE_SIGNOUT_STAMP_KEY, newValue: null }); // the key being REMOVED
+    emit({});                                            // malformed
+    assert.equal(fired, 0, 'listener fired on an unrelated or empty storage event');
+
+    emit({ key: SHAPE_SIGNOUT_STAMP_KEY, newValue: '1:abc' });
+    assert.equal(fired, 1);
+
+    off();
+    emit({ key: SHAPE_SIGNOUT_STAMP_KEY, newValue: '2:def' });
+    assert.equal(fired, 1, 'unsubscribe did not detach the handler');
+  });
+});
+
+test('a throwing handler cannot break the tab that received the event', async () => {
+  const { shapeInstallSignOutListener, SHAPE_SIGNOUT_STAMP_KEY } =
+    await import('../public/newdesign/localScrub.mjs');
+  withWindow(({ listeners }) => {
+    shapeInstallSignOutListener(() => { throw new Error('boom'); });
+    listeners.forEach(([t, fn]) => {
+      if (t === 'storage') assert.doesNotThrow(() => fn({ key: SHAPE_SIGNOUT_STAMP_KEY, newValue: '1:a' }));
+    });
+  });
+});
+
+test('the scrub stamps by default, stays silent with broadcast:false, and never repeats a value', async () => {
+  const { shapeScrubLocalUserContent, SHAPE_SIGNOUT_STAMP_KEY } =
+    await import('../public/newdesign/localScrub.mjs');
+  withWindow(({ store }) => {
+    shapeScrubLocalUserContent();
+    const first = store.get(SHAPE_SIGNOUT_STAMP_KEY);
+    assert.ok(first, 'a real sign-out must broadcast');
+    shapeScrubLocalUserContent();
+    assert.notEqual(store.get(SHAPE_SIGNOUT_STAMP_KEY), first,
+      'two sign-outs must not write the same value — `storage` fires only on a CHANGE');
+
+    store.delete(SHAPE_SIGNOUT_STAMP_KEY);
+    shapeScrubLocalUserContent({ broadcast: false });
+    assert.equal(store.get(SHAPE_SIGNOUT_STAMP_KEY), undefined,
+      'the listener path must not re-broadcast — that is the echo loop');
+  });
+});
+
+test('the scrub still clears content when it stamps, and keeps the durability queues', async () => {
+  const { shapeScrubLocalUserContent } = await import('../public/newdesign/localScrub.mjs');
+  withWindow(({ store }) => {
+    store.set('shape.messages', 'private');
+    store.set('shape.chat.v2.abc', 'thread');
+    store.set('shape.careerAwardPending', '{"uid":"a","postId":"p"}');
+    store.set('shapeRecipes_v1', 'mine');
+    shapeScrubLocalUserContent();
+    assert.equal(store.get('shape.messages'), undefined, 'listed key survived');
+    assert.equal(store.get('shape.chat.v2.abc'), undefined, 'prefixed family survived');
+    assert.equal(store.get('shape.careerAwardPending'), '{"uid":"a","postId":"p"}', 'durability queue was wiped');
+    assert.equal(store.get('shapeRecipes_v1'), 'mine', 'device-personal carve-out was wiped');
+  });
 });

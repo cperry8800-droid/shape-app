@@ -207,12 +207,14 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // shapeMealLog etc. for the next device user. So a complete FALLBACK TWIN
     // runs when the canonical scrub is absent. KEEP THE TWO IN SYNC
     // (pageShell.jsx → window.shapeClearLocalUserContent).
-    clearLocalUserContent() {
+    clearLocalUserContent(opts) {
+      var broadcast = !(opts && opts.broadcast === false);
       try {
         // Return the canonical scrub's purge promise so a caller that
         // navigates next can await the cache deletes (the fallback below
-        // returns its own the same way).
-        if (window.shapeClearLocalUserContent) { return window.shapeClearLocalUserContent(); }
+        // returns its own the same way). Pass the broadcast flag through —
+        // the cross-tab listener calls this with broadcast:false.
+        if (window.shapeClearLocalUserContent) { return window.shapeClearLocalUserContent(opts); }
       } catch (e) {}
       try {
         [
@@ -264,6 +266,18 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       try {
         ['shapeLiveWorkout', 'shapeLiveWorkoutResult'].forEach(function (k) { sessionStorage.removeItem(k); });
       } catch (e) {}
+      // CROSS-TAB SIGN-OUT stamp — third inline copy of localScrub.mjs's
+      // SHAPE_SIGNOUT_STAMP_KEY write (pageShell.jsx carries the second).
+      // These legacy pages are exactly the ones holding shapeLiveWorkout in a
+      // PER-TAB store, so a sign-out here has to tell the other tabs. Stamped
+      // after the sweeps; the nonce is required because `storage` fires only
+      // on a CHANGED value. The listener passes broadcast:false to avoid an
+      // echo loop between tabs.
+      if (broadcast) {
+        try {
+          localStorage.setItem('shape.signedOutAt', String(Date.now()) + ':' + Math.random().toString(36).slice(2));
+        } catch (e) {}
+      }
       // PWA cache purge: the canonical scrub carries one so sign-out paths
       // that call the scrub WITHOUT coming through signOut() still drop
       // cached signed media. signOut() above additionally AWAITS its own
@@ -991,6 +1005,26 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   };
 
   window.shapeDb = shapeDb;
+
+  // CROSS-TAB SIGN-OUT LISTENER for the LEGACY pages — the ones that load
+  // supabase.js but never load pageShell.jsx (clients.html, live-workout.html
+  // and the rest of the root cluster), which are precisely the pages that write
+  // shapeLiveWorkout / shapeLiveWorkoutResult into PER-TAB sessionStorage. A
+  // sign-out in another tab could not reach them, so the departing member's
+  // exercises, weights and completed record stayed readable in this one.
+  // ⚠ Guarded on the same flag pageShell.jsx sets: a page that loads BOTH must
+  // scrub and reload once, not twice.
+  (function shapeSignOutListenerLegacy() {
+    if (typeof window === 'undefined' || !window.addEventListener) return;
+    if (window.__shapeSignOutListener) return;
+    window.__shapeSignOutListener = true;
+    window.addEventListener('storage', function (e) {
+      if (!e || e.key !== 'shape.signedOutAt' || !e.newValue) return;
+      // ⚠ broadcast:false — re-stamping would echo back to the signing-out tab.
+      try { shapeDb.clearLocalUserContent({ broadcast: false }); } catch (err) {}
+      try { window.location.reload(); } catch (err) {}
+    });
+  })();
 
   // ===== Live presence — join the same 'online-users' channel the mobile app
   // uses, so members see who's genuinely online (pulsing avatar ring). The set

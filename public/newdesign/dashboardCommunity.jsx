@@ -225,27 +225,68 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // post id so the page-load catch-up below re-fires it — the +25 can never
   // be permanently lost on either surface (the RPC's monthly dedupe makes
   // retries safe, and it buckets by the post's own date).
-  const claimCareerAward = React.useCallback(async (pid, showToast) => {
+  //
+  // ⚠ THE QUEUE IS OWNER-SCOPED. It used to hold a bare post id, and the
+  // catch-up below replayed it on mount for whoever was signed in — so on a
+  // shared device member B's visit submitted member A's post under B's
+  // identity, award_work_milestone answered {granted:false,'not_a_milestone'}
+  // (a SUCCESSFUL response, not an error), and the removeItem then destroyed
+  // A's retry. Keep this in step with shapeBackend.js's readCareerPending /
+  // careerAwardIsTerminal — tests/career-award-scope.test.mjs parses BOTH.
+  const careerPendingRead = React.useCallback(() => {
+    let raw = null;
+    try { raw = localStorage.getItem('shape.careerAwardPending'); } catch (e) { return null; }
+    if (!raw) return null;
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+    // Old bare-string format: no owner, so it can never be attributed. Drop it
+    // rather than replay it under an arbitrary account.
+    if (!parsed || typeof parsed !== 'object' || !parsed.uid || !parsed.postId) {
+      try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
+      return null;
+    }
+    return parsed;
+  }, []);
+  const claimCareerAward = React.useCallback(async (pid, showToast, uid) => {
     const sb = window.shapeDb && window.shapeDb.client;
     if (!pid || !sb || !sb.rpc) return;
     try {
       const { data, error } = await sb.rpc('award_work_milestone', { p_post_id: pid });
       if (error) throw error;
-      try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
+      // Terminal in every case but 'unauthenticated' — see shapeBackend.js.
+      if (!(data && data.reason === 'unauthenticated')) {
+        const cur = careerPendingRead();
+        if (cur && String(cur.uid) === String(uid) && String(cur.postId) === String(pid)) {
+          try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
+        }
+      } else if (uid) {
+        try { localStorage.setItem('shape.careerAwardPending', JSON.stringify({ uid: String(uid), postId: String(pid) })); } catch (e) {}
+      }
       if (showToast && data && data.granted) {
         setCareerToast(true);
         setTimeout(() => setCareerToast(false), 3200);
       }
     } catch (e) {
-      try { localStorage.setItem('shape.careerAwardPending', String(pid)); } catch (e2) {}
+      if (uid) {
+        try { localStorage.setItem('shape.careerAwardPending', JSON.stringify({ uid: String(uid), postId: String(pid) })); } catch (e2) {}
+      }
     }
-  }, []);
+  }, [careerPendingRead]);
   React.useEffect(() => {
-    // Open-time catch-up for a claim that failed on a previous visit.
-    let pending = null;
-    try { pending = localStorage.getItem('shape.careerAwardPending'); } catch (e) { return; }
-    if (pending) claimCareerAward(pending, false);
-  }, [claimCareerAward]);
+    // Open-time catch-up for a claim that failed on a previous visit — only
+    // ever for the signed-in member's OWN queued post.
+    let cancelled = false;
+    (async () => {
+      const pending = careerPendingRead();
+      if (!pending) return;
+      let me = null;
+      try { me = await (window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()); } catch (e) { return; }
+      if (cancelled || !me || !me.id) return;
+      if (String(pending.uid) !== String(me.id)) return; // someone else's award — leave it for them
+      claimCareerAward(pending.postId, false, me.id);
+    })();
+    return () => { cancelled = true; };
+  }, [claimCareerAward, careerPendingRead]);
   const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
   const [filter, setFilter] = React.useState("ALL");
@@ -1258,7 +1299,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               try {
                 const j = await r.json();
                 const pid = j && j.post && j.post.id;
-                if (pid) await claimCareerAward(pid, true);
+                // The queue is owner-scoped, so the claim needs to know whose
+                // it is — a failed claim with no uid is not queued at all
+                // rather than queued unattributable.
+                let me = null;
+                try { me = await (window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()); } catch (e) {}
+                if (pid) await claimCareerAward(pid, true, me && me.id);
               } catch (e) {}
             }).catch(() => {});
           }}

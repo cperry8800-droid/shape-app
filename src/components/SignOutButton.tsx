@@ -11,14 +11,28 @@
 // origin) BEFORE invoking the server action. The purge is awaited under a
 // short bound so a stalled CacheStorage can never hang the sign-out
 // (the P1b round-9 rule: sign-out always completes).
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { logout } from '@/app/login/actions';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore -- plain .mjs module (allowJs), no declaration file
-import { shapeScrubLocalUserContent, shapePurgeShapeCaches } from '../../public/newdesign/localScrub.mjs';
+import { shapeScrubLocalUserContent, shapePurgeShapeCaches, shapeInstallSignOutListener } from '../../public/newdesign/localScrub.mjs';
 
 export default function SignOutButton({ className, children }: { className?: string; children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
+  // CROSS-TAB SIGN-OUT. This button renders wherever a Next route knows it has
+  // a signed-in member, which makes it the natural place to LISTEN as well as
+  // to broadcast: without it, signing out on the website or /m/ left an open
+  // dashboard tab holding its in-memory state and per-tab sessionStorage for
+  // the next person on the device. The classic-script surfaces install the
+  // same listener in pageShell.jsx / supabase.js.
+  // ⚠ broadcast:false — re-stamping here would echo back to the tab that
+  // signed out and the two would scrub each other in a loop.
+  useEffect(() => shapeInstallSignOutListener(() => {
+    try { shapeScrubLocalUserContent({ broadcast: false }); } catch { /* never block */ }
+    // The reload is the authoritative wipe of this document's in-memory state;
+    // the tab that signed out already awaited the shared cache purge.
+    try { window.location.reload(); } catch { /* nothing else to do */ }
+  }), []);
   const onClick = async () => {
     if (busy) return;
     setBusy(true);
