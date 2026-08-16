@@ -6,7 +6,9 @@
 // reads the session from here and calls setSession() on its own client.
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { clearSupabaseAuthCookies } from '@/lib/supabase/auth-cookies.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
@@ -53,8 +55,19 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
 }
 
+// ⚠ THE 200 HERE IS A PROMISE THAT THE COOKIE IS GONE. SignOutButton.tsx and
+// the mobile app gate their cross-tab sign-out broadcast on this response
+// being ok, and a premature broadcast manufactures a signed-in sibling tab
+// that nothing corrects. So do NOT wrap the clearing below in a try/catch that
+// still returns 200 — if it throws, the 500 is correct and the broadcast is
+// correctly suppressed. See auth-cookies.mjs for why the clearing does not
+// rely on signOut()'s return value.
 export async function DELETE() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
-  return NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
+  const { error } = await supabase.auth.signOut();
+  const cleared = clearSupabaseAuthCookies(await cookies());
+  return NextResponse.json(
+    { ok: true, revoked: !error, cleared: cleared.length },
+    { headers: { 'cache-control': 'no-store' } }
+  );
 }
