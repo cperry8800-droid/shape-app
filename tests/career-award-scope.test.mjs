@@ -73,12 +73,12 @@ test('the queue survives an unauthenticated answer and clears on a terminal one'
 test('both surfaces partition the queue per owner instead of overwriting one slot', () => {
   for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
     // A write keeps every other owner's record and replaces only its own.
-    assert.match(src, /filter\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) !== String\(uid\)/,
-      `${label}: a write does not preserve other owners' records`);
+    assert.match(src, /!\(String\(r\.uid\) === String\(uid\) && String\(r\.postId\) === String\(p(?:ostId|id)\)\)/,
+      `${label}: a write does not preserve other records`);
     assert.match(src, /\.concat\(\[\{ uid: String\(uid\), postId: String\(p(?:ostId|id)\) \}\]\)/,
       `${label}: a write does not append an owner-keyed record`);
     // A read selects this owner's entry rather than assuming a single slot.
-    assert.match(src, /find\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) === String\(uid\)/,
+    assert.match(src, /filter\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) === String\(uid\)/,
       `${label}: the read is not owner-keyed`);
   }
 });
@@ -113,4 +113,28 @@ test('the queue is still deliberately kept by the sign-out scrub', async () => {
   const { SHAPE_SCRUB_KEYS, SHAPE_SCRUB_PREFIXES } = await import('../public/newdesign/localScrub.mjs');
   assert.ok(!SHAPE_SCRUB_KEYS.includes('shape.careerAwardPending'));
   assert.ok(!SHAPE_SCRUB_PREFIXES.some((p) => 'shape.careerAwardPending'.startsWith(p)));
+});
+
+// ⚠ ONE OWNER CAN HOLD SEVERAL. award_work_milestone buckets each award from
+// the POST'S OWN month, so two claims that failed across a month boundary (an
+// outage spanning the 1st) are two DISTINCT +25s. Replacing on uid alone would
+// silently drop one, and replaying only one of them would strand the other.
+test('the queue is keyed by owner AND post, so one member can hold several', () => {
+  for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
+    // A read returns a LIST for the owner, not a single record.
+    assert.match(src, /readCareerPendingFor|careerPendingRead/, `${label}: no owner lookup`);
+    assert.ok(
+      !/\.find\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) === String\(uid\)/.test(src),
+      `${label}: the owner lookup still returns a single record`
+    );
+  }
+});
+
+test('the catch-up replays every one of the queued posts we own', () => {
+  const at = MOBILE.indexOf('async function careerAwardCatchUp');
+  const slice = MOBILE.slice(at, MOBILE.indexOf('window.ShapeCareerAward', at));
+  assert.match(slice, /for \(const rec of pending\)/, 'shapeBackend.js: catch-up replays only one record');
+  // One record's transport failure must not abandon the rest.
+  assert.match(slice, /if \(error\) continue;/, 'shapeBackend.js: one failure aborts the remaining replays');
+  assert.match(WEB, /for \(const rec of pending\)/, 'dashboardCommunity.jsx: catch-up replays only one record');
 });

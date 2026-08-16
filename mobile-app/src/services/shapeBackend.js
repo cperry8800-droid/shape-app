@@ -5360,14 +5360,21 @@ function writeCareerQueue(items) {
     localStorage.setItem(CAREER_AWARD_PENDING_KEY, JSON.stringify(items.slice(-CAREER_AWARD_MAX)));
   } catch (e) {}
 }
+// ⚠ Keyed by (uid, POST) — one owner can hold several. award_work_milestone
+// buckets each award from the POST'S OWN month, so two claims that failed
+// across a month boundary (an outage spanning the 1st) are two DISTINCT +25s;
+// replacing on uid alone would silently drop one of them.
 function readCareerPendingFor(uid) {
-  if (!uid) return null;
-  return readCareerQueue().find((r) => String(r.uid) === String(uid)) || null;
+  if (!uid) return [];
+  return readCareerQueue().filter((r) => String(r.uid) === String(uid));
 }
 function writeCareerPending(uid, postId) {
   if (!uid || !postId) return; // unattributable — never queue what we cannot own
-  // Replace only OUR entry; every other owner's record is carried through.
-  const rest = readCareerQueue().filter((r) => String(r.uid) !== String(uid));
+  // Replace only THIS (owner, post) record; every other record — other owners
+  // AND this owner's other posts — is carried through.
+  const rest = readCareerQueue().filter(
+    (r) => !(String(r.uid) === String(uid) && String(r.postId) === String(postId))
+  );
   writeCareerQueue(rest.concat([{ uid: String(uid), postId: String(postId) }]));
 }
 // Clear ONLY our own record for this post: a success for post Y must not delete
@@ -5404,18 +5411,24 @@ async function claimCareerAward(postId) {
 }
 async function careerAwardCatchUp() {
   if (!supabase || !state.user?.id) return null;
-  // ⚠ Look up OUR OWN entry. Another member's queued award is not ours to
+  // ⚠ Look up OUR OWN entries. Another member's queued award is not ours to
   // replay: sending it would put their post id in a request authenticated as
   // us, and the refusal that came back would then delete their retry.
   const pending = readCareerPendingFor(state.user.id);
-  if (!pending) return null;
-  try {
-    const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: pending.postId });
-    if (error) return null; // still unreachable/pre-migration — keep the queue for next open
-    if (careerAwardIsTerminal(data)) clearCareerPending(pending.uid, pending.postId);
-    if (data && data.granted) invalidateClientMetrics();
-    return data;
-  } catch (e) { return null; }
+  if (!pending.length) return null;
+  // Replay EVERY one of ours — an outage across a month boundary leaves two
+  // posts that each earn their own +25 (the award buckets by the post's month).
+  let last = null;
+  for (const rec of pending) {
+    try {
+      const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: rec.postId });
+      if (error) continue; // still unreachable/pre-migration — keep it for next open
+      if (careerAwardIsTerminal(data)) clearCareerPending(rec.uid, rec.postId);
+      if (data && data.granted) invalidateClientMetrics();
+      last = data;
+    } catch (e) { /* keep the record and try the next one */ }
+  }
+  return last;
 }
 window.ShapeCareerAward = { claim: claimCareerAward, catchUp: careerAwardCatchUp };
 

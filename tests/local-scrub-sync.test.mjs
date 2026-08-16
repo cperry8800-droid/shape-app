@@ -228,13 +228,16 @@ test('every surface installs the cross-tab listener, and never re-broadcasts', (
     ['supabase.js', '../public/supabase.js', 'shapeSignOutListenerLegacy'],
     // Anchor on the CALL, not the name: both files import the helper first,
     // and the import line would truncate the slice before the handler body.
-    ['iosAppBroadsheetMain.jsx', '../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', 'shapeInstallSignOutListener(() =>'],
+    // Mobile's handler is async (it awaits a local signOut first), so the
+    // marker carries `async` — anchoring on the CALL either way, never the
+    // import line above it.
+    ['iosAppBroadsheetMain.jsx', '../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', 'shapeInstallSignOutListener(async () =>'],
     ['SignOutButton.tsx', '../src/components/SignOutButton.tsx', 'shapeInstallSignOutListener(() =>'],
   ]) {
     const src = readFileSync(new URL(file, import.meta.url), 'utf8');
     const at = src.indexOf(marker);
     assert.ok(at > 0, `${label}: no sign-out listener installed`);
-    const slice = src.slice(at, at + 1400);
+    const slice = src.slice(at, at + 2000);
     assert.match(slice, /broadcast: false/, `${label}: listener re-broadcasts — echo loop`);
     assert.match(slice, /location\.reload\(\)/, `${label}: listener does not retire in-memory state`);
   }
@@ -365,7 +368,16 @@ test('the Next dashboard invalidates the session BEFORE it broadcasts', () => {
   assert.ok(stampIdx > deleteIdx, 'the broadcast must follow session invalidation');
   assert.ok(logoutIdx > stampIdx, 'the server action still runs last');
   // A hanging invalidation must never strand the sign-out.
-  assert.match(slice.slice(deleteIdx - 200, stampIdx), /Promise\.race\(/);
+  assert.match(slice.slice(deleteIdx - 300, stampIdx), /Promise\.race\(/);
+  // ⚠ …but the BOUND must not become a second way to broadcast early. On the
+  // timeout path the cookie may still be valid, and a sibling that reloads
+  // into an authenticated route is never retired (logout()'s redirect only
+  // affects this tab). A missed broadcast is the pre-feature status quo; a
+  // premature one manufactures a signed-in tab nothing corrects.
+  assert.match(slice, /invalidated = Boolean\(res && res\.ok\)/,
+    'the broadcast is not gated on a CONFIRMED invalidation');
+  assert.match(slice, /if \(invalidated\) shapeBroadcastSignOut\(\)/,
+    'the timeout path can still broadcast');
 });
 
 test('the surfaces that clear the session first still broadcast through the scrub', () => {
@@ -384,4 +396,40 @@ test('the surfaces that clear the session first still broadcast through the scru
   const auth = ms.indexOf('ShapeAuth?.signOut?.()');
   const mscrub = ms.indexOf('shapeScrubLocalUserContent(');
   assert.ok(auth > 0 && mscrub > auth, 'mobile must sign out before the scrub broadcasts');
+});
+
+// ⚠ A RECEIVING TAB MUST RETIRE ITS OWN SDK SESSION. The scrub deliberately
+// leaves the Supabase token (`shape.auth`) alone, because the sign-out paths
+// used to call auth.signOut() themselves — but the Next dashboard's does NOT
+// (it clears the cookie and redirects). So a sign-out started there leaves the
+// localStorage token intact, and a sibling that only scrubbed and reloaded
+// would restore that session and come back signed IN.
+test('every receiving surface signs out locally before it reloads', () => {
+  for (const [label, file, marker] of [
+    ['pageShell.jsx', '../public/newdesign/pageShell.jsx', 'shapeSignOutListener'],
+    ['supabase.js', '../public/supabase.js', 'shapeSignOutListenerLegacy'],
+    ['iosAppBroadsheetMain.jsx', '../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', 'shapeInstallSignOutListener(async'],
+  ]) {
+    const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+    const at = src.indexOf(marker);
+    assert.ok(at > 0, `${label}: listener not found`);
+    const slice = src.slice(at, at + 1800);
+    const outIdx = slice.indexOf("signOut({ scope: 'local' })") >= 0
+      ? slice.indexOf("signOut({ scope: 'local' })")
+      : slice.indexOf('signOut({ scope: "local" })');
+    assert.ok(outIdx > 0, `${label}: receiving tab never retires its own session`);
+    const reloadIdx = slice.indexOf('location.reload()');
+    assert.ok(reloadIdx > outIdx, `${label}: reloads before retiring the session — it would restore`);
+    // scope:'local' matters: a network-scoped sign-out could hang this tab.
+    assert.ok(!/signOut\(\)\s*;/.test(slice.slice(0, reloadIdx)),
+      `${label}: uses a network-scoped signOut in the listener`);
+  }
+});
+
+test('the scrub still leaves the auth token to the SDK, not the key list', async () => {
+  // If the scrub ever started clearing `shape.auth` itself, the listener's
+  // local signOut would be papering over a different mechanism — and the
+  // SDK's own in-memory session would still be live. Keep the split explicit.
+  const { SHAPE_SCRUB_KEYS } = await import('../public/newdesign/localScrub.mjs');
+  assert.ok(!SHAPE_SCRUB_KEYS.includes('shape.auth'));
 });

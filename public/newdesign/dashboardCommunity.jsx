@@ -257,14 +257,20 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       localStorage.setItem('shape.careerAwardPending', JSON.stringify(items.slice(-20)));
     } catch (e) {}
   }, []);
+  // ⚠ Keyed by (uid, POST) — one owner can hold several. The award buckets from
+  // the POST'S OWN month, so two claims that failed across a month boundary are
+  // two distinct +25s; replacing on uid alone would silently drop one.
   const careerPendingRead = React.useCallback((uid) => {
-    if (!uid) return null;
-    return careerQueueRead().find(function (r) { return String(r.uid) === String(uid); }) || null;
+    if (!uid) return [];
+    return careerQueueRead().filter(function (r) { return String(r.uid) === String(uid); });
   }, [careerQueueRead]);
-  // Replace only OUR entry — every other owner's record is carried through.
+  // Replace only THIS (owner, post) record — every other record, including this
+  // owner's other posts, is carried through.
   const careerPendingWrite = React.useCallback((uid, pid) => {
     if (!uid || !pid) return;
-    const rest = careerQueueRead().filter(function (r) { return String(r.uid) !== String(uid); });
+    const rest = careerQueueRead().filter(function (r) {
+      return !(String(r.uid) === String(uid) && String(r.postId) === String(pid));
+    });
     careerQueueWrite(rest.concat([{ uid: String(uid), postId: String(pid) }]));
   }, [careerQueueRead, careerQueueWrite]);
   const careerPendingClear = React.useCallback((uid, pid) => {
@@ -300,10 +306,14 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       let me = null;
       try { me = await (window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()); } catch (e) { return; }
       if (cancelled || !me || !me.id) return;
-      // Look up OUR OWN entry: another member's queued award stays untouched.
+      // Look up OUR OWN entries: another member's queued award stays untouched.
+      // Replay every one of ours — an outage across a month boundary leaves two
+      // posts that each earn their own +25.
       const pending = careerPendingRead(me.id);
-      if (!pending) return;
-      claimCareerAward(pending.postId, false, me.id);
+      for (const rec of pending) {
+        if (cancelled) return;
+        await claimCareerAward(rec.postId, false, me.id);
+      }
     })();
     return () => { cancelled = true; };
   }, [claimCareerAward, careerPendingRead, careerQueueRead]);

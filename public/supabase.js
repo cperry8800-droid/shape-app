@@ -1020,9 +1020,20 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     window.__shapeSignOutListener = true;
     window.addEventListener('storage', function (e) {
       if (!e || e.key !== 'shape.signedOutAt' || !e.newValue) return;
-      // ⚠ broadcast:false — re-stamping would echo back to the signing-out tab.
-      try { shapeDb.clearLocalUserContent({ broadcast: false }); } catch (err) {}
-      try { window.location.reload(); } catch (err) {}
+      // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub deliberately leaves
+      // `shape.auth` (this client's storageKey) alone, because the sign-out
+      // paths call auth.signOut() themselves — but the Next dashboard's does
+      // not, so a sign-out started there leaves the token here and the reload
+      // below would restore it, signed back IN. scope:'local' clears storage
+      // without a network round-trip, so it cannot hang.
+      Promise.resolve()
+        .then(function () { return client.auth.signOut({ scope: 'local' }); })
+        .catch(function () {})
+        .then(function () {
+          // ⚠ broadcast:false — re-stamping would echo back to the signing-out tab.
+          try { shapeDb.clearLocalUserContent({ broadcast: false }); } catch (err) {}
+          try { window.location.reload(); } catch (err) {}
+        });
     });
   })();
 

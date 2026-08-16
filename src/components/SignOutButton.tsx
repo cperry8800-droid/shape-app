@@ -54,18 +54,28 @@ export default function SignOutButton({ className, children }: { className?: str
       /* the scrub must never block the sign-out */
     }
     // Invalidate the cookie session BEFORE telling the other tabs, mirroring
-    // supabase.js (which clears it, then scrubs). Bounded like every other
-    // teardown: a hanging request must never strand the sign-out, and the
-    // server action below clears the session again regardless.
+    // supabase.js (which clears it, then scrubs). Still bounded — a hanging
+    // request must never strand the sign-out — but the bound must not become a
+    // second way to broadcast early, so the timeout path does NOT signal.
+    //
+    // ⚠ THE BROADCAST IS GATED ON A CONFIRMED INVALIDATION. A sibling reacts by
+    // RELOADING, so signalling while the cookie is still valid makes it reload
+    // back into an authenticated route, and `logout()`'s redirect below only
+    // affects THIS tab — no second event ever retires it. A missed broadcast
+    // just leaves siblings as they were before this feature existed; a
+    // premature one manufactures a signed-in tab nothing will correct. When
+    // they conflict, take the miss.
+    let invalidated = false;
     try {
-      await Promise.race([
+      const res = await Promise.race([
         fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }),
-        new Promise((r) => setTimeout(r, 2000)),
+        new Promise<null>((r) => setTimeout(() => r(null), 2000)),
       ]);
+      invalidated = Boolean(res && res.ok);
     } catch {
-      /* the broadcast below still runs — a stale sibling is worse than an early one */
+      /* leave invalidated false — see above */
     }
-    shapeBroadcastSignOut();
+    if (invalidated) shapeBroadcastSignOut();
     await logout();
   };
   return (

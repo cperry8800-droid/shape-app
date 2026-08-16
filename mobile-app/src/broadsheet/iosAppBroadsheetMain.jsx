@@ -1532,7 +1532,13 @@ function BSAppShell({ tweaks, setTweak }) {
   // reload ourselves when a sibling broadcasts.
   // ⚠ broadcast:false — re-stamping here would echo the event back to the tab
   // that signed out and the two would scrub each other in a loop.
-  React.useEffect(() => shapeInstallSignOutListener(() => {
+  React.useEffect(() => shapeInstallSignOutListener(async () => {
+    // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub leaves the Supabase
+    // token alone by design, and a sign-out started in the Next dashboard
+    // never calls the SDK — so without this the reload below would restore
+    // the session and land back signed IN. scope:'local' touches storage
+    // only, so it cannot hang on the network.
+    try { await window.ShapeAuth?.client?.auth?.signOut({ scope: 'local' }); } catch (e) {}
     try { shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'], broadcast: false }); } catch (e) {}
     try { window.__BS_LAST_ERROR = null; } catch (e) {}
     // The reload is the authoritative wipe of in-memory state (same reasoning

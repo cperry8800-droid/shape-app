@@ -188,12 +188,25 @@ export function shapeBroadcastSignOut() {
 // ⚠ broadcast:false is LOAD-BEARING for listeners — a sibling that re-stamped
 // while handling a stamp would echo the event back and the tabs would scrub
 // each other in a loop. Only a real sign-out broadcasts.
+//
+// ⚠ A RECEIVING TAB MUST RETIRE ITS OWN SDK SESSION, not just its content.
+// The scrub deliberately leaves the Supabase token (`shape.auth`) alone,
+// because every sign-out path used to call auth.signOut() itself. The Next
+// dashboard's does NOT — it clears the cookie session and redirects — so a
+// sign-out started there leaves the localStorage token intact, and a sibling
+// that only scrubbed and reloaded would restore that session and come back
+// signed IN. Each handler below signs out locally (scope:'local' — no network,
+// so it cannot hang) BEFORE reloading.
 export function shapeInstallSignOutListener(onSignOut) {
   try {
     if (!(window.addEventListener && window.localStorage)) return () => {};
     const fn = (e) => {
       if (!e || e.key !== SHAPE_SIGNOUT_STAMP_KEY || !e.newValue) return;
-      try { onSignOut(); } catch (err) {}
+      // Handlers retire a local SDK session before reloading, so they are
+      // async. Swallow the rejection too — an unhandled one in a storage
+      // listener would surface as a page error on a tab that is about to
+      // reload anyway.
+      try { Promise.resolve(onSignOut()).catch(() => {}); } catch (err) {}
     };
     window.addEventListener('storage', fn);
     return () => { try { window.removeEventListener('storage', fn); } catch (err) {} };

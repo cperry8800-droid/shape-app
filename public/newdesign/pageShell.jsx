@@ -1522,6 +1522,17 @@ window.shapeClearLocalUserContent = function (opts) {
   window.__shapeSignOutListener = true;
   window.addEventListener("storage", function (e) {
     if (!e || e.key !== "shape.signedOutAt" || !e.newValue) return;
+    // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST, where there is one. The scrub
+    // leaves the Supabase token (`shape.auth`) alone by design, and a sign-out
+    // started in the Next dashboard never calls the SDK — so the reload below
+    // would otherwise restore the session and come back signed IN.
+    // scope:'local' clears storage without a network call, so it cannot hang.
+    // Fire-and-forget is fine here: it is synchronous storage work, and the
+    // scrub + reload below must not wait on a promise that may never settle.
+    try {
+      var auth = window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth;
+      if (auth && auth.signOut) { var p = auth.signOut({ scope: "local" }); if (p && p.catch) p.catch(function () {}); }
+    } catch (err) {}
     // ⚠ broadcast:false — re-stamping here would echo back to the tab that
     // signed out, and the tabs would scrub each other in a loop.
     try {
