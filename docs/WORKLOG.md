@@ -1627,6 +1627,40 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-16 — Cross-tab sign-out + an owner-scoped career award: the two shared-device residuals close (#1891 → `17752b901`)
+
+- Closes the two residuals the 2026-08-15 sign-out wave **documented but did not fix**. Neither
+  is new scope — both are that wave's own review findings, written down at the time as unbuilt.
+- **Cross-tab sign-out.** `sessionStorage` is per tab and in-memory state is per document, so
+  signing out scrubbed and reloaded only the tab it ran in; a sibling tab kept
+  `shapeLiveWorkout`/`shapeLiveWorkoutResult` and a signed-in session's worth of state until
+  someone closed it. There was **no** `onAuthStateChange`, `storage` or `SIGNED_OUT` handler
+  anywhere in source. The scrub is already the chokepoint every sign-out path calls, so it
+  stamps **`shape.signedOutAt` LAST** — after the sweeps that would otherwise remove the
+  signal — **with a nonce**, because `storage` fires only on a *changed* value and two
+  sign-outs in the same millisecond would be silent with a bare `Date.now()`. All four
+  surfaces listen: `pageShell.jsx` + `supabase.js` (classic scripts sharing ONE install guard,
+  so a page loading both cannot scrub and reload twice), `iosAppBroadsheetMain.jsx`, and
+  `SignOutButton.tsx` for the Next dashboard. ⚠ **Listeners scrub with `broadcast:false`, and
+  that suppression is load-bearing** — a sibling that re-stamped would echo the event back and
+  the tabs would scrub each other in a loop.
+- ⚠ **`shape.careerAwardPending` was a cross-account defect, not a durability feature.** It held
+  a **bare post id** replayed for whoever was signed in; `award_work_milestone` matches
+  `author_id = auth.uid()`, so a different account got `{granted:false,'not_a_milestone'}` — a
+  **successful** response, not an error — and the catch-up removed the key on any non-error. So
+  A signs out, B signs in, and **B's session submitted A's post id under B's identity and then
+  silently destroyed A's retry**. Keeping the key did not preserve A's award; it guaranteed its
+  loss. Now `{uid, postId}`, replayed only on a uid match; an unattributable legacy record is
+  **dropped** rather than replayed under an arbitrary account. Deletion is fixed too: only
+  `'unauthenticated'` is transient, and the clear matches **both** uid and postId, so a success
+  for post Y cannot delete a pending retry for post X.
+- ⚠ **The web twin in `dashboardCommunity.jsx` carried the same defect and had no signed-in
+  check at all** — review named only the mobile copy. **The contrast with the sibling queue is
+  why this was a defect and not an accepted trade-off:** `drainAssignmentQueue()` drops
+  client-side owner partitioning *on purpose* and is safe because `publish_client_week`
+  re-verifies server-side **and the refusal surfaces**. This path had neither property.
+- 15 files, +1453/−62. Suite green; CI green on the final head.
+
 ### 2026-08-16 — The 18+ cutoff clamps like Postgres; the gate's own coverage claims corrected (#1888, **OPEN** — head `53cdd22bf`)
 
 - CI is green on the head (Web · Mobile · gitleaks · Tests) and the DOB freeze migration is
@@ -1897,6 +1931,52 @@ changelog whenever something ships.
   either older migration.
 - Verified: suite **1611/1611**, `tsc` clean, `next build` exit 0 with `ƒ Proxy (Middleware)`,
   CRLF preserved, zero NUL bytes.
+- ⚠ **ROUND 15 — STILL FLAT AT 2, AND IN THE SAME TWO SEAMS AS 13 AND 14.** The curve is the
+  finding: three rounds running, two per round, and every one of the six landed in either
+  *a validated DOB not reaching the surface that enforces it* or *the `set_over_18` forward
+  guard*. The repo's own rule (a flat curve means change approach, not patch again) applied,
+  so neither was fixed where it was reported.
+  - **THE ROUTE'S 18+ CHECK WAS ENFORCED WITHOUT UPDATING THE PRODUCERS, AND IT BROKE EVERY
+    COACH-APPLICATION DOOR BUT ONE.** `/api/apply` now refuses an application it cannot
+    age-place — correct, and the reason approved coaches keep working — but **four of the
+    five surfaces that POST to it never forwarded a date of birth**, so the route answered
+    400 to all of them. The two failure modes are opposite, which is why only one was
+    reported: the **mobile app fails OPEN and silently** (`submitProviderApplication` catches
+    any failed route call and falls back to a direct Supabase insert, so the server-side
+    re-check, the reviewer email and the file uploads were all bypassed with nothing on
+    screen), while `public/mobile/signup.jsx` and the two legacy `signup-{trainer,
+    nutritionist}.html` pages fail **CLOSED and loudly** — the applicant simply could not
+    apply. ⚠ Those legacy pages are **not vestigial**: 28 pages link them, they are in
+    `sitemap.xml`, and `next.config.ts` rewrites to them — the round-10 lesson repeating.
+    Fixed at all four, and the two legacy pages gained the DOB field they never had, loading
+    the shared `/age-derive.js` mirror and **failing closed when it is absent**.
+  - ⚠ **FORWARDING THE DATE FIXES THE TRIGGER, NOT THE MECHANISM.** Rewriting a **4xx** into
+    a direct insert is wrong whatever caused it: a refusal is not a transport failure, and a
+    genuinely under-18 mobile applicant would still have taken that path with the date
+    forwarded. `submitProviderApplicationToApi` now marks a 4xx `rejected` and the caller
+    re-throws instead of storing the application around the check that refused it. The
+    fallback still covers real outages, which is what it was for.
+  - ⚠ **THE MIGRATION GUARD REPORTED CLEAN ABOUT A DEFINITION IT COULD NOT SEE.** It keyed on
+    the exact lowercase `create or replace function public.set_over_18()`; Postgres does not
+    care about case or the space before the parens. **Verified rather than assumed** —
+    reformatting one header to `CREATE OR REPLACE FUNCTION public.set_over_18 ()` and deleting
+    `new.created_at := old.created_at` left every assertion green, because the three known
+    definitions kept the count satisfied. Deliberately **not** fixed by widening the literal
+    (the `pg_temp` scanner burned six rounds proving a hand-rolled matcher keeps differing
+    from Postgres's): the statement is now matched tolerantly, the freeze is asserted **per
+    file** so the fragile part — finding where a `$$`/`$tag$` body ends — is gone, and the
+    guard **fails closed** on ambiguity (a file defining it twice, or a known definer that
+    stops matching, is an error rather than a skip). **6/6 mutations killed.**
+  - ⚠ **AND MY OWN NEW GUARD PASSED FOR THE WRONG REASON — caught only by mutation-testing
+    it.** The assertion that a rejection is not swallowed matched `response.json().catch(() =>
+    ({}))` and the *other* function's `throw`, so deleting the re-throw left it green. It is
+    now anchored on the real `catch (apiError` block. The comment-stripper in the same file
+    hit the identical class: the obvious `/\/\*[\s\S]*?\*\//g` ran from a `/*` sitting inside
+    a `//` line to a `*/` hundreds of lines later and **deleted the function under test**.
+    Both are the same lesson as the guard above — *check the check before believing it*.
+  - Verified: suite **1616/1616** (+5), `tsc` clean, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile Vite build clean **with `dob:e.dob` confirmed in the
+    emitted bundle**, newdesign precompile exit 0, every touched file LF with zero NUL bytes.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
