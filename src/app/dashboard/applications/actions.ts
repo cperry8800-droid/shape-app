@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
+// The shared 18+ derivation — approval must not provision a coach the gates cannot place.
+import { isMinorFromDob } from '@/lib/age-derive.mjs';
 import {
   BackgroundCheckStatus,
   asRecord,
@@ -319,6 +321,20 @@ export async function approveApplication(formData: FormData): Promise<void> {
   }
   if (!isBackgroundCheckClear(typed.details)) {
     throw new Error('Background check consent and a clear background check are required before approval.');
+  }
+  // ⚠ REFUSE TO PROVISION A COACH WE CANNOT AGE-PLACE. Approval creates an auth
+  // user AND a coach profile, and coach roles satisfy membership automatically —
+  // so a provider row with no date of birth is an entitled account that the
+  // read-time gates (absence no longer admits) will refuse at every surface.
+  // Applications submitted before the DOB field existed carry none, so this
+  // stops an admin turning a legacy row into a coach who is locked out of the
+  // product on their first login, with nothing on screen explaining why.
+  // Deliberately a hard refusal rather than a silent omission: the fix is to
+  // collect the applicant's date of birth, not to provision around it.
+  if (!typed.dob || isMinorFromDob(typed.dob) !== false) {
+    throw new Error(
+      'This application has no verified date of birth (Shape is 18+). Ask the applicant to resubmit, or record their date of birth on the application, before approving.'
+    );
   }
 
   const authUser = await resolveOrInviteProviderUser(admin, typed);

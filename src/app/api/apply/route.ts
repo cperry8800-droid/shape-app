@@ -230,26 +230,45 @@ export async function POST(req: NextRequest) {
   }, 'consent_received');
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const applicationRow = {
+    provider_type: providerTypeRaw,
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    phone: phone || null,
+    location: location || null,
+    specialty: specialty || null,
+    years_experience: yearsExperience || null,
+    monthly_price: monthlyPrice || null,
+    details,
+    user_agent: req.headers.get('user-agent') || null,
+  };
+  let { data, error } = await supabase
     .from('provider_applications')
-    .insert({
-      provider_type: providerTypeRaw,
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      phone: phone || null,
-      location: location || null,
-      specialty: specialty || null,
-      years_experience: yearsExperience || null,
-      monthly_price: monthlyPrice || null,
-      dob,
-      details,
-      user_agent: req.headers.get('user-agent') || null,
-    })
+    .insert({ ...applicationRow, dob })
     .select('id')
     .single();
+  // ⚠ MIGRATION-SAFE. `dob` is declared in 2026-04-17-provider-applications.sql
+  // but was NEVER present on the live table (verified against information_schema
+  // on 2026-08-16 — schema drift, not a missing file), so it is added by
+  // 2026-08-16-created-at-freeze-and-application-dob.sql. Until that runs, an
+  // insert naming the column fails 42703 and would take down provider signups
+  // entirely. Retry without it on the stable unknown-column codes only, so a
+  // genuine failure still surfaces. The applicant's DOB is still validated above
+  // — it just cannot be stored until the column exists, and approval refuses an
+  // application with no stored DOB rather than provisioning an ungated coach.
+  if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+    ({ data, error } = await supabase
+      .from('provider_applications')
+      .insert(applicationRow)
+      .select('id')
+      .single());
+  }
 
-  if (error) {
+  // `data` is checked alongside `error` because the retry above reassigns both,
+  // so it can no longer be narrowed by the error guard alone — and an insert that
+  // somehow resolved with neither must not fall through to a null dereference.
+  if (error || !data) {
     console.error('provider_applications insert failed:', error);
     return NextResponse.json(
       { error: 'Could not submit your application. Please email info@theshapecommunity.com directly.' },

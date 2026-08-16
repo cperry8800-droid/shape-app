@@ -115,3 +115,32 @@ test('the grandfather cutoff has not moved forward', () => {
   assert.ok(ADULT_PROOF_REQUIRED_FROM <= Date.UTC(2026, 7, 16),
     'ADULT_PROOF_REQUIRED_FROM moved forward — that re-admits every unproven account created in the new window');
 });
+
+// ⚠ THE GRANDFATHER IS ONLY AS TRUSTWORTHY AS created_at. The owner policy
+// `users update own profile` is (auth.uid() = id) with NO column restriction —
+// verified live — so without a server-side freeze an authenticated caller could
+// backdate their own row (or insert one already backdated) and walk straight
+// past this gate. The freeze is folded into set_over_18() rather than a separate
+// trigger because BEFORE ROW triggers fire in ALPHABETICAL order, and a guard
+// sorting after the derivation is worse than the bug it fixes.
+test('the created_at freeze ships in the migration the grandfather depends on', () => {
+  const file = readFileSync(
+    new URL('../supabase-migrations/2026-08-16-created-at-freeze-and-application-dob.sql', import.meta.url),
+    'utf8'
+  );
+  // ⚠ SLICE THE FUNCTION BODY. The migration's own structural guard block quotes
+  // these same assignments to self-verify, so asserting over the whole file
+  // matches the guard's literals and passes even when the trigger no longer
+  // performs the freeze — caught by mutation-testing this test.
+  const fnStart = file.indexOf('create or replace function public.set_over_18()');
+  assert.notEqual(fnStart, -1, 'set_over_18() definition not found — re-anchor this test');
+  const fnEnd = file.indexOf('$$;', fnStart);
+  assert.notEqual(fnEnd, -1, 'function terminator not found — re-anchor this test');
+  const sql = file.slice(fnStart, fnEnd);
+  assert.match(sql, /new\.created_at := old\.created_at/, 'UPDATE does not freeze created_at — the cutoff is forgeable');
+  assert.match(sql, /new\.created_at := now\(\)/, 'INSERT does not stamp created_at — a backdated row can be inserted');
+  assert.match(sql, /new\.date_of_birth := old\.date_of_birth/, 'the migration dropped the existing DOB freeze');
+  assert.match(sql, /is_privileged/, 'the freeze is not scoped to non-privileged callers — backfills would break');
+  // Folded into the derivation, not a sibling trigger (the ordering hazard).
+  assert.match(sql, /function public\.set_over_18\(\)/, 'the freeze is not inside set_over_18()');
+});

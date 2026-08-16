@@ -210,3 +210,51 @@ test('no signup surface writes over_18 directly — it is derived, never supplie
     assert.ok(!/over_18\s*:/.test(src), `${label}: sets over_18 directly`);
   }
 });
+
+// ── The coach path: application -> approval -> profile ──────────────────────
+
+const APPLY_ROUTE = read('../src/app/api/apply/route.ts');
+const APPROVAL = read('../src/app/dashboard/applications/actions.ts');
+
+test('the apply route validates 18+ server-side, before the application is stored', () => {
+  const body = stripComments(APPLY_ROUTE);
+  const checkAt = body.indexOf('isMinorFromDob(');
+  const insertAt = body.indexOf("from('provider_applications')");
+  assert.ok(checkAt > -1, 'the apply route does not validate the applicant age at all');
+  assert.ok(insertAt > -1, 'apply-route insert not found — re-anchor this test');
+  assert.ok(checkAt < insertAt, 'the age check runs AFTER the application is written');
+});
+
+// ⚠ MIGRATION-SAFE OR PROVIDER SIGNUP BREAKS. `dob` is declared in the 2026-04-17
+// migration but was never present on the live table (schema drift), so an insert
+// naming it fails 42703 until 2026-08-16 is applied. Without the retry, every
+// coach application would 500 in the window between deploy and migration.
+test('the apply route degrades when the dob column is not yet deployed', () => {
+  const body = stripComments(APPLY_ROUTE);
+  assert.match(body, /42703|PGRST204/, 'no unknown-column retry — provider signup breaks until the migration runs');
+  assert.match(body, /\.insert\(applicationRow\)/, 'the retry does not re-insert without the dob column');
+});
+
+// ⚠ Approval provisions an auth user AND a coach profile, and coach roles satisfy
+// membership automatically — so approving an application with no stored date of
+// birth creates an entitled account the gates refuse at every surface. Legacy
+// applications (submitted before the field existed) carry none.
+test('approval refuses an application with no verified date of birth', () => {
+  const body = stripComments(APPROVAL);
+  const guardAt = body.search(/if \(!typed\.dob/);
+  // Match the CALL, not the declaration — resolveOrInviteProviderUser is defined
+  // far above the guard, so indexOf on the bare name finds the function itself
+  // and reports a correct order as failing. (Third time this exact trap: anchor
+  // ordering assertions on the invocation.)
+  const inviteAt = body.search(/await resolveOrInviteProviderUser\(/);
+  assert.ok(guardAt > -1, 'approval does not require a date of birth');
+  assert.ok(inviteAt > -1, 'invite call not found — re-anchor this test');
+  assert.ok(guardAt < inviteAt, 'the DOB guard runs AFTER the auth user is created');
+  assert.match(body, /isMinorFromDob\(typed\.dob\)/, 'approval does not re-derive the applicant age');
+});
+
+test('approval carries the DOB into the profile without overwriting an existing one', () => {
+  const body = stripComments(APPROVAL);
+  assert.match(body, /date_of_birth: dob/, 'approval does not persist the applicant DOB');
+  assert.match(body, /profile\?\.date_of_birth \?/, 'approval can overwrite an existing DOB — the freeze makes the first write permanent');
+});

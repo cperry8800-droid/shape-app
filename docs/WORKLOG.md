@@ -1816,6 +1816,49 @@ changelog whenever something ships.
 - Verified: suite **1605/1605**, `tsc` clean, `next build` exit 0 with
   `ƒ Proxy (Middleware)`, mobile Vite build clean, newdesign precompile exit 0, CRLF
   preserved on the two tracked-CRLF files, zero NUL bytes.
+- ⚠ **ROUND 13 — THE CURVE TURNED (4 → 2), AND BOTH FINDINGS WERE IN THE NEW POLICY
+  ITSELF, NOT A NEW CLASS.** Both answered questions raised on the previous head.
+  - **THE GRANDFATHER WAS FORGEABLE.** The cutoff keys on `profiles.created_at`, and
+    verified live: `users update own profile` is UPDATE to `authenticated` with
+    `USING = WITH CHECK = (auth.uid() = id)` and **no column restriction** — the exact
+    shape of the hole `2026-08-15-profiles-dob-immutable.sql` closed for
+    `date_of_birth`. So an authenticated caller with a null DOB could **backdate their
+    own row** (or INSERT one already backdated) and be grandfathered straight past the
+    gate. *A timestamp used as proof of legacy status must be server-controlled.*
+  - **APPROVING A LEGACY APPLICATION WOULD HAVE LOCKED OUT A REAL COACH.** Collection
+    protects only new submissions; `approveApplication()` still accepted rows whose
+    `dob` is null, then created the auth user and a **post-cutoff** coach profile — which
+    the new read-time policy refuses at every gated surface, with nothing on screen
+    explaining why. Approval now **refuses** rather than provisioning around it.
+- ⚠ **AND THE COLUMN THE COACH FIX WRITES DOES NOT EXIST IN PRODUCTION.**
+  `2026-04-17-provider-applications.sql` declares `dob date`; the LIVE table has 18
+  columns and none is `dob` (read from `information_schema`, not the file — the schema
+  drift this repo has now hit repeatedly). The round-12 insert naming that column would
+  have failed **42703 on every provider application**. The route now retries without it
+  on the stable unknown-column codes only, so deploy order is free and a genuine failure
+  still surfaces.
+- ⚠ **OWNER MIGRATION —
+  [`2026-08-16-created-at-freeze-and-application-dob.sql`](https://raw.githubusercontent.com/cperry8800-droid/shape-app/claude/radio-legal-gates/supabase-migrations/2026-08-16-created-at-freeze-and-application-dob.sql).**
+  Adds the missing `provider_applications.dob`, and makes `created_at` server-controlled
+  for non-privileged callers (stamped on INSERT, immutable on UPDATE; service_role /
+  migrations / dashboard exempt so a genuine backfill still works). ⚠ **Folded into
+  `set_over_18()`, NOT a sibling trigger** — BEFORE ROW triggers fire in **alphabetical**
+  order, so a separate guard could sort after the derivation and leave `over_18` computed
+  from a value the freeze then reverted, which is worse than the bug. **Until it is
+  applied the grandfather remains forgeable** — no regression (that state was admitted
+  before this wave), but the fix is not complete without it.
+- **Guards + mutation results:** the migration's freeze is pinned by a test that slices
+  the **function body** — asserting over the whole file matched the migration's own
+  structural-guard literals and passed while the trigger no longer froze anything
+  (caught by mutation-testing the test). Approval-refuses, no-overwrite, the
+  unknown-column retry and the validate-before-store ordering are all pinned. **11/11
+  mutations killed** across the two files. ⚠ One ordering assertion first matched
+  `resolveOrInviteProviderUser`'s **declaration** instead of its call — the third time
+  this exact trap has appeared in this wave; ordering assertions anchor on the
+  invocation.
+- Verified: suite **1610/1610**, `tsc` clean, `next build` exit 0 with
+  `ƒ Proxy (Middleware)`, mobile Vite build clean, newdesign precompile exit 0, CRLF
+  preserved, zero NUL bytes.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
