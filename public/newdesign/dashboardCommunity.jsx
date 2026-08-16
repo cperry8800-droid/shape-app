@@ -237,49 +237,58 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // B's failed claim overwrote member A's queued award and A's retry was gone
   // when they came back. Owner-tagging stops the cross-account REPLAY;
   // partitioning is what actually preserves each member's claim.
+  // ⚠ ONE localStorage KEY PER CLAIM — `shape.careerAwardPending.<uid>.<postId>`.
+  // A single JSON blob was a read-modify-write over storage every same-origin
+  // tab shares, so two tabs failing at once each read the same array, each
+  // appended, and the second write discarded the first member's retry — during
+  // exactly the outage the queue exists to survive. Independent keys mean a
+  // write or a clear touches only its own claim. Keep in step with
+  // shapeBackend.js; tests/career-award-scope.test.mjs parses BOTH.
+  const CAREER_PREFIX = 'shape.careerAwardPending.';
+  const careerKey = React.useCallback((uid, pid) => CAREER_PREFIX + String(uid) + '.' + String(pid), []);
   const careerQueueRead = React.useCallback(() => {
-    let raw = null;
-    try { raw = localStorage.getItem('shape.careerAwardPending'); } catch (e) { return []; }
-    if (!raw) return [];
-    let parsed = null;
-    try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
-    // Old bare-string format: no owner, so it can never be attributed. Drop it
-    // rather than replay it under an arbitrary account.
-    if (!Array.isArray(parsed)) {
-      try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
-      return [];
-    }
-    return parsed.filter(function (r) { return r && typeof r === 'object' && r.uid && r.postId; });
-  }, []);
-  const careerQueueWrite = React.useCallback((items) => {
+    const out = [];
     try {
-      if (!items.length) { localStorage.removeItem('shape.careerAwardPending'); return; }
-      localStorage.setItem('shape.careerAwardPending', JSON.stringify(items.slice(-20)));
+      // The pre-per-key formats (a bare post id; the single JSON array that
+      // never shipped) carry no owner or no race safety. Drop on sight.
+      try { if (localStorage.getItem('shape.careerAwardPending')) localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf(CAREER_PREFIX) !== 0) continue;
+        // uid and postId are UUIDs (hyphens, never dots) — the first dot splits.
+        const rest = k.slice(CAREER_PREFIX.length);
+        const dot = rest.indexOf('.');
+        if (dot <= 0 || dot === rest.length - 1) continue;
+        out.push({ uid: rest.slice(0, dot), postId: rest.slice(dot + 1), at: Number(localStorage.getItem(k)) || 0 });
+      }
     } catch (e) {}
+    return out;
   }, []);
   // ⚠ Keyed by (uid, POST) — one owner can hold several. The award buckets from
   // the POST'S OWN month, so two claims that failed across a month boundary are
-  // two distinct +25s; replacing on uid alone would silently drop one.
+  // two distinct +25s; keying on uid alone would silently drop one.
   const careerPendingRead = React.useCallback((uid) => {
     if (!uid) return [];
     return careerQueueRead().filter(function (r) { return String(r.uid) === String(uid); });
   }, [careerQueueRead]);
-  // Replace only THIS (owner, post) record — every other record, including this
-  // owner's other posts, is carried through.
+  // The cap is the one read-modify-write left, and it only evicts the OLDEST
+  // claims past the limit — the cap's documented behaviour, so a concurrent
+  // enforcement can at worst repeat that same eviction.
   const careerPendingWrite = React.useCallback((uid, pid) => {
     if (!uid || !pid) return;
-    const rest = careerQueueRead().filter(function (r) {
-      return !(String(r.uid) === String(uid) && String(r.postId) === String(pid));
-    });
-    careerQueueWrite(rest.concat([{ uid: String(uid), postId: String(pid) }]));
-  }, [careerQueueRead, careerQueueWrite]);
+    try { localStorage.setItem(careerKey(uid, pid), String(Date.now())); } catch (e) {}
+    try {
+      const all = careerQueueRead();
+      if (all.length <= 20) return;
+      all.sort(function (a, b) { return a.at - b.at; });
+      all.slice(0, all.length - 20).forEach(function (r) {
+        try { localStorage.removeItem(careerKey(r.uid, r.postId)); } catch (e) {}
+      });
+    } catch (e) {}
+  }, [careerKey, careerQueueRead]);
   const careerPendingClear = React.useCallback((uid, pid) => {
-    const queue = careerQueueRead();
-    const next = queue.filter(function (r) {
-      return !(String(r.uid) === String(uid) && String(r.postId) === String(pid));
-    });
-    if (next.length !== queue.length) careerQueueWrite(next);
-  }, [careerQueueRead, careerQueueWrite]);
+    try { localStorage.removeItem(careerKey(uid, pid)); } catch (e) {}
+  }, [careerKey]);
   const claimCareerAward = React.useCallback(async (pid, showToast, uid) => {
     const sb = window.shapeDb && window.shapeDb.client;
     if (!pid || !sb || !sb.rpc) return;

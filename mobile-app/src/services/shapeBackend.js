@@ -5345,58 +5345,78 @@ const CAREER_AWARD_PENDING_KEY = 'shape.careerAwardPending';
 // fails, B's write REPLACES A's record, and A's retry is gone when they return.
 // Tagging fixed the cross-account replay; only partitioning preserves each
 // member's durable claim, which is the whole reason the key survives the scrub.
-const CAREER_AWARD_MAX = 20; // a shared device's realistic account count, with room
-                             // to spare — a cap only so a kiosk cannot grow this
-                             // without bound. Oldest goes first; newest is last.
-function readCareerQueue() {
-  let raw = null;
-  try { raw = localStorage.getItem(CAREER_AWARD_PENDING_KEY); } catch (e) { return []; }
-  if (!raw) return [];
-  let parsed = null;
-  try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
-  // A bare string is the ORIGINAL format: no owner, so it cannot be attributed
-  // to anyone — and replaying an unattributable id under whoever happens to be
-  // signed in is precisely the defect. Drop it rather than guess: the loss is
-  // bounded to a claim that was already failing, and guessing risks handing one
-  // member's award to another. (The single {uid, postId} object never shipped —
-  // it existed only inside this PR — so there is nothing to migrate from it.)
-  if (!Array.isArray(parsed)) {
-    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
-    return [];
-  }
-  return parsed.filter((r) => r && typeof r === 'object' && r.uid && r.postId);
+// ⚠ ONE localStorage KEY PER CLAIM — `shape.careerAwardPending.<uid>.<postId>`.
+// A single JSON blob holding the whole queue was a read-modify-write, and this
+// storage is shared by every same-origin tab (/m/ and the website both). Two
+// tabs whose claims fail at the same moment each read the same array, each
+// append their own record, and the second setItem silently discards the first
+// member's retry — during exactly the outage this queue exists to survive.
+// Independent keys remove the read-modify-write: a write touches only its own
+// claim, and a clear removes only its own claim, so concurrent tabs cannot
+// clobber each other. The legacy single key is dropped on sight.
+//
+// ⚠ The prefix deliberately does NOT match any SHAPE_SCRUB_PREFIXES entry —
+// these claims survive the sign-out scrub by the same owner ruling as before
+// (see localScrub.mjs), which is only safe because replay is owner-scoped.
+const CAREER_AWARD_PREFIX = 'shape.careerAwardPending.';
+const CAREER_AWARD_MAX = 20; // a kiosk must not grow this without bound. Oldest
+                             // first — each claim stores its Date.now() as the value.
+function careerAwardKey(uid, postId) {
+  return CAREER_AWARD_PREFIX + String(uid) + '.' + String(postId);
 }
-function writeCareerQueue(items) {
+function readCareerQueue() {
+  const out = [];
   try {
-    if (!items.length) { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); return; }
-    localStorage.setItem(CAREER_AWARD_PENDING_KEY, JSON.stringify(items.slice(-CAREER_AWARD_MAX)));
+    const ls = localStorage;
+    // The pre-per-key formats — a bare post id, and the single JSON array that
+    // existed only inside this PR — carry no owner or no race safety. Drop.
+    try { if (ls.getItem(CAREER_AWARD_PENDING_KEY)) ls.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    for (let i = ls.length - 1; i >= 0; i--) {
+      const k = ls.key(i);
+      if (!k || k.indexOf(CAREER_AWARD_PREFIX) !== 0) continue;
+      // uid and postId are UUIDs (hyphens, never dots), so the FIRST dot after
+      // the prefix separates them unambiguously.
+      const rest = k.slice(CAREER_AWARD_PREFIX.length);
+      const dot = rest.indexOf('.');
+      if (dot <= 0 || dot === rest.length - 1) continue;
+      out.push({ uid: rest.slice(0, dot), postId: rest.slice(dot + 1), at: Number(ls.getItem(k)) || 0 });
+    }
   } catch (e) {}
+  return out;
 }
 // ⚠ Keyed by (uid, POST) — one owner can hold several. award_work_milestone
 // buckets each award from the POST'S OWN month, so two claims that failed
 // across a month boundary (an outage spanning the 1st) are two DISTINCT +25s;
-// replacing on uid alone would silently drop one of them.
+// keying on uid alone would silently drop one of them.
 function readCareerPendingFor(uid) {
   if (!uid) return [];
   return readCareerQueue().filter((r) => String(r.uid) === String(uid));
 }
+// Enforcing the cap IS a read-modify-write, unavoidably — but it only ever
+// evicts the OLDEST claims past the limit, which is the cap's documented
+// behaviour anyway, so a concurrent enforcement can at worst apply that same
+// eviction twice. The per-claim writes it guards remain race-free.
+function enforceCareerCap() {
+  try {
+    const all = readCareerQueue();
+    if (all.length <= CAREER_AWARD_MAX) return;
+    all.sort((a, b) => a.at - b.at);
+    for (const r of all.slice(0, all.length - CAREER_AWARD_MAX)) {
+      try { localStorage.removeItem(careerAwardKey(r.uid, r.postId)); } catch (e) {}
+    }
+  } catch (e) {}
+}
 function writeCareerPending(uid, postId) {
   if (!uid || !postId) return; // unattributable — never queue what we cannot own
-  // Replace only THIS (owner, post) record; every other record — other owners
-  // AND this owner's other posts — is carried through.
-  const rest = readCareerQueue().filter(
-    (r) => !(String(r.uid) === String(uid) && String(r.postId) === String(postId))
-  );
-  writeCareerQueue(rest.concat([{ uid: String(uid), postId: String(postId) }]));
+  // A single setItem on this claim's OWN key: no other tab's record is read,
+  // rewritten, or at risk.
+  try { localStorage.setItem(careerAwardKey(uid, postId), String(Date.now())); } catch (e) {}
+  enforceCareerCap();
 }
-// Clear ONLY our own record for this post: a success for post Y must not delete
-// a still-pending retry for post X, and must never touch another owner's entry.
+// Clear ONLY our own claim: a success for post Y cannot delete a still-pending
+// retry for post X, and no other owner's claim is touched.
 function clearCareerPending(uid, postId) {
-  const queue = readCareerQueue();
-  const next = queue.filter(
-    (r) => !(String(r.uid) === String(uid) && String(r.postId) === String(postId))
-  );
-  if (next.length !== queue.length) writeCareerQueue(next);
+  try { localStorage.removeItem(careerAwardKey(uid, postId)); } catch (e) {}
 }
 // ⚠ A non-error answer is TERMINAL, with one exception. granted:true (awarded),
 // granted:false with no reason (same-month duplicate — a SUCCESSFUL no-op by

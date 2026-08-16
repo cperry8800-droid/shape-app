@@ -1202,7 +1202,12 @@
             // sign-out too (shapeDb.signOut scrubs via shapeClearLocalUserContent).
             var p=null;
             try{
-              if(window.shapeDb&&window.shapeDb.signOut)p=window.shapeDb.signOut();
+              // ⚠ Carry the confirmation we ALREADY have. shapeDb.signOut() issues a
+              // SECOND cookie DELETE and gates its own broadcast on that one alone, so a
+              // first success followed by a dropped connection would suppress the stamp
+              // despite invalidation being confirmed — leaving siblings holding the
+              // departed member's state. Same fix as pageShell's handleLogout.
+              if(window.shapeDb&&window.shapeDb.signOut)p=Promise.resolve(window.shapeDb.signOut()).then(function(){if(cookieCleared&&window.shapeBroadcastSignOut)window.shapeBroadcastSignOut();});
               // Capture the scrub's purge promise so go() below waits for the
               // cache deletes — a bare call raced the navigation (same class
               // as pageShell's handleLogout fallback). The scrub itself runs

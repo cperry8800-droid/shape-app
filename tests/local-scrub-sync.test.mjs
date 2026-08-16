@@ -550,6 +550,13 @@ test('the initiating sign-out paths reach the token drop', () => {
 // DELETE and gates its own broadcast on that; if the first POST succeeded but
 // connectivity dropped before the redundant one landed, the stamp would be
 // suppressed despite confirmation already in hand.
+// index.html carries its OWN sign-out handler, independent of pageShell's.
+test('index.html carries its confirmed invalidation into the SDK path too', () => {
+  const idx = readFileSync(new URL('../public/newdesign/index.html', import.meta.url), 'utf8');
+  assert.match(idx, /shapeDb\.signOut\(\)\)\.then\(function\(\)\{if\(cookieCleared&&window\.shapeBroadcastSignOut\)window\.shapeBroadcastSignOut\(\)/,
+    'the index.html SDK branch discards a confirmation it already has');
+});
+
 test('pageShell carries its confirmed invalidation into the SDK path', () => {
   const ps = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
   assert.match(ps, /window\.shapeBroadcastSignOut = function/,

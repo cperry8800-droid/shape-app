@@ -18,27 +18,54 @@ import { readFileSync } from 'node:fs';
 const MOBILE = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
 const WEB = readFileSync(new URL('../public/newdesign/dashboardCommunity.jsx', import.meta.url), 'utf8');
 
-// The pending record must be an owner-tagged object, never a bare id.
-test('both surfaces persist the queue as {uid, postId}, never a bare post id', () => {
+// ⚠ ONE KEY PER CLAIM: `shape.careerAwardPending.<uid>.<postId>`. A single JSON
+// blob holding the queue was a read-modify-write over storage EVERY same-origin
+// tab shares, so two tabs whose claims failed at once each read the same array,
+// each appended, and the second write discarded the first member's retry —
+// during exactly the outage the queue exists to survive.
+test('both surfaces key each claim independently, never one shared blob', () => {
   for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
-    assert.match(src, /\{ uid: String\(uid\), postId: String\(p(?:ostId|id)\) \}/, `${label}: records are not owner-tagged`);
-    // The exact pre-fix shape. If this ever comes back, the cross-account
-    // replay comes back with it.
+    assert.match(src, /['\"]shape\.careerAwardPending\.['\"]/, `${label}: no per-claim key prefix`);
+    // The write must be a single setItem on its OWN key — no array serialisation.
+    assert.ok(!/JSON\.stringify\(/.test(src.slice(src.indexOf('careerAwardPending'), src.indexOf('careerAwardPending') + 4000)),
+      `${label}: still serialises a shared queue blob`);
+    // The exact pre-fix shapes. Either returning is the race (or the
+    // cross-account replay) coming back with it.
     assert.ok(
-      !/setItem\(\s*['"]shape\.careerAwardPending['"]\s*,\s*String\(p(id|ostId)\)\s*\)/.test(src),
-      `${label}: still writes a bare post id`
+      !/setItem\(\s*['\"]shape\.careerAwardPending['\"]\s*,/.test(src),
+      `${label}: still writes the single shared key`
     );
   }
 });
 
-// An unattributable legacy value must be DROPPED, never replayed under whoever
-// happens to be signed in — replaying it is precisely the defect.
-test('both surfaces drop the legacy bare-string record instead of replaying it', () => {
+// A write must not read-modify-write another tab's claims.
+test('a queued claim is written with a single setItem on its own key', () => {
+  const at = MOBILE.indexOf('function writeCareerPending');
+  assert.ok(at > 0);
+  const slice = MOBILE.slice(at, at + 600);
+  assert.match(slice, /setItem\(careerAwardKey\(uid, postId\)/,
+    'shapeBackend.js: the write is not a single own-key setItem');
+  assert.match(WEB, /setItem\(careerKey\(uid, pid\)/,
+    'dashboardCommunity.jsx: the write is not a single own-key setItem');
+});
+
+// A clear must remove only its own claim.
+test('clearing removes only the matching owner+post key', () => {
+  const at = MOBILE.indexOf('function clearCareerPending');
+  assert.ok(at > 0, 'shapeBackend.js: no scoped clear');
+  const slice = MOBILE.slice(at, at + 320);
+  assert.match(slice, /removeItem\(careerAwardKey\(uid, postId\)\)/,
+    'shapeBackend.js: clear is not scoped to one claim');
+  assert.match(WEB, /removeItem\(careerKey\(uid, pid\)\)/,
+    'dashboardCommunity.jsx: clear is not scoped to one claim');
+});
+
+// The pre-per-key formats carry no owner (bare id) or no race safety (the
+// single array) — both are dropped rather than migrated.
+test('both surfaces drop the legacy single-key formats', () => {
   for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
-    const at = src.indexOf('!Array.isArray(parsed)');
-    assert.ok(at > 0, `${label}: no unattributable-record guard`);
-    const slice = src.slice(at, at + 300);
-    assert.match(slice, /removeItem\(/, `${label}: unattributable record is not dropped`);
+    assert.match(src, /removeItem\(\s*(?:CAREER_AWARD_PENDING_KEY|['\"]shape\.careerAwardPending['\"])\s*\)/,
+      `${label}: the legacy single key is not dropped`);
   }
 });
 
@@ -67,67 +94,18 @@ test('the queue survives an unauthenticated answer and clears on a terminal one'
   assert.match(WEB, /data\.reason === 'unauthenticated'/, 'dashboardCommunity.jsx: terminal rule missing');
 });
 
-// ⚠ Owner-TAGGING alone still lost awards: with ONE slot, member B's failed
-// claim overwrote member A's queued record and A's retry was gone when they
-// returned. The queue must be PARTITIONED per owner, not merely labelled.
-test('both surfaces partition the queue per owner instead of overwriting one slot', () => {
-  for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
-    // A write keeps every other owner's record and replaces only its own.
-    assert.match(src, /!\(String\(r\.uid\) === String\(uid\) && String\(r\.postId\) === String\(p(?:ostId|id)\)\)/,
-      `${label}: a write does not preserve other records`);
-    assert.match(src, /\.concat\(\[\{ uid: String\(uid\), postId: String\(p(?:ostId|id)\) \}\]\)/,
-      `${label}: a write does not append an owner-keyed record`);
-    // A read selects this owner's entry rather than assuming a single slot.
-    assert.match(src, /filter\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) === String\(uid\)/,
-      `${label}: the read is not owner-keyed`);
-  }
-});
-
-// A success for post Y must not delete a still-pending retry for post X, and
-// must never touch another owner's entry.
-test('clearing removes only the matching owner+post record', () => {
-  for (const [label, src, marker] of [
-    ['shapeBackend.js', MOBILE, 'function clearCareerPending'],
-    ['dashboardCommunity.jsx', WEB, 'careerPendingClear = React.useCallback'],
-  ]) {
-    const at = src.indexOf(marker);
-    assert.ok(at > 0, `${label}: no scoped clear`);
-    const slice = src.slice(at, at + 520);
-    assert.match(slice, /String\(r\.uid\) === String\(uid\)/, `${label}: clear is not owner-matched`);
-    assert.match(slice, /String\(r\.postId\) === String\(p(?:ostId|id)\)/, `${label}: clear is not post-matched`);
-    assert.ok(!/removeItem\(\s*['"]shape\.careerAwardPending['"]\s*\)/.test(slice),
-      `${label}: clear nukes the whole key instead of one record`);
-  }
-});
-
-// The collection is bounded — a kiosk must not grow it without limit.
-test('the per-owner queue is capped', () => {
-  assert.match(MOBILE, /CAREER_AWARD_MAX = 20/);
-  assert.match(MOBILE, /slice\(-CAREER_AWARD_MAX\)/);
-  assert.match(WEB, /slice\(-20\)/);
-});
-
 // The key stays OUT of the sign-out scrub inventory (the owner ruling), which
 // is only defensible now that replay is owner-safe.
 test('the queue is still deliberately kept by the sign-out scrub', async () => {
   const { SHAPE_SCRUB_KEYS, SHAPE_SCRUB_PREFIXES } = await import('../public/newdesign/localScrub.mjs');
   assert.ok(!SHAPE_SCRUB_KEYS.includes('shape.careerAwardPending'));
-  assert.ok(!SHAPE_SCRUB_PREFIXES.some((p) => 'shape.careerAwardPending'.startsWith(p)));
-});
-
-// ⚠ ONE OWNER CAN HOLD SEVERAL. award_work_milestone buckets each award from
-// the POST'S OWN month, so two claims that failed across a month boundary (an
-// outage spanning the 1st) are two DISTINCT +25s. Replacing on uid alone would
-// silently drop one, and replaying only one of them would strand the other.
-test('the queue is keyed by owner AND post, so one member can hold several', () => {
-  for (const [label, src] of [['shapeBackend.js', MOBILE], ['dashboardCommunity.jsx', WEB]]) {
-    // A read returns a LIST for the owner, not a single record.
-    assert.match(src, /readCareerPendingFor|careerPendingRead/, `${label}: no owner lookup`);
-    assert.ok(
-      !/\.find\((?:function )?\(?r\)?\s*(?:=>|\{ return)\s*String\(r\.uid\) === String\(uid\)/.test(src),
-      `${label}: the owner lookup still returns a single record`
-    );
-  }
+  // ⚠ The per-claim keys must survive too — the prefix sweep must not match
+  // `shape.careerAwardPending.<uid>.<postId>`, or the owner ruling silently
+  // reverses and every queued award is wiped on the next sign-out.
+  const sample = 'shape.careerAwardPending.0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.aabbccdd-1122-3344-5566-778899aabbcc';
+  assert.ok(!SHAPE_SCRUB_PREFIXES.some((p) => sample.startsWith(p)),
+    'a scrub prefix now matches the per-claim award keys');
+  assert.ok(!SHAPE_SCRUB_KEYS.includes(sample));
 });
 
 test('the catch-up replays every one of the queued posts we own', () => {
@@ -150,4 +128,25 @@ test('the web composer takes the award owner from the post response', () => {
   const slice = WEB.slice(at, at + 900);
   assert.ok(!/shapeDb\.getUser\(\)/.test(slice),
     'the composer still makes a network lookup for the owner after posting');
+});
+
+// The cap is the one read-modify-write left, and it must evict the OLDEST —
+// which is the cap's documented behaviour, so a concurrent enforcement can at
+// worst repeat that same eviction rather than destroy a fresh claim.
+test('the per-claim queue is capped, oldest first', () => {
+  assert.match(MOBILE, /CAREER_AWARD_MAX = 20/);
+  const at = MOBILE.indexOf('function enforceCareerCap');
+  assert.ok(at > 0, 'shapeBackend.js: no cap enforcement');
+  const slice = MOBILE.slice(at, at + 520);
+  assert.match(slice, /sort\(\(a, b\) => a\.at - b\.at\)/, 'shapeBackend.js: cap does not evict oldest first');
+  assert.match(slice, /slice\(0, all\.length - CAREER_AWARD_MAX\)/);
+  assert.match(WEB, /a\.at - b\.at/, 'dashboardCommunity.jsx: cap does not evict oldest first');
+  assert.match(WEB, /all\.length - 20/);
+});
+
+// Each claim stores its own timestamp, which is what makes "oldest" meaningful
+// without a shared ordered list.
+test('each claim carries its own timestamp as the value', () => {
+  assert.match(MOBILE, /setItem\(careerAwardKey\(uid, postId\), String\(Date\.now\(\)\)\)/);
+  assert.match(WEB, /setItem\(careerKey\(uid, pid\), String\(Date\.now\(\)\)\)/);
 });
