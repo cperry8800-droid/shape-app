@@ -5,11 +5,7 @@ import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
-import {
-  shapeScrubLocalUserContent,
-  shapeInstallSignOutListener,
-  shapeDropPersistedAuth,
-} from '../services/localScrub.mjs';
+import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -1543,11 +1539,9 @@ function BSAppShell({ tweaks, setTweak }) {
     // the session and land back signed IN. scope:'local' touches storage
     // only, so it cannot hang on the network.
     try { await window.ShapeAuth?.client?.auth?.signOut({ scope: 'local' }); } catch (e) {}
-    // ⚠ And drop BOTH persisted tokens: signing this client out clears its own
-    // (`sb-<ref>-auth-token`), but the WEBSITE's client persists under
-    // 'shape.auth' in the same localStorage, and leaving it would let a
-    // reopened website tab restore the departed member.
-    try { shapeDropPersistedAuth(); } catch (e) {}
+    // ⚠ The scrub below also drops BOTH persisted tokens (chokepoint): signing
+    // this client out clears only its own `sb-<ref>-auth-token`, while the
+    // WEBSITE's client persists under 'shape.auth' in the same localStorage.
     try { shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'], broadcast: false }); } catch (e) {}
     try { window.__BS_LAST_ERROR = null; } catch (e) {}
     // The reload is the authoritative wipe of in-memory state (same reasoning
@@ -1888,7 +1882,6 @@ function BSAppShell({ tweaks, setTweak }) {
     // above retires this client's own (`sb-<ref>-auth-token`), but supabase.js
     // pins 'shape.auth' in the same shared localStorage, and leaving it lets a
     // reopened website tab restore the member who just signed out here.
-    try { shapeDropPersistedAuth(); } catch (e) {}
     const scrubPurge = shapeScrubLocalUserContent({
       extraKeys: ['shape.storeCart'],
       broadcast: cookieCleared,

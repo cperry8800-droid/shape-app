@@ -254,7 +254,16 @@ export function shapeScrubLocalUserContent({ extraKeys = [], broadcast = true } 
   try {
     SHAPE_SCRUB_SESSION_KEYS.forEach((k) => { try { window.sessionStorage.removeItem(k); } catch (e) {} });
   } catch (e) {}
-  // Stamp LAST, so the sweep above can never remove the signal that tells the
+  // ⚠ THE TOKEN DROP LIVES HERE, AT THE CHOKEPOINT — not at each call site.
+  // Both persisted Supabase sessions must go on every sign-out, and hanging
+  // that on individual surfaces cost three review rounds: the receiving
+  // listeners had it while the INITIATING paths (supabase.js signOut(), the
+  // pageShell SDK-less fallback) did not, and a `storage` event never fires in
+  // the tab that wrote it — so a member signing out with no sibling tab open
+  // kept the other client's token. Every sign-out path already calls this
+  // scrub, which is exactly why the broadcast lives here too.
+  shapeDropPersistedAuth();
+  // Stamp LAST, so the sweeps above can never remove the signal that tells the
   // other tabs to scrub themselves.
   if (broadcast) shapeBroadcastSignOut();
   // Every scrub caller also drops the PWA caches (see above). RETURN the

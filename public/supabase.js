@@ -147,8 +147,10 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       // reaching _removeSession(): `if (t && !(...404|401|403...)) return
       // this._returnResult({error: t})` sits above the removal. So after an
       // offline/retryable sign-out the persisted session survives, and
-      // shapeDb.getSession() restores the previous account on the next visit —
-      // past the scrub below, which clears content but not `shape.auth`.
+      // shapeDb.getSession() restores the previous account on the next visit.
+      // (The scrub below now drops BOTH persisted tokens as well, but this
+      // retry still matters: it also clears the SDK's IN-MEMORY session, which
+      // no amount of storage removal touches.)
       // ⚠ Mobile ships 2.111.0, which DOES remove the session on that path. The
       // two bundles genuinely differ; do not "harmonize" this by assuming the
       // mobile behaviour, and do not drop the retry when the vendored bundle is
@@ -273,6 +275,22 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       // member's exercises/reps/weights and completed record on the device.
       try {
         ['shapeLiveWorkout', 'shapeLiveWorkoutResult'].forEach(function (k) { sessionStorage.removeItem(k); });
+      } catch (e) {}
+      // ⚠ BOTH PERSISTED SUPABASE SESSIONS GO ON EVERY SIGN-OUT, here at the
+      // chokepoint every sign-out path reaches. This client pins 'shape.auth';
+      // mobile's sets no storageKey and so persists under auth-js's default
+      // `sb-<ref>-auth-token` in this SAME localStorage (/m/ shares the
+      // origin). Per-surface placement missed the initiating paths — a
+      // `storage` event never fires in the tab that wrote it.
+      try {
+        try { localStorage.removeItem('shape.auth'); } catch (e) {}
+        for (var ai = localStorage.length - 1; ai >= 0; ai--) {
+          var ak = localStorage.key(ai);
+          if (!ak) continue;
+          if (ak.indexOf('sb-') === 0 && ak.indexOf('-auth-token') > 0) {
+            try { localStorage.removeItem(ak); } catch (e) {}
+          }
+        }
       } catch (e) {}
       // CROSS-TAB SIGN-OUT stamp — third inline copy of localScrub.mjs's
       // SHAPE_SIGNOUT_STAMP_KEY write (pageShell.jsx carries the second).
@@ -1038,22 +1056,8 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         .then(function () { return client.auth.signOut({ scope: 'local' }); })
         .catch(function () {})
         .then(function () {
-          // ⚠ Drop BOTH persisted tokens. Signing out THIS client clears
-          // 'shape.auth'; mobile's client sets no storageKey and so persists
-          // under auth-js's default `sb-<ref>-auth-token` in the SAME
-          // localStorage (/m/ shares this origin). Leaving it would let a
-          // reopened /m/ restore the departed member. Inline copy of
-          // localScrub.mjs shapeDropPersistedAuth (classic script).
-          try {
-            try { localStorage.removeItem('shape.auth'); } catch (err) {}
-            for (var i = localStorage.length - 1; i >= 0; i--) {
-              var k = localStorage.key(i);
-              if (!k) continue;
-              if (k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) {
-                try { localStorage.removeItem(k); } catch (err) {}
-              }
-            }
-          } catch (err) {}
+          // The two-token drop rides the scrub below (clearLocalUserContent),
+          // so this receiving tab gets it without its own copy.
           // ⚠ broadcast:false — re-stamping would echo back to the signing-out tab.
           try { shapeDb.clearLocalUserContent({ broadcast: false }); } catch (err) {}
           try { window.location.reload(); } catch (err) {}
