@@ -1,13 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+ (dataExtractionRules). Same exclusion as backup_rules.xml and
-     for the same reason: app_webview/ carries the auth session. Excluded from
-     BOTH cloud backup and device-to-device transfer — a migrated session is
-     the same account-takeover path as a restored one. -->
+<!-- Android 12+ (dataExtractionRules). Shape opts out of BOTH cloud backup and
+     device-to-device transfer, for every domain.
+     ⚠ WHY EVERY DOMAIN AND NOT JUST app_webview: `android:allowBackup="false"`
+     turns off CLOUD backup, but on Android 12+ it does NOT govern
+     device-to-device migration — that is controlled here, and behaviour varies
+     by manufacturer. Excluding only app_webview/ therefore protected the auth
+     session while still letting SharedPreferences (Capacitor and its plugins),
+     files/ and databases/ migrate to a new device. For a health app that is the
+     same disclosure problem cloud backup was: Google, or an OEM transfer path,
+     receiving app data we cannot bound.
+     Nothing is lost. All real state is server-side; what is local is the auth
+     session plus caches, and neither should survive onto a different physical
+     device — a migrated session is the same account-takeover path as a restored
+     one. A transferred install simply signs in again.
+     ⚠ Keep this in sync with the public disclosure in
+     public/subprocessors.html, which states the app opts out of both. -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="root" path="app_webview" />
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="device_root" />
+        <exclude domain="device_file" />
+        <exclude domain="device_database" />
+        <exclude domain="device_sharedpref" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="root" path="app_webview" />
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="device_root" />
+        <exclude domain="device_file" />
+        <exclude domain="device_database" />
+        <exclude domain="device_sharedpref" />
     </device-transfer>
 </data-extraction-rules>

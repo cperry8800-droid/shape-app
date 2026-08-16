@@ -3,6 +3,11 @@
 // `require-membership.ts`, which builds on this.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+// Pure + tested (tests/age-derive.test.mjs). Imports nothing, so it stays safe
+// in this module's edge-proxy import chain.
+import { isMinorFromDob } from './age-derive.mjs';
+
+export { isMinorFromDob };
 
 export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
 
@@ -60,7 +65,7 @@ export async function computeMembership(
 ): Promise<Membership> {
   const { data: profile } = await client
     .from('profiles')
-    .select('role, roles, over_18')
+    .select('role, roles, over_18, date_of_birth')
     .eq('id', userId)
     .maybeSingle();
   const role = (profile?.role as string) || 'client';
@@ -86,9 +91,13 @@ export async function computeMembership(
       .maybeSingle();
     isMember = !!(sub && ACTIVE_SUB.has(String((sub as { status?: unknown }).status)));
   }
-  // Read the DERIVED flag: only an explicit false is a proven minor.
+  // Age is derived from the DATE first (see isMinorFromDob — `over_18` is a
+  // signup-time snapshot that goes stale on the member's eighteenth birthday).
+  // The stored flag is the fallback for rows that carry no usable DOB, where
+  // only an explicit false is a proven minor.
+  const fromDob = isMinorFromDob((profile as { date_of_birth?: unknown } | null)?.date_of_birth);
   const over18 = (profile as { over_18?: unknown } | null)?.over_18;
-  const isKnownMinor = over18 === false;
+  const isKnownMinor = fromDob !== null ? fromDob : over18 === false;
 
   return { isMember, isCoach, isAdmin, isKnownMinor };
 }

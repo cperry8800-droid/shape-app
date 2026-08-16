@@ -1,9 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 11 and below (fullBackupContent). The WebView profile directory
-     (app_webview/) holds this origin's localStorage, cookies, and IndexedDB —
-     including the Supabase session token — so it must never leave the device
-     in a Google Auto Backup: a restored backup is a live session on whatever
-     device it lands on. -->
+<!-- Android 11 and below (fullBackupContent). Every domain is excluded, so a
+     Google Auto Backup carries nothing from Shape.
+     ⚠ WHY EVERY DOMAIN AND NOT JUST app_webview: app_webview/ holds this
+     origin's localStorage, cookies and IndexedDB — including the Supabase
+     session token — so a restored backup is a live session on whatever device
+     it lands on, which is why it was excluded first. But SharedPreferences
+     (Capacitor and its plugins), files/ and databases/ were still eligible, and
+     for a health app that is Google receiving app data we cannot bound.
+     Nothing is lost: all real state is server-side, and what is local is the
+     session plus caches, which a restore must not resurrect. Kept in sync with
+     data_extraction_rules.xml (Android 12+) and with the public disclosure in
+     public/subprocessors.html. This file is defense in depth — the manifest
+     currently sets allowBackup="false", so it only takes effect if that is ever
+     flipped back to true. -->
 <full-backup-content>
-    <exclude domain="root" path="app_webview" />
+    <exclude domain="root" />
+    <exclude domain="file" />
+    <exclude domain="database" />
+    <exclude domain="sharedpref" />
+    <exclude domain="external" />
+    <exclude domain="device_root" />
+    <exclude domain="device_file" />
+    <exclude domain="device_database" />
+    <exclude domain="device_sharedpref" />
 </full-backup-content>
