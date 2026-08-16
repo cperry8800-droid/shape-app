@@ -188,7 +188,11 @@ function ProPersonal({ v, set, roleNoun }) {
       <Field label="Phone"><TextInput type="tel" value={v.phone || ""} onChange={e => set({ phone: e.target.value })} /></Field>
       <Field label="City, State / Country" span={2}><TextInput value={v.city || ""} onChange={e => set({ city: e.target.value })} placeholder="e.g. Brooklyn, NY · USA" /></Field>
       <Field label="Time zone"><TextInput value={v.tz || ""} onChange={e => set({ tz: e.target.value })} placeholder="e.g. America/New_York" /></Field>
-      <Field label="Social handles (optional)"><TextInput value={v.social || ""} onChange={e => set({ social: e.target.value })} placeholder="@handle, ig.com/..." /></Field>
+      {/* Shape is 18+ for coaches too — approval provisions a real account and coach
+          roles satisfy membership, so a provider row with no DOB is an ungated
+          account. Validated on submit and again in /api/apply. */}
+      <Field label="Date of birth"><TextInput type="date" value={v.dob || ""} onChange={e => set({ dob: e.target.value })} /></Field>
+      <Field label="Social handles (optional)" span={2}><TextInput value={v.social || ""} onChange={e => set({ social: e.target.value })} placeholder="@handle, ig.com/..." /></Field>
       <Field label={`Short bio — why you got into ${roleNoun}`} span={2}>
         <textarea value={v.bio || ""} onChange={e => set({ bio: e.target.value })} style={{ ...inputStyle, minHeight: 96, resize: "vertical", fontFamily: sans }} />
       </Field>
@@ -371,6 +375,23 @@ function SignupForm({ role }) {
       setError("First name, last name, and email are required.");
       return;
     }
+    // ⚠ USE THE SHARED DERIVATION, NOT A HAND-WRITTEN COMPARISON, and fail CLOSED
+    // when it is absent: a page that cannot verify an age must refuse, never admit.
+    // /api/apply re-validates this server-side.
+    const ageApi = window.ShapeAgeDerive;
+    if (!ageApi || typeof ageApi.isMinorFromDob !== "function") {
+      setError("Could not verify your age. Reload the page and try again.");
+      return;
+    }
+    const isMinor = ageApi.isMinorFromDob(values.dob);
+    if (isMinor === null) {
+      setError("Enter a valid date of birth — Shape is for adults 18 and over.");
+      return;
+    }
+    if (isMinor === true) {
+      setError("You must be 18 or older to apply as a provider.");
+      return;
+    }
     const years = Number(String(values.years || "").match(/\d+/)?.[0] || 0);
     if (years < 7) {
       setError("Shape requires at least 7 years of professional experience.");
@@ -391,6 +412,7 @@ function SignupForm({ role }) {
     form.append("specialty", values.primary || "");
     form.append("yearsExperience", values.years || "");
     form.append("monthlyPrice", values.subPrice || "");
+    form.append("dob", values.dob || "");
     form.append("details", JSON.stringify({
       timezone: values.tz || "",
       social: values.social || "",

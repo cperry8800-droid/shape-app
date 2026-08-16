@@ -132,7 +132,11 @@ test('the created_at freeze ships in the migration the grandfather depends on', 
   // these same assignments to self-verify, so asserting over the whole file
   // matches the guard's literals and passes even when the trigger no longer
   // performs the freeze — caught by mutation-testing this test.
-  const fnStart = file.indexOf('create or replace function public.set_over_18()');
+  // Same tolerance as the directory-wide guard below: an exact-literal search here
+  // would stop finding the definition the moment the SQL is reformatted, and a
+  // `notEqual(-1)` that fires is at least loud — but matching tolerantly keeps the
+  // two halves of this file honest about the same statement.
+  const fnStart = file.search(/create\s+(?:or\s+replace\s+)?function\s+(?:"?public"?\s*\.\s*)?"?set_over_18"?\s*\(/i);
   assert.notEqual(fnStart, -1, 'set_over_18() definition not found — re-anchor this test');
   const fnEnd = file.indexOf('$$;', fnStart);
   assert.notEqual(fnEnd, -1, 'function terminator not found — re-anchor this test');
@@ -142,7 +146,7 @@ test('the created_at freeze ships in the migration the grandfather depends on', 
   assert.match(sql, /new\.date_of_birth := old\.date_of_birth/, 'the migration dropped the existing DOB freeze');
   assert.match(sql, /is_privileged/, 'the freeze is not scoped to non-privileged callers — backfills would break');
   // Folded into the derivation, not a sibling trigger (the ordering hazard).
-  assert.match(sql, /function public\.set_over_18\(\)/, 'the freeze is not inside set_over_18()');
+  assert.match(sql, /function\s+(?:"?public"?\s*\.\s*)?"?set_over_18"?\s*\(/i, 'the freeze is not inside set_over_18()');
 });
 
 // ⚠ THE DURABLE FORWARD GUARD. Both the 08-15 and 08-16 migrations
@@ -154,28 +158,75 @@ test('the created_at freeze ships in the migration the grandfather depends on', 
 // definition of the function must carry the FULL freeze, checked here across the
 // whole migrations directory — so a future migration that drops either half
 // fails the build rather than the gate.
+// ⚠ THE MATCHER IS THE GUARD. This scan used to key on the exact lowercase string
+// `create or replace function public.set_over_18()`. PostgreSQL does not care about
+// case or the space before the parens, so
+//   CREATE OR REPLACE FUNCTION public.set_over_18 ()
+// is the same statement and was INVISIBLE here — and because the three known
+// definitions kept the count assertion satisfied, a migration replacing the
+// function with NEITHER freeze passed this test clean. Verified, not assumed:
+// reformatting one header that way and deleting `new.created_at := old.created_at`
+// left every assertion green.
+//
+// The fix is deliberately NOT "widen the literal by one more case". A hand-rolled
+// matcher keeps differing from Postgres's in ways nothing catches, and a matcher
+// that quietly recognises nothing reports CLEAN — the worst direction for a guard.
+// So: recognise the statement tolerantly, and FAIL CLOSED on anything ambiguous
+// (a file defining it more than once, or a known definer that stops matching)
+// rather than skipping it silently.
+const SET_OVER_18_DEF =
+  /create\s+(?:or\s+replace\s+)?function\s+(?:"?public"?\s*\.\s*)?"?set_over_18"?\s*\(/gi;
+
+// The freeze assignments, equally formatting-tolerant — a future migration may
+// well write `NEW.created_at := OLD.created_at`.
+const FREEZES = [
+  [/new\s*\.\s*date_of_birth\s*:=\s*old\s*\.\s*date_of_birth/i,
+    'the date_of_birth freeze — replaying it re-opens DOB rewriting'],
+  [/new\s*\.\s*created_at\s*:=\s*old\s*\.\s*created_at/i,
+    'the created_at UPDATE freeze — replaying it re-opens grandfather backdating'],
+  [/new\s*\.\s*created_at\s*:=\s*now\s*\(\s*\)/i,
+    'the created_at INSERT stamp — a backdated row can be inserted'],
+];
+
+// Every migration known to define the function. A definer that stops matching is
+// a matcher regression, not a resolved one, so the guard names them explicitly.
+const KNOWN_DEFINERS = [
+  '2026-06-22-age-verification.sql',
+  '2026-08-15-profiles-dob-immutable.sql',
+  '2026-08-16-created-at-freeze-and-application-dob.sql',
+];
+
 test('every migration defining set_over_18() carries the full freeze', () => {
   const dir = new URL('../supabase-migrations/', import.meta.url);
   const files = readdirSync(dir).filter((f) => f.endsWith('.sql'));
   const definers = [];
+
   for (const f of files) {
     const src = readFileSync(new URL(f, dir), 'utf8');
-    let idx = src.indexOf('create or replace function public.set_over_18()');
-    while (idx !== -1) {
-      const end = src.indexOf('$$;', idx);
-      assert.notEqual(end, -1, `${f}: set_over_18() definition is unterminated`);
-      definers.push([f, src.slice(idx, end)]);
-      idx = src.indexOf('create or replace function public.set_over_18()', end);
-    }
+    const defs = [...src.matchAll(SET_OVER_18_DEF)];
+    if (!defs.length) continue;
+    // ⚠ FAIL CLOSED ON AMBIGUITY. The freeze is asserted per FILE, which is
+    // formatting-independent precisely because it does not try to find where a
+    // body starts and ends ($$ vs $tag$ dollar quoting is the fragile part). That
+    // only holds while a file defines the function ONCE — with two definitions a
+    // file-level match cannot tell which one carries the freeze, so refuse rather
+    // than report clean.
+    assert.equal(defs.length, 1,
+      `${f}: defines set_over_18() ${defs.length} times — this guard checks the freeze per file and ` +
+      'cannot tell two definitions apart. Split them into separate migrations, or re-anchor this test.');
+    definers.push([f, src]);
   }
-  assert.ok(definers.length >= 2,
-    `expected at least the two known definitions, found ${definers.length} — re-anchor this test`);
-  for (const [file, body] of definers) {
-    assert.match(body, /new\.date_of_birth := old\.date_of_birth/,
-      `${file}: defines set_over_18() without the date_of_birth freeze — replaying it re-opens DOB rewriting`);
-    assert.match(body, /new\.created_at := old\.created_at/,
-      `${file}: defines set_over_18() without the created_at UPDATE freeze — replaying it re-opens grandfather backdating`);
-    assert.match(body, /new\.created_at := now\(\)/,
-      `${file}: defines set_over_18() without the created_at INSERT stamp — a backdated row can be inserted`);
+
+  const found = definers.map(([f]) => f);
+  for (const known of KNOWN_DEFINERS) {
+    assert.ok(found.includes(known),
+      `${known} defines set_over_18() but this guard no longer recognises it — the matcher regressed, ` +
+      'which means a redefinition can now drop the freeze unnoticed. Fix the matcher, do not delete this.');
+  }
+
+  for (const [file, src] of definers) {
+    for (const [pattern, what] of FREEZES) {
+      assert.match(src, pattern, `${file}: defines set_over_18() without ${what}`);
+    }
   }
 });

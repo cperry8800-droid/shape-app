@@ -79,9 +79,20 @@
             <div class="form-group"><label>City, State / Country</label><input type="text" name="location" placeholder="San Diego, CA" required></div>
             <div class="form-group"><label>Time zone</label><input type="text" name="timezone" placeholder="PST / GMT-8" required></div>
           </div>
-          <div class="form-group">
-            <label>Social handles (optional)</label>
-            <input type="text" name="socials" placeholder="@yourig · @yourtt · youtube.com/@you">
+          <div class="form-row">
+            <!-- Shape is 18+ for coaches too: approval provisions a real account and
+                 coach roles satisfy membership, so a provider row with no date of
+                 birth is an ungated account. Validated on submit and again in
+                 /api/apply, which refuses an application it cannot age-place. -->
+            <div class="form-group">
+              <label for="dob">Date of birth</label>
+              <input type="date" id="dob" name="dob" required>
+              <p class="form-hint">Shape is for adults 18 and over.</p>
+            </div>
+            <div class="form-group">
+              <label>Social handles (optional)</label>
+              <input type="text" name="socials" placeholder="@yourig · @yourtt · youtube.com/@you">
+            </div>
           </div>
           <button type="submit" class="btn-submit">Continue</button>
         </form>
@@ -209,6 +220,7 @@
     </div>
   </div>
 
+  <script src="/age-derive.js"></script>
   <script>
     var APPLICATION_RECIPIENT_EMAIL = 'info@theshapecommunity.com';
 
@@ -245,6 +257,27 @@
     async function completeSignup() {
       var data = gatherApplicationData();
       if (!data.email || !data.firstName || !data.lastName) { alert('Please fill in all required fields.'); return; }
+
+      // ⚠ 18+ BEFORE ANY SIDE EFFECT. The block below relays the whole application
+      // to the email endpoint; a gate that runs after that has already sent it.
+      // Use the SHARED derivation — a hand-written `new Date(dob) > now-18y`
+      // compares INSTANTS and reads ADULT on the applicant's local birthday eve —
+      // and fail CLOSED when it is absent: a page that cannot verify an age must
+      // refuse, never admit. /api/apply re-validates this server-side.
+      var ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== 'function') {
+        alert('Could not verify your age. Reload the page and try again.');
+        return;
+      }
+      var isMinor = ageApi.isMinorFromDob(data.dob);
+      if (isMinor === null) {
+        alert('Enter a valid date of birth — Shape is for adults 18 and over.');
+        return;
+      }
+      if (isMinor === true) {
+        alert('You must be 18 or older to apply as a provider.');
+        return;
+      }
       var btn = document.querySelector('#step3 .btn-submit');
       if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
 
@@ -306,6 +339,7 @@
       apiBody.append('specialty', data.specialty || '');
       apiBody.append('yearsExperience', data.experience || '');
       apiBody.append('monthlyPrice',    data.price      || '');
+      apiBody.append('dob',             data.dob        || '');
       apiBody.append('details', JSON.stringify(data));
       document.querySelectorAll('#step1 input[type=file], #step2 input[type=file], #step3 input[type=file]').forEach(function (el) {
         if (el.files && el.files[0]) apiBody.append(el.name, el.files[0]);

@@ -1158,6 +1158,13 @@ function providerApplicationApiBody(payload) {
     specialty: payload.specialty,
     yearsExperience: payload.years_experience,
     monthlyPrice: payload.monthly_price,
+    // ⚠ THIS IS THE REQUEST BODY. applicationToPayload() carrying `dob` proves
+    // nothing on its own — omitting it here sent an empty date to a route that
+    // now REFUSES an application it cannot age-place, so every mobile and /m/
+    // application 400'd and fell through to the direct insert below, skipping
+    // the server-side 18+ re-check and the reviewer email with nothing on screen
+    // to say so. tests/provider-apply-dob.test.mjs gates every apply surface.
+    dob: payload.dob,
     details: payload.details || {},
   };
 }
@@ -1172,7 +1179,14 @@ async function submitProviderApplicationToApi(payload) {
 
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(result?.error || 'Application email route failed.');
+    const error = new Error(result?.error || 'Application email route failed.');
+    // ⚠ A REFUSAL IS NOT A TRANSPORT FAILURE. The caller's fallback exists so an
+    // application survives an outage; a 4xx means the route deliberately declined
+    // this one (under 18, too few years, no background-check consent). Storing it
+    // anyway would bypass the check that produced the refusal and still tell the
+    // applicant they succeeded, so mark it and let the caller surface it.
+    error.rejected = response.status >= 400 && response.status < 500;
+    throw error;
   }
   return result;
 }
@@ -1200,6 +1214,8 @@ async function submitProviderApplication({ role, values }) {
       };
     }
   } catch (apiError) {
+    // Surface a deliberate refusal instead of storing the application around it.
+    if (apiError?.rejected) throw apiError;
     console.warn('[shape] Application API failed; falling back to Supabase insert.', apiError);
   }
 
