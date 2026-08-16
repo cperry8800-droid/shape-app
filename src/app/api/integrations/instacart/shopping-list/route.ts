@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { readJson } from '@/lib/request-utils';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -72,6 +73,16 @@ export async function POST(request: Request) {
 
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+
+  // ⚠ PAID CONTENT OUTSIDE THE PAID PREFIXES. This route flattens
+  // `coach_pushed_items` — the SAME nutritionist-authored content
+  // `/api/client/grocery` serves behind both the proxy gate and its own
+  // requireMembership() — but `/api/integrations` is not a gated prefix, so
+  // without this a lapsed member could keep pulling their coach's grocery data
+  // through the Instacart path. Fails OPEN like every other paid route: this is
+  // a paywall, not the licence boundary that makes /api/radio/station fail closed.
+  const denied = await requireMembership(request);
+  if (denied) return denied;
 
   const bodyResult = await readJson<{
     items?: Array<string | LineItem>;
