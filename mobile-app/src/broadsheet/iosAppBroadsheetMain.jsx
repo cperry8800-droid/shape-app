@@ -1843,7 +1843,13 @@ function BSAppShell({ tweaks, setTweak }) {
   const handleLogout = async () => {
     // Non-fatal: the scrub and the reload below are the shared-device guarantee
     // and must run even if the SDK sign-out rejects (offline, lock timeout).
-    try { await window.ShapeAuth?.signOut?.(); } catch (e) {}
+    // ⚠ Keep the outcome: the cross-tab broadcast below is gated on the bridged
+    // cookie actually being gone. A sibling reacts by RELOADING, so signalling
+    // while the cookie is still valid sends a Next dashboard tab back into an
+    // authenticated route with no later event to retire it.
+    let signedOut = null;
+    try { signedOut = await window.ShapeAuth?.signOut?.(); } catch (e) {}
+    const cookieCleared = Boolean(signedOut && signedOut.cookieCleared);
     setAuthState({});
     setBrowseMode(false);
     setPreviewMode(false);
@@ -1866,7 +1872,13 @@ function BSAppShell({ tweaks, setTweak }) {
     // shape.storeCart rides as an extraKey: the website's scrub KEEPS the cart
     // under its device-personal carve-out (pageShell.jsx records that ruling);
     // the mobile sign-out has always cleared it, preserved here.
-    const scrubPurge = shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'] });
+    // broadcast gated on the cookie — see cookieCleared above. A missed
+    // broadcast leaves siblings as they were before this feature; a premature
+    // one manufactures a signed-in tab nothing will correct.
+    const scrubPurge = shapeScrubLocalUserContent({
+      extraKeys: ['shape.storeCart'],
+      broadcast: cookieCleared,
+    });
     // The in-memory sibling of shape.errorLog — the last error record can embed
     // app-state strings, and the storage sweep alone doesn't touch it.
     try { window.__BS_LAST_ERROR = null; } catch (e) {}

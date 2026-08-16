@@ -1329,12 +1329,16 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               try {
                 const j = await r.json();
                 const pid = j && j.post && j.post.id;
-                // The queue is owner-scoped, so the claim needs to know whose
-                // it is — a failed claim with no uid is not queued at all
-                // rather than queued unattributable.
-                let me = null;
-                try { me = await (window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()); } catch (e) {}
-                if (pid) await claimCareerAward(pid, true, me && me.id);
+                // ⚠ The owner comes from the POST RESPONSE, not a second
+                // lookup. The queue is owner-scoped, so a claim with no uid
+                // cannot be queued at all — and if connectivity dropped between
+                // this successful POST and a getUser() round-trip, the award
+                // RPC would fail AND the retry would be refused, losing the
+                // earned +25 outright. The row we just created already carries
+                // author_id (the API inserts author_id: user.id and returns
+                // .select().single()), so the owner is already in hand.
+                const uid = j && j.post && j.post.author_id;
+                if (pid) await claimCareerAward(pid, true, uid);
               } catch (e) {}
             }).catch(() => {});
           }}

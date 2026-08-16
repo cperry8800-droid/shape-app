@@ -165,8 +165,16 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       }
       // Clear the Next.js cookie session too so server-rendered routes
       // don't think the user is still signed in.
+      // ⚠ The RESULT is kept, because the cross-tab broadcast is gated on it.
+      // A sibling reacts by RELOADING, so stamping while the cookie is still
+      // valid sends a Next dashboard tab back into an authenticated route, and
+      // nothing later retires it. A missed broadcast only leaves siblings as
+      // they were before this feature existed; a premature one manufactures a
+      // signed-in tab nothing will correct. When they conflict, take the miss.
+      var cookieCleared = false;
       try {
-        await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' });
+        var delRes = await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' });
+        cookieCleared = Boolean(delRes && delRes.ok);
       } catch (e) {}
       // Clear legacy demo keys so stale UI state doesn't linger.
       try {
@@ -187,7 +195,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       // like every other sign-out path, so a stalled CacheStorage can never
       // hang the sign-out (bound the WAIT, never the WORK).
       var purge = null;
-      try { purge = shapeDb.clearLocalUserContent(); } catch (e) {}
+      try { purge = shapeDb.clearLocalUserContent({ broadcast: cookieCleared }); } catch (e) {}
       try {
         await Promise.race([
           Promise.resolve(purge),

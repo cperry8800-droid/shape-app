@@ -138,3 +138,16 @@ test('the catch-up replays every one of the queued posts we own', () => {
   assert.match(slice, /if \(error\) continue;/, 'shapeBackend.js: one failure aborts the remaining replays');
   assert.match(WEB, /for \(const rec of pending\)/, 'dashboardCommunity.jsx: catch-up replays only one record');
 });
+
+// ⚠ The owner comes from the POST RESPONSE, never a second network lookup.
+// If connectivity dropped between a successful post and a getUser() round-trip,
+// the award RPC would fail AND the retry would be refused for want of a uid —
+// losing the earned +25 outright. The created row already carries author_id.
+test('the web composer takes the award owner from the post response', () => {
+  assert.match(WEB, /j\.post && j\.post\.author_id/,
+    'dashboardCommunity.jsx does not read the owner from the post response');
+  const at = WEB.indexOf('const pid = j && j.post && j.post.id');
+  const slice = WEB.slice(at, at + 900);
+  assert.ok(!/shapeDb\.getUser\(\)/.test(slice),
+    'the composer still makes a network lookup for the owner after posting');
+});

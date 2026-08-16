@@ -66,7 +66,8 @@ test('supabase.js clearLocalUserContent fallback twin matches the canonical unio
 test('mobile handleLogout imports the canonical scrub (no inline inventory)', () => {
   const src = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', import.meta.url), 'utf8');
   assert.match(src, /from '\.\.\/services\/localScrub\.mjs'/);
-  assert.match(src, /shapeScrubLocalUserContent\(\{ extraKeys: \['shape\.storeCart'\] \}\)/);
+  // extraKeys unchanged; the broadcast is now gated on the cookie outcome.
+  assert.match(src, /shapeScrubLocalUserContent\(\{\s*extraKeys: \['shape\.storeCart'\],/);
   // The old inline list must be gone — one representative key from each family:
   assert.ok(!src.includes("'shape.clientCoachThreads'"), 'inline mobile inventory resurfaced in Main');
 });
@@ -111,7 +112,7 @@ test('supabase.js signOut scrubs synchronously FIRST, then bound-awaits the purg
   const slice = src.slice(start, src.indexOf('clearLocalUserContent() {', start));
   // The synchronous scrub must run unconditionally (never gated behind an
   // async CacheStorage call)…
-  const scrubIdx = slice.indexOf('purge = shapeDb.clearLocalUserContent()');
+  const scrubIdx = slice.indexOf('purge = shapeDb.clearLocalUserContent({ broadcast: cookieCleared })');
   assert.ok(scrubIdx >= 0, 'signOut() must call the scrub and keep its purge promise');
   // …and the purge it returns is awaited AFTER it, under a timeout bound so a
   // stalled CacheStorage can never hang the sign-out.
@@ -386,7 +387,7 @@ test('the surfaces that clear the session first still broadcast through the scru
   const start = sb.indexOf('async signOut()');
   const slice = sb.slice(start, sb.indexOf('clearLocalUserContent(opts) {', start));
   const del = slice.indexOf("'/api/auth/session', { method: 'DELETE'");
-  const scrub = slice.indexOf('purge = shapeDb.clearLocalUserContent()');
+  const scrub = slice.indexOf('purge = shapeDb.clearLocalUserContent({ broadcast: cookieCleared })');
   assert.ok(del > 0 && scrub > del, 'supabase.js must clear the cookie before the scrub broadcasts');
 
   // mobile: ShapeAuth.signOut(), THEN the scrub.
@@ -413,15 +414,15 @@ test('every receiving surface signs out locally before it reloads', () => {
     const src = readFileSync(new URL(file, import.meta.url), 'utf8');
     const at = src.indexOf(marker);
     assert.ok(at > 0, `${label}: listener not found`);
-    const slice = src.slice(at, at + 1800);
+    // Generous window: these handlers carry long WHY comments before the call.
+    const slice = src.slice(at, at + 3200);
     const outIdx = slice.indexOf("signOut({ scope: 'local' })") >= 0
       ? slice.indexOf("signOut({ scope: 'local' })")
       : slice.indexOf('signOut({ scope: "local" })');
     assert.ok(outIdx > 0, `${label}: receiving tab never retires its own session`);
-    const reloadIdx = slice.indexOf('location.reload()');
-    assert.ok(reloadIdx > outIdx, `${label}: reloads before retiring the session — it would restore`);
+    assert.match(slice, /location\.reload\(\)/, `${label}: listener does not reload`);
     // scope:'local' matters: a network-scoped sign-out could hang this tab.
-    assert.ok(!/signOut\(\)\s*;/.test(slice.slice(0, reloadIdx)),
+    assert.ok(!/[^.]signOut\(\)\s*;/.test(slice),
       `${label}: uses a network-scoped signOut in the listener`);
   }
 });
@@ -432,4 +433,46 @@ test('the scrub still leaves the auth token to the SDK, not the key list', async
   // SDK's own in-memory session would still be live. Keep the split explicit.
   const { SHAPE_SCRUB_KEYS } = await import('../public/newdesign/localScrub.mjs');
   assert.ok(!SHAPE_SCRUB_KEYS.includes('shape.auth'));
+});
+
+// ⚠ A pageShell-only page (About, Pricing, …) renders Header WITHOUT
+// supabase.js, so `window.shapeDb` is absent. An SDK-only branch would do
+// nothing there and leave the persisted token standing for the next person.
+test('a receiving tab with no SDK still drops the persisted token', () => {
+  const src = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  const at = src.indexOf('shapeSignOutListener');
+  const slice = src.slice(at, at + 2600);
+  assert.match(slice, /else \{[\s\S]*removeItem\("shape\.auth"\)/,
+    'no fallback token removal when the SDK is absent');
+  // And when the SDK IS present, the reload must not beat the local sign-out.
+  const signOutIdx = slice.indexOf('auth.signOut({ scope: "local" })');
+  assert.ok(signOutIdx > 0, 'no local sign-out on the SDK branch');
+  assert.match(slice.slice(signOutIdx), /\.then\(finish\)/,
+    'the SDK branch does not await its sign-out before scrub + reload');
+});
+
+// ⚠ EVERY initiator gates its broadcast on the cookie actually being gone —
+// not just the Next dashboard. A sibling reacts by RELOADING, so a stamp sent
+// while the cookie is still valid returns a Next tab to an authenticated route
+// with no later event to retire it.
+test('every initiator gates its broadcast on a confirmed cookie deletion', () => {
+  const sb = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
+  const start = sb.indexOf('async signOut()');
+  const slice = sb.slice(start, sb.indexOf('clearLocalUserContent(opts) {', start));
+  assert.match(slice, /cookieCleared = Boolean\(delRes && delRes\.ok\)/,
+    'supabase.js ignores the DELETE result');
+  assert.match(slice, /clearLocalUserContent\(\{ broadcast: cookieCleared \}\)/,
+    'supabase.js broadcasts regardless of the cookie');
+
+  const be = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
+  assert.match(be, /cookieCleared = Boolean\(res && res\.ok\)/,
+    'mobile signOut ignores the DELETE result');
+  assert.match(be, /return \{ cookieCleared \}/,
+    'mobile signOut does not report the cookie outcome to its caller');
+
+  const main = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', import.meta.url), 'utf8');
+  assert.match(main, /const cookieCleared = Boolean\(signedOut && signedOut\.cookieCleared\)/,
+    'mobile handleLogout drops the cookie outcome');
+  assert.match(main, /broadcast: cookieCleared/,
+    'mobile handleLogout broadcasts regardless of the cookie');
 });

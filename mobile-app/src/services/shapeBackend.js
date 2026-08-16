@@ -552,8 +552,17 @@ async function signOut() {
   // every same-origin /api/* call would keep authenticating as the signed-out
   // account, incl. from the signed-out preview. Delete it the way the website
   // sign-out does. Best-effort: there is no cookie when the bridge never ran.
+  // ⚠ REPORTED, not just attempted: handleLogout gates the cross-tab broadcast
+  // on this. A sibling reacts by RELOADING, so signalling while the cookie is
+  // still valid makes a Next dashboard tab reload back into an authenticated
+  // route with no later event to retire it. No bridge configured means there is
+  // no cookie to clear, which counts as cleared.
+  let cookieCleared = !apiBaseUrl;
   try {
-    if (apiBaseUrl) await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
+    if (apiBaseUrl) {
+      const res = await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
+      cookieCleared = Boolean(res && res.ok);
+    }
   } catch (e) {}
   invalidateClientMetrics();
   // The notification-evaluation throttle is account-scoped state under an
@@ -615,7 +624,10 @@ async function signOut() {
   // The Sentry user tags drop with the rest of the viewer-relative state: setCached below
   // sees a null user and clears them, so a signed-out session can never inherit the
   // previous account's id/roles. Handled at that one chokepoint, not repeated here.
-  return setCached({ user: null, session: null, profile: null });
+  setCached({ user: null, session: null, profile: null });
+  // Report the cookie outcome so handleLogout can decide whether it is safe to
+  // tell the other tabs. (setCached's return value was never used by a caller.)
+  return { cookieCleared };
 }
 
 async function startCheckout({ item, coach, user, role }) {

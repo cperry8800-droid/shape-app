@@ -1522,26 +1522,41 @@ window.shapeClearLocalUserContent = function (opts) {
   window.__shapeSignOutListener = true;
   window.addEventListener("storage", function (e) {
     if (!e || e.key !== "shape.signedOutAt" || !e.newValue) return;
-    // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST, where there is one. The scrub
-    // leaves the Supabase token (`shape.auth`) alone by design, and a sign-out
-    // started in the Next dashboard never calls the SDK — so the reload below
-    // would otherwise restore the session and come back signed IN.
-    // scope:'local' clears storage without a network call, so it cannot hang.
-    // Fire-and-forget is fine here: it is synchronous storage work, and the
-    // scrub + reload below must not wait on a promise that may never settle.
-    try {
-      var auth = window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth;
-      if (auth && auth.signOut) { var p = auth.signOut({ scope: "local" }); if (p && p.catch) p.catch(function () {}); }
-    } catch (err) {}
-    // ⚠ broadcast:false — re-stamping here would echo back to the tab that
-    // signed out, and the tabs would scrub each other in a loop.
-    try {
-      if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent({ broadcast: false });
-    } catch (err) {}
-    // The reload is the authoritative wipe of this document's in-memory state.
-    // No purge await: the tab that signed out already awaited it under a bound,
-    // and CacheStorage is shared across tabs, so there is nothing left to race.
-    try { window.location.reload(); } catch (err) {}
+    // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST — and on EVERY page, not only the
+    // ones that happen to load the SDK. The scrub leaves the Supabase token
+    // (`shape.auth`) alone by design, and a sign-out started in the Next
+    // dashboard never calls the SDK, so the reload below would otherwise leave
+    // that token standing. Marketing pages (About, Pricing, …) render Header
+    // from pageShell WITHOUT supabase.js, so `window.shapeDb` is absent there
+    // and an SDK-only branch would silently do nothing — leaving the previous
+    // member's persisted session to authenticate the next person the moment
+    // they open any legacy surface.
+    //   • SDK loaded → auth.signOut({scope:'local'}) (storage-only, cannot hang
+    //     on the network), AWAITED so the reload cannot beat it.
+    //   • No SDK    → remove the persisted token directly. There is no client
+    //     in this document, so there is no in-memory session to tear down.
+    var finish = function () {
+      // ⚠ broadcast:false — re-stamping here would echo back to the tab that
+      // signed out, and the tabs would scrub each other in a loop.
+      try {
+        if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent({ broadcast: false });
+      } catch (err) {}
+      // The reload is the authoritative wipe of this document's in-memory state.
+      // No purge await: the tab that signed out already awaited it under a bound,
+      // and CacheStorage is shared across tabs, so there is nothing left to race.
+      try { window.location.reload(); } catch (err) {}
+    };
+    var auth = null;
+    try { auth = window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth; } catch (err) {}
+    if (auth && auth.signOut) {
+      Promise.resolve()
+        .then(function () { return auth.signOut({ scope: "local" }); })
+        .catch(function () {})
+        .then(finish);
+    } else {
+      try { localStorage.removeItem("shape.auth"); } catch (err) {}
+      finish();
+    }
   });
 })();
 
