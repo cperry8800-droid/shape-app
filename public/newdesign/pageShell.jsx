@@ -338,8 +338,16 @@ function Header({ active }) {
   }, []);
   async function handleLogout(e) {
     e.preventDefault();
+    // ⚠ The RESULT is kept: the SDK-less branch below broadcasts the cross-tab
+    // sign-out, and a sibling reacts by RELOADING. Stamping while the cookie is
+    // still valid sends a dashboard tab back into an authenticated route with
+    // no later event to retire it. A missed broadcast only leaves siblings as
+    // they were before the feature existed; a premature one manufactures a
+    // signed-in tab nothing will correct. When they conflict, take the miss.
+    var cookieCleared = false;
     try {
-      await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+      const outRes = await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+      cookieCleared = Boolean(outRes && outRes.ok);
     } catch {}
     // The cookie sign-out alone leaves the persisted Supabase SDK session
     // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns
@@ -356,7 +364,7 @@ function Header({ active }) {
         // purge must be awaited here, bounded so a stalled CacheStorage can
         // never hang the sign-out (sign-out always completes).
         await Promise.race([
-          Promise.resolve(window.shapeClearLocalUserContent()),
+          Promise.resolve(window.shapeClearLocalUserContent({ broadcast: cookieCleared })),
           new Promise((r) => setTimeout(r, 2000)),
         ]);
       }
@@ -1533,9 +1541,28 @@ window.shapeClearLocalUserContent = function (opts) {
     // they open any legacy surface.
     //   • SDK loaded → auth.signOut({scope:'local'}) (storage-only, cannot hang
     //     on the network), AWAITED so the reload cannot beat it.
-    //   • No SDK    → remove the persisted token directly. There is no client
-    //     in this document, so there is no in-memory session to tear down.
+    //   • No SDK    → there is no client in this document, so no in-memory
+    //     session to tear down; the token removal below is the whole job.
+    // ⚠ EITHER WAY, drop BOTH persisted tokens: this origin hosts two clients —
+    // supabase.js pins 'shape.auth', mobile's sets no storageKey and so uses
+    // auth-js's default `sb-<ref>-auth-token`. Signing out the client this page
+    // loaded leaves the OTHER surface's token standing, and reopening /m/ would
+    // restore the departed member. Inline copy of localScrub.mjs's
+    // shapeDropPersistedAuth (classic script — cannot import).
+    var dropPersistedAuth = function () {
+      try {
+        try { localStorage.removeItem("shape.auth"); } catch (err) {}
+        for (var i = localStorage.length - 1; i >= 0; i--) {
+          var k = localStorage.key(i);
+          if (!k) continue;
+          if (k.indexOf("sb-") === 0 && k.indexOf("-auth-token") > 0) {
+            try { localStorage.removeItem(k); } catch (err) {}
+          }
+        }
+      } catch (err) {}
+    };
     var finish = function () {
+      dropPersistedAuth();
       // ⚠ broadcast:false — re-stamping here would echo back to the tab that
       // signed out, and the tabs would scrub each other in a loop.
       try {
@@ -1554,8 +1581,7 @@ window.shapeClearLocalUserContent = function (opts) {
         .catch(function () {})
         .then(finish);
     } else {
-      try { localStorage.removeItem("shape.auth"); } catch (err) {}
-      finish();
+      finish(); // no client here — dropPersistedAuth inside finish is the whole job
     }
   });
 })();

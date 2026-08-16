@@ -1189,8 +1189,13 @@
       out.addEventListener('click',function(e){
         e.preventDefault();
         var go=function(){window.location.href='/newdesign/index.html';};
+        // The RESULT is kept: the SDK-less branch below broadcasts the
+        // cross-tab sign-out, and a sibling reacts by RELOADING. Stamping while
+        // the cookie is still valid sends a dashboard tab back into an
+        // authenticated route with nothing later to retire it.
+        var cookieCleared=false;
         fetch('/api/auth/signout',{method:'POST',credentials:'same-origin'})
-          .catch(function(){})
+          .then(function(res){cookieCleared=Boolean(res&&res.ok);},function(){})
           .then(function(){
             // The cookie sign-out alone leaves the Supabase localStorage session
             // and cached user content on the device — run the full local
@@ -1204,7 +1209,7 @@
               // synchronously inside the call; only the purge is async, and it
               // is bounded at 2s so a stalled CacheStorage can never strand
               // the navigation (sign-out always completes).
-              else if(window.shapeClearLocalUserContent)p=Promise.race([Promise.resolve(window.shapeClearLocalUserContent()),new Promise(function(r){setTimeout(r,2000);})]);
+              else if(window.shapeClearLocalUserContent)p=Promise.race([Promise.resolve(window.shapeClearLocalUserContent({broadcast:cookieCleared})),new Promise(function(r){setTimeout(r,2000);})]);
             }catch(err){}
             if(p&&p.then){p.then(go,go);}else{go();}
           });

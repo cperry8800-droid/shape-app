@@ -1038,6 +1038,22 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         .then(function () { return client.auth.signOut({ scope: 'local' }); })
         .catch(function () {})
         .then(function () {
+          // ⚠ Drop BOTH persisted tokens. Signing out THIS client clears
+          // 'shape.auth'; mobile's client sets no storageKey and so persists
+          // under auth-js's default `sb-<ref>-auth-token` in the SAME
+          // localStorage (/m/ shares this origin). Leaving it would let a
+          // reopened /m/ restore the departed member. Inline copy of
+          // localScrub.mjs shapeDropPersistedAuth (classic script).
+          try {
+            try { localStorage.removeItem('shape.auth'); } catch (err) {}
+            for (var i = localStorage.length - 1; i >= 0; i--) {
+              var k = localStorage.key(i);
+              if (!k) continue;
+              if (k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) {
+                try { localStorage.removeItem(k); } catch (err) {}
+              }
+            }
+          } catch (err) {}
           // ⚠ broadcast:false — re-stamping would echo back to the signing-out tab.
           try { shapeDb.clearLocalUserContent({ broadcast: false }); } catch (err) {}
           try { window.location.reload(); } catch (err) {}

@@ -20,6 +20,7 @@ import {
   shapePurgeShapeCaches,
   shapeInstallSignOutListener,
   shapeBroadcastSignOut,
+  shapeDropPersistedAuth,
 } from '../../public/newdesign/localScrub.mjs';
 
 export default function SignOutButton({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -34,6 +35,7 @@ export default function SignOutButton({ className, children }: { className?: str
   // signed out and the two would scrub each other in a loop.
   useEffect(() => shapeInstallSignOutListener(() => {
     try { shapeScrubLocalUserContent({ broadcast: false }); } catch { /* never block */ }
+    try { shapeDropPersistedAuth(); } catch { /* never block */ }
     // The reload is the authoritative wipe of this document's in-memory state;
     // the tab that signed out already awaited the shared cache purge.
     try { window.location.reload(); } catch { /* nothing else to do */ }
@@ -49,6 +51,15 @@ export default function SignOutButton({ className, children }: { className?: str
       // correct it. Scrub the at-rest content immediately (it must never sit
       // behind a network call), then signal only once the session is gone.
       shapeScrubLocalUserContent({ broadcast: false });
+      // ⚠ THIS PATH IS WHY THE PERSISTED TOKENS NEEDED A HOME. The dashboard's
+      // sign-out is a server action over the COOKIE session — it loads no
+      // Supabase client, so nothing here ever called auth.signOut(), and both
+      // persisted tokens ('shape.auth' for the website client, the default
+      // `sb-<ref>-auth-token` for mobile's) survived in this shared origin's
+      // localStorage. The next person opening the website or /m/ was restored
+      // as the departed member. Receiving tabs also drop them, but this is the
+      // originating fix rather than the safety net.
+      shapeDropPersistedAuth();
       await Promise.race([shapePurgeShapeCaches(), new Promise((r) => setTimeout(r, 2000))]);
     } catch {
       /* the scrub must never block the sign-out */

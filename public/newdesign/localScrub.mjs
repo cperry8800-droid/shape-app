@@ -197,6 +197,32 @@ export function shapeBroadcastSignOut() {
 // that only scrubbed and reloaded would restore that session and come back
 // signed IN. Each handler below signs out locally (scope:'local' — no network,
 // so it cannot hang) BEFORE reloading.
+// ⚠ THIS ORIGIN HOSTS TWO SUPABASE CLIENTS WITH DIFFERENT PERSISTED KEYS.
+// public/supabase.js pins `storageKey: 'shape.auth'`; mobile's client in
+// shapeBackend.js sets none, so auth-js falls back to its default
+// `sb-<projectRef>-auth-token`. /m/ ships under the website's origin, so both
+// tokens live in ONE localStorage — and a tab that retires only the client it
+// happens to have loaded leaves the OTHER one standing. Reopening that surface
+// then restores the departed member and can bridge the session back into API
+// cookies. So drop BOTH, by name and by the default pattern.
+//
+// This is storage only: it does not tear down an in-memory client. A surface
+// that HAS a client still signs it out (scope:'local') as well — this runs
+// alongside as the part that covers the client this document never loaded.
+export function shapeDropPersistedAuth() {
+  try {
+    const ls = window.localStorage;
+    try { ls.removeItem('shape.auth'); } catch (e) {}
+    for (let i = ls.length - 1; i >= 0; i--) {
+      const k = ls.key(i);
+      if (!k) continue;
+      if (k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) {
+        try { ls.removeItem(k); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+}
+
 export function shapeInstallSignOutListener(onSignOut) {
   try {
     if (!(window.addEventListener && window.localStorage)) return () => {};

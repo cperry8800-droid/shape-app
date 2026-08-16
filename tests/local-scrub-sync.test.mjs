@@ -140,12 +140,12 @@ test('pageShell fallback logout awaits the purge before navigating', () => {
   const start = src.indexOf('async function handleLogout');
   assert.ok(start >= 0, 'handleLogout not found');
   const slice = src.slice(start, src.indexOf("window.location.href = '/'", start));
-  assert.match(slice, /await Promise\.race\(\[\s*Promise\.resolve\(window\.shapeClearLocalUserContent\(\)\)/);
+  assert.match(slice, /await Promise\.race\(\[\s*Promise\.resolve\(window\.shapeClearLocalUserContent\(\{ broadcast: cookieCleared \}\)\)/);
 });
 
 test('index.html sign-out routes the scrub promise into go(), bounded', () => {
   const src = readFileSync(new URL('../public/newdesign/index.html', import.meta.url), 'utf8');
-  assert.match(src, /else if\(window\.shapeClearLocalUserContent\)p=Promise\.race\(\[Promise\.resolve\(window\.shapeClearLocalUserContent\(\)\),new Promise\(function\(r\)\{setTimeout\(r,2000\);\}\)\]\);/);
+  assert.match(src, /else if\(window\.shapeClearLocalUserContent\)p=Promise\.race\(\[Promise\.resolve\(window\.shapeClearLocalUserContent\(\{broadcast:cookieCleared\}\)\),new Promise\(function\(r\)\{setTimeout\(r,2000\);\}\)\]\);/);
 });
 
 test('supabase.js twin returns the purge promise on both branches', () => {
@@ -238,7 +238,7 @@ test('every surface installs the cross-tab listener, and never re-broadcasts', (
     const src = readFileSync(new URL(file, import.meta.url), 'utf8');
     const at = src.indexOf(marker);
     assert.ok(at > 0, `${label}: no sign-out listener installed`);
-    const slice = src.slice(at, at + 2000);
+    const slice = src.slice(at, at + 3600);
     assert.match(slice, /broadcast: false/, `${label}: listener re-broadcasts — echo loop`);
     assert.match(slice, /location\.reload\(\)/, `${label}: listener does not retire in-memory state`);
   }
@@ -441,9 +441,13 @@ test('the scrub still leaves the auth token to the SDK, not the key list', async
 test('a receiving tab with no SDK still drops the persisted token', () => {
   const src = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
   const at = src.indexOf('shapeSignOutListener');
-  const slice = src.slice(at, at + 2600);
-  assert.match(slice, /else \{[\s\S]*removeItem\("shape\.auth"\)/,
-    'no fallback token removal when the SDK is absent');
+  const slice = src.slice(at, at + 3600);
+  // The SDK-less branch falls through to finish(), which drops BOTH persisted
+  // tokens — the removal moved there so the SDK branch gets it too.
+  assert.match(slice, /\} else \{\s+finish\(\);/,
+    'the SDK-less branch does not reach the token drop');
+  assert.match(slice, /var finish = function \(\) \{\s+dropPersistedAuth\(\);/,
+    'finish() does not drop the persisted tokens');
   // And when the SDK IS present, the reload must not beat the local sign-out.
   const signOutIdx = slice.indexOf('auth.signOut({ scope: "local" })');
   assert.ok(signOutIdx > 0, 'no local sign-out on the SDK branch');
@@ -475,4 +479,70 @@ test('every initiator gates its broadcast on a confirmed cookie deletion', () =>
     'mobile handleLogout drops the cookie outcome');
   assert.match(main, /broadcast: cookieCleared/,
     'mobile handleLogout broadcasts regardless of the cookie');
+});
+
+// ⚠ THIS ORIGIN HOSTS TWO SUPABASE CLIENTS WITH DIFFERENT PERSISTED KEYS:
+// supabase.js pins storageKey 'shape.auth'; mobile's client sets none, so
+// auth-js defaults to `sb-<projectRef>-auth-token`. /m/ ships under the
+// website's origin, so both live in ONE localStorage — and retiring only the
+// client a document happens to load leaves the other token standing, so
+// reopening that surface restores the departed member.
+test('the canonical drop clears the persisted token of BOTH clients', async () => {
+  const { shapeDropPersistedAuth } = await import('../public/newdesign/localScrub.mjs');
+  withWindow(({ store }) => {
+    store.set('shape.auth', 'website-session');
+    store.set('sb-zznufekgjngecelwxndw-auth-token', 'mobile-session');
+    store.set('shape.library', 'content');          // not an auth token
+    store.set('sb-something-else', 'not a token');  // wrong suffix
+    shapeDropPersistedAuth();
+    assert.equal(store.get('shape.auth'), undefined, "the website client's token survived");
+    assert.equal(store.get('sb-zznufekgjngecelwxndw-auth-token'), undefined, "the mobile client's token survived");
+    assert.equal(store.get('shape.library'), 'content', 'the drop is not scoped to auth tokens');
+    assert.equal(store.get('sb-something-else'), 'not a token', 'the drop matched a non-token sb- key');
+  });
+});
+
+test('every sign-out surface drops both persisted tokens, not just its own', () => {
+  for (const [label, file] of [
+    ['pageShell.jsx', '../public/newdesign/pageShell.jsx'],
+    ['supabase.js', '../public/supabase.js'],
+    ['iosAppBroadsheetMain.jsx', '../mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'],
+    ['SignOutButton.tsx', '../src/components/SignOutButton.tsx'],
+  ]) {
+    const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+    const usesHelper = /shapeDropPersistedAuth\(\)/.test(src);
+    // Classic scripts cannot import, so they inline the same sweep.
+    const inlines = /indexOf\(["']sb-["']\) === 0 && k\.indexOf\(["']-auth-token["']\) > 0/.test(src);
+    assert.ok(usesHelper || inlines, `${label}: does not drop the OTHER client's persisted token`);
+    assert.ok(/shape\.auth/.test(src), `${label}: never drops the website client's token`);
+  }
+});
+
+// The Next dashboard is the ORIGIN of that hole: its sign-out is a server
+// action over the cookie session, so it loads no SDK and nothing ever called
+// auth.signOut() — both tokens survived it.
+test('the Next dashboard sign-out drops the persisted tokens itself', () => {
+  const src = readFileSync(new URL('../src/components/SignOutButton.tsx', import.meta.url), 'utf8');
+  const at = src.indexOf('const onClick');
+  const slice = src.slice(at);
+  assert.match(slice, /shapeDropPersistedAuth\(\)/,
+    'the originating path relies on receiving tabs to clean up after it');
+});
+
+// The last two initiators that still stamped unconditionally.
+test('the pageShell and index.html fallbacks gate their broadcast too', () => {
+  const ps = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  const at = ps.indexOf("fetch('/api/auth/signout'");
+  assert.ok(at > 0, 'pageShell handleLogout not found');
+  const slice = ps.slice(at - 400, at + 1400);
+  assert.match(slice, /cookieCleared = Boolean\(outRes && outRes\.ok\)/,
+    'pageShell ignores the signout result');
+  assert.match(slice, /shapeClearLocalUserContent\(\{ broadcast: cookieCleared \}\)/,
+    'pageShell fallback broadcasts unconditionally');
+
+  const idx = readFileSync(new URL('../public/newdesign/index.html', import.meta.url), 'utf8');
+  assert.match(idx, /cookieCleared=Boolean\(res&&res\.ok\)/,
+    'index.html ignores the signout result');
+  assert.match(idx, /shapeClearLocalUserContent\(\{broadcast:cookieCleared\}\)/,
+    'index.html fallback broadcasts unconditionally');
 });
