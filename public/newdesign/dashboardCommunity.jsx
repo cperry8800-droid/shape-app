@@ -225,27 +225,107 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // post id so the page-load catch-up below re-fires it — the +25 can never
   // be permanently lost on either surface (the RPC's monthly dedupe makes
   // retries safe, and it buckets by the post's own date).
-  const claimCareerAward = React.useCallback(async (pid, showToast) => {
+  //
+  // ⚠ THE QUEUE IS OWNER-SCOPED. It used to hold a bare post id, and the
+  // catch-up below replayed it on mount for whoever was signed in — so on a
+  // shared device member B's visit submitted member A's post under B's
+  // identity, award_work_milestone answered {granted:false,'not_a_milestone'}
+  // (a SUCCESSFUL response, not an error), and the removeItem then destroyed
+  // A's retry. Keep this in step with shapeBackend.js's readCareerPending /
+  // careerAwardIsTerminal — tests/career-award-scope.test.mjs parses BOTH.
+  // ⚠ A PER-OWNER COLLECTION, not one tagged slot: with a single slot, member
+  // B's failed claim overwrote member A's queued award and A's retry was gone
+  // when they came back. Owner-tagging stops the cross-account REPLAY;
+  // partitioning is what actually preserves each member's claim.
+  // ⚠ ONE localStorage KEY PER CLAIM — `shape.careerAwardPending.<uid>.<postId>`.
+  // A single JSON blob was a read-modify-write over storage every same-origin
+  // tab shares, so two tabs failing at once each read the same array, each
+  // appended, and the second write discarded the first member's retry — during
+  // exactly the outage the queue exists to survive. Independent keys mean a
+  // write or a clear touches only its own claim. Keep in step with
+  // shapeBackend.js; tests/career-award-scope.test.mjs parses BOTH.
+  const CAREER_PREFIX = 'shape.careerAwardPending.';
+  const careerKey = React.useCallback((uid, pid) => CAREER_PREFIX + String(uid) + '.' + String(pid), []);
+  const careerQueueRead = React.useCallback(() => {
+    const out = [];
+    try {
+      // The pre-per-key formats (a bare post id; the single JSON array that
+      // never shipped) carry no owner or no race safety. Drop on sight.
+      try { if (localStorage.getItem('shape.careerAwardPending')) localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf(CAREER_PREFIX) !== 0) continue;
+        // uid and postId are UUIDs (hyphens, never dots) — the first dot splits.
+        const rest = k.slice(CAREER_PREFIX.length);
+        const dot = rest.indexOf('.');
+        if (dot <= 0 || dot === rest.length - 1) continue;
+        out.push({ uid: rest.slice(0, dot), postId: rest.slice(dot + 1), at: Number(localStorage.getItem(k)) || 0 });
+      }
+    } catch (e) {}
+    return out;
+  }, []);
+  // ⚠ Keyed by (uid, POST) — one owner can hold several. The award buckets from
+  // the POST'S OWN month, so two claims that failed across a month boundary are
+  // two distinct +25s; keying on uid alone would silently drop one.
+  const careerPendingRead = React.useCallback((uid) => {
+    if (!uid) return [];
+    return careerQueueRead().filter(function (r) { return String(r.uid) === String(uid); });
+  }, [careerQueueRead]);
+  // The cap is the one read-modify-write left, and it only evicts the OLDEST
+  // claims past the limit — the cap's documented behaviour, so a concurrent
+  // enforcement can at worst repeat that same eviction.
+  const careerPendingWrite = React.useCallback((uid, pid) => {
+    if (!uid || !pid) return;
+    try { localStorage.setItem(careerKey(uid, pid), String(Date.now())); } catch (e) {}
+    try {
+      const all = careerQueueRead();
+      if (all.length <= 20) return;
+      all.sort(function (a, b) { return a.at - b.at; });
+      all.slice(0, all.length - 20).forEach(function (r) {
+        try { localStorage.removeItem(careerKey(r.uid, r.postId)); } catch (e) {}
+      });
+    } catch (e) {}
+  }, [careerKey, careerQueueRead]);
+  const careerPendingClear = React.useCallback((uid, pid) => {
+    try { localStorage.removeItem(careerKey(uid, pid)); } catch (e) {}
+  }, [careerKey]);
+  const claimCareerAward = React.useCallback(async (pid, showToast, uid) => {
     const sb = window.shapeDb && window.shapeDb.client;
     if (!pid || !sb || !sb.rpc) return;
     try {
       const { data, error } = await sb.rpc('award_work_milestone', { p_post_id: pid });
       if (error) throw error;
-      try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
+      // Terminal in every case but 'unauthenticated' — see shapeBackend.js.
+      if (!(data && data.reason === 'unauthenticated')) careerPendingClear(uid, pid);
+      else careerPendingWrite(uid, pid);
       if (showToast && data && data.granted) {
         setCareerToast(true);
         setTimeout(() => setCareerToast(false), 3200);
       }
     } catch (e) {
-      try { localStorage.setItem('shape.careerAwardPending', String(pid)); } catch (e2) {}
+      careerPendingWrite(uid, pid);
     }
-  }, []);
+  }, [careerPendingClear, careerPendingWrite]);
   React.useEffect(() => {
-    // Open-time catch-up for a claim that failed on a previous visit.
-    let pending = null;
-    try { pending = localStorage.getItem('shape.careerAwardPending'); } catch (e) { return; }
-    if (pending) claimCareerAward(pending, false);
-  }, [claimCareerAward]);
+    // Open-time catch-up for a claim that failed on a previous visit — only
+    // ever for the signed-in member's OWN queued post.
+    let cancelled = false;
+    (async () => {
+      if (!careerQueueRead().length) return; // nothing queued by anyone — skip the user lookup
+      let me = null;
+      try { me = await (window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()); } catch (e) { return; }
+      if (cancelled || !me || !me.id) return;
+      // Look up OUR OWN entries: another member's queued award stays untouched.
+      // Replay every one of ours — an outage across a month boundary leaves two
+      // posts that each earn their own +25.
+      const pending = careerPendingRead(me.id);
+      for (const rec of pending) {
+        if (cancelled) return;
+        await claimCareerAward(rec.postId, false, me.id);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [claimCareerAward, careerPendingRead, careerQueueRead]);
   const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
   const [filter, setFilter] = React.useState("ALL");
@@ -1258,7 +1338,16 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               try {
                 const j = await r.json();
                 const pid = j && j.post && j.post.id;
-                if (pid) await claimCareerAward(pid, true);
+                // ⚠ The owner comes from the POST RESPONSE, not a second
+                // lookup. The queue is owner-scoped, so a claim with no uid
+                // cannot be queued at all — and if connectivity dropped between
+                // this successful POST and a getUser() round-trip, the award
+                // RPC would fail AND the retry would be refused, losing the
+                // earned +25 outright. The row we just created already carries
+                // author_id (the API inserts author_id: user.id and returns
+                // .select().single()), so the owner is already in hand.
+                const uid = j && j.post && j.post.author_id;
+                if (pid) await claimCareerAward(pid, true, uid);
               } catch (e) {}
             }).catch(() => {});
           }}
