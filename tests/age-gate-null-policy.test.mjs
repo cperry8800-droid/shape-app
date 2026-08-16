@@ -16,7 +16,7 @@
 // accounts predating ADULT_PROOF_REQUIRED_FROM are grandfathered.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { mustRefuseForAge, ADULT_PROOF_REQUIRED_FROM } from '../src/lib/age-derive.mjs';
 
 const NOW = Date.UTC(2026, 7, 16, 12);
@@ -143,4 +143,39 @@ test('the created_at freeze ships in the migration the grandfather depends on', 
   assert.match(sql, /is_privileged/, 'the freeze is not scoped to non-privileged callers — backfills would break');
   // Folded into the derivation, not a sibling trigger (the ordering hazard).
   assert.match(sql, /function public\.set_over_18\(\)/, 'the freeze is not inside set_over_18()');
+});
+
+// ⚠ THE DURABLE FORWARD GUARD. Both the 08-15 and 08-16 migrations
+// `create or replace` set_over_18() and both are marked safe to re-run, so
+// replaying the OLDER one after the newer silently reinstates a body with no
+// created_at freeze and re-opens the grandfather clause to backdating. A DO
+// guard inside a migration only runs while THAT file is applied, so it cannot
+// catch a later replacement. The durable protection is this: EVERY replayable
+// definition of the function must carry the FULL freeze, checked here across the
+// whole migrations directory — so a future migration that drops either half
+// fails the build rather than the gate.
+test('every migration defining set_over_18() carries the full freeze', () => {
+  const dir = new URL('../supabase-migrations/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.sql'));
+  const definers = [];
+  for (const f of files) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    let idx = src.indexOf('create or replace function public.set_over_18()');
+    while (idx !== -1) {
+      const end = src.indexOf('$$;', idx);
+      assert.notEqual(end, -1, `${f}: set_over_18() definition is unterminated`);
+      definers.push([f, src.slice(idx, end)]);
+      idx = src.indexOf('create or replace function public.set_over_18()', end);
+    }
+  }
+  assert.ok(definers.length >= 2,
+    `expected at least the two known definitions, found ${definers.length} — re-anchor this test`);
+  for (const [file, body] of definers) {
+    assert.match(body, /new\.date_of_birth := old\.date_of_birth/,
+      `${file}: defines set_over_18() without the date_of_birth freeze — replaying it re-opens DOB rewriting`);
+    assert.match(body, /new\.created_at := old\.created_at/,
+      `${file}: defines set_over_18() without the created_at UPDATE freeze — replaying it re-opens grandfather backdating`);
+    assert.match(body, /new\.created_at := now\(\)/,
+      `${file}: defines set_over_18() without the created_at INSERT stamp — a backdated row can be inserted`);
+  }
 });

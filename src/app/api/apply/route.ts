@@ -254,13 +254,25 @@ export async function POST(req: NextRequest) {
   // 2026-08-16-created-at-freeze-and-application-dob.sql. Until that runs, an
   // insert naming the column fails 42703 and would take down provider signups
   // entirely. Retry without it on the stable unknown-column codes only, so a
-  // genuine failure still surfaces. The applicant's DOB is still validated above
-  // — it just cannot be stored until the column exists, and approval refuses an
-  // application with no stored DOB rather than provisioning an ungated coach.
+  // genuine failure still surfaces.
+  //
+  // ⚠ THE RETRY CARRIES THE DATE IN `details`, AND THAT IS LOAD-BEARING. Dropping
+  // it would tell the applicant their application is ready for review, and then
+  // approval — which refuses a row it cannot age-place — would reject them with no
+  // way for an admin to restore the value. Every application submitted in the
+  // window between deploy and migration would need manual database repair or an
+  // unprompted resubmission. `details` is jsonb and already exists, so the
+  // validated value survives either way and approval recovers it. Written from
+  // the SERVER-VALIDATED `dob`, never from client input, so this cannot become a
+  // passthrough that smuggles an unvalidated date past the check above.
   if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+    // Reassign the OUTER `details` rather than only the insert payload: the
+    // file-upload step below does `details = { ...details, documents }` and
+    // UPDATEs the row, which would otherwise write the date straight back out.
+    details = { ...details, dob };
     ({ data, error } = await supabase
       .from('provider_applications')
-      .insert(applicationRow)
+      .insert({ ...applicationRow, details })
       .select('id')
       .single());
   }

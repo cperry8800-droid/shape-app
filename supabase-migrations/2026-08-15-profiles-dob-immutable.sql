@@ -37,6 +37,17 @@
 -- Folding freeze-then-derive into one function removes the ordering hazard
 -- entirely. Keep them together.
 --
+-- ⚠ THIS FILE ALSO CARRIES THE created_at FREEZE ADDED BY
+-- 2026-08-16-created-at-freeze-and-application-dob.sql, AND MUST KEEP IT.
+-- Both files `create or replace` set_over_18(), and both are marked safe to
+-- re-run — so replaying THIS one after the newer file would otherwise reinstate a
+-- body with no created_at freeze and silently re-open the age gate's grandfather
+-- clause to backdating (the newer file's DO guard only runs while that file is
+-- being applied, so it cannot catch a later replacement). Rather than rely on
+-- apply order, every replayable definition of this function carries the FULL
+-- freeze; tests/age-gate-null-policy.test.mjs fails the build if any migration
+-- defines set_over_18() without it.
+--
 -- Idempotent / safe to re-run.
 
 create or replace function public.set_over_18() returns trigger
@@ -65,6 +76,18 @@ begin
     -- arrive inside best-effort provisioning paths that swallow errors, so
     -- raising here would surface as an unexplained signup failure.
     new.date_of_birth := old.date_of_birth;
+  end if;
+
+  -- CREATED_AT IS SERVER-CONTROLLED FOR NON-PRIVILEGED CALLERS -- see the header.
+  -- profiles.created_at is proof of legacy status for the age gate's grandfather
+  -- clause, and the owner UPDATE policy carries no column restriction, so a caller
+  -- must not be able to choose it.
+  if not is_privileged then
+    if tg_op = 'UPDATE' then
+      new.created_at := old.created_at;
+    elsif tg_op = 'INSERT' then
+      new.created_at := now();
+    end if;
   end if;
 
   -- over_18 is always computed from date_of_birth -- never trusted from input.

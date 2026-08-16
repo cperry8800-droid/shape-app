@@ -331,7 +331,18 @@ export async function approveApplication(formData: FormData): Promise<void> {
   // product on their first login, with nothing on screen explaining why.
   // Deliberately a hard refusal rather than a silent omission: the fix is to
   // collect the applicant's date of birth, not to provision around it.
-  if (!typed.dob || isMinorFromDob(typed.dob) !== false) {
+  // ⚠ RECOVER THE DATE FROM `details` WHEN THE COLUMN IS ABSENT. Applications
+  // submitted between deploy and the 2026-08-16 migration are stored by the
+  // fallback path in /api/apply, which carries the server-validated date in the
+  // jsonb `details` because the column does not exist yet. Without this, those
+  // applicants pass validation, are told they are ready for review, and are then
+  // permanently unapprovable with no way for an admin to restore the value.
+  const applicantDob =
+    typed.dob ||
+    (typeof (typed.details as Record<string, unknown> | null)?.dob === 'string'
+      ? ((typed.details as Record<string, unknown>).dob as string)
+      : null);
+  if (!applicantDob || isMinorFromDob(applicantDob) !== false) {
     throw new Error(
       'This application has no verified date of birth (Shape is 18+). Ask the applicant to resubmit, or record their date of birth on the application, before approving.'
     );
@@ -339,7 +350,7 @@ export async function approveApplication(formData: FormData): Promise<void> {
 
   const authUser = await resolveOrInviteProviderUser(admin, typed);
   const fullName = `${typed.first_name} ${typed.last_name}`.trim();
-  await updateProfileRole(admin, authUser.id, typed.provider_type, fullName, typed.dob);
+  await updateProfileRole(admin, authUser.id, typed.provider_type, fullName, applicantDob);
   const providerId = await publishProviderRow(admin, typed, authUser.id);
 
   const nextDetails = {

@@ -232,7 +232,13 @@ test('the apply route validates 18+ server-side, before the application is store
 test('the apply route degrades when the dob column is not yet deployed', () => {
   const body = stripComments(APPLY_ROUTE);
   assert.match(body, /42703|PGRST204/, 'no unknown-column retry — provider signup breaks until the migration runs');
-  assert.match(body, /\.insert\(applicationRow\)/, 'the retry does not re-insert without the dob column');
+  assert.match(body, /\.insert\(\{ \.\.\.applicationRow, details \}\)/,
+    'the retry does not re-insert without the dob column');
+  // ⚠ The retry must PRESERVE the validated date in `details`. Dropping it told
+  // the applicant they were ready for review and then made them permanently
+  // unapprovable, with no way for an admin to restore the value.
+  assert.match(body, /details = \{ \.\.\.details, dob \}/,
+    'the fallback discards the validated DOB — those applicants become unapprovable');
 });
 
 // ⚠ Approval provisions an auth user AND a coach profile, and coach roles satisfy
@@ -241,7 +247,7 @@ test('the apply route degrades when the dob column is not yet deployed', () => {
 // applications (submitted before the field existed) carry none.
 test('approval refuses an application with no verified date of birth', () => {
   const body = stripComments(APPROVAL);
-  const guardAt = body.search(/if \(!typed\.dob/);
+  const guardAt = body.search(/if \(!applicantDob/);
   // Match the CALL, not the declaration — resolveOrInviteProviderUser is defined
   // far above the guard, so indexOf on the bare name finds the function itself
   // and reports a correct order as failing. (Third time this exact trap: anchor
@@ -250,7 +256,9 @@ test('approval refuses an application with no verified date of birth', () => {
   assert.ok(guardAt > -1, 'approval does not require a date of birth');
   assert.ok(inviteAt > -1, 'invite call not found — re-anchor this test');
   assert.ok(guardAt < inviteAt, 'the DOB guard runs AFTER the auth user is created');
-  assert.match(body, /isMinorFromDob\(typed\.dob\)/, 'approval does not re-derive the applicant age');
+  assert.match(body, /isMinorFromDob\(applicantDob\)/, 'approval does not re-derive the applicant age');
+  // Recovers the date from `details` for applications stored before the column existed.
+  assert.match(body, /typed\.dob \|\|/, 'approval does not fall back to the details-carried DOB');
 });
 
 test('approval carries the DOB into the profile without overwriting an existing one', () => {

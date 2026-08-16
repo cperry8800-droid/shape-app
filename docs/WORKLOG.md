@@ -1859,6 +1859,44 @@ changelog whenever something ships.
 - Verified: suite **1610/1610**, `tsc` clean, `next build` exit 0 with
   `ƒ Proxy (Middleware)`, mobile Vite build clean, newdesign precompile exit 0, CRLF
   preserved, zero NUL bytes.
+- ✅ **MIGRATION APPLIED + VERIFIED LIVE 2026-08-16 (owner ran it).** `provider_applications.dob`
+  present; `set_over_18()` freezes `created_at` on UPDATE, stamps it on INSERT, and still
+  freezes `date_of_birth`. ⚠ **Proven BEHAVIOURALLY, not from `prosrc` text** — the source
+  guard is the weaker instrument. Impersonating a signed-in member owning the row
+  (`request.jwt.claims` + `set local role authenticated`), an UPDATE backdating
+  `created_at` to 2020-01-01 came back **unchanged** (`created_at_frozen=t`); the whole
+  probe was wrapped in a `raise exception` so it rolled back and left no trace.
+  ⚠ The same probe set `date_of_birth` on a row that had none, which is **correct, not a
+  leak** — the freeze deliberately allows the FIRST write (every legitimate provisioning
+  path is a first write). It does mean a self-asserted DOB is exactly that: the gate
+  protects the honest member, and real assurance would need identity verification.
+- ⚠ **ROUND 14 — flat at 2, and both were again answers to questions raised on the
+  previous head.** Both are now fixed.
+  - **THE PRE-MIGRATION FALLBACK DROPPED THE VALIDATED DATE.** An applicant would pass the
+    18+ check, be told their application was ready for review, and then be **permanently
+    unapprovable** — approval refuses a row it cannot age-place, and the dashboard has no
+    way to restore the value. Every application submitted between deploy and migration
+    would have needed manual database repair. The fallback now carries the
+    **server-validated** date in the jsonb `details` (never from client input, so it
+    cannot smuggle an unvalidated date past the check), and approval recovers it.
+    ⚠ It reassigns the OUTER `details`, because the file-upload step below does
+    `details = { ...details, documents }` and UPDATEs the row — writing the date straight
+    back out otherwise.
+  - **AN OLDER MIGRATION COULD SILENTLY REVERT THE FREEZE.** Three migrations
+    `create or replace` `set_over_18()` and all three are marked safe to re-run, so
+    replaying an older one reinstates a body without the freezes — and a `DO` guard inside
+    a migration only runs while THAT file is applied, so it cannot catch a later
+    replacement. **Every replayable definition now carries the FULL body**, and a test
+    scans the whole migrations directory and fails the build if any definition drops
+    either freeze.
+- ⚠ **THAT FORWARD GUARD IMMEDIATELY FOUND A THIRD DEFINITION NOBODY HAD CONSIDERED** —
+  `2026-06-22-age-verification.sql`, the original, with **no freeze of any kind**.
+  Replaying it would have reverted both the DOB freeze and the `created_at` freeze at
+  once. It is the clearest argument for the guard being a directory-wide scan rather than
+  a note in two files. **5/5 mutations killed**, including dropping either freeze from
+  either older migration.
+- Verified: suite **1611/1611**, `tsc` clean, `next build` exit 0 with `ƒ Proxy (Middleware)`,
+  CRLF preserved, zero NUL bytes.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
