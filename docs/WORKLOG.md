@@ -1629,29 +1629,49 @@ changelog whenever something ships.
 
 ### 2026-08-16 — The 18+ cutoff clamps like Postgres; the gate's own coverage claims corrected (#1888, **OPEN** — head `53cdd22bf`)
 
-- ⚠ **NOT MERGED — BLOCKED ON AN OWNER RULING.** CI is green on the head (Web · Mobile ·
-  gitleaks · Tests) and the DOB freeze migration is applied + behaviourally verified on
-  production, but **Codex round 9 returned a P1 and it is real** (reproduced, not taken on
-  faith). Full state + the two options:
-  **[`docs/HANDOFF-2026-08-16.md`](HANDOFF-2026-08-16.md)**.
-- ⚠ **THE UTC COMPARISON ADMITS A MINOR EARLY WEST OF UTC — the header claimed it could
-  not.** The UTC day runs ahead of every zone west of UTC, so `isMinorFromDob` declares
+- CI is green on the head (Web · Mobile · gitleaks · Tests) and the DOB freeze migration is
+  applied + behaviourally verified on production. **Codex round 9 returned a P1, it was
+  real** (reproduced, not taken on faith), **and it is fixed** — see the two bullets below.
+  Full round-by-round state: **[`docs/HANDOFF-2026-08-16.md`](HANDOFF-2026-08-16.md)**.
+- ⚠ **THE UTC COMPARISON ADMITTED A MINOR EARLY WEST OF UTC — the header claimed it could
+  not.** The UTC day runs ahead of every zone west of UTC, so `isMinorFromDob` declared
   adulthood **before the member's local eighteenth birthday** — up to ~11h early
-  (Pacific/Niue, UTC−11). Verified: DOB `2008-08-17` at `2026-08-17T00:30:00Z` returns
-  adult while it is still Aug 16 in Los Angeles and New York. So the comment asserting the
+  (Pacific/Niue, UTC−11). Verified: DOB `2008-08-17` at `2026-08-17T00:30:00Z` returned
+  adult while it was still Aug 16 in Los Angeles and New York. So the comment asserting the
   asymmetry "only ever refuses for one extra day rather than admitting a minor early" ruled
   out the exact thing the code was doing — **the ninth consecutive round in which a
-  because-clause was the defect.** The false claim is now replaced with the verified
-  counterexample; the behaviour is deliberately unchanged.
-  ⚠ **`set_over_18()` has the IDENTICAL asymmetry** (`current_date` is UTC), so this is a
-  property of the rule, not of the JS file — **fixing only the JS side re-opens the very
-  JS↔SQL disagreement the leap-year clamp exists to prevent.** The options are a
-  conservative margin (one line, but breaks the documented `exactly 18 today is an ADULT`
-  contract and diverges from the trigger by a day) or the member's own calendar day
-  (correct both directions; needs a tz read in both callers **plus a new migration** over an
-  already-applied one). `client_profiles.timezone` + `shape_user_tz(uid)` already exist.
-  **Which calendar day is authoritative for an age gate is jurisdictional — flagged, not
-  drafted.**
+  because-clause was the defect.**
+- **THE FIX: adulthood is asserted only once it is true in EVERY timezone.** The calendar
+  day is now read at **UTC−12** (`ADULT_REFERENCE_OFFSET_MS`, the "anywhere on Earth"
+  convention) instead of UTC — no tz database, no extra query, one subtraction. The cost
+  runs in the SAFE direction and is bounded: a member is refused for up to 12h after local
+  midnight at UTC (26h at UTC+14) on the day they turn 18. **Refusing an adult briefly is a
+  nuisance; admitting a minor is the failure this gate exists to prevent.**
+  ⚠ **This deliberately no longer matches `set_over_18()`** (`current_date` is UTC, so up to
+  a day less conservative) — **and that cannot put two gates into disagreement about a
+  person.** `over_18` is never the decider when a usable DOB exists: both consumers read
+  `fromDob !== null ? fromDob : over_18 === false` (`age-gate.ts`, `membership-core.ts`), and
+  when the DOB is null the trigger writes NULL too, so neither side has an opinion.
+  ⚠ **Confirmed against the LIVE catalog rather than the migration files** (this database has
+  twice failed to match them): **no policy, view, constraint or other function reads
+  `over_18`** — `set_over_18()` is the only object that mentions it, and it only writes it.
+  The column is a denormalised snapshot, not a second gate.
+  ⚠ **The member's own calendar day was NOT chosen, and the reason is data, not preference:**
+  it needs `client_profiles.timezone` (read by `shape_user_tz(uid)`), and that table holds
+  **ZERO rows** — every account would fall through to this margin anyway, at the cost of a
+  second table read on the middleware hot path. Revisit when the column is populated; the
+  margin is correct in the meantime, not a placeholder.
+- ⚠ **AND THE FIX ITSELF SHIPPED A FABRICATED ADULT FOR ~20 MINUTES — caught by reviewing my
+  own diff, not by any gate.** Shifting the reference instant moved the clock-validity check
+  from the resulting **Date** (`Number.isFinite(ref.getTime())`) to the input **number**
+  (`Number.isFinite(raw)`). A finite input can still be outside the Date range
+  (`|t| > 8.64e15`), and every field read then yields NaN — which falls through the
+  comparison as `born > NaN` = **false**, i.e. **ADULT from a clock we could not read**. The
+  guard is back on the Date; two vectors pin it (`9e15`, `-9e15`). **The general rule:
+  validate the value you are about to READ, not the one you were handed** — and the
+  adjacent-miss rule held again, the next defect being inside the fix for the last one.
+  Every guard is mutation-tested: reverting the offset to UTC fails 2 vectors, the wrong
+  sign fails 5, a half offset fails 1, and either weakening of the clock guard fails 1.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
@@ -1689,7 +1709,7 @@ changelog whenever something ships.
   (P2s → a P1) because round 7 added a **new file** whose only review was mine. A flat
   findings curve says change approach; a curve that **rises after a late addition** says
   the addition is the unreviewed surface.
-- Suite **1540/1540** (+1); `tsc` clean; `next build` exit 0 with `ƒ Proxy (Middleware)`
+- Suite **1542/1542** (+3); `tsc` clean; `next build` exit 0 with `ƒ Proxy (Middleware)`
   present (the proof the pure `.mjs` still bundles into the edge chain). Design hook: all
   22 findings **net zero** vs `origin/main` (radio.html's font count went 9 → 8 — the
   branch *removed* one), classified per the standing no-suppression ruling.

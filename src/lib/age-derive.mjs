@@ -22,33 +22,49 @@
 export const ADULT_AGE_YEARS = 18;
 
 /**
+ * How far the reference instant is rolled BACK before its calendar day is read:
+ * 12 hours, the westernmost UTC offset in the tz database (`Etc/GMT+12`, the
+ * "Anywhere on Earth" convention). Reading the day at UTC−12 is what makes
+ * adulthood true in EVERY timezone before this function will assert it.
+ */
+export const ADULT_REFERENCE_OFFSET_MS = 12 * 60 * 60 * 1000;
+
+/**
  * TRUE when `dob` proves the account is under 18 as of `now`, FALSE when it
  * proves 18 or over, and NULL when there is no usable date — null means "this
  * says nothing", never "adult".
  *
- * Compared in UTC to match the trigger's `current_date`, so a birthday resolves on
- * the UTC day.
+ * ⚠ ADULTHOOD IS ASSERTED ONLY ONCE IT IS TRUE IN EVERY TIMEZONE — the calendar
+ * day is read at UTC−12 (`ADULT_REFERENCE_OFFSET_MS`), not at UTC. An earlier
+ * version compared at UTC and called that a one-directional safety margin. It was
+ * the opposite: the UTC day runs AHEAD of every zone west of UTC, so there the
+ * gate declared adulthood BEFORE the member's local eighteenth birthday and
+ * admitted a minor early, by up to the zone's offset. Verified counterexample —
+ * DOB 2008-08-17 at 2026-08-17T00:30:00Z read as an ADULT while it was still
+ * Aug 16 in America/Los_Angeles and America/New_York.
  *
- * ⚠ THAT IS NOT A ONE-DIRECTIONAL SAFETY MARGIN, AND AN EARLIER VERSION OF THIS
- * COMMENT CLAIMED IT WAS. The UTC day runs AHEAD of every timezone west of UTC, so
- * there this function declares adulthood BEFORE the member's local eighteenth
- * birthday — it admits a minor early, by up to the zone's offset. Verified: with
- * DOB 2008-08-17 at 2026-08-17T00:30:00Z it returns `false` (adult) while it is
- * still Aug 16 in America/Los_Angeles and America/New_York. Only EAST of UTC does
- * the asymmetry refuse an adult a little longer (the safe direction).
+ * The cost of the margin is in the SAFE direction and is bounded: a member is
+ * refused for up to 12h after local midnight at UTC (26h at UTC+14) on the day
+ * they turn 18. Refusing an adult briefly is a nuisance; admitting a minor is the
+ * failure this gate exists to prevent, so the trade runs this way deliberately.
  *
- * ⚠ The `set_over_18()` trigger has the IDENTICAL asymmetry — it compares against
- * `current_date`, which is UTC — so this is a property of the rule, not of this
- * file, and fixing only one side would put the two gates back into disagreement
- * (the defect the clamp below exists to prevent).
+ * ⚠ THIS DELIBERATELY NO LONGER MATCHES `set_over_18()`, which compares against
+ * `current_date` (UTC) and so is up to a day less conservative. That cannot put
+ * two gates into disagreement about a person, because `over_18` is never the
+ * decider when a usable DOB exists: both consumers read
+ * `fromDob !== null ? fromDob : over_18 === false` (age-gate.ts,
+ * membership-core.ts), and when the DOB is null the trigger writes NULL too, so
+ * neither side has an opinion. Confirmed against the LIVE catalog on 2026-08-16
+ * rather than the migration files: no policy, view, constraint or other function
+ * reads `over_18` — `set_over_18()` is the only object that mentions it, and it
+ * only writes it. The column is a denormalised snapshot, not a second gate.
  *
- * The correct fix is the member's own calendar day: `client_profiles.timezone`
- * holds an IANA zone captured on app open, and Postgres has `shape_user_tz(uid)`.
- * Wiring that through both callers AND the trigger is an OWNER decision — it
- * changes the meaning of an applied, production-verified migration, and "which
- * day is authoritative for an age gate" is a compliance question, not a
- * refactor. Registered in docs/HANDOFF-2026-08-16.md; do not treat the UTC
- * comparison as safe in the meantime.
+ * The finer fix is the member's OWN calendar day, and it is not available: it
+ * needs `client_profiles.timezone` (read by `shape_user_tz(uid)`), and that table
+ * holds ZERO rows — every account would fall through to this margin anyway, at
+ * the cost of a second table read on the middleware hot path. Revisit when that
+ * column is actually populated; the margin is correct in the meantime, not a
+ * placeholder.
  *
  * @param {unknown} dob  a `YYYY-MM-DD` date string, or anything at all
  * @param {Date|number} [now]  injectable clock; defaults to the real one
@@ -67,9 +83,18 @@ export function isMinorFromDob(dob, now = Date.now()) {
   if (!Number.isFinite(born)) return null;
   const probe = new Date(born);
   if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== mo - 1 || probe.getUTCDate() !== d) return null;
-  const ref = new Date(typeof now === 'number' ? now : now.getTime());
+  // Read the calendar day at UTC−12 so "today" means today in the LAST timezone
+  // to reach it — see the header. Subtracting from the instant is exactly the
+  // westernmost local date; no tz database lookup is involved.
+  const ref = new Date((typeof now === 'number' ? now : now.getTime()) - ADULT_REFERENCE_OFFSET_MS);
+  // ⚠ VALIDATE THE RESULTING DATE, NOT THE INPUT NUMBER. A finite input can still
+  // be outside the Date range (|t| > 8.64e15), and every field read below then
+  // yields NaN — which falls through the comparison as `born > NaN` = false, i.e.
+  // it declares an ADULT from a clock we could not read. Null is the only honest
+  // answer for an unusable clock.
   if (!Number.isFinite(ref.getTime())) return null;
-  // Same comparison the trigger makes: dob <= today - 18y ⇒ adult.
+  // The comparison itself is the trigger's: dob <= today - 18y ⇒ adult. Only the
+  // day `today` refers to differs, and only ever in the refusing direction.
   //
   // ⚠ THE CUTOFF MUST BE CLAMPED, NOT ROLLED. Postgres CLAMPS an impossible
   // anniversary (`date '2028-02-29' - interval '18 years'` → 2010-02-28) while
