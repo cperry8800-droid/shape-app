@@ -1627,6 +1627,54 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-16 — The 18+ cutoff clamps like Postgres; the gate's own coverage claims corrected (#1888, **OPEN** — head `53cdd22bf`)
+
+- ⚠ **NOT MERGED.** CI is green on the head (Web · Mobile · gitleaks · Tests) and the DOB
+  freeze migration is applied + behaviourally verified on production, but **Codex is
+  re-triggered and its verdict is pending**. Full state:
+  **[`docs/HANDOFF-2026-08-16.md`](HANDOFF-2026-08-16.md)**.
+- **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
+  about them.** `isMinorFromDob` derived its adult cutoff with
+  `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
+  (Feb 29 → Mar 1), while Postgres `date - interval '18 years'` **CLAMPS** it back
+  (Feb 29 → Feb 28). So on **Feb 29 of a leap year** a member born exactly 18 years
+  earlier on **Mar 1** — 17 years and 364 days old — read as an **ADULT** in JS and a
+  **MINOR** to the `set_over_18()` trigger: the unsafe direction, and the two
+  derivations disagreeing about one person, which is the entire reason the shared module
+  exists. Both cutoffs verified against **production Postgres**
+  (`2028-02-29 - interval '18 years'` = `2010-02-28`); recurs 2028, 2032, 2036…
+  The clamp takes day 0 of the following month; only February can roll, but the guard is
+  general. ⚠ **The 11 original vectors varied the BIRTHDAY and never the REFERENCE
+  DATE**, so the one boundary the file existed to protect was the direction it did not
+  test. New vector **mutation-tested**: 12 pass with the clamp, 11 pass / 1 fail without.
+- ⚠ **A re-typed list is what goes stale.** `age-gate.ts` copied the gated-prefix list as
+  **five** prefixes; `GATED_API_PREFIXES` holds **seven** — `/api/conversations` and
+  `/api/messages` are gated in reality, so a reader auditing coverage from that header
+  concluded **chat was ungated when it is gated**. The header now points at the constant
+  instead of copying it. `warroom.ts` carried counts derived from the same stale list
+  (46/111); **re-measured: 157 `/api` routes, 48 inside, 109 outside**, with the
+  authenticated-outside figure marked **DERIVED, not re-measured** (~75, was 77) so the
+  next reader does not quote a number nobody checked.
+- **`middleware.ts` — the line that actually refuses the request** — claimed `over_18`
+  "cannot be self-asserted, so an explicit false is a proven minor" **unqualified**: the
+  one site of five that failed to name the freeze migration its guarantee depends on, and
+  it described the `over_18`-only mechanism that no longer matches the code.
+- ⚠ **`src/lib/supabase/middleware.ts` IS CRLF AT REST** (11 of 238 `.ts` files are; no
+  `.gitattributes`). A whole-file LF normalisation had turned a 7-line change into a
+  **596-line diff** — reviewers read 596 lines of churn to find seven, and it guaranteed
+  a conflict with any branch touching the file. Restored to CRLF: **14+/1−**; whole PR
+  1359/488 → **1106/194**. Verify with `tr -cd '\r' < f | wc -c` — **`grep -c $'\r'` is
+  unreliable in this shell** and reported 0 CR on a file holding 295.
+- **The pattern, eight rounds in:** every round from 5 onward found a defect adjacent to
+  or caused by the preceding fix, and round 8 is the sharpest — severity went *up*
+  (P2s → a P1) because round 7 added a **new file** whose only review was mine. A flat
+  findings curve says change approach; a curve that **rises after a late addition** says
+  the addition is the unreviewed surface.
+- Suite **1540/1540** (+1); `tsc` clean; `next build` exit 0 with `ƒ Proxy (Middleware)`
+  present (the proof the pure `.mjs` still bundles into the edge chain). Design hook: all
+  22 findings **net zero** vs `origin/main` (radio.html's font count went 9 → 8 — the
+  branch *removed* one), classified per the standing no-suppression ruling.
+
 ### 2026-08-15 — The shared-device sign-out wave: user content, PWA caches, and gyms off the nav chrome (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`)
 
 - **The problem, in one line: signing out left the previous person's data on the device.**
