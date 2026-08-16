@@ -25,6 +25,7 @@ type ProviderApplication = {
   specialty: string | null;
   years_experience: string | null;
   monthly_price: string | null;
+  dob: string | null;
   details: Record<string, unknown> | null;
 };
 
@@ -151,22 +152,31 @@ async function updateProfileRole(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   role: ProviderRole,
-  fullName: string
+  fullName: string,
+  dob: string | null
 ) {
   const { data: profile } = await admin
     .from('profiles')
-    .select('role, roles, full_name')
+    .select('role, roles, full_name, date_of_birth')
     .eq('id', userId)
     .maybeSingle();
 
   const existingRoles = Array.isArray(profile?.roles) ? profile.roles : [];
   const roles = Array.from(new Set([...existingRoles, role]));
 
+  // ⚠ CARRY THE DATE OF BIRTH. An approved application provisions an auth user
+  // and a coach profile, and coach roles satisfy membership automatically — so a
+  // provider row with no DOB used to be an entitled, ungated account. Under the
+  // read-time policy (absence no longer admits) it would instead be REFUSED, so
+  // writing it here is what keeps approved coaches working. Never overwrite an
+  // existing date: the DOB freeze makes the first write permanent, and a
+  // service-role upsert would otherwise be a way around it.
   const { error } = await admin.from('profiles').upsert({
     id: userId,
     role: profile?.role ?? role,
     roles,
     full_name: profile?.full_name || fullName,
+    ...(profile?.date_of_birth ? {} : dob ? { date_of_birth: dob } : {}),
   });
   if (error) throw error;
 }
@@ -313,7 +323,7 @@ export async function approveApplication(formData: FormData): Promise<void> {
 
   const authUser = await resolveOrInviteProviderUser(admin, typed);
   const fullName = `${typed.first_name} ${typed.last_name}`.trim();
-  await updateProfileRole(admin, authUser.id, typed.provider_type, fullName);
+  await updateProfileRole(admin, authUser.id, typed.provider_type, fullName, typed.dob);
   const providerId = await publishProviderRow(admin, typed, authUser.id);
 
   const nextDetails = {

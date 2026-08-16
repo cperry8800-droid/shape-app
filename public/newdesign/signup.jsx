@@ -218,6 +218,10 @@ function ProPersonal({ v, set, roleNoun }) {
       <UsernameField v={v} set={set} />
       <Field label="Email"><TextInput type="email" value={v.email || ""} onChange={e => set({ email: e.target.value })} /></Field>
       <Field label="Phone"><TextInput type="tel" value={v.phone || ""} onChange={e => set({ phone: e.target.value })} /></Field>
+      {/* Shape is 18+ for coaches too: approval provisions a real account and coach
+          roles satisfy membership, so a provider row with no DOB is an ungated
+          account. Validated server-side in /api/apply and carried into profiles. */}
+      <Field label="Date of birth"><TextInput type="date" value={v.dob || ""} onChange={e => set({ dob: e.target.value })} /></Field>
       <Field label="City, State / Country" span={2}><TextInput value={v.city || ""} onChange={e => set({ city: e.target.value })} placeholder="e.g. Brooklyn, NY · USA" /></Field>
       <Field label="Time zone"><TextInput value={v.tz || ""} onChange={e => set({ tz: e.target.value })} placeholder="e.g. America/New_York" /></Field>
       <Field label="Social handles (optional)"><TextInput value={v.social || ""} onChange={e => set({ social: e.target.value })} placeholder="@handle, ig.com/..." /></Field>
@@ -653,12 +657,25 @@ function SignupForm({ role }) {
     form.append("providerType", role);
     form.append("firstName", values.firstName || "");
     form.append("lastName", values.lastName || "");
+    // ⚠ COACHES ARE 18+ TOO. Approval provisions a real auth user AND a coach
+    // profile, and coach roles satisfy membership automatically — so an approved
+    // provider with no date of birth is an entitled account the gates cannot place.
+    // Same shared rule; /api/apply re-validates server-side.
+    const proAge = window.ShapeAgeDerive;
+    if (!proAge || typeof proAge.isMinorFromDob !== "function") {
+      setError("Could not verify your age. Reload the page and try again.");
+      return;
+    }
+    const proMinor = proAge.isMinorFromDob(values.dob);
+    if (proMinor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
+    if (proMinor === true) { setError("You must be 18 or older to apply as a coach."); return; }
     form.append("email", values.email || "");
     form.append("phone", values.phone || "");
     form.append("location", values.city || "");
     form.append("specialty", values.primary || "");
     form.append("yearsExperience", values.years || "");
     form.append("monthlyPrice", values.subPrice || "");
+    form.append("dob", values.dob || "");
     form.append("details", JSON.stringify({
       username: values.username || "",
       timezone: values.tz || "",

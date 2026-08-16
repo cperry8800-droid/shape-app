@@ -5,9 +5,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 // Pure + tested (tests/age-derive.test.mjs). Imports nothing, so it stays safe
 // in this module's edge-proxy import chain.
-import { isMinorFromDob } from './age-derive.mjs';
+import { isMinorFromDob, mustRefuseForAge } from './age-derive.mjs';
 
-export { isMinorFromDob };
+export { isMinorFromDob, mustRefuseForAge };
 
 export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
 
@@ -65,7 +65,7 @@ export async function computeMembership(
 ): Promise<Membership> {
   const { data: profile } = await client
     .from('profiles')
-    .select('role, roles, over_18, date_of_birth')
+    .select('role, roles, over_18, date_of_birth, created_at')
     .eq('id', userId)
     .maybeSingle();
   const role = (profile?.role as string) || 'client';
@@ -95,9 +95,17 @@ export async function computeMembership(
   // signup-time snapshot that goes stale on the member's eighteenth birthday).
   // The stored flag is the fallback for rows that carry no usable DOB, where
   // only an explicit false is a proven minor.
-  const fromDob = isMinorFromDob((profile as { date_of_birth?: unknown } | null)?.date_of_birth);
-  const over18 = (profile as { over_18?: unknown } | null)?.over_18;
-  const isKnownMinor = fromDob !== null ? fromDob : over18 === false;
+  // ⚠ ABSENCE NO LONGER ADMITS. This used to be
+  //   fromDob !== null ? fromDob : over_18 === false
+  // i.e. only proof of MINORITY refused — so any account that reached a session
+  // without a stored date of birth (failed upsert, unprovisioned confirmation
+  // callback, coach invitation) was admitted. mustRefuseForAge() requires proof
+  // of ADULTHOOD for accounts created from ADULT_PROOF_REQUIRED_FROM onward and
+  // grandfathers the pre-launch rows.  is selected above and is
+  // required — without it every account reads as unplaceable and is refused.
+  const isKnownMinor = mustRefuseForAge(
+    profile as { date_of_birth?: unknown; over_18?: unknown; created_at?: unknown } | null
+  );
 
   return { isMember, isCoach, isAdmin, isKnownMinor };
 }

@@ -29,7 +29,7 @@
 // migration — do not treat a refusal as durable before it is applied.
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isMinorFromDob } from '@/lib/membership-core';
+import { mustRefuseForAge } from '@/lib/membership-core';
 
 /**
  * Returns a 403 response when `userId` is a confirmed minor, else null.
@@ -51,7 +51,7 @@ export async function refuseKnownMinor(
   try {
     const { data, error } = await client
       .from('profiles')
-      .select('over_18, date_of_birth')
+      .select('over_18, date_of_birth, created_at')
       .eq('id', userId)
       .maybeSingle();
     // A resolved `error` does not throw on the Supabase client, so it is read
@@ -66,9 +66,11 @@ export async function refuseKnownMinor(
     // stale the day the member turns 18 (and the DOB freeze removes the
     // self-service write that used to recompute it). One implementation, shared
     // with computeMembership, so the two gates can never disagree about an age.
-    const fromDob = isMinorFromDob((data as { date_of_birth?: unknown } | null)?.date_of_birth);
-    const storedMinor = (data as { over_18?: unknown } | null)?.over_18 === false;
-    if (fromDob !== null ? fromDob : storedMinor) {
+    // ⚠ ABSENCE NO LONGER ADMITS — see membership-core.ts and the header of
+    // mustRefuseForAge(). Proof of adulthood is required for accounts created
+    // from ADULT_PROOF_REQUIRED_FROM onward; older rows are grandfathered.
+    // `created_at` is selected above and is load-bearing.
+    if (mustRefuseForAge(data as { date_of_birth?: unknown; over_18?: unknown; created_at?: unknown } | null)) {
       return NextResponse.json(
         { error: 'Shape is for adults 18 and over.', code: 'age_restricted' },
         { status: 403 }

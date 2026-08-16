@@ -20,8 +20,45 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // ⚠ PROVISION THE PROFILE HERE — this is the destination email
+      // confirmation actually lands on, and it used to only exchange the code
+      // and redirect. The signup action can carry `date_of_birth` in auth
+      // metadata but cannot write the row (confirmation returns no session), so
+      // without this the confirmed account reached the app with NO profiles row
+      // at all. Under the read-time policy an unprovisioned row proves nothing
+      // and is REFUSED, so this is what keeps legitimate confirmations working —
+      // and, before that policy, it was how they got in ungated.
+      const user = data?.user;
+      if (user?.id) {
+        try {
+          const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+          const { data: existing } = await supabase
+            .from('profiles')
+            .select('id, date_of_birth')
+            .eq('id', user.id)
+            .maybeSingle();
+          const seed: Record<string, unknown> = { id: user.id };
+          if (typeof meta.full_name === 'string' && meta.full_name) seed.full_name = meta.full_name;
+          if (typeof meta.role === 'string' && meta.role) {
+            seed.role = meta.role;
+            seed.roles = [meta.role];
+          }
+          // Never overwrite a date already on the row — the DOB freeze makes the
+          // first write permanent, and re-sending it would be a way around it.
+          if (!existing?.date_of_birth && typeof meta.date_of_birth === 'string' && meta.date_of_birth) {
+            seed.date_of_birth = meta.date_of_birth;
+          }
+          // over_18 is deliberately absent: set_over_18() derives it and
+          // discards any supplied value.
+          await supabase.from('profiles').upsert(seed, { onConflict: 'id' });
+        } catch {
+          /* Best-effort: a failed provision must not strand the user on an error
+             page. The gates fail CLOSED on the resulting unproven row, so the
+             failure mode is a refusal to enter — never a silent admission. */
+        }
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

@@ -1763,6 +1763,59 @@ changelog whenever something ships.
   **in the emitted bundle** (both creation paths call it), newdesign precompile check
   exit 0, CRLF preserved on the three tracked-CRLF signup pages (2-line diffs), zero NUL
   bytes.
+
+### 2026-08-16 — ABSENCE NO LONGER ADMITS: the age gate keys on proof, not on null (#1888)
+
+- ⚠ **THE PATCH CYCLE WAS THE PROBLEM, AND THE CURVE SAID SO.** Rounds 9→12 ran
+  1 → 1 → 4 → 4 findings, each round finding defects **in the previous round's fix**.
+  Round 12's four P1s all ended in one sentence: *a session exists, `date_of_birth` is
+  null, and the gates treat null as not-a-minor, so the account is admitted.* Four
+  different routes into that state — a failed profile upsert on auto-confirm, an
+  email-confirmation callback that never provisioned, an approved-coach invitation, and
+  a legacy sign-in whose provisioning failure left the session usable. **Patching write
+  surfaces could not converge, because each patch added a new failure mode and the hole
+  was the read-time default.** The repo's own rule (a flat findings curve means change
+  approach, not patch again) applied doubly to a rising one.
+- **THE FIX — one line of policy at the chokepoint, `mustRefuseForAge()` in
+  `src/lib/age-derive.mjs`.** Every gate used to read
+  `isKnownMinor = fromDob !== null ? fromDob : over_18 === false` — only proof of
+  MINORITY refused. Now a usable DOB decides in **both** directions, the trigger-written
+  `over_18` is the fallback, and a row that proves **nothing** is refused unless the
+  account predates **`ADULT_PROOF_REQUIRED_FROM`**. ⚠ **A null/absent profile REFUSES** —
+  that is precisely the state a failed provisioning write leaves behind. Consumed by
+  `computeMembership` (which the Edge proxy AND `requireMembership` both route through)
+  and `refuseKnownMinor`, so two call sites cover all three gates.
+- ⚠ **THE CUTOFF IS A ONE-WAY RATCHET AND IS PINNED BY A TEST.** Moving it FORWARD
+  re-opens the hole for every account created in the widened window. Chosen against
+  production on 2026-08-16: exactly **2 profiles, both DOB-null, newest created
+  2026-06-13** — so it grandfathers two pre-launch accounts and requires proof of
+  everything after. **Owner-ruled** (the alternative, no grandfather, would have locked
+  the owner out of their own coach account).
+- ⚠ **A FORGOTTEN COLUMN IS NOW A TOTAL LOCKOUT, SO THE SELECTS ARE GATED.** Both gates
+  must `select('… created_at')`; without it every account reads as unplaceable and is
+  refused. `tests/age-gate-null-policy.test.mjs` asserts every age-column select carries
+  `created_at` — the mistake fails the build rather than the login. **7/7 mutations
+  killed**, including both dropped-select cases and a forward cutoff move.
+- **COACHES SUBMIT A DOB NOW (owner-directed), end to end.** Approval provisions an auth
+  user **and** a coach profile, and **coach roles satisfy membership automatically** — so
+  under the new policy an approved coach with no date of birth would be entitled *and*
+  refused. The field is collected on both application forms (website `ProPersonal`,
+  mobile `BSProviderApplicationScreen`), validated with the shared derivation on submit,
+  **re-validated server-side in `/api/apply`** (18+ enforced there, not just in the UI),
+  persisted to the `provider_applications.dob` column that already existed and was never
+  written, and carried into the profile on approval — **never overwriting an existing
+  date**, since the DOB freeze makes the first write permanent and a service-role upsert
+  would otherwise be a way around it.
+- **`/auth/callback` now provisions the profile**, which the new policy makes *required*
+  rather than optional: it is the destination email confirmation actually lands on, it
+  previously only exchanged the code and redirected, and the signup action cannot write
+  the row (confirmation returns no session). Best-effort by design — a failed provision
+  must not strand the user on an error page, and the gates fail **closed** on the
+  resulting unproven row, so the failure mode is a refusal to enter, never a silent
+  admission.
+- Verified: suite **1605/1605**, `tsc` clean, `next build` exit 0 with
+  `ƒ Proxy (Middleware)`, mobile Vite build clean, newdesign precompile exit 0, CRLF
+  preserved on the two tracked-CRLF files, zero NUL bytes.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward

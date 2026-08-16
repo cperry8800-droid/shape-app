@@ -70,6 +70,68 @@ export const ADULT_REFERENCE_OFFSET_MS = 12 * 60 * 60 * 1000;
  * @param {Date|number} [now]  injectable clock; defaults to the real one
  * @returns {boolean|null}
  */
+/**
+ * The instant from which an account must PROVE adulthood to pass the age gates.
+ *
+ * ⚠ WHY THIS EXISTS — the defect no amount of signup patching could close. Every
+ * gate used to read `isKnownMinor = fromDob !== null ? fromDob : over_18 === false`,
+ * i.e. only an explicit proof of MINORITY refused and absence ADMITTED. So any
+ * account that reached a session without a stored date of birth was admitted:
+ * a failed profile upsert, an email-confirmation callback that never provisioned,
+ * an approved-coach invitation, or simply the next signup surface someone adds.
+ * Four consecutive review rounds found four different routes to that same state,
+ * because the hole is not on any one write path — it is the read-time default.
+ * Absence of data is not a promise; entitlement keys on an explicit stamp.
+ *
+ * ⚠ WHY A CUTOFF RATHER THAN A FLAT FLIP. Accounts created before Shape collected
+ * a date of birth cannot prove anything and are not their owners' fault, so they
+ * are grandfathered. Verified against production on 2026-08-16: exactly 2 profiles
+ * exist, both DOB-null, the newest created 2026-06-13 — so this cutoff grandfathers
+ * two pre-launch accounts and requires proof of every account made from here on.
+ *
+ * ⚠ THIS IS A ONE-WAY RATCHET. Moving it FORWARD re-opens the hole for every
+ * account created in the widened window. It may only ever move backward (or be
+ * deleted once no grandfathered account remains).
+ */
+export const ADULT_PROOF_REQUIRED_FROM = Date.UTC(2026, 7, 16);
+
+/**
+ * TRUE when the age gates must REFUSE this profile.
+ *
+ * The order matters: a usable date of birth decides in BOTH directions, so a
+ * proven adult is never refused by the cutoff. Only when the row proves nothing
+ * either way does the account's age decide whether absence is grandfathered.
+ *
+ * ⚠ A NULL/absent profile REFUSES. That is the point: "no row" is precisely the
+ * state a failed provisioning write leaves behind, and it used to be admitted.
+ * Callers must therefore SELECT `created_at` alongside the age columns — a
+ * forgotten column reads as an unplaceable account and refuses. That is the safe
+ * direction, and tests/age-gate-null-policy.test.mjs pins every gate's select so
+ * the mistake fails the build rather than the login.
+ *
+ * @param {{date_of_birth?: unknown, over_18?: unknown, created_at?: unknown}|null|undefined} profile
+ * @param {Date|number} [now]
+ * @returns {boolean}
+ */
+export function mustRefuseForAge(profile, now = Date.now()) {
+  const fromDob = isMinorFromDob(profile?.date_of_birth, now);
+  if (fromDob !== null) return fromDob;
+  // The trigger-written flag is the fallback for rows carrying no usable date.
+  // It cannot be set from the client (set_over_18() derives it and discards any
+  // supplied value), so `true` is genuine proof of adulthood.
+  const over18 = profile?.over_18;
+  if (over18 === false) return true;
+  if (over18 === true) return false;
+  // Nothing proves anything. Grandfather only accounts that predate the rule.
+  const created = Date.parse(
+    typeof profile?.created_at === 'string' || typeof profile?.created_at === 'number'
+      ? profile.created_at
+      : NaN
+  );
+  if (!Number.isFinite(created)) return true;
+  return created >= ADULT_PROOF_REQUIRED_FROM;
+}
+
 export function isMinorFromDob(dob, now = Date.now()) {
   if (typeof dob !== 'string') return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob.trim());

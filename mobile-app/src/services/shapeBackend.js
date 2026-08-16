@@ -1021,6 +1021,10 @@ function applicationToPayload(role, values = {}) {
     specialty: values.primary || '',
     years_experience: values.years || '',
     monthly_price: values.subPrice || '',
+    // Shape is 18+ for coaches too — approval provisions a real account and coach
+    // roles satisfy membership, so a provider row with no DOB is an ungated
+    // account. /api/apply re-validates this server-side.
+    dob: values.dob || '',
     details: {
       // RD/RDN declaration (nutritionist applications only) — the apply route
       // reads details.nutrition_role === 'dietitian' to label the application

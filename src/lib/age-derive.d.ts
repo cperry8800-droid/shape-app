@@ -16,3 +16,19 @@ export declare const ADULT_REFERENCE_OFFSET_MS: number;
  * at UTC−12), so the gate never admits a minor early — see age-derive.mjs.
  */
 export declare function isMinorFromDob(dob: unknown, now?: Date | number): boolean | null;
+
+/** Instant from which an account must PROVE adulthood; older accounts are grandfathered. */
+export declare const ADULT_PROOF_REQUIRED_FROM: number;
+
+/**
+ * TRUE when the age gates must REFUSE this profile — absence of proof refuses for
+ * any account created at/after ADULT_PROOF_REQUIRED_FROM (a null profile included).
+ * Callers MUST select `created_at` alongside the age columns.
+ */
+export declare function mustRefuseForAge(
+  profile:
+    | { date_of_birth?: unknown; over_18?: unknown; created_at?: unknown }
+    | null
+    | undefined,
+  now?: Date | number
+): boolean;

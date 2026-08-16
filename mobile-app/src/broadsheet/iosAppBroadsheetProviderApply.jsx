@@ -6,6 +6,8 @@ import {
   REQUIRED_PROVIDER_EXPERIENCE_YEARS,
   experienceMeetsMinimum,
 } from '../config/providerApplications.js';
+// The shared 18+ derivation (anywhere-on-Earth rule) used by every gate + signup.
+import { isMinorFromDob } from '../../../src/lib/age-derive.mjs';
 
 const { useState: useStateBSA } = React;
 const { useBS } = window;
@@ -266,6 +268,19 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       setError('Credential verification, background check consent, terms, and code of conduct must be accepted.');
       return;
     }
+    // ⚠ 18+ applies to coaches. An approved application provisions a real auth
+    // user AND a coach profile, and coach roles satisfy membership automatically,
+    // so a provider account with no date of birth is entitled but unplaceable by
+    // the gates. Same shared derivation; /api/apply re-validates server-side.
+    const applyMinor = isMinorFromDob(values.dob);
+    if (applyMinor === null) {
+      setError('Enter a valid date of birth — Shape is for adults 18 and over.');
+      return;
+    }
+    if (applyMinor === true) {
+      setError('You must be 18 or older to apply as a coach.');
+      return;
+    }
     if (!experienceMeetsMinimum(values.years)) {
       setError(`Shape requires at least ${REQUIRED_PROVIDER_EXPERIENCE_YEARS} years of professional coaching or nutrition experience.`);
       return;
@@ -325,6 +340,10 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         </div>
         <BSApplyInput label="Email" value={values.email} onChange={v => set('email', v)} type="email" />
         <BSApplyInput label="Phone" value={values.phone} onChange={v => set('phone', v)} type="tel" />
+        {/* Shape is 18+ for coaches too: approval provisions a real account and
+            coach roles satisfy membership, so a provider row with no DOB is an
+            ungated account. Validated on submit and again in /api/apply. */}
+        <BSApplyInput label="Date of birth" value={values.dob} onChange={v => set('dob', v)} type="date" />
         <BSApplyInput label="City, state / country" value={values.city} onChange={v => set('city', v)} placeholder="Brooklyn, NY" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <BSApplyInput label="Time zone" value={values.tz} onChange={v => set('tz', v)} placeholder="America/New_York" />

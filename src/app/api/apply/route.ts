@@ -16,6 +16,8 @@ import {
   withBackgroundCheckDetails,
 } from '@/lib/provider-applications';
 import { attestationsComplete } from '@/lib/compliance/nutrition.mjs';
+// The shared 18+ derivation — same rule as every signup surface and both gates.
+import { isMinorFromDob } from '@/lib/age-derive.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -162,6 +164,7 @@ export async function POST(req: NextRequest) {
   const specialty = clean(body.specialty, 200);
   const yearsExperience = clean(body.yearsExperience, 40);
   const monthlyPrice = clean(body.monthlyPrice, 40);
+  const dob = clean(body.dob, 40);
   let details = sanitizeDetails(body.details);
 
   if (!firstName || !lastName || !email) {
@@ -172,6 +175,24 @@ export async function POST(req: NextRequest) {
   }
   if (!isEmail(email)) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400, headers: CORS_HEADERS });
+  }
+  // ⚠ 18+ IS ENFORCED HERE, AND IT IS NOT COSMETIC FOR COACHES. An approved
+  // application provisions an auth user AND a coach profile, and coach roles
+  // satisfy membership automatically — so a provider account with no date of
+  // birth is both entitled and, under the read-time policy, refused (absence no
+  // longer admits). Collecting it here is what keeps approved coaches working.
+  const providerMinor = isMinorFromDob(dob);
+  if (providerMinor === null) {
+    return NextResponse.json(
+      { error: 'Enter a valid date of birth — Shape is for adults 18 and over.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+  if (providerMinor === true) {
+    return NextResponse.json(
+      { error: 'You must be 18 or older to apply as a provider.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
   }
   if (minimumYears(yearsExperience) < REQUIRED_PROVIDER_EXPERIENCE_YEARS) {
     return NextResponse.json(
@@ -221,6 +242,7 @@ export async function POST(req: NextRequest) {
       specialty: specialty || null,
       years_experience: yearsExperience || null,
       monthly_price: monthlyPrice || null,
+      dob,
       details,
       user_agent: req.headers.get('user-agent') || null,
     })
