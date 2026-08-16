@@ -51,6 +51,20 @@ export function isMinorFromDob(dob, now = Date.now()) {
   const ref = new Date(typeof now === 'number' ? now : now.getTime());
   if (!Number.isFinite(ref.getTime())) return null;
   // Same comparison the trigger makes: dob <= today - 18y ⇒ adult.
-  const cutoff = Date.UTC(ref.getUTCFullYear() - ADULT_AGE_YEARS, ref.getUTCMonth(), ref.getUTCDate());
+  //
+  // ⚠ THE CUTOFF MUST BE CLAMPED, NOT ROLLED. Postgres CLAMPS an impossible
+  // anniversary (`date '2028-02-29' - interval '18 years'` → 2010-02-28) while
+  // `Date.UTC` ROLLS IT FORWARD (Feb 29 → Mar 1). Unclamped, on Feb 29 of a leap
+  // year a member born exactly 18 years earlier on Mar 1 read as an ADULT here
+  // and a MINOR to the trigger — at 17y364d. That admits a real minor (the
+  // unsafe direction) and makes the two gates disagree about one person, which is
+  // the whole reason this module exists. Only February can roll, but the guard is
+  // written generally. Both cutoffs verified against production Postgres
+  // 2026-08-16; recurs every leap year (2028, 2032, 2036…).
+  const cy = ref.getUTCFullYear() - ADULT_AGE_YEARS;
+  const cm = ref.getUTCMonth();
+  let cutoff = Date.UTC(cy, cm, ref.getUTCDate());
+  // Day 0 of the NEXT month is the last day of the intended one — the clamp.
+  if (new Date(cutoff).getUTCMonth() !== cm) cutoff = Date.UTC(cy, cm + 1, 0);
   return born > cutoff;
 }

@@ -2,12 +2,18 @@
 // gate.
 //
 // ⚠ WHY THIS EXISTS: the 18+ check added with the compliance pass lives in two
-// places only — the proxy's paid-prefix gate (`/api/client`, `/api/nutrition`,
-// `/api/ai`, `/api/insights`, `/api/calendar`) and `requireMembership()`, which
-// covers those same handlers. Every OTHER authenticated route treats "has a
-// session" as "is eligible", so an account the database has already identified
-// as a minor passes. That made the enforcement incomplete for exactly the
-// accounts it identifies.
+// places only — the proxy's gate over `GATED_API_PREFIXES` and
+// `requireMembership()`, which covers those same handlers. Every OTHER
+// authenticated route treats "has a session" as "is eligible", so an account the
+// database has already identified as a minor passes. That made the enforcement
+// incomplete for exactly the accounts it identifies.
+//
+// ⚠ READ `GATED_API_PREFIXES` IN `supabase/middleware.ts` — DO NOT TRUST A PROSE
+// COPY OF IT. It holds SEVEN prefixes (`/api/client`, `/api/nutrition`,
+// `/api/ai`, `/api/insights`, `/api/calendar`, `/api/conversations`,
+// `/api/messages`). An earlier five-prefix copy of that list in this header and
+// in the War Room record omitted the last two, so chat read as UNGATED when it is
+// gated, and the coverage counts derived from it were wrong by two routes.
 //
 // ⚠ ONLY AN EXPLICIT `false` IS A PROVEN MINOR. `profiles.over_18` is derived by
 // a DB trigger from `date_of_birth` and is NULL for every account created before

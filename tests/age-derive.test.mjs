@@ -48,6 +48,20 @@ test('a leap-day birthday transitions on Mar 1 in a non-leap year', () => {
   assert.equal(isMinorFromDob('2012-02-29', Date.UTC(2026, 1, 28)), true);  // still 13
 });
 
+// ⚠ The REFERENCE date can be a leap day too — and that is the case the original
+// vectors missed, because they only ever varied the BIRTHDAY. Postgres clamps
+// `2028-02-29 - interval '18 years'` to 2010-02-28; `Date.UTC(2010, 1, 29)` rolls
+// forward to 2010-03-01. Unclamped, a member born 2010-03-01 read as an ADULT here
+// (admitted) while the trigger held over_18 = false — at 17 years 364 days. Both
+// cutoffs verified against production Postgres.
+test('a leap-day REFERENCE date clamps like Postgres rather than rolling forward', () => {
+  const feb29 = Date.UTC(2028, 1, 29);
+  assert.equal(isMinorFromDob('2010-03-01', feb29), true);  // 17y364d — still a minor
+  assert.equal(isMinorFromDob('2010-02-28', feb29), false); // adult by the clamped cutoff
+  // The day they actually turn 18 — no clamp applies, and they read adult.
+  assert.equal(isMinorFromDob('2010-03-01', Date.UTC(2028, 2, 1)), false);
+});
+
 test('absence and junk are NULL — never coerced to adult', () => {
   for (const v of [null, undefined, '', '   ', 'not-a-date', '2008', '2008-08', '08/16/2008',
                    0, 1, {}, [], true, NaN, Symbol('x')]) {
