@@ -1709,7 +1709,7 @@ changelog whenever something ships.
   (P2s → a P1) because round 7 added a **new file** whose only review was mine. A flat
   findings curve says change approach; a curve that **rises after a late addition** says
   the addition is the unreviewed surface.
-- Suite **1542/1542** (+3); `tsc` clean; `next build` exit 0 with `ƒ Proxy (Middleware)`
+- Suite **1579/1579** on the merged head (branch alone 1542, +3 this round); `tsc` clean; `next build` exit 0 with `ƒ Proxy (Middleware)`
   present (the proof the pure `.mjs` still bundles into the edge chain). Design hook: all
   22 findings **net zero** vs `origin/main` (radio.html's font count went 9 → 8 — the
   branch *removed* one), classified per the standing no-suppression ruling.
