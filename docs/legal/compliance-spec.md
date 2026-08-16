@@ -301,8 +301,19 @@ of `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx`, where the code lives.
   ⚠ **A UI gate is not an access control, and both halves are now required.**
   The first pass closed only the players; `GET /api/radio/station` still handed
   `streamUrl` to any anonymous caller, so the signed-out path survived one curl
-  past a removed preview. That route is **signed-in only (401 anonymous)** as of
-  2026-08-15, and both callers send a Bearer token (`public/radio.html`
+  past a removed preview. That route is **members only** as of 2026-08-15 — 401
+  anonymous, **402 for a free authenticated account**, 403 for a confirmed
+  minor. ⚠ **Closing anonymous access was only half of it, and the first pass
+  shipped only that half:** a signed-in non-member is exactly the non-subscriber
+  listening this rate ruling forbids, and `/api/radio/station` sits OUTSIDE the
+  proxy's paid prefixes, so nothing was invoking `computeMembership()`.
+  ⚠ **This is the one paid check that fails CLOSED.** `requireMembership()` is
+  not used here because it fails OPEN on a fault — correct for every other paid
+  route, wrong for this one, since failing open serves a PERFORMANCE to a
+  possible non-subscriber. A faulted check returns **503 and no URL**, on the
+  same rule as the sign-in gate: an unlicensed-tier performance is worse than an
+  unnecessary prompt.
+  Both callers send a Bearer token (`public/radio.html`
   explicitly, because supabase-js keeps the session in localStorage on that page
   rather than in cookies; `shapeBackend.js` because a native build has no
   cookies at all). **Honest residual, not closed:** the URL points at the

@@ -429,9 +429,18 @@
     }
 
     function loadStation() {
-      // ⚠ The station route is SIGNED-IN ONLY. On this page supabase-js keeps
-      // the session in localStorage rather than cookies, so the token is sent
-      // explicitly instead of relying on the cookie bridge being in place.
+      // ⚠ The station route is MEMBERS ONLY: 401 anonymous, 403 confirmed minor,
+      // 402 for a non-member OR a membership check that could not be verified,
+      // 503 on a network-level fault. Every one of those fails CLOSED and hands
+      // over no URL, for licensing reasons.
+      // On this page supabase-js keeps the session in localStorage rather than
+      // cookies, so the token is sent explicitly instead of relying on the
+      // cookie bridge being in place.
+      // ⚠ Every non-200 collapses to null here, so a signed-in NON-MEMBER lands
+      // in the "broadcast coming soon" state rather than a join prompt. That is
+      // inaccurate copy for that caller and is registered as a follow-up; it is
+      // not a licensing risk (no URL is handed over), so it is deliberately not
+      // being solved with new copy inside a licence fix.
       return Promise.resolve()
         .then(function () { return window.shapeDb ? window.shapeDb.getSession() : null; })
         .then(function (session) {
