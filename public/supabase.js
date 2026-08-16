@@ -147,8 +147,10 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       // reaching _removeSession(): `if (t && !(...404|401|403...)) return
       // this._returnResult({error: t})` sits above the removal. So after an
       // offline/retryable sign-out the persisted session survives, and
-      // shapeDb.getSession() restores the previous account on the next visit —
-      // past the scrub below, which clears content but not `shape.auth`.
+      // shapeDb.getSession() restores the previous account on the next visit.
+      // (The scrub below now drops BOTH persisted tokens as well, but this
+      // retry still matters: it also clears the SDK's IN-MEMORY session, which
+      // no amount of storage removal touches.)
       // ⚠ Mobile ships 2.111.0, which DOES remove the session on that path. The
       // two bundles genuinely differ; do not "harmonize" this by assuming the
       // mobile behaviour, and do not drop the retry when the vendored bundle is
@@ -165,8 +167,16 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       }
       // Clear the Next.js cookie session too so server-rendered routes
       // don't think the user is still signed in.
+      // ⚠ The RESULT is kept, because the cross-tab broadcast is gated on it.
+      // A sibling reacts by RELOADING, so stamping while the cookie is still
+      // valid sends a Next dashboard tab back into an authenticated route, and
+      // nothing later retires it. A missed broadcast only leaves siblings as
+      // they were before this feature existed; a premature one manufactures a
+      // signed-in tab nothing will correct. When they conflict, take the miss.
+      var cookieCleared = false;
       try {
-        await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' });
+        var delRes = await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' });
+        cookieCleared = Boolean(delRes && delRes.ok);
       } catch (e) {}
       // Clear legacy demo keys so stale UI state doesn't linger.
       try {
@@ -187,7 +197,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       // like every other sign-out path, so a stalled CacheStorage can never
       // hang the sign-out (bound the WAIT, never the WORK).
       var purge = null;
-      try { purge = shapeDb.clearLocalUserContent(); } catch (e) {}
+      try { purge = shapeDb.clearLocalUserContent({ broadcast: cookieCleared }); } catch (e) {}
       try {
         await Promise.race([
           Promise.resolve(purge),
@@ -207,12 +217,14 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // shapeMealLog etc. for the next device user. So a complete FALLBACK TWIN
     // runs when the canonical scrub is absent. KEEP THE TWO IN SYNC
     // (pageShell.jsx → window.shapeClearLocalUserContent).
-    clearLocalUserContent() {
+    clearLocalUserContent(opts) {
+      var broadcast = !(opts && opts.broadcast === false);
       try {
         // Return the canonical scrub's purge promise so a caller that
         // navigates next can await the cache deletes (the fallback below
-        // returns its own the same way).
-        if (window.shapeClearLocalUserContent) { return window.shapeClearLocalUserContent(); }
+        // returns its own the same way). Pass the broadcast flag through —
+        // the cross-tab listener calls this with broadcast:false.
+        if (window.shapeClearLocalUserContent) { return window.shapeClearLocalUserContent(opts); }
       } catch (e) {}
       try {
         [
@@ -264,6 +276,34 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       try {
         ['shapeLiveWorkout', 'shapeLiveWorkoutResult'].forEach(function (k) { sessionStorage.removeItem(k); });
       } catch (e) {}
+      // ⚠ BOTH PERSISTED SUPABASE SESSIONS GO ON EVERY SIGN-OUT, here at the
+      // chokepoint every sign-out path reaches. This client pins 'shape.auth';
+      // mobile's sets no storageKey and so persists under auth-js's default
+      // `sb-<ref>-auth-token` in this SAME localStorage (/m/ shares the
+      // origin). Per-surface placement missed the initiating paths — a
+      // `storage` event never fires in the tab that wrote it.
+      try {
+        try { localStorage.removeItem('shape.auth'); } catch (e) {}
+        for (var ai = localStorage.length - 1; ai >= 0; ai--) {
+          var ak = localStorage.key(ai);
+          if (!ak) continue;
+          if (ak.indexOf('sb-') === 0 && ak.indexOf('-auth-token') > 0) {
+            try { localStorage.removeItem(ak); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      // CROSS-TAB SIGN-OUT stamp — third inline copy of localScrub.mjs's
+      // SHAPE_SIGNOUT_STAMP_KEY write (pageShell.jsx carries the second).
+      // These legacy pages are exactly the ones holding shapeLiveWorkout in a
+      // PER-TAB store, so a sign-out here has to tell the other tabs. Stamped
+      // after the sweeps; the nonce is required because `storage` fires only
+      // on a CHANGED value. The listener passes broadcast:false to avoid an
+      // echo loop between tabs.
+      if (broadcast) {
+        try {
+          localStorage.setItem('shape.signedOutAt', String(Date.now()) + ':' + Math.random().toString(36).slice(2));
+        } catch (e) {}
+      }
       // PWA cache purge: the canonical scrub carries one so sign-out paths
       // that call the scrub WITHOUT coming through signOut() still drop
       // cached signed media. signOut() above additionally AWAITS its own
@@ -1094,6 +1134,39 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   };
 
   window.shapeDb = shapeDb;
+
+  // CROSS-TAB SIGN-OUT LISTENER for the LEGACY pages — the ones that load
+  // supabase.js but never load pageShell.jsx (clients.html, live-workout.html
+  // and the rest of the root cluster), which are precisely the pages that write
+  // shapeLiveWorkout / shapeLiveWorkoutResult into PER-TAB sessionStorage. A
+  // sign-out in another tab could not reach them, so the departing member's
+  // exercises, weights and completed record stayed readable in this one.
+  // ⚠ Guarded on the same flag pageShell.jsx sets: a page that loads BOTH must
+  // scrub and reload once, not twice.
+  (function shapeSignOutListenerLegacy() {
+    if (typeof window === 'undefined' || !window.addEventListener) return;
+    if (window.__shapeSignOutListener) return;
+    window.__shapeSignOutListener = true;
+    window.addEventListener('storage', function (e) {
+      if (!e || e.key !== 'shape.signedOutAt' || !e.newValue) return;
+      // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub deliberately leaves
+      // `shape.auth` (this client's storageKey) alone, because the sign-out
+      // paths call auth.signOut() themselves — but the Next dashboard's does
+      // not, so a sign-out started there leaves the token here and the reload
+      // below would restore it, signed back IN. scope:'local' clears storage
+      // without a network round-trip, so it cannot hang.
+      Promise.resolve()
+        .then(function () { return client.auth.signOut({ scope: 'local' }); })
+        .catch(function () {})
+        .then(function () {
+          // The two-token drop rides the scrub below (clearLocalUserContent),
+          // so this receiving tab gets it without its own copy.
+          // ⚠ broadcast:false — re-stamping would echo back to the signing-out tab.
+          try { shapeDb.clearLocalUserContent({ broadcast: false }); } catch (err) {}
+          try { window.location.reload(); } catch (err) {}
+        });
+    });
+  })();
 
   // ===== Live presence — join the same 'online-users' channel the mobile app
   // uses, so members see who's genuinely online (pulsing avatar ring). The set

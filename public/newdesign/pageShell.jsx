@@ -338,8 +338,16 @@ function Header({ active }) {
   }, []);
   async function handleLogout(e) {
     e.preventDefault();
+    // ⚠ The RESULT is kept: the SDK-less branch below broadcasts the cross-tab
+    // sign-out, and a sibling reacts by RELOADING. Stamping while the cookie is
+    // still valid sends a dashboard tab back into an authenticated route with
+    // no later event to retire it. A missed broadcast only leaves siblings as
+    // they were before the feature existed; a premature one manufactures a
+    // signed-in tab nothing will correct. When they conflict, take the miss.
+    var cookieCleared = false;
     try {
-      await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+      const outRes = await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+      cookieCleared = Boolean(outRes && outRes.ok);
     } catch {}
     // The cookie sign-out alone leaves the persisted Supabase SDK session
     // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns
@@ -349,14 +357,22 @@ function Header({ active }) {
     // runs the content scrub); fall back to the scrub alone on any page that
     // doesn't load supabase.js.
     try {
-      if (window.shapeDb && window.shapeDb.signOut) await window.shapeDb.signOut();
-      else if (window.shapeClearLocalUserContent) {
+      if (window.shapeDb && window.shapeDb.signOut) {
+        await window.shapeDb.signOut();
+        // ⚠ CARRY THE CONFIRMATION WE ALREADY HAVE. shapeDb.signOut() issues a
+        // SECOND cookie DELETE and gates its own broadcast on that one alone.
+        // If the POST above already cleared the cookie but connectivity dropped
+        // before the redundant DELETE landed, the stamp would be suppressed
+        // despite invalidation being confirmed — leaving siblings holding the
+        // departed member's in-memory state. One confirmation is enough.
+        if (cookieCleared && window.shapeBroadcastSignOut) window.shapeBroadcastSignOut();
+      } else if (window.shapeClearLocalUserContent) {
         // Pages that never load supabase.js reach THIS branch, and the
         // navigation below discards the document — so the scrub's async cache
         // purge must be awaited here, bounded so a stalled CacheStorage can
         // never hang the sign-out (sign-out always completes).
         await Promise.race([
-          Promise.resolve(window.shapeClearLocalUserContent()),
+          Promise.resolve(window.shapeClearLocalUserContent({ broadcast: cookieCleared })),
           new Promise((r) => setTimeout(r, 2000)),
         ]);
       }
@@ -1407,7 +1423,20 @@ Object.assign(window, { ShapeHomeCards });
 // (shape.storeCart — item ids + quantities only, no address) falls under the
 // same carve-out ON THE WEBSITE; the mobile sign-out clears it (its
 // long-standing behavior, passed as an extraKey there).
-window.shapeClearLocalUserContent = function () {
+// Inline copy of localScrub.mjs shapeBroadcastSignOut, exposed so a caller that
+// confirmed invalidation ITSELF can signal without re-running the scrub —
+// handleLogout's SDK branch does exactly that (shapeDb.signOut() gates on its
+// own second DELETE, and one confirmation is enough).
+// ⚠ The nonce is required: `storage` fires only on a CHANGED value, so two
+// sign-outs inside the same millisecond would otherwise be silent.
+window.shapeBroadcastSignOut = function () {
+  try {
+    localStorage.setItem("shape.signedOutAt", String(Date.now()) + ":" + Math.random().toString(36).slice(2));
+  } catch (e) {}
+};
+
+window.shapeClearLocalUserContent = function (opts) {
+  var broadcast = !(opts && opts.broadcast === false);
   try {
     [
       "shapeClientIntake_v1",   // signup intake — can carry health details
@@ -1473,6 +1502,35 @@ window.shapeClearLocalUserContent = function () {
   try {
     ["shapeLiveWorkout", "shapeLiveWorkoutResult"].forEach(function (k) { sessionStorage.removeItem(k); });
   } catch (e) {}
+  // ⚠ BOTH PERSISTED SUPABASE SESSIONS GO ON EVERY SIGN-OUT, and it happens
+  // HERE because every sign-out path calls this scrub. This origin hosts two
+  // clients with different keys — supabase.js pins 'shape.auth', mobile's sets
+  // none and so uses auth-js's default `sb-<ref>-auth-token` — and /m/ shares
+  // this localStorage. Doing it per-surface left the INITIATING paths out (a
+  // `storage` event never fires in the tab that wrote it), so a member with no
+  // sibling tab open kept the other client's token and reopening that surface
+  // restored them. Inline copy of localScrub.mjs shapeDropPersistedAuth.
+  try {
+    try { localStorage.removeItem("shape.auth"); } catch (e) {}
+    for (var ai = localStorage.length - 1; ai >= 0; ai--) {
+      var ak = localStorage.key(ai);
+      if (!ak) continue;
+      if (ak.indexOf("sb-") === 0 && ak.indexOf("-auth-token") > 0) {
+        try { localStorage.removeItem(ak); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  // CROSS-TAB SIGN-OUT stamp — inline copy of localScrub.mjs's
+  // SHAPE_SIGNOUT_STAMP_KEY write. Everything above is per-TAB for
+  // sessionStorage and per-DOCUMENT for in-memory state, so without this a
+  // second open tab kept the departing member's live-workout record and its
+  // whole in-memory state until someone closed it. `storage` fires only in
+  // OTHER same-origin documents, so the listener below never hears our own
+  // write. Stamped AFTER the sweeps so they can't remove the signal; the nonce
+  // is required because `storage` fires only on a CHANGED value.
+  // ⚠ broadcast:false is passed by the listener itself — a sibling that
+  // re-stamped while handling a stamp would echo it back into a scrub loop.
+  if (broadcast) window.shapeBroadcastSignOut();
   // PWA cache purge — a cache built by an older worker generation can hold
   // cross-origin SIGNED media (progress photos, voice memos, credential
   // files), and CacheStorage otherwise clears only on a deploy version bump.
@@ -1491,6 +1549,66 @@ window.shapeClearLocalUserContent = function () {
     }
   } catch (e) {}
 };
+
+// CROSS-TAB SIGN-OUT LISTENER — the sibling half of the stamp written above.
+// Installed once per document that loads pageShell (every newdesign page), so
+// a sign-out in ANY tab (website or /m/, which shares this origin) scrubs and
+// reloads the rest. Without it the scrub was tab-local: sessionStorage is per
+// tab and in-memory state is per document, so the next person on a shared
+// device could pick up an already-signed-out member's other tab intact.
+// ⚠ Guarded: supabase.js installs the same listener for legacy pages that
+// never load pageShell, and pages loading BOTH must not scrub-and-reload twice.
+(function shapeSignOutListener() {
+  if (typeof window === "undefined" || !window.addEventListener) return;
+  if (window.__shapeSignOutListener) return;
+  window.__shapeSignOutListener = true;
+  window.addEventListener("storage", function (e) {
+    if (!e || e.key !== "shape.signedOutAt" || !e.newValue) return;
+    // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST — and on EVERY page, not only the
+    // ones that happen to load the SDK. The scrub leaves the Supabase token
+    // (`shape.auth`) alone by design, and a sign-out started in the Next
+    // dashboard never calls the SDK, so the reload below would otherwise leave
+    // that token standing. Marketing pages (About, Pricing, …) render Header
+    // from pageShell WITHOUT supabase.js, so `window.shapeDb` is absent there
+    // and an SDK-only branch would silently do nothing — leaving the previous
+    // member's persisted session to authenticate the next person the moment
+    // they open any legacy surface.
+    //   • SDK loaded → auth.signOut({scope:'local'}) (storage-only, cannot hang
+    //     on the network), AWAITED so the reload cannot beat it.
+    //   • No SDK    → there is no client in this document, so no in-memory
+    //     session to tear down; the token removal below is the whole job.
+    // ⚠ EITHER WAY, drop BOTH persisted tokens: this origin hosts two clients —
+    // supabase.js pins 'shape.auth', mobile's sets no storageKey and so uses
+    // auth-js's default `sb-<ref>-auth-token`. Signing out the client this page
+    // loaded leaves the OTHER surface's token standing, and reopening /m/ would
+    // restore the departed member. Inline copy of localScrub.mjs's
+    // shapeDropPersistedAuth (classic script — cannot import).
+    // The token drop rides the scrub itself now (see
+    // shapeClearLocalUserContent above), so finish() gets it for free on BOTH
+    // branches — including the SDK-less one, where the scrub is the whole job.
+    var finish = function () {
+      // ⚠ broadcast:false — re-stamping here would echo back to the tab that
+      // signed out, and the tabs would scrub each other in a loop.
+      try {
+        if (window.shapeClearLocalUserContent) window.shapeClearLocalUserContent({ broadcast: false });
+      } catch (err) {}
+      // The reload is the authoritative wipe of this document's in-memory state.
+      // No purge await: the tab that signed out already awaited it under a bound,
+      // and CacheStorage is shared across tabs, so there is nothing left to race.
+      try { window.location.reload(); } catch (err) {}
+    };
+    var auth = null;
+    try { auth = window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth; } catch (err) {}
+    if (auth && auth.signOut) {
+      Promise.resolve()
+        .then(function () { return auth.signOut({ scope: "local" }); })
+        .catch(function () {})
+        .then(finish);
+    } else {
+      finish(); // no client in this document — the scrub inside finish is the whole job
+    }
+  });
+})();
 
 (function shapeConsent() {
   if (typeof document === "undefined") return;

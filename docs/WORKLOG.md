@@ -1632,7 +1632,7 @@ changelog whenever something ships.
 - CI is green on the head (Web · Mobile · gitleaks · Tests) and the DOB freeze migration is
   applied + behaviourally verified on production. **Codex round 9 returned a P1, it was
   real** (reproduced, not taken on faith), **and it is fixed** — see the two bullets below.
-  Full round-by-round state: **[`docs/HANDOFF-2026-08-16.md`](HANDOFF-2026-08-16.md)**.
+  Full round-by-round state: **[`docs/HANDOFF-2026-08-16b.md`](HANDOFF-2026-08-16b.md)**.
 - ⚠ **THE UTC COMPARISON ADMITTED A MINOR EARLY WEST OF UTC — the header claimed it could
   not.** The UTC day runs ahead of every zone west of UTC, so `isMinorFromDob` declared
   adulthood **before the member's local eighteenth birthday** — up to ~11h early

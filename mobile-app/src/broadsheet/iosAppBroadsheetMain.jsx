@@ -5,7 +5,7 @@ import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
-import { shapeScrubLocalUserContent } from '../services/localScrub.mjs';
+import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -1524,6 +1524,31 @@ function BSPreviewBannerGated({ t, onJoin }) {
 
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
+  // CROSS-TAB SIGN-OUT. /m/ ships under the website's origin, so a member can
+  // have this app open in one tab and the website in another. sessionStorage
+  // and every in-memory cache are PER TAB, so a sign-out over there scrubbed
+  // and reloaded only that document and left this one holding a signed-in
+  // session's worth of state for the next person on the device. Scrub and
+  // reload ourselves when a sibling broadcasts.
+  // ⚠ broadcast:false — re-stamping here would echo the event back to the tab
+  // that signed out and the two would scrub each other in a loop.
+  React.useEffect(() => shapeInstallSignOutListener(async () => {
+    // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub leaves the Supabase
+    // token alone by design, and a sign-out started in the Next dashboard
+    // never calls the SDK — so without this the reload below would restore
+    // the session and land back signed IN. scope:'local' touches storage
+    // only, so it cannot hang on the network.
+    try { await window.ShapeAuth?.client?.auth?.signOut({ scope: 'local' }); } catch (e) {}
+    // ⚠ The scrub below also drops BOTH persisted tokens (chokepoint): signing
+    // this client out clears only its own `sb-<ref>-auth-token`, while the
+    // WEBSITE's client persists under 'shape.auth' in the same localStorage.
+    try { shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'], broadcast: false }); } catch (e) {}
+    try { window.__BS_LAST_ERROR = null; } catch (e) {}
+    // The reload is the authoritative wipe of in-memory state (same reasoning
+    // as handleLogout). No cache purge await here: the sibling that signed out
+    // already awaited it, and CacheStorage is shared across tabs.
+    try { window.location.reload(); } catch (e) {}
+  }), []);
   // Boot decision (synchronous): a known member who already saw today's briefing
   // skips straight to the app (warm relaunch — the briefing is a morning ritual,
   // not a toll). Everyone else opens on the wire beat, which holds until the
@@ -1821,7 +1846,13 @@ function BSAppShell({ tweaks, setTweak }) {
   const handleLogout = async () => {
     // Non-fatal: the scrub and the reload below are the shared-device guarantee
     // and must run even if the SDK sign-out rejects (offline, lock timeout).
-    try { await window.ShapeAuth?.signOut?.(); } catch (e) {}
+    // ⚠ Keep the outcome: the cross-tab broadcast below is gated on the bridged
+    // cookie actually being gone. A sibling reacts by RELOADING, so signalling
+    // while the cookie is still valid sends a Next dashboard tab back into an
+    // authenticated route with no later event to retire it.
+    let signedOut = null;
+    try { signedOut = await window.ShapeAuth?.signOut?.(); } catch (e) {}
+    const cookieCleared = Boolean(signedOut && signedOut.cookieCleared);
     setAuthState({});
     setBrowseMode(false);
     setPreviewMode(false);
@@ -1835,13 +1866,26 @@ function BSAppShell({ tweaks, setTweak }) {
     // details, the legacy shapeLiveWorkout session records) for the next
     // device user. The two offline durability queues (shape.pendingAssignments,
     // shape.careerAwardPending) are deliberately NOT in the inventory: wiping
-    // them silently loses a coach's held week / an earned award, and their
-    // drain is re-verified server-side — an owner ruling on that trade-off is
-    // on the PR. Preferences (tweaks, locale, voice, tour flags) stay.
+    // them silently loses a coach's held week / an earned award. ⚠ That is only
+    // safe because BOTH are now owner-safe on replay — pendingAssignments is
+    // re-verified by publish_client_week AND surfaces its refusal, and
+    // careerAwardPending is owner-SCOPED (shapeBackend.js) after review found
+    // it replaying the previous member's post under the next account and then
+    // deleting their retry. Preferences (tweaks, locale, voice, tour flags) stay.
     // shape.storeCart rides as an extraKey: the website's scrub KEEPS the cart
     // under its device-personal carve-out (pageShell.jsx records that ruling);
     // the mobile sign-out has always cleared it, preserved here.
-    const scrubPurge = shapeScrubLocalUserContent({ extraKeys: ['shape.storeCart'] });
+    // broadcast gated on the cookie — see cookieCleared above. A missed
+    // broadcast leaves siblings as they were before this feature; a premature
+    // one manufactures a signed-in tab nothing will correct.
+    // ⚠ Also drop the WEBSITE client's persisted token: ShapeAuth.signOut()
+    // above retires this client's own (`sb-<ref>-auth-token`), but supabase.js
+    // pins 'shape.auth' in the same shared localStorage, and leaving it lets a
+    // reopened website tab restore the member who just signed out here.
+    const scrubPurge = shapeScrubLocalUserContent({
+      extraKeys: ['shape.storeCart'],
+      broadcast: cookieCleared,
+    });
     // The in-memory sibling of shape.errorLog — the last error record can embed
     // app-state strings, and the storage sweep alone doesn't touch it.
     try { window.__BS_LAST_ERROR = null; } catch (e) {}

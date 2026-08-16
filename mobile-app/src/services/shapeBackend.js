@@ -554,8 +554,17 @@ async function signOut() {
   // every same-origin /api/* call would keep authenticating as the signed-out
   // account, incl. from the signed-out preview. Delete it the way the website
   // sign-out does. Best-effort: there is no cookie when the bridge never ran.
+  // ⚠ REPORTED, not just attempted: handleLogout gates the cross-tab broadcast
+  // on this. A sibling reacts by RELOADING, so signalling while the cookie is
+  // still valid makes a Next dashboard tab reload back into an authenticated
+  // route with no later event to retire it. No bridge configured means there is
+  // no cookie to clear, which counts as cleared.
+  let cookieCleared = !apiBaseUrl;
   try {
-    if (apiBaseUrl) await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
+    if (apiBaseUrl) {
+      const res = await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
+      cookieCleared = Boolean(res && res.ok);
+    }
   } catch (e) {}
   invalidateClientMetrics();
   // The notification-evaluation throttle is account-scoped state under an
@@ -617,7 +626,10 @@ async function signOut() {
   // The Sentry user tags drop with the rest of the viewer-relative state: setCached below
   // sees a null user and clears them, so a signed-out session can never inherit the
   // previous account's id/roles. Handled at that one chokepoint, not repeated here.
-  return setCached({ user: null, session: null, profile: null });
+  setCached({ user: null, session: null, profile: null });
+  // Report the cookie outcome so handleLogout can decide whether it is safe to
+  // tell the other tabs. (setCached's return value was never used by a caller.)
+  return { cookieCleared };
 }
 
 async function startCheckout({ item, coach, user, role }) {
@@ -5315,31 +5327,142 @@ window.ShapeMomentum = { check: awardMomentumBonus };
 // backgrounded / pre-migration) queues the post id so the open-time catch-up
 // re-fires it — the member can never permanently lose the award.
 const CAREER_AWARD_PENDING_KEY = 'shape.careerAwardPending';
+
+// ⚠ THE RETRY QUEUE IS OWNER-SCOPED, and that is correctness, not tidiness.
+// It used to hold a BARE post id. On a shared device that meant: member A's
+// claim fails and queues; A signs out; B signs in; B's session init replays
+// A's post id UNDER B's identity; award_work_milestone matches
+// `author_id = auth.uid()`, so it answers {granted:false,'not_a_milestone'} —
+// a SUCCESSFUL response, not an error — and the catch-up below then deleted
+// the key. Keeping the queue destroyed the very award it existed to protect,
+// and put A's post id in a request authenticated as B (found in review of
+// #1890). Store the owner; replay only for that owner.
+//
+// Compare the sibling queue: bsDrainAssignments drops client-side owner
+// partitioning ON PURPOSE and is safe because publish_client_week re-verifies
+// the coach AND the refusal SURFACES. This path had neither property, which is
+// what made the same stance a defect here rather than a considered trade.
+// ⚠ IT IS A PER-OWNER COLLECTION, NOT ONE TAGGED SLOT. Owner-tagging alone
+// still lost awards on a shared device: A queues, B signs in and B's own claim
+// fails, B's write REPLACES A's record, and A's retry is gone when they return.
+// Tagging fixed the cross-account replay; only partitioning preserves each
+// member's durable claim, which is the whole reason the key survives the scrub.
+// ⚠ ONE localStorage KEY PER CLAIM — `shape.careerAwardPending.<uid>.<postId>`.
+// A single JSON blob holding the whole queue was a read-modify-write, and this
+// storage is shared by every same-origin tab (/m/ and the website both). Two
+// tabs whose claims fail at the same moment each read the same array, each
+// append their own record, and the second setItem silently discards the first
+// member's retry — during exactly the outage this queue exists to survive.
+// Independent keys remove the read-modify-write: a write touches only its own
+// claim, and a clear removes only its own claim, so concurrent tabs cannot
+// clobber each other. The legacy single key is dropped on sight.
+//
+// ⚠ The prefix deliberately does NOT match any SHAPE_SCRUB_PREFIXES entry —
+// these claims survive the sign-out scrub by the same owner ruling as before
+// (see localScrub.mjs), which is only safe because replay is owner-scoped.
+const CAREER_AWARD_PREFIX = 'shape.careerAwardPending.';
+const CAREER_AWARD_MAX = 20; // a kiosk must not grow this without bound. Oldest
+                             // first — each claim stores its Date.now() as the value.
+function careerAwardKey(uid, postId) {
+  return CAREER_AWARD_PREFIX + String(uid) + '.' + String(postId);
+}
+function readCareerQueue() {
+  const out = [];
+  try {
+    const ls = localStorage;
+    // The pre-per-key formats — a bare post id, and the single JSON array that
+    // existed only inside this PR — carry no owner or no race safety. Drop.
+    try { if (ls.getItem(CAREER_AWARD_PENDING_KEY)) ls.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    for (let i = ls.length - 1; i >= 0; i--) {
+      const k = ls.key(i);
+      if (!k || k.indexOf(CAREER_AWARD_PREFIX) !== 0) continue;
+      // uid and postId are UUIDs (hyphens, never dots), so the FIRST dot after
+      // the prefix separates them unambiguously.
+      const rest = k.slice(CAREER_AWARD_PREFIX.length);
+      const dot = rest.indexOf('.');
+      if (dot <= 0 || dot === rest.length - 1) continue;
+      out.push({ uid: rest.slice(0, dot), postId: rest.slice(dot + 1), at: Number(ls.getItem(k)) || 0 });
+    }
+  } catch (e) {}
+  return out;
+}
+// ⚠ Keyed by (uid, POST) — one owner can hold several. award_work_milestone
+// buckets each award from the POST'S OWN month, so two claims that failed
+// across a month boundary (an outage spanning the 1st) are two DISTINCT +25s;
+// keying on uid alone would silently drop one of them.
+function readCareerPendingFor(uid) {
+  if (!uid) return [];
+  return readCareerQueue().filter((r) => String(r.uid) === String(uid));
+}
+// Enforcing the cap IS a read-modify-write, unavoidably — but it only ever
+// evicts the OLDEST claims past the limit, which is the cap's documented
+// behaviour anyway, so a concurrent enforcement can at worst apply that same
+// eviction twice. The per-claim writes it guards remain race-free.
+function enforceCareerCap() {
+  try {
+    const all = readCareerQueue();
+    if (all.length <= CAREER_AWARD_MAX) return;
+    all.sort((a, b) => a.at - b.at);
+    for (const r of all.slice(0, all.length - CAREER_AWARD_MAX)) {
+      try { localStorage.removeItem(careerAwardKey(r.uid, r.postId)); } catch (e) {}
+    }
+  } catch (e) {}
+}
+function writeCareerPending(uid, postId) {
+  if (!uid || !postId) return; // unattributable — never queue what we cannot own
+  // A single setItem on this claim's OWN key: no other tab's record is read,
+  // rewritten, or at risk.
+  try { localStorage.setItem(careerAwardKey(uid, postId), String(Date.now())); } catch (e) {}
+  enforceCareerCap();
+}
+// Clear ONLY our own claim: a success for post Y cannot delete a still-pending
+// retry for post X, and no other owner's claim is touched.
+function clearCareerPending(uid, postId) {
+  try { localStorage.removeItem(careerAwardKey(uid, postId)); } catch (e) {}
+}
+// ⚠ A non-error answer is TERMINAL, with one exception. granted:true (awarded),
+// granted:false with no reason (same-month duplicate — a SUCCESSFUL no-op by
+// design), and 'not_a_milestone' for our OWN post (deleted or edited since) are
+// all final; retrying them forever would never change the answer. Only
+// 'unauthenticated' says the server had no caller, which is worth another try.
+function careerAwardIsTerminal(data) {
+  return !(data && data.reason === 'unauthenticated');
+}
 async function claimCareerAward(postId) {
   if (!supabase || !postId) return { granted: false };
+  const uid = state.user?.id || null;
   try {
     const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: postId });
     if (error) throw error;
-    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    if (careerAwardIsTerminal(data)) clearCareerPending(uid, postId);
+    else writeCareerPending(uid, postId);
     if (data && data.granted) invalidateClientMetrics();
     return data || { granted: false };
   } catch (e) {
-    try { localStorage.setItem(CAREER_AWARD_PENDING_KEY, String(postId)); } catch (e2) {}
+    writeCareerPending(uid, postId);
     return { granted: false, pending: true };
   }
 }
 async function careerAwardCatchUp() {
   if (!supabase || !state.user?.id) return null;
-  let pending = null;
-  try { pending = localStorage.getItem(CAREER_AWARD_PENDING_KEY); } catch (e) { return null; }
-  if (!pending) return null;
-  try {
-    const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: pending });
-    if (error) return null; // still unreachable/pre-migration — keep the queue for next open
-    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
-    if (data && data.granted) invalidateClientMetrics();
-    return data;
-  } catch (e) { return null; }
+  // ⚠ Look up OUR OWN entries. Another member's queued award is not ours to
+  // replay: sending it would put their post id in a request authenticated as
+  // us, and the refusal that came back would then delete their retry.
+  const pending = readCareerPendingFor(state.user.id);
+  if (!pending.length) return null;
+  // Replay EVERY one of ours — an outage across a month boundary leaves two
+  // posts that each earn their own +25 (the award buckets by the post's month).
+  let last = null;
+  for (const rec of pending) {
+    try {
+      const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: rec.postId });
+      if (error) continue; // still unreachable/pre-migration — keep it for next open
+      if (careerAwardIsTerminal(data)) clearCareerPending(rec.uid, rec.postId);
+      if (data && data.granted) invalidateClientMetrics();
+      last = data;
+    } catch (e) { /* keep the record and try the next one */ }
+  }
+  return last;
 }
 window.ShapeCareerAward = { claim: claimCareerAward, catchUp: careerAwardCatchUp };
 
