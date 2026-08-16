@@ -26,10 +26,29 @@ export const ADULT_AGE_YEARS = 18;
  * proves 18 or over, and NULL when there is no usable date — null means "this
  * says nothing", never "adult".
  *
- * Compared in UTC to match the trigger's `current_date`, so a birthday resolves
- * on the UTC day. That can differ from the member's local day by up to one; the
- * asymmetry only ever refuses for one extra day rather than admitting a minor
- * early, which is the safe direction for a policy gate.
+ * Compared in UTC to match the trigger's `current_date`, so a birthday resolves on
+ * the UTC day.
+ *
+ * ⚠ THAT IS NOT A ONE-DIRECTIONAL SAFETY MARGIN, AND AN EARLIER VERSION OF THIS
+ * COMMENT CLAIMED IT WAS. The UTC day runs AHEAD of every timezone west of UTC, so
+ * there this function declares adulthood BEFORE the member's local eighteenth
+ * birthday — it admits a minor early, by up to the zone's offset. Verified: with
+ * DOB 2008-08-17 at 2026-08-17T00:30:00Z it returns `false` (adult) while it is
+ * still Aug 16 in America/Los_Angeles and America/New_York. Only EAST of UTC does
+ * the asymmetry refuse an adult a little longer (the safe direction).
+ *
+ * ⚠ The `set_over_18()` trigger has the IDENTICAL asymmetry — it compares against
+ * `current_date`, which is UTC — so this is a property of the rule, not of this
+ * file, and fixing only one side would put the two gates back into disagreement
+ * (the defect the clamp below exists to prevent).
+ *
+ * The correct fix is the member's own calendar day: `client_profiles.timezone`
+ * holds an IANA zone captured on app open, and Postgres has `shape_user_tz(uid)`.
+ * Wiring that through both callers AND the trigger is an OWNER decision — it
+ * changes the meaning of an applied, production-verified migration, and "which
+ * day is authoritative for an age gate" is a compliance question, not a
+ * refactor. Registered in docs/HANDOFF-2026-08-16.md; do not treat the UTC
+ * comparison as safe in the meantime.
  *
  * @param {unknown} dob  a `YYYY-MM-DD` date string, or anything at all
  * @param {Date|number} [now]  injectable clock; defaults to the real one

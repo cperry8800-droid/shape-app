@@ -1629,10 +1629,29 @@ changelog whenever something ships.
 
 ### 2026-08-16 — The 18+ cutoff clamps like Postgres; the gate's own coverage claims corrected (#1888, **OPEN** — head `53cdd22bf`)
 
-- ⚠ **NOT MERGED.** CI is green on the head (Web · Mobile · gitleaks · Tests) and the DOB
-  freeze migration is applied + behaviourally verified on production, but **Codex is
-  re-triggered and its verdict is pending**. Full state:
+- ⚠ **NOT MERGED — BLOCKED ON AN OWNER RULING.** CI is green on the head (Web · Mobile ·
+  gitleaks · Tests) and the DOB freeze migration is applied + behaviourally verified on
+  production, but **Codex round 9 returned a P1 and it is real** (reproduced, not taken on
+  faith). Full state + the two options:
   **[`docs/HANDOFF-2026-08-16.md`](HANDOFF-2026-08-16.md)**.
+- ⚠ **THE UTC COMPARISON ADMITS A MINOR EARLY WEST OF UTC — the header claimed it could
+  not.** The UTC day runs ahead of every zone west of UTC, so `isMinorFromDob` declares
+  adulthood **before the member's local eighteenth birthday** — up to ~11h early
+  (Pacific/Niue, UTC−11). Verified: DOB `2008-08-17` at `2026-08-17T00:30:00Z` returns
+  adult while it is still Aug 16 in Los Angeles and New York. So the comment asserting the
+  asymmetry "only ever refuses for one extra day rather than admitting a minor early" ruled
+  out the exact thing the code was doing — **the ninth consecutive round in which a
+  because-clause was the defect.** The false claim is now replaced with the verified
+  counterexample; the behaviour is deliberately unchanged.
+  ⚠ **`set_over_18()` has the IDENTICAL asymmetry** (`current_date` is UTC), so this is a
+  property of the rule, not of the JS file — **fixing only the JS side re-opens the very
+  JS↔SQL disagreement the leap-year clamp exists to prevent.** The options are a
+  conservative margin (one line, but breaks the documented `exactly 18 today is an ADULT`
+  contract and diverges from the trigger by a day) or the member's own calendar day
+  (correct both directions; needs a tz read in both callers **plus a new migration** over an
+  already-applied one). `client_profiles.timezone` + `shape_user_tz(uid)` already exist.
+  **Which calendar day is authoritative for an age gate is jurisdictional — flagged, not
+  drafted.**
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
