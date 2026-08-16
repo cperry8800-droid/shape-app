@@ -284,6 +284,28 @@
       if (!data.email || !data.password) { alert('Email and password are required.'); return; }
       if (!window.shapeDb) { alert('Auth client not loaded. Please refresh.'); return; }
 
+      // ⚠ THE 18+ CHECK MUST RUN HERE, BEFORE sendIntakeEmail() BELOW — not only
+      // inside signUp(). This form relays the whole questionnaire (injuries,
+      // medications, dietary and emergency-contact details) to the Shape intake
+      // inbox and stores it in localStorage BEFORE the account is created. Refusing
+      // a minor only at signUp() would still have collected and transmitted a
+      // child's health data first, then declined them — the wrong order for the
+      // one flow whose purpose is to keep minors out. Duplicated with signUp()
+      // deliberately: that copy is the floor for any other caller, this one is the
+      // stop that happens early enough to matter.
+      // Same rule as newdesign/signup.jsx and shapeBackend.signUp.
+      var bornOn = data.dob ? new Date(data.dob) : null;
+      if (!bornOn || isNaN(bornOn.getTime())) {
+        alert('Enter a valid date of birth — Shape is for adults 18 and over.');
+        return;
+      }
+      var adultBy = new Date();
+      adultBy.setFullYear(adultBy.getFullYear() - 18);
+      if (bornOn > adultBy) {
+        alert('You must be 18 or older to use Shape.');
+        return;
+      }
+
       // `data` carries the PASSWORD: gatherIntakeData() sweeps every [name] in
       // steps 1-4 and the password input is one of them. Only signUp() below may
       // read it. Everything that stores or transmits the questionnaire uses
@@ -300,7 +322,13 @@
         email: data.email,
         password: data.password,
         role: 'client',
-        fullName: ((data.firstName || '') + ' ' + (data.lastName || '')).trim()
+        fullName: ((data.firstName || '') + ' ' + (data.lastName || '')).trim(),
+        // ⚠ REQUIRED — this is the 18+ gate's only input. The form has always
+        // collected a date of birth, but it went solely to client_intakes (and the
+        // intake email), and no age check reads that table. Omitting it here left
+        // profiles.date_of_birth NULL, which every gate treats as "says nothing"
+        // and admits. signUp() rejects a missing or under-18 date.
+        dob: data.dob
       });
       if (res.error) {
         alert(res.error.message || 'Sign up failed.');

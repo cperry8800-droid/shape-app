@@ -1672,6 +1672,48 @@ changelog whenever something ships.
   adjacent-miss rule held again, the next defect being inside the fix for the last one.
   Every guard is mutation-tested: reverting the offset to UTC fails 2 vectors, the wrong
   sign fails 5, a half offset fails 1, and either weakening of the clock guard fails 1.
+- ⚠ **ROUND 10 — THE LEGACY SIGNUP COLLECTED A DATE OF BIRTH AND NEVER PERSISTED IT, SO
+  THE GATE HAD NOTHING TO READ.** `public/signup-client.html` sent its DOB to the intake
+  email and `client_intakes` — **not a table any age check reads** — and called
+  `shapeDb.signUp()` without it, which upserted `profiles` with no `date_of_birth`. Every
+  account from that flow therefore carried `date_of_birth` NULL and (by the trigger)
+  `over_18` NULL, and all three gates treat NULL as "says nothing", which **admits**. So a
+  minor who answered the question honestly was let straight through. **Worse than the
+  finding stated, two ways:** the page had **no 18+ validation at all** (the other two
+  signup surfaces validate and throw), and it is **not vestigial** — ~20 pages link it,
+  including `login.html`'s "Sign up". The DOB freeze migration's own header enumerates the
+  legitimate DOB writers and this path is absent from the list, because it never wrote one.
+- **THE FIX, at the helper that owns the profiles upsert — not only at the page.**
+  `signUp()` now requires a valid 18+ date and writes it to the row **and** to auth
+  metadata; validating in the page alone would leave the row-writing code still able to
+  create an ungated account. ⚠ **The metadata copy is not redundant:** with email
+  confirmation on, `signUp` returns a user and NO session, the upsert cannot authenticate,
+  and `newdesign/login.jsx:140` claims the date at first sign-in — without it the
+  confirm-by-email half still produces ungated rows, which is the harder half to notice.
+  ⚠ **AND THE 18+ CHECK HAD TO MOVE ABOVE `sendIntakeEmail()`, WHICH IS A SEPARATE
+  DEFECT:** that call relays the whole questionnaire — injuries, medications, dietary
+  restrictions, emergency contact — to the Shape inbox and localStorage **before** the
+  account is created, so refusing a minor only inside `signUp()` would have collected and
+  transmitted a child's health data and only then declined them. **A gate that runs after
+  the side effect is not a gate.**
+- **No migration and no backfill, and that was measured rather than assumed:**
+  `client_intakes` holds **0 rows** and `profiles` holds **2**, both DOB-null. The defect
+  is about every account this path will create, not damage already done.
+- **The rule now has FOUR copies and they cannot share a module** — `public/supabase.js`
+  is a browser IIFE loaded by `<script>` and the page's copy is inline, neither of which
+  can import. Drift is the realistic failure, so drift is what is gated:
+  `tests/signup-dob-persisted.test.mjs` pins the profiles write, the metadata write, both
+  refusals running **before** account creation, the page passing its `dob`, the check
+  preceding `sendIntakeEmail()`, one shared threshold expression, and that no surface sets
+  `over_18` directly. ⚠ **Mutation-testing it caught a hole in the guard itself:** the
+  passed-dob assertion lacked a word boundary, so `xdob: data.dob` — a renamed, ignored
+  key — satisfied it. Fixed; all seven mutations now killed.
+- ⚠ **The honest limit, stated so nobody reads more into it:** a client-side check stops
+  the ordinary member who enters a real date, which is who an age gate is for. It cannot
+  stop a hostile caller who skips the helper and drives `supabase.auth` directly — that
+  needs the read-time gate to **refuse a NULL `date_of_birth`**, which would also lock out
+  any pre-DOB account. With two rows in the table that is as cheap as it will ever be, but
+  it is an owner ruling, not a patch.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward

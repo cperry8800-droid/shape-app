@@ -34,17 +34,54 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     client: client,
 
     // Sign up a new user and create their profile row.
+    //
+    // ⚠ THE DOB IS REQUIRED, AND IT IS AN AGE-GATE DEPENDENCY, NOT A FORM FIELD.
+    // Every 18+ check Shape has — the proxy's paid-prefix gate, computeMembership()'s
+    // isKnownMinor, refuseKnownMinor() — derives from `profiles.date_of_birth` at
+    // READ time, and all three treat NULL as "says nothing" and let the request
+    // through. So an account created without a DOB is not merely incomplete: it is
+    // permanently UNGATED. This path used to collect a date of birth on
+    // signup-client.html and write it only to client_intakes, which is not a table
+    // any gate reads — so a minor who answered honestly was admitted anyway.
+    //
+    // Required here rather than only on the form because this helper owns the
+    // profiles upsert: validating in the page would leave the row-writing code
+    // still able to create an ungated account. The check mirrors
+    // newdesign/signup.jsx and shapeBackend.signUp verbatim so the three signup
+    // surfaces cannot drift apart on what "18" means.
+    //
+    // This is the honest limit of a client-side check: it stops the ordinary user
+    // who enters a real date, which is who an age gate is for. It cannot stop a
+    // hostile caller who skips this helper and drives supabase.auth directly —
+    // that needs the read-time gate to refuse a NULL date_of_birth, which is an
+    // open product decision (it would also lock out any pre-DOB account).
     async signUp(opts) {
       var email = opts.email;
       var password = opts.password;
       var role = opts.role; // 'client' | 'trainer' | 'nutritionist'
       var fullName = opts.fullName || '';
+      var dob = opts.dob;
+
+      var born = dob ? new Date(dob) : null;
+      if (!born || isNaN(born.getTime())) {
+        return { error: { message: 'Enter a valid date of birth — Shape is for adults 18 and over.', code: 'dob_required' } };
+      }
+      var eighteen = new Date();
+      eighteen.setFullYear(eighteen.getFullYear() - 18);
+      if (born > eighteen) {
+        return { error: { message: 'You must be 18 or older to use Shape.', code: 'under_18' } };
+      }
 
       var signUpRes = await client.auth.signUp({
         email: email,
         password: password,
         options: {
-          data: { full_name: fullName, role: role }
+          // date_of_birth rides in user_metadata as well as the row below: when
+          // email confirmation is on, signUp returns a user with NO session, the
+          // upsert cannot authenticate, and the metadata copy is what
+          // newdesign/login.jsx:140 claims onto profiles at first sign-in. Without
+          // it, the confirm-by-email half of this flow still creates ungated rows.
+          data: { full_name: fullName, role: role, date_of_birth: dob }
         }
       });
       if (signUpRes.error) return { error: signUpRes.error };
@@ -57,7 +94,11 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           id: user.id,
           role: role,
           roles: [role],
-          full_name: fullName
+          full_name: fullName,
+          // over_18 is NOT set here and must never be: set_over_18() derives it
+          // from this date on every write and ignores any supplied flag. Writing
+          // the date is the whole mechanism.
+          date_of_birth: dob
         });
         if (profileRes.error) {
           console.warn('[shape] profile upsert failed', profileRes.error);
