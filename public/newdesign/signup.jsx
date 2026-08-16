@@ -531,12 +531,20 @@ function SignupForm({ role }) {
         setError("Pick a valid username — letters, numbers, . _ (3–20 chars).");
         return;
       }
-      // 18+ gate (verbatim from shapeBackend.signUp).
-      const d = values.dob ? new Date(values.dob) : null;
-      if (!d || isNaN(d.getTime())) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
-      const eighteen = new Date();
-      eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (d > eighteen) { setError("You must be 18 or older to use Shape."); return; }
+      // ⚠ 18+ gate — the SHARED derivation, not a restatement. The instant
+      // comparison this replaced read ADULT for DOB 2008-08-17 at
+      // 2026-08-17T00:30:00Z, which is still Aug 16 in Los Angeles: a minor
+      // admitted on their local birthday eve, the exact case the read-time gate
+      // reads the calendar day at UTC−12 to prevent.
+      const ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== "function") {
+        // Fail closed — cannot verify an age ⇒ refuse, never admit.
+        setError("Could not verify your age. Reload the page and try again.");
+        return;
+      }
+      const minor = ageApi.isMinorFromDob(values.dob);
+      if (minor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
+      if (minor === true) { setError("You must be 18 or older to use Shape."); return; }
       // Require Terms + Privacy acceptance before creating a real account (the
       // ClientPrefs step collects values.tos — gate on it like the coach path does).
       if (!values.tos) { setError("Please accept the Terms of Service and Privacy Policy to continue."); return; }

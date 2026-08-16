@@ -23,6 +23,8 @@ import { bsNormalizeListingMedia } from './listingMedia.mjs';
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
 import { normalizeMemoryDoc } from '../../../src/lib/ai/noraMemory.mjs';
+// The canonical 18+ derivation (anywhere-on-Earth rule) shared with the gates.
+import { isMinorFromDob } from '../../../src/lib/age-derive.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -301,10 +303,13 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
   // by a DB trigger. The DATE is only unfakeable once
   // 2026-08-15-profiles-dob-immutable.sql freezes it against self-rewrite.
   {
-    const d = dob ? new Date(dob) : null;
-    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
-    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+    // ⚠ ONE RULE — the same derivation the read-time gates use. The instant
+    // comparison this replaced read ADULT for DOB 2008-08-17 at
+    // 2026-08-17T00:30:00Z (still Aug 16 in Los Angeles), admitting a minor the
+    // gate would then refuse.
+    const minor = isMinorFromDob(dob);
+    if (minor === null) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    if (minor === true) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
   }
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });
@@ -370,10 +375,13 @@ async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCre
   // recomputed from date_of_birth by a trigger — unfakeable only once
   // 2026-08-15-profiles-dob-immutable.sql freezes the date against self-rewrite.
   if (isCreate) {
-    const d = dob ? new Date(dob) : null;
-    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
-    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+    // ⚠ ONE RULE — the same derivation the read-time gates use. The instant
+    // comparison this replaced read ADULT for DOB 2008-08-17 at
+    // 2026-08-17T00:30:00Z (still Aug 16 in Los Angeles), admitting a minor the
+    // gate would then refuse.
+    const minor = isMinorFromDob(dob);
+    if (minor === null) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    if (minor === true) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
   }
   if (!authConfigured) {
     // Demo mode (no Supabase configured): pretend the code was sent.

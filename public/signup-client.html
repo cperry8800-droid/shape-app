@@ -293,15 +293,24 @@
       // one flow whose purpose is to keep minors out. Duplicated with signUp()
       // deliberately: that copy is the floor for any other caller, this one is the
       // stop that happens early enough to matter.
-      // Same rule as newdesign/signup.jsx and shapeBackend.signUp.
-      var bornOn = data.dob ? new Date(data.dob) : null;
-      if (!bornOn || isNaN(bornOn.getTime())) {
+      // ⚠ USE THE SHARED DERIVATION, NOT A HAND-WRITTEN COMPARISON. The instant
+      // comparison this replaced (`new Date(dob) > now-18y`) read ADULT for
+      // DOB 2008-08-17 at 2026-08-17T00:30:00Z — still Aug 16 in Los Angeles —
+      // which is the exact case the read-time gate reads the calendar day at
+      // UTC−12 to prevent. Getting it wrong HERE is worse than at the gate,
+      // because this check is what stands in front of sendIntakeEmail().
+      var ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== 'function') {
+        // Fail closed: cannot verify an age ⇒ refuse, never admit.
+        alert('Could not verify your age. Reload the page and try again.');
+        return;
+      }
+      var isMinor = ageApi.isMinorFromDob(data.dob);
+      if (isMinor === null) {
         alert('Enter a valid date of birth — Shape is for adults 18 and over.');
         return;
       }
-      var adultBy = new Date();
-      adultBy.setFullYear(adultBy.getFullYear() - 18);
-      if (bornOn > adultBy) {
+      if (isMinor === true) {
         alert('You must be 18 or older to use Shape.');
         return;
       }
@@ -402,6 +411,10 @@
     }
   </script>
 
+  <!-- The 18+ derivation shared with the read-time gates. MUST load before
+       supabase.js: shapeDb.signUp() fails CLOSED without window.ShapeAgeDerive,
+       so a missing tag refuses signups rather than silently admitting minors. -->
+  <script src="/age-derive.js"></script>
   <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
   <script src="supabase.js"></script>
   <script src="/pwa-install.js" defer></script>

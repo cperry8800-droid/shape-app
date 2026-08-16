@@ -68,6 +68,22 @@ export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
         />
       </label>
 
+      {/* Shape is 18+. This field is REQUIRED because the age gates derive from
+          profiles.date_of_birth at read time and treat a missing date as "says
+          nothing", which admits — so an account created without one is
+          permanently ungated. `required` here is a convenience only; the
+          server action re-derives with the shared rule and is the authority. */}
+      <label className="flex flex-col gap-1.5">
+        <span className="text-xs uppercase tracking-wider text-neutral-400">Date of birth</span>
+        <input
+          type="date"
+          name="dob"
+          required
+          className="px-4 py-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-sm outline-none focus:border-teal-400 transition-colors [color-scheme:dark]"
+        />
+        <span className="text-xs text-neutral-400">Shape is for adults 18 and over.</span>
+      </label>
+
       <fieldset className="flex flex-col gap-1.5">
         <span className="text-xs uppercase tracking-wider text-neutral-400">I am a</span>
         <div className="flex gap-2">

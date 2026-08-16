@@ -62,13 +62,28 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       var fullName = opts.fullName || '';
       var dob = opts.dob;
 
-      var born = dob ? new Date(dob) : null;
-      if (!born || isNaN(born.getTime())) {
+      // ⚠ ONE RULE, NOT A FIFTH COPY. This calls the same derivation the READ-TIME
+      // gates use (src/lib/age-derive.mjs, mirrored for classic scripts as
+      // public/age-derive.js and pinned behaviourally by
+      // tests/age-derive-mirror.test.mjs). The hand-written
+      // `born > (new Date()).setFullYear(getFullYear() - 18)` this replaced
+      // compared INSTANTS: `new Date('2008-08-17')` is midnight UTC, so at
+      // 2026-08-17T00:30:00Z it read ADULT while it was still Aug 16 in Los
+      // Angeles. That is precisely the counterexample the read-time gate was
+      // rewritten to close, so signup admitted the member the gate would later
+      // refuse — after their intake had already been relayed.
+      var ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== 'function') {
+        // ⚠ FAIL CLOSED. A page that could not load the age module cannot verify
+        // an age, and "cannot verify" must refuse — never admit. Silently
+        // skipping the check here would recreate the exact hole this closes.
+        return { error: { message: 'Could not verify your age. Reload the page and try again.', code: 'age_check_unavailable' } };
+      }
+      var minor = ageApi.isMinorFromDob(dob);
+      if (minor === null) {
         return { error: { message: 'Enter a valid date of birth — Shape is for adults 18 and over.', code: 'dob_required' } };
       }
-      var eighteen = new Date();
-      eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (born > eighteen) {
+      if (minor === true) {
         return { error: { message: 'You must be 18 or older to use Shape.', code: 'under_18' } };
       }
 
@@ -177,6 +192,32 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         }
       } catch (e) { console.warn('[shape] cookie bridge failed', e); }
       var profile = await shapeDb.getProfile(user.id);
+      // ⚠ PROVISION ON FIRST CONFIRMED SIGN-IN — this is the ONLY place the
+      // legacy email-confirm signup can land its date of birth.
+      // signup-client.html redirects to login.html when signUp returns no
+      // session (confirmation on), and login.html REJECTS a missing profile
+      // ("No profile found. Please sign up."), so the account was left with a
+      // usable session, no profile row, and no DOB — invisible to every age
+      // gate, which reads a missing/NULL date as "says nothing" and ADMITS.
+      // newdesign/login.jsx has its own claim-from-metadata step, but this flow
+      // never reaches it (different page) and its guard additionally requires a
+      // username this helper does not set. So it is provisioned here, from the
+      // metadata signUp() wrote, and the DOB freeze makes this first write the
+      // permanent one.
+      if (user && !profile) {
+        var meta = (user.user_metadata || {});
+        try {
+          var seed = { id: user.id };
+          if (meta.full_name) seed.full_name = meta.full_name;
+          if (meta.role) { seed.role = meta.role; seed.roles = [meta.role]; }
+          // over_18 is NOT set: set_over_18() derives it from this date on every
+          // write and discards any supplied flag. Writing the date is the mechanism.
+          if (meta.date_of_birth) seed.date_of_birth = meta.date_of_birth;
+          var prov = await client.from('profiles').upsert(seed, { onConflict: 'id' });
+          if (prov && prov.error) console.warn('[shape] profile provision failed', prov.error);
+          else profile = await shapeDb.getProfile(user.id);
+        } catch (e) { console.warn('[shape] profile provision threw', e); }
+      }
       return { user: user, profile: profile };
     },
 

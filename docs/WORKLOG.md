@@ -1714,6 +1714,55 @@ changelog whenever something ships.
   needs the read-time gate to **refuse a NULL `date_of_birth`**, which would also lock out
   any pre-DOB account. With two rows in the table that is as cheap as it will ever be, but
   it is an owner ruling, not a patch.
+- ⚠ **ROUND 11 — MY ROUND-10 FIX SHIPPED A REGRESSION OF MY OWN ROUND-9 FIX, AND THE
+  GUARD I WROTE PINNED IT.** Copying the sibling surfaces' 18+ check verbatim carried
+  their **instant-based** comparison — `new Date(dob) > now − 18y`. `new Date('2008-08-17')`
+  is midnight **UTC**, so at `2026-08-17T00:30:00Z` it reads **ADULT** while it is still
+  Aug 16 in Los Angeles: the *exact* counterexample round 9 rewrote the read-time gate to
+  close. Reproduced before fixing. Worse, `tests/signup-dob-persisted.test.mjs` asserted
+  that expression as "the shared rule" across all four copies — **a drift guard cementing
+  the bug it was written to prevent.** The lesson generalizes past this file: *a guard that
+  pins an expression pins whatever that expression is wrong about; assert what the code
+  ANSWERS, not how it is spelled.*
+- **THE FIX — ONE RULE, REACHED FROM EVERY SURFACE, instead of a fifth hand-copy.** The
+  canonical `src/lib/age-derive.mjs` must stay import-free (it rides the Edge proxy
+  bundle) and the write surfaces are classic scripts that cannot import ESM — the same
+  constraint `public/newdesign/localScrub.mjs` already solves, so the same remedy:
+  **`public/age-derive.js`**, a classic-script mirror registering `window.ShapeAgeDerive`,
+  with **`tests/age-derive-mirror.test.mjs`** running BOTH implementations over a named
+  boundary table **plus a 4,000-case deterministic fuzz sweep** (seeded LCG, never
+  `Math.random`) and failing on the first disagreement. Now: `public/supabase.js`,
+  `signup-client.html` and `newdesign/signup.jsx` call the mirror; `shapeBackend.js`
+  (both creation paths) and the Next action **import the canonical module directly**.
+  ⚠ Every classic-script surface **fails CLOSED** when the module is absent — a page that
+  cannot verify an age must refuse, never admit.
+- ⚠ **ROUND 11 ALSO ANSWERED THE TWO QUESTIONS I HAD ASKED BECAUSE I WAS UNSURE — both
+  came back "yes, you missed something".** (1) **The metadata claim I described was dead
+  on the path that uses it.** `signup-client.html` redirects to **`login.html`**, not
+  `newdesign/Login.html`; `login.html` REJECTS a missing profile ("No profile found.
+  Please sign up.") and `shapeDb.signIn` only *read* the profile — so a confirmed account
+  kept a usable session, **no profiles row and no DOB**. `signIn` now provisions the row
+  from the signup metadata; that is the legacy confirm flow's only provisioning point.
+  (2) **`/signup` (Next) was a complete bypass** — linked from `Nav.tsx` "Get started",
+  `Footer.tsx` and `CinematicNav.tsx`, it called `auth.signUp()` with role metadata only
+  and wrote no profile at all. It now collects a DOB, validates with the canonical module
+  **before** account creation, carries it in metadata, and persists the row on the
+  auto-confirm branch — surfacing a failed write rather than landing on the dashboard
+  ungated.
+- **The drift guard was rebuilt to check DELEGATION, not spelling** — every creation path
+  routes to the shared rule, each classic surface fails closed, every page that needs the
+  mirror loads it, and a dedicated anti-regression test fails if the instant comparison
+  ever returns. ⚠ Two lessons paid for twice: the mobile paths are now **sliced per
+  function** (the old whole-file search passed while one of `signUp`/`signInWithPhone`
+  drifted — the exact reported defect), and assertions **strip comments first**, because
+  the rationale comments quote the banned expression and name `auth.signUp()`, so the
+  first version fired on its own explanation. **9/9 mutations killed**, including
+  drifting only the phone path.
+- Verified on this head: suite **1595/1595**, `tsc` clean, `next build` exit 0 with
+  `ƒ Proxy (Middleware)`, mobile Vite build clean with the AoE derivation confirmed
+  **in the emitted bundle** (both creation paths call it), newdesign precompile check
+  exit 0, CRLF preserved on the three tracked-CRLF signup pages (2-line diffs), zero NUL
+  bytes.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
