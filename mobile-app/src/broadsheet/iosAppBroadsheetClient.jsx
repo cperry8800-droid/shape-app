@@ -3526,6 +3526,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       nutrition: { head: tr('home:lead.nutrition.head', { defaultValue: BS_LEVER_HEADS.nutrition }), cta: [tr('home:lead.nutrition.cta', { defaultValue: "I'll log a meal →" }), () => goEat()], c: _teal, stakes: tr('home:lead.nutrition.stakes', { defaultValue: 'keep your momentum going' }) },
       goal:      { head: tr('home:lead.goal.head', { defaultValue: BS_LEVER_HEADS.goal }), cta: [tr('home:lead.goal.cta', { defaultValue: "I'll weigh in →" }), () => setGoalsPage(true)], c: t.AMBER },
       score:     { head: tr('home:lead.score.head', { defaultValue: BS_LEVER_HEADS.score }), cta: [tr('home:lead.score.cta', { defaultValue: "I'll grab a win →" }), () => setHabitsPage(true)], c: t.AMBER },
+      // Check-in vitals levers (spec §3A) — observation + one concrete move,
+      // never shaming. energy/hydration land on the Today check-in page (it
+      // hosts the gauges + the hydration quick-add); hunger lands on Eat.
+      energy:    { head: tr('home:lead.energy.head', { defaultValue: BS_LEVER_HEADS.energy }), cta: [tr('home:lead.energy.cta', { defaultValue: "I'll take it lighter →" }), () => setTodayPage(true)], c: t.BLUE },
+      hunger:    { head: tr('home:lead.hunger.head', { defaultValue: BS_LEVER_HEADS.hunger }), cta: [tr('home:lead.hunger.cta', { defaultValue: "I'll eat properly →" }), () => goEat()], c: _teal },
+      hydration: { head: tr('home:lead.hydration.head', { defaultValue: BS_LEVER_HEADS.hydration }), cta: [tr('home:lead.hydration.cta', { defaultValue: "I'll log water →" }), () => setTodayPage(true)], c: _teal },
       // `sleep` deliberately omitted — logging last night's sleep is consolidated
       // into the "Today · how are you" check-in page (opened from the nudge below;
       // Sleep · last night row + recovery readiness), so it never spawns a

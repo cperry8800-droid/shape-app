@@ -43,7 +43,7 @@ function normalizeWeighIns(raw) {
 // ── Coach view: one client's record from the get_client_* rollups the coach
 // app already fetches (ShapeClientStats.get / .getLifts, ShapeGoalsApi). ───────
 export function recordFromCoachData(raw = {}, deps = {}) {
-  const { id, name, stats, lifts, goalsDoc, checkins, lastContact, recovery, coachDirective } = raw;
+  const { id, name, stats, lifts, goalsDoc, checkins, lastContact, recovery, vitals, coachDirective } = raw;
   const rec = { profile: { id: id || null, name: name || 'Client' } };
 
   if (stats && typeof stats === 'object') {
@@ -71,6 +71,7 @@ export function recordFromCoachData(raw = {}, deps = {}) {
   applyCheckIn(rec, checkins);
   if (lastContact && typeof lastContact === 'object') rec.lastContact = lastContact;
   if (recovery && typeof recovery === 'object') rec.recovery = recovery;
+  if (vitals && typeof vitals === 'object') rec.vitals = vitals;
   if (coachDirective && typeof coachDirective === 'object') rec.coachDirective = coachDirective;
   return rec;
 }
@@ -78,7 +79,7 @@ export function recordFromCoachData(raw = {}, deps = {}) {
 // ── Client (self) view: the signed-in member's own record, from the live client
 // APIs the app already calls (dashboard / nutrition / weigh-ins / goals). ──────
 export function recordFromSelfData(raw = {}, deps = {}) {
-  const { uid, name, dashboard, nutrition, weighIns, goalsDoc, checkins, recovery, coachDirective } = raw;
+  const { uid, name, dashboard, nutrition, weighIns, goalsDoc, checkins, recovery, vitals, coachDirective } = raw;
   const rec = { profile: { id: uid || null, name: name || 'You' } };
 
   const streak = firstNum(dashboard && dashboard.kpis && dashboard.kpis.streak, nutrition && nutrition.currentStreak);
@@ -106,6 +107,7 @@ export function recordFromSelfData(raw = {}, deps = {}) {
   applyGoals(rec, goalsDoc, deps);
   applyCheckIn(rec, checkins);
   if (recovery && typeof recovery === 'object') rec.recovery = recovery;
+  if (vitals && typeof vitals === 'object') rec.vitals = vitals;
   if (coachDirective && typeof coachDirective === 'object') rec.coachDirective = coachDirective;
   return rec;
 }
@@ -121,6 +123,63 @@ export function sleepRecoveryFromProgress(progress) {
   const last7 = vals.slice(-7);
   const avg7 = last7.reduce((a, b) => a + b, 0) / last7.length;
   return { sleepHours: { avg7, lastNight, target: 7.5 } };
+}
+
+// Build the engine's `vitals` leg from the SAME cached progress response the
+// sleep leg reads (spec §3A): series.energy / series.hunger (1-10 gauges),
+// series.hydration (liters), series.sleepQuality (the "rested" 1-10 gauge).
+// A missing value is ABSENCE — junk rows are DROPPED, never coerced (Number(null)
+// is a finite 0: the documented fabrication class). Each present leg carries the
+// average of the LAST 7 real values + n (how many real values fed it) so the
+// engine's minimum-days gates can refuse to fire on thin data. The `v > 0`
+// filter is absence-safe for every leg: energy/hunger/rested carry a DB CHECK
+// of 1-10, and a 0-liter hydration row is indistinguishable from a row another
+// metric's write created (the sleep precedent — under-firing is the safe
+// direction). `opts.hydrationTargetL` is the member's REAL stored target
+// (user_goals client_nutrition_prefs, read via /api/client/hydration) — passed
+// in and never defaulted here, so the hydration rule cannot fire against a
+// fabricated target. Returns null when NO leg has real data.
+export function vitalsFromProgress(progress, opts = {}) {
+  const series = (progress && progress.series && typeof progress.series === 'object') ? progress.series : null;
+  if (!series) return null;
+  // The window is the last 7 CALENDAR DAYS, not the last 7 observations.
+  // /api/client/progress returns up to 400 chronological snapshots with no
+  // recency filter, so a bare .slice(-7) would let three low-energy readings
+  // from MONTHS ago keep satisfying n >= 3 and fire a "this week" directive
+  // (and a persisted notify snapshot) forever. Points carry an ISO
+  // 'YYYY-MM-DD' date, so a lexicographic >= cutoff compare is exact and
+  // tz-arithmetic-free; the cutoff is built from LOCAL date parts because
+  // snapshot_date is written from the member's local day (_localDate()).
+  // A point with no usable date is DROPPED — recency it cannot prove is
+  // absence, which is the safe direction (under-firing, never over-firing).
+  const now = opts.now instanceof Date ? opts.now : new Date();
+  const cut = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+  const cutoff = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, '0')}-${String(cut.getDate()).padStart(2, '0')}`;
+  const leg = (key) => {
+    const pts = Array.isArray(series[key]) ? series[key] : [];
+    const vals = pts
+      .filter((p) => p && typeof p.date === 'string' && p.date >= cutoff)
+      .map((p) => num(p && p.value))
+      .filter((v) => v != null && v > 0);
+    if (!vals.length) return null;
+    // Still cap at 7 — one day per date is the norm, but a duplicated date
+    // must not let an 8th reading widen the "7-day" average it claims to be.
+    const last7 = vals.slice(-7);
+    return { avg7: last7.reduce((a, b) => a + b, 0) / last7.length, n: last7.length };
+  };
+  const energy = leg('energy');
+  const hunger = leg('hunger');
+  const rested = leg('sleepQuality');
+  const hyd = leg('hydration');
+  const targetL = num(opts.hydrationTargetL);
+  const hydration = hyd ? { avg7L: hyd.avg7, targetL: targetL != null && targetL > 0 ? targetL : null, n: hyd.n } : null;
+  if (!energy && !hunger && !hydration && !rested) return null;
+  const out = {};
+  if (energy) out.energy = energy;
+  if (hunger) out.hunger = hunger;
+  if (hydration) out.hydration = hydration;
+  if (rested) out.rested = rested;
+  return out;
 }
 
 // ── shared helpers ──────────────────────────────────────────────────────────

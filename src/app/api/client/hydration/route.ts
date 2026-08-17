@@ -16,14 +16,22 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_TARGET_L = 3.0;
 
-// Best-effort read of the user's hydration target from user_goals; 3.0 L
-// default. The mobile Settings → Nutrition stores hydration_target_l in
+// Best-effort read of the user's hydration target from user_goals. The mobile
+// Settings → Nutrition stores hydration_target_l in
 // user_goals(kind='client_nutrition_prefs').data, keyed by 'hydration_target_l'
 // (verified: iosAppBroadsheetClient.jsx ~L19063 + the getUserGoals write path in
 // shapeBackend.js). The brief's original form queried client_settings.settings
 // (jsonb) — that table exists but hydration_target_l is NOT stored there; it
 // lives in user_goals as confirmed by tracing the write path.
-async function readTargetL(supabase: Awaited<ReturnType<typeof clientForRequest>>, userId: string): Promise<number> {
+// Returns the STORED target, or null when the member never set one. Callers
+// decide what absence means: the hydration CARD charges against
+// DEFAULT_TARGET_L (a UI default everyone sees), but the signals engine must
+// be able to tell a chosen target from that default — a "you're behind on
+// water" directive fired against a target the member never picked is exactly
+// the unearned nag the engine's absence gates exist to prevent. Hence the GET
+// exposes BOTH `targetL` (display, defaulted) and `targetStoredL` (null when
+// unset). Do not collapse them back into one field.
+async function readStoredTargetL(supabase: Awaited<ReturnType<typeof clientForRequest>>, userId: string): Promise<number | null> {
   try {
     const { data } = await supabase
       .from('user_goals')
@@ -33,9 +41,9 @@ async function readTargetL(supabase: Awaited<ReturnType<typeof clientForRequest>
       .maybeSingle();
     const raw = (data as { data?: Record<string, unknown> } | null)?.data?.hydration_target_l;
     const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : DEFAULT_TARGET_L;
+    return Number.isFinite(n) && n > 0 ? n : null;
   } catch {
-    return DEFAULT_TARGET_L;
+    return null;
   }
 }
 
@@ -53,9 +61,10 @@ export async function GET(request: Request) {
     .eq('snapshot_date', today)
     .maybeSingle();
   if (error) return dbError(error, 'hydration read', 500);
-  const targetL = await readTargetL(supabase, user.id);
+  const targetStoredL = await readStoredTargetL(supabase, user.id);
+  const targetL = targetStoredL ?? DEFAULT_TARGET_L;
   const hydrationL = Number((data as { hydration_l?: number } | null)?.hydration_l ?? 0) || 0;
-  return NextResponse.json({ ok: true, hydrationL, targetL, date: today });
+  return NextResponse.json({ ok: true, hydrationL, targetL, targetStoredL, date: today });
 }
 
 export async function POST(request: Request) {
@@ -86,6 +95,7 @@ export async function POST(request: Request) {
   const { data: rpcVal, error: rpcErr } = await supabase.rpc('add_hydration', { p_delta: deltaL, p_date: today });
   if (rpcErr) return dbError(rpcErr, 'hydration write', 500);
 
-  const targetL = await readTargetL(supabase, user.id);
-  return NextResponse.json({ ok: true, hydrationL: Number(rpcVal) || 0, targetL, date: today });
+  const targetStoredL = await readStoredTargetL(supabase, user.id);
+  const targetL = targetStoredL ?? DEFAULT_TARGET_L;
+  return NextResponse.json({ ok: true, hydrationL: Number(rpcVal) || 0, targetL, targetStoredL, date: today });
 }
