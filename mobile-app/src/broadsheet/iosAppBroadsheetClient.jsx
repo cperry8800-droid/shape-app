@@ -21094,6 +21094,14 @@ function bsDailyCheckinApply(on) {
   bsDailyCheckinMirrorWrite(on);
   try { window.dispatchEvent(new CustomEvent('shape:checkinPref', { detail: { on: !!on } })); } catch (e) {}
 }
+// The Settings row's own SEED, read from the same per-uid mirror. Seeding is
+// NOT an edit: it never writes the mirror and never dispatches — so an opened
+// Settings pane can't fire a phantom apply at a mounted Home. It exists because
+// a null cloud read (offline / query failure) leaves the pane on its defaults,
+// which would show On while the mirror is correctly keeping Home OFF — the
+// segmented control contradicting the behaviour it names. A real cloud doc
+// still wins when it arrives (subject to the pane's edit-generation guard).
+function bsDailyCheckinLabel() { return bsDailyCheckinMirrorRead() ? 'On' : 'Off'; }
 // Synchronous pref reader for OTHER modules (spec §3D — the engine gates its
 // vitals leg on it the moment a member opts out). Reads the per-uid mirror,
 // so it returns the CURRENT state: true for signed-out, converged after the
@@ -26685,23 +26693,38 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     else if (key === 'noraTone') window.ShapeVoice.setTone(val === 'Direct' ? 'direct' : 'supportive');
     else if (key === 'noraVoiceName') window.ShapeVoice.setVoice(noraVoiceIdFromLabel(val));
   };
-  const [prefs, setPrefs] = useStateBSC(PREF_DEFAULTS);
+  // Edit generation for THIS pane's hydrate. BSSettings runs its OWN
+  // getUserGoals('client_settings') read, separate from useBSDailyCheckinPref's,
+  // so it needs its own copy of the hook's guard: a read that started before the
+  // member toggled must never apply its stale value, because bsDailyCheckinApply
+  // writes the mirror AND dispatches — it would undo the fresh choice on a
+  // still-mounted Home. Bumped by every local dailyCheckin write (cyclePref and
+  // setPref below); captured before the fetch, re-checked before applying.
+  // Declared above the effect that reads it so the closure can't hit a TDZ.
+  const checkinEditGenRef = React.useRef(0);
+  const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel() }));
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
+    const gen = checkinEditGenRef.current;
     window.shapeDb.getUserGoals('client_settings').then(s => {
       if (alive && s && typeof s === 'object') {
-        setPrefs(p => ({ ...p, ...s }));
+        // A local toggle landed mid-flight ⇒ this response is stale for the
+        // check-in pref alone: drop it from the patch (the blanket spread would
+        // revert the row) and skip the apply. Every other pref still converges.
+        const checkinStale = checkinEditGenRef.current !== gen;
+        // A boolean doc value (the spec's storage sketch) normalizes to the
+        // house 'On'/'Off' string so the segmented row lights correctly, and an
+        // ABSENT key reads ON — the SAME rule useBSDailyCheckinPref applies, so
+        // the row and Home can never converge on different answers.
+        const dcOn = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
+        const patch = { ...s };
+        if (checkinStale) delete patch.dailyCheckin; else patch.dailyCheckin = dcOn ? 'On' : 'Off';
+        setPrefs(p => ({ ...p, ...patch }));
         if (s.units) window.ShapeUnits?.set(s.units);
         try { window.ShapeOnlineVisible = (s.onlineVisible !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-        if ('dailyCheckin' in s) {
-          // A boolean doc value (the spec's storage sketch) normalizes to the
-          // house 'On'/'Off' string so the segmented row lights correctly; the
-          // apply() keeps the mirror + a mounted Home in sync with the doc.
-          const dcOn = bsDailyCheckinOn(s.dailyCheckin);
-          if (typeof s.dailyCheckin !== 'string') setPrefs(p => ({ ...p, dailyCheckin: dcOn ? 'On' : 'Off' }));
-          try { bsDailyCheckinApply(dcOn); } catch (e) {}
-        }
+        // The apply() keeps the mirror + a mounted Home in sync with the doc.
+        if (!checkinStale) { try { bsDailyCheckinApply(dcOn); } catch (e) {} }
         window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
         if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
@@ -26732,7 +26755,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
-      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D)
+      if (key === 'dailyCheckin') { checkinEditGenRef.current += 1; try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // outdate an in-flight hydrate + mirror + live Home re-render (spec §3D)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -26747,7 +26770,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
-      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D)
+      if (key === 'dailyCheckin') { checkinEditGenRef.current += 1; try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // outdate an in-flight hydrate + mirror + live Home re-render (spec §3D)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;

@@ -365,10 +365,23 @@ test('window.ShapeCheckinPref.on() is the synchronous pref reader and tracks the
 test('Settings carries the dailyCheckin pref end to end (both writers, row, loader)', () => {
   const src = readFileSync(SRC, 'utf8');
   assert.match(src, /dailyCheckin:\s*\['On',\s*'Off'\]/, 'PREF_OPTIONS entry');
-  const sideEffects = src.match(/if \(key === 'dailyCheckin'\) \{ try \{ bsDailyCheckinApply\(next\[key\] !== 'Off'\); \} catch \(e\) \{\} \}/g) || [];
-  assert.equal(sideEffects.length, 2, 'cyclePref AND setPref both apply the pref');
+  // Both writers must do BOTH halves: bump the pane's edit generation (so an
+  // in-flight hydrate is outdated) and apply the pref. Asserting them together
+  // is deliberate — a writer that applies without bumping reintroduces the
+  // stale-hydrate revert, and one that bumps without applying leaves Home stale.
+  const sideEffects = src.match(/if \(key === 'dailyCheckin'\) \{ checkinEditGenRef\.current \+= 1; try \{ bsDailyCheckinApply\(next\[key\] !== 'Off'\); \} catch \(e\) \{\} \}/g) || [];
+  assert.equal(sideEffects.length, 2, 'cyclePref AND setPref both bump the edit generation AND apply the pref');
   assert.match(src, /settings:pref\.dailyCheckin/, 'the Preferences row exists');
   assert.match(src, /'dailyCheckin' in s/, 'the Settings load effect handles a stored value');
+  // The pane's own guard against its own independent hydrate (Codex round 2).
+  assert.match(src, /const checkinEditGenRef = React\.useRef\(0\)/, 'the Settings pane declares its own edit generation');
+  assert.match(src, /const checkinStale = checkinEditGenRef\.current !== gen/, 'the hydrate compares generations before applying');
+  // The deeper half: a stale response must be dropped from the PATCH too, or
+  // the blanket prefs spread silently reverts the segmented row anyway.
+  assert.match(src, /if \(checkinStale\) delete patch\.dailyCheckin/, 'a stale hydrate is dropped from the prefs patch, not just the apply');
+  // The row seeds from the mirror so an offline pane can't show On while the
+  // mirror correctly keeps Home OFF.
+  assert.match(src, /dailyCheckin: bsDailyCheckinLabel\(\)/, 'the prefs seed reads the per-uid mirror');
 });
 
 test('the two new settings keys exist in the en catalog (the parity gate covers the other 12)', () => {
