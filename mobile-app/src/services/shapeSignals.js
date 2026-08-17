@@ -76,7 +76,13 @@ async function selfRecord() {
   // The check-in vitals leg (spec §3A) — energy/hunger/hydration/rested from the
   // SAME cached progress response. Signed-in only: the signed-out preview never
   // fabricates gauge data it doesn't have.
-  const vitals = signedIn ? vitalsFromProgress(progress, { hydrationTargetL: hydro && hydro.targetL }) : null;
+  // §3D opt-out gate: when the member turned the daily check-in OFF, the leg
+  // drops IMMEDIATELY on the client — home directives and the persisted
+  // notify_snapshot go quiet at once instead of waiting for data to age out.
+  // Tolerant by design: window.ShapeCheckinPref ships in the §3D PR — absent
+  // module (either merge order) reads as ON, so the two PRs stand alone.
+  const checkinOff = typeof window !== 'undefined' && window.ShapeCheckinPref && typeof window.ShapeCheckinPref.on === 'function' && window.ShapeCheckinPref.on() === false;
+  const vitals = signedIn && !checkinOff ? vitalsFromProgress(progress, { hydrationTargetL: hydro && hydro.targetL }) : null;
   return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins, recovery, vitals, coachDirective }, deps());
 }
 
