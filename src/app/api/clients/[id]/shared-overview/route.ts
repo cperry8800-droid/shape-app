@@ -285,6 +285,14 @@ export async function GET(
   const sleepRows = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null);
   const sl = sleepRows.map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
   const lastSleep = sleepRows[sleepRows.length - 1] as Record<string, unknown> | undefined;
+  // The member-ENTERED rating rides its own series (see `rested` below). Built
+  // from snapRows rather than colSeries(), which drops only null: an empty
+  // string would survive it and Number('') is a finite 0, fabricating a 0/10
+  // rating for a member who never rated. `num()` is the route's own absence
+  // rule and refuses both.
+  const restedSeries = snapRows
+    .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: num((r as Record<string, unknown>).sleep_quality) }))
+    .filter((p): p is { date: string; value: number } => p.value != null);
   const last7 = sl.slice(-7).map((p) => p.value);
   // Recovery readiness (0-100) from tonight's signals vs a trailing baseline.
   const readiness = readinessFromSeries({
@@ -303,7 +311,12 @@ export async function GET(
     efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,
     rhr: lastSleep && lastSleep.resting_hr != null ? Math.round(Number(lastSleep.resting_hr)) : null,
     hrv: lastSleep && lastSleep.hrv_ms != null ? Math.round(Number(lastSleep.hrv_ms)) : null,
-    rested: lastSleep && lastSleep.sleep_quality != null ? Math.round(Number(lastSleep.sleep_quality)) : null,
+    // RESTED is the member's own morning 1-10 rating, NOT a measured sleep
+    // metric — /api/client/checkin accepts it with no sleep hours at all, so it
+    // must come from ITS OWN series. Reading it off `lastSleep` (which is
+    // filtered to rows carrying sleep_hours) either hid a rating the member
+    // really gave or showed an older night's rating as if it were the latest.
+    rested: restedSeries.length ? Math.round(restedSeries[restedSeries.length - 1].value) : null,
     latency: lastSleep ? num(lastSleep.sleep_latency_min) : null,
     respiratory: lastSleep ? num(lastSleep.respiratory_rate) : null,
     stages: hasStages ? stageMin : null,
