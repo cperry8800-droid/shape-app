@@ -4889,8 +4889,32 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             cells.push([tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null]);
             cells.push([tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null]);
             cells.push([tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null]);
+            // LATENCY renders because the predicate above COUNTS it as device
+            // evidence. Without this cell an Oura night reporting only latency
+            // claimed a sync and then showed four "— NOT SYNCED" cells with the
+            // one real measurement invisible — a device reported as broken while
+            // its own reading sat unrendered. Ordered to match the web twin.
+            // Lowercase `m` is this file's own duration unit (see the calendar
+            // row's `${ev.durationMin}m`) and matches the twin exactly; `/MIN`
+            // below is a RATE (breaths per minute), not a duration.
+            cells.push([tr('coach:case.latency', { defaultValue: 'LATENCY' }), s.latency != null ? `${s.latency}m` : null]);
             cells.push([tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null]);
           }
+          // STAGES — the SAME rule as latency, one field over, and the reason
+          // this is not a patch of the reported site: `stages` is also in the
+          // device predicate and also rendered nowhere on mobile, so a night
+          // reporting only deep/REM/light minutes claimed a sync with nothing
+          // to show for it. Every field the predicate counts must render.
+          // The API guarantees `stages` is non-null only when at least one of
+          // deep/rem/light is present, but the row is gated on the assembled
+          // parts rather than on that guarantee, so a contract change degrades
+          // to rendering nothing instead of a bare "STAGES · ".
+          const st = s.stages;
+          const stageParts = st ? [
+            st.deep != null ? `${tr('coach:case.stageDeep', { defaultValue: 'DEEP' })} ${st.deep}m` : null,
+            st.rem != null ? `${tr('coach:case.stageRem', { defaultValue: 'REM' })} ${st.rem}m` : null,
+            st.light != null ? `${tr('coach:case.stageLight', { defaultValue: 'LIGHT' })} ${st.light}m` : null,
+          ].filter(Boolean) : [];
           // RESTED — the member's own 1-10 morning rating (sleep_quality), the
           // row the WEB case file already renders. It is ENTERED, so it follows
           // the entered-gauge rule: present only when real, never a NOT SYNCED
@@ -4919,6 +4943,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                   </div>
                 ))}
               </div>
+              {stageParts.length > 0 && (
+                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+                  {tr('coach:case.stages', { defaultValue: 'STAGES' })} · {stageParts.join(' · ')}
+                </div>
+              )}
             </>
           );
         })() : (caseShowSleepRedact ? (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' }))) : null)}
