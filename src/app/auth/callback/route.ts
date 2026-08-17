@@ -36,12 +36,19 @@ export async function GET(request: Request) {
           const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
           const { data: existing } = await supabase
             .from('profiles')
-            .select('id, date_of_birth')
+            .select('id, date_of_birth, full_name, role, roles')
             .eq('id', user.id)
             .maybeSingle();
+          // ⚠ PROVISION, NEVER OVERWRITE. Password resets, magic links and email-change
+          // confirmations all land here carrying SIGNUP metadata, so writing it back
+          // reverts a renamed member and collapses a dual-role coach's `roles` to one.
+          // Seed each field only when the row lacks it — as `date_of_birth` already does.
           const seed: Record<string, unknown> = { id: user.id };
-          if (typeof meta.full_name === 'string' && meta.full_name) seed.full_name = meta.full_name;
-          if (typeof meta.role === 'string' && meta.role) {
+          if (!existing?.full_name && typeof meta.full_name === 'string' && meta.full_name) {
+            seed.full_name = meta.full_name;
+          }
+          const hasRoles = Array.isArray(existing?.roles) && existing.roles.length > 0;
+          if (!existing?.role && !hasRoles && typeof meta.role === 'string' && meta.role) {
             seed.role = meta.role;
             seed.roles = [meta.role];
           }

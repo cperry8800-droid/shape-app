@@ -56,16 +56,19 @@ const BANNED = [
 // ⚠ NO SCOPE PREDICATE, deliberately (Codex round 20). Any predicate is narrower than
 // the claims being banned, so a page could carry a banned claim without matching the
 // predicate and escape the check entirely. Scanning EVERY page is both simpler and
-// stronger — verified free of false positives across all 128 files.
-function allPages() {
-  const out = [];
-  for (const dir of ['public', 'public/newdesign']) {
-    for (const name of readdirSync(dir)) {
-      if (name.endsWith('.html')) out.push(`${dir}/${name}`);
-    }
+// stronger — verified free of false positives across all 182 files.
+//
+// ⚠ AND NO DIRECTORY LIST (round 21). The hand-written ['public','public/newdesign']
+// was the same defect one level up — it omitted the 54 live pages in `public/mobile`.
+// A typed list goes blind the moment a page lands outside it, so the walk recurses.
+function allPages(dir = 'public', out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) allPages(path, out);
+    else if (entry.name.endsWith('.html')) out.push(path);
   }
   // The in-app legal pages live in one JSX module, not discoverable by the HTML sweep.
-  out.push('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  if (dir === 'public') out.push('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   return out;
 }
 
@@ -88,7 +91,14 @@ test('the claim sweep actually found the known legal surfaces', () => {
         'ban in this file is passing vacuously.'
     );
   }
-  assert.ok(SURFACES.length >= 50, `expected the full page set, found ${SURFACES.length}`);
+  assert.ok(SURFACES.length >= 150, `expected the full page set, found ${SURFACES.length}`);
+  // Pins the recursion itself: a non-recursive walk finds 128 and would pass a >=50
+  // floor. The legacy mobile surface must be reachable, by name.
+  assert.ok(
+    files.some((f) => f.startsWith('public/mobile/')),
+    'the sweep found no public/mobile page — the walk stopped recursing, so 54 live ' +
+      'pages are outside every ban below.'
+  );
 });
 
 for (const { file, src } of SURFACES) {
