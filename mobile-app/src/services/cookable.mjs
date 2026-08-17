@@ -199,6 +199,162 @@ export const bsStepTimers = (text) => {
 };
 
 // ---------------------------------------------------------------------------
+// Step identity — "which timer is this?" and "what do I need HERE?"
+// ---------------------------------------------------------------------------
+
+// A SHORT label for a step's timer — ONE OR TWO WORDS. The band used to show a
+// timer's DURATION and nothing else, so two 2-minute steps produced two rows
+// reading "2 MIN", literally indistinguishable mid-cook.
+//
+// It names the THING, not the sentence: the ingredient the timed clause reaches
+// for ("turkey", "peanut butter"), else that clause's verb ("roast", "rest").
+// Both are lifted from the recipe's own words — never a generated summary,
+// which is the fabrication class this file exists to refuse. Returns '' when
+// there is nothing usable; the caller falls back to the step NUMBER, always a
+// fact.
+export const BS_GIST_WORDS = 2;
+// Lead-ins and auxiliaries that carry no identity. Includes bare conjunctions
+// because comma-splitting yields clauses like "and toast for 1 minute" — a
+// label must never open on a dangling "and" — and weak auxiliaries so
+// "let it sit undisturbed" labels as "sit", not "let".
+const GIST_SKIP = new Set([
+  'meanwhile', 'then', 'now', 'next', 'finally', 'afterwards', 'afterward', 'and', 'or', 'but',
+  'let', 'keep', 'allow', 'the', 'a', 'an', 'it', 'its', 'them', 'they', 'you', 'your', 'for',
+  'to', 'on', 'in', 'of', 'with', 'until', 'about', 'another', 'over', 'off', 'up', 'down',
+  'into', 'from', 'at', 'by', 'so', 'that', 'this', 'is', 'are', 'be', 'been', 'will', 'more',
+  'all', 'each', 'both', 'again', 'while', 'once', 'through', 'aside', 'per', 'side',
+]);
+// Clause boundary. A '.' closes a clause only when whitespace or end-of-string
+// follows, so "medium-high." splits while "1.5 minutes" does NOT — the same
+// decimal hazard bsFractionalDuration guards on the timer side. Commas count:
+// they separate "Push the meat aside" from "add the garlic and ginger ... 30
+// seconds", and the timer belongs to the second.
+const GIST_SPLIT_RE = /[.;:!?](?=\s|$)|\s+[–—]\s+|,\s+/;
+// A stated duration, in the same unit vocabulary the timer parser accepts.
+// ⚠ Plain concatenation, NOT a template literal: `\d` inside a template literal
+// collapses to a bare "d", which silently produced a regex that matched no
+// duration at all and sent every label back to the step's first clause.
+const GIST_DUR_RE = new RegExp('\\d+\\s*(?:' + BS_TIMER_UNITS + ')\\b', 'i');
+
+// The recipe's own short name for an ingredient: its last two content words
+// ("chicken thigh, skin-on" -> "chicken thigh", "lean ground turkey" -> "turkey").
+const ingShortName = (name) => {
+  const c = ingContent(ingBase(name));
+  return c.length ? c.slice(-BS_GIST_WORDS).join(' ') : '';
+};
+
+export const bsStepGist = (text, ingredients) => {
+  const t = str(text);
+  if (!t) return '';
+  const parts = t.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  // The clause that STATES the duration is the one being timed. A timer on
+  // "Heat a dry skillet. Add the turkey...; let it sit undisturbed 2 minutes"
+  // is timing the resting -- labelling it "skillet" points the cook at the
+  // wrong action, which is worse than the bare duration it replaced.
+  const timed = parts.find((p) => GIST_DUR_RE.test(p)) || parts[0];
+  // 1. The ingredient that clause reaches for, in the recipe's own words.
+  const named = bsStepIngredients(timed, ingredients);
+  if (named.length) {
+    const nm = named[0] && typeof named[0] === 'object' ? str(named[0].m) : str(named[0]);
+    const short = nm ? ingShortName(nm) : '';
+    if (short) return short;
+  }
+  // 2. Else the clause's own verb -- the first word that carries an action.
+  const word = timed
+    .replace(GIST_DUR_RE, ' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .find((w) => w.length >= 3 && !GIST_SKIP.has(w));
+  return word || '';
+};
+
+// Words that never identify an ingredient on their own — qualifiers, prep verbs
+// and units. Dropped when reducing a name to its head noun.
+const BS_ING_STOP = new Set([
+  'fresh', 'dried', 'ground', 'lean', 'large', 'small', 'medium', 'chopped', 'minced',
+  'sliced', 'diced', 'julienned', 'grated', 'shredded', 'whole', 'raw', 'ripe', 'optional',
+  'plus', 'more', 'taste', 'the', 'and', 'for', 'extra', 'virgin', 'low', 'fat', 'free',
+  'skinless', 'boneless', 'room', 'temperature', 'finely', 'roughly', 'thinly', 'toasted',
+  'cooked', 'uncooked', 'peeled', 'halved', 'quartered', 'crushed', 'packed', 'divided',
+]);
+const BS_ING_MIN_TOKEN = 3;
+// Category nouns SHARED by many ingredients. A multi-word name may never fall
+// back to one of these as its head noun: "sesame oil" matching a step's "olive
+// oil", or "soy sauce" matching "the pan sauce", tells the cook to reach for
+// something the step never asked for.
+const BS_ING_GENERIC = new Set([
+  'oil', 'sauce', 'vinegar', 'stock', 'broth', 'cheese', 'milk', 'flour', 'sugar', 'salt',
+  'pepper', 'water', 'juice', 'powder', 'paste', 'butter', 'cream', 'syrup', 'wine', 'seeds',
+  'nuts', 'herbs', 'spice', 'spices', 'blend', 'dressing', 'yogurt', 'yoghurt', 'extract',
+]);
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const ingBase = (name) => String(name)
+  .toLowerCase()
+  .replace(/\([^)]*\)/g, ' ')   // drop parentheticals
+  .split(',')[0]                 // "garlic, minced" → "garlic"
+  .replace(/[^a-z0-9\s-]/g, ' ')
+  .trim()
+  .replace(/\s+/g, ' ');
+
+const ingContent = (base) => base.split(' ').filter((w) => w.length >= BS_ING_MIN_TOKEN && !BS_ING_STOP.has(w));
+
+// The phrases that may stand in for an ingredient inside a step's prose.
+// `distinctive` is the set of single words that are safe to match alone in THIS
+// recipe — decided per recipe by the caller, never here (see bsStepIngredients).
+const ingMatchTokens = (name, distinctive) => {
+  const base = ingBase(name);
+  if (!base) return [];
+  const content = ingContent(base);
+  const out = new Set();
+  if (base.length >= BS_ING_MIN_TOKEN) out.add(base);
+  if (content.length >= 2) out.add(content.slice(-2).join(' '));
+  if (content.length === 1) out.add(content[0]);
+  // ⚠ Steps abbreviate: "Sear the chicken" never repeats "chicken thigh,
+  // skin-on". Any content word the recipe uses in exactly ONE ingredient may
+  // stand for it — head noun ("lettuce") or modifier ("chicken", "sesame").
+  else for (const w of content) if (distinctive.has(w)) out.add(w);
+  return [...out].filter((tok) => tok.length >= BS_ING_MIN_TOKEN);
+};
+
+// The ingredients a step ACTUALLY names, so the method screen can show what this
+// step needs instead of re-listing the whole cupboard under every instruction.
+// The full list stays on the mise, which is where you shop the board.
+//
+// Matching is deliberately CONSERVATIVE and quote-based — word-boundary hits on
+// the ingredient's own name, no stemming beyond a trailing plural, no fuzzy
+// scoring. Under-matching is the safe direction: a step that lists nothing
+// renders nothing (the cook reads the instruction, which names the food in
+// prose), whereas a WRONG subset reads as "this is all I need" and is acted on.
+export const bsStepIngredients = (step, ingredients) => {
+  const text = str(step);
+  const list = Array.isArray(ingredients) ? ingredients : [];
+  if (!text || !list.length) return [];
+  const nameOf = (ing) => (ing && typeof ing === 'object' ? str(ing.m) : str(ing));
+  const names = list.map(nameOf);
+  // A single word may stand for an ingredient only when it is unambiguous IN
+  // THIS RECIPE. If two ingredients share it ("butter lettuce" + "romaine
+  // lettuce") neither may claim it — the subset would name the wrong one with
+  // total confidence. Category nouns ("oil", "sauce") are never distinctive
+  // even when unique, because a step's "olive oil" is not the "sesame oil" on
+  // the list. Ambiguity is resolved by refusing, not by guessing — the same
+  // rule the timer parser applies to decimals.
+  const freq = new Map();
+  for (const n of names) {
+    if (!n) continue;
+    for (const w of new Set(ingContent(ingBase(n)))) freq.set(w, (freq.get(w) || 0) + 1);
+  }
+  const distinctive = new Set([...freq.keys()].filter((w) => freq.get(w) === 1 && !BS_ING_GENERIC.has(w)));
+  return list.filter((ing, i) => {
+    const name = names[i];
+    if (!name) return false;
+    return ingMatchTokens(name, distinctive).some((tok) => new RegExp(`\\b${escapeRe(tok)}(?:e?s)?\\b`, 'i').test(text));
+  });
+};
+
+// ---------------------------------------------------------------------------
 // Coach step authoring (PR E) — ONE derivation for a structured method step.
 // The window's `min` is NEVER typed by the coach: it derives from the step's
 // own stated duration (the catalog overlay's no-fabrication rule, applied at
