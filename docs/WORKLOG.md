@@ -1977,6 +1977,62 @@ changelog whenever something ships.
   - Verified: suite **1616/1616** (+5), `tsc` clean, `next build` exit 0 with
     `ƒ Proxy (Middleware)`, mobile Vite build clean **with `dob:e.dob` confirmed in the
     emitted bundle**, newdesign precompile exit 0, every touched file LF with zero NUL bytes.
+- ⚠ **ROUND 16 — THE SAME RULE, A DIFFERENT FIELD: so the MATRIX became the fix.**
+  Both findings real, neither fixed where it was reported.
+  - **`/api/apply` refuses a NUTRITIONIST application without the four NC1
+    `details.compliance_attestations`, and only ONE of the five surfaces supplied
+    them** — so every nutritionist applying from the mobile app, from `/mobile`, or from
+    the legacy page was answered 400 (and, before round 15's rethrow, the mobile one
+    fell back to a direct insert that skipped the route's own re-check). This is the
+    **second instance of one rule**: a server-side requirement added to the route
+    without updating its producers — round 15 was the identical shape with `dob`.
+    Patching the reported surface cannot converge, so the fix is the rule:
+    **`tests/provider-apply-requirements.test.mjs`** asserts a REQUIREMENTS × SURFACES
+    matrix — it counts the route's `status: 400` gates and fails if that count ≠ the
+    registered gates (a **new** gate breaks the build until every producer is updated),
+    fails if a registered gate vanished (a stale entry cannot mask a real one), and
+    asserts per-surface evidence for every gate that surface can reach (`types` exempts
+    the trainer page from nutritionist gates). **When a route requirement is the
+    recurring defect, gate the MATRIX, not the field.**
+    While auditing the rest: years-of-experience (floor **5**) and background-check
+    consent ARE satisfied on all five — the legacy pages carry `agreeBgCheck` and their
+    experience options all clear the floor — so attestations were the only real blocker.
+    The mobile app now **imports `REQUIRED_ATTESTATIONS` from
+    `src/lib/compliance/nutrition.mjs`** rather than re-typing it; the two classic
+    scripts that cannot import mirror it under the drift test.
+  - ⚠ **THE LEGACY PAGE NEEDED A STRICT-BOOLEAN MAP, NOT A COERCION — and I nearly
+    shipped the coercion.** `gatherApplicationData()` records a checkbox as the STRING
+    `'Yes'` or `'No'`, and **`'No'` is truthy**, so `Boolean(data['att_x'])` marks every
+    attestation affirmed regardless of what the applicant ticked. That is not a 400 the
+    applicant sees — it is a **fabricated compliance attestation** reaching the
+    reviewer, invisible to every other gate. Caught by reading the gather instead of
+    assuming unchecked ⇒ falsy; the rule (affirmed by value, never coerced) is pinned.
+  - ⚠ **THE FREEZE GUARD REPORTED CLEAN ABOUT A BODY IT COULD NOT SEE — the exact
+    trade-off round 15's own comment defended.** It asserted the three freezes over the
+    whole FILE, and these migrations carry a structural `DO` block that quotes them, so
+    a replacement `set_over_18()` freezing **nothing** passed. **Reproduced before
+    fixing (12 pass / 0 fail).** The guard now extracts the function **body** by
+    dollar-quote matching — tractable because a body cannot nest the same tag, which is
+    a delimiter match rather than the SQL lexing the `pg_temp` scanner kept losing on —
+    and **fails closed** on anything it cannot read.
+  - **One shared comment-stripper** (`tests/helpers/strip-comments.mjs`): that stripper
+    shipped a real defect only mutation-testing caught, and a second copy is a second
+    chance to reintroduce it.
+  - ⚠ **A PROCESS LESSON THAT COST REAL WORK:** mutation-testing with `git checkout --`
+    while the fix was **uncommitted** reverted four source fixes and **contaminated every
+    later case** (failure counts climbed for reasons unrelated to the mutation, and it
+    read as a healthy kill sequence). Commit the fix first, and run an unmutated **sanity
+    case at both ends** of the batch — that one line catches a wiped fix, a contaminated
+    tree, and a broken measurement at once. Which mattered: an earlier batch reported
+    **8/8 "survived"** purely because **`grep -oP` is unsupported in this shell**; the
+    saturated ratio was the tell.
+  - Verified: suite **1621/1621** (+5), `tsc` clean, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile Vite build clean **with the four attestation keys
+    confirmed in the emitted apply chunk** and `compliance_attestations` in the
+    request-body chunk, newdesign precompile exit 0, every touched file LF with zero NUL
+    bytes, **10/10 mutations killed**. ⚠ The legacy pages remain verified **statically
+    only** — no browser click-through (house rule), so a live nutritionist application
+    through that page is still unproven.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
