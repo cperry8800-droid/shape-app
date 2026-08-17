@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
+import { bsVitals, vitalsCeilingISO } from '@/lib/vitals-leg.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -272,7 +273,26 @@ export async function GET(
     .eq('user_id', clientId)
     .order('snapshot_date', { ascending: false })
     .limit(30);
-  const snapRows = (snapRowsDesc ?? []).slice().reverse();
+  // A snapshot dated in the FUTURE is never a current readout. `/api/client/checkin`
+  // takes the day from the REQUEST, so a row can carry any syntactically valid
+  // `YYYY-MM-DD` — including 2099-01-01. Such a row is newest-first, so it would be
+  // served indefinitely as `latest`, as the member's current RESTED rating, and as the
+  // 7D vitals average, and it crowds real days out of the 30-row fetch. Dropping it at
+  // the ONE place every leg reads from (rather than per-leg) is why `rested`, the
+  // device sleep fields, readiness and `vitals` are all covered by this single filter;
+  // `bsVitalsLeg` keeps its own ceiling because that module is exported and tested
+  // independently. The ceiling is TOMORROW, not today, because `snapshot_date` is the
+  // member's LOCAL day and a member ahead of UTC legitimately writes one — the same
+  // one-day boundary tolerance the vitals window already documents. Comparison is
+  // lexicographic against ISO `YYYY-MM-DD`, which is exact.
+  const snapCeiling = vitalsCeilingISO();
+  const snapRows = (snapRowsDesc ?? [])
+    .filter((r) => {
+      const day = (r as Record<string, unknown>).snapshot_date;
+      return typeof day !== 'string' || day <= snapCeiling;
+    })
+    .slice()
+    .reverse();
   const num = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
   const colSeries = (key: string) => snapRows
     .filter((r) => (r as Record<string, unknown>)[key] != null)
@@ -284,6 +304,14 @@ export async function GET(
   const sleepRows = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null);
   const sl = sleepRows.map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
   const lastSleep = sleepRows[sleepRows.length - 1] as Record<string, unknown> | undefined;
+  // The member-ENTERED rating rides its own series (see `rested` below). Built
+  // from snapRows rather than colSeries(), which drops only null: an empty
+  // string would survive it and Number('') is a finite 0, fabricating a 0/10
+  // rating for a member who never rated. `num()` is the route's own absence
+  // rule and refuses both.
+  const restedSeries = snapRows
+    .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: num((r as Record<string, unknown>).sleep_quality) }))
+    .filter((p): p is { date: string; value: number } => p.value != null);
   const last7 = sl.slice(-7).map((p) => p.value);
   // Recovery readiness (0-100) from tonight's signals vs a trailing baseline.
   const readiness = readinessFromSeries({
@@ -295,20 +323,45 @@ export async function GET(
   });
   const stageMin = lastSleep ? { deep: num(lastSleep.sleep_deep_min), rem: num(lastSleep.sleep_rem_min), light: num(lastSleep.sleep_light_min), awake: num(lastSleep.sleep_awake_min) } : null;
   const hasStages = !!(stageMin && (stageMin.deep != null || stageMin.rem != null || stageMin.light != null));
-  const sleep = sl.length ? {
-    latest: sl[sl.length - 1].value,
+  // The leg exists when EITHER series has data. Gating it on `sl.length` alone
+  // meant a member who rates how rested they feel but syncs no wearable got
+  // `sleep: null`, so the rating could not reach either case file — the exact
+  // member the RESTED fix below is for. Every device field is independently
+  // null-guarded, so a rating-only leg carries the rating and nothing else;
+  // consumers key their "device-synced" heading on real device data, never on
+  // this object merely existing.
+  const sleep = (sl.length || restedSeries.length) ? {
+    latest: sl.length ? sl[sl.length - 1].value : null,
     avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
     series7: sl.slice(-7),
     efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,
     rhr: lastSleep && lastSleep.resting_hr != null ? Math.round(Number(lastSleep.resting_hr)) : null,
     hrv: lastSleep && lastSleep.hrv_ms != null ? Math.round(Number(lastSleep.hrv_ms)) : null,
-    rested: lastSleep && lastSleep.sleep_quality != null ? Math.round(Number(lastSleep.sleep_quality)) : null,
+    // RESTED is the member's own morning 1-10 rating, NOT a measured sleep
+    // metric — /api/client/checkin accepts it with no sleep hours at all, so it
+    // must come from ITS OWN series. Reading it off `lastSleep` (which is
+    // filtered to rows carrying sleep_hours) either hid a rating the member
+    // really gave or showed an older night's rating as if it were the latest.
+    rested: restedSeries.length ? Math.round(restedSeries[restedSeries.length - 1].value) : null,
     latency: lastSleep ? num(lastSleep.sleep_latency_min) : null,
     respiratory: lastSleep ? num(lastSleep.respiratory_rate) : null,
     stages: hasStages ? stageMin : null,
     readiness: readiness ? readiness.score : null,
     readinessLabel: readiness ? readiness.band.label : null,
   } : null;
+
+  // DAILY check-in vitals (spec §3B) — energy / hunger / hydration off the
+  // SAME 30-row snapshot window the sleep leg reads. These are the member's
+  // daily gauges (daily_health_snapshot.energy/hunger/hydration_l), a
+  // DIFFERENT source from the WEEKLY client_checkins.ratings the `checkins`
+  // leg above carries — the two must never be conflated. Per-metric honesty:
+  // each sub-leg exists ONLY when this client has real logged values for THAT
+  // metric (absence stays absent — never Number(null) → 0), and the 7-day
+  // window is seven CALENDAR days (today − 6 … today, UTC, inclusive) — NOT the
+  // 7 most recent populated rows, which for a sparse logger would serve a
+  // reading from weeks ago under a cell labeled "7D".
+  // Derivation lives in the pure, tested bsVitals (src/lib/vitals-leg.mjs).
+  const vitals = bsVitals(snapRows as Array<Record<string, unknown>>);
 
   return NextResponse.json({
     client: clientProfile
@@ -335,5 +388,6 @@ export async function GET(
       ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
       : null,
     sleep,
+    vitals,
   });
 }
