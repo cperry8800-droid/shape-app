@@ -201,14 +201,25 @@ changelog whenever something ships.
 > below `sleep_low` (energy_low · hunger_high · hydration_low), a widened roster read, the
 > notify snapshot carrying the leg verbatim, and the coach's Case File reading the same
 > vitals. **The daily check-in is now OPTIONAL** (Settings, default ON) and opting out drops
-> the vitals leg from the record — and from the persisted snapshot — immediately.
+> the vitals leg from the **client-side record builder** at once.
+> ⚠ **BUT THE TOGGLE DOES NOT REWRITE THE PERSISTED SNAPSHOT** — `bsDailyCheckinApply` writes
+> the local mirror and dispatches a UI event, nothing more; the stored `notify_snapshot` goes
+> quiet only at the **next evaluation**, and the hourly cron reads those rows **without
+> consulting `client_settings.dailyCheckin`**. So a member who opts out and does not reopen
+> the app can still draw vitals-derived notifications from the stale snapshot.
+> **Registered, not fixed** — and the code comment claiming it goes quiet "at once" is the
+> same over-claim, corrected here rather than in a records PR.
 > ⚠ **`.slice(-7)` TOOK THE LAST 7 OBSERVATIONS, NOT THE LAST 7 DAYS.** The progress read
 > has no recency filter, so three low-energy readings from **months** ago kept firing a "this
 > week" directive indefinitely. Fixed on both the member and coach halves; ⚠ **the identical
 > staleness in `sleepRecoveryFromProgress` is REGISTERED, NOT FIXED.**
 > ⚠ **A FUTURE-DATED SNAPSHOT WAS SERVED FOREVER** — the check-in route takes the day from
 > the REQUEST, so `2099-01-01` cleared a floor-only window and was **also** the member's
-> `latest` sleep, their RESTED rating and a readiness input. Dropped at the chokepoint.
+> `latest` sleep, their RESTED rating and a readiness input. Dropped at the **coach** route's
+> chokepoint. ⚠ **THE MEMBER PATH STILL HAS A FLOOR ONLY** — `/api/client/progress` returns
+> every snapshot and `vitalsFromProgress` compares `p.date >= cutoff` with **no ceiling**, so
+> that row still becomes member engine input (and the unbounded sleep/readiness consumers
+> still see it). **Registered, not fixed.**
 > ⚠ **The Codex gate was WAIVED on #1897** — owner-ruled, **PR-scoped**; the standing gate
 > (CI green **and** Codex clean on the final head) is unchanged everywhere else.
 > **No migration anywhere in the check-in wave.** Suite **1855**. Nothing is in flight —
@@ -1802,6 +1813,15 @@ changelog whenever something ships.
   the telegram gain lever heads for the three new levers. **`selfRecord` drops the whole leg
   the moment the check-in pref is off** — tolerant of the pref module being absent, so either
   merge order stood alone.
+  ⚠ **THE OPT-OUT IS IMMEDIATE ON THE CLIENT ONLY, AND THE CODE COMMENT OVER-CLAIMS IT.**
+  `selfRecord`'s own comment says the persisted `notify_snapshot` goes quiet "at once"; it
+  does not. `bsDailyCheckinApply` writes the per-uid mirror and dispatches `shape:checkinPref`
+  — that is all. Nothing rewrites or deletes the stored snapshot, and
+  `/api/ai/notify/cron` reads `user_goals` rows of kind `notify_snapshot` **without consulting
+  `client_settings.dailyCheckin`**. So a member who opts out and never reopens the app keeps a
+  vitals-bearing snapshot the cron will keep acting on. **Registered, not fixed** — the honest
+  fix is either rewriting the snapshot on toggle or teaching the cron the pref, and neither
+  belongs in a records PR.
 
 - ⚠ **`.slice(-7)` TOOK THE LAST 7 OBSERVATIONS, NOT THE LAST 7 DAYS.**
   `/api/client/progress` returns up to 400 chronological snapshots with **no recency filter**,
@@ -1840,7 +1860,9 @@ changelog whenever something ships.
   **6.67% from the right** (`preserveAspectRatio='none'` stretches x with width), so the label
   pins at `calc(6.67% + 6px)` — clear at any width.
 
-- **Registered, not built:** §C the weekly readout (above) · the
+- **Registered, not built:** §C the weekly readout (above) · **the member-path future-date
+  ceiling** — `vitalsFromProgress` has a floor only, so the coach chokepoint does not cover
+  the member engine · **the opt-out's persisted-snapshot residual** (above) · the
   `sleepRecoveryFromProgress` window (above) · `dashBusiness.jsx`'s `DbzOutcomesZone` computes
   `avgHydrationL` per client and never renders it (render it or delete the compute) ·
   energy/hunger joining the client Progress trend tabs.
