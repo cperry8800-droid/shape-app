@@ -21056,20 +21056,24 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
 // only an explicit false / 'Off' reads OFF. Never restate this rule inline.
 function bsDailyCheckinOn(v) { return v !== false && v !== 'Off'; }
 // localStorage mirror so Home paints the right state on the FIRST render (the
-// cloud read is async). uid-scoped: a bare flag would leak account A's OFF
-// onto account B on a shared device (the _followCache cross-account class),
-// so the record is {uid, off:true} and only applies to the uid that wrote it.
-// ON is the ABSENCE of the key — signed-out/demo can never read a stale OFF,
-// and the key never needs to join the sign-out scrub inventory.
+// cloud read is async). PER-UID KEY ('shape.dailyCheckin.<uid>'): a single
+// shared slot would let account B's default-ON hydrate DELETE account A's OFF
+// record on a shared device (the _followCache cross-account class), so each
+// account owns its own key; the record still carries {uid} as defense in
+// depth against a copied value. ON is the ABSENCE of that account's key —
+// signed-out/demo can never read a stale OFF, and no key needs to join the
+// sign-out scrub inventory (uid-bound, non-sensitive). No legacy single-key
+// migration: nothing shipped before the per-uid shape.
 const BS_CHECKIN_PREF_LS = 'shape.dailyCheckin';
 function bsCheckinPrefUid() {
   try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; }
 }
+function bsCheckinPrefKey(uid) { return BS_CHECKIN_PREF_LS + '.' + uid; }
 function bsDailyCheckinMirrorRead() {
   try {
     const uid = bsCheckinPrefUid();
     if (!uid) return true; // signed-out preview is always ON (spec: demo unchanged)
-    const raw = localStorage.getItem(BS_CHECKIN_PREF_LS);
+    const raw = localStorage.getItem(bsCheckinPrefKey(uid));
     if (!raw) return true;
     const rec = JSON.parse(raw);
     return !(rec && rec.off === true && rec.uid === uid);
@@ -21079,8 +21083,8 @@ function bsDailyCheckinMirrorWrite(on) {
   try {
     const uid = bsCheckinPrefUid();
     if (!uid) return;
-    if (on) localStorage.removeItem(BS_CHECKIN_PREF_LS);
-    else localStorage.setItem(BS_CHECKIN_PREF_LS, JSON.stringify({ uid, off: true }));
+    if (on) localStorage.removeItem(bsCheckinPrefKey(uid));
+    else localStorage.setItem(bsCheckinPrefKey(uid), JSON.stringify({ uid, off: true }));
   } catch (e) {}
 }
 // Settings calls this on every toggle (and on its cloud load): refresh the
@@ -21090,6 +21094,13 @@ function bsDailyCheckinApply(on) {
   bsDailyCheckinMirrorWrite(on);
   try { window.dispatchEvent(new CustomEvent('shape:checkinPref', { detail: { on: !!on } })); } catch (e) {}
 }
+// Synchronous pref reader for OTHER modules (spec §3D — the engine gates its
+// vitals leg on it the moment a member opts out). Reads the per-uid mirror,
+// so it returns the CURRENT state: true for signed-out, converged after the
+// cloud hydrate, flipped instantly by a Settings toggle. Consumers use
+// tolerant access (window.ShapeCheckinPref?.on?.() === false ⇒ drop the leg;
+// module absent ⇒ ON), so either merge order stands alone.
+window.ShapeCheckinPref = { on: () => bsDailyCheckinMirrorRead() };
 
 // useBSDailyCheckinPref — the read hook BSTodayNudge consumes. Seeds
 // synchronously from the mirror (no wrong-state flash), hydrates from the
@@ -21099,25 +21110,38 @@ function bsDailyCheckinApply(on) {
 function useBSDailyCheckinPref() {
   const uid = bsCheckinPrefUid();
   const [on, setOn] = useStateBSC(() => bsDailyCheckinMirrorRead());
+  // Edit generation: every explicit Settings toggle (the shape:checkinPref
+  // event) bumps it, so a cloud hydrate that was already in flight when the
+  // member toggled can never overwrite the fresher choice when it lands late
+  // (the repo's documented stale-response class).
+  const editGenRef = React.useRef(0);
   React.useEffect(() => {
     // Account changed (or first mount): re-seed from the uid-scoped mirror,
-    // then hydrate from the cloud. A successful read CONVERGES the mirror in
-    // both directions (an absent key = the default ON), so a stale mirror
-    // can't outlive the account's stored truth; a failed read keeps the seed.
+    // then hydrate from the cloud. Convergence requires a REAL object:
+    // shapeDb.getUserGoals resolves NULL for every can't-know case (no
+    // backend · not signed in · query error — it never rejects) and {} for a
+    // genuinely absent row, so `null` KEEPS the member's last local choice
+    // while a real doc (key present or absent) converges the mirror in both
+    // directions — a stale mirror can't outlive the account's stored truth.
     setOn(bsDailyCheckinMirrorRead());
     if (!uid || !(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
+    const gen = editGenRef.current;
     window.shapeDb.getUserGoals('client_settings').then(s => {
       if (!alive) return;
-      const doc = (s && typeof s === 'object') ? s : {};
-      const next = ('dailyCheckin' in doc) ? bsDailyCheckinOn(doc.dailyCheckin) : true;
+      if (editGenRef.current !== gen) return; // a toggle landed mid-flight — it wins
+      if (!s || typeof s !== 'object') return; // null read: keep the seed
+      const next = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
       bsDailyCheckinMirrorWrite(next);
       setOn(next);
     }).catch(() => {});
     return () => { alive = false; };
   }, [uid]);
   React.useEffect(() => {
-    const onEvt = (e) => { setOn(e && e.detail ? !!e.detail.on : bsDailyCheckinMirrorRead()); };
+    const onEvt = (e) => {
+      editGenRef.current += 1; // outdate any in-flight hydrate
+      setOn(e && e.detail ? !!e.detail.on : bsDailyCheckinMirrorRead());
+    };
     window.addEventListener('shape:checkinPref', onEvt);
     return () => window.removeEventListener('shape:checkinPref', onEvt);
   }, []);

@@ -78,7 +78,7 @@ async function loadModule() {
   const dir = dirname(SRC);
   // Substitute ALL of `import.meta` — the file also probes a bare
   // `typeof import.meta`, a SyntaxError inside a CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -106,16 +106,23 @@ async function loadModule() {
 }
 
 const MOD = await loadModule();
-const LS_KEY = 'shape.dailyCheckin';
+// The mirror is PER-UID: 'shape.dailyCheckin.<uid>' (one shared slot let
+// account B's default-ON hydrate delete account A's OFF record).
+const lsKey = (uid) => `shape.dailyCheckin.${uid}`;
 
 // Per-test environment. `uid: null` = signed out. `doc` = what the cloud
 // client_settings read resolves to (only consulted under a real mount, where
-// effects run).
+// effects run) — pass a FUNCTION for a controllable/pending hydrate.
 function env({ uid = null, doc = {} } = {}) {
   dom.window.ShapeAuth = { getCachedState: () => ({ user: uid ? { id: uid } : null }) };
   globalThis.ShapeAuth = dom.window.ShapeAuth; // bare-global fallback path
-  dom.window.shapeDb = { getUserGoals: async () => doc };
+  dom.window.shapeDb = { getUserGoals: typeof doc === 'function' ? doc : async () => doc };
   dom.window.localStorage.clear();
+}
+function switchAccount(uid) {
+  // Sign-out → sign-in on the SAME device: auth changes, localStorage does not.
+  dom.window.ShapeAuth = { getCachedState: () => ({ user: uid ? { id: uid } : null }) };
+  globalThis.ShapeAuth = dom.window.ShapeAuth;
 }
 
 // Static render (no effects — the first paint the mirror seed decides).
@@ -144,7 +151,7 @@ test('bsDailyCheckinOn tolerates BOTH storage shapes (house string + spec boolea
 test('signed-out preview is byte-identical: bulletin due, no residue row, unknown variant nothing', () => {
   env({ uid: null });
   // Even a stale OFF record on the device must not touch the signed-out demo.
-  dom.window.localStorage.setItem(LS_KEY, JSON.stringify({ uid: 'somebody-else', off: true }));
+  dom.window.localStorage.setItem(lsKey('somebody-else'), JSON.stringify({ uid: 'somebody-else', off: true }));
   const bulletin = renderStatic(nudge({ variant: 'bulletin' }));
   assert.equal(bulletin.warnings.length, 0, bulletin.warnings.join('\n'));
   assert.match(bulletin.html, /Check-in due/);
@@ -181,7 +188,7 @@ test('pref OFF: the bulletin never renders; the row is the quiet door (no "due",
 
 test('the OFF mirror is uid-scoped: another account’s record reads as ON', () => {
   env({ uid: 'member-2' });
-  dom.window.localStorage.setItem(LS_KEY, JSON.stringify({ uid: 'member-1', off: true }));
+  dom.window.localStorage.setItem(lsKey('member-1'), JSON.stringify({ uid: 'member-1', off: true }));
   const bulletin = renderStatic(nudge({ variant: 'bulletin' }));
   assert.match(bulletin.html, /Check-in due/); // member-2 never inherits member-1's OFF
 });
@@ -209,13 +216,13 @@ test('a Settings toggle re-renders a mounted Home live — bsDailyCheckinApply i
     // helper its cyclePref/setPref side effect calls.
     await m.act(() => MOD.bsDailyCheckinApply(false));
     assert.equal(m.host.textContent, '');
-    // …and the uid-scoped mirror now holds the OFF record for the next launch.
-    const rec = JSON.parse(dom.window.localStorage.getItem(LS_KEY));
+    // …and the per-uid mirror now holds the OFF record for the next launch.
+    const rec = JSON.parse(dom.window.localStorage.getItem(lsKey('member-3')));
     assert.deepEqual(rec, { uid: 'member-3', off: true });
     // Turning it back ON restores the bulletin and clears the record.
     await m.act(() => MOD.bsDailyCheckinApply(true));
     assert.match(m.host.textContent, /Check-in due/);
-    assert.equal(dom.window.localStorage.getItem(LS_KEY), null);
+    assert.equal(dom.window.localStorage.getItem(lsKey('member-3')), null);
   } finally {
     m.unmount();
   }
@@ -250,7 +257,7 @@ for (const [label, doc] of [
     const m = await mount(nudge({ variant: 'bulletin' }));
     try {
       assert.equal(m.host.textContent, '');
-      const rec = JSON.parse(dom.window.localStorage.getItem(LS_KEY));
+      const rec = JSON.parse(dom.window.localStorage.getItem(lsKey('member-5')));
       assert.deepEqual(rec, { uid: 'member-5', off: true });
     } finally {
       m.unmount();
@@ -265,10 +272,86 @@ test('cloud hydrate also converges the OTHER way: an absent key clears a stale O
   try {
     // First paint honors the mirror; the resolved cloud read restores ON.
     assert.match(m.host.textContent, /Check-in due/);
-    assert.equal(dom.window.localStorage.getItem(LS_KEY), null);
+    assert.equal(dom.window.localStorage.getItem(lsKey('member-6')), null);
   } finally {
     m.unmount();
   }
+});
+
+test('a NULL cloud read (failed OR no row — getUserGoals never rejects) keeps the OFF seed', async () => {
+  // shapeBackend's getUserGoals resolves null when offline / signed out /
+  // query error, and {} only for a real empty doc. A null must NEVER clear a
+  // valid OFF mirror — the member's last local choice is the safe direction.
+  env({ uid: 'member-7', doc: null });
+  MOD.bsDailyCheckinMirrorWrite(false);
+  const m = await mount(nudge({ variant: 'bulletin' }));
+  try {
+    assert.equal(m.host.textContent, '', 'OFF held through the null hydrate');
+    const rec = JSON.parse(dom.window.localStorage.getItem(lsKey('member-7')));
+    assert.deepEqual(rec, { uid: 'member-7', off: true }, 'the OFF record survives');
+  } finally {
+    m.unmount();
+  }
+});
+
+test('a toggle during a pending hydrate wins — the late response is discarded (edit generation)', async () => {
+  let resolveHydrate;
+  const pending = new Promise((res) => { resolveHydrate = res; });
+  env({ uid: 'member-8', doc: () => pending });
+  const m = await mount(nudge({ variant: 'bulletin' }));
+  try {
+    assert.match(m.host.textContent, /Check-in due/); // seed ON, hydrate in flight
+    // The member toggles OFF while the request is still pending…
+    await m.act(() => MOD.bsDailyCheckinApply(false));
+    assert.equal(m.host.textContent, '');
+    // …then the stale response lands, claiming ON. It must lose.
+    await m.act(() => { resolveHydrate({ dailyCheckin: 'On' }); });
+    await m.rerenderFlush();
+    assert.equal(m.host.textContent, '', 'the late hydrate must not overwrite the fresh toggle');
+    const rec = JSON.parse(dom.window.localStorage.getItem(lsKey('member-8')));
+    assert.deepEqual(rec, { uid: 'member-8', off: true }, 'the mirror keeps the fresh toggle too');
+  } finally {
+    m.unmount();
+  }
+});
+
+test("B's default-ON hydrate cannot delete A's OFF record — per-uid mirror keys", async () => {
+  // Account A turns the pref OFF on this device…
+  env({ uid: 'member-A', doc: {} });
+  MOD.bsDailyCheckinMirrorWrite(false);
+  const aRecord = dom.window.localStorage.getItem(lsKey('member-A'));
+  assert.ok(aRecord, "A's OFF record exists");
+  // …then A signs out and B signs in on the SAME device. B's cloud doc has no
+  // key, so B's hydrate converges B's own mirror toward ON (a removeItem).
+  switchAccount('member-B');
+  const m = await mount(nudge({ variant: 'bulletin' }));
+  try {
+    assert.match(m.host.textContent, /Check-in due/); // B reads ON
+  } finally {
+    m.unmount();
+  }
+  // A's record survived B's whole session…
+  assert.equal(dom.window.localStorage.getItem(lsKey('member-A')), aRecord);
+  // …so A's next first paint still seeds OFF.
+  switchAccount('member-A');
+  assert.equal(MOD.bsDailyCheckinMirrorRead(), false);
+  assert.equal(renderStatic(nudge({ variant: 'bulletin' })).html, '');
+});
+
+test('window.ShapeCheckinPref.on() is the synchronous pref reader and tracks the mirror', () => {
+  // The engine gates its vitals leg on this export (tolerant consumption:
+  // `window.ShapeCheckinPref?.on?.() === false` drops the leg; absent = ON).
+  env({ uid: 'member-9' });
+  const api = dom.window.ShapeCheckinPref;
+  assert.equal(typeof (api && api.on), 'function', 'the export exists');
+  assert.equal(api.on(), true); // default ON
+  MOD.bsDailyCheckinApply(false); // the Settings toggle's own helper
+  assert.equal(api.on(), false); // flips with the member's choice
+  MOD.bsDailyCheckinApply(true);
+  assert.equal(api.on(), true);
+  switchAccount(null); // signed-out always reads ON, whatever is stored
+  dom.window.localStorage.setItem(lsKey('member-9'), JSON.stringify({ uid: 'member-9', off: true }));
+  assert.equal(api.on(), true);
 });
 
 // ── Settings wiring guard (source-level — BSSettings is too heavy to mount) ─
