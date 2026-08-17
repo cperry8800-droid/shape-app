@@ -51,6 +51,8 @@
   "pref.dinner": "Abendessenszeit",
   "pref.trainingPhase": "Trainingsphase",
   "pref.nutritionPhase": "Ernährungsphase",
+  "pref.dailyCheckin": "Täglicher Check-in",
+  "pref.dailyCheckinDesc": "Zeigt die tägliche Check-in-Erinnerung auf der Startseite",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Metrisch",
   "privacy.visibility": "Profilsichtbarkeit",

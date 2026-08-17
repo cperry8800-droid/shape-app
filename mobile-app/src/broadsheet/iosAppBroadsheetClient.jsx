@@ -21057,6 +21057,118 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
 // `bsSdReduced()` (defined once, ~line 10486) — the single reduced-motion
 // predicate app-wide. Do not define a second one here.
 
+// ---- Daily check-in preference (spec §3D · "Optional check-in") ------------
+// A per-member Settings toggle (default ON). Stored in the SAME
+// user_goals('client_settings') doc every other preference lives in, written
+// ONLY through the Settings machinery's whole-doc merged save — that save is
+// the existing anti-clobber chokepoint (read → spread → save), so sibling keys
+// (profileVisibility, onlineVisible, meal times, paused_until) survive.
+// Settings stores the house 'On'/'Off' STRING like its neighbor onlineVisible;
+// the spec's storage sketch says `dailyCheckin: false`, so the ONE canonical
+// predicate below tolerates BOTH shapes: absent / true / 'On' read ON, and
+// only an explicit false / 'Off' reads OFF. Never restate this rule inline.
+function bsDailyCheckinOn(v) { return v !== false && v !== 'Off'; }
+// localStorage mirror so Home paints the right state on the FIRST render (the
+// cloud read is async). PER-UID KEY ('shape.dailyCheckin.<uid>'): a single
+// shared slot would let account B's default-ON hydrate DELETE account A's OFF
+// record on a shared device (the _followCache cross-account class), so each
+// account owns its own key; the record still carries {uid} as defense in
+// depth against a copied value. ON is the ABSENCE of that account's key —
+// signed-out/demo can never read a stale OFF, and no key needs to join the
+// sign-out scrub inventory (uid-bound, non-sensitive). No legacy single-key
+// migration: nothing shipped before the per-uid shape.
+const BS_CHECKIN_PREF_LS = 'shape.dailyCheckin';
+function bsCheckinPrefUid() {
+  try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; }
+}
+function bsCheckinPrefKey(uid) { return BS_CHECKIN_PREF_LS + '.' + uid; }
+function bsDailyCheckinMirrorRead() {
+  try {
+    const uid = bsCheckinPrefUid();
+    if (!uid) return true; // signed-out preview is always ON (spec: demo unchanged)
+    const raw = localStorage.getItem(bsCheckinPrefKey(uid));
+    if (!raw) return true;
+    const rec = JSON.parse(raw);
+    return !(rec && rec.off === true && rec.uid === uid);
+  } catch (e) { return true; }
+}
+function bsDailyCheckinMirrorWrite(on) {
+  try {
+    const uid = bsCheckinPrefUid();
+    if (!uid) return;
+    if (on) localStorage.removeItem(bsCheckinPrefKey(uid));
+    else localStorage.setItem(bsCheckinPrefKey(uid), JSON.stringify({ uid, off: true }));
+  } catch (e) {}
+}
+// Settings calls this on every toggle (and on its cloud load): refresh the
+// mirror AND tell the still-mounted Home — Settings renders as an OVERLAY over
+// the tab tree (zIndex 210), so an event is what makes Home re-render live.
+function bsDailyCheckinApply(on) {
+  bsDailyCheckinMirrorWrite(on);
+  try { window.dispatchEvent(new CustomEvent('shape:checkinPref', { detail: { on: !!on } })); } catch (e) {}
+}
+// The Settings row's own SEED, read from the same per-uid mirror. Seeding is
+// NOT an edit: it never writes the mirror and never dispatches — so an opened
+// Settings pane can't fire a phantom apply at a mounted Home. It exists because
+// a null cloud read (offline / query failure) leaves the pane on its defaults,
+// which would show On while the mirror is correctly keeping Home OFF — the
+// segmented control contradicting the behaviour it names. A real cloud doc
+// still wins when it arrives (subject to the pane's edit-generation guard).
+function bsDailyCheckinLabel() { return bsDailyCheckinMirrorRead() ? 'On' : 'Off'; }
+// Synchronous pref reader for OTHER modules (spec §3D — the engine gates its
+// vitals leg on it the moment a member opts out). Reads the per-uid mirror,
+// so it returns the CURRENT state: true for signed-out, converged after the
+// cloud hydrate, flipped instantly by a Settings toggle. Consumers use
+// tolerant access (window.ShapeCheckinPref?.on?.() === false ⇒ drop the leg;
+// module absent ⇒ ON), so either merge order stands alone.
+window.ShapeCheckinPref = { on: () => bsDailyCheckinMirrorRead() };
+
+// useBSDailyCheckinPref — the read hook BSTodayNudge consumes. Seeds
+// synchronously from the mirror (no wrong-state flash), hydrates from the
+// cloud client_settings doc (a fresh device converges on the account truth),
+// and follows live 'shape:checkinPref' events from Settings. Signed-out
+// ALWAYS returns ON so the demo/preview stays byte-identical.
+function useBSDailyCheckinPref() {
+  const uid = bsCheckinPrefUid();
+  const [on, setOn] = useStateBSC(() => bsDailyCheckinMirrorRead());
+  // Edit generation: every explicit Settings toggle (the shape:checkinPref
+  // event) bumps it, so a cloud hydrate that was already in flight when the
+  // member toggled can never overwrite the fresher choice when it lands late
+  // (the repo's documented stale-response class).
+  const editGenRef = React.useRef(0);
+  React.useEffect(() => {
+    // Account changed (or first mount): re-seed from the uid-scoped mirror,
+    // then hydrate from the cloud. Convergence requires a REAL object:
+    // shapeDb.getUserGoals resolves NULL for every can't-know case (no
+    // backend · not signed in · query error — it never rejects) and {} for a
+    // genuinely absent row, so `null` KEEPS the member's last local choice
+    // while a real doc (key present or absent) converges the mirror in both
+    // directions — a stale mirror can't outlive the account's stored truth.
+    setOn(bsDailyCheckinMirrorRead());
+    if (!uid || !(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    const gen = editGenRef.current;
+    window.shapeDb.getUserGoals('client_settings').then(s => {
+      if (!alive) return;
+      if (editGenRef.current !== gen) return; // a toggle landed mid-flight — it wins
+      if (!s || typeof s !== 'object') return; // null read: keep the seed
+      const next = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
+      bsDailyCheckinMirrorWrite(next);
+      setOn(next);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [uid]);
+  React.useEffect(() => {
+    const onEvt = (e) => {
+      editGenRef.current += 1; // outdate any in-flight hydrate
+      setOn(e && e.detail ? !!e.detail.on : bsDailyCheckinMirrorRead());
+    };
+    window.addEventListener('shape:checkinPref', onEvt);
+    return () => window.removeEventListener('shape:checkinPref', onEvt);
+  }, []);
+  return uid ? on : true;
+}
+
 // useBSCheckinLogged — the manual-signal "logged for today" predicate, extracted
 // VERBATIM from BSTodayNudge's own effect (see the comment above — the has()/
 // deviceMeta/rule is copied unchanged, only lifted into a reusable hook).
@@ -21125,16 +21237,30 @@ function useBSStepsToday() {
 // bulletin simply renders nothing once logged, matching "decays to an index row once
 // logged" from the spec; the index-row decay itself is variant 'row'). variant 'row'
 // → BSIndexRow CHECK-IN residue (Logged ✓ · add water), rendered only once logged.
+// Spec §3D "Optional check-in": when the member's dailyCheckin pref is OFF,
+// the bulletin renders NOTHING (no due nag, ever) and the 'row' variant swaps
+// its logged-residue logic for a quiet, always-present "Check-in" index door —
+// never the word "due", never a done-tick — so the check-in page (and the
+// hydration quick-add living on it) stays one tap away. Pref ON = today's
+// behavior byte-identical.
 function BSTodayNudge({ onOpen, variant }) {
   const tr = useShapeTr();
+  const checkinOn = useBSDailyCheckinPref();
   const logged = useBSCheckinLogged();
   if (variant === 'bulletin') {
+    if (!checkinOn) return null; // pref OFF — Home never nags (spec §3D)
     if (logged) return null;
     return <BSHomeBulletin label={tr('home:bulletin.checkin', { defaultValue: 'Check-in due' })} detail={tr('home:bulletin.checkinDetail', { defaultValue: 'Energy · sleep · 30 sec' })} onOpen={onOpen} />;
   }
   // Explicit contract: only 'row' renders the residue — an omitted or mistyped
   // variant renders nothing rather than silently picking a surface.
   if (variant !== 'row') return null;
+  if (!checkinOn) {
+    // The quiet door: reuses the EXISTING home:today keys (no new home strings)
+    // and deliberately carries no `figure` and no `done` tick — a neutral index
+    // entry, not a status claim.
+    return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} onOpen={onOpen} />;
+  }
   if (!logged) return null;
   return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} figure={tr('home:today.loggedFigure', { defaultValue: 'Logged ✓' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} done onOpen={onOpen} />;
 }
@@ -26554,6 +26680,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     profileVisibility: ['Public', 'Just friends', 'Private'],
     onlineVisible:     ['On', 'Off'],
     shareWorkoutData:  ['On', 'Off'],
+    dailyCheckin:      ['On', 'Off'],
     mealBreakfast:     BS_MEAL_TIME_OPTS,
     mealLunch:         BS_MEAL_TIME_OPTS,
     mealSnack:         BS_MEAL_TIME_OPTS,
@@ -26579,21 +26706,85 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     else if (key === 'noraTone') window.ShapeVoice.setTone(val === 'Direct' ? 'direct' : 'supportive');
     else if (key === 'noraVoiceName') window.ShapeVoice.setVoice(noraVoiceIdFromLabel(val));
   };
-  const [prefs, setPrefs] = useStateBSC(PREF_DEFAULTS);
+  // ---- The pane's hydrate + its ONE cloud writer -----------------------------
+  // `saveUserGoals` UPSERTS the whole `data` blob, so Settings publishes its
+  // ENTIRE prefs object on every edit. Until the hydrate lands that object is
+  // PREF_DEFAULTS (plus the mirrored check-in value), so publishing it would
+  // overwrite the member's stored units, privacy, meal times and phases with
+  // defaults. Every row is interactive from the first frame, so this is a
+  // whole-pane rule rather than a check-in one: every write goes through
+  // persistPrefs, which merges the keys the member actually edited onto a REAL
+  // server document and DECLINES to write when it cannot obtain one.
+  //
+  // `editedRef` doubles as the hydrate's stale guard (it replaces the earlier
+  // check-in-only edit generation): a response that started before an edit must
+  // not revert it — dropped from the PATCH, not merely skipped at the apply,
+  // because the blanket spread would revert the row either way.
+  // Declared above the effect that reads them so the closure can't hit a TDZ.
+  const editedRef = React.useRef({});   // { key: value } the member changed HERE
+  const serverDocRef = React.useRef(null); // the newest REAL document we've seen
+  const hydrateRef = React.useRef(null);   // this pane's first read, in flight
+  const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel() }));
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
-    window.shapeDb.getUserGoals('client_settings').then(s => {
-      if (alive && s && typeof s === 'object') {
-        setPrefs(p => ({ ...p, ...s }));
-        if (s.units) window.ShapeUnits?.set(s.units);
+    // getUserGoals resolves NULL for every can't-know case and never rejects;
+    // the catch is belt-and-braces so persistPrefs can always await this.
+    const read = window.shapeDb.getUserGoals('client_settings').catch(() => null);
+    hydrateRef.current = read;
+    read.then(s => {
+      if (!(s && typeof s === 'object')) return;
+      // Recorded even if this pane unmounted — a deferred save still needs it.
+      serverDocRef.current = s;
+      if (!alive) return;
+      // A boolean doc value (the spec's storage sketch) normalizes to the
+      // house 'On'/'Off' string so the segmented row lights correctly, and an
+      // ABSENT key reads ON — the SAME rule useBSDailyCheckinPref applies, so
+      // the row and Home can never converge on different answers.
+      const dcOn = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
+      const edited = editedRef.current;
+      const patch = { ...s, dailyCheckin: dcOn ? 'On' : 'Off' };
+      Object.keys(edited).forEach(k => { delete patch[k]; });
+      setPrefs(p => ({ ...p, ...patch }));
+      const fresh = (k) => !(k in edited);
+      if (s.units && fresh('units')) window.ShapeUnits?.set(s.units);
+      if (fresh('onlineVisible')) {
         try { window.ShapeOnlineVisible = (s.onlineVisible !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-        window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
-        if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
+      // The apply() keeps the mirror + a mounted Home in sync with the doc.
+      if (fresh('dailyCheckin')) { try { bsDailyCheckinApply(dcOn); } catch (e) {} }
+      // The member's own edits win over the doc for meal times too.
+      window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s, ...edited });
+      if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
+  // The ONE place a pref reaches the cloud. Nothing else in this pane may call
+  // saveUserGoals: a bare `next` published before the hydrate lands is exactly
+  // the clobber this exists to prevent.
+  const persistPrefs = (key, value) => {
+    editedRef.current[key] = value;
+    const db = window.shapeDb;
+    if (!(db && db.saveUserGoals)) return;
+    const write = (doc) => {
+      // No real document ⇒ decline rather than publish our defaults. The
+      // member's choice still stands locally (and, for the check-in pref, in
+      // its mirror); the next edit after a successful read persists it.
+      if (!(doc && typeof doc === 'object')) return;
+      try { db.saveUserGoals('client_settings', { ...doc, ...editedRef.current }); } catch (e) {}
+    };
+    if (serverDocRef.current) { write(serverDocRef.current); return; }
+    // Pre-hydrate: defer to the read already in flight; if that one came back
+    // empty-handed (offline / query error), take one fresh look before giving up.
+    Promise.resolve(hydrateRef.current).then(s => {
+      if (s && typeof s === 'object') { serverDocRef.current = s; write(s); return undefined; }
+      if (!db.getUserGoals) return undefined;
+      return db.getUserGoals('client_settings').then(s2 => {
+        if (s2 && typeof s2 === 'object') serverDocRef.current = s2;
+        write(s2);
+      });
+    }).catch(() => {});
+  };
   // Seed the meal-time cache from defaults immediately (before the async load).
   React.useEffect(() => { window.ShapeMealTimes?.setFromPrefs(PREF_DEFAULTS); }, []);
   // Mirror Nora's voice prefs (owned by window.ShapeVoice) into the Settings rows,
@@ -26614,10 +26805,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
-      try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
+      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D; persistPrefs already outdated the hydrate)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -26628,10 +26820,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
-      try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
+      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D; persistPrefs already outdated the hydrate)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -27297,6 +27490,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:pref.dinner', { defaultValue: 'Dinner time' }),     key: 'mealDinner',    dropdown: PREF_OPTIONS.mealDinner },
         { l: tr('settings:pref.trainingPhase', { defaultValue: 'Training phase' }),  key: 'trainingPhase', dropdown: PREF_OPTIONS.trainingPhase },
         { l: tr('settings:pref.nutritionPhase', { defaultValue: 'Nutrition phase' }), key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
+        { l: tr('settings:pref.dailyCheckin', { defaultValue: 'Daily check-in' }), key: 'dailyCheckin', segmented: PREF_OPTIONS.dailyCheckin, desc: tr('settings:pref.dailyCheckinDesc', { defaultValue: 'Show the daily check-in prompt on Home' }) },
       ],
     },
     {
