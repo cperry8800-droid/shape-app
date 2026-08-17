@@ -638,11 +638,32 @@ function CoachClientDetailPage() {
             );
           })()}
 
-          {data.sleep && (() => {
+          {(() => {
             const s = data.sleep;
+            // DAILY check-in vitals (spec §3B) — the member's own daily gauges
+            // (daily_health_snapshot energy/hunger/hydration_l) off the
+            // overview's `vitals` leg. Per-metric honesty: a leg renders ONLY
+            // when it carries a real finite average — null/'' are ABSENCE (the
+            // Number(null)→0 fabrication class), never a 0/10 gauge. Labeled
+            // "DAILY … · 7D" so they can never be confused with the weekly
+            // LATEST CHECK-IN card's Energy/Hunger above, which read a
+            // different table (client_checkins.ratings).
+            const vLeg = (o, key) => {
+              if (!o || typeof o !== "object" || o[key] == null || o[key] === "") return null;
+              const avg = Number(o[key]);
+              return Number.isFinite(avg) ? avg : null;
+            };
+            const vv = data.vitals && typeof data.vitals === "object" ? data.vitals : null;
+            const vEnergy = vv ? vLeg(vv.energy, "avg7") : null;
+            const vHunger = vv ? vLeg(vv.hunger, "avg7") : null;
+            const vHyd = vv ? vLeg(vv.hydration, "avg7L") : null;
+            const hasVitals = vEnergy != null || vHunger != null || vHyd != null;
+            // No device data AND no daily vitals → the card does not exist
+            // (absence, never a padlock) — the pre-§3B render for that state.
+            if (!s && !hasVitals) return null;
             const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
-            const rc = s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
-            const cells = [
+            const rc = !s || s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
+            const cells = s ? [
               ["LAST NIGHT", fmtH(s.latest)],
               ["7-DAY AVG", s.avg7 == null ? "—" : `${Number(s.avg7)}h`],
               ["EFFICIENCY", s.efficiency == null ? "—" : `${s.efficiency}%`],
@@ -651,15 +672,22 @@ function CoachClientDetailPage() {
               ["RESTED", s.rested == null ? "—" : `${s.rested}/10`],
               ["LATENCY", s.latency == null ? "—" : `${s.latency}m`],
               ["RESPIRATORY", s.respiratory == null ? "—" : `${s.respiratory}/min`],
-            ];
-            const st = s.stages;
+            ] : [];
+            // Present legs only — an absent metric adds NO cell (never a "—",
+            // which on a member-entered gauge would read as a logged nothing).
+            if (vEnergy != null) cells.push(["DAILY ENERGY · 7D", `${vEnergy}/10`]);
+            if (vHunger != null) cells.push(["DAILY HUNGER · 7D", `${vHunger}/10`]);
+            if (vHyd != null) cells.push(["DAILY HYDRATION · 7D", `${vHyd}L`]);
+            const st = s ? s.stages : null;
             return (
               <Card style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                  <CKSecHead>SLEEP · RECOVERY</CKSecHead>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>
+                  {/* Vitals-only card retitles: "Objective · device-synced" must
+                      never sit over member-entered gauges alone. */}
+                  <CKSecHead>{s ? "SLEEP · RECOVERY" : "DAILY CHECK-IN"}</CKSecHead>
+                  {s && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>}
                 </div>
-                {s.readiness != null && (
+                {s && s.readiness != null && (
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>READINESS</span>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 30, color: rc, lineHeight: 1 }}>{s.readiness}</span>
@@ -680,7 +708,7 @@ function CoachClientDetailPage() {
                     STAGES · {[st.deep != null ? `Deep ${st.deep}m` : null, st.rem != null ? `REM ${st.rem}m` : null, st.light != null ? `Light ${st.light}m` : null].filter(Boolean).join(" · ") || "—"}
                   </div>
                 )}
-                {Array.isArray(s.series7) && s.series7.filter((p) => p && p.value != null).length >= 2 && (
+                {s && Array.isArray(s.series7) && s.series7.filter((p) => p && p.value != null).length >= 2 && (
                   <div style={{ marginTop: 14 }}>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginBottom: 6 }}>7-DAY TREND</div>
                     <CKTrend vals={s.series7.map((p) => p.value)} color={accent} h={56} />

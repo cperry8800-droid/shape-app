@@ -5,6 +5,7 @@ import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsP
 import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, bsDraftMode, bsDraftFromResponse, bsMealPlanTemplate, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
+import { bsCaseVitals } from '../services/caseVitals.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
@@ -4217,14 +4218,21 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // NOTHING (absence, never a padlock; a coach can't tell never-preps from
   // pre-migration).
   const [prepSignal, setPrepSignal] = useStateBSP(null);
+  // DAILY check-in vitals (spec §3B) — the overview's `vitals` leg, sanitized by
+  // bsCaseVitals so a leg renders ONLY when the client has real logged values
+  // for THAT metric. null → the sub-block renders its redact line — a coach
+  // can't tell never-logged from pre-deploy (absence, never a padlock).
+  // ⚠ NOT the weekly CHECK-IN station's Energy/Hunger (client_checkins.ratings)
+  // — these are the member's DAILY gauges from daily_health_snapshot.
+  const [caseVitals, setCaseVitals] = useStateBSP(null);
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
-    // client A's care team / sleep / cycle / prep on client B's profile.
-    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCareLoaded(false); setCarePartial(false);
+    // client A's care team / sleep / cycle / prep / vitals on client B's profile.
+    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCaseVitals(null); setCareLoaded(false); setCarePartial(false);
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCarePartial(!!(d && d.careTeamPartial)); setCareLoaded(true); })
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCaseVitals(bsCaseVitals(d)); setCarePartial(!!(d && d.careTeamPartial)); setCareLoaded(true); })
       .catch(() => { if (!ignore) { setCarePartial(true); setCareLoaded(true); } });
     return () => { ignore = true; };
   }, [clientUid]);
@@ -4815,6 +4823,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             [tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null],
             [tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null],
             [tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null],
+            // RESTED — the member's own 1-10 morning rating (sleep_quality), the
+            // row the WEB case file already renders; placed after HRV to mirror
+            // its cell order. Same /10 grammar as the weekly ratings.
+            [tr('coach:case.rested', { defaultValue: 'RESTED' }), s.rested != null ? tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: s.rested }) : null],
             [tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null],
           ];
           return (
@@ -4843,6 +4855,32 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             </>
           );
         })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' })))}
+        {/* DAILY CHECK-IN vitals (spec §3B) — the member's OWN daily gauges
+            (daily_health_snapshot energy/hunger/hydration_l), 7-day averages
+            off the overview's `vitals` leg. Labeled "DAILY … · 7D" so they can
+            NEVER be confused with the weekly CHECK-IN station's Energy/Hunger
+            above (client_checkins.ratings — a different table). Renders
+            OUTSIDE the sleepRec ternary on purpose: a client who logs vitals
+            but wears no device still shows them. Per-metric honesty — only
+            legs the client has real data for render; none ⇒ the redact line
+            (matching the sleep redact's demo/loading behavior). */}
+        {caseVitals ? (() => {
+          const vc = [
+            caseVitals.energy ? [tr('coach:case.dailyEnergy7d', { defaultValue: 'DAILY ENERGY · 7D' }), tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: caseVitals.energy.avg })] : null,
+            caseVitals.hunger ? [tr('coach:case.dailyHunger7d', { defaultValue: 'DAILY HUNGER · 7D' }), tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: caseVitals.hunger.avg })] : null,
+            caseVitals.hydration ? [tr('coach:case.dailyHydration7d', { defaultValue: 'DAILY HYDRATION · 7D' }), `${caseVitals.hydration.avg}L`] : null,
+          ].filter(Boolean);
+          return (
+            <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {vc.map(([l, v]) => (
+                <div key={l}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })() : (window.BSTRedact ? <div style={{ marginTop: 12 }}><window.BSTRedact INK={t.INK} label={tr('coach:case.dailyVitalsRedact', { defaultValue: 'DAILY CHECK-IN · NOT ON RECORD' })} /></div> : null)}
       </div>
 
       {/* CYCLE — share-gated (spec 2026-07-19): renders ONLY when the member

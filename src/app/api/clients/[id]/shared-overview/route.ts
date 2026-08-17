@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
+import { bsVitals } from '@/lib/vitals-leg.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -310,6 +311,18 @@ export async function GET(
     readinessLabel: readiness ? readiness.band.label : null,
   } : null;
 
+  // DAILY check-in vitals (spec §3B) — energy / hunger / hydration off the
+  // SAME 30-row snapshot window the sleep leg reads. These are the member's
+  // daily gauges (daily_health_snapshot.energy/hunger/hydration_l), a
+  // DIFFERENT source from the WEEKLY client_checkins.ratings the `checkins`
+  // leg above carries — the two must never be conflated. Per-metric honesty:
+  // each sub-leg exists ONLY when this client has real logged values for THAT
+  // metric (absence stays absent — never Number(null) → 0), and the 7-day
+  // window is the 7 most recent snapshot DAYS carrying a real value for the
+  // metric, exactly how the sleep leg's avg7/series7 treat sleep_hours.
+  // Derivation lives in the pure, tested bsVitals (src/lib/vitals-leg.mjs).
+  const vitals = bsVitals(snapRows as Array<Record<string, unknown>>);
+
   return NextResponse.json({
     client: clientProfile
       ? { id: clientProfile.id, name: (clientProfile.full_name ?? '').trim() || 'Client', avatarUrl: clientProfile.avatar_url }
@@ -335,5 +348,6 @@ export async function GET(
       ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
       : null,
     sleep,
+    vitals,
   });
 }
