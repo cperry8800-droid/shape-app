@@ -2033,9 +2033,17 @@ changelog whenever something ships.
     bytes, **10/10 mutations killed**. ⚠ The legacy pages remain verified **statically
     only** — no browser click-through (house rule), so a live nutritionist application
     through that page is still unproven.
-- ⚠ **ROUND 17 — TWO FINDINGS, AND FOR THE FIRST TIME IN FIVE ROUNDS BOTH LANDED IN NEW
-  SEAMS.** Nothing came back in the apply-requirements or `set_over_18` seams, which is
-  the evidence rounds 15–16's structural answers held. Both real, both fixed.
+- ⚠ **ROUND 17 — TWO FINDINGS, BOTH IN SEAMS THE EARLIER ROUNDS HAD NOT TOUCHED.**
+  Nothing came back in the apply-requirements or `set_over_18` seams, which is the
+  evidence rounds 15–16's structural answers held. Both real, both fixed.
+  ⚠ **CORRECTED after round 18 — this heading read "AND FOR THE FIRST TIME IN FIVE
+  ROUNDS BOTH LANDED IN NEW SEAMS", and the celebration was the error.** Round 17 did
+  not close a seam; it **opened** one, and round 18 found a P1 inside this round's own
+  playback fix plus the transfer over-claim still live on **six** other surfaces. Both
+  fixes below were incomplete when this entry was written. See ROUND 18. *Two rounds
+  running, a summary line here claimed more than the work had earned — a quantifier in
+  a heading outlives the paragraph that refutes it, so it is deleted rather than
+  softened.*
   - ⚠ **SIGNED-OUT RADIO PLAYBACK — a licensing exposure, not polish.**
     `ShapeRadioLive.play()` spans **two** awaits (the authenticated station read, then
     `audio.play()`) and carried **no guard**, while the sibling poll **in the same IIFE**
@@ -2071,6 +2079,69 @@ changelog whenever something ships.
   - Verified: suite **1629/1629** (+8), `tsc` clean, `next build` exit 0 with
     `ƒ Proxy (Middleware)`, mobile build clean with the gate in the emitted bundle,
     newdesign precompile exit 0, `privacy.html` tag-balanced, all LF / zero NUL.
+- ⚠ **ROUND 18 — THREE FINDINGS, ALL THREE IN MY OWN ROUND-17 WORK, ALL THREE THE
+  SAME RULE AT A SURFACE THE PREVIOUS ROUND DID NOT SWEEP.** Round 17 was celebrated
+  here as "the first round to land outside both seams." That reading was wrong: it
+  opened a THIRD seam and round 18 found every place I had failed to close it. The
+  count (2 → 3) is the least interesting part; that all three were **regressions of
+  the fix itself** is the finding.
+  - ⚠ **P1 — READING LIVE IDENTITY IS NOT ENOUGH, because the identity is stale for
+    the whole sign-out.** `signOut()` bumps the sign-out generation as its FIRST
+    statement, but does not clear the cached user until **after** push teardown,
+    local-habit cleanup, the Supabase sign-out, the cookie DELETE and MusicKit
+    cleanup — every one of which awaits on a network. Through that entire window
+    `state.user` still returns the signed-out account, so the round-17 gate's
+    `identityFn` reported *live* while the session was being revoked: a pending
+    station read or `audio.play()` could pass every `live()` check, and audio already
+    playing simply kept playing until a late identity event finally called `pause()`.
+    **The round-17 fix was correct about the mechanism and wrong about the clock.**
+  - **THE FIX, at both ends, because neither half covers the other.** The gate now
+    takes **`signOutGen` as an epoch source** — the counter that moves FIRST — so any
+    pending attempt is refused the instant sign-out begins; and `signOut()` **stops
+    playback in the same breath as the bump, before its first `await`**, which is the
+    only thing that can stop audio ALREADY running. ⚠ **The file already had this
+    exact mechanism** (`bumpSignOutGen`, whose own header says it exists so parked
+    coroutines "cannot resume after the sweep") — I built a parallel generation
+    counter beside it instead of consulting it. *A new guard should first ask what the
+    file already guards with.*
+  - ⚠ **P2 ×2 — THE TRANSFER OVER-CLAIM HAD SEVEN SURFACES AND ROUND 17 FIXED ONE.**
+    The unverifiable fallback sentence deleted from `privacy.html` was still published
+    **verbatim** on `subprocessors.html` — the page `privacy.html` points at as
+    authoritative — so the two contradicted each other and the *canonical* one carried
+    the false claim. `data-compliance.html` carried a blanket "each is bound by
+    contract" claim, and **my own generalization edit had added video calling
+    underneath it**, bringing public `meet.jit.si` under a contractual guarantee its
+    own canonical page refutes.
+  - **A sweep then found FOUR MORE surfaces neither round named** — `privacy.html`'s
+    own subprocessor paragraph (same file, different section) and **three in the
+    mobile app** (in-app privacy, data-compliance, and subprocessors, one of them
+    stating SCCs as settled fact). All seven now state the per-recipient basis and
+    admit that several recipients currently rest on the provider's own published
+    terms. **This is the registered rule (fix the RULE, not the surface) failing twice
+    in a row: round 17 fixed where it was reported, and it was live in six other
+    places.**
+  - **`tests/legal-transfer-claims.test.mjs` gates the RULE, not the wording:** every
+    legal surface × every banned claim shape, plus a required honest qualifier, tied
+    to the **`[VERIFY]` markers still in the compliance spec** so the guard cannot be
+    switched off while the underlying facts are unchanged. A new legal surface must be
+    registered there — which is the point, since the failure mode being closed is
+    "fixed where it was reported, still live everywhere else."
+  - ⚠ **AND MY OWN VERIFICATION WAS THE BROKEN THING THREE TIMES IN ONE SESSION** —
+    a generic `function \w(a,b){let n=0` regex matched a coincidental function and
+    "confirmed" a gate that was in a different chunk; a 3000-char window around an
+    arbitrary anchor put an unrelated `await` at offset 3 and reported the stop as
+    happening *after* the awaits; and a bare `gs=` search matched `gs=this` elsewhere
+    in the bundle. Each looked like a finding. The honest confirmation needed
+    **brace-matching the real `signOut` body out of the minified bundle** — which then
+    showed `async function _s(){so();try{gs?.()}catch{}try{await _o()}...}`, i.e. bump
+    → stop → first await, with `gs = function(){ c.supersede(), e&&e.pause() }`.
+    *Check the check before believing it — including when the check is yours.*
+  - Verified: suite **1644/1644** (+15), `tsc` exit 0, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile build exit 0 with **the epoch wiring AND the
+    pre-await stop confirmed in the emitted bundle** (not just in source), newdesign
+    precompile exit 0, all three legal pages tag-balanced, every touched file LF with
+    zero NUL bytes, **9/9 mutations killed** with unmutated sanity cases reading
+    `fail 0` at both ends of the batch.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
