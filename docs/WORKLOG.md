@@ -1627,6 +1627,67 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-17 — The coach reads a member's daily vitals on the Case File (#1897 → `249c6c6f3`)
+
+- **PR B of the check-in engine** (spec `docs/superpowers/specs/2026-08-17-checkin-engine-design.md`
+  §3B, merged in #1893; the client-side engine is the sibling PR #1896). `daily_health_snapshot`
+  reaches the Case File through `/api/clients/[id]/shared-overview`: energy, hunger, hydration,
+  sleep quality/hours/efficiency, resting HR, HRV and stage minutes.
+
+- ⚠ **HONEST-ABSENT IS THE WHOLE CONTRACT, and the fabrication class is specific.** `Number(null)`
+  and `Number('')` are both finite **0**, so an averaging leg that coerces without checking
+  manufactures a 0/10 gauge out of data that does not exist. A metric renders only when it carries
+  a real finite average — never a zero, never a dash standing in for a reading.
+
+- ⚠ **DAILY vitals and the WEEKLY CHECK-IN are different tables on different cadences**
+  (`daily_health_snapshot` vs `client_checkins.ratings`). Every label reads **`DAILY … 7D`**
+  specifically so a coach can never conflate the two. The 7D window is seven **CALENDAR** days
+  (today−6 … today, UTC, inclusive), compared **lexicographically** against ISO `YYYY-MM-DD` —
+  exact, and needs no date maths.
+
+- ⚠ **A FUTURE-DATED SNAPSHOT WAS SERVED FOREVER, AND THE WINDOW WAS ONLY ONE OF FOUR VICTIMS.**
+  `/api/client/checkin` takes the day from the **REQUEST**, so a row can carry any syntactically
+  valid `YYYY-MM-DD` — including `2099-01-01`. The vitals window had a **floor only**, so such a
+  row cleared it indefinitely. But the route fetches newest-first with `limit 30`, so the same row
+  was **also** the member's `latest` sleep, their current **RESTED** rating, and a readiness input,
+  and it crowded real days out of the fetch. Review named the window; the rule was wider.
+  **Fixed at the CHOKEPOINT** — the route drops future-dated rows once, right after the fetch,
+  before any leg reads them; `bsVitalsLeg` keeps its own ceiling because that module is exported
+  and tested independently.
+  ⚠ **The ceiling is TOMORROW, not today**: `snapshot_date` is the member's **LOCAL** day, so a
+  member ahead of UTC legitimately writes one — the same one-day boundary tolerance the window
+  already documents. Beyond that is not a timezone artifact.
+
+- ⚠ **THE TWO REDACTION FINDINGS WERE ONE DEFECT.** A **vitals-only** member kept the
+  `SLEEP · RECOVERY` heading and got a device-sync failure printed **above their real daily
+  gauges**; a **rating-only** member got `DAILY CHECK-IN · NOT ON RECORD` directly under a RESTED
+  value the card had *just rendered*. The cause was structural, not two bugs: the heading, the
+  measured cells and both redact lines each decided **independently** whether they had anything to
+  say, so every combination of (device, RESTED, vitals) had to be patched in three places. The
+  presence model is now derived **ONCE** and all three blocks read it. **The distinction it
+  encodes: only MEASURED data may claim a sync; only ENTERED data may be called a check-in.**
+  The web surface (`coachClientDetail.jsx:679`) already behaved this way — this brings mobile in
+  line rather than inventing a second rule.
+
+- Also corrected a stale comment on the route's vitals block still describing the pre-round-1
+  "7 most recent populated rows" window.
+
+- ⚠ **MERGE-GATE DEVIATION, OWNER-RULED 2026-08-17: the Codex gate was WAIVED on this PR.**
+  Three review rounds had landed; CI was green on the final head and all three round-3 threads
+  were answered, but Codex had not verdicted on `34fd83dfd` when the owner called it. **PR-scoped**
+  — the standing gate (CI green **and** Codex clean on the final head) is unchanged on every other
+  PR. The cost lesson is the durable one, and it is the same one #1845 recorded: rounds 1→3 each
+  found defects **adjacent to the previous fix** rather than new ground, which is the flat-curve
+  signal to change approach instead of patching again. Round 3 did — two of its three fixes moved
+  the rule to the chokepoint rather than patching the site that was named — but a waived gate means
+  that change was never independently confirmed.
+
+- Suite **1855/1855** · `tsc --noEmit` clean · CI green on the final head (Web · Mobile · gitleaks ·
+  Tests · debug APK) · all four touched files LF with zero NUL bytes. Branch `claude/checkin-casefile`
+  **kept** and re-synced to `main`. **Open:** the OWNER on-device pass — a coach opening the Case
+  File for a device-synced member, a vitals-only member, and a rating-only member, confirming no
+  fabricated 0/10 gauge and no contradictory redaction line in any of the three.
+
 ### 2026-08-16 — Cross-tab sign-out + an owner-scoped career award: the two shared-device residuals close (#1891 → `17752b901`)
 
 - Closes the two residuals the 2026-08-15 sign-out wave **documented but did not fix**. Neither
