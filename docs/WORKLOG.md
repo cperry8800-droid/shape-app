@@ -1747,9 +1747,9 @@ changelog whenever something ships.
   verified against production. **A stale spec row is a real gap when counsel reads the spec as
   the current state.** The self-assertion residual is stated, not dropped.
 
-- Both migrations were applied + verified live before the merge. Suite **1830/1830** on the
-  final head; `tsc` clean; CI green. Branch `claude/radio-legal-gates` **kept** — its worktree
-  `C:/Users/cperr/shape-legalgate-wt` is now behind `main`.
+- Both migrations were applied + verified live before the merge. Suite **1834/1834** on the
+  final head (`21c22e084`); `tsc` exit 0; CI green. Branch `claude/radio-legal-gates` **kept**
+  — its worktree `C:/Users/cperr/shape-legalgate-wt` is now behind `main`.
 
 ### 2026-08-17 — The check-in engine: the spec, an optional check-in, and vitals as engine input (#1893 → `520630e33` · #1894 → `5268ef80c` · #1895 → `ba0449c2b` · #1896 → `915c20a0a`)
 
