@@ -53,27 +53,23 @@ const BANNED = [
   },
 ];
 
-// A page is in scope when it actually makes a transfer/subprocessor claim.
-const CLAIM_MARKERS = /subprocessor|Data Privacy Framework|Standard Contractual Clauses/i;
-
-function derivedSurfaces() {
+// ⚠ NO SCOPE PREDICATE, deliberately (Codex round 20). Any predicate is narrower than
+// the claims being banned, so a page could carry a banned claim without matching the
+// predicate and escape the check entirely. Scanning EVERY page is both simpler and
+// stronger — verified free of false positives across all 128 files.
+function allPages() {
   const out = [];
   for (const dir of ['public', 'public/newdesign']) {
     for (const name of readdirSync(dir)) {
-      if (!name.endsWith('.html')) continue;
-      const file = `${dir}/${name}`;
-      const src = readFileSync(file, 'utf8');
-      if (CLAIM_MARKERS.test(src)) out.push({ file, src });
+      if (name.endsWith('.html')) out.push(`${dir}/${name}`);
     }
   }
-  // The in-app legal pages live in one JSX module; it is not discoverable by the HTML
-  // sweep, so it is named — the only hand-listed surface, and stated as such.
-  const app = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
-  out.push({ file: app, src: readFileSync(app, 'utf8') });
+  // The in-app legal pages live in one JSX module, not discoverable by the HTML sweep.
+  out.push('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   return out;
 }
 
-const SURFACES = derivedSurfaces();
+const SURFACES = allPages().map((file) => ({ file, src: readFileSync(file, 'utf8') }));
 
 test('the claim sweep actually found the known legal surfaces', () => {
   // Guards the guard: if the discovery ever silently matches nothing (a moved directory,
@@ -88,11 +84,11 @@ test('the claim sweep actually found the known legal surfaces', () => {
   ]) {
     assert.ok(
       files.includes(required),
-      `${required} makes transfer/subprocessor claims but the sweep did not pick it up — ` +
-        'the discovery is broken, so every ban in this file is passing vacuously.'
+      `${required} was not picked up by the page sweep — discovery is broken, so every ` +
+        'ban in this file is passing vacuously.'
     );
   }
-  assert.ok(SURFACES.length >= 5, `expected several claim-making surfaces, found ${SURFACES.length}`);
+  assert.ok(SURFACES.length >= 50, `expected the full page set, found ${SURFACES.length}`);
 });
 
 for (const { file, src } of SURFACES) {
@@ -150,13 +146,28 @@ if (HONEST_POSTURE_REQUIRED) {
         'while the spec still flags it reads to a EEA/UK reader as a safeguard already held.'
     );
 
-    // Every framework/clause claim must either be marked pending or be a real held basis.
-    // Cheap structural check: the marked count must cover the rows the spec flags.
-    assert.ok(
-      marks >= 6,
-      `only ${marks} table row(s) marked pending against ${verifyCount} [VERIFY] marker(s) — ` +
-        'unverified rows are still presented as settled.'
-    );
+    // ⚠ PER ROW, not a count (Codex round 20): an aggregate threshold does not enforce
+    // the property on any particular row, so one unmarked vendor could hide behind seven
+    // marked ones. Every row naming a framework or clauses must carry the mark itself.
+    const VERIFIED_HELD = []; // add a vendor here ONLY with evidence the basis is executed
+    // Row-scoped, so the pend <span> INSIDE a cell cannot break the match. (My first
+    // attempt used [^<]* for the cell, which cannot cross the span — marked rows silently
+    // stopped matching and the `checked > 0` assertion below is what caught it.)
+    let checked = 0;
+    for (const [, row] of src.matchAll(/<tr>(.*?)<\/tr>/gs)) {
+      if (!/Data Privacy Framework|Standard Contractual Clauses/.test(row)) continue;
+      const vendor = (row.match(/<td>([^<]*)<\/td>/) || [, '(unknown)'])[1].trim();
+      if (VERIFIED_HELD.includes(vendor)) continue;
+      checked += 1;
+      assert.match(
+        row,
+        /class="pend"/,
+        `the Subprocessors row for "${vendor}" names a framework or clauses but is not marked ` +
+          '"intended — not yet confirmed", so it reads to an EEA/UK reader as a safeguard ' +
+          'already held.'
+      );
+    }
+    assert.ok(checked > 0, 'no framework/clause rows were examined — this check is vacuous');
   });
 }
 
