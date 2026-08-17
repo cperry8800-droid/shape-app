@@ -203,6 +203,15 @@
           <label class="checkbox-option"><input type="checkbox" name="agreeVerify" required> <span>I understand my credentials may be verified</span></label>
           <label class="checkbox-option"><input type="checkbox" name="agreeBgCheck" required> <span>I consent to a required background check through Shape's screening partner before my provider profile can go live.</span></label>
 
+          <!-- ⚠ NUTRITION COMPLIANCE ATTESTATIONS (NC1). /api/apply refuses a
+               nutritionist application whose details omit these, so without them
+               nobody could apply from this page at all. KEEP IN SYNC with
+               REQUIRED_ATTESTATIONS in src/lib/compliance/nutrition.mjs. -->
+          <label class="checkbox-option"><input type="checkbox" name="att_independent_contractor" required> <span>I am an independent contractor. Shape is a marketplace, not my employer, and does not direct my clinical judgment.</span></label>
+          <label class="checkbox-option"><input type="checkbox" name="att_maintains_licensure" required> <span>I will maintain valid licensure in every state where I provide individualized nutrition care, and only accept clients I am licensed to serve.</span></label>
+          <label class="checkbox-option"><input type="checkbox" name="att_maintains_insurance" required> <span>I maintain current professional liability (malpractice) insurance.</span></label>
+          <label class="checkbox-option"><input type="checkbox" name="att_scope_understood" required> <span>I understand the difference between general wellness guidance and individualized medical nutrition therapy, and will practice within my scope and license.</span></label>
+
           <button type="submit" class="btn-submit" style="margin-top:18px;">Submit Application</button>
         </form>
 
@@ -340,7 +349,15 @@
       apiBody.append('yearsExperience', data.experience || '');
       apiBody.append('monthlyPrice',    data.price      || '');
       apiBody.append('dob',             data.dob        || '');
-      apiBody.append('details', JSON.stringify(data));
+      // ⚠ ATTESTATIONS MUST BE STRICT BOOLEANS, AND NOT VIA TRUTHINESS.
+      // gatherApplicationData() records a checkbox as the STRING 'Yes' or 'No' — and
+      // 'No' is TRUTHY, so a Boolean() coercion here would report every attestation
+      // as affirmed regardless of what the applicant ticked, i.e. fabricate a
+      // compliance attestation. The route's attestationsComplete() requires === true.
+      var attKeys = ['independent_contractor', 'maintains_licensure', 'maintains_insurance', 'scope_understood'];
+      var attest = {};
+      attKeys.forEach(function (k) { attest[k] = data['att_' + k] === 'Yes'; });
+      apiBody.append('details', JSON.stringify(Object.assign({}, data, { compliance_attestations: attest })));
       document.querySelectorAll('#step1 input[type=file], #step2 input[type=file], #step3 input[type=file]').forEach(function (el) {
         if (el.files && el.files[0]) apiBody.append(el.name, el.files[0]);
       });

@@ -196,6 +196,34 @@ const KNOWN_DEFINERS = [
   '2026-08-16-created-at-freeze-and-application-dob.sql',
 ];
 
+// ⚠ ASSERT OVER THE FUNCTION BODY, NOT THE FILE. Asserting per FILE was the
+// previous shape and it reported CLEAN about a definition it could not see: a
+// replacement body that freezes NOTHING passes as long as the three literals
+// appear anywhere else in the file — a later structural `DO` block quoting the
+// expected assignments is enough, and that is exactly how these migrations are
+// written. Reproduced before fixing.
+//
+// Extracting the body is tractable because dollar quoting cannot nest with the
+// SAME tag: the body runs from the first `$tag$` after the CREATE to the next
+// occurrence of that identical tag. That is a delimiter match, not the SQL
+// lexing the pg_temp scanner kept losing on. The tag charset admits non-ASCII
+// because Postgres treats any non-ASCII byte as an identifier character.
+const DOLLAR_OPEN = /\$([A-Za-z_-￿][A-Za-z0-9_-￿]*)?\$/g;
+
+function bodyOf(src, startIndex, file) {
+  DOLLAR_OPEN.lastIndex = startIndex;
+  const open = DOLLAR_OPEN.exec(src);
+  assert.ok(open,
+    `${file}: found a set_over_18() definition with no dollar-quoted body — this guard cannot read it, ` +
+    'so it refuses rather than report clean. Re-anchor this test.');
+  const tag = open[0];
+  const bodyStart = open.index + tag.length;
+  const end = src.indexOf(tag, bodyStart);
+  assert.notEqual(end, -1,
+    `${file}: set_over_18()'s body opens with ${tag} and never closes — unreadable, refusing to report clean.`);
+  return src.slice(bodyStart, end);
+}
+
 test('every migration defining set_over_18() carries the full freeze', () => {
   const dir = new URL('../supabase-migrations/', import.meta.url);
   const files = readdirSync(dir).filter((f) => f.endsWith('.sql'));
@@ -205,16 +233,11 @@ test('every migration defining set_over_18() carries the full freeze', () => {
     const src = readFileSync(new URL(f, dir), 'utf8');
     const defs = [...src.matchAll(SET_OVER_18_DEF)];
     if (!defs.length) continue;
-    // ⚠ FAIL CLOSED ON AMBIGUITY. The freeze is asserted per FILE, which is
-    // formatting-independent precisely because it does not try to find where a
-    // body starts and ends ($$ vs $tag$ dollar quoting is the fragile part). That
-    // only holds while a file defines the function ONCE — with two definitions a
-    // file-level match cannot tell which one carries the freeze, so refuse rather
-    // than report clean.
-    assert.equal(defs.length, 1,
-      `${f}: defines set_over_18() ${defs.length} times — this guard checks the freeze per file and ` +
-      'cannot tell two definitions apart. Split them into separate migrations, or re-anchor this test.');
-    definers.push([f, src]);
+    // Each definition is checked on its OWN body, so several in one file is no
+    // longer ambiguous — but every one of them must carry the full freeze.
+    for (const def of defs) {
+      definers.push([f, bodyOf(src, def.index + def[0].length, f)]);
+    }
   }
 
   const found = definers.map(([f]) => f);
@@ -224,9 +247,10 @@ test('every migration defining set_over_18() carries the full freeze', () => {
       'which means a redefinition can now drop the freeze unnoticed. Fix the matcher, do not delete this.');
   }
 
-  for (const [file, src] of definers) {
+  for (const [file, body] of definers) {
     for (const [pattern, what] of FREEZES) {
-      assert.match(src, pattern, `${file}: defines set_over_18() without ${what}`);
+      assert.match(body, pattern,
+        `${file}: set_over_18()'s BODY is missing ${what}`);
     }
   }
 });

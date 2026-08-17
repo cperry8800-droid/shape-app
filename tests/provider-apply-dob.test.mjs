@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { stripComments } from './helpers/strip-comments.mjs';
 
 // ⚠ WHY THIS GUARD EXISTS — the regression it was written to end.
 //
@@ -38,33 +39,10 @@ function read(rel) {
   return readFileSync(join(ROOT, rel), 'utf8');
 }
 
-// Drop comment LINES so a rationale comment quoting the very token under test
-// cannot satisfy the assertion it explains.
-//
-// ⚠ DELIBERATELY LINE-ORIENTED, NOT A SPANNING REGEX. The obvious
-// `src.replace(/\/\*[\s\S]*?\*\//g, '')` is wrong here: shapeBackend.js contains
-// `/*` inside a `//` line comment, so the lazy span ran to the next `*/` hundreds
-// of lines later and ate the function this file asserts about — a guard reporting
-// on source it had silently deleted. A block comment is only treated as one when
-// it OPENS a line, which is the form these files actually use.
-function stripComments(src) {
-  const out = [];
-  let inBlock = false;
-  for (const line of src.replace(/<!--[\s\S]*?-->/g, '').split('\n')) {
-    const t = line.trim();
-    if (inBlock) {
-      if (t.includes('*/')) inBlock = false;
-      continue;
-    }
-    if (t.startsWith('/*')) {
-      if (!t.includes('*/')) inBlock = true;
-      continue;
-    }
-    if (t.startsWith('//') || t.startsWith('*')) continue;
-    out.push(line);
-  }
-  return out.join('\n');
-}
+// ONE stripper, shared with tests/provider-apply-requirements.test.mjs. It shipped a
+// real defect (a lazy `/* … */` span that ate the function under test) that only
+// mutation-testing caught, so a second copy is a second chance to reintroduce it.
+// The rationale for its line-oriented shape lives in the helper.
 
 // The surfaces that post a provider application, and the expression that proves
 // each one puts a date of birth in the REQUEST — not merely in a local object.

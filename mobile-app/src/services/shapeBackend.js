@@ -1053,6 +1053,12 @@ function applicationToPayload(role, values = {}) {
         code_of_conduct: Boolean(values.conduct),
         background_check: Boolean(values.bgcheck),
       },
+      // ⚠ NUTRITION COMPLIANCE ATTESTATIONS (NC1). /api/apply returns 400 for a
+      // nutritionist application whose details omit these, so the value collected
+      // in the apply form has to reach the REQUEST — the same class of omission as
+      // `dob`. Sent for every role (the route only enforces it for nutritionists)
+      // so a role change can never leave it behind.
+      compliance_attestations: values.attest || {},
       background_check_provider: DEFAULT_BACKGROUND_CHECK_PROVIDER,
       background_check_required: true,
       background_check_consent: Boolean(values.bgcheck),

@@ -8,6 +8,12 @@ import {
 } from '../config/providerApplications.js';
 // The shared 18+ derivation (anywhere-on-Earth rule) used by every gate + signup.
 import { isMinorFromDob } from '../../../src/lib/age-derive.mjs';
+// ⚠ IMPORT THE ROUTE'S OWN RULE, DO NOT RE-TYPE IT. /api/apply refuses a
+// nutritionist application unless attestationsComplete() passes, so this surface
+// renders a control for every key in REQUIRED_ATTESTATIONS and validates with the
+// same function. If that list grows, the app grows a control instead of silently
+// posting an application the route will refuse.
+import { REQUIRED_ATTESTATIONS, attestationsComplete } from '../../../src/lib/compliance/nutrition.mjs';
 
 const { useState: useStateBSA } = React;
 const { useBS } = window;
@@ -55,6 +61,20 @@ const AP_TEAL = '#34d6c5';
 const AP_TEAL2 = '#2ee0c4';
 const AP_ERR = '#ff9b7a';
 const AP_BG = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
+// Copy for each attestation key. The KEYS come from the shared module (above) so
+// they cannot drift from what the route validates; only the wording lives here. A
+// key with no copy still renders — labelled by its key — rather than going missing.
+const AP_ATTEST_LABEL = {
+  independent_contractor:
+    'I am an independent contractor. Shape is a marketplace, not my employer, and does not direct my clinical judgment.',
+  maintains_licensure:
+    'I will maintain valid licensure in every state where I provide individualized nutrition care, and only accept clients I am licensed to serve.',
+  maintains_insurance: 'I maintain current professional liability (malpractice) insurance.',
+  scope_understood:
+    'I understand the difference between general wellness guidance and individualized medical nutrition therapy, and will practice within my scope and license.',
+};
+const AP_NUTRITION_ATTESTATIONS = REQUIRED_ATTESTATIONS.map((key) => [key, AP_ATTEST_LABEL[key] || key]);
+
 // Role heat rides ONLY the application tag (trainer rust / nutritionist gold).
 const AP_ROLE = {
   trainer: { bg: '#c0533b', ink: '#f2ede4' },
@@ -285,6 +305,12 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       setError(`Shape requires at least ${REQUIRED_PROVIDER_EXPERIENCE_YEARS} years of professional coaching or nutrition experience.`);
       return;
     }
+    // Nutrition compliance (NC1) — the route refuses without all four, so refuse
+    // here rather than submit an application it will answer 400.
+    if (role === 'nutritionist' && !attestationsComplete(values.attest)) {
+      setError('All nutrition compliance attestations are required.');
+      return;
+    }
     const files = [
       { kind: 'resume', file: resumeFile },
       { kind: 'credential', file: credentialFile },
@@ -411,6 +437,25 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           <BSApplyCheck checked={values.conduct} onChange={v => set('conduct', v)}>I agree to Shape's code of conduct.</BSApplyCheck>
           <BSApplyCheck checked={values.bgcheck} onChange={v => set('bgcheck', v)}>I consent to a required background check through Shape's screening partner before my provider profile can go live.</BSApplyCheck>
         </div>
+        {/* ⚠ NUTRITION COMPLIANCE ATTESTATIONS — /api/apply REFUSES a nutritionist
+            application without all four (NC1). This surface omitted them, so every
+            nutritionist applying from the app was answered 400 and, before the
+            round-15 rethrow, silently fell back to a direct insert that skipped the
+            route's own re-check. Keys come from the canonical module, not retyped. */}
+        {!isTrainer && (
+          <div style={{ display: 'grid', gap: 11, borderTop: `1px solid ${AP_LINE}`, paddingTop: 12 }}>
+            <BSApplyNotice t={t}>
+              Nutrition practice · compliance. Shape re-checks your state licensure against each client's state on every pairing.
+            </BSApplyNotice>
+            {AP_NUTRITION_ATTESTATIONS.map(([key, label]) => (
+              <BSApplyCheck
+                key={key}
+                checked={Boolean((values.attest || {})[key])}
+                onChange={v => set('attest', { ...(values.attest || {}), [key]: v })}
+              >{label}</BSApplyCheck>
+            ))}
+          </div>
+        )}
       </div>
     );
   })();
