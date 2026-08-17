@@ -49,7 +49,11 @@ readout cache ride the existing `user_goals` doc pattern.
   record with a `vitals` leg — `{ energy: {avg7, n}, hunger: {avg7, n},
   hydration: {avg7L, targetL, n}, rested: {avg7, n} }` — derived from the progress
   series the client already caches (`/api/client/progress` exposes
-  `series.energy/hunger/hydration/sleepQuality` today).
+  `series.energy/hunger/hydration/sleepQuality` today). ⚠ `targetL` does NOT
+  come from the progress payload (it never carries the target): it is the
+  member's stored hydration target (`user_goals('client_nutrition_prefs')`),
+  read via the existing `/api/client/hydration` GET (`window.ShapeHydration.get()`).
+  The engine never defaults it — no real target, no hydration flag.
 - **Rules** (`public/newdesign/dashSignals.js`, modeled on `ruleSleepRecovery`
   :462): new entries in `THRESHOLDS` (:55) + `DIRECTIVE_PRIORITY` (:946), all
   priority-ranked **below** `sleep_low` (35):
@@ -91,15 +95,25 @@ readout cache ride the existing `user_goals` doc pattern.
 ### C — Client weekly readout: wire the orphaned endpoint
 
 - `POST /api/ai/weekly-readout`: add `energy`, `hunger`, `sleep_quality` to
-  `SNAPSHOT_FIELDS` (:38) — `hydration_l` is already in. Route logic, correlation
-  engine, and the deterministic model-down fallback ship as built.
+  `SNAPSHOT_FIELDS` (:38) — `hydration_l` is already in. ⚠ SNAPSHOT_FIELDS alone
+  is NOT enough: `computeCorrelations()` only processes `CORRELATION_PAIRS`, and
+  `src/lib/correlations.ts` includes none of the new fields in `SnapshotPoint`
+  or any pair — so both the model evidence AND the deterministic fallback would
+  silently omit them. Extend `SnapshotPoint` + the pair catalog (e.g.
+  energy ↔ sleep_hours, energy ↔ workout_minutes, hunger ↔ protein/kcal,
+  sleep_quality ↔ recovery) in the same PR. Route logic and the model-down
+  fallback otherwise ship as built.
 - **Entry point:** a **"The Readout"** card on the client Progress hub, Overall
   tab (instrument-plate grammar). On first open in an ISO week it calls the
   route and renders the 3–5 evidence-bound insights + recommendations.
-- **Cost control:** the generated readout is cached in
-  `user_goals('weekly_readout')` `{ week, payload }` — at most **one model call
-  per member per week**; re-opens render the cache. The `/api/ai` prefix is
-  already membership-gated (paid feature, correct).
+- **Cost control — enforced SERVER-SIDE:** the route itself reads/writes the
+  weekly cache (`user_goals('weekly_readout')` `{ week, payload }`) under an
+  atomic per-member claim (per-user advisory lock or a conditional
+  claim-then-generate write), so two tabs — or a direct POST — cannot
+  double-invoke the model. The client renders whatever the route returns; a
+  UI-side cache is a nicety, never the bound. At most **one model call per
+  member per ISO week**. The `/api/ai` prefix is already membership-gated
+  (paid feature, correct).
 - i18n: new keys ×13 locales, registered in BOTH the runtime NS array and the
   catalog-parity test (the ships-ungated trap).
 
@@ -115,10 +129,21 @@ readout cache ride the existing `user_goals` doc pattern.
   INSIDE. index — never says "due", never nags — so `BSTodayPage` (and the
   hydration quick-add that lives on it) stays reachable. Turning the toggle back
   on restores the bulletin.
-- **Downstream:** nothing else changes. Rules are data-gated (§3A), so an
-  opted-out member never flags; the coach case file shows honest absence
-  (redaction), **not** an "opted out" label — the setting itself is not surfaced
-  to the coach (absence-is-never-a-padlock doctrine; owner may override, §8).
+- **Downstream — what opting out actually does to the engine** (stated
+  precisely; the earlier "never flags" claim overstated it):
+  - New gauge data stops immediately (the prompt is gone).
+  - The **client-side record builder drops the `vitals` leg the moment the
+    pref is off** (`selfRecord` gates on the pref, tolerant when the pref
+    module is absent) — so home directives AND the persisted `notify_snapshot`
+    go quiet immediately; the hourly cron re-evaluates a vitals-less record.
+  - The **coach-side roster read cannot see the pref** (it is an owner-RLS
+    settings doc) and still serves already-logged values until they age out of
+    its **14-day window** — a coach amber flag can persist for up to two weeks
+    after opt-out and can never outlive the data that fired it. This is
+    accepted: the flag is about data the member really logged while opted in.
+  - The coach case file shows honest absence (redaction), **not** an "opted
+    out" label — the setting itself is not surfaced to the coach
+    (absence-is-never-a-padlock doctrine; owner may override, §8).
 
 ### E — Registered, not built here
 
