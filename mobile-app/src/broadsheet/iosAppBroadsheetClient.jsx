@@ -26693,44 +26693,85 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     else if (key === 'noraTone') window.ShapeVoice.setTone(val === 'Direct' ? 'direct' : 'supportive');
     else if (key === 'noraVoiceName') window.ShapeVoice.setVoice(noraVoiceIdFromLabel(val));
   };
-  // Edit generation for THIS pane's hydrate. BSSettings runs its OWN
-  // getUserGoals('client_settings') read, separate from useBSDailyCheckinPref's,
-  // so it needs its own copy of the hook's guard: a read that started before the
-  // member toggled must never apply its stale value, because bsDailyCheckinApply
-  // writes the mirror AND dispatches — it would undo the fresh choice on a
-  // still-mounted Home. Bumped by every local dailyCheckin write (cyclePref and
-  // setPref below); captured before the fetch, re-checked before applying.
-  // Declared above the effect that reads it so the closure can't hit a TDZ.
-  const checkinEditGenRef = React.useRef(0);
+  // ---- The pane's hydrate + its ONE cloud writer -----------------------------
+  // `saveUserGoals` UPSERTS the whole `data` blob, so Settings publishes its
+  // ENTIRE prefs object on every edit. Until the hydrate lands that object is
+  // PREF_DEFAULTS (plus the mirrored check-in value), so publishing it would
+  // overwrite the member's stored units, privacy, meal times and phases with
+  // defaults. Every row is interactive from the first frame, so this is a
+  // whole-pane rule rather than a check-in one: every write goes through
+  // persistPrefs, which merges the keys the member actually edited onto a REAL
+  // server document and DECLINES to write when it cannot obtain one.
+  //
+  // `editedRef` doubles as the hydrate's stale guard (it replaces the earlier
+  // check-in-only edit generation): a response that started before an edit must
+  // not revert it — dropped from the PATCH, not merely skipped at the apply,
+  // because the blanket spread would revert the row either way.
+  // Declared above the effect that reads them so the closure can't hit a TDZ.
+  const editedRef = React.useRef({});   // { key: value } the member changed HERE
+  const serverDocRef = React.useRef(null); // the newest REAL document we've seen
+  const hydrateRef = React.useRef(null);   // this pane's first read, in flight
   const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel() }));
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
-    const gen = checkinEditGenRef.current;
-    window.shapeDb.getUserGoals('client_settings').then(s => {
-      if (alive && s && typeof s === 'object') {
-        // A local toggle landed mid-flight ⇒ this response is stale for the
-        // check-in pref alone: drop it from the patch (the blanket spread would
-        // revert the row) and skip the apply. Every other pref still converges.
-        const checkinStale = checkinEditGenRef.current !== gen;
-        // A boolean doc value (the spec's storage sketch) normalizes to the
-        // house 'On'/'Off' string so the segmented row lights correctly, and an
-        // ABSENT key reads ON — the SAME rule useBSDailyCheckinPref applies, so
-        // the row and Home can never converge on different answers.
-        const dcOn = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
-        const patch = { ...s };
-        if (checkinStale) delete patch.dailyCheckin; else patch.dailyCheckin = dcOn ? 'On' : 'Off';
-        setPrefs(p => ({ ...p, ...patch }));
-        if (s.units) window.ShapeUnits?.set(s.units);
+    // getUserGoals resolves NULL for every can't-know case and never rejects;
+    // the catch is belt-and-braces so persistPrefs can always await this.
+    const read = window.shapeDb.getUserGoals('client_settings').catch(() => null);
+    hydrateRef.current = read;
+    read.then(s => {
+      if (!(s && typeof s === 'object')) return;
+      // Recorded even if this pane unmounted — a deferred save still needs it.
+      serverDocRef.current = s;
+      if (!alive) return;
+      // A boolean doc value (the spec's storage sketch) normalizes to the
+      // house 'On'/'Off' string so the segmented row lights correctly, and an
+      // ABSENT key reads ON — the SAME rule useBSDailyCheckinPref applies, so
+      // the row and Home can never converge on different answers.
+      const dcOn = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
+      const edited = editedRef.current;
+      const patch = { ...s, dailyCheckin: dcOn ? 'On' : 'Off' };
+      Object.keys(edited).forEach(k => { delete patch[k]; });
+      setPrefs(p => ({ ...p, ...patch }));
+      const fresh = (k) => !(k in edited);
+      if (s.units && fresh('units')) window.ShapeUnits?.set(s.units);
+      if (fresh('onlineVisible')) {
         try { window.ShapeOnlineVisible = (s.onlineVisible !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-        // The apply() keeps the mirror + a mounted Home in sync with the doc.
-        if (!checkinStale) { try { bsDailyCheckinApply(dcOn); } catch (e) {} }
-        window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
-        if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
+      // The apply() keeps the mirror + a mounted Home in sync with the doc.
+      if (fresh('dailyCheckin')) { try { bsDailyCheckinApply(dcOn); } catch (e) {} }
+      // The member's own edits win over the doc for meal times too.
+      window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s, ...edited });
+      if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
+  // The ONE place a pref reaches the cloud. Nothing else in this pane may call
+  // saveUserGoals: a bare `next` published before the hydrate lands is exactly
+  // the clobber this exists to prevent.
+  const persistPrefs = (key, value) => {
+    editedRef.current[key] = value;
+    const db = window.shapeDb;
+    if (!(db && db.saveUserGoals)) return;
+    const write = (doc) => {
+      // No real document ⇒ decline rather than publish our defaults. The
+      // member's choice still stands locally (and, for the check-in pref, in
+      // its mirror); the next edit after a successful read persists it.
+      if (!(doc && typeof doc === 'object')) return;
+      try { db.saveUserGoals('client_settings', { ...doc, ...editedRef.current }); } catch (e) {}
+    };
+    if (serverDocRef.current) { write(serverDocRef.current); return; }
+    // Pre-hydrate: defer to the read already in flight; if that one came back
+    // empty-handed (offline / query error), take one fresh look before giving up.
+    Promise.resolve(hydrateRef.current).then(s => {
+      if (s && typeof s === 'object') { serverDocRef.current = s; write(s); return undefined; }
+      if (!db.getUserGoals) return undefined;
+      return db.getUserGoals('client_settings').then(s2 => {
+        if (s2 && typeof s2 === 'object') serverDocRef.current = s2;
+        write(s2);
+      });
+    }).catch(() => {});
+  };
   // Seed the meal-time cache from defaults immediately (before the async load).
   React.useEffect(() => { window.ShapeMealTimes?.setFromPrefs(PREF_DEFAULTS); }, []);
   // Mirror Nora's voice prefs (owned by window.ShapeVoice) into the Settings rows,
@@ -26751,11 +26792,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
-      try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
-      if (key === 'dailyCheckin') { checkinEditGenRef.current += 1; try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // outdate an in-flight hydrate + mirror + live Home re-render (spec §3D)
+      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D; persistPrefs already outdated the hydrate)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -26766,11 +26807,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
-      try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
-      if (key === 'dailyCheckin') { checkinEditGenRef.current += 1; try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // outdate an in-flight hydrate + mirror + live Home re-render (spec §3D)
+      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D; persistPrefs already outdated the hydrate)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;

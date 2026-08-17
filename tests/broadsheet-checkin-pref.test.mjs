@@ -365,23 +365,59 @@ test('window.ShapeCheckinPref.on() is the synchronous pref reader and tracks the
 test('Settings carries the dailyCheckin pref end to end (both writers, row, loader)', () => {
   const src = readFileSync(SRC, 'utf8');
   assert.match(src, /dailyCheckin:\s*\['On',\s*'Off'\]/, 'PREF_OPTIONS entry');
-  // Both writers must do BOTH halves: bump the pane's edit generation (so an
-  // in-flight hydrate is outdated) and apply the pref. Asserting them together
-  // is deliberate — a writer that applies without bumping reintroduces the
-  // stale-hydrate revert, and one that bumps without applying leaves Home stale.
-  const sideEffects = src.match(/if \(key === 'dailyCheckin'\) \{ checkinEditGenRef\.current \+= 1; try \{ bsDailyCheckinApply\(next\[key\] !== 'Off'\); \} catch \(e\) \{\} \}/g) || [];
-  assert.equal(sideEffects.length, 2, 'cyclePref AND setPref both bump the edit generation AND apply the pref');
+  // Both writers must apply the pref (mirror + the event a mounted Home listens
+  // for). Two writers exist — cyclePref for tap-to-cycle rows, setPref for the
+  // segmented row — and a member can reach the pref through either.
+  const sideEffects = src.match(/if \(key === 'dailyCheckin'\) \{ try \{ bsDailyCheckinApply\(next\[key\] !== 'Off'\); \} catch \(e\) \{\} \}/g) || [];
+  assert.equal(sideEffects.length, 2, 'cyclePref AND setPref both apply the pref');
   assert.match(src, /settings:pref\.dailyCheckin/, 'the Preferences row exists');
   assert.match(src, /'dailyCheckin' in s/, 'the Settings load effect handles a stored value');
-  // The pane's own guard against its own independent hydrate (Codex round 2).
-  assert.match(src, /const checkinEditGenRef = React\.useRef\(0\)/, 'the Settings pane declares its own edit generation');
-  assert.match(src, /const checkinStale = checkinEditGenRef\.current !== gen/, 'the hydrate compares generations before applying');
-  // The deeper half: a stale response must be dropped from the PATCH too, or
-  // the blanket prefs spread silently reverts the segmented row anyway.
-  assert.match(src, /if \(checkinStale\) delete patch\.dailyCheckin/, 'a stale hydrate is dropped from the prefs patch, not just the apply');
   // The row seeds from the mirror so an offline pane can't show On while the
   // mirror correctly keeps Home OFF.
   assert.match(src, /dailyCheckin: bsDailyCheckinLabel\(\)/, 'the prefs seed reads the per-uid mirror');
+});
+
+// ── The pane's ONE cloud writer (Codex round 3) ────────────────────────────
+// `saveUserGoals` upserts the WHOLE document, so a whole-doc save issued before
+// the hydrate lands publishes PREF_DEFAULTS over the member's stored units,
+// privacy, meal times and phases. Every row is interactive from the first frame,
+// so this is a whole-pane rule — the reason the guard lives at the writer rather
+// than on the check-in row Codex found it through. Mutation-checked: restoring
+// the bare `saveUserGoals('client_settings', next)` call, or dropping the
+// no-real-document refusal, fails the matching assertion.
+test('every Settings write goes through the deferred, merge-on-a-real-document writer', () => {
+  const src = readFileSync(SRC, 'utf8');
+  const settings = src.slice(src.indexOf('function BSSettings('));
+  assert.ok(settings.length > 0, 'BSSettings is in the source');
+  // Nothing in the pane may publish the pref object directly.
+  assert.doesNotMatch(
+    settings,
+    /saveUserGoals\('client_settings',\s*next\)/,
+    'no writer publishes the whole prefs object (that is the pre-hydrate clobber)',
+  );
+  const writers = settings.match(/persistPrefs\(key, next\[key\]\);/g) || [];
+  assert.equal(writers.length, 2, 'cyclePref AND setPref both write through persistPrefs');
+  assert.match(settings, /const persistPrefs = \(key, value\) => \{/, 'the pane declares one cloud writer');
+  // It merges the member's edits onto a REAL server document...
+  assert.match(
+    settings,
+    /db\.saveUserGoals\('client_settings', \{ \.\.\.doc, \.\.\.editedRef\.current \}\)/,
+    'the write merges edited keys onto the server document',
+  );
+  // ...and declines to write at all when it cannot obtain one.
+  assert.match(
+    settings,
+    /if \(!\(doc && typeof doc === 'object'\)\) return;/,
+    'no real document ⇒ decline to write rather than publish defaults',
+  );
+  // The hydrate must not revert a key the member already edited — dropped from
+  // the PATCH, not merely skipped at the apply, or the blanket spread reverts it.
+  assert.match(
+    settings,
+    /Object\.keys\(edited\)\.forEach\(k => \{ delete patch\[k\]; \}\);/,
+    'an edited key is dropped from the hydrate patch',
+  );
+  assert.match(settings, /const fresh = \(k\) => !\(k in edited\);/, 'the hydrate applies only un-edited keys');
 });
 
 test('the two new settings keys exist in the en catalog (the parity gate covers the other 12)', () => {
