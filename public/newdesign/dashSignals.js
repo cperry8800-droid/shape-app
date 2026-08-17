@@ -61,6 +61,15 @@
     GOAL_RECENT_DAYS: 56,     // pace window — fit only the last 8 weeks of history
     GOAL_MIN_SPAN_DAYS: 7,    // need at least a week of history before projecting
     GOAL_FAR_DAYS: 365,       // past this, the ETA reads "1y+ at this pace", not a date
+    // Check-in vitals (spec §3A). Every vitals rule gates on a MINIMUM of real
+    // logged days — absence is never a signal, so a member who skips the daily
+    // check-in is never flagged for skipping it.
+    ENERGY_LOW_AVG: 4,        // 7-day avg energy (1-10) AT or under this flags (amber)
+    ENERGY_MIN_DAYS: 3,       // real energy logs needed before the rule may fire
+    HUNGER_HIGH_AVG: 8,       // 7-day avg hunger (1-10) AT or over this flags (under-fueling read)
+    HUNGER_MIN_DAYS: 3,       // real hunger logs needed before the rule may fire
+    HYDRATION_LOW_FRAC: 0.5,  // 7-day avg water STRICTLY under this fraction of target flags
+    HYDRATION_MIN_DAYS: 4,    // real hydration logs needed before the rule may fire
   };
 
   function toDate(v) {
@@ -467,6 +476,51 @@
     return { key: "sleep_low", label: "Sleep low", reason: "Averaging " + avgR + "h sleep vs a " + rr.target + "h target — recovery is running down" };
   }
 
+  // ── Check-in vitals rules (spec §3A) ──────────────────────────────────────
+  // The record's `vitals` leg is built from the member's own daily check-ins
+  // (signalsMap.vitalsFromProgress on the client; the widened roster-sleep read
+  // on the coach side): { energy:{avg7,n}, hunger:{avg7,n},
+  // hydration:{avg7L,targetL,n}, rested:{avg7,n} }. Every rule needs a real
+  // average AND enough logged days (n ≥ the *_MIN_DAYS floor) — below the
+  // floor, no flag, ever. Copy is observation + one concrete move, never blame.
+  function vitalsLeg(c, key) {
+    var v = c && c.vitals && typeof c.vitals === "object" ? c.vitals[key] : null;
+    if (!v || typeof v !== "object") return null;
+    var avg = v.avg7 != null && isFinite(Number(v.avg7)) ? Number(v.avg7) : null;
+    var avgL = v.avg7L != null && isFinite(Number(v.avg7L)) ? Number(v.avg7L) : null;
+    var n = v.n != null && isFinite(Number(v.n)) ? Number(v.n) : 0;
+    return { avg: avg, avgL: avgL, n: n, targetL: v.targetL != null && isFinite(Number(v.targetL)) ? Number(v.targetL) : null };
+  }
+  function ruleEnergyLow(c) {
+    var v = vitalsLeg(c, "energy");
+    if (!v || v.avg == null || v.n < THRESHOLDS.ENERGY_MIN_DAYS) return null;
+    if (!(v.avg <= THRESHOLDS.ENERGY_LOW_AVG)) return null;
+    var avgR = Math.round(v.avg * 10) / 10;
+    return { key: "energy_low", label: "Energy low", reason: "Energy has averaged " + avgR + "/10 this week — a lighter session still counts" };
+  }
+  function ruleHungerHigh(c) {
+    var v = vitalsLeg(c, "hunger");
+    if (!v || v.avg == null || v.n < THRESHOLDS.HUNGER_MIN_DAYS) return null;
+    if (!(v.avg >= THRESHOLDS.HUNGER_HIGH_AVG)) return null;
+    var avgR = Math.round(v.avg * 10) / 10;
+    return { key: "hunger_high", label: "Hunger high", reason: "Hunger has averaged " + avgR + "/10 this week — the plan may be running light on fuel" };
+  }
+  // CLIENT DIRECTIVE ONLY (owner ruling): hydration never becomes a coach flag.
+  // evaluateClient runs this rule only for the client role, so getTriageFeed
+  // (always called with a coach role) never computes it — and the coach-side
+  // roster read carries no targetL, so the rule could not fire there anyway.
+  // A REAL stored target is required: no target → no flag (never a fabricated
+  // default liters figure).
+  function ruleHydrationLow(c) {
+    var v = vitalsLeg(c, "hydration");
+    if (!v || v.avgL == null || v.n < THRESHOLDS.HYDRATION_MIN_DAYS) return null;
+    if (v.targetL == null || !(v.targetL > 0)) return null;
+    if (!(v.avgL < v.targetL * THRESHOLDS.HYDRATION_LOW_FRAC)) return null;
+    var avgR = Math.round(v.avgL * 10) / 10;
+    var tgtR = Math.round(v.targetL * 10) / 10;
+    return { key: "hydration_low", label: "Water low", reason: "Averaging " + avgR + "L of a " + tgtR + "L water target — a glass with each meal closes most of it" };
+  }
+
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
@@ -484,6 +538,14 @@
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
     if ((f = ruleGoalSlip(c, now))) flags.push(f);
     if ((f = ruleSleepRecovery(c))) flags.push(f);
+    if ((f = ruleEnergyLow(c))) flags.push(f);
+    if ((f = ruleHungerHigh(c))) flags.push(f);
+    // Hydration is a CLIENT directive only (owner ruling) — never a coach flag.
+    // disciplineForRole is 'general' exactly for the client/unknown viewer, so
+    // a trainer/nutritionist/dietitian triage pass never evaluates it.
+    if (disciplineForRole(role) === "general") {
+      if ((f = ruleHydrationLow(c))) flags.push(f);
+    }
     if (disciplineForRole(role) === "nutrition") {
       if ((f = ruleLedgerBlown(c))) flags.push(f);
       if ((f = ruleProteinUnder(c))) flags.push(f);
@@ -506,6 +568,9 @@
   var FLAG_DISCIPLINE = {
     streak_broken: "training",
     sleep_low: "recovery",     // recovery → owned by the trainer (disciplineOwner)
+    energy_low: "recovery",    // low energy → ease the load — trainer-owned, like sleep
+    hunger_high: "nutrition",  // the under-fueling read — nutritionist-owned
+    hydration_low: "nutrition",// client-only directive (role-gated in evaluateClient — never reaches coach triage)
     ledger_blown: "nutrition",
     protein_under: "nutrition",
     food_gap: "general",       // basic logging adherence — either pro nudges it
@@ -924,17 +989,22 @@
     goal: { kind: "log_weighin", label: "Log a weigh-in" },
     score: { kind: "open_habits", label: "Grab a win today" },
     contact: { kind: "message", label: "Reach out today" },
+    energy: { kind: "ease_load", label: "Take today lighter" },
+    hunger: { kind: "log_meal", label: "Add a real meal today" },
+    hydration: { kind: "log_water", label: "Log a glass of water" },
   };
   var DIRECTIVE_VERDICTS = {
     sleep: "Sleep is the lever", nutrition: "Tighten nutrition", training: "Train today",
     checkin: "Check-in due", goal: "Goal pace slipped", score: "Grab a win",
-    contact: "Reconnect", none: "On pace",
+    contact: "Reconnect", energy: "Energy is running low", hunger: "Fuel is running short",
+    hydration: "Water is behind", none: "On pace",
   };
   function directiveKeyToLever(key) {
     return ({
       checkin_overdue: "checkin", streak_broken: "training", food_gap: "nutrition",
       ledger_blown: "nutrition", protein_under: "nutrition", goal_slip: "goal",
       score_drop: "score", contact_gap: "contact", sleep_low: "sleep",
+      energy_low: "energy", hunger_high: "hunger", hydration_low: "hydration",
     })[key] || null;
   }
 
@@ -944,7 +1014,11 @@
   // further the longer it's been missed.
   var DIRECTIVE_PRIORITY = {
     checkin_overdue: 100, contact_gap: 80, goal_slip: 60, food_gap: 55,
-    ledger_blown: 50, protein_under: 45, streak_broken: 40, sleep_low: 35, score_drop: 30,
+    ledger_blown: 50, protein_under: 45, streak_broken: 40, sleep_low: 35,
+    // The vitals flags rank BELOW sleep_low (a chronic sleep deficit outranks a
+    // soft-gauge read) and above score_drop, in energy → hunger → hydration order.
+    energy_low: 34, hunger_high: 33, hydration_low: 32,
+    score_drop: 30,
   };
   function flagPriority(f) {
     if (!f) return 0;

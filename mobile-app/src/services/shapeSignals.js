@@ -8,7 +8,7 @@
 // ShapeGoalsApi / ShapeProgress / …) and exposes `window.ShapeSignals` for the
 // UI to consume in Phase 2. Nothing renders yet — this is the foundation.
 import '../../../public/newdesign/dashSignals.js'; // → window.DashSignals
-import { recordFromCoachData, recordFromSelfData, sleepRecoveryFromProgress } from './signalsMap.mjs';
+import { recordFromCoachData, recordFromSelfData, sleepRecoveryFromProgress, vitalsFromProgress } from './signalsMap.mjs';
 
 const engine = () => (typeof window !== 'undefined' && window.DashSignals) || null;
 const deps = () => { const e = engine(); return { goalsFromDoc: e && e.goalsFromDoc }; };
@@ -46,7 +46,7 @@ async function selfRecord() {
   const SP = (typeof window !== 'undefined' && window.ShapeProgress) || null;
   const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
   const name = (typeof window !== 'undefined' && typeof window.bsMyName === 'function') ? window.bsMyName() : 'You';
-  const [nutrition, train, weighIns, goalsDoc, checkins, prog, progress] = await Promise.all([
+  const [nutrition, train, weighIns, goalsDoc, checkins, prog, progress, hydro] = await Promise.all([
     SP && SP.nutrition ? SP.nutrition().catch(() => null) : null,
     SP && SP.train ? SP.train().catch(() => null) : null,
     window.ShapeWeighIns && window.ShapeWeighIns.list ? window.ShapeWeighIns.list().catch(() => null) : null,
@@ -54,6 +54,11 @@ async function selfRecord() {
     window.ShapeCheckins && window.ShapeCheckins.list ? window.ShapeCheckins.list().catch(() => null) : null,
     window.ShapeProgramApi && window.ShapeProgramApi.get ? window.ShapeProgramApi.get().catch(() => null) : null,
     SP && SP.progress ? SP.progress().catch(() => null) : null,
+    // The member's REAL hydration target (user_goals client_nutrition_prefs via
+    // /api/client/hydration GET). Only feeds vitals.hydration.targetL — a failed
+    // read means no target, which means the hydration rule cannot fire (absence,
+    // never a fabricated default).
+    window.ShapeHydration && window.ShapeHydration.get ? window.ShapeHydration.get().catch(() => null) : null,
   ]);
   // Fold train's streak into the nutrition object the mapper reads.
   const nut = Object.assign({}, nutrition || {});
@@ -68,7 +73,11 @@ async function selfRecord() {
   const recovery = signedIn
     ? sleepRecoveryFromProgress(progress)
     : { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5 } };
-  return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins, recovery, coachDirective }, deps());
+  // The check-in vitals leg (spec §3A) — energy/hunger/hydration/rested from the
+  // SAME cached progress response. Signed-in only: the signed-out preview never
+  // fabricates gauge data it doesn't have.
+  const vitals = signedIn ? vitalsFromProgress(progress, { hydrationTargetL: hydro && hydro.targetL }) : null;
+  return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins, recovery, vitals, coachDirective }, deps());
 }
 
 // ── The coach's roster as unified records (coach triage surfaces). ────────────
@@ -84,9 +93,12 @@ async function coachClients(role) {
 async function coachRecords(role) {
   const clients = await coachClients(role);
   if (!clients.length) return [];
-  // Batch the roster's recent sleep in ONE call (RLS-scoped to this coach's clients)
-  // so the engine's sleep-recovery rule can flag a chronic deficit in the "who needs
-  // you" feed. Best-effort — {} on any failure, so triage never blocks on it.
+  // Batch the roster's recent sleep + check-in vitals in ONE call (RLS-scoped to
+  // this coach's clients) so the engine's sleep-recovery + energy/hunger rules can
+  // flag in the "who needs you" feed. The widened /api/coach/roster-sleep response
+  // rides each entry as { sleepHours?, vitals? } — a pre-widening server returns
+  // sleepHours-only entries, which map through unchanged. Best-effort — {} on any
+  // failure, so triage never blocks on it.
   let sleepByClient = {};
   try {
     if (window.ShapeRosterSleep && window.ShapeRosterSleep.get) {
@@ -100,7 +112,15 @@ async function coachRecords(role) {
       window.ShapeGoalsApi && window.ShapeGoalsApi.getForClient ? window.ShapeGoalsApi.getForClient(c.id).catch(() => null) : null,
       window.ShapeClientKit && window.ShapeClientKit.checkins ? window.ShapeClientKit.checkins(c.id, 2).catch(() => null) : null,
     ]);
-    return recordFromCoachData({ id: c.id, name: c.name, stats, lifts, goalsDoc, checkins, recovery: sleepByClient[c.id] || null }, deps());
+    // Split the roster entry into the two record legs: recovery carries ONLY the
+    // sleepHours shape recoveryRead consumes; vitals is the engine's §3A leg.
+    // An entry with vitals but no sleep must not fabricate a recovery leg.
+    const rs = sleepByClient[c.id] || null;
+    return recordFromCoachData({
+      id: c.id, name: c.name, stats, lifts, goalsDoc, checkins,
+      recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,
+      vitals: rs && rs.vitals ? rs.vitals : null,
+    }, deps());
   });
 }
 

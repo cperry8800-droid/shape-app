@@ -49,6 +49,11 @@ export const BS_LEVER_HEADS = {
   nutrition: 'Log a meal today.',
   goal: 'Your goal pace slipped.',
   score: 'Grab a win today.',
+  // Check-in vitals levers (spec §3A) — observation + one concrete move,
+  // never shaming. Home's engineMove map reads these as its tr() defaults.
+  energy: 'Take today lighter.',
+  hunger: 'Eat a real meal today.',
+  hydration: 'Drink more water today.',
 };
 
 // Turn the engine directive into the telegram's teal line, mirroring Home's
