@@ -51,6 +51,8 @@
   "pref.dinner": "Dinner time",
   "pref.trainingPhase": "Training phase",
   "pref.nutritionPhase": "Nutrition phase",
+  "pref.dailyCheckin": "Daily check-in",
+  "pref.dailyCheckinDesc": "Show the daily check-in prompt on Home",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Metric",
   "privacy.visibility": "Profile visibility",

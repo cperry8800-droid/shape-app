@@ -51,6 +51,8 @@
   "pref.dinner": "Время ужина",
   "pref.trainingPhase": "Фаза тренировок",
   "pref.nutritionPhase": "Фаза питания",
+  "pref.dailyCheckin": "Ежедневный чек-ин",
+  "pref.dailyCheckinDesc": "Показывать напоминание о ежедневном чек-ине на Главной",
   "pref.unitsImperial": "Имперская",
   "pref.unitsMetric": "Метрическая",
   "privacy.visibility": "Видимость профиля",

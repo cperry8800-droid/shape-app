@@ -51,6 +51,8 @@
   "pref.dinner": "Hora de la cena",
   "pref.trainingPhase": "Fase de entrenamiento",
   "pref.nutritionPhase": "Fase de nutrición",
+  "pref.dailyCheckin": "Check-in diario",
+  "pref.dailyCheckinDesc": "Muestra el aviso de check-in diario en Inicio",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Métrico",
   "privacy.visibility": "Visibilidad del perfil",

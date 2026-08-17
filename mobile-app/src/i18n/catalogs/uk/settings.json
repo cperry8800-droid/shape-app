@@ -51,6 +51,8 @@
   "pref.dinner": "Час вечері",
   "pref.trainingPhase": "Фаза тренувань",
   "pref.nutritionPhase": "Фаза харчування",
+  "pref.dailyCheckin": "Щоденний чек-ін",
+  "pref.dailyCheckinDesc": "Показувати нагадування про щоденний чек-ін на Головній",
   "pref.unitsImperial": "Імперська",
   "pref.unitsMetric": "Метрична",
   "privacy.visibility": "Видимість профілю",

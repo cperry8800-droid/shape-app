@@ -21044,6 +21044,86 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
 // `bsSdReduced()` (defined once, ~line 10486) — the single reduced-motion
 // predicate app-wide. Do not define a second one here.
 
+// ---- Daily check-in preference (spec §3D · "Optional check-in") ------------
+// A per-member Settings toggle (default ON). Stored in the SAME
+// user_goals('client_settings') doc every other preference lives in, written
+// ONLY through the Settings machinery's whole-doc merged save — that save is
+// the existing anti-clobber chokepoint (read → spread → save), so sibling keys
+// (profileVisibility, onlineVisible, meal times, paused_until) survive.
+// Settings stores the house 'On'/'Off' STRING like its neighbor onlineVisible;
+// the spec's storage sketch says `dailyCheckin: false`, so the ONE canonical
+// predicate below tolerates BOTH shapes: absent / true / 'On' read ON, and
+// only an explicit false / 'Off' reads OFF. Never restate this rule inline.
+function bsDailyCheckinOn(v) { return v !== false && v !== 'Off'; }
+// localStorage mirror so Home paints the right state on the FIRST render (the
+// cloud read is async). uid-scoped: a bare flag would leak account A's OFF
+// onto account B on a shared device (the _followCache cross-account class),
+// so the record is {uid, off:true} and only applies to the uid that wrote it.
+// ON is the ABSENCE of the key — signed-out/demo can never read a stale OFF,
+// and the key never needs to join the sign-out scrub inventory.
+const BS_CHECKIN_PREF_LS = 'shape.dailyCheckin';
+function bsCheckinPrefUid() {
+  try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; }
+}
+function bsDailyCheckinMirrorRead() {
+  try {
+    const uid = bsCheckinPrefUid();
+    if (!uid) return true; // signed-out preview is always ON (spec: demo unchanged)
+    const raw = localStorage.getItem(BS_CHECKIN_PREF_LS);
+    if (!raw) return true;
+    const rec = JSON.parse(raw);
+    return !(rec && rec.off === true && rec.uid === uid);
+  } catch (e) { return true; }
+}
+function bsDailyCheckinMirrorWrite(on) {
+  try {
+    const uid = bsCheckinPrefUid();
+    if (!uid) return;
+    if (on) localStorage.removeItem(BS_CHECKIN_PREF_LS);
+    else localStorage.setItem(BS_CHECKIN_PREF_LS, JSON.stringify({ uid, off: true }));
+  } catch (e) {}
+}
+// Settings calls this on every toggle (and on its cloud load): refresh the
+// mirror AND tell the still-mounted Home — Settings renders as an OVERLAY over
+// the tab tree (zIndex 210), so an event is what makes Home re-render live.
+function bsDailyCheckinApply(on) {
+  bsDailyCheckinMirrorWrite(on);
+  try { window.dispatchEvent(new CustomEvent('shape:checkinPref', { detail: { on: !!on } })); } catch (e) {}
+}
+
+// useBSDailyCheckinPref — the read hook BSTodayNudge consumes. Seeds
+// synchronously from the mirror (no wrong-state flash), hydrates from the
+// cloud client_settings doc (a fresh device converges on the account truth),
+// and follows live 'shape:checkinPref' events from Settings. Signed-out
+// ALWAYS returns ON so the demo/preview stays byte-identical.
+function useBSDailyCheckinPref() {
+  const uid = bsCheckinPrefUid();
+  const [on, setOn] = useStateBSC(() => bsDailyCheckinMirrorRead());
+  React.useEffect(() => {
+    // Account changed (or first mount): re-seed from the uid-scoped mirror,
+    // then hydrate from the cloud. A successful read CONVERGES the mirror in
+    // both directions (an absent key = the default ON), so a stale mirror
+    // can't outlive the account's stored truth; a failed read keeps the seed.
+    setOn(bsDailyCheckinMirrorRead());
+    if (!uid || !(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    window.shapeDb.getUserGoals('client_settings').then(s => {
+      if (!alive) return;
+      const doc = (s && typeof s === 'object') ? s : {};
+      const next = ('dailyCheckin' in doc) ? bsDailyCheckinOn(doc.dailyCheckin) : true;
+      bsDailyCheckinMirrorWrite(next);
+      setOn(next);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [uid]);
+  React.useEffect(() => {
+    const onEvt = (e) => { setOn(e && e.detail ? !!e.detail.on : bsDailyCheckinMirrorRead()); };
+    window.addEventListener('shape:checkinPref', onEvt);
+    return () => window.removeEventListener('shape:checkinPref', onEvt);
+  }, []);
+  return uid ? on : true;
+}
+
 // useBSCheckinLogged — the manual-signal "logged for today" predicate, extracted
 // VERBATIM from BSTodayNudge's own effect (see the comment above — the has()/
 // deviceMeta/rule is copied unchanged, only lifted into a reusable hook).
@@ -21112,16 +21192,30 @@ function useBSStepsToday() {
 // bulletin simply renders nothing once logged, matching "decays to an index row once
 // logged" from the spec; the index-row decay itself is variant 'row'). variant 'row'
 // → BSIndexRow CHECK-IN residue (Logged ✓ · add water), rendered only once logged.
+// Spec §3D "Optional check-in": when the member's dailyCheckin pref is OFF,
+// the bulletin renders NOTHING (no due nag, ever) and the 'row' variant swaps
+// its logged-residue logic for a quiet, always-present "Check-in" index door —
+// never the word "due", never a done-tick — so the check-in page (and the
+// hydration quick-add living on it) stays one tap away. Pref ON = today's
+// behavior byte-identical.
 function BSTodayNudge({ onOpen, variant }) {
   const tr = useShapeTr();
+  const checkinOn = useBSDailyCheckinPref();
   const logged = useBSCheckinLogged();
   if (variant === 'bulletin') {
+    if (!checkinOn) return null; // pref OFF — Home never nags (spec §3D)
     if (logged) return null;
     return <BSHomeBulletin label={tr('home:bulletin.checkin', { defaultValue: 'Check-in due' })} detail={tr('home:bulletin.checkinDetail', { defaultValue: 'Energy · sleep · 30 sec' })} onOpen={onOpen} />;
   }
   // Explicit contract: only 'row' renders the residue — an omitted or mistyped
   // variant renders nothing rather than silently picking a surface.
   if (variant !== 'row') return null;
+  if (!checkinOn) {
+    // The quiet door: reuses the EXISTING home:today keys (no new home strings)
+    // and deliberately carries no `figure` and no `done` tick — a neutral index
+    // entry, not a status claim.
+    return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} onOpen={onOpen} />;
+  }
   if (!logged) return null;
   return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} figure={tr('home:today.loggedFigure', { defaultValue: 'Logged ✓' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} done onOpen={onOpen} />;
 }
@@ -26541,6 +26635,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     profileVisibility: ['Public', 'Just friends', 'Private'],
     onlineVisible:     ['On', 'Off'],
     shareWorkoutData:  ['On', 'Off'],
+    dailyCheckin:      ['On', 'Off'],
     mealBreakfast:     BS_MEAL_TIME_OPTS,
     mealLunch:         BS_MEAL_TIME_OPTS,
     mealSnack:         BS_MEAL_TIME_OPTS,
@@ -26575,6 +26670,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         setPrefs(p => ({ ...p, ...s }));
         if (s.units) window.ShapeUnits?.set(s.units);
         try { window.ShapeOnlineVisible = (s.onlineVisible !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+        if ('dailyCheckin' in s) {
+          // A boolean doc value (the spec's storage sketch) normalizes to the
+          // house 'On'/'Off' string so the segmented row lights correctly; the
+          // apply() keeps the mirror + a mounted Home in sync with the doc.
+          const dcOn = bsDailyCheckinOn(s.dailyCheckin);
+          if (typeof s.dailyCheckin !== 'string') setPrefs(p => ({ ...p, dailyCheckin: dcOn ? 'On' : 'Off' }));
+          try { bsDailyCheckinApply(dcOn); } catch (e) {}
+        }
         window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
         if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
@@ -26605,6 +26708,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
+      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -26619,6 +26723,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
+      if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -27284,6 +27389,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:pref.dinner', { defaultValue: 'Dinner time' }),     key: 'mealDinner',    dropdown: PREF_OPTIONS.mealDinner },
         { l: tr('settings:pref.trainingPhase', { defaultValue: 'Training phase' }),  key: 'trainingPhase', dropdown: PREF_OPTIONS.trainingPhase },
         { l: tr('settings:pref.nutritionPhase', { defaultValue: 'Nutrition phase' }), key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
+        { l: tr('settings:pref.dailyCheckin', { defaultValue: 'Daily check-in' }), key: 'dailyCheckin', segmented: PREF_OPTIONS.dailyCheckin, desc: tr('settings:pref.dailyCheckinDesc', { defaultValue: 'Show the daily check-in prompt on Home' }) },
       ],
     },
     {

@@ -51,6 +51,8 @@
   "pref.dinner": "Waktu makan malam",
   "pref.trainingPhase": "Fase latihan",
   "pref.nutritionPhase": "Fase nutrisi",
+  "pref.dailyCheckin": "Check-in harian",
+  "pref.dailyCheckinDesc": "Tampilkan pengingat check-in harian di Beranda",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Metrik",
   "privacy.visibility": "Visibilitas profil",

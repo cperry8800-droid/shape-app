@@ -51,6 +51,8 @@
   "pref.dinner": "Akşam yemeği saati",
   "pref.trainingPhase": "Antrenman evresi",
   "pref.nutritionPhase": "Beslenme evresi",
+  "pref.dailyCheckin": "Günlük check-in",
+  "pref.dailyCheckinDesc": "Ana sayfada günlük check-in hatırlatmasını gösterir",
   "pref.unitsImperial": "İngiliz",
   "pref.unitsMetric": "Metrik",
   "privacy.visibility": "Profil görünürlüğü",
