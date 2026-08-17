@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
+import { buildRosterVitals } from '@/lib/roster-vitals.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,8 @@ export async function POST(request: Request) {
   if (!ids.length) return NextResponse.json({ ok: true, recovery: {} });
 
   const supabase = await clientForRequest(request);
+  // The QUERY window is 14 days because the SLEEP leg wants that much history.
+  // The vitals legs narrow it to 7 calendar days in code (see buildRosterVitals).
   const since = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
   // Explicit column list is safe here: user_id / snapshot_date / sleep_hours /
   // hydration_l all predate the sleep-detail migration, and energy / hunger landed
@@ -47,51 +50,54 @@ export async function POST(request: Request) {
     .gte('snapshot_date', since)
     .order('snapshot_date', { ascending: true });
 
-  // Per-user, per-metric value lists in snapshot_date order. A missing/junk value
-  // is ABSENCE — the row is skipped for THAT metric only (never coerced: Number(null)
-  // is a finite 0, the documented fabrication class). The `v > 0` filter matches the
-  // engine's absence doctrine: energy/hunger carry a DB CHECK of 1-10, and a 0-liter
-  // hydration row is indistinguishable from a row another metric's write created —
-  // under-firing is the safe direction (same rationale as sleep_hours above it).
-  type Buckets = { sleep: number[]; energy: number[]; hunger: number[]; hydration: number[] };
-  const byUser = new Map<string, Buckets>();
-  const push = (k: string, metric: keyof Buckets, raw: unknown) => {
-    const v = Number(raw);
-    if (!Number.isFinite(v) || v <= 0) return;
-    const b = byUser.get(k) ?? { sleep: [], energy: [], hunger: [], hydration: [] };
-    b[metric].push(v);
-    byUser.set(k, b);
-  };
-  for (const r of data ?? []) {
-    const row = r as { user_id?: unknown; sleep_hours?: unknown; energy?: unknown; hunger?: unknown; hydration_l?: unknown };
-    const k = String(row.user_id);
-    push(k, 'sleep', row.sleep_hours);
-    push(k, 'energy', row.energy);
-    push(k, 'hunger', row.hunger);
-    push(k, 'hydration', row.hydration_l);
-  }
-
-  const avg7 = (vals: number[]) => {
-    const last7 = vals.slice(-7); // rows are snapshot_date ASC → last 7 logged days
-    return { avg: Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 100) / 100, n: last7.length };
-  };
+  // Per-user sleep values in snapshot_date order, over the full 14-day read.
+  // A missing/junk value is ABSENCE — the row is skipped (never coerced:
+  // Number(null) is a finite 0, the documented fabrication class); the `v > 0`
+  // filter matches the engine's absence doctrine (under-firing is the safe
+  // direction).
+  //
+  // ⚠ The VITALS legs do NOT share this window. `avg7(vals)` averages the last 7
+  // LOGGED values over however many rows exist, so a client whose only energy /
+  // hunger readings are 8-14 days old would still satisfy `n >= 3` and raise a
+  // coach flag the member's own engine (vitalsFromProgress, which uses a 7-
+  // CALENDAR-DAY cutoff) treats as stale. They are built by `buildRosterVitals`,
+  // which enforces the same 7-calendar-day cutoff — see src/lib/roster-vitals.mjs
+  // for the day-boundary basis (UTC here, member-local there) and its documented
+  // one-boundary-day tolerance.
   type Vitals = {
     energy?: { avg7: number; n: number };
     hunger?: { avg7: number; n: number };
     hydration?: { avg7L: number; targetL: null; n: number };
   };
+  const sleepByUser = new Map<string, number[]>();
+  for (const r of data ?? []) {
+    const row = r as { user_id?: unknown; sleep_hours?: unknown };
+    const v = Number(row.sleep_hours);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const k = String(row.user_id);
+    const vals = sleepByUser.get(k) ?? [];
+    vals.push(v);
+    sleepByUser.set(k, vals);
+  }
+  const vitalsByUser: Map<string, Vitals> = buildRosterVitals(data ?? [], { now: new Date() });
+
+  // Sleep keeps its own established window: the last 7 LOGGED nights out of the
+  // 14-day read. Untouched by this file's vitals fix.
+  const avg7 = (vals: number[]) => {
+    const last7 = vals.slice(-7); // rows are snapshot_date ASC → last 7 logged days
+    return { avg: Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 100) / 100, n: last7.length };
+  };
   const recovery: Record<string, { sleepHours?: { avg7: number; lastNight: number; target: number }; vitals?: Vitals }> = {};
-  for (const [k, b] of byUser) {
+  // A client may have sleep with no in-window vitals, or vitals with no sleep —
+  // walk the union so neither leg can drop the other's entry.
+  for (const k of new Set([...sleepByUser.keys(), ...vitalsByUser.keys()])) {
     const entry: { sleepHours?: { avg7: number; lastNight: number; target: number }; vitals?: Vitals } = {};
-    if (b.sleep.length) {
-      entry.sleepHours = { avg7: avg7(b.sleep).avg, lastNight: b.sleep[b.sleep.length - 1], target: 7.5 };
+    const sleep = sleepByUser.get(k);
+    if (sleep && sleep.length) {
+      entry.sleepHours = { avg7: avg7(sleep).avg, lastNight: sleep[sleep.length - 1], target: 7.5 };
     }
-    const vitals: Vitals = {};
-    if (b.energy.length) { const a = avg7(b.energy); vitals.energy = { avg7: a.avg, n: a.n }; }
-    if (b.hunger.length) { const a = avg7(b.hunger); vitals.hunger = { avg7: a.avg, n: a.n }; }
-    // targetL stays null on the coach side — hydration_low is CLIENT-ONLY (see header).
-    if (b.hydration.length) { const a = avg7(b.hydration); vitals.hydration = { avg7L: a.avg, targetL: null, n: a.n }; }
-    if (Object.keys(vitals).length) entry.vitals = vitals;
+    const vitals = vitalsByUser.get(k);
+    if (vitals) entry.vitals = vitals;
     if (entry.sleepHours || entry.vitals) recovery[k] = entry;
   }
   return NextResponse.json({ ok: true, recovery });

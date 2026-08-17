@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { evaluateClient, buildDirective } = require('../public/newdesign/dashSignals.js');
+const { evaluateClient, buildDirective, getTriageFeed } = require('../public/newdesign/dashSignals.js');
 
 const NOW = new Date('2026-08-17T12:00:00');
 const rec = (vitals) => ({ profile: { name: 'Q' }, vitals });
@@ -70,11 +70,76 @@ test('hydration_low NEVER reaches a coach role — owner ruling, client directiv
   assert.equal(has(evaluateClient(rec(v), NOW, 'nutritionist'), 'hydration_low'), false);
 });
 
-test('energy + hunger DO reach the coach roles (amber coach flags)', () => {
+// ── discipline routing: a coach is never escalated by the OTHER discipline ──
+// severity is `flags.length >= 2 -> red`, computed BEFORE tagFlag/readOnlyFlags
+// mark a non-owner's flag read-only. energy_low is RECOVERY (trainer-owned, and
+// follows sleep_low's unconditional pattern); hunger_high is NUTRITION, so it
+// must not reach a trainer's flags — it reaches them as routed context instead.
+test('energy_low reaches every viewer (recovery, like sleep_low)', () => {
+  const v = { energy: { avg7: 3, n: 5 } };
+  assert.ok(has(evaluateClient(rec(v), NOW, 'trainer'), 'energy_low'));
+  assert.ok(has(evaluateClient(rec(v), NOW, 'nutritionist'), 'energy_low'));
+  assert.ok(has(evaluateClient(rec(v), NOW, 'client'), 'energy_low'));
+});
+
+test('hunger_high reaches the nutrition owner and the member — never the trainer', () => {
+  const v = { hunger: { avg7: 9, n: 5 } };
+  assert.ok(has(evaluateClient(rec(v), NOW, 'nutritionist'), 'hunger_high'));
+  assert.ok(has(evaluateClient(rec(v), NOW, 'dietitian'), 'hunger_high'), 'dietitian owns nutrition too');
+  assert.ok(has(evaluateClient(rec(v), NOW, 'client'), 'hunger_high'), 'the member keeps their own hunger lever');
+  assert.equal(has(evaluateClient(rec(v), NOW, 'trainer'), 'hunger_high'), false);
+});
+
+test('low energy AND high hunger does not turn the TRAINER red on the nutritionist\'s flag', () => {
   const v = { energy: { avg7: 3, n: 5 }, hunger: { avg7: 9, n: 5 } };
-  const ev = evaluateClient(rec(v), NOW, 'trainer');
-  assert.ok(has(ev, 'energy_low'));
-  assert.ok(has(ev, 'hunger_high'));
+  const trainer = evaluateClient(rec(v), NOW, 'trainer');
+  assert.equal(trainer.severity, 'amber');
+  assert.deepEqual(trainer.flags.map((f) => f.key), ['energy_low']);
+  // The owning role still flags it, and still sees both.
+  const nutri = evaluateClient(rec(v), NOW, 'nutritionist');
+  assert.ok(has(nutri, 'hunger_high'));
+});
+
+test('the trainer still SEES hunger_high — as routed read-only context, not severity', () => {
+  const v = { energy: { avg7: 3, n: 5 }, hunger: { avg7: 9, n: 5 } };
+  const [rowT] = getTriageFeed('trainer', [rec(v)], NOW);
+  assert.equal(rowT.severity, 'amber');
+  assert.equal(rowT.flags.some((f) => f.key === 'hunger_high'), false);
+  const ctx = rowT.readOnly.find((f) => f.key === 'hunger_high');
+  assert.ok(ctx, 'hunger_high surfaces in readOnly for the trainer');
+  assert.equal(ctx.discipline, 'nutrition');
+  assert.equal(ctx.routeTo, 'nutritionist');
+  // The nutritionist owns it in their own flags, and never sees it duplicated
+  // in readOnly.
+  const [rowN] = getTriageFeed('nutritionist', [rec(v)], NOW);
+  assert.ok(rowN.flags.some((f) => f.key === 'hunger_high' && f.owned === true));
+  assert.equal(rowN.readOnly.some((f) => f.key === 'hunger_high'), false);
+});
+
+// ── pre-existing flag combinations are unchanged ────────────────────────────
+test('no pre-existing flag changed severity: two general flags still read red', () => {
+  const r = {
+    profile: { name: 'Q' },
+    streaks: { current: 0, best: 9 },
+    shapeScoreHistory: [{ points: 400 }, { points: 300 }],
+  };
+  const before = evaluateClient(r, NOW, 'trainer');
+  assert.deepEqual(before.flags.map((f) => f.key).sort(), ['score_drop', 'streak_broken']);
+  assert.equal(before.severity, 'red');
+  // …and for the nutritionist, identically.
+  assert.equal(evaluateClient(r, NOW, 'nutritionist').severity, 'red');
+});
+
+test('sleep_low keeps escalating every role (its established pattern is untouched)', () => {
+  const r = { profile: { name: 'Q' }, recovery: { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5 } }, streaks: { current: 0, best: 9 } };
+  assert.equal(evaluateClient(r, NOW, 'trainer').severity, 'red');
+  assert.equal(evaluateClient(r, NOW, 'nutritionist').severity, 'red');
+});
+
+test('the nutrition siblings still gate exactly as they did', () => {
+  const r = { profile: { name: 'Q' }, nutrition: { avgCalories: 3200, targetCalories: 2000, daysLogged: 7, avgProtein: 40, targetProtein: 160 } };
+  assert.equal(evaluateClient(r, NOW, 'trainer').flags.some((f) => f.key === 'ledger_blown'), false);
+  assert.ok(evaluateClient(r, NOW, 'nutritionist').flags.some((f) => f.key === 'ledger_blown'));
 });
 
 // ── absence gates ───────────────────────────────────────────────────────────

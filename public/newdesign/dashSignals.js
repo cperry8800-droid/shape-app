@@ -538,8 +538,22 @@
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
     if ((f = ruleGoalSlip(c, now))) flags.push(f);
     if ((f = ruleSleepRecovery(c))) flags.push(f);
+    // energy_low is the RECOVERY discipline, and follows sleep_low's established
+    // pattern exactly: pushed for every viewer.
     if ((f = ruleEnergyLow(c))) flags.push(f);
-    if ((f = ruleHungerHigh(c))) flags.push(f);
+    // hunger_high is the NUTRITION discipline (FLAG_DISCIPLINE), so it must not
+    // escalate a TRAINER's severity — severity is `flags.length >= 2 -> red`, and
+    // it is computed BEFORE readOnlyFlags/tagFlag mark a non-owner's flag
+    // read-only, so leaving it unconditional turned a trainer red on a
+    // nutritionist's flag. Gated like its nutrition siblings ledger_blown /
+    // protein_under, EXCEPT that the member's own view keeps it: 'general' is the
+    // client/unknown viewer, and hunger_high has a client-facing lever + move
+    // (DIRECTIVE_VERDICTS.hunger / DIRECTIVE_MOVES.hunger) that would otherwise be
+    // unreachable. So: everyone except the trainer, whose severity it is not.
+    // The trainer still SEES it — readOnlyFlags surfaces it as routed context.
+    if (disciplineForRole(role) !== "training") {
+      if ((f = ruleHungerHigh(c))) flags.push(f);
+    }
     // Hydration is a CLIENT directive only (owner ruling) — never a coach flag.
     // disciplineForRole is 'general' exactly for the client/unknown viewer, so
     // a trainer/nutritionist/dietitian triage pass never evaluates it.
@@ -569,7 +583,7 @@
     streak_broken: "training",
     sleep_low: "recovery",     // recovery → owned by the trainer (disciplineOwner)
     energy_low: "recovery",    // low energy → ease the load — trainer-owned, like sleep
-    hunger_high: "nutrition",  // the under-fueling read — nutritionist-owned
+    hunger_high: "nutrition",  // the under-fueling read — nutritionist-owned (a trainer gets it read-only, never in severity)
     hydration_low: "nutrition",// client-only directive (role-gated in evaluateClient — never reaches coach triage)
     ledger_blown: "nutrition",
     protein_under: "nutrition",
@@ -622,6 +636,10 @@
       var f;
       if ((f = ruleLedgerBlown(c))) out.push(tagFlag(f, role, c));
       if ((f = ruleProteinUnder(c))) out.push(tagFlag(f, role, c));
+      // hunger_high joins its nutrition siblings here: the trainer keeps full
+      // visibility of the under-fuelling read as routed context, without it
+      // counting toward their severity.
+      if ((f = ruleHungerHigh(c))) out.push(tagFlag(f, role, c));
     }
     return out;
   }
