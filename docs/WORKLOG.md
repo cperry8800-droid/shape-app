@@ -1677,6 +1677,31 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-17 — deps: both high Dependabot alerts (nanoid) + a stale override floor Dependabot never raised (#1903 → `2fd1c1474`)
+
+- **Alerts #19 and #20 were the SAME advisory, counted once per lockfile** —
+  `GHSA-2v37-7h3g-55p8`, **`nanoid < 3.3.18`**, **runtime** scope, arriving transitively via
+  `postcss` (itself already overridden) in both trees at `3.3.16`. Pinned `^3.3.18` in both
+  `package.json` overrides blocks; **exactly one package changed per tree.**
+- ⚠ **RE-CHECK THE WHOLE `overrides` BLOCK WHENEVER YOU TOUCH DEPS — an override pins a FLOOR,
+  and floors go stale.** The rule was already written down here (2026-07-26); this is the run
+  that proves it pays. Doing it surfaced a **second high that Dependabot never alerted on**:
+  `brace-expansion` was pinned `^5.0.8`, but `GHSA-rgw5-rvv9-x895` covers **`4.0.0 - 5.0.8`** —
+  **the pin itself had aged into the vulnerable range.** Bumped to `^5.0.9`.
+  ⚠ **That package has now needed re-pinning TWICE** (2026-07-21 for CVE-2026-13149, then
+  this), which is the concrete evidence for the rule rather than a hypothetical.
+- ⚠ **A dev-scope high never appears in the Dependabot alert list.** The alerts were
+  runtime-only, so `npm audit --omit=dev` reporting clean would have hidden the
+  `brace-expansion` one entirely. **Run `npm audit` BOTH ways.** Final state: **0
+  vulnerabilities in both trees, runtime and dev**, with every remaining override verified to
+  resolve at or above its pin (`postcss` 8.5.23 · `sharp` 0.35.3 · `qs` 6.15.2 · `tar` 7.5.22).
+- **Verified past the lockfiles, because a dep patch can compile and then misbehave:**
+  `tsc --noEmit` exit 0 · `next build` exit 0 **with `ƒ Proxy (Middleware)` present** (the
+  standing proof the edge/membership-gate chain still bundles) · mobile Vite build exit 0.
+  No source changed; same-major patch bumps only. CI green (Web · Mobile · gitleaks · Tests);
+  Codex clean. ⚠ Dependabot's alert list lags the fix — confirm against the **lockfile on
+  `main`**, not the alert count.
+
 ### 2026-08-17 — Five defects in the day's own records, and a cell that could never be right (#1901 → `7ffec75d6f`)
 
 - A review of `docs/HANDOFF-2026-08-17.md` **against the code** rather than as prose.
