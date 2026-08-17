@@ -4273,6 +4273,18 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // "No daily check-in on record" is a claim about ENTERED data, so any entered
   // data at all — RESTED included — silences it.
   const caseShowVitalsRedact = !caseHasEntered;
+  // The heading names the card's SUBJECT, and only ENTERED data may name it a
+  // check-in. Hours are excluded for exactly the reason they cannot prove a
+  // device (see `caseHasHours` above): their source is unknowable, so they may
+  // gate NEITHER claim. That symmetry was missed once — hours alone headed the
+  // card "DAILY CHECK-IN" while the vitals redact below still (correctly) read
+  // "NOT ON RECORD", so the card contradicted itself for a member hand-logging
+  // sleep hours. An hours-only card now heads SLEEP · RECOVERY, which names the
+  // subject without claiming a source, and the redact stays honest.
+  // ⚠ Derived HERE, beside the other flags, so every consumer reads a
+  // pre-derived value and none recombines the booleans into a fresh claim.
+  // Recombining at the render site is what produced that defect.
+  const caseCheckinHeading = !caseHasDevice && caseHasEntered;
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
     // client A's care team / sleep / cycle / prep / vitals on client B's profile.
@@ -4864,7 +4876,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {/* A card carrying only ENTERED data is not a recovery readout — head it
             as what it is. With nothing at all, the head stays SLEEP · RECOVERY
             so the redact below reads as the pre-§3B empty state. */}
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={(!caseHasDevice && (caseHasHours || caseHasEntered))
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={caseCheckinHeading
           ? tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })
           : tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
         {(caseHasDevice || caseHasHours || caseHasRested) ? (() => {
