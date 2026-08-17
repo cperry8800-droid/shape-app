@@ -241,6 +241,33 @@ test('every apply surface can satisfy every requirement it can reach', () => {
   }
 });
 
+// ⚠ A GATHERED CHECKBOX IS THE STRING 'Yes' OR 'No', AND 'No' IS TRUTHY.
+// public/signup-nutritionist.html builds its attestations from
+// gatherApplicationData(), which records checkboxes as those strings — so coercing
+// one with Boolean() marks every attestation affirmed regardless of what the
+// applicant actually ticked. That is not a 400; it is a FABRICATED compliance
+// attestation reaching the reviewer, and nothing else in the repo would show it.
+// The route's attestationsComplete() requires === true, so the page must compare by
+// value. This asserts the rule (affirmed by value, never coerced), not a spelling.
+test('the legacy page affirms attestations by value, never by truthiness', () => {
+  const body = src('public/signup-nutritionist.html');
+  const assign = body.match(/attest\[[^\]]+\]\s*=\s*([^;]+);/);
+  assert.ok(assign, "the legacy page's attestation map has moved — re-anchor this test");
+  const expr = assign[1];
+  assert.doesNotMatch(
+    expr,
+    /Boolean\s*\(|^\s*!!|\?\s*true/,
+    `the legacy page coerces a gathered checkbox (${expr.trim()}) — an UNCHECKED box gathers as ` +
+      "the truthy string 'No', so this affirms every attestation regardless of input"
+  );
+  assert.match(
+    expr,
+    /===\s*['"]Yes['"]/,
+    `the legacy page must affirm an attestation by comparing the gathered value to 'Yes' ` +
+      `(reads: ${expr.trim()})`
+  );
+});
+
 // The attestation KEYS are the contract between the route and every surface. Two of
 // those surfaces are classic scripts that cannot import the canonical module, so
 // they mirror the list — and a mirror is what drifts. Assert the mirrors match.
