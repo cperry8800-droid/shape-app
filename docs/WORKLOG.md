@@ -178,7 +178,46 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-15): SIGN-OUT NOW SCRUBS THE SIGNING-OUT TAB — WITH DOCUMENTED RESIDUALS
+> **Latest (2026-08-17): THE LEGAL / AGE-GATE WAVE MERGED, AND THE DAILY CHECK-IN BECAME
+> ENGINE INPUT — SIX PRs (#1888 → `2f6c38b6c` · #1893 → `520630e33` · #1894 → `5268ef80c`
+> · #1895 → `ba0449c2b` · #1896 → `915c20a0a` · #1897 → `249c6c6f3`).**
+> **#1888 closed at Codex round 22 plus a self-review of it.** The last four rounds never
+> left the fixes themselves. Round 19: the guard written in round 18 **to stop enumeration
+> was itself an enumeration** — it hand-listed four surfaces and missed a fifth, so the ban
+> now runs over a **DERIVED** set (4 → 11 surfaces) with a guard-the-guard test that fails if
+> discovery ever matches nothing. Round 21: **`/auth/callback` is not signup-only** —
+> password resets, magic links and email-change confirmations all exchange a code there
+> carrying SIGNUP metadata, and an unconditional upsert wrote it back on every visit,
+> **reverting a renamed member and collapsing a dual-role coach's `roles`**.
+> Round 22: the create path could fail **23502** on the NOT NULL `profiles.role`, and under
+> the absence-refuses policy a failed provisioning write is a **lockout**, not a retry.
+> ⚠ **The last defect was found by self-review and it was mine.** `maybeSingle()` **RESOLVES**
+> `{data:null,error}` — it does not throw — so **a failed profile read looked identical to an
+> absent row**, took the create path, and (upsert on `id`) UPDATEd the existing row: round
+> 21's overwrite defect re-entering through the error path, which round 22 had *widened*.
+> Legal copy stays **DRAFT pending counsel**; the owner/counsel items in
+> [`docs/HANDOFF-2026-08-16b.md`](HANDOFF-2026-08-16b.md) are unchanged by the merge.
+> **The check-in engine** makes the daily gauges engine input: three **absence-gated** rules
+> below `sleep_low` (energy_low · hunger_high · hydration_low), a widened roster read, the
+> notify snapshot carrying the leg verbatim, and the coach's Case File reading the same
+> vitals. **The daily check-in is now OPTIONAL** (Settings, default ON) and opting out drops
+> the vitals leg from the record — and from the persisted snapshot — immediately.
+> ⚠ **`.slice(-7)` TOOK THE LAST 7 OBSERVATIONS, NOT THE LAST 7 DAYS.** The progress read
+> has no recency filter, so three low-energy readings from **months** ago kept firing a "this
+> week" directive indefinitely. Fixed on both the member and coach halves; ⚠ **the identical
+> staleness in `sleepRecoveryFromProgress` is REGISTERED, NOT FIXED.**
+> ⚠ **A FUTURE-DATED SNAPSHOT WAS SERVED FOREVER** — the check-in route takes the day from
+> the REQUEST, so `2099-01-01` cleared a floor-only window and was **also** the member's
+> `latest` sleep, their RESTED rating and a readiness input. Dropped at the chokepoint.
+> ⚠ **The Codex gate was WAIVED on #1897** — owner-ruled, **PR-scoped**; the standing gate
+> (CI green **and** Codex clean on the final head) is unchanged everywhere else.
+> **No migration anywhere in the check-in wave.** Suite **1855**. Nothing is in flight —
+> `main` is `ba0449c2b`.
+> Handoff: **[`docs/HANDOFF-2026-08-17.md`](HANDOFF-2026-08-17.md)**.
+>
+> See the full entries below.
+
+> **Prior (2026-08-15): SIGN-OUT NOW SCRUBS THE SIGNING-OUT TAB — WITH DOCUMENTED RESIDUALS
 > (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`).**
 > Content in local/sessionStorage, **signed media in CacheStorage**, the push registration,
 > and every in-memory cache survived a sign-out on a shared device. The service worker was
@@ -1627,6 +1666,188 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-17 — Legal pages, Radio licensing, privacy mechanisms and the 18+ age gate — MERGED (#1888 → `2f6c38b6c`)
+
+- **The wave that ran from round 9 to round 22 is on `main`.** Everything the two 2026-08-16
+  entries below describe shipped with it; the round-by-round state, the honest limits, and
+  every owner/counsel item live in **[`docs/HANDOFF-2026-08-16b.md`](HANDOFF-2026-08-16b.md)**
+  (note the `b`) and are **unchanged by the merge**. Legal copy remains **DRAFT pending
+  counsel**; `privacy@` / `safety@theshapecommunity.com` must exist before ship.
+
+- ⚠ **ROUND 19 — THE GUARD I WROTE IN ROUND 18 TO STOP ENUMERATION WAS ITSELF AN
+  ENUMERATION.** It hand-listed four legal surfaces and omitted `health-data-privacy.html`,
+  whose SS05 still said processors operate "under contract" — while naming connected
+  wearables among them, which the spec lists as "per provider terms", i.e. not our
+  processors at all. Fixed structurally rather than by adding the missing entry: the ban runs
+  over a **DERIVED** set — every page that actually makes a transfer/subprocessor claim,
+  discovered by reading the directory — so a new or renamed page is covered the moment it
+  makes such a claim, with nobody remembering to register it. Coverage **4 → 11 surfaces**,
+  and a guard-the-guard test fails if discovery ever matches nothing, so the bans cannot pass
+  vacuously. The same round stopped the table presenting eight vendors' safeguards as held
+  when they are intended.
+
+- ⚠ **ROUND 20 — A SCOPE PREDICATE NARROWER THAN THE BAN IT GATED.** A page could carry a
+  banned claim, fail the predicate, and never be checked. Removed the predicate outright
+  rather than widening it (verified free of false positives across all 128 files), and the
+  pending-mark check went from an **aggregate count** — which enforces nothing per row, so
+  one unmarked vendor hides behind seven marked ones — to **row-scoped**, with an explicit
+  empty `VERIFIED_HELD` allowlist to add a vendor to only with evidence. Same round, found by
+  auditing **egress** rather than by review: **SoundHelix** serves sample audio on the legacy
+  coach preview pages, so a visitor's browser sends its IP to a third party we never listed —
+  the same class as Google Fonts and unpkg, which are disclosed for exactly that reason. All
+  28 third-party hosts the code reaches are now disclosed.
+
+- ⚠ **AND ROUND 20'S FIX WAS LOST BEFORE IT REACHED THE COMMIT.** Mutation-testing with
+  `git checkout --` while the guard rewrite was still **uncommitted** reverted it to the old
+  version; the commit then had nothing to include and reported *"1 file changed, 1
+  insertion(+)"* — a line I produced and did not question — while its message described guard
+  changes that were not in the diff. **Both rules this repo already carries were broken in one
+  step**: commit before mutation-testing, and read the diff back. Re-applied in `fab8af860`;
+  the suite going 1654 → 1771 is the evidence the widening was real that time.
+
+- ⚠ **ROUND 21 — `/auth/callback` IS NOT SIGNUP-ONLY.** Password resets, magic links and
+  email-change confirmations all exchange a code there carrying **SIGNUP metadata**, and round
+  12's unconditional upsert wrote it back on every visit — **reverting a renamed member and
+  collapsing a dual-role coach's `roles` to their single signup role.** Each field is now
+  seeded only when the row lacks it (as `date_of_birth` already was), the select widened so
+  the upsert preserves what it reads, and the no-row case still writes, so round 12's fix
+  stands. Same round: the page walk **recurses** instead of reading a hand-written
+  two-directory list that omitted the **54 live pages in `public/mobile`** — latent (a scan of
+  all 182 files finds zero banned claims there), but a typed list goes blind the moment a page
+  lands outside it.
+
+- ⚠ **ROUND 22 — A FAILED PROVISIONING WRITE IS A LOCKOUT, AND THE REQUIRED COLUMN WAS NOT
+  THE ONE REVIEW NAMED.** Codex named `email`; read from the **LIVE catalog** rather than the
+  migration files, that column is **nullable** and the required one is **`role` — NOT NULL
+  with no default**. So an INSERT omitting it fails **23502**, no `profiles` row is created,
+  and the round-12 absence-refuses policy then refuses that member at **every** gated surface.
+  Conditioning the role write on signup metadata left us one missing `meta.role` from that.
+  The create path now always writes a role, which **simplifies** the guard rather than adding
+  to it — NOT NULL means any existing row already has one, so `!existing` is the whole
+  condition. ⚠ The identical hazard lived at a **second** provisioning site Codex did not
+  name — `public/supabase.js`'s legacy sign-in path — and was fixed there too.
+
+- ⚠ **THE LAST DEFECT WAS FOUND BY SELF-REVIEW RATHER THAN A ROUND, AND IT WAS MINE.**
+  `maybeSingle()` **RESOLVES** `{data:null,error}` on a transient failure or an RLS refusal —
+  it does not throw — and the callback discarded the error; `getProfile()` likewise returns
+  null for **both** "no row" and "the read errored". So an unreadable read looked identical to
+  an absent row, took the create path, and — the write being an upsert on `id` — **UPDATEd the
+  existing row**: a coach demoted to `client` with `roles` collapsed to one. That is round
+  21's overwrite defect re-entering through the **error path**, and round 22 had *widened* it,
+  since the create path no longer needed `meta.role` present to do damage. Both surfaces now
+  provision only when the row's state is actually known; an unreadable read writes nothing,
+  the next visit tries again, and the gates refuse an unproven row meanwhile — the safe
+  direction to fail.
+
+- **The compliance spec was corrected in the same wave.** It still described the 18+ gate as
+  future work done by **self-declaration**. It is shipped: DOB collected and 18+-validated at
+  every signup and application surface, `mustRefuseForAge()` as the read-time chokepoint that
+  refuses on **absence** of proof, anywhere-on-Earth day derivation, server-side re-validation
+  in `/api/apply`, and the `date_of_birth` / `created_at` freeze applied and **behaviourally**
+  verified against production. **A stale spec row is a real gap when counsel reads the spec as
+  the current state.** The self-assertion residual is stated, not dropped.
+
+- Both migrations were applied + verified live before the merge. Suite **1830/1830** on the
+  final head; `tsc` clean; CI green. Branch `claude/radio-legal-gates` **kept** — its worktree
+  `C:/Users/cperr/shape-legalgate-wt` is now behind `main`.
+
+### 2026-08-17 — The check-in engine: the spec, an optional check-in, and vitals as engine input (#1893 → `520630e33` · #1894 → `5268ef80c` · #1895 → `ba0449c2b` · #1896 → `915c20a0a`)
+
+- **The daily gauges stop being a screen and become engine input.** Spec
+  `docs/superpowers/specs/2026-08-17-checkin-engine-design.md` (#1893, one Codex round folded
+  in — correlation catalog, precise opt-out semantics, a server-side readout cache, the
+  hydration-target source): **§A** engine flags · **§B** the coach case file (shipped as
+  #1897, entry below) · **§C** the client weekly readout · **§D** the optional check-in.
+  ⚠ **§C IS NOT BUILT.** `POST /api/ai/weekly-readout` is still orphaned — it has no entry
+  point — and wiring it needs `SNAPSHOT_FIELDS` **and** `CORRELATION_PAIRS` / `SnapshotPoint`
+  extended in the **same** PR, or both the model evidence and the deterministic fallback
+  silently omit the new fields.
+
+- **§D — THE CHECK-IN IS OPTIONAL (#1895).** Settings → Preferences → **Daily check-in**,
+  default ON. OFF: the home CHECK-IN DUE bulletin and the logged-residue row render nothing,
+  and a quiet **Check-in** index row — never "due", no done-tick — keeps the check-in page and
+  the hydration quick-add reachable. ON is byte-identical to before. Stored in the existing
+  `user_goals('client_settings')` doc through its read-merge-write chokepoint (**no
+  migration**), mirrored **per-uid** in localStorage so Home's first paint never flashes, and
+  re-rendered live via a window event because Settings overlays a still-mounted Home. Two
+  settings keys ×13 locales.
+
+- ⚠ **THREE CODEX ROUNDS ON #1895, AND EVERY ONE WAS THE SAME CLASS: A READ RACING A WRITE.**
+  - **Round 1 — a can't-know read was coerced into a fact.** `getUserGoals` resolves **NULL**
+    for every can't-know case (no backend, not signed in, query error — it never rejects) and
+    `{}` for a genuinely absent row. The hydrate's `(s && …) ? s : {}` flattened the two, so a
+    **failed** read converged a valid OFF mirror back to ON. Same round: the mirror moved to
+    **per-uid keys**, because on a shared device account B's default-ON hydrate deleted
+    account A's OFF record.
+  - **Round 2 — the guard could not reach the second reader.** `BSSettings` runs its **own**
+    `getUserGoals('client_settings')` read, separate from the hook's, so the hook's generation
+    guard could not protect it: a read that started before the member toggled applied its
+    stale value and undid the fresh choice on a still-mounted Home. The pane now carries its
+    own edit generation, and a stale response has the edited key **removed from the patch**
+    while every other pref still converges.
+  - **Round 3 — the blast radius was the whole pane, not the row review named.**
+    `saveUserGoals` **UPSERTS the whole `client_settings` blob**, so a whole-doc save issued
+    before the pane's hydrate landed published `PREF_DEFAULTS` over the member's stored units,
+    privacy, meal times and phases. Every row is interactive from the first frame, so **the
+    guard went at the writer**: with no real document known the pane **DECLINES to write**
+    rather than publishing defaults, and `editedRef` generalises the round-2 stale-hydrate
+    guard to every key.
+
+- **§A — VITALS JOIN THE ENGINE (#1896).** The record gains a vitals leg
+  (energy / hunger / hydration / rested) from the **same cached progress response** sleep
+  already uses; three **absence-gated** rules ride below `sleep_low` — `energy_low` (34),
+  `hunger_high` (33), `hydration_low` (32) — client-only by owner ruling, and **no target
+  means the rule can never fire**. The roster read widens to energy/hunger/hydration, the
+  notify snapshot carries the leg **verbatim** so the hourly cron re-evaluates it, and Home +
+  the telegram gain lever heads for the three new levers. **`selfRecord` drops the whole leg
+  the moment the check-in pref is off** — tolerant of the pref module being absent, so either
+  merge order stood alone.
+
+- ⚠ **`.slice(-7)` TOOK THE LAST 7 OBSERVATIONS, NOT THE LAST 7 DAYS.**
+  `/api/client/progress` returns up to 400 chronological snapshots with **no recency filter**,
+  so three low-energy readings from **months** ago kept satisfying `n >= 3` and fired a "this
+  week" directive — and a persisted `notify_snapshot` — **indefinitely**. Now filtered on a
+  lexicographic `YYYY-MM-DD` cutoff built from **LOCAL** date parts (matching how
+  `snapshot_date` is written), and **a point whose date cannot be proven is DROPPED**: recency
+  we cannot prove is absence, which under-fires rather than over-fires. The 7-cap stays so a
+  duplicated date cannot widen the average it claims to be.
+  ⚠ **The coach half was missed on the first pass** and fixed in round 2: the roster route
+  queried 14 days and averaged the last 7 **LOGGED** values, so readings 8–14 days old raised
+  a coach flag the member's own engine already treated as stale. The UTC-vs-member-timezone
+  residual (one boundary day, under-firing west of UTC) is documented at the seam.
+  ⚠ **The identical staleness in `sleepRecoveryFromProgress` is REGISTERED, NOT FIXED** — it
+  predates this wave and changing it would alter shipped `sleep_low` firing behaviour.
+
+- ⚠ **A COMMENT CLAIMED A MECHANISM THE CODE DID NOT HAVE.** `/api/client/hydration`
+  substituted `DEFAULT_TARGET_L` (3.0) for an unset target, so the engine's absence gate could
+  **never** engage — while the comment at the call site said "a failed read means no target".
+  The route now returns `targetStoredL` (null when unset) alongside the display-defaulted
+  `targetL`, and the engine passes the stored one.
+
+- ⚠ **`hunger_high` ESCALATED THE WRONG COACH.** It is nutrition-owned but was pushed for
+  every role, and severity (`flags.length >= 2` → red) is computed **BEFORE** `readOnlyFlags`
+  tags a non-owner's flag — so a **trainer turned red on a nutritionist's flag**. It now skips
+  the training discipline in `evaluateClient` and joins its nutrition siblings in
+  `readOnlyFlags`: the trainer still **sees** it as routed context, it just no longer counts
+  toward their severity. The member's own view keeps it, or its client lever would be
+  unreachable.
+
+- **#1894 — the Terrain ridge's next-tier label collided with the summit flag** (owner
+  screenshot: cream ink at 0.55 alpha over the heat-colored flag, unreadable — the `F` visible
+  and the rest blocked). ⚠ **The first fix was a fixed 34px inset**, which only cleared the
+  flag while the ridge was ≤510px wide — landscape is enabled in `Info.plist` and native
+  `BSPhone` is `100vw`, so wider layouts re-overlapped. The flag's left edge always sits
+  **6.67% from the right** (`preserveAspectRatio='none'` stretches x with width), so the label
+  pins at `calc(6.67% + 6px)` — clear at any width.
+
+- **Registered, not built:** §C the weekly readout (above) · the
+  `sleepRecoveryFromProgress` window (above) · `dashBusiness.jsx`'s `DbzOutcomesZone` computes
+  `avgHydrationL` per client and never renders it (render it or delete the compute) ·
+  energy/hunger joining the client Progress trend tabs.
+
+- **No migration anywhere in this wave** — every field already existed on
+  `daily_health_snapshot` and `user_goals`. Suite **1855** by the end of the day.
+
 ### 2026-08-17 — The coach reads a member's daily vitals on the Case File (#1897 → `249c6c6f3`)
 
 - **PR B of the check-in engine** (spec `docs/superpowers/specs/2026-08-17-checkin-engine-design.md`
@@ -1722,7 +1943,7 @@ changelog whenever something ships.
   re-verifies server-side **and the refusal surfaces**. This path had neither property.
 - 15 files, +1453/−62. Suite green; CI green on the final head.
 
-### 2026-08-16 — The 18+ cutoff clamps like Postgres; the gate's own coverage claims corrected (#1888, **OPEN** — head `53cdd22bf`)
+### 2026-08-16 — The 18+ cutoff clamps like Postgres; the gate's own coverage claims corrected (#1888 → `2f6c38b6c`)
 
 - CI is green on the head (Web · Mobile · gitleaks · Tests) and the DOB freeze migration is
   applied + behaviourally verified on production. **Codex round 9 returned a P1, it was
