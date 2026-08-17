@@ -13121,11 +13121,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 </div>
                 {/* base + summit level labels — bare mono (no pills, no tier text) */}
                 <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{curLevel}</span>
-                {/* right: 34 keeps this label clear of the summit flag — the flag triangle
-                    spans x 308–321 of the 330 viewBox (≈93–97% of any width), so a fixed
-                    34px inset stays left of it at every phone width; at right:12 the
+                {/* The inset must FOLLOW the SVG's percentage geometry, not be a fixed px:
+                    preserveAspectRatio="none" stretches x with the width, so the flag's
+                    left edge always sits (330−308)/330 = 6.67% from the right. A fixed
+                    inset re-overlaps once the ridge is wide enough (landscape is enabled
+                    in Info.plist, so >510px is reachable); calc(6.67% + 6px) keeps the
+                    label left of the flag with a 6px gap at ANY width. At right:12 the
                     label's tail painted over the flag fill and was unreadable. */}
-                <span style={{ position: 'absolute', right: 34, top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{nextLevel || curLevel}</span>
+                <span style={{ position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{nextLevel || curLevel}</span>
               </div>
             );
           })()}
