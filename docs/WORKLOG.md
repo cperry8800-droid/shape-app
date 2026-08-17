@@ -1677,6 +1677,54 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-17 — Five defects in the day's own records, and a cell that could never be right (#1901 → `7ffec75d6f`)
+
+- A review of `docs/HANDOFF-2026-08-17.md` **against the code** rather than as prose.
+  Records-only; no behaviour change. Nine load-bearing claims verified accurate — the
+  `.slice(-7)` residual, the floor-only vitals window, the orphaned `/api/ai/weekly-readout`,
+  the notify cron ignoring the opt-out, `GATED_API_PREFIXES` at seven, `refuseKnownMinor`'s
+  single caller. Five were wrong.
+- ⚠ **THE ONE THAT COSTS THE NEXT SESSION A ROUND: the `avgHydrationL` residual named the
+  wrong file.** It read *"`dashBusiness.jsx`'s `DbzOutcomesZone` computes `avgHydrationL`"* —
+  but that file contains **zero** hydration references. The compute is **server-side** at
+  `src/app/api/nutritionist/analytics/route.ts:196` (typed at `:147`); `DbzOutcomesZone`
+  (`:338`) is the consumer that *drops* it. As written, a session greps `dashBusiness.jsx`,
+  finds nothing, and concludes it is already fixed. The identical wording was duplicated in
+  `src/lib/warroom.ts`, so it was wrong in both places.
+- ⚠ **A CELL THAT CANNOT EVER BE RIGHT, AND THREE ROUNDS PROVING IT.** The snapshot's `main`
+  SHA was stale. The correction pinned `7b087c203` — wrong the instant the PR squashed,
+  because **a handoff is committed before its own squash**. The fix for *that* said
+  `git rev-parse --short HEAD` — wrong because a handoff is read from a `claude/*` checkout,
+  so `HEAD` reports the branch (measured: `HEAD` `0687a6f90` vs `main` `7b087c203`). Codex
+  caught all three. A flat findings curve on ONE location is this repo's own change-approach
+  signal, so the cell now records **no SHA at all** — only how to read it
+  (`git fetch origin main && git rev-parse --short origin/main`) and anchors that do not move.
+- ⚠ **"NOTHING IN FLIGHT" HAD NO SOUND PROOF, IN EITHER VERSION.** The original prescribed
+  `git diff --stat origin/main <branch>` — a two-dot diff reports the NET difference in both
+  directions, so it cannot tell *behind `main`* from *carrying unmerged work*. The replacement
+  ("the merged SHA is the proof") was unsound differently: a merged SHA proves the PR landed,
+  not that its **kept** branch stayed quiet, and the shipped list was not exhaustive (#1900 was
+  missing). **Measured, and now recorded as the reason branch state is useless here:**
+  `claude/radio-legal-gates` is **45** commits-not-on-`main` while `claude/checkin-optional` is
+  **0** — same wave, both fully landed; the count tracks only **merge style** (#1895 was a real
+  merge, the rest squashes). The row now cites the **open-PR list**, the only authoritative
+  inventory. Also corrected: the branch list omitted #1900's branch and silently mixed in three
+  branches that exist **locally only**.
+- **Suite count re-measured: 1927/1927** against a recorded **1855**, with **no file under
+  `tests/` changed since `ba0449c2b`** — so the two cannot both be right and the delta is not
+  later work. Not resolved; the honest instruction is the same either way: **re-run, don't
+  quote a figure nobody re-measured.**
+- **Both #1888 migrations RE-PROVEN behaviourally** (the records claimed it; this confirmed it
+  independently). Live catalog carries `provider_applications.dob` and a `set_over_18()` whose
+  body freezes both columns; then, in a rolled-back transaction impersonating the row's own
+  signed-in member (RLS admitted the write), a backdate of `created_at` **and** a rewrite of
+  `date_of_birth` to a minor were **both reverted**, `over_18` unpoisoned, nothing persisted.
+- **The durable lesson: a records PR is not exempt from the rules its own subject matter
+  teaches.** Every defect here is one this WORKLOG already warns about — a stale claim, an
+  unsound verification method, a location that is not where the code lives, and a summary
+  figure nobody re-measured. Suite **1927/1927**; CI green (Web · Mobile · gitleaks · Tests);
+  Codex clean on the final head after three rounds. Branch kept.
+
 ### 2026-08-17 — Legal pages, Radio licensing, privacy mechanisms and the 18+ age gate — MERGED (#1888 → `2f6c38b6c`)
 
 - **The wave that ran from round 9 to round 22 is on `main`.** Everything the two 2026-08-16
