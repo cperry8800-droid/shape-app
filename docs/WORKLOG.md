@@ -1710,10 +1710,16 @@ changelog whenever something ships.
   merge, the rest squashes). The row now cites the **open-PR list**, the only authoritative
   inventory. Also corrected: the branch list omitted #1900's branch and silently mixed in three
   branches that exist **locally only**.
-- **Suite count re-measured: 1927/1927** against a recorded **1855**, with **no file under
-  `tests/` changed since `ba0449c2b`** — so the two cannot both be right and the delta is not
-  later work. Not resolved; the honest instruction is the same either way: **re-run, don't
-  quote a figure nobody re-measured.**
+- ⚠ **THE RECORDED SUITE COUNT OF 1855 WAS NEVER A MEASUREMENT OF THIS TREE — it matches no
+  head in the wave.** Measured **1927/1927**, and the archaeology is arithmetic, not assertion:
+  `tests/` is byte-identical between `ba0449c2b` and now (so the wave close was also **1927**),
+  and the only `tests/` change between #1897 and that merge was one added file worth **17**
+  subtests (so #1897's head was **1910**). Neither is 1855 — it was carried forward from
+  somewhere else and re-stated three times (#1896, #1897, the snapshot) without a re-run.
+  ⚠ **A trap that made this hard to audit: the shipped list is in PR-NUMBER order, not MERGE
+  order** — `git merge-base --is-ancestor` confirms #1895's merge landed *after* #1897, so
+  "since `ba0449c2b`" is a later cut-off than the PR numbering implies. **Re-run `npm test`;
+  never carry a suite figure forward.**
 - **Both #1888 migrations RE-PROVEN behaviourally** (the records claimed it; this confirmed it
   independently). Live catalog carries `provider_applications.dob` and a `set_over_18()` whose
   body freezes both columns; then, in a rolled-back transaction impersonating the row's own
