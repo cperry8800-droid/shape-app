@@ -4,6 +4,7 @@ import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } 
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush, teardownPush } from './push.js';
 import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
+import { makePlaybackGate } from './playbackGate.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -7247,14 +7248,37 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store', signal }); return r.ok ? r.json() : null; }
     catch { return null; }
   }
+  // ⚠ PLAYBACK IS GENERATION-GUARDED, AND IT IS A LICENSING GATE — NOT POLISH.
+  // play() awaits TWO things (the authenticated station read, then a.play()), and a
+  // sign-out can land in either window. pause() only touches an existing element
+  // (`if (el)`), so on the sign-out path it is a complete NO-OP when no element has
+  // been created yet — the late play() then creates one and starts the stream. That
+  // is signed-out playback, i.e. exactly the non-subscription rate classification the
+  // signed-out path was removed to avoid (see the NON-INTERACTIVE BOUNDARY note in
+  // iosAppBroadsheetRadio.jsx).
+  //
+  // pause() supersedes any pending play, and play() re-checks BOTH the generation and
+  // the LIVE identity after EVERY await — including after a.play() resolves, where it
+  // stops the audio it just started. Fails CLOSED: a superseded or signed-out
+  // resolution never leaves audio running. The decision lives in the pure, unit-tested
+  // playbackGate (identity injected, never a captured snapshot — the captured snapshot
+  // IS the bug); the sibling poll below already worked this way (Codex P1 on #1467).
+  const playbackGate = makePlaybackGate(() => state.user?.id);
   async function play() {
+    const live = playbackGate.begin();
+    if (!live()) return false;
     const cfg = await station();
-    if (!cfg || !cfg.configured) return false;
+    if (!live() || !cfg || !cfg.configured) return false;
     const a = audio();
     if (a.src !== cfg.streamUrl) a.src = cfg.streamUrl;
-    try { await a.play(); return true; } catch { return false; }
+    try {
+      await a.play();
+      // Superseded or signed out WHILE starting → undo it rather than report success.
+      if (!live()) { try { a.pause(); } catch { /* no-op */ } return false; }
+      return true;
+    } catch { return false; }
   }
-  function pause() { if (el) el.pause(); }
+  function pause() { playbackGate.supersede(); if (el) el.pause(); }
   // Self-scheduling poll with cancellation: each cycle finishes (or aborts) before
   // the next is scheduled, so a slow mobile network can't stack overlapping requests,
   // and a teardown (stopPolling) aborts the in-flight fetch + drops any late response
