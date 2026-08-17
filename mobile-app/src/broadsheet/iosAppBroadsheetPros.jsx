@@ -4249,8 +4249,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // hours here made the Case File claim a sync for a member who owns no device,
   // which is the exact thing the MEASURED-vs-ENTERED rule above forbids.
   // Device-only fields are the ones no check-in surface can write.
+  // `latency` belongs here too: sleep-onset latency is measured by the wearable
+  // and no check-in surface can write it, so omitting it made an Oura night that
+  // reported ONLY latency read as no-device on mobile while the web twin counted
+  // it — the two Case Files disagreeing about the same client.
   const caseHasDevice = !!(sleepRec && (sleepRec.efficiency != null || sleepRec.rhr != null
-    || sleepRec.hrv != null || sleepRec.respiratory != null || sleepRec.stages));
+    || sleepRec.hrv != null || sleepRec.latency != null || sleepRec.respiratory != null
+    || sleepRec.stages));
   // Hours are their own state, because their SOURCE is unknowable from here: a
   // wearable and the member's hour chips both land in `sleep_hours`. So they may
   // never gate the device CLAIM (above) — but they must still RENDER, or fixing
@@ -4859,9 +4864,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {/* A card carrying only ENTERED data is not a recovery readout — head it
             as what it is. With nothing at all, the head stays SLEEP · RECOVERY
             so the redact below reads as the pre-§3B empty state. */}
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={caseHasDevice
-          ? tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })
-          : tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })} />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={(!caseHasDevice && (caseHasHours || caseHasEntered))
+          ? tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })
+          : tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
         {(caseHasDevice || caseHasHours || caseHasRested) ? (() => {
           const s = sleepRec;
           const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? heat : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';

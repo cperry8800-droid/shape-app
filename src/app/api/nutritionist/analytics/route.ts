@@ -144,7 +144,6 @@ export async function GET() {
     daysLogged30d: number;
     avgProteinG: number | null;
     avgCalories: number | null;
-    avgHydrationL: number | null;
     weightStart: number | null;
     weightLatest: number | null;
     weightChangeLb: number | null;
@@ -158,7 +157,7 @@ export async function GET() {
     const [snapRes, namesRes] = await Promise.all([
       supabase
         .from('daily_health_snapshot')
-        .select('user_id, snapshot_date, protein_g, calories, hydration_l, weight_lb')
+        .select('user_id, snapshot_date, protein_g, calories, weight_lb')
         .in('user_id', clientIds)
         .gte('snapshot_date', since30Date)
         .order('snapshot_date', { ascending: true }),
@@ -168,7 +167,7 @@ export async function GET() {
         .in('id', clientIds),
     ]);
 
-    type Snap = { user_id: string; snapshot_date: string; protein_g: number | null; calories: number | null; hydration_l: number | null; weight_lb: number | null };
+    type Snap = { user_id: string; snapshot_date: string; protein_g: number | null; calories: number | null; weight_lb: number | null };
     const byClient = new Map<string, Snap[]>();
     for (const r of (snapRes.data || []) as Snap[]) {
       const list = byClient.get(r.user_id) || [];
@@ -181,7 +180,6 @@ export async function GET() {
       const rows = byClient.get(cid) || [];
       const proteins = rows.map((r) => r.protein_g).filter((v) => v != null) as number[];
       const cals = rows.map((r) => r.calories).filter((v) => v != null) as number[];
-      const waters = rows.map((r) => r.hydration_l).filter((v) => v != null) as number[];
       const weights = rows.map((r) => r.weight_lb).filter((v) => v != null) as number[];
       const wStart = weights.length ? Number(weights[0]) : null;
       const wLatest = weights.length ? Number(weights[weights.length - 1]) : null;
@@ -193,7 +191,6 @@ export async function GET() {
         daysLogged30d: rows.length,
         avgProteinG: proteins.length ? Math.round(proteins.reduce((a, b) => a + Number(b), 0) / proteins.length) : null,
         avgCalories: cals.length ? Math.round(cals.reduce((a, b) => a + Number(b), 0) / cals.length) : null,
-        avgHydrationL: waters.length ? Math.round((waters.reduce((a, b) => a + Number(b), 0) / waters.length) * 10) / 10 : null,
         weightStart: wStart,
         weightLatest: wLatest,
         weightChangeLb: wDelta != null ? Math.round(wDelta * 10) / 10 : null,
