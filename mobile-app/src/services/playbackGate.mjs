@@ -13,16 +13,43 @@
 //
 // The identity is INJECTED so this is pure and testable; the caller passes a function
 // reading live auth state (never a captured snapshot, which is the bug being fixed).
-export function makePlaybackGate(identityFn) {
+//
+// ⚠ LIVE IDENTITY IS NOT SUFFICIENT ON ITS OWN, and this is the subtle half.
+// signOut() bumps the shared sign-out generation as its FIRST statement, but it does
+// not clear the cached user until AFTER push teardown, local-habit cleanup, the
+// Supabase sign-out, the cookie DELETE and MusicKit cleanup — every one of which can
+// await on a slow network. Through that entire window `identityFn()` still returns the
+// signed-out account, so identity alone cannot tell that sign-out has BEGUN. The
+// optional `epochFn` (wired to signOutGen) closes it: the epoch moves first, so a
+// pending station read or `audio.play()` resolving mid-teardown is refused rather than
+// admitted against an account whose session is already being revoked.
+export function makePlaybackGate(identityFn, epochFn) {
   let gen = 0;
   return {
     // Open a new attempt. Returns `live()` — call it after EVERY await; false means
-    // this attempt was superseded by a newer play, cancelled by a pause, or the
-    // account signed out. Fails CLOSED: no identity ⇒ never live.
+    // this attempt was superseded by a newer play, cancelled by a pause, the account
+    // signed out, or a sign-out STARTED. Fails CLOSED on every unreadable input.
     begin() {
       const mine = ++gen;
+      // Captured at begin, compared in live(): an attempt is judged against the epoch
+      // it started in, so a play() opened after a completed sign-out is not punished
+      // for the earlier bump (it fails on identity instead, which is the honest reason).
+      let epoch;
+      try {
+        epoch = epochFn ? epochFn() : null;
+      } catch {
+        epoch = Symbol('unreadable'); // can never equal a later read ⇒ stays closed
+      }
       return function live() {
         if (mine !== gen) return false;
+        if (epochFn) {
+          try {
+            if (epochFn() !== epoch) return false;
+          } catch {
+            // An epoch source that throws must not admit playback.
+            return false;
+          }
+        }
         try {
           return !!identityFn();
         } catch {

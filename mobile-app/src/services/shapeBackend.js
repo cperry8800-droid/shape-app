@@ -524,6 +524,11 @@ async function getCurrentSession() {
   return cached;
 }
 
+// Set by the Shape Radio IIFE further down this module. A module-scope hook rather
+// than a window read so the coupling is stated here, where sign-out has to honour it,
+// and so it holds on the native build and under test where window may not carry it.
+let _stopRadioPlayback = null;
+
 async function signOut() {
   // FIRST STATEMENT, before any teardown step: invalidates every operation
   // already parked on an await (a push registration awaiting its token, a habit
@@ -531,6 +536,13 @@ async function signOut() {
   // re-create the state it just removed. Bumping here rather than inside each
   // teardown means the guard can never race the step it protects.
   bumpSignOutGen();
+  // Radio audio STOPS HERE, in the same breath as the generation bump — not at the
+  // end with the cache clear. Licensing requires a signed-in listener, and every step
+  // below can await on a slow network, so leaving the stream running until state.user
+  // finally clears is exactly the signed-out playback window this closes. The epoch
+  // bump above refuses any PENDING attempt; this stops audio ALREADY playing, which
+  // no gate check can do on its own.
+  try { _stopRadioPlayback?.(); } catch (e) {}
   // Native push FIRST, while the session is still valid: the token-unassign
   // DELETE is Bearer-authed. Also resets push.js's `registered` sentinel so the
   // next account's registerPush() actually runs — without this a shared device
@@ -7263,7 +7275,10 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   // resolution never leaves audio running. The decision lives in the pure, unit-tested
   // playbackGate (identity injected, never a captured snapshot — the captured snapshot
   // IS the bug); the sibling poll below already worked this way (Codex P1 on #1467).
-  const playbackGate = makePlaybackGate(() => state.user?.id);
+  // signOutGen is the SECOND gate and it is the one that moves first: signOut() bumps
+  // it before any teardown, while state.user stays populated until the very end. See
+  // the epoch note in playbackGate.mjs.
+  const playbackGate = makePlaybackGate(() => state.user?.id, signOutGen);
   async function play() {
     const live = playbackGate.begin();
     if (!live()) return false;
@@ -7279,6 +7294,10 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     } catch { return false; }
   }
   function pause() { playbackGate.supersede(); if (el) el.pause(); }
+  // Hand sign-out a direct way to stop playback. Registered here rather than read off
+  // window at the call site so a bundling/ordering change can't silently make the
+  // sign-out stop a no-op.
+  _stopRadioPlayback = pause;
   // Self-scheduling poll with cancellation: each cycle finishes (or aborts) before
   // the next is scheduled, so a slow mobile network can't stack overlapping requests,
   // and a teardown (stopPolling) aborts the in-flight fetch + drops any late response
