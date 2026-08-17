@@ -651,41 +651,65 @@ function CoachClientDetailPage() {
             const vLeg = (o, key) => {
               if (!o || typeof o !== "object" || o[key] == null || o[key] === "") return null;
               const avg = Number(o[key]);
-              return Number.isFinite(avg) ? avg : null;
+              if (!Number.isFinite(avg)) return null;
+              const n = Number(o.n);
+              return { avg, n: Number.isFinite(n) && n > 0 ? Math.round(n) : 0 };
             };
+            // How many of the seven days actually carried a reading. A single
+            // observation and a full week both averaged to one number, so the
+            // cell read identically either way; the payload has always carried
+            // `n` and the render simply dropped it. Numeric-only suffix — it
+            // needs no translation and reads the same in every locale.
+            const days = (n) => (n > 0 ? ` · ${n}/7` : "");
             const vv = data.vitals && typeof data.vitals === "object" ? data.vitals : null;
             const vEnergy = vv ? vLeg(vv.energy, "avg7") : null;
             const vHunger = vv ? vLeg(vv.hunger, "avg7") : null;
             const vHyd = vv ? vLeg(vv.hydration, "avg7L") : null;
             const hasVitals = vEnergy != null || vHunger != null || vHyd != null;
-            // No device data AND no daily vitals → the card does not exist
-            // (absence, never a padlock) — the pre-§3B render for that state.
-            if (!s && !hasVitals) return null;
+            // DEVICE data is what earns the "Objective · device-synced" badge —
+            // never the `sleep` object merely existing. It can now exist for a
+            // member who only rated how rested they felt, and that rating is
+            // ENTERED, not measured; badging it "device-synced" would state
+            // something false about where the number came from.
+            const hasDevice = !!(s && (s.latest != null || s.avg7 != null || s.efficiency != null
+              || s.rhr != null || s.hrv != null || s.latency != null || s.respiratory != null
+              || s.readiness != null || s.stages));
+            // No device data, no rating AND no daily vitals → the card does not
+            // exist (absence, never a padlock) — the pre-§3B render.
+            if (!hasDevice && !(s && s.rested != null) && !hasVitals) return null;
             const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
             const rc = !s || s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
-            const cells = s ? [
+            // Measured cells render only when a device actually reported. For a
+            // rating-only member they would otherwise be eight dashes framing a
+            // single filled cell, which reads as a device that failed rather
+            // than a member who owns none.
+            const cells = hasDevice ? [
               ["LAST NIGHT", fmtH(s.latest)],
               ["7-DAY AVG", s.avg7 == null ? "—" : `${Number(s.avg7)}h`],
               ["EFFICIENCY", s.efficiency == null ? "—" : `${s.efficiency}%`],
               ["RESTING HR", s.rhr == null ? "—" : `${s.rhr}`],
               ["HRV", s.hrv == null ? "—" : `${s.hrv}`],
-              ["RESTED", s.rested == null ? "—" : `${s.rested}/10`],
               ["LATENCY", s.latency == null ? "—" : `${s.latency}m`],
               ["RESPIRATORY", s.respiratory == null ? "—" : `${s.respiratory}/min`],
             ] : [];
+            // RESTED is member-ENTERED, so it follows the entered-gauge rule the
+            // vitals cells below use: present only when real, never a dash. A
+            // dash on a gauge the member fills in reads as "logged nothing",
+            // which is a different claim from "did not log".
+            if (s && s.rested != null) cells.push(["RESTED", `${s.rested}/10`]);
             // Present legs only — an absent metric adds NO cell (never a "—",
             // which on a member-entered gauge would read as a logged nothing).
-            if (vEnergy != null) cells.push(["DAILY ENERGY · 7D", `${vEnergy}/10`]);
-            if (vHunger != null) cells.push(["DAILY HUNGER · 7D", `${vHunger}/10`]);
-            if (vHyd != null) cells.push(["DAILY HYDRATION · 7D", `${vHyd}L`]);
+            if (vEnergy != null) cells.push(["DAILY ENERGY · 7D", `${vEnergy.avg}/10${days(vEnergy.n)}`]);
+            if (vHunger != null) cells.push(["DAILY HUNGER · 7D", `${vHunger.avg}/10${days(vHunger.n)}`]);
+            if (vHyd != null) cells.push(["DAILY HYDRATION · 7D", `${vHyd.avg}L${days(vHyd.n)}`]);
             const st = s ? s.stages : null;
             return (
               <Card style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                   {/* Vitals-only card retitles: "Objective · device-synced" must
                       never sit over member-entered gauges alone. */}
-                  <CKSecHead>{s ? "SLEEP · RECOVERY" : "DAILY CHECK-IN"}</CKSecHead>
-                  {s && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>}
+                  <CKSecHead>{hasDevice ? "SLEEP · RECOVERY" : "DAILY CHECK-IN"}</CKSecHead>
+                  {hasDevice && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>}
                 </div>
                 {s && s.readiness != null && (
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>

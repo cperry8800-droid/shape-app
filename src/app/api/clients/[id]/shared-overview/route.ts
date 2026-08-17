@@ -304,8 +304,15 @@ export async function GET(
   });
   const stageMin = lastSleep ? { deep: num(lastSleep.sleep_deep_min), rem: num(lastSleep.sleep_rem_min), light: num(lastSleep.sleep_light_min), awake: num(lastSleep.sleep_awake_min) } : null;
   const hasStages = !!(stageMin && (stageMin.deep != null || stageMin.rem != null || stageMin.light != null));
-  const sleep = sl.length ? {
-    latest: sl[sl.length - 1].value,
+  // The leg exists when EITHER series has data. Gating it on `sl.length` alone
+  // meant a member who rates how rested they feel but syncs no wearable got
+  // `sleep: null`, so the rating could not reach either case file — the exact
+  // member the RESTED fix below is for. Every device field is independently
+  // null-guarded, so a rating-only leg carries the rating and nothing else;
+  // consumers key their "device-synced" heading on real device data, never on
+  // this object merely existing.
+  const sleep = (sl.length || restedSeries.length) ? {
+    latest: sl.length ? sl[sl.length - 1].value : null,
     avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
     series7: sl.slice(-7),
     efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,

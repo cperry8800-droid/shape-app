@@ -4813,22 +4813,34 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* SLEEP · RECOVERY — readiness + 7-day registers; redactions per field. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={sleepRec && !(sleepRec.latest != null || sleepRec.avg7 != null || sleepRec.efficiency != null || sleepRec.rhr != null || sleepRec.hrv != null || sleepRec.respiratory != null || sleepRec.readiness != null || sleepRec.stages)
+          // A rating-only leg is not a recovery readout — head it as what it is.
+          ? tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })
+          : tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
         {sleepRec ? (() => {
           const s = sleepRec;
           const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? heat : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
-          const cells = [
+          // DEVICE data, not the leg's mere existence: the leg now also exists
+          // for a member who only rated how rested they felt. Without this the
+          // measured cells would each render "— NOT SYNCED" around that single
+          // rating, under a SLEEP · RECOVERY head — a wearable reported as
+          // broken for a member who owns none.
+          const hasDevice = s.latest != null || s.avg7 != null || s.efficiency != null
+            || s.rhr != null || s.hrv != null || s.respiratory != null
+            || s.readiness != null || !!s.stages;
+          const cells = hasDevice ? [
             [tr('coach:case.lastNight', { defaultValue: 'LAST NIGHT' }), s.latest != null ? `${Number(s.latest)}H` : null],
             [tr('coach:case.sevenDayAvg', { defaultValue: '7-DAY AVG' }), s.avg7 != null ? `${Number(s.avg7)}H` : null],
             [tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null],
             [tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null],
             [tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null],
-            // RESTED — the member's own 1-10 morning rating (sleep_quality), the
-            // row the WEB case file already renders; placed after HRV to mirror
-            // its cell order. Same /10 grammar as the weekly ratings.
-            [tr('coach:case.rested', { defaultValue: 'RESTED' }), s.rested != null ? tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: s.rested }) : null],
             [tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null],
-          ];
+          ] : [];
+          // RESTED — the member's own 1-10 morning rating (sleep_quality), the
+          // row the WEB case file already renders. It is ENTERED, so it follows
+          // the entered-gauge rule: present only when real, never a NOT SYNCED
+          // dash, which would report a device failure for a hand-filled gauge.
+          if (s.rested != null) cells.push([tr('coach:case.rested', { defaultValue: 'RESTED' }), tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: s.rested })]);
           return (
             <>
               {s.readiness != null && (
@@ -4865,10 +4877,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             legs the client has real data for render; none ⇒ the redact line
             (matching the sleep redact's demo/loading behavior). */}
         {caseVitals ? (() => {
+          // How many of the seven days actually carried a reading. One
+          // observation and a full week both average to a single number, so
+          // without this the cells read identically; `caseVitals` has always
+          // carried `n` and the render simply dropped it. Numeric-only suffix,
+          // so it needs no new string in any of the 13 locales.
+          const days = (n) => (Number.isFinite(n) && n > 0 ? ` · ${n}/7` : '');
           const vc = [
-            caseVitals.energy ? [tr('coach:case.dailyEnergy7d', { defaultValue: 'DAILY ENERGY · 7D' }), tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: caseVitals.energy.avg })] : null,
-            caseVitals.hunger ? [tr('coach:case.dailyHunger7d', { defaultValue: 'DAILY HUNGER · 7D' }), tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: caseVitals.hunger.avg })] : null,
-            caseVitals.hydration ? [tr('coach:case.dailyHydration7d', { defaultValue: 'DAILY HYDRATION · 7D' }), `${caseVitals.hydration.avg}L`] : null,
+            caseVitals.energy ? [tr('coach:case.dailyEnergy7d', { defaultValue: 'DAILY ENERGY · 7D' }), `${tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: caseVitals.energy.avg })}${days(caseVitals.energy.n)}`] : null,
+            caseVitals.hunger ? [tr('coach:case.dailyHunger7d', { defaultValue: 'DAILY HUNGER · 7D' }), `${tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: caseVitals.hunger.avg })}${days(caseVitals.hunger.n)}`] : null,
+            caseVitals.hydration ? [tr('coach:case.dailyHydration7d', { defaultValue: 'DAILY HYDRATION · 7D' }), `${caseVitals.hydration.avg}L${days(caseVitals.hydration.n)}`] : null,
           ].filter(Boolean);
           return (
             <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
