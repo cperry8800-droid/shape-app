@@ -201,3 +201,98 @@ test('the playback gate is constructed with the sign-out epoch, not identity alo
       'that a sign-out has STARTED, because state.user is cleared last'
   );
 });
+
+test('the real call site pauses ONLY when the gate says nothing may play', () => {
+  const src = stripComments(readFileSync(BACKEND, 'utf8'));
+  // The vectors above drive a helper that MIRRORS this call site; without this the
+  // shipped code could pause unconditionally and every one of them would still pass.
+  assert.match(
+    src,
+    /if \(!live\(\)\) \{\s*if \(live\.mustStop\(\)\)/,
+    'play() must gate its a.pause() on live.mustStop(): the audio element is a singleton, ' +
+      "so pausing on any !live() stops the WINNING attempt's stream"
+  );
+  // And it must still stop on a genuine cancellation, or the round-17 fix is undone.
+  assert.match(src, /live\.mustStop\(\)\) \{ try \{ a\.pause\(\)/,
+    'a cancelled attempt must still pause the audio it started');
+});
+
+// ── The singleton-element race (Codex round 22, P2) ──────────────────────────────
+// The audio element is a SINGLETON, so a superseded attempt cannot tell "the audio I
+// started" from the audio the WINNER started. Pausing whenever live() went false
+// therefore had a loser stop the winner's stream. The round-17 vectors above could not
+// catch it: they each drive ONE attempt, and with one attempt "its" audio and "the"
+// audio are the same thing. These drive TWO against one element.
+const makeElement = () => ({
+  playing: false,
+  play() { this.playing = true; },
+  pause() { this.playing = false; },
+});
+
+// The decision under test, mirroring ShapeRadioLive.play()'s tail exactly.
+function settle(el, live) {
+  if (!live()) {
+    if (live.mustStop()) el.pause();
+    return false;
+  }
+  return true;
+}
+
+test('a superseded play does NOT pause the winning attempt', () => {
+  const gate = makePlaybackGate(() => 'user-1');
+  const el = makeElement();
+  const first = gate.begin();
+  const second = gate.begin();  // e.g. a user tap racing an authTick-driven play
+  el.play();                    // whichever resolves, the shared element is now playing
+  assert.equal(settle(el, second), true, 'the newest attempt should win');
+  assert.equal(settle(el, first), false, 'a superseded attempt must never report success');
+  assert.equal(el.playing, true,
+    "the superseded attempt paused the winner's stream — radio dies on an overlapping play");
+});
+
+test('a CANCELLED attempt still stops the element (the no-op-pause case holds)', () => {
+  const gate = makePlaybackGate(() => 'user-1');
+  const el = makeElement();
+  const attempt = gate.begin();
+  gate.supersede();  // pause() ran before any element existed → its el.pause() was a no-op
+  el.play();         // the late resolution creates the element and starts the stream
+  assert.equal(settle(el, attempt), false);
+  assert.equal(el.playing, false,
+    'a cancelled attempt must leave no audio running — this is the round-17 licensing fix');
+});
+
+test('a sign-out mid-play stops the element with no pause and no newer play', () => {
+  let epoch = 1;
+  const gate = makePlaybackGate(() => 'user-1', () => epoch);
+  const el = makeElement();
+  const attempt = gate.begin();
+  epoch = 2;  // signOut() bumps the epoch as its FIRST statement
+  el.play();
+  assert.equal(settle(el, attempt), false);
+  assert.equal(el.playing, false, 'signed-out playback is the exposure this gate exists to close');
+});
+
+test('mustStop separates "a newer play took over" from "nothing may be playing"', () => {
+  const gate = makePlaybackGate(() => 'user-1');
+  const superseded = gate.begin();
+  gate.begin();
+  assert.equal(superseded(), false);
+  assert.equal(superseded.mustStop(), false,
+    'a newer play owns the element, so the loser must touch nothing');
+
+  const cancelled = gate.begin();
+  gate.supersede();
+  assert.equal(cancelled(), false);
+  assert.equal(cancelled.mustStop(), true, 'a pause means nothing may be playing');
+});
+
+test('mustStop fails CLOSED on a lost or throwing identity', () => {
+  let uid = 'user-1';
+  const gate = makePlaybackGate(() => uid);
+  const attempt = gate.begin();
+  uid = null;
+  assert.equal(attempt.mustStop(), true, 'a signed-out account must stop the audio');
+
+  const throwing = makePlaybackGate(() => { throw new Error('unreadable'); }).begin();
+  assert.equal(throwing.mustStop(), true, 'an unreadable identity must stop the audio');
+});

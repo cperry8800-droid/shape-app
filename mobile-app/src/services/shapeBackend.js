@@ -7288,8 +7288,15 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     if (a.src !== cfg.streamUrl) a.src = cfg.streamUrl;
     try {
       await a.play();
-      // Superseded or signed out WHILE starting → undo it rather than report success.
-      if (!live()) { try { a.pause(); } catch { /* no-op */ } return false; }
+      // Superseded or signed out WHILE starting → never report success. Whether to
+      // PAUSE is a different question: the element is a singleton, so pausing on any
+      // !live() had a superseded attempt stop the stream the winning play had just
+      // started. Only a pause/sign-out means nothing may be playing (live.mustStop);
+      // when a newer play superseded us, it owns the element and we touch nothing.
+      if (!live()) {
+        if (live.mustStop()) { try { a.pause(); } catch { /* no-op */ } }
+        return false;
+      }
       return true;
     } catch { return false; }
   }

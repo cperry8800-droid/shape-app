@@ -209,7 +209,14 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         try {
           var seed = { id: user.id };
           if (meta.full_name) seed.full_name = meta.full_name;
-          if (meta.role) { seed.role = meta.role; seed.roles = [meta.role]; }
+          if (user.email) seed.email = user.email;
+          // ⚠ profiles.role is NOT NULL with NO default, so omitting it fails 23502 and
+          // this provisioning write dies — leaving no row, which absence-refuses turns
+          // into a lockout. This branch only ever CREATES (it is gated on !profile), so
+          // a role is always written; 'client' is the house default.
+          var role = meta.role || 'client';
+          seed.role = role;
+          seed.roles = [role];
           // over_18 is NOT set: set_over_18() derives it from this date on every
           // write and discards any supplied flag. Writing the date is the mechanism.
           if (meta.date_of_birth) seed.date_of_birth = meta.date_of_birth;

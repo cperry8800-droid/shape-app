@@ -25,12 +25,16 @@
 // admitted against an account whose session is already being revoked.
 export function makePlaybackGate(identityFn, epochFn) {
   let gen = 0;
+  // Bumped ONLY by supersede() — see live.mustStop below. `gen` alone cannot answer
+  // "must nothing be playing?" because it also moves when a newer play begins.
+  let stopGen = 0;
   return {
     // Open a new attempt. Returns `live()` — call it after EVERY await; false means
     // this attempt was superseded by a newer play, cancelled by a pause, the account
     // signed out, or a sign-out STARTED. Fails CLOSED on every unreadable input.
     begin() {
       const mine = ++gen;
+      const myStop = stopGen;
       // Captured at begin, compared in live(): an attempt is judged against the epoch
       // it started in, so a play() opened after a completed sign-out is not punished
       // for the earlier bump (it fails on identity instead, which is the honest reason).
@@ -40,28 +44,44 @@ export function makePlaybackGate(identityFn, epochFn) {
       } catch {
         epoch = Symbol('unreadable'); // can never equal a later read ⇒ stays closed
       }
-      return function live() {
-        if (mine !== gen) return false;
-        if (epochFn) {
-          try {
-            if (epochFn() !== epoch) return false;
-          } catch {
-            // An epoch source that throws must not admit playback.
-            return false;
-          }
-        }
+      const epochMoved = () => {
+        if (!epochFn) return false;
         try {
-          return !!identityFn();
+          return epochFn() !== epoch;
         } catch {
-          // An identity source that throws must not admit playback.
-          return false;
+          return true; // an epoch source that throws must not admit playback
         }
       };
+      const identityGone = () => {
+        try {
+          return !identityFn();
+        } catch {
+          return true; // an identity source that throws must not admit playback
+        }
+      };
+      function live() {
+        if (mine !== gen) return false;
+        if (epochMoved()) return false;
+        return !identityGone();
+      }
+      // ⚠ WHY THIS IS SEPARATE FROM live(). The audio element is a SINGLETON, so a
+      // superseded attempt cannot distinguish "the audio I started" from the audio the
+      // WINNING attempt started. Pausing whenever live() went false therefore had a
+      // loser stop the stream the winner had legitimately begun (Codex P2, round 22).
+      //
+      // The two reasons live() goes false are not interchangeable:
+      //   · a newer play() superseded me → it owns the element; I must touch nothing.
+      //   · a pause / sign-out cancelled me → nothing may be playing; I must stop it,
+      //     and this is the case that cannot be delegated to pause(), which is a no-op
+      //     when no element existed yet (the original round-17 defect).
+      live.mustStop = () => stopGen !== myStop || epochMoved() || identityGone();
+      return live;
     },
     // Cancel any in-flight attempt. A pause must supersede a pending play, or the
     // pending play restarts the audio the pause just stopped.
     supersede() {
       gen++;
+      stopGen++;
     },
   };
 }

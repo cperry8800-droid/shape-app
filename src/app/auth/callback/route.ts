@@ -36,7 +36,7 @@ export async function GET(request: Request) {
           const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
           const { data: existing } = await supabase
             .from('profiles')
-            .select('id, date_of_birth, full_name, role, roles')
+            .select('id, date_of_birth, full_name, email, role, roles')
             .eq('id', user.id)
             .maybeSingle();
           // ⚠ PROVISION, NEVER OVERWRITE. Password resets, magic links and email-change
@@ -47,10 +47,19 @@ export async function GET(request: Request) {
           if (!existing?.full_name && typeof meta.full_name === 'string' && meta.full_name) {
             seed.full_name = meta.full_name;
           }
-          const hasRoles = Array.isArray(existing?.roles) && existing.roles.length > 0;
-          if (!existing?.role && !hasRoles && typeof meta.role === 'string' && meta.role) {
-            seed.role = meta.role;
-            seed.roles = [meta.role];
+          if (!existing?.email && user.email) seed.email = user.email;
+          // ⚠ `profiles.role` is NOT NULL with NO DEFAULT — verified against the live
+          // catalog, not the migration files. So an INSERT that omits it fails 23502:
+          // provisioning dies, no row is written, and absence-refuses then locks the
+          // member out of every gated surface. Conditioning the write on metadata left
+          // us one missing `meta.role` away from that, so the CREATE path always sets a
+          // role. Which also SIMPLIFIES the guard: NOT NULL means any existing row
+          // already has one, so `!existing` is the whole condition — no roles-array
+          // inspection needed.
+          if (!existing) {
+            const role = typeof meta.role === 'string' && meta.role ? meta.role : 'client';
+            seed.role = role;
+            seed.roles = [role];
           }
           // Never overwrite a date already on the row — the DOB freeze makes the
           // first write permanent, and re-sending it would be a way around it.
