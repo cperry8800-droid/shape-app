@@ -54,10 +54,12 @@ async function selfRecord() {
     window.ShapeCheckins && window.ShapeCheckins.list ? window.ShapeCheckins.list().catch(() => null) : null,
     window.ShapeProgramApi && window.ShapeProgramApi.get ? window.ShapeProgramApi.get().catch(() => null) : null,
     SP && SP.progress ? SP.progress().catch(() => null) : null,
-    // The member's REAL hydration target (user_goals client_nutrition_prefs via
-    // /api/client/hydration GET). Only feeds vitals.hydration.targetL — a failed
-    // read means no target, which means the hydration rule cannot fire (absence,
-    // never a fabricated default).
+    // The member's REAL hydration target. The GET returns TWO fields: `targetL`
+    // is display-defaulted to 3.0 L for the hydration card, `targetStoredL` is
+    // null until the member actually sets one. Only `targetStoredL` may feed the
+    // engine — passing the display default would make the rule fire against a
+    // target nobody chose, defeating its own absence gate. A failed read is
+    // absence too, so the hydration rule simply cannot fire.
     window.ShapeHydration && window.ShapeHydration.get ? window.ShapeHydration.get().catch(() => null) : null,
   ]);
   // Fold train's streak into the nutrition object the mapper reads.
@@ -82,7 +84,7 @@ async function selfRecord() {
   // Tolerant by design: window.ShapeCheckinPref ships in the §3D PR — absent
   // module (either merge order) reads as ON, so the two PRs stand alone.
   const checkinOff = typeof window !== 'undefined' && window.ShapeCheckinPref && typeof window.ShapeCheckinPref.on === 'function' && window.ShapeCheckinPref.on() === false;
-  const vitals = signedIn && !checkinOff ? vitalsFromProgress(progress, { hydrationTargetL: hydro && hydro.targetL }) : null;
+  const vitals = signedIn && !checkinOff ? vitalsFromProgress(progress, { hydrationTargetL: hydro && hydro.targetStoredL }) : null;
   return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins, recovery, vitals, coachDirective }, deps());
 }
 

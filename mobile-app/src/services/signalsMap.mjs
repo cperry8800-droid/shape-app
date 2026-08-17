@@ -142,10 +142,28 @@ export function sleepRecoveryFromProgress(progress) {
 export function vitalsFromProgress(progress, opts = {}) {
   const series = (progress && progress.series && typeof progress.series === 'object') ? progress.series : null;
   if (!series) return null;
+  // The window is the last 7 CALENDAR DAYS, not the last 7 observations.
+  // /api/client/progress returns up to 400 chronological snapshots with no
+  // recency filter, so a bare .slice(-7) would let three low-energy readings
+  // from MONTHS ago keep satisfying n >= 3 and fire a "this week" directive
+  // (and a persisted notify snapshot) forever. Points carry an ISO
+  // 'YYYY-MM-DD' date, so a lexicographic >= cutoff compare is exact and
+  // tz-arithmetic-free; the cutoff is built from LOCAL date parts because
+  // snapshot_date is written from the member's local day (_localDate()).
+  // A point with no usable date is DROPPED — recency it cannot prove is
+  // absence, which is the safe direction (under-firing, never over-firing).
+  const now = opts.now instanceof Date ? opts.now : new Date();
+  const cut = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+  const cutoff = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, '0')}-${String(cut.getDate()).padStart(2, '0')}`;
   const leg = (key) => {
     const pts = Array.isArray(series[key]) ? series[key] : [];
-    const vals = pts.map((p) => num(p && p.value)).filter((v) => v != null && v > 0);
+    const vals = pts
+      .filter((p) => p && typeof p.date === 'string' && p.date >= cutoff)
+      .map((p) => num(p && p.value))
+      .filter((v) => v != null && v > 0);
     if (!vals.length) return null;
+    // Still cap at 7 — one day per date is the norm, but a duplicated date
+    // must not let an 8th reading widen the "7-day" average it claims to be.
     const last7 = vals.slice(-7);
     return { avg7: last7.reduce((a, b) => a + b, 0) / last7.length, n: last7.length };
   };
