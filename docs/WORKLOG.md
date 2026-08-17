@@ -2033,6 +2033,44 @@ changelog whenever something ships.
     bytes, **10/10 mutations killed**. ⚠ The legacy pages remain verified **statically
     only** — no browser click-through (house rule), so a live nutritionist application
     through that page is still unproven.
+- ⚠ **ROUND 17 — TWO FINDINGS, AND FOR THE FIRST TIME IN FIVE ROUNDS BOTH LANDED IN NEW
+  SEAMS.** Nothing came back in the apply-requirements or `set_over_18` seams, which is
+  the evidence rounds 15–16's structural answers held. Both real, both fixed.
+  - ⚠ **SIGNED-OUT RADIO PLAYBACK — a licensing exposure, not polish.**
+    `ShapeRadioLive.play()` spans **two** awaits (the authenticated station read, then
+    `audio.play()`) and carried **no guard**, while the sibling poll **in the same IIFE**
+    has had a generation + abort guard since Codex's P1 on #1467. **Worse than
+    reported:** the sign-out path calls `pause()`, which is `if (el) el.pause()` — a
+    complete **no-op before the first play** — so the late resolution *creates* an
+    element and starts the stream. That is exactly the non-subscription rate
+    classification the signed-out path was removed to avoid.
+    Fixed with a generation gate that re-checks the generation **and the live identity
+    after EVERY await**, and stops audio it started in a losing window rather than
+    reporting success. The decision lives in a pure, unit-tested
+    **`mobile-app/src/services/playbackGate.mjs`** with the identity **INJECTED, never
+    captured** — a captured snapshot *is* the bug. 8 vectors drive the real gate
+    (including the no-op-pause case, last-wins overlap, a throwing identity source, and
+    a sign-out landing inside `audio.play()`); **5/5 mutations killed**.
+  - ⚠ **`privacy.html` ASSERTED TRANSFER SAFEGUARDS THE REPO DOES NOT HAVE — in a
+    published policy, for the subjects with the strongest rights.** The paragraph
+    claimed every EEA/UK recipient is covered by DPF **or** SCCs + UK Addendum + a TIA,
+    and that SCCs are maintained as a fallback *even for DPF-certified recipients*.
+    Checked against the evidence rather than taken on faith: the canonical spec carries
+    **seven `[VERIFY]`** markers, and the subprocessors table the paragraph *points at*
+    lists **~11 recipients under bare "per provider terms"** — including the two
+    highest-risk ones, **Jitsi** (audio + video of coaching consultations) and
+    **FormSubmit** (injuries, medications, allergies, emergency contact). The claim was
+    materially broader than anything verified.
+    Rewritten to state the *intended* safeguard, say plainly the work is unfinished,
+    point at the per-recipient basis, and offer to answer for a named recipient. **The
+    unverifiable fallback sentence is DELETED, not softened** (a quantifier claim is
+    removed, never swapped). This matches the register the **sibling paragraph already
+    set** about the Article 27 representatives — *"neither is in place yet; we would
+    rather tell you that than imply otherwise"* — which is what made the over-claim
+    obviously wrong in its own voice. Legal copy: still **DRAFT pending counsel**.
+  - Verified: suite **1629/1629** (+8), `tsc` clean, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile build clean with the gate in the emitted bundle,
+    newdesign precompile exit 0, `privacy.html` tag-balanced, all LF / zero NUL.
 - **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
   about them.** `isMinorFromDob` derived its adult cutoff with
   `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
