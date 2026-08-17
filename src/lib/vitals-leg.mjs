@@ -14,7 +14,7 @@
 //     Numeric STRINGS pass (the PostgREST numeric-as-string shape); any other
 //     junk is dropped. A real 0 is a real value and is kept (colSeries keeps
 //     0 for the sleep leg; same semantics here).
-//   - The window is the last 7 CALENDAR days (today − 6 … today, inclusive,
+//   - The window is BOUNDED AT BOTH ENDS (today − 6 … tomorrow, inclusive,
 //     UTC), keeping only the in-window rows that carry a real value for THAT
 //     metric. It is NOT "the 7 most recent populated rows": the caller fetches
 //     30 rows, so for a sparse logger that would serve a reading from weeks ago
@@ -42,11 +42,20 @@ export function bsVitalsLeg(rows, key, opts = {}) {
   // a row whose date is missing or not a string is DROPPED, because recency
   // it cannot prove is absence (the under-firing, safe direction).
   const cutoff = vitalsCutoffISO(opts.now);
+  // A lower bound alone is not a window. `/api/client/checkin` takes the day
+  // from the REQUEST, so a snapshot can carry a date in the future; with only a
+  // floor to clear, such a row would satisfy the filter forever and be served
+  // as the current 7D average indefinitely (and, being newest, would crowd real
+  // days out of the caller's 30-row fetch). The ceiling is tomorrow rather than
+  // today because snapshot_date is the member's LOCAL day and a member ahead of
+  // UTC legitimately writes one — the same one-day boundary tolerance the floor
+  // already documents. Beyond that a date is not a timezone artifact.
+  const upper = vitalsCeilingISO(opts.now);
   const series = [];
   for (const r of rows) {
     if (!r || typeof r !== 'object') continue;
     const day = typeof r.snapshot_date === 'string' ? r.snapshot_date : '';
-    if (!day || day < cutoff) continue;
+    if (!day || day < cutoff || day > upper) continue;
     const raw = r[key];
     // Absence stays absent: null/undefined/'' never coerce ('' → Number 0 is
     // the fabrication class), and non-finite junk is dropped, not clamped.
@@ -74,11 +83,22 @@ export const VITALS_WINDOW_DAYS = 7;
 // no per-member timezone (snapshot_date is written from the member's local
 // day), so this shares the UTC basis the route's own queries use and carries
 // the same documented tolerance of at most ONE boundary day.
-export function vitalsCutoffISO(now = new Date()) {
+function vitalsShiftISO(now, days) {
   const base = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
-  const cut = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
-  cut.setUTCDate(cut.getUTCDate() - (VITALS_WINDOW_DAYS - 1));
-  return cut.toISOString().slice(0, 10);
+  const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function vitalsCutoffISO(now = new Date()) {
+  return vitalsShiftISO(now, -(VITALS_WINDOW_DAYS - 1));
+}
+
+// Inclusive upper bound: tomorrow in UTC, so a member whose local day is ahead
+// of UTC is not treated as having logged in the future, while a genuinely
+// future-dated row is refused.
+export function vitalsCeilingISO(now = new Date()) {
+  return vitalsShiftISO(now, 1);
 }
 
 export function bsVitals(rows, opts = {}) {

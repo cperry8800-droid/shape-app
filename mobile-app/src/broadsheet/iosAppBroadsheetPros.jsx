@@ -4225,6 +4225,35 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // ⚠ NOT the weekly CHECK-IN station's Energy/Hunger (client_checkins.ratings)
   // — these are the member's DAILY gauges from daily_health_snapshot.
   const [caseVitals, setCaseVitals] = useStateBSP(null);
+  // ONE presence model for the SLEEP · RECOVERY / DAILY CHECK-IN card.
+  //
+  // Its heading, its measured cells and its two redact lines are three separate
+  // blocks in the markup below, and each used to decide on its own whether it
+  // had anything to say. That is what made the card contradict itself: every
+  // combination of (device, RESTED, vitals) had to be patched into each block
+  // separately, so a client with vitals but no wearable got a "NOT SYNCED"
+  // device failure, and a rating-only client got "DAILY CHECK-IN · NOT ON
+  // RECORD" printed directly beneath the check-in rating it had just rendered.
+  // Deriving the state ONCE here and letting all three blocks read it is the
+  // fix; adding a fourth special case to each block would not have been.
+  //
+  // MEASURED (a device reported) vs ENTERED (the member typed it) is the
+  // distinction that matters: only measured data may claim a sync, and only
+  // entered data may be called a check-in.
+  const caseHasDevice = !!(sleepRec && (sleepRec.latest != null || sleepRec.avg7 != null
+    || sleepRec.efficiency != null || sleepRec.rhr != null || sleepRec.hrv != null
+    || sleepRec.respiratory != null || sleepRec.readiness != null || sleepRec.stages));
+  const caseHasRested = !!(sleepRec && sleepRec.rested != null);
+  // RESTED is itself a daily check-in entry, so it counts as entered data —
+  // this is precisely why the vitals redact must not fire when it is present.
+  const caseHasEntered = caseHasRested || !!caseVitals;
+  // "Not synced" is a claim about a DEVICE. It is true only when no device
+  // reported AND the member entered nothing either (the pre-§3B empty state);
+  // for a member who checks in without a wearable there is no failed sync.
+  const caseShowSleepRedact = !caseHasDevice && !caseHasEntered;
+  // "No daily check-in on record" is a claim about ENTERED data, so any entered
+  // data at all — RESTED included — silences it.
+  const caseShowVitalsRedact = !caseHasEntered;
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
     // client A's care team / sleep / cycle / prep / vitals on client B's profile.
@@ -4813,11 +4842,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* SLEEP · RECOVERY — readiness + 7-day registers; redactions per field. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={sleepRec && !(sleepRec.latest != null || sleepRec.avg7 != null || sleepRec.efficiency != null || sleepRec.rhr != null || sleepRec.hrv != null || sleepRec.respiratory != null || sleepRec.readiness != null || sleepRec.stages)
-          // A rating-only leg is not a recovery readout — head it as what it is.
+        {/* A card carrying only ENTERED data is not a recovery readout — head it
+            as what it is. With nothing at all, the head stays SLEEP · RECOVERY
+            so the redact below reads as the pre-§3B empty state. */}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={!caseHasDevice && caseHasEntered
           ? tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })
           : tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
-        {sleepRec ? (() => {
+        {(caseHasDevice || caseHasRested) ? (() => {
           const s = sleepRec;
           const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? heat : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
           // DEVICE data, not the leg's mere existence: the leg now also exists
@@ -4825,9 +4856,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           // measured cells would each render "— NOT SYNCED" around that single
           // rating, under a SLEEP · RECOVERY head — a wearable reported as
           // broken for a member who owns none.
-          const hasDevice = s.latest != null || s.avg7 != null || s.efficiency != null
-            || s.rhr != null || s.hrv != null || s.respiratory != null
-            || s.readiness != null || !!s.stages;
+          const hasDevice = caseHasDevice;
           const cells = hasDevice ? [
             [tr('coach:case.lastNight', { defaultValue: 'LAST NIGHT' }), s.latest != null ? `${Number(s.latest)}H` : null],
             [tr('coach:case.sevenDayAvg', { defaultValue: '7-DAY AVG' }), s.avg7 != null ? `${Number(s.avg7)}H` : null],
@@ -4866,7 +4895,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               </div>
             </>
           );
-        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' })))}
+        })() : (caseShowSleepRedact ? (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' }))) : null)}
         {/* DAILY CHECK-IN vitals (spec §3B) — the member's OWN daily gauges
             (daily_health_snapshot energy/hunger/hydration_l), 7-day averages
             off the overview's `vitals` leg. Labeled "DAILY … · 7D" so they can
@@ -4898,7 +4927,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               ))}
             </div>
           );
-        })() : (window.BSTRedact ? <div style={{ marginTop: 12 }}><window.BSTRedact INK={t.INK} label={tr('coach:case.dailyVitalsRedact', { defaultValue: 'DAILY CHECK-IN · NOT ON RECORD' })} /></div> : null)}
+        })() : (caseShowVitalsRedact && window.BSTRedact ? <div style={{ marginTop: 12 }}><window.BSTRedact INK={t.INK} label={tr('coach:case.dailyVitalsRedact', { defaultValue: 'DAILY CHECK-IN · NOT ON RECORD' })} /></div> : null)}
       </div>
 
       {/* CYCLE — share-gated (spec 2026-07-19): renders ONLY when the member

@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
-import { bsVitals } from '@/lib/vitals-leg.mjs';
+import { bsVitals, vitalsCeilingISO } from '@/lib/vitals-leg.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -273,7 +273,26 @@ export async function GET(
     .eq('user_id', clientId)
     .order('snapshot_date', { ascending: false })
     .limit(30);
-  const snapRows = (snapRowsDesc ?? []).slice().reverse();
+  // A snapshot dated in the FUTURE is never a current readout. `/api/client/checkin`
+  // takes the day from the REQUEST, so a row can carry any syntactically valid
+  // `YYYY-MM-DD` — including 2099-01-01. Such a row is newest-first, so it would be
+  // served indefinitely as `latest`, as the member's current RESTED rating, and as the
+  // 7D vitals average, and it crowds real days out of the 30-row fetch. Dropping it at
+  // the ONE place every leg reads from (rather than per-leg) is why `rested`, the
+  // device sleep fields, readiness and `vitals` are all covered by this single filter;
+  // `bsVitalsLeg` keeps its own ceiling because that module is exported and tested
+  // independently. The ceiling is TOMORROW, not today, because `snapshot_date` is the
+  // member's LOCAL day and a member ahead of UTC legitimately writes one — the same
+  // one-day boundary tolerance the vitals window already documents. Comparison is
+  // lexicographic against ISO `YYYY-MM-DD`, which is exact.
+  const snapCeiling = vitalsCeilingISO();
+  const snapRows = (snapRowsDesc ?? [])
+    .filter((r) => {
+      const day = (r as Record<string, unknown>).snapshot_date;
+      return typeof day !== 'string' || day <= snapCeiling;
+    })
+    .slice()
+    .reverse();
   const num = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
   const colSeries = (key: string) => snapRows
     .filter((r) => (r as Record<string, unknown>)[key] != null)
@@ -338,8 +357,9 @@ export async function GET(
   // leg above carries — the two must never be conflated. Per-metric honesty:
   // each sub-leg exists ONLY when this client has real logged values for THAT
   // metric (absence stays absent — never Number(null) → 0), and the 7-day
-  // window is the 7 most recent snapshot DAYS carrying a real value for the
-  // metric, exactly how the sleep leg's avg7/series7 treat sleep_hours.
+  // window is seven CALENDAR days (today − 6 … today, UTC, inclusive) — NOT the
+  // 7 most recent populated rows, which for a sparse logger would serve a
+  // reading from weeks ago under a cell labeled "7D".
   // Derivation lives in the pure, tested bsVitals (src/lib/vitals-leg.mjs).
   const vitals = bsVitals(snapRows as Array<Record<string, unknown>>);
 

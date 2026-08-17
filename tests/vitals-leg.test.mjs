@@ -18,7 +18,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsVitalsLeg, bsVitals, vitalsCutoffISO, VITALS_WINDOW_DAYS } from '../src/lib/vitals-leg.mjs';
+import { bsVitalsLeg, bsVitals, vitalsCutoffISO, vitalsCeilingISO, VITALS_WINDOW_DAYS } from '../src/lib/vitals-leg.mjs';
 
 const row = (date, cols) => ({ snapshot_date: date, ...cols });
 // Pin "today" to a UTC noon so the cutoff never straddles a boundary by clock.
@@ -156,6 +156,29 @@ test('hydration reports avg7L (liters key), not avg7', () => {
   assert.equal(v.hydration.avg7L, 2.8, 'string liters accepted, rounded to 1 decimal');
   assert.equal('avg7' in v.hydration, false, 'hydration leg uses the spec key avg7L');
   assert.equal(v.hydration.n, 1);
+});
+
+test('a FUTURE-dated snapshot is refused, not served forever as the current 7D', () => {
+  // `/api/client/checkin` takes the day from the request, so a row can carry a
+  // date years ahead. A floor-only window would clear it on every future run.
+  const rows = [
+    row('2099-01-01', { energy: 10 }),
+    row('2026-08-14', { energy: 4 }),
+  ];
+  const leg = bsVitalsLeg(rows, 'energy', at('2026-08-16'));
+  assert.equal(leg.n, 1, 'only the real day counts');
+  assert.equal(leg.avg7, 4, 'the future row neither counts nor lifts the mean');
+  const only = bsVitalsLeg([row('2099-01-01', { energy: 10 })], 'energy', at('2026-08-16'));
+  assert.equal(only, null, 'a future-only client has no leg at all');
+});
+
+test('the ceiling tolerates a member one day ahead of UTC, and nothing beyond', () => {
+  const inWindow = bsVitalsLeg([row('2026-08-17', { energy: 6 })], 'energy', at('2026-08-16'));
+  assert.equal(inWindow.n, 1, 'tomorrow-in-UTC is a real local day for someone');
+  const beyond = bsVitalsLeg([row('2026-08-18', { energy: 6 })], 'energy', at('2026-08-16'));
+  assert.equal(beyond, null, 'two days ahead is not a timezone artifact');
+  assert.equal(vitalsCeilingISO(new Date('2026-08-16T12:00:00Z')), '2026-08-17');
+  assert.equal(vitalsCeilingISO(new Date('2026-12-31T12:00:00Z')), '2027-01-01', 'rolls the year');
 });
 
 test('vitalsCutoffISO spans month and year boundaries by real date maths', () => {
