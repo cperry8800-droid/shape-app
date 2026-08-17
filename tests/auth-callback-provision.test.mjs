@@ -52,6 +52,34 @@ test('the callback provisions without overwriting', () => {
   assert.match(SRC, /\.upsert\(seed, \{ onConflict: 'id' \}\)/, 'the upsert is gone');
 });
 
+// ⚠ A FAILED READ IS NOT AN ABSENT ROW — found by self-review of the round-22 fix,
+// before Codex saw it. maybeSingle()/getProfile() both yield null for "no row" AND for
+// "the read errored", and because the write is an upsert on `id`, taking the create path
+// on an unreadable read UPDATEs the existing row: a coach demoted to 'client', roles
+// collapsed. That is the overwrite defect re-entering through the error path, with a
+// WIDER blast radius than before, since the create path now always writes a role.
+test('an unreadable profile read never provisions (both surfaces)', () => {
+  assert.match(SRC, /error: readError/,
+    'the callback must capture the read error — maybeSingle() resolves it, never throws');
+  assert.match(SRC, /if \(readError\) \{/,
+    'a failed read must be handled before any decision about whether the row exists');
+  // The seed/upsert must sit on the else branch, not run regardless.
+  const i = SRC.indexOf('if (readError) {');
+  const j = SRC.indexOf('.upsert(seed');
+  assert.ok(i !== -1 && j > i,
+    'the upsert must be gated by the read-error branch, not precede it');
+  assert.match(SRC.slice(i, j), /\} else \{/,
+    'provisioning must be the ELSE of the read-error check');
+
+  const legacy = stripComments(
+    readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8')
+  );
+  assert.match(legacy, /if \(chk\.error\) \{/,
+    'the legacy path must distinguish an unreadable read from an absent row');
+  assert.match(legacy, /if \(chk\.data\) return/,
+    'an existing row must short-circuit before the create-path seed');
+});
+
 // The identical hazard lived at a second provisioning site — the legacy website
 // sign-in path (round 11's fix). Codex named only the callback.
 test('the legacy sign-in provisioning also always writes a role', () => {

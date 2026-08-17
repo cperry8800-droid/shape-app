@@ -207,13 +207,25 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       if (user && !profile) {
         var meta = (user.user_metadata || {});
         try {
+          // ⚠ A FAILED READ IS NOT AN ABSENT ROW. getProfile() returns null for BOTH
+          // "no row" and "the read errored" (it warns and returns null), so provisioning
+          // straight off !profile would upsert on `id` and UPDATE the existing row after
+          // a transient failure — demoting a coach to 'client' and collapsing roles.
+          // Re-check cheaply, and do nothing unless the row is genuinely absent.
+          var chk = await client.from('profiles').select('id').eq('id', user.id).maybeSingle();
+          if (chk.error) {
+            console.warn('[shape] profile read failed; skipping provisioning', chk.error);
+            return { user: user, profile: null };
+          }
+          if (chk.data) return { user: user, profile: await shapeDb.getProfile(user.id) };
           var seed = { id: user.id };
           if (meta.full_name) seed.full_name = meta.full_name;
           if (user.email) seed.email = user.email;
           // ⚠ profiles.role is NOT NULL with NO default, so omitting it fails 23502 and
           // this provisioning write dies — leaving no row, which absence-refuses turns
-          // into a lockout. This branch only ever CREATES (it is gated on !profile), so
-          // a role is always written; 'client' is the house default.
+          // into a lockout. This branch only ever CREATES — gated on !profile AND the
+          // confirmed-absent re-check above — so a role is always written; 'client' is
+          // the house default.
           var role = meta.role || 'client';
           seed.role = role;
           seed.roles = [role];

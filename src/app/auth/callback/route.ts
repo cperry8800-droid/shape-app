@@ -34,11 +34,23 @@ export async function GET(request: Request) {
       if (user?.id) {
         try {
           const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-          const { data: existing } = await supabase
+          const { data: existing, error: readError } = await supabase
             .from('profiles')
             .select('id, date_of_birth, full_name, email, role, roles')
             .eq('id', user.id)
             .maybeSingle();
+          // ⚠ A FAILED READ IS NOT AN ABSENT ROW, and conflating the two is how the
+          // overwrite defect re-enters. maybeSingle() RESOLVES `{data:null,error}` on a
+          // transient failure or an RLS refusal — it does not throw, so the catch below
+          // never sees it. Treating that null as "no row" takes the create path, and
+          // because the write is an upsert on `id` it UPDATEs the existing row: a coach
+          // demoted to 'client' with `roles` collapsed. Provision only when the row's
+          // state is actually KNOWN; on an unreadable read do nothing and let the next
+          // visit try again (the gates refuse an unproven row, which is the safe way to
+          // fail).
+          if (readError) {
+            console.warn('[shape] profile read failed; skipping provisioning', readError.message);
+          } else {
           // ⚠ PROVISION, NEVER OVERWRITE. Password resets, magic links and email-change
           // confirmations all land here carrying SIGNUP metadata, so writing it back
           // reverts a renamed member and collapses a dual-role coach's `roles` to one.
@@ -69,6 +81,7 @@ export async function GET(request: Request) {
           // over_18 is deliberately absent: set_over_18() derives it and
           // discards any supplied value.
           await supabase.from('profiles').upsert(seed, { onConflict: 'id' });
+          }
         } catch {
           /* Best-effort: a failed provision must not strand the user on an error
              page. The gates fail CLOSED on the resulting unproven row, so the
