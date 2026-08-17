@@ -4240,9 +4240,23 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // MEASURED (a device reported) vs ENTERED (the member typed it) is the
   // distinction that matters: only measured data may claim a sync, and only
   // entered data may be called a check-in.
-  const caseHasDevice = !!(sleepRec && (sleepRec.latest != null || sleepRec.avg7 != null
-    || sleepRec.efficiency != null || sleepRec.rhr != null || sleepRec.hrv != null
-    || sleepRec.respiratory != null || sleepRec.readiness != null || sleepRec.stages));
+  // ⚠ SLEEP HOURS ARE NOT DEVICE EVIDENCE. `/api/client/checkin` writes
+  // `sleep_hours` straight from the member's manual hour chips, so `latest` and
+  // `avg7` are ENTERED-or-measured and prove nothing about a wearable — the
+  // client card already encodes this, gating its own `sleepSynced` on
+  // device-only metrics. `readiness` is out for the same reason: it scores from
+  // sleepHours alone, so a typed figure produces a non-null score. Keying on
+  // hours here made the Case File claim a sync for a member who owns no device,
+  // which is the exact thing the MEASURED-vs-ENTERED rule above forbids.
+  // Device-only fields are the ones no check-in surface can write.
+  const caseHasDevice = !!(sleepRec && (sleepRec.efficiency != null || sleepRec.rhr != null
+    || sleepRec.hrv != null || sleepRec.respiratory != null || sleepRec.stages));
+  // Hours are their own state, because their SOURCE is unknowable from here: a
+  // wearable and the member's hour chips both land in `sleep_hours`. So they may
+  // never gate the device CLAIM (above) — but they must still RENDER, or fixing
+  // that claim would delete a hand-logging member's real sleep from the Case
+  // File, which is worse than the mislabel it fixes.
+  const caseHasHours = !!(sleepRec && (sleepRec.latest != null || sleepRec.avg7 != null));
   const caseHasRested = !!(sleepRec && sleepRec.rested != null);
   // RESTED is itself a daily check-in entry, so it counts as entered data —
   // this is precisely why the vitals redact must not fire when it is present.
@@ -4250,7 +4264,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // "Not synced" is a claim about a DEVICE. It is true only when no device
   // reported AND the member entered nothing either (the pre-§3B empty state);
   // for a member who checks in without a wearable there is no failed sync.
-  const caseShowSleepRedact = !caseHasDevice && !caseHasEntered;
+  const caseShowSleepRedact = !caseHasDevice && !caseHasHours && !caseHasEntered;
   // "No daily check-in on record" is a claim about ENTERED data, so any entered
   // data at all — RESTED included — silences it.
   const caseShowVitalsRedact = !caseHasEntered;
@@ -4845,10 +4859,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {/* A card carrying only ENTERED data is not a recovery readout — head it
             as what it is. With nothing at all, the head stays SLEEP · RECOVERY
             so the redact below reads as the pre-§3B empty state. */}
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={!caseHasDevice && caseHasEntered
-          ? tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })
-          : tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
-        {(caseHasDevice || caseHasRested) ? (() => {
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={caseHasDevice
+          ? tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })
+          : tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })} />}
+        {(caseHasDevice || caseHasHours || caseHasRested) ? (() => {
           const s = sleepRec;
           const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? heat : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
           // DEVICE data, not the leg's mere existence: the leg now also exists
@@ -4857,14 +4871,21 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           // rating, under a SLEEP · RECOVERY head — a wearable reported as
           // broken for a member who owns none.
           const hasDevice = caseHasDevice;
-          const cells = hasDevice ? [
-            [tr('coach:case.lastNight', { defaultValue: 'LAST NIGHT' }), s.latest != null ? `${Number(s.latest)}H` : null],
-            [tr('coach:case.sevenDayAvg', { defaultValue: '7-DAY AVG' }), s.avg7 != null ? `${Number(s.avg7)}H` : null],
-            [tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null],
-            [tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null],
-            [tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null],
-            [tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null],
-          ] : [];
+          // Hours first and gated on their OWN state, so a hand-logging member
+          // keeps their sleep rows; the strictly-measured cells stay gated on a
+          // real device, or they would render as dashes reporting a wearable
+          // failure for a member who owns none.
+          const cells = [];
+          if (caseHasHours) {
+            cells.push([tr('coach:case.lastNight', { defaultValue: 'LAST NIGHT' }), s.latest != null ? `${Number(s.latest)}H` : null]);
+            cells.push([tr('coach:case.sevenDayAvg', { defaultValue: '7-DAY AVG' }), s.avg7 != null ? `${Number(s.avg7)}H` : null]);
+          }
+          if (hasDevice) {
+            cells.push([tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null]);
+            cells.push([tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null]);
+            cells.push([tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null]);
+            cells.push([tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null]);
+          }
           // RESTED — the member's own 1-10 morning rating (sleep_quality), the
           // row the WEB case file already renders. It is ENTERED, so it follows
           // the entered-gauge rule: present only when real, never a NOT SYNCED

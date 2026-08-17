@@ -671,27 +671,42 @@ function CoachClientDetailPage() {
             // member who only rated how rested they felt, and that rating is
             // ENTERED, not measured; badging it "device-synced" would state
             // something false about where the number came from.
-            const hasDevice = !!(s && (s.latest != null || s.avg7 != null || s.efficiency != null
-              || s.rhr != null || s.hrv != null || s.latency != null || s.respiratory != null
-              || s.readiness != null || s.stages));
+            // ⚠ Sleep HOURS are not device evidence: /api/client/checkin writes
+            // sleep_hours from the member's own hour chips, so latest/avg7 are
+            // ENTERED-or-measured. readiness is out too — it scores from
+            // sleepHours alone, so a typed figure yields a non-null score.
+            // Including them made this badge state exactly the false thing the
+            // comment above warns against. Device-only fields only.
+            const hasDevice = !!(s && (s.efficiency != null
+              || s.rhr != null || s.hrv != null || s.latency != null
+              || s.respiratory != null || s.stages));
             // No device data, no rating AND no daily vitals → the card does not
             // exist (absence, never a padlock) — the pre-§3B render.
-            if (!hasDevice && !(s && s.rested != null) && !hasVitals) return null;
+            // Hours are their own state: their SOURCE is unknowable here (a
+            // wearable and the member's hour chips both land in sleep_hours), so
+            // they may not gate the device CLAIM, but they must still RENDER —
+            // otherwise fixing that claim would delete a hand-logging member's
+            // real sleep, which is worse than the mislabel.
+            const hasHours = !!(s && (s.latest != null || s.avg7 != null));
+            if (!hasDevice && !hasHours && !(s && s.rested != null) && !hasVitals) return null;
             const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
             const rc = !s || s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
             // Measured cells render only when a device actually reported. For a
             // rating-only member they would otherwise be eight dashes framing a
             // single filled cell, which reads as a device that failed rather
             // than a member who owns none.
-            const cells = hasDevice ? [
-              ["LAST NIGHT", fmtH(s.latest)],
-              ["7-DAY AVG", s.avg7 == null ? "—" : `${Number(s.avg7)}h`],
-              ["EFFICIENCY", s.efficiency == null ? "—" : `${s.efficiency}%`],
-              ["RESTING HR", s.rhr == null ? "—" : `${s.rhr}`],
-              ["HRV", s.hrv == null ? "—" : `${s.hrv}`],
-              ["LATENCY", s.latency == null ? "—" : `${s.latency}m`],
-              ["RESPIRATORY", s.respiratory == null ? "—" : `${s.respiratory}/min`],
-            ] : [];
+            const cells = [];
+            if (hasHours) {
+              cells.push(["LAST NIGHT", fmtH(s.latest)]);
+              cells.push(["7-DAY AVG", s.avg7 == null ? "—" : `${Number(s.avg7)}h`]);
+            }
+            if (hasDevice) {
+              cells.push(["EFFICIENCY", s.efficiency == null ? "—" : `${s.efficiency}%`]);
+              cells.push(["RESTING HR", s.rhr == null ? "—" : `${s.rhr}`]);
+              cells.push(["HRV", s.hrv == null ? "—" : `${s.hrv}`]);
+              cells.push(["LATENCY", s.latency == null ? "—" : `${s.latency}m`]);
+              cells.push(["RESPIRATORY", s.respiratory == null ? "—" : `${s.respiratory}/min`]);
+            }
             // RESTED is member-ENTERED, so it follows the entered-gauge rule the
             // vitals cells below use: present only when real, never a dash. A
             // dash on a gauge the member fills in reads as "logged nothing",
