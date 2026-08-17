@@ -250,11 +250,11 @@
             </div>
           </div>
           <div class="integration-card-body">
-            <p>Link your Spotify account so coaches can pick playlists from your library and Shape can stream the right music during each session on Shape Radio.</p>
+            <p>Link your Spotify account so coaches can pick playlists from your library, and so a coach's playlist opens and plays on your own Spotify account under Spotify's licence to you. Shape Radio is a separate station that Shape streams itself &mdash; it does not play your Spotify library.</p>
             <div class="integration-features">
               <div class="integration-feature"><div class="check">&#10003;</div><span>Browse your saved playlists inside Shape</span></div>
               <div class="integration-feature"><div class="check">&#10003;</div><span>Attach a playlist to each program or workout</span></div>
-              <div class="integration-feature"><div class="check">&#10003;</div><span>Embed playback in Shape Radio and the workout player</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Open or save a coach's playlist to your own account</span></div>
             </div>
           </div>
           <div class="integration-status">
@@ -415,11 +415,11 @@
             </div>
           </div>
           <div class="integration-card-body">
-            <p>Authorize your Apple Music library with MusicKit so coaches can attach playlists to workouts and Shape Radio can stream them. You grant access right here &mdash; no redirect.</p>
+            <p>Authorize your Apple Music library with MusicKit so coaches can attach playlists to workouts, and so a coach's playlist opens and plays on your own Apple Music account under Apple's licence to you. You grant access right here &mdash; no redirect. Shape Radio is a separate station that Shape streams itself &mdash; it does not play your Apple Music library.</p>
             <div class="integration-features">
               <div class="integration-feature"><div class="check">&#10003;</div><span>Browse your Apple Music playlists in Shape</span></div>
               <div class="integration-feature"><div class="check">&#10003;</div><span>Attach a playlist to each program or workout</span></div>
-              <div class="integration-feature"><div class="check">&#10003;</div><span>Play in Shape Radio and the workout player</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Open or save a coach's playlist to your own account</span></div>
             </div>
           </div>
           <div class="integration-status">
@@ -729,6 +729,20 @@
       if (isConnected) {
         if (!confirm('Disconnect Apple Music?')) return;
         const res = await fetch('/api/integrations/apple-music/disconnect', { method: 'POST', headers: { Authorization: 'Bearer ' + bearer } });
+        // ⚠ Also drop Apple's OWN token from this browser. Apple's MusicKit JS
+        // stores a media-user-token in localStorage when you authorize; the
+        // server disconnect only clears OUR row, so without unauthorize() the
+        // token survives a "disconnect" and this device stays authorized to the
+        // member's Apple Music library. The mobile path already does this
+        // (shapeBackend.js disconnectAppleMusic); the web path did not.
+        // Best-effort and AFTER the server call: a MusicKit failure must not
+        // leave the account looking connected when the server says otherwise.
+        try {
+          if (window.MusicKit && window.MusicKit.getInstance) {
+            const mk = window.MusicKit.getInstance();
+            if (mk && mk.isAuthorized && mk.unauthorize) await mk.unauthorize();
+          }
+        } catch (e) { /* token may already be gone; nothing to surface */ }
         if (res.ok) { setCardState('apple_music', false); toast('Apple Music disconnected'); } else { toast('Could not disconnect'); }
         return;
       }

@@ -1627,6 +1627,563 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-16 — Cross-tab sign-out + an owner-scoped career award: the two shared-device residuals close (#1891 → `17752b901`)
+
+- Closes the two residuals the 2026-08-15 sign-out wave **documented but did not fix**. Neither
+  is new scope — both are that wave's own review findings, written down at the time as unbuilt.
+- **Cross-tab sign-out.** `sessionStorage` is per tab and in-memory state is per document, so
+  signing out scrubbed and reloaded only the tab it ran in; a sibling tab kept
+  `shapeLiveWorkout`/`shapeLiveWorkoutResult` and a signed-in session's worth of state until
+  someone closed it. There was **no** `onAuthStateChange`, `storage` or `SIGNED_OUT` handler
+  anywhere in source. The scrub is already the chokepoint every sign-out path calls, so it
+  stamps **`shape.signedOutAt` LAST** — after the sweeps that would otherwise remove the
+  signal — **with a nonce**, because `storage` fires only on a *changed* value and two
+  sign-outs in the same millisecond would be silent with a bare `Date.now()`. All four
+  surfaces listen: `pageShell.jsx` + `supabase.js` (classic scripts sharing ONE install guard,
+  so a page loading both cannot scrub and reload twice), `iosAppBroadsheetMain.jsx`, and
+  `SignOutButton.tsx` for the Next dashboard. ⚠ **Listeners scrub with `broadcast:false`, and
+  that suppression is load-bearing** — a sibling that re-stamped would echo the event back and
+  the tabs would scrub each other in a loop.
+- ⚠ **`shape.careerAwardPending` was a cross-account defect, not a durability feature.** It held
+  a **bare post id** replayed for whoever was signed in; `award_work_milestone` matches
+  `author_id = auth.uid()`, so a different account got `{granted:false,'not_a_milestone'}` — a
+  **successful** response, not an error — and the catch-up removed the key on any non-error. So
+  A signs out, B signs in, and **B's session submitted A's post id under B's identity and then
+  silently destroyed A's retry**. Keeping the key did not preserve A's award; it guaranteed its
+  loss. Now `{uid, postId}`, replayed only on a uid match; an unattributable legacy record is
+  **dropped** rather than replayed under an arbitrary account. Deletion is fixed too: only
+  `'unauthenticated'` is transient, and the clear matches **both** uid and postId, so a success
+  for post Y cannot delete a pending retry for post X.
+- ⚠ **The web twin in `dashboardCommunity.jsx` carried the same defect and had no signed-in
+  check at all** — review named only the mobile copy. **The contrast with the sibling queue is
+  why this was a defect and not an accepted trade-off:** `drainAssignmentQueue()` drops
+  client-side owner partitioning *on purpose* and is safe because `publish_client_week`
+  re-verifies server-side **and the refusal surfaces**. This path had neither property.
+- 15 files, +1453/−62. Suite green; CI green on the final head.
+
+### 2026-08-16 — The 18+ cutoff clamps like Postgres; the gate's own coverage claims corrected (#1888, **OPEN** — head `53cdd22bf`)
+
+- CI is green on the head (Web · Mobile · gitleaks · Tests) and the DOB freeze migration is
+  applied + behaviourally verified on production. **Codex round 9 returned a P1, it was
+  real** (reproduced, not taken on faith), **and it is fixed** — see the two bullets below.
+  Full round-by-round state: **[`docs/HANDOFF-2026-08-16b.md`](HANDOFF-2026-08-16b.md)**.
+- ⚠ **THE UTC COMPARISON ADMITTED A MINOR EARLY WEST OF UTC — the header claimed it could
+  not.** The UTC day runs ahead of every zone west of UTC, so `isMinorFromDob` declared
+  adulthood **before the member's local eighteenth birthday** — up to ~11h early
+  (Pacific/Niue, UTC−11). Verified: DOB `2008-08-17` at `2026-08-17T00:30:00Z` returned
+  adult while it was still Aug 16 in Los Angeles and New York. So the comment asserting the
+  asymmetry "only ever refuses for one extra day rather than admitting a minor early" ruled
+  out the exact thing the code was doing — **the ninth consecutive round in which a
+  because-clause was the defect.**
+- **THE FIX: adulthood is asserted only once it is true in EVERY timezone.** The calendar
+  day is now read at **UTC−12** (`ADULT_REFERENCE_OFFSET_MS`, the "anywhere on Earth"
+  convention) instead of UTC — no tz database, no extra query, one subtraction. The cost
+  runs in the SAFE direction and is bounded: a member is refused for up to 12h after local
+  midnight at UTC (26h at UTC+14) on the day they turn 18. **Refusing an adult briefly is a
+  nuisance; admitting a minor is the failure this gate exists to prevent.**
+  ⚠ **This deliberately no longer matches `set_over_18()`** (`current_date` is UTC, so up to
+  a day less conservative) — **and that cannot put two gates into disagreement about a
+  person.** `over_18` is never the decider when a usable DOB exists: both consumers read
+  `fromDob !== null ? fromDob : over_18 === false` (`age-gate.ts`, `membership-core.ts`), and
+  when the DOB is null the trigger writes NULL too, so neither side has an opinion.
+  ⚠ **Confirmed against the LIVE catalog rather than the migration files** (this database has
+  twice failed to match them): **no policy, view, constraint or other function reads
+  `over_18`** — `set_over_18()` is the only object that mentions it, and it only writes it.
+  The column is a denormalised snapshot, not a second gate.
+  ⚠ **The member's own calendar day was NOT chosen, and the reason is data, not preference:**
+  it needs `client_profiles.timezone` (read by `shape_user_tz(uid)`), and that table holds
+  **ZERO rows** — every account would fall through to this margin anyway, at the cost of a
+  second table read on the middleware hot path. Revisit when the column is populated; the
+  margin is correct in the meantime, not a placeholder.
+- ⚠ **AND THE FIX ITSELF SHIPPED A FABRICATED ADULT FOR ~20 MINUTES — caught by reviewing my
+  own diff, not by any gate.** Shifting the reference instant moved the clock-validity check
+  from the resulting **Date** (`Number.isFinite(ref.getTime())`) to the input **number**
+  (`Number.isFinite(raw)`). A finite input can still be outside the Date range
+  (`|t| > 8.64e15`), and every field read then yields NaN — which falls through the
+  comparison as `born > NaN` = **false**, i.e. **ADULT from a clock we could not read**. The
+  guard is back on the Date; two vectors pin it (`9e15`, `-9e15`). **The general rule:
+  validate the value you are about to READ, not the one you were handed** — and the
+  adjacent-miss rule held again, the next defect being inside the fix for the last one.
+  Every guard is mutation-tested: reverting the offset to UTC fails 2 vectors, the wrong
+  sign fails 5, a half offset fails 1, and either weakening of the clock guard fails 1.
+- ⚠ **ROUND 10 — THE LEGACY SIGNUP COLLECTED A DATE OF BIRTH AND NEVER PERSISTED IT, SO
+  THE GATE HAD NOTHING TO READ.** `public/signup-client.html` sent its DOB to the intake
+  email and `client_intakes` — **not a table any age check reads** — and called
+  `shapeDb.signUp()` without it, which upserted `profiles` with no `date_of_birth`. Every
+  account from that flow therefore carried `date_of_birth` NULL and (by the trigger)
+  `over_18` NULL, and all three gates treat NULL as "says nothing", which **admits**. So a
+  minor who answered the question honestly was let straight through. **Worse than the
+  finding stated, two ways:** the page had **no 18+ validation at all** (the other two
+  signup surfaces validate and throw), and it is **not vestigial** — ~20 pages link it,
+  including `login.html`'s "Sign up". The DOB freeze migration's own header enumerates the
+  legitimate DOB writers and this path is absent from the list, because it never wrote one.
+- **THE FIX, at the helper that owns the profiles upsert — not only at the page.**
+  `signUp()` now requires a valid 18+ date and writes it to the row **and** to auth
+  metadata; validating in the page alone would leave the row-writing code still able to
+  create an ungated account. ⚠ **The metadata copy is not redundant:** with email
+  confirmation on, `signUp` returns a user and NO session, the upsert cannot authenticate,
+  and `newdesign/login.jsx:140` claims the date at first sign-in — without it the
+  confirm-by-email half still produces ungated rows, which is the harder half to notice.
+  ⚠ **AND THE 18+ CHECK HAD TO MOVE ABOVE `sendIntakeEmail()`, WHICH IS A SEPARATE
+  DEFECT:** that call relays the whole questionnaire — injuries, medications, dietary
+  restrictions, emergency contact — to the Shape inbox and localStorage **before** the
+  account is created, so refusing a minor only inside `signUp()` would have collected and
+  transmitted a child's health data and only then declined them. **A gate that runs after
+  the side effect is not a gate.**
+- **No migration and no backfill, and that was measured rather than assumed:**
+  `client_intakes` holds **0 rows** and `profiles` holds **2**, both DOB-null. The defect
+  is about every account this path will create, not damage already done.
+- **The rule now has FOUR copies and they cannot share a module** — `public/supabase.js`
+  is a browser IIFE loaded by `<script>` and the page's copy is inline, neither of which
+  can import. Drift is the realistic failure, so drift is what is gated:
+  `tests/signup-dob-persisted.test.mjs` pins the profiles write, the metadata write, both
+  refusals running **before** account creation, the page passing its `dob`, the check
+  preceding `sendIntakeEmail()`, one shared threshold expression, and that no surface sets
+  `over_18` directly. ⚠ **Mutation-testing it caught a hole in the guard itself:** the
+  passed-dob assertion lacked a word boundary, so `xdob: data.dob` — a renamed, ignored
+  key — satisfied it. Fixed; all seven mutations now killed.
+- ⚠ **The honest limit, stated so nobody reads more into it:** a client-side check stops
+  the ordinary member who enters a real date, which is who an age gate is for. It cannot
+  stop a hostile caller who skips the helper and drives `supabase.auth` directly — that
+  needs the read-time gate to **refuse a NULL `date_of_birth`**, which would also lock out
+  any pre-DOB account. With two rows in the table that is as cheap as it will ever be, but
+  it is an owner ruling, not a patch.
+- ⚠ **ROUND 11 — MY ROUND-10 FIX SHIPPED A REGRESSION OF MY OWN ROUND-9 FIX, AND THE
+  GUARD I WROTE PINNED IT.** Copying the sibling surfaces' 18+ check verbatim carried
+  their **instant-based** comparison — `new Date(dob) > now − 18y`. `new Date('2008-08-17')`
+  is midnight **UTC**, so at `2026-08-17T00:30:00Z` it reads **ADULT** while it is still
+  Aug 16 in Los Angeles: the *exact* counterexample round 9 rewrote the read-time gate to
+  close. Reproduced before fixing. Worse, `tests/signup-dob-persisted.test.mjs` asserted
+  that expression as "the shared rule" across all four copies — **a drift guard cementing
+  the bug it was written to prevent.** The lesson generalizes past this file: *a guard that
+  pins an expression pins whatever that expression is wrong about; assert what the code
+  ANSWERS, not how it is spelled.*
+- **THE FIX — ONE RULE, REACHED FROM EVERY SURFACE, instead of a fifth hand-copy.** The
+  canonical `src/lib/age-derive.mjs` must stay import-free (it rides the Edge proxy
+  bundle) and the write surfaces are classic scripts that cannot import ESM — the same
+  constraint `public/newdesign/localScrub.mjs` already solves, so the same remedy:
+  **`public/age-derive.js`**, a classic-script mirror registering `window.ShapeAgeDerive`,
+  with **`tests/age-derive-mirror.test.mjs`** running BOTH implementations over a named
+  boundary table **plus a 4,000-case deterministic fuzz sweep** (seeded LCG, never
+  `Math.random`) and failing on the first disagreement. Now: `public/supabase.js`,
+  `signup-client.html` and `newdesign/signup.jsx` call the mirror; `shapeBackend.js`
+  (both creation paths) and the Next action **import the canonical module directly**.
+  ⚠ Every classic-script surface **fails CLOSED** when the module is absent — a page that
+  cannot verify an age must refuse, never admit.
+- ⚠ **ROUND 11 ALSO ANSWERED THE TWO QUESTIONS I HAD ASKED BECAUSE I WAS UNSURE — both
+  came back "yes, you missed something".** (1) **The metadata claim I described was dead
+  on the path that uses it.** `signup-client.html` redirects to **`login.html`**, not
+  `newdesign/Login.html`; `login.html` REJECTS a missing profile ("No profile found.
+  Please sign up.") and `shapeDb.signIn` only *read* the profile — so a confirmed account
+  kept a usable session, **no profiles row and no DOB**. `signIn` now provisions the row
+  from the signup metadata; that is the legacy confirm flow's only provisioning point.
+  (2) **`/signup` (Next) was a complete bypass** — linked from `Nav.tsx` "Get started",
+  `Footer.tsx` and `CinematicNav.tsx`, it called `auth.signUp()` with role metadata only
+  and wrote no profile at all. It now collects a DOB, validates with the canonical module
+  **before** account creation, carries it in metadata, and persists the row on the
+  auto-confirm branch — surfacing a failed write rather than landing on the dashboard
+  ungated.
+- **The drift guard was rebuilt to check DELEGATION, not spelling** — every creation path
+  routes to the shared rule, each classic surface fails closed, every page that needs the
+  mirror loads it, and a dedicated anti-regression test fails if the instant comparison
+  ever returns. ⚠ Two lessons paid for twice: the mobile paths are now **sliced per
+  function** (the old whole-file search passed while one of `signUp`/`signInWithPhone`
+  drifted — the exact reported defect), and assertions **strip comments first**, because
+  the rationale comments quote the banned expression and name `auth.signUp()`, so the
+  first version fired on its own explanation. **9/9 mutations killed**, including
+  drifting only the phone path.
+- Verified on this head: suite **1595/1595**, `tsc` clean, `next build` exit 0 with
+  `ƒ Proxy (Middleware)`, mobile Vite build clean with the AoE derivation confirmed
+  **in the emitted bundle** (both creation paths call it), newdesign precompile check
+  exit 0, CRLF preserved on the three tracked-CRLF signup pages (2-line diffs), zero NUL
+  bytes.
+
+### 2026-08-16 — ABSENCE NO LONGER ADMITS: the age gate keys on proof, not on null (#1888)
+
+- ⚠ **THE PATCH CYCLE WAS THE PROBLEM, AND THE CURVE SAID SO.** Rounds 9→12 ran
+  1 → 1 → 4 → 4 findings, each round finding defects **in the previous round's fix**.
+  Round 12's four P1s all ended in one sentence: *a session exists, `date_of_birth` is
+  null, and the gates treat null as not-a-minor, so the account is admitted.* Four
+  different routes into that state — a failed profile upsert on auto-confirm, an
+  email-confirmation callback that never provisioned, an approved-coach invitation, and
+  a legacy sign-in whose provisioning failure left the session usable. **Patching write
+  surfaces could not converge, because each patch added a new failure mode and the hole
+  was the read-time default.** The repo's own rule (a flat findings curve means change
+  approach, not patch again) applied doubly to a rising one.
+- **THE FIX — one line of policy at the chokepoint, `mustRefuseForAge()` in
+  `src/lib/age-derive.mjs`.** Every gate used to read
+  `isKnownMinor = fromDob !== null ? fromDob : over_18 === false` — only proof of
+  MINORITY refused. Now a usable DOB decides in **both** directions, the trigger-written
+  `over_18` is the fallback, and a row that proves **nothing** is refused unless the
+  account predates **`ADULT_PROOF_REQUIRED_FROM`**. ⚠ **A null/absent profile REFUSES** —
+  that is precisely the state a failed provisioning write leaves behind. Consumed by
+  `computeMembership` (which the Edge proxy AND `requireMembership` both route through)
+  and `refuseKnownMinor`, so two call sites cover all three gates.
+- ⚠ **THE CUTOFF IS A ONE-WAY RATCHET AND IS PINNED BY A TEST.** Moving it FORWARD
+  re-opens the hole for every account created in the widened window. Chosen against
+  production on 2026-08-16: exactly **2 profiles, both DOB-null, newest created
+  2026-06-13** — so it grandfathers two pre-launch accounts and requires proof of
+  everything after. **Owner-ruled** (the alternative, no grandfather, would have locked
+  the owner out of their own coach account).
+- ⚠ **A FORGOTTEN COLUMN IS NOW A TOTAL LOCKOUT, SO THE SELECTS ARE GATED.** Both gates
+  must `select('… created_at')`; without it every account reads as unplaceable and is
+  refused. `tests/age-gate-null-policy.test.mjs` asserts every age-column select carries
+  `created_at` — the mistake fails the build rather than the login. **7/7 mutations
+  killed**, including both dropped-select cases and a forward cutoff move.
+- **COACHES SUBMIT A DOB NOW (owner-directed), end to end.** Approval provisions an auth
+  user **and** a coach profile, and **coach roles satisfy membership automatically** — so
+  under the new policy an approved coach with no date of birth would be entitled *and*
+  refused. The field is collected on both application forms (website `ProPersonal`,
+  mobile `BSProviderApplicationScreen`), validated with the shared derivation on submit,
+  **re-validated server-side in `/api/apply`** (18+ enforced there, not just in the UI),
+  persisted to the `provider_applications.dob` column that already existed and was never
+  written, and carried into the profile on approval — **never overwriting an existing
+  date**, since the DOB freeze makes the first write permanent and a service-role upsert
+  would otherwise be a way around it.
+- **`/auth/callback` now provisions the profile**, which the new policy makes *required*
+  rather than optional: it is the destination email confirmation actually lands on, it
+  previously only exchanged the code and redirected, and the signup action cannot write
+  the row (confirmation returns no session). Best-effort by design — a failed provision
+  must not strand the user on an error page, and the gates fail **closed** on the
+  resulting unproven row, so the failure mode is a refusal to enter, never a silent
+  admission.
+- Verified: suite **1605/1605**, `tsc` clean, `next build` exit 0 with
+  `ƒ Proxy (Middleware)`, mobile Vite build clean, newdesign precompile exit 0, CRLF
+  preserved on the two tracked-CRLF files, zero NUL bytes.
+- ⚠ **ROUND 13 — THE CURVE TURNED (4 → 2), AND BOTH FINDINGS WERE IN THE NEW POLICY
+  ITSELF, NOT A NEW CLASS.** Both answered questions raised on the previous head.
+  - **THE GRANDFATHER WAS FORGEABLE.** The cutoff keys on `profiles.created_at`, and
+    verified live: `users update own profile` is UPDATE to `authenticated` with
+    `USING = WITH CHECK = (auth.uid() = id)` and **no column restriction** — the exact
+    shape of the hole `2026-08-15-profiles-dob-immutable.sql` closed for
+    `date_of_birth`. So an authenticated caller with a null DOB could **backdate their
+    own row** (or INSERT one already backdated) and be grandfathered straight past the
+    gate. *A timestamp used as proof of legacy status must be server-controlled.*
+  - **APPROVING A LEGACY APPLICATION WOULD HAVE LOCKED OUT A REAL COACH.** Collection
+    protects only new submissions; `approveApplication()` still accepted rows whose
+    `dob` is null, then created the auth user and a **post-cutoff** coach profile — which
+    the new read-time policy refuses at every gated surface, with nothing on screen
+    explaining why. Approval now **refuses** rather than provisioning around it.
+- ⚠ **AND THE COLUMN THE COACH FIX WRITES DOES NOT EXIST IN PRODUCTION.**
+  `2026-04-17-provider-applications.sql` declares `dob date`; the LIVE table has 18
+  columns and none is `dob` (read from `information_schema`, not the file — the schema
+  drift this repo has now hit repeatedly). The round-12 insert naming that column would
+  have failed **42703 on every provider application**. The route now retries without it
+  on the stable unknown-column codes only, so deploy order is free and a genuine failure
+  still surfaces.
+- ⚠ **OWNER MIGRATION —
+  [`2026-08-16-created-at-freeze-and-application-dob.sql`](https://raw.githubusercontent.com/cperry8800-droid/shape-app/claude/radio-legal-gates/supabase-migrations/2026-08-16-created-at-freeze-and-application-dob.sql).**
+  Adds the missing `provider_applications.dob`, and makes `created_at` server-controlled
+  for non-privileged callers (stamped on INSERT, immutable on UPDATE; service_role /
+  migrations / dashboard exempt so a genuine backfill still works). ⚠ **Folded into
+  `set_over_18()`, NOT a sibling trigger** — BEFORE ROW triggers fire in **alphabetical**
+  order, so a separate guard could sort after the derivation and leave `over_18` computed
+  from a value the freeze then reverted, which is worse than the bug. **Until it is
+  applied the grandfather remains forgeable** — no regression (that state was admitted
+  before this wave), but the fix is not complete without it.
+- **Guards + mutation results:** the migration's freeze is pinned by a test that slices
+  the **function body** — asserting over the whole file matched the migration's own
+  structural-guard literals and passed while the trigger no longer froze anything
+  (caught by mutation-testing the test). Approval-refuses, no-overwrite, the
+  unknown-column retry and the validate-before-store ordering are all pinned. **11/11
+  mutations killed** across the two files. ⚠ One ordering assertion first matched
+  `resolveOrInviteProviderUser`'s **declaration** instead of its call — the third time
+  this exact trap has appeared in this wave; ordering assertions anchor on the
+  invocation.
+- Verified: suite **1610/1610**, `tsc` clean, `next build` exit 0 with
+  `ƒ Proxy (Middleware)`, mobile Vite build clean, newdesign precompile exit 0, CRLF
+  preserved, zero NUL bytes.
+- ✅ **MIGRATION APPLIED + VERIFIED LIVE 2026-08-16 (owner ran it).** `provider_applications.dob`
+  present; `set_over_18()` freezes `created_at` on UPDATE, stamps it on INSERT, and still
+  freezes `date_of_birth`. ⚠ **Proven BEHAVIOURALLY, not from `prosrc` text** — the source
+  guard is the weaker instrument. Impersonating a signed-in member owning the row
+  (`request.jwt.claims` + `set local role authenticated`), an UPDATE backdating
+  `created_at` to 2020-01-01 came back **unchanged** (`created_at_frozen=t`); the whole
+  probe was wrapped in a `raise exception` so it rolled back and left no trace.
+  ⚠ The same probe set `date_of_birth` on a row that had none, which is **correct, not a
+  leak** — the freeze deliberately allows the FIRST write (every legitimate provisioning
+  path is a first write). It does mean a self-asserted DOB is exactly that: the gate
+  protects the honest member, and real assurance would need identity verification.
+- ⚠ **ROUND 14 — flat at 2, and both were again answers to questions raised on the
+  previous head.** Both are now fixed.
+  - **THE PRE-MIGRATION FALLBACK DROPPED THE VALIDATED DATE.** An applicant would pass the
+    18+ check, be told their application was ready for review, and then be **permanently
+    unapprovable** — approval refuses a row it cannot age-place, and the dashboard has no
+    way to restore the value. Every application submitted between deploy and migration
+    would have needed manual database repair. The fallback now carries the
+    **server-validated** date in the jsonb `details` (never from client input, so it
+    cannot smuggle an unvalidated date past the check), and approval recovers it.
+    ⚠ It reassigns the OUTER `details`, because the file-upload step below does
+    `details = { ...details, documents }` and UPDATEs the row — writing the date straight
+    back out otherwise.
+  - **AN OLDER MIGRATION COULD SILENTLY REVERT THE FREEZE.** Three migrations
+    `create or replace` `set_over_18()` and all three are marked safe to re-run, so
+    replaying an older one reinstates a body without the freezes — and a `DO` guard inside
+    a migration only runs while THAT file is applied, so it cannot catch a later
+    replacement. **Every replayable definition now carries the FULL body**, and a test
+    scans the whole migrations directory and fails the build if any definition drops
+    either freeze.
+- ⚠ **THAT FORWARD GUARD IMMEDIATELY FOUND A THIRD DEFINITION NOBODY HAD CONSIDERED** —
+  `2026-06-22-age-verification.sql`, the original, with **no freeze of any kind**.
+  Replaying it would have reverted both the DOB freeze and the `created_at` freeze at
+  once. It is the clearest argument for the guard being a directory-wide scan rather than
+  a note in two files. **5/5 mutations killed**, including dropping either freeze from
+  either older migration.
+- Verified: suite **1611/1611**, `tsc` clean, `next build` exit 0 with `ƒ Proxy (Middleware)`,
+  CRLF preserved, zero NUL bytes.
+- ⚠ **ROUND 15 — STILL FLAT AT 2, AND IN THE SAME TWO SEAMS AS 13 AND 14.** The curve is the
+  finding: three rounds running, two per round, and every one of the six landed in either
+  *a validated DOB not reaching the surface that enforces it* or *the `set_over_18` forward
+  guard*. The repo's own rule (a flat curve means change approach, not patch again) applied,
+  so neither was fixed where it was reported.
+  - **THE ROUTE'S 18+ CHECK WAS ENFORCED WITHOUT UPDATING THE PRODUCERS, AND IT BROKE EVERY
+    COACH-APPLICATION DOOR BUT ONE.** `/api/apply` now refuses an application it cannot
+    age-place — correct, and the reason approved coaches keep working — but **four of the
+    five surfaces that POST to it never forwarded a date of birth**, so the route answered
+    400 to all of them. The two failure modes are opposite, which is why only one was
+    reported: the **mobile app fails OPEN and silently** (`submitProviderApplication` catches
+    any failed route call and falls back to a direct Supabase insert, so the server-side
+    re-check, the reviewer email and the file uploads were all bypassed with nothing on
+    screen), while `public/mobile/signup.jsx` and the two legacy `signup-{trainer,
+    nutritionist}.html` pages fail **CLOSED and loudly** — the applicant simply could not
+    apply. ⚠ Those legacy pages are **not vestigial**: 28 pages link them, they are in
+    `sitemap.xml`, and `next.config.ts` rewrites to them — the round-10 lesson repeating.
+    Fixed at all four, and the two legacy pages gained the DOB field they never had, loading
+    the shared `/age-derive.js` mirror and **failing closed when it is absent**.
+  - ⚠ **FORWARDING THE DATE FIXES THE TRIGGER, NOT THE MECHANISM.** Rewriting a **4xx** into
+    a direct insert is wrong whatever caused it: a refusal is not a transport failure, and a
+    genuinely under-18 mobile applicant would still have taken that path with the date
+    forwarded. `submitProviderApplicationToApi` now marks a 4xx `rejected` and the caller
+    re-throws instead of storing the application around the check that refused it. The
+    fallback still covers real outages, which is what it was for.
+  - ⚠ **THE MIGRATION GUARD REPORTED CLEAN ABOUT A DEFINITION IT COULD NOT SEE.** It keyed on
+    the exact lowercase `create or replace function public.set_over_18()`; Postgres does not
+    care about case or the space before the parens. **Verified rather than assumed** —
+    reformatting one header to `CREATE OR REPLACE FUNCTION public.set_over_18 ()` and deleting
+    `new.created_at := old.created_at` left every assertion green, because the three known
+    definitions kept the count satisfied. Deliberately **not** fixed by widening the literal
+    (the `pg_temp` scanner burned six rounds proving a hand-rolled matcher keeps differing
+    from Postgres's): the statement is now matched tolerantly, the freeze is asserted **per
+    file** so the fragile part — finding where a `$$`/`$tag$` body ends — is gone, and the
+    guard **fails closed** on ambiguity (a file defining it twice, or a known definer that
+    stops matching, is an error rather than a skip). **6/6 mutations killed.**
+  - ⚠ **AND MY OWN NEW GUARD PASSED FOR THE WRONG REASON — caught only by mutation-testing
+    it.** The assertion that a rejection is not swallowed matched `response.json().catch(() =>
+    ({}))` and the *other* function's `throw`, so deleting the re-throw left it green. It is
+    now anchored on the real `catch (apiError` block. The comment-stripper in the same file
+    hit the identical class: the obvious `/\/\*[\s\S]*?\*\//g` ran from a `/*` sitting inside
+    a `//` line to a `*/` hundreds of lines later and **deleted the function under test**.
+    Both are the same lesson as the guard above — *check the check before believing it*.
+  - Verified: suite **1616/1616** (+5), `tsc` clean, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile Vite build clean **with `dob:e.dob` confirmed in the
+    emitted bundle**, newdesign precompile exit 0, every touched file LF with zero NUL bytes.
+- ⚠ **ROUND 16 — THE SAME RULE, A DIFFERENT FIELD: so the MATRIX became the fix.**
+  Both findings real, neither fixed where it was reported.
+  - **`/api/apply` refuses a NUTRITIONIST application without the four NC1
+    `details.compliance_attestations`, and only ONE of the five surfaces supplied
+    them** — so every nutritionist applying from the mobile app, from `/mobile`, or from
+    the legacy page was answered 400 (and, before round 15's rethrow, the mobile one
+    fell back to a direct insert that skipped the route's own re-check). This is the
+    **second instance of one rule**: a server-side requirement added to the route
+    without updating its producers — round 15 was the identical shape with `dob`.
+    Patching the reported surface cannot converge, so the fix is the rule:
+    **`tests/provider-apply-requirements.test.mjs`** asserts a REQUIREMENTS × SURFACES
+    matrix — it counts the route's `status: 400` gates and fails if that count ≠ the
+    registered gates (a **new** gate breaks the build until every producer is updated),
+    fails if a registered gate vanished (a stale entry cannot mask a real one), and
+    asserts per-surface evidence for every gate that surface can reach (`types` exempts
+    the trainer page from nutritionist gates). **When a route requirement is the
+    recurring defect, gate the MATRIX, not the field.**
+    While auditing the rest: years-of-experience (floor **5**) and background-check
+    consent ARE satisfied on all five — the legacy pages carry `agreeBgCheck` and their
+    experience options all clear the floor — so attestations were the only real blocker.
+    The mobile app now **imports `REQUIRED_ATTESTATIONS` from
+    `src/lib/compliance/nutrition.mjs`** rather than re-typing it; the two classic
+    scripts that cannot import mirror it under the drift test.
+  - ⚠ **THE LEGACY PAGE NEEDED A STRICT-BOOLEAN MAP, NOT A COERCION — and I nearly
+    shipped the coercion.** `gatherApplicationData()` records a checkbox as the STRING
+    `'Yes'` or `'No'`, and **`'No'` is truthy**, so `Boolean(data['att_x'])` marks every
+    attestation affirmed regardless of what the applicant ticked. That is not a 400 the
+    applicant sees — it is a **fabricated compliance attestation** reaching the
+    reviewer, invisible to every other gate. Caught by reading the gather instead of
+    assuming unchecked ⇒ falsy; the rule (affirmed by value, never coerced) is pinned.
+  - ⚠ **THE FREEZE GUARD REPORTED CLEAN ABOUT A BODY IT COULD NOT SEE — the exact
+    trade-off round 15's own comment defended.** It asserted the three freezes over the
+    whole FILE, and these migrations carry a structural `DO` block that quotes them, so
+    a replacement `set_over_18()` freezing **nothing** passed. **Reproduced before
+    fixing (12 pass / 0 fail).** The guard now extracts the function **body** by
+    dollar-quote matching — tractable because a body cannot nest the same tag, which is
+    a delimiter match rather than the SQL lexing the `pg_temp` scanner kept losing on —
+    and **fails closed** on anything it cannot read.
+  - **One shared comment-stripper** (`tests/helpers/strip-comments.mjs`): that stripper
+    shipped a real defect only mutation-testing caught, and a second copy is a second
+    chance to reintroduce it.
+  - ⚠ **A PROCESS LESSON THAT COST REAL WORK:** mutation-testing with `git checkout --`
+    while the fix was **uncommitted** reverted four source fixes and **contaminated every
+    later case** (failure counts climbed for reasons unrelated to the mutation, and it
+    read as a healthy kill sequence). Commit the fix first, and run an unmutated **sanity
+    case at both ends** of the batch — that one line catches a wiped fix, a contaminated
+    tree, and a broken measurement at once. Which mattered: an earlier batch reported
+    **8/8 "survived"** purely because **`grep -oP` is unsupported in this shell**; the
+    saturated ratio was the tell.
+  - Verified: suite **1621/1621** (+5), `tsc` clean, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile Vite build clean **with the four attestation keys
+    confirmed in the emitted apply chunk** and `compliance_attestations` in the
+    request-body chunk, newdesign precompile exit 0, every touched file LF with zero NUL
+    bytes, **10/10 mutations killed**. ⚠ The legacy pages remain verified **statically
+    only** — no browser click-through (house rule), so a live nutritionist application
+    through that page is still unproven.
+- ⚠ **ROUND 17 — TWO FINDINGS, BOTH IN SEAMS THE EARLIER ROUNDS HAD NOT TOUCHED.**
+  Nothing came back in the apply-requirements or `set_over_18` seams, which is the
+  evidence rounds 15–16's structural answers held. Both real, both fixed.
+  ⚠ **CORRECTED after round 18 — this heading read "AND FOR THE FIRST TIME IN FIVE
+  ROUNDS BOTH LANDED IN NEW SEAMS", and the celebration was the error.** Round 17 did
+  not close a seam; it **opened** one, and round 18 found a P1 inside this round's own
+  playback fix plus the transfer over-claim still live on **six** other surfaces. Both
+  fixes below were incomplete when this entry was written. See ROUND 18. *Two rounds
+  running, a summary line here claimed more than the work had earned — a quantifier in
+  a heading outlives the paragraph that refutes it, so it is deleted rather than
+  softened.*
+  - ⚠ **SIGNED-OUT RADIO PLAYBACK — a licensing exposure, not polish.**
+    `ShapeRadioLive.play()` spans **two** awaits (the authenticated station read, then
+    `audio.play()`) and carried **no guard**, while the sibling poll **in the same IIFE**
+    has had a generation + abort guard since Codex's P1 on #1467. **Worse than
+    reported:** the sign-out path calls `pause()`, which is `if (el) el.pause()` — a
+    complete **no-op before the first play** — so the late resolution *creates* an
+    element and starts the stream. That is exactly the non-subscription rate
+    classification the signed-out path was removed to avoid.
+    Fixed with a generation gate that re-checks the generation **and the live identity
+    after EVERY await**, and stops audio it started in a losing window rather than
+    reporting success. The decision lives in a pure, unit-tested
+    **`mobile-app/src/services/playbackGate.mjs`** with the identity **INJECTED, never
+    captured** — a captured snapshot *is* the bug. 8 vectors drive the real gate
+    (including the no-op-pause case, last-wins overlap, a throwing identity source, and
+    a sign-out landing inside `audio.play()`); **5/5 mutations killed**.
+  - ⚠ **`privacy.html` ASSERTED TRANSFER SAFEGUARDS THE REPO DOES NOT HAVE — in a
+    published policy, for the subjects with the strongest rights.** The paragraph
+    claimed every EEA/UK recipient is covered by DPF **or** SCCs + UK Addendum + a TIA,
+    and that SCCs are maintained as a fallback *even for DPF-certified recipients*.
+    Checked against the evidence rather than taken on faith: the canonical spec carries
+    **seven `[VERIFY]`** markers, and the subprocessors table the paragraph *points at*
+    lists **~11 recipients under bare "per provider terms"** — including the two
+    highest-risk ones, **Jitsi** (audio + video of coaching consultations) and
+    **FormSubmit** (injuries, medications, allergies, emergency contact). The claim was
+    materially broader than anything verified.
+    Rewritten to state the *intended* safeguard, say plainly the work is unfinished,
+    point at the per-recipient basis, and offer to answer for a named recipient. **The
+    unverifiable fallback sentence is DELETED, not softened** (a quantifier claim is
+    removed, never swapped). This matches the register the **sibling paragraph already
+    set** about the Article 27 representatives — *"neither is in place yet; we would
+    rather tell you that than imply otherwise"* — which is what made the over-claim
+    obviously wrong in its own voice. Legal copy: still **DRAFT pending counsel**.
+  - Verified: suite **1629/1629** (+8), `tsc` clean, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile build clean with the gate in the emitted bundle,
+    newdesign precompile exit 0, `privacy.html` tag-balanced, all LF / zero NUL.
+- ⚠ **ROUND 18 — THREE FINDINGS, ALL THREE IN MY OWN ROUND-17 WORK, ALL THREE THE
+  SAME RULE AT A SURFACE THE PREVIOUS ROUND DID NOT SWEEP.** Round 17 was celebrated
+  here as "the first round to land outside both seams." That reading was wrong: it
+  opened a THIRD seam and round 18 found every place I had failed to close it. The
+  count (2 → 3) is the least interesting part; that all three were **regressions of
+  the fix itself** is the finding.
+  - ⚠ **P1 — READING LIVE IDENTITY IS NOT ENOUGH, because the identity is stale for
+    the whole sign-out.** `signOut()` bumps the sign-out generation as its FIRST
+    statement, but does not clear the cached user until **after** push teardown,
+    local-habit cleanup, the Supabase sign-out, the cookie DELETE and MusicKit
+    cleanup — every one of which awaits on a network. Through that entire window
+    `state.user` still returns the signed-out account, so the round-17 gate's
+    `identityFn` reported *live* while the session was being revoked: a pending
+    station read or `audio.play()` could pass every `live()` check, and audio already
+    playing simply kept playing until a late identity event finally called `pause()`.
+    **The round-17 fix was correct about the mechanism and wrong about the clock.**
+  - **THE FIX, at both ends, because neither half covers the other.** The gate now
+    takes **`signOutGen` as an epoch source** — the counter that moves FIRST — so any
+    pending attempt is refused the instant sign-out begins; and `signOut()` **stops
+    playback in the same breath as the bump, before its first `await`**, which is the
+    only thing that can stop audio ALREADY running. ⚠ **The file already had this
+    exact mechanism** (`bumpSignOutGen`, whose own header says it exists so parked
+    coroutines "cannot resume after the sweep") — I built a parallel generation
+    counter beside it instead of consulting it. *A new guard should first ask what the
+    file already guards with.*
+  - ⚠ **P2 ×2 — THE TRANSFER OVER-CLAIM HAD SEVEN SURFACES AND ROUND 17 FIXED ONE.**
+    The unverifiable fallback sentence deleted from `privacy.html` was still published
+    **verbatim** on `subprocessors.html` — the page `privacy.html` points at as
+    authoritative — so the two contradicted each other and the *canonical* one carried
+    the false claim. `data-compliance.html` carried a blanket "each is bound by
+    contract" claim, and **my own generalization edit had added video calling
+    underneath it**, bringing public `meet.jit.si` under a contractual guarantee its
+    own canonical page refutes.
+  - **A sweep then found FOUR MORE surfaces neither round named** — `privacy.html`'s
+    own subprocessor paragraph (same file, different section) and **three in the
+    mobile app** (in-app privacy, data-compliance, and subprocessors, one of them
+    stating SCCs as settled fact). All seven now state the per-recipient basis and
+    admit that several recipients currently rest on the provider's own published
+    terms. **This is the registered rule (fix the RULE, not the surface) failing twice
+    in a row: round 17 fixed where it was reported, and it was live in six other
+    places.**
+  - **`tests/legal-transfer-claims.test.mjs` gates the RULE, not the wording:** every
+    legal surface × every banned claim shape, plus a required honest qualifier, tied
+    to the **`[VERIFY]` markers still in the compliance spec** so the guard cannot be
+    switched off while the underlying facts are unchanged. A new legal surface must be
+    registered there — which is the point, since the failure mode being closed is
+    "fixed where it was reported, still live everywhere else."
+  - ⚠ **AND MY OWN VERIFICATION WAS THE BROKEN THING THREE TIMES IN ONE SESSION** —
+    a generic `function \w(a,b){let n=0` regex matched a coincidental function and
+    "confirmed" a gate that was in a different chunk; a 3000-char window around an
+    arbitrary anchor put an unrelated `await` at offset 3 and reported the stop as
+    happening *after* the awaits; and a bare `gs=` search matched `gs=this` elsewhere
+    in the bundle. Each looked like a finding. The honest confirmation needed
+    **brace-matching the real `signOut` body out of the minified bundle** — which then
+    showed `async function _s(){so();try{gs?.()}catch{}try{await _o()}...}`, i.e. bump
+    → stop → first await, with `gs = function(){ c.supersede(), e&&e.pause() }`.
+    *Check the check before believing it — including when the check is yours.*
+  - Verified: suite **1644/1644** (+15), `tsc` exit 0, `next build` exit 0 with
+    `ƒ Proxy (Middleware)`, mobile build exit 0 with **the epoch wiring AND the
+    pre-await stop confirmed in the emitted bundle** (not just in source), newdesign
+    precompile exit 0, all three legal pages tag-balanced, every touched file LF with
+    zero NUL bytes, **9/9 mutations killed** with unmutated sanity cases reading
+    `fail 0` at both ends of the batch.
+- **P1 — the age gate admitted a real minor for one day, and the two gates disagreed
+  about them.** `isMinorFromDob` derived its adult cutoff with
+  `Date.UTC(year - 18, month, day)`, which **ROLLS** an impossible anniversary forward
+  (Feb 29 → Mar 1), while Postgres `date - interval '18 years'` **CLAMPS** it back
+  (Feb 29 → Feb 28). So on **Feb 29 of a leap year** a member born exactly 18 years
+  earlier on **Mar 1** — 17 years and 364 days old — read as an **ADULT** in JS and a
+  **MINOR** to the `set_over_18()` trigger: the unsafe direction, and the two
+  derivations disagreeing about one person, which is the entire reason the shared module
+  exists. Both cutoffs verified against **production Postgres**
+  (`2028-02-29 - interval '18 years'` = `2010-02-28`); recurs 2028, 2032, 2036…
+  The clamp takes day 0 of the following month; only February can roll, but the guard is
+  general. ⚠ **The 11 original vectors varied the BIRTHDAY and never the REFERENCE
+  DATE**, so the one boundary the file existed to protect was the direction it did not
+  test. New vector **mutation-tested**: 12 pass with the clamp, 11 pass / 1 fail without.
+- ⚠ **A re-typed list is what goes stale.** `age-gate.ts` copied the gated-prefix list as
+  **five** prefixes; `GATED_API_PREFIXES` holds **seven** — `/api/conversations` and
+  `/api/messages` are gated in reality, so a reader auditing coverage from that header
+  concluded **chat was ungated when it is gated**. The header now points at the constant
+  instead of copying it. `warroom.ts` carried counts derived from the same stale list
+  (46/111); **re-measured: 157 `/api` routes, 48 inside, 109 outside**, with the
+  authenticated-outside figure marked **DERIVED, not re-measured** (~75, was 77) so the
+  next reader does not quote a number nobody checked.
+- **`middleware.ts` — the line that actually refuses the request** — claimed `over_18`
+  "cannot be self-asserted, so an explicit false is a proven minor" **unqualified**: the
+  one site of five that failed to name the freeze migration its guarantee depends on, and
+  it described the `over_18`-only mechanism that no longer matches the code.
+- ⚠ **`src/lib/supabase/middleware.ts` IS CRLF AT REST** (11 of 238 `.ts` files are; no
+  `.gitattributes`). A whole-file LF normalisation had turned a 7-line change into a
+  **596-line diff** — reviewers read 596 lines of churn to find seven, and it guaranteed
+  a conflict with any branch touching the file. Restored to CRLF: **14+/1−**; whole PR
+  1359/488 → **1106/194**. Verify with `tr -cd '\r' < f | wc -c` — **`grep -c $'\r'` is
+  unreliable in this shell** and reported 0 CR on a file holding 295.
+- **The pattern, eight rounds in:** every round from 5 onward found a defect adjacent to
+  or caused by the preceding fix, and round 8 is the sharpest — severity went *up*
+  (P2s → a P1) because round 7 added a **new file** whose only review was mine. A flat
+  findings curve says change approach; a curve that **rises after a late addition** says
+  the addition is the unreviewed surface.
+- Suite **1579/1579** on the merged head (branch alone 1542, +3 this round); `tsc` clean; `next build` exit 0 with `ƒ Proxy (Middleware)`
+  present (the proof the pure `.mjs` still bundles into the edge chain). Design hook: all
+  22 findings **net zero** vs `origin/main` (radio.html's font count went 9 → 8 — the
+  branch *removed* one), classified per the standing no-suppression ruling.
+
 ### 2026-08-15 — The shared-device sign-out wave: user content, PWA caches, and gyms off the nav chrome (#1883 → `f91a6dfa8` · #1885 → `17f3fb2c7` · #1889 → `f85ea4531`)
 
 - **The problem, in one line: signing out left the previous person's data on the device.**

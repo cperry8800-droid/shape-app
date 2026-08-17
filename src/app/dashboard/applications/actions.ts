@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
+// The shared 18+ derivation — approval must not provision a coach the gates cannot place.
+import { isMinorFromDob } from '@/lib/age-derive.mjs';
 import {
   BackgroundCheckStatus,
   asRecord,
@@ -25,6 +27,7 @@ type ProviderApplication = {
   specialty: string | null;
   years_experience: string | null;
   monthly_price: string | null;
+  dob: string | null;
   details: Record<string, unknown> | null;
 };
 
@@ -151,22 +154,31 @@ async function updateProfileRole(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   role: ProviderRole,
-  fullName: string
+  fullName: string,
+  dob: string | null
 ) {
   const { data: profile } = await admin
     .from('profiles')
-    .select('role, roles, full_name')
+    .select('role, roles, full_name, date_of_birth')
     .eq('id', userId)
     .maybeSingle();
 
   const existingRoles = Array.isArray(profile?.roles) ? profile.roles : [];
   const roles = Array.from(new Set([...existingRoles, role]));
 
+  // ⚠ CARRY THE DATE OF BIRTH. An approved application provisions an auth user
+  // and a coach profile, and coach roles satisfy membership automatically — so a
+  // provider row with no DOB used to be an entitled, ungated account. Under the
+  // read-time policy (absence no longer admits) it would instead be REFUSED, so
+  // writing it here is what keeps approved coaches working. Never overwrite an
+  // existing date: the DOB freeze makes the first write permanent, and a
+  // service-role upsert would otherwise be a way around it.
   const { error } = await admin.from('profiles').upsert({
     id: userId,
     role: profile?.role ?? role,
     roles,
     full_name: profile?.full_name || fullName,
+    ...(profile?.date_of_birth ? {} : dob ? { date_of_birth: dob } : {}),
   });
   if (error) throw error;
 }
@@ -310,10 +322,35 @@ export async function approveApplication(formData: FormData): Promise<void> {
   if (!isBackgroundCheckClear(typed.details)) {
     throw new Error('Background check consent and a clear background check are required before approval.');
   }
+  // ⚠ REFUSE TO PROVISION A COACH WE CANNOT AGE-PLACE. Approval creates an auth
+  // user AND a coach profile, and coach roles satisfy membership automatically —
+  // so a provider row with no date of birth is an entitled account that the
+  // read-time gates (absence no longer admits) will refuse at every surface.
+  // Applications submitted before the DOB field existed carry none, so this
+  // stops an admin turning a legacy row into a coach who is locked out of the
+  // product on their first login, with nothing on screen explaining why.
+  // Deliberately a hard refusal rather than a silent omission: the fix is to
+  // collect the applicant's date of birth, not to provision around it.
+  // ⚠ RECOVER THE DATE FROM `details` WHEN THE COLUMN IS ABSENT. Applications
+  // submitted between deploy and the 2026-08-16 migration are stored by the
+  // fallback path in /api/apply, which carries the server-validated date in the
+  // jsonb `details` because the column does not exist yet. Without this, those
+  // applicants pass validation, are told they are ready for review, and are then
+  // permanently unapprovable with no way for an admin to restore the value.
+  const applicantDob =
+    typed.dob ||
+    (typeof (typed.details as Record<string, unknown> | null)?.dob === 'string'
+      ? ((typed.details as Record<string, unknown>).dob as string)
+      : null);
+  if (!applicantDob || isMinorFromDob(applicantDob) !== false) {
+    throw new Error(
+      'This application has no verified date of birth (Shape is 18+). Ask the applicant to resubmit, or record their date of birth on the application, before approving.'
+    );
+  }
 
   const authUser = await resolveOrInviteProviderUser(admin, typed);
   const fullName = `${typed.first_name} ${typed.last_name}`.trim();
-  await updateProfileRole(admin, authUser.id, typed.provider_type, fullName);
+  await updateProfileRole(admin, authUser.id, typed.provider_type, fullName, applicantDob);
   const providerId = await publishProviderRow(admin, typed, authUser.id);
 
   const nextDetails = {

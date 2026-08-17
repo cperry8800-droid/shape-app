@@ -232,18 +232,16 @@
       <p><strong>With the coach(es) you subscribe to or book.</strong> A trainer you've subscribed to sees the workout data, goals, and messages relevant to coaching you. A nutritionist you hire sees your meal log and targets. You control the relationship: cancel any time and that coach's ongoing access ends.</p>
       <p><strong>Publicly visible information.</strong> Some profile information is visible to other Shape members by design: your name or handle, profile photo, role, Shape Score and tier, and anything you post publicly or set to "Profile" visibility. This information may appear on your public profile, in community feeds, in search, and on leaderboards. You control it in Settings — set your profile to <strong>Public</strong>, <strong>Friends</strong>, or <strong>Private</strong>. Your health, training, and nutrition data is never made public; it is limited to you and the coach(es) you link with.</p>
       <p>The coaches you link with are <strong>independent professionals and third-party recipients</strong> of the data you choose to share with them — not our processors. They agree by contract to keep it confidential, use it only to coach you, and meet their own legal obligations.</p>
-      <p><strong>With subprocessors who help us run Shape.</strong> Each is bound by contract to protect your data and use it only to deliver their service to us. The complete, versioned list — with the data each receives, its region, and the transfer safeguard — is on our <a href="/subprocessors.html">Subprocessors</a> page. In summary:</p>
+      <p><strong>With subprocessors who help us run Shape.</strong> Each is engaged to protect your data and use it only to deliver their service to us. <strong>For most that restriction is a contract we have signed; for a few it currently rests on the provider's own published terms.</strong> Our <a href="/subprocessors.html">Subprocessors</a> page states which basis applies to each one, alongside the data it receives and its region — that per-service detail is the accurate picture, not a single promise here. In summary:</p>
       <ul>
-        <li><strong>Supabase</strong> — database, authentication, and file storage (holds the bulk of your data, including health data).</li>
-        <li><strong>Stripe</strong> — payments, subscriptions, Connect payouts to coaches. See <a href="https://stripe.com/privacy" rel="noopener">Stripe's privacy policy</a>.</li>
-        <li><strong>Vercel</strong> — web hosting, edge delivery, and product analytics. See <a href="https://vercel.com/legal/privacy-policy" rel="noopener">Vercel's privacy policy</a>.</li>
-        <li><strong>Cloudflare</strong> — DNS, network security, and the Turnstile bot check.</li>
-        <li><strong>OpenAI</strong> — the "Nora" assistant, voice transcription, and text-to-speech. Depending on the feature, the text sent <strong>can include health and fitness context</strong>; it is processed only to generate your response.</li>
-        <li><strong>Google Firebase Cloud Messaging</strong> — push notifications.</li>
-        <li><strong>Resend</strong> — transactional (and, where you opt in, marketing) email.</li>
-        <li><strong>Instacart</strong> — only when you choose to send it a grocery list.</li>
-        <li><strong>Wearable &amp; audio services you connect</strong> — Apple Health, Strava, Garmin, Whoop, Oura, Spotify.</li>
+        <li><strong>Infrastructure</strong> — hosting, our database, authentication, and file storage. This is where the bulk of your data, including health data, lives.</li>
+        <li><strong>Payments</strong> — to take payment and pay coaches out.</li>
+        <li><strong>AI features</strong> — the "Nora" assistant, voice transcription, and text-to-speech. Depending on the feature, the text sent can include health and fitness context.</li>
+        <li><strong>Messaging &amp; email</strong> — push notifications and transactional (and, where you opt in, marketing) email.</li>
+        <li><strong>Security &amp; delivery</strong> — DNS, bot protection, error reporting, fonts and other files your browser fetches to load a page.</li>
+        <li><strong>Features you switch on</strong> — the wearables, music services, food databases, video calling, and grocery hand-off you choose to connect or use.</li>
       </ul>
+      <p><strong>The full list is on one page, and it is the canonical one:</strong> our <a href="/subprocessors.html">Subprocessors</a> page names every service, what data each receives, whether it touches health data, where it processes it, and the transfer safeguard that applies. We keep it there rather than repeating it here so the two can never disagree.</p>
       <p>We <strong>do not sell</strong> your personal information and <strong>do not share</strong> it for cross-context behavioral advertising, and we do not use your fitness or health data to train artificial-intelligence models.</p>
       <p><strong>With law enforcement or legal counterparties</strong> when required by subpoena, court order, or applicable law, or to protect the rights, safety, and property of Shape or others.</p>
       <p><strong>In connection with a business transfer</strong> (merger, acquisition, financing) — recipients are bound by this policy.</p>
@@ -257,7 +255,7 @@
         <li>TLS 1.2+ for all traffic in transit.</li>
         <li>Encryption at rest for database tables and storage.</li>
         <li>Role-based access controls; engineering staff access logged and minimized.</li>
-        <li>Short-lived session tokens with automatic rotation.</li>
+        <li>Session cookies that are <code>httpOnly</code> — not readable by scripts in your browser — set to expire after 30 days and refreshed as you keep using Shape. Signing out invalidates the session.</li>
         <li>Payment data handled only by Stripe (PCI-DSS Level 1).</li>
         <li>Regular dependency audits and vulnerability patching.</li>
       </ul>
@@ -278,7 +276,7 @@
         <li><strong>Withdraw consent</strong> (including for health data), <strong>object to or restrict</strong> processing, and <strong>opt out of marketing</strong> (unsubscribe links in every marketing email; transactional email cannot be disabled).</li>
         <li><strong>Appeal</strong> a decision we make on your request, and be free from discrimination for exercising any right.</li>
       </ul>
-      <p><strong>How to exercise them.</strong> Use our <a href="/privacy-request.html">privacy request form</a>, export or delete your data directly in <strong>Settings</strong>, or email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>. You may use an authorized agent. We verify your identity proportionately. We acknowledge California requests within 10 business days and respond within 45 days; GDPR and other state requests within one month (extendable where the law allows). If we deny a request you may appeal by replying to our response; if an appeal is denied you may contact your state attorney general or, in the EEA/UK, lodge a complaint with your data protection authority.</p>
+      <p><strong>How to exercise them.</strong> Use our <a href="/privacy-request.html">privacy request form</a>, export or delete your data directly in <strong>Settings</strong>, or email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>. You may use an authorized agent. We verify your identity proportionately. We <strong>respond to every request within 30 days</strong>, wherever you live — we apply one timeline rather than the different maximum each law allows. California requests are additionally <strong>acknowledged within 10 business days</strong>. If a request is genuinely complex we may need longer where the law permits an extension; we will tell you before the 30 days is up. If we deny a request you may appeal by replying to our response; if an appeal is denied you may contact your state attorney general or, in the EEA/UK, lodge a complaint with your data protection authority.</p>
       <p><strong>EEA/UK lawful bases (GDPR).</strong> We rely on: <em>contract</em> for your account, core coaching, and payments; <em>explicit consent</em> for health/special-category data and for optional analytics and marketing; <em>legitimate interests</em> for security, fraud prevention, and product improvement; and <em>legal obligation</em> for tax and compliance records.</p>
     </section>
 
@@ -312,14 +310,22 @@
 
     <section class="section" id="s6">
       <div class="num">10</div>
-      <h2>Cookies &amp; tracking</h2>
+      <h2>Cookies, device storage &amp; tracking</h2>
       <p>We use cookies and similar technologies for these purposes:</p>
       <ul>
         <li><strong>Strictly necessary:</strong> session cookies that keep you logged in and protect against CSRF, and the Cloudflare Turnstile bot-protection challenge on login/signup forms (which processes your IP to tell humans from bots). Cannot be disabled without breaking the site.</li>
         <li><strong>Functional:</strong> remember your preferences (e.g., dashboard view, active role) across sessions.</li>
-        <li><strong>Analytics:</strong> Vercel Analytics collects aggregate, privacy-friendly usage data (page views, referrers) to help us improve the product — no advertising pixels and no cross-site tracking.</li>
-        <li><strong>Fraud prevention:</strong> on pages with payments, our processor Stripe sets its own cookies (e.g., <code>__stripe_mid</code>, <code>__stripe_sid</code>) to detect and prevent fraud.</li>
+        <li><strong>Analytics — no cookies:</strong> we use Vercel Analytics, which is <strong>cookieless</strong>: it collects aggregate usage data (page views, referrers) without setting a cookie or an identifier on your device, and does no advertising or cross-site tracking. It is listed here for transparency, not because it stores anything on your device.</li>
       </ul>
+      <p><strong>Storage on your device is a bigger footprint than cookies, and it is worth being specific about.</strong> Shape keeps working data in your browser's or app's local storage — this is how the app stays fast and usable offline. Depending on what you use, it can include:</p>
+      <ul>
+        <li><strong>Your session</strong> — the signed-in session for the app, and the account identifier used to restore it.</li>
+        <li><strong>Messages</strong> — cached chat threads and message text, including direct messages, so a conversation opens instantly.</li>
+        <li><strong>Health and intake information</strong> — if you complete the sign-up questionnaire on the web, your answers (which can include injuries, medications, allergies and an emergency contact) are kept in local storage on that device so the form survives a reload.</li>
+        <li><strong>Names and profile details</strong> of people you interact with, cached to render lists and threads.</li>
+        <li><strong>Your preferences</strong> — appearance and theme, units, saved layouts, Shape Radio settings and saved-track bookmarks (title and artist text only), onboarding progress, and your cookie/consent choice.</li>
+      </ul>
+      <p>This data stays on your device. It is not an advertising identifier and we do not use it to track you across other sites. <strong>Clearing your browser or app storage removes all of it.</strong> <strong>Signing out</strong> clears your session and the stored content tied to your account — but a few device-only preferences deliberately stay, so Shape looks and sounds the same the next time you sign in: your appearance, theme and text-size choices, and whether Shape Radio is switched on. Clear your browser or app storage to remove those too. On a shared device, sign out when you are done.</p>
       <p>We do not use advertising or cross-site tracking cookies. For visitors in the EEA and the UK we present a <strong>consent banner</strong> to control non-essential storage, and we honor the Global Privacy Control signal. You can also block or delete cookies in your browser settings; doing so may sign you out or disable certain features.</p>
     </section>
 
@@ -345,14 +351,16 @@
     <section class="section" id="s9">
       <div class="num">13</div>
       <h2>International transfers &amp; representatives</h2>
-      <p>Shape is operated from the United States, so if you access it from outside the U.S. your personal data is transferred to, stored in, and processed in the U.S. For people in the EEA and the UK, we rely on the safeguard appropriate to each recipient — the <strong>EU-US Data Privacy Framework</strong> where the recipient is certified, or European Commission <strong>Standard Contractual Clauses</strong> (with the UK International Data Transfer Addendum) and a transfer impact assessment where it is not. The per-recipient safeguard is listed on our <a href="/subprocessors.html">Subprocessors</a> page.</p>
-      <p><strong>EU &amp; UK representatives.</strong> Where required by Article 27 of the GDPR / UK GDPR, we will appoint and publish here an EU representative and a separate UK representative who can be contacted about this policy. <em>(Appointment in progress.)</em> Until then, reach us at <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
+      <p><strong>Shape is available worldwide.</strong> Our infrastructure is hosted in the United States, so wherever you use Shape from, your personal data is transferred to, stored in, and processed in the U.S., and in the other locations listed for each service on our <a href="/subprocessors.html">Subprocessors</a> page. We apply the same standard of protection to everyone, wherever you are — we do not run a weaker policy outside the regions that require a stronger one.</p>
+      <p><strong>Safeguards for EEA and UK transfers.</strong> The safeguard we intend for each recipient is the <strong>EU-US Data Privacy Framework</strong> where that recipient is certified, or European Commission <strong>Standard Contractual Clauses</strong> (with the UK International Data Transfer Addendum) and a transfer impact assessment where it is not. <strong>That work is not finished, and we would rather say so than imply otherwise.</strong> For a number of the recipients on our <a href="/subprocessors.html">Subprocessors</a> page the current basis is that provider's own published terms — the page states the basis we hold for each one, recipient by recipient, and that is the accurate picture. Executing Standard Contractual Clauses and completing transfer impact assessments where they are still outstanding is in progress. If the safeguard for a specific recipient matters to you, ask us at <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a> and we will tell you exactly what is in place for it.</p>
+      <p><strong>EU &amp; UK representatives.</strong> Because Shape has no establishment in the EU or the UK, Article 27 of the GDPR and of the UK GDPR each require a representative, and they cannot be the same one. <strong>Both will be named in this section, with a postal address</strong> — this is where to look for them. Appointment is in progress and neither is in place yet; we would rather tell you that than imply otherwise. Until they are, raise anything in this policy with us directly at <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>, and you keep your right to complain to your own supervisory authority.</p>
+      <p><strong>Elsewhere in the world.</strong> Where the law of your own country gives you rights beyond those described here, those rights apply to you and we honor them — including the local-law protections described in Section 11 of our <a href="/terms.html">Terms</a>. Shape Radio is the one feature we limit by territory, for music-licensing reasons: we will offer it only where the licenses for non-interactive webcasting are in place, which at launch means the <strong>United States and United Kingdom</strong>. We will not stream to a territory before those licenses cover it.</p>
     </section>
 
     <section class="section" id="s10">
       <div class="num">14</div>
       <h2>Changes to this policy</h2>
-      <p>We may update this privacy policy. Material changes will be announced via email or in-app notice at least 14 days before taking effect. The "Last updated" date at the top of this page always reflects the current version. Continued use after the effective date means you accept the updated terms.</p>
+      <p>We may update this privacy policy. Material changes will be announced via email or in-app notice at least 30 days before taking effect. The "Last updated" date at the top of this page always reflects the current version. Continued use after the effective date means you accept the updated terms.</p>
     </section>
 
     <section class="section" id="s11">
@@ -410,7 +418,6 @@
     </div>
     <div class="footer-base">
       <span>© 2026 SHAPE</span>
-      <span>BROOKLYN · LISBON · MELBOURNE</span>
     </div>
   </div>
 </footer>

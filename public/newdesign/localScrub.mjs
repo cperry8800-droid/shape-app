@@ -33,7 +33,22 @@
 
 export const SHAPE_SCRUB_KEYS = [
   // ── website / newdesign families ──────────────────────────────────────────
+  // ⚠ SCRUBBED UNCONDITIONALLY, INCLUDING AN UNDELIVERED RECORD — DELIBERATE,
+  // and the reason is written here because it reads like a bug and was reported
+  // as one. On a shared browser, person A can sign up on the email-confirm path
+  // (no session, so nothing can flush yet) and person B's later sign-out then
+  // deletes A's pending questionnaire. That IS what happens. It is still the
+  // right trade: this record carries PAR-Q answers, injuries and medications,
+  // and leaving one account's health data on a shared device after sign-out is
+  // the exposure the whole inventory exists to prevent — worse, for the same
+  // statute, than re-asking. It is NOT permanent data loss: `healthGate` in
+  // iosAppBroadsheetClient.jsx is a REQUIRED, non-escapable pre-app gate keyed
+  // on `health_profile.consentAt`, so a member with no delivered intake is made
+  // to complete the same PAR-Q before reaching the app — and that document is
+  // what the coach read (`get_client_health_profile`) actually surfaces.
+  // Do not "fix" this into an owner-scoped keep without revisiting both.
   'shapeClientIntake_v1',   // signup intake — can carry health details
+  'shapeClientIntake_v1_synced', // owner email of the intake above — goes with it
   'shapeConsultations',     // bookings — contact details
   'shape.dashMealDrafts',   // coach drafts about named clients
   'shape.dashBuilderDrafts',

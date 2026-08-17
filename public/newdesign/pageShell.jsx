@@ -513,7 +513,6 @@ function Footer({ logoHeight = 64 } = {}) {
         </div>
         <div className="shape-footer-base" style={{ marginTop: 36, paddingTop: 18, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.42)" }}>
           <span>© 2026 SHAPE</span>
-          <span>BROOKLYN · LISBON · MELBOURNE</span>
         </div>
       </div>
     </footer>
@@ -1441,6 +1440,7 @@ window.shapeClearLocalUserContent = function (opts) {
   try {
     [
       "shapeClientIntake_v1",   // signup intake — can carry health details
+      "shapeClientIntake_v1_synced", // owner email of the intake above — goes with it
       "shapeConsultations",     // bookings — contact details
       "shape.dashMealDrafts",   // coach drafts about named clients
       "shape.dashBuilderDrafts",

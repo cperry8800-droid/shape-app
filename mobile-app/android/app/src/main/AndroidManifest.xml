@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- allowBackup=false: Android's OS backup is OFF for Shape.
+         Excluding only app_webview/ left everything else in the sandbox
+         (SharedPreferences written by Capacitor and its plugins, files/,
+         databases/) still going to the user's Google Drive — so Google was a
+         recipient of app data for a health app, with no way for us to bound
+         what ended up there. Nothing is lost by disabling it: all real state is
+         server-side, and what is local is the auth session plus caches, which a
+         restore must NOT resurrect on another device anyway.
+         The two rules files below are kept deliberately as defense in depth —
+         they take effect if allowBackup is ever flipped back to true. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"

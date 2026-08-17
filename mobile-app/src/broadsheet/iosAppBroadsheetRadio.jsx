@@ -9,6 +9,51 @@ import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 //   • BSRadioScreen    — full radio page (live + coach playlists)
 //   • BSRadioContext   — global "is radio on, what's playing" state
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚠ NON-INTERACTIVE BOUNDARY — A LICENSING CONSTRAINT, NOT A PRODUCT PREFERENCE
+//
+// Shape Radio streams under the US statutory licence for non-interactive
+// digital audio transmission (17 U.S.C. §114 / SoundExchange) plus the
+// performing-rights licences for the underlying compositions. That licence is
+// available ONLY to a service the listener cannot steer. Crossing any line
+// below removes the statutory licence entirely and puts Shape into direct
+// per-label negotiation for master rights — a different company, not a
+// different feature flag.
+//
+// The four prohibitions, verbatim in effect:
+//   1. NO TRACK SELECTION      — a listener may never choose what plays next.
+//   2. NO ON-DEMAND REPLAY     — a specific recording may never be replayed
+//                                on request.
+//   3. NO ADVANCE PLAYLIST     — never publish, or let anyone else publish,
+//                                the titles of upcoming recordings or their
+//                                featured artists before they air.
+//   4. NO SKIP-TO-SPECIFIC     — no seek, no "play this one", no per-track
+//                                skip that lets a listener converge on a
+//                                chosen recording.
+//
+// What is deliberately SAFE here, and why — do not "improve" these:
+//   • `nowPlaying` names the CURRENT recording only. Contemporaneous display
+//     is permitted; advance display is not.
+//   • `saveTrackToLibrary` stores TEXT METADATA ONLY (see makeRadioTrackPayload:
+//     key/title/artist/bpm/len/savedAt). It holds no audio, no stream handle and
+//     no addressable track id, so it is a bookmark for the member's own Spotify/
+//     Apple account — never a replay affordance. Keep it metadata-only.
+//   • Coach soundtracks are LINK-OUTS, guaranteed at the schema layer:
+//     `coach_soundtracks.provider` is CHECK-constrained to ('spotify','apple')
+//     and playback is `window.open(url)` into the member's own account under
+//     that provider's licence to them. They never enter Shape's stream. A coach
+//     ordering recordings inside OUR stream would be interactive — never build it.
+//   • Shape Sets (`nora_sets`) publishes SHOWS — title/dj/time — not track
+//     lists. A programme schedule is permitted; a recording schedule is not.
+//     ⚠ AUTHORING RULE: `title`, `dj` and `blurb` are unconstrained free text
+//     written by ops via service_role. A set titled or described with a
+//     FEATURED ARTIST or a specific recording becomes a prior announcement and
+//     breaks prohibition 3. Name shows for the DJ or the mood, never the music.
+//
+// Anything that would let a listener answer "play THAT track, now" is out of
+// scope permanently. Route such requests to the owner, not to a workaround.
+// ─────────────────────────────────────────────────────────────────────────────
+//
 // Visual rhythm: black ink, cream paper, hairlines + slabs.
 // Light effects:
 //   - Audio-bar EQ in mono ink (animated heights).
@@ -166,10 +211,27 @@ function BSRadioProvider({ children }) {
   const [radioOn, setRadioOn]       = useStateBR(_radioPref ? !!_radioPref.on : false);
   const [askedPrompt, setAsked]     = useStateBR(_radioPref ? !!_radioPref.asked : false);
   const [showPrompt, setShowPrompt] = useStateBR(false);
+  // Ticks when the signed-in identity changes, so the playback effect below
+  // re-evaluates its auth gate. Needed because this provider mounts above the
+  // async auth gate: on a cold launch the cached session is not resolved yet,
+  // so the first evaluation must be allowed to fail closed and then re-run.
+  const [authTick, setAuthTick] = useStateBR(0);
+  useEffectBR(() => {
+    const bump = () => setAuthTick((n) => n + 1);
+    window.addEventListener('shape:identity', bump);
+    window.addEventListener('shape:signedOut', bump);
+    return () => {
+      window.removeEventListener('shape:identity', bump);
+      window.removeEventListener('shape:signedOut', bump);
+    };
+  }, []);
   const [paused, setPaused]         = useStateBR(_radioPref ? !_radioPref.on : true);
   // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW") — kept
   // for the muted/fallback display path; live now-playing overrides via nowPlaying state.
-  const [trackIdx, setTrackIdx]     = useStateBR(0);
+  // ⚠ No trackIdx/setTrackIdx here, deliberately. A track-index setter on this
+  // context is a ready-made "play track N" affordance — prohibition 1 + 4 of the
+  // NON-INTERACTIVE BOUNDARY at the top of this file. The pair existed with zero
+  // consumers and was removed rather than left as a foothold. Do not reintroduce.
   const [nowPlaying, setNowPlaying] = useStateBR(null);
   const [activeChannel, setChannel] = useStateBR('live');
   // The Shape Sets schedule + the stream gate, resolved ONCE here and shared
@@ -251,13 +313,22 @@ function BSRadioProvider({ children }) {
     }
     // Start poll once (covers both paused and playing states so now-playing stays fresh).
     window.ShapeRadioLive?.startPolling?.((np) => setNowPlaying(np));
-    if (paused) {
+    // ⚠ PLAYBACK REQUIRES A SIGNED-IN ACCOUNT — licensing, not product.
+    // `shape.radio.pref` persists {on:true} across sign-out by design (the
+    // prompt must not re-ask), and this provider mounts ABOVE the async auth
+    // gate. So without this check a signed-out launch — or a reload right
+    // after logout — resumes the stream for a non-subscriber, which is the
+    // non-subscription rate classification the signed-out path was removed to
+    // avoid (see the NON-INTERACTIVE BOUNDARY at the top of this file).
+    // Fails CLOSED: unresolved auth does not play.
+    const bsRadioSignedIn = !!window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (paused || !bsRadioSignedIn) {
       window.ShapeRadioLive?.pause?.();
     } else {
       window.ShapeRadioLive?.play?.();
     }
     return () => window.ShapeRadioLive?.stopPolling?.();
-  }, [radioOn, paused]);
+  }, [radioOn, paused, authTick]);
 
   // The key for the track on air, built from the RAW now-playing fields (NOT the
   // '—'-substituted display copy), so a title-only or artist-only track keys the
@@ -373,7 +444,7 @@ function BSRadioProvider({ children }) {
 
   const value = {
     radioOn, setRadioOn, setRadioPreference, paused, setPaused,
-    trackIdx, setTrackIdx, nowPlaying, activeChannel, setChannel,
+    nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
     fxMode, setFxMode, fxColor, setFxColor,
     songSocial, voteSong, commentSong, loadSongSocial, currentSongKey,
@@ -1635,7 +1706,7 @@ function useBSSetsSchedule() {
   useEffectBR(() => {
     let on = true;
     const derive = () => { if (on) setState({ ...bsSetsNow(rowsRef.current, Date.now()), real: realRef.current }); };
-    Promise.all([
+    const load = () => Promise.all([
       window.ShapeNoraSets ? window.ShapeNoraSets.list() : Promise.resolve([]),
       window.ShapeRadioLive ? window.ShapeRadioLive.station() : Promise.resolve(null),
     ]).then(([rows, cfg]) => {
@@ -1644,8 +1715,18 @@ function useBSSetsSchedule() {
       realRef.current = !!(cfg && cfg.configured);
       derive();
     }).catch(() => {});
+    load();
+    // ⚠ The station route is SIGNED-IN ONLY, so a mount that beats the session
+    // resolve reads configured:false. That errs SAFE — it under-reports rather
+    // than painting a LIVE badge over a stream that cannot play, which is this
+    // hook's stated contract — but under-reporting is still wrong, so re-read
+    // once auth lands. The 60s interval only re-DERIVES from cached rows; it
+    // never re-fetches, so without this the first read would stand for the
+    // whole mount.
+    const onAuth = () => { load(); };
+    window.addEventListener('shape:identity', onAuth);
     const id = setInterval(derive, 60000);
-    return () => { on = false; clearInterval(id); };
+    return () => { on = false; clearInterval(id); window.removeEventListener('shape:identity', onAuth); };
   }, []);
   return state;
 }

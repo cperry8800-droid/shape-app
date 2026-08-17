@@ -284,6 +284,43 @@
       if (!data.email || !data.password) { alert('Email and password are required.'); return; }
       if (!window.shapeDb) { alert('Auth client not loaded. Please refresh.'); return; }
 
+      // ⚠ THE 18+ CHECK MUST RUN HERE, BEFORE sendIntakeEmail() BELOW — not only
+      // inside signUp(). This form relays the whole questionnaire (injuries,
+      // medications, dietary and emergency-contact details) to the Shape intake
+      // inbox and stores it in localStorage BEFORE the account is created. Refusing
+      // a minor only at signUp() would still have collected and transmitted a
+      // child's health data first, then declined them — the wrong order for the
+      // one flow whose purpose is to keep minors out. Duplicated with signUp()
+      // deliberately: that copy is the floor for any other caller, this one is the
+      // stop that happens early enough to matter.
+      // ⚠ USE THE SHARED DERIVATION, NOT A HAND-WRITTEN COMPARISON. The instant
+      // comparison this replaced (`new Date(dob) > now-18y`) read ADULT for
+      // DOB 2008-08-17 at 2026-08-17T00:30:00Z — still Aug 16 in Los Angeles —
+      // which is the exact case the read-time gate reads the calendar day at
+      // UTC−12 to prevent. Getting it wrong HERE is worse than at the gate,
+      // because this check is what stands in front of sendIntakeEmail().
+      var ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== 'function') {
+        // Fail closed: cannot verify an age ⇒ refuse, never admit.
+        alert('Could not verify your age. Reload the page and try again.');
+        return;
+      }
+      var isMinor = ageApi.isMinorFromDob(data.dob);
+      if (isMinor === null) {
+        alert('Enter a valid date of birth — Shape is for adults 18 and over.');
+        return;
+      }
+      if (isMinor === true) {
+        alert('You must be 18 or older to use Shape.');
+        return;
+      }
+
+      // `data` carries the PASSWORD: gatherIntakeData() sweeps every [name] in
+      // steps 1-4 and the password input is one of them. Only signUp() below may
+      // read it. Everything that stores or transmits the questionnaire uses
+      // `intake` instead, so the credential cannot ride along by omission.
+      var intake = {}; for (var _k in data) { if (_k !== 'password') intake[_k] = data[_k]; }
+
       var btn = document.querySelector('#step4 .btn-submit');
       if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
 
@@ -294,7 +331,13 @@
         email: data.email,
         password: data.password,
         role: 'client',
-        fullName: ((data.firstName || '') + ' ' + (data.lastName || '')).trim()
+        fullName: ((data.firstName || '') + ' ' + (data.lastName || '')).trim(),
+        // ⚠ REQUIRED — this is the 18+ gate's only input. The form has always
+        // collected a date of birth, but it went solely to client_intakes (and the
+        // intake email), and no age check reads that table. Omitting it here left
+        // profiles.date_of_birth NULL, which every gate treats as "says nothing"
+        // and admits. signUp() rejects a missing or under-18 date.
+        dob: data.dob
       });
       if (res.error) {
         alert(res.error.message || 'Sign up failed.');
@@ -302,7 +345,13 @@
         return;
       }
       // Persist intake locally so the client dashboard can show it later.
-      try { localStorage.setItem('shapeClientIntake_v1', JSON.stringify(data)); } catch(e){}
+      // Clearing the synced marker is what lets a SECOND person on this device
+      // reach their coach at all: the marker is origin-wide and no sign-out
+      // scrub removes it, so a stale one makes flushPendingIntake skip forever.
+      try {
+        localStorage.setItem('shapeClientIntake_v1', JSON.stringify(intake));
+        localStorage.removeItem('shapeClientIntake_v1_synced');
+      } catch(e){}
 
       var session = await window.shapeDb.getSession();
       if (!session) {
@@ -336,7 +385,10 @@
             accountability: data.accountability,
             interests: data.interests,
             budget: data.budget,
-            details: data
+            // NOT `data`: /api/intake stores body.details verbatim through
+            // sanitizeDetails(), which copies every string entry - so sending
+            // the raw object wrote the plaintext password into client_intakes.
+            details: intake
           })
         });
       } catch (err) {
@@ -359,6 +411,10 @@
     }
   </script>
 
+  <!-- The 18+ derivation shared with the read-time gates. MUST load before
+       supabase.js: shapeDb.signUp() fails CLOSED without window.ShapeAgeDerive,
+       so a missing tag refuses signups rather than silently admitting minors. -->
+  <script src="/age-derive.js"></script>
   <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
   <script src="supabase.js"></script>
   <script src="/pwa-install.js" defer></script>

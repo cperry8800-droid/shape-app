@@ -34,17 +34,69 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     client: client,
 
     // Sign up a new user and create their profile row.
+    //
+    // ⚠ THE DOB IS REQUIRED, AND IT IS AN AGE-GATE DEPENDENCY, NOT A FORM FIELD.
+    // Every 18+ check Shape has — the proxy's paid-prefix gate, computeMembership()'s
+    // isKnownMinor, refuseKnownMinor() — derives from `profiles.date_of_birth` at
+    // READ time, and all three treat NULL as "says nothing" and let the request
+    // through. So an account created without a DOB is not merely incomplete: it is
+    // permanently UNGATED. This path used to collect a date of birth on
+    // signup-client.html and write it only to client_intakes, which is not a table
+    // any gate reads — so a minor who answered honestly was admitted anyway.
+    //
+    // Required here rather than only on the form because this helper owns the
+    // profiles upsert: validating in the page would leave the row-writing code
+    // still able to create an ungated account. The check mirrors
+    // newdesign/signup.jsx and shapeBackend.signUp verbatim so the three signup
+    // surfaces cannot drift apart on what "18" means.
+    //
+    // This is the honest limit of a client-side check: it stops the ordinary user
+    // who enters a real date, which is who an age gate is for. It cannot stop a
+    // hostile caller who skips this helper and drives supabase.auth directly —
+    // that needs the read-time gate to refuse a NULL date_of_birth, which is an
+    // open product decision (it would also lock out any pre-DOB account).
     async signUp(opts) {
       var email = opts.email;
       var password = opts.password;
       var role = opts.role; // 'client' | 'trainer' | 'nutritionist'
       var fullName = opts.fullName || '';
+      var dob = opts.dob;
+
+      // ⚠ ONE RULE, NOT A FIFTH COPY. This calls the same derivation the READ-TIME
+      // gates use (src/lib/age-derive.mjs, mirrored for classic scripts as
+      // public/age-derive.js and pinned behaviourally by
+      // tests/age-derive-mirror.test.mjs). The hand-written
+      // `born > (new Date()).setFullYear(getFullYear() - 18)` this replaced
+      // compared INSTANTS: `new Date('2008-08-17')` is midnight UTC, so at
+      // 2026-08-17T00:30:00Z it read ADULT while it was still Aug 16 in Los
+      // Angeles. That is precisely the counterexample the read-time gate was
+      // rewritten to close, so signup admitted the member the gate would later
+      // refuse — after their intake had already been relayed.
+      var ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== 'function') {
+        // ⚠ FAIL CLOSED. A page that could not load the age module cannot verify
+        // an age, and "cannot verify" must refuse — never admit. Silently
+        // skipping the check here would recreate the exact hole this closes.
+        return { error: { message: 'Could not verify your age. Reload the page and try again.', code: 'age_check_unavailable' } };
+      }
+      var minor = ageApi.isMinorFromDob(dob);
+      if (minor === null) {
+        return { error: { message: 'Enter a valid date of birth — Shape is for adults 18 and over.', code: 'dob_required' } };
+      }
+      if (minor === true) {
+        return { error: { message: 'You must be 18 or older to use Shape.', code: 'under_18' } };
+      }
 
       var signUpRes = await client.auth.signUp({
         email: email,
         password: password,
         options: {
-          data: { full_name: fullName, role: role }
+          // date_of_birth rides in user_metadata as well as the row below: when
+          // email confirmation is on, signUp returns a user with NO session, the
+          // upsert cannot authenticate, and the metadata copy is what
+          // newdesign/login.jsx:140 claims onto profiles at first sign-in. Without
+          // it, the confirm-by-email half of this flow still creates ungated rows.
+          data: { full_name: fullName, role: role, date_of_birth: dob }
         }
       });
       if (signUpRes.error) return { error: signUpRes.error };
@@ -57,7 +109,11 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           id: user.id,
           role: role,
           roles: [role],
-          full_name: fullName
+          full_name: fullName,
+          // over_18 is NOT set here and must never be: set_over_18() derives it
+          // from this date on every write and ignores any supplied flag. Writing
+          // the date is the whole mechanism.
+          date_of_birth: dob
         });
         if (profileRes.error) {
           console.warn('[shape] profile upsert failed', profileRes.error);
@@ -136,6 +192,51 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         }
       } catch (e) { console.warn('[shape] cookie bridge failed', e); }
       var profile = await shapeDb.getProfile(user.id);
+      // ⚠ PROVISION ON FIRST CONFIRMED SIGN-IN — this is the ONLY place the
+      // legacy email-confirm signup can land its date of birth.
+      // signup-client.html redirects to login.html when signUp returns no
+      // session (confirmation on), and login.html REJECTS a missing profile
+      // ("No profile found. Please sign up."), so the account was left with a
+      // usable session, no profile row, and no DOB — invisible to every age
+      // gate, which reads a missing/NULL date as "says nothing" and ADMITS.
+      // newdesign/login.jsx has its own claim-from-metadata step, but this flow
+      // never reaches it (different page) and its guard additionally requires a
+      // username this helper does not set. So it is provisioned here, from the
+      // metadata signUp() wrote, and the DOB freeze makes this first write the
+      // permanent one.
+      if (user && !profile) {
+        var meta = (user.user_metadata || {});
+        try {
+          // ⚠ A FAILED READ IS NOT AN ABSENT ROW. getProfile() returns null for BOTH
+          // "no row" and "the read errored" (it warns and returns null), so provisioning
+          // straight off !profile would upsert on `id` and UPDATE the existing row after
+          // a transient failure — demoting a coach to 'client' and collapsing roles.
+          // Re-check cheaply, and do nothing unless the row is genuinely absent.
+          var chk = await client.from('profiles').select('id').eq('id', user.id).maybeSingle();
+          if (chk.error) {
+            console.warn('[shape] profile read failed; skipping provisioning', chk.error);
+            return { user: user, profile: null };
+          }
+          if (chk.data) return { user: user, profile: await shapeDb.getProfile(user.id) };
+          var seed = { id: user.id };
+          if (meta.full_name) seed.full_name = meta.full_name;
+          if (user.email) seed.email = user.email;
+          // ⚠ profiles.role is NOT NULL with NO default, so omitting it fails 23502 and
+          // this provisioning write dies — leaving no row, which absence-refuses turns
+          // into a lockout. This branch only ever CREATES — gated on !profile AND the
+          // confirmed-absent re-check above — so a role is always written; 'client' is
+          // the house default.
+          var role = meta.role || 'client';
+          seed.role = role;
+          seed.roles = [role];
+          // over_18 is NOT set: set_over_18() derives it from this date on every
+          // write and discards any supplied flag. Writing the date is the mechanism.
+          if (meta.date_of_birth) seed.date_of_birth = meta.date_of_birth;
+          var prov = await client.from('profiles').upsert(seed, { onConflict: 'id' });
+          if (prov && prov.error) console.warn('[shape] profile provision failed', prov.error);
+          else profile = await shapeDb.getProfile(user.id);
+        } catch (e) { console.warn('[shape] profile provision threw', e); }
+      }
       return { user: user, profile: profile };
     },
 
@@ -229,7 +330,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       try {
         [
           // newdesign families
-          'shapeClientIntake_v1', 'shapeConsultations',
+          'shapeClientIntake_v1', 'shapeClientIntake_v1_synced', 'shapeConsultations',
           'shape.dashMealDrafts', 'shape.dashBuilderDrafts', 'shape.viewerRole',
           // legacy root-page keys
           'shapeMealLog', 'shapeWorkoutLog', 'shapeMealSchedule', 'shapeSchedule',
@@ -320,10 +421,108 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       } catch (e) {}
     },
 
+    // Flush a client questionnaire that was captured at sign-up but never
+    // reached the server.
+    //
+    // ⚠ THE BUG THIS FIXES IS A SAFETY BUG, not a storage nicety.
+    // signup-client.html POSTs the questionnaire to /api/intake AFTER its
+    // `if (!session) { ...; return; }` early return. With email confirmation
+    // required — the normal path — signUp() returns no session, so the POST
+    // never runs and the answers never reach the server. The member's coach
+    // therefore never sees their PAR-Q: injuries, medical conditions,
+    // medications, allergies, emergency contact.
+    //
+    // It cannot be fixed by moving the POST earlier: /api/intake keys the row
+    // to the AUTHENTICATED user, so with no session there is no owner to key
+    // it to. The answers are already in localStorage, so the fix is to flush
+    // them the first time a real session exists — which is the confirm-then-
+    // log-in step. Idempotent via a synced marker; failure leaves the payload
+    // in place to retry on the next session.
+    // ⚠ THE PENDING RECORD HAS AN OWNER, AND THE OWNER IS NOT "WHOEVER IS
+    // SIGNED IN NOW". localStorage is origin-wide and survives sign-out, so on
+    // a shared browser person A can sign up (email confirmation required → no
+    // session → answers left pending) and person B can then sign into their
+    // own account. /api/intake keys the row to the AUTHENTICATED user, so an
+    // unbound flush would file A's injuries, medications, allergies and
+    // emergency contact onto B's record — and show them to B's coach. The
+    // record is therefore bound to the email that typed it and refused when it
+    // does not match the session.
+    async flushPendingIntake(session) {
+      try {
+        var email = session && session.user && session.user.email;
+        if (!email) return false;
+        var me = String(email).trim().toLowerCase();
+        var raw = localStorage.getItem('shapeClientIntake_v1');
+        if (!raw) return false;
+        var data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return false;
+
+        // Ownership. Every payload signup-client.html has ever written carries
+        // `email` (it is a required step-1 field), so the no-email branch is a
+        // belt-and-braces refusal rather than a live path.
+        var owner = data.email ? String(data.email).trim().toLowerCase() : '';
+        if (!owner || owner !== me) return false;
+
+        // Refuse, do NOT delete: this is someone else's session, and deleting
+        // here would destroy the owner's PAR-Q before they ever sign in. The
+        // sign-out scrub is what clears the payload.
+
+        // Marker is scoped to the owner, so a stale one from a previous person
+        // on this device cannot make a new member's questionnaire skip. The
+        // capture in signup-client.html also clears it; both hold independently.
+        var SYNCED = 'shapeClientIntake_v1_synced';
+        if (localStorage.getItem(SYNCED) === owner) return false;
+
+        // Send only the questionnaire fields the endpoint reads. The stored
+        // record should already be password-free, but a payload written before
+        // that fix can still be sitting in this browser — so the credential is
+        // excluded here too rather than trusted to be absent.
+        var f = ['firstName','lastName','dob','sex','goal','level','frequency',
+                 'injuries','medical','dietary','emergencyContact',
+                 'accountability','interests','budget'];
+        var body = {}; for (var i = 0; i < f.length; i++) { if (data[f[i]] != null) body[f[i]] = data[f[i]]; }
+        var details = {}; for (var k in data) { if (k !== 'password') details[k] = data[k]; }
+        body.details = details;
+
+        var res = await fetch('/api/intake', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + session.access_token,
+          },
+          body: JSON.stringify(body),
+        });
+        // ⚠ ONLY a real success marks synced. This branch used to also treat
+        // any non-auth 4xx as terminal "e.g. the row already exists" — which
+        // was invented: /api/intake upserts on user_id, so it never rejects an
+        // existing row, and 401 is the ONLY 4xx it returns. The one non-auth
+        // 4xx that can actually reach here is the proxy's **429** rate limit
+        // (100/min on every /api route) — the single most retryable status
+        // there is. So the branch was wrong in every reachable case: a
+        // rate-limited flush recorded the owner as synced and every later
+        // getSession() skipped the payload permanently, leaving the coach
+        // without the member's injuries, medications, allergies and emergency
+        // contact. Retrying is cheap and bounded: once per session resolve, and
+        // sign-out scrubs the payload.
+        if (res.ok) {
+          localStorage.setItem(SYNCED, owner);
+          return true;
+        }
+        return false;
+      } catch (e) {
+        return false;
+      }
+    },
+
     async getSession() {
       var res = await client.auth.getSession();
       var session = res.data && res.data.session;
-      if (session) return session;
+      if (session) {
+        // Fire-and-forget: never delay session resolution on this.
+        try { shapeDb.flushPendingIntake(session); } catch (e) {}
+        return session;
+      }
       // Legacy pages persist sessions in localStorage but the Next.js app
       // stores them in HTTP cookies. If nothing is in localStorage yet,
       // try to bootstrap from the Next.js /api/auth/session bridge before
@@ -340,7 +539,12 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           access_token: bridge.access_token,
           refresh_token: bridge.refresh_token,
         });
-        return setRes.data && setRes.data.session;
+        var bridged = setRes.data && setRes.data.session;
+        // Same flush on the cookie-bridge path — this is the route a member
+        // takes after confirming their email and logging in on the website,
+        // which is precisely when the pending questionnaire needs to land.
+        if (bridged) { try { shapeDb.flushPendingIntake(bridged); } catch (e) {} }
+        return bridged;
       } catch (e) {
         console.warn('[shape] session bridge failed', e);
         return null;
@@ -980,7 +1184,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
 
       var style = document.createElement('style');
       style.textContent =
-        '#shapeRoleSwitcher{position:relative;display:inline-flex;align-items:center;align-self:center;font-family:Inter,system-ui,sans-serif;line-height:1;flex:0 0 auto;}' +
+        '#shapeRoleSwitcher{position:relative;display:inline-flex;align-items:center;align-self:center;font-family:"Space Grotesk",Inter,system-ui,sans-serif;line-height:1;flex:0 0 auto;}' +
         '#shapeRoleSwitcher .srs-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;line-height:1.4;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:var(--text,#fff);border-radius:999px;font-size:0.72rem;font-weight:500;cursor:pointer;font-family:inherit;vertical-align:middle;white-space:nowrap;}' +
         '#shapeRoleSwitcher .srs-btn:hover{border-color:rgba(255,255,255,0.3);}' +
         '#shapeRoleSwitcher .srs-btn .srs-caret{opacity:0.5;font-size:0.6rem;}' +

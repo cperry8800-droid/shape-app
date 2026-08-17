@@ -79,9 +79,20 @@
             <div class="form-group"><label>City, State / Country</label><input type="text" name="location" placeholder="San Diego, CA" required></div>
             <div class="form-group"><label>Time zone</label><input type="text" name="timezone" placeholder="PST / GMT-8" required></div>
           </div>
-          <div class="form-group">
-            <label>Social handles (optional)</label>
-            <input type="text" name="socials" placeholder="@yourig · @yourtt · youtube.com/@you">
+          <div class="form-row">
+            <!-- Shape is 18+ for coaches too: approval provisions a real account and
+                 coach roles satisfy membership, so a provider row with no date of
+                 birth is an ungated account. Validated on submit and again in
+                 /api/apply, which refuses an application it cannot age-place. -->
+            <div class="form-group">
+              <label for="dob">Date of birth</label>
+              <input type="date" id="dob" name="dob" required>
+              <p class="form-hint">Shape is for adults 18 and over.</p>
+            </div>
+            <div class="form-group">
+              <label>Social handles (optional)</label>
+              <input type="text" name="socials" placeholder="@yourig · @yourtt · youtube.com/@you">
+            </div>
           </div>
           <button type="submit" class="btn-submit">Continue</button>
         </form>
@@ -192,6 +203,15 @@
           <label class="checkbox-option"><input type="checkbox" name="agreeVerify" required> <span>I understand my credentials may be verified</span></label>
           <label class="checkbox-option"><input type="checkbox" name="agreeBgCheck" required> <span>I consent to a required background check through Shape's screening partner before my provider profile can go live.</span></label>
 
+          <!-- ⚠ NUTRITION COMPLIANCE ATTESTATIONS (NC1). /api/apply refuses a
+               nutritionist application whose details omit these, so without them
+               nobody could apply from this page at all. KEEP IN SYNC with
+               REQUIRED_ATTESTATIONS in src/lib/compliance/nutrition.mjs. -->
+          <label class="checkbox-option"><input type="checkbox" name="att_independent_contractor" required> <span>I am an independent contractor. Shape is a marketplace, not my employer, and does not direct my clinical judgment.</span></label>
+          <label class="checkbox-option"><input type="checkbox" name="att_maintains_licensure" required> <span>I will maintain valid licensure in every state where I provide individualized nutrition care, and only accept clients I am licensed to serve.</span></label>
+          <label class="checkbox-option"><input type="checkbox" name="att_maintains_insurance" required> <span>I maintain current professional liability (malpractice) insurance.</span></label>
+          <label class="checkbox-option"><input type="checkbox" name="att_scope_understood" required> <span>I understand the difference between general wellness guidance and individualized medical nutrition therapy, and will practice within my scope and license.</span></label>
+
           <button type="submit" class="btn-submit" style="margin-top:18px;">Submit Application</button>
         </form>
 
@@ -209,6 +229,7 @@
     </div>
   </div>
 
+  <script src="/age-derive.js"></script>
   <script>
     var APPLICATION_RECIPIENT_EMAIL = 'info@theshapecommunity.com';
 
@@ -245,6 +266,27 @@
     async function completeSignup() {
       var data = gatherApplicationData();
       if (!data.email || !data.firstName || !data.lastName) { alert('Please fill in all required fields.'); return; }
+
+      // ⚠ 18+ BEFORE ANY SIDE EFFECT. The block below relays the whole application
+      // to the email endpoint; a gate that runs after that has already sent it.
+      // Use the SHARED derivation — a hand-written `new Date(dob) > now-18y`
+      // compares INSTANTS and reads ADULT on the applicant's local birthday eve —
+      // and fail CLOSED when it is absent: a page that cannot verify an age must
+      // refuse, never admit. /api/apply re-validates this server-side.
+      var ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== 'function') {
+        alert('Could not verify your age. Reload the page and try again.');
+        return;
+      }
+      var isMinor = ageApi.isMinorFromDob(data.dob);
+      if (isMinor === null) {
+        alert('Enter a valid date of birth — Shape is for adults 18 and over.');
+        return;
+      }
+      if (isMinor === true) {
+        alert('You must be 18 or older to apply as a provider.');
+        return;
+      }
       var btn = document.querySelector('#step3 .btn-submit');
       if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
 
@@ -306,7 +348,16 @@
       apiBody.append('specialty', data.specialty || '');
       apiBody.append('yearsExperience', data.experience || '');
       apiBody.append('monthlyPrice',    data.price      || '');
-      apiBody.append('details', JSON.stringify(data));
+      apiBody.append('dob',             data.dob        || '');
+      // ⚠ ATTESTATIONS MUST BE STRICT BOOLEANS, AND NOT VIA TRUTHINESS.
+      // gatherApplicationData() records a checkbox as the STRING 'Yes' or 'No' — and
+      // 'No' is TRUTHY, so a Boolean() coercion here would report every attestation
+      // as affirmed regardless of what the applicant ticked, i.e. fabricate a
+      // compliance attestation. The route's attestationsComplete() requires === true.
+      var attKeys = ['independent_contractor', 'maintains_licensure', 'maintains_insurance', 'scope_understood'];
+      var attest = {};
+      attKeys.forEach(function (k) { attest[k] = data['att_' + k] === 'Yes'; });
+      apiBody.append('details', JSON.stringify(Object.assign({}, data, { compliance_attestations: attest })));
       document.querySelectorAll('#step1 input[type=file], #step2 input[type=file], #step3 input[type=file]').forEach(function (el) {
         if (el.files && el.files[0]) apiBody.append(el.name, el.files[0]);
       });

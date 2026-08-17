@@ -218,6 +218,10 @@ function ProPersonal({ v, set, roleNoun }) {
       <UsernameField v={v} set={set} />
       <Field label="Email"><TextInput type="email" value={v.email || ""} onChange={e => set({ email: e.target.value })} /></Field>
       <Field label="Phone"><TextInput type="tel" value={v.phone || ""} onChange={e => set({ phone: e.target.value })} /></Field>
+      {/* Shape is 18+ for coaches too: approval provisions a real account and coach
+          roles satisfy membership, so a provider row with no DOB is an ungated
+          account. Validated server-side in /api/apply and carried into profiles. */}
+      <Field label="Date of birth"><TextInput type="date" value={v.dob || ""} onChange={e => set({ dob: e.target.value })} /></Field>
       <Field label="City, State / Country" span={2}><TextInput value={v.city || ""} onChange={e => set({ city: e.target.value })} placeholder="e.g. Brooklyn, NY · USA" /></Field>
       <Field label="Time zone"><TextInput value={v.tz || ""} onChange={e => set({ tz: e.target.value })} placeholder="e.g. America/New_York" /></Field>
       <Field label="Social handles (optional)"><TextInput value={v.social || ""} onChange={e => set({ social: e.target.value })} placeholder="@handle, ig.com/..." /></Field>
@@ -531,12 +535,20 @@ function SignupForm({ role }) {
         setError("Pick a valid username — letters, numbers, . _ (3–20 chars).");
         return;
       }
-      // 18+ gate (verbatim from shapeBackend.signUp).
-      const d = values.dob ? new Date(values.dob) : null;
-      if (!d || isNaN(d.getTime())) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
-      const eighteen = new Date();
-      eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (d > eighteen) { setError("You must be 18 or older to use Shape."); return; }
+      // ⚠ 18+ gate — the SHARED derivation, not a restatement. The instant
+      // comparison this replaced read ADULT for DOB 2008-08-17 at
+      // 2026-08-17T00:30:00Z, which is still Aug 16 in Los Angeles: a minor
+      // admitted on their local birthday eve, the exact case the read-time gate
+      // reads the calendar day at UTC−12 to prevent.
+      const ageApi = window.ShapeAgeDerive;
+      if (!ageApi || typeof ageApi.isMinorFromDob !== "function") {
+        // Fail closed — cannot verify an age ⇒ refuse, never admit.
+        setError("Could not verify your age. Reload the page and try again.");
+        return;
+      }
+      const minor = ageApi.isMinorFromDob(values.dob);
+      if (minor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
+      if (minor === true) { setError("You must be 18 or older to use Shape."); return; }
       // Require Terms + Privacy acceptance before creating a real account (the
       // ClientPrefs step collects values.tos — gate on it like the coach path does).
       if (!values.tos) { setError("Please accept the Terms of Service and Privacy Policy to continue."); return; }
@@ -645,12 +657,25 @@ function SignupForm({ role }) {
     form.append("providerType", role);
     form.append("firstName", values.firstName || "");
     form.append("lastName", values.lastName || "");
+    // ⚠ COACHES ARE 18+ TOO. Approval provisions a real auth user AND a coach
+    // profile, and coach roles satisfy membership automatically — so an approved
+    // provider with no date of birth is an entitled account the gates cannot place.
+    // Same shared rule; /api/apply re-validates server-side.
+    const proAge = window.ShapeAgeDerive;
+    if (!proAge || typeof proAge.isMinorFromDob !== "function") {
+      setError("Could not verify your age. Reload the page and try again.");
+      return;
+    }
+    const proMinor = proAge.isMinorFromDob(values.dob);
+    if (proMinor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
+    if (proMinor === true) { setError("You must be 18 or older to apply as a coach."); return; }
     form.append("email", values.email || "");
     form.append("phone", values.phone || "");
     form.append("location", values.city || "");
     form.append("specialty", values.primary || "");
     form.append("yearsExperience", values.years || "");
     form.append("monthlyPrice", values.subPrice || "");
+    form.append("dob", values.dob || "");
     form.append("details", JSON.stringify({
       username: values.username || "",
       timezone: values.tz || "",

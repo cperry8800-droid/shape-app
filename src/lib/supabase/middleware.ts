@@ -222,7 +222,20 @@ export async function updateSession(request: NextRequest) {
         gateClient = bClient;
       }
       if (!gateUser) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-      const { isMember } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null);
+      const { isMember, isKnownMinor } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null);
+      // Shape is 18+, no exceptions. Age is derived from `date_of_birth` at READ
+      // time (`isMinorFromDob`), with the trigger-written `over_18` only as the
+      // fallback for rows carrying no usable date — so a member's birthday cannot
+      // go stale here.
+      // ⚠ `over_18 = false` IS ONLY PROOF OF A MINOR ONCE THE DOB FREEZE IS
+      // APPLIED. `over_18` cannot be written directly, but until
+      // 2026-08-15-profiles-dob-immutable.sql freezes `date_of_birth`, an
+      // identified minor rewrites the INPUT through PostgREST and clears the flag
+      // (proved against production 2026-08-15). Do not read this refusal as
+      // durable before that migration is applied.
+      // This was previously computed and read by NOTHING — the only age check was
+      // client-side at signup, bypassable by calling the API directly.
+      if (isKnownMinor) return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
       if (!isMember) return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
       // Verified — stamp the request for the route layer so requireMembership
       // (the per-endpoint half of this gate) passes without re-querying.

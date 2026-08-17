@@ -64,6 +64,7 @@
   .hero .sub{max-width:680px;margin:0 auto;font-size:16px;color:rgba(242,237,228,.7);line-height:1.6}
   .hero .updated{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-top:20px}
   .wrap{max-width:1180px;margin:0 auto;padding:40px 40px 90px}
+  .pend{display:block;margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:rgba(242,237,228,.5)}
   .note{background:rgba(10,197,168,.07);border:1px solid rgba(10,197,168,.22);border-left:3px solid var(--teal);border-radius:10px;padding:18px 20px;margin-bottom:30px;font-size:14px;color:rgba(242,237,228,.8);line-height:1.6}
   .note a{color:var(--teal-bright);border-bottom:1px solid rgba(46,224,196,.35)}
   .tbl-wrap{overflow-x:auto;border:1px solid rgba(242,237,228,0.12);border-radius:14px}
@@ -133,7 +134,7 @@
 
 <div class="wrap">
   <div class="note">
-    <strong>How to read this.</strong> A "subprocessor" is a vendor that processes your data on Shape's behalf, under contract, only to provide its service to us. Services marked <span class="yes">Yes</span> under "Health data" can receive consumer health data. The independent <strong>coaches</strong> you link with are <em>not</em> subprocessors — they are third-party recipients of the data you choose to share with them. See the <a href="/privacy.html">Privacy Policy</a> and the <a href="/health-data-privacy.html">Consumer Health Data Privacy Policy</a> for the full picture, and <a href="/data-compliance.html">Data &amp; compliance</a> for how we secure it.
+    <strong>How to read this.</strong> A "subprocessor" is a vendor that processes your data on Shape's behalf, only to provide its service to us. <strong>The legal basis for that restriction differs by vendor and is stated in the last column</strong> — for some it is a data processing agreement we have signed, for others it is currently the vendor's own published terms. Services marked <span class="yes">Yes</span> under "Health data" can receive consumer health data. The independent <strong>coaches</strong> you link with are <em>not</em> subprocessors — they are third-party recipients of the data you choose to share with them. See the <a href="/privacy.html">Privacy Policy</a> and the <a href="/health-data-privacy.html">Consumer Health Data Privacy Policy</a> for the full picture, and <a href="/data-compliance.html">Data &amp; compliance</a> for how we secure it.
   </div>
 
   <div class="tbl-wrap">
@@ -142,24 +143,45 @@
         <tr><th>Service</th><th>Purpose</th><th>Data categories</th><th>Health data</th><th>Region</th><th>Transfer safeguard</th></tr>
       </thead>
       <tbody>
-        <tr><td>Supabase</td><td>Database, authentication, file storage</td><td>Account &amp; profile, all health/fitness records, messages, photos &amp; voice notes (storage)</td><td class="yes">Yes</td><td>United States</td><td>Standard Contractual Clauses + transfer impact assessment (UK Addendum)</td></tr>
-        <tr><td>Stripe</td><td>Payments, subscriptions, coach payouts</td><td>Name, email, billing details, card brand &amp; last four, transaction status</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework / SCCs (per Stripe DPA)</td></tr>
-        <tr><td>Vercel</td><td>Web hosting, edge delivery, product analytics</td><td>IP address, request &amp; usage data</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework</td></tr>
-        <tr><td>Cloudflare</td><td>DNS, network security, Turnstile bot check</td><td>IP address, bot-challenge token</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework</td></tr>
-        <tr><td>OpenAI</td><td>"Nora" assistant, voice transcription, text-to-speech</td><td>Coaching text that can include recovery, sleep, weight, body-fat, mood and training context; meal-note voice audio</td><td class="yes">Yes</td><td>United States</td><td>Standard Contractual Clauses (OpenAI API)</td></tr>
-        <tr><td>Google Firebase Cloud Messaging</td><td>Push notifications</td><td>Device push token, notification content</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework / SCCs (Google DPA)</td></tr>
-        <tr><td>Resend</td><td>Transactional &amp; (opt-in) marketing email</td><td>Name, email, message content</td><td class="no">No</td><td>United States</td><td>Data Privacy Framework / SCCs (Resend DPA)</td></tr>
+        <tr><td>Supabase</td><td>Database, authentication, file storage</td><td>Account &amp; profile, all health/fitness records, messages, photos &amp; voice notes (storage)</td><td class="yes">Yes</td><td>United States</td><td>Standard Contractual Clauses + transfer impact assessment (UK Addendum)<span class="pend">intended — not yet confirmed; residency choice still open</span></td></tr>
+        <tr><td>Stripe</td><td>Payments, subscriptions, coach payouts</td><td>Name, email, billing details, card brand &amp; last four, transaction status</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework / SCCs (per Stripe DPA)<span class="pend">intended — not yet confirmed</span></td></tr>
+        <tr><td>Vercel</td><td>Web hosting, edge delivery, product analytics</td><td>IP address, request &amp; usage data</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework<span class="pend">intended — not yet confirmed</span></td></tr>
+        <tr><td>Cloudflare</td><td>DNS, network security, Turnstile bot check</td><td>IP address, bot-challenge token</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework<span class="pend">intended — not yet confirmed</span></td></tr>
+        <tr><td>OpenAI</td><td>"Nora" assistant, voice transcription, text-to-speech</td><td>Coaching text that can include recovery, sleep, weight, body-fat, mood and training context; meal-note voice audio</td><td class="yes">Yes</td><td>United States</td><td>Standard Contractual Clauses (OpenAI API)<span class="pend">intended — not yet confirmed; zero-retention / no-training terms unconfirmed</span></td></tr>
+        <tr><td>Google Firebase Cloud Messaging</td><td>Push notifications</td><td>Device push token, notification content</td><td class="no">No</td><td>US / global</td><td>EU-US Data Privacy Framework / SCCs (Google DPA)<span class="pend">intended — not yet confirmed</span></td></tr>
+        <tr><td>Resend</td><td>Transactional &amp; (opt-in) marketing email</td><td>Name, email, message content</td><td class="no">No</td><td>United States</td><td>Data Privacy Framework / SCCs (Resend DPA)<span class="pend">intended — not yet confirmed</span></td></tr>
         <tr><td>Instacart</td><td>Grocery-list hand-off (only when you use it)</td><td>Grocery list items</td><td class="no">No*</td><td>United States</td><td>Per Instacart terms</td></tr>
         <tr><td>Apple (HealthKit / MusicKit)</td><td>Health import on iOS; music playlists</td><td>Health metrics you authorize on your device; playlist references</td><td class="yes">Yes</td><td>On-device + US</td><td>Apple platform terms</td></tr>
         <tr><td>Spotify</td><td>Playlist sharing (in-workout audio)</td><td>Basic profile, playlist references</td><td class="no">No</td><td>US / global</td><td>Per Spotify terms</td></tr>
         <tr><td>Strava / Garmin / Whoop / Oura</td><td>Wearable import (only the ones you connect)</td><td>Activities, heart rate, HRV, sleep, recovery, calories</td><td class="yes">Yes</td><td>US / global</td><td>Per provider terms</td></tr>
+        <tr><td>Radio.co</td><td>Streams Shape Radio (non-interactive internet radio)</td><td>IP address and user agent of the listening device; no account details and no health data</td><td class="no">No</td><td>US / global (content delivery)</td><td>Per Radio.co terms</td></tr>
+        <tr><td>Sentry</td><td>Error and crash reporting, so we can find and fix faults</td><td>Error details and technical context (device, app version, page); your user ID and role where you are signed in</td><td class="no">No*</td><td>US / global</td><td>Standard Contractual Clauses (Sentry DPA)<span class="pend">intended — not yet confirmed</span></td></tr>
+        <tr><td>Jitsi (meet.jit.si)</td><td>Video calls for coaching consultations</td><td>Audio and video of the call, IP address, display name</td><td class="yes">Yes*</td><td>US / global</td><td>Per Jitsi/8x8 terms — see the note below this table</td></tr>
+        <tr><td>FormSubmit.co</td><td>Relays the web sign-up and coach-application forms to our inbox</td><td>Everything on the submitted form — for the client questionnaire this includes injuries, medical conditions, medications, allergies and an emergency contact</td><td class="yes">Yes</td><td>US / global</td><td>Per FormSubmit terms — see the note below this table</td></tr>
+        <tr><td>Google (Android backup)</td><td><strong>Disabled.</strong> Android's operating-system backup is switched off for the Shape app, so your app data is not copied to your Google Drive, and every data category is also excluded from Android's device-to-device transfer</td><td>None — the app opts out of OS cloud backup, and excludes every data category from device transfer</td><td class="no">No</td><td>&mdash;</td><td>Not applicable; listed so you know we considered it. Switching cloud backup off does not by itself govern device-to-device transfer on Android 12 and later, so that is excluded separately, category by category, in the app's data-extraction rules</td></tr>
+        <tr><td>USDA FoodData Central</td><td>Food and nutrition search</td><td>The food search terms you type. No account details</td><td class="no">No</td><td>United States</td><td>US government public API</td></tr>
+        <tr><td>Open Food Facts</td><td>Food, brand and barcode search</td><td>The food search terms or barcode you enter. No account details</td><td class="no">No</td><td>EU (France)</td><td>Open database, public API</td></tr>
+        <tr><td>Google Fonts</td><td>Serves the typefaces used on our web pages</td><td>IP address and user agent, when your browser requests a font file</td><td class="no">No</td><td>US / global</td><td>Google terms — we intend to self-host these; see the note below this table</td></tr>
+        <tr><td>SoundHelix</td><td>Serves the sample audio clips on the legacy coach preview pages</td><td>IP address and user agent, when your browser requests a clip</td><td class="no">No</td><td>US / global</td><td>Per provider terms</td></tr>
+        <tr><td>unpkg, esm.sh</td><td>Content-delivery networks that serve JavaScript libraries our web pages use</td><td>IP address and user agent, when your browser requests a file</td><td class="no">No</td><td>US / global</td><td>Per provider terms</td></tr>
+        <tr><td>YouTube, Vimeo, Unsplash</td><td>Plays embedded video (for example a coach's form clip) and serves images</td><td>IP address and user agent, only on pages where such media loads or you press play</td><td class="no">No</td><td>US / global</td><td>Per provider terms (YouTube: Google)</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="body" style="margin-top:14px;font-size:13px;color:rgba(242,237,228,.55)">* Instacart receives the items on a grocery list you choose to send, which can reveal dietary information.</p>
+  <p class="body" style="margin-top:14px;font-size:13px;color:rgba(242,237,228,.55)">* Instacart receives the items on a grocery list you choose to send, which can reveal dietary information. Sentry can incidentally include health-related content if it appears in an error report. Jitsi carries whatever you say and show on a coaching call, which is why it is marked yes. Android backup is not listed here because it is switched off in the app and receives nothing, as the row above records.</p>
+
+  <h2>Notes on four of these</h2>
+  <p class="body">We would rather explain these than let a table imply everything is settled.</p>
+  <ul class="body" style="padding-left:20px">
+    <li><strong>Jitsi</strong> — coaching video currently runs on the public <code>meet.jit.si</code> service. We are moving this to a dedicated instance under a data processing agreement so that call media is covered by contract rather than by a public service's general terms.</li>
+    <li><strong>FormSubmit.co</strong> — the web sign-up questionnaire is relayed to our inbox through this service, which means health information you enter there passes through a third party. <strong>We are removing this relay</strong> and delivering the questionnaire straight to our own systems. It does not affect the mobile app, where the readiness screening never goes through it.</li>
+    <li><strong>Google Fonts</strong> — our web pages currently request fonts from Google, which means your IP address reaches Google on page load. We are self-hosting these fonts to remove that request entirely.</li>
+    <li><strong>Content-delivery networks</strong> — unpkg, esm.sh, YouTube, Vimeo and Unsplash receive your IP address only because your browser fetches a file or a video from them. They receive no account information and no health data.</li>
+  </ul>
 
   <h2>International transfers</h2>
-  <p class="body">Shape is operated from the United States, so data is processed in the U.S. For people in the EEA and the UK, transfers to the U.S. rely on the safeguard listed for each service above — the EU-US Data Privacy Framework where the service is certified, or European Commission Standard Contractual Clauses (with the UK International Data Transfer Addendum) and a transfer impact assessment where it is not. We maintain SCCs as a fallback even for Data-Privacy-Framework-certified services.</p>
+  <p class="body">Shape is available worldwide, and our infrastructure is hosted in the United States, so your data is processed in the U.S. and in the other locations listed for each service above. For people in the EEA and the UK, the safeguard we intend for each recipient is the EU-US Data Privacy Framework where that recipient is certified, or European Commission Standard Contractual Clauses (with the UK International Data Transfer Addendum) and a transfer impact assessment where it is not. <strong>That work is not finished, and this page is where we say so rather than imply otherwise.</strong> The safeguard column above is marked recipient by recipient: where it says <em>provider terms</em>, that is what is in place today, and where a framework or clauses are named but carry <strong>&ldquo;intended &mdash; not yet confirmed&rdquo;</strong>, that is the safeguard we are putting in place, <strong>not one we have already verified</strong>. An unmarked entry is one we hold. Completing the outstanding clauses and assessments is in progress, and this page is updated as each one lands. If the safeguard for a specific recipient matters to you, ask us at <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
+  <p class="body">Shape Radio is the one part of Shape we limit by territory, for music-licensing reasons: we will offer it only where the relevant webcasting licenses are in place, which at launch means the United States and United Kingdom, and we will not stream to a territory before those licenses cover it. The rest of Shape is not limited that way.</p>
 
   <h2>Changes</h2>
   <p class="body">When we add, remove, or materially change a subprocessor, we update this page and the "Last updated" date above. For material changes that affect how your data is handled, we also give notice as described in the <a href="/privacy.html">Privacy Policy</a>. Questions: <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
@@ -206,7 +228,6 @@
     </div>
     <div class="footer-base">
       <span>© 2026 SHAPE</span>
-      <span>BROOKLYN · LISBON · MELBOURNE</span>
     </div>
   </div>
 </footer>

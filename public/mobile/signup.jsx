@@ -60,6 +60,16 @@ const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace"
 const inputStyle = { width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: "12px 14px", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
 const selectStyle = { ...inputStyle, appearance: "none", WebkitAppearance: "none", backgroundImage: "linear-gradient(45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%)", backgroundSize: "6px 6px, 6px 6px", backgroundPosition: "right 16px top 50%, right 10px top 50%", backgroundRepeat: "no-repeat", paddingRight: 36 };
 const proExperienceOptions = ["7-10 years", "10-15 years", "15+ years"];
+// ⚠ KEEP IN SYNC with REQUIRED_ATTESTATIONS in src/lib/compliance/nutrition.mjs —
+// /api/apply refuses a nutritionist application unless every key is true. This is a
+// classic babel script with no import, so the keys are mirrored and a drift test
+// (tests/provider-apply-requirements.test.mjs) gates them.
+const MOBILE_ATTESTATIONS = [
+  ["independent_contractor", "I am an independent contractor. Shape is a marketplace, not my employer, and does not direct my clinical judgment."],
+  ["maintains_licensure", "I will maintain valid licensure in every state where I provide individualized nutrition care, and only accept clients I am licensed to serve."],
+  ["maintains_insurance", "I maintain current professional liability (malpractice) insurance."],
+  ["scope_understood", "I understand the difference between general wellness guidance and individualized medical nutrition therapy, and will practice within my scope and license."],
+];
 
 function Field({ label, children, span = 1 }) {
   return (
@@ -188,7 +198,11 @@ function ProPersonal({ v, set, roleNoun }) {
       <Field label="Phone"><TextInput type="tel" value={v.phone || ""} onChange={e => set({ phone: e.target.value })} /></Field>
       <Field label="City, State / Country" span={2}><TextInput value={v.city || ""} onChange={e => set({ city: e.target.value })} placeholder="e.g. Brooklyn, NY · USA" /></Field>
       <Field label="Time zone"><TextInput value={v.tz || ""} onChange={e => set({ tz: e.target.value })} placeholder="e.g. America/New_York" /></Field>
-      <Field label="Social handles (optional)"><TextInput value={v.social || ""} onChange={e => set({ social: e.target.value })} placeholder="@handle, ig.com/..." /></Field>
+      {/* Shape is 18+ for coaches too — approval provisions a real account and coach
+          roles satisfy membership, so a provider row with no DOB is an ungated
+          account. Validated on submit and again in /api/apply. */}
+      <Field label="Date of birth"><TextInput type="date" value={v.dob || ""} onChange={e => set({ dob: e.target.value })} /></Field>
+      <Field label="Social handles (optional)" span={2}><TextInput value={v.social || ""} onChange={e => set({ social: e.target.value })} placeholder="@handle, ig.com/..." /></Field>
       <Field label={`Short bio — why you got into ${roleNoun}`} span={2}>
         <textarea value={v.bio || ""} onChange={e => set({ bio: e.target.value })} style={{ ...inputStyle, minHeight: 96, resize: "vertical", fontFamily: sans }} />
       </Field>
@@ -307,6 +321,22 @@ function ProAvailability({ v, set, kind }) {
         </div>
         <Check on={v.bgcheck} onClick={() => set({ bgcheck: !v.bgcheck })}>I consent to a required background check through Shape's screening partner before my provider profile can go live.</Check>
       </div>
+
+      {/* ⚠ NUTRITION COMPLIANCE ATTESTATIONS (NC1). /api/apply returns 400 for a
+          nutritionist application whose details omit these, so without them nobody
+          could apply as a nutritionist from this page at all. */}
+      {kind === "nutritionist" && (
+        <div style={{ paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 4 }}>Nutrition practice · compliance</div>
+          {MOBILE_ATTESTATIONS.map(([key, label]) => (
+            <Check
+              key={key}
+              on={Boolean((v.attest || {})[key])}
+              onClick={() => set({ attest: { ...(v.attest || {}), [key]: !(v.attest || {})[key] } })}
+            >{label}</Check>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -371,9 +401,32 @@ function SignupForm({ role }) {
       setError("First name, last name, and email are required.");
       return;
     }
+    // ⚠ USE THE SHARED DERIVATION, NOT A HAND-WRITTEN COMPARISON, and fail CLOSED
+    // when it is absent: a page that cannot verify an age must refuse, never admit.
+    // /api/apply re-validates this server-side.
+    const ageApi = window.ShapeAgeDerive;
+    if (!ageApi || typeof ageApi.isMinorFromDob !== "function") {
+      setError("Could not verify your age. Reload the page and try again.");
+      return;
+    }
+    const isMinor = ageApi.isMinorFromDob(values.dob);
+    if (isMinor === null) {
+      setError("Enter a valid date of birth — Shape is for adults 18 and over.");
+      return;
+    }
+    if (isMinor === true) {
+      setError("You must be 18 or older to apply as a provider.");
+      return;
+    }
     const years = Number(String(values.years || "").match(/\d+/)?.[0] || 0);
     if (years < 7) {
       setError("Shape requires at least 7 years of professional experience.");
+      return;
+    }
+    // Nutrition compliance (NC1) — refuse here rather than post an application the
+    // route will answer 400.
+    if (role === "nutritionist" && MOBILE_ATTESTATIONS.some(([k]) => (values.attest || {})[k] !== true)) {
+      setError("All nutrition compliance attestations are required.");
       return;
     }
     if (!values.tos || !values.conduct || !values.bgcheck) {
@@ -391,6 +444,7 @@ function SignupForm({ role }) {
     form.append("specialty", values.primary || "");
     form.append("yearsExperience", values.years || "");
     form.append("monthlyPrice", values.subPrice || "");
+    form.append("dob", values.dob || "");
     form.append("details", JSON.stringify({
       timezone: values.tz || "",
       social: values.social || "",
@@ -407,6 +461,10 @@ function SignupForm({ role }) {
       background_check_required: true,
       background_check_consent: true,
       background_check_status: "consent_received",
+      // ⚠ THIS IS THE REQUEST BODY. Collecting the attestations in the form proves
+      // nothing unless they reach the route, which refuses a nutritionist
+      // application without them (the same omission class as `dob`).
+      compliance_attestations: values.attest || {},
     }));
     if (values.resumeFile) form.append("resume", values.resumeFile);
     if (values.credentialFile) form.append("credential", values.credentialFile);

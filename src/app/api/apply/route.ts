@@ -16,6 +16,8 @@ import {
   withBackgroundCheckDetails,
 } from '@/lib/provider-applications';
 import { attestationsComplete } from '@/lib/compliance/nutrition.mjs';
+// The shared 18+ derivation — same rule as every signup surface and both gates.
+import { isMinorFromDob } from '@/lib/age-derive.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -162,6 +164,7 @@ export async function POST(req: NextRequest) {
   const specialty = clean(body.specialty, 200);
   const yearsExperience = clean(body.yearsExperience, 40);
   const monthlyPrice = clean(body.monthlyPrice, 40);
+  const dob = clean(body.dob, 40);
   let details = sanitizeDetails(body.details);
 
   if (!firstName || !lastName || !email) {
@@ -172,6 +175,24 @@ export async function POST(req: NextRequest) {
   }
   if (!isEmail(email)) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400, headers: CORS_HEADERS });
+  }
+  // ⚠ 18+ IS ENFORCED HERE, AND IT IS NOT COSMETIC FOR COACHES. An approved
+  // application provisions an auth user AND a coach profile, and coach roles
+  // satisfy membership automatically — so a provider account with no date of
+  // birth is both entitled and, under the read-time policy, refused (absence no
+  // longer admits). Collecting it here is what keeps approved coaches working.
+  const providerMinor = isMinorFromDob(dob);
+  if (providerMinor === null) {
+    return NextResponse.json(
+      { error: 'Enter a valid date of birth — Shape is for adults 18 and over.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+  if (providerMinor === true) {
+    return NextResponse.json(
+      { error: 'You must be 18 or older to apply as a provider.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
   }
   if (minimumYears(yearsExperience) < REQUIRED_PROVIDER_EXPERIENCE_YEARS) {
     return NextResponse.json(
@@ -209,25 +230,57 @@ export async function POST(req: NextRequest) {
   }, 'consent_received');
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const applicationRow = {
+    provider_type: providerTypeRaw,
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    phone: phone || null,
+    location: location || null,
+    specialty: specialty || null,
+    years_experience: yearsExperience || null,
+    monthly_price: monthlyPrice || null,
+    details,
+    user_agent: req.headers.get('user-agent') || null,
+  };
+  let { data, error } = await supabase
     .from('provider_applications')
-    .insert({
-      provider_type: providerTypeRaw,
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      phone: phone || null,
-      location: location || null,
-      specialty: specialty || null,
-      years_experience: yearsExperience || null,
-      monthly_price: monthlyPrice || null,
-      details,
-      user_agent: req.headers.get('user-agent') || null,
-    })
+    .insert({ ...applicationRow, dob })
     .select('id')
     .single();
+  // ⚠ MIGRATION-SAFE. `dob` is declared in 2026-04-17-provider-applications.sql
+  // but was NEVER present on the live table (verified against information_schema
+  // on 2026-08-16 — schema drift, not a missing file), so it is added by
+  // 2026-08-16-created-at-freeze-and-application-dob.sql. Until that runs, an
+  // insert naming the column fails 42703 and would take down provider signups
+  // entirely. Retry without it on the stable unknown-column codes only, so a
+  // genuine failure still surfaces.
+  //
+  // ⚠ THE RETRY CARRIES THE DATE IN `details`, AND THAT IS LOAD-BEARING. Dropping
+  // it would tell the applicant their application is ready for review, and then
+  // approval — which refuses a row it cannot age-place — would reject them with no
+  // way for an admin to restore the value. Every application submitted in the
+  // window between deploy and migration would need manual database repair or an
+  // unprompted resubmission. `details` is jsonb and already exists, so the
+  // validated value survives either way and approval recovers it. Written from
+  // the SERVER-VALIDATED `dob`, never from client input, so this cannot become a
+  // passthrough that smuggles an unvalidated date past the check above.
+  if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+    // Reassign the OUTER `details` rather than only the insert payload: the
+    // file-upload step below does `details = { ...details, documents }` and
+    // UPDATEs the row, which would otherwise write the date straight back out.
+    details = { ...details, dob };
+    ({ data, error } = await supabase
+      .from('provider_applications')
+      .insert({ ...applicationRow, details })
+      .select('id')
+      .single());
+  }
 
-  if (error) {
+  // `data` is checked alongside `error` because the retry above reassigns both,
+  // so it can no longer be narrowed by the error guard alone — and an insert that
+  // somehow resolved with neither must not fall through to a null dereference.
+  if (error || !data) {
     console.error('provider_applications insert failed:', error);
     return NextResponse.json(
       { error: 'Could not submit your application. Please email info@theshapecommunity.com directly.' },

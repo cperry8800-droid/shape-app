@@ -52,9 +52,9 @@ function RadioHero() {
         <div style={{ position: "relative", overflow: "hidden", padding: "clamp(12px,1.1vw,18px)", background: "rgba(26,22,18,0.18)", backdropFilter: "blur(16px) saturate(1.1)", WebkitBackdropFilter: "blur(16px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: "min(100%, 320px)", height: "auto", display: "block", marginBottom: 18 }} />
-          <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
-          <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", marginTop: 10, lineHeight: 1 }}>I Remember · 128 BPM</div>
-          <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 6 }}>deadmau5 — For Lack of a Better Name</div>
+          <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live</div>
+          <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", marginTop: 10, lineHeight: 1 }}>One live channel</div>
+          <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 6 }}>Tuned to your session — included with every Shape membership</div>
           <div style={{ display: "flex", alignItems: "center", gap: 3, height: 40, marginTop: 20 }}>
             {bars.map((h, i) => (
               <div key={i} style={{ flex: 1, height: `${20 + h*80}%`, background: i < 32 ? TEAL_BRIGHT : "rgba(242,237,228,0.2)", borderRadius: 1, transition: "height .2s" }} />

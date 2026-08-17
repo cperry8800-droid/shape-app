@@ -53,7 +53,7 @@ consumer-health-data statutes (MHMDA etc.) apply in full]`.
 | We do **not sell** personal information | `[VERIFY — audit FCM, Instacart, Apple Music, Spotify, Vercel Analytics for any cross-context behavioral-advertising disclosure before publishing]` |
 | We do **not share** for cross-context behavioral advertising / no targeted ads | `[VERIFY — same audit]` |
 | We do **not train ML/AI models** on user fitness/health data | `[VERIFY — depends on OpenAI being on zero-retention/no-training API terms, see §6]` |
-| **18+** only | `[TODO — real neutral DOB age gate + server-side enforcement is Wave 3; today it is self-declaration]` |
+| **18+** only | **SHIPPED 2026-08-17 (PR #1888) — no longer self-declaration.** A neutral DOB is collected at every signup and provider-application surface and validated 18+ before the account is created; `mustRefuseForAge()` (`src/lib/age-derive.mjs`) is the read-time chokepoint consumed by `computeMembership` (edge proxy + `requireMembership`) and `refuseKnownMinor`, and **refuses on absence of proof**, not just on proof of minority, for accounts created after `ADULT_PROOF_REQUIRED_FROM`. Adulthood is asserted only once true in every timezone (UTC−12 anywhere-on-Earth). `/api/apply` re-validates server-side. `profiles.date_of_birth` + `created_at` are frozen by the `set_over_18()` trigger (migration applied + behaviourally verified against production 2026-08-16). ⚠ Residual, stated plainly: a self-asserted date stops the ordinary honest member, not a hostile caller — real assurance needs identity verification, which is an owner/counsel decision. |
 | Health data is **share-gated** to chosen coach(es) | TRUE (RLS); safety screening always visible to a linked coach |
 
 ## 4. Applicable laws (apply the strictest reasonable baseline to ALL users)
@@ -143,6 +143,7 @@ aggregate analytics.
 | **Apple** (HealthKit / MusicKit) | Health import (iOS), music playlists | Health metrics (member-authorized), playlist refs | **YES (HealthKit)** | On-device + US | Apple platform terms |
 | **Spotify** | Playlist sharing (in-workout audio) | Basic profile, playlist refs | No | US / global | Per Spotify terms |
 | **Strava / Garmin / Whoop / Oura** | Wearable import (member opt-in) | Activities, HR, HRV, sleep, recovery, calories | **YES** | US / global | Per provider terms |
+| **Radio.co** | Shape Radio audio stream (non-interactive webcast) | IP + user agent of the listening device; no account or health data | No | US / global (CDN) | `[VERIFY — DPA + which licences the plan carries; see §15]` |
 
 **Recipients that are NOT processors:** the independent **coaches** a member links
 with are **third-party recipients** of a consumer-directed disclosure (member
@@ -237,3 +238,148 @@ to rebut design-code scope.
 | Consent banner + GPC | `public/newdesign/consentBanner.jsx`, `src/lib/gpc.ts` | Wave 3 |
 | Rights webform + export/delete APIs | `public/newdesign/privacy-request.*`, `src/app/api/account/*` | Wave 3 |
 | Counsel-owned internal drafts (ROPA, DPIA, TIA, DPA checklist, IRP, retention schedule, LIA, accessibility statement, PCI SAQ) | `docs/legal/*.md` | Wave 4 |
+
+## 15. Shape Radio — the NON-INTERACTIVE BOUNDARY (licensing constraint)
+
+**Ruled 2026-08-15 (owner):** Shape Radio is a **non-interactive** stream; the US
+statutory licence applies, and it must be kept that way **structurally**.
+
+Shape **does** host and stream audio (via Radio.co) — it is not passthrough. This
+is the opposite of coach playlists/soundtracks, which are genuine link-outs. The
+two must never be described in the same breath; `terms.html` §07 conflated them
+and has been corrected.
+
+### The four prohibitions
+
+A statutory licence (17 U.S.C. §114 / SoundExchange) is available **only** to a
+service the listener cannot steer. Crossing any line below removes the licence
+entirely and puts Shape into direct per-label master-rights negotiation:
+
+1. **No track selection** — a listener may never choose what plays next.
+2. **No on-demand replay** — a specific recording may never be replayed on request.
+3. **No advance playlist** — never publish (or let anyone else publish) the titles
+   of upcoming recordings or their featured artists before they air.
+4. **No skip-to-specific** — no seek, no "play this one", no per-track skip that
+   lets a listener converge on a chosen recording.
+
+**This is a licensing constraint, not a product preference.** Any future feature
+crossing it is an owner/counsel decision about becoming a different kind of
+business — never an implementation workaround. The same note is carried at the top
+of `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx`, where the code lives.
+
+### Verified compliant 2026-08-15 (and why)
+
+| Feature | Finding | Why it holds |
+| --- | --- | --- |
+| `shape.radio.musicLibraries` (saved tracks) | **Cannot replay.** Zero UI consumers repo-wide; `saveTrackToLibrary`/`isTrackSaved` are unsurfaced | `makeRadioTrackPayload` stores **text metadata only** — key/title/artist/bpm/len/savedAt. No audio, no stream handle, no addressable track id. It is a bookmark for the member's own Spotify/Apple account. **Keep it metadata-only.** |
+| `coach_soundtracks` / soundtrack assign | **Link-outs, not our stream** | Guaranteed at the schema layer: `provider` is CHECK-constrained to `('spotify','apple')`; playback is `window.open(url)` into the member's own account under that provider's licence to them. A coach ordering recordings *inside Shape's stream* would be interactive — never build it. |
+| Upcoming-track UI | **None exists** | `nowPlaying` names the **current** recording only (contemporaneous display is permitted). No surface anywhere exposes a next/upcoming *recording*. |
+| `trackIdx` / `setTrackIdx` | **Removed 2026-08-15** | The pair sat on `BSRadioContext` with **zero consumers** — a ready-made "play track N" affordance. Deleted rather than left as a foothold. Do not reintroduce. |
+| Shape Sets (`nora_sets`) COMING UP | **Programme schedule, permitted** — with an authoring rule | It publishes **shows** (title/dj/time, ≤7 days ahead), not track lists. ⚠ But `title`, `dj` and `blurb` are **unconstrained free text** written by ops via `service_role`. A set named or described with a **featured artist** or a specific recording becomes a prior announcement and breaks prohibition 3. **Name shows for the DJ or the mood, never the music.** |
+
+### Open — cannot be verified from the codebase
+
+- **Performance complement enforcement** `[VERIFY — RADIO.CO]` The statutory licence
+  caps, per listener per 3 hours: **≤4 tracks per featured artist** (≤3 consecutive)
+  and **≤3 tracks per album** (≤2 consecutive). Whether Radio.co's rotation engine
+  *enforces* this is a vendor capability question. **If it does not, the track pool
+  and rotation must guarantee it structurally** — a policy nobody enforces is not a
+  control.
+- **Play-log reporting** `[VERIFY — RADIO.CO]` SoundExchange requires census
+  reporting of actual performances (recording, artist, album, ISRC where available,
+  performance counts). Confirm Radio.co produces reports in an accepted format, and
+  who files them.
+- **Rate classification — SETTLED 2026-08-15: subscription only.** The owner ruled
+  the signed-out listening path **removed** rather than carry two rate
+  classifications. `public/radio.html` had a live 10-minute signed-out preview
+  (`shapeRadioPreviewConsumed`, 600s of counted playback); it is gone, and the page
+  now fails **closed** to a sign-in gate — including when the auth client never
+  loads, because an unlicensed-tier performance is worse than an unnecessary prompt.
+  ⚠ **Reintroducing any signed-out listening re-opens the non-subscription rate
+  ($0.0025) and permanently splits SoundExchange reporting.** It is a licensing
+  decision, not a growth experiment.
+  ⚠ **A UI gate is not an access control, and both halves are now required.**
+  The first pass closed only the players; `GET /api/radio/station` still handed
+  `streamUrl` to any anonymous caller, so the signed-out path survived one curl
+  past a removed preview. That route is **members only** as of 2026-08-15 — 401
+  anonymous, **402 for a free authenticated account**, 403 for a confirmed
+  minor. ⚠ **Closing anonymous access was only half of it, and the first pass
+  shipped only that half:** a signed-in non-member is exactly the non-subscriber
+  listening this rate ruling forbids, and `/api/radio/station` sits OUTSIDE the
+  proxy's paid prefixes, so nothing was invoking `computeMembership()`.
+  ⚠ **This is the one paid check that fails CLOSED.** `requireMembership()` is
+  not used here because it fails OPEN on a fault — correct for every other paid
+  route, wrong for this one, since failing open serves a PERFORMANCE to a
+  possible non-subscriber. A faulted check returns **503 and no URL**, on the
+  same rule as the sign-in gate: an unlicensed-tier performance is worse than an
+  unnecessary prompt.
+  Both callers send a Bearer token (`public/radio.html`
+  explicitly, because supabase-js keeps the session in localStorage on that page
+  rather than in cookies; `shapeBackend.js` because a native build has no
+  cookies at all). **Honest residual, not closed:** the URL points at the
+  provider's public endpoint, so anyone who already resolved it can keep hitting
+  the provider directly — what changed is that Shape no longer distributes it.
+  Fully closing it needs a subscriber-scoped stream token or a proxy in front of
+  the provider; registered in the War Room, and a provider-capability question
+  rather than an implementation one.
+- **Which licences Radio.co carries — SETTLED 2026-08-15: none.** Radio.co's own
+  help documentation states they do **not** provide music licensing or royalty
+  coverage. **Proceed on the basis that Shape pays SoundExchange and the PROs
+  directly.** One confirmation email to Radio.co remains outstanding, to rule out a
+  higher-tier plan that bundles it — `[TODO — OWNER]`, but not a blocker.
+- **Territory** Licences below cover US + UK only; every other territory is
+  **geo-blocked at Radio.co**, with graceful in-app handling.
+
+### To build — 1: `play()` must return WHY it failed
+
+`ShapeRadioLive.play()` (`shapeBackend.js`) collapses **every** failure to `false`,
+and the caller (`iosAppBroadsheetRadio.jsx`) discards even that. So the UI cannot
+distinguish a geo-block from an unconfigured station from a browser autoplay
+policy — and a UI that guesses would tell a member "unavailable in your region"
+when their browser merely required a tap. **Same doctrine as the progression
+guardrail: no verdict the function can't support.**
+
+Return a reason instead of a boolean:
+
+| Reason | Cause | Honest UI |
+| --- | --- | --- |
+| `ok` | Playing | Normal player |
+| `region_blocked` | Provider refused by territory (403 / geo-block) | "Shape Radio isn't available in your region yet." |
+| `unconfigured` | No `stream_url` on the station row | "Shape Radio is off air." — never a region claim |
+| `autoplay_blocked` | Browser/OS requires a gesture | "Tap to start" — never a region claim |
+| `offline` | No network | "You're offline." |
+| `unknown` | Anything else | "Couldn't start Shape Radio." + retry |
+
+Notes for the build: `region_blocked` must be distinguished from a generic network
+error by the **provider's response status**, not inferred from a failed
+`audio.play()` — a rejected play promise is ambiguous by design, so the status
+check belongs on a lightweight probe of `stream_url` (or a provider endpoint)
+before/alongside playback. `unknown` must **not** fall back to a region message.
+Both surfaces consume it: mobile (`radioOn` effect) and `public/radio.html`.
+
+### To build — 2: a Shape Sets guard, not just a documented rule
+
+The authoring rule above ("never name the music") will not survive staff turnover,
+so it needs enforcement at the write path. Assessed options:
+
+| Option | Verdict |
+| --- | --- |
+| `CHECK` constraint on `title`/`dj`/`blurb` | **Insufficient alone.** A CHECK is a predicate over the row's own text; it cannot know whether a string is a recording artist. It *can* catch the giveaway **forms** — `feat.`, `ft.`, `featuring`, `presents`, `w/`, a `—`/`·` attribution tail — which is worth having as a cheap tripwire. |
+| Denylist table + `BEFORE INSERT/UPDATE` trigger | **Recommended.** A small ops-maintained `nora_set_forbidden_terms` table seeded with the artists in the station's actual rotation, checked case-insensitively (and accent-folded) against all three fields. Rejects by name with a clear error. Honest limit: a denylist is a tripwire, not a proof — it catches the careless case, not a determined one. |
+| Controlled vocabulary — FK the set to a `nora_djs` row and template the public title | **Strongest, largest change.** Removes free text from the public-facing fields entirely, so there is nothing to lint. The right end state if Sets grows an editor UI. |
+
+**Recommendation:** ship the form-pattern `CHECK` **and** the denylist trigger now
+(both cheap, both at the write path, and writes are already `service_role`-only),
+and treat the controlled vocabulary as the follow-up that lands with a Sets editor.
+⚠ Whatever ships must fail **loud** — a rejected insert with a named reason. A guard
+that silently strips the offending words would publish a mangled schedule and teach
+ops nothing.
+
+### Licence set (owner actions — external, not code)
+
+| Licence | Covers | Status |
+| --- | --- | --- |
+| **SoundExchange** (§114 statutory) | Sound recordings — US | `[TODO — OWNER]` $1,000 annual minimum; $0.0032/performance subscription rate (see rate-classification flag) |
+| **ASCAP**, **BMI**, **SESAC**, **GMR** | Musical compositions — US (all four; repertories do not overlap) | `[TODO — OWNER]` |
+| **PRS for Music** + **PPL** | Compositions (PRS) + recordings (PPL) — UK | `[TODO — OWNER]` |
+| Geo-block all other territories | — | `[TODO — OWNER]` configure at Radio.co |

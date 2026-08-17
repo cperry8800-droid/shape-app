@@ -4,6 +4,7 @@ import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } 
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush, teardownPush } from './push.js';
 import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
+import { makePlaybackGate } from './playbackGate.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -23,6 +24,8 @@ import { bsNormalizeListingMedia } from './listingMedia.mjs';
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
 import { normalizeMemoryDoc } from '../../../src/lib/ai/noraMemory.mjs';
+// The canonical 18+ derivation (anywhere-on-Earth rule) shared with the gates.
+import { isMinorFromDob } from '../../../src/lib/age-derive.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -298,12 +301,16 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
   // 18+ age gate — REQUIRED at account creation (no soft-fail): a missing or
   // unparseable date of birth is rejected, and under-18 is blocked. This is the
   // authoritative server-side check; over_18 is then recomputed from date_of_birth
-  // by a DB trigger, so neither the date nor the derived flag can be faked.
+  // by a DB trigger. The DATE is only unfakeable once
+  // 2026-08-15-profiles-dob-immutable.sql freezes it against self-rewrite.
   {
-    const d = dob ? new Date(dob) : null;
-    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
-    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+    // ⚠ ONE RULE — the same derivation the read-time gates use. The instant
+    // comparison this replaced read ADULT for DOB 2008-08-17 at
+    // 2026-08-17T00:30:00Z (still Aug 16 in Los Angeles), admitting a minor the
+    // gate would then refuse.
+    const minor = isMinorFromDob(dob);
+    if (minor === null) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    if (minor === true) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
   }
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });
@@ -366,12 +373,16 @@ async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCre
   // `shouldCreateUser` is tied to isCreate below, so an existing user signing in
   // (isCreate false) never provisions an account and needs no DOB, while a new
   // account can only be made through the DOB-required create path. over_18 is
-  // recomputed from date_of_birth by a trigger, so the value can't be faked.
+  // recomputed from date_of_birth by a trigger — unfakeable only once
+  // 2026-08-15-profiles-dob-immutable.sql freezes the date against self-rewrite.
   if (isCreate) {
-    const d = dob ? new Date(dob) : null;
-    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
-    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+    // ⚠ ONE RULE — the same derivation the read-time gates use. The instant
+    // comparison this replaced read ADULT for DOB 2008-08-17 at
+    // 2026-08-17T00:30:00Z (still Aug 16 in Los Angeles), admitting a minor the
+    // gate would then refuse.
+    const minor = isMinorFromDob(dob);
+    if (minor === null) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    if (minor === true) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
   }
   if (!authConfigured) {
     // Demo mode (no Supabase configured): pretend the code was sent.
@@ -513,6 +524,11 @@ async function getCurrentSession() {
   return cached;
 }
 
+// Set by the Shape Radio IIFE further down this module. A module-scope hook rather
+// than a window read so the coupling is stated here, where sign-out has to honour it,
+// and so it holds on the native build and under test where window may not carry it.
+let _stopRadioPlayback = null;
+
 async function signOut() {
   // FIRST STATEMENT, before any teardown step: invalidates every operation
   // already parked on an await (a push registration awaiting its token, a habit
@@ -520,6 +536,13 @@ async function signOut() {
   // re-create the state it just removed. Bumping here rather than inside each
   // teardown means the guard can never race the step it protects.
   bumpSignOutGen();
+  // Radio audio STOPS HERE, in the same breath as the generation bump — not at the
+  // end with the cache clear. Licensing requires a signed-in listener, and every step
+  // below can await on a slow network, so leaving the stream running until state.user
+  // finally clears is exactly the signed-out playback window this closes. The epoch
+  // bump above refuses any PENDING attempt; this stops audio ALREADY playing, which
+  // no gate check can do on its own.
+  try { _stopRadioPlayback?.(); } catch (e) {}
   // Native push FIRST, while the session is still valid: the token-unassign
   // DELETE is Bearer-authed. Also resets push.js's `registered` sentinel so the
   // next account's registerPush() actually runs — without this a shared device
@@ -1011,6 +1034,10 @@ function applicationToPayload(role, values = {}) {
     specialty: values.primary || '',
     years_experience: values.years || '',
     monthly_price: values.subPrice || '',
+    // Shape is 18+ for coaches too — approval provisions a real account and coach
+    // roles satisfy membership, so a provider row with no DOB is an ungated
+    // account. /api/apply re-validates this server-side.
+    dob: values.dob || '',
     details: {
       // RD/RDN declaration (nutritionist applications only) — the apply route
       // reads details.nutrition_role === 'dietitian' to label the application
@@ -1039,6 +1066,12 @@ function applicationToPayload(role, values = {}) {
         code_of_conduct: Boolean(values.conduct),
         background_check: Boolean(values.bgcheck),
       },
+      // ⚠ NUTRITION COMPLIANCE ATTESTATIONS (NC1). /api/apply returns 400 for a
+      // nutritionist application whose details omit these, so the value collected
+      // in the apply form has to reach the REQUEST — the same class of omission as
+      // `dob`. Sent for every role (the route only enforces it for nutritionists)
+      // so a role change can never leave it behind.
+      compliance_attestations: values.attest || {},
       background_check_provider: DEFAULT_BACKGROUND_CHECK_PROVIDER,
       background_check_required: true,
       background_check_consent: Boolean(values.bgcheck),
@@ -1144,6 +1177,13 @@ function providerApplicationApiBody(payload) {
     specialty: payload.specialty,
     yearsExperience: payload.years_experience,
     monthlyPrice: payload.monthly_price,
+    // ⚠ THIS IS THE REQUEST BODY. applicationToPayload() carrying `dob` proves
+    // nothing on its own — omitting it here sent an empty date to a route that
+    // now REFUSES an application it cannot age-place, so every mobile and /m/
+    // application 400'd and fell through to the direct insert below, skipping
+    // the server-side 18+ re-check and the reviewer email with nothing on screen
+    // to say so. tests/provider-apply-dob.test.mjs gates every apply surface.
+    dob: payload.dob,
     details: payload.details || {},
   };
 }
@@ -1158,7 +1198,14 @@ async function submitProviderApplicationToApi(payload) {
 
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(result?.error || 'Application email route failed.');
+    const error = new Error(result?.error || 'Application email route failed.');
+    // ⚠ A REFUSAL IS NOT A TRANSPORT FAILURE. The caller's fallback exists so an
+    // application survives an outage; a 4xx means the route deliberately declined
+    // this one (under 18, too few years, no background-check consent). Storing it
+    // anyway would bypass the check that produced the refusal and still tell the
+    // applicant they succeeded, so mark it and let the caller surface it.
+    error.rejected = response.status >= 400 && response.status < 500;
+    throw error;
   }
   return result;
 }
@@ -1186,6 +1233,8 @@ async function submitProviderApplication({ role, values }) {
       };
     }
   } catch (apiError) {
+    // Surface a deliberate refusal instead of storing the application around it.
+    if (apiError?.rejected) throw apiError;
     console.warn('[shape] Application API failed; falling back to Supabase insert.', apiError);
   }
 
@@ -7195,22 +7244,67 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     if (!el) { el = new Audio(); el.preload = 'none'; el.crossOrigin = 'anonymous'; }
     return el;
   }
+  // ⚠ The station route is SIGNED-IN ONLY (see the route's own header). A
+  // native build has no cookies, so the Bearer token is required or every
+  // station read 401s and the player reads permanently "not configured".
   async function station() {
-    try { const r = await fetch(api('/api/radio/station'), { cache: 'no-store' }); return r.ok ? r.json() : null; }
+    try {
+      const headers = {};
+      if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+      const r = await fetch(api('/api/radio/station'), { cache: 'no-store', headers });
+      return r.ok ? r.json() : null;
+    }
     catch { return null; }
   }
   async function nowPlaying(signal) {
     try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store', signal }); return r.ok ? r.json() : null; }
     catch { return null; }
   }
+  // ⚠ PLAYBACK IS GENERATION-GUARDED, AND IT IS A LICENSING GATE — NOT POLISH.
+  // play() awaits TWO things (the authenticated station read, then a.play()), and a
+  // sign-out can land in either window. pause() only touches an existing element
+  // (`if (el)`), so on the sign-out path it is a complete NO-OP when no element has
+  // been created yet — the late play() then creates one and starts the stream. That
+  // is signed-out playback, i.e. exactly the non-subscription rate classification the
+  // signed-out path was removed to avoid (see the NON-INTERACTIVE BOUNDARY note in
+  // iosAppBroadsheetRadio.jsx).
+  //
+  // pause() supersedes any pending play, and play() re-checks BOTH the generation and
+  // the LIVE identity after EVERY await — including after a.play() resolves, where it
+  // stops the audio it just started. Fails CLOSED: a superseded or signed-out
+  // resolution never leaves audio running. The decision lives in the pure, unit-tested
+  // playbackGate (identity injected, never a captured snapshot — the captured snapshot
+  // IS the bug); the sibling poll below already worked this way (Codex P1 on #1467).
+  // signOutGen is the SECOND gate and it is the one that moves first: signOut() bumps
+  // it before any teardown, while state.user stays populated until the very end. See
+  // the epoch note in playbackGate.mjs.
+  const playbackGate = makePlaybackGate(() => state.user?.id, signOutGen);
   async function play() {
+    const live = playbackGate.begin();
+    if (!live()) return false;
     const cfg = await station();
-    if (!cfg || !cfg.configured) return false;
+    if (!live() || !cfg || !cfg.configured) return false;
     const a = audio();
     if (a.src !== cfg.streamUrl) a.src = cfg.streamUrl;
-    try { await a.play(); return true; } catch { return false; }
+    try {
+      await a.play();
+      // Superseded or signed out WHILE starting → never report success. Whether to
+      // PAUSE is a different question: the element is a singleton, so pausing on any
+      // !live() had a superseded attempt stop the stream the winning play had just
+      // started. Only a pause/sign-out means nothing may be playing (live.mustStop);
+      // when a newer play superseded us, it owns the element and we touch nothing.
+      if (!live()) {
+        if (live.mustStop()) { try { a.pause(); } catch { /* no-op */ } }
+        return false;
+      }
+      return true;
+    } catch { return false; }
   }
-  function pause() { if (el) el.pause(); }
+  function pause() { playbackGate.supersede(); if (el) el.pause(); }
+  // Hand sign-out a direct way to stop playback. Registered here rather than read off
+  // window at the call site so a bundling/ordering change can't silently make the
+  // sign-out stop a no-op.
+  _stopRadioPlayback = pause;
   // Self-scheduling poll with cancellation: each cycle finishes (or aborts) before
   // the next is scheduled, so a slow mobile network can't stack overlapping requests,
   // and a teardown (stopPolling) aborts the in-flight fetch + drops any late response

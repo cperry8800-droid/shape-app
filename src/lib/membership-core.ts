@@ -3,6 +3,11 @@
 // `require-membership.ts`, which builds on this.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+// Pure + tested (tests/age-derive.test.mjs). Imports nothing, so it stays safe
+// in this module's edge-proxy import chain.
+import { isMinorFromDob, mustRefuseForAge } from './age-derive.mjs';
+
+export { isMinorFromDob, mustRefuseForAge };
 
 export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
 
@@ -32,7 +37,25 @@ export function adminEmails(): string[] {
   return Array.from(new Set([...configured, ...DEFAULT_ADMIN_EMAILS]));
 }
 
-export type Membership = { isMember: boolean; isCoach: boolean; isAdmin: boolean };
+export type Membership = {
+  isMember: boolean;
+  isCoach: boolean;
+  isAdmin: boolean;
+  /**
+   * TRUE only when we hold a date of birth that proves the account is a minor.
+   *
+   * `profiles.over_18` is DERIVED by the set_over_18() trigger from
+   * date_of_birth, so it cannot be written directly. A `false` is trustworthy
+   * only once 2026-08-15-profiles-dob-immutable.sql freezes date_of_birth
+   * against self-rewrite — before that, editing the input flips the flag.
+   * ⚠ It is NULL when no DOB was ever captured (accounts created before the age
+   * gate, and phone sign-ups whose DOB claim did not persist), and NULL is NOT
+   * evidence of anything — so this flags only a CONFIRMED minor. Blocking NULL
+   * would lock out every legacy account, which is a different change and needs a
+   * DOB-completion flow first.
+   */
+  isKnownMinor: boolean;
+};
 
 /** Entitlement: approved coach OR admin OR an active platform subscription. */
 export async function computeMembership(
@@ -42,7 +65,7 @@ export async function computeMembership(
 ): Promise<Membership> {
   const { data: profile } = await client
     .from('profiles')
-    .select('role, roles')
+    .select('role, roles, over_18, date_of_birth, created_at')
     .eq('id', userId)
     .maybeSingle();
   const role = (profile?.role as string) || 'client';
@@ -68,5 +91,21 @@ export async function computeMembership(
       .maybeSingle();
     isMember = !!(sub && ACTIVE_SUB.has(String((sub as { status?: unknown }).status)));
   }
-  return { isMember, isCoach, isAdmin };
+  // Age is derived from the DATE first (see isMinorFromDob — `over_18` is a
+  // signup-time snapshot that goes stale on the member's eighteenth birthday).
+  // The stored flag is the fallback for rows that carry no usable DOB, where
+  // only an explicit false is a proven minor.
+  // ⚠ ABSENCE NO LONGER ADMITS. This used to be
+  //   fromDob !== null ? fromDob : over_18 === false
+  // i.e. only proof of MINORITY refused — so any account that reached a session
+  // without a stored date of birth (failed upsert, unprovisioned confirmation
+  // callback, coach invitation) was admitted. mustRefuseForAge() requires proof
+  // of ADULTHOOD for accounts created from ADULT_PROOF_REQUIRED_FROM onward and
+  // grandfathers the pre-launch rows.  is selected above and is
+  // required — without it every account reads as unplaceable and is refused.
+  const isKnownMinor = mustRefuseForAge(
+    profile as { date_of_birth?: unknown; over_18?: unknown; created_at?: unknown } | null
+  );
+
+  return { isMember, isCoach, isAdmin, isKnownMinor };
 }

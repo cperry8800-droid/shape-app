@@ -1164,7 +1164,6 @@ const DirB = (() => {
           </div>
           <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(26,22,18,0.12)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(26,22,18,0.5)" }}>
             <span>© 2026 SHAPE</span>
-            <span>BROOKLYN · LISBON · MELBOURNE</span>
           </div>
         </div>
       </section>
