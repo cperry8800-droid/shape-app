@@ -256,3 +256,37 @@ test('a trailing condition still NAMES the food when no action follows it', () =
     bsStepGists('Bake the salmon 12 minutes while the pearl couscous cooks 10 minutes.',
       ['pearl couscous', 'salmon fillet']), ['salmon fillet', 'pearl couscous']);
 });
+
+// ── Round 9: a FRONTED condition introduces THIS action, a trailing one the previous ──
+
+test('a fronted `until` clause carries the CURRENT timer food', () => {
+  // I told Codex the until/while split might be fitting our examples rather than
+  // a real rule, and asked for prose that breaks it. This is that prose: a coach
+  // may front the completion condition ahead of the verb, and then the food in
+  // it is THIS action's. The tell is a sentence boundary before the clause.
+  assert.deepEqual(
+    bsStepGists('Toast the spices 1 minute. Until the rice is tender, continue simmering, about 10 minutes.',
+      ['mixed spices', 'jasmine rice']), ['toast', 'jasmine rice']);
+});
+
+test('a comma still separates two TIMED actions', () => {
+  // The other side of the same coin, and why "ignore commas" is not the fix:
+  // here the comma really does join two actions, each with its own duration.
+  assert.deepEqual(
+    bsStepGists('Boil the rice 10 minutes until tender, rest 5 minutes before slicing.',
+      ['jasmine rice']), ['jasmine rice', 'rest']);
+  assert.deepEqual(
+    bsStepGists('Simmer the tomato sauce 10 minutes until the carrots soften, boil the rice 8 minutes.',
+      ['tomato sauce', 'carrots', 'jasmine rice']), ['tomato sauce', 'jasmine rice']);
+});
+
+test('the lead widens ONLY when the nearest fragment says nothing', () => {
+  // ⚠ Widening unconditionally (dropping the comma from the clause split) moved
+  // 32 of 96 catalogue labels -- many better, but several worse (bok choy ->
+  // steam, cook -> olive oil). Scoped to the empty case it moves 4, all
+  // improvements. A fix whose blast radius is 8x the defect is not the fix.
+  // "about" is all skip-words, so that fragment cannot stand for the action...
+  assert.equal(bsStepGist('Simmer, about 10 minutes.', ['tomato sauce'], 600, 0), 'simmer');
+  // ...while a fragment that names a verb or a food stands on its own.
+  assert.equal(bsStepGist('Boil the rice 10 minutes until tender, rest 5 minutes.', ['jasmine rice'], 300, 0), 'rest');
+});

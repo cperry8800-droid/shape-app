@@ -246,6 +246,16 @@ const GIST_SKIP = new Set([
 // they separate "Push the meat aside" from "add the garlic and ginger ... 30
 // seconds", and the timer belongs to the second.
 const GIST_SPLIT_RE = /[.;:!?](?=\s|$)|\s+[–—]\s+|,\s+/;
+// Where one ACTION ends -- sentence-level punctuation only, NO comma.
+//
+// ⚠ A comma does not end an action. "Until the rice is tender, continue
+// simmering, about 10 minutes" is ONE action written in three fragments, and
+// taking the fragment nearest the number kept only "about" -- an empty label on
+// a step whose prose names the rice plainly. Reducing the lead to the nearest
+// COMMA fragment is lossy in a way that reducing it to the nearest SENTENCE is
+// not: "Heat a dry skillet. ... let it sit undisturbed 2 minutes" still has to
+// label "sit" and not "heat".
+const GIST_CLAUSE_RE = /[.;:!?](?=\s|$)|\s+[–—]\s+/;
 // A stated duration, in the same unit vocabulary the timer parser accepts.
 // ⚠ Plain concatenation, NOT a template literal: `\d` inside a template literal
 // collapses to a bare "d", which silently produced a regex that matched no
@@ -289,6 +299,21 @@ const ingPosition = (ing, region) => {
     if (m && m.index < best) best = m.index;
   }
   return best;
+};
+
+// Does this fragment say anything a label could be built from -- a named food,
+// or a word that carries an action? Used to decide when the fragment nearest the
+// number is too thin to stand for the action.
+const gistCandidate = (frag, ingredients) => {
+  const f = str(frag);
+  if (!f) return false;
+  if (bsStepIngredients(f, ingredients).length) return true;
+  return f
+    .replace(GIST_DUR_RE, ' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .some((w) => w.length >= 3 && !GIST_SKIP.has(w));
 };
 
 export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
@@ -370,50 +395,47 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
     // sit undisturbed 2 minutes" labels "sit" and not "heat". It must not reach
     // back across a join into the PREVIOUS action -- "...until tender while rest
     // 5 minutes" labelled the REST timer "tender".
-    const leads = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
-    const leadClause = leads.length ? leads[leads.length - 1] : '';
-    // A bare "and" is the hard one: action-level in "…10 minutes until the
-    // carrots soften AND toast the rice 2 minutes", but INSIDE one action in
-    // "add the chicken and cook 10 minutes". Cutting it everywhere moves 41 of 96
-    // catalogue labels and nearly all get worse (shrimp->cook, bok choy->steam).
+    const rawLead = t.slice(from, mine.at);
+    const leads = rawLead.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+    let leadClause = leads.length ? leads[leads.length - 1] : '';
+    // ⚠ The fragment nearest the number can carry NOTHING. "Until the rice is
+    // tender, continue simmering, about 10 minutes" leaves "about", an empty
+    // label on prose that names the rice plainly -- a coach may front this
+    // action's completion condition ahead of its verb. Widen to the whole
+    // SENTENCE only when the nearest fragment says nothing at all, so the
+    // ordinary case is untouched: widening unconditionally moved 32 of 96
+    // catalogue labels, several of them worse (bok choy -> steam).
+    if (!gistCandidate(leadClause, ingredients)) {
+      const sentences = rawLead.split(GIST_CLAUSE_RE).map((p) => p.trim()).filter(Boolean);
+      if (sentences.length) leadClause = sentences[sentences.length - 1];
+    }
+    // WHOSE action is the text before this clause's "and"/comma?
     //
-    // ⚠ "is there an earlier duration in this step" is NOT the discriminator --
-    // that shipped, and it truncated "Add the chicken and cook 10 minutes" to
-    // "cook" whenever any unrelated timer appeared earlier in the same step.
-    // What actually distinguishes them is how the clause OPENS: one that opens
-    // subordinate ("until the carrots soften …") is still describing the
-    // PREVIOUS action, so the text before its "and" belongs to that action. One
-    // that opens on its own verb ("Add the chicken …") is this action already,
-    // and its "and" is internal.
-    // A bare "and" is the hard one: action-level in "...10 minutes until the
-    // carrots soften AND toast the rice 2 minutes", but INSIDE one action in
-    // "add the chicken and cook 10 minutes". Cutting it everywhere moves 41 of
-    // 96 catalogue labels and nearly all get worse (shrimp->cook, bok choy->steam).
+    // An opening `until`/`while` usually completes the action that just ended
+    // ("simmer 10 minutes until the carrots soften, boil the rice 8 minutes" --
+    // the carrots are the SIMMER's). But the same words FRONTED onto a new
+    // sentence introduce THIS action instead ("... 1 minute. Until the rice is
+    // tender, continue simmering, about 10 minutes" -- the rice is this timer's).
+    // The tell is a sentence boundary between the previous duration and here.
     //
-    // ⚠ "is there an earlier duration in this step" is NOT the discriminator --
-    // that shipped, and truncated "Add the chicken and cook 10 minutes" to "cook"
-    // whenever any unrelated timer appeared earlier in the same step.
-    //
-    // What separates them is which conjunction OPENS the clause, because that
-    // says whose action the text before the "and" belongs to:
-    //   "until X softens ..."  -- a COMPLETION CONDITION on the action that just
-    //                             ended, so X is the PREVIOUS timer's food.
-    //   "while X cooks ..."    -- a PARALLEL action, likewise not this one's.
-    //   "before you fold in X" -- a NEW action, and X is its own food; cutting
-    //                             here labelled the spinach timer "cook".
-    // So only `until` and `while` hand their text to the previous action.
-    // (regex LITERAL here, so a single \b -- doubling is only for strings
-    //  handed to new RegExp, and getting that backwards silently matches nothing)
-    const carriesPrevAction = /^(?:until|while)\b/i.test(leadClause);
+    // ⚠ Neither splitting on commas nor ignoring them is right on its own. A
+    // comma joins two timed actions in "until tender, rest 5 minutes" and joins
+    // ONE action's fragments in "Until the rice is tender, continue simmering,
+    // about 10 minutes" -- taking the fragment nearest the number reduced that
+    // second one to "about" and produced an EMPTY label on prose naming the rice.
+    const fronted = GIST_CLAUSE_RE.test(t.slice(from, mine.at));
+    const carriesPrevAction = !fronted && /^(?:until|while)\b/i.test(leadClause);
     const leadBase = leadClause.split(reOf(SEQ + '|' + SUB)).pop();
-    const lead = carriesPrevAction ? leadBase.split(reOf('and')).pop() : leadBase;
+    // Its completion condition ends at the next comma or "and"; what follows is
+    // this timer's own action.
+    const lead = carriesPrevAction ? leadBase.split(/\s+and\s+|,\s+/).pop() : leadBase;
     // TAIL: the food is often named AFTER the number ("roast 16-18 minutes until
     // the chicken hits 165F"), so it is kept -- but only as far as the next
     // action. `upto` is the next stated duration, so when it is the end of the
     // step there is no next action and a subordinate clause here is THIS
     // timer's own context, not a boundary.
     const more = upto < t.length;
-    const tail = (t.slice(mine.end, upto).split(GIST_SPLIT_RE)[0] || '').split(reOf(more ? SEQ + '|' + SUB : SEQ))[0];
+    const tail = (t.slice(mine.end, upto).split(GIST_CLAUSE_RE)[0] || '').split(reOf(more ? SEQ + '|' + SUB : SEQ))[0];
     own = [lead.trim(), tail.trim()].filter(Boolean).join(' ') || null;
   }
   // No usable span (no duration given, or the step opens on one) falls back to
