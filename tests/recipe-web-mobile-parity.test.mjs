@@ -18,10 +18,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { parse } from '@babel/parser';
+import _traverse from '@babel/traverse';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { SHAPE_KITCHEN_RECIPES, recipeNeeds, recipeMatchesDiet } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 
+// @babel/parser + @babel/traverse ride the declared @babel/core devDep, as in
+// tests/broadsheet-identifiers.test.mjs.
+const traverse = _traverse.default || _traverse;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = 'public/newdesign/recipes.jsx';
 const src = readFileSync(join(ROOT, WEB), 'utf8');
@@ -42,6 +47,17 @@ const evalSet = (name) => {
   const open = src.indexOf('new Set([', i);
   const j = src.indexOf('\n]);', open);
   return new Function(`return ${src.slice(open, j + 3)}`)();
+};
+
+// The website's display string for a structured catalog ingredient. `{n, m, k}`
+// renders as "6 oz chicken thigh (330 kcal)"; without a kcal annotation it is just
+// "1 low-sodium beef bouillon cube". A website ingredient is already a string and
+// passes through, so the two sides meet in one shape.
+const flatIngredient = (ing) => {
+  if (typeof ing === 'string') return ing.trim();
+  if (!ing || typeof ing !== 'object') return '';
+  const qty = [ing.n, ing.m].filter(Boolean).join(' ').trim();
+  return ing.k ? `${qty} (${ing.k})` : qty;
 };
 
 const WEB_RECIPES = [...evalArray('const RECIPES_BY_WEEKDAY = ['), ...evalArray('const RECIPES_EXTRA = ['), ...evalArray('const RECIPES_USDA = [')];
@@ -75,9 +91,22 @@ test('recipe parity: rendered fields match the catalog', () => {
     cmp('sourceUrl', w.sourceUrl ?? null, m.sourceUrl ?? null);
     cmp('kcal', w.kcal, m.kcal);
     cmp('servings', w.servings, m.servings);
-    // Ingredient SHAPES differ by design (the website flattens to strings, the
-    // app keeps structured quantities), so only the count is comparable.
-    cmp('ingredient count', (w.ingredients || []).length, (m.ingredients || []).length);
+    // Rendered on the card and/or the detail page: the cook time, the diet chip
+    // (which also picks the accent colour), the hero gradient, the macro figures
+    // and the tag pills. Every one is visible drift if it disagrees.
+    cmp('time', w.time, m.time);
+    cmp('diet', w.diet, m.diet);
+    cmp('hero', w.hero, m.hero);
+    for (const k of ['p', 'c', 'f']) cmp(`macros.${k}`, (w.macros || {})[k], (m.macros || {})[k]);
+    cmp('tags', JSON.stringify(w.tags || []), JSON.stringify(m.tags || []));
+    // Ingredient shapes differ by design — the app keeps structured quantities,
+    // the website flattens them for display — but the flattening is deterministic,
+    // so the VALUES are comparable and a count alone is not: two lists of eight can
+    // disagree on every line. Compare the rendered strings.
+    const wi = (w.ingredients || []).map(flatIngredient);
+    const mi = (m.ingredients || []).map(flatIngredient);
+    if (wi.length !== mi.length) bad.push(`${w.title}: ${wi.length} ingredients on the website vs ${mi.length} in the catalog`);
+    else wi.forEach((line, i) => { if (line !== mi[i]) bad.push(`${w.title}: ingredient ${i + 1} — website ${JSON.stringify(line)} vs catalog ${JSON.stringify(mi[i])}`); });
     const ws = w.steps || [], ms = m.steps || [];
     if (ws.length !== ms.length) bad.push(`${w.title}: ${ws.length} steps on the website vs ${ms.length} in the catalog`);
     else ws.forEach((s, i) => { if (s !== ms[i]) bad.push(`${w.title}: step ${i + 1} text differs`); });
@@ -104,36 +133,57 @@ test('recipe parity: allergen and diet classification is identical', () => {
 });
 
 // ---------------------------------------------------------------------------
-// A byline is the one recipe field that is NULL for a whole class of records.
-// Reading it directly is what took /recipes down: `recipe.by.toUpperCase()`
-// throws a TypeError on the first public-domain card and blanks the route.
-// Three shapes are forbidden anywhere a recipe is rendered — dereference,
-// raw interpolation, and a `||` default (which invents a byline instead of
-// omitting one). The attribution helpers read `r.by` through a null-safe
-// accessor, so they are not matched and need no exemption.
+// A byline is the one recipe field that is NULL for a whole class of records, and
+// reading it directly is what took /recipes down.
 //
-// The file list is DERIVED from the tracked tree, never hand-listed: the crash
-// lived in two route files a hand-written list would not have named.
-const FORBIDDEN = [
-  [/\b(?:r|recipe)\.by\s*\./, 'dereferences a byline that is null on every sourced recipe'],
-  [/\{\s*(?:r|recipe)\.by\s*\}/, 'renders a byline raw instead of through the attribution helper'],
-  [/\b(?:r|recipe)\.by\s*\|\|/, 'defaults a missing byline to an invented one'],
-];
-test('recipe byline: never dereferenced, rendered raw, or defaulted', () => {
-  const tracked = execFileSync('git', ['ls-files', 'public/newdesign', 'mobile-app/src/broadsheet'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n').filter((f) => /\.(?:js|jsx|mjs)$/.test(f));
-  assert.ok(tracked.length > 10, `only ${tracked.length} tracked files scanned — the guard has gone hollow`);
+// ⚠ The PRIMARY gate for that is not here — it is tests/recipe-render.test.mjs
+// (website) and tests/kitchen-card-render.test.mjs (mobile), which compile and
+// RENDER the real components with a sourced recipe. A text scan cannot see the
+// defect written a different way: the first version of this guard keyed on
+// identifiers literally named `r` or `recipe`, and a renderer spelled
+// `item.by.toUpperCase()` recreated the crash while every assertion stayed green.
+//
+// What remains here is cheap defence-in-depth for a branch a render pass may not
+// reach, and it reads the AST rather than the text — `item.by`, `recipe['by']`, a
+// destructured `by` and a chain split across lines are one node to a parser and
+// four different strings to a regex.
+//
+// Scope is deliberate. These are the files that exist to render recipes, matched
+// by path from the tracked tree. The mobile client module is NOT scanned: it mixes
+// recipes with domains that carry their own legitimate `by` (a goal's target date,
+// a playlist's author — seven correct uses, measured), so a ban there would fire
+// on correct code. Its coverage is behavioural, in the render test above.
+const helperOf = (path) => {
+  for (let p = path; p; p = p.parentPath) {
+    const id = p.node && (p.node.id || (p.node.key && p.node.key.type === 'Identifier' && p.node.key));
+    if (id && /^(?:bs)?[Rr]ecipeAttribution$/.test(id.name)) return id.name;
+    if (p.node && p.node.type === 'VariableDeclarator' && p.node.id && /Attribution$/.test(p.node.id.name)) return p.node.id.name;
+  }
+  return null;
+};
+test('recipe byline: never read outside the attribution helper (AST)', () => {
+  const files = execFileSync('git', ['ls-files', 'public/newdesign'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n').filter((f) => /\/recipe[^/]*\.jsx$/.test(f));
+  assert.ok(files.length >= 3, `only ${files.length} recipe page(s) matched — the scan has gone hollow`);
   const bad = [];
-  for (const f of tracked) {
-    const lines = readFileSync(join(ROOT, f), 'utf8').split('\n');
-    lines.forEach((line, i) => {
-      // A comment may QUOTE the forbidden shape — this rule is documented in two
-      // places using the exact text it bans. Skip whole-line comments only, so a
-      // real violation carrying a trailing note is still caught.
-      const src = line.trim();
-      if (src.startsWith('//') || src.startsWith('*')) return;
-      for (const [re, why] of FORBIDDEN) if (re.test(line)) bad.push(`${f}:${i + 1} ${why} :: ${src.slice(0, 90)}`);
+  for (const f of files) {
+    const src = readFileSync(join(ROOT, f), 'utf8');
+    const ast = parse(src, { sourceType: 'unambiguous', plugins: ['jsx'] });
+    traverse(ast, {
+      MemberExpression(path) {
+        const n = path.node;
+        const key = n.computed ? (n.property && n.property.value) : (n.property && n.property.name);
+        if (key !== 'by' || helperOf(path)) return;
+        bad.push(`${f}:${n.loc.start.line} reads a byline directly — route it through recipeAttribution`);
+      },
+      ObjectPattern(path) {
+        for (const prop of path.node.properties) {
+          if (prop.key && prop.key.name === 'by' && !helperOf(path)) {
+            bad.push(`${f}:${prop.loc.start.line} destructures a byline — route it through recipeAttribution`);
+          }
+        }
+      },
     });
   }
-  assert.deepEqual(bad, [], 'route it through recipeAttribution / bsRecipeAttribution, which returns null rather than inventing a name');
+  assert.deepEqual(bad, [], 'recipeAttribution returns null rather than inventing a name — read the byline through it');
 });
