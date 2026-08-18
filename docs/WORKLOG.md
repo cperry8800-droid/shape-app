@@ -189,6 +189,60 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-18 — A claim is kept by SPECIFYING the ingredient, never by hiding the recipe
+
+**Owner ruling, and it reversed my rounds 3-4 classifications.** Two questions had been
+registered as needing a ruling; both came back the other way:
+
+1. *"margarine usually does not contain dairy. So make sure its a brand that does not
+   contain dairy."* Margarine is vegetable-oil based; the has-dairy classification was
+   over-cautious.
+2. *"if someone is cooking a gluten free recipe, just make sure it is stated to use gluten
+   free brand/ingredients. maybe offer suggestions on certain brands."* Plus **yes on
+   oats**: specify certified gluten-free oats and restore the claim on all four.
+
+So a recipe using an **ambiguous** ingredient — one whose certified or labelled form
+genuinely is free of the allergen — **keeps its claim and carries a note**. Four classes:
+oats, soy sauce, broth/stock/bouillon, margarine.
+
+- **9 set removals, 14 notes.** ⚠ The scope was first recorded as "~17 recipes" and that
+  was wrong: the five broth recipes were **never classified** (they had always claimed
+  gluten-free — that is why they were the open question), so they need a note and no set
+  change; and three soy-sauce recipes are **held**. Measured off the catalog, not counted
+  from the earlier note.
+- **`Herbed baked salmon with lemon` reads Pescatarian + Gluten-free + Dairy-free again**,
+  which is what the original brief expected before round 4 over-classified it.
+- **THE SEQUENCING IS THE WHOLE RISK.** `recipeNeeds` reads a title's ABSENCE from
+  `_RECIPE_NOT_GF` as a POSITIVE claim, so a removal landing before the gate understands
+  notes re-creates the shipped P1 — telling a coeliac member a recipe is safe — with the
+  suite green, because a claim made by omission is invisible to a one-way check. Gate,
+  removals and website mirror land in ONE commit.
+- **The gate learned the note path.** `GLUTEN` gained `broths?|stocks?|bouillon` — that
+  class had **no marker at all**, so the five recipes claiming gluten-free over a generic
+  broth were invisible to it. A claim over an ambiguous ingredient now passes only when the
+  recipe carries a note for that allergen **and** striking the ambiguous phrase leaves
+  nothing still matching — so a note can never wave through `soy sauce and wheat flour`.
+  ⚠ The ambiguous classes are deliberately **not** in `SAFE_FORMS`: that list is keyed on
+  the phrase alone and would exempt oats catalog-wide, forever, note or no note.
+- ⚠ **THREE RECIPES HELD BACK, against the literal ruling.** `Miso-glazed cod with
+  greens`, `Beef and broccoli stir-fry` and `Tempeh and broccoli teriyaki` all use soy
+  sauce, but each carries a SECOND gluten source no marker sees — white miso, oyster
+  sauce, teriyaki sauce, all commonly wheat-fermented. Restoring them would publish a
+  gluten-free claim over an ingredient with no note and no gate. Under-claiming costs a
+  filter hit; over-claiming is the harm. **Registered for a ruling, not decided.**
+- ⚠ **No brands named for broth or margarine.** Oats and soy sauce carry real certified
+  products; for the other two the safe form is the LABEL, not a brand, and a wrong brand on
+  a coeliac-facing note is a real-world harm. Those degrade to the certification sentence
+  alone, which is always correct. Shape is `[[name, region]]`, fillable per market.
+- **The old render test would have shipped a crash green.** It sampled two recipes via
+  `find(r => !r.by && r.source)` and `find(r => r.by)` — which return
+  `Slow-simmered beef pot roast` and `One-pan chicken and rice`, **both note-bearing**. With
+  the `|| []` guard removed both sampled recipes render fine while 71 crash. The detail
+  render now loops all 85.
+- **Never behind a byline.** `tip` renders attributed, so a brand recommendation there would
+  come out of a named nutritionist or the USDA. The note is its own unattributed block on
+  every surface, and the field is `allergenNotes` for exactly that reason.
+
 > **Latest (2026-08-18): COOK MODE LABELS EVERY TIMER, AND THE SHAPE KITCHEN GOES 35 → 85
 > (#1906 → `7c4e49ecb` · #1907 → `f7b9f69ec`).**
 > Two PRs, and in **both** the reviewer's findings kept landing in my own preceding fixes —
