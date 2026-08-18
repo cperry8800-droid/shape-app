@@ -94,21 +94,25 @@ changelog whenever something ships.
   2026-08-18 — this read "the AUTHORITATIVE review · auto-reviews every PR", and
   BOTH halves are now false.** It reviews on request only — its own comment says
   *"Reviews should be triggered manually for repositories with fewer than 10
-  stars"* — and it reviewed **neither** PR that day until triggered by hand with
-  `@coderabbitai full review`. A review layer disappeared silently while this
-  paragraph still promised it. **Trigger it explicitly or work without it**, and
-  read `.coderabbit.yaml` (assertive profile, path rules) as config for when it
-  does run. ⚠ **The gating reviewer is CODEX**, not this — the merge gate is CI
+  stars"* — and it reviewed **neither** PR that day. A review layer disappeared
+  silently while this paragraph still promised it. ⚠ **DO NOT TRIGGER IT — the
+  owner's standing rule is that CodeRabbit is not part of this workflow.** It WAS
+  triggered by hand with `@coderabbitai full review` on 2026-08-18; that was a
+  **rule break**, recorded here so it is not copied. If a second reviewer seems
+  genuinely needed, **ASK the owner** — do not reach for it. **Work without it.**
+  ⚠ **The gating reviewer is CODEX**, not this — the merge gate is CI
   green **and Codex clean on the final head**. **(3)
   required checks** — `main` branch protection requires ALL THREE CI checks
   (`Web (typecheck + build)` + `Mobile (build + public/m sync)` +
   `Secret scan (gitleaks)`) green before a merge (GitHub → Settings →
   Branches; once on, merging on red is impossible). Docs/config-only commits
-  may skip layers 0-1. **Layer-2 "done" detection (sharpened 2026-07-19):**
-  after pushing fixes for a CodeRabbit round, WAIT for its re-review of the
-  fix commit (the edited-in-place summary comment + a quiet period) before
-  merging — an addressed round + green CI is NOT done; a late round can
-  still be in flight.
+  may skip layers 0-1. **"Done" detection (rewritten 2026-08-18):** the merge
+  gate is **CI green on the final head AND Codex clean on the final head** — a
+  clean Codex pass leaves an issue comment or a 👍 from
+  `chatgpt-codex-connector[bot]`, so **absence of findings is not a pass**.
+  ⚠ This previously read "after pushing fixes for a CodeRabbit round, WAIT for
+  its re-review before merging" — **deleted**: a reviewer that never runs cannot
+  supply a merge condition, and never waiting on CodeRabbit is the standing rule.
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
@@ -122,8 +126,9 @@ changelog whenever something ships.
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
   - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
     reports `neutral`) + Preview Comments.
-  - **CodeRabbit** — assertive AI review (`.coderabbit.yaml`); comments on every
-    PR but is advisory, not a blocking status check.
+  - **CodeRabbit** — **does NOT run.** It posts an auto-skip notice (<10 stars →
+    request-only) and nothing more. ⚠ **We do not trigger it**; it is neither a
+    gate nor a layer to wait on. `.coderabbit.yaml` is dormant config.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -213,12 +218,14 @@ changelog whenever something ships.
 > without their classifications did not lose a tag — the site told someone with coeliac
 > disease that a wheat-noodle casserole was safe. A parity check on that kind of set must
 > assert **both directions**.
-> ⚠ **CODERABBIT NO LONGER AUTO-REVIEWS THIS REPO** (<10 stars → manual trigger). It reviewed
-> neither PR until triggered by hand; the "How we work" claim above is corrected.
+> ⚠ **CODERABBIT NO LONGER AUTO-REVIEWS THIS REPO** (<10 stars → request-only). It reviewed
+> neither PR. ⚠ **AND WE DO NOT TRIGGER IT — owner's standing rule.** Triggering it by hand
+> that day was a RULE BREAK, not the remedy. **Codex is the review gate.** Three now-stale
+> claims in "How we work" above are corrected.
 > **The gate is now behavioural, not textual** — `tests/recipe-render.test.mjs` and
 > `tests/kitchen-card-render.test.mjs` compile the real components with the deploy's own
 > transform and render them, so a renderer that dies on `by: null` fails **however it is
-> spelled**. No migration in either PR. Suite **1994**.
+> spelled**. No migration in either PR. Suite **1997/1997**.
 >
 > See the full entries below.
 
