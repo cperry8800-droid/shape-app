@@ -755,6 +755,13 @@ export const bsCookableFromRecipe = (recipe) => {
     fromPlan: false,
     coach: str(recipe.by) ? { name: str(recipe.by), role: str(recipe.byRole) || '' } : null,
     tip: str(recipe.tip),
+    // The allergen claim notes travel with the cook-along, because the "buy the
+    // certified form" decision happens at the MISE, not at the plate. This
+    // literal is an explicit allowlist — a field absent from it is silently
+    // dropped, which is how the note would otherwise never reach cook mode.
+    // ⚠ 71 of 85 catalog recipes carry no notes; `|| null` keeps the shape
+    // uniform (never `undefined`) so consumers can coalesce with one guard.
+    allergenNotes: Array.isArray(recipe.allergenNotes) ? recipe.allergenNotes : null,
     timeLabel: str(recipe.time),
     prepNote: str(recipe.prep),
     recipeTitle: title,

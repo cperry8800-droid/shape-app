@@ -68,7 +68,17 @@ async function loadModule() {
 }
 
 const MOD = await loadModule();
-const { SHAPE_KITCHEN_RECIPES } = await import(pathToFileURL(join(dirname(SRC), 'shapeKitchenData.js')).href);
+const { SHAPE_KITCHEN_RECIPES, bsAllergenNoteText } = await import(pathToFileURL(join(dirname(SRC), 'shapeKitchenData.js')).href);
+
+// renderToStaticMarkup escapes & < > " ' — a brand like "Bob's Red Mill" comes
+// back as `Bob&#x27;s`. Undo exactly those five so a composed note can be compared
+// against the string the composer actually produced. No regex: split/join only.
+const unesc = (s) => s
+  .split('&#x27;').join("'")
+  .split('&quot;').join('"')
+  .split('&lt;').join('<')
+  .split('&gt;').join('>')
+  .split('&amp;').join('&');
 
 function render(recipe) {
   const warnings = [];
@@ -107,4 +117,67 @@ test('kitchen card: every catalog recipe renders', () => {
     try { render(recipe); } catch (err) { broken.push(`${recipe.title}: ${err.message}`); }
   }
   assert.deepEqual(broken, [], 'a kitchen card threw while rendering');
+});
+
+// ── Allergen claim notes ───────────────────────────────────────────────────
+// A "free from" claim over an AMBIGUOUS ingredient (oats, soy sauce, broth,
+// margarine) is only honest because the card tells the cook which form to buy.
+// Two things can go wrong on this surface and both are silent:
+//   1. the note never reaches the card (a claim renders uncaveated), and
+//   2. the note reaches it through the TIP block, which renders behind an
+//      attribution name — putting a brand recommendation in a named
+//      nutritionist's or the USDA's mouth. That fabrication is the entire
+//      reason the field is `allergenNotes` and not `tip`.
+
+test('kitchen card: an allergen note renders unattributed, never behind a byline', () => {
+  const TITLE = 'Herbed baked salmon with lemon';
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === TITLE);
+  assert.ok(r, `"${TITLE}" is not in the catalog — this assertion would prove nothing`);
+  assert.ok(r.allergenNotes && r.allergenNotes.length, `"${TITLE}" carries no allergenNotes — the block under test never renders`);
+  const n = r.allergenNotes[0];
+
+  const { html, warnings } = render(r);
+  assert.deepEqual(warnings, [], 'the kitchen card logged a render warning');
+  assert.ok(html.includes(n.certification), 'the allergen note certification does not render on the card');
+
+  const eyebrow = `ALLERGEN · ${n.allergen.toUpperCase()}`;
+  assert.ok(html.includes(eyebrow), `the note is missing its unattributed eyebrow (${eyebrow})`);
+
+  // Guard the guard: the attribution name MUST still be on the card — it labels
+  // the tip. If the byline machinery stopped rendering entirely, the "not behind
+  // a byline" assertion below would pass for the wrong reason.
+  const attribName = String(r.by || r.source).toUpperCase();
+  assert.ok(html.includes(attribName), `the tip byline (${attribName}) is not on the card — the byline assertion would pass vacuously`);
+
+  const block = html.slice(html.indexOf(eyebrow), html.indexOf(n.certification) + n.certification.length);
+  assert.ok(!block.includes(attribName), 'the allergen note rendered behind the recipe attribution — a fabricated byline');
+  assert.ok(html.indexOf(n.certification) < html.indexOf(attribName),
+    'the allergen note renders inside/after the bylined tip — it must be its own block above it');
+});
+
+test('kitchen card: the note renders the COMPOSED text, brands and all', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => (x.allergenNotes || []).some((n) => n.brands && n.brands.length));
+  assert.ok(r, 'no note carries example brands — this assertion would prove nothing');
+  const n = r.allergenNotes.find((x) => x.brands && x.brands.length);
+  const text = bsAllergenNoteText(n);
+  assert.ok(text.length > n.certification.length, 'the composer dropped the brand clause before rendering was even reached');
+  assert.ok(unesc(render(r).html).includes(text), 'the card renders the raw certification, not the composed note text');
+});
+
+test('kitchen card: the allergen block renders on exactly the note-bearing recipes', () => {
+  const bearing = SHAPE_KITCHEN_RECIPES.filter((r) => (r.allergenNotes || []).length > 0);
+  assert.ok(bearing.length >= 14, `only ${bearing.length} note-bearing recipes — the attach loop is not running`);
+  // ⚠ The other 71 have NO `allergenNotes` key at all — `undefined`, not `[]`.
+  // Mapping that unguarded is a render-time crash that parses and typechecks
+  // clean, so the absent path is asserted explicitly, not assumed.
+  const absent = SHAPE_KITCHEN_RECIPES.filter((r) => r.allergenNotes === undefined);
+  assert.ok(absent.length > 0, 'every recipe carries notes — the absent path is untested');
+
+  const wrong = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    const shown = render(r).html.includes('ALLERGEN · ');
+    const expected = (r.allergenNotes || []).length > 0;
+    if (shown !== expected) wrong.push(`${r.title}: rendered=${shown} expected=${expected}`);
+  }
+  assert.deepEqual(wrong, [], 'the allergen block rendered on the wrong set of recipes');
 });

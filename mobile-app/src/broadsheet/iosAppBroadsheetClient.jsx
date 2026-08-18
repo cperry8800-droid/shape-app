@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution } from './shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution, bsAllergenNoteText } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
@@ -5933,6 +5933,25 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
           </div>
         ))}
       </div>
+      {/* Allergen claim notes — the CATALOG's own voice, deliberately NOT routed
+          through the tip block below. `tip` renders behind `noteName`, so a brand
+          recommendation put there would come out of a named nutritionist's or the
+          USDA's mouth: the exact fabrication the separate `allergenNotes` field
+          exists to prevent. No byline, no attribution, no gold.
+          ⚠ 71 of 85 recipes carry NO notes — `r.allergenNotes` is `undefined`, not
+          `[]`, so the array is coalesced before it is mapped.
+          English and hard-coded, matching the rest of this card (which makes zero
+          tr() calls); i18n of the card is a registered follow-up. */}
+      {(r.allergenNotes || []).map((n, i) => (
+        <div key={i} style={{ marginTop: 12, paddingLeft: 9, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+            {`ALLERGEN · ${String(n.allergen || '').toUpperCase()}`}
+          </div>
+          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.55, color: t.INK70 }}>
+            {bsAllergenNoteText(n)}
+          </div>
+        </div>
+      ))}
       {note ? (
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.6, color: t.INK70 }}>
           {noteName ? <><b style={{ color: gold, fontWeight: 800 }}>{noteName}:</b>{' '}</> : null}{note}
@@ -7008,6 +7027,25 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                 </div>
               )}
             </div>
+            {/* Allergen claim notes, beside the board — the shopping decision
+                ("buy the certified gluten-free one") is a MISE decision, so the
+                note belongs here and not on the PLATED tip, which renders behind
+                a byline. Unattributed by design: this is the catalog's own voice.
+                ⚠ Only catalog recipes carry notes, and only 14 of 85 of those —
+                every other cookable source leaves the field absent, so the array
+                is coalesced before it is mapped. English + hard-coded like the
+                Kitchen Card's copy of this block; i18n is a registered follow-up
+                for both (adding a `cook:` key here would need all 13 catalogs). */}
+            {(cookable.allergenNotes || []).map((n, i) => (
+              <div key={i} style={{ marginTop: 14, paddingLeft: 9, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+                  {`ALLERGEN · ${String(n.allergen || '').toUpperCase()}`}
+                </div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, lineHeight: 1.55, color: t.INK70 }}>
+                  {bsAllergenNoteText(n)}
+                </div>
+              </div>
+            ))}
             {!hasMethod && (
               <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50, lineHeight: 1.5 }}>
                 {tr('cook:mise.noMethod', { defaultValue: "No written method on this one — your coach's plate, your kitchen. Timers and the log are ready when you are." })}
