@@ -259,6 +259,49 @@ const ingShortName = (name) => {
   return c.length ? c.slice(-BS_GIST_WORDS).join(' ') : '';
 };
 
+// Where an ingredient's own words first appear in this timer's region.
+// Infinity = not named in it at all.
+//
+// ⚠ EARLIEST, not nearest-the-number. Ranking by distance to the duration reads
+// plausible and is wrong: the medium and the seasoning are exactly what sit
+// closest to it. Measured over the catalogue it turned "chicken breast" into
+// "olive oil" ("pan-sear in a little olive oil ... 5 minutes per side"), "carrot"
+// into "olive oil", and "kale" into "lemon" ("a squeeze of lemon for 30
+// seconds"). The subject of an action is written FIRST; media and seasonings
+// arrive later behind a preposition.
+//
+// The original defect was never "first" -- it was first in RECIPE-LIST order,
+// which let the ingredient list decide which timer got which food ("Bake the
+// salmon 12 minutes while the pearl couscous cooks 10 minutes" labelled the
+// SALMON timer "pearl couscous", and reordering the list moved it). First in the
+// TEXT reads the recipe's own words, and needs to know nothing about which
+// conjunction joined the two actions -- "while", "before", "and", "meanwhile".
+const ingPosition = (ing, region) => {
+  const name = ing && typeof ing === 'object' ? str(ing.m) : str(ing);
+  if (!name) return Infinity;
+  let best = Infinity;
+  for (const w of ingContent(ingBase(name))) {
+    // ⚠ Concatenation, NOT a template literal: a lone \b inside one is the
+    // BACKSPACE character (U+0008), so the boundary vanishes, every match fails
+    // and the ranking silently falls back to recipe order -- the exact bug this
+    // helper exists to kill. Third time this trap has fired in this file.
+    const m = new RegExp('\\b' + escapeRe(w) + '(?:e?s)?\\b', 'i').exec(region);
+    if (m && m.index < best) best = m.index;
+  }
+  return best;
+};
+
+// Deterministic: ties keep recipe order (a stable pick, never a coin flip).
+const earliestIngredient = (named, region) => {
+  let best = named[0];
+  let bestPos = ingPosition(named[0], region);
+  for (let i = 1; i < named.length; i++) {
+    const p = ingPosition(named[i], region);
+    if (p < bestPos) { best = named[i]; bestPos = p; }
+  }
+  return best;
+};
+
 export const bsStepGist = (text, ingredients, seconds, nth) => {
   const t = str(text);
   if (!t) return '';
@@ -323,9 +366,24 @@ export const bsStepGist = (text, ingredients, seconds, nth) => {
   // the first clause stating a duration -- never an empty label.
   const timed = own || parts.find((p) => GIST_DUR_RE.test(p)) || parts[0];
   // 1. The ingredient that clause reaches for, in the recipe's own words.
+  //
+  // ⚠ NEAREST the number, never first-on-the-recipe's-list. bsStepIngredients
+  // returns matches in RECIPE order, so taking [0] let the ingredient list
+  // decide which timer got which food: "Bake the salmon 12 minutes while the
+  // pearl couscous cooks 10 minutes" labelled the SALMON timer "pearl couscous"
+  // purely because the couscous was listed first -- reordering the list moved
+  // the label to a different timer, which is the proof it was never reading the
+  // recipe's words at all.
+  //
+  // This is also why chasing boundary words was a losing game. Six rounds added
+  // "then", and coaches still write "while", "before", "and", "meanwhile", "as",
+  // "once". Distance to the stated duration needs to know none of them: whatever
+  // joins two timed actions, each number's own food is the one written closest
+  // to it.
   const named = bsStepIngredients(timed, ingredients);
   if (named.length) {
-    const nm = named[0] && typeof named[0] === 'object' ? str(named[0].m) : str(named[0]);
+    const pick = earliestIngredient(named, timed);
+    const nm = pick && typeof pick === 'object' ? str(pick.m) : str(pick);
     const short = nm ? ingShortName(nm) : '';
     if (short) return short;
   }
