@@ -2551,6 +2551,11 @@ const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 const RECIPE_GOALS = ["High-protein", "Low-carb"];
 const _RECIPE_NOT_GF = new Set([
   "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl", "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Overnight oats, three ways", "Harissa salmon with couscous", "Cottage cheese protein toast",
+  // Oats are not gluten-free unless certified. "Date and almond energy bites"
+  // (rolled oats) and "Maple banana oatmeal with walnuts" (quick-cooking oats)
+  // were advertised as safe while "Overnight oats" above was not — one ingredient,
+  // two answers. Mirrors _RECIPE_NOT_GF + USDA_NOT_GF in the catalog module.
+  "Date and almond energy bites", "Maple banana oatmeal with walnuts",
   // The 50 USDA MyPlate records carry their own classifications; these mirror
   // USDA_NOT_GF in mobile-app/src/broadsheet/shapeKitchenData.usda.js. A title
   // ABSENT from this set is asserted gluten-free by recipeNeeds below, so an

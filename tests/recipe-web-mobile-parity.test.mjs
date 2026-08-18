@@ -87,6 +87,9 @@ test('recipe parity: rendered fields match the catalog', () => {
     // `blurb` (the card blurb and the detail-page pull quote read the same words).
     cmp('note/blurb', w.note, m.blurb);
     cmp('by', w.by ?? null, m.by ?? null);
+    // Rendered right beside the name by both surfaces, so drift here mislabels a
+    // nutritionist as a dietician while the name itself still matches.
+    cmp('byRole', w.byRole ?? null, m.byRole ?? null);
     cmp('source', w.source ?? null, m.source ?? null);
     cmp('sourceUrl', w.sourceUrl ?? null, m.sourceUrl ?? null);
     cmp('kcal', w.kcal, m.kcal);

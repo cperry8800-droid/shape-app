@@ -1451,6 +1451,10 @@ export const USDA_KITCHEN_RECIPES = [
 // Merge these into the existing allowlists in shapeKitchenData.js. They are
 // keyed by exact title, same as _RECIPE_NOT_GF / _RECIPE_HAS_DAIRY / _RECIPE_MED.
 export const USDA_NOT_GF = [
+  // Oats are not gluten-free unless certified — standard milling shares a line
+  // with wheat, which is why coeliac guidance calls for certified GF oats. These
+  // recipes name plain oats, so the catalog must not advertise them as safe.
+  "Maple banana oatmeal with walnuts",
   "Beef stroganoff with macaroni",
   "Ground beef and root vegetable stew",
   "Mango and peanut chicken wraps",

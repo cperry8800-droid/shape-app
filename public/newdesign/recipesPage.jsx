@@ -160,12 +160,13 @@ function RecipesPage() {
               Shape <span style={{ fontStyle: "italic", color: TEAL_BRIGHT }}>Kitchen.</span>
             </h1>
             <div style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.025em", lineHeight: 1.15, marginTop: 16, color: "rgba(20,17,13,0.82)", maxWidth: 720 }}>
-              Recipes from our nutritionists and dieticians.
+              Recipes from our nutritionists and dieticians, and from the public record.
             </div>
             <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(20,17,13,0.72)", maxWidth: 620, marginTop: 16 }}>
-              Every recipe is built by a Shape professional — macro-balanced, easy to
-              scale, with step-by-step method and a pro tip. Tap any recipe for the
-              full page.
+              Most are built by a Shape professional; the rest come from public-domain
+              collections like USDA MyPlate Kitchen, credited on the recipe. Every one is
+              macro-balanced and easy to scale, with a step-by-step method and a pro tip.
+              Tap any recipe for the full page.
             </p>
           </div>
         </div>

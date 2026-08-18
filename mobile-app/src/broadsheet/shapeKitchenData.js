@@ -1047,6 +1047,9 @@ export const _RECIPE_NOT_GF = new Set([
   "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl",
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Crispy tofu grain bowl", "Overnight oats, three ways", "Harissa salmon with couscous", "Cottage cheese protein toast",
+  // ⚠ PRE-EXISTING, not introduced by the USDA merge: rolled oats, same rule as
+  // "Overnight oats" two entries up, which was already classified correctly.
+  "Date and almond energy bites",
   ...USDA_NOT_GF,
 ]);
 export const _RECIPE_HAS_DAIRY = new Set([

@@ -95,6 +95,7 @@ test('recipe pages: an authored recipe still credits its author', () => {
   const authored = api.SHAPE_RECIPES.find((r) => r.by);
   const html = renderToStaticMarkup(React.createElement(api.RecipeCard, { recipe: authored, saved: false, onToggleSave() {} }));
   assert.ok(html.includes(authored.by.toUpperCase()), 'the card does not credit the author');
+  assert.ok(html.includes(authored.byRole.toUpperCase()), 'the card does not render the author role');
 });
 
 test('recipe pages: the detail page renders for a sourced AND an authored recipe', () => {
