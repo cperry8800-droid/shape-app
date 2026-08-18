@@ -180,7 +180,14 @@ const TIMER_RE = new RegExp(
 );
 const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 : 1);
 
-export const bsStepTimers = (text) => {
+// THE one parse. Each entry also carries WHERE its duration sits in the step
+// (`at`/`end`), because anything that has to know which words a given timer
+// belongs to must read it from the parser rather than re-deriving boundaries
+// with a second rule. ⚠ Three separate label defects came from doing exactly
+// that (punctuation-splitting the step and hoping the pieces line up with the
+// timers); the match position is the only authority that cannot disagree with
+// the parser, because it IS the parser.
+const timerSpans = (text) => {
   const t = str(text);
   if (!t) return [];
   const out = [];
@@ -193,10 +200,19 @@ export const bsStepTimers = (text) => {
     // A cook timer under 5s or over 6h is a parse artifact, not a timer.
     if (seconds < 5 || seconds > 21600) continue;
     const unitLabel = /^h/i.test(m[2]) ? 'hr' : /^m/i.test(m[2]) ? 'min' : 'sec';
-    out.push({ seconds, label: `${m[1].replace(/\s+/g, '')} ${unitLabel}${m[3] ? ' per side' : ''}` });
+    out.push({
+      seconds,
+      label: `${m[1].replace(/\s+/g, '')} ${unitLabel}${m[3] ? ' per side' : ''}`,
+      at: m.index,
+      end: m.index + m[0].length,
+    });
   }
   return out;
 };
+
+// The public contract is {seconds, label} and is pinned by deepEqual in
+// tests/cookable.test.mjs — the spans stay internal so the shape can't drift.
+export const bsStepTimers = (text) => timerSpans(text).map(({ seconds, label }) => ({ seconds, label }));
 
 // ---------------------------------------------------------------------------
 // Step identity — "which timer is this?" and "what do I need HERE?"
@@ -248,27 +264,42 @@ export const bsStepGist = (text, ingredients, seconds, nth) => {
   if (!t) return '';
   const parts = t.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
   if (!parts.length) return '';
-  // The clause that STATES the duration is the one being timed. A timer on
-  // "Heat a dry skillet. Add the turkey...; let it sit undisturbed 2 minutes"
-  // is timing the resting -- labelling it "skillet" points the cook at the
-  // wrong action, which is worse than the bare duration it replaced.
+  // WHICH WORDS IS THIS TIMER TIMING? Read the answer off the parser: a timer's
+  // action is the text running from the end of the PREVIOUS stated duration to
+  // the start of its own -- "Boil the rice |2 minutes| then toast the sesame oil
+  // for |2 minutes|" gives "Boil the rice" and "then toast the sesame oil for".
   //
-  // ⚠ A step may state SEVERAL durations, and bsStepTimers then offers a button
-  // for each. Given that timer's own `seconds`, label it from the clause
-  // stating THAT duration -- otherwise every timer on the step shares one
-  // label and two of them read identically, which is the exact defect this
-  // label exists to fix. The clause is located with the canonical timer parser,
-  // never a second copy of the duration rules.
+  // ⚠ Do NOT go back to splitting the step and matching timers to the pieces.
+  // Three defects came out of that, each a different way for a hand-written
+  // boundary rule to disagree with the parser: one shared label for every timer
+  // on a step, then equal durations both selecting the first piece, then two
+  // actions joined by a bare "then" never splitting at all. A match position
+  // cannot disagree with the parser, because it IS the parser.
   //
-  // `nth` disambiguates EQUAL durations ("sear 2 minutes, then rest 2 minutes"):
-  // it is how many earlier timers on this step share this duration, so each one
-  // takes its own clause. Without it both rows read identically AND the
-  // appended duration is equal too, so the corner would keep the whole defect.
-  // Fewer matching clauses than `nth` (both durations inside ONE clause) yields
-  // undefined and falls through to the generic pick -- never an empty label.
-  const own = Number.isFinite(seconds)
-    ? parts.filter((p) => bsStepTimers(p).some((tm) => tm.seconds === seconds))[Number.isFinite(nth) ? nth : 0]
+  // `nth` = how many earlier timers share this duration, so equal durations
+  // still take their own span.
+  //
+  // ⚠ Only when a step states SEVERAL durations. With ONE timer there is no
+  // ownership question, and the richest context is the whole clause AROUND the
+  // number, because the food is often named AFTER it ("roast 16-18 minutes
+  // until the chicken hits 165F"). Cutting every step at its duration cost two
+  // real labels -- "chicken breast" became "roast", "chickpeas" became "cook".
+  const spans = Number.isFinite(seconds) ? timerSpans(t) : [];
+  const mine = spans.length > 1
+    ? spans.filter((s) => s.seconds === seconds)[Number.isFinite(nth) ? nth : 0]
     : null;
+  let own = null;
+  if (mine) {
+    let from = 0;
+    for (const s of spans) if (s.end <= mine.at) from = Math.max(from, s.end);
+    // Punctuation still refines WITHIN that span: the clause nearest the
+    // duration is the action being timed, so "Heat a dry skillet. ... let it
+    // sit undisturbed 2 minutes" labels "sit" and not "heat".
+    const near = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+    own = near.length ? near[near.length - 1] : null;
+  }
+  // No usable span (no duration given, or the step opens on one) falls back to
+  // the first clause stating a duration -- never an empty label.
   const timed = own || parts.find((p) => GIST_DUR_RE.test(p)) || parts[0];
   // 1. The ingredient that clause reaches for, in the recipe's own words.
   const named = bsStepIngredients(timed, ingredients);

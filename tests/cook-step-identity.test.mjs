@@ -191,6 +191,23 @@ test('THE CORNER: two timers of the SAME duration still separate', () => {
   assert.equal(bsStepGist(step, pan, 120, 9), 'chicken thigh');
 });
 
+test('THE CORNER: timed actions joined by a bare "then", no punctuation', () => {
+  // A coach can write two timed actions with no comma at all. Any hand-written
+  // boundary rule has to guess where one action ends; the parser's own match
+  // position does not have to guess, which is why the span comes from there.
+  const pan = [{ n: '6 oz', m: 'chicken thigh' }, { n: '1 cup', m: 'jasmine rice' }];
+  const step = 'Boil the rice 2 minutes then sear the chicken 2 minutes';
+  assert.equal(bsStepGist(step, pan, 120, 0), 'jasmine rice');
+  assert.equal(bsStepGist(step, pan, 120, 1), 'chicken thigh');
+});
+
+test('a step that OPENS on its duration still labels, never blank', () => {
+  // No text precedes the duration, so the span is empty and the generic pick
+  // has to carry it.
+  const pan = [{ n: '1 cup', m: 'jasmine rice' }];
+  assert.notEqual(bsStepGist('20 minutes in the oven, uncovered.', pan, 1200, 0), '');
+});
+
 test('a single-content-word name still matches on its head noun', () => {
   // "lean ground turkey" → "turkey": lean/ground are qualifiers, so the head
   // noun is the ONLY content word and is safe to match alone.
