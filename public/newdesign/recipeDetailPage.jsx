@@ -205,7 +205,15 @@ function RecipeDetailPage() {
               {(recipe.diet || "").toUpperCase()}
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
-              {(recipe.byRole || "RECIPE").toUpperCase()} · {recipe.by.toUpperCase()}
+              {(() => {
+                const a = typeof recipeAttribution === "function" ? recipeAttribution(recipe) : null;
+                if (!a) return "RECIPE";
+                if (a.kind === "authored") return `${(a.role || "RECIPE").toUpperCase()} · ${a.name.toUpperCase()}`;
+                // Public domain: credit the source, and make the licence reachable.
+                return a.url
+                  ? <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 3 }}>{a.name.toUpperCase()}</a>
+                  : a.name.toUpperCase();
+              })()}
             </div>
             <h1 style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(34px, 5vw, 56px)", letterSpacing: "-0.04em", lineHeight: 1.0, color: "#fff", margin: 0, maxWidth: 760 }}>{recipe.title}</h1>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(255,255,255,0.82)", letterSpacing: "0.06em", marginTop: 16 }}>
@@ -229,7 +237,13 @@ function RecipeDetailPage() {
         {recipe.note && (
           <div style={{ maxWidth: 980, margin: "0 auto", padding: "18px 24px 0" }}>
             <div style={{ fontSize: 15, color: "rgba(242,237,228,0.75)", fontStyle: "italic", lineHeight: 1.5 }}>
-              "{recipe.note}" — {recipe.by}{recipe.byRole ? `, ${recipe.byRole}` : ""}
+              {(() => {
+                const a = typeof recipeAttribution === "function" ? recipeAttribution(recipe) : null;
+                if (!a) return `"${recipe.note}"`;
+                return a.kind === "authored"
+                  ? `"${recipe.note}" — ${a.name}${a.role ? `, ${a.role}` : ""}`
+                  : `"${recipe.note}" — ${a.name}`;
+              })()}
             </div>
           </div>
         )}

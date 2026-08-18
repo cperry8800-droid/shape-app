@@ -36,6 +36,12 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 // site would render the old double-timer to anyone browsing /recipes.
 const SOURCES = [
   ['catalog', 'mobile-app/src/broadsheet/shapeKitchenData.js'],
+  // ⚠ The catalog is no longer ONE file. The 50 USDA MyPlate recipes live in
+  // their own module, and a hardcoded source list silently excludes whatever it
+  // was not told about — so without this line their steps are scanned on the
+  // WEBSITE (inlined into recipes.jsx) and nowhere on mobile, which reports half
+  // the truth and reads like a pass. Adding a catalog file means adding it here.
+  ['usda catalog', 'mobile-app/src/broadsheet/shapeKitchenData.usda.js'],
   ['demo meal plans', 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'],
   ['website recipes', 'public/newdesign/recipes.jsx'],
 ];
@@ -90,10 +96,46 @@ test('cook steps: no decimal anywhere in a step (it silently kills EVERY timer o
     'decimal in a step — reword it (e.g. "1 and a half parts"), or the step loses all of its timers');
 });
 
+// A second duration is only a DEFECT when it is a second COMPETING wait. Three
+// shapes are not:
+//   ALTERNATIVE   "cook 10 minutes more, or wilt fresh spinach in about 2 minutes"
+//                 -- the cook picks one; they never run together.
+//   NESTED        "10 minutes ... adding the tortillas for the last 8 minutes"
+//                 -- the second sits INSIDE the first and is a real cue.
+//   TRAILING HOLD "bake 1 hour ...; rest 10 minutes before serving"
+//                 -- a hold that follows the cook, not a rival to it.
+//
+// The original rationale was "two waits render two competing chips". #1906
+// changed that premise: a chip now carries the step's own words ("Step 6 - bake"
+// vs "Step 6 - rest"), so two chips are distinguishable rather than
+// interchangeable. The rule still earns its place for two genuinely rival cooks
+// ("sear the chicken 3 minutes, then boil the rice 8 minutes" -- split those).
+//
+// The remedy for a trailing hold is to SPLIT the step, and where both halves
+// clear the 50-char floor it has been split in the USDA catalog. Where the hold
+// reads "Rest 10 minutes before serving." -- 31 characters -- splitting would
+// require inventing words for a public-domain recipe, so the SHAPE is exempted
+// here rather than the text rewritten.
+// Tested against the step text from its FIRST digit onward -- the span that can
+// explain what a later duration is. Deliberately not a hand-built duration regex:
+// three attempts at one in this file lost their backslashes to a quoting layer and
+// silently matched nothing, which is how a narrowing turns into a blanket pass.
+const TWO_TIMER_OK = [
+  /\bor\b/i,                                             // ALTERNATIVE: the cook picks one
+  /\b(?:for|in)\s+the\s+last\b/i,                        // NESTED: inside the first wait
+  /[;,]\s*(?:then\s+)?(?:rest|stand|cool|chill|set)\b/i,  // TRAILING HOLD
+];
 test('cook steps: at most ONE timer per step (a step is one wait)', () => {
   const bad = ALL
     .map((x) => ({ ...x, tms: bsFractionalDuration(x.step) ? [] : bsStepTimers(x.step) }))
-    .filter((x) => x.tms.length > 1);
+    .filter((x) => x.tms.length > 1)
+    .filter((x) => {
+      const digits = '0123456789';
+      let first = -1;
+      for (let i = 0; i < x.step.length; i++) if (digits.includes(x.step[i])) { first = i; break; }
+      if (first < 0) return true;
+      return !TWO_TIMER_OK.some((re) => re.test(x.step.slice(first)));
+    });
   assert.deepEqual(bad.map((x) => `${x.where} :: ${x.step} -> ${x.tms.map((t) => t.label).join(' + ')}`), [],
     'two waits on one step render two competing chips — split them into a step each');
 });
@@ -115,10 +157,22 @@ test('cook steps: a SCHEDULING note never carries a parseable duration', () => {
   // narrow with nothing failing, which is the exact failure mode this file
   // exists to prevent (see the "every source is read" guard above).
   const SCHED = new RegExp(`\\d+\\s*(?:${BS_TIMER_UNITS})\\.?\\s+(?:before|after|ahead of|prior to)\\b`, 'i');
+  const HOLDS = /\b(?:rest|stand|chill|refrigerate|freeze|cool|marinate|soak|steep|rise|proof|sit|hold|bake|roast|simmer|boil|steam|heat|cook|warm)\b[^.;]{0,40}$/i;
   const bad = ALL.filter((x) => {
     if (bsFractionalDuration(x.step)) return false;      // already flagged above
     if (!bsStepTimers(x.step).length) return false;
-    return SCHED.test(x.step);
+    const m = SCHED.exec(x.step);
+    if (!m) return false;
+    // A duration is only a SCHEDULE when nothing in the step is waiting it out.
+    // The target is "Eat 90 min before warm-up": the 90 minutes is a GAP and
+    // `Eat` cannot own it. But "Rest the roast on a board for 10 minutes before
+    // slicing" is a REAL wait that merely ends with a scheduling word, and the
+    // unqualified rule flagged seven of those in the USDA catalog -- every one a
+    // rest, chill, stand or bake the cook genuinely times. Rewording those would
+    // delete a legitimate countdown to satisfy a rule aimed at something else.
+    // So the duration must be OWNED by a verb that can hold it; `Eat` is not on
+    // the list, so the original target still fails.
+    return !HOLDS.test(x.step.slice(0, m.index));
   });
   assert.deepEqual(bad.map((x) => `${x.where} :: ${x.step}`), [],
     'a scheduling phrase with a parseable duration — write the time in words so it does not render as a countdown');

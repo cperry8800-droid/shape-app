@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
@@ -5854,10 +5854,18 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
   const r = recipe || {};
   // Normalize the two recipe shapes (catalog vs day-view).
   const macros = r.macros || { p: r.p, c: r.c, f: r.f };
-  const by = r.by || null;
-  const byRole = r.byRole || (r.coachNote ? 'Nutritionist' : null);
+  const attrib = bsRecipeAttribution(r);
   const note = r.tip || r.coachNote || null;
-  const noteName = (by || 'Coach').replace(/^Dr\.?\s+/i, '').split(' ')[0].toUpperCase();
+  // The tip's byline follows the recipe's ATTRIBUTION and is never invented. The
+  // old `by || 'Coach'` fallback stamped COACH on all 50 public-domain USDA cards
+  // — the fabricated byline bsRecipeAttribution exists to prevent. A day-view
+  // coachNote genuinely is the coach's, so that case keeps its label; anything
+  // with no attribution at all renders the tip unlabelled rather than guessing.
+  const noteName = attrib
+    ? (attrib.kind === 'authored'
+        ? attrib.name.replace(/^Dr\.?\s+/i, '').split(' ')[0].toUpperCase()
+        : attrib.name.toUpperCase())
+    : (r.coachNote ? 'COACH' : null);
   const servesLabel = r.servings != null ? String(r.servings) : (r.portion || '—');
   const ings = Array.isArray(r.ingredients) ? r.ingredients : [];
   const half = Math.ceil(ings.length / 2);
@@ -5880,9 +5888,13 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
       <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK }}>
         {String(bsNodeText(r.title) || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span>
       </div>
-      {by ? (
-        <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: gold }}>
-          From the kitchen of {by}{byRole ? ` · ${byRole}` : ''}
+      {attrib ? (
+        <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: attrib.kind === 'sourced' ? t.INK50 : gold }}>
+          {attrib.kind === 'authored'
+            ? `From the kitchen of ${attrib.name}${attrib.role ? ` · ${attrib.role}` : ''}`
+            /* A public-domain federal work has no author — credit the SOURCE, in
+               quiet ink so it never reads as a nutritionist's byline. */
+            : `Recipe from ${attrib.name}`}
         </div>
       ) : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 14 }}>
@@ -5923,7 +5935,7 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
       </div>
       {note ? (
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.6, color: t.INK70 }}>
-          <b style={{ color: gold, fontWeight: 800 }}>{noteName}:</b> {note}
+          {noteName ? <><b style={{ color: gold, fontWeight: 800 }}>{noteName}:</b>{' '}</> : null}{note}
         </div>
       ) : null}
     </div>
@@ -5936,7 +5948,10 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
 function bsRecipeLibItem(r) {
   const title = bsNodeText(r.title);
   const meta = r.servings != null ? `${r.kcal} kcal · serves ${r.servings}` : `${r.kcal} kcal`;
-  return { id: `recipe:${bsSkSlug(title)}`, kind: 'recipe', title, meta, coach: r.by || 'Shape Kitchen' };
+  // Credit whoever the recipe is actually attributed to; only an UNCREDITED
+  // recipe falls back to the catalog's own name.
+  const credit = bsRecipeAttribution(r);
+  return { id: `recipe:${bsSkSlug(title)}`, kind: 'recipe', title, meta, coach: (credit && credit.name) || 'Shape Kitchen' };
 }
 
 function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded = false }) {
@@ -6211,7 +6226,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
     .filter(matchFilter)
     .filter(r => recipeMatchesDiet(r, diet))
     .filter(r => needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n)))
-    .filter(r => !query || [r.title, r.by, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
+    .filter(r => !query || [r.title, r.by, r.source, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
   const savedCount = recipes.filter(r => savedIds.has(recId(r))).length;
   const pills = [['all', 'All', recipes.length], ['saved', 'Saved', savedCount], ['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner'], ['snack', 'Snack'], ['plant', 'Plant-based']];
   const dietCount = (d) => recipes.filter(r => recipeMatchesDiet(r, d)).length;
@@ -6285,12 +6300,15 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
           const id = recId(r);
           const saved = savedIds.has(id);
           const cat = (r.tags && r.tags[0]) || r.diet || 'Recipe';
-          const coach = String(r.by || '').split(' ')[0];
+          // A sourced recipe has no author, so `r.by` was '' and the eyebrow rendered
+          // a dangling separator on every USDA row. Credit the source by name.
+          const credit = bsRecipeAttribution(r);
+          const coach = credit ? (credit.kind === 'authored' ? credit.name.split(' ')[0] : credit.name) : '';
           const no = SHAPE_KITCHEN_RECIPES.indexOf(r) + 1 || null;
           return (
             <div key={`${r.title}-${i}`} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER, padding: '12px 14px' }}>
               <button type="button" onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: dc }}>{no ? `Nº ${no} · ` : ''}{cat} · {coach}</span>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: dc }}>{no ? `Nº ${no} · ` : ''}{cat}{coach ? ` · ${coach}` : ''}</span>
                 <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
                 <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
               </button>
@@ -7705,7 +7723,11 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} />;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={`${r.byRole} · ${r.by}`} kicker="Shape Kitchen" title={r.title} />
+      <BSDetailHeader onBack={onBack} eyebrow={(() => {
+        const a = bsRecipeAttribution(r);
+        if (!a) return 'RECIPE';
+        return a.kind === 'authored' ? `${a.role ? `${a.role} · ` : ''}${a.name}` : a.name;
+      })()} kicker="Shape Kitchen" title={r.title} />
 
       <BSKitchenCard recipe={r} no={_no} />
 
@@ -8906,7 +8928,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
       return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
     });
-    const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen · ${recipe.byRole}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
+    const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
     setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
     window.__bsToast?.('Added to grocery list', 'ok');
     return list;
