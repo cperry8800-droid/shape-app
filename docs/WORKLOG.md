@@ -1816,7 +1816,7 @@ changelog whenever something ships.
 - **So the rule is gated, not the instance.** `tests/recipe-allergen-consistency.test.mjs`
   reads the **ingredients** and requires every allergen-bearing recipe to be either classified
   or listed as a known-safe form **with a reason**. ⚠ **It fails closed only INSIDE its own
-  vocabulary** — two fixed marker lists (24 gluten words, 13 dairy). A match that is not on
+  vocabulary** — two fixed marker lists (**28** gluten words, 13 dairy). A match that is not on
   the safe-form list breaks the build; an allergen-bearing ingredient the markers do not name
   is never seen at all, which is fail-OPEN. Injected one at a time into a recipe advertising
   both claims, `wheat flour` is caught, while `semolina`, `spelt`, `ghee`, `kefir` and
