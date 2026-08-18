@@ -299,15 +299,25 @@ export const bsStepGist = (text, ingredients, seconds, nth) => {
       if (s.end <= mine.at) from = Math.max(from, s.end);
       if (s.at >= mine.end) upto = Math.min(upto, s.at);
     }
+    // BOTH sides end at the same two boundaries: punctuation, and a bare
+    // sequencing "then" (a coach can write two timed actions with no comma at
+    // all). Deliberately NOT a bare "and" -- "until the sauce coats a spoon and
+    // the chickpeas have softened" is ONE action, and cutting there loses the
+    // only food it names.
+    // ⚠ The cut has to run on BOTH sides or it hands one action's food to the
+    // NEXT action's timer: cutting only the tail left "Boil the rice 10 minutes
+    // until tender then rest 5 minutes" labelling the REST timer "tender", and
+    // "...until the lentils soften then rest 5 minutes" labelling it "brown
+    // lentils" -- which ALSO made both timers on that step read alike, the exact
+    // collision this label exists to prevent.
+    const cut = /\s+then\s+/i;
     // LEAD: the clause nearest the number, so "Heat a dry skillet. ... let it
     // sit undisturbed 2 minutes" labels "sit" and not "heat".
-    const lead = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
-    // TAIL: punctuation ends the action, and so does a bare sequencing "then"
-    // (a coach can write two timed actions with no comma at all). Deliberately
-    // NOT a bare "and" -- "until the sauce coats a spoon and the chickpeas have
-    // softened" is ONE action, and cutting there loses the food it names.
-    const tail = (t.slice(mine.end, upto).split(GIST_SPLIT_RE)[0] || '').split(/\s+then\s+/i)[0];
-    own = [lead.length ? lead[lead.length - 1] : '', tail.trim()].filter(Boolean).join(' ') || null;
+    const leads = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+    const lead = leads.length ? leads[leads.length - 1].split(cut).pop() : '';
+    // TAIL: the food is often named AFTER the number.
+    const tail = (t.slice(mine.end, upto).split(GIST_SPLIT_RE)[0] || '').split(cut)[0];
+    own = [lead.trim(), tail.trim()].filter(Boolean).join(' ') || null;
   }
   // No usable span (no duration given, or the step opens on one) falls back to
   // the first clause stating a duration -- never an empty label.
