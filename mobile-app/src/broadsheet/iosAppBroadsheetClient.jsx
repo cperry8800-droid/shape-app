@@ -24,7 +24,7 @@ import { bsCookResumeStamp, bsCookResumeValid } from '../services/cookResume.mjs
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
-import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsStepGist, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
@@ -6492,16 +6492,18 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // (where the parsed list is already in scope) rather than read from a const
   // declared further down the component — a dep on a later binding is how the
   // TDZ crash class gets in, and it renders clean right up until it doesn't.
-  const startTimer = (tm, count = 1, nth = 0) => {
+  const startTimer = (tm, count = 1, idx = 0) => {
     timerIdRef.current += 1;
     const fromStep = (hasMethod && phase === 'method' && steps[stepIdx]) ? stepIdx : null;
     setTimers((arr) => [...arr, {
       id: timerIdRef.current,
       label: tm.label,
       stepIdx: fromStep,
-      // The timer's OWN seconds, so a step stating several durations labels
-      // each countdown from the clause that states that one.
-      gist: fromStep != null ? bsStepGist(steps[fromStep], cookable.ingredients, tm.seconds, nth) : '',
+      // Label the step's timers TOGETHER and take this one's slot. Uniqueness is
+      // a property of the set -- labelled one at a time, a step that sears the
+      // same food twice produced two identical rows, which is the exact state
+      // this label exists to end. bsStepGists is index-aligned with bsStepTimers.
+      gist: fromStep != null ? (bsStepGists(steps[fromStep], cookable.ingredients)[idx] || '') : '',
       multi: count > 1,
       endsAt: Date.now() + tm.seconds * 1000,
       total: tm.seconds,
@@ -7024,7 +7026,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {stepTimers.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stepTimers.map((tm, i) => (
-                  <button key={i} onClick={() => startTimer(tm, stepTimers.length, stepTimers.slice(0, i).filter((x) => x.seconds === tm.seconds).length)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
+                  <button key={i} onClick={() => startTimer(tm, stepTimers.length, i)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
                     ▸ {tr('cook:timer.start', { defaultValue: 'Timer' })} · {tm.label}
                   </button>
                 ))}

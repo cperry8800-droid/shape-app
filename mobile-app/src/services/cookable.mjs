@@ -291,18 +291,7 @@ const ingPosition = (ing, region) => {
   return best;
 };
 
-// Deterministic: ties keep recipe order (a stable pick, never a coin flip).
-const earliestIngredient = (named, region) => {
-  let best = named[0];
-  let bestPos = ingPosition(named[0], region);
-  for (let i = 1; i < named.length; i++) {
-    const p = ingPosition(named[i], region);
-    if (p < bestPos) { best = named[i]; bestPos = p; }
-  }
-  return best;
-};
-
-export const bsStepGist = (text, ingredients, seconds, nth) => {
+export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
   const t = str(text);
   if (!t) return '';
   const parts = t.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
@@ -353,7 +342,19 @@ export const bsStepGist = (text, ingredients, seconds, nth) => {
     // "...until the lentils soften then rest 5 minutes" labelling it "brown
     // lentils" -- which ALSO made both timers on that step read alike, the exact
     // collision this label exists to prevent.
-    const cut = /\s+then\s+/i;
+    // The words that genuinely END one action and START the next. Sequencing
+    // only -- NOT a bare "and", which is usually WITHIN an action ("until the
+    // sauce coats a spoon and the chickpeas have softened"). MEASURED on this
+    // head: adding a bare "and" changes 41 of 96 catalogue labels and nearly all
+    // get worse -- "shrimp"->"cook", "bok choy"->"steam", "chicken breast"->
+    // "marinate" -- because recipe prose overwhelmingly writes "add X and cook
+    // 5 minutes", which is ONE action. Codex asked about exactly this; the
+    // answer is evidence, not taste.
+    // Ingredient choice no longer depends on this set at all (that is text
+    // order); it bounds the VERB fallback, which would otherwise reach back
+    // across the join -- "...until tender while rest 5 minutes" labelled the
+    // REST timer "tender".
+    const cut = /\s+(?:then|while|before|after|once|meanwhile|as)\s+/i;
     // LEAD: the clause nearest the number, so "Heat a dry skillet. ... let it
     // sit undisturbed 2 minutes" labels "sit" and not "heat".
     const leads = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
@@ -380,21 +381,50 @@ export const bsStepGist = (text, ingredients, seconds, nth) => {
   // "once". Distance to the stated duration needs to know none of them: whatever
   // joins two timed actions, each number's own food is the one written closest
   // to it.
-  const named = bsStepIngredients(timed, ingredients);
-  if (named.length) {
-    const pick = earliestIngredient(named, timed);
-    const nm = pick && typeof pick === 'object' ? str(pick.m) : str(pick);
-    const short = nm ? ingShortName(nm) : '';
+  // `avoid` = labels already taken by EARLIER timers on this same step. Two rows
+  // reading alike is the state this label exists to end, so a collision walks on
+  // to the next candidate instead of repeating: the step's other foods in the
+  // order it writes them, then its verbs. Absence ('') is the honest floor -- the
+  // caller renders the duration rather than inventing a word.
+  const taken = avoid instanceof Set ? avoid : null;
+  const free = (v) => (v && (!taken || !taken.has(v)) ? v : null);
+  const named = bsStepIngredients(timed, ingredients)
+    .map((ing) => ({ ing, p: ingPosition(ing, timed) }))
+    .sort((x, y) => x.p - y.p); // stable: ties keep recipe order
+  for (const { ing } of named) {
+    const nm = ing && typeof ing === 'object' ? str(ing.m) : str(ing);
+    const short = free(nm ? ingShortName(nm) : '');
     if (short) return short;
   }
   // 2. Else the clause's own verb -- the first word that carries an action.
-  const word = timed
+  const words = timed
     .replace(GIST_DUR_RE, ' ')
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ')
     .split(/\s+/)
-    .find((w) => w.length >= 3 && !GIST_SKIP.has(w));
-  return word || '';
+    .filter((w) => w.length >= 3 && !GIST_SKIP.has(w));
+  for (const w of words) if (free(w)) return w;
+  return '';
+};
+
+// Every timer on ONE step, labelled together and guaranteed distinct.
+//
+// Uniqueness cannot be decided one timer at a time -- it is a property of the
+// SET -- so this is the chokepoint the UI must call. Per-timer labelling shipped
+// "Sear the pork chops 4 minutes then flip and sear 4 minutes more" as two
+// identical rows, and three equal rests as "rest" three times over.
+// Index-aligned with bsStepTimers(text).
+export const bsStepGists = (text, ingredients) => {
+  const t = str(text);
+  if (!t) return [];
+  const tms = bsStepTimers(t);
+  const used = new Set();
+  return tms.map((tm, i) => {
+    const nth = tms.slice(0, i).filter((x) => x.seconds === tm.seconds).length;
+    const g = bsStepGist(t, ingredients, tm.seconds, nth, used);
+    if (g) used.add(g);
+    return g;
+  });
 };
 
 // Words that never identify an ingredient on their own — qualifiers, prep verbs

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsStepGist, bsStepTimers } from '../mobile-app/src/services/cookable.mjs';
+import { bsStepGist, bsStepGists, bsStepTimers } from '../mobile-app/src/services/cookable.mjs';
 
 // WHY THIS FILE EXISTS.
 //
@@ -25,9 +25,19 @@ const ACTIONS = [
   { lead: 'Rest',                 dur: '5 minutes',  tail: 'before slicing',           want: 'rest' },
 ];
 const INGS = ['jasmine rice', 'chicken thigh', 'sesame oil', 'brown lentils'];
-// Every join a coach actually writes -- including the BARE "then" with no comma,
-// which is the one that broke the lead boundary.
-const JOINS = [', then ', ' then ', '; ', '. ', ', and then ', ', '];
+// Every join a coach actually writes -- including the BARE "then" with no comma
+// (which broke the lead boundary) and the temporal conjunctions a later round
+// found reaching back across the join into the previous action's words.
+const JOINS = [', then ', ' then ', '; ', '. ', ', and then ', ', ',
+  ' while ', ' before you ', '; meanwhile ', ' as ', ' after '];
+// ⚠ A bare "and" is NOT in that list, and that is a measured decision, not an
+// oversight. Recipe prose overwhelmingly uses it WITHIN one action ("add the
+// garlic and cook 5 minutes"); cutting there changes 41 of 96 catalogue labels
+// and nearly all get worse -- "shrimp"->"cook", "bok choy"->"steam", "chicken
+// breast"->"marinate". So when a coach joins two TIMED actions with a bare "and"
+// AND the second names no ingredient of its own, its verb can still come from
+// the first action. The ingredient case -- the one that actually misnames food --
+// is fixed, by text order, and is asserted below in every join including "and".
 
 // The label for timer `idx` of `step`, addressed the way the UI addresses it.
 const labelFor = (step, idx) => {
@@ -87,4 +97,58 @@ test('REGRESSION: the boundary is cut on BOTH sides of the number', () => {
   const step = 'Simmer 15 minutes until the lentils soften then rest 5 minutes before slicing.';
   assert.equal(bsStepGist(step, INGS, 900, 0), 'brown lentils');
   assert.equal(bsStepGist(step, INGS, 300, 0), 'rest');
+});
+
+test('THE ROOT CAUSE: reordering the ingredient LIST cannot move a label', () => {
+  // The defect this property exists to catch: bsStepIngredients returns matches
+  // in RECIPE order and the label used to take [0], so the ingredient list --
+  // not the step's words -- decided which timer got which food. "Bake the salmon
+  // 12 minutes while the pearl couscous cooks 10 minutes" labelled the SALMON
+  // timer "pearl couscous", and reordering the list moved it. A label read from
+  // the recipe's own words is invariant under that reordering; one read from the
+  // list is not. This holds for EVERY join, bare "and" included.
+  const reversed = [...INGS].reverse();
+  for (const a of ACTIONS) {
+    for (const b of ACTIONS) {
+      if (a === b) continue;
+      for (const join of [...JOINS, ' and ']) {
+        const step = `${a.lead} ${a.dur} ${a.tail}${join}${b.lead.charAt(0).toLowerCase()}${b.lead.slice(1)} ${b.dur} ${b.tail}.`;
+        if (bsStepTimers(step).length < 2) continue;
+        assert.deepEqual(bsStepGists(step, INGS), bsStepGists(step, reversed), `[${join.trim() || 'space'}] ${step}`);
+      }
+    }
+  }
+});
+
+test('THE POINT: a step never renders two identical timer rows', () => {
+  // Uniqueness is a property of the SET, so it can only be decided where all of
+  // a step's timers are visible at once -- bsStepGists, not bsStepGist. Labelled
+  // one at a time, a step that sears the same food twice produced two identical
+  // rows, which is the exact state this feature exists to end.
+  const cases = [
+    ['Sear the pork chops 4 minutes then flip and sear 4 minutes more.', ['pork chop, bone-in']],
+    ['Sear the chicken 2 minutes then flip and sear the chicken 2 minutes.', ['chicken thigh']],
+    ['Simmer the sauce 12 minutes; meanwhile simmer the beans 12 minutes.', ['white beans', 'tomato sauce']],
+    ['Toast the sesame seeds 3 minutes, cool 5 minutes, then grind the sesame seeds 2 minutes.', ['sesame seeds']],
+    ['Let the dough rise 30 minutes, fold it over, rise 30 minutes, fold again, then rise 30 minutes more.', ['bread flour']],
+  ];
+  for (const [step, ings] of cases) {
+    const tms = bsStepTimers(step);
+    // What the row actually shows: the gist, or the duration when there is none.
+    const rows = bsStepGists(step, ings).map((g, i) => g || tms[i].label);
+    assert.equal(new Set(rows).size, rows.length, `${step} -> ${JSON.stringify(rows)}`);
+  }
+});
+
+test('the honest floor: a step that repeats ITSELF has nothing to tell apart', () => {
+  // Not a defect to fix by inventing words. The label is drawn from the recipe's
+  // own words, so when the recipe says the same thing three times with nothing
+  // between, there is nothing to draw on -- and the rows are then exactly as
+  // informative as they were before this feature existed. Pinned so that a
+  // future change here is a DECISION, not an accident.
+  const step = 'Rest the dough 30 minutes, rest 30 minutes, then rest 30 minutes more.';
+  const tms = bsStepTimers(step);
+  const rows = bsStepGists(step, []).map((g, i) => g || tms[i].label);
+  assert.equal(rows[0], 'rest');
+  assert.ok(new Set(rows).size < rows.length, 'expected the known collision');
 });
