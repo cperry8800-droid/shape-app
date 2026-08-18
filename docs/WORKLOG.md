@@ -90,19 +90,29 @@ changelog whenever something ships.
   one-liners. Same engine as layer 2, just earlier + with less context; there's no
   CLI, so it's editor-triggered (the agent can't invoke it). **(1) `/code-review`**
   — run the skill on the diff before merging (Claude reviews for logic bugs + the
-  regressions listed above); **(2) CodeRabbit GitHub App — the AUTHORITATIVE
-  review.** Auto-reviews every PR into `main`/`staging` with full PR context +
-  `.coderabbit.yaml` config (assertive profile, path rules). This is the source of
-  truth — **never treat the layer-0 IDE pass as a substitute for it.** **(3)
+  regressions listed above); **(2) CodeRabbit GitHub App.** ⚠ **CORRECTED
+  2026-08-18 — this read "the AUTHORITATIVE review · auto-reviews every PR", and
+  BOTH halves are now false.** It reviews on request only — its own comment says
+  *"Reviews should be triggered manually for repositories with fewer than 10
+  stars"* — and it reviewed **neither** PR that day. A review layer disappeared
+  silently while this paragraph still promised it. ⚠ **DO NOT TRIGGER IT — the
+  owner's standing rule is that CodeRabbit is not part of this workflow.** It WAS
+  triggered by hand with `@coderabbitai full review` on 2026-08-18; that was a
+  **rule break**, recorded here so it is not copied. If a second reviewer seems
+  genuinely needed, **ASK the owner** — do not reach for it. **Work without it.**
+  ⚠ **The gating reviewer is CODEX**, not this — the merge gate is CI
+  green **and Codex clean on the final head**. **(3)
   required checks** — `main` branch protection requires ALL THREE CI checks
   (`Web (typecheck + build)` + `Mobile (build + public/m sync)` +
   `Secret scan (gitleaks)`) green before a merge (GitHub → Settings →
   Branches; once on, merging on red is impossible). Docs/config-only commits
-  may skip layers 0-1. **Layer-2 "done" detection (sharpened 2026-07-19):**
-  after pushing fixes for a CodeRabbit round, WAIT for its re-review of the
-  fix commit (the edited-in-place summary comment + a quiet period) before
-  merging — an addressed round + green CI is NOT done; a late round can
-  still be in flight.
+  may skip layers 0-1. **"Done" detection (rewritten 2026-08-18):** the merge
+  gate is **CI green on the final head AND Codex clean on the final head** — a
+  clean Codex pass leaves an issue comment or a 👍 from
+  `chatgpt-codex-connector[bot]`, so **absence of findings is not a pass**.
+  ⚠ This previously read "after pushing fixes for a CodeRabbit round, WAIT for
+  its re-review before merging" — **deleted**: a reviewer that never runs cannot
+  supply a merge condition, and never waiting on CodeRabbit is the standing rule.
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
@@ -116,8 +126,9 @@ changelog whenever something ships.
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
   - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
     reports `neutral`) + Preview Comments.
-  - **CodeRabbit** — assertive AI review (`.coderabbit.yaml`); comments on every
-    PR but is advisory, not a blocking status check.
+  - **CodeRabbit** — **does NOT run.** It posts an auto-skip notice (<10 stars →
+    request-only) and nothing more. ⚠ **We do not trigger it**; it is neither a
+    gate nor a layer to wait on. `.coderabbit.yaml` is dormant config.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -178,7 +189,49 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-17): THE LEGAL / AGE-GATE WAVE MERGED, AND THE DAILY CHECK-IN BECAME
+> **Latest (2026-08-18): COOK MODE LABELS EVERY TIMER, AND THE SHAPE KITCHEN GOES 35 → 85
+> (#1906 → `7c4e49ecb` · #1907 → `f7b9f69ec`).**
+> Two PRs, and in **both** the reviewer's findings kept landing in my own preceding fixes —
+> #1906 took **13 Codex rounds**, #1907 took **four** — and rounds 2 and 4 each found a defect
+> inside the guard the previous round had added. The code is the smaller half of what these
+> shipped; the durable half is below and in
+> [`docs/HANDOFF-2026-08-18.md`](HANDOFF-2026-08-18.md).
+> ⚠ **THE CORPUS MUST CONTAIN THE DEFECT.** #1906 cited *"198 steps, 0 regressions"* for five
+> consecutive rounds against a catalog holding **zero multi-timer steps** — inputs
+> structurally incapable of exhibiting the bug being fixed. A green number over the wrong
+> corpus is worth nothing. Fixed by *generating* the surface and keeping a **holdout**: the 50
+> USDA recipes were later measured blind (0 blank, 0 over-2-words, 0 duplicate rows), which is
+> the strongest evidence produced precisely because it was never tuned against.
+> ⚠ **MUTATION-TESTING YOUR OWN GUARD CONFIRMS WHAT YOU ALREADY BELIEVE.** #1907's byline
+> guard was mutation-tested **5/5 killed** and reported solid; Codex killed it in one line —
+> a renderer spelled `item.by.toUpperCase()` recreated the P1 crash with every assertion
+> green, because the guard keyed on identifiers literally named `r` or `recipe`. I had only
+> mutated the shapes it was written for.
+> ⚠ **AND FIXING WHERE THE HELPER LIVES IS NOT FIXING WHERE THE FIELD IS READ.** The crash was
+> `recipe.by.toUpperCase()` on a `by: null` record; I fixed three renderers inside
+> `recipes.jsx` and reported it closed. The components the routes actually mount are
+> **separate script files** — `recipesPage.jsx` and `recipeDetailPage.jsx` — reading the same
+> global catalog, and both still threw, taking `/recipes` and every `/recipes/<usda-slug>`
+> page down.
+> ⚠ **ABSENCE CAN BE A POSITIVE CLAIM.** `recipeNeeds` reads a title's absence from
+> `_RECIPE_NOT_GF` / `_RECIPE_HAS_DAIRY` as *gluten-free* / *dairy-free*, so the 50 landing
+> without their classifications did not lose a tag — the site told someone with coeliac
+> disease that a wheat-noodle casserole was safe. A parity check on that kind of set must
+> assert **both directions**.
+> ⚠ **CODERABBIT NO LONGER AUTO-REVIEWS THIS REPO** (<10 stars → request-only). It reviewed
+> neither PR. ⚠ **AND WE DO NOT TRIGGER IT — owner's standing rule.** Triggering it by hand
+> that day was a RULE BREAK, not the remedy. **Codex is the review gate.** Three now-stale
+> claims in "How we work" above are corrected.
+> **The gate is now behavioural, not textual** — `tests/recipe-render.test.mjs` and
+> `tests/kitchen-card-render.test.mjs` compile the real components with the deploy's own
+> transform and render them, so a renderer that dies on `by: null` fails **however it is
+> spelled — inside a component a test renders**. ⚠ Three of the four mobile byline surfaces
+> are rendered by no test; the code is correct, the guard is not wall-to-wall.
+> No migration in either PR. Suite **1997/1997**.
+>
+> See the full entries below.
+
+> **Prior (2026-08-17): THE LEGAL / AGE-GATE WAVE MERGED, AND THE DAILY CHECK-IN BECAME
 > ENGINE INPUT — SIX PRs (#1888 → `2f6c38b6c` · #1893 → `520630e33` · #1894 → `5268ef80c`
 > · #1895 → `ba0449c2b` · #1896 → `915c20a0a` · #1897 → `249c6c6f3`).**
 > **#1888 closed at Codex round 22 plus a self-review of it.** The last four rounds never
@@ -222,7 +275,9 @@ changelog whenever something ships.
 > still see it). **Registered, not fixed.**
 > ⚠ **The Codex gate was WAIVED on #1897** — owner-ruled, **PR-scoped**; the standing gate
 > (CI green **and** Codex clean on the final head) is unchanged everywhere else.
-> **No migration anywhere in the check-in wave.** Suite **1855**. Nothing is in flight —
+> **No migration anywhere in the check-in wave.** ⚠ **A suite figure once stood here and
+> has been deleted: the 1855 recorded on 2026-08-17 was never a measurement of that tree**
+> (see the entry below). Read the entry, do not trust a banner figure. Nothing is in flight —
 > `main` is `ba0449c2b`.
 > Handoff: **[`docs/HANDOFF-2026-08-17.md`](HANDOFF-2026-08-17.md)**.
 >
@@ -1676,6 +1731,193 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-08-18 — Shape Kitchen 35 → 85: the USDA recipes, credited to their source (#1907 → `f7b9f69ec`)
+
+- **The 50 USDA MyPlate Kitchen recipes are merged.** US federal works, public domain under
+  17 USC § 105, every step already rewritten in the catalog's voice. Authored recipes stay
+  first so the existing order never shifts. **No migration** — the catalog is a source module.
+- **Attribution has ONE definition per surface.** `bsRecipeAttribution` (mobile) /
+  `recipeAttribution` (web): an authored recipe carries `by + byRole` and reads "from the
+  kitchen of X"; a federal work has **no author** — crediting one to a nutritionist would be a
+  fabricated byline — so it carries `source`/`sourceUrl`/`license` and is credited to the
+  **source**, linked on web; an uncredited recipe returns `null` and **no surface invents a
+  name** — the note/pull-quote renderers and the mobile card render
+  **nothing**. `recipes.jsx` is a babel browser script and cannot import, so it carries a
+  parity copy and publishes the helper on `window` for the two route files.
+- ⚠ **THE CRASH WAS REAL, AND I FIXED THE WRONG FILES FIRST.** A sourced recipe has
+  `by: null`, and `recipe.by.toUpperCase()` throws. I fixed three renderers inside
+  `recipes.jsx` and reported the crash closed — but `recipes.jsx` holds the data and some
+  modal/widget renderers; the components the routes actually **mount** are separate script
+  files reading the same global catalog. `recipesPage.jsx:83` took down the All view on the
+  first USDA card and `recipeDetailPage.jsx:208` took down every `/recipes/<usda-slug>` page.
+  Codex caught it.
+- ⚠ **THE LIVE FILTERS MADE A FALSE ALLERGEN CLAIM.** `recipeNeeds` treats **absence** from
+  `_RECIPE_NOT_GF` / `_RECIPE_HAS_DAIRY` as a positive claim, so beef stroganoff, cheddar
+  macaroni and turkey tetrazzini advertised as gluten-free **and** dairy-free. Not a missing
+  tag — the site telling a coeliac member a wheat-noodle casserole is safe. The
+  classifications are ported from the catalog module rather than re-derived — 16/16/11 at
+  this round; ⚠ **17/17/11 is what actually shipped**, once rounds 3 and 4 below added the
+  oats and the margarine.
+- **Two more, same root cause:** all 50 website copies ended after `steps` and lost the Pro
+  Tip section the detail page promises; and `by || 'Coach'` stamped **`COACH:`** on all 50
+  public-domain Kitchen Cards. **Two adjacent sites had that second defect and were not
+  reported** — the library record credited the catalog name, and the Shape Kitchen list
+  eyebrow rendered a dangling `·` on every USDA row — so the class was swept rather than the
+  named site patched.
+- ⚠ **THE GUARD I ADDED FOR ALL THAT WAS HOLLOW, AND MY OWN MUTATION TESTING SAID IT WAS
+  FINE.** It banned three byline shapes by regex, keyed on identifiers literally named `r` or
+  `recipe`; a renderer spelled `item.by.toUpperCase()` recreated the crash with every
+  assertion green. Bracket notation, destructuring and a chain split across lines were equally
+  invisible. **5/5 mutations killed — all of them shapes the guard was written for.**
+- **Widening the regex was not the fix, and that was measured.** Across every file touching
+  the catalog, `.by` appears **8 times in the mobile client module and 7 are correct
+  non-recipe uses** (a goal's target date, a playlist's author). A wider text rule fires on
+  all of them; an exemption list goes stale the first time a new domain lands in that file.
+- **So the gate no longer reads source.** `tests/recipe-render.test.mjs` compiles the real
+  website pages with the **same transform the deploy uses** (`@babel/preset-react`, classic
+  runtime — `scripts/build-newdesign.mjs`) and renders all 85 records through the card plus
+  the detail page for a sourced and an authored recipe.
+  `tests/kitchen-card-render.test.mjs` does the same for the mobile `BSKitchenCard`, asserting
+  a public-domain recipe credits its source and is **never stamped COACH**. A renderer that
+  dies on `by: null` now fails however it is spelled **inside a component a test actually
+  renders**. ⚠ **That is not every byline.** `kitchen-card-render.test.mjs` renders exactly
+  ONE mobile component (`BSKitchenCard`), and the AST byline walk deliberately excludes the
+  mobile module — so `bsRecipeLibItem`, `BSRecipeBox` and `BSShapeKitchenRecipe` are gated by
+  nothing. Re-introducing the shipped P1 in `BSShapeKitchenRecipe` in its most obvious
+  spelling leaves the full suite green. The code is correct today; the **guard** is not
+  wall-to-wall, and saying otherwise is the same over-claim this wave was about.
+  What remains of the source scan is an
+  **AST walk** over the newdesign recipe pages, where `.by` outside the helper is provably
+  zero; the mobile module is deliberately **not** text-scanned and says why.
+- ⚠ **A COUNT IS NOT A VALUE.** The parity test first compared ingredient *counts* — two lists
+  of eight can disagree on every line, and swapping an ingredient for marshmallows passed. It
+  now compares the flattened ingredient strings plus `time`, `diet`, `hero`, `macros` and
+  `tags`, all rendered and none previously checked. The flattener reproduces all 85 website
+  ingredient lists **exactly**, which is confirmation of the rule rather than an assumption.
+- **Two authoring rules narrowed + one step split** (the one-timer-per-step rule and the
+  scheduling-note rule both over-triggered on legitimate rests/holds), and
+  `tests/cook-steps.test.mjs`'s hardcoded three-file source list was widened — putting the 50
+  in a new module had hidden all 273 of their steps on mobile while the website copy reported
+  them, which reads like a pass.
+- ⚠ **THE 50 CANNOT INTERLEAVE IN A PREP SESSION** and that is deliberate: they ship with no
+  `_KITCHEN_STEP_META` passive-window overlays, so "cook together" reads unavailable for any
+  pair of them. An overlay's `min` must be a duration the step text itself states; the
+  generator gets 273 steps to 22 candidates but **~30% get hands-off-ness or station wrong**,
+  so it must be a human-confirmation queue, never auto-applied. **Registered, not started.**
+- ⚠ **ROUND 3 — THE DATA ITSELF MADE A FALSE ALLERGEN CLAIM, AND MY OWN SET WAS INTERNALLY
+  INCONSISTENT.** Four recipes contain oats; **two were classified not-gluten-free and two
+  advertised gluten-free** — one ingredient, two answers, and the split ran through *both*
+  sets (USDA `Blueberry baked oats` correct, `Maple banana oatmeal` not; authored
+  `Overnight oats` correct, `Date and almond energy bites` not). Oats are not gluten-free
+  unless certified — standard milling shares a line with wheat. ⚠ The authored one is
+  **PRE-EXISTING**, not introduced by this merge; fixed here anyway, because an allergen
+  claim is not something to leave live once found.
+- **So the rule is gated, not the instance.** `tests/recipe-allergen-consistency.test.mjs`
+  reads the **ingredients** and requires every allergen-bearing recipe to be either classified
+  or listed as a known-safe form **with a reason**. ⚠ **It fails closed only INSIDE its own
+  vocabulary** — two fixed marker lists (**28** gluten words, 13 dairy). A match that is not on
+  the safe-form list breaks the build; an allergen-bearing ingredient the markers do not name
+  is never seen at all, which is fail-OPEN. Injected one at a time into a recipe advertising
+  both claims, `wheat flour` is caught, while `semolina`, `spelt`, `ghee`, `kefir` and
+  `mascarpone` each pass with the full suite green. Since absence from the sets IS the
+  positive claim, an unrecognised allergen still ships as a safety claim. **Widening the
+  vocabulary is open work, not done work.** It earned its keep while being written: it flagged
+  `no-salt-added pasta sauce` in the noodle-free lasagna, a tomato sauce *for* pasta rather
+  than pasta, recorded as a safe form with that reasoning rather than by loosening the marker.
+  It correctly stayed quiet on corn tortillas, **butter** lettuce, **coconut** milk and
+  **peanut** butter — the four safe forms the audit actually reaches; deleting any one of
+  them fails the suite with a named recipe. ⚠ **Two further entries are exercised by nothing**:
+  `vegan parmesan` and `cocoa butter` match no ingredient in the catalog (the only
+  `vegan parmesan` in the repo is in a *step* of `Lentil bolognese`, and this gate reads
+  ingredients). An earlier draft listed `vegan parmesan` as a case the guard got right — it
+  never saw it. Crediting a guard with a decision it never made is the same class of
+  over-claim as the ones above.
+- **Round 3 also caught the copy and the role.** The Recipes hero still told visitors *"Every
+  recipe is built by a Shape professional"*, false for 50 of 85 the moment this landed; and
+  the parity gate compared `by` but not `byRole`, which both surfaces render beside it — so a
+  nutritionist could be labelled a dietician with every gate green.
+- ⚠ **ROUND 4 — GENERIC MARGARINE IS NOT RELIABLY DAIRY-FREE**, same class as the oats
+  (milk solids and whey are common), so `Herbed baked salmon with lemon` is classified.
+  ⚠ **This CONTRADICTS the incoming brief**, which named that recipe as a spot-check expected
+  to read *"Pescatarian + Gluten-free + Dairy-free"*. Taken in the **safe direction** —
+  under-claiming costs a member a filter hit, over-claiming is the harm — and **flagged for
+  the owner** rather than silently overriding a stated expectation.
+- ⚠ **AND ROUND 4'S SECOND FINDING WAS A DEFECT IN THE GUARD ROUND 3 ADDED.** The safe-form
+  exemption was **whole-line**: one safe phrase anywhere in an ingredient waved the entire line
+  through **both** audits, so `corn tortillas with wheat flour` cleared gluten and
+  `butter lettuce with milk dressing` cleared dairy. Each form is now tagged with the allergen
+  it exempts and neutralises **only the phrase it matches**; the audit re-reads the residue.
+- ⚠ **REGISTERED, NOT CHANGED — NEEDS AN OWNER RULING.** **Five** recipes advertise
+  gluten-free over a generic **broth, stock or bouillon** (`One-pan chicken and rice`,
+  `Red lentil and spinach dahl`, `Turkey chili verde`, `Slow-simmered beef pot roast`,
+  `Black skillet beef with kale and red potatoes`). ⚠ **An earlier draft said FOUR and omitted
+  `Turkey chili verde`**, which advertises gluten-free over `1 cup chicken stock` — the same
+  commercial product class the rationale below targets. The enumeration was the defect, not
+  the class boundary, and it matters because this list is the only place the class is tracked:
+  the allergen guard has **no broth/stock/bouillon marker at all**, so ruling on four would
+  leave the fifth still making the claim.
+  Commercial bouillon frequently contains wheat, so it is arguably the oats class — but unlike
+  oats there is no universal rule, it would hide five recipes from the filter, and three are
+  pre-existing authored recipes. That is a nutrition call, not an implementation one. Soy
+  sauce, by contrast, is already handled correctly: all eight recipes using it are not-GF.
+- ⚠ **A METHOD NOTE THAT NEARLY FOOLED ME.** The first attempt to prove the whole-line bug used
+  a stale anchor, injected nothing, and printed `0` for **both** arms — which reads exactly
+  like *"the bug is not real"*. **An identical or saturated result across both arms of a
+  mutation test is a broken method until proven otherwise.** Re-run properly, the poisoned
+  ingredient **fails** the shipped guard and **passes silently** on the reverted one.
+- Mutation-tested throughout (9/9 on the render/parity guards; the allergen audit killed by
+  removing the oats classification), with unmutated sanity cases reading `fail 0` at both ends
+  of every batch. **The parity gate also caught the website drifting on its own**, the moment
+  the mobile classification changed and before `recipes.jsx` was touched — real drift, not an
+  invented mutation. Suite **1997/1997**; `tsc` clean; CI green and **Codex clean on
+  `75961ce64`** (👍 + *"Didn't find any major issues"*, reviewed-commit stamp matching the
+  head). Four Codex rounds; branch `claude/usda-recipes` kept.
+
+### 2026-08-18 — Cook Mode labels every timer (#1906 → `7c4e49ecb`)
+
+- **A step with two waits rendered two identical chips.** Each timer now carries the step's own
+  words — "Step 6 · bake" beside "Step 6 · rest" — so a cook can tell mid-recipe which timer
+  is which.
+- **`bsStepGists(text, ingredients)` is the set-level chokepoint.** Uniqueness across a step's
+  timers cannot be guaranteed one timer at a time, so the per-timer `bsStepGist` is only ever
+  called through it, with the labels already emitted passed in as `avoid`.
+- **The parser anchors the action on BOTH sides.** A label is derived from the span between
+  the previous timer's end and the next timer's start, so a later action can never supply the
+  words for an earlier wait.
+- ⚠ **"198 STEPS, 0 REGRESSIONS" WAS CITED FOR FIVE ROUNDS ON A CORPUS WITH ZERO MULTI-TIMER
+  STEPS.** The catalog could not exhibit the defect being fixed, so the number measured
+  nothing. `tests/cook-multi-timer-sweep.test.mjs` now *generates* the surface and asserts the
+  invariants (correct food · ≤2 words · no digits/punctuation · never empty · no two identical
+  rows on one step · **reorder-invariance**). ⚠ And reorder-invariance proves a label is not
+  list-driven — **not that it is right**; it passed on a wrong answer during the wave.
+- ⚠ **A HOLDOUT IS WORTH MORE THAN A TUNED CORPUS.** The 50 USDA recipes were measured blind
+  before merge: 0 blank, 0 over-2-words, 0 duplicate rows. Strongest evidence of the wave,
+  precisely because nothing was tuned against it.
+- **Rejected along the way, with evidence:** distance-to-the-number ranking (plausible, broke
+  4 catalog labels — `chicken breast` → `olive oil`; ranking is earliest-in-text, unified with
+  admission); and dropping comma-splitting entirely (passed all 13 adversarial cases *and* the
+  marquee turkey case, but moved **32 of 96** catalog labels with real regressions — scoped to
+  widen-only-when-empty, 4 of 96, all improvements).
+- ⚠ **REGEX ESCAPES COLLAPSE THROUGH HEREDOC LAYERS — EIGHT OCCURRENCES IN ONE DAY.** `\b`
+  becomes a BACKSPACE byte, `\s` becomes the letter `s`; the result parses, typechecks and
+  passes the full suite while matching nothing. It had already silently disabled a live
+  assertion in `tests/local-scrub-sync.test.mjs` (a BACKSPACE inside a negated match made it
+  always true). Build with `chr(92)` or raw strings and **verify with `cat -v`**;
+  `tests/source-no-control-bytes.test.mjs` now catches the class, with its file list derived
+  from `git ls-files` after Codex called the first hand-listed version hollow.
+- ⚠ **`git checkout --` DESTROYED UNCOMMITTED WORK TWICE IN ONE DAY**, on a rule already
+  written down — the second time wiping both round-10 fixes. Mutation-test with
+  `cp file file.bak`, never git, and **commit before mutation-testing**.
+- 13 Codex rounds, 12 of which found something. Branch kept. Suite **1983/1983** — the figure
+  this PR's own merge commit already carries (`git show 7c4e49ecb` ends *"Suite 1983. Codex
+  clean on ac3fcd099."*), and `ac3fcd099` is tree-identical to the merge and sits on
+  `claude/cook-timer-labels`. ⚠ **An earlier draft of this bullet RETRACTED that number**,
+  claiming it was measured on the USDA branch and would be a carried-forward figure. Both
+  halves were false: it is this PR's own head, and #1907 then added exactly 14 tests in four
+  new files, which is why the entry above reads **1997** for `f7b9f69ec`. **Over-correction is
+  its own defect** — deleting a correctly-scoped number does not play safe, it destroys a
+  measurement and sends the next reader off to re-derive what was already recorded.
 
 ### 2026-08-17 — deps: both high Dependabot alerts (nanoid) + a stale override floor Dependabot never raised (#1903 → `2fd1c1474`)
 
