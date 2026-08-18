@@ -210,3 +210,49 @@ test('a bare "and" BEFORE the first duration stays inside one action', () => {
   assert.deepEqual(bsStepGists(step, ings), ['chickpeas']);
   assert.equal(bsStepGist('Soften the diced onion and garlic in olive oil over medium heat for 5 minutes.', ['yellow onion', 'garlic'], 300, 0), 'yellow onion');
 });
+
+// ── Round 8: which conjunction OPENS the clause decides whose food it is ────
+//
+// The rule these pin replaced "is there an earlier duration in this step",
+// which only proved this was not the FIRST timer and truncated any later
+// "add X and cook N minutes" to "cook".
+test('an opening `until`/`while` clause belongs to the PREVIOUS action', () => {
+  // Both name a food before the "and" that is NOT this timer's.
+  assert.deepEqual(
+    bsStepGists('Simmer the tomato sauce 10 minutes until the carrots soften and toast the rice 2 minutes',
+      ['tomato sauce', 'carrots', 'jasmine rice']), ['tomato sauce', 'jasmine rice']);
+  assert.deepEqual(
+    bsStepGists('Simmer the tomato sauce 10 minutes until the carrots soften and rest 5 minutes before slicing.',
+      ['tomato sauce', 'carrots']), ['tomato sauce', 'rest']);
+});
+
+test('an opening `before`/`after` clause is a NEW action and keeps its own food', () => {
+  // ⚠ The mirror of the test above, and the reason the rule names `until`/`while`
+  // rather than every subordinator. "before you fold in the baby spinach and cook
+  // 3 minutes" is ONE action whose food sits before the "and" -- cutting there
+  // labelled the spinach timer "cook".
+  assert.deepEqual(
+    bsStepGists('Simmer the brown lentils 20 minutes before you fold in the baby spinach and cook 3 minutes.',
+      ['baby spinach', 'brown lentils']), ['brown lentils', 'baby spinach']);
+});
+
+test('an intra-action `and` survives an unrelated EARLIER timer on the step', () => {
+  // The exact case that killed the previous rule: a first timer anywhere in the
+  // step must not turn every later "and" into an action boundary.
+  assert.deepEqual(
+    bsStepGists('Toast the spices 1 minute. Add the chicken and cook 10 minutes.',
+      ['mixed spices', 'chicken thigh']), ['toast', 'chicken thigh']);
+});
+
+test('a trailing condition still NAMES the food when no action follows it', () => {
+  // `upto` is the next stated duration, so when it is the end of the step there
+  // is no next action and a subordinate clause here is THIS timer's own context.
+  // Cutting it unconditionally dropped the only food: "cook 5 minutes once the
+  // chicken is added" labelled itself "cook".
+  assert.deepEqual(bsStepGists('Cook 5 minutes once the chicken is added.', ['chicken thigh']), ['chicken thigh']);
+  assert.deepEqual(bsStepGists('Roast 16 minutes until the chicken hits 165F.', ['chicken thigh']), ['chicken thigh']);
+  // ...but when another timed action DOES follow, the same words are a boundary.
+  assert.deepEqual(
+    bsStepGists('Bake the salmon 12 minutes while the pearl couscous cooks 10 minutes.',
+      ['pearl couscous', 'salmon fillet']), ['salmon fillet', 'pearl couscous']);
+});

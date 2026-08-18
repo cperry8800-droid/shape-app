@@ -354,25 +354,66 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
     // order); it bounds the VERB fallback, which would otherwise reach back
     // across the join -- "...until tender while rest 5 minutes" labelled the
     // REST timer "tender".
-    const cut = /\s+(?:then|while|before|after|once|meanwhile|as)\s+/i;
-    // A bare "and" is the hard one: it is action-level in "simmer the sauce 10
-    // minutes ... and toast the rice 2 minutes", and INSIDE one action in "add
-    // the garlic and cook 5 minutes". Cutting it everywhere changes 41 of 96
+    // A join ENDS one action and STARTS the next. "then"/"meanwhile" always do.
+    // The subordinators (while/before/after/once/as) only do so when another
+    // timed action actually follows -- otherwise they introduce a condition that
+    // NAMES this action's food ("cook 5 minutes once the chicken is added").
+    const SEQ = 'then|meanwhile';
+    const SUB = 'while|before|after|once|as';
+    // ⚠ Build the escapes with doubled backslashes. A lone \s in a JS string
+    // literal is just the letter s, and a lone \b is BACKSPACE -- both make a
+    // regex that silently matches the wrong thing while every test still runs.
+    // This trap has now fired four separate times in this file.
+    const reOf = (alt) => new RegExp('\\s+(?:' + alt + ')\\s+', 'i');
+
+    // LEAD: the clause nearest the number, so "Heat a dry skillet. ... let it
+    // sit undisturbed 2 minutes" labels "sit" and not "heat". It must not reach
+    // back across a join into the PREVIOUS action -- "...until tender while rest
+    // 5 minutes" labelled the REST timer "tender".
+    const leads = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+    const leadClause = leads.length ? leads[leads.length - 1] : '';
+    // A bare "and" is the hard one: action-level in "…10 minutes until the
+    // carrots soften AND toast the rice 2 minutes", but INSIDE one action in
+    // "add the chicken and cook 10 minutes". Cutting it everywhere moves 41 of 96
     // catalogue labels and nearly all get worse (shrimp->cook, bok choy->steam).
     //
-    // Position tells them apart. This lead region only reaches back past an
-    // EARLIER stated duration when one exists, and text sitting BETWEEN two
-    // durations has already had its own action timed -- so an "and" there
-    // separates two timed actions. Before the step's first duration it does not.
-    // Measured: 0 further catalogue labels move, because no shipped recipe times
-    // two actions in one step.
-    const leadCut = from > 0 ? /\s+(?:then|while|before|after|once|meanwhile|as|and)\s+/i : cut;
-    // LEAD: the clause nearest the number, so "Heat a dry skillet. ... let it
-    // sit undisturbed 2 minutes" labels "sit" and not "heat".
-    const leads = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
-    const lead = leads.length ? leads[leads.length - 1].split(leadCut).pop() : '';
-    // TAIL: the food is often named AFTER the number.
-    const tail = (t.slice(mine.end, upto).split(GIST_SPLIT_RE)[0] || '').split(cut)[0];
+    // ⚠ "is there an earlier duration in this step" is NOT the discriminator --
+    // that shipped, and it truncated "Add the chicken and cook 10 minutes" to
+    // "cook" whenever any unrelated timer appeared earlier in the same step.
+    // What actually distinguishes them is how the clause OPENS: one that opens
+    // subordinate ("until the carrots soften …") is still describing the
+    // PREVIOUS action, so the text before its "and" belongs to that action. One
+    // that opens on its own verb ("Add the chicken …") is this action already,
+    // and its "and" is internal.
+    // A bare "and" is the hard one: action-level in "...10 minutes until the
+    // carrots soften AND toast the rice 2 minutes", but INSIDE one action in
+    // "add the chicken and cook 10 minutes". Cutting it everywhere moves 41 of
+    // 96 catalogue labels and nearly all get worse (shrimp->cook, bok choy->steam).
+    //
+    // ⚠ "is there an earlier duration in this step" is NOT the discriminator --
+    // that shipped, and truncated "Add the chicken and cook 10 minutes" to "cook"
+    // whenever any unrelated timer appeared earlier in the same step.
+    //
+    // What separates them is which conjunction OPENS the clause, because that
+    // says whose action the text before the "and" belongs to:
+    //   "until X softens ..."  -- a COMPLETION CONDITION on the action that just
+    //                             ended, so X is the PREVIOUS timer's food.
+    //   "while X cooks ..."    -- a PARALLEL action, likewise not this one's.
+    //   "before you fold in X" -- a NEW action, and X is its own food; cutting
+    //                             here labelled the spinach timer "cook".
+    // So only `until` and `while` hand their text to the previous action.
+    // (regex LITERAL here, so a single \b -- doubling is only for strings
+    //  handed to new RegExp, and getting that backwards silently matches nothing)
+    const carriesPrevAction = /^(?:until|while)\b/i.test(leadClause);
+    const leadBase = leadClause.split(reOf(SEQ + '|' + SUB)).pop();
+    const lead = carriesPrevAction ? leadBase.split(reOf('and')).pop() : leadBase;
+    // TAIL: the food is often named AFTER the number ("roast 16-18 minutes until
+    // the chicken hits 165F"), so it is kept -- but only as far as the next
+    // action. `upto` is the next stated duration, so when it is the end of the
+    // step there is no next action and a subordinate clause here is THIS
+    // timer's own context, not a boundary.
+    const more = upto < t.length;
+    const tail = (t.slice(mine.end, upto).split(GIST_SPLIT_RE)[0] || '').split(reOf(more ? SEQ + '|' + SUB : SEQ))[0];
     own = [lead.trim(), tail.trim()].filter(Boolean).join(' ') || null;
   }
   // No usable span (no duration given, or the step opens on one) falls back to
