@@ -275,7 +275,7 @@ export const bsStepGist = (text, ingredients) => {
 const BS_ING_STOP = new Set([
   'fresh', 'dried', 'ground', 'lean', 'large', 'small', 'medium', 'chopped', 'minced',
   'sliced', 'diced', 'julienned', 'grated', 'shredded', 'whole', 'raw', 'ripe', 'optional',
-  'plus', 'more', 'taste', 'the', 'and', 'for', 'extra', 'virgin', 'low', 'fat', 'free',
+  'plus', 'more', 'taste', 'the', 'and', 'for', 'extra', 'virgin', 'low', 'fat', 'free', 'light',
   'skinless', 'boneless', 'room', 'temperature', 'finely', 'roughly', 'thinly', 'toasted',
   'cooked', 'uncooked', 'peeled', 'halved', 'quartered', 'crushed', 'packed', 'divided',
 ]);
@@ -290,6 +290,22 @@ const BS_ING_GENERIC = new Set([
   'nuts', 'herbs', 'spice', 'spices', 'blend', 'dressing', 'yogurt', 'yoghurt', 'extract',
 ]);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// ⚠ Plural and singular are the SAME word when deciding whether a token is
+// unique in this recipe. Counted raw, "olives" and "olive oil" look like two
+// different words, so "olive" scores as unique, becomes a lone alias for the
+// OIL, and the plural-tolerant matcher below then hands a step that says
+// "olives" the bottle of olive oil. Only the trailing -s/-es the matcher
+// already tolerates is stripped; a word this mangles ("asparagus") mangles
+// CONSISTENTLY, so it still only ever collides with itself. Two genuinely
+// different words folding together can only WITHHOLD an alias, which is the
+// safe direction (the same refuse-when-ambiguous rule as everything here).
+const ingSingular = (w) => {
+  if (w.length > 4 && /(?:ch|sh|s|x|z|o)es$/.test(w)) return w.slice(0, -2);
+  if (w.length > 3 && /[^s]s$/.test(w)) return w.slice(0, -1);
+  return w;
+};
+const BS_ING_GENERIC_SING = new Set([...BS_ING_GENERIC].map(ingSingular));
 
 const ingBase = (name) => String(name)
   .toLowerCase()
@@ -315,7 +331,7 @@ const ingMatchTokens = (name, distinctive) => {
   // ⚠ Steps abbreviate: "Sear the chicken" never repeats "chicken thigh,
   // skin-on". Any content word the recipe uses in exactly ONE ingredient may
   // stand for it — head noun ("lettuce") or modifier ("chicken", "sesame").
-  else for (const w of content) if (distinctive.has(w)) out.add(w);
+  else for (const w of content) if (distinctive.has(ingSingular(w))) out.add(w);
   return [...out].filter((tok) => tok.length >= BS_ING_MIN_TOKEN);
 };
 
@@ -344,9 +360,11 @@ export const bsStepIngredients = (step, ingredients) => {
   const freq = new Map();
   for (const n of names) {
     if (!n) continue;
-    for (const w of new Set(ingContent(ingBase(n)))) freq.set(w, (freq.get(w) || 0) + 1);
+    for (const w of new Set(ingContent(ingBase(n)).map(ingSingular))) freq.set(w, (freq.get(w) || 0) + 1);
   }
-  const distinctive = new Set([...freq.keys()].filter((w) => freq.get(w) === 1 && !BS_ING_GENERIC.has(w)));
+  const distinctive = new Set([...freq.keys()].filter(
+    (w) => freq.get(w) === 1 && !BS_ING_GENERIC_SING.has(w),
+  ));
   return list.filter((ing, i) => {
     const name = names[i];
     if (!name) return false;

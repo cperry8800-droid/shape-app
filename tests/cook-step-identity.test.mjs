@@ -130,6 +130,31 @@ test('NO FALSE POSITIVE: a head noun two ingredients SHARE claims neither', () =
   assert.deepEqual(names(bsStepIngredients('Shred the romaine lettuce.', two)), ['romaine lettuce']);
 });
 
+test('NO FALSE POSITIVE: a plural sibling cannot lend its singular to another ingredient', () => {
+  // "olives" and "olive oil" were counted as DIFFERENT words, so "olive" scored
+  // unique, became a lone alias for the OIL, and the plural-tolerant matcher
+  // handed a pure assembly step that says "olives" the bottle of olive oil.
+  const nic = [{ n: '1/2 cup', m: 'olives' }, { n: '2 tbsp', m: 'olive oil' }];
+  assert.deepEqual(names(bsStepIngredients('Arrange the tomatoes, olives and tuna in a bowl.', nic)), ['olives']);
+  // …and the oil still resolves from its own full phrase.
+  assert.deepEqual(names(bsStepIngredients('Whisk the vinaigrette: olive oil, dijon, lemon.', nic)), ['olive oil']);
+});
+
+test('NO FALSE POSITIVE: "the tomatoes" does not pull in the tomato paste', () => {
+  // Same class as the olives above — the paste has its OWN step, and listing it
+  // again under the tinned tomatoes tells the cook to use it twice.
+  const rag = [{ n: '1 can', m: 'chopped tomatoes' }, { n: '2 tbsp', m: 'tomato paste' }];
+  assert.deepEqual(names(bsStepIngredients('Return the beef, add the tomatoes, and simmer 20 minutes.', rag)), ['chopped tomatoes']);
+  assert.deepEqual(names(bsStepIngredients('Stir in the tomato paste and cook 1 minute.', rag)), ['tomato paste']);
+});
+
+test('a name the singularizer mangles still matches itself', () => {
+  // "asparagus" folds to "asparagu" for the uniqueness COUNT only — the emitted
+  // alias is still the recipe's own word, so the match is unaffected.
+  const veg = [{ n: '1 bunch', m: 'asparagus' }, { n: '1 tbsp', m: 'olive oil' }];
+  assert.deepEqual(names(bsStepIngredients('Roast the asparagus 12 minutes.', veg)), ['asparagus']);
+});
+
 test('a single-content-word name still matches on its head noun', () => {
   // "lean ground turkey" → "turkey": lean/ground are qualifiers, so the head
   // noun is the ONLY content word and is safe to match alone.
