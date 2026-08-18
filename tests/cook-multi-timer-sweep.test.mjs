@@ -290,3 +290,34 @@ test('the lead widens ONLY when the nearest fragment says nothing', () => {
   // ...while a fragment that names a verb or a food stands on its own.
   assert.equal(bsStepGist('Boil the rice 10 minutes until tender, rest 5 minutes.', ['jasmine rice'], 300, 0), 'rest');
 });
+
+// ── Round 10 ───────────────────────────────────────────────────────────────
+
+test('a tail stops at a comma when another timed action follows', () => {
+  // ⚠ A regression I introduced in round 9 by splitting the tail at sentence
+  // level: the FIRST timer absorbed "toast the sesame oil", and the uniqueness
+  // set then withheld that food from the timer it actually belongs to -- one
+  // wrong label manufacturing a second.
+  assert.deepEqual(bsStepGists('Rest 10 minutes, toast the sesame oil 2 minutes', ['sesame oil']),
+    ['rest', 'sesame oil']);
+  // ...and with no following action the comma is just a fragment break.
+  assert.deepEqual(bsStepGists('Cook 5 minutes once the chicken is added.', ['chicken thigh']),
+    ['chicken thigh']);
+});
+
+test('a fronted condition is found even when the last fragment reads complete', () => {
+  // "continue simmering for" carries a verb, so a content-word threshold never
+  // widened and the fronted rice was lost.
+  assert.deepEqual(
+    bsStepGists('Toast the spices 1 minute. Until the rice is tender, continue simmering for 10 minutes.',
+      ['mixed spices', 'jasmine rice']), ['toast', 'jasmine rice']);
+});
+
+test('widening reaches a FRONTED condition only, never any earlier food', () => {
+  // ⚠ "the sentence names a food somewhere" reaches back to its FIRST food,
+  // which in a long sentence is the MEDIUM. Measured, that moved 22 of 96
+  // catalogue labels; bounded to a fronted condition it moves 4, all better.
+  assert.deepEqual(
+    bsStepGists('Warm the olive oil over medium, add the sliced garlic and chili flakes, and cook about 1 minute until fragrant.',
+      ['olive oil', 'garlic', 'chili flakes']), ['cook']);
+});

@@ -405,9 +405,27 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
     // SENTENCE only when the nearest fragment says nothing at all, so the
     // ordinary case is untouched: widening unconditionally moved 32 of 96
     // catalogue labels, several of them worse (bok choy -> steam).
-    if (!gistCandidate(leadClause, ingredients)) {
+    if (!bsStepIngredients(leadClause, ingredients).length) {
       const sentences = rawLead.split(GIST_CLAUSE_RE).map((p) => p.trim()).filter(Boolean);
-      if (sentences.length) leadClause = sentences[sentences.length - 1];
+      const whole = sentences.length ? sentences[sentences.length - 1] : '';
+      // TWO reasons to widen past the fragment nearest the number:
+      //   a) the sentence OPENS on a fronted condition that names this action's
+      //      food ahead of its verb -- "Until the rice is tender, continue
+      //      simmering for 10 minutes" -- which a content-word threshold misses
+      //      entirely, because "continue simmering for" reads complete.
+      //   b) the fragment says nothing at all ("simmer, about 10 minutes"
+      //      leaves "about", every word a skip-word).
+      //
+      // ⚠ (a) is deliberately NOT "the sentence names a food somewhere". That
+      // reaches back to the sentence's FIRST food, which in a long sentence is
+      // the MEDIUM: "Warm the olive oil over medium, add the sliced garlic ...,
+      // and cook about 1 minute" turned "cook" into "olive oil". Measured, the
+      // unbounded version moved 22 of 96 catalogue labels, several like that;
+      // bounded to a fronted condition it moves 4, all improvements.
+      const first = whole.split(GIST_SPLIT_RE).map((x) => x.trim()).filter(Boolean)[0] || '';
+      const frontedCondition = /^(?:until|while|once|as|after|before)\b/i.test(first)
+        && bsStepIngredients(first, ingredients).length > 0;
+      if (whole && (frontedCondition || !gistCandidate(leadClause, ingredients))) leadClause = whole;
     }
     // WHOSE action is the text before this clause's "and"/comma?
     //
@@ -435,7 +453,13 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
     // step there is no next action and a subordinate clause here is THIS
     // timer's own context, not a boundary.
     const more = upto < t.length;
-    const tail = (t.slice(mine.end, upto).split(GIST_CLAUSE_RE)[0] || '').split(reOf(more ? SEQ + '|' + SUB : SEQ))[0];
+    // ⚠ When another timed action follows, a COMMA ends this tail. Letting it run
+    // to the sentence end made "Rest 10 minutes, toast the sesame oil 2 minutes"
+    // hand the REST timer the sesame oil -- and the uniqueness set then withheld
+    // that food from the timer it actually belongs to, so one wrong label
+    // produced a second. With no following action the comma is just a fragment
+    // break inside this timer's own context, so it is kept.
+    const tail = (t.slice(mine.end, upto).split(more ? GIST_SPLIT_RE : GIST_CLAUSE_RE)[0] || '').split(reOf(more ? SEQ + '|' + SUB : SEQ))[0];
     own = [lead.trim(), tail.trim()].filter(Boolean).join(' ') || null;
   }
   // No usable span (no duration given, or the step opens on one) falls back to
