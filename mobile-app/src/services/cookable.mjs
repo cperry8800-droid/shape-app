@@ -540,6 +540,23 @@ const BS_ING_MIN_TOKEN = 3;
 // back to one of these as its head noun: "sesame oil" matching a step's "olive
 // oil", or "soy sauce" matching "the pan sauce", tells the cook to reach for
 // something the step never asked for.
+// Words that are ACTIONS first and ingredient modifiers second. One of these may
+// never stand ALONE for an ingredient, however unique it is on the recipe's list.
+//
+// ⚠ "Brown the chicken 3 minutes per side" with ['chicken thigh', 'brown
+// lentils'] labelled that timer "brown lentils": `brown` was unique on the list
+// so it became a lone alias, and text-order ranking then put the VERB ahead of
+// the explicitly named chicken. The step's ingredient list showed the lentils
+// too -- a food the step never touches, which reads as "fetch this" to a cook.
+// The FULL phrase is unaffected, so "stir in the brown lentils" still resolves.
+const BS_ING_ACTION = new Set([
+  'brown', 'chill', 'cube', 'dice', 'grate', 'grill', 'halve', 'mash', 'mince',
+  'quarter', 'roast', 'shred', 'slice', 'steam', 'toast', 'season', 'crush',
+  'press', 'peel', 'core', 'trim', 'rest', 'cover', 'whip', 'beat', 'fold',
+  'blend', 'chop', 'drain', 'rinse', 'spread', 'layer', 'boil', 'fry', 'melt',
+  'warm', 'cool', 'heat', 'stir', 'pour', 'serve', 'sear', 'bake', 'cook',
+]);
+
 const BS_ING_GENERIC = new Set([
   'oil', 'sauce', 'vinegar', 'stock', 'broth', 'cheese', 'milk', 'flour', 'sugar', 'salt',
   'pepper', 'water', 'juice', 'powder', 'paste', 'butter', 'cream', 'syrup', 'wine', 'seeds',
@@ -586,11 +603,13 @@ const ingMatchTokens = (name, distinctive) => {
   const out = new Set();
   if (base.length >= BS_ING_MIN_TOKEN) out.add(base);
   if (content.length >= 2) out.add(content.slice(-2).join(' '));
-  if (content.length === 1) out.add(content[0]);
+  if (content.length === 1 && !BS_ING_ACTION.has(content[0])) out.add(content[0]);
   // ⚠ Steps abbreviate: "Sear the chicken" never repeats "chicken thigh,
   // skin-on". Any content word the recipe uses in exactly ONE ingredient may
-  // stand for it — head noun ("lettuce") or modifier ("chicken", "sesame").
-  else for (const w of content) if (distinctive.has(w)) out.add(w);
+  // stand for it — head noun ("lettuce") or modifier ("chicken", "sesame") —
+  // UNLESS the word is an action, which a step is far likelier to be using as a
+  // verb than as a name (see BS_ING_ACTION).
+  else for (const w of content) if (distinctive.has(w) && !BS_ING_ACTION.has(w)) out.add(w);
   return [...out].filter((tok) => tok.length >= BS_ING_MIN_TOKEN);
 };
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsStepGist, bsStepGists, bsStepTimers } from '../mobile-app/src/services/cookable.mjs';
+import { bsStepGist, bsStepGists, bsStepIngredients, bsStepTimers } from '../mobile-app/src/services/cookable.mjs';
 
 // WHY THIS FILE EXISTS.
 //
@@ -320,4 +320,26 @@ test('widening reaches a FRONTED condition only, never any earlier food', () => 
   assert.deepEqual(
     bsStepGists('Warm the olive oil over medium, add the sliced garlic and chili flakes, and cook about 1 minute until fragrant.',
       ['olive oil', 'garlic', 'chili flakes']), ['cook']);
+});
+
+// ── Round 11: an action word may not stand alone for an ingredient ──────────
+
+test('a VERB never outranks the food a step actually names', () => {
+  // ⚠ `brown` was unique across ['chicken thigh', 'brown lentils'], so it became
+  // a lone alias for the lentils -- and text-order ranking then put the sentence's
+  // opening VERB ahead of the chicken the step names outright. The timer read
+  // "brown lentils" and the step's ingredient list showed a food it never touches,
+  // which to a cook reads as "fetch this".
+  const ings = ['chicken thigh', 'brown lentils'];
+  assert.deepEqual(bsStepGists('Brown the chicken 3 minutes per side.', ings), ['chicken thigh']);
+  assert.deepEqual(bsStepIngredients('Brown the chicken 3 minutes per side.', ings), ['chicken thigh']);
+  // The FULL phrase is untouched -- only the lone-word alias is withheld.
+  assert.deepEqual(bsStepIngredients('Stir in the brown lentils and simmer.', ings), ['brown lentils']);
+});
+
+test('the same guard holds for other verb/modifier collisions', () => {
+  assert.deepEqual(bsStepIngredients('Chill 20 minutes.', ['chilled yogurt', 'granola']), []);
+  assert.deepEqual(bsStepIngredients('Slice it thin.', ['sliced almonds', 'honey']), []);
+  // ...and each still resolves from its own full phrase.
+  assert.deepEqual(bsStepIngredients('Fold in the sliced almonds.', ['sliced almonds', 'honey']), ['sliced almonds']);
 });
