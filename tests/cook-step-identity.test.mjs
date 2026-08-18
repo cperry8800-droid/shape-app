@@ -179,6 +179,18 @@ test('THE BUG: two timers on ONE step get DIFFERENT labels', () => {
   assert.equal(bsStepGist(step, pan, 999), 'jasmine rice');
 });
 
+test('THE CORNER: two timers of the SAME duration still separate', () => {
+  // Matching on duration alone hands both timers the FIRST clause stating it,
+  // and the appended duration is equal too — so this corner kept the whole
+  // defect. `nth` (how many earlier timers share the duration) splits them.
+  const pan = [{ n: '6 oz', m: 'chicken thigh' }, { n: '1 cup', m: 'jasmine rice' }];
+  const step = 'Sear the chicken 2 minutes, then rest the rice 2 minutes.';
+  assert.equal(bsStepGist(step, pan, 120, 0), 'chicken thigh');
+  assert.equal(bsStepGist(step, pan, 120, 1), 'jasmine rice');
+  // Asking past the last matching clause falls back — never an empty label.
+  assert.equal(bsStepGist(step, pan, 120, 9), 'chicken thigh');
+});
+
 test('a single-content-word name still matches on its head noun', () => {
   // "lean ground turkey" → "turkey": lean/ground are qualifiers, so the head
   // noun is the ONLY content word and is safe to match alone.

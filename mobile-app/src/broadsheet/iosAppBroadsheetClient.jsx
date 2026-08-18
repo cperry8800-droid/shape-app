@@ -6492,7 +6492,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // (where the parsed list is already in scope) rather than read from a const
   // declared further down the component — a dep on a later binding is how the
   // TDZ crash class gets in, and it renders clean right up until it doesn't.
-  const startTimer = (tm, count = 1) => {
+  const startTimer = (tm, count = 1, nth = 0) => {
     timerIdRef.current += 1;
     const fromStep = (hasMethod && phase === 'method' && steps[stepIdx]) ? stepIdx : null;
     setTimers((arr) => [...arr, {
@@ -6501,7 +6501,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       stepIdx: fromStep,
       // The timer's OWN seconds, so a step stating several durations labels
       // each countdown from the clause that states that one.
-      gist: fromStep != null ? bsStepGist(steps[fromStep], cookable.ingredients, tm.seconds) : '',
+      gist: fromStep != null ? bsStepGist(steps[fromStep], cookable.ingredients, tm.seconds, nth) : '',
       multi: count > 1,
       endsAt: Date.now() + tm.seconds * 1000,
       total: tm.seconds,
@@ -7024,7 +7024,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {stepTimers.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stepTimers.map((tm, i) => (
-                  <button key={i} onClick={() => startTimer(tm, stepTimers.length)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
+                  <button key={i} onClick={() => startTimer(tm, stepTimers.length, stepTimers.slice(0, i).filter((x) => x.seconds === tm.seconds).length)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
                     ▸ {tr('cook:timer.start', { defaultValue: 'Timer' })} · {tm.label}
                   </button>
                 ))}

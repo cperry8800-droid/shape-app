@@ -243,7 +243,7 @@ const ingShortName = (name) => {
   return c.length ? c.slice(-BS_GIST_WORDS).join(' ') : '';
 };
 
-export const bsStepGist = (text, ingredients, seconds) => {
+export const bsStepGist = (text, ingredients, seconds, nth) => {
   const t = str(text);
   if (!t) return '';
   const parts = t.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
@@ -259,8 +259,15 @@ export const bsStepGist = (text, ingredients, seconds) => {
   // label and two of them read identically, which is the exact defect this
   // label exists to fix. The clause is located with the canonical timer parser,
   // never a second copy of the duration rules.
+  //
+  // `nth` disambiguates EQUAL durations ("sear 2 minutes, then rest 2 minutes"):
+  // it is how many earlier timers on this step share this duration, so each one
+  // takes its own clause. Without it both rows read identically AND the
+  // appended duration is equal too, so the corner would keep the whole defect.
+  // Fewer matching clauses than `nth` (both durations inside ONE clause) yields
+  // undefined and falls through to the generic pick -- never an empty label.
   const own = Number.isFinite(seconds)
-    ? parts.find((p) => bsStepTimers(p).some((tm) => tm.seconds === seconds))
+    ? parts.filter((p) => bsStepTimers(p).some((tm) => tm.seconds === seconds))[Number.isFinite(nth) ? nth : 0]
     : null;
   const timed = own || parts.find((p) => GIST_DUR_RE.test(p)) || parts[0];
   // 1. The ingredient that clause reaches for, in the recipe's own words.
