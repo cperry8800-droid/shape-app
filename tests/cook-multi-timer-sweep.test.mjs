@@ -343,3 +343,19 @@ test('the same guard holds for other verb/modifier collisions', () => {
   // ...and each still resolves from its own full phrase.
   assert.deepEqual(bsStepIngredients('Fold in the sliced almonds.', ['sliced almonds', 'honey']), ['sliced almonds']);
 });
+
+test('ADMISSION AND RANKING read the same tokens', () => {
+  // ⚠ Round 11 stopped an action word being admitted as a lone alias, but
+  // ranking still scanned EVERY content word, so the two halves disagreed. Here
+  // both foods are legitimately named -- the full phrase "brown sugar" really is
+  // in the step -- and the opening VERB then handed brown sugar position zero,
+  // beating the chicken the step names outright. Ranking now reads
+  // ingMatchTokens, the same set that admitted the ingredient, so a word that
+  // cannot admit an ingredient cannot rank it either.
+  const ings = ['chicken thigh', 'brown sugar'];
+  const step = 'Brown the chicken 3 minutes until the brown sugar melts.';
+  assert.deepEqual(bsStepIngredients(step, ings), ['chicken thigh', 'brown sugar']); // both really named
+  assert.deepEqual(bsStepGists(step, ings), ['chicken thigh']);                      // the verb loses
+  // ...and the sugar still wins when the step is actually about the sugar.
+  assert.deepEqual(bsStepGists('Stir in the brown sugar and simmer 5 minutes.', ings), ['brown sugar']);
+});

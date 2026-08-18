@@ -286,16 +286,19 @@ const ingShortName = (name) => {
 // SALMON timer "pearl couscous", and reordering the list moved it). First in the
 // TEXT reads the recipe's own words, and needs to know nothing about which
 // conjunction joined the two actions -- "while", "before", "and", "meanwhile".
-const ingPosition = (ing, region) => {
+const ingPosition = (ing, region, distinctive) => {
   const name = ing && typeof ing === 'object' ? str(ing.m) : str(ing);
   if (!name) return Infinity;
   let best = Infinity;
-  for (const w of ingContent(ingBase(name))) {
-    // ⚠ Concatenation, NOT a template literal: a lone \b inside one is the
-    // BACKSPACE character (U+0008), so the boundary vanishes, every match fails
-    // and the ranking silently falls back to recipe order -- the exact bug this
-    // helper exists to kill. Third time this trap has fired in this file.
-    const m = new RegExp('\\b' + escapeRe(w) + '(?:e?s)?\\b', 'i').exec(region);
+  // ⚠ Rank on ingMatchTokens -- the SAME set that admitted this ingredient --
+  // never on every content word. Admission already refuses an action word as a
+  // lone alias, but ranking used to scan all of them, so the two halves
+  // disagreed: "Brown the chicken 3 minutes until the brown sugar melts" admits
+  // both foods legitimately (the full phrase "brown sugar" is right there), then
+  // the opening VERB handed brown sugar position zero and it beat the chicken
+  // the step names outright. One token set, one scan, no way for them to drift.
+  for (const tok of ingMatchTokens(name, distinctive)) {
+    const m = new RegExp('\\b' + escapeRe(tok) + '(?:e?s)?\\b', 'i').exec(region);
     if (m && m.index < best) best = m.index;
   }
   return best;
@@ -487,8 +490,11 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
   // caller renders the duration rather than inventing a word.
   const taken = avoid instanceof Set ? avoid : null;
   const free = (v) => (v && (!taken || !taken.has(v)) ? v : null);
+  const allNames = (Array.isArray(ingredients) ? ingredients : [])
+    .map((ing) => (ing && typeof ing === 'object' ? str(ing.m) : str(ing)));
+  const distinctive = ingDistinctiveWords(allNames);
   const named = bsStepIngredients(timed, ingredients)
-    .map((ing) => ({ ing, p: ingPosition(ing, timed) }))
+    .map((ing) => ({ ing, p: ingPosition(ing, timed, distinctive) }))
     .sort((x, y) => x.p - y.p); // stable: ties keep recipe order
   for (const { ing } of named) {
     const nm = ing && typeof ing === 'object' ? str(ing.m) : str(ing);
@@ -622,6 +628,22 @@ const ingMatchTokens = (name, distinctive) => {
 // scoring. Under-matching is the safe direction: a step that lists nothing
 // renders nothing (the cook reads the instruction, which names the food in
 // prose), whereas a WRONG subset reads as "this is all I need" and is acted on.
+// The words that may stand ALONE for exactly one ingredient in this recipe.
+// Extracted so admission and RANKING read the same set -- see ingPosition.
+const ingDistinctiveWords = (names) => {
+  const byWord = new Map();
+  names.forEach((n, i) => {
+    if (!n) return;
+    for (const w of new Set(ingContent(ingBase(n)))) {
+      if (!byWord.has(w)) byWord.set(w, new Set());
+      byWord.get(w).add(i);
+    }
+  });
+  return new Set([...byWord.keys()].filter(
+    (w) => !BS_ING_GENERIC.has(w) && ingOwners(w, byWord).size === 1,
+  ));
+};
+
 export const bsStepIngredients = (step, ingredients) => {
   const text = str(step);
   const list = Array.isArray(ingredients) ? ingredients : [];
@@ -635,17 +657,7 @@ export const bsStepIngredients = (step, ingredients) => {
   // even when unique, because a step's "olive oil" is not the "sesame oil" on
   // the list. Ambiguity is resolved by refusing, not by guessing — the same
   // rule the timer parser applies to decimals.
-  const byWord = new Map();
-  names.forEach((n, i) => {
-    if (!n) return;
-    for (const w of new Set(ingContent(ingBase(n)))) {
-      if (!byWord.has(w)) byWord.set(w, new Set());
-      byWord.get(w).add(i);
-    }
-  });
-  const distinctive = new Set([...byWord.keys()].filter(
-    (w) => !BS_ING_GENERIC.has(w) && ingOwners(w, byWord).size === 1,
-  ));
+  const distinctive = ingDistinctiveWords(names);
   return list.filter((ing, i) => {
     const name = names[i];
     if (!name) return false;
