@@ -1121,14 +1121,17 @@ export const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
 export const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 export const RECIPE_GOALS = ["High-protein", "Low-carb"];
 export const _RECIPE_NOT_GF = new Set([
-  "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl",
+  // ⚠ Miso-glazed cod, Beef and broccoli and Tempeh teriyaki stay classified even
+  // though their soy sauce is now an AMBIGUOUS class with a note path: each carries a
+  // SECOND gluten source that no marker sees — white miso, oyster sauce, teriyaki
+  // sauce, all commonly wheat-fermented. Restoring their claim would publish it over
+  // an ingredient with no note and no gate. Owner ruling pending; hold is the safe
+  // direction (under-claiming costs a filter hit, over-claiming is the harm).
+  "Miso-glazed cod with greens",
   "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
   "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl",
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
-  "Crispy tofu grain bowl", "Overnight oats, three ways", "Harissa salmon with couscous", "Cottage cheese protein toast",
-  // ⚠ PRE-EXISTING, not introduced by the USDA merge: rolled oats, same rule as
-  // "Overnight oats" two entries up, which was already classified correctly.
-  "Date and almond energy bites",
+  "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
   ...USDA_NOT_GF,
 ]);
 export const _RECIPE_HAS_DAIRY = new Set([

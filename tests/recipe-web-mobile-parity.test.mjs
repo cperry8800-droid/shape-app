@@ -22,7 +22,7 @@ import { parse } from '@babel/parser';
 import _traverse from '@babel/traverse';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { SHAPE_KITCHEN_RECIPES, recipeNeeds, recipeMatchesDiet } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, recipeNeeds, recipeMatchesDiet, _RECIPE_ALLERGEN_NOTES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 
 // @babel/parser + @babel/traverse ride the declared @babel/core devDep, as in
 // tests/broadsheet-identifiers.test.mjs.
@@ -102,6 +102,13 @@ test('recipe parity: rendered fields match the catalog', () => {
     cmp('hero', w.hero, m.hero);
     for (const k of ['p', 'c', 'f']) cmp(`macros.${k}`, (w.macros || {})[k], (m.macros || {})[k]);
     cmp('tags', JSON.stringify(w.tags || []), JSON.stringify(m.tags || []));
+    // ⚠ `allergenNotes` is deliberately NOT compared here, and the reason is a
+    // property of this harness rather than of the data: WEB_RECIPES is built by
+    // SLICING the literals out of the source and evaluating them in isolation, so
+    // the website's attach loop never runs in this process and every website recipe
+    // would read `undefined` no matter what the file says. The notes are covered by
+    // the table-level equality test below plus its title-existence check, which are
+    // the two things this harness can actually observe.
     // Ingredient shapes differ by design — the app keeps structured quantities,
     // the website flattens them for display — but the flattening is deterministic,
     // so the VALUES are comparable and a count alone is not: two lists of eight can
@@ -115,6 +122,30 @@ test('recipe parity: rendered fields match the catalog', () => {
     else ws.forEach((s, i) => { if (s !== ms[i]) bad.push(`${w.title}: step ${i + 1} text differs`); });
   }
   assert.deepEqual(bad, [], 'the website parity copy has drifted from the catalog');
+});
+
+// The note TABLE itself, compared before the attach loops run on either side. The
+// per-recipe check above catches a broken attach; this catches a table that drifted
+// while both attach loops still work.
+test('recipe parity: the allergen note tables are identical', () => {
+  const WEB_NOTES = evalArray('const _RECIPE_ALLERGEN_NOTES = [');
+  // An extractor that finds nothing must FAIL, never pass vacuously — the slicer
+  // evaluates the literal in isolation, so a stray identifier inside the table would
+  // throw here rather than silently comparing two empty lists.
+  assert.ok(WEB_NOTES.length >= 14, `only ${WEB_NOTES.length} website allergen notes extracted — the slicer is reading nothing`);
+  const key = (e) => `${e[0]}|${e[1]}`;
+  const srt = (a) => a.slice().sort((x, y) => (key(x) < key(y) ? -1 : 1));
+  assert.deepEqual(srt(WEB_NOTES), srt(_RECIPE_ALLERGEN_NOTES),
+    'the website allergen note table has drifted from the catalog module');
+  // The website attach loop fails SILENTLY on a title typo (`if (r)`), exactly like
+  // the catalog module's. The loop itself is out of this harness's reach (see the
+  // note in the field test above), but its INPUT is not: a note keyed to a title the
+  // website catalog does not contain can never attach, and would leave that recipe
+  // making a bare claim on the site while mobile carries the caveat.
+  const webTitles = new Set(WEB_RECIPES.map((r) => r.title));
+  for (const [t] of WEB_NOTES) {
+    assert.ok(webTitles.has(t), `website allergen note references a title not in the website catalog: "${t}"`);
+  }
 });
 
 test('recipe parity: allergen and diet classification is identical', () => {

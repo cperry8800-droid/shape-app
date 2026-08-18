@@ -2501,6 +2501,59 @@ const RECIPES_USDA = [
 // Authored first so the existing order never shifts.
 const SHAPE_RECIPES = [...RECIPES_BY_WEEKDAY, ...RECIPES_EXTRA, ...RECIPES_USDA];
 
+// ── Allergen claim notes ───────────────────────────────────────────────────
+// PARITY COPY of _RECIPE_ALLERGEN_NOTES in mobile-app/src/broadsheet/shapeKitchenData.js.
+// This file is a classic babel browser script and cannot import, so the table is
+// hand-mirrored and tests/recipe-web-mobile-parity.test.mjs compares the two.
+//
+// A recipe using an AMBIGUOUS ingredient — one whose certified or labelled form is
+// genuinely free of the allergen — KEEPS its "free from" claim and carries a note
+// naming the safe form to buy. Owner ruling 2026-08-18: a claim is kept by
+// SPECIFYING the ingredient, never by hiding the recipe from the filter.
+//
+// ⚠ recipeNeeds() below reads a title's ABSENCE from _RECIPE_NOT_GF as a POSITIVE
+// gluten-free claim, so these notes are the only thing standing between a restored
+// claim and a false one. Removing a title from a set without adding its note here
+// tells a coeliac member a recipe is safe with no caveat.
+//
+// ⚠ PARITY SLICER: the extractor cuts from `const X = [` to the first line that is
+// exactly `];`. Every nested array below MUST stay indented — a closing bracket at
+// column 0 truncates the slice mid-literal and kills the whole parity file.
+// ⚠ Values are INLINE, not constants: the parity slicer evaluates this literal on its
+// own with `new Function`, so any identifier referenced here would throw ReferenceError
+// and take the whole parity file down. Duplication is safe — the parity test compares
+// the composed values against the mobile table, so drift fails the suite immediately.
+// Shape: [title, allergen, certification, brands] — brands are [[name, region], ...].
+const _RECIPE_ALLERGEN_NOTES = [
+  ["Overnight oats, three ways", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Date and almond energy bites", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Blueberry baked oats in ramekins", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Maple banana oatmeal with walnuts", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Tempo turkey lettuce cups", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Tofu and edamame poke bowl", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Asparagus and mandarin chicken rice bowl", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Sizzling chicken and broccoli over brown rice", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["One-pan chicken and rice", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Red lentil and spinach dahl", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Turkey chili verde", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Slow-simmered beef pot roast", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Black skillet beef with kale and red potatoes", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Herbed baked salmon with lemon", "dairy", "Margarine is usually dairy-free, but some brands carry milk solids or whey. Check the label says dairy-free", []],
+];
+
+for (const entry of _RECIPE_ALLERGEN_NOTES) {
+  const r = SHAPE_RECIPES.find((x) => x.title === entry[0]);
+  if (r) (r.allergenNotes || (r.allergenNotes = [])).push({ allergen: entry[1], certification: entry[2], brands: entry[3] || [] });
+}
+
+// Parity copy of bsAllergenNoteText. Certification ALWAYS leads; brands append only
+// from the structured list and only when it is non-empty.
+function recipeAllergenNoteText(n) {
+  return n.certification + (n.brands && n.brands.length
+    ? " — e.g. " + n.brands.map(function (b) { return b[0] + " (" + b[1] + ")"; }).join(", ") + "."
+    : ".");
+}
+
 // URL-safe slug from a recipe title, e.g. "Sheet-pan salmon, sweet potato &
 // broccoli" -> "sheet-pan-salmon-sweet-potato-and-broccoli". Used for the
 // per-recipe pages at /recipes/<slug>.
@@ -2550,22 +2603,23 @@ const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
 const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 const RECIPE_GOALS = ["High-protein", "Low-carb"];
 const _RECIPE_NOT_GF = new Set([
-  "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl", "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Overnight oats, three ways", "Harissa salmon with couscous", "Cottage cheese protein toast",
-  // Oats are not gluten-free unless certified. "Date and almond energy bites"
-  // (rolled oats) and "Maple banana oatmeal with walnuts" (quick-cooking oats)
-  // were advertised as safe while "Overnight oats" above was not — one ingredient,
-  // two answers. Mirrors _RECIPE_NOT_GF + USDA_NOT_GF in the catalog module.
-  "Date and almond energy bites", "Maple banana oatmeal with walnuts",
+  "Miso-glazed cod with greens", "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
+  // Mirrors _RECIPE_NOT_GF + USDA_NOT_GF in the catalog module. ⚠ The AMBIGUOUS
+  // classes (oats, soy sauce, broth) are NOT here: they keep their claim and carry
+  // an allergen note instead — owner ruling 2026-08-18. Read the ingredients, not
+  // this comment, to know why a title is a member.
+ 
   // The 50 USDA MyPlate records carry their own classifications; these mirror
   // USDA_NOT_GF in mobile-app/src/broadsheet/shapeKitchenData.usda.js. A title
   // ABSENT from this set is asserted gluten-free by recipeNeeds below, so an
   // omission here is a false allergen claim, not a missing tag.
-  "Beef stroganoff with macaroni", "Ground beef and root vegetable stew", "Mango and peanut chicken wraps", "Asparagus and mandarin chicken rice bowl", "Turkey tetrazzini bake", "Sizzling chicken and broccoli over brown rice", "Chargrilled tilapia tacos with peach salsa", "Neapolitan tuna fettuccine with capers", "Bell pepper and Vidalia onion strata", "Crisp black bean and cheese quesadillas", "Sharp cheddar baked macaroni", "Blueberry baked oats in ramekins", "Layered cheddar potato gratin", "Charred corn and cornmeal patties", "Lentil and pearl barley soup", "Barley pilaf with mushrooms and celery",
+  "Beef stroganoff with macaroni", "Ground beef and root vegetable stew", "Mango and peanut chicken wraps", "Turkey tetrazzini bake", "Chargrilled tilapia tacos with peach salsa", "Neapolitan tuna fettuccine with capers", "Bell pepper and Vidalia onion strata", "Crisp black bean and cheese quesadillas", "Sharp cheddar baked macaroni", "Layered cheddar potato gratin", "Charred corn and cornmeal patties", "Lentil and pearl barley soup", "Barley pilaf with mushrooms and celery",
 ]);
 const _RECIPE_HAS_DAIRY = new Set([
-  // Generic margarine commonly contains milk solids or whey — an unspecified
-  // product cannot carry a "free from" claim. Mirrors USDA_HAS_DAIRY.
-  "Herbed baked salmon with lemon",
+  // Mirrors USDA_HAS_DAIRY. ⚠ Margarine is NOT a member: the owner ruled it is
+  // vegetable-oil based and usually dairy-free, so a recipe naming it keeps the
+  // dairy-free claim and carries a note to buy a dairy-free variety.
+ 
   "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka", "Grilled chicken Caesar, lightened", "Roasted veg and halloumi traybake", "Turkey meatballs in marinara", "Chicken pesto pasta", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Overnight oats, three ways", "Garlic shrimp and courgette noodles", "Cottage cheese protein toast",
   // Mirrors USDA_HAS_DAIRY in shapeKitchenData.usda.js — see the note above:
   // absence from this set is an active dairy-free claim.
@@ -2760,6 +2814,7 @@ if (typeof window !== "undefined") {
   window.RECIPE_FREE_FROM = RECIPE_FREE_FROM;
   window.RECIPE_GOALS = RECIPE_GOALS;
   window.recipeAttribution = recipeAttribution;
+  window.recipeAllergenNoteText = recipeAllergenNoteText;
   window.recipeNeeds = recipeNeeds;
   window.recipeMatchesDiet = recipeMatchesDiet;
 }

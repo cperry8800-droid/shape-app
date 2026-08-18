@@ -20,15 +20,41 @@
 // for dipping" in a method line is a serving suggestion, not a component, and
 // treating it as one would flag correct recipes. A recipe whose gluten arrives
 // only through a step is out of this gate's reach.
+//
+// -- The note path (owner ruling, 2026-08-18) --------------------------------
+// Some ingredients are AMBIGUOUS rather than disqualifying: a certified or labelled
+// form of the same product genuinely is free of the allergen. Oats, soy sauce,
+// broth/stock/bouillon and margarine are all that class. The owner's ruling is that
+// such a recipe KEEPS its claim and carries a note naming the safe form to buy —
+// "a claim is kept by SPECIFYING the ingredient, never by hiding the recipe".
+//
+// So a claim over an ambiguous ingredient passes ONLY when the recipe carries an
+// allergen note for that allergen, and only when the ambiguous class fully explains
+// the hit. A note can never wave through a line that also carries a hard marker.
+// ⚠ A set removal with NO note still fails — that is the whole point of this file,
+// and it is mutation-proven in the PR that introduced the note path.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SHAPE_KITCHEN_RECIPES, recipeNeeds } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, recipeNeeds, _RECIPE_ALLERGEN_NOTES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 
-const GLUTEN = /\b(wheat|flour|bread|breadcrumbs?|panko|pasta|macaroni|noodles?|spaghetti|lasagna|orzo|couscous|barley|rye|oats?|soy sauce|tortillas?|crackers?|bulgur|farro|seitan|malt|beer|pita|buns?|cereal|graham|pretzels?)\b/i;
+const GLUTEN = /\b(wheat|flour|bread|breadcrumbs?|panko|pasta|macaroni|noodles?|spaghetti|lasagna|orzo|couscous|barley|rye|oats?|oatmeal|soy sauce|broths?|stocks?|bouillon|tortillas?|crackers?|bulgur|farro|seitan|malt|beer|pita|buns?|cereal|graham|pretzels?)\b/i;
 // `margarine` is here for the same reason `oats` is in the gluten list: the generic
 // product is not reliably free of the allergen (milk solids and whey are common),
 // so a recipe naming it plainly cannot advertise dairy-free.
 const DAIRY = /\b(milk|cheese|butter|yogh?urt|cream|whey|mozzarella|cheddar|parmesan|ricotta|feta|halloumi|margarine)\b/i;
+
+// The AMBIGUOUS classes — a subset of the markers above. Each names a product whose
+// certified or labelled form is genuinely free of the allergen, so a recipe may keep
+// its claim by carrying a note (see the header). Everything NOT listed here is
+// disqualifying: no purchasable form of wheat flour is gluten-free.
+//
+// ⚠ These do NOT belong in SAFE_FORMS. SAFE_FORMS is keyed on the PHRASE alone, so
+// putting `oats` there would exempt oats catalog-wide and forever, for every recipe,
+// with or without a note — which is the false claim this file exists to prevent.
+const AMBIGUOUS = {
+  gluten: /\b(oats?|oatmeal|soy sauce|broths?|stocks?|bouillon)\b/i,
+  dairy: /\bmargarine\b/i,
+};
 
 // Forms that MATCH a marker above but are not the allergen. Each needs a reason —
 // this list is the human ruling, and anything not on it fails rather than passing.
@@ -61,13 +87,26 @@ const residue = (line, allergen) => SAFE_FORMS
   .filter(([tag]) => tag === allergen)
   .reduce((s, [, re]) => s.replace(new RegExp(re.source, 'gi'), ' '), line);
 
+// Blank only the ambiguous phrase, the same mechanism as `residue`. Used to re-read
+// a line the note is being asked to excuse.
+const strike = (line, re) => line.replace(new RegExp(re.source, 'gi'), ' ');
+
+const hasNote = (r, allergen) => (r.allergenNotes || []).some((n) => n.allergen === allergen);
+
 function audit(marker, claim, allergen) {
   const bad = [];
   for (const r of SHAPE_KITCHEN_RECIPES) {
     if (!recipeNeeds(r).includes(claim)) continue;      // already classified — nothing claimed
     for (const ing of r.ingredients || []) {
       const line = nameOf(ing);
-      if (!marker.test(residue(line, allergen))) continue;
+      const res = residue(line, allergen);
+      if (!marker.test(res)) continue;
+      const amb = AMBIGUOUS[allergen];
+      // The note excuses the hit ONLY when the ambiguous class fully explains it.
+      // Striking the ambiguous phrase and re-reading is what stops a note waving
+      // through `soy sauce and wheat flour` — the same whole-line defect SAFE_FORMS
+      // already had to fix, arriving through a different door.
+      if (hasNote(r, allergen) && amb.test(res) && !marker.test(strike(res, amb))) continue;
       bad.push(`${r.title}: advertises "${claim}" but its ingredients name "${line.trim()}"`);
     }
   }
