@@ -180,7 +180,14 @@ const TIMER_RE = new RegExp(
 );
 const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 : 1);
 
-export const bsStepTimers = (text) => {
+// THE one parse. Each entry also carries WHERE its duration sits in the step
+// (`at`/`end`), because anything that has to know which words a given timer
+// belongs to must read it from the parser rather than re-deriving boundaries
+// with a second rule. ⚠ Three separate label defects came from doing exactly
+// that (punctuation-splitting the step and hoping the pieces line up with the
+// timers); the match position is the only authority that cannot disagree with
+// the parser, because it IS the parser.
+const timerSpans = (text) => {
   const t = str(text);
   if (!t) return [];
   const out = [];
@@ -193,9 +200,469 @@ export const bsStepTimers = (text) => {
     // A cook timer under 5s or over 6h is a parse artifact, not a timer.
     if (seconds < 5 || seconds > 21600) continue;
     const unitLabel = /^h/i.test(m[2]) ? 'hr' : /^m/i.test(m[2]) ? 'min' : 'sec';
-    out.push({ seconds, label: `${m[1].replace(/\s+/g, '')} ${unitLabel}${m[3] ? ' per side' : ''}` });
+    out.push({
+      seconds,
+      label: `${m[1].replace(/\s+/g, '')} ${unitLabel}${m[3] ? ' per side' : ''}`,
+      at: m.index,
+      end: m.index + m[0].length,
+    });
   }
   return out;
+};
+
+// The public contract is {seconds, label} and is pinned by deepEqual in
+// tests/cookable.test.mjs — the spans stay internal so the shape can't drift.
+export const bsStepTimers = (text) => timerSpans(text).map(({ seconds, label }) => ({ seconds, label }));
+
+// ---------------------------------------------------------------------------
+// Step identity — "which timer is this?" and "what do I need HERE?"
+// ---------------------------------------------------------------------------
+
+// A SHORT label for a step's timer — ONE OR TWO WORDS. The band used to show a
+// timer's DURATION and nothing else, so two 2-minute steps produced two rows
+// reading "2 MIN", literally indistinguishable mid-cook.
+//
+// It names the THING, not the sentence: the ingredient the timed clause reaches
+// for ("turkey", "peanut butter"), else that clause's verb ("roast", "rest").
+// Both are lifted from the recipe's own words — never a generated summary,
+// which is the fabrication class this file exists to refuse. Returns '' when
+// there is nothing usable; the caller falls back to the step NUMBER, always a
+// fact.
+export const BS_GIST_WORDS = 2;
+// Lead-ins and auxiliaries that carry no identity. Includes bare conjunctions
+// because comma-splitting yields clauses like "and toast for 1 minute" — a
+// label must never open on a dangling "and" — and weak auxiliaries so
+// "let it sit undisturbed" labels as "sit", not "let".
+const GIST_SKIP = new Set([
+  'meanwhile', 'then', 'now', 'next', 'finally', 'afterwards', 'afterward', 'and', 'or', 'but',
+  'let', 'keep', 'allow', 'the', 'a', 'an', 'it', 'its', 'them', 'they', 'you', 'your', 'for',
+  'to', 'on', 'in', 'of', 'with', 'until', 'about', 'another', 'over', 'off', 'up', 'down',
+  'into', 'from', 'at', 'by', 'so', 'that', 'this', 'is', 'are', 'be', 'been', 'will', 'more',
+  'all', 'each', 'both', 'again', 'while', 'once', 'through', 'aside', 'per', 'side',
+]);
+// Clause boundary. A '.' closes a clause only when whitespace or end-of-string
+// follows, so "medium-high." splits while "1.5 minutes" does NOT — the same
+// decimal hazard bsFractionalDuration guards on the timer side. Commas count:
+// they separate "Push the meat aside" from "add the garlic and ginger ... 30
+// seconds", and the timer belongs to the second.
+const GIST_SPLIT_RE = /[.;:!?](?=\s|$)|\s+[–—]\s+|,\s+/;
+// Where one ACTION ends -- sentence-level punctuation only, NO comma.
+//
+// ⚠ A comma does not end an action. "Until the rice is tender, continue
+// simmering, about 10 minutes" is ONE action written in three fragments, and
+// taking the fragment nearest the number kept only "about" -- an empty label on
+// a step whose prose names the rice plainly. Reducing the lead to the nearest
+// COMMA fragment is lossy in a way that reducing it to the nearest SENTENCE is
+// not: "Heat a dry skillet. ... let it sit undisturbed 2 minutes" still has to
+// label "sit" and not "heat".
+const GIST_CLAUSE_RE = /[.;:!?](?=\s|$)|\s+[–—]\s+/;
+// A stated duration, in the same unit vocabulary the timer parser accepts.
+// ⚠ Plain concatenation, NOT a template literal: `\d` inside a template literal
+// collapses to a bare "d", which silently produced a regex that matched no
+// duration at all and sent every label back to the step's first clause.
+const GIST_DUR_RE = new RegExp('\\d+\\s*(?:' + BS_TIMER_UNITS + ')\\b', 'i');
+
+// The recipe's own short name for an ingredient: its last two content words
+// ("chicken thigh, skin-on" -> "chicken thigh", "lean ground turkey" -> "turkey").
+const ingShortName = (name) => {
+  const c = ingContent(ingBase(name));
+  return c.length ? c.slice(-BS_GIST_WORDS).join(' ') : '';
+};
+
+// Where an ingredient's own words first appear in this timer's region.
+// Infinity = not named in it at all.
+//
+// ⚠ EARLIEST, not nearest-the-number. Ranking by distance to the duration reads
+// plausible and is wrong: the medium and the seasoning are exactly what sit
+// closest to it. Measured over the catalogue it turned "chicken breast" into
+// "olive oil" ("pan-sear in a little olive oil ... 5 minutes per side"), "carrot"
+// into "olive oil", and "kale" into "lemon" ("a squeeze of lemon for 30
+// seconds"). The subject of an action is written FIRST; media and seasonings
+// arrive later behind a preposition.
+//
+// The original defect was never "first" -- it was first in RECIPE-LIST order,
+// which let the ingredient list decide which timer got which food ("Bake the
+// salmon 12 minutes while the pearl couscous cooks 10 minutes" labelled the
+// SALMON timer "pearl couscous", and reordering the list moved it). First in the
+// TEXT reads the recipe's own words, and needs to know nothing about which
+// conjunction joined the two actions -- "while", "before", "and", "meanwhile".
+const ingPosition = (ing, region, distinctive) => {
+  const name = ing && typeof ing === 'object' ? str(ing.m) : str(ing);
+  if (!name) return Infinity;
+  let best = Infinity;
+  // ⚠ Rank on ingMatchTokens -- the SAME set that admitted this ingredient --
+  // never on every content word. Admission already refuses an action word as a
+  // lone alias, but ranking used to scan all of them, so the two halves
+  // disagreed: "Brown the chicken 3 minutes until the brown sugar melts" admits
+  // both foods legitimately (the full phrase "brown sugar" is right there), then
+  // the opening VERB handed brown sugar position zero and it beat the chicken
+  // the step names outright. One token set, one scan, no way for them to drift.
+  for (const tok of ingMatchTokens(name, distinctive)) {
+    const m = new RegExp('\\b' + escapeRe(tok) + '(?:e?s)?\\b', 'i').exec(region);
+    if (m && m.index < best) best = m.index;
+  }
+  return best;
+};
+
+// Does this fragment say anything a label could be built from -- a named food,
+// or a word that carries an action? Used to decide when the fragment nearest the
+// number is too thin to stand for the action.
+const gistCandidate = (frag, ingredients) => {
+  const f = str(frag);
+  if (!f) return false;
+  if (bsStepIngredients(f, ingredients).length) return true;
+  return f
+    .replace(GIST_DUR_RE, ' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .some((w) => w.length >= 3 && !GIST_SKIP.has(w));
+};
+
+export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
+  const t = str(text);
+  if (!t) return '';
+  const parts = t.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  // WHICH WORDS IS THIS TIMER TIMING? Read the answer off the parser: a timer's
+  // action is the text running from the end of the PREVIOUS stated duration to
+  // the start of its own -- "Boil the rice |2 minutes| then toast the sesame oil
+  // for |2 minutes|" gives "Boil the rice" and "then toast the sesame oil for".
+  //
+  // ⚠ Do NOT go back to splitting the step and matching timers to the pieces.
+  // Three defects came out of that, each a different way for a hand-written
+  // boundary rule to disagree with the parser: one shared label for every timer
+  // on a step, then equal durations both selecting the first piece, then two
+  // actions joined by a bare "then" never splitting at all. A match position
+  // cannot disagree with the parser, because it IS the parser.
+  //
+  // `nth` = how many earlier timers share this duration, so equal durations
+  // still take their own span.
+  //
+  // The action is anchored by the parser on BOTH sides -- it runs from the
+  // PREVIOUS stated duration to the NEXT one -- and the food may be named on
+  // either side of the number, so both are kept:
+  //   "Roast |10 minutes| until the chicken browns, then simmer the rice"
+  //    lead ^^^^^         ^^^^^^^^^^^^^^^^^^^^^^^^ tail
+  // ⚠ Anchoring only the LEAD throws away the half that usually carries the
+  // food ("roast 16-18 minutes until the chicken hits 165F" -> "roast"), and
+  // running the tail to the next duration drags in the NEXT action's food.
+  // Both were shipped and both were wrong; the tail therefore stops at the
+  // first action boundary inside the anchored region.
+  const spans = Number.isFinite(seconds) ? timerSpans(t) : [];
+  const mine = spans.filter((s) => s.seconds === seconds)[Number.isFinite(nth) ? nth : 0];
+  let own = null;
+  if (mine) {
+    let from = 0;
+    let upto = t.length;
+    for (const s of spans) {
+      if (s.end <= mine.at) from = Math.max(from, s.end);
+      if (s.at >= mine.end) upto = Math.min(upto, s.at);
+    }
+    // BOTH sides end at the same two boundaries: punctuation, and a bare
+    // sequencing "then" (a coach can write two timed actions with no comma at
+    // all). Deliberately NOT a bare "and" -- "until the sauce coats a spoon and
+    // the chickpeas have softened" is ONE action, and cutting there loses the
+    // only food it names.
+    // ⚠ The cut has to run on BOTH sides or it hands one action's food to the
+    // NEXT action's timer: cutting only the tail left "Boil the rice 10 minutes
+    // until tender then rest 5 minutes" labelling the REST timer "tender", and
+    // "...until the lentils soften then rest 5 minutes" labelling it "brown
+    // lentils" -- which ALSO made both timers on that step read alike, the exact
+    // collision this label exists to prevent.
+    // The words that genuinely END one action and START the next. Sequencing
+    // only -- NOT a bare "and", which is usually WITHIN an action ("until the
+    // sauce coats a spoon and the chickpeas have softened"). MEASURED on this
+    // head: adding a bare "and" changes 41 of 96 catalogue labels and nearly all
+    // get worse -- "shrimp"->"cook", "bok choy"->"steam", "chicken breast"->
+    // "marinate" -- because recipe prose overwhelmingly writes "add X and cook
+    // 5 minutes", which is ONE action. Codex asked about exactly this; the
+    // answer is evidence, not taste.
+    // Ingredient choice no longer depends on this set at all (that is text
+    // order); it bounds the VERB fallback, which would otherwise reach back
+    // across the join -- "...until tender while rest 5 minutes" labelled the
+    // REST timer "tender".
+    // A join ENDS one action and STARTS the next. "then"/"meanwhile" always do.
+    // The subordinators (while/before/after/once/as) only do so when another
+    // timed action actually follows -- otherwise they introduce a condition that
+    // NAMES this action's food ("cook 5 minutes once the chicken is added").
+    const SEQ = 'then|meanwhile';
+    const SUB = 'while|before|after|once|as';
+    // ⚠ Build the escapes with doubled backslashes. A lone \s in a JS string
+    // literal is just the letter s, and a lone \b is BACKSPACE -- both make a
+    // regex that silently matches the wrong thing while every test still runs.
+    // This trap has now fired four separate times in this file.
+    const reOf = (alt) => new RegExp('\\s+(?:' + alt + ')\\s+', 'i');
+
+    // LEAD: the clause nearest the number, so "Heat a dry skillet. ... let it
+    // sit undisturbed 2 minutes" labels "sit" and not "heat". It must not reach
+    // back across a join into the PREVIOUS action -- "...until tender while rest
+    // 5 minutes" labelled the REST timer "tender".
+    const rawLead = t.slice(from, mine.at);
+    const leads = rawLead.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+    let leadClause = leads.length ? leads[leads.length - 1] : '';
+    // ⚠ The fragment nearest the number can carry NOTHING. "Until the rice is
+    // tender, continue simmering, about 10 minutes" leaves "about", an empty
+    // label on prose that names the rice plainly -- a coach may front this
+    // action's completion condition ahead of its verb. Widen to the whole
+    // SENTENCE only when the nearest fragment says nothing at all, so the
+    // ordinary case is untouched: widening unconditionally moved 32 of 96
+    // catalogue labels, several of them worse (bok choy -> steam).
+    if (!bsStepIngredients(leadClause, ingredients).length) {
+      const sentences = rawLead.split(GIST_CLAUSE_RE).map((p) => p.trim()).filter(Boolean);
+      const whole = sentences.length ? sentences[sentences.length - 1] : '';
+      // TWO reasons to widen past the fragment nearest the number:
+      //   a) the sentence OPENS on a fronted condition that names this action's
+      //      food ahead of its verb -- "Until the rice is tender, continue
+      //      simmering for 10 minutes" -- which a content-word threshold misses
+      //      entirely, because "continue simmering for" reads complete.
+      //   b) the fragment says nothing at all ("simmer, about 10 minutes"
+      //      leaves "about", every word a skip-word).
+      //
+      // ⚠ (a) is deliberately NOT "the sentence names a food somewhere". That
+      // reaches back to the sentence's FIRST food, which in a long sentence is
+      // the MEDIUM: "Warm the olive oil over medium, add the sliced garlic ...,
+      // and cook about 1 minute" turned "cook" into "olive oil". Measured, the
+      // unbounded version moved 22 of 96 catalogue labels, several like that;
+      // bounded to a fronted condition it moves 4, all improvements.
+      const first = whole.split(GIST_SPLIT_RE).map((x) => x.trim()).filter(Boolean)[0] || '';
+      const frontedCondition = /^(?:until|while|once|as|after|before)\b/i.test(first)
+        && bsStepIngredients(first, ingredients).length > 0;
+      if (whole && (frontedCondition || !gistCandidate(leadClause, ingredients))) leadClause = whole;
+    }
+    // WHOSE action is the text before this clause's "and"/comma?
+    //
+    // An opening `until`/`while` usually completes the action that just ended
+    // ("simmer 10 minutes until the carrots soften, boil the rice 8 minutes" --
+    // the carrots are the SIMMER's). But the same words FRONTED onto a new
+    // sentence introduce THIS action instead ("... 1 minute. Until the rice is
+    // tender, continue simmering, about 10 minutes" -- the rice is this timer's).
+    // The tell is a sentence boundary between the previous duration and here.
+    //
+    // ⚠ Neither splitting on commas nor ignoring them is right on its own. A
+    // comma joins two timed actions in "until tender, rest 5 minutes" and joins
+    // ONE action's fragments in "Until the rice is tender, continue simmering,
+    // about 10 minutes" -- taking the fragment nearest the number reduced that
+    // second one to "about" and produced an EMPTY label on prose naming the rice.
+    const fronted = GIST_CLAUSE_RE.test(t.slice(from, mine.at));
+    const carriesPrevAction = !fronted && /^(?:until|while)\b/i.test(leadClause);
+    const leadBase = leadClause.split(reOf(SEQ + '|' + SUB)).pop();
+    // Its completion condition ends at the next comma or "and"; what follows is
+    // this timer's own action.
+    const lead = carriesPrevAction ? leadBase.split(/\s+and\s+|,\s+/).pop() : leadBase;
+    // TAIL: the food is often named AFTER the number ("roast 16-18 minutes until
+    // the chicken hits 165F"), so it is kept -- but only as far as the next
+    // action. `upto` is the next stated duration, so when it is the end of the
+    // step there is no next action and a subordinate clause here is THIS
+    // timer's own context, not a boundary.
+    const more = upto < t.length;
+    // ⚠ When another timed action follows, a COMMA ends this tail. Letting it run
+    // to the sentence end made "Rest 10 minutes, toast the sesame oil 2 minutes"
+    // hand the REST timer the sesame oil -- and the uniqueness set then withheld
+    // that food from the timer it actually belongs to, so one wrong label
+    // produced a second. With no following action the comma is just a fragment
+    // break inside this timer's own context, so it is kept.
+    const tail = (t.slice(mine.end, upto).split(more ? GIST_SPLIT_RE : GIST_CLAUSE_RE)[0] || '').split(reOf(more ? SEQ + '|' + SUB : SEQ))[0];
+    own = [lead.trim(), tail.trim()].filter(Boolean).join(' ') || null;
+  }
+  // No usable span (no duration given, or the step opens on one) falls back to
+  // the first clause stating a duration -- never an empty label.
+  const timed = own || parts.find((p) => GIST_DUR_RE.test(p)) || parts[0];
+  // 1. The ingredient that clause reaches for, in the recipe's own words.
+  //
+  // ⚠ NEAREST the number, never first-on-the-recipe's-list. bsStepIngredients
+  // returns matches in RECIPE order, so taking [0] let the ingredient list
+  // decide which timer got which food: "Bake the salmon 12 minutes while the
+  // pearl couscous cooks 10 minutes" labelled the SALMON timer "pearl couscous"
+  // purely because the couscous was listed first -- reordering the list moved
+  // the label to a different timer, which is the proof it was never reading the
+  // recipe's words at all.
+  //
+  // This is also why chasing boundary words was a losing game. Six rounds added
+  // "then", and coaches still write "while", "before", "and", "meanwhile", "as",
+  // "once". Distance to the stated duration needs to know none of them: whatever
+  // joins two timed actions, each number's own food is the one written closest
+  // to it.
+  // `avoid` = labels already taken by EARLIER timers on this same step. Two rows
+  // reading alike is the state this label exists to end, so a collision walks on
+  // to the next candidate instead of repeating: the step's other foods in the
+  // order it writes them, then its verbs. Absence ('') is the honest floor -- the
+  // caller renders the duration rather than inventing a word.
+  const taken = avoid instanceof Set ? avoid : null;
+  const free = (v) => (v && (!taken || !taken.has(v)) ? v : null);
+  const allNames = (Array.isArray(ingredients) ? ingredients : [])
+    .map((ing) => (ing && typeof ing === 'object' ? str(ing.m) : str(ing)));
+  const distinctive = ingDistinctiveWords(allNames);
+  const named = bsStepIngredients(timed, ingredients)
+    .map((ing) => ({ ing, p: ingPosition(ing, timed, distinctive) }))
+    .sort((x, y) => x.p - y.p); // stable: ties keep recipe order
+  for (const { ing } of named) {
+    const nm = ing && typeof ing === 'object' ? str(ing.m) : str(ing);
+    const short = free(nm ? ingShortName(nm) : '');
+    if (short) return short;
+  }
+  // 2. Else the clause's own verb -- the first word that carries an action.
+  const words = timed
+    .replace(GIST_DUR_RE, ' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !GIST_SKIP.has(w));
+  for (const w of words) if (free(w)) return w;
+  return '';
+};
+
+// Every timer on ONE step, labelled together and guaranteed distinct.
+//
+// Uniqueness cannot be decided one timer at a time -- it is a property of the
+// SET -- so this is the chokepoint the UI must call. Per-timer labelling shipped
+// "Sear the pork chops 4 minutes then flip and sear 4 minutes more" as two
+// identical rows, and three equal rests as "rest" three times over.
+// Index-aligned with bsStepTimers(text).
+export const bsStepGists = (text, ingredients) => {
+  const t = str(text);
+  if (!t) return [];
+  const tms = bsStepTimers(t);
+  const used = new Set();
+  return tms.map((tm, i) => {
+    const nth = tms.slice(0, i).filter((x) => x.seconds === tm.seconds).length;
+    const g = bsStepGist(t, ingredients, tm.seconds, nth, used);
+    if (g) used.add(g);
+    return g;
+  });
+};
+
+// Words that never identify an ingredient on their own — qualifiers, prep verbs
+// and units. Dropped when reducing a name to its head noun.
+const BS_ING_STOP = new Set([
+  'fresh', 'dried', 'ground', 'lean', 'large', 'small', 'medium', 'chopped', 'minced',
+  'sliced', 'diced', 'julienned', 'grated', 'shredded', 'whole', 'raw', 'ripe', 'optional',
+  'plus', 'more', 'taste', 'the', 'and', 'for', 'extra', 'virgin', 'low', 'fat', 'free', 'light',
+  'skinless', 'boneless', 'room', 'temperature', 'finely', 'roughly', 'thinly', 'toasted',
+  'cooked', 'uncooked', 'peeled', 'halved', 'quartered', 'crushed', 'packed', 'divided',
+]);
+const BS_ING_MIN_TOKEN = 3;
+// Category nouns SHARED by many ingredients. A multi-word name may never fall
+// back to one of these as its head noun: "sesame oil" matching a step's "olive
+// oil", or "soy sauce" matching "the pan sauce", tells the cook to reach for
+// something the step never asked for.
+// Words that are ACTIONS first and ingredient modifiers second. One of these may
+// never stand ALONE for an ingredient, however unique it is on the recipe's list.
+//
+// ⚠ "Brown the chicken 3 minutes per side" with ['chicken thigh', 'brown
+// lentils'] labelled that timer "brown lentils": `brown` was unique on the list
+// so it became a lone alias, and text-order ranking then put the VERB ahead of
+// the explicitly named chicken. The step's ingredient list showed the lentils
+// too -- a food the step never touches, which reads as "fetch this" to a cook.
+// The FULL phrase is unaffected, so "stir in the brown lentils" still resolves.
+const BS_ING_ACTION = new Set([
+  'brown', 'chill', 'cube', 'dice', 'grate', 'grill', 'halve', 'mash', 'mince',
+  'quarter', 'roast', 'shred', 'slice', 'steam', 'toast', 'season', 'crush',
+  'press', 'peel', 'core', 'trim', 'rest', 'cover', 'whip', 'beat', 'fold',
+  'blend', 'chop', 'drain', 'rinse', 'spread', 'layer', 'boil', 'fry', 'melt',
+  'warm', 'cool', 'heat', 'stir', 'pour', 'serve', 'sear', 'bake', 'cook',
+]);
+
+const BS_ING_GENERIC = new Set([
+  'oil', 'sauce', 'vinegar', 'stock', 'broth', 'cheese', 'milk', 'flour', 'sugar', 'salt',
+  'pepper', 'water', 'juice', 'powder', 'paste', 'butter', 'cream', 'syrup', 'wine', 'seeds',
+  'nuts', 'herbs', 'spice', 'spices', 'blend', 'dressing', 'yogurt', 'yoghurt', 'extract',
+]);
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Which ingredients a content word could be pointing at. The matcher below
+// tests /\b{tok}(?:e?s)?\b/, so a token ALSO fires on that word + s and + es —
+// which means uniqueness has to be decided by the matcher's OWN rule. Counted
+// raw, "olives" and "olive oil" look like two different words, so "olive"
+// scores unique, becomes a lone alias for the OIL, and a step saying "olives"
+// gets handed the bottle.
+//
+// ⚠ Do NOT swap this for a singularizer. Guessing English morphology is what
+// fails: a stripper that correctly turns "glasses" into "glass" also turns
+// "roses" into "ros" while "rose" stays "rose", so that pair silently stops
+// folding and the false positive returns wearing a different word. Asking the
+// matcher which words IT would conflate has no such blind spot, because it is
+// the same rule the match runs on.
+const ingOwners = (word, byWord) => {
+  const out = new Set(byWord.get(word) || []);
+  for (const v of [word + 's', word + 'es']) for (const i of byWord.get(v) || []) out.add(i);
+  return out;
+};
+
+const ingBase = (name) => String(name)
+  .toLowerCase()
+  .replace(/\([^)]*\)/g, ' ')   // drop parentheticals
+  .split(',')[0]                 // "garlic, minced" → "garlic"
+  .replace(/[^a-z0-9\s-]/g, ' ')
+  .trim()
+  .replace(/\s+/g, ' ');
+
+const ingContent = (base) => base.split(' ').filter((w) => w.length >= BS_ING_MIN_TOKEN && !BS_ING_STOP.has(w));
+
+// The phrases that may stand in for an ingredient inside a step's prose.
+// `distinctive` is the set of single words that are safe to match alone in THIS
+// recipe — decided per recipe by the caller, never here (see bsStepIngredients).
+const ingMatchTokens = (name, distinctive) => {
+  const base = ingBase(name);
+  if (!base) return [];
+  const content = ingContent(base);
+  const out = new Set();
+  if (base.length >= BS_ING_MIN_TOKEN) out.add(base);
+  if (content.length >= 2) out.add(content.slice(-2).join(' '));
+  if (content.length === 1 && !BS_ING_ACTION.has(content[0])) out.add(content[0]);
+  // ⚠ Steps abbreviate: "Sear the chicken" never repeats "chicken thigh,
+  // skin-on". Any content word the recipe uses in exactly ONE ingredient may
+  // stand for it — head noun ("lettuce") or modifier ("chicken", "sesame") —
+  // UNLESS the word is an action, which a step is far likelier to be using as a
+  // verb than as a name (see BS_ING_ACTION).
+  else for (const w of content) if (distinctive.has(w) && !BS_ING_ACTION.has(w)) out.add(w);
+  return [...out].filter((tok) => tok.length >= BS_ING_MIN_TOKEN);
+};
+
+// The ingredients a step ACTUALLY names, so the method screen can show what this
+// step needs instead of re-listing the whole cupboard under every instruction.
+// The full list stays on the mise, which is where you shop the board.
+//
+// Matching is deliberately CONSERVATIVE and quote-based — word-boundary hits on
+// the ingredient's own name, no stemming beyond a trailing plural, no fuzzy
+// scoring. Under-matching is the safe direction: a step that lists nothing
+// renders nothing (the cook reads the instruction, which names the food in
+// prose), whereas a WRONG subset reads as "this is all I need" and is acted on.
+// The words that may stand ALONE for exactly one ingredient in this recipe.
+// Extracted so admission and RANKING read the same set -- see ingPosition.
+const ingDistinctiveWords = (names) => {
+  const byWord = new Map();
+  names.forEach((n, i) => {
+    if (!n) return;
+    for (const w of new Set(ingContent(ingBase(n)))) {
+      if (!byWord.has(w)) byWord.set(w, new Set());
+      byWord.get(w).add(i);
+    }
+  });
+  return new Set([...byWord.keys()].filter(
+    (w) => !BS_ING_GENERIC.has(w) && ingOwners(w, byWord).size === 1,
+  ));
+};
+
+export const bsStepIngredients = (step, ingredients) => {
+  const text = str(step);
+  const list = Array.isArray(ingredients) ? ingredients : [];
+  if (!text || !list.length) return [];
+  const nameOf = (ing) => (ing && typeof ing === 'object' ? str(ing.m) : str(ing));
+  const names = list.map(nameOf);
+  // A single word may stand for an ingredient only when it is unambiguous IN
+  // THIS RECIPE. If two ingredients share it ("butter lettuce" + "romaine
+  // lettuce") neither may claim it — the subset would name the wrong one with
+  // total confidence. Category nouns ("oil", "sauce") are never distinctive
+  // even when unique, because a step's "olive oil" is not the "sesame oil" on
+  // the list. Ambiguity is resolved by refusing, not by guessing — the same
+  // rule the timer parser applies to decimals.
+  const distinctive = ingDistinctiveWords(names);
+  return list.filter((ing, i) => {
+    const name = names[i];
+    if (!name) return false;
+    return ingMatchTokens(name, distinctive).some((tok) => new RegExp(`\\b${escapeRe(tok)}(?:e?s)?\\b`, 'i').test(text));
+  });
 };
 
 // ---------------------------------------------------------------------------

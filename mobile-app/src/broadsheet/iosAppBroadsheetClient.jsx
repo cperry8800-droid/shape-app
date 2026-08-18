@@ -24,7 +24,7 @@ import { bsCookResumeStamp, bsCookResumeValid } from '../services/cookResume.mjs
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
-import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
@@ -6391,7 +6391,9 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const [visited, setVisited] = useStateBSC({});   // stepIdx → true once advanced past
   const [skippedSteps, setSkippedSteps] = useStateBSC({});
   const [checked, setChecked] = useStateBSC({});   // mise rows
-  const [ingsOpen, setIngsOpen] = useStateBSC(false); // method-screen ingredients peek
+  // Open by default: the method screen now lists only the CURRENT step's
+  // ingredients (a row or three), so there is nothing to hide behind a tap.
+  const [ingsOpen, setIngsOpen] = useStateBSC(true); // method-screen ingredients peek
   const [loggedState, setLoggedState] = useStateBSC(false);
   const [timers, setTimers] = useStateBSC([]);     // [{id, label, endsAt, total, done}]
   const timerIdRef = React.useRef(0);
@@ -6482,9 +6484,30 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     onClose();
   };
 
-  const startTimer = (tm) => {
+  // A timer belongs to the step it was STARTED from, so its identity is frozen
+  // here — advancing the method must never relabel a countdown already running.
+  // Without this the band showed only the duration, and two 2-minute steps
+  // produced two identical "2 MIN" rows with no way to tell them apart.
+  // `count` = how many timers THIS step offers. Passed in from the call site
+  // (where the parsed list is already in scope) rather than read from a const
+  // declared further down the component — a dep on a later binding is how the
+  // TDZ crash class gets in, and it renders clean right up until it doesn't.
+  const startTimer = (tm, count = 1, idx = 0) => {
     timerIdRef.current += 1;
-    setTimers((arr) => [...arr, { id: timerIdRef.current, label: tm.label, endsAt: Date.now() + tm.seconds * 1000, total: tm.seconds }]);
+    const fromStep = (hasMethod && phase === 'method' && steps[stepIdx]) ? stepIdx : null;
+    setTimers((arr) => [...arr, {
+      id: timerIdRef.current,
+      label: tm.label,
+      stepIdx: fromStep,
+      // Label the step's timers TOGETHER and take this one's slot. Uniqueness is
+      // a property of the set -- labelled one at a time, a step that sears the
+      // same food twice produced two identical rows, which is the exact state
+      // this label exists to end. bsStepGists is index-aligned with bsStepTimers.
+      gist: fromStep != null ? (bsStepGists(steps[fromStep], cookable.ingredients)[idx] || '') : '',
+      multi: count > 1,
+      endsAt: Date.now() + tm.seconds * 1000,
+      total: tm.seconds,
+    }]);
   };
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
 
@@ -6589,7 +6612,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     if (cmd === 'repeat') { if (hasMethod) speak(steps[stepIdx]); return true; }
     if (cmd === 'timer') {
       const tms = hasMethod && !bsFractionalDuration(steps[stepIdx]) ? bsStepTimers(steps[stepIdx]) : [];
-      if (tms[0]) startTimer(tms[0]);
+      if (tms[0]) startTimer(tms[0], tms.length);
       else setMicNote({ who: 'nora', text: tr('cook:voice.noTimer', { defaultValue: 'No timer on this step.' }) });
       return true;
     }
@@ -6781,9 +6804,28 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 
   const running = timers.filter((x) => now < x.endsAt);
   const rung = timers.filter((x) => now >= x.endsAt);
+  // "Which timer is this?" — the step NUMBER (always a fact) over the step's own
+  // opening words. Falls back to the DURATION for a timer that carries no step
+  // (a step with no usable text), so a row is never left unlabelled.
+  const timerName = (x) => {
+    const gist = x.gist || x.label;
+    const base = x.stepIdx != null
+      ? `${tr('cook:timer.step', { defaultValue: 'Step {n}', n: x.stepIdx + 1 })} · ${gist}`
+      : gist;
+    // Several timers off ONE step already get their own clause's gist, but two
+    // clauses can reach for the same ingredient ("simmer the sauce 10 min …
+    // reduce the sauce 4 min"). Keeping each duration guarantees the rows stay
+    // distinguishable, and is the one place the label would otherwise drop it.
+    return x.multi && x.gist ? `${base} · ${x.label}` : base;
+  };
   // No parser-derived chips on a decimal step — the integer parser mis-reads
   // them ("1.5 minutes" → a 5-min chip); the cook reads the time from the text.
   const stepTimers = hasMethod && phase === 'method' && !bsFractionalDuration(steps[stepIdx]) ? bsStepTimers(steps[stepIdx]) : [];
+  // Only what THIS step reaches for. The full list belongs to the mise, which is
+  // where you shop the board — repeating all nine rows under "heat a dry
+  // skillet" was noise the cook had to read past every step. Conservative by
+  // construction: a step that names no ingredient renders no list at all.
+  const stepIngs = hasMethod && phase === 'method' ? bsStepIngredients(steps[stepIdx], cookable.ingredients) : [];
   const miseRows = [
     ...cookable.ingredients.map((ing, i) => ({ key: 'ing-' + i, label: ing.m, qty: bsIngQtyLabel(t.isMetric, ing) })),
     ...(cookable.prepNote ? [{ key: 'prep', label: cookable.prepNote, qty: tr('cook:mise.prepTag', { defaultValue: 'PREP' }) }] : []),
@@ -6821,8 +6863,11 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             return (
               <div key={x.id}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }} aria-live="off">
-                  <span style={{ ...bandEyebrow, color: BAND.dim }}>{x.label}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 18, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.4)}`, lineHeight: 1 }}>{fmt(left)}</span>
+                  {/* minWidth:0 + ellipsis: the label now carries the step's own
+                      words, so it must truncate rather than push the countdown
+                      off a narrow phone. */}
+                  <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{timerName(x)}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 18, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.4)}`, lineHeight: 1, flexShrink: 0 }}>{fmt(left)}</span>
                 </div>
                 <div aria-hidden style={{ marginTop: 6, height: 3, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
                   <div style={{ height: '100%', borderRadius: 2, background: heat, boxShadow: `0 0 8px ${bsTHexA(heat, 0.5)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - left / x.total)) * 100)}%`, transition: reduced ? 'none' : 'width 1s linear' }} />
@@ -6832,8 +6877,10 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           })}
           {rung.map((x) => (
             <div key={x.id} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ ...bandEyebrow, color: heat, textShadow: `0 0 12px ${bsTHexA(heat, 0.5)}` }}>{tr('cook:timer.up', { defaultValue: "Time's up" })} · {x.label}</span>
-              <button onClick={() => dismissTimer(x.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+              {/* Now announces WHICH timer finished — with two running, "Time's
+                  up" alone told the cook nothing. */}
+              <span style={{ ...bandEyebrow, color: heat, textShadow: `0 0 12px ${bsTHexA(heat, 0.5)}`, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('cook:timer.up', { defaultValue: "Time's up" })} · {timerName(x)}</span>
+              <button onClick={() => dismissTimer(x.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: BAND.cream, flexShrink: 0 }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
             </div>
           ))}
         </div>
@@ -6979,20 +7026,20 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {stepTimers.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stepTimers.map((tm, i) => (
-                  <button key={i} onClick={() => startTimer(tm)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
+                  <button key={i} onClick={() => startTimer(tm, stepTimers.length, i)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
                     ▸ {tr('cook:timer.start', { defaultValue: 'Timer' })} · {tm.label}
                   </button>
                 ))}
               </div>
             )}
-            {cookable.ingredients.length > 0 && (
+            {stepIngs.length > 0 && (
               <div style={{ marginTop: 16 }}>
                 <button onClick={() => setIngsOpen((v) => !v)} aria-expanded={ingsOpen} style={quietBtn}>
-                  {ingsOpen ? '▾' : '▸'} {tr('cook:ings', { defaultValue: 'Ingredients' })}
+                  {ingsOpen ? '▾' : '▸'} {tr('cook:ings.step', { defaultValue: 'For this step' })} · {stepIngs.length}
                 </button>
                 {ingsOpen && (
                   <div style={{ marginTop: 4 }}>
-                    {cookable.ingredients.map((ing, i) => (
+                    {stepIngs.map((ing, i) => (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '7px 2px 3px', borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.25)}` }}>
                         <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK, minWidth: 0 }}>{ing.m}</span>
                         <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{bsIngQtyLabel(t.isMetric, ing)}</span>

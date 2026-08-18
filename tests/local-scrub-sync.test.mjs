@@ -422,7 +422,7 @@ test('every receiving surface signs out locally before it reloads', () => {
     assert.ok(outIdx > 0, `${label}: receiving tab never retires its own session`);
     assert.match(slice, /location\.reload\(\)/, `${label}: listener does not reload`);
     // scope:'local' matters: a network-scoped sign-out could hang this tab.
-    assert.ok(!/[^.]signOut\(\)\s*;/.test(slice),
+    assert.ok(!/[^.]\bsignOut\(\)\s*;/.test(slice),
       `${label}: uses a network-scoped signOut in the listener`);
   }
 });
