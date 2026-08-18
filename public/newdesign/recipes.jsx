@@ -17,10 +17,14 @@
 // an authored recipe carries by + byRole; a public-domain federal work (USDA
 // MyPlate Kitchen, 17 USC § 105) has no author and is credited to its SOURCE.
 //
-// ⚠ Three sites in this file used to call `recipe.by.toUpperCase()` directly.
-// That throws a TypeError on a sourced recipe and takes /recipes down with it.
-// Returning null for an uncredited recipe is deliberate: render nothing rather
-// than invent a name.
+// ⚠ EVERY render of a byline goes through here — including the two live route
+// components, recipesPage.jsx and recipeDetailPage.jsx, which are separate script
+// files reading the same global catalog. `recipe.by.toUpperCase()` throws a
+// TypeError on a sourced recipe and takes the whole page down with it, and fixing
+// only the renderers inside THIS file left /recipes broken on the first USDA card.
+// tests/recipe-web-mobile-parity.test.mjs fails on a raw `.by` dereference in any
+// newdesign script. Returning null for an uncredited recipe is deliberate: render
+// nothing rather than invent a name.
 function recipeAttribution(r) {
   if (!r || typeof r !== "object") return null;
   var ne = function (v) { return typeof v === "string" && v.trim() ? v.trim() : null; };
@@ -1047,6 +1051,7 @@ const RECIPES_USDA = [
       "Simmer 2 hours, turning the roast once at the halfway mark, until a fork slides into the centre with no resistance and the liquid has reduced to a glossy pan sauce.",
       "Rest the roast on a board for 10 minutes before slicing it across the grain, then spoon the onions and pan juices over the top.",
     ],
+    tip: "Chill the whole thing overnight and the fat lifts off the sauce in a solid sheet. Slices reheat far better in their own juices than dry in a pan.",
   },
   {
     title: "Beef stroganoff with macaroni",
@@ -1078,6 +1083,7 @@ const RECIPES_USDA = [
       "Return the beef and onion to the pan with the salt, pepper, nutmeg and basil, then stir in the broth and yogurt off the boil.",
       "Warm it gently for 2 to 3 minutes until the sauce coats a spoon — never let it bubble, or the yogurt will split into grains. Serve over the hot macaroni.",
     ],
+    tip: "Take the pan off the heat before the yogurt goes in. If it does split, a spoonful of the pasta water whisked in hard will usually pull it back together.",
   },
   {
     title: "Baked pork chops with peppers and onion",
@@ -1104,6 +1110,7 @@ const RECIPES_USDA = [
       "Uncover, turn each chop, pile the onions and peppers back on top and bake 15 minutes more, until a thermometer in the thickest chop reads 145°F and the juices run clear.",
       "Rest the chops in the pan for 5 minutes, then serve with the pan juices and a little fresh parsley.",
     ],
+    tip: "Centre-cut chops go dry fast, so pull the pan the moment it hits 145°F. Leftovers slice cold into a sandwich better than they reheat.",
   },
   {
     title: "Black skillet beef with kale and red potatoes",
@@ -1138,6 +1145,7 @@ const RECIPES_USDA = [
       "Stir in the carrot strips, lay the kale over the top in a loose blanket, cover again and cook about 15 minutes, until the carrots give easily to a knife tip and the kale has wilted down into the broth.",
       "Taste for heat, then bring the skillet to the table and spoon it into bowls with the broth.",
     ],
+    tip: "Cast iron gives the best crust here, but do not leave the acidic broth sitting in it overnight. Reheat with a splash of water to loosen the potatoes.",
   },
   {
     title: "Beef pozole with hominy",
@@ -1168,6 +1176,7 @@ const RECIPES_USDA = [
       "Add the drained hominy and simmer another 15 minutes over low heat, stirring now and then so the kernels do not catch on the bottom.",
       "Thin with a splash of water if it has gone stew-thick, and serve with lime and shredded cabbage on the side.",
     ],
+    tip: "Pozole is better on day two, once the hominy has drunk up the broth. Freeze it in single portions and add fresh cilantro after reheating.",
   },
   {
     title: "Skillet beef and cabbage",
@@ -1194,6 +1203,7 @@ const RECIPES_USDA = [
       "Add the cabbage and cook 8 to 10 minutes without stirring too often, letting it wilt and pick up brown patches — that browning is what keeps it from tasting boiled.",
       "Stir the beef back in with the garlic powder, black pepper and a pinch of red pepper flakes, and heat through for 2 minutes before tasting for salt.",
     ],
+    tip: "Give the cabbage room; a crowded pan steams it grey. In a smaller skillet, cook it in two batches and combine at the end.",
   },
   {
     title: "Ground beef and root vegetable stew",
@@ -1221,6 +1231,7 @@ const RECIPES_USDA = [
       "Add the potatoes, carrots and onion, bring the pan to a boil, then cover and drop to a low simmer for about 25 minutes, until a knife slides through a potato cube cleanly.",
       "Pull the pan off the heat and leave it covered for a final 10 minutes — the starch from the potatoes thickens the broth as it settles.",
     ],
+    tip: "This thickens further in the fridge; loosen it with a splash of water when reheating. It freezes well for up to three months.",
   },
   {
     title: "Grilled skirt steak with salsa criolla",
@@ -1250,6 +1261,7 @@ const RECIPES_USDA = [
       "Season the steak on both sides with the remaining adobo and grill it, flipping once, for about 6 minutes total, until both faces are well browned and the centre reads 145°F.",
       "Let the steak rest on a board for 5 minutes so the juices settle, then slice it thinly against the grain and spoon the cold salsa criolla over the warm meat.",
     ],
+    tip: "Skirt steak is all grain, so slicing across it is the difference between tender and chewy. The salsa keeps two days in the fridge.",
   },
   {
     title: "Shorba lamb and peanut soup",
@@ -1279,6 +1291,7 @@ const RECIPES_USDA = [
       "Thin the peanut butter with the lemon juice in a small bowl until it is pourable, then stir it into the hot soup off the boil so it emulsifies instead of seizing.",
       "Return the pot to low heat for 5 minutes, taste for salt and lemon, and stir in cooked rice if you want it to eat as a full meal.",
     ],
+    tip: "Chill the broth after the first hour and lift the set fat off the top for a much cleaner soup. Add the peanut butter only after puréeing.",
   },
   {
     title: "Braised chicken thighs with wilted spinach",
@@ -1308,6 +1321,7 @@ const RECIPES_USDA = [
       "Return the chicken to the pan, pour in the cup of water, cover, and braise about 30 minutes until the meat is tender and reads 165°F at the thickest point.",
       "Stir in the frozen spinach and cook 10 minutes more, or wilt fresh spinach in about 2 minutes, then serve straight from the pan with all the juices.",
     ],
+    tip: "The braising liquid is thin on purpose — spoon it over rice or bread rather than reducing it. Keeps three days chilled and reheats gently in the same pan.",
   },
   {
     title: "Roasting-pan chicken with potatoes and carrots",
@@ -1334,6 +1348,7 @@ const RECIPES_USDA = [
       "Roast about 1 hour, spooning the pan juices back over the chicken once or twice, until the pieces are browned and read 165°F at the thickest part.",
       "Test a potato with a knife tip — it should slide in with no resistance. Give it another 10 minutes if it drags, then serve straight from the pan.",
     ],
+    tip: "Slice the potatoes no thicker than a coin or they will still be firm when the chicken is done. Leftovers reheat best uncovered in a hot oven, not a microwave.",
   },
   {
     title: "Mango and peanut chicken wraps",
@@ -1364,6 +1379,7 @@ const RECIPES_USDA = [
       "Spread a quarter of the peanut mixture right to the edges of each tortilla, pile the mango and chicken mix down the centre, and roll up tightly, tucking in the ends.",
       "Secure with toothpicks and chill at least 20 minutes before cutting each wrap in half — the filling sets and the slices hold their shape.",
     ],
+    tip: "Use a mango that gives slightly under your thumb; rock-hard fruit tastes of nothing here. Wrapped tightly they keep overnight in the fridge without going soggy.",
   },
   {
     title: "Apricot-lemon skillet chicken",
@@ -1388,6 +1404,7 @@ const RECIPES_USDA = [
       "Lower the heat to medium, add the apricot spread, lemon juice and water, and stir 2 to 3 minutes until the glaze is smooth and just coats the back of a spoon.",
       "Spoon the warm sauce straight over the chicken and serve — any longer on the heat and the apricot tightens into candy.",
     ],
+    tip: "Any fruit spread works here, but something tart beats something sweet. If the glaze splits or stiffens, a splash of water off the heat brings it back.",
   },
   {
     title: "Asparagus and mandarin chicken rice bowl",
@@ -1415,6 +1432,7 @@ const RECIPES_USDA = [
       "Pull the spears while they still snap, rinse under cool running water to lock in the green, and cut them into 1-inch pieces.",
       "Toss the cooled rice, asparagus, chicken and drained oranges in a large bowl, pour over the vinaigrette, and serve at room temperature.",
     ],
+    tip: "Dress it only just before eating if you are packing it ahead, otherwise the asparagus dulls. The reserved can juice is the whole point of the dressing — do not tip it away.",
   },
   {
     title: "Turkey tetrazzini bake",
@@ -1446,6 +1464,7 @@ const RECIPES_USDA = [
       "Fold in the turkey, almonds, peas and drained pasta, tip it all into the dish and scatter the Parmesan evenly over the top.",
       "Bake 25 to 35 minutes until the sauce bubbles at the edges and the cheese is golden, then rest 15 minutes so it sets before you cut into it.",
     ],
+    tip: "Start with a third of a cup of flour and add more only if the sauce stays loose — too much and it goes pasty. It freezes well in portions before baking.",
   },
   {
     title: "Chicken pozole with hominy and lime",
@@ -1475,6 +1494,7 @@ const RECIPES_USDA = [
       "Add the rinsed hominy and simmer another 45 minutes, until the kernels are plump and split and the broth has gone deep brick red.",
       "Ladle into bowls and finish each with shredded lettuce and a lime wedge — the raw crunch and acid are what make it read as pozole.",
     ],
+    tip: "Rinse the canned hominy properly or the broth turns cloudy and tinny. It tastes better the next day, so make the whole pot even for two people.",
   },
   {
     title: "Sizzling chicken and broccoli over brown rice",
@@ -1506,6 +1526,7 @@ const RECIPES_USDA = [
       "Cook the onion, carrots, broccoli and pepper one at a time in the bare centre of the pan, pushing each to the side as it turns tender-crisp and glossy.",
       "Pour the sauce into the empty centre and stir until it thickens and goes shiny, then fold everything back together and serve over the hot brown rice.",
     ],
+    tip: "Cutting the chicken and all the veg before you light the burner is the whole technique. If the pan crowds and starts steaming, work in two batches.",
   },
   {
     title: "Herbed baked salmon with lemon",
@@ -1534,6 +1555,7 @@ const RECIPES_USDA = [
       "Sprinkle over the lemon juice and drizzle the melted margarine on top — the fat carries the herbs and keeps the surface from drying out.",
       "Bake 20 to 25 minutes, until the salmon turns opaque through and flakes when you nudge it with a fork at the thickest point.",
     ],
+    tip: "Frozen fillets work, but thaw them overnight in the fridge and blot them well — a wet fillet poaches in its own liquid and never takes colour. Leftovers keep three days and are good cold over salad.",
   },
   {
     title: "Catfish stew with brown rice",
@@ -1564,6 +1586,7 @@ const RECIPES_USDA = [
       "Slide the fish into the pot, lower the heat and simmer covered 5 minutes, until it turns opaque and flakes easily with a fork.",
       "Ladle into bowls over a scoop of hot brown rice and finish with sliced green onion for a bit of raw bite against the stew.",
     ],
+    tip: "Any firm white fish stands in for catfish — just add it in the last five minutes, whatever you use, or it falls apart into the broth. The stew thickens overnight and reheats well.",
   },
   {
     title: "Salmon and pineapple skewers over brown rice",
@@ -1591,6 +1614,7 @@ const RECIPES_USDA = [
       "Lay in the skewers and turn every 2 minutes, squeezing lemon over as they cook, until the salmon is opaque right to the centre.",
       "Serve two skewers over half a cup of rice per plate, with one last squeeze of lemon to cut the sweetness of the pineapple.",
     ],
+    tip: "Soak wooden skewers in water for 20 minutes first or they scorch and splinter in the pan. Cut the salmon into even cubes — a mixed bag of sizes means some pieces are dry before the rest are done.",
   },
   {
     title: "Tuna and chickpea antipasti salad",
@@ -1619,6 +1643,7 @@ const RECIPES_USDA = [
       "Season with salt and pepper and leave it 10 minutes in the fridge, so the onion softens and the beans take on the dressing.",
       "Spread the shredded romaine over a platter or divide it between bowls, then spoon the antipasti mixture on top and serve cold.",
     ],
+    tip: "Dress it no more than an hour ahead — the lemon wilts the romaine and the walnuts go soft. Keep the salad and the leaves in separate containers if you are packing it for lunch.",
   },
   {
     title: "Chargrilled tilapia tacos with peach salsa",
@@ -1649,6 +1674,7 @@ const RECIPES_USDA = [
       "Lay the fish on greased grates and cook about 8 minutes, flipping once, until opaque and flaking easily at 145°F (63°C).",
       "Slice the fish thinly, then fill each warmed tortilla with half a fillet and about a third of a cup of the cold peach salsa.",
     ],
+    tip: "Make the salsa first so it has time to sit — the onion and jalapeno need twenty minutes in the lemon juice to lose their raw edge. Tilapia is delicate, so flip it once and only once.",
   },
   {
     title: "Neapolitan tuna fettuccine with capers",
@@ -1677,6 +1703,7 @@ const RECIPES_USDA = [
       "Fold in the tuna and olives off the boil, season with salt and pepper, and keep the flakes large — stirring hard shreds them to paste.",
       "Toss the drained pasta through the sauce, loosening it with the reserved cooking water until it coats every strand, and serve at once.",
     ],
+    tip: "That starchy pasta water is what makes the sauce cling, so reserve it before you drain — plain water will only thin things out. Rinse the capers if they taste sharply of brine.",
   },
   {
     title: "Cumin-lime shrimp over cauliflower rice",
@@ -1706,6 +1733,7 @@ const RECIPES_USDA = [
       "Blend that mixture smooth with the lime juice, return it to the pan with the cauliflower and stir over medium heat until it turns bright green.",
       "Divide between two bowls, top each with four shrimp, and eat right away — the avocado sauce dulls in colour as it stands.",
     ],
+    tip: "Do not let the blended avocado boil or it turns grey and bitter — warm it through and no further. Squeeze in extra lime just before serving to hold the colour.",
   },
   {
     title: "Bell pepper and Vidalia onion strata",
@@ -1738,6 +1766,7 @@ const RECIPES_USDA = [
       "Bake uncovered 45 minutes, until the centre is set and no longer wobbles when you nudge the pan — an egg dish is done at 160°F (71°C).",
       "While it bakes, dice the cherry tomatoes, garlic and reserved onion into a rough salsa, and spoon it over each portion just before serving.",
     ],
+    tip: "Assemble it the night before and keep it covered in the fridge; the bread drinks up the custard and bakes more evenly. Add 5 minutes if it goes in cold.",
   },
   {
     title: "Crisp black bean and cheese quesadillas",
@@ -1764,6 +1793,7 @@ const RECIPES_USDA = [
       "Cook the quesadillas about 5 minutes in total, flipping once, until both sides are deep golden and the cheese runs when pressed.",
       "Slide them onto a board, rest 1 minute so the filling sets, then cut each into wedges and serve with any salsa left over.",
     ],
+    tip: "Draining the salsa is the whole trick — skip it and the tortilla goes limp. Reheat leftovers in a dry skillet, never the microwave.",
   },
   {
     title: "Sharp cheddar baked macaroni",
@@ -1791,6 +1821,7 @@ const RECIPES_USDA = [
       "Bake 25 minutes, until the top is golden and the edges bubble steadily — the egg is what sets the custard around the pasta.",
       "Let it stand 10 minutes before serving so the sauce thickens and the portions hold their shape on the spoon.",
     ],
+    tip: "Undercook the pasta by a minute; it drinks up the custard in the oven. Leftovers reheat well with a splash of milk stirred through.",
   },
   {
     title: "Peppers stuffed with brown rice and beans",
@@ -1818,6 +1849,7 @@ const RECIPES_USDA = [
       "Bake the stuffed peppers 30 minutes, until the walls slump slightly and a knife slides into the side with no resistance.",
       "Crown each with the remaining cheese and bake 15 minutes more, until it has melted and blistered brown in spots at the edges.",
     ],
+    tip: "Cook the rice a day ahead — cold rice packs tighter and the peppers hold their shape. Stand them in a snug dish so they cannot tip over.",
   },
   {
     title: "Swiss cheese and vegetable chowder",
@@ -1847,6 +1879,7 @@ const RECIPES_USDA = [
       "Drop in the Swiss and stir off the heat until it melts smoothly — boiling now would split the cheese into stringy threads.",
       "Loosen with a splash more water if it thickens past pourable, then ladle out and scatter the sliced green onions over the top.",
     ],
+    tip: "Add the cheese off the heat or it turns grainy. Frozen mixed vegetables work as well as fresh here and need no extra simmering time.",
   },
   {
     title: "Blueberry baked oats in ramekins",
@@ -1878,6 +1911,7 @@ const RECIPES_USDA = [
       "Set the ramekins on a baking sheet and bake 25 to 30 minutes, until puffed and golden at the edges with a firm centre.",
       "Cool 5 minutes so they settle, then top with the Greek yogurt and a scattering of lemon zest just before eating.",
     ],
+    tip: "No ramekins? Bake it in one 8-inch dish and add 5 to 10 minutes. They keep three days in the fridge and reheat straight from cold.",
   },
   {
     title: "Layered cheddar potato gratin",
@@ -1906,6 +1940,7 @@ const RECIPES_USDA = [
       "Layer a quarter of the potatoes and onion in the dish, spread over 1/2 cup of the sauce, and repeat to build four layers.",
       "Bake 1 hour, until the top is bronzed and a knife slides through the layers without resistance; rest 10 minutes before serving.",
     ],
+    tip: "Slice the potatoes no thicker than a quarter inch or the middle stays chalky. Tent with foil if the top browns before the hour is up.",
   },
   {
     title: "Sheet-pan cauliflower and black bean bake",
@@ -1940,6 +1975,7 @@ const RECIPES_USDA = [
       "Scatter the black beans, corn and cheese over the hot vegetables and return the sheet for 5 minutes, until the cheese has melted.",
       "Off the heat, top with the cherry tomatoes, avocado, scallions, jalapeño and cilantro so they stay bright against the roasted base.",
     ],
+    tip: "Crowding the sheet steams the cauliflower instead of browning it — use two pans if you must. Add the avocado only once it is off the heat.",
   },
   {
     title: "Noodle-free potato and spinach lasagna",
@@ -1972,6 +2008,7 @@ const RECIPES_USDA = [
       "Cover with foil and bake 35 to 40 minutes, until the sauce bubbles at the edges and a knife meets no resistance in the potatoes.",
       "Uncover and bake 10 minutes more, until the top cheese is melted and freckled brown; rest 10 minutes before cutting.",
     ],
+    tip: "Par-boiling the potatoes is what keeps the centre from staying chalky. Let the dish rest before cutting or the layers slide apart.",
   },
   {
     title: "Charred corn and cornmeal patties",
@@ -2001,6 +2038,7 @@ const RECIPES_USDA = [
       "Slide the pan into a 350°F oven for 10 minutes to cook the middle through, adding the tortillas for the last 8 minutes until warm and pliable.",
       "Lay a patty on half of each tortilla and fold it over like a taco while the crust is still crisp and the shell still steams.",
     ],
+    tip: "The hour in the fridge is not optional — a warm patty will crumble the moment you turn it. Formed patties keep raw and covered for two days.",
   },
   {
     title: "Sweet potato and kidney bean chili",
@@ -2031,6 +2069,7 @@ const RECIPES_USDA = [
       "Cover and cook 30 minutes over low heat, until a knife slides through the sweet potato with no resistance and the chili has thickened around it.",
       "Stir the frozen corn through and cook a few minutes more, just until it is hot and still snapping — overcooked corn goes flat and mealy.",
     ],
+    tip: "It is better on day two once the chili powder settles. Keeps five days chilled and freezes well in single portions.",
   },
   {
     title: "Lentil and pearl barley soup",
@@ -2059,6 +2098,7 @@ const RECIPES_USDA = [
       "Taste for salt, then stir the red wine vinegar in off the heat right before serving — it lifts the whole pot out of flatness.",
       "Ladle out and let it sit two minutes; barley soup straight off the boil scalds and hides its own flavour.",
     ],
+    tip: "It sets almost solid in the fridge — loosen each portion with a splash of hot water when reheating. Add the vinegar fresh each time.",
   },
   {
     title: "Curried butternut and chickpea stew",
@@ -2088,6 +2128,7 @@ const RECIPES_USDA = [
       "Cover and cook about 10 minutes over medium heat, until a fork goes through the squash cleanly but the cubes still hold their shape.",
       "Take the lid off and let it stand five minutes before serving over brown rice; the stew tightens as it settles.",
     ],
+    tip: "A half cup of raisins added with the squash is the USDA's own suggestion and it works — the sweetness balances two tablespoons of curry powder.",
   },
   {
     title: "Cold black bean and brown rice salad",
@@ -2116,6 +2157,7 @@ const RECIPES_USDA = [
       "Pour the dressing over the bean mixture and fold it through gently with a spatula so the beans stay whole rather than breaking down.",
       "Cover and chill at least one hour before serving cold — the rice needs that time to drink up the vinegar and season through.",
     ],
+    tip: "It holds three days and improves on day two. If it tastes dull straight from the fridge, add a splash more vinegar rather than salt.",
   },
   {
     title: "Crispy skillet rice with tofu and peas",
@@ -2145,6 +2187,7 @@ const RECIPES_USDA = [
       "Set a skillet over medium-high, add the oil, tip in the mixture and press it flat with a spatula. Drop the heat to low, cover and cook 10 minutes.",
       "Press down again, then flip sections of rice in chunks and keep cooking up to 20 minutes until the base is deep gold and audibly crisp at the edges.",
     ],
+    tip: "Day-old fridge-cold rice crisps far better than same-day rice. If it sticks, leave it alone another minute — the crust releases itself when it is ready.",
   },
   {
     title: "Smoky lentil taco filling",
@@ -2173,6 +2216,7 @@ const RECIPES_USDA = [
       "Add the reserved water a splash at a time if it tightens too far — you want a thick scoopable filling, not a dry paste that falls out of the shell.",
       "Warm corn tortillas in a dry pan 30 seconds a side until they blister and go flexible, then spoon the hot filling straight in.",
     ],
+    tip: "A quarter cup of raisins stirred in with the spices is the USDA original's optional add and it cuts the chili powder nicely. The filling freezes flat in bags.",
   },
   {
     title: "Skillet chickpeas with wilted spinach",
@@ -2203,6 +2247,7 @@ const RECIPES_USDA = [
       "Drop the heat low, pile the frozen spinach on top without stirring, cover, and leave 10 minutes until it has thawed and steamed through.",
       "Stir the spinach down into the chickpeas, then finish with the lemon juice and red pepper flakes and serve over brown rice or quinoa.",
     ],
+    tip: "Leaving the spinach untouched on top lets it steam instead of stewing, so it stays green. Kale works the same way but wants five minutes longer.",
   },
   {
     title: "Sheet-pan roasted vegetables, lemon and herbs",
@@ -2229,6 +2274,7 @@ const RECIPES_USDA = [
       "Roast 20 minutes, stirring once at the 10-minute mark, until the edges go deep brown and a knife tip slides into the thickest piece without resistance.",
       "Serve straight from the tray while still hot; those crisp edges soften within minutes of sitting.",
     ],
+    tip: "Group vegetables by density — potatoes and carrots on one tray, broccoli and peppers on another — or the quick ones burn while the roots finish. Leftovers reheat best in a dry pan, never the microwave.",
   },
   {
     title: "Bell pepper and apple slaw, cider dressing",
@@ -2258,6 +2304,7 @@ const RECIPES_USDA = [
       "Drizzle over the dressing and toss for a full minute, until every ribbon glistens and the pile visibly collapses by about a third.",
       "Chill 20 minutes in the covered bowl before serving, so the cabbage turns tender-crisp and the vinegar loses its raw edge.",
     ],
+    tip: "Dress it no more than an hour ahead — past that the cabbage weeps and the almonds go soft. Toss the apple in a little of the dressing first if you are prepping early; the acid keeps it from browning.",
   },
   {
     title: "Spring cabbage and artichoke soup",
@@ -2285,6 +2332,7 @@ const RECIPES_USDA = [
       "Drop the heat to low, stir in the basil and simmer 10 minutes, until every vegetable yields easily to a spoon and the soup steams heavily.",
       "Ladle into bowls and season to taste — vegetable juice is already salty, so taste before you reach for the salt at all.",
     ],
+    tip: "Keeps three days in the fridge and the flavour deepens overnight. Don't freeze it: the cabbage turns to thread and the peas go grey.",
   },
   {
     title: "Barley pilaf with mushrooms and celery",
@@ -2313,6 +2361,7 @@ const RECIPES_USDA = [
       "Cook 50 to 60 minutes, until the barley is tender with a slight chew left and all the liquid has been absorbed.",
       "Rest off the heat 5 minutes with the lid on, then fluff with a fork to separate the grains before serving.",
     ],
+    tip: "Doubles cleanly and reheats all week with a splash of water. Pearl barley is not gluten-free — swap in brown rice and cut the simmer to 45 minutes if you need it to be.",
   },
   {
     title: "Maple banana oatmeal with walnuts",
@@ -2339,6 +2388,7 @@ const RECIPES_USDA = [
       "Pull the pan off the heat and fold in the mashed banana and maple syrup, both of which turn flat and bitter if they keep cooking.",
       "Divide between four bowls, scatter the chopped walnuts over the top and serve while it is still loose and steaming.",
     ],
+    tip: "It sets firm in the fridge — loosen next-day portions with a splash of milk before reheating. Toast the walnuts in a dry pan for two minutes first if you have the patience; it doubles the flavour.",
   },
   {
     title: "Papaya banana batido",
@@ -2362,6 +2412,7 @@ const RECIPES_USDA = [
       "Check the texture: it should pour thickly and hold a soft ripple, with no flecks of unblended fruit left in it.",
       "Pour into cold glasses and serve right away, or cover and refrigerate up to 4 hours before drinking.",
     ],
+    tip: "Freeze the banana slices ahead and drop the ice to half a cup — you get the same chill without watering the flavour down. It separates as it stands, so stir before pouring.",
   },
   {
     title: "Acorn squash stuffed with cinnamon apples",
@@ -2387,6 +2438,7 @@ const RECIPES_USDA = [
       "Spoon the filling into each squash half, cover and microwave 3 to 5 minutes more, until a knife tip slides through the squash wall with no resistance.",
       "Serve warm straight from the dish, spooning the buttery juices from the base back over the top.",
     ],
+    tip: "Pierce the skins before the first microwave burst or a trapped steam pocket will split a half open. It also works at 375°F for 45 minutes if you want the edges to caramelise.",
   },
   {
     title: "Lemon garlic chickpea dip",
@@ -2414,6 +2466,7 @@ const RECIPES_USDA = [
       "Check the texture — it should fall off the spoon in a thick ribbon; loosen it with a spoonful of cold water if it drags.",
       "Serve at room temperature with carrot sticks, pita chips or crackers, and get any leftovers into the fridge within two hours.",
     ],
+    tip: "The garlic sharpens overnight, so go easy if you are making it a day ahead. A pinch more paprika and a thread of oil on top before serving makes it look like you tried harder than you did.",
   },
   {
     title: "Beets, beans and greens salad",
@@ -2441,6 +2494,7 @@ const RECIPES_USDA = [
       "Toss the greens and beans with the remaining dressing for about 30 seconds, until every leaf is lightly slicked but not collapsed.",
       "Pile onto plates, spoon the dressed beets over the top and serve within 10 minutes, before the leaves start to wilt.",
     ],
+    tip: "Any bean works — kidney, cannellini, chickpea — so use whatever tin is open. Dress the leaves at the very last moment; beet juice and lemon will wilt them flat in a quarter of an hour.",
   },
 ];
 
@@ -2497,12 +2551,22 @@ const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 const RECIPE_GOALS = ["High-protein", "Low-carb"];
 const _RECIPE_NOT_GF = new Set([
   "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl", "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Overnight oats, three ways", "Harissa salmon with couscous", "Cottage cheese protein toast",
+  // The 50 USDA MyPlate records carry their own classifications; these mirror
+  // USDA_NOT_GF in mobile-app/src/broadsheet/shapeKitchenData.usda.js. A title
+  // ABSENT from this set is asserted gluten-free by recipeNeeds below, so an
+  // omission here is a false allergen claim, not a missing tag.
+  "Beef stroganoff with macaroni", "Ground beef and root vegetable stew", "Mango and peanut chicken wraps", "Asparagus and mandarin chicken rice bowl", "Turkey tetrazzini bake", "Sizzling chicken and broccoli over brown rice", "Chargrilled tilapia tacos with peach salsa", "Neapolitan tuna fettuccine with capers", "Bell pepper and Vidalia onion strata", "Crisp black bean and cheese quesadillas", "Sharp cheddar baked macaroni", "Blueberry baked oats in ramekins", "Layered cheddar potato gratin", "Charred corn and cornmeal patties", "Lentil and pearl barley soup", "Barley pilaf with mushrooms and celery",
 ]);
 const _RECIPE_HAS_DAIRY = new Set([
   "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka", "Grilled chicken Caesar, lightened", "Roasted veg and halloumi traybake", "Turkey meatballs in marinara", "Chicken pesto pasta", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Overnight oats, three ways", "Garlic shrimp and courgette noodles", "Cottage cheese protein toast",
+  // Mirrors USDA_HAS_DAIRY in shapeKitchenData.usda.js — see the note above:
+  // absence from this set is an active dairy-free claim.
+  "Beef stroganoff with macaroni", "Mango and peanut chicken wraps", "Turkey tetrazzini bake", "Bell pepper and Vidalia onion strata", "Crisp black bean and cheese quesadillas", "Sharp cheddar baked macaroni", "Peppers stuffed with brown rice and beans", "Swiss cheese and vegetable chowder", "Blueberry baked oats in ramekins", "Layered cheddar potato gratin", "Sheet-pan cauliflower and black bean bake", "Noodle-free potato and spinach lasagna", "Maple banana oatmeal with walnuts", "Papaya banana batido", "Acorn squash stuffed with cinnamon apples", "Lemon garlic chickpea dip",
 ]);
 const _RECIPE_MED = new Set([
   "Sheet-pan salmon, sweet potato and broccoli", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka", "Tuna niçoise bowl", "Roasted veg and halloumi traybake", "Harissa salmon with couscous", "Lemon-herb chicken meal-prep box",
+  // Mirrors USDA_MED in shapeKitchenData.usda.js.
+  "Grilled skirt steak with salsa criolla", "Tuna and chickpea antipasti salad", "Neapolitan tuna fettuccine with capers", "Bell pepper and Vidalia onion strata", "Noodle-free potato and spinach lasagna", "Lentil and pearl barley soup", "Skillet chickpeas with wilted spinach", "Sheet-pan roasted vegetables, lemon and herbs", "Spring cabbage and artichoke soup", "Lemon garlic chickpea dip", "Beets, beans and greens salad",
 ]);
 // Free From + Goals membership (the multi-select layer).
 function recipeNeeds(r) {
@@ -2687,6 +2751,7 @@ if (typeof window !== "undefined") {
   window.RECIPE_PROTEINS = RECIPE_PROTEINS;
   window.RECIPE_FREE_FROM = RECIPE_FREE_FROM;
   window.RECIPE_GOALS = RECIPE_GOALS;
+  window.recipeAttribution = recipeAttribution;
   window.recipeNeeds = recipeNeeds;
   window.recipeMatchesDiet = recipeMatchesDiet;
 }

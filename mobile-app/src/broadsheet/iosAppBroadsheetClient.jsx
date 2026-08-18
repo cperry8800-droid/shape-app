@@ -5854,11 +5854,18 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
   const r = recipe || {};
   // Normalize the two recipe shapes (catalog vs day-view).
   const macros = r.macros || { p: r.p, c: r.c, f: r.f };
-  const by = r.by || null;
-  const byRole = r.byRole || (r.coachNote ? 'Nutritionist' : null);
   const attrib = bsRecipeAttribution(r);
   const note = r.tip || r.coachNote || null;
-  const noteName = (by || 'Coach').replace(/^Dr\.?\s+/i, '').split(' ')[0].toUpperCase();
+  // The tip's byline follows the recipe's ATTRIBUTION and is never invented. The
+  // old `by || 'Coach'` fallback stamped COACH on all 50 public-domain USDA cards
+  // — the fabricated byline bsRecipeAttribution exists to prevent. A day-view
+  // coachNote genuinely is the coach's, so that case keeps its label; anything
+  // with no attribution at all renders the tip unlabelled rather than guessing.
+  const noteName = attrib
+    ? (attrib.kind === 'authored'
+        ? attrib.name.replace(/^Dr\.?\s+/i, '').split(' ')[0].toUpperCase()
+        : attrib.name.toUpperCase())
+    : (r.coachNote ? 'COACH' : null);
   const servesLabel = r.servings != null ? String(r.servings) : (r.portion || '—');
   const ings = Array.isArray(r.ingredients) ? r.ingredients : [];
   const half = Math.ceil(ings.length / 2);
@@ -5928,7 +5935,7 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
       </div>
       {note ? (
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.6, color: t.INK70 }}>
-          <b style={{ color: gold, fontWeight: 800 }}>{noteName}:</b> {note}
+          {noteName ? <><b style={{ color: gold, fontWeight: 800 }}>{noteName}:</b>{' '}</> : null}{note}
         </div>
       ) : null}
     </div>
@@ -5941,7 +5948,10 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
 function bsRecipeLibItem(r) {
   const title = bsNodeText(r.title);
   const meta = r.servings != null ? `${r.kcal} kcal · serves ${r.servings}` : `${r.kcal} kcal`;
-  return { id: `recipe:${bsSkSlug(title)}`, kind: 'recipe', title, meta, coach: r.by || 'Shape Kitchen' };
+  // Credit whoever the recipe is actually attributed to; only an UNCREDITED
+  // recipe falls back to the catalog's own name.
+  const credit = bsRecipeAttribution(r);
+  return { id: `recipe:${bsSkSlug(title)}`, kind: 'recipe', title, meta, coach: (credit && credit.name) || 'Shape Kitchen' };
 }
 
 function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded = false }) {
@@ -6290,12 +6300,15 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
           const id = recId(r);
           const saved = savedIds.has(id);
           const cat = (r.tags && r.tags[0]) || r.diet || 'Recipe';
-          const coach = String(r.by || '').split(' ')[0];
+          // A sourced recipe has no author, so `r.by` was '' and the eyebrow rendered
+          // a dangling separator on every USDA row. Credit the source by name.
+          const credit = bsRecipeAttribution(r);
+          const coach = credit ? (credit.kind === 'authored' ? credit.name.split(' ')[0] : credit.name) : '';
           const no = SHAPE_KITCHEN_RECIPES.indexOf(r) + 1 || null;
           return (
             <div key={`${r.title}-${i}`} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER, padding: '12px 14px' }}>
               <button type="button" onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: dc }}>{no ? `Nº ${no} · ` : ''}{cat} · {coach}</span>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: dc }}>{no ? `Nº ${no} · ` : ''}{cat}{coach ? ` · ${coach}` : ''}</span>
                 <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
                 <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
               </button>

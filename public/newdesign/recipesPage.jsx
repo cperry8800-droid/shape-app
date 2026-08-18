@@ -80,7 +80,15 @@ function RecipeCard({ recipe, saved, onToggleSave }) {
       </div>
       <div style={{ padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
-          {(recipe.byRole || "").toUpperCase()} · {recipe.by.toUpperCase()}
+          {(() => {
+            // A sourced recipe has no author; credit the source instead. Plain text,
+            // never a link — the whole card is already an anchor.
+            const a = typeof recipeAttribution === "function" ? recipeAttribution(recipe) : null;
+            if (!a) return "RECIPE";
+            return a.kind === "authored"
+              ? `${(a.role || "RECIPE").toUpperCase()} · ${a.name.toUpperCase()}`
+              : a.name.toUpperCase();
+          })()}
         </div>
         <div style={{ fontFamily: serif, fontWeight: 500, fontSize: 23, letterSpacing: "-0.02em", lineHeight: 1.12 }}>{recipe.title}</div>
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: "auto", paddingTop: 6 }}>
