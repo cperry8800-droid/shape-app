@@ -2563,6 +2563,9 @@ const _RECIPE_NOT_GF = new Set([
   "Beef stroganoff with macaroni", "Ground beef and root vegetable stew", "Mango and peanut chicken wraps", "Asparagus and mandarin chicken rice bowl", "Turkey tetrazzini bake", "Sizzling chicken and broccoli over brown rice", "Chargrilled tilapia tacos with peach salsa", "Neapolitan tuna fettuccine with capers", "Bell pepper and Vidalia onion strata", "Crisp black bean and cheese quesadillas", "Sharp cheddar baked macaroni", "Blueberry baked oats in ramekins", "Layered cheddar potato gratin", "Charred corn and cornmeal patties", "Lentil and pearl barley soup", "Barley pilaf with mushrooms and celery",
 ]);
 const _RECIPE_HAS_DAIRY = new Set([
+  // Generic margarine commonly contains milk solids or whey — an unspecified
+  // product cannot carry a "free from" claim. Mirrors USDA_HAS_DAIRY.
+  "Herbed baked salmon with lemon",
   "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka", "Grilled chicken Caesar, lightened", "Roasted veg and halloumi traybake", "Turkey meatballs in marinara", "Chicken pesto pasta", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Overnight oats, three ways", "Garlic shrimp and courgette noodles", "Cottage cheese protein toast",
   // Mirrors USDA_HAS_DAIRY in shapeKitchenData.usda.js — see the note above:
   // absence from this set is an active dairy-free claim.

@@ -1474,6 +1474,9 @@ export const USDA_NOT_GF = [
 ];
 
 export const USDA_HAS_DAIRY = [
+  // Generic margarine commonly contains milk solids or whey. Same rule as the
+  // oats above: an unspecified product cannot carry a "free from" claim.
+  "Herbed baked salmon with lemon",
   "Beef stroganoff with macaroni",
   "Mango and peanut chicken wraps",
   "Turkey tetrazzini bake",
