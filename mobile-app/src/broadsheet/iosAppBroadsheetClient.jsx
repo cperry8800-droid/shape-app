@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
@@ -5856,6 +5856,7 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
   const macros = r.macros || { p: r.p, c: r.c, f: r.f };
   const by = r.by || null;
   const byRole = r.byRole || (r.coachNote ? 'Nutritionist' : null);
+  const attrib = bsRecipeAttribution(r);
   const note = r.tip || r.coachNote || null;
   const noteName = (by || 'Coach').replace(/^Dr\.?\s+/i, '').split(' ')[0].toUpperCase();
   const servesLabel = r.servings != null ? String(r.servings) : (r.portion || '—');
@@ -5880,9 +5881,13 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
       <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK }}>
         {String(bsNodeText(r.title) || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span>
       </div>
-      {by ? (
-        <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: gold }}>
-          From the kitchen of {by}{byRole ? ` · ${byRole}` : ''}
+      {attrib ? (
+        <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: attrib.kind === 'sourced' ? t.INK50 : gold }}>
+          {attrib.kind === 'authored'
+            ? `From the kitchen of ${attrib.name}${attrib.role ? ` · ${attrib.role}` : ''}`
+            /* A public-domain federal work has no author — credit the SOURCE, in
+               quiet ink so it never reads as a nutritionist's byline. */
+            : `Recipe from ${attrib.name}`}
         </div>
       ) : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 14 }}>
@@ -6211,7 +6216,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
     .filter(matchFilter)
     .filter(r => recipeMatchesDiet(r, diet))
     .filter(r => needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n)))
-    .filter(r => !query || [r.title, r.by, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
+    .filter(r => !query || [r.title, r.by, r.source, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
   const savedCount = recipes.filter(r => savedIds.has(recId(r))).length;
   const pills = [['all', 'All', recipes.length], ['saved', 'Saved', savedCount], ['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner'], ['snack', 'Snack'], ['plant', 'Plant-based']];
   const dietCount = (d) => recipes.filter(r => recipeMatchesDiet(r, d)).length;
@@ -7705,7 +7710,11 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} />;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={`${r.byRole} · ${r.by}`} kicker="Shape Kitchen" title={r.title} />
+      <BSDetailHeader onBack={onBack} eyebrow={(() => {
+        const a = bsRecipeAttribution(r);
+        if (!a) return 'RECIPE';
+        return a.kind === 'authored' ? `${a.role ? `${a.role} · ` : ''}${a.name}` : a.name;
+      })()} kicker="Shape Kitchen" title={r.title} />
 
       <BSKitchenCard recipe={r} no={_no} />
 
@@ -8906,7 +8915,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
       return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
     });
-    const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen · ${recipe.byRole}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
+    const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
     setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
     window.__bsToast?.('Added to grocery list', 'ok');
     return list;

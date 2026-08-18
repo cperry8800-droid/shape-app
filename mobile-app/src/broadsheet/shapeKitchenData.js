@@ -11,7 +11,15 @@
 //   tip: string (renders as the card's typed byline note; storage advice on
 //     batch recipes)   photo?: real image URL (figure renders only when set)
 //   hero: CSS gradient (tab-era placeholder; never rendered as a photo)
-export const SHAPE_KITCHEN_RECIPES = [
+// The 50 USDA MyPlate Kitchen recipes live in their own file: they are US
+// federal works (public domain, 17 USC § 105) with every step rewritten in this
+// catalog's voice, and keeping them separate keeps their provenance legible and
+// this file readable. They carry `source`/`sourceUrl`/`license` INSTEAD of a
+// by/byRole byline — see bsRecipeAttribution, which is the single place that
+// decides how an unattributed recipe is credited.
+import { USDA_KITCHEN_RECIPES, USDA_NOT_GF, USDA_HAS_DAIRY, USDA_MED } from './shapeKitchenData.usda.js';
+
+const _SHAPE_KITCHEN_RECIPES_AUTHORED = [
   {
     title: "One-pan chicken and rice",
     by: "Rae Lindqvist", byRole: "Nutritionist", diet: "Poultry",
@@ -954,6 +962,9 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
 ];
 
+// Authored first so the catalog's existing order never shifts.
+export const SHAPE_KITCHEN_RECIPES = [..._SHAPE_KITCHEN_RECIPES_AUTHORED, ...USDA_KITCHEN_RECIPES];
+
 // ── PR D orchestration (§6): passive-window overlay ────────────────────────
 // Marks ONLY the genuinely hands-off windows in the catalog — a real duration
 // plus a station you can walk away from — so a Prep Session can interleave
@@ -971,6 +982,30 @@ export const SHAPE_KITCHEN_RECIPES = [
 // the gate would contradict the recipe's own text and lock the cook out of work
 // the author scheduled inside the window. Intra-recipe overlap is PR E
 // structured-authoring territory. Guarded by tests/shape-kitchen-data.test.mjs.
+// ---------------------------------------------------------------------------
+// Attribution — the ONE place that decides how a recipe is credited.
+//
+// There are two honest ways to be credited and they are not interchangeable. An
+// authored recipe carries by + byRole and reads "from the kitchen of <person>".
+// A public-domain federal work (USDA MyPlate Kitchen, 17 USC § 105) has no
+// author at all; crediting it to a nutritionist would be a fabricated byline, so
+// it carries source + sourceUrl + license and is credited to the SOURCE.
+//
+// ⚠ Every surface must go through this. Before it existed, three render sites
+// called `.by.toUpperCase()` directly, which throws on a sourced recipe and took
+// the whole page down; a fourth interpolated `${r.byRole} · ${r.by}` and printed
+// "null · null". Returning null for an uncredited recipe is deliberate: the
+// caller renders NOTHING rather than inventing a name.
+export const bsRecipeAttribution = (r) => {
+  if (!r || typeof r !== 'object') return null;
+  const nonEmpty = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const by = nonEmpty(r.by);
+  if (by) return { kind: 'authored', name: by, role: nonEmpty(r.byRole), url: null };
+  const source = nonEmpty(r.source);
+  if (source) return { kind: 'sourced', name: source, role: null, url: nonEmpty(r.sourceUrl) };
+  return null;
+};
+
 export const _KITCHEN_STEP_META = {
   "One-pan chicken and rice": { 4: { min: 18, passive: true, station: "stove" } },
   "Sheet-pan salmon, sweet potato and broccoli": { 4: { min: 12, passive: true, station: "oven" } },
@@ -1012,17 +1047,20 @@ export const _RECIPE_NOT_GF = new Set([
   "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl",
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Crispy tofu grain bowl", "Overnight oats, three ways", "Harissa salmon with couscous", "Cottage cheese protein toast",
+  ...USDA_NOT_GF,
 ]);
 export const _RECIPE_HAS_DAIRY = new Set([
   "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
   "Grilled chicken Caesar, lightened", "Roasted veg and halloumi traybake", "Turkey meatballs in marinara",
   "Chicken pesto pasta", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Overnight oats, three ways", "Garlic shrimp and courgette noodles", "Cottage cheese protein toast",
+  ...USDA_HAS_DAIRY,
 ]);
 export const _RECIPE_MED = new Set([
   "Sheet-pan salmon, sweet potato and broccoli", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
   "Tuna niçoise bowl", "Roasted veg and halloumi traybake",
   "Harissa salmon with couscous", "Lemon-herb chicken meal-prep box",
+  ...USDA_MED,
 ]);
 export function recipeNeeds(r) {
   const out = [];

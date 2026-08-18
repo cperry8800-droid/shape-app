@@ -28,9 +28,22 @@ test('catalog: expanded to the full 35 recipes', () => {
 
 test('catalog: every recipe has the required fields', () => {
   for (const r of SHAPE_KITCHEN_RECIPES) {
-    for (const f of ['title', 'by', 'byRole', 'diet', 'time', 'servings', 'kcal', 'macros', 'tags', 'hero', 'blurb', 'ingredients', 'steps', 'tip']) {
+    for (const f of ['title', 'diet', 'time', 'servings', 'kcal', 'macros', 'tags', 'hero', 'blurb', 'ingredients', 'steps', 'tip']) {
       assert.ok(r[f] != null && r[f] !== '', `${r.title || '?'} missing ${f}`);
     }
+    // ATTRIBUTION: every recipe must be credited, but there are two honest ways
+    // to be credited. An authored recipe carries by + byRole. A public-domain
+    // federal work (USDA MyPlate Kitchen, 17 USC § 105) has no author, so it
+    // carries source + sourceUrl + license instead. What is NOT allowed is
+    // neither -- an uncredited recipe, or a half-filled byline the card would
+    // render as "by null".
+    const authored = r.by != null && r.by !== '' && r.byRole != null && r.byRole !== '';
+    const sourced = ['source', 'sourceUrl', 'license'].every((f) => r[f] != null && r[f] !== '');
+    assert.ok(authored || sourced,
+      `${r.title}: credited as neither authored (by + byRole) nor sourced (source + sourceUrl + license)`);
+    // Exactly one of the two, so a recipe can never carry a byline AND a source
+    // and leave the card guessing which to print.
+    assert.ok(!(authored && sourced), `${r.title}: carries BOTH a byline and a source — which should the card credit?`);
     assert.ok(Number.isFinite(r.macros.p) && Number.isFinite(r.macros.c) && Number.isFinite(r.macros.f), `${r.title} macros`);
   }
 });
