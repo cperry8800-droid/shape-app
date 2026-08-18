@@ -243,7 +243,7 @@ const ingShortName = (name) => {
   return c.length ? c.slice(-BS_GIST_WORDS).join(' ') : '';
 };
 
-export const bsStepGist = (text, ingredients) => {
+export const bsStepGist = (text, ingredients, seconds) => {
   const t = str(text);
   if (!t) return '';
   const parts = t.split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
@@ -252,7 +252,17 @@ export const bsStepGist = (text, ingredients) => {
   // "Heat a dry skillet. Add the turkey...; let it sit undisturbed 2 minutes"
   // is timing the resting -- labelling it "skillet" points the cook at the
   // wrong action, which is worse than the bare duration it replaced.
-  const timed = parts.find((p) => GIST_DUR_RE.test(p)) || parts[0];
+  //
+  // ⚠ A step may state SEVERAL durations, and bsStepTimers then offers a button
+  // for each. Given that timer's own `seconds`, label it from the clause
+  // stating THAT duration -- otherwise every timer on the step shares one
+  // label and two of them read identically, which is the exact defect this
+  // label exists to fix. The clause is located with the canonical timer parser,
+  // never a second copy of the duration rules.
+  const own = Number.isFinite(seconds)
+    ? parts.find((p) => bsStepTimers(p).some((tm) => tm.seconds === seconds))
+    : null;
+  const timed = own || parts.find((p) => GIST_DUR_RE.test(p)) || parts[0];
   // 1. The ingredient that clause reaches for, in the recipe's own words.
   const named = bsStepIngredients(timed, ingredients);
   if (named.length) {
@@ -291,21 +301,24 @@ const BS_ING_GENERIC = new Set([
 ]);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// ⚠ Plural and singular are the SAME word when deciding whether a token is
-// unique in this recipe. Counted raw, "olives" and "olive oil" look like two
-// different words, so "olive" scores as unique, becomes a lone alias for the
-// OIL, and the plural-tolerant matcher below then hands a step that says
-// "olives" the bottle of olive oil. Only the trailing -s/-es the matcher
-// already tolerates is stripped; a word this mangles ("asparagus") mangles
-// CONSISTENTLY, so it still only ever collides with itself. Two genuinely
-// different words folding together can only WITHHOLD an alias, which is the
-// safe direction (the same refuse-when-ambiguous rule as everything here).
-const ingSingular = (w) => {
-  if (w.length > 4 && /(?:ch|sh|s|x|z|o)es$/.test(w)) return w.slice(0, -2);
-  if (w.length > 3 && /[^s]s$/.test(w)) return w.slice(0, -1);
-  return w;
+// Which ingredients a content word could be pointing at. The matcher below
+// tests /\b{tok}(?:e?s)?\b/, so a token ALSO fires on that word + s and + es —
+// which means uniqueness has to be decided by the matcher's OWN rule. Counted
+// raw, "olives" and "olive oil" look like two different words, so "olive"
+// scores unique, becomes a lone alias for the OIL, and a step saying "olives"
+// gets handed the bottle.
+//
+// ⚠ Do NOT swap this for a singularizer. Guessing English morphology is what
+// fails: a stripper that correctly turns "glasses" into "glass" also turns
+// "roses" into "ros" while "rose" stays "rose", so that pair silently stops
+// folding and the false positive returns wearing a different word. Asking the
+// matcher which words IT would conflate has no such blind spot, because it is
+// the same rule the match runs on.
+const ingOwners = (word, byWord) => {
+  const out = new Set(byWord.get(word) || []);
+  for (const v of [word + 's', word + 'es']) for (const i of byWord.get(v) || []) out.add(i);
+  return out;
 };
-const BS_ING_GENERIC_SING = new Set([...BS_ING_GENERIC].map(ingSingular));
 
 const ingBase = (name) => String(name)
   .toLowerCase()
@@ -331,7 +344,7 @@ const ingMatchTokens = (name, distinctive) => {
   // ⚠ Steps abbreviate: "Sear the chicken" never repeats "chicken thigh,
   // skin-on". Any content word the recipe uses in exactly ONE ingredient may
   // stand for it — head noun ("lettuce") or modifier ("chicken", "sesame").
-  else for (const w of content) if (distinctive.has(ingSingular(w))) out.add(w);
+  else for (const w of content) if (distinctive.has(w)) out.add(w);
   return [...out].filter((tok) => tok.length >= BS_ING_MIN_TOKEN);
 };
 
@@ -357,13 +370,16 @@ export const bsStepIngredients = (step, ingredients) => {
   // even when unique, because a step's "olive oil" is not the "sesame oil" on
   // the list. Ambiguity is resolved by refusing, not by guessing — the same
   // rule the timer parser applies to decimals.
-  const freq = new Map();
-  for (const n of names) {
-    if (!n) continue;
-    for (const w of new Set(ingContent(ingBase(n)).map(ingSingular))) freq.set(w, (freq.get(w) || 0) + 1);
-  }
-  const distinctive = new Set([...freq.keys()].filter(
-    (w) => freq.get(w) === 1 && !BS_ING_GENERIC_SING.has(w),
+  const byWord = new Map();
+  names.forEach((n, i) => {
+    if (!n) return;
+    for (const w of new Set(ingContent(ingBase(n)))) {
+      if (!byWord.has(w)) byWord.set(w, new Set());
+      byWord.get(w).add(i);
+    }
+  });
+  const distinctive = new Set([...byWord.keys()].filter(
+    (w) => !BS_ING_GENERIC.has(w) && ingOwners(w, byWord).size === 1,
   ));
   return list.filter((ing, i) => {
     const name = names[i];

@@ -6488,14 +6488,21 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // here — advancing the method must never relabel a countdown already running.
   // Without this the band showed only the duration, and two 2-minute steps
   // produced two identical "2 MIN" rows with no way to tell them apart.
-  const startTimer = (tm) => {
+  // `count` = how many timers THIS step offers. Passed in from the call site
+  // (where the parsed list is already in scope) rather than read from a const
+  // declared further down the component — a dep on a later binding is how the
+  // TDZ crash class gets in, and it renders clean right up until it doesn't.
+  const startTimer = (tm, count = 1) => {
     timerIdRef.current += 1;
     const fromStep = (hasMethod && phase === 'method' && steps[stepIdx]) ? stepIdx : null;
     setTimers((arr) => [...arr, {
       id: timerIdRef.current,
       label: tm.label,
       stepIdx: fromStep,
-      gist: fromStep != null ? bsStepGist(steps[fromStep], cookable.ingredients) : '',
+      // The timer's OWN seconds, so a step stating several durations labels
+      // each countdown from the clause that states that one.
+      gist: fromStep != null ? bsStepGist(steps[fromStep], cookable.ingredients, tm.seconds) : '',
+      multi: count > 1,
       endsAt: Date.now() + tm.seconds * 1000,
       total: tm.seconds,
     }]);
@@ -6603,7 +6610,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     if (cmd === 'repeat') { if (hasMethod) speak(steps[stepIdx]); return true; }
     if (cmd === 'timer') {
       const tms = hasMethod && !bsFractionalDuration(steps[stepIdx]) ? bsStepTimers(steps[stepIdx]) : [];
-      if (tms[0]) startTimer(tms[0]);
+      if (tms[0]) startTimer(tms[0], tms.length);
       else setMicNote({ who: 'nora', text: tr('cook:voice.noTimer', { defaultValue: 'No timer on this step.' }) });
       return true;
     }
@@ -6800,9 +6807,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // (a step with no usable text), so a row is never left unlabelled.
   const timerName = (x) => {
     const gist = x.gist || x.label;
-    return x.stepIdx != null
+    const base = x.stepIdx != null
       ? `${tr('cook:timer.step', { defaultValue: 'Step {n}', n: x.stepIdx + 1 })} · ${gist}`
       : gist;
+    // Several timers off ONE step already get their own clause's gist, but two
+    // clauses can reach for the same ingredient ("simmer the sauce 10 min …
+    // reduce the sauce 4 min"). Keeping each duration guarantees the rows stay
+    // distinguishable, and is the one place the label would otherwise drop it.
+    return x.multi && x.gist ? `${base} · ${x.label}` : base;
   };
   // No parser-derived chips on a decimal step — the integer parser mis-reads
   // them ("1.5 minutes" → a 5-min chip); the cook reads the time from the text.
@@ -7012,7 +7024,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {stepTimers.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stepTimers.map((tm, i) => (
-                  <button key={i} onClick={() => startTimer(tm)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
+                  <button key={i} onClick={() => startTimer(tm, stepTimers.length)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
                     ▸ {tr('cook:timer.start', { defaultValue: 'Timer' })} · {tm.label}
                   </button>
                 ))}

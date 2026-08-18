@@ -148,11 +148,35 @@ test('NO FALSE POSITIVE: "the tomatoes" does not pull in the tomato paste', () =
   assert.deepEqual(names(bsStepIngredients('Stir in the tomato paste and cook 1 minute.', rag)), ['tomato paste']);
 });
 
-test('a name the singularizer mangles still matches itself', () => {
-  // "asparagus" folds to "asparagu" for the uniqueness COUNT only — the emitted
-  // alias is still the recipe's own word, so the match is unaffected.
+test('NO FALSE POSITIVE: an -se plural folds too ("roses" vs "rose water")', () => {
+  // The blind spot in a hand-rolled singularizer: a stripper that correctly
+  // turns "glasses" into "glass" turns "roses" into "ros" while "rose" stays
+  // "rose", so THAT pair stops folding and the false positive returns wearing a
+  // different word. Folding by the matcher's own rule has no such gap.
+  const rose = [{ n: '2 tbsp', m: 'edible roses' }, { n: '1 tsp', m: 'rose water' }];
+  assert.deepEqual(names(bsStepIngredients('Scatter the roses over the top.', rose)), ['edible roses']);
+  // …and the water still resolves from its own full phrase.
+  assert.deepEqual(names(bsStepIngredients('Stir in the rose water.', rose)), ['rose water']);
+});
+
+test('a name no plural rule fits still matches itself', () => {
+  // "asparagus" ends in -s but is not a plural; it must keep its own alias.
   const veg = [{ n: '1 bunch', m: 'asparagus' }, { n: '1 tbsp', m: 'olive oil' }];
   assert.deepEqual(names(bsStepIngredients('Roast the asparagus 12 minutes.', veg)), ['asparagus']);
+});
+
+test('THE BUG: two timers on ONE step get DIFFERENT labels', () => {
+  // bsStepTimers offers a button per stated duration. Labelling every one of
+  // them from the step's FIRST timed clause makes two rows read identically —
+  // the exact defect the step label exists to fix, one level down.
+  const pan = [{ n: '1 cup', m: 'jasmine rice' }, { n: '1 tsp', m: 'sesame oil' }];
+  const step = 'Boil the rice 10 minutes, then toast the sesame oil for 2 minutes.';
+  assert.equal(bsStepGist(step, pan, 600), 'jasmine rice');
+  assert.equal(bsStepGist(step, pan, 120), 'sesame oil');
+  // With no duration given it still falls back to the first timed clause.
+  assert.equal(bsStepGist(step, pan), 'jasmine rice');
+  // A duration that matches no clause falls back rather than returning nothing.
+  assert.equal(bsStepGist(step, pan, 999), 'jasmine rice');
 });
 
 test('a single-content-word name still matches on its head noun', () => {
