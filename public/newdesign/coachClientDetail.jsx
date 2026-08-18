@@ -688,7 +688,21 @@ function CoachClientDetailPage() {
             // otherwise fixing that claim would delete a hand-logging member's
             // real sleep, which is worse than the mislabel.
             const hasHours = !!(s && (s.latest != null || s.avg7 != null));
-            if (!hasDevice && !hasHours && !(s && s.rested != null) && !hasVitals) return null;
+            const hasRested = !!(s && s.rested != null);
+            // ENTERED data is the only thing that may name this card a
+            // check-in. Hours are excluded for exactly the reason they cannot
+            // prove a device (see `hasHours` above): their source is unknowable
+            // here, so they may gate NEITHER claim. An hours-only card heads
+            // SLEEP · RECOVERY, which names the subject without claiming a
+            // source.
+            // ⚠ Derived HERE, beside the other flags, so every consumer reads a
+            // pre-derived value and none recombines the booleans into a fresh
+            // claim. Recombining at the render site is what made this heading
+            // disagree with the mobile Case File about the same client — the
+            // second time the two twins drifted on this one card.
+            const hasEntered = hasRested || hasVitals;
+            const checkinHeading = !hasDevice && hasEntered;
+            if (!hasDevice && !hasHours && !hasRested && !hasVitals) return null;
             const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
             const rc = !s || s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
             // Measured cells render only when a device actually reported. For a
@@ -711,7 +725,7 @@ function CoachClientDetailPage() {
             // vitals cells below use: present only when real, never a dash. A
             // dash on a gauge the member fills in reads as "logged nothing",
             // which is a different claim from "did not log".
-            if (s && s.rested != null) cells.push(["RESTED", `${s.rested}/10`]);
+            if (hasRested) cells.push(["RESTED", `${s.rested}/10`]);
             // Present legs only — an absent metric adds NO cell (never a "—",
             // which on a member-entered gauge would read as a logged nothing).
             if (vEnergy != null) cells.push(["DAILY ENERGY · 7D", `${vEnergy.avg}/10${days(vEnergy.n)}`]);
@@ -721,9 +735,12 @@ function CoachClientDetailPage() {
             return (
               <Card style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                  {/* Vitals-only card retitles: "Objective · device-synced" must
-                      never sit over member-entered gauges alone. */}
-                  <CKSecHead>{hasDevice ? "SLEEP · RECOVERY" : "DAILY CHECK-IN"}</CKSecHead>
+                  {/* The heading names the card's SUBJECT, and only ENTERED
+                      data may name it a check-in: "Objective · device-synced"
+                      must never sit over member-entered gauges alone, and
+                      "DAILY CHECK-IN" must never sit over hours whose source
+                      is unknowable. Reads the pre-derived flag. */}
+                  <CKSecHead>{checkinHeading ? "DAILY CHECK-IN" : "SLEEP · RECOVERY"}</CKSecHead>
                   {hasDevice && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>}
                 </div>
                 {s && s.readiness != null && (
