@@ -355,10 +355,22 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
     // across the join -- "...until tender while rest 5 minutes" labelled the
     // REST timer "tender".
     const cut = /\s+(?:then|while|before|after|once|meanwhile|as)\s+/i;
+    // A bare "and" is the hard one: it is action-level in "simmer the sauce 10
+    // minutes ... and toast the rice 2 minutes", and INSIDE one action in "add
+    // the garlic and cook 5 minutes". Cutting it everywhere changes 41 of 96
+    // catalogue labels and nearly all get worse (shrimp->cook, bok choy->steam).
+    //
+    // Position tells them apart. This lead region only reaches back past an
+    // EARLIER stated duration when one exists, and text sitting BETWEEN two
+    // durations has already had its own action timed -- so an "and" there
+    // separates two timed actions. Before the step's first duration it does not.
+    // Measured: 0 further catalogue labels move, because no shipped recipe times
+    // two actions in one step.
+    const leadCut = from > 0 ? /\s+(?:then|while|before|after|once|meanwhile|as|and)\s+/i : cut;
     // LEAD: the clause nearest the number, so "Heat a dry skillet. ... let it
     // sit undisturbed 2 minutes" labels "sit" and not "heat".
     const leads = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
-    const lead = leads.length ? leads[leads.length - 1].split(cut).pop() : '';
+    const lead = leads.length ? leads[leads.length - 1].split(leadCut).pop() : '';
     // TAIL: the food is often named AFTER the number.
     const tail = (t.slice(mine.end, upto).split(GIST_SPLIT_RE)[0] || '').split(cut)[0];
     own = [lead.trim(), tail.trim()].filter(Boolean).join(' ') || null;

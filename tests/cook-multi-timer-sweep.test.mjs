@@ -152,3 +152,61 @@ test('the honest floor: a step that repeats ITSELF has nothing to tell apart', (
   assert.equal(rows[0], 'rest');
   assert.ok(new Set(rows).size < rows.length, 'expected the known collision');
 });
+
+// ── The gap that let a wrong label through a PASSING property test ──────────
+//
+// Every ACTION above names exactly one ingredient, so "wrong food" and "food
+// from the other action" were the same assertion. Codex found the case that
+// splits them: when the FIRST action's trailing context names a SECOND
+// ingredient, the next timer's lead region can reach back and take it.
+//
+//   "Simmer the tomato sauce 10 minutes until the carrots soften
+//    and toast the rice 2 minutes"   ->  ['tomato sauce', 'carrots']
+//
+// ⚠ The reorder-invariance property PASSED on that input -- both orderings
+// returned "carrots". Invariance proves the label is not decided by the
+// ingredient list; it does NOT prove the label is right. A property test can be
+// green on a wrong answer that is merely consistent, and this one was.
+const PAIRS = [
+  { lead: 'Simmer the tomato sauce', dur: '10 minutes', tail: 'until the carrots soften',  want: 'tomato sauce' },
+  { lead: 'Boil the rice',           dur: '8 minutes',  tail: 'until the peas are bright', want: 'jasmine rice' },
+  { lead: 'Sear the chicken',        dur: '3 minutes',  tail: 'until the onions colour',   want: 'chicken thigh' },
+  { lead: 'Toast the sesame oil',    dur: '2 minutes',  tail: 'until fragrant',            want: 'sesame oil' },
+  { lead: 'Rest',                    dur: '5 minutes',  tail: 'before slicing',            want: 'rest' },
+];
+const PAIR_INGS = ['tomato sauce', 'carrots', 'jasmine rice', 'peas', 'chicken thigh', 'onions', 'sesame oil'];
+
+test('a first action naming TWO foods cannot lend one to the next timer', () => {
+  const reversed = [...PAIR_INGS].reverse();
+  let checked = 0;
+  for (const a of PAIRS) {
+    for (const b of PAIRS) {
+      if (a === b) continue;
+      // Bare " and " included: it is action-level HERE (between two stated
+      // durations) even though it stays intra-action before the first one.
+      for (const join of [...JOINS, ' and ', ' and then ']) {
+        const step = `${a.lead} ${a.dur} ${a.tail}${join}${b.lead.charAt(0).toLowerCase()}${b.lead.slice(1)} ${b.dur} ${b.tail}.`;
+        const tms = bsStepTimers(step);
+        if (tms.length < 2) continue;
+        const got = bsStepGists(step, PAIR_INGS);
+        assert.deepEqual(got, bsStepGists(step, reversed), `list order moved a label: ${step}`);
+        assert.deepEqual(got, [a.want, b.want], `[${join.trim() || 'space'}] ${step}`);
+        const rows = got.map((g, i) => g || tms[i].label);
+        assert.equal(new Set(rows).size, rows.length, `${step} -> ${JSON.stringify(rows)}`);
+        checked += 2;
+      }
+    }
+  }
+  assert.ok(checked >= 400, `expected a broad sweep, only checked ${checked}`);
+});
+
+test('a bare "and" BEFORE the first duration stays inside one action', () => {
+  // The other half of the same rule, and the reason it keys on position rather
+  // than cutting everywhere: recipe prose overwhelmingly writes "add X and cook
+  // 5 minutes" as ONE action. Cutting a bare "and" globally moved 41 of 96
+  // catalogue labels and nearly all got worse.
+  const ings = ['chickpeas, drained', 'coconut milk'];
+  const step = 'Add the chickpeas and coconut milk, bring to a simmer, and cook 15 minutes uncovered until the sauce coats a spoon and the chickpeas have softened.';
+  assert.deepEqual(bsStepGists(step, ings), ['chickpeas']);
+  assert.equal(bsStepGist('Soften the diced onion and garlic in olive oil over medium heat for 5 minutes.', ['yellow onion', 'garlic'], 300, 0), 'yellow onion');
+});
