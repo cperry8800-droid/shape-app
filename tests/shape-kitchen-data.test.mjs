@@ -10,6 +10,7 @@ import {
   recipeNeeds, recipeMatchesDiet,
   _RECIPE_NOT_GF, _RECIPE_HAS_DAIRY, _RECIPE_MED,
   _KITCHEN_STEP_META,
+  _RECIPE_ALLERGEN_NOTES, bsAllergenNoteText,
 } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { bsStepTimers, BS_STATIONS } from '../mobile-app/src/services/cookable.mjs';
 
@@ -100,6 +101,62 @@ test('catalog: diet-classification allowlists reference only real recipe titles'
 test('catalog: passive-window overlay keys reference only real recipe titles', () => {
   const titles = new Set(SHAPE_KITCHEN_RECIPES.map((r) => r.title));
   for (const t of Object.keys(_KITCHEN_STEP_META)) assert.ok(titles.has(t), `overlay references a title not in the catalog: "${t}"`);
+});
+
+// ── Allergen claim notes ───────────────────────────────────────────────────
+// The attach loop in shapeKitchenData.js fails SILENTLY on a title typo (`if (r)`),
+// exactly like the overlay above, so the typo needs its own guard: a note that
+// attaches to nothing is a note nobody ever reads, on a recipe still making the claim.
+test('catalog: every allergen-note title references a real recipe', () => {
+  const titles = new Set(SHAPE_KITCHEN_RECIPES.map((r) => r.title));
+  for (const [t] of _RECIPE_ALLERGEN_NOTES) {
+    assert.ok(titles.has(t), `allergen note references a title not in the catalog: "${t}"`);
+  }
+});
+
+test('catalog: every note in the table actually landed on its recipe', () => {
+  // Counts the ATTACHED notes rather than trusting the loop — the assertion above
+  // proves the titles resolve, this one proves the attachment ran.
+  const attached = SHAPE_KITCHEN_RECIPES.reduce((n, r) => n + (r.allergenNotes ? r.allergenNotes.length : 0), 0);
+  assert.equal(attached, _RECIPE_ALLERGEN_NOTES.length,
+    'attached note count does not match the table — a title resolved but the note did not attach');
+});
+
+test('catalog: allergen notes are well-formed (allergen, non-empty certification, structured brands)', () => {
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    for (const n of r.allergenNotes || []) {
+      assert.ok(['gluten', 'dairy'].includes(n.allergen), `${r.title}: unknown allergen "${n.allergen}"`);
+      assert.equal(typeof n.certification, 'string');
+      assert.ok(n.certification.trim().length > 20, `${r.title}: certification text is not a real sentence`);
+      // The certification must not END the sentence itself — the composer adds the
+      // terminator, so a trailing period here would produce ".." or ". — e.g.".
+      assert.ok(!/[.]$/.test(n.certification.trim()), `${r.title}: certification must not carry its own full stop`);
+      assert.ok(Array.isArray(n.brands), `${r.title}: brands must be an array (empty is valid)`);
+      for (const b of n.brands) {
+        assert.ok(Array.isArray(b) && b.length === 2, `${r.title}: a brand must be [name, region]`);
+        assert.equal(typeof b[0], 'string');
+        assert.equal(typeof b[1], 'string');
+        assert.ok(b[0].trim() && b[1].trim(), `${r.title}: brand name and region must both be real`);
+      }
+    }
+  }
+});
+
+test('bsAllergenNoteText: certification LEADS, brands are appended only when present', () => {
+  const cert = 'Look for a certified gluten-free label';
+  assert.equal(bsAllergenNoteText({ certification: cert, brands: [] }), `${cert}.`);
+  assert.equal(bsAllergenNoteText({ certification: cert }), `${cert}.`);
+  assert.equal(
+    bsAllergenNoteText({ certification: cert, brands: [['Acme GF', 'US'], ['Beta GF', 'UK']] }),
+    `${cert} — e.g. Acme GF (US), Beta GF (UK).`);
+  // Emptying the brand list for a market must lose the examples and NOTHING else —
+  // the safety-bearing half is the certification sentence.
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    for (const n of r.allergenNotes || []) {
+      assert.ok(bsAllergenNoteText({ ...n, brands: [] }).startsWith(n.certification),
+        `${r.title}: certification does not lead the composed note`);
+    }
+  }
 });
 
 test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min stated in the step)', () => {

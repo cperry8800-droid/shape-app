@@ -1035,6 +1035,85 @@ for (const r of SHAPE_KITCHEN_RECIPES) {
   if (m) r.stepMeta = r.steps.map((_, i) => m[i] || null);
 }
 
+// Certification-first wording. ⚠ The certification sentence is the safety-bearing
+// half — brands are illustrative only. Brand lists are deliberately EMPTY where a
+// specific certified product could not be confirmed; an empty list degrades to the
+// certification sentence alone, which is always correct.
+const GF_OATS = "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label";
+const GF_OAT_BRANDS = [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]];
+const GF_SOY = "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari";
+const GF_SOY_BRANDS = [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]];
+// ⚠ OWNER: no brand named. Certified gluten-free stock varies by market and the
+// safe form is the LABEL, not a brand. Fill per market if you want examples.
+const GF_BROTH = "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free";
+const GF_BROTH_BRANDS = [];
+// ⚠ OWNER RULING (2026-08-18): margarine is NOT dairy by default — it is
+// vegetable-oil based. The remedy is to specify a dairy-free variety, never to hide
+// the recipe. No brand named for the same reason as broth.
+const DF_MARGARINE = "Margarine is usually dairy-free, but some brands carry milk solids or whey. Check the label says dairy-free";
+const DF_MARGARINE_BRANDS = [];
+
+// ── Allergen claim notes ───────────────────────────────────────────────────
+// A recipe keeps its "free from" claim over an AMBIGUOUS ingredient — one whose
+// certified/labelled form is genuinely free of the allergen — and carries a note
+// telling the cook which form to buy. That is the owner's ruling: a claim is kept
+// by SPECIFYING the ingredient, never by hiding the recipe from the filter.
+//
+// ⚠ This is load-bearing, not decoration. `recipeNeeds` treats a title's ABSENCE
+// from _RECIPE_NOT_GF / _RECIPE_HAS_DAIRY as a POSITIVE claim, so a recipe that
+// buys oats and is absent from the set is actively telling a coeliac member it is
+// safe. The note is the only thing standing between that claim and a false one,
+// which is why tests/recipe-allergen-consistency.test.mjs FAILS CLOSED on a claim
+// over an ambiguous ingredient that carries no note.
+//
+// ⚠ NOT `note` and NOT `tip` — both are taken. `note` is the website's blurb
+// (parity-checked, rendered as the detail pull quote) and `tip` renders behind a
+// BYLINE, which would put a brand recommendation in a named nutritionist's or the
+// USDA's mouth.
+//
+// Shape: [title, allergen, certification, brands?] — brands are structured
+// [[name, region], ...] so a market build can drop or replace them without
+// touching the certification sentence, which always leads.
+export const _RECIPE_ALLERGEN_NOTES = [
+  // ── gluten · oats ────────────────────────────────────────────────────────
+  // Oats are inherently gluten-free; standard milling shares a line with wheat.
+  ["Overnight oats, three ways", "gluten", GF_OATS, GF_OAT_BRANDS],
+  ["Date and almond energy bites", "gluten", GF_OATS, GF_OAT_BRANDS],
+  ["Blueberry baked oats in ramekins", "gluten", GF_OATS, GF_OAT_BRANDS],
+  ["Maple banana oatmeal with walnuts", "gluten", GF_OATS, GF_OAT_BRANDS],
+  // ── gluten · soy sauce ───────────────────────────────────────────────────
+  ["Tempo turkey lettuce cups", "gluten", GF_SOY, GF_SOY_BRANDS],
+  ["Tofu and edamame poke bowl", "gluten", GF_SOY, GF_SOY_BRANDS],
+  ["Asparagus and mandarin chicken rice bowl", "gluten", GF_SOY, GF_SOY_BRANDS],
+  ["Sizzling chicken and broccoli over brown rice", "gluten", GF_SOY, GF_SOY_BRANDS],
+  // ── gluten · broth, stock, bouillon ──────────────────────────────────────
+  // These five were never classified — they have ALWAYS claimed gluten-free over
+  // a generic broth. The note is what makes that claim honest; no set changes.
+  ["One-pan chicken and rice", "gluten", GF_BROTH, GF_BROTH_BRANDS],
+  ["Red lentil and spinach dahl", "gluten", GF_BROTH, GF_BROTH_BRANDS],
+  ["Turkey chili verde", "gluten", GF_BROTH, GF_BROTH_BRANDS],
+  ["Slow-simmered beef pot roast", "gluten", GF_BROTH, GF_BROTH_BRANDS],
+  ["Black skillet beef with kale and red potatoes", "gluten", GF_BROTH, GF_BROTH_BRANDS],
+  // ── dairy · margarine ────────────────────────────────────────────────────
+  ["Herbed baked salmon with lemon", "dairy", DF_MARGARINE, DF_MARGARINE_BRANDS],
+];
+
+// Attach at module load, exactly like the passive-window overlay above. A title
+// typo fails SILENTLY here (`if (r)`), so it gets the same dedicated guard: a
+// title-existence test, plus the allergen gate's dead-note check.
+for (const [title, allergen, certification, brands] of _RECIPE_ALLERGEN_NOTES) {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === title);
+  if (r) (r.allergenNotes || (r.allergenNotes = [])).push({ allergen, certification, brands: brands || [] });
+}
+
+// One composer, both surfaces. The certification sentence ALWAYS leads; brands are
+// appended only from the structured list and only when it is non-empty, so a market
+// that empties the list loses the examples and keeps the guidance.
+export const bsAllergenNoteText = ({ certification, brands }) =>
+  certification + (brands && brands.length
+    ? ` — e.g. ${brands.map(([n, region]) => `${n} (${region})`).join(", ")}.`
+    : ".");
+
 // Dietary-needs axis (multi-match) layered on top of the single `diet`. Keep in
 // sync with public/newdesign/recipes.jsx.
 export const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Mediterranean"];
