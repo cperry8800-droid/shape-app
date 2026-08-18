@@ -279,24 +279,35 @@ export const bsStepGist = (text, ingredients, seconds, nth) => {
   // `nth` = how many earlier timers share this duration, so equal durations
   // still take their own span.
   //
-  // ⚠ Only when a step states SEVERAL durations. With ONE timer there is no
-  // ownership question, and the richest context is the whole clause AROUND the
-  // number, because the food is often named AFTER it ("roast 16-18 minutes
-  // until the chicken hits 165F"). Cutting every step at its duration cost two
-  // real labels -- "chicken breast" became "roast", "chickpeas" became "cook".
+  // The action is anchored by the parser on BOTH sides -- it runs from the
+  // PREVIOUS stated duration to the NEXT one -- and the food may be named on
+  // either side of the number, so both are kept:
+  //   "Roast |10 minutes| until the chicken browns, then simmer the rice"
+  //    lead ^^^^^         ^^^^^^^^^^^^^^^^^^^^^^^^ tail
+  // ⚠ Anchoring only the LEAD throws away the half that usually carries the
+  // food ("roast 16-18 minutes until the chicken hits 165F" -> "roast"), and
+  // running the tail to the next duration drags in the NEXT action's food.
+  // Both were shipped and both were wrong; the tail therefore stops at the
+  // first action boundary inside the anchored region.
   const spans = Number.isFinite(seconds) ? timerSpans(t) : [];
-  const mine = spans.length > 1
-    ? spans.filter((s) => s.seconds === seconds)[Number.isFinite(nth) ? nth : 0]
-    : null;
+  const mine = spans.filter((s) => s.seconds === seconds)[Number.isFinite(nth) ? nth : 0];
   let own = null;
   if (mine) {
     let from = 0;
-    for (const s of spans) if (s.end <= mine.at) from = Math.max(from, s.end);
-    // Punctuation still refines WITHIN that span: the clause nearest the
-    // duration is the action being timed, so "Heat a dry skillet. ... let it
+    let upto = t.length;
+    for (const s of spans) {
+      if (s.end <= mine.at) from = Math.max(from, s.end);
+      if (s.at >= mine.end) upto = Math.min(upto, s.at);
+    }
+    // LEAD: the clause nearest the number, so "Heat a dry skillet. ... let it
     // sit undisturbed 2 minutes" labels "sit" and not "heat".
-    const near = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
-    own = near.length ? near[near.length - 1] : null;
+    const lead = t.slice(from, mine.at).split(GIST_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+    // TAIL: punctuation ends the action, and so does a bare sequencing "then"
+    // (a coach can write two timed actions with no comma at all). Deliberately
+    // NOT a bare "and" -- "until the sauce coats a spoon and the chickpeas have
+    // softened" is ONE action, and cutting there loses the food it names.
+    const tail = (t.slice(mine.end, upto).split(GIST_SPLIT_RE)[0] || '').split(/\s+then\s+/i)[0];
+    own = [lead.length ? lead[lead.length - 1] : '', tail.trim()].filter(Boolean).join(' ') || null;
   }
   // No usable span (no duration given, or the step opens on one) falls back to
   // the first clause stating a duration -- never an empty label.

@@ -201,6 +201,25 @@ test('THE CORNER: timed actions joined by a bare "then", no punctuation', () => 
   assert.equal(bsStepGist(step, pan, 120, 1), 'chicken thigh');
 });
 
+test('THE CORNER: food named AFTER the number stays with its own timer', () => {
+  // The action is anchored by the parser on BOTH sides. Anchoring only the LEAD
+  // throws away the half that usually carries the food; running the tail to the
+  // next duration drags in the NEXT action's food. Both shipped, both wrong.
+  const ing = [{ n: '6 oz', m: 'chicken thigh' }, { n: '1 cup', m: 'jasmine rice' }];
+  const step = 'Roast 10 minutes until the chicken browns, then simmer the rice 5 minutes';
+  assert.equal(bsStepGist(step, ing, 600, 0), 'chicken thigh');
+  assert.equal(bsStepGist(step, ing, 300, 0), 'jasmine rice');
+});
+
+test('a bare "and" does NOT end an action, so its food is kept', () => {
+  // "until the sauce coats a spoon and the chickpeas have softened" is ONE
+  // action — cutting at "and" would lose the only food it names. Only
+  // punctuation and a sequencing "then" end it.
+  const ing = [{ n: '1 can', m: 'chickpeas, drained' }];
+  const step = 'Bring to a simmer and cook 15 minutes uncovered until the sauce coats a spoon and the chickpeas have softened.';
+  assert.equal(bsStepGist(step, ing, 900, 0), 'chickpeas');
+});
+
 test('a step that OPENS on its duration still labels, never blank', () => {
   // No text precedes the duration, so the span is empty and the generic pick
   // has to carry it.
