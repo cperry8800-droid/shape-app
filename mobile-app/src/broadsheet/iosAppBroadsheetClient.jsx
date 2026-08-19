@@ -8046,9 +8046,15 @@ function BSPrepSession({ program, onClose }) {
                   {[
                     { key: BS_COOK_CHOICE.SOONEST,
                       label: tr('cook:prep.soonest', { defaultValue: 'Get it all done soonest' }),
+                      // The superlative is DELETED rather than softened above the exhaustive
+                      // search bound. Seven dishes report 118 minutes here while an order
+                      // exists that serves at 113, so "as early as it can be" is a claim the
+                      // search cannot back; what is left is what the option still honestly is.
                       sub: serveSpread > 0
                         ? tr('cook:prep.soonestGap', { defaultValue: 'Within {n} min of each other', n: serveSpread })
-                        : tr('cook:prep.soonestSub', { defaultValue: 'Everything ready together, as early as it can be' }),
+                        : orchServe.exact === false
+                          ? tr('cook:prep.soonestSubSearched', { defaultValue: 'Everything ready together' })
+                          : tr('cook:prep.soonestSub', { defaultValue: 'Everything ready together, as early as it can be' }),
                       mins: spanOf(orchServe), on: true },
                     { key: BS_COOK_CHOICE.SERVE,
                       label: tr('cook:prep.serveMode', { defaultValue: 'Serve mode' }),
@@ -8122,6 +8128,16 @@ function BSPrepSession({ program, onClose }) {
                     ) : (
                       <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>
                         {tr('cook:prep.startAt', { defaultValue: 'You start cooking at {t}', t: clockOf(firstAt(orch)) })}
+                        {/* The caveat has to render where the cook ACTS on the time - here,
+                            at the start time they will set an alarm by - and not in a note
+                            further up the sheet. A dish whose long steps carry no authored
+                            duration is scheduled at the assumed hands-on minutes, so this
+                            start time can be optimistic by more than an hour. */}
+                        {orchServe.estimated ? (
+                          <div style={{ marginTop: 3 }}>
+                            {tr('cook:prep.startAtEstimated', { defaultValue: 'Some steps are not timed by the recipe, so give yourself extra' })}
+                          </div>
+                        ) : null}
                       </div>
                     )}
                   </div>

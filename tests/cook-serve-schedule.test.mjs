@@ -661,3 +661,77 @@ test('prep session: finishing a dish hands its unfinished holds to the session',
   assert.ok(handed[0].endsAt > Date.now() + 25 * 60000,
     `the carried hold ends at ${handed[0].endsAt}, which is not ~30 minutes out`);
 });
+
+
+// ---------------------------------------------------------------------------------------
+// HOW LONG A STEP TAKES IS NOT WHETHER THE COOK MAY LEAVE DURING IT. The engine conflated
+// them in its two timeline builders, so a step could carry an authored duration, have SERVE
+// placement believe it, and have the plan those builders produced ignore it.
+// ---------------------------------------------------------------------------------------
+
+const spanOf = (tl) => (tl.length ? Math.max(...tl.map((e) => e.at + (e.min || BS_ORCH.activeStepMin))) : 0);
+
+test('a step can take an hour without ever being a window the cook may walk away from', () => {
+  // The layered gratin's shape, reduced to a fixture: a final step that bakes for an hour and
+  // then tells the cook to rest and slice. It can NEVER be a window - it hides an instruction
+  // behind its own timer - and it still takes seventy minutes of the evening.
+  const bake = {
+    key: 'bake', title: 'Long bake',
+    steps: ['Layer the potatoes and sauce in the dish.', 'Bake 1 hour, until bronzed; rest 10 minutes before serving.'],
+    stepMeta: [null, { min: 70, passive: false, station: 'oven' }],
+  };
+  const quick = { key: 'quick', title: 'Quick bowl', steps: ['Chop.', 'Toss.', 'Plate.'], stepMeta: [null, null, null] };
+
+  const seq = bsOrchestrate([bake, quick], { mode: BS_COOK_MODE.SEQUENCE });
+  assert.ok(spanOf(seq.timeline) >= 70 + BS_ORCH.activeStepMin,
+    `one-at-a-time spans ${spanOf(seq.timeline)} minutes; the bake alone is 70 of them`);
+
+  const auto = bsOrchestrate([bake, quick], {});
+  assert.ok(spanOf(auto.timeline) >= 70,
+    `the interleaved clock spans ${spanOf(auto.timeline)} minutes and skipped a 70-minute step`);
+
+  // ...and it is emphatically NOT a window. No `passive` flag, so nothing may be scheduled
+  // inside it - the owner constraint against fabricated parallelism is untouched by this.
+  assert.equal(auto.canInterleave, false,
+    'a duration alone must never make a step host a detour');
+  assert.equal(bsOrchestrate([bake, quick], { mode: BS_COOK_MODE.SERVE }).canInterleave, false,
+    'serve mode agrees: duration is not permission to leave');
+});
+
+test('serve mode: the sheet is told when "soonest" is the best of a sample, not a proof', () => {
+  const mk = (n) => ({
+    key: 'd' + n, title: 'Dish ' + n,
+    steps: ['Prep it.', 'Leave it be.'],
+    stepMeta: [null, { min: 10, passive: true, station: 'off' }],
+  });
+  const six = Array.from({ length: 6 }, (_, i) => mk(i));
+  assert.equal(BS_ORCH.orderSearchMax, 6, 'the published bound must be the one the search uses');
+  assert.equal(bsOrchestrate(six, { mode: BS_COOK_MODE.SERVE }).exact, true,
+    'six dishes are searched exhaustively, so the figure IS the earliest');
+  assert.equal(bsOrchestrate([...six, mk(6)], { mode: BS_COOK_MODE.SERVE }).exact, false,
+    'seven dishes are searched by rotation only - seven catalog dishes report 118 where an '
+    + 'order exists that serves at 113, so the sheet must not call it the earliest');
+});
+
+test('serve mode: a plan resting on untimed long steps says so, and authoring the time silences it', () => {
+  const untimed = {
+    key: 'u', title: 'Untimed bake',
+    steps: ['Assemble the dish.', 'Bake 1 hour until the top is bronzed.'],
+    stepMeta: [null, null],
+  };
+  const short = { key: 's', title: 'Chop and toss', steps: ['Chop the herbs.', 'Toss for 2 minutes.'], stepMeta: [null, null] };
+
+  assert.equal(bsOrchestrate([untimed, short], { mode: BS_COOK_MODE.SERVE }).estimated, true,
+    'an hour of un-authored bake is exactly the assumption the cook needs warning about');
+  assert.equal(bsOrchestrate([short, { ...short, key: 's2' }], { mode: BS_COOK_MODE.SERVE }).estimated, false,
+    'the flag must have a quiet arm, or the caveat is wallpaper - it fired on 97.5% of catalog '
+    + 'pairs before the threshold, and a caveat that always shows teaches cooks to read past it');
+
+  // The point of the flag: it marks MISSING DATA, so supplying the data clears it. Same steps,
+  // same prose, one authored duration - and the sheet stops hedging.
+  const authored = { ...untimed, stepMeta: [null, { min: 60, passive: false, station: 'oven' }] };
+  assert.equal(bsOrchestrate([authored, short], { mode: BS_COOK_MODE.SERVE }).estimated, false,
+    'authoring the duration must silence the caveat, or it is measuring the wrong thing');
+  assert.ok(bsOrchestrate([authored, short], { mode: BS_COOK_MODE.SERVE }).earliestServe >= 60,
+    'and the authored hour must still be scheduled');
+});

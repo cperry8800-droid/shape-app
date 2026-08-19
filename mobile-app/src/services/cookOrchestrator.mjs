@@ -16,6 +16,9 @@
 // so timelines are pinnable in tests.
 
 // The cook's answer to "together or one at a time?", asked before a session starts.
+// The ONLY import here, and only ever to detect uncertainty - never to compute a duration.
+import { bsStepTimers } from './cookable.mjs';
+
 export const BS_COOK_MODE = {
   AUTO: 'auto',          // historical behaviour: interleave when the data allows
   TOGETHER: 'together',  // weave to save total time (dishes finish when they finish)
@@ -41,6 +44,10 @@ export const BS_SERVE_ISSUE = {
 export const BS_ORCH = {
   activeStepMin: 3, // assumed hands-on minutes per active step (the injected clock)
   minPassive: 4,    // a passive step must be at least this long to host a detour
+  // Above this many dishes the placement-order search stops being exhaustive. Published
+  // because a caller that prints the serve time needs to know whether it is a PROOF of the
+  // earliest or the best of a sample - see `exact` on the SERVE result.
+  orderSearchMax: 6,
 };
 
 const STATIONS_EXCLUSIVE = ['oven', 'stove', 'board']; // 'off' (rest/chill) ties up nothing
@@ -93,6 +100,47 @@ const posInt = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) && 
 const realMin = (m) => (m && typeof m.min === 'number' && Number.isFinite(m.min) && m.min > 0 ? m.min : null);
 
 // A step is an interleave-hosting WINDOW only with all three authored signals.
+// How long a step OCCUPIES THE CLOCK - deliberately a different question from `isWindow`,
+// which asks whether the cook may LEAVE during it. The two were conflated, and only in the
+// timelines: `durationOf` already honoured an authored `min` on any step, while both timeline
+// builders advanced by the assumed hands-on minutes unless the step was also flagged passive.
+// So a duration could be authored, believed by SERVE placement, and ignored by the plan it
+// produced.
+//
+// It matters because the two properties genuinely come apart. The layered cheddar gratin ends
+// "Bake 1 hour, until the top is bronzed ...; rest 10 minutes before serving" - that step can
+// never be a window, because it hides an instruction behind its own timer, but it still takes
+// seventy minutes. Paired with a yogurt bowl, SERVE reported `earliestServe: 33` for a dish
+// whose own header says 1 hr 20 min.
+//
+// WARNING - reading the duration off the PROSE instead was measured and rejected. bsStepTimers
+// reads "or cover and refrigerate up to 4 hours before drinking" in a TEN-MINUTE smoothie as a
+// four-hour step, and misses "simmer uncovered for one hour" entirely because the number is
+// spelled out. A parsed duration is not authored data and this engine does not schedule on it.
+const stepCost = (m, activeMin) => realMin(m) ?? activeMin;
+
+// Does a plan REST ON ASSUMPTIONS? A step with no authored duration costs the injected
+// hands-on minutes - right for chopping a shallot, wrong for a bake - and the resulting serve
+// time is then an assumption presented as an arrangement. The prose cannot be trusted to
+// SCHEDULE on (see stepCost), but it is good enough to RAISE A HAND, and the asymmetry is
+// deliberate: a false alarm only makes the sheet humbler, while a miss leaves it exactly as
+// it already was. That is the opposite trade from scheduling, where a wrong number is a
+// broken promise, so the same parser is welcome here and refused there.
+// WARNING - the first version of this flagged any un-timed step whose prose named a duration
+// longer than the assumed minutes, and that fired on 3,479 of 3,570 catalog pairs. A caveat
+// that renders 97.5% of the time is not a caveat, it is wallpaper, and it would have taught
+// cooks to read past the one place this sheet needs them not to. What matters is not that an
+// assumption exists but that it is BIG: the measure is the dish's total shortfall, and the
+// threshold is the quarter hour a cook actually plans by. At 15 minutes it marks 34 of 85
+// recipes rather than 71 - a signal, and still an honest one.
+const ESTIMATE_SLACK_MIN = 15;
+const shortfallOf = (r, activeMin) => r.steps.reduce((n, text, i) => {
+  if (realMin(r.meta[i]) != null) return n;
+  const mins = bsStepTimers(String(text || '')).reduce((a, t) => a + t.seconds, 0) / 60;
+  return n + Math.max(0, Math.round(mins) - activeMin);
+}, 0);
+const assumesLengths = (rs, activeMin) => rs.some((r) => shortfallOf(r, activeMin) >= ESTIMATE_SLACK_MIN);
+
 const isWindow = (m, minPassive) => !!m && m.passive === true && m.station != null && (realMin(m) ?? 0) >= minPassive;
 
 const cleanRecipes = (recipes) =>
@@ -121,7 +169,7 @@ const serialTimeline = (rs, activeMin) => {
     for (let i = 0; i < r.steps.length; i++) {
       const e = evt(r, i, at);
       timeline.push(e);
-      at += e.passive && e.min ? e.min : activeMin;
+      at += stepCost(r.meta[i], activeMin);
     }
   }
   return timeline;
@@ -139,7 +187,7 @@ const serialTimeline = (rs, activeMin) => {
 // (oven/stove/board) is already held, the dish is pulled EARLIER by the smallest amount
 // that clears the clash — which means it finishes early, and that is reported rather
 // than hidden. `off` (rest/chill) holds nothing and never forces a pull.
-const durationOf = (r, activeMin) => r.steps.reduce((n, _s, i) => n + (realMin(r.meta[i]) ?? activeMin), 0);
+const durationOf = (r, activeMin) => r.steps.reduce((n, _s, i) => n + stepCost(r.meta[i], activeMin), 0);
 
 // ⚠ ONE COOK, TWO HANDS. Station capacity says nothing about the PERSON. Two dishes can
 // each want three minutes of chopping in the same three minutes with no station contended,
@@ -189,7 +237,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
       clash = 0;
       for (let i = 0; i < r.steps.length && !clash; i++) {
         const m = r.meta[i] || {};
-        const len = realMin(m) ?? activeMin;
+        const len = stepCost(m, activeMin);
         const st = m.station ?? null;
         // Both resources are tested and the LARGER pull taken, so one pass clears both
         // rather than ping-ponging the dish between a station and the cook.
@@ -214,7 +262,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
     let at = start;
     for (let i = 0; i < r.steps.length; i++) {
       const m = r.meta[i] || {};
-      const len = realMin(m) ?? activeMin;
+      const len = stepCost(m, activeMin);
       const st = m.station ?? null;
       if (st != null && STATIONS_EXCLUSIVE.includes(st)) holds.push({ station: st, from: at, to: at + len });
       if (needsHands(m)) hands.push({ from: at, to: at + len });
@@ -254,7 +302,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
 //
 // Above the exhaustive bound this is not a proof of the earliest and nothing should read it as
 // one; the honest claim there is "the earliest of the orders searched".
-const ORDER_SEARCH_MAX = 6;
+const ORDER_SEARCH_MAX = BS_ORCH.orderSearchMax;
 
 const rotationsOf = (n) => {
   const asc = [...Array(n).keys()];
@@ -327,7 +375,17 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   const issues = [];
   if (tooSoon) issues.push(BS_SERVE_ISSUE.TOO_SOON);
   if (run.pulled || feas.pulled) issues.push(BS_SERVE_ISSUE.STATIONS);
-  return { timeline, serveAt: T, earliestServe: earliest, spread, issues };
+  // WARNING - `exact` is the difference between "this is the earliest" and "this is the
+  // earliest we looked at", and the caller cannot tell from the number itself. Seven catalog
+  // dishes report 118 minutes here while an order exists that serves at 113: rotations of
+  // longest-first do not find it. The comment above ORDER_SEARCH_MAX already said nothing
+  // should read the figure as a proof; the prep sheet read it as one anyway, so the engine
+  // now says so in the result rather than in a comment.
+  return {
+    timeline, serveAt: T, earliestServe: earliest, spread, issues,
+    exact: rs.length <= ORDER_SEARCH_MAX,
+    estimated: assumesLengths(rs, activeMin),
+  };
 }
 
 // How far through the COOKING a cook actually is, weighted by how long each step
@@ -389,6 +447,7 @@ export function bsOrchestrate(recipes, opts = {}) {
     return {
       timeline: sv.timeline, serial: false, canInterleave, mode, reason: null,
       serveAt: sv.serveAt, earliestServe: sv.earliestServe, spread: sv.spread, issues: sv.issues,
+      exact: sv.exact, estimated: sv.estimated,
     };
   }
   if (mode === BS_COOK_MODE.SEQUENCE) {
@@ -429,7 +488,7 @@ export function bsOrchestrate(recipes, opts = {}) {
     // deterministic.
     const remaining = (s) => {
       let n = 0;
-      for (let i = s.ptr; i < s.steps.length; i++) n += realMin(s.meta[i]) ?? activeMin;
+      for (let i = s.ptr; i < s.steps.length; i++) n += stepCost(s.meta[i], activeMin);
       return n;
     };
     const readyNow = st.filter((s) => s.ptr < s.steps.length && now >= s.freeAt && !stationBusy((s.meta[s.ptr] || {}).station));
@@ -463,7 +522,7 @@ export function bsOrchestrate(recipes, opts = {}) {
       ready.freeAt = now + realMin(m);
     } else {
       // Active step (or a sub-window passive wait) consumes hands-on time.
-      now += m.passive === true && realMin(m) ? realMin(m) : activeMin;
+      now += stepCost(m, activeMin);
     }
   }
 
