@@ -140,3 +140,77 @@ test('defaults are exported and sane', () => {
   assert.equal(BS_ORCH.minPassive, 4);
   assert.ok(BS_ORCH.activeStepMin > 0);
 });
+
+// ── SERVE TOGETHER + the cook's real kitchen ────────────────────────────────────
+// Three dishes that each want a long hob window. With one burner they must queue;
+// with three they can genuinely land together. The engine used to assume one of every
+// station, which is right for an oven and wrong for a hob.
+const HOB = (k) => ({
+  key: k, title: k,
+  steps: ['Prep it.', 'Simmer it 18 minutes.', 'Finish it.'],
+  stepMeta: [A('board'), P(18, 'stove'), A('board')],
+});
+const HOBS = [HOB('a'), HOB('b'), HOB('c')];
+// Every concurrent pair of holds on one station, counted honestly.
+const stationOverlaps = (tl, station) => {
+  const h = tl.filter((e) => e.min && e.station === station).map((e) => [e.at, e.at + e.min]);
+  let n = 0;
+  for (let i = 0; i < h.length; i++) for (let j = i + 1; j < h.length; j++) if (h[i][0] < h[j][1] && h[j][0] < h[i][1]) n++;
+  return n;
+};
+
+test('serve mode: one burner never double-books the hob, and says so in the serve time', () => {
+  // ⚠ The defect this pins: a dish pulled earlier than t=0 used to be CLAMPED to 0 and
+  // placed anyway, so two pots sat on one burner for the same 18 minutes while the
+  // result reported a flattering 8-minute spread. An impossible serve time must be
+  // discovered by moving the target later, never by overlapping the station.
+  const o = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 1 } });
+  assert.equal(stationOverlaps(o.timeline, 'stove'), 0, 'two dishes were put on one burner at once');
+  assert.ok(o.earliestServe >= 3 * 18, `earliest serve ${o.earliestServe} cannot fit three 18-minute hob windows on one burner`);
+});
+
+test('serve mode: more burners means earlier food and tighter plating', () => {
+  // ⚠ NOT `spread === 0`. These fixtures also hold the BOARD for their hands-on steps,
+  // and a cook is one pair of hands — three dishes cannot all have their final active
+  // step in the same minute however many burners are fitted. The honest property is
+  // that capacity strictly HELPS: the food is ready earlier and lands closer together.
+  const one = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 1 } });
+  const three = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 3 } });
+  assert.ok(three.earliestServe < one.earliestServe,
+    `more burners must bring the food earlier (${three.earliestServe} vs ${one.earliestServe})`);
+  assert.ok(three.spread <= one.spread,
+    `more burners must not scatter the plating (${three.spread} vs ${one.spread})`);
+  assert.equal(stationOverlaps(three.timeline, 'stove'), 3, 'three burners means the three hob windows may genuinely overlap');
+  assert.equal(stationOverlaps(one.timeline, 'stove'), 0, 'one burner must still serialise them');
+});
+
+test('serve mode: an unconfigured or junk kitchen schedules exactly as one of everything', () => {
+  // The conservative default is load-bearing: promising a hob nobody owns is worse than
+  // scheduling as the engine always did.
+  const base = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 1 } });
+  for (const k of [undefined, {}, { stove: 0 }, { stove: -4 }, { stove: 'four' }, { stove: NaN }]) {
+    const o = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: k });
+    assert.equal(o.earliestServe, base.earliestServe, `kitchen ${JSON.stringify(k)} did not fall back to one burner`);
+    assert.equal(stationOverlaps(o.timeline, 'stove'), 0, `kitchen ${JSON.stringify(k)} double-booked the hob`);
+  }
+});
+
+test('serve mode: a serve time the food cannot reach is refused, not cooked faster', () => {
+  const o = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: 5, kitchen: { stove: 1 } });
+  assert.ok(o.issues.includes('too-soon'), 'an impossible serve time must be reported');
+  assert.equal(o.serveAt, o.earliestServe, 'the refusal must name the earliest reachable time');
+  assert.equal(stationOverlaps(o.timeline, 'stove'), 0);
+});
+
+test('serve mode: a later serve time delays the START, not the eating', () => {
+  // The whole point of scheduling backwards: an hour later means an hour of not
+  // cooking yet, with the same plan — never the same start and an hour of the food
+  // sitting there.
+  const early = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 3 } });
+  const late = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: early.earliestServe + 60, kitchen: { stove: 3 } });
+  assert.equal(late.serveAt, early.earliestServe + 60, 'the chosen serve time must be honoured');
+  assert.equal(late.spread, early.spread, 'a later serve time must not change how tightly the food lands');
+  const firstEarly = Math.min(...early.timeline.map((e) => e.at));
+  const firstLate = Math.min(...late.timeline.map((e) => e.at));
+  assert.equal(firstLate - firstEarly, 60, `the whole plan must shift by the full hour (moved ${firstLate - firstEarly})`);
+});

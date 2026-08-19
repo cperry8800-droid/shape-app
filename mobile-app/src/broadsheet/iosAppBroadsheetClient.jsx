@@ -1630,6 +1630,26 @@ function bsCycleDisclaimer(tr) {
 // Persists to localStorage immediately, mirrored to window.shapeDb (user_goals)
 // for cross-device sync. Screens subscribe via the `bs-library` window event.
 const BS_LIB_KEY = 'shape.library';
+// THE COOK'S KITCHEN — how many of each station they actually own. This is a fact
+// about the room, not about the food: a recipe step already carries its station, but
+// whether two pans can be on the hob at once depends on the hob. Stored locally and
+// re-used, because a kitchen does not change between sessions; it is still shown and
+// editable before every multi-dish cook, so it is never applied unseen.
+// ⚠ Defaults match BS_KITCHEN_DEFAULT (one of everything) so an unread or corrupt
+// value schedules exactly as the engine always did, never promising a hob nobody owns.
+const BS_KITCHEN_KEY = 'shape.cook.kitchen';
+const BS_KITCHEN_MAX = 8;
+function bsCookKitchenRead() {
+  try {
+    const raw = JSON.parse((window.localStorage && window.localStorage.getItem(BS_KITCHEN_KEY)) || 'null');
+    const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.min(BS_KITCHEN_MAX, Math.floor(v)) : d);
+    return { stove: num(raw && raw.stove, 1), oven: num(raw && raw.oven, 1), board: num(raw && raw.board, 1) };
+  } catch (e) { return { stove: 1, oven: 1, board: 1 }; }
+}
+function bsCookKitchenWrite(k) {
+  try { window.localStorage && window.localStorage.setItem(BS_KITCHEN_KEY, JSON.stringify(k)); } catch (e) {}
+}
+
 function bsLibRead() {
   try { const raw = window.localStorage && window.localStorage.getItem(BS_LIB_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; }
 }
@@ -7570,11 +7590,19 @@ function BSPrepSession({ program, onClose }) {
   // the cook has chosen, so picking `Sequence` never makes `Together` look impossible
   // afterwards. ⚠ The honest test is `!serial`, not `canInterleave`: a window can
   // exist and still overlap nothing when every detour is blocked by its station.
-  const orchAuto = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.AUTO }), [orchInput]);
+  // Read once, then owned by the session; every orchestration below sees the same
+  // kitchen, so the three options are costed against the cook's real hob.
+  const [kitchen, setKitchen] = useStateBSC(bsCookKitchenRead);
+  const setStation = (st, n) => {
+    const next = { ...kitchen, [st]: Math.max(1, Math.min(BS_KITCHEN_MAX, n)) };
+    setKitchen(next);
+    bsCookKitchenWrite(next);
+  };
+  const orchAuto = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.AUTO, kitchen }), [orchInput, kitchen]);
   const togetherPossible = !orchAuto.serial && orchAuto.timeline.length > 0;
   const orch = React.useMemo(
-    () => (cookMode ? bsOrchestrate(orchInput, { mode: cookMode }) : orchAuto),
-    [orchInput, cookMode, orchAuto],
+    () => (cookMode ? bsOrchestrate(orchInput, { mode: cookMode, kitchen }) : orchAuto),
+    [orchInput, cookMode, orchAuto, kitchen],
   );
   const interleaved = !orch.serial && orch.timeline.length > 0;
   // Why `Together` is unavailable — shown, never hidden: "unavailable" with no reason
@@ -7586,7 +7614,7 @@ function BSPrepSession({ program, onClose }) {
   // Real minutes on each option, off the timelines themselves — never an estimate.
   // A cook choosing between two ways of spending their evening deserves the actual
   // figure, and the gap is often small (two stove dishes cannot overlap much).
-  const orchSeq = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SEQUENCE }), [orchInput]);
+  const orchSeq = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SEQUENCE, kitchen }), [orchInput, kitchen]);
   const spanOf = (o) => (o.timeline.length
     ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
     : 0);
@@ -7764,6 +7792,46 @@ function BSPrepSession({ program, onClose }) {
                 pre-selected — a default would answer the question on their behalf,
                 which is the thing the ruling exists to prevent. A single dish skips
                 this entirely: there is nothing to decide. */}
+            {/* THE KITCHEN, asked before the plan is costed. How many burners the cook
+                owns is a fact about the ROOM, not the food — the engine used to assume
+                one of everything, which is right for an oven and wrong for a hob, and
+                declared three pan dishes un-servable together when a normal kitchen
+                does it easily. Remembered between sessions (a kitchen does not change)
+                but always shown here, so it is never applied unseen. Every change
+                re-costs all three options immediately. */}
+            {multi && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ ...bandEyebrow, color: t.INK50 }}>
+                  {tr('cook:prep.kitchenAsk', { defaultValue: 'Your kitchen' })}
+                </div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, lineHeight: 1.5 }}>
+                  {tr('cook:prep.kitchenWhy', { defaultValue: 'So the plan only uses hobs and ovens you actually have.' })}
+                </div>
+                {[
+                  { st: 'stove', label: tr('cook:prep.burners', { defaultValue: 'Burners' }) },
+                  { st: 'oven', label: tr('cook:prep.ovens', { defaultValue: 'Ovens' }) },
+                ].map(({ st, label }) => (
+                  <div key={st} style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{label}</span>
+                    <button
+                      type="button"
+                      onClick={() => setStation(st, kitchen[st] - 1)}
+                      disabled={kitchen[st] <= 1}
+                      aria-label={`${label} −`}
+                      style={{ minWidth: 44, minHeight: 44, border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, cursor: kitchen[st] <= 1 ? 'not-allowed' : 'pointer', opacity: kitchen[st] <= 1 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 15 }}
+                    >−</button>
+                    <span style={{ minWidth: 26, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{kitchen[st]}</span>
+                    <button
+                      type="button"
+                      onClick={() => setStation(st, kitchen[st] + 1)}
+                      disabled={kitchen[st] >= BS_KITCHEN_MAX}
+                      aria-label={`${label} +`}
+                      style={{ minWidth: 44, minHeight: 44, border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, cursor: kitchen[st] >= BS_KITCHEN_MAX ? 'not-allowed' : 'pointer', opacity: kitchen[st] >= BS_KITCHEN_MAX ? 0.35 : 1, fontFamily: t.MONO, fontSize: 15 }}
+                    >＋</button>
+                  </div>
+                ))}
+              </div>
+            )}
             {multi && (
               <div style={{ marginTop: 20 }}>
                 <div style={{ ...bandEyebrow, color: t.INK50 }}>
