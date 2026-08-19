@@ -28,7 +28,7 @@ import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bs
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
-import { bsOrchestrate, BS_COOK_MODE, BS_SERIAL_REASON, BS_ORCH } from '../services/cookOrchestrator.mjs';
+import { bsOrchestrate, BS_COOK_MODE, BS_ORCH } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -1637,6 +1637,15 @@ const BS_LIB_KEY = 'shape.library';
 // editable before every multi-dish cook, so it is never applied unseen.
 // ⚠ Defaults match BS_KITCHEN_DEFAULT (one of everything) so an unread or corrupt
 // value schedules exactly as the engine always did, never promising a hob nobody owns.
+// What the cook is trying to ACHIEVE, which is not the same as the engine mode.
+// SOONEST and SERVE both run the serve scheduler and differ only in when dinner is.
+// ⚠ The old "start everything early" interleave is deliberately NOT offered: measured
+// across all 231 pairs of window-bearing recipes it was never quicker than SOONEST
+// (which lands on the theoretical floor — the longest single dish — in 231 of 231) and
+// it scatters the finishes as well, so no cook is better off choosing it. The engine
+// mode still exists for `auto` callers; it simply stops being a question.
+const BS_COOK_CHOICE = { SOONEST: 'soonest', SERVE: 'serve', SEQUENCE: 'sequence' };
+
 const BS_KITCHEN_KEY = 'shape.cook.kitchen';
 const BS_KITCHEN_MAX = 8;
 function bsCookKitchenRead() {
@@ -7586,31 +7595,17 @@ function BSPrepSession({ program, onClose }) {
   // The cook's answer to "together or one at a time?" — null until they say.
   // Owner ruling 2026-08-18: a multi-dish session must ASK before it can begin.
   const [cookMode, setCookMode] = useStateBSC(null);
-  // A probe in AUTO, always. It answers "COULD these overlap?" independently of what
-  // the cook has chosen, so picking `Sequence` never makes `Together` look impossible
-  // afterwards. ⚠ The honest test is `!serial`, not `canInterleave`: a window can
-  // exist and still overlap nothing when every detour is blocked by its station.
-  // Read once, then owned by the session; every orchestration below sees the same
-  // kitchen, so the three options are costed against the cook's real hob.
+  // The cook's kitchen: read once, then owned by the session, so every costing below
+  // is measured against the hob they actually have.
   const [kitchen, setKitchen] = useStateBSC(bsCookKitchenRead);
   const setStation = (st, n) => {
     const next = { ...kitchen, [st]: Math.max(1, Math.min(BS_KITCHEN_MAX, n)) };
     setKitchen(next);
     bsCookKitchenWrite(next);
   };
+  // A probe in AUTO, always — it is what tells the road map and the option costs what
+  // these dishes can actually do, independently of what the cook has chosen.
   const orchAuto = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.AUTO, kitchen }), [orchInput, kitchen]);
-  const togetherPossible = !orchAuto.serial && orchAuto.timeline.length > 0;
-  const orch = React.useMemo(
-    () => (cookMode ? bsOrchestrate(orchInput, { mode: cookMode, kitchen }) : orchAuto),
-    [orchInput, cookMode, orchAuto, kitchen],
-  );
-  const interleaved = !orch.serial && orch.timeline.length > 0;
-  // Why `Together` is unavailable — shown, never hidden: "unavailable" with no reason
-  // reads as a broken feature rather than a fact about the food.
-  const noTogetherWhy = orchAuto.reason === BS_SERIAL_REASON.STATIONS
-    ? 'These dishes all need the same station, so they cannot overlap.'
-    : 'No dish here has a hands-off stretch long enough to start another one inside.';
-  const multi = ordered.length >= 2;
   // Real minutes on each option, off the timelines themselves — never an estimate.
   // A cook choosing between two ways of spending their evening deserves the actual
   // figure, and the gap is often small (two stove dishes cannot overlap much).
@@ -7624,6 +7619,47 @@ function BSPrepSession({ program, onClose }) {
   // rather than hidden: a promise of "at once" that quietly means 26 minutes apart is
   // worse than the honest number.
   const serveSpread = orchServe.spread || 0;
+  // The session's own clock anchor. Read once at mount: deriving "7:30pm" from a
+  // Date.now() that moves every render makes the chosen time slide while the cook is
+  // still looking at it. Re-validated at the Start tap, where dawdling on this screen
+  // is the thing that can make a reachable time unreachable.
+  const nowRef = React.useRef(Date.now());
+  const [serveMins, setServeMins] = useStateBSC(null);   // minutes from the anchor
+  const clockOf = (mins) => {
+    const d = new Date(nowRef.current + mins * 60000);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  const minsOfClock = (hhmm) => {
+    const [h, m] = String(hhmm || '').split(':').map((x) => parseInt(x, 10));
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    const d = new Date(nowRef.current);
+    d.setHours(h, m, 0, 0);
+    let mins = Math.round((d.getTime() - nowRef.current) / 60000);
+    if (mins < 0) mins += 24 * 60;   // a time already past today means tomorrow
+    return mins;
+  };
+  // Default: the earliest the food can be ready, rounded up to a tidy 5 minutes. Never
+  // earlier than the food allows, so the picker opens on something reachable.
+  const earliestServe = orchServe.earliestServe || 0;
+  const defaultServe = Math.ceil(earliestServe / 5) * 5;
+  const chosenServe = serveMins == null ? defaultServe : serveMins;
+  const serveTooSoon = chosenServe < earliestServe;
+
+  // The cook picks an INTENT; the engine mode is derived. Two of the three intents run
+  // the same scheduler and differ only in WHEN dinner is — which is the whole distinction
+  // the owner asked the question to draw: cooking several things to get out of the
+  // kitchen, versus cooking them to land on the table together for guests.
+  const engineOptsFor = (choice) => {
+    if (choice === BS_COOK_CHOICE.SEQUENCE) return { mode: BS_COOK_MODE.SEQUENCE, kitchen };
+    if (choice === BS_COOK_CHOICE.SERVE) return { mode: BS_COOK_MODE.SERVE, serveAt: chosenServe, kitchen };
+    return { mode: BS_COOK_MODE.SERVE, kitchen };   // SOONEST: earliest reachable
+  };
+  const orch = React.useMemo(
+    () => (cookMode ? bsOrchestrate(orchInput, engineOptsFor(cookMode)) : orchAuto),
+    [orchInput, cookMode, orchAuto, kitchen, chosenServe],
+  );
+  const interleaved = !orch.serial && orch.timeline.length > 0;
+  const multi = ordered.length >= 2;
   const spanOf = (o) => (o.timeline.length
     ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
     : 0);
@@ -7848,24 +7884,17 @@ function BSPrepSession({ program, onClose }) {
                 </div>
                 <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 9 }}>
                   {[
-                    { key: BS_COOK_MODE.SERVE,
-                      label: tr('cook:prep.allAtOnce', { defaultValue: 'All ready at once' }),
+                    { key: BS_COOK_CHOICE.SOONEST,
+                      label: tr('cook:prep.soonest', { defaultValue: 'Get it all done soonest' }),
                       sub: serveSpread > 0
-                        ? tr('cook:prep.allAtOnceGap', { defaultValue: 'Within {n} min of each other', n: serveSpread })
-                        : tr('cook:prep.allAtOnceSub', { defaultValue: 'Nothing sits and goes cold' }),
+                        ? tr('cook:prep.soonestGap', { defaultValue: 'Within {n} min of each other', n: serveSpread })
+                        : tr('cook:prep.soonestSub', { defaultValue: 'Everything ready together, as early as it can be' }),
                       mins: spanOf(orchServe), on: true },
-                    // ⚠ NOT labelled "fastest". Measured across all 231 pairs of
-                    // window-bearing recipes, this mode is never quicker than
-                    // "all ready at once", which lands on the theoretical floor —
-                    // the longest single dish — in 231 of 231. A dish cannot be
-                    // compressed, so nothing can beat that. The honest description
-                    // is what this mode DOES: it starts everything as early as it
-                    // can, and the food is ready whenever each dish is ready.
-                    { key: BS_COOK_MODE.TOGETHER,
-                      label: tr('cook:prep.earlyStart', { defaultValue: 'Start everything early' }),
-                      sub: tr('cook:prep.earlyStartSub', { defaultValue: 'They finish at different times' }),
-                      mins: spanOf(orchAuto), on: togetherPossible },
-                    { key: BS_COOK_MODE.SEQUENCE,
+                    { key: BS_COOK_CHOICE.SERVE,
+                      label: tr('cook:prep.serveMode', { defaultValue: 'Serve mode' }),
+                      sub: tr('cook:prep.serveModeSub', { defaultValue: 'On the table at a time you choose' }),
+                      mins: 0, on: true },
+                    { key: BS_COOK_CHOICE.SEQUENCE,
                       label: tr('cook:prep.oneAtATime', { defaultValue: 'One at a time' }),
                       sub: tr('cook:prep.oneAtATimeSub', { defaultValue: 'Finish one, then start the next' }),
                       mins: spanOf(orchSeq), on: true },
@@ -7899,12 +7928,42 @@ function BSPrepSession({ program, onClose }) {
                     );
                   })}
                 </div>
-                {/* Disabled, never hidden, and always with the reason — the owner's
-                    explicit instruction. A greyed control with no explanation reads
-                    as a bug; this reads as a fact about the food. */}
-                {!togetherPossible && (
-                  <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.INK50 }}>
-                    {tr('cook:prep.togetherWhy', { defaultValue: 'Cannot overlap these — {why}', why: noTogetherWhy })}
+                {/* SERVE MODE's time. A clock time, because that is how a cook thinks
+                    about guests; minutes-from-now on the wire, because that is what the
+                    scheduler works in. The engine refuses a time the food cannot reach
+                    and names the earliest one instead of failing, so the refusal is
+                    actionable rather than a dead end. */}
+                {cookMode === BS_COOK_CHOICE.SERVE && (
+                  <div style={{ marginTop: 11, paddingLeft: 10, borderLeft: `2px solid ${bsTHexA(heat, 0.45)}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>
+                        {tr('cook:prep.onTableAt', { defaultValue: 'On the table at' })}
+                      </span>
+                      <input
+                        type="time"
+                        value={clockOf(chosenServe)}
+                        onChange={(e) => { const m = minsOfClock(e.target.value); if (m != null) setServeMins(m); }}
+                        style={{ minHeight: 44, padding: '8px 10px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 14 }}
+                      />
+                    </div>
+                    {serveTooSoon ? (
+                      <div style={{ marginTop: 7 }}>
+                        <div style={{ fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.INK50 }}>
+                          {tr('cook:prep.serveTooSoon', { defaultValue: 'Not enough time — the earliest these can all be ready is {t}', t: clockOf(earliestServe) })}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setServeMins(earliestServe)}
+                          style={{ marginTop: 6, minHeight: 44, padding: '9px 12px', borderRadius: 5, border: `1px solid ${bsTHexA(heat, 0.55)}`, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat }}
+                        >
+                          {tr('cook:prep.useEarliest', { defaultValue: 'Use {t}', t: clockOf(earliestServe) })}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>
+                        {tr('cook:prep.startAt', { defaultValue: 'You start cooking at {t}', t: clockOf(Math.max(0, chosenServe - spanOf(orch))) })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
