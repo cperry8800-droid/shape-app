@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
-import { bsVitals, vitalsCeilingISO } from '@/lib/vitals-leg.mjs';
+import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -267,10 +267,18 @@ export async function GET(
   // select('*') (not an explicit column list) so the route keeps working before the
   // sleep-detail migration is applied — PostgREST 400s the WHOLE query on an unknown
   // explicit column, which would null out the coach's sleep view entirely.
+  // ⚠ The ceiling is applied IN THE QUERY, not only in JS below. A post-fetch
+  // filter cannot undo crowding: `.limit(30)` is evaluated first, so future-dated
+  // rows would consume slots in the window and the real days they displaced are
+  // simply absent from the response — dropping them afterwards leaves the coach a
+  // SHORTER real history, silently. The JS filter is kept as defence in depth (a
+  // stale schema cache or a widened select must not reopen it).
+  const snapCeiling = vitalsCeilingISO();
   const { data: snapRowsDesc } = await supabase
     .from('daily_health_snapshot')
     .select('*')
     .eq('user_id', clientId)
+    .lte('snapshot_date', snapCeiling)
     .order('snapshot_date', { ascending: false })
     .limit(30);
   // A snapshot dated in the FUTURE is never a current readout. `/api/client/checkin`
@@ -285,7 +293,6 @@ export async function GET(
   // member's LOCAL day and a member ahead of UTC legitimately writes one — the same
   // one-day boundary tolerance the vitals window already documents. Comparison is
   // lexicographic against ISO `YYYY-MM-DD`, which is exact.
-  const snapCeiling = vitalsCeilingISO();
   const snapRows = (snapRowsDesc ?? [])
     .filter((r) => {
       const day = (r as Record<string, unknown>).snapshot_date;
@@ -312,7 +319,14 @@ export async function GET(
   const restedSeries = snapRows
     .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: num((r as Record<string, unknown>).sleep_quality) }))
     .filter((p): p is { date: string; value: number } => p.value != null);
-  const last7 = sl.slice(-7).map((p) => p.value);
+  // ⚠ `.slice(-7)` is the last 7 LOGGED nights, not the last 7 DAYS — and both
+  // surfaces render this as "7-DAY AVG". A member who logs sleep three times a
+  // week would have a fortnight averaged under a 7-day label. Windowed on the
+  // date first (the rule `bsVitalsLeg` already applies), THEN capped at 7, so a
+  // duplicated date cannot widen the average it claims to be.
+  const sleepCutoff = vitalsCutoffISO();
+  const sleep7 = sl.filter((p) => typeof p.date === 'string' && p.date >= sleepCutoff).slice(-7);
+  const last7 = sleep7.map((p) => p.value);
   // Recovery readiness (0-100) from tonight's signals vs a trailing baseline.
   const readiness = readinessFromSeries({
     sleep: sl,
@@ -333,7 +347,7 @@ export async function GET(
   const sleep = (sl.length || restedSeries.length) ? {
     latest: sl.length ? sl[sl.length - 1].value : null,
     avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
-    series7: sl.slice(-7),
+    series7: sleep7,
     efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,
     rhr: lastSleep && lastSleep.resting_hr != null ? Math.round(Number(lastSleep.resting_hr)) : null,
     hrv: lastSleep && lastSleep.hrv_ms != null ? Math.round(Number(lastSleep.hrv_ms)) : null,

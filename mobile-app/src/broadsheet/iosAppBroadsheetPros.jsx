@@ -4240,9 +4240,28 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // MEASURED (a device reported) vs ENTERED (the member typed it) is the
   // distinction that matters: only measured data may claim a sync, and only
   // entered data may be called a check-in.
-  const caseHasDevice = !!(sleepRec && (sleepRec.latest != null || sleepRec.avg7 != null
-    || sleepRec.efficiency != null || sleepRec.rhr != null || sleepRec.hrv != null
-    || sleepRec.respiratory != null || sleepRec.readiness != null || sleepRec.stages));
+  // ⚠ SLEEP HOURS ARE NOT DEVICE EVIDENCE. `/api/client/checkin` writes
+  // `sleep_hours` straight from the member's manual hour chips, so `latest` and
+  // `avg7` are ENTERED-or-measured and prove nothing about a wearable — the
+  // client card already encodes this, gating its own `sleepSynced` on
+  // device-only metrics. `readiness` is out for the same reason: it scores from
+  // sleepHours alone, so a typed figure produces a non-null score. Keying on
+  // hours here made the Case File claim a sync for a member who owns no device,
+  // which is the exact thing the MEASURED-vs-ENTERED rule above forbids.
+  // Device-only fields are the ones no check-in surface can write.
+  // `latency` belongs here too: sleep-onset latency is measured by the wearable
+  // and no check-in surface can write it, so omitting it made an Oura night that
+  // reported ONLY latency read as no-device on mobile while the web twin counted
+  // it — the two Case Files disagreeing about the same client.
+  const caseHasDevice = !!(sleepRec && (sleepRec.efficiency != null || sleepRec.rhr != null
+    || sleepRec.hrv != null || sleepRec.latency != null || sleepRec.respiratory != null
+    || sleepRec.stages));
+  // Hours are their own state, because their SOURCE is unknowable from here: a
+  // wearable and the member's hour chips both land in `sleep_hours`. So they may
+  // never gate the device CLAIM (above) — but they must still RENDER, or fixing
+  // that claim would delete a hand-logging member's real sleep from the Case
+  // File, which is worse than the mislabel it fixes.
+  const caseHasHours = !!(sleepRec && (sleepRec.latest != null || sleepRec.avg7 != null));
   const caseHasRested = !!(sleepRec && sleepRec.rested != null);
   // RESTED is itself a daily check-in entry, so it counts as entered data —
   // this is precisely why the vitals redact must not fire when it is present.
@@ -4250,10 +4269,22 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // "Not synced" is a claim about a DEVICE. It is true only when no device
   // reported AND the member entered nothing either (the pre-§3B empty state);
   // for a member who checks in without a wearable there is no failed sync.
-  const caseShowSleepRedact = !caseHasDevice && !caseHasEntered;
+  const caseShowSleepRedact = !caseHasDevice && !caseHasHours && !caseHasEntered;
   // "No daily check-in on record" is a claim about ENTERED data, so any entered
   // data at all — RESTED included — silences it.
   const caseShowVitalsRedact = !caseHasEntered;
+  // The heading names the card's SUBJECT, and only ENTERED data may name it a
+  // check-in. Hours are excluded for exactly the reason they cannot prove a
+  // device (see `caseHasHours` above): their source is unknowable, so they may
+  // gate NEITHER claim. That symmetry was missed once — hours alone headed the
+  // card "DAILY CHECK-IN" while the vitals redact below still (correctly) read
+  // "NOT ON RECORD", so the card contradicted itself for a member hand-logging
+  // sleep hours. An hours-only card now heads SLEEP · RECOVERY, which names the
+  // subject without claiming a source, and the redact stays honest.
+  // ⚠ Derived HERE, beside the other flags, so every consumer reads a
+  // pre-derived value and none recombines the booleans into a fresh claim.
+  // Recombining at the render site is what produced that defect.
+  const caseCheckinHeading = !caseHasDevice && caseHasEntered;
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
     // client A's care team / sleep / cycle / prep / vitals on client B's profile.
@@ -4845,10 +4876,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {/* A card carrying only ENTERED data is not a recovery readout — head it
             as what it is. With nothing at all, the head stays SLEEP · RECOVERY
             so the redact below reads as the pre-§3B empty state. */}
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={!caseHasDevice && caseHasEntered
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={caseCheckinHeading
           ? tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })
           : tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
-        {(caseHasDevice || caseHasRested) ? (() => {
+        {(caseHasDevice || caseHasHours || caseHasRested) ? (() => {
           const s = sleepRec;
           const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? heat : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
           // DEVICE data, not the leg's mere existence: the leg now also exists
@@ -4857,14 +4888,45 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           // rating, under a SLEEP · RECOVERY head — a wearable reported as
           // broken for a member who owns none.
           const hasDevice = caseHasDevice;
-          const cells = hasDevice ? [
-            [tr('coach:case.lastNight', { defaultValue: 'LAST NIGHT' }), s.latest != null ? `${Number(s.latest)}H` : null],
-            [tr('coach:case.sevenDayAvg', { defaultValue: '7-DAY AVG' }), s.avg7 != null ? `${Number(s.avg7)}H` : null],
-            [tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null],
-            [tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null],
-            [tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null],
-            [tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null],
-          ] : [];
+          // Hours first and gated on their OWN state, so a hand-logging member
+          // keeps their sleep rows; the strictly-measured cells stay gated on a
+          // real device, or they would render as dashes reporting a wearable
+          // failure for a member who owns none.
+          const cells = [];
+          if (caseHasHours) {
+            cells.push([tr('coach:case.lastNight', { defaultValue: 'LAST NIGHT' }), s.latest != null ? `${Number(s.latest)}H` : null]);
+            cells.push([tr('coach:case.sevenDayAvg', { defaultValue: '7-DAY AVG' }), s.avg7 != null ? `${Number(s.avg7)}H` : null]);
+          }
+          if (hasDevice) {
+            cells.push([tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null]);
+            cells.push([tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null]);
+            cells.push([tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null]);
+            // LATENCY renders because the predicate above COUNTS it as device
+            // evidence. Without this cell an Oura night reporting only latency
+            // claimed a sync and then showed four "— NOT SYNCED" cells with the
+            // one real measurement invisible — a device reported as broken while
+            // its own reading sat unrendered. Ordered to match the web twin.
+            // Lowercase `m` is this file's own duration unit (see the calendar
+            // row's `${ev.durationMin}m`) and matches the twin exactly; `/MIN`
+            // below is a RATE (breaths per minute), not a duration.
+            cells.push([tr('coach:case.latency', { defaultValue: 'LATENCY' }), s.latency != null ? `${s.latency}m` : null]);
+            cells.push([tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null]);
+          }
+          // STAGES — the SAME rule as latency, one field over, and the reason
+          // this is not a patch of the reported site: `stages` is also in the
+          // device predicate and also rendered nowhere on mobile, so a night
+          // reporting only deep/REM/light minutes claimed a sync with nothing
+          // to show for it. Every field the predicate counts must render.
+          // The API guarantees `stages` is non-null only when at least one of
+          // deep/rem/light is present, but the row is gated on the assembled
+          // parts rather than on that guarantee, so a contract change degrades
+          // to rendering nothing instead of a bare "STAGES · ".
+          const st = s.stages;
+          const stageParts = st ? [
+            st.deep != null ? `${tr('coach:case.stageDeep', { defaultValue: 'DEEP' })} ${st.deep}m` : null,
+            st.rem != null ? `${tr('coach:case.stageRem', { defaultValue: 'REM' })} ${st.rem}m` : null,
+            st.light != null ? `${tr('coach:case.stageLight', { defaultValue: 'LIGHT' })} ${st.light}m` : null,
+          ].filter(Boolean) : [];
           // RESTED — the member's own 1-10 morning rating (sleep_quality), the
           // row the WEB case file already renders. It is ENTERED, so it follows
           // the entered-gauge rule: present only when real, never a NOT SYNCED
@@ -4893,6 +4955,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                   </div>
                 ))}
               </div>
+              {stageParts.length > 0 && (
+                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+                  {tr('coach:case.stages', { defaultValue: 'STAGES' })} · {stageParts.join(' · ')}
+                </div>
+              )}
             </>
           );
         })() : (caseShowSleepRedact ? (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' }))) : null)}
