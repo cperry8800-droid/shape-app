@@ -216,6 +216,39 @@ test('serve mode: a later serve time delays the START, not the eating', () => {
 });
 
 // ── progress, measured in minutes rather than list items ───────────────────────
+test('serve mode: what a plan REPORTS is what that plan does, at any serve time', () => {
+  // `timeline`, `serveAt`, `spread` and `issues` must all describe ONE placement.
+  // Reading the earliest-time plan into a later-time result would let `issues` name a
+  // station pull the returned schedule does not contain. The first dish placed never
+  // pulls (nothing is holding yet), so it always ends at the serve time -- which makes
+  // "a dish was pulled early" and "the food lands apart" the same fact. So the check is
+  // the invariant rather than one case: STATIONS is reported exactly when spread > 0.
+  // One dish can contend with nothing -- not a station, not the cook -- so a later
+  // serve time must come back completely clean. (Three dishes on three burners still
+  // report a pull: the COOK is a capacity-one resource, so their hands-on steps
+  // collide however many burners the kitchen has.)
+  const solo = bsOrchestrate([HOB('a')], { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 3 } });
+  const later = bsOrchestrate([HOB('a')], {
+    ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: solo.earliestServe + 45, kitchen: { stove: 3 },
+  });
+  assert.equal(later.spread, 0, 'one dish cannot land apart from itself');
+  assert.deepEqual(later.issues, [], 'a plan that pulled nothing must not report a pull');
+
+  for (const kitchen of [{ stove: 1 }, { stove: 2 }, { stove: 3 }]) {
+    const base = bsOrchestrate(HOBS, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen });
+    for (const off of [0, 1, 7, 30, 120]) {
+      const o = bsOrchestrate(HOBS, {
+        ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: base.earliestServe + off, kitchen,
+      });
+      assert.equal(o.serveAt, base.earliestServe + off, 'the asked-for serve time is honoured');
+      assert.equal(
+        o.issues.includes('stations'), o.spread > 0,
+        'stations must describe the returned plan (stove ' + kitchen.stove + ', +' + off + ')',
+      );
+    }
+  }
+});
+
 test('progress: a long step left undone keeps the percentage honest', () => {
   // Three of six steps done, but the roast is still ahead. Counting steps says 50%.
   const mins = [3, 3, 3, 30, 3, 3];
