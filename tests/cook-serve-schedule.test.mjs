@@ -269,25 +269,30 @@ test('a convenience timer on the CURRENT step never moves the board backward', (
 });
 
 test('a real HOLD still owes its minutes — the round-1 fix survives', () => {
-  // The other arm. If the debit were simply deleted the test above would pass and the
-  // defect round 1 fixed would be back, so both directions are pinned here.
+  // The other arm, and it needs the RIGHT question. Asking only whether the board
+  // stayed under 100% let the defect through at 77%: plenty of steps were still
+  // undone, so the figure was low for a reason that had nothing to do with the debit.
+  //
+  // The discriminating question is what STARTING the hold does. Advancing past a
+  // window credits its minutes, and the debit takes back exactly what has not elapsed,
+  // so a braise that has just gone on must move the board barely at all. Measured on
+  // this plan: 5% before the tap and 5% after — and 5% -> 77% with the debit deleted.
   const plan = bsOrchestrate([LONG, SHORT], { ...OPTS, mode: BS_COOK_MODE.TOGETHER });
   const s = drive(MOD.BSPrepCook, {
     items: [], timeline: plan.timeline,
     onClose() {}, onRecipePrepped() {}, onDone() {},
   });
-  const before = pctOf(s);
+  let atHold = null;
   let guard = 0;
   while (guard++ < 12) {
     const labels = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
-    const hold = labels.find((l) => l.startsWith('Start timer'));
-    if (hold) { s.click('Start timer'); break; }
+    if (labels.some((l) => l.startsWith('Start timer'))) { atHold = pctOf(s); s.click('Start timer'); break; }
     if (!labels.some((l) => l.startsWith('Next'))) break;
     s.click('Next');
   }
-  assert.ok(guard < 12, 'never reached a holding window — this plan cannot exercise the debit');
+  assert.ok(Number.isFinite(atHold), 'never reached a holding window — this plan cannot exercise the debit');
   const after = pctOf(s);
   assert.ok(Number.isFinite(after), 'no percentage rendered once a hold was running');
-  assert.ok(after < 100,
-    `a 40-minute braise that just went on cannot leave the board at ${after}% — its minutes are promised, not banked`);
+  assert.ok(after - atHold <= 2,
+    `putting a 40-minute braise on moved the board ${atHold}% -> ${after}%; those minutes are promised, not banked`);
 });
