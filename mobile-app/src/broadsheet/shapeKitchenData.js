@@ -18,6 +18,7 @@
 // by/byRole byline — see bsRecipeAttribution, which is the single place that
 // decides how an unattributed recipe is credited.
 import { USDA_KITCHEN_RECIPES, USDA_NOT_GF, USDA_HAS_DAIRY, USDA_MED } from './shapeKitchenData.usda.js';
+import { USDA2_KITCHEN_RECIPES, USDA2_NOT_GF, USDA2_HAS_DAIRY, USDA2_MED, USDA2_STEP_META } from './shapeKitchenData.usda2.js';
 
 const _SHAPE_KITCHEN_RECIPES_AUTHORED = [
   {
@@ -963,7 +964,7 @@ const _SHAPE_KITCHEN_RECIPES_AUTHORED = [
 ];
 
 // Authored first so the catalog's existing order never shifts.
-export const SHAPE_KITCHEN_RECIPES = [..._SHAPE_KITCHEN_RECIPES_AUTHORED, ...USDA_KITCHEN_RECIPES];
+export const SHAPE_KITCHEN_RECIPES = [..._SHAPE_KITCHEN_RECIPES_AUTHORED, ...USDA_KITCHEN_RECIPES, ...USDA2_KITCHEN_RECIPES];
 
 // ── PR D orchestration (§6): passive-window overlay ────────────────────────
 // Marks ONLY the genuinely hands-off windows in the catalog — a real duration
@@ -1029,6 +1030,53 @@ export const _KITCHEN_STEP_META = {
   "Date and almond energy bites": { 3: { min: 30, passive: true, station: "off" } },
   "Turkey chili verde": { 4: { min: 20, passive: true, station: "stove" } },
   "Lemon-herb chicken meal-prep box": { 0: { min: 10, passive: true, station: "off" }, 1: { min: 15, passive: true, station: "stove" }, 2: { min: 16, passive: true, station: "oven" } },
+  // ── Overlay expansion ───────────────────────────────────────────────────
+  // Without these, a two-dish Together session found no host window ~55% of the
+  // time and the button rendered disabled. Same rules as above: every `min` is a
+  // duration the step's own text states, and no window is followed by a
+  // concurrent-authored step. Hands-on steps carry NO annotation.
+  "Lentil bolognese": { 0: { min: 8, passive: true, station: "stove" } },
+  "Garlic shrimp and courgette noodles": { 0: { min: 10, passive: true, station: "off" } },
+  "Slow-simmered beef pot roast": { 1: { min: 5, passive: true, station: "stove" }, 4: { min: 120, passive: true, station: "stove" }, 5: { min: 10, passive: true, station: "off" } },
+  "Beef stroganoff with macaroni": { 3: { min: 6, passive: true, station: "stove" } },
+  "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
+  "Black skillet beef with kale and red potatoes": { 0: { min: 30, passive: true, station: "off" }, 3: { min: 20, passive: true, station: "stove" }, 4: { min: 15, passive: true, station: "stove" } },
+  "Beef pozole with hominy": { 3: { min: 20, passive: true, station: "stove" } },
+  "Skillet beef and cabbage": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  "Ground beef and root vegetable stew": { 3: { min: 25, passive: true, station: "stove" }, 4: { min: 10, passive: true, station: "off" } },
+  "Grilled skirt steak with salsa criolla": { 1: { min: 60, passive: true, station: "off" }, 4: { min: 5, passive: true, station: "off" } },
+  "Shorba lamb and peanut soup": { 0: { min: 60, passive: true, station: "stove" }, 1: { min: 60, passive: true, station: "stove" } },
+  "Braised chicken thighs with wilted spinach": { 3: { min: 30, passive: true, station: "stove" } },
+  "Roasting-pan chicken with potatoes and carrots": { 3: { min: 60, passive: true, station: "oven" } },
+  "Mango and peanut chicken wraps": { 4: { min: 20, passive: true, station: "off" } },
+  "Asparagus and mandarin chicken rice bowl": { 2: { min: 5, passive: true, station: "stove" } },
+  "Turkey tetrazzini bake": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 5, passive: true, station: "stove" } },
+  "Chicken pozole with hominy and lime": { 0: { min: 60, passive: true, station: "stove" }, 3: { min: 45, passive: true, station: "stove" } },
+  "Catfish stew with brown rice": { 1: { min: 10, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
+  "Tuna and chickpea antipasti salad": { 3: { min: 10, passive: true, station: "off" } },
+  "Chargrilled tilapia tacos with peach salsa": { 3: { min: 8, passive: true, station: "stove" } },
+  "Neapolitan tuna fettuccine with capers": { 1: { min: 5, passive: true, station: "stove" }, 2: { min: 5, passive: true, station: "stove" } },
+  "Cumin-lime shrimp over cauliflower rice": { 0: { min: 6, passive: true, station: "off" } },
+  "Sharp cheddar baked macaroni": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 10, passive: true, station: "off" } },
+  "Peppers stuffed with brown rice and beans": { 0: { min: 40, passive: true, station: "stove" }, 4: { min: 30, passive: true, station: "oven" } },
+  "Swiss cheese and vegetable chowder": { 1: { min: 10, passive: true, station: "stove" } },
+  "Blueberry baked oats in ramekins": { 4: { min: 30, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
+  "Sheet-pan cauliflower and black bean bake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 5, passive: true, station: "oven" } },
+  "Noodle-free potato and spinach lasagna": { 1: { min: 5, passive: true, station: "stove" }, 6: { min: 40, passive: true, station: "oven" } },
+  "Charred corn and cornmeal patties": { 2: { min: 60, passive: true, station: "off" }, 4: { min: 10, passive: true, station: "oven" } },
+  "Sweet potato and kidney bean chili": { 3: { min: 30, passive: true, station: "stove" } },
+  "Lentil and pearl barley soup": { 1: { min: 60, passive: true, station: "stove" }, 2: { min: 45, passive: true, station: "stove" } },
+  "Curried butternut and chickpea stew": { 0: { min: 10, passive: true, station: "stove" }, 1: { min: 10, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  "Crispy skillet rice with tofu and peas": { 3: { min: 10, passive: true, station: "stove" } },
+  "Smoky lentil taco filling": { 0: { min: 10, passive: true, station: "stove" } },
+  "Skillet chickpeas with wilted spinach": { 1: { min: 15, passive: true, station: "stove" }, 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  "Sheet-pan roasted vegetables, lemon and herbs": { 4: { min: 20, passive: true, station: "oven" } },
+  "Bell pepper and apple slaw, cider dressing": { 4: { min: 20, passive: true, station: "off" } },
+  "Spring cabbage and artichoke soup": { 1: { min: 10, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 60, passive: true, station: "stove" }, 5: { min: 5, passive: true, station: "off" } },
+  "Acorn squash stuffed with cinnamon apples": { 1: { min: 5, passive: true, station: "off" }, 4: { min: 5, passive: true, station: "off" } },
+  "Cold black bean and brown rice salad": { 4: { min: 60, passive: true, station: "off" } },
+  ...USDA2_STEP_META,
 };
 for (const r of SHAPE_KITCHEN_RECIPES) {
   const m = _KITCHEN_STEP_META[r.title];
@@ -1094,6 +1142,13 @@ export const _RECIPE_ALLERGEN_NOTES = [
   ["Turkey chili verde", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Slow-simmered beef pot roast", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Black skillet beef with kale and red potatoes", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  // Batch 2 arrived carrying the same generic broth, stock and bouillon. Same
+  // treatment: the claim stands and the note names the safe form.
+  ["Pork tenderloin power bowl with quinoa", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Arroz con pollo with browned thighs", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Split pea soup with carrot and thyme", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Cuban black beans over brown rice", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Curried quinoa with cauliflower and peas", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   // ── dairy · margarine ────────────────────────────────────────────────────
   ["Herbed baked salmon with lemon", "dairy", "margarine", DF_MARGARINE, DF_MARGARINE_BRANDS],
 ];
@@ -1133,6 +1188,7 @@ export const _RECIPE_NOT_GF = new Set([
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
   ...USDA_NOT_GF,
+  ...USDA2_NOT_GF,
 ]);
 export const _RECIPE_HAS_DAIRY = new Set([
   "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
@@ -1140,12 +1196,14 @@ export const _RECIPE_HAS_DAIRY = new Set([
   "Chicken pesto pasta", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Overnight oats, three ways", "Garlic shrimp and courgette noodles", "Cottage cheese protein toast",
   ...USDA_HAS_DAIRY,
+  ...USDA2_HAS_DAIRY,
 ]);
 export const _RECIPE_MED = new Set([
   "Sheet-pan salmon, sweet potato and broccoli", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
   "Tuna niçoise bowl", "Roasted veg and halloumi traybake",
   "Harissa salmon with couscous", "Lemon-herb chicken meal-prep box",
   ...USDA_MED,
+  ...USDA2_MED,
 ]);
 export function recipeNeeds(r) {
   const out = [];
