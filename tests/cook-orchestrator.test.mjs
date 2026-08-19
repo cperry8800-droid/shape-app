@@ -248,3 +248,59 @@ test('progress: the board and a single recipe agree on the same cooking', () => 
     assert.equal(bsProgressPct(mins, k), bsProgressPct(mins, flags), `disagreement at ${k} steps done`);
   }
 });
+
+test('capacity: tiled holds on one station do not read as simultaneous', () => {
+  // Codex round 1, P2. Two burners. TILE holds the stove for 5 minutes and then another
+  // 5; SPAN wants the stove for the whole 10. Those two TILE holds never run at once, so
+  // the peak is two burners, not three, and everything fits inside 10 minutes.
+  //
+  // Counting the holds that merely INTERSECT the proposal saw 2 against a capacity of 2,
+  // called the stove full, and pulled SPAN five minutes earlier — turning an attainable
+  // 10-minute plan into 15. The regression is the EARLIEST SERVE figure, because that is
+  // the number a cook is shown and schedules dinner around.
+  const TILE = {
+    key: 'tile', title: 'Two short pans',
+    steps: ['Simmer the sauce 5 minutes.', 'Simmer the greens 5 minutes.'],
+    stepMeta: [P(5, 'stove'), P(5, 'stove')],
+  };
+  const SPAN = {
+    key: 'span', title: 'One long pan',
+    steps: ['Simmer the beans 10 minutes.'],
+    stepMeta: [P(10, 'stove')],
+  };
+  const two = bsOrchestrate([TILE, SPAN], { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 2 } });
+  assert.equal(two.earliestServe, 10, 'two burners fit a 10-minute plan');
+  assert.ok(!(two.issues || []).includes('stations'), `no station issue on two burners: ${JSON.stringify(two.issues)}`);
+
+  // The same dishes on ONE burner genuinely cannot tile — 20 minutes of stove is
+  // 20 minutes of stove. Capacity must still BIND, or the fix has simply removed
+  // the check rather than corrected it.
+  const one = bsOrchestrate([TILE, SPAN], { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 1 } });
+  assert.equal(one.earliestServe, 20, 'one burner must serialise the same work');
+  assert.ok(one.earliestServe > two.earliestServe, 'more burners can never be slower');
+});
+
+test('progress: a hold that is still running has not delivered its minutes', () => {
+  // Codex round 1, P2. Four steps; the 30-minute roast at index 1 is a passive window.
+  // Starting it advances the cursor to the other dish, so all four "done" flags can be
+  // true while the roast still has its full half hour to run.
+  const mins = [3, 30, 3, 4];
+  const total = 40;
+  // Cursor past the roast, roast just lit: it has delivered nothing.
+  assert.equal(bsProgressPct(mins, 2, 30), Math.round((3 / total) * 100));
+  // Halfway through the roast.
+  assert.equal(bsProgressPct(mins, 2, 15), Math.round((18 / total) * 100));
+  // Roast finished: the debit is gone and the minutes are banked.
+  assert.equal(bsProgressPct(mins, 2, 0), Math.round((33 / total) * 100));
+
+  // Without the debit the board reads 82% the instant the roast goes in — the defect.
+  assert.equal(bsProgressPct(mins, 2), 83);
+
+  // The debit can never drive the bar below zero or above the honest figure.
+  assert.equal(bsProgressPct(mins, 2, 9999), 0);
+  assert.equal(bsProgressPct(mins, 4, 0), 100);
+  // A junk debit is ignored rather than poisoning the arithmetic into NaN.
+  for (const junk of [undefined, null, NaN, -5, 'x']) {
+    assert.equal(bsProgressPct(mins, 2, junk), 83, `junk debit ${String(junk)} changed the figure`);
+  }
+});

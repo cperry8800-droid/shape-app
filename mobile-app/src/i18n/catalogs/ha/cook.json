@@ -113,5 +113,7 @@
   "prep.soonestGap": "Cikin minti {n} da juna",
   "prep.soonestSub": "Kome ya shirya tare, da wuri gwargwadon iko",
   "prep.startAt": "Za ka fara dafawa da ƙarfe {t}",
-  "prep.useEarliest": "Yi amfani da {t}"
+  "prep.useEarliest": "Yi amfani da {t}",
+  "prep.startsIn": "Zai fara cikin minti {n}",
+  "prep.startNow": "Fara yanzu"
 }

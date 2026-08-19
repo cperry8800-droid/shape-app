@@ -113,5 +113,7 @@
   "prep.soonestGap": "С разницей в {n} мин",
   "prep.soonestSub": "Всё готово вместе, настолько рано, насколько возможно",
   "prep.startAt": "Вы начинаете готовить в {t}",
-  "prep.useEarliest": "Выбрать {t}"
+  "prep.useEarliest": "Выбрать {t}",
+  "prep.startsIn": "Начнётся через {n} мин",
+  "prep.startNow": "Начать сейчас"
 }

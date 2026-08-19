@@ -7281,7 +7281,7 @@ const BS_PREP_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 // LIVE timers — a countdown exists only because the cook started a real-duration
 // step, never fabricated.
 const BS_PREP_STATION_LABELS = { oven: 'in the oven', stove: 'on the stove', board: 'on the board', off: 'resting' };
-function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
+function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone }) {
   const t = useBS();
   const tr = useShapeTr();
   _bsScrollTopOnMount();
@@ -7294,6 +7294,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const stationLabel = (st) => tr(`cook:prep.station.${st}`, { defaultValue: BS_PREP_STATION_LABELS[st] || '' });
 
   const [cursor, setCursor] = useStateBSC(0);
+  const [jumpedAt, setJumpedAt] = useStateBSC(-1);  // the one step the cook chose to start early
   const [timers, setTimers] = useStateBSC([]); // HOLDING lanes: [{id, iid, recipeKey, title, station, label, endsAt, total}]
   const timerIdRef = React.useRef(0);
   // "This step's timer was STARTED" must survive the timer's removal (✓ Done /
@@ -7334,17 +7335,43 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   // dish whose only remaining step is a 30-minute braise is not "5 of 6 done" in any
   // sense the cook cares about.
   const minsOf = (e) => (e && typeof e.min === 'number' && e.min > 0 ? e.min : BS_ORCH.activeStepMin);
-  const boardPct = React.useMemo(() => bsProgressPct(timeline.map(minsOf), cursor), [timeline, cursor]);
+  // Minutes a still-running hold has NOT delivered yet. The cursor moves past a passive
+  // window the moment its timer starts — that is the whole point of interleaving — so
+  // the minutes it represents are promised, not banked.
+  const unearnedFor = (rk) => timers.reduce(
+    (s, tm) => s + ((rk == null || tm.recipeKey === rk) ? Math.max(0, (tm.endsAt - now) / 60000) : 0),
+    0,
+  );
+  const boardPct = React.useMemo(() => bsProgressPct(timeline.map(minsOf), cursor, unearnedFor(null)), [timeline, cursor, timers, now]);
   const pctByRecipe = React.useMemo(() => {
     const out = {};
     for (const rk of recStats.order) {
       const mine = timeline.filter((e) => e.recipe === rk);
-      out[rk] = bsProgressPct(mine.map(minsOf), doneByRecipe[rk] || 0);
+      out[rk] = bsProgressPct(mine.map(minsOf), doneByRecipe[rk] || 0, unearnedFor(rk));
     }
     return out;
-  }, [timeline, recStats, doneByRecipe]);
+  }, [timeline, recStats, doneByRecipe, timers, now]);
 
   const ev = timeline[cursor];
+  // ⚠ THE SCHEDULE IS ONLY REAL IF SOMETHING ENFORCES IT. Every timeline event carries
+  // `at` — the minute it is planned to begin — and in Serve mode a dish deliberately
+  // starts LATE so it lands with everything else. The board previously rendered
+  // timeline[0] and advanced purely on cursor and timer state, never reading `at`, so a
+  // cook could run every delayed step immediately: the chosen table time was computed,
+  // displayed, and then ignored, and the dish that was timed to arrive with the rest
+  // came out early and went cold (Codex, round 1).
+  //
+  // `anchor` is the wall clock stamped at the Start tap, so the offsets are measured
+  // from when cooking actually began rather than from when the screen opened. Absent
+  // (any non-serve session), the gate is inert and the board behaves exactly as before.
+  const dueIn = (typeof anchor === 'number' && ev)
+    ? Math.ceil((ev.at || 0) - (now - anchor) / 60000)
+    : 0;
+  // Never a lock: the cook owns the kitchen and can overrule the plan for this step.
+  // Doing so leaves the remaining plan as computed — re-orchestrating around an early
+  // start is registered in the spec and NOT built, so the honest thing is to let the
+  // cook proceed rather than to pretend the rest of the schedule still holds.
+  const notDue = dueIn > 0 && jumpedAt !== cursor;
   // A recipe is PREPPED the moment its last timeline event is performed. Guarded
   // upstream (a written set), so a back→forward re-advance never double-records.
   const advance = (liveTimers) => {
@@ -7527,7 +7554,16 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
 
             <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
-              {isWindow && !evStarted
+              {notDue
+                ? (<>
+                    <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none' }}>
+                      {tr('cook:prep.startsIn', { defaultValue: 'Starts in {n} min', n: dueIn })}
+                    </button>
+                    <button onClick={() => setJumpedAt(cursor)} style={{ ...quietBtn, flexShrink: 0 }}>
+                      {tr('cook:prep.startNow', { defaultValue: 'Start now' })}
+                    </button>
+                  </>)
+                : isWindow && !evStarted
                 ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
                 : waitingOn
                   ? <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</button>
@@ -7681,6 +7717,8 @@ function BSPrepSession({ program, onClose }) {
   // is the thing that can make a reachable time unreachable.
   const nowRef = React.useRef(Date.now());
   const [serveMins, setServeMins] = useStateBSC(null);   // minutes from the anchor
+  const [runServeAt, setRunServeAt] = useStateBSC(null);       // minutes left, stamped at the tap
+  const [sessionAnchor, setSessionAnchor] = useStateBSC(null); // wall clock the cook started
   const clockOf = (mins) => {
     const d = new Date(nowRef.current + mins * 60000);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -7707,18 +7745,34 @@ function BSPrepSession({ program, onClose }) {
   // kitchen, versus cooking them to land on the table together for guests.
   const engineOptsFor = (choice) => {
     if (choice === BS_COOK_CHOICE.SEQUENCE) return { mode: BS_COOK_MODE.SEQUENCE, kitchen };
-    if (choice === BS_COOK_CHOICE.SERVE) return { mode: BS_COOK_MODE.SERVE, serveAt: chosenServe, kitchen };
+    if (choice === BS_COOK_CHOICE.SERVE) return { mode: BS_COOK_MODE.SERVE, serveAt: runServeAt ?? chosenServe, kitchen };
     return { mode: BS_COOK_MODE.SERVE, kitchen };   // SOONEST: earliest reachable
   };
   const orch = React.useMemo(
     () => (cookMode ? bsOrchestrate(orchInput, engineOptsFor(cookMode)) : orchAuto),
-    [orchInput, cookMode, orchAuto, kitchen, chosenServe],
+    [orchInput, cookMode, orchAuto, kitchen, chosenServe, runServeAt],
   );
   const interleaved = !orch.serial && orch.timeline.length > 0;
   const multi = ordered.length >= 2;
+  // Minutes still available at THIS instant. `chosenServe` counts from the mount
+  // anchor, so every minute spent reading the plan is a minute the schedule has
+  // already spent — reusing it at the tap serves dinner late by exactly the time
+  // spent on this screen (Codex, round 1).
+  const minsLeftNow = () => Math.round((nowRef.current + chosenServe * 60000 - Date.now()) / 60000);
+  // A serve time that cannot be met must not be startable. The engine would clamp to
+  // the earliest and run a session for a table time the cook never chose.
+  const cannotStart = (multi && !cookMode) || (cookMode === BS_COOK_CHOICE.SERVE && serveTooSoon);
   const spanOf = (o) => (o.timeline.length
     ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
     : 0);
+  // When the cook actually picks up a knife. In a serve plan the first event is
+  // deliberately LATER than now — that delay IS the mechanism — so this must come from
+  // the plan's own first event.
+  // ⚠ Deriving it as `chosenServe - spanOf(orch)` is identically ZERO for every valid
+  // serve time, because the plan is built so the last dish ends exactly at the chosen
+  // moment. It therefore told every cook to start immediately, even when the plan's
+  // first event was two hours out (Codex, round 1).
+  const firstAt = (o) => (o.timeline.length ? Math.min(...o.timeline.map((e) => e.at)) : 0);
 
   const writeEntry = (it) => {
     const entry = {
@@ -7764,6 +7818,7 @@ function BSPrepSession({ program, onClose }) {
       return <BSPrepCook
         items={ordered}
         timeline={orch.timeline}
+        anchor={sessionAnchor}
         onClose={onClose}
         onRecipePrepped={recordItem}
         onDone={(holds) => {
@@ -8017,7 +8072,7 @@ function BSPrepSession({ program, onClose }) {
                       </div>
                     ) : (
                       <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>
-                        {tr('cook:prep.startAt', { defaultValue: 'You start cooking at {t}', t: clockOf(Math.max(0, chosenServe - spanOf(orch))) })}
+                        {tr('cook:prep.startAt', { defaultValue: 'You start cooking at {t}', t: clockOf(firstAt(orch)) })}
                       </div>
                     )}
                   </div>
@@ -8065,9 +8120,25 @@ function BSPrepSession({ program, onClose }) {
             <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setStage('picker')} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
               <button
-                onClick={() => { if (multi && !cookMode) return; if (interleaved) { setStage('cook'); } else { setCookIdx(0); setStage('transition'); } }}
-                disabled={multi && !cookMode}
-                style={{ ...primaryBtn, flex: 1, opacity: (multi && !cookMode) ? 0.4 : 1, cursor: (multi && !cookMode) ? 'not-allowed' : 'pointer' }}
+                onClick={() => {
+                  if (cannotStart) return;
+                  if (cookMode === BS_COOK_CHOICE.SERVE) {
+                    const left = minsLeftNow();
+                    // Dawdling here can turn a reachable time unreachable. Re-offer the
+                    // earliest rather than silently serving at a different time.
+                    if (left < earliestServe) {
+                      setServeMins(Math.ceil((Date.now() - nowRef.current) / 60000) + earliestServe);
+                      return;
+                    }
+                    setRunServeAt(left);
+                  }
+                  // The wall clock the whole session is measured from. Every planned
+                  // offset is relative to THIS instant, not to when the screen opened.
+                  setSessionAnchor(Date.now());
+                  if (interleaved) { setStage('cook'); } else { setCookIdx(0); setStage('transition'); }
+                }}
+                disabled={cannotStart}
+                style={{ ...primaryBtn, flex: 1, opacity: cannotStart ? 0.4 : 1, cursor: cannotStart ? 'not-allowed' : 'pointer' }}
               >
                 {tr('cook:prep.start', { defaultValue: 'Start the session →' })}
               </button>

@@ -113,5 +113,7 @@
   "prep.soonestGap": "Birbirinden {n} dk arayla",
   "prep.soonestSub": "Hepsi birlikte hazır, olabildiğince erken",
   "prep.startAt": "Saat {t} pişirmeye başlıyorsun",
-  "prep.useEarliest": "{t} kullan"
+  "prep.useEarliest": "{t} kullan",
+  "prep.startsIn": "{n} dk sonra başlıyor",
+  "prep.startNow": "Şimdi başla"
 }

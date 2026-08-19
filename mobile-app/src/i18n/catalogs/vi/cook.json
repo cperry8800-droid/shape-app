@@ -113,5 +113,7 @@
   "prep.soonestGap": "Cách nhau trong {n} phút",
   "prep.soonestSub": "Tất cả xong cùng lúc, sớm nhất có thể",
   "prep.startAt": "Bạn bắt đầu nấu lúc {t}",
-  "prep.useEarliest": "Dùng {t}"
+  "prep.useEarliest": "Dùng {t}",
+  "prep.startsIn": "Bắt đầu sau {n} phút",
+  "prep.startNow": "Bắt đầu ngay"
 }

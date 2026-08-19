@@ -63,16 +63,30 @@ const capacityOf = (station, kitchen) => {
   return Number.isFinite(n) && n >= 1 ? n : (BS_KITCHEN_DEFAULT[station] || 1);
 };
 
-// Is this station full for the window [from, to)? Counts CONCURRENT holds against the
-// station's real capacity instead of asking "is anything there at all". Returns the
-// SMALLEST backwards pull that frees a slot, or null when there is room.
-// Pulling earlier clears the latest-starting occupier first, so that is the one to miss.
+// Is this station full for the window [from, to)? Measures PEAK SIMULTANEOUS occupancy
+// against the station's real capacity, and returns the backwards pull that clears the
+// first full instant, or null when there is room.
+//
+// ⚠ Counting the holds that merely INTERSECT [from, to) is not the same question and
+// gets it wrong above capacity 1: on two burners, existing holds [0,5) and [5,10) tile
+// the window without ever running at once, so a proposed [0,10) peaks at two burners,
+// not three, and fits. Intersection-counting called that full and pushed an attainable
+// 10-minute plan out to 15 with a spurious 'stations' issue (Codex, round 1).
+//
+// Occupancy is piecewise-constant and only ever rises at a hold's START, so those
+// boundaries plus `from` are the only instants worth sampling.
 const stationPull = (holds, station, from, to, kitchen) => {
   if (station == null || !STATIONS_EXCLUSIVE.includes(station)) return null;
-  const overlapping = holds.filter((h) => h.station === station && from < h.to && h.from < to);
-  if (overlapping.length < capacityOf(station, kitchen)) return null;
-  const latestFrom = overlapping.reduce((mx, h) => (h.from > mx ? h.from : mx), -Infinity);
-  return Math.max(1, to - latestFrom);
+  const mine = holds.filter((h) => h.station === station && from < h.to && h.from < to);
+  if (!mine.length) return null;
+  const cap = capacityOf(station, kitchen);
+  const points = [from, ...mine.map((h) => h.from).filter((f) => f > from && f < to)].sort((a, b) => a - b);
+  for (const t of points) {
+    const busy = mine.reduce((n, h) => n + (h.from <= t && t < h.to ? 1 : 0), 0);
+    // The proposal would be one more pan on that station at instant t.
+    if (busy + 1 > cap) return Math.max(1, to - t);
+  }
+  return null;
 };
 
 const posInt = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback);
@@ -221,7 +235,13 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
 // (the board walks a timeline in order) or a per-step boolean map (a single recipe can
 // skip). Returns a whole number 0-100 — never NaN for an empty or zero-length recipe,
 // because a progress readout that shows NaN is worse than one that shows nothing.
-export function bsProgressPct(mins, done) {
+// `unearnedMins` debits minutes that COUNT as stepped-past but have not actually
+// elapsed — a passive window whose timer is still running. On an interleaved board,
+// starting a 30-minute roast advances the cursor to the other dish immediately, so
+// without the debit the bar credits all 30 minutes at the moment the roast goes in and
+// can read close to 100% while the food still has half an hour to go (Codex, round 1).
+// Defaults to 0, so every caller that has no running holds is unchanged.
+export function bsProgressPct(mins, done, unearnedMins = 0) {
   const arr = Array.isArray(mins) ? mins.filter((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0) : [];
   const total = arr.reduce((a, b) => a + b, 0);
   if (!total) return 0;
@@ -230,7 +250,8 @@ export function bsProgressPct(mins, done) {
     const isDone = typeof done === 'number' ? i < done : !!(done && done[i]);
     if (isDone) d += arr[i];
   }
-  return Math.max(0, Math.min(100, Math.round((d / total) * 100)));
+  const debit = typeof unearnedMins === 'number' && Number.isFinite(unearnedMins) && unearnedMins > 0 ? unearnedMins : 0;
+  return Math.max(0, Math.min(100, Math.round(((d - debit) / total) * 100)));
 }
 
 export function bsOrchestrate(recipes, opts = {}) {

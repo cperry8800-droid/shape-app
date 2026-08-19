@@ -113,5 +113,7 @@
   "prep.soonestGap": "Selisih {n} mnt satu sama lain",
   "prep.soonestSub": "Semua siap bersamaan, secepat mungkin",
   "prep.startAt": "Kamu mulai masak pukul {t}",
-  "prep.useEarliest": "Pakai {t}"
+  "prep.useEarliest": "Pakai {t}",
+  "prep.startsIn": "Mulai dalam {n} mnt",
+  "prep.startNow": "Mulai sekarang"
 }

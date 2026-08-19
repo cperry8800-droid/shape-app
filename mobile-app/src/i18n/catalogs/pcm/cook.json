@@ -113,5 +113,7 @@
   "prep.soonestGap": "Within {n} min of each oda",
   "prep.soonestSub": "Everything ready together, as early as e fit be",
   "prep.startAt": "You go start to cook by {t}",
-  "prep.useEarliest": "Use {t}"
+  "prep.useEarliest": "Use {t}",
+  "prep.startsIn": "E go start for {n} min",
+  "prep.startNow": "Start now"
 }

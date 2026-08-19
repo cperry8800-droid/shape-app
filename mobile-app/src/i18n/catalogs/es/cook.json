@@ -113,5 +113,7 @@
   "prep.soonestGap": "Con {n} min de diferencia",
   "prep.soonestSub": "Todo listo a la vez, lo antes posible",
   "prep.startAt": "Empiezas a cocinar a las {t}",
-  "prep.useEarliest": "Usar {t}"
+  "prep.useEarliest": "Usar {t}",
+  "prep.startsIn": "Empieza en {n} min",
+  "prep.startNow": "Empezar ya"
 }
