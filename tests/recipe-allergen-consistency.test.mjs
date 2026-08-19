@@ -187,3 +187,43 @@ test('allergen claims: every note speaks to an ingredient the recipe really has'
   }
   assert.deepEqual(bad, [], 'remove the stale note, or fix the ingredient it refers to');
 });
+
+// The audit strikes an ambiguous class from the note's `ingredient` metadata -- but a
+// member never sees `ingredient`. Every renderer displays `certification` and nothing
+// else. So the two can disagree: give an oats note the BROTH sentence and the gate
+// still strikes oats and passes, while the visible caveat talks about stock cubes and
+// says nothing about oats. That is a green gate over a note that does not describe the
+// ingredient it is excusing -- the same defect class as the fused regex, one level up.
+// Tie the VISIBLE text to the class it excuses.
+const CLASS_SPEAKS = {
+  'oats': /\boat/i,
+  'soy sauce': /\b(soy|tamari)\b/i,
+  'broth': /\b(broth|stock|bouillon)/i,
+  'margarine': /\bmargarine\b/i,
+};
+
+test('allergen claims: the VISIBLE note text names the class it excuses', () => {
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    for (const n of r.allergenNotes || []) {
+      const speaks = CLASS_SPEAKS[n.ingredient];
+      if (!speaks) continue; // an unknown class is the completeness test's business
+      if (!speaks.test(n.certification)) {
+        bad.push(`${r.title}: note excuses "${n.ingredient}" but its visible text never names it -- "${n.certification}"`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'the certification sentence must name the ingredient it excuses');
+});
+
+// CLASS_SPEAKS skips anything it does not know, so a class added to AMBIGUOUS without a
+// matching entry here would silently opt out of the check above. Keep them in lockstep.
+test('allergen claims: every ambiguous class has a visible-text rule', () => {
+  const missing = [];
+  for (const allergen of Object.keys(AMBIGUOUS)) {
+    for (const klass of Object.keys(AMBIGUOUS[allergen])) {
+      if (!CLASS_SPEAKS[klass]) missing.push(`${allergen}.${klass}`);
+    }
+  }
+  assert.deepEqual(missing, [], 'add a CLASS_SPEAKS rule for each ambiguous class');
+});

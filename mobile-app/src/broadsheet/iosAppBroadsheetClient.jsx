@@ -6331,6 +6331,29 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
                 <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
                 <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
               </button>
+              {/* Allergen claim note, on the RESULT ROW. This list is what the
+                  FREE FROM filters return, and the row carries `Send to grocery`
+                  — so a member can put generic oats / soy sauce / broth /
+                  margarine on a shopping list without ever opening the card that
+                  qualifies the claim. The certification is the safety-bearing
+                  half, so it renders ABOVE the grocery action, never after it.
+                  Certification clause only; the brand examples stay on the
+                  detail card (the website result grid's established treatment,
+                  public/newdesign/recipesPage.jsx). Unattributed — the catalog's
+                  own voice, never behind the recipe's byline.
+                  ⚠ 71 of 85 recipes have NO `allergenNotes` key at all —
+                  `undefined`, not `[]` — so the array is coalesced before it is
+                  read, twice (the length test and the map). */}
+              {(r.allergenNotes || []).length > 0 && (
+                <div style={{ marginTop: 6, paddingLeft: 8, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
+                  {(r.allergenNotes || []).map((n, ni) => (
+                    <div key={ni} style={{ marginTop: ni ? 4 : 0, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.45, color: t.INK70 }}>
+                      <span style={{ fontWeight: 800, letterSpacing: '0.16em', color: t.INK50 }}>{`ALLERGEN · ${String(n.allergen || '').toUpperCase()} `}</span>
+                      {n.certification}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
                 <button type="button" onClick={() => onSendToGrocery(r)} style={{ minHeight: 44, display: 'flex', flex: 1, alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>Send to grocery</span>
@@ -7489,6 +7512,39 @@ function BSPrepSession({ program, onClose }) {
     }), [candidates, sel]);
   const ordered = React.useMemo(() => bsPrepOrder(selected), [selected]);
   const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
+  // The board's allergen claim notes. BSCookMode's own mise block CANNOT carry
+  // them here: a prep-session candidate is filtered on `c.steps.length`, so
+  // `hasMethod` is always true and BSCookMode opens straight on 'method'
+  // (skipping its mise), while the interleaved path mounts BSPrepCook, which
+  // has no mise at all. Without this block a member preps generic oats / soy
+  // sauce / broth / margarine while the catalog still publishes a
+  // "Gluten-free"/"Dairy-free" claim over the dish — the note is the only thing
+  // making that claim honest.
+  // Merged, so de-duplicated on the note's own content (two oat recipes carry
+  // the SAME certification), and each surviving note names the dishes it came
+  // from — a merged board is otherwise silent about which dish is at stake.
+  // ⚠ Only 14 of 85 catalog recipes carry notes, and every non-catalog cookable
+  // leaves the field null, so it is coalesced before it is read.
+  const miseNotes = React.useMemo(() => {
+    const by = new Map();
+    selected.forEach((it) => {
+      const c = it && it.cookable;
+      const title = String((c && c.title) || '').trim();
+      ((c && c.allergenNotes) || []).forEach((n) => {
+        if (!n) return;
+        const key = `${n.allergen}|${n.ingredient}|${n.certification}`;
+        const e = by.get(key) || { ...n, from: new Set() };
+        if (title) e.from.add(title);
+        by.set(key, e);
+      });
+    });
+    // Deterministic order by key code-unit — never localeCompare (the merged
+    // mise's own rule; ICU collation varies by build).
+    return [...by.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([, e]) => {
+      const a = [...e.from];
+      return { ...e, from: a.length <= 2 ? a.join(' · ') : `${a.slice(0, 2).join(' · ')} +${a.length - 2}` };
+    });
+  }, [selected]);
 
   // PR D: orchestrate the selected recipes. serial:false → the interleaved
   // multi-track BOARD (BSPrepCook — "while the chicken roasts, start the rice");
@@ -7650,6 +7706,25 @@ function BSPrepSession({ program, onClose }) {
                 </button>
               );
             })}
+            {/* The merged board's allergen claim notes — the same unattributed
+                block BSCookMode's mise carries, in the catalog's own voice (no
+                byline, no gold), plus the dish each note belongs to. This is the
+                ONLY point on either prep path where they can be read. English +
+                hard-coded like the two existing copies; i18n is the same
+                registered follow-up. */}
+            {miseNotes.map((n, i) => (
+              <div key={i} style={{ marginTop: 14, paddingLeft: 9, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+                  {`ALLERGEN · ${String(n.allergen || '').toUpperCase()}`}
+                </div>
+                {n.from ? (
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.from}</div>
+                ) : null}
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, lineHeight: 1.55, color: t.INK70 }}>
+                  {bsAllergenNoteText(n)}
+                </div>
+              </div>
+            ))}
             <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setStage('picker')} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
               <button onClick={() => { if (interleaved) { setStage('cook'); } else { setCookIdx(0); setStage('transition'); } }} style={{ ...primaryBtn, flex: 1 }}>
