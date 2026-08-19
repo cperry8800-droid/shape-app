@@ -389,7 +389,11 @@ test('catalog: an annotated window never hides an instruction behind its timer',
   for (const r of SHAPE_KITCHEN_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true) return;
-      if (i === r.steps.length - 1) return;            // terminal: no later step to mislead
+      // ⚠ THE TERMINAL EXEMPTION WAS WRONG. It reasoned that a last step has no later step
+      // to mislead. But starting a terminal hold marks the recipe prepped and sends the cook
+      // to another dish or the wrap — and the wrap renders `◷ {title} · {countdown}`, with
+      // `wrapHolds` carrying only {title, leftS}. The step text is not merely unshown there,
+      // it is not even carried. A terminal hold hides its instruction exactly like the rest.
       const text = r.steps[i] || '';
       const d = text.search(DUR);
       if (d < 0) return;

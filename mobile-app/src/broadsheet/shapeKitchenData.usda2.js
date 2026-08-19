@@ -557,7 +557,9 @@ export const USDA2_STEP_META = {
   // "cook the onion" rather than naming a technique at all.
   "Picadillo with brown rice": { 4: { min: 15, passive: true, station: "stove" } },
   "Arroz con pollo with browned thighs": { 4: { min: 20, passive: true, station: "stove" }, 5: { min: 20, passive: true, station: "stove" }, 6: { min: 5, passive: true, station: "off" } },
-  "Chicken cacciatore": { 3: { min: 60, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "off" } },
+  // step 4 rests off the heat "then spoon the thickened sauce over each piece" — a terminal
+  // hold hides its instruction like any other, because the wrap carries only the countdown.
+  "Chicken cacciatore": { 3: { min: 60, passive: true, station: "stove" } },
   "Tuna salad on dressed romaine": { 3: { min: 10, passive: true, station: "off" } },
   // step 1 toasts "tossing once or twice" — attended. No window; the recipe cannot host.
   "Tomato and garlic omelette with croutons": {},

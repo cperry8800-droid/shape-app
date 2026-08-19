@@ -3016,7 +3016,6 @@ const _RECIPE_ALLERGEN_NOTES = [
   ["Asparagus and mandarin chicken rice bowl", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
   ["Sizzling chicken and broccoli over brown rice", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
   ["Turkey and vegetable stir-fry", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
-  ["Beef and broccoli stir-fry", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
   ["One-pan chicken and rice", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
   ["Red lentil and spinach dahl", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
   ["Turkey chili verde", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
@@ -3093,7 +3092,7 @@ const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
 const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 const RECIPE_GOALS = ["High-protein", "Low-carb"];
 const _RECIPE_NOT_GF = new Set([
-  "Miso-glazed cod with greens", "Grilled chicken Caesar, lightened", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
+  "Miso-glazed cod with greens", "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
   // Mirrors _RECIPE_NOT_GF + USDA_NOT_GF in the catalog module. ⚠ The AMBIGUOUS
   // classes (oats, soy sauce, broth) are NOT here: they keep their claim and carry
   // an allergen note instead — owner ruling 2026-08-18. Read the ingredients, not

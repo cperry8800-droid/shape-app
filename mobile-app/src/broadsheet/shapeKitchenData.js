@@ -1067,9 +1067,13 @@ export const _KITCHEN_STEP_META = {
   // step 4 simmers "turning the roast once at the halfway mark" — attended, so the 2h is not a window.
   // A ranged window takes the LOW end: the cook is wanted when the food is ready, and the
   // top of the range is where the board would return them to something overcooked.
-  "Slow-simmered beef pot roast": { 1: { min: 4, passive: true, station: "stove" }, 5: { min: 10, passive: true, station: "off" } },
+  // ⚠ a TERMINAL hold hides its instruction too. Starting it marks the recipe prepped and
+  // sends the cook to another dish or the wrap, and the wrap renders only
+  // `◷ {title} · {countdown}` — `wrapHolds` carries {title, leftS} and never the text.
+  // The last thing the recipe says is the thing nobody sees.
+  "Slow-simmered beef pot roast": { 1: { min: 4, passive: true, station: "stove" } },
   "Beef stroganoff with macaroni": { 3: { min: 6, passive: true, station: "stove" } },
-  "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
+  "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" } },
   // step 0 was "Freeze 30 minutes ... then slice it": the HOLDING lane shows no step text and the
   // cursor moves on when the timer rings, so the slicing was never surfaced and step 1 asked the
   // cook to season "the strips" they were never told to cut. Split, so the freeze is the hold and
@@ -1081,7 +1085,7 @@ export const _KITCHEN_STEP_META = {
   // exempted it read only its opening words. Neither is a window.
   "Skillet beef and cabbage": {},
   "Ground beef and root vegetable stew": { 3: { min: 25, passive: true, station: "stove" }, 4: { min: 10, passive: true, station: "off" } },
-  "Grilled skirt steak with salsa criolla": { 1: { min: 60, passive: true, station: "off" }, 4: { min: 5, passive: true, station: "off" } },
+  "Grilled skirt steak with salsa criolla": { 1: { min: 60, passive: true, station: "off" } },
   // step 0 holds the simmer "skimming the grey foam off the top" — attended. Step 1's second
   // hour states no attendance, so it stays the recipe's window.
   "Shorba lamb and peanut soup": { 1: { min: 60, passive: true, station: "stove" } },
@@ -1117,7 +1121,11 @@ export const _KITCHEN_STEP_META = {
   "Charred corn and cornmeal patties": { 2: { min: 60, passive: true, station: "off" }, 4: { min: 10, passive: true, station: "oven" } },
   "Sweet potato and kidney bean chili": { 3: { min: 30, passive: true, station: "stove" } },
   "Lentil and pearl barley soup": { 1: { min: 60, passive: true, station: "stove" }, 2: { min: 45, passive: true, station: "stove" } },
-  "Curried butternut and chickpea stew": { 0: { min: 10, passive: true, station: "stove" }, 1: { min: 10, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  // steps 0 and 1 are ten minutes of uncovered aromatics and then ten more of curry powder
+  // BLOOMING in hot oil — spices scorch faster than anything else in the catalog. Step 3 is
+  // covered, and it is the one real window. No gate catches these: the prose says "cook the
+  // onion", naming no technique at all, which is why review found them and the suite did not.
+  "Curried butternut and chickpea stew": { 3: { min: 10, passive: true, station: "stove" } },
   "Crispy skillet rice with tofu and peas": { 3: { min: 10, passive: true, station: "stove" } },
   "Smoky lentil taco filling": { 0: { min: 10, passive: true, station: "stove" } },
   "Skillet chickpeas with wilted spinach": { 1: { min: 15, passive: true, station: "stove" }, 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
@@ -1127,12 +1135,13 @@ export const _KITCHEN_STEP_META = {
   // step 1 sautes its 10 minutes. Sauteing IS the timed action and it is attended — the
   // gerund rule missed it because the verb is an imperative. Step 3 simmers, so it stays.
   "Spring cabbage and artichoke soup": { 3: { min: 10, passive: true, station: "stove" } },
-  "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 50, passive: true, station: "stove" }, 5: { min: 5, passive: true, station: "off" } },
+  "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 50, passive: true, station: "stove" } },
   // step 4 microwaves "3 to 5 minutes more" — the same range-straddling-the-floor shape as the
   // asparagus, found by the new gate rather than by review. Step 1 states a flat 5 minutes
   // and stays.
   "Acorn squash stuffed with cinnamon apples": { 1: { min: 5, passive: true, station: "off" } },
-  "Cold black bean and brown rice salad": { 4: { min: 60, passive: true, station: "off" } },
+  // its only window, and it hid "season through" behind an hour of chilling.
+  "Cold black bean and brown rice salad": {},
   ...USDA2_STEP_META,
 };
 for (const r of SHAPE_KITCHEN_RECIPES) {
@@ -1191,13 +1200,17 @@ export const _RECIPE_ALLERGEN_NOTES = [
   ["Tofu and edamame poke bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   ["Asparagus and mandarin chicken rice bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   ["Sizzling chicken and broccoli over brown rice", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
-  // Both of these had been EXCLUDED from the gluten-free filter rather than carrying the
-  // note, though soy sauce is their only gluten marker — the opposite of the owner ruling
-  // that a claim is kept by SPECIFYING the ingredient and never by hiding the recipe. The
-  // four entries above are the convention; these two were the deviation. The review named
-  // the turkey one, and the beef one carried the same defect on main.
+  // The turkey stir-fry had been EXCLUDED from the gluten-free filter rather than carrying
+  // the note, against the owner ruling that a claim is kept by SPECIFYING the ingredient
+  // and never by hiding the recipe. It also carries chicken stock, hence the broth note.
+  //
+  // ⚠ `Beef and broccoli stir-fry` is NOT here, and that is deliberate. I moved it out of
+  // the exclusion on the same reasoning and it was wrong: it carries OYSTER SAUCE, which is
+  // a wheat risk the GLUTEN regex below does not know and a shellfish allergen besides. A
+  // soy-sauce note would have told a coeliac that one swap made the dish safe. Keeping the
+  // claim needs an oyster-sauce class in the notes framework AND in the gate — an owner
+  // call, not a data edit. Excluded until then.
   ["Turkey and vegetable stir-fry", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
-  ["Beef and broccoli stir-fry", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   // ── gluten · broth, stock, bouillon ──────────────────────────────────────
   // These five were never classified — they have ALWAYS claimed gluten-free over
   // a generic broth. The note is what makes that claim honest; no set changes.
@@ -1252,7 +1265,7 @@ export const _RECIPE_NOT_GF = new Set([
   // an ingredient with no note and no gate. Owner ruling pending; hold is the safe
   // direction (under-claiming costs a filter hit, over-claiming is the harm).
   "Miso-glazed cod with greens",
-  "Grilled chicken Caesar, lightened", "Tempeh and broccoli teriyaki",
+  "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
   "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl",
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
