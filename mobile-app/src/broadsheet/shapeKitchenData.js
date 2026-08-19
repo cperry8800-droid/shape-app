@@ -1010,8 +1010,10 @@ export const bsRecipeAttribution = (r) => {
 export const _KITCHEN_STEP_META = {
   "One-pan chicken and rice": { 4: { min: 18, passive: true, station: "stove" } },
   "Sheet-pan salmon, sweet potato and broccoli": { 4: { min: 12, passive: true, station: "oven" } },
-  "Steak and sweet potato hash": { 1: { min: 8, passive: true, station: "stove" }, 4: { min: 4, passive: true, station: "off" } },
-  "Red lentil and spinach dahl": { 4: { min: 18, passive: true, station: "stove" } },
+  // step 1 cooks "stirring occasionally" — attended, so it is NOT a window (see ATTENDED note below).
+  "Steak and sweet potato hash": { 4: { min: 4, passive: true, station: "off" } },
+  // step 4 simmers "stirring now and then" — attended. No window; the recipe cannot host.
+  "Red lentil and spinach dahl": {},
   "Chickpea shakshuka": { 2: { min: 8, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
   "Tofu and edamame poke bowl": { 0: { min: 10, passive: true, station: "off" } },
   "Grilled chicken Caesar, lightened": { 2: { min: 5, passive: true, station: "off" } },
@@ -1028,7 +1030,8 @@ export const _KITCHEN_STEP_META = {
   "Overnight oats, three ways": { 1: { min: 240, passive: true, station: "off" } },
   "Harissa salmon with couscous": { 2: { min: 5, passive: true, station: "off" } },
   "Date and almond energy bites": { 3: { min: 30, passive: true, station: "off" } },
-  "Turkey chili verde": { 4: { min: 20, passive: true, station: "stove" } },
+  // step 4 cooks "stirring occasionally" — attended. No window; the recipe cannot host.
+  "Turkey chili verde": {},
   "Lemon-herb chicken meal-prep box": { 0: { min: 10, passive: true, station: "off" }, 1: { min: 15, passive: true, station: "stove" }, 2: { min: 16, passive: true, station: "oven" } },
   // ── Overlay expansion ───────────────────────────────────────────────────
   // Without these, a two-dish Together session found no host window ~55% of the
@@ -1037,7 +1040,8 @@ export const _KITCHEN_STEP_META = {
   // concurrent-authored step. Hands-on steps carry NO annotation.
   "Lentil bolognese": { 0: { min: 8, passive: true, station: "stove" } },
   "Garlic shrimp and courgette noodles": { 0: { min: 10, passive: true, station: "off" } },
-  "Slow-simmered beef pot roast": { 1: { min: 5, passive: true, station: "stove" }, 4: { min: 120, passive: true, station: "stove" }, 5: { min: 10, passive: true, station: "off" } },
+  // step 4 simmers "turning the roast once at the halfway mark" — attended, so the 2h is not a window.
+  "Slow-simmered beef pot roast": { 1: { min: 5, passive: true, station: "stove" }, 5: { min: 10, passive: true, station: "off" } },
   "Beef stroganoff with macaroni": { 3: { min: 6, passive: true, station: "stove" } },
   "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
   "Black skillet beef with kale and red potatoes": { 0: { min: 30, passive: true, station: "off" }, 3: { min: 20, passive: true, station: "stove" }, 4: { min: 15, passive: true, station: "stove" } },
@@ -1045,7 +1049,9 @@ export const _KITCHEN_STEP_META = {
   "Skillet beef and cabbage": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
   "Ground beef and root vegetable stew": { 3: { min: 25, passive: true, station: "stove" }, 4: { min: 10, passive: true, station: "off" } },
   "Grilled skirt steak with salsa criolla": { 1: { min: 60, passive: true, station: "off" }, 4: { min: 5, passive: true, station: "off" } },
-  "Shorba lamb and peanut soup": { 0: { min: 60, passive: true, station: "stove" }, 1: { min: 60, passive: true, station: "stove" } },
+  // step 0 holds the simmer "skimming the grey foam off the top" — attended. Step 1's second
+  // hour states no attendance, so it stays the recipe's window.
+  "Shorba lamb and peanut soup": { 1: { min: 60, passive: true, station: "stove" } },
   "Braised chicken thighs with wilted spinach": { 3: { min: 30, passive: true, station: "stove" } },
   "Roasting-pan chicken with potatoes and carrots": { 3: { min: 60, passive: true, station: "oven" } },
   "Mango and peanut chicken wraps": { 4: { min: 20, passive: true, station: "off" } },
@@ -1054,7 +1060,8 @@ export const _KITCHEN_STEP_META = {
   "Chicken pozole with hominy and lime": { 0: { min: 60, passive: true, station: "stove" }, 3: { min: 45, passive: true, station: "stove" } },
   "Catfish stew with brown rice": { 1: { min: 10, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
   "Tuna and chickpea antipasti salad": { 3: { min: 10, passive: true, station: "off" } },
-  "Chargrilled tilapia tacos with peach salsa": { 3: { min: 8, passive: true, station: "stove" } },
+  // step 3 cooks "flipping once" — attended. No window; the recipe cannot host.
+  "Chargrilled tilapia tacos with peach salsa": {},
   "Neapolitan tuna fettuccine with capers": { 1: { min: 5, passive: true, station: "stove" }, 2: { min: 5, passive: true, station: "stove" } },
   "Cumin-lime shrimp over cauliflower rice": { 0: { min: 6, passive: true, station: "off" } },
   "Sharp cheddar baked macaroni": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 10, passive: true, station: "off" } },
@@ -1070,7 +1077,8 @@ export const _KITCHEN_STEP_META = {
   "Crispy skillet rice with tofu and peas": { 3: { min: 10, passive: true, station: "stove" } },
   "Smoky lentil taco filling": { 0: { min: 10, passive: true, station: "stove" } },
   "Skillet chickpeas with wilted spinach": { 1: { min: 15, passive: true, station: "stove" }, 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
-  "Sheet-pan roasted vegetables, lemon and herbs": { 4: { min: 20, passive: true, station: "oven" } },
+  // step 4 roasts "stirring once at the 10-minute mark" — attended. No window.
+  "Sheet-pan roasted vegetables, lemon and herbs": {},
   "Bell pepper and apple slaw, cider dressing": { 4: { min: 20, passive: true, station: "off" } },
   "Spring cabbage and artichoke soup": { 1: { min: 10, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
   "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 60, passive: true, station: "stove" }, 5: { min: 5, passive: true, station: "off" } },

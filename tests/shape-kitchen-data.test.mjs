@@ -205,6 +205,42 @@ test('catalog: no annotated window is followed by a concurrent-authored same-rec
   }
 });
 
+// ⚠ A WINDOW MEANS THE COOK CAN WALK AWAY. The board proves how much this matters:
+// while a hold runs, the HOLDING lane renders only the recipe TITLE, the station and a
+// countdown — the step TEXT is never shown. So annotating a step that asks the cook to
+// come back mid-window ("simmer 2 hours, TURNING the roast once at the halfway mark")
+// hides the instruction until the timer rings: the roast is never turned, the foam is
+// never skimmed, the croutons burn. `cookOrchestrator.mjs`'s own header states the rule
+// — "never a merely-parsed duration (a 'simmer 20 min, stirring' is not hands-off)" —
+// and it shipped violated 9 times (3 of them live on main since the Cook Mode wave).
+//
+// The distinction is grammatical and precise. A GERUND clause modifies the timed action
+// and therefore runs DURING it ("stirring occasionally", "flipping once", "skimming the
+// foam"). The same verb as an IMPERATIVE is setup that completes BEFORE the wait ("Stir
+// in the flour, then simmer 5 minutes"; "Press the tofu … rest 10 minutes"), and a state
+// verb describes the food, not the cook ("until it turns soft"). Measured over the
+// catalog: the gerund rule flags 9 real violations and 0 of the 24 false positives a
+// bare verb match produces.
+test('catalog: an ATTENDED step is never annotated as a hands-off window', () => {
+  const ATTEND_GERUND = /\b(stirring|turning|flipping|skimming|tossing|basting|whisking|shaking|scraping|checking)\b/i;
+  // "without stirring" / "without turning too often" is an instruction to LEAVE IT ALONE.
+  const NEGATED = /\bwithout\s+\w*\s*(stirring|turning|flipping|skimming|tossing)\b/i;
+  // ⚠ Collect, then assert ONCE. An assert inside the loop reports the FIRST violation
+  // and hides the count — which is exactly how a review round named 2 of these 9.
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const text = r.steps[i] || '';
+      if (NEGATED.test(text)) return;
+      const hit = text.match(ATTEND_GERUND);
+      if (hit) bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — "${hit[0]}": ${text.slice(0, 70)}…`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} annotated window(s) ask the cook to attend mid-hold; the board hides the step text, so drop the annotation:\n  ${bad.join('\n  ')}`);
+});
+
 // Spot-check the diet helpers so a logic regression (not just a desync) is caught.
 test('catalog: recipeNeeds / recipeMatchesDiet behave for known recipes', () => {
   const byTitle = (t) => SHAPE_KITCHEN_RECIPES.find((r) => r.title === t);

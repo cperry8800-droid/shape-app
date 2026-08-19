@@ -311,7 +311,17 @@ export const USDA2_KITCHEN_RECIPES = [
     source: "USDA MyPlate Kitchen", sourceUrl: "https://myplate.food/recipes/tuna-salad-greens", license: "public-domain",
     by: null, byRole: null, diet: "Seafood",
     time: "15 min", servings: 4, kcal: 241, macros: { p: 29, c: 9, f: 10 },
-    tags: ["High protein", "Low carb", "Quick"],
+    // ⚠ THE SOURCE'S OWN NUTRITION IS IMPOSSIBLE FOR ITS OWN INGREDIENT LIST, and the
+    // macros above reproduce it verbatim (myplate.food publishes 5 oz tuna, 4 servings,
+    // 28.72 g protein each). One 5 oz can of tuna carries ~23-33 g protein TOTAL; the mayo,
+    // oil and vegetables add ~5 g, so the whole bowl holds ~40 g, not the 116 g those macros
+    // claim across four servings. Codex read the gap correctly but proposed restoring "the
+    // source's multi-can quantity" — there is no multi-can quantity; the source says 5 oz.
+    // The "High protein" TAG is removed because it is the claim we can actually withdraw
+    // without authoring nutrition data under a USDA byline. Correcting the macros themselves
+    // is an OWNER/NUTRITION RULING, and it is not confined to this recipe: all 100 USDA
+    // recipes carry their source's published figures, and that class is unmeasured.
+    tags: ["Low carb", "Quick"],
     hero: "linear-gradient(135deg, #7fa650 0%, #c48a54 55%, #1a1612 100%)",
     blurb: "A deli classic, rebuilt as a proper low-carb protein plate.",
     ingredients: [
@@ -534,7 +544,9 @@ export const USDA2_STEP_META = {
   "Arroz con pollo with browned thighs": { 2: { min: 10, passive: true, station: "stove" }, 4: { min: 20, passive: true, station: "stove" }, 5: { min: 20, passive: true, station: "stove" }, 6: { min: 5, passive: true, station: "off" } },
   "Chicken cacciatore": { 3: { min: 60, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "off" } },
   "Tuna salad on dressed romaine": { 3: { min: 10, passive: true, station: "off" } },
-  "Tomato and garlic omelette with croutons": { 1: { min: 25, passive: true, station: "oven" } },
-  "Split pea soup with carrot and thyme": { 3: { min: 120, passive: true, station: "stove" } },
+  // step 1 toasts "tossing once or twice" — attended. No window; the recipe cannot host.
+  "Tomato and garlic omelette with croutons": {},
+  // step 3 cooks "skimming off any foam" — attended, so the 2h is not a window.
+  "Split pea soup with carrot and thyme": {},
   "Cuban black beans over brown rice": { 3: { min: 5, passive: true, station: "stove" } },
 };

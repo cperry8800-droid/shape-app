@@ -2794,7 +2794,7 @@ const RECIPES_USDA = [
     by: null, byRole: null, diet: "Seafood",
     time: "15 min", servings: 4, kcal: 241,
     macros: { p: 29, c: 9, f: 10 },
-    tags: ["High protein","Low carb","Quick"],
+    tags: ["Low carb","Quick"],
     hero: "linear-gradient(135deg, #7fa650 0%, #c48a54 55%, #1a1612 100%)",
     note: "A deli classic, rebuilt as a proper low-carb protein plate.",
     ingredients: [
