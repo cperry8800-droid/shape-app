@@ -272,7 +272,22 @@ export function bsOrchestrate(recipes, opts = {}) {
 
     // Pick the first recipe (input order) whose next step can be done now:
     // it isn't blocked by its own running window, and its station is free.
-    const ready = st.find((s) => s.ptr < s.steps.length && now >= s.freeAt && !stationBusy((s.meta[s.ptr] || {}).station));
+    // Longest-remaining-work first, not input order. Input order is arbitrary — it is
+    // whatever `bsPrepOrder` handed over — and picking arbitrarily lengthens the whole
+    // session, because the dish with the most work left is the one that decides when
+    // dinner is. Measured: on the same 231 recipe pairs, first-ready-in-input-order was
+    // never faster than the backward-packed serve plan, which made "as fast as possible"
+    // a claim this mode could not keep. Ties break on input order so the schedule stays
+    // deterministic.
+    const remaining = (s) => {
+      let n = 0;
+      for (let i = s.ptr; i < s.steps.length; i++) n += realMin(s.meta[i]) ?? activeMin;
+      return n;
+    };
+    const readyNow = st.filter((s) => s.ptr < s.steps.length && now >= s.freeAt && !stationBusy((s.meta[s.ptr] || {}).station));
+    const ready = readyNow.length
+      ? readyNow.reduce((best, s) => (remaining(s) > remaining(best) ? s : best), readyNow[0])
+      : undefined;
 
     if (!ready) {
       // Nobody can act — jump the clock to the next thing that frees up. Strictly

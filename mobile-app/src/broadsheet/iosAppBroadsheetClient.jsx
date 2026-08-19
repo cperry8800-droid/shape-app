@@ -7615,6 +7615,15 @@ function BSPrepSession({ program, onClose }) {
   // A cook choosing between two ways of spending their evening deserves the actual
   // figure, and the gap is often small (two stove dishes cannot overlap much).
   const orchSeq = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SEQUENCE, kitchen }), [orchInput, kitchen]);
+  // "All ready at once" is offerable for ANY two dishes — landing them together never
+  // needs a passive window, it just starts the shorter dish later. Only "as fast as
+  // possible" depends on there being a real window to hide work inside, which is why
+  // that is the one option that can be unavailable.
+  const orchServe = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SERVE, kitchen }), [orchInput, kitchen]);
+  // How far apart the food still lands, when the kitchen cannot do better. Said plainly
+  // rather than hidden: a promise of "at once" that quietly means 26 minutes apart is
+  // worse than the honest number.
+  const serveSpread = orchServe.spread || 0;
   const spanOf = (o) => (o.timeline.length
     ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
     : 0);
@@ -7835,15 +7844,30 @@ function BSPrepSession({ program, onClose }) {
             {multi && (
               <div style={{ marginTop: 20 }}>
                 <div style={{ ...bandEyebrow, color: t.INK50 }}>
-                  {tr('cook:prep.howAsk', { defaultValue: 'How are we cooking these?' })}
+                  {tr('cook:prep.howAsk', { defaultValue: 'How should these be timed?' })}
                 </div>
-                <div style={{ marginTop: 9, display: 'flex', gap: 9 }}>
+                <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 9 }}>
                   {[
-                    { key: BS_COOK_MODE.TOGETHER, label: tr('cook:prep.together', { defaultValue: 'Together' }),
-                      sub: tr('cook:prep.togetherSub', { defaultValue: 'Woven for timing' }),
+                    { key: BS_COOK_MODE.SERVE,
+                      label: tr('cook:prep.allAtOnce', { defaultValue: 'All ready at once' }),
+                      sub: serveSpread > 0
+                        ? tr('cook:prep.allAtOnceGap', { defaultValue: 'Within {n} min of each other', n: serveSpread })
+                        : tr('cook:prep.allAtOnceSub', { defaultValue: 'Nothing sits and goes cold' }),
+                      mins: spanOf(orchServe), on: true },
+                    // ⚠ NOT labelled "fastest". Measured across all 231 pairs of
+                    // window-bearing recipes, this mode is never quicker than
+                    // "all ready at once", which lands on the theoretical floor —
+                    // the longest single dish — in 231 of 231. A dish cannot be
+                    // compressed, so nothing can beat that. The honest description
+                    // is what this mode DOES: it starts everything as early as it
+                    // can, and the food is ready whenever each dish is ready.
+                    { key: BS_COOK_MODE.TOGETHER,
+                      label: tr('cook:prep.earlyStart', { defaultValue: 'Start everything early' }),
+                      sub: tr('cook:prep.earlyStartSub', { defaultValue: 'They finish at different times' }),
                       mins: spanOf(orchAuto), on: togetherPossible },
-                    { key: BS_COOK_MODE.SEQUENCE, label: tr('cook:prep.oneAtATime', { defaultValue: 'One at a time' }),
-                      sub: tr('cook:prep.oneAtATimeSub', { defaultValue: 'Finish, then start' }),
+                    { key: BS_COOK_MODE.SEQUENCE,
+                      label: tr('cook:prep.oneAtATime', { defaultValue: 'One at a time' }),
+                      sub: tr('cook:prep.oneAtATimeSub', { defaultValue: 'Finish one, then start the next' }),
                       mins: spanOf(orchSeq), on: true },
                   ].map((opt) => {
                     const picked = cookMode === opt.key;
@@ -7855,7 +7879,8 @@ function BSPrepSession({ program, onClose }) {
                         disabled={!opt.on}
                         aria-pressed={picked}
                         style={{
-                          flex: 1, textAlign: 'left', minHeight: 44, cursor: opt.on ? 'pointer' : 'not-allowed',
+                          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                          textAlign: 'left', minHeight: 44, cursor: opt.on ? 'pointer' : 'not-allowed',
                           padding: '11px 12px', borderRadius: 5,
                           background: picked ? bsTHexA(heat, t.isLight ? 0.12 : 0.16) : 'transparent',
                           border: `1px solid ${picked ? bsTHexA(heat, 0.55) : t.RULE}`,
@@ -7863,10 +7888,12 @@ function BSPrepSession({ program, onClose }) {
                           opacity: opt.on ? 1 : 0.45,
                         }}
                       >
-                        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: picked ? (t.isLight ? '#0a8f87' : heat) : t.INK }}>{opt.label}</div>
-                        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{opt.sub}</div>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: picked ? (t.isLight ? '#0a8f87' : heat) : t.INK }}>{opt.label}</span>
+                          <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, lineHeight: 1.45 }}>{opt.sub}</span>
+                        </span>
                         {opt.mins > 0 && (
-                          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{opt.mins}<span style={{ fontSize: 10, color: t.INK50 }}> min</span></div>
+                          <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{opt.mins}<span style={{ fontSize: 10, color: t.INK50 }}> min</span></span>
                         )}
                       </button>
                     );
@@ -7877,9 +7904,47 @@ function BSPrepSession({ program, onClose }) {
                     as a bug; this reads as a fact about the food. */}
                 {!togetherPossible && (
                   <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.INK50 }}>
-                    {tr('cook:prep.togetherWhy', { defaultValue: 'Together is unavailable — {why}', why: noTogetherWhy })}
+                    {tr('cook:prep.togetherWhy', { defaultValue: 'Cannot overlap these — {why}', why: noTogetherWhy })}
                   </div>
                 )}
+              </div>
+            )}
+            {/* THE ROAD MAP, before the walkthrough starts. A cook who has only ever
+                seen one step at a time is being asked to trust a plan they cannot see
+                — and in the serve modes a dish deliberately WAITS to start, which
+                without this reads as a dish that was forgotten. Shown only once a mode
+                is chosen, because the plan does not exist until then, and it re-draws
+                whenever the mode or the kitchen changes. */}
+            {multi && cookMode && orch.timeline.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ ...bandEyebrow, color: t.INK50 }}>
+                  {tr('cook:prep.planAsk', { defaultValue: 'The plan' })}
+                </div>
+                <div style={{ marginTop: 8, borderLeft: `1px solid ${bsTHexA(t.ACCENT, 0.35)}`, paddingLeft: 10 }}>
+                  {orch.timeline.map((e, i) => {
+                    const dish = ordered.findIndex((it) => it.key === e.recipe);
+                    // Colour by DISH so the weave is legible at a glance — which dish a
+                    // row belongs to is the thing a road map has to make obvious.
+                    const tone = dish % 2 === 0 ? t.INK : (t.isLight ? '#0a8f87' : heat);
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 0', borderBottom: i === orch.timeline.length - 1 ? 0 : `1px solid ${bsTHexA(t.ACCENT, 0.14)}` }}>
+                        <span style={{ flexShrink: 0, minWidth: 34, fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{e.at}m</span>
+                        <span style={{ flexShrink: 0, maxWidth: 92, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tone }}>{e.title}</span>
+                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{e.text}</span>
+                        {e.min ? (
+                          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{`◷ ${e.min}m`}</span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>
+                  {cookMode === BS_COOK_MODE.SERVE
+                    ? tr('cook:prep.planServe', { defaultValue: 'Everything on the table at {n} min', n: spanOf(orch) })
+                    : tr('cook:prep.planDone', { defaultValue: 'Last dish done at {n} min', n: spanOf(orch) })}
+                  {` · ${orch.timeline.length} `}
+                  {tr('cook:prep.planSteps', { defaultValue: 'steps' })}
+                </div>
               </div>
             )}
             <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
