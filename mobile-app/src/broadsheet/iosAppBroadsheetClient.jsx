@@ -6915,6 +6915,20 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // skillet" was noise the cook had to read past every step. Conservative by
   // construction: a step that names no ingredient renders no list at all.
   const stepIngs = hasMethod && phase === 'method' ? bsStepIngredients(steps[stepIdx], cookable.ingredients) : [];
+  // Minutes per step — the weight behind both percentages. Derived once so the recipe
+  // readout and the session readout can never disagree about the same cooking.
+  const stepMins = steps.map((_, i) => {
+    const m = (cookable.stepMeta || [])[i];
+    return (m && typeof m.min === 'number' && m.min > 0) ? m.min : BS_ORCH.activeStepMin;
+  });
+  const doneMins = stepMins.reduce((n, mins, i) => (visited[i] ? n + mins : n), 0);
+  // OVERALL session progress, when this dish is one of several. A cook walking dish by
+  // dish otherwise sees only the dish in front of them and cannot tell whether the
+  // evening is nearly over. Absent for a solo cook, where "the session" is this recipe.
+  const overallPct = hasMethod ? bsProgressPct(stepMins, visited) : null;
+  const sessionPct = (prep && typeof prep.totalMins === 'number' && prep.totalMins > 0)
+    ? Math.max(0, Math.min(100, Math.round((((prep.priorMins || 0) + doneMins) / prep.totalMins) * 100)))
+    : null;
   // Allergen claim notes — ONE definition, rendered on EVERY phase a member can
   // reach the food from. It used to live only in the mise, below the `Resume at
   // step N` shortcut: a member with a resume stamp (including one persisted by the
@@ -6955,6 +6969,17 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: heat }}>
           <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: heat, display: 'inline-block', ...(reduced ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
           {tr('cook:elapsed', { defaultValue: 'Cooking' })} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.45)}` }}>{fmt(elapsedSec)}</span>
+          {/* OVERALL completion, in the live header so it is on screen the whole cook.
+              Several dishes → the whole session, because a cook walking dish by dish
+              otherwise cannot tell whether the evening is nearly over. One dish → that
+              dish. Both are the same question: how much of this is behind me.
+              ⚠ This does NOT replace the step-by-step line below — "Step 3 of 6" stays,
+              and carries the CURRENT recipe's own figure beside it. */}
+          {(sessionPct == null ? overallPct : sessionPct) != null && (
+            <span style={{ marginLeft: 8, fontVariantNumeric: 'tabular-nums', color: BAND.dim }}>
+              {`${sessionPct == null ? overallPct : sessionPct}% ${tr('cook:doneLabel', { defaultValue: 'done' })}`}
+            </span>
+          )}
         </span>
       </div>
       <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -6965,10 +6990,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {/* Weighted by MINUTES, not by step count: with a 30-minute roast still
                 ahead, "3 of 6" is halfway through the list and nowhere near halfway
                 through the cooking. This is the answer to "how far am I". */}
-            {` · ${bsProgressPct(steps.map((_, i) => {
-              const m = (cookable.stepMeta || [])[i];
-              return (m && typeof m.min === 'number' && m.min > 0) ? m.min : BS_ORCH.activeStepMin;
-            }), visited)}%`}
+            {` · ${bsProgressPct(stepMins, visited)}%`}
           </span>
         )}
       </div>
@@ -7573,6 +7595,15 @@ function BSPrepSession({ program, onClose }) {
       return { ...x, servings, mult };
     }), [candidates, sel]);
   const ordered = React.useMemo(() => bsPrepOrder(selected), [selected]);
+  // Minutes per dish in cooking order, so a dish-by-dish walk can still report where the
+  // WHOLE session stands. Same weighting as everywhere else: a 30-minute braise is not
+  // one sixth of an evening just because it is one of six steps.
+  const dishMins = React.useMemo(() => ordered.map((it) => (it.cookable.steps || []).reduce((n, _s, i) => {
+    const m = (it.cookable.stepMeta || [])[i];
+    return n + ((m && typeof m.min === 'number' && m.min > 0) ? m.min : BS_ORCH.activeStepMin);
+  }, 0)), [ordered]);
+  const sessionTotalMins = dishMins.reduce((a, b) => a + b, 0);
+  const sessionPriorMins = dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0);
   const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
   // The board's allergen claim notes. BSCookMode's own mise block CANNOT carry
   // them here: a prep-session candidate is filtered on `c.steps.length`, so
@@ -7746,7 +7777,7 @@ function BSPrepSession({ program, onClose }) {
     }
     if (ordered[cookIdx]) return <BSCookMode
       cookable={ordered[cookIdx].cookable}
-      prep={{ index: cookIdx, count: ordered.length, onPrepped }}
+      prep={{ index: cookIdx, count: ordered.length, onPrepped, priorMins: sessionPriorMins, totalMins: sessionTotalMins }}
       onClose={onClose}
     />;
   }

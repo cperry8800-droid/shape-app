@@ -450,3 +450,29 @@ test('cook mode: the percentage is minutes done, not steps ticked', () => {
   assert.notEqual(shown, stepPct,
     `the readout is counting steps (${stepPct}%), not minutes — a long passive step must move it differently`);
 });
+
+test('cook mode: overall % is the SESSION for several dishes, the dish for one - and the step line survives', () => {
+  // The owner's rule: cooking several, the number is the whole evening; cooking one, it
+  // is that dish. And the step-by-step must NOT be replaced by it.
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x).steps.length >= 3);
+  const c = bsCookableFromRecipe(r);
+
+  const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  solo.click('Start cooking');
+  assert.match(solo.text, /Step .* \u00b7 \d+%/, 'the step-by-step line and its own % must both survive');
+  const soloOverall = Number((solo.text.match(/(\d+)% done/) || [])[1]);
+  assert.ok(Number.isFinite(soloOverall), `no overall % in the header - got: ${solo.text.slice(0, 90)}`);
+  assert.equal(soloOverall, 0, 'nothing is cooked yet');
+
+  // Several dishes: half the evening is already behind us and none of THIS dish is
+  // done, so the header must read the session, not this dish's 0%.
+  // No 'Start cooking' click - prep mode opens directly on the method phase.
+  const multi = drive(MOD.BSCookMode, {
+    cookable: c, onClose() {},
+    prep: { index: 1, count: 3, onPrepped() {}, priorMins: 50, totalMins: 100 },
+  });
+  const pct = Number((multi.text.match(/(\d+)% done/) || [])[1]);
+  assert.ok(Number.isFinite(pct), `no overall % in the header - got: ${multi.text.slice(0, 90)}`);
+  assert.equal(pct, 50, `50 of 100 minutes are behind us, so the session must read 50%, not ${pct}%`);
+  assert.match(multi.text, /Step .* \u00b7 \d+%/, 'the step-by-step line must survive alongside the session figure');
+});
