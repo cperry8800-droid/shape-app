@@ -385,6 +385,45 @@ test('catalog: an annotated window never hides an instruction behind its timer',
   const STILL_A_WAIT = /^set\s+(?:it|them|the\s+\w+)\s+aside\b/i;
   assert.ok(STILL_A_WAIT.test('set it aside to steam off in its bowl'), 'must exempt leaving it be');
   assert.ok(!STILL_A_WAIT.test('chill in cold water and peel'), 'must NOT exempt an urgent action');
+  // Widening the separator alone was measured and is far too broad: "and" also joins
+  // DONENESS clauses ("until the salmon flakes and the edges char"), which flagged 40
+  // steps that ask the cook for nothing. So the separator is widened AND the following
+  // clause must open with something the cook DOES. A doneness cue opens with the food
+  // ("the beans blister"); an instruction opens with a verb.
+  //
+  // WARNING - ROUND 6 WIDENED IT TWICE MORE. The wraps read "chill at least 20 minutes BEFORE
+  // CUTTING each wrap in half" - a separator the gate did not know, and a gerund whose doubled
+  // consonant `cut` could never reach. The baked oats read "...then TOP WITH the Greek yogurt
+  // and a scattering of lemon zest", a verb simply missing from the list, which cost the cook
+  // two listed INGREDIENTS.
+  const HANDOFF_VERBS = 'rest|drain|rinse|remove|take|pull|lift|chill|cool|transfer|tip|uncover|'
+    + 'fluff|fork|slice|cut|spoon|scoop|stir|toss|season|serve|top|garnish|sprinkle|scatter|dot|'
+    + 'drizzle|spread|fold|add|pour|whisk|carve|shred|peel|press|squeeze|finish|plate|divide|'
+    + 'assemble|roll|wrap|brush|swirl|crumble|mash';
+  // WARNING - `taste`, `flake`, `thin` and `adjust` were in the first draft of that list and
+  // were MEASURED BACK OUT: they are things the FOOD does, so they live in doneness clauses.
+  // They flagged the pozole ("until the broth ... tastes rounded rather than sharp") and the
+  // catfish ("until it turns opaque and flakes easily with a fork") - two steps that ask the
+  // cook for nothing. Only transitive kitchen actions belong here.
+  const INFL = String.raw`(?:e?s|e?d|[bcdgklmnprtvz]?ing)?`;   // ...and "cutting", "topping"
+  // WARNING - the conjunction is OPTIONAL after real punctuation. The quinoa reads
+  // "...the liquid is gone; rest 5 minutes off the heat" - a semicolon and no conjunction
+  // whatever, which slipped through a `(?:then|and)` requirement. Mutation-testing caught
+  // that; reading the pattern back had not.
+  const SEP = new RegExp(
+    String.raw`(?:[;.]\s*(?:then\s+|and\s+)?|[,]?\s*(?:then|and)\s+|[,]?\s*before\s+)`
+    + `(?=(?:${HANDOFF_VERBS})${INFL}` + String.raw`\b)`, 'i');
+  // The gate is only as good as its pattern, so the pattern is pinned to the cases that
+  // motivated it - in BOTH directions. A silent SEP would make this whole test vacuous, and
+  // a greedy one would make it noise.
+  for (const fires of ['chill at least 20 minutes before cutting each wrap in half',
+                       'Cool 5 minutes so they settle, then top with the Greek yogurt']) {
+    assert.ok(SEP.test(fires), `SEP went silent on a known hand-off: "${fires}"`);
+  }
+  for (const quiet of ['cook uncovered 20 minutes, until the broth turns brick red and tastes rounded',
+                       'simmer covered 5 minutes, until it turns opaque and flakes easily with a fork']) {
+    assert.ok(!SEP.test(quiet), `SEP fired on a doneness clause: "${quiet}"`);
+  }
   const bad = [];
   for (const r of SHAPE_KITCHEN_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
@@ -403,19 +442,9 @@ test('catalog: an annotated window never hides an instruction behind its timer',
       // "simmer covered on low 15 minutes and rest 5 off the heat" — the same hidden
       // hand-off, punctuated differently.
       //
-      // Widening the separator alone was measured and is far too broad: "and" also joins
-      // DONENESS clauses ("until the salmon flakes and the edges char"), which flagged 40
-      // steps that ask the cook for nothing. So the separator is widened AND the following
-      // clause must open with something the cook DOES. A doneness cue opens with the food
-      // ("the beans blister"); an instruction opens with a verb.
-      const HANDOFF = '(?:rest|drain|rinse|remove|take|pull|lift|chill|cool|transfer|tip|uncover|fluff|fork|slice|cut|spoon|scoop|stir|toss|season|serve)';
-      // ⚠ The conjunction is OPTIONAL after real punctuation. The quinoa reads
-      // "...the liquid is gone; rest 5 minutes off the heat" — a semicolon and no
-      // conjunction whatever, which slipped through a `(?:then|and)` requirement.
-      // Mutation-testing caught that; reading the pattern back had not.
-      const th = tail.search(new RegExp('(?:[;.]\\s*(?:then\\s+|and\\s+)?|[,]?\\s*(?:then|and)\\s+)(?=' + HANDOFF + '\\b)', 'i'));
+      const th = tail.search(SEP);
       if (th < 0) return;
-      const after = tail.slice(th).replace(/^[;,.]?\s*(?:then\s+|and\s+)?/i, '');
+      const after = tail.slice(th).replace(/^[;,.]?\s*(?:then\s+|and\s+|before\s+)?/i, '');
       if (STILL_A_WAIT.test(after)) return;
       bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — hidden behind the clock: "${after.slice(0, 60)}…"`);
     });
@@ -498,6 +527,46 @@ test('catalog: a ranged window is its LOW end, never its top', () => {
 // said "heat the oil". Match on ANY content word of the whole measure, keep short nouns like
 // oil and cod, and drop only PREPARATION words — because if "chopped" counts as a match then
 // "chopped pecans" is satisfied by any other chopped thing in the recipe.
+// (7) THE ATTENDED-AROMATICS TRIPWIRE, and a correction to something this wave recorded as
+// impossible. Round 5 concluded that no gate could catch this class, because the prose says
+// "cook the onion" and names no technique at all - true of the METHOD gate, which looks for a
+// verb. This one looks at the PAN instead: a stove window whose step names aromatics and never
+// says the pan is covered is a saute, whatever verb the sentence uses. Review named one of
+// these (the chickpeas); the rule found the barley pilaf and the pot roast as well.
+//
+// WARNING - it is a TRIPWIRE, not a proof. It cannot tell a 4-minute sweat from a 15-minute
+// browning, and it says nothing about aromatics on any other station. It exists so that the
+// next one of these has to be argued for in writing instead of arriving quietly.
+test('catalog: a stove window never sits on uncovered aromatics', () => {
+  const AROMATIC = /\b(?:onion|garlic|shallot|scallion|celery|carrot|leek|ginger)s?\b/i;
+  const COVERED = /\bcover(?:ed)?\b|\blid\b/i;
+  assert.ok(AROMATIC.test('Cook the onion, garlic, celery and carrot for about 15 minutes'),
+    'AROMATIC went silent on the case that motivated the gate');
+  assert.ok(AROMATIC.test('add the onions, carrots and garlic'), 'must read plurals too');
+  assert.ok(COVERED.test('pile the spinach on top without stirring, cover, and leave 10 minutes'),
+    'COVERED must exempt a covered pan');
+  // The ONE exemption, named rather than pattern-matched. A pattern here would quietly grow to
+  // fit whatever arrives next - which is exactly how the last exemption list swallowed `chill`,
+  // the very case its own gate had been written for.
+  const SUBMERGED = new Set([
+    // 8 cups of water and lamb bones in a 6-quart pan: the vegetables are submerged in a stock
+    // being reduced for an hour, not fried in a film of oil. There is nothing here to catch.
+    'Shorba lamb and peanut soup|1',
+  ]);
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true || m.station !== 'stove') return;
+      const text = r.steps[i] || '';
+      if (!AROMATIC.test(text) || COVERED.test(text)) return;
+      if (SUBMERGED.has(`${r.title}|${i}`)) return;
+      bad.push(`${r.title} step ${i} (${m.min}m) - "${text.slice(0, 72)}"`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} stove window(s) send the cook away from aromatics in an uncovered pan`);
+});
+
 test('catalog: every ingredient is named by some step', () => {
   const PREP = new Set(['chopped', 'minced', 'diced', 'sliced', 'grated', 'shredded', 'ground', 'fresh',
     'frozen', 'dried', 'canned', 'cooked', 'raw', 'packed', 'thawed', 'drained', 'rinsed', 'divided',

@@ -1071,7 +1071,12 @@ export const _KITCHEN_STEP_META = {
   // sends the cook to another dish or the wrap, and the wrap renders only
   // `◷ {title} · {countdown}` — `wrapHolds` carries {title, leftS} and never the text.
   // The last thing the recipe says is the thing nobody sees.
-  "Slow-simmered beef pot roast": { 1: { min: 4, passive: true, station: "stove" } },
+  // step 1 water-sautes the onion in TWO TABLESPOONS of water over medium heat. That much
+  // liquid is gone inside a couple of minutes and the onion then sits in a dry pan, which
+  // browns it — the one outcome the step names as failure. The technique wants more water
+  // splashed in as it goes and the recipe never says so, so the window promises what the pan
+  // cannot keep. Its only window, and it was worth 4 minutes: the floor, in a 2h20m recipe.
+  "Slow-simmered beef pot roast": {},
   "Beef stroganoff with macaroni": { 3: { min: 6, passive: true, station: "stove" } },
   "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" } },
   // step 0 was "Freeze 30 minutes ... then slice it": the HOLDING lane shows no step text and the
@@ -1094,7 +1099,10 @@ export const _KITCHEN_STEP_META = {
   // an attendance clause the gerund gate missed because its list held `basting` and not
   // `spooning`. The board hides that text for the full hour, so the bird is never basted.
   "Roasting-pan chicken with potatoes and carrots": {},
-  "Mango and peanut chicken wraps": { 4: { min: 20, passive: true, station: "off" } },
+  // step 4 hides "before cutting each wrap in half" behind a terminal chill — the same shape
+  // as the six dropped last round. The gate missed it twice over: `before` was not a separator
+  // it knew, and `cut` could never match the doubled consonant of "cutting". Both fixed there.
+  "Mango and peanut chicken wraps": {},
   // step 2 simmers the spears "2 to 5 minutes" and step 3 pulls them "while they still snap".
   // The annotation pins the MAXIMUM while the cook is needed at the minimum — and 2 minutes
   // is below BS_ORCH.minPassive, so no honest window fits inside the range at all.
@@ -1113,7 +1121,11 @@ export const _KITCHEN_STEP_META = {
   "Sharp cheddar baked macaroni": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 10, passive: true, station: "off" } },
   "Peppers stuffed with brown rice and beans": { 0: { min: 40, passive: true, station: "stove" }, 4: { min: 30, passive: true, station: "oven" } },
   "Swiss cheese and vegetable chowder": { 1: { min: 8, passive: true, station: "stove" } },
-  "Blueberry baked oats in ramekins": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
+  // step 5 hides "then top with the Greek yogurt and a scattering of lemon zest" behind a
+  // terminal 5-minute cool. Two listed INGREDIENTS the guided cook is never told to add — the
+  // ingredient gate cannot see it, because the step text does name them. `top` is now a
+  // hand-off verb. The 25-minute bake is untouched and remains the recipe's window.
+  "Blueberry baked oats in ramekins": { 4: { min: 25, passive: true, station: "oven" } },
   "Sheet-pan cauliflower and black bean bake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 5, passive: true, station: "oven" } },
   // step 1 boils the potatoes to "just pliable", then drains and rinses them to stop the cooking —
   // same instant-action shape as the eggs above. The 40-minute covered bake is a real window.
@@ -1128,14 +1140,22 @@ export const _KITCHEN_STEP_META = {
   "Curried butternut and chickpea stew": { 3: { min: 10, passive: true, station: "stove" } },
   "Crispy skillet rice with tofu and peas": { 3: { min: 10, passive: true, station: "stove" } },
   "Smoky lentil taco filling": { 0: { min: 10, passive: true, station: "stove" } },
-  "Skillet chickpeas with wilted spinach": { 1: { min: 15, passive: true, station: "stove" }, 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  // step 1 cooks onion, MINCED GARLIC, celery and carrot uncovered in oil for 15 minutes over
+  // the medium-high heat step 0 sets, to an endpoint of "real brown colour" — garlic is long
+  // gone before that. Steps 2 and 3 stay: step 2 raises the heat but puts roughly two cups of
+  // liquid in the pan and names no endpoint to watch for, and step 3 is covered on low.
+  "Skillet chickpeas with wilted spinach": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
   // step 4 roasts "stirring once at the 10-minute mark" — attended. No window.
   "Sheet-pan roasted vegetables, lemon and herbs": {},
   "Bell pepper and apple slaw, cider dressing": { 4: { min: 20, passive: true, station: "off" } },
   // step 1 sautes its 10 minutes. Sauteing IS the timed action and it is attended — the
   // gerund rule missed it because the verb is an imperative. Step 3 simmers, so it stays.
   "Spring cabbage and artichoke soup": { 3: { min: 10, passive: true, station: "stove" } },
-  "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 50, passive: true, station: "stove" } },
+  // step 0 is the same oil-and-aromatics sweat as the curried stew's step 0 that this wave
+  // already dropped: onion and celery, medium heat, uncovered. Found by sweeping the class
+  // rather than the site — review named neither this nor the pot roast. The 50-minute covered
+  // barley is the real window and the recipe still hosts on it.
+  "Barley pilaf with mushrooms and celery": { 4: { min: 50, passive: true, station: "stove" } },
   // step 4 microwaves "3 to 5 minutes more" — the same range-straddling-the-floor shape as the
   // asparagus, found by the new gate rather than by review. Step 1 states a flat 5 minutes
   // and stays.
