@@ -819,7 +819,8 @@ const RECIPES_EXTRA = [
       "1 tsp maple syrup",
     ],
     steps: [
-      "Press the tofu 10 minutes under a heavy pan, then cut into 3/4-inch cubes and toss with the cornstarch until every face is dusted — that starch coat is what fries into a shell.",
+      "Press the tofu 10 minutes under a heavy pan to drive the water out.",
+      "Cut it into 3/4-inch cubes and toss with the cornstarch until every face is dusted — that starch coat is what fries into a shell.",
       "Heat 1 tbsp oil in a nonstick skillet over medium-high until shimmering, add the tofu with space between cubes, and fry 8 minutes, turning every 2, until deep golden and rattling-crisp on most sides.",
       "Off the heat, splash the soy over the hot tofu and toss 10 seconds — it hisses, absorbs, and seasons the crust without softening it.",
       "Massage the shredded kale with a pinch of salt and a squeeze of lemon for 30 seconds until it darkens and relaxes.",
@@ -1138,7 +1139,8 @@ const RECIPES_USDA = [
       "4 cups kale leaves",
     ],
     steps: [
-      "Freeze the beef for 30 minutes until it firms up, then slice it across the grain into strips about 1/8 inch thick and 3 inches wide.",
+      "Freeze the beef for 30 minutes, until it firms up enough to slice cleanly.",
+      "Slice it across the grain into strips about 1/8 inch thick and 3 inches wide.",
       "Mix the paprika, oregano, chilli powder, garlic powder, black pepper, crushed red pepper and dry mustard, and toss the strips until every piece is coated.",
       "Spray a large heavy skillet with cooking spray and preheat it over high heat until a drop of water skitters, then add the meat and stir-fry for 5 minutes until the spices darken and smell toasted.",
       "Add the potatoes, onion, broth and garlic, cover, and cook over medium heat for 20 minutes so the potatoes braise in the seasoned liquid rather than fry.",

@@ -537,10 +537,19 @@ export const USDA2_MED = [
 // "Meanwhile…"/"While they roast…", so the author already scheduled the
 // window), and "Curried quinoa" (no step reaches the 4-minute floor).
 export const USDA2_STEP_META = {
-  "Pork tenderloin power bowl with quinoa": { 0: { min: 30, passive: true, station: "off" }, 1: { min: 15, passive: true, station: "off" }, 2: { min: 15, passive: true, station: "stove" } },
+  // step 0 pickles and step 1 marinates "while the grill heats" — both run in the background of
+  // the cook's own work. A hold blocks the recipe's OWN next step, so annotating them made a
+  // 45-minute recipe claim 60. Only the quinoa is a hold the recipe actually waits out.
+  "Pork tenderloin power bowl with quinoa": { 2: { min: 15, passive: true, station: "stove" } },
   "Honey mustard pork chops": { 1: { min: 4, passive: true, station: "stove" }, 3: { min: 8, passive: true, station: "stove" } },
-  "Mushroom and steak fajitas": { 3: { min: 8, passive: true, station: "stove" } },
-  "Picadillo with brown rice": { 0: { min: 45, passive: true, station: "stove" }, 1: { min: 10, passive: true, station: "stove" }, 4: { min: 15, passive: true, station: "stove" } },
+  // step 3 sautes the vegetables for its own 5-8 minutes — attended over high heat, not a
+  // hold. No window; the recipe cannot host.
+  "Mushroom and steak fajitas": {},
+  // step 0's 45-minute rice runs in the BACKGROUND of the sauce — the recipe says 50 minutes
+  // total, which is only true if they overlap. A hold blocks its own recipe (`freeAt`) and
+  // occupies the one modelled stove, so annotating it made the board read 79 minutes and
+  // stopped a two-dish session interleaving AT ALL. The sauce simmers are real holds.
+  "Picadillo with brown rice": { 1: { min: 10, passive: true, station: "stove" }, 4: { min: 15, passive: true, station: "stove" } },
   "Arroz con pollo with browned thighs": { 2: { min: 10, passive: true, station: "stove" }, 4: { min: 20, passive: true, station: "stove" }, 5: { min: 20, passive: true, station: "stove" }, 6: { min: 5, passive: true, station: "off" } },
   "Chicken cacciatore": { 3: { min: 60, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "off" } },
   "Tuna salad on dressed romaine": { 3: { min: 10, passive: true, station: "off" } },

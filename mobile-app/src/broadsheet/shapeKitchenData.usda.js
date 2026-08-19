@@ -134,7 +134,8 @@ export const USDA_KITCHEN_RECIPES = [
       { n: "4 cups", m: "kale leaves" },
     ],
     steps: [
-      "Freeze the beef for 30 minutes until it firms up, then slice it across the grain into strips about 1/8 inch thick and 3 inches wide.",
+      "Freeze the beef for 30 minutes, until it firms up enough to slice cleanly.",
+      "Slice it across the grain into strips about 1/8 inch thick and 3 inches wide.",
       "Mix the paprika, oregano, chilli powder, garlic powder, black pepper, crushed red pepper and dry mustard, and toss the strips until every piece is coated.",
       "Spray a large heavy skillet with cooking spray and preheat it over high heat until a drop of water skitters, then add the meat and stir-fry for 5 minutes until the spices darken and smell toasted.",
       "Add the potatoes, onion, broth and garlic, cover, and cook over medium heat for 20 minutes so the potatoes braise in the seasoned liquid rather than fry.",

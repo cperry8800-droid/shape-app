@@ -272,3 +272,144 @@ test("catalog: a terminal annotated window must be station 'off'", () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------------
+// Review round 2 broke the same PREMISE three more ways. The rule is one sentence —
+// an annotated window means the cook can put the dish down and leave the kitchen —
+// and each gate below is a different grammar in which the catalog said that untruthfully.
+// ---------------------------------------------------------------------------------
+
+// (1) THE SAME RULE, A DIFFERENT GRAMMAR. The gerund gate above reads an attendance
+// CLAUSE ("stirring occasionally"). It is blind to an attended cooking METHOD that IS
+// the timed action: "sauté 5 to 8 minutes" carries no gerund, yet a board that sends the
+// cook off to another dish leaves mushrooms and peppers on a hot pan for eight minutes.
+// The tell is that the method verb is followed by its own duration in the same clause —
+// the verb GOVERNS the interval. "so they sauté instead of flooding the pan" is a purpose
+// clause carrying no duration, and requiring the duration is what keeps that one out.
+test('catalog: an attended cooking METHOD never governs an annotated window', () => {
+  // ⚠ The trailing (?![a-z]) rather than \b is load-bearing. `\b` after an accented vowel
+  // can never match, so the first draft of this pattern — /\bsaut[eé]\b/ — found NOTHING
+  // and read as a clean sweep while covering nothing at all. The two asserts below exist
+  // because a silent zero from this gate is indistinguishable from a passing catalog.
+  const METHOD = /(?:^|[^a-z])(saut[eé]|stir-fry|sear|pan-fry|griddle|scramble|deep-fry)(?![a-z])/i;
+  const DUR = /\d+\s*(?:to\s*\d+\s*)?(?:minutes?|mins?|hours?|hrs?)/i;
+  assert.ok(METHOD.test('and sauté 5 to 8 minutes'), 'METHOD must match the accented spelling');
+  assert.ok(!METHOD.test('research the topic'), 'METHOD must not match inside a word');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const text = r.steps[i] || '';
+      const hit = METHOD.exec(text);
+      if (!hit) return;
+      // Only the clause the verb sits in can carry the duration that verb governs.
+      const clause = text.slice(hit.index).split(/[.,;]/)[0];
+      if (DUR.test(clause)) bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — "${hit[1]}": ${clause.trim().slice(0, 60)}…`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} annotated window(s) are an attended cooking method — nobody walks away from a hot pan`);
+});
+
+// (2) THE RECIPE HAS ALREADY SPENT THAT TIME. When a step says "marinate 10 minutes while
+// the oven heats" or "rest 5 minutes while you make the dressing", the author has already
+// assigned those minutes to the cook's own next job. Annotating it hands the same minutes
+// to a DIFFERENT dish — and since a hold also blocks its own recipe (`freeAt`), the work
+// the recipe scheduled there is pushed out behind it. A step that OPENS with "While" or
+// "Meanwhile" is itself the detour and likewise cannot host one; four recipes correctly
+// carry no annotation for exactly that reason, and a fifth had been annotated anyway.
+// "the vegetables weep a little liquid that seasons the meat while it sits" describes the
+// food rather than giving the cook a job, and is correctly ignored.
+test('catalog: a window never sits on time the recipe already gave the cook', () => {
+  const COOK_BUSY = /\bwhile\s+(?:you\b|the\s+(?:oven|grill|pan|griddle|broiler|water)\s+(?:heats|preheats|comes\b))/i;
+  const OPENS_CONCURRENT = /^\s*(?:while|meanwhile)\b/i;
+  assert.ok(COOK_BUSY.test('marinate 10 minutes while the oven heats'), 'must catch an appliance warming');
+  assert.ok(!COOK_BUSY.test('liquid that seasons the meat while it sits'), 'must not catch a description of the food');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const text = r.steps[i] || '';
+      if (COOK_BUSY.test(text)) bad.push(`${r.title} step ${i} — the recipe gave those ${m.min}m to the cook: ${text.slice(0, 60)}…`);
+      else if (OPENS_CONCURRENT.test(text)) bad.push(`${r.title} step ${i} — opens as the detour, so it cannot host one: ${text.slice(0, 60)}…`);
+    });
+  }
+  assert.deepEqual(bad, [], `${bad.length} window(s) claim time the recipe had already scheduled`);
+});
+
+// (3) NOTHING SURVIVES THE COUNTDOWN. The HOLDING lane is a title, a station and a clock.
+// An instruction sitting AFTER the duration inside the same step is therefore never shown
+// again — the cursor has already moved on by the time the timer rings. "Freeze the beef 30
+// minutes, THEN SLICE IT into strips" left the following step seasoning "the strips" the
+// cook had never been told to cut. Two steps were split so the hidden half became a step
+// of its own; the rest were dropped, because where the action has to happen the instant
+// the timer rings (chill the eggs, drain the potatoes) it was never a walk-away window.
+// The exemptions are STRUCTURAL rather than a list: a terminal step has no later step to
+// mislead, and a trailing clause that is itself a wait ("set it aside to steam off") asks
+// nothing of the cook. A named exemption list would have gone stale on the next batch.
+test('catalog: an annotated window never hides an instruction behind its timer', () => {
+  const DUR = /\d+\s*(?:to\s*\d+\s*)?(?:minutes?|mins?|hours?|hrs?)/i;
+  // ⚠ This exemption started as a verb LIST (rest|stand|cool|chill|set|leave|keep) and it
+  // swallowed the case that motivated the gate: "then chill in cold water and peel" is an
+  // urgent action, not a wait, and `chill` in the list exempted it. Mutation-testing is the
+  // only reason that was caught — restoring the offending annotation left the gate GREEN.
+  // It is now the single SHAPE it actually has to cover: leaving something where it stands.
+  const STILL_A_WAIT = /^set\s+(?:it|them|the\s+\w+)\s+aside\b/i;
+  assert.ok(STILL_A_WAIT.test('set it aside to steam off in its bowl'), 'must exempt leaving it be');
+  assert.ok(!STILL_A_WAIT.test('chill in cold water and peel'), 'must NOT exempt an urgent action');
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      if (i === r.steps.length - 1) return;            // terminal: no later step to mislead
+      const text = r.steps[i] || '';
+      const d = text.search(DUR);
+      if (d < 0) return;
+      const tail = text.slice(d);
+      const th = tail.search(/,?\s*then\s+/i);
+      if (th < 0) return;
+      const after = tail.slice(th).replace(/^,?\s*then\s+/i, '');
+      if (STILL_A_WAIT.test(after)) return;
+      bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — hidden behind the clock: "${after.slice(0, 60)}…"`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} window(s) hide an instruction the board never shows — split the step, or drop the window`);
+});
+
+// (4) THE ARITHMETIC BACKSTOP, and the only one of the four that needs no reading of the
+// prose. A hold blocks its own recipe, so a recipe's hold minutes are minutes it cannot
+// spend on itself. When they exceed the recipe's OWN stated total, the recipe is saying
+// those minutes overlap with its other work — a BACKGROUND hold, which this model cannot
+// express. Picadillo annotated its 45-minute rice that way: a recipe that calls itself 50
+// minutes read 79 on the board, and a two-dish session stopped interleaving altogether.
+// Three recipes trip the sum honestly, because their stated time is hands-on time and
+// deliberately excludes a long chill. They are named with the reason rather than waved
+// through, so that a fourth cannot join them silently.
+test('catalog: hold minutes never outrun the recipe\'s own stated time', () => {
+  const MAKE_AHEAD = {
+    'Overnight oats, three ways': 'the 4-hour chill IS the dish and was never part of "5 min"',
+    'Date and almond energy bites': 'a terminal 30-minute set in the fridge, excluded from hands-on time',
+    'Black skillet beef with kale and red potatoes': 'a 30-minute partial freeze before any cooking begins',
+  };
+  const stated = (t) => {
+    const h = /(\d+)\s*hr/.exec(String(t || ''));
+    const mm = /(\d+)\s*min/.exec(String(t || ''));
+    return (h ? Number(h[1]) * 60 : 0) + (mm ? Number(mm[1]) : 0);
+  };
+  // The first draft read only the leading integer, so "1 hr 15 min" measured as 1 and
+  // half the catalog looked like a violation. A parser this gate depends on gets probed.
+  assert.equal(stated('1 hr 15 min'), 75, 'the time parser must read hours, or this gate measures nothing');
+  assert.equal(stated('45 min'), 45);
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    const st = stated(r.time);
+    if (!st) continue;
+    const held = (r.stepMeta || []).reduce((n, m) => n + (m && m.passive === true && m.min > 0 ? m.min : 0), 0);
+    if (held > st && !MAKE_AHEAD[r.title]) bad.push(`${r.title}: ${held}m of holds inside a stated ${st}m — the recipe says they overlap`);
+  }
+  assert.deepEqual(bad, [], `${bad.length} recipe(s) hold for longer than they claim to take`);
+});

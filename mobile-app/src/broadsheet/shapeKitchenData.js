@@ -773,7 +773,8 @@ const _SHAPE_KITCHEN_RECIPES_AUTHORED = [
       { n: "1 tsp", m: "maple syrup" },
     ],
     steps: [
-      "Press the tofu 10 minutes under a heavy pan, then cut into 3/4-inch cubes and toss with the cornstarch until every face is dusted — that starch coat is what fries into a shell.",
+      "Press the tofu 10 minutes under a heavy pan to drive the water out.",
+      "Cut it into 3/4-inch cubes and toss with the cornstarch until every face is dusted — that starch coat is what fries into a shell.",
       "Heat 1 tbsp oil in a nonstick skillet over medium-high until shimmering, add the tofu with space between cubes, and fry 8 minutes, turning every 2, until deep golden and rattling-crisp on most sides.",
       "Off the heat, splash the soy over the hot tofu and toss 10 seconds — it hisses, absorbs, and seasons the crust without softening it.",
       "Massage the shredded kale with a pinch of salt and a squeeze of lemon for 30 seconds until it darkens and relaxes.",
@@ -1011,40 +1012,60 @@ export const _KITCHEN_STEP_META = {
   "One-pan chicken and rice": { 4: { min: 18, passive: true, station: "stove" } },
   "Sheet-pan salmon, sweet potato and broccoli": { 4: { min: 12, passive: true, station: "oven" } },
   // step 1 cooks "stirring occasionally" — attended, so it is NOT a window (see ATTENDED note below).
-  "Steak and sweet potato hash": { 4: { min: 4, passive: true, station: "off" } },
+  // step 4 rests the steak 4 minutes "then slice it thinly" — the slicing is hidden behind the
+  // countdown like the others. At 4 minutes this is the smallest window the orchestrator will
+  // even host, so it is dropped rather than reworded to split it.
+  "Steak and sweet potato hash": {},
   // step 4 simmers "stirring now and then" — attended. No window; the recipe cannot host.
   "Red lentil and spinach dahl": {},
   "Chickpea shakshuka": { 2: { min: 8, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
   "Tofu and edamame poke bowl": { 0: { min: 10, passive: true, station: "off" } },
-  "Grilled chicken Caesar, lightened": { 2: { min: 5, passive: true, station: "off" } },
+  // step 2 rests the chicken "while you make the dressing" — and step 3 IS the dressing. The
+  // recipe has already spent that time; holding it sends the cook to another dish instead.
+  "Grilled chicken Caesar, lightened": {},
   "Beef and broccoli stir-fry": { 0: { min: 10, passive: true, station: "off" } },
   "Tempeh and broccoli teriyaki": { 0: { min: 5, passive: true, station: "stove" } },
-  "Tuna niçoise bowl": { 0: { min: 7, passive: true, station: "stove" } },
+  // step 0 boils the eggs "exactly 7 minutes" and then chills and peels them. A window sends the
+  // cook to another dish and the lane shows a countdown with no instruction, so the eggs sit in
+  // hot water past jammy. A hold whose expiry needs action THAT INSTANT is not a walk-away.
+  "Tuna niçoise bowl": {},
   "Roasted veg and halloumi traybake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 10, passive: true, station: "oven" } },
   "Black-eyed pea and coconut curry": { 3: { min: 15, passive: true, station: "stove" } },
   "Cauliflower steak, chimichurri": { 4: { min: 10, passive: true, station: "off" } },
   "Creamy tomato and white bean pasta": { 1: { min: 8, passive: true, station: "stove" } },
   "Beef ragu rigatoni": { 3: { min: 20, passive: true, station: "stove" } },
   "Chickpea and spinach curry": { 4: { min: 15, passive: true, station: "stove" } },
+  // step 0 hid "cut into cubes and toss with the cornstarch" behind its 10-minute press — the next
+  // step adds "the tofu" to hot oil expecting a starch coat nobody was told to apply. Split.
   "Crispy tofu grain bowl": { 0: { min: 10, passive: true, station: "off" } },
   "Overnight oats, three ways": { 1: { min: 240, passive: true, station: "off" } },
-  "Harissa salmon with couscous": { 2: { min: 5, passive: true, station: "off" } },
+  // step 2 opens "While it roasts" — the author already scheduled it against step 1's roast, so
+  // it is the detour, not a host for one. Same reason four other recipes correctly carry none.
+  "Harissa salmon with couscous": {},
   "Date and almond energy bites": { 3: { min: 30, passive: true, station: "off" } },
   // step 4 cooks "stirring occasionally" — attended. No window; the recipe cannot host.
   "Turkey chili verde": {},
-  "Lemon-herb chicken meal-prep box": { 0: { min: 10, passive: true, station: "off" }, 1: { min: 15, passive: true, station: "stove" }, 2: { min: 16, passive: true, station: "oven" } },
+  // step 0 marinates "while the oven heats" — author-scheduled concurrency, so it is not the
+  // cook's to spend elsewhere. The rice and the roast are real holds.
+  "Lemon-herb chicken meal-prep box": { 1: { min: 15, passive: true, station: "stove" }, 2: { min: 16, passive: true, station: "oven" } },
   // ── Overlay expansion ───────────────────────────────────────────────────
   // Without these, a two-dish Together session found no host window ~55% of the
   // time and the button rendered disabled. Same rules as above: every `min` is a
   // duration the step's own text states, and no window is followed by a
   // concurrent-authored step. Hands-on steps carry NO annotation.
   "Lentil bolognese": { 0: { min: 8, passive: true, station: "stove" } },
-  "Garlic shrimp and courgette noodles": { 0: { min: 10, passive: true, station: "off" } },
+  // step 0 salts the courgettes "while you prep" — the recipe assigns those 10 minutes to its
+  // own prep, and 10 of a 15-minute recipe is most of it.
+  "Garlic shrimp and courgette noodles": {},
   // step 4 simmers "turning the roast once at the halfway mark" — attended, so the 2h is not a window.
   "Slow-simmered beef pot roast": { 1: { min: 5, passive: true, station: "stove" }, 5: { min: 10, passive: true, station: "off" } },
   "Beef stroganoff with macaroni": { 3: { min: 6, passive: true, station: "stove" } },
   "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
-  "Black skillet beef with kale and red potatoes": { 0: { min: 30, passive: true, station: "off" }, 3: { min: 20, passive: true, station: "stove" }, 4: { min: 15, passive: true, station: "stove" } },
+  // step 0 was "Freeze 30 minutes ... then slice it": the HOLDING lane shows no step text and the
+  // cursor moves on when the timer rings, so the slicing was never surfaced and step 1 asked the
+  // cook to season "the strips" they were never told to cut. Split, so the freeze is the hold and
+  // the slicing is its own step; the later indices shift by one.
+  "Black skillet beef with kale and red potatoes": { 0: { min: 30, passive: true, station: "off" }, 4: { min: 20, passive: true, station: "stove" }, 5: { min: 15, passive: true, station: "stove" } },
   "Beef pozole with hominy": { 3: { min: 20, passive: true, station: "stove" } },
   "Skillet beef and cabbage": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
   "Ground beef and root vegetable stew": { 3: { min: 25, passive: true, station: "stove" }, 4: { min: 10, passive: true, station: "off" } },
@@ -1062,14 +1083,19 @@ export const _KITCHEN_STEP_META = {
   "Tuna and chickpea antipasti salad": { 3: { min: 10, passive: true, station: "off" } },
   // step 3 cooks "flipping once" — attended. No window; the recipe cannot host.
   "Chargrilled tilapia tacos with peach salsa": {},
-  "Neapolitan tuna fettuccine with capers": { 1: { min: 5, passive: true, station: "stove" }, 2: { min: 5, passive: true, station: "stove" } },
+  // step 1 opens "Meanwhile" against step 0's un-annotated pasta boil — it IS the detour the
+  // author scheduled, so it cannot also be a window hosting one. Found by the new gate, not
+  // by review: the sweep that caught the others looked for "while" mid-sentence.
+  "Neapolitan tuna fettuccine with capers": { 2: { min: 5, passive: true, station: "stove" } },
   "Cumin-lime shrimp over cauliflower rice": { 0: { min: 6, passive: true, station: "off" } },
   "Sharp cheddar baked macaroni": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 10, passive: true, station: "off" } },
   "Peppers stuffed with brown rice and beans": { 0: { min: 40, passive: true, station: "stove" }, 4: { min: 30, passive: true, station: "oven" } },
   "Swiss cheese and vegetable chowder": { 1: { min: 10, passive: true, station: "stove" } },
   "Blueberry baked oats in ramekins": { 4: { min: 30, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
   "Sheet-pan cauliflower and black bean bake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 5, passive: true, station: "oven" } },
-  "Noodle-free potato and spinach lasagna": { 1: { min: 5, passive: true, station: "stove" }, 6: { min: 40, passive: true, station: "oven" } },
+  // step 1 boils the potatoes to "just pliable", then drains and rinses them to stop the cooking —
+  // same instant-action shape as the eggs above. The 40-minute covered bake is a real window.
+  "Noodle-free potato and spinach lasagna": { 6: { min: 40, passive: true, station: "oven" } },
   "Charred corn and cornmeal patties": { 2: { min: 60, passive: true, station: "off" }, 4: { min: 10, passive: true, station: "oven" } },
   "Sweet potato and kidney bean chili": { 3: { min: 30, passive: true, station: "stove" } },
   "Lentil and pearl barley soup": { 1: { min: 60, passive: true, station: "stove" }, 2: { min: 45, passive: true, station: "stove" } },
@@ -1080,7 +1106,9 @@ export const _KITCHEN_STEP_META = {
   // step 4 roasts "stirring once at the 10-minute mark" — attended. No window.
   "Sheet-pan roasted vegetables, lemon and herbs": {},
   "Bell pepper and apple slaw, cider dressing": { 4: { min: 20, passive: true, station: "off" } },
-  "Spring cabbage and artichoke soup": { 1: { min: 10, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  // step 1 sautes its 10 minutes. Sauteing IS the timed action and it is attended — the
+  // gerund rule missed it because the verb is an imperative. Step 3 simmers, so it stays.
+  "Spring cabbage and artichoke soup": { 3: { min: 10, passive: true, station: "stove" } },
   "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 60, passive: true, station: "stove" }, 5: { min: 5, passive: true, station: "off" } },
   "Acorn squash stuffed with cinnamon apples": { 1: { min: 5, passive: true, station: "off" }, 4: { min: 5, passive: true, station: "off" } },
   "Cold black bean and brown rice salad": { 4: { min: 60, passive: true, station: "off" } },
