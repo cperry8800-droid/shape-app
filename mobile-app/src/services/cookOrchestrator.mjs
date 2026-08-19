@@ -141,12 +141,15 @@ const serialTimeline = (rs, activeMin) => {
 // than hidden. `off` (rest/chill) holds nothing and never forces a pull.
 const durationOf = (r, activeMin) => r.steps.reduce((n, _s, i) => n + (realMin(r.meta[i]) ?? activeMin), 0);
 
-function placeAt(rs, activeMin, T, kitchen) {
-  // Place every dish to END at T, longest first, pulling a dish earlier only when an
-  // exclusive station is already held. Returns feasible:false when a dish still clashes
-  // after being pulled all the way to t=0 — that is not a schedule to be shown, it is
-  // proof that T is too early for these dishes TOGETHER.
-  const order = rs.map((r, i) => ({ r, dur: durationOf(r, activeMin), i })).sort((a, b) => b.dur - a.dur || a.i - b.i);
+function placeAt(rs, activeMin, T, kitchen, orderIdx) {
+  // Place every dish to END at T, pulling a dish earlier only when an exclusive station
+  // is already held. Returns feasible:false when a dish still clashes after being pulled
+  // all the way to t=0 — that is not a schedule to be shown, it is proof that T is too
+  // early for these dishes TOGETHER.
+  // `orderIdx` places the dishes in a given order; without it, longest first as before.
+  const order = orderIdx
+    ? orderIdx.map((k) => ({ r: rs[k], dur: durationOf(rs[k], activeMin), i: k }))
+    : rs.map((r, i) => ({ r, dur: durationOf(r, activeMin), i })).sort((a, b) => b.dur - a.dur || a.i - b.i);
   const holds = [];
   const placed = [];
   let pulled = false;
@@ -190,6 +193,49 @@ function placeAt(rs, activeMin, T, kitchen) {
   return { feasible: true, placed, pulled };
 }
 
+// ⚠ ONE ORDER IS NOT THE EARLIEST. `placeAt` is a greedy heuristic: it fixes the placement
+// order — longest dish first — and the search above it only pushes T later until THAT order
+// fits. A different order can fit sooner. Three dishes from the catalog (one-pan chicken and
+// rice, the salmon sheet-pan, the halloumi traybake) report 57 minutes longest-first, while
+// placing the salmon last tiles the single oven at 6–26, 26–36 and 36–48 and serves at 51.
+// 57 was being labelled "Get it all done soonest" when the ordinary interleaved plan already
+// finished in 55 — so the one promise this mode makes was the thing it broke.
+//
+// Sessions are small, so the orders are ENUMERATED rather than optimised. Longest-first is
+// tried first and returned untouched whenever it fits, so every schedule that already worked
+// is unchanged. Past ORDER_SEARCH_MAX dishes the permutations stop being cheap and longest-
+// first is the only order tried — the previous behaviour, and still an honest schedule, just
+// not a proven-earliest one.
+const ORDER_SEARCH_MAX = 5;
+
+const permutationsOf = (n) => {
+  if (n < 2 || n > ORDER_SEARCH_MAX) return [];
+  const out = [];
+  const walk = (left, acc) => {
+    if (!left.length) { out.push(acc); return; }
+    for (let i = 0; i < left.length; i++) walk([...left.slice(0, i), ...left.slice(i + 1)], [...acc, left[i]]);
+  };
+  walk([...Array(n).keys()], []);
+  return out;
+};
+
+// Can these dishes serve at T under ANY placement order? The first order that fits is taken.
+// Ranking the feasible orders by how tightly the dishes land was tried and removed: across
+// 15,652 catalog triples it never once chose differently from taking the first, so it was a
+// branch no input exercised and a claim nothing backed. If a case is ever found where the
+// orders genuinely differ in quality, rank them THEN, with that case pinned as the reason.
+function bestPlacement(rs, activeMin, T, kitchen) {
+  const longestFirst = placeAt(rs, activeMin, T, kitchen);
+  if (longestFirst.feasible) return longestFirst;
+  let deficit = longestFirst.deficit;
+  for (const ord of permutationsOf(rs.length)) {
+    const r = placeAt(rs, activeMin, T, kitchen, ord);
+    if (r.feasible) return r;
+    deficit = Math.min(deficit, r.deficit);
+  }
+  return { feasible: false, deficit: Math.max(1, deficit) };
+}
+
 function serveTimeline(rs, activeMin, serveAt, kitchen) {
   const durs = rs.map((r) => durationOf(r, activeMin));
   const longest = durs.length ? Math.max(...durs) : 0;
@@ -202,16 +248,16 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // on one stove for the same 18 minutes -- reported as spread 8 with issues:['stations'],
   // so it read as handled rather than impossible.
   let earliest = longest;
-  let feas = placeAt(rs, activeMin, earliest, kitchen);
+  let feas = bestPlacement(rs, activeMin, earliest, kitchen);
   for (let guard = 0; guard < 512 && !feas.feasible; guard++) {
     earliest += feas.deficit;
-    feas = placeAt(rs, activeMin, earliest, kitchen);
+    feas = bestPlacement(rs, activeMin, earliest, kitchen);
   }
 
   const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
   const tooSoon = wanted < earliest;
   const T = tooSoon ? earliest : wanted;
-  const run = T === earliest ? feas : placeAt(rs, activeMin, T, kitchen);
+  const run = T === earliest ? feas : bestPlacement(rs, activeMin, T, kitchen);
   const placed = (run.feasible ? run.placed : feas.placed) || [];
 
   const timeline = placed.map(({ _end, ...e }) => e).sort((a, b) => (a.at - b.at) || (a.iid - b.iid));

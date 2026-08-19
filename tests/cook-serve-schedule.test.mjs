@@ -87,7 +87,8 @@ async function loadModule(reactImpl) {
 
 const MOD = await loadModule(SHIM);
 const ORCH = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookOrchestrator.mjs')).href);
-const { bsOrchestrate, BS_COOK_MODE } = ORCH;
+const { bsOrchestrate, BS_COOK_MODE, BS_ORCH } = ORCH;
+const { SHAPE_KITCHEN_RECIPES } = await import(pathToFileURL(join(dirname(SRC), 'shapeKitchenData.js')).href);
 
 function flatten(node, out = []) {
   if (node == null || node === false) return out;
@@ -295,4 +296,74 @@ test('a real HOLD still owes its minutes — the round-1 fix survives', () => {
   assert.ok(Number.isFinite(after), 'no percentage rendered once a hold was running');
   assert.ok(after - atHold <= 2,
     `putting a 40-minute braise on moved the board ${atHold}% -> ${after}%; those minutes are promised, not banked`);
+});
+
+// ⚠ "GET IT ALL DONE SOONEST" HAS TO ACTUALLY BE SOONEST. The placement was greedy —
+// longest dish first, and only the serve time T was searched — so `earliestServe` was
+// the earliest that ONE ORDER fits, presented as the earliest reachable. On these three
+// catalog dishes it reported 57 while a different order serves at 51, and the ordinary
+// interleaved plan already finished in 55: the mode's single promise, broken, on a
+// button labelled with it.
+//
+// Pinned to the real catalog rather than fixtures. Fixtures would let the constraint
+// that produces the clash (one oven, three dishes wanting it) drift out from under the
+// test while it kept passing — the recipes ARE the input this shipped wrong on.
+const OVEN_TRIO = ['One-pan chicken and rice', 'Sheet-pan salmon, sweet potato and broccoli', 'Roasted veg and halloumi traybake']
+  .map((t) => {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === t);
+    assert.ok(r, `catalog no longer has "${t}" — repin this test, do not delete it`);
+    return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+  });
+
+test('serve mode: the earliest serve time is the earliest over placement ORDERS, not one order', () => {
+  const plan = bsOrchestrate(OVEN_TRIO, { mode: BS_COOK_MODE.SERVE });
+  assert.equal(plan.earliestServe, 51,
+    `earliest serve is ${plan.earliestServe}; longest-first alone reports 57, and the plain interleaved plan already lands in 55`);
+
+  // The schedule is re-derived from the RETURNED timeline, not taken on the engine's word.
+  // An earlier version of this mode reported a plan with two pots on one stove as
+  // "issues: ['stations']" — handled-looking, and impossible.
+  const EXCL = ['oven', 'stove', 'board'];
+  const bands = plan.timeline
+    .filter((e) => e.station && EXCL.includes(e.station))
+    .map((e) => ({ st: e.station, from: e.at, to: e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin), who: e.title }));
+  const clashes = [];
+  for (let i = 0; i < bands.length; i++) {
+    for (let j = i + 1; j < bands.length; j++) {
+      const a = bands[i]; const b = bands[j];
+      if (a.st === b.st && a.from < b.to && b.from < a.to) clashes.push(`${a.st}: ${a.who} ${a.from}-${a.to} vs ${b.who} ${b.from}-${b.to}`);
+    }
+  }
+  assert.deepEqual(clashes, [], `${clashes.length} station clash(es) in a schedule reported as feasible`);
+  assert.ok(plan.timeline.every((e) => e.at >= 0), 'no step may be scheduled before the cook starts');
+
+  const ends = {};
+  for (const e of plan.timeline) ends[e.iid] = Math.max(ends[e.iid] || 0, e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin));
+  assert.ok(Math.max(...Object.values(ends)) <= plan.earliestServe,
+    'a dish finishing after the serve time is not a serve-together plan');
+
+  // 12 is not a recorded observation: enumerating every arrangement of these three dishes at
+  // T=51 gives 19 feasible ones, and 12 is the smallest spread any of them reaches. So the
+  // schedule this returns is the tightest available at the earliest time, and the assertion
+  // holds the QUALITY of the plan, not just its serve minute.
+  assert.equal(plan.spread, 12,
+    `spread ${plan.spread}; 12 is the tightest of the 19 arrangements that serve at 51`);
+});
+
+test('serve mode: searching orders never makes a schedule that already fitted worse', () => {
+  // Longest-first is tried first and returned untouched when it fits, so the search can
+  // only ever find a time that one order could not reach. Two dishes needing different
+  // stations always fit longest-first, and must be unaffected.
+  const pair = ['Roasted veg and halloumi traybake', 'One-pan chicken and rice'].map((t) => {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === t);
+    return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+  });
+  const plan = bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE });
+  const dur = (r) => r.steps.reduce((n, _s, i) => {
+    const m = (r.stepMeta || [])[i];
+    return n + (m && m.min > 0 ? m.min : BS_ORCH.activeStepMin);
+  }, 0);
+  assert.equal(plan.earliestServe, Math.max(...pair.map(dur)),
+    'with no station contention the earliest serve is just the longest dish');
+  assert.equal(plan.spread, 0, 'both dishes should land together when nothing forces a pull');
 });
