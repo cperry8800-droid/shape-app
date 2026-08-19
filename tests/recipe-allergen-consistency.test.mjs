@@ -51,9 +51,20 @@ const DAIRY = /\b(milk|cheese|butter|yogh?urt|cream|whey|mozzarella|cheddar|parm
 // ⚠ These do NOT belong in SAFE_FORMS. SAFE_FORMS is keyed on the PHRASE alone, so
 // putting `oats` there would exempt oats catalog-wide and forever, for every recipe,
 // with or without a note — which is the false claim this file exists to prevent.
+// ⚠ Keyed by CLASS, not fused into one regex per allergen. A single combined
+// regex let ANY gluten note excuse ANY ambiguous gluten ingredient: a recipe
+// carrying only a BROTH note could gain rolled oats and stay green, while its
+// rendered note said nothing about oats -- a false safety claim to a coeliac
+// member, shipped with the suite green. Reproduced before this fix landed.
 const AMBIGUOUS = {
-  gluten: /\b(oats?|oatmeal|soy sauce|broths?|stocks?|bouillon)\b/i,
-  dairy: /\bmargarine\b/i,
+  gluten: {
+    'oats': /\b(oats?|oatmeal)\b/i,
+    'soy sauce': /\bsoy sauce\b/i,
+    'broth': /\b(broths?|stocks?|bouillon)\b/i,
+  },
+  dairy: {
+    'margarine': /\bmargarine\b/i,
+  },
 };
 
 // Forms that MATCH a marker above but are not the allergen. Each needs a reason —
@@ -91,7 +102,13 @@ const residue = (line, allergen) => SAFE_FORMS
 // a line the note is being asked to excuse.
 const strike = (line, re) => line.replace(new RegExp(re.source, 'gi'), ' ');
 
-const hasNote = (r, allergen) => (r.allergenNotes || []).some((n) => n.allergen === allergen);
+// The ambiguous classes this recipe's notes actually SPEAK TO, for this allergen.
+// A note whose `ingredient` names no known class contributes nothing here -- and is
+// caught loudly by the dead-class test below rather than silently weakening the gate.
+const notedClasses = (r, allergen) => (r.allergenNotes || [])
+  .filter((n) => n.allergen === allergen)
+  .map((n) => (AMBIGUOUS[allergen] || {})[n.ingredient])
+  .filter(Boolean);
 
 function audit(marker, claim, allergen) {
   const bad = [];
@@ -101,12 +118,18 @@ function audit(marker, claim, allergen) {
       const line = nameOf(ing);
       const res = residue(line, allergen);
       if (!marker.test(res)) continue;
-      const amb = AMBIGUOUS[allergen];
-      // The note excuses the hit ONLY when the ambiguous class fully explains it.
-      // Striking the ambiguous phrase and re-reading is what stops a note waving
-      // through `soy sauce and wheat flour` — the same whole-line defect SAFE_FORMS
-      // already had to fix, arriving through a different door.
-      if (hasNote(r, allergen) && amb.test(res) && !marker.test(strike(res, amb))) continue;
+      // The note excuses the hit ONLY for the class it NAMES, and only when striking
+      // that class leaves nothing the marker still catches. Two defects held shut:
+      //   struck !== res       -- the note must actually speak to THIS line. Without
+      //                          it a broth note excuses oats (P1, Codex round 1).
+      //   !marker.test(struck) -- nothing else may remain, so a note can never wave
+      //                          through `soy sauce and wheat flour` -- the whole-line
+      //                          defect SAFE_FORMS already fixed, via another door.
+      const covered = notedClasses(r, allergen);
+      if (covered.length) {
+        const struck = covered.reduce((acc, re) => strike(acc, re), res);
+        if (struck !== res && !marker.test(struck)) continue;
+      }
       bad.push(`${r.title}: advertises "${claim}" but its ingredients name "${line.trim()}"`);
     }
   }
@@ -132,4 +155,35 @@ test('allergen claims: the audit actually reads the catalog', () => {
   // And the markers must actually match this catalog, or a typo silences them.
   assert.ok(named.some((n) => GLUTEN.test(n)), 'no ingredient matched the gluten markers at all');
   assert.ok(named.some((n) => DAIRY.test(n)), 'no ingredient matched the dairy markers at all');
+});
+
+// A note whose `ingredient` matches no class in AMBIGUOUS is INERT: notedClasses drops
+// it, so a typo'd class leaves the recipe's claim standing with nothing excusing it,
+// and the gate degrades in SILENCE. Fail loudly instead.
+test('allergen claims: every note names a known ambiguous class', () => {
+  const bad = [];
+  for (const [title, allergen, ingredient] of _RECIPE_ALLERGEN_NOTES) {
+    if (!(AMBIGUOUS[allergen] || {})[ingredient]) {
+      bad.push(`${title}: note names class "${ingredient}", absent from AMBIGUOUS.${allergen}`);
+    }
+  }
+  assert.deepEqual(bad, [], 'add the class to AMBIGUOUS above, or fix the note');
+});
+
+// The class a note names must be one the recipe ACTUALLY contains. A note about a class
+// the ingredients never mention is excusing nothing real -- a copy-paste error, or a
+// leftover after an ingredient changed. Either way the claim rests on a caveat that
+// does not describe the food.
+test('allergen claims: every note speaks to an ingredient the recipe really has', () => {
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    for (const n of r.allergenNotes || []) {
+      const re = (AMBIGUOUS[n.allergen] || {})[n.ingredient];
+      if (!re) continue; // the test above owns this case
+      if (!(r.ingredients || []).some((ing) => re.test(nameOf(ing)))) {
+        bad.push(`${r.title}: carries a "${n.ingredient}" note but no ingredient names that class`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'remove the stale note, or fix the ingredient it refers to');
 });

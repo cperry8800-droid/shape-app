@@ -2523,27 +2523,30 @@ const SHAPE_RECIPES = [...RECIPES_BY_WEEKDAY, ...RECIPES_EXTRA, ...RECIPES_USDA]
 // own with `new Function`, so any identifier referenced here would throw ReferenceError
 // and take the whole parity file down. Duplication is safe — the parity test compares
 // the composed values against the mobile table, so drift fails the suite immediately.
-// Shape: [title, allergen, certification, brands] — brands are [[name, region], ...].
+// Shape: [title, allergen, ingredient, certification, brands] — brands are [[name, region], ...].
+// `ingredient` names WHICH ambiguous class the note excuses ("oats", "soy sauce",
+// "broth", "margarine"). The gate binds the exemption to it: a note about broth must
+// not wave through oats that arrive later in the same recipe.
 const _RECIPE_ALLERGEN_NOTES = [
-  ["Overnight oats, three ways", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
-  ["Date and almond energy bites", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
-  ["Blueberry baked oats in ramekins", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
-  ["Maple banana oatmeal with walnuts", "gluten", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
-  ["Tempo turkey lettuce cups", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
-  ["Tofu and edamame poke bowl", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
-  ["Asparagus and mandarin chicken rice bowl", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
-  ["Sizzling chicken and broccoli over brown rice", "gluten", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
-  ["One-pan chicken and rice", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
-  ["Red lentil and spinach dahl", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
-  ["Turkey chili verde", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
-  ["Slow-simmered beef pot roast", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
-  ["Black skillet beef with kale and red potatoes", "gluten", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
-  ["Herbed baked salmon with lemon", "dairy", "Margarine is usually dairy-free, but some brands carry milk solids or whey. Check the label says dairy-free", []],
+  ["Overnight oats, three ways", "gluten", "oats", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Date and almond energy bites", "gluten", "oats", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Blueberry baked oats in ramekins", "gluten", "oats", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Maple banana oatmeal with walnuts", "gluten", "oats", "Oats are only gluten-free when certified — standard milling shares a line with wheat. Look for a certified gluten-free label", [["Bob's Red Mill Gluten Free", "US"], ["Nairn's Gluten Free", "UK"]]],
+  ["Tempo turkey lettuce cups", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Tofu and edamame poke bowl", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Asparagus and mandarin chicken rice bowl", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Sizzling chicken and broccoli over brown rice", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["One-pan chicken and rice", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Red lentil and spinach dahl", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Turkey chili verde", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Slow-simmered beef pot roast", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Black skillet beef with kale and red potatoes", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Herbed baked salmon with lemon", "dairy", "margarine", "Margarine is usually dairy-free, but some brands carry milk solids or whey. Check the label says dairy-free", []],
 ];
 
 for (const entry of _RECIPE_ALLERGEN_NOTES) {
   const r = SHAPE_RECIPES.find((x) => x.title === entry[0]);
-  if (r) (r.allergenNotes || (r.allergenNotes = [])).push({ allergen: entry[1], certification: entry[2], brands: entry[3] || [] });
+  if (r) (r.allergenNotes || (r.allergenNotes = [])).push({ allergen: entry[1], ingredient: entry[2], certification: entry[3], brands: entry[4] || [] });
 }
 
 // Parity copy of bsAllergenNoteText. Certification ALWAYS leads; brands append only

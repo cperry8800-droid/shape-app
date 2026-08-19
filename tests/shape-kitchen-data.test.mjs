@@ -126,6 +126,11 @@ test('catalog: allergen notes are well-formed (allergen, non-empty certification
   for (const r of SHAPE_KITCHEN_RECIPES) {
     for (const n of r.allergenNotes || []) {
       assert.ok(['gluten', 'dairy'].includes(n.allergen), `${r.title}: unknown allergen "${n.allergen}"`);
+      // The note is bound to the ambiguous CLASS it excuses, so the gate can refuse
+      // to let a broth note wave through oats. A missing class makes the note inert
+      // in the audit; the vocabulary itself is checked in the allergen gate.
+      assert.equal(typeof n.ingredient, 'string', `${r.title}: note is missing its ingredient class`);
+      assert.ok(n.ingredient.trim().length > 0, `${r.title}: note ingredient class is empty`);
       assert.equal(typeof n.certification, 'string');
       assert.ok(n.certification.trim().length > 20, `${r.title}: certification text is not a real sentence`);
       // The certification must not END the sentence itself — the composer adds the

@@ -1077,33 +1077,33 @@ const DF_MARGARINE_BRANDS = [];
 export const _RECIPE_ALLERGEN_NOTES = [
   // ── gluten · oats ────────────────────────────────────────────────────────
   // Oats are inherently gluten-free; standard milling shares a line with wheat.
-  ["Overnight oats, three ways", "gluten", GF_OATS, GF_OAT_BRANDS],
-  ["Date and almond energy bites", "gluten", GF_OATS, GF_OAT_BRANDS],
-  ["Blueberry baked oats in ramekins", "gluten", GF_OATS, GF_OAT_BRANDS],
-  ["Maple banana oatmeal with walnuts", "gluten", GF_OATS, GF_OAT_BRANDS],
+  ["Overnight oats, three ways", "gluten", "oats", GF_OATS, GF_OAT_BRANDS],
+  ["Date and almond energy bites", "gluten", "oats", GF_OATS, GF_OAT_BRANDS],
+  ["Blueberry baked oats in ramekins", "gluten", "oats", GF_OATS, GF_OAT_BRANDS],
+  ["Maple banana oatmeal with walnuts", "gluten", "oats", GF_OATS, GF_OAT_BRANDS],
   // ── gluten · soy sauce ───────────────────────────────────────────────────
-  ["Tempo turkey lettuce cups", "gluten", GF_SOY, GF_SOY_BRANDS],
-  ["Tofu and edamame poke bowl", "gluten", GF_SOY, GF_SOY_BRANDS],
-  ["Asparagus and mandarin chicken rice bowl", "gluten", GF_SOY, GF_SOY_BRANDS],
-  ["Sizzling chicken and broccoli over brown rice", "gluten", GF_SOY, GF_SOY_BRANDS],
+  ["Tempo turkey lettuce cups", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
+  ["Tofu and edamame poke bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
+  ["Asparagus and mandarin chicken rice bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
+  ["Sizzling chicken and broccoli over brown rice", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   // ── gluten · broth, stock, bouillon ──────────────────────────────────────
   // These five were never classified — they have ALWAYS claimed gluten-free over
   // a generic broth. The note is what makes that claim honest; no set changes.
-  ["One-pan chicken and rice", "gluten", GF_BROTH, GF_BROTH_BRANDS],
-  ["Red lentil and spinach dahl", "gluten", GF_BROTH, GF_BROTH_BRANDS],
-  ["Turkey chili verde", "gluten", GF_BROTH, GF_BROTH_BRANDS],
-  ["Slow-simmered beef pot roast", "gluten", GF_BROTH, GF_BROTH_BRANDS],
-  ["Black skillet beef with kale and red potatoes", "gluten", GF_BROTH, GF_BROTH_BRANDS],
+  ["One-pan chicken and rice", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Red lentil and spinach dahl", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Turkey chili verde", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Slow-simmered beef pot roast", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Black skillet beef with kale and red potatoes", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   // ── dairy · margarine ────────────────────────────────────────────────────
-  ["Herbed baked salmon with lemon", "dairy", DF_MARGARINE, DF_MARGARINE_BRANDS],
+  ["Herbed baked salmon with lemon", "dairy", "margarine", DF_MARGARINE, DF_MARGARINE_BRANDS],
 ];
 
 // Attach at module load, exactly like the passive-window overlay above. A title
 // typo fails SILENTLY here (`if (r)`), so it gets the same dedicated guard: a
 // title-existence test, plus the allergen gate's dead-note check.
-for (const [title, allergen, certification, brands] of _RECIPE_ALLERGEN_NOTES) {
+for (const [title, allergen, ingredient, certification, brands] of _RECIPE_ALLERGEN_NOTES) {
   const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === title);
-  if (r) (r.allergenNotes || (r.allergenNotes = [])).push({ allergen, certification, brands: brands || [] });
+  if (r) (r.allergenNotes || (r.allergenNotes = [])).push({ allergen, ingredient, certification, brands: brands || [] });
 }
 
 // One composer, both surfaces. The certification sentence ALWAYS leads; brands are
