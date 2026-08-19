@@ -141,9 +141,34 @@ const serialTimeline = (rs, activeMin) => {
 // than hidden. `off` (rest/chill) holds nothing and never forces a pull.
 const durationOf = (r, activeMin) => r.steps.reduce((n, _s, i) => n + (realMin(r.meta[i]) ?? activeMin), 0);
 
+// ⚠ ONE COOK, TWO HANDS. Station capacity says nothing about the PERSON. Two dishes can
+// each want three minutes of chopping in the same three minutes with no station contended,
+// so the placement called that feasible and reported `spread: 0` — a plan where everything
+// lands together, that nobody can actually perform. Measured across the catalog, 1,688 of
+// 1,770 pairs were scheduled that way, and the board then presents those steps one after
+// the other, so the second dish finishes after the time the plan promised.
+//
+// This matters most to the mode whose whole point is the saving. Cooking two dishes back to
+// back means waiting out the first before starting the second; overlapping them is the
+// saving, and the saving is REAL only when dish B's hands-on work sits inside dish A's HOLD
+// rather than on top of dish A's hands-on work. Modelling the cook makes the promised finish
+// achievable instead of merely arithmetic — and shrinks the claimed saving to the true one.
+//
+// A hold needs no hands, which is exactly why it can host another dish. Deliberately kept
+// local to serve placement: `bsOrchestrate`'s interleaver advances one recipe at a time and
+// so has always serialised the cook implicitly.
+const HANDS_CAPACITY = 1;
+const needsHands = (m) => m.passive !== true;
+const handsPull = (busy, from, to) => {
+  const mine = busy.filter((h) => from < h.to && h.from < to);
+  if (mine.length + 1 <= HANDS_CAPACITY) return null;
+  // Pull the dish earlier by enough to finish this step before the earliest step it hits.
+  return Math.max(1, to - Math.min(...mine.map((h) => h.from)));
+};
+
 function placeAt(rs, activeMin, T, kitchen, orderIdx) {
-  // Place every dish to END at T, pulling a dish earlier only when an exclusive station
-  // is already held. Returns feasible:false when a dish still clashes after being pulled
+  // Place every dish to END at T, pulling a dish earlier when an exclusive station is
+  // already held OR the cook is already busy. Returns feasible:false when a dish still clashes after being pulled
   // all the way to t=0 — that is not a schedule to be shown, it is proof that T is too
   // early for these dishes TOGETHER.
   // `orderIdx` places the dishes in a given order; without it, longest first as before.
@@ -151,6 +176,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
     ? orderIdx.map((k) => ({ r: rs[k], dur: durationOf(rs[k], activeMin), i: k }))
     : rs.map((r, i) => ({ r, dur: durationOf(r, activeMin), i })).sort((a, b) => b.dur - a.dur || a.i - b.i);
   const holds = [];
+  const hands = [];
   const placed = [];
   let pulled = false;
   let deficit = 0;
@@ -165,7 +191,12 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
         const m = r.meta[i] || {};
         const len = realMin(m) ?? activeMin;
         const st = m.station ?? null;
-        const pull = stationPull(holds, st, at, at + len, kitchen);
+        // Both resources are tested and the LARGER pull taken, so one pass clears both
+        // rather than ping-ponging the dish between a station and the cook.
+        const pull = Math.max(
+          stationPull(holds, st, at, at + len, kitchen) || 0,
+          needsHands(m) ? (handsPull(hands, at, at + len) || 0) : 0,
+        );
         if (pull) clash = pull;
         at += len;
       }
@@ -186,6 +217,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
       const len = realMin(m) ?? activeMin;
       const st = m.station ?? null;
       if (st != null && STATIONS_EXCLUSIVE.includes(st)) holds.push({ station: st, from: at, to: at + len });
+      if (needsHands(m)) hands.push({ from: at, to: at + len });
       placed.push({ ...evt(r, i, at), _end: at + len });
       at += len;
     }

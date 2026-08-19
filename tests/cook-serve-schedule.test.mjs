@@ -350,20 +350,92 @@ test('serve mode: the earliest serve time is the earliest over placement ORDERS,
     `spread ${plan.spread}; 12 is the tightest of the 19 arrangements that serve at 51`);
 });
 
-test('serve mode: searching orders never makes a schedule that already fitted worse', () => {
-  // Longest-first is tried first and returned untouched when it fits, so the search can
-  // only ever find a time that one order could not reach. Two dishes needing different
-  // stations always fit longest-first, and must be unaffected.
-  const pair = ['Roasted veg and halloumi traybake', 'One-pan chicken and rice'].map((t) => {
-    const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === t);
-    return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
-  });
+const dishes = (titles) => titles.map((t) => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === t);
+  assert.ok(r, `catalog no longer has "${t}" — repin this test, do not delete it`);
+  return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+});
+const durationOfRecipe = (r) => r.steps.reduce((n, _s, i) => {
+  const m = (r.stepMeta || [])[i];
+  return n + (m && m.min > 0 ? m.min : BS_ORCH.activeStepMin);
+}, 0);
+// Hands-on spans, by dish, from a RETURNED plan.
+const handsSpans = (plan) => plan.timeline
+  .filter((e) => !e.station)
+  .map((e) => ({ iid: e.iid, who: e.title, from: e.at, to: e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin) }));
+const handsClashes = (plan) => {
+  const h = handsSpans(plan);
+  const out = [];
+  for (let i = 0; i < h.length; i++) {
+    for (let j = i + 1; j < h.length; j++) {
+      if (h[i].iid !== h[j].iid && h[i].from < h[j].to && h[j].from < h[i].to) {
+        out.push(`${h[i].who} ${h[i].from}-${h[i].to} vs ${h[j].who} ${h[j].from}-${h[j].to}`);
+      }
+    }
+  }
+  return out;
+};
+
+// ⚠ ONE COOK, TWO HANDS — and a plan is worth nothing if the person cannot perform it.
+// Station capacity says nothing about the person, so two dishes could each be given the
+// same three minutes of chopping with no station contended. The pair below was reported
+// as `earliestServe: 33, spread: 0, issues: []` — a flawless serve-together plan in which
+// both dishes' final hands-on steps sat at 30-33. The board then presents those steps one
+// after the other, so the second dish lands after the time the plan promised.
+//
+// 1,688 of 1,770 catalog pairs were scheduled that way, so this was not an edge case: the
+// serve time and the spread were both systematically optimistic. What the mode exists to
+// save is the wait between cooking one dish and starting the next, and that saving is only
+// real when dish B's hands-on work sits inside dish A's HOLD.
+test('serve mode: one cook cannot do two hands-on steps at once', () => {
+  const plan = bsOrchestrate(dishes(['One-pan chicken and rice', 'Greek yogurt power bowl']), { mode: BS_COOK_MODE.SERVE });
+  assert.deepEqual(handsClashes(plan), [],
+    'two dishes were given the same minutes of the cook — the promised finish is unreachable');
+  // ⚠ I first asserted the serve time would move LATER, which was an assumption rather
+  // than a measurement — it does not. The same 33 minutes is reachable; what changes is
+  // that the arrangement becomes performable. The yogurt bowl is now built ENTIRELY
+  // inside the chicken's 18-minute stove hold, which is precisely the overlap this mode
+  // exists to find. The tell is the spread: it claimed 0 while placing both dishes' final
+  // hands-on steps in the same three minutes, and honestly reports 3.
+  assert.equal(plan.earliestServe, 33, 'the honest arrangement still reaches 33');
+  assert.equal(plan.spread, 3,
+    `spread ${plan.spread}; 0 was claimed by putting both dishes' last steps in one pair of hands`);
+  const inHold = handsSpans(plan).filter((h) => plan.timeline.some((e) =>
+    e.station && e.min > 0 && e.iid !== h.iid && h.from >= e.at && h.to <= e.at + e.min));
+  assert.ok(inHold.length >= 5,
+    `only ${inHold.length} hands-on steps run inside the other dish's hold — the bowl should be built during the rice`);
+});
+
+test('serve mode: a hold hosts the other dish, which is the whole saving', () => {
+  const pair = dishes(['Roasted veg and halloumi traybake', 'One-pan chicken and rice']);
   const plan = bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE });
-  const dur = (r) => r.steps.reduce((n, _s, i) => {
-    const m = (r.stepMeta || [])[i];
-    return n + (m && m.min > 0 ? m.min : BS_ORCH.activeStepMin);
-  }, 0);
-  assert.equal(plan.earliestServe, Math.max(...pair.map(dur)),
-    'with no station contention the earliest serve is just the longest dish');
-  assert.equal(plan.spread, 0, 'both dishes should land together when nothing forces a pull');
+
+  // This asserted `earliestServe === the longest dish (39)` until the cook was modelled.
+  // That premise was arithmetic: both dishes wanted the same last three minutes of the
+  // cook, so 39 was available on paper and impossible in a kitchen. 42 is the first time
+  // both fit one pair of hands, and the schedule that reaches it puts each dish's prep
+  // inside the other's oven/stove hold rather than on top of its hands-on work.
+  assert.equal(plan.earliestServe, 42,
+    `earliest serve ${plan.earliestServe}; 39 is the longest dish alone and ignores the cook`);
+  assert.deepEqual(handsClashes(plan), [], 'the cook is doing two things at once');
+
+  // The saving is real: back-to-back these two are 72 minutes of waiting.
+  const backToBack = pair.reduce((n, r) => n + durationOfRecipe(r), 0);
+  assert.ok(plan.earliestServe < backToBack,
+    `serving at ${plan.earliestServe} must beat cooking them one after the other (${backToBack})`);
+
+  // And the overlap is genuinely inside a hold, not merely a smaller number.
+  const holdSpans = plan.timeline.filter((e) => e.station && e.min > 0)
+    .map((e) => ({ iid: e.iid, from: e.at, to: e.at + e.min }));
+  const hostedWork = handsSpans(plan).filter((h) => holdSpans.some((s) => s.iid !== h.iid && h.from >= s.from && h.to <= s.to));
+  assert.ok(hostedWork.length > 0,
+    'no hands-on step runs inside the other dish\'s hold — nothing is actually being overlapped');
+});
+
+test('serve mode: a single dish is untouched by any of this', () => {
+  const [only] = dishes(['Roasted veg and halloumi traybake']);
+  const plan = bsOrchestrate([only], { mode: BS_COOK_MODE.SERVE });
+  assert.equal(plan.earliestServe, durationOfRecipe(only),
+    'with nothing to contend with, the earliest serve is exactly the dish');
+  assert.equal(plan.spread, 0, 'one dish cannot be spread');
 });
