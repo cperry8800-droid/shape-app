@@ -1047,13 +1047,20 @@ export const _KITCHEN_STEP_META = {
   "Turkey chili verde": {},
   // step 0 marinates "while the oven heats" — author-scheduled concurrency, so it is not the
   // cook's to spend elsewhere. The rice and the roast are real holds.
-  "Lemon-herb chicken meal-prep box": { 1: { min: 15, passive: true, station: "stove" }, 2: { min: 16, passive: true, station: "oven" } },
+  // step 1 simmers the rice 15 minutes "and rest 5 off the heat" — the pan has to come off
+  // the heat the moment the timer rings, and the lane shows no text to say so. Same shape as
+  // the eggs and the potatoes; the separator is "and" rather than "then", which is exactly
+  // how the previous sweep missed it. The roast is a real window.
+  "Lemon-herb chicken meal-prep box": { 2: { min: 16, passive: true, station: "oven" } },
   // ── Overlay expansion ───────────────────────────────────────────────────
   // Without these, a two-dish Together session found no host window ~55% of the
   // time and the button rendered disabled. Same rules as above: every `min` is a
   // duration the step's own text states, and no window is followed by a
   // concurrent-authored step. Hands-on steps carry NO annotation.
-  "Lentil bolognese": { 0: { min: 8, passive: true, station: "stove" } },
+  // step 0 softens onion, carrot and celery in UNCOVERED oil over medium heat. A soffritto
+  // needs moving or it catches, and the method gate missed it only because the prose says
+  // "soften" rather than "saute" — which is the whole problem with matching on vocabulary.
+  "Lentil bolognese": {},
   // step 0 salts the courgettes "while you prep" — the recipe assigns those 10 minutes to its
   // own prep, and 10 of a 15-minute recipe is most of it.
   "Garlic shrimp and courgette noodles": {},
@@ -1074,9 +1081,15 @@ export const _KITCHEN_STEP_META = {
   // hour states no attendance, so it stays the recipe's window.
   "Shorba lamb and peanut soup": { 1: { min: 60, passive: true, station: "stove" } },
   "Braised chicken thighs with wilted spinach": { 3: { min: 30, passive: true, station: "stove" } },
-  "Roasting-pan chicken with potatoes and carrots": { 3: { min: 60, passive: true, station: "oven" } },
+  // step 3 roasts an hour "spooning the pan juices back over the chicken once or twice" —
+  // an attendance clause the gerund gate missed because its list held `basting` and not
+  // `spooning`. The board hides that text for the full hour, so the bird is never basted.
+  "Roasting-pan chicken with potatoes and carrots": {},
   "Mango and peanut chicken wraps": { 4: { min: 20, passive: true, station: "off" } },
-  "Asparagus and mandarin chicken rice bowl": { 2: { min: 5, passive: true, station: "stove" } },
+  // step 2 simmers the spears "2 to 5 minutes" and step 3 pulls them "while they still snap".
+  // The annotation pins the MAXIMUM while the cook is needed at the minimum — and 2 minutes
+  // is below BS_ORCH.minPassive, so no honest window fits inside the range at all.
+  "Asparagus and mandarin chicken rice bowl": {},
   "Turkey tetrazzini bake": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 5, passive: true, station: "stove" } },
   "Chicken pozole with hominy and lime": { 0: { min: 60, passive: true, station: "stove" }, 3: { min: 45, passive: true, station: "stove" } },
   "Catfish stew with brown rice": { 1: { min: 10, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
@@ -1110,7 +1123,10 @@ export const _KITCHEN_STEP_META = {
   // gerund rule missed it because the verb is an imperative. Step 3 simmers, so it stays.
   "Spring cabbage and artichoke soup": { 3: { min: 10, passive: true, station: "stove" } },
   "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 60, passive: true, station: "stove" }, 5: { min: 5, passive: true, station: "off" } },
-  "Acorn squash stuffed with cinnamon apples": { 1: { min: 5, passive: true, station: "off" }, 4: { min: 5, passive: true, station: "off" } },
+  // step 4 microwaves "3 to 5 minutes more" — the same range-straddling-the-floor shape as the
+  // asparagus, found by the new gate rather than by review. Step 1 states a flat 5 minutes
+  // and stays.
+  "Acorn squash stuffed with cinnamon apples": { 1: { min: 5, passive: true, station: "off" } },
   "Cold black bean and brown rice salad": { 4: { min: 60, passive: true, station: "off" } },
   ...USDA2_STEP_META,
 };

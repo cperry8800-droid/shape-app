@@ -540,7 +540,11 @@ export const USDA2_STEP_META = {
   // step 0 pickles and step 1 marinates "while the grill heats" — both run in the background of
   // the cook's own work. A hold blocks the recipe's OWN next step, so annotating them made a
   // 45-minute recipe claim 60. Only the quinoa is a hold the recipe actually waits out.
-  "Pork tenderloin power bowl with quinoa": { 2: { min: 15, passive: true, station: "stove" } },
+  // step 2 simmers the quinoa 15 minutes "; rest 5 minutes off the heat" — a semicolon this
+  // time, same hidden hand-off. Splitting would need words invented for a public-domain
+  // recipe (the rest clause is 30 characters against a 50-character floor), so the window
+  // goes instead. This recipe now hosts nothing, which is the honest answer for it.
+  "Pork tenderloin power bowl with quinoa": {},
   "Honey mustard pork chops": { 1: { min: 4, passive: true, station: "stove" }, 3: { min: 8, passive: true, station: "stove" } },
   // step 3 sautes the vegetables for its own 5-8 minutes — attended over high heat, not a
   // hold. No window; the recipe cannot host.

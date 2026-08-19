@@ -222,9 +222,19 @@ test('catalog: no annotated window is followed by a concurrent-authored same-rec
 // catalog: the gerund rule flags 9 real violations and 0 of the 24 false positives a
 // bare verb match produces.
 test('catalog: an ATTENDED step is never annotated as a hands-off window', () => {
-  const ATTEND_GERUND = /\b(stirring|turning|flipping|skimming|tossing|basting|whisking|shaking|scraping|checking)\b/i;
-  // "without stirring" / "without turning too often" is an instruction to LEAVE IT ALONE.
-  const NEGATED = /\bwithout\s+\w*\s*(stirring|turning|flipping|skimming|tossing)\b/i;
+  // ⚠ A LIST, KNOWINGLY. Round 3 beat the previous list with `spooning` ("roast about an
+  // hour, spooning the pan juices back over the chicken"), so the obvious move was to
+  // match the SHAPE instead — a comma plus a participle. That was tried and measured,
+  // and it is worse: `\w+ing` is morphology, not grammar, so it fires on "bring to a
+  // simmer" and on "string beans". Seven false positives against one real catch.
+  // Telling a gerund from a noun needs a parser this suite does not have, so the list
+  // stays — precise, and honestly incomplete. It is a tripwire for known shapes, NOT a
+  // proof the catalog is clean; only reading a step can establish that.
+  const ATTEND_GERUND = /\b(stirring|turning|flipping|skimming|tossing|basting|spooning|ladling|whisking|shaking|scraping|checking|rotating|nudging|pressing)\b/i;
+  // "without stirring" / "without lifting the lid" is the same shape NEGATED, and means the
+  // opposite: leave it alone. Matched as a shape too, for the same reason.
+  const NEGATED = /\bwithout\s+(?:\w+\s+){0,2}\w+ing\b/i;
+
   // ⚠ Collect, then assert ONCE. An assert inside the loop reports the FIRST violation
   // and hides the count — which is exactly how a review round named 2 of these 9.
   const bad = [];
@@ -291,7 +301,11 @@ test('catalog: an attended cooking METHOD never governs an annotated window', ()
   // can never match, so the first draft of this pattern — /\bsaut[eé]\b/ — found NOTHING
   // and read as a clean sweep while covering nothing at all. The two asserts below exist
   // because a silent zero from this gate is indistinguishable from a passing catalog.
-  const METHOD = /(?:^|[^a-z])(saut[eé]|stir-fry|sear|pan-fry|griddle|scramble|deep-fry)(?![a-z])/i;
+  const METHOD = /(?:^|[^a-z])(saut[eé]|stir-fry|sear|pan-fry|griddle|scramble|deep-fry|soften|sweat)(?![a-z])/i;
+  // `soften` and `sweat` joined after round 3: "soften them in olive oil over medium heat
+  // for 8 minutes" is a soffritto, and needs moving or it catches. Note the gate only
+  // fires when a DURATION sits in the same clause, which is what keeps the doneness use
+  // — "cook about 5 minutes until they soften and give up their liquid" — out of it.
   const DUR = /\d+\s*(?:to\s*\d+\s*)?(?:minutes?|mins?|hours?|hrs?)/i;
   assert.ok(METHOD.test('and sauté 5 to 8 minutes'), 'METHOD must match the accented spelling');
   assert.ok(!METHOD.test('research the topic'), 'METHOD must not match inside a word');
@@ -368,9 +382,24 @@ test('catalog: an annotated window never hides an instruction behind its timer',
       const d = text.search(DUR);
       if (d < 0) return;
       const tail = text.slice(d);
-      const th = tail.search(/,?\s*then\s+/i);
+      // ⚠ THIS LOOKED FOR THE WORD `then` AND ROUND 3 CAME BACK WITH `;` AND `and`: the
+      // quinoa reads "simmer 15 minutes ...; rest 5 minutes off the heat", the rice
+      // "simmer covered on low 15 minutes and rest 5 off the heat" — the same hidden
+      // hand-off, punctuated differently.
+      //
+      // Widening the separator alone was measured and is far too broad: "and" also joins
+      // DONENESS clauses ("until the salmon flakes and the edges char"), which flagged 40
+      // steps that ask the cook for nothing. So the separator is widened AND the following
+      // clause must open with something the cook DOES. A doneness cue opens with the food
+      // ("the beans blister"); an instruction opens with a verb.
+      const HANDOFF = '(?:rest|drain|rinse|remove|take|pull|lift|chill|cool|transfer|tip|uncover|fluff|fork|slice|cut|spoon|scoop|stir|toss|season|serve)';
+      // ⚠ The conjunction is OPTIONAL after real punctuation. The quinoa reads
+      // "...the liquid is gone; rest 5 minutes off the heat" — a semicolon and no
+      // conjunction whatever, which slipped through a `(?:then|and)` requirement.
+      // Mutation-testing caught that; reading the pattern back had not.
+      const th = tail.search(new RegExp('(?:[;.]\\s*(?:then\\s+|and\\s+)?|[,]?\\s*(?:then|and)\\s+)(?=' + HANDOFF + '\\b)', 'i'));
       if (th < 0) return;
-      const after = tail.slice(th).replace(/^,?\s*then\s+/i, '');
+      const after = tail.slice(th).replace(/^[;,.]?\s*(?:then\s+|and\s+)?/i, '');
       if (STILL_A_WAIT.test(after)) return;
       bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — hidden behind the clock: "${after.slice(0, 60)}…"`);
     });
@@ -412,4 +441,29 @@ test('catalog: hold minutes never outrun the recipe\'s own stated time', () => {
     if (held > st && !MAKE_AHEAD[r.title]) bad.push(`${r.title}: ${held}m of holds inside a stated ${st}m — the recipe says they overlap`);
   }
   assert.deepEqual(bad, [], `${bad.length} recipe(s) hold for longer than they claim to take`);
+});
+
+// (5) A RANGE IS A PROMISE ABOUT ITS LOW END. "Simmer uncovered 2 to 5 minutes", with the
+// next step saying "pull the spears while they still snap", is not a five-minute window —
+// the cook is needed at TWO minutes and the annotation pins the maximum. Anything under
+// BS_ORCH.minPassive cannot host an interleave at all, so a range straddling that floor has
+// no honest window inside it and the board would return the cook to overcooked food.
+// Structural, not lexical: it reads the numbers the step itself states.
+test('catalog: a window never pins the top of a range whose bottom is below the floor', () => {
+  const RANGE = /(\d+)\s*(?:to|–|-)\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/i;
+  const FLOOR = 4;   // BS_ORCH.minPassive — below this the orchestrator hosts nothing
+  assert.deepEqual(RANGE.exec('simmer uncovered 2 to 5 minutes').slice(1, 3), ['2', '5'],
+    'the range parser must read both ends, or this gate measures nothing');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const hit = RANGE.exec(r.steps[i] || '');
+      if (!hit) return;
+      const lo = Number(hit[1]) * (/hour|hr/i.test(hit[3]) ? 60 : 1);
+      if (lo < FLOOR) bad.push(`${r.title} step ${i} (${m.min}m) — the cook may be needed at ${lo}m, below the ${FLOOR}m floor`);
+    });
+  }
+  assert.deepEqual(bad, [], `${bad.length} window(s) pin the top of a range the cook cannot wait out`);
 });
