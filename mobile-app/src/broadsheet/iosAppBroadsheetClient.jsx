@@ -7338,8 +7338,15 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   // Minutes a still-running hold has NOT delivered yet. The cursor moves past a passive
   // window the moment its timer starts — that is the whole point of interleaving — so
   // the minutes it represents are promised, not banked.
+  //
+  // ⚠ HOLDS ONLY. A `soft` timer is a convenience clock the cook starts on the step
+  // they are STANDING AT, so the cursor has not passed it and its minutes were never
+  // credited. Debiting them subtracts minutes nobody banked, and the bar walks
+  // BACKWARD — to zero on a long one — as a reward for using the timer (Codex,
+  // round 2). Every other reader of `timers` already filters soft out; this one is
+  // the only place that did not.
   const unearnedFor = (rk) => timers.reduce(
-    (s, tm) => s + ((rk == null || tm.recipeKey === rk) ? Math.max(0, (tm.endsAt - now) / 60000) : 0),
+    (s, tm) => s + ((!tm.soft && (rk == null || tm.recipeKey === rk)) ? Math.max(0, (tm.endsAt - now) / 60000) : 0),
     0,
   );
   const boardPct = React.useMemo(() => bsProgressPct(timeline.map(minsOf), cursor, unearnedFor(null)), [timeline, cursor, timers, now]);

@@ -222,3 +222,72 @@ test('the board is actually HANDED the session clock in the shipping mount', () 
   assert.match(open, /anchor=\{sessionAnchor\}/, 'the anchor is not the session start stamp');
   assert.match(src, /setSessionAnchor\(Date\.now\(\)\)/, 'nothing ever stamps the session start');
 });
+
+// ── the progress debit must not punish the convenience timer ───────────────────
+// Round 1 taught the board that a RUNNING passive hold has not delivered its minutes
+// yet: the cursor moves past a window the instant its timer starts, so those minutes
+// are promised, not banked, and `bsProgressPct` debits them.
+//
+// ⚠ That rule is about HOLDS. A `soft` timer is the plain countdown a cook starts on
+// the step they are STANDING AT — the cursor has not passed it, so nothing credited
+// those minutes in the first place. Debiting them subtracts a figure nobody banked and
+// the bar walks BACKWARD, to zero on a long one, as a reward for using the timer
+// (Codex, round 2). Every other reader of `timers` already filters soft out; the debit
+// was the only one that did not, which is exactly why a mount is what catches it.
+const SEARED = {
+  key: 'seared', title: 'The seared cutlets',
+  steps: [
+    'Trim the cutlets and pat them dry.',
+    'Sear the cutlets 8 minutes, turning once, until the crust is deep brown.',
+    'Rest them on a warm plate before serving.',
+  ],
+  stepMeta: [null, null, null],
+};
+const pctOf = (s) => {
+  const m = s.text.match(/(\d+)%/);
+  return m ? Number(m[1]) : null;
+};
+
+test('a convenience timer on the CURRENT step never moves the board backward', () => {
+  const plan = bsOrchestrate([SEARED], { ...OPTS, mode: BS_COOK_MODE.SEQUENCE });
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline,
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  s.click('Next');                       // step 0 behind us — real, banked minutes
+  const before = pctOf(s);
+  assert.ok(Number.isFinite(before) && before > 0,
+    `the board must have banked something before the timer starts, read ${before}%`);
+  // Guard the guard: without a chip to press there is nothing under test here.
+  const chips = s.buttons().filter((b) => b.label.startsWith('◷'));
+  assert.ok(chips.length > 0, 'no convenience-timer chip on an active step that states a duration');
+
+  s.click('◷');
+  const after = pctOf(s);
+  assert.equal(after, before,
+    `starting an 8-minute convenience timer moved the board ${before}% -> ${after}%; a soft timer banks nothing and owes nothing`);
+});
+
+test('a real HOLD still owes its minutes — the round-1 fix survives', () => {
+  // The other arm. If the debit were simply deleted the test above would pass and the
+  // defect round 1 fixed would be back, so both directions are pinned here.
+  const plan = bsOrchestrate([LONG, SHORT], { ...OPTS, mode: BS_COOK_MODE.TOGETHER });
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline,
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  const before = pctOf(s);
+  let guard = 0;
+  while (guard++ < 12) {
+    const labels = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
+    const hold = labels.find((l) => l.startsWith('Start timer'));
+    if (hold) { s.click('Start timer'); break; }
+    if (!labels.some((l) => l.startsWith('Next'))) break;
+    s.click('Next');
+  }
+  assert.ok(guard < 12, 'never reached a holding window — this plan cannot exercise the debit');
+  const after = pctOf(s);
+  assert.ok(Number.isFinite(after), 'no percentage rendered once a hold was running');
+  assert.ok(after < 100,
+    `a 40-minute braise that just went on cannot leave the board at ${after}% — its minutes are promised, not banked`);
+});
