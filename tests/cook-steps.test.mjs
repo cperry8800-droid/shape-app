@@ -26,7 +26,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { bsStepTimers, bsFractionalDuration, BS_TIMER_UNITS } from '../mobile-app/src/services/cookable.mjs';
+import { bsStepTimers, bsFractionalDuration, BS_TIMER_UNITS, bsCookableFromRecipe } from '../mobile-app/src/services/cookable.mjs';
+import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -77,6 +78,27 @@ function collectSteps(label, file) {
 const unesc = (s) => String(s).replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, '\\');
 
 const ALL = SOURCES.flatMap(([label, file]) => collectSteps(label, file));
+
+// The allergen note has to SURVIVE the trip into Cook Mode, and that trip is an
+// ALLOWLIST: `finishCookable` copies named fields and drops everything else, so a
+// field nobody added is silently absent at the stove — the same publish-boundary
+// class that has bitten this repo before. Cook Mode itself is rendered by no test,
+// so without this the mise note is gated by nothing at all.
+test('cookable: the allergen note survives the cookable allowlist', () => {
+  const bearer = SHAPE_KITCHEN_RECIPES.find((r) => r.allergenNotes && r.allergenNotes.length);
+  assert.ok(bearer, 'no note-bearing recipe in the catalog — this assertion would pass vacuously');
+  const c = bsCookableFromRecipe(bearer);
+  assert.ok(Array.isArray(c.allergenNotes), `${bearer.title}: allergenNotes did not cross into the cookable`);
+  assert.deepEqual(c.allergenNotes, bearer.allergenNotes, 'the note changed shape crossing the boundary');
+  assert.ok(c.allergenNotes[0].certification, 'the certification — the safety-bearing half — did not survive');
+
+  // And the absent path: a note-less recipe must not arrive carrying `undefined`,
+  // which a `.map` at the render site would throw on.
+  const plain = SHAPE_KITCHEN_RECIPES.find((r) => r.allergenNotes === undefined);
+  assert.ok(plain, 'every recipe carries a note — the absent path would go untested');
+  assert.equal(bsCookableFromRecipe(plain).allergenNotes, null,
+    'a note-less recipe must normalise to null, never undefined');
+});
 
 test('cook steps: every source is actually being read', () => {
   for (const [label, file] of SOURCES) {

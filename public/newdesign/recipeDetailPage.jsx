@@ -253,6 +253,22 @@ function RecipeDetailPage() {
           <div className="rd-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 36 }}>
             <div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 12 }}>INGREDIENTS</div>
+              {/* Allergen claim note — a recipe that KEEPS a "free from" claim over an
+                  ambiguous ingredient names the safe form to buy. Reads BEFORE the
+                  ingredient list, so the caveat lands before the shopping does.
+                  71 of 85 recipes carry no `allergenNotes` at all (the field is
+                  undefined, not an empty array), so this must never assume presence.
+                  Its own unattributed block — never the tip/byline machinery. */}
+              {(recipe.allergenNotes || []).map((n, i) => (
+                <div key={i} style={{ marginBottom: 12, padding: "12px 14px", borderRadius: 10, background: "rgba(244,184,96,0.08)", border: "1px solid rgba(244,184,96,0.28)" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "#f4b860", marginBottom: 6 }}>
+                    {"ALLERGEN · " + String(n.allergen || "").toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.88)", lineHeight: 1.5 }}>
+                    {typeof recipeAllergenNoteText === "function" ? recipeAllergenNoteText(n) : n.certification}
+                  </div>
+                </div>
+              ))}
               <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                 {recipe.ingredients.map((ing, i) => (
                   <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 0", fontSize: 14.5, color: "rgba(242,237,228,0.88)", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.07)" }}>

@@ -101,6 +101,24 @@ function RecipeCard({ recipe, saved, onToggleSave }) {
             <span key={t} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", padding: "3px 8px", borderRadius: 4, color: "rgba(242,237,228,0.65)", background: "rgba(242,237,228,0.06)", border: "1px solid rgba(242,237,228,0.1)" }}>{t.toUpperCase()}</span>
           ))}
         </div>
+        {/* Allergen claim note, one line. This grid is what the FREE FROM filters
+            return, so a restored "free from" claim must carry its caveat HERE too —
+            not only on the detail page. Certification clause only; the brand
+            examples are detail-page-only. Inert text: the whole card is an anchor,
+            so nothing here may be interactive. 71 of 85 recipes carry no
+            `allergenNotes` at all (undefined, not an empty array). */}
+        {(recipe.allergenNotes || []).length > 0 && (
+          <div
+            title={recipe.allergenNotes.map((n) => n.certification).join(" · ")}
+            style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.04em",
+              lineHeight: 1.35, color: "#f4b860",
+              display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical",
+              overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+            {recipe.allergenNotes.map((n) => n.certification).join(" · ")}
+          </div>
+        )}
       </div>
     </a>
   );

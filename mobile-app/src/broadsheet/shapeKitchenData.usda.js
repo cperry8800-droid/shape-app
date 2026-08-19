@@ -1451,22 +1451,20 @@ export const USDA_KITCHEN_RECIPES = [
 // Merge these into the existing allowlists in shapeKitchenData.js. They are
 // keyed by exact title, same as _RECIPE_NOT_GF / _RECIPE_HAS_DAIRY / _RECIPE_MED.
 export const USDA_NOT_GF = [
-  // Oats are not gluten-free unless certified — standard milling shares a line
-  // with wheat, which is why coeliac guidance calls for certified GF oats. These
-  // recipes name plain oats, so the catalog must not advertise them as safe.
-  "Maple banana oatmeal with walnuts",
+  // ⚠ This list is NOT one ingredient class. Most entries below are pasta, barley,
+  // tortillas or flour — genuinely disqualifying, no purchasable form is safe.
+  // The AMBIGUOUS classes (oats, soy sauce, broth) are no longer listed here: they
+  // keep their claim and carry an allergen note instead (owner ruling 2026-08-18).
+  // Read the ingredients, never this comment, to know why a title is here.
   "Beef stroganoff with macaroni",
   "Ground beef and root vegetable stew",
   "Mango and peanut chicken wraps",
-  "Asparagus and mandarin chicken rice bowl",
   "Turkey tetrazzini bake",
-  "Sizzling chicken and broccoli over brown rice",
   "Chargrilled tilapia tacos with peach salsa",
   "Neapolitan tuna fettuccine with capers",
   "Bell pepper and Vidalia onion strata",
   "Crisp black bean and cheese quesadillas",
   "Sharp cheddar baked macaroni",
-  "Blueberry baked oats in ramekins",
   "Layered cheddar potato gratin",
   "Charred corn and cornmeal patties",
   "Lentil and pearl barley soup",
@@ -1474,9 +1472,10 @@ export const USDA_NOT_GF = [
 ];
 
 export const USDA_HAS_DAIRY = [
-  // Generic margarine commonly contains milk solids or whey. Same rule as the
-  // oats above: an unspecified product cannot carry a "free from" claim.
-  "Herbed baked salmon with lemon",
+  // ⚠ Every entry below carries REAL dairy — cheese, milk, yogurt or butter.
+  // Margarine is NOT on this list: the owner ruled 2026-08-18 that margarine is
+  // vegetable-oil based and usually dairy-free, so a recipe naming it keeps its
+  // dairy-free claim and carries a note to buy a dairy-free variety.
   "Beef stroganoff with macaroni",
   "Mango and peanut chicken wraps",
   "Turkey tetrazzini bake",
