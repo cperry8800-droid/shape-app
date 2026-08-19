@@ -669,11 +669,16 @@ test('prep session: finishing a dish hands its unfinished holds to the session',
 // placement believe it, and have the plan those builders produced ignore it.
 // ---------------------------------------------------------------------------------------
 
-const spanOf = (tl) => (tl.length ? Math.max(...tl.map((e) => e.at + (e.min || BS_ORCH.activeStepMin))) : 0);
+// WARNING - THE FIRST VERSION OF THIS TEST WAS HOLLOW, and mutation-testing is the only
+// reason I know. It asserted on `max(at + min)` across the timeline, and `evt` puts the
+// authored `min` on the event whatever its passive flag - so the span read 73 even when the
+// clock had advanced by three. Reverting the fix left it GREEN. What actually distinguishes
+// the two builds is WHEN THE NEXT STEP STARTS, so that is what these assert on now.
+const startOf = (tl, key) => Math.min(...tl.filter((e) => e.recipe === key).map((e) => e.at));
 
 test('a step can take an hour without ever being a window the cook may walk away from', () => {
-  // The layered gratin's shape, reduced to a fixture: a final step that bakes for an hour and
-  // then tells the cook to rest and slice. It can NEVER be a window - it hides an instruction
+  // The layered gratin's shape, reduced to a fixture: a step that bakes for an hour and then
+  // tells the cook to rest and slice. It can NEVER be a window - it hides an instruction
   // behind its own timer - and it still takes seventy minutes of the evening.
   const bake = {
     key: 'bake', title: 'Long bake',
@@ -683,19 +688,33 @@ test('a step can take an hour without ever being a window the cook may walk away
   const quick = { key: 'quick', title: 'Quick bowl', steps: ['Chop.', 'Toss.', 'Plate.'], stepMeta: [null, null, null] };
 
   const seq = bsOrchestrate([bake, quick], { mode: BS_COOK_MODE.SEQUENCE });
-  assert.ok(spanOf(seq.timeline) >= 70 + BS_ORCH.activeStepMin,
-    `one-at-a-time spans ${spanOf(seq.timeline)} minutes; the bake alone is 70 of them`);
-
-  const auto = bsOrchestrate([bake, quick], {});
-  assert.ok(spanOf(auto.timeline) >= 70,
-    `the interleaved clock spans ${spanOf(auto.timeline)} minutes and skipped a 70-minute step`);
+  assert.ok(startOf(seq.timeline, 'quick') >= 70,
+    `one-at-a-time starts the second dish at ${startOf(seq.timeline, 'quick')} minutes, `
+    + 'walking straight past a 70-minute bake');
 
   // ...and it is emphatically NOT a window. No `passive` flag, so nothing may be scheduled
   // inside it - the owner constraint against fabricated parallelism is untouched by this.
-  assert.equal(auto.canInterleave, false,
+  assert.equal(bsOrchestrate([bake, quick], {}).canInterleave, false,
     'a duration alone must never make a step host a detour');
   assert.equal(bsOrchestrate([bake, quick], { mode: BS_COOK_MODE.SERVE }).canInterleave, false,
     'serve mode agrees: duration is not permission to leave');
+});
+
+test('the INTERLEAVER spends the clock on a long step it is not allowed to leave', () => {
+  // A separate fixture, because the interleaver is a different code path from the serial
+  // builder and only runs when a real window exists. The rest at the end is that window; the
+  // hour in the middle is not, and the cook is standing there for it either way.
+  const bake = {
+    key: 'bake', title: 'Long bake',
+    steps: ['Layer it up.', 'Bake 1 hour, basting twice.', 'Rest before slicing.'],
+    stepMeta: [null, { min: 60, passive: false, station: 'oven' }, { min: 10, passive: true, station: 'off' }],
+  };
+  const quick = { key: 'quick', title: 'Quick bowl', steps: ['Chop.', 'Toss.', 'Plate.'], stepMeta: [null, null, null] };
+  const auto = bsOrchestrate([bake, quick], {});
+  assert.equal(auto.canInterleave, true, 'the rest is a real window - this fixture must interleave');
+  const rest = auto.timeline.find((e) => e.recipe === 'bake' && e.stepIndex === 2);
+  assert.ok(rest.at >= 60 + BS_ORCH.activeStepMin,
+    `the rest is scheduled at ${rest.at} minutes, so the hour of baking before it cost nothing`);
 });
 
 test('serve mode: the sheet is told when "soonest" is the best of a sample, not a proof', () => {
