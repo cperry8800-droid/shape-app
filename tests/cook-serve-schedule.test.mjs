@@ -619,3 +619,45 @@ test('serve mode: the order search reaches a six-dish session', () => {
   }
   assert.deepEqual(clashes, [], 'an earlier serve time that puts two pans on one station is not a schedule');
 });
+
+// ⚠ THE HANDOFF ITSELF HAD NO COVERAGE. The button that ends a dish inside a Prep Session now
+// passes its still-running holds up, reading `timers` and `visited` from the component's own
+// scope. Scope being correct is not the same as the click working: a wrong binding here throws
+// at click time, which parse, tsc and both builds all pass cleanly.
+test('prep session: finishing a dish hands its unfinished holds to the session', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === 'Date and almond energy bites');
+  assert.ok(r, 'catalog no longer has the energy bites — repin this test, do not delete it');
+  const c = bsCookableFromRecipe(r);
+
+  let handed = 'never called';
+  const s = drive(MOD.BSCookMode, {
+    cookable: c, onClose() {},
+    prep: { index: 0, count: 2, priorMins: 0, totalMins: 100, onPrepped(out) { handed = out; } },
+  });
+
+  // Walk to the chill, put it on, then end the dish while it is still running.
+  let guard = 0;
+  while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
+    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('✓ Done'))) break;
+    s.click('✓ Done');
+  }
+  assert.match(s.text, /Chill 30 minutes/, 'never reached the chill — this recipe cannot exercise the handoff');
+  const chip = s.buttons().find((b) => !b.disabled && b.label.startsWith('▸ Timer'));
+  assert.ok(chip, `no countdown offered on the chill (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+  s.click('▸ Timer');
+
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  assert.ok(finish, 'no way to end the dish');
+  s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
+
+  // Plating does not end the dish inside a session — a separate CTA does, and that is the
+  // button carrying the handoff. Assert we found it rather than silently skipping the click.
+  const cta = s.buttons().find((b) => !b.disabled && (b.label.startsWith('Next recipe') || b.label.startsWith('Wrap the session')));
+  assert.ok(cta, `no session CTA after plating (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+  s.click(cta.label.startsWith('Next recipe') ? 'Next recipe' : 'Wrap the session');
+
+  assert.ok(Array.isArray(handed), `onPrepped received ${JSON.stringify(handed)} — the handoff did not run`);
+  assert.equal(handed.length, 1, `expected the running chill to be handed up, got ${JSON.stringify(handed)}`);
+  assert.ok(handed[0].endsAt > Date.now() + 25 * 60000,
+    `the carried hold ends at ${handed[0].endsAt}, which is not ~30 minutes out`);
+});
