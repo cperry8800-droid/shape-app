@@ -6886,6 +6886,31 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // skillet" was noise the cook had to read past every step. Conservative by
   // construction: a step that names no ingredient renders no list at all.
   const stepIngs = hasMethod && phase === 'method' ? bsStepIngredients(steps[stepIdx], cookable.ingredients) : [];
+  // Allergen claim notes — ONE definition, rendered on EVERY phase a member can
+  // reach the food from. It used to live only in the mise, below the `Resume at
+  // step N` shortcut: a member with a resume stamp (including one persisted by the
+  // build BEFORE these notes existed) tapped straight through to `method` and the
+  // caveat unmounted with the mise. `method` is reachable three ways — Start
+  // cooking, Resume, and BSCookMode opening directly on it when `prep` is set — so
+  // ordering the block above one button would still have missed two of them.
+  // The shopping decision ("buy the certified gluten-free one") is a mise decision,
+  // but the caveat has to survive wherever cooking actually begins.
+  // Unattributed by design: the catalog's own voice, never behind the recipe byline
+  // (that is the PLATED tip's job).
+  // ⚠ Only catalog recipes carry notes, and only 14 of 85 of those — every other
+  // cookable source leaves the field absent, so it is coalesced before it is mapped.
+  // English + hard-coded, like the Kitchen Card's copy; i18n is a registered
+  // follow-up for both (a `cook:` key here would need all 13 locale catalogs).
+  const allergenNoteBlock = (cookable.allergenNotes || []).map((n, i) => (
+    <div key={i} style={{ marginTop: 14, paddingLeft: 9, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+        {`ALLERGEN · ${String(n.allergen || '').toUpperCase()}`}
+      </div>
+      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, lineHeight: 1.55, color: t.INK70 }}>
+        {bsAllergenNoteText(n)}
+      </div>
+    </div>
+  ));
   const miseRows = [
     ...cookable.ingredients.map((ing, i) => ({ key: 'ing-' + i, label: ing.m, qty: bsIngQtyLabel(t.isMetric, ing) })),
     ...(cookable.prepNote ? [{ key: 'prep', label: cookable.prepNote, qty: tr('cook:mise.prepTag', { defaultValue: 'PREP' }) }] : []),
@@ -7031,6 +7056,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                 })}
               </div>
             )}
+            {allergenNoteBlock}
             {resumeAt && hasMethod && (
               <button onClick={() => { setPhase('method'); goStep(Math.min(resumeAt.stepIdx, steps.length - 1)); }} style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left', background: bsTHexA(heat, t.isLight ? 0.08 : 0.12), border: `1px solid ${bsTHexA(heat, 0.4)}`, borderLeft: `3px solid ${heat}`, borderRadius: 5, padding: '11px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat }}>
                 {tr('cook:resume', { defaultValue: 'Resume at step {n} →', n: resumeAt.stepIdx + 1 })}
@@ -7050,25 +7076,6 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                 </div>
               )}
             </div>
-            {/* Allergen claim notes, beside the board — the shopping decision
-                ("buy the certified gluten-free one") is a MISE decision, so the
-                note belongs here and not on the PLATED tip, which renders behind
-                a byline. Unattributed by design: this is the catalog's own voice.
-                ⚠ Only catalog recipes carry notes, and only 14 of 85 of those —
-                every other cookable source leaves the field absent, so the array
-                is coalesced before it is mapped. English + hard-coded like the
-                Kitchen Card's copy of this block; i18n is a registered follow-up
-                for both (adding a `cook:` key here would need all 13 catalogs). */}
-            {(cookable.allergenNotes || []).map((n, i) => (
-              <div key={i} style={{ marginTop: 14, paddingLeft: 9, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-                  {`ALLERGEN · ${String(n.allergen || '').toUpperCase()}`}
-                </div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, lineHeight: 1.55, color: t.INK70 }}>
-                  {bsAllergenNoteText(n)}
-                </div>
-              </div>
-            ))}
             {!hasMethod && (
               <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50, lineHeight: 1.5 }}>
                 {tr('cook:mise.noMethod', { defaultValue: "No written method on this one — your coach's plate, your kitchen. Timers and the log are ready when you are." })}
@@ -7102,6 +7109,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             <div aria-live="polite" key={stepIdx} style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 21, lineHeight: 1.42, color: t.INK, fontWeight: 500 }}>
               {steps[stepIdx]}
             </div>
+            {allergenNoteBlock}
             {stepTimers.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stepTimers.map((tm, i) => (

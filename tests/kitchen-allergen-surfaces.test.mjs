@@ -288,20 +288,54 @@ function prepAtMise() {
   return s;
 }
 
-test('prep session: BSCookMode cannot carry the note on a prep path — the premise, pinned', () => {
-  // If this ever fails the merged-mise block below may be redundant; it must
-  // not be deleted on a guess. Every candidate has a method (the picker filters
-  // on it), and BSCookMode with `prep` set skips straight past its mise.
+test('cook mode: the note survives EVERY entry into cooking, not just the mise', () => {
+  // This pin used to assert the OPPOSITE — that BSCookMode could not carry the note on
+  // a prep path — because the block lived only in the mise. Codex round 3 showed that
+  // was not merely a gap in prep: `method` is reachable THREE ways (Start cooking,
+  // `Resume at step N`, and BSCookMode opening straight on it when `prep` is set), and
+  // the note rendered on none of them. A member with a resume stamp — including one
+  // persisted by the build BEFORE these notes existed — tapped through and the caveat
+  // unmounted with the mise. The block is now one definition rendered on every phase.
   const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === OATS_A);
   const c = bsCookableFromRecipe(r);
   assert.ok(c.steps.length > 0, `"${OATS_A}" has no method — it would not be a prep candidate at all`);
+
   const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
-  assert.ok(solo.text.includes('ALLERGEN · GLUTEN'), 'the solo cook lost its mise note — a different regression');
+  assert.ok(solo.text.includes('ALLERGEN · GLUTEN'), 'the solo mise lost its note');
+
+  // Prep mode opens directly on `method`, skipping the mise entirely.
   const inPrep = drive(MOD.BSCookMode, {
     cookable: c, onClose() {}, prep: { index: 0, count: 1, onPrepped() {} },
   });
-  assert.ok(!inPrep.text.includes('ALLERGEN · GLUTEN'),
-    'BSCookMode now shows the note in prep mode — re-check whether the merged mise block is still the only carrier');
+  assert.ok(inPrep.text.includes('ALLERGEN · GLUTEN'),
+    'prep mode opens on the method phase and shows no caveat — the member cooks the ambiguous ingredient blind');
+
+  // Walking from the mise into the method must not drop it either.
+  const walked = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  walked.click('Start cooking');
+  assert.ok(walked.text.includes('ALLERGEN · GLUTEN'),
+    'the caveat vanished on entering the method phase');
+
+  // ⚠ The merged BSPrepSession board is still required and is NOT made redundant by
+  // this: the interleaved path mounts BSPrepCook, which is not BSCookMode at all.
+});
+
+test('cook mode: the caveat precedes the resume shortcut, which jumps past the mise', () => {
+  // Ordering, not presence: `Resume at step N` switches to `method` on tap, so a
+  // caveat rendered after it is one a resuming member never passes.
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === OATS_A);
+  const c = bsCookableFromRecipe(r);
+  const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  const note = solo.text.indexOf('ALLERGEN · GLUTEN');
+  assert.ok(note >= 0, 'no caveat on the mise at all');
+  const resume = solo.text.indexOf('Resume at step');
+  if (resume >= 0) {
+    assert.ok(note < resume, 'the caveat renders after the resume shortcut, which unmounts it on tap');
+  }
+  // Whether or not this fixture carries a resume stamp, the method phase itself must
+  // carry the caveat — that is what makes the resume path safe in either case.
+  solo.click('Start cooking');
+  assert.ok(solo.text.includes('ALLERGEN · GLUTEN'), 'the method phase carries no caveat');
 });
 
 test('prep session: the merged mise carries the selected recipes allergen notes', () => {
@@ -356,4 +390,27 @@ test('prep session: a note-free board renders no note block and does not crash',
   s.click('Merge the mise');
   assert.ok(s.text.includes('One board, everything.'), 'the note-free session never reached the merged mise');
   assert.ok(!s.text.includes('ALLERGEN'), `"${plain.title}" carries no notes but the board printed one`);
+});
+
+test('cook mode: a note-LESS cookable renders every phase without throwing', () => {
+  // The block is built once per render from `cookable.allergenNotes`, which is ABSENT
+  // on 71 of 85 catalog recipes and on every non-catalog cookable (meals, free text).
+  // Without the `|| []` coalesce this throws for almost every cook in the app — and a
+  // suite that only ever drives note-BEARING recipes never sees it. That exact
+  // mutation survived until this test existed.
+  const plain = SHAPE_KITCHEN_RECIPES.find((r) => r.allergenNotes === undefined && bsCookableFromRecipe(r).steps.length > 0);
+  assert.ok(plain, 'no note-free recipe with a method — the absent path cannot be exercised');
+  const c = bsCookableFromRecipe(plain);
+  assert.equal(c.allergenNotes, null, 'fixture is not actually note-free at the cookable boundary');
+
+  const mise = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  assert.ok(!mise.text.includes('ALLERGEN'), `"${plain.title}" carries no notes but the mise printed one`);
+  mise.click('Start cooking');
+  assert.ok(!mise.text.includes('ALLERGEN'), `"${plain.title}" printed a caveat on the method phase`);
+
+  // And through the prep entry, which opens straight on `method`.
+  const inPrep = drive(MOD.BSCookMode, {
+    cookable: c, onClose() {}, prep: { index: 0, count: 1, onPrepped() {} },
+  });
+  assert.ok(!inPrep.text.includes('ALLERGEN'), `"${plain.title}" printed a caveat in prep mode`);
 });
