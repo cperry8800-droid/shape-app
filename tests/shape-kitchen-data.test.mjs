@@ -176,7 +176,16 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
       assert.ok(Number.isFinite(m.min) && m.min >= MIN_PASSIVE, `${r.title} step ${i}: min ${m.min} below the ${MIN_PASSIVE}-min floor`);
       assert.ok(m.min <= 6 * 60, `${r.title} step ${i}: min ${m.min} exceeds 6h`);
       // No fabrication: the authored `min` must equal a real duration the step text itself states.
+      // ⚠ `bsStepTimers` reduces a RANGE to one figure — "simmer 4 to 5 minutes" comes back as
+      // 5 — so a window correctly set to the low end read as fabricated. Both ends of a stated
+      // range are stated, and the sibling gate below requires the low one; without this the two
+      // rules contradict each other and the honest value is the one that fails.
+      const RANGE_ENDS = /(\d+)\s*(?:to|\u2013|-)\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi;
       const stated = bsStepTimers(r.steps[i]).map((x) => Math.round(x.seconds / 60));
+      for (const hit of String(r.steps[i]).matchAll(RANGE_ENDS)) {
+        const scale = /hour|hr/i.test(hit[3]) ? 60 : 1;
+        stated.push(Number(hit[1]) * scale, Number(hit[2]) * scale);
+      }
       assert.ok(stated.includes(m.min), `${r.title} step ${i}: min ${m.min} not stated in the step — "${r.steps[i].slice(0, 48)}…" states ${JSON.stringify(stated)}`);
     });
   }
@@ -233,7 +242,10 @@ test('catalog: an ATTENDED step is never annotated as a hands-off window', () =>
   const ATTEND_GERUND = /\b(stirring|turning|flipping|skimming|tossing|basting|spooning|ladling|whisking|shaking|scraping|checking|rotating|nudging|pressing)\b/i;
   // "without stirring" / "without lifting the lid" is the same shape NEGATED, and means the
   // opposite: leave it alone. Matched as a shape too, for the same reason.
-  const NEGATED = /\bwithout\s+(?:\w+\s+){0,2}\w+ing\b/i;
+  // "without stirring" is an instruction to leave it alone. ⚠ "without stirring TOO OFTEN"
+  // is not — it asks for occasional stirring, and this guard exempted it because it read
+  // only the opening words. A negation counts only when nothing walks it back.
+  const NEGATED = /\bwithout\s+(?:\w+\s+){0,2}\w+ing\b(?!\s+(?:too\s+\w+|much|often|constantly|every|more\s+than))/i;
 
   // ⚠ Collect, then assert ONCE. An assert inside the loop reports the FIRST violation
   // and hides the count — which is exactly how a review round named 2 of these 9.
@@ -449,7 +461,7 @@ test('catalog: hold minutes never outrun the recipe\'s own stated time', () => {
 // BS_ORCH.minPassive cannot host an interleave at all, so a range straddling that floor has
 // no honest window inside it and the board would return the cook to overcooked food.
 // Structural, not lexical: it reads the numbers the step itself states.
-test('catalog: a window never pins the top of a range whose bottom is below the floor', () => {
+test('catalog: a ranged window is its LOW end, never its top', () => {
   const RANGE = /(\d+)\s*(?:to|–|-)\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/i;
   const FLOOR = 4;   // BS_ORCH.minPassive — below this the orchestrator hosts nothing
   assert.deepEqual(RANGE.exec('simmer uncovered 2 to 5 minutes').slice(1, 3), ['2', '5'],
@@ -462,8 +474,58 @@ test('catalog: a window never pins the top of a range whose bottom is below the 
       const hit = RANGE.exec(r.steps[i] || '');
       if (!hit) return;
       const lo = Number(hit[1]) * (/hour|hr/i.test(hit[3]) ? 60 : 1);
+      // ⚠ The first version of this gate only rejected a range reaching BELOW the floor. That
+      // was half the rule: "simmer 6 to 8 minutes" annotated as 8 keeps the countdown running
+      // for two minutes after the chops are ready. The window is the low end in every case —
+      // the top of a range is where the board returns the cook to something overcooked. The
+      // review named one; the catalog had eight.
       if (lo < FLOOR) bad.push(`${r.title} step ${i} (${m.min}m) — the cook may be needed at ${lo}m, below the ${FLOOR}m floor`);
+      else if (m.min !== lo) bad.push(`${r.title} step ${i} — window is ${m.min}m but the step states ${lo} to ${hit[2]}; a window is its LOW end`);
     });
   }
-  assert.deepEqual(bad, [], `${bad.length} window(s) pin the top of a range the cook cannot wait out`);
+  assert.deepEqual(bad, [], `${bad.length} ranged window(s) do not match the low end the step states`);
+});
+// (6) AN INGREDIENT NOBODY IS TOLD TO USE. "1/4 cup chopped pecans" sat in a list while no
+// step ever mentioned pecans: a purchased item wasted, and a dish that no longer matches the
+// nutrition published beside it. Structural — does any step name it?
+//
+// ⚠ The first version of this sweep reduced "2 tbsp olive oil" to the head noun "olive" and
+// dropped words of three letters, so it reported 38 unused ingredients while steps plainly
+// said "heat the oil". Match on ANY content word of the whole measure, keep short nouns like
+// oil and cod, and drop only PREPARATION words — because if "chopped" counts as a match then
+// "chopped pecans" is satisfied by any other chopped thing in the recipe.
+test('catalog: every ingredient is named by some step', () => {
+  const PREP = new Set(['chopped', 'minced', 'diced', 'sliced', 'grated', 'shredded', 'ground', 'fresh',
+    'frozen', 'dried', 'canned', 'cooked', 'raw', 'packed', 'thawed', 'drained', 'rinsed', 'divided',
+    'low', 'sodium', 'reduced', 'fat', 'free', 'whole', 'large', 'small', 'medium', 'ripe', 'unsalted',
+    'salted', 'boneless', 'skinless', 'lean', 'extra', 'virgin', 'plain', 'thin', 'thinly', 'trimmed',
+    'peeled', 'halved', 'quartered', 'cubed', 'crushed', 'toasted', 'optional', 'washed', 'and', 'the',
+    'for', 'with', 'into', 'about', 'your', 'any', 'plus', 'more', 'taste', 'needed', 'pieces', 'wedges']);
+  // A step may name the CATEGORY rather than the variety — "cook the pasta", not "cook the
+  // fusilli". These are the categories the catalog actually writes, and each is a word a cook
+  // reads as the same thing; without them the gate flags five recipes that are perfectly clear.
+  const CATEGORY = [
+    [/penne|fusilli|macaroni|spaghetti|rigatoni|linguine|fettuccine|orzo/, /pasta|noodle/],
+    [/farro|quinoa|barley|bulgur|freekeh/, /grain/],
+    [/honey|maple|agave/, /sweeten/],
+    [/wholegrain|sourdough|rye|ciabatta/, /bread|toast|slice/],
+    [/cheddar|mozzarella|parmesan|gruy|halloumi|feta/, /cheese/],
+  ];
+  const stem = (w) => w.replace(/(ies|es|s)$/i, '');
+  const words = (m) => String(m || '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3 && !PREP.has(w));
+  assert.deepEqual(words('olive oil'), ['olive', 'oil'], 'short nouns must survive, or the sweep is meaningless');
+  assert.deepEqual(words('chopped pecans'), ['pecans'], 'preparation words must not count as a match');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    const method = (r.steps || []).join(' ').toLowerCase();
+    for (const g of r.ingredients || []) {
+      const ws = words(g.m);
+      if (!ws.length) continue;
+      if (ws.some((w) => method.includes(stem(w)))) continue;
+      if (CATEGORY.some(([variety, category]) => variety.test(g.m) && category.test(method))) continue;
+      bad.push(`${r.title}: "${g.n} ${g.m}" — no step ever tells the cook to use it`);
+    }
+  }
+  assert.deepEqual(bad, [], `${bad.length} ingredient(s) are bought and never used`);
 });

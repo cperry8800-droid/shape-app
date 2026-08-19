@@ -362,7 +362,7 @@ export const USDA_KITCHEN_RECIPES = [
       { n: "4", m: "whole-wheat tortillas, 8 inch", k: "600 kcal" },
     ],
     steps: [
-      "Dice the mangos, chop the pepper and basil, shred the cabbage and grate the carrots, then toss the lot with the chicken in a large bowl.",
+      "Dice the mangos, chop the pepper, basil and green onions, shred the cabbage and grate the carrots, then toss the lot with the chicken in a large bowl.",
       "In a small bowl, whisk the cream cheese, peanut butter and soy sauce until completely smooth — it needs to be thick enough to grip the filling.",
       "Warm each tortilla for about 20 seconds in a dry pan over low heat so it rolls without splitting along the fold.",
       "Spread a quarter of the peanut mixture right to the edges of each tortilla, pile the mango and chicken mix down the centre, and roll up tightly, tucking in the ends.",

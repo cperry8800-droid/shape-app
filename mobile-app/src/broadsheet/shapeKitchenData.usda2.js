@@ -201,7 +201,7 @@ export const USDA2_KITCHEN_RECIPES = [
     steps: [
       "Trim the excess fat from the thighs with kitchen scissors and pat them dry with paper towels — dry skin browns, damp skin only steams.",
       "Set a deep skillet over medium-high heat and brown the thighs skin side down about 5 minutes a side, until deeply golden and releasing from the pan on their own; move them to a plate.",
-      "Pour off all but a tablespoon of the fat, lower the heat and cook the onion, pepper, garlic, cumin and oregano about 10 minutes, until the onion is soft and translucent.",
+      "Pour off all but a tablespoon of the fat, lower the heat and cook the onion, pepper, garlic, cumin, oregano and salt about 10 minutes, until the onion is soft and translucent.",
       "Stir in the uncooked rice and the tomatoes so every grain is coated in fat and spice, then add the water and bouillon cube and bring it to a boil over high heat.",
       "Nestle the chicken back in skin side down, cover and cook on low for 20 minutes.",
       "Flip the pieces skin side up and cook 20 minutes more, until the rice is tender and the liquid is absorbed.",
@@ -302,7 +302,7 @@ export const USDA2_KITCHEN_RECIPES = [
       "Cut the pollock into strips about an inch wide — easiest while it is still part-frozen, since fully thawed fish tears instead of slicing.",
       "Set out the flour, the beaten egg whites, and the bread crumbs mixed with Parmesan and pepper; roll each strip through all three in turn, pressing so the coating grips.",
       "Bake 10 to 12 minutes, turning the strips as needed, until the crust is golden and the fish reads 145°F (63°C) at the thickest point on a thermometer.",
-      "Meanwhile melt the butter in a medium saucepan and sauté the apple wedges, raisins and cinnamon over medium heat 3 to 5 minutes, until glossy but still slightly crisp.",
+      "Meanwhile melt the butter in a medium saucepan and sauté the apple wedges, raisins, pecans and cinnamon over medium heat 3 to 5 minutes, until glossy but still slightly crisp.",
     ],
     tip: "Bake the strips on a wire rack set in the sheet pan if you want all four sides crisp rather than three. The dip keeps three days and doubles as a sandwich spread.",
   },
@@ -501,7 +501,6 @@ export const USDA2_KITCHEN_RECIPES = [
 export const USDA2_NOT_GF = [
   "Honey mustard pork chops",
   "Mushroom and steak fajitas",
-  "Turkey and vegetable stir-fry",
   "Salmon burgers with sweet potato wedges",
   "Oven fish sticks with spinach basil dip",
   "Tuna salad on dressed romaine",
@@ -545,7 +544,7 @@ export const USDA2_STEP_META = {
   // recipe (the rest clause is 30 characters against a 50-character floor), so the window
   // goes instead. This recipe now hosts nothing, which is the honest answer for it.
   "Pork tenderloin power bowl with quinoa": {},
-  "Honey mustard pork chops": { 1: { min: 4, passive: true, station: "stove" }, 3: { min: 8, passive: true, station: "stove" } },
+  "Honey mustard pork chops": { 1: { min: 4, passive: true, station: "stove" }, 3: { min: 6, passive: true, station: "stove" } },
   // step 3 sautes the vegetables for its own 5-8 minutes — attended over high heat, not a
   // hold. No window; the recipe cannot host.
   "Mushroom and steak fajitas": {},
@@ -553,8 +552,11 @@ export const USDA2_STEP_META = {
   // total, which is only true if they overlap. A hold blocks its own recipe (`freeAt`) and
   // occupies the one modelled stove, so annotating it made the board read 79 minutes and
   // stopped a two-dish session interleaving AT ALL. The sauce simmers are real holds.
-  "Picadillo with brown rice": { 1: { min: 10, passive: true, station: "stove" }, 4: { min: 15, passive: true, station: "stove" } },
-  "Arroz con pollo with browned thighs": { 2: { min: 10, passive: true, station: "stove" }, 4: { min: 20, passive: true, station: "stove" }, 5: { min: 20, passive: true, station: "stove" }, 6: { min: 5, passive: true, station: "off" } },
+  // aromatics softening in UNCOVERED fat need moving or they catch. Same class as the
+  // soffritto dropped last round; the method gate misses these because the prose says
+  // "cook the onion" rather than naming a technique at all.
+  "Picadillo with brown rice": { 4: { min: 15, passive: true, station: "stove" } },
+  "Arroz con pollo with browned thighs": { 4: { min: 20, passive: true, station: "stove" }, 5: { min: 20, passive: true, station: "stove" }, 6: { min: 5, passive: true, station: "off" } },
   "Chicken cacciatore": { 3: { min: 60, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "off" } },
   "Tuna salad on dressed romaine": { 3: { min: 10, passive: true, station: "off" } },
   // step 1 toasts "tossing once or twice" — attended. No window; the recipe cannot host.

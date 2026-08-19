@@ -1375,7 +1375,7 @@ const RECIPES_USDA = [
       "4 whole-wheat tortillas, 8 inch (600 kcal)",
     ],
     steps: [
-      "Dice the mangos, chop the pepper and basil, shred the cabbage and grate the carrots, then toss the lot with the chicken in a large bowl.",
+      "Dice the mangos, chop the pepper, basil and green onions, shred the cabbage and grate the carrots, then toss the lot with the chicken in a large bowl.",
       "In a small bowl, whisk the cream cheese, peanut butter and soy sauce until completely smooth — it needs to be thick enough to grip the filling.",
       "Warm each tortilla for about 20 seconds in a dry pan over low heat so it rolls without splitting along the fold.",
       "Spread a quarter of the peanut mixture right to the edges of each tortilla, pile the mango and chicken mix down the centre, and roll up tightly, tucking in the ends.",
@@ -2682,7 +2682,7 @@ const RECIPES_USDA = [
     steps: [
       "Trim the excess fat from the thighs with kitchen scissors and pat them dry with paper towels — dry skin browns, damp skin only steams.",
       "Set a deep skillet over medium-high heat and brown the thighs skin side down about 5 minutes a side, until deeply golden and releasing from the pan on their own; move them to a plate.",
-      "Pour off all but a tablespoon of the fat, lower the heat and cook the onion, pepper, garlic, cumin and oregano about 10 minutes, until the onion is soft and translucent.",
+      "Pour off all but a tablespoon of the fat, lower the heat and cook the onion, pepper, garlic, cumin, oregano and salt about 10 minutes, until the onion is soft and translucent.",
       "Stir in the uncooked rice and the tomatoes so every grain is coated in fat and spice, then add the water and bouillon cube and bring it to a boil over high heat.",
       "Nestle the chicken back in skin side down, cover and cook on low for 20 minutes.",
       "Flip the pieces skin side up and cook 20 minutes more, until the rice is tender and the liquid is absorbed.",
@@ -2786,7 +2786,7 @@ const RECIPES_USDA = [
       "Cut the pollock into strips about an inch wide — easiest while it is still part-frozen, since fully thawed fish tears instead of slicing.",
       "Set out the flour, the beaten egg whites, and the bread crumbs mixed with Parmesan and pepper; roll each strip through all three in turn, pressing so the coating grips.",
       "Bake 10 to 12 minutes, turning the strips as needed, until the crust is golden and the fish reads 145°F (63°C) at the thickest point on a thermometer.",
-      "Meanwhile melt the butter in a medium saucepan and sauté the apple wedges, raisins and cinnamon over medium heat 3 to 5 minutes, until glossy but still slightly crisp.",
+      "Meanwhile melt the butter in a medium saucepan and sauté the apple wedges, raisins, pecans and cinnamon over medium heat 3 to 5 minutes, until glossy but still slightly crisp.",
     ],
     tip: "Bake the strips on a wire rack set in the sheet pan if you want all four sides crisp rather than three. The dip keeps three days and doubles as a sandwich spread.",
   },
@@ -3015,9 +3015,12 @@ const _RECIPE_ALLERGEN_NOTES = [
   ["Tofu and edamame poke bowl", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
   ["Asparagus and mandarin chicken rice bowl", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
   ["Sizzling chicken and broccoli over brown rice", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Turkey and vegetable stir-fry", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
+  ["Beef and broccoli stir-fry", "gluten", "soy sauce", "Soy sauce is traditionally brewed with wheat. Use one labelled gluten-free, or a gluten-free tamari", [["San-J Tamari Gluten Free", "US"], ["Clearspring Organic Tamari", "UK"]]],
   ["One-pan chicken and rice", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
   ["Red lentil and spinach dahl", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
   ["Turkey chili verde", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
+  ["Turkey and vegetable stir-fry", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
   ["Slow-simmered beef pot roast", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
   ["Black skillet beef with kale and red potatoes", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
   ["Pork tenderloin power bowl with quinoa", "gluten", "broth", "Commercial broth, stock and bouillon often carry wheat. Look for one labelled gluten-free", []],
@@ -3090,7 +3093,7 @@ const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
 const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 const RECIPE_GOALS = ["High-protein", "Low-carb"];
 const _RECIPE_NOT_GF = new Set([
-  "Miso-glazed cod with greens", "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
+  "Miso-glazed cod with greens", "Grilled chicken Caesar, lightened", "Tempeh and broccoli teriyaki", "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl", "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni", "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
   // Mirrors _RECIPE_NOT_GF + USDA_NOT_GF in the catalog module. ⚠ The AMBIGUOUS
   // classes (oats, soy sauce, broth) are NOT here: they keep their claim and carry
   // an allergen note instead — owner ruling 2026-08-18. Read the ingredients, not
@@ -3103,7 +3106,6 @@ const _RECIPE_NOT_GF = new Set([
   "Beef stroganoff with macaroni", "Ground beef and root vegetable stew", "Mango and peanut chicken wraps", "Turkey tetrazzini bake", "Chargrilled tilapia tacos with peach salsa", "Neapolitan tuna fettuccine with capers", "Bell pepper and Vidalia onion strata", "Crisp black bean and cheese quesadillas", "Sharp cheddar baked macaroni", "Layered cheddar potato gratin", "Charred corn and cornmeal patties", "Lentil and pearl barley soup", "Barley pilaf with mushrooms and celery",
   "Honey mustard pork chops",
   "Mushroom and steak fajitas",
-  "Turkey and vegetable stir-fry",
   "Salmon burgers with sweet potato wedges",
   "Oven fish sticks with spinach basil dip",
   "Tuna salad on dressed romaine",

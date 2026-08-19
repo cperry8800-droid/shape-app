@@ -1065,7 +1065,9 @@ export const _KITCHEN_STEP_META = {
   // own prep, and 10 of a 15-minute recipe is most of it.
   "Garlic shrimp and courgette noodles": {},
   // step 4 simmers "turning the roast once at the halfway mark" — attended, so the 2h is not a window.
-  "Slow-simmered beef pot roast": { 1: { min: 5, passive: true, station: "stove" }, 5: { min: 10, passive: true, station: "off" } },
+  // A ranged window takes the LOW end: the cook is wanted when the food is ready, and the
+  // top of the range is where the board would return them to something overcooked.
+  "Slow-simmered beef pot roast": { 1: { min: 4, passive: true, station: "stove" }, 5: { min: 10, passive: true, station: "off" } },
   "Beef stroganoff with macaroni": { 3: { min: 6, passive: true, station: "stove" } },
   "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
   // step 0 was "Freeze 30 minutes ... then slice it": the HOLDING lane shows no step text and the
@@ -1074,7 +1076,10 @@ export const _KITCHEN_STEP_META = {
   // the slicing is its own step; the later indices shift by one.
   "Black skillet beef with kale and red potatoes": { 0: { min: 30, passive: true, station: "off" }, 4: { min: 20, passive: true, station: "stove" }, 5: { min: 15, passive: true, station: "stove" } },
   "Beef pozole with hominy": { 3: { min: 20, passive: true, station: "stove" } },
-  "Skillet beef and cabbage": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  // step 2 is uncovered aromatics; step 3 says "without stirring TOO OFTEN", which asks for
+  // occasional stirring rather than none — the negation is qualified, and the guard that
+  // exempted it read only its opening words. Neither is a window.
+  "Skillet beef and cabbage": {},
   "Ground beef and root vegetable stew": { 3: { min: 25, passive: true, station: "stove" }, 4: { min: 10, passive: true, station: "off" } },
   "Grilled skirt steak with salsa criolla": { 1: { min: 60, passive: true, station: "off" }, 4: { min: 5, passive: true, station: "off" } },
   // step 0 holds the simmer "skimming the grey foam off the top" — attended. Step 1's second
@@ -1100,15 +1105,15 @@ export const _KITCHEN_STEP_META = {
   // author scheduled, so it cannot also be a window hosting one. Found by the new gate, not
   // by review: the sweep that caught the others looked for "while" mid-sentence.
   "Neapolitan tuna fettuccine with capers": { 2: { min: 5, passive: true, station: "stove" } },
-  "Cumin-lime shrimp over cauliflower rice": { 0: { min: 6, passive: true, station: "off" } },
+  "Cumin-lime shrimp over cauliflower rice": { 0: { min: 5, passive: true, station: "off" } },
   "Sharp cheddar baked macaroni": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 10, passive: true, station: "off" } },
   "Peppers stuffed with brown rice and beans": { 0: { min: 40, passive: true, station: "stove" }, 4: { min: 30, passive: true, station: "oven" } },
-  "Swiss cheese and vegetable chowder": { 1: { min: 10, passive: true, station: "stove" } },
-  "Blueberry baked oats in ramekins": { 4: { min: 30, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
+  "Swiss cheese and vegetable chowder": { 1: { min: 8, passive: true, station: "stove" } },
+  "Blueberry baked oats in ramekins": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 5, passive: true, station: "off" } },
   "Sheet-pan cauliflower and black bean bake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 5, passive: true, station: "oven" } },
   // step 1 boils the potatoes to "just pliable", then drains and rinses them to stop the cooking —
   // same instant-action shape as the eggs above. The 40-minute covered bake is a real window.
-  "Noodle-free potato and spinach lasagna": { 6: { min: 40, passive: true, station: "oven" } },
+  "Noodle-free potato and spinach lasagna": { 6: { min: 35, passive: true, station: "oven" } },
   "Charred corn and cornmeal patties": { 2: { min: 60, passive: true, station: "off" }, 4: { min: 10, passive: true, station: "oven" } },
   "Sweet potato and kidney bean chili": { 3: { min: 30, passive: true, station: "stove" } },
   "Lentil and pearl barley soup": { 1: { min: 60, passive: true, station: "stove" }, 2: { min: 45, passive: true, station: "stove" } },
@@ -1122,7 +1127,7 @@ export const _KITCHEN_STEP_META = {
   // step 1 sautes its 10 minutes. Sauteing IS the timed action and it is attended — the
   // gerund rule missed it because the verb is an imperative. Step 3 simmers, so it stays.
   "Spring cabbage and artichoke soup": { 3: { min: 10, passive: true, station: "stove" } },
-  "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 60, passive: true, station: "stove" }, 5: { min: 5, passive: true, station: "off" } },
+  "Barley pilaf with mushrooms and celery": { 0: { min: 5, passive: true, station: "stove" }, 4: { min: 50, passive: true, station: "stove" }, 5: { min: 5, passive: true, station: "off" } },
   // step 4 microwaves "3 to 5 minutes more" — the same range-straddling-the-floor shape as the
   // asparagus, found by the new gate rather than by review. Step 1 states a flat 5 minutes
   // and stays.
@@ -1186,12 +1191,24 @@ export const _RECIPE_ALLERGEN_NOTES = [
   ["Tofu and edamame poke bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   ["Asparagus and mandarin chicken rice bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   ["Sizzling chicken and broccoli over brown rice", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
+  // Both of these had been EXCLUDED from the gluten-free filter rather than carrying the
+  // note, though soy sauce is their only gluten marker — the opposite of the owner ruling
+  // that a claim is kept by SPECIFYING the ingredient and never by hiding the recipe. The
+  // four entries above are the convention; these two were the deviation. The review named
+  // the turkey one, and the beef one carried the same defect on main.
+  ["Turkey and vegetable stir-fry", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
+  ["Beef and broccoli stir-fry", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   // ── gluten · broth, stock, bouillon ──────────────────────────────────────
   // These five were never classified — they have ALWAYS claimed gluten-free over
   // a generic broth. The note is what makes that claim honest; no set changes.
   ["One-pan chicken and rice", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Red lentil and spinach dahl", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Turkey chili verde", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  // ⚠ The review said soy sauce was this one's only gluten marker. It is not — it also
+  // carries chicken stock, and the existing safety gate refused the claim until BOTH
+  // notes were present. Taking the finding at its word would have advertised it
+  // gluten-free over an unqualified stock.
+  ["Turkey and vegetable stir-fry", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Slow-simmered beef pot roast", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Black skillet beef with kale and red potatoes", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   // Batch 2 arrived carrying the same generic broth, stock and bouillon. Same
@@ -1235,7 +1252,7 @@ export const _RECIPE_NOT_GF = new Set([
   // an ingredient with no note and no gate. Owner ruling pending; hold is the safe
   // direction (under-claiming costs a filter hit, over-claiming is the harm).
   "Miso-glazed cod with greens",
-  "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
+  "Grilled chicken Caesar, lightened", "Tempeh and broccoli teriyaki",
   "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl",
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
