@@ -414,3 +414,39 @@ test('cook mode: a note-LESS cookable renders every phase without throwing', () 
   });
   assert.ok(!inPrep.text.includes('ALLERGEN'), `"${plain.title}" printed a caveat in prep mode`);
 });
+
+// ── the progress readout, RENDERED ─────────────────────────────────────────────
+// bsProgressPct is unit-tested in tests/cook-orchestrator.test.mjs. This asserts the
+// number actually reaches a cook: a percentage computed and never rendered, or rendered
+// from the wrong variable, is invisible to a pure-function test.
+test('cook mode: the step line carries a percentage, weighted by minutes', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x).steps.length >= 3);
+  const c = bsCookableFromRecipe(r);
+  const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  s.click('Start cooking');
+  // ⚠ The harness tr shim returns `defaultValue` WITHOUT interpolating, so the label
+  // reads literally "Step {n} of {m}". The PERCENTAGE is the component's own template
+  // literal, not a tr() call, so it is real — and it is the thing under test.
+  assert.match(s.text, /Step .* \u00b7 \d+%/,
+    `no percentage beside the step line - got: ${(s.text.match(/Step[^A-Z]{0,40}/) || ['(no step line)'])[0]}`);
+  // On the FIRST step nothing is done yet, so the honest figure is 0 — not "1 of 6".
+  assert.match(s.text, /\u00b7 0%/, 'nothing is cooked yet, so the first step must read 0%');
+});
+
+test('cook mode: the percentage is minutes done, not steps ticked', () => {
+  // A recipe with one long passive step is the case where the two disagree loudly.
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => {
+    const c = bsCookableFromRecipe(x);
+    return c.steps.length >= 4 && (c.stepMeta || []).some((m) => m && m.min >= 15);
+  });
+  assert.ok(r, 'no recipe with a long passive step — this test cannot discriminate');
+  const c = bsCookableFromRecipe(r);
+  const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  s.click('Start cooking');
+  s.click('✓ Done');
+  const shown = Number((s.text.match(/\u00b7 (\d+)%/) || [])[1]);
+  const stepPct = Math.round((1 / c.steps.length) * 100);
+  assert.ok(Number.isFinite(shown), 'no percentage on step 2');
+  assert.notEqual(shown, stepPct,
+    `the readout is counting steps (${stepPct}%), not minutes — a long passive step must move it differently`);
+});

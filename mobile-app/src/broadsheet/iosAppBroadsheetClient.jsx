@@ -28,7 +28,7 @@ import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bs
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
-import { bsOrchestrate, BS_COOK_MODE, BS_ORCH } from '../services/cookOrchestrator.mjs';
+import { bsOrchestrate, BS_COOK_MODE, BS_ORCH, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -6960,7 +6960,16 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cookable.title}</span>
         {hasMethod && phase === 'method' && (
-          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>{tr('cook:stepOf', { defaultValue: 'Step {n} of {m}', n: stepIdx + 1, m: steps.length })}</span>
+          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>
+            {tr('cook:stepOf', { defaultValue: 'Step {n} of {m}', n: stepIdx + 1, m: steps.length })}
+            {/* Weighted by MINUTES, not by step count: with a 30-minute roast still
+                ahead, "3 of 6" is halfway through the list and nowhere near halfway
+                through the cooking. This is the answer to "how far am I". */}
+            {` · ${bsProgressPct(steps.map((_, i) => {
+              const m = (cookable.stepMeta || [])[i];
+              return (m && typeof m.min === 'number' && m.min > 0) ? m.min : BS_ORCH.activeStepMin;
+            }), visited)}%`}
+          </span>
         )}
       </div>
       {hasMethod && (
@@ -7299,6 +7308,19 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     for (let k = 0; k < cursor; k++) { const r = timeline[k].recipe; d[r] = (d[r] || 0) + 1; }
     return d;
   }, [timeline, cursor]);
+  // Progress in MINUTES across the whole board, and per dish. Step counts flatter: a
+  // dish whose only remaining step is a 30-minute braise is not "5 of 6 done" in any
+  // sense the cook cares about.
+  const minsOf = (e) => (e && typeof e.min === 'number' && e.min > 0 ? e.min : BS_ORCH.activeStepMin);
+  const boardPct = React.useMemo(() => bsProgressPct(timeline.map(minsOf), cursor), [timeline, cursor]);
+  const pctByRecipe = React.useMemo(() => {
+    const out = {};
+    for (const rk of recStats.order) {
+      const mine = timeline.filter((e) => e.recipe === rk);
+      out[rk] = bsProgressPct(mine.map(minsOf), doneByRecipe[rk] || 0);
+    }
+    return out;
+  }, [timeline, recStats, doneByRecipe]);
 
   const ev = timeline[cursor];
   // A recipe is PREPPED the moment its last timeline event is performed. Guarded
@@ -7406,6 +7428,9 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <button onClick={onClose} style={{ ...quietBtn, color: BAND.cream, padding: 0, fontSize: 10 }}>✕ {tr('cook:prep.close', { defaultValue: 'Close' })}</button>
             <span style={{ ...bandEyebrow, fontSize: 10, color: heat }}>{tr('cook:prep.board', { defaultValue: 'The board' })}</span>
+            {/* The whole session at a glance, in minutes of cooking rather than steps
+                ticked — the one number that answers "how much longer is this". */}
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: BAND.dim, fontVariantNumeric: 'tabular-nums' }}>{boardPct}%</span>
           </div>
           {/* multi-track recipes strip: each recipe's progress, its live timer when holding */}
           <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -7421,7 +7446,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
                   <span style={{ ...bandEyebrow, fontSize: 7.5, color: isNow ? heat : BAND.dim, maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleOf(rk)}</span>
                   {hold
                     ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums' }}>◷ {fmt(Math.max(0, Math.ceil((hold.endsAt - now) / 1000)))}</span>
-                    : <span style={{ fontFamily: t.MONO, fontSize: 8, color: BAND.dim35, fontVariantNumeric: 'tabular-nums' }}>{done}/{tot}</span>}
+                    : <span style={{ fontFamily: t.MONO, fontSize: 8, color: BAND.dim35, fontVariantNumeric: 'tabular-nums' }}>{done}/{tot} · {pctByRecipe[rk] || 0}%</span>}
                 </span>
               );
             })}

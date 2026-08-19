@@ -211,6 +211,28 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   return { timeline, serveAt: T, earliestServe: earliest, spread, issues };
 }
 
+// How far through the COOKING a cook actually is, weighted by how long each step
+// takes. Counting steps is the obvious thing and it lies: three of six steps done
+// reads as halfway, but if one of the remaining three is a 30-minute roast the cook is
+// nowhere near halfway. The question this answers is "where do I stand until it is
+// finished", so it is measured in minutes, not in list items.
+//
+// `mins` is per-step duration; `done` is either a COUNT of completed leading steps
+// (the board walks a timeline in order) or a per-step boolean map (a single recipe can
+// skip). Returns a whole number 0-100 — never NaN for an empty or zero-length recipe,
+// because a progress readout that shows NaN is worse than one that shows nothing.
+export function bsProgressPct(mins, done) {
+  const arr = Array.isArray(mins) ? mins.filter((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0) : [];
+  const total = arr.reduce((a, b) => a + b, 0);
+  if (!total) return 0;
+  let d = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const isDone = typeof done === 'number' ? i < done : !!(done && done[i]);
+    if (isDone) d += arr[i];
+  }
+  return Math.max(0, Math.min(100, Math.round((d / total) * 100)));
+}
+
 export function bsOrchestrate(recipes, opts = {}) {
   const activeMin = posInt(opts.activeStepMin, BS_ORCH.activeStepMin);
   const minPassive = posInt(opts.minPassive, BS_ORCH.minPassive);

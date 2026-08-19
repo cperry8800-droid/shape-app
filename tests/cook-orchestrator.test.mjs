@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsOrchestrate, BS_COOK_MODE, bsHoldingAt, BS_ORCH } from '../mobile-app/src/services/cookOrchestrator.mjs';
+import { bsOrchestrate, BS_COOK_MODE, bsHoldingAt, BS_ORCH, bsProgressPct } from '../mobile-app/src/services/cookOrchestrator.mjs';
 
 // station shorthand
 const A = (station = null) => ({ min: null, passive: false, station }); // active
@@ -213,4 +213,38 @@ test('serve mode: a later serve time delays the START, not the eating', () => {
   const firstEarly = Math.min(...early.timeline.map((e) => e.at));
   const firstLate = Math.min(...late.timeline.map((e) => e.at));
   assert.equal(firstLate - firstEarly, 60, `the whole plan must shift by the full hour (moved ${firstLate - firstEarly})`);
+});
+
+// ── progress, measured in minutes rather than list items ───────────────────────
+test('progress: a long step left undone keeps the percentage honest', () => {
+  // Three of six steps done, but the roast is still ahead. Counting steps says 50%.
+  const mins = [3, 3, 3, 30, 3, 3];
+  assert.equal(bsProgressPct(mins, 3), 20, 'nine minutes of forty-five is 20%, not 50%');
+  assert.equal(bsProgressPct(mins, 4), 87, 'once the roast is done, most of the cooking is done');
+});
+
+test('progress: a boolean map handles a recipe whose steps were skipped', () => {
+  const mins = [3, 30, 3];
+  assert.equal(bsProgressPct(mins, [true, false, true]), 17);
+  assert.equal(bsProgressPct(mins, [false, true, false]), 83);
+});
+
+test('progress: never NaN, never out of range', () => {
+  // A readout showing NaN is worse than one showing nothing.
+  for (const bad of [null, undefined, [], [0, 0], ['x', null]]) {
+    const v = bsProgressPct(bad, 2);
+    assert.ok(Number.isFinite(v) && v >= 0 && v <= 100, `bsProgressPct(${JSON.stringify(bad)}) = ${v}`);
+  }
+  assert.equal(bsProgressPct([5, 5], 99), 100, 'more done than exists is still 100');
+  assert.equal(bsProgressPct([5, 5], -3), 0);
+});
+
+test('progress: the board and a single recipe agree on the same cooking', () => {
+  // One timeline walked in order, versus the same steps as a boolean map. If these ever
+  // disagree the two surfaces are telling the cook different things about one dish.
+  const mins = [3, 18, 3, 4];
+  for (let k = 0; k <= mins.length; k++) {
+    const flags = mins.map((_, i) => i < k);
+    assert.equal(bsProgressPct(mins, k), bsProgressPct(mins, flags), `disagreement at ${k} steps done`);
+  }
 });
