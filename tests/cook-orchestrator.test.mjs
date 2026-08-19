@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsOrchestrate, bsHoldingAt, BS_ORCH } from '../mobile-app/src/services/cookOrchestrator.mjs';
+import { bsOrchestrate, BS_COOK_MODE, bsHoldingAt, BS_ORCH } from '../mobile-app/src/services/cookOrchestrator.mjs';
 
 // station shorthand
 const A = (station = null) => ({ min: null, passive: false, station }); // active
@@ -113,11 +113,27 @@ test('duplicate recipe keys stay independent instances — no cross-clear (CodeR
 });
 
 test('empty / junk input never throws → empty serial', () => {
-  assert.deepEqual(bsOrchestrate(null), { timeline: [], serial: true });
-  assert.deepEqual(bsOrchestrate([]), { timeline: [], serial: true });
-  assert.deepEqual(bsOrchestrate([{ key: 'x', steps: [], stepMeta: [] }]), { timeline: [], serial: true });
+  // The return is deep-equalled deliberately: it is the orchestrator's CONTRACT, and a
+  // silently-added field is how a caller starts depending on something undocumented.
+  // `canInterleave` / `mode` / `reason` joined it with the cook-mode work -- a nothing
+  // input is a SINGLE (nothing to interleave with), never a claim that windows exist.
+  const empty = { timeline: [], serial: true, canInterleave: false, mode: 'auto', reason: 'single' };
+  assert.deepEqual(bsOrchestrate(null), empty);
+  assert.deepEqual(bsOrchestrate([]), empty);
+  assert.deepEqual(bsOrchestrate([{ key: 'x', steps: [], stepMeta: [] }]), empty);
   assert.deepEqual(bsHoldingAt(null, 0), []);
   assert.deepEqual(bsHoldingAt([], 0), []);
+});
+
+test('an unknown mode falls back to auto rather than silently doing nothing', () => {
+  // The allow-list bug this pins: SERVE was added to the enum but not to the list of
+  // accepted modes, so it fell through to AUTO and returned a valid interleaved plan
+  // under the wrong name -- no error, just the wrong answer.
+  const junk = bsOrchestrate([], { mode: 'not-a-mode' });
+  assert.equal(junk.mode, 'auto', 'an unrecognised mode must resolve to auto');
+  for (const m of Object.values(BS_COOK_MODE)) {
+    assert.equal(bsOrchestrate([], { mode: m }).mode, m, `mode "${m}" is in the enum but not in the allow-list`);
+  }
 });
 
 test('defaults are exported and sane', () => {

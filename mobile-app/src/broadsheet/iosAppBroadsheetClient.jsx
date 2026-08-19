@@ -28,7 +28,7 @@ import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bs
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
-import { bsOrchestrate } from '../services/cookOrchestrator.mjs';
+import { bsOrchestrate, BS_COOK_MODE, BS_SERIAL_REASON, BS_ORCH } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -7559,11 +7559,37 @@ function BSPrepSession({ program, onClose }) {
   // serial:true (single recipe / no authored passive window) → the existing
   // serial per-recipe BSCookMode flow, unchanged. bsPrepOrder's longest-first
   // ordering is the tie-break the orchestrator interleaves against.
-  const orch = React.useMemo(
-    () => bsOrchestrate(ordered.map((it) => ({ key: it.key, title: it.cookable.title, steps: it.cookable.steps, stepMeta: it.cookable.stepMeta }))),
+  const orchInput = React.useMemo(
+    () => ordered.map((it) => ({ key: it.key, title: it.cookable.title, steps: it.cookable.steps, stepMeta: it.cookable.stepMeta })),
     [ordered],
   );
+  // The cook's answer to "together or one at a time?" — null until they say.
+  // Owner ruling 2026-08-18: a multi-dish session must ASK before it can begin.
+  const [cookMode, setCookMode] = useStateBSC(null);
+  // A probe in AUTO, always. It answers "COULD these overlap?" independently of what
+  // the cook has chosen, so picking `Sequence` never makes `Together` look impossible
+  // afterwards. ⚠ The honest test is `!serial`, not `canInterleave`: a window can
+  // exist and still overlap nothing when every detour is blocked by its station.
+  const orchAuto = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.AUTO }), [orchInput]);
+  const togetherPossible = !orchAuto.serial && orchAuto.timeline.length > 0;
+  const orch = React.useMemo(
+    () => (cookMode ? bsOrchestrate(orchInput, { mode: cookMode }) : orchAuto),
+    [orchInput, cookMode, orchAuto],
+  );
   const interleaved = !orch.serial && orch.timeline.length > 0;
+  // Why `Together` is unavailable — shown, never hidden: "unavailable" with no reason
+  // reads as a broken feature rather than a fact about the food.
+  const noTogetherWhy = orchAuto.reason === BS_SERIAL_REASON.STATIONS
+    ? 'These dishes all need the same station, so they cannot overlap.'
+    : 'No dish here has a hands-off stretch long enough to start another one inside.';
+  const multi = ordered.length >= 2;
+  // Real minutes on each option, off the timelines themselves — never an estimate.
+  // A cook choosing between two ways of spending their evening deserves the actual
+  // figure, and the gap is often small (two stove dishes cannot overlap much).
+  const orchSeq = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SEQUENCE }), [orchInput]);
+  const spanOf = (o) => (o.timeline.length
+    ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
+    : 0);
 
   const writeEntry = (it) => {
     const entry = {
@@ -7733,9 +7759,68 @@ function BSPrepSession({ program, onClose }) {
                 </div>
               </div>
             ))}
+            {/* THE ASK (owner ruling 2026-08-18). A multi-dish session may not begin
+                until the cook has said how they want to cook it. Neither option is
+                pre-selected — a default would answer the question on their behalf,
+                which is the thing the ruling exists to prevent. A single dish skips
+                this entirely: there is nothing to decide. */}
+            {multi && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ ...bandEyebrow, color: t.INK50 }}>
+                  {tr('cook:prep.howAsk', { defaultValue: 'How are we cooking these?' })}
+                </div>
+                <div style={{ marginTop: 9, display: 'flex', gap: 9 }}>
+                  {[
+                    { key: BS_COOK_MODE.TOGETHER, label: tr('cook:prep.together', { defaultValue: 'Together' }),
+                      sub: tr('cook:prep.togetherSub', { defaultValue: 'Woven for timing' }),
+                      mins: spanOf(orchAuto), on: togetherPossible },
+                    { key: BS_COOK_MODE.SEQUENCE, label: tr('cook:prep.oneAtATime', { defaultValue: 'One at a time' }),
+                      sub: tr('cook:prep.oneAtATimeSub', { defaultValue: 'Finish, then start' }),
+                      mins: spanOf(orchSeq), on: true },
+                  ].map((opt) => {
+                    const picked = cookMode === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => opt.on && setCookMode(opt.key)}
+                        disabled={!opt.on}
+                        aria-pressed={picked}
+                        style={{
+                          flex: 1, textAlign: 'left', minHeight: 44, cursor: opt.on ? 'pointer' : 'not-allowed',
+                          padding: '11px 12px', borderRadius: 5,
+                          background: picked ? bsTHexA(heat, t.isLight ? 0.12 : 0.16) : 'transparent',
+                          border: `1px solid ${picked ? bsTHexA(heat, 0.55) : t.RULE}`,
+                          borderLeft: `3px solid ${picked ? heat : (opt.on ? t.RULE : 'transparent')}`,
+                          opacity: opt.on ? 1 : 0.45,
+                        }}
+                      >
+                        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: picked ? (t.isLight ? '#0a8f87' : heat) : t.INK }}>{opt.label}</div>
+                        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{opt.sub}</div>
+                        {opt.mins > 0 && (
+                          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{opt.mins}<span style={{ fontSize: 10, color: t.INK50 }}> min</span></div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Disabled, never hidden, and always with the reason — the owner's
+                    explicit instruction. A greyed control with no explanation reads
+                    as a bug; this reads as a fact about the food. */}
+                {!togetherPossible && (
+                  <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.INK50 }}>
+                    {tr('cook:prep.togetherWhy', { defaultValue: 'Together is unavailable — {why}', why: noTogetherWhy })}
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setStage('picker')} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
-              <button onClick={() => { if (interleaved) { setStage('cook'); } else { setCookIdx(0); setStage('transition'); } }} style={{ ...primaryBtn, flex: 1 }}>
+              <button
+                onClick={() => { if (multi && !cookMode) return; if (interleaved) { setStage('cook'); } else { setCookIdx(0); setStage('transition'); } }}
+                disabled={multi && !cookMode}
+                style={{ ...primaryBtn, flex: 1, opacity: (multi && !cookMode) ? 0.4 : 1, cursor: (multi && !cookMode) ? 'not-allowed' : 'pointer' }}
+              >
                 {tr('cook:prep.start', { defaultValue: 'Start the session →' })}
               </button>
             </div>
