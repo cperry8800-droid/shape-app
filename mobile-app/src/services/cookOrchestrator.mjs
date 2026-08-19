@@ -238,10 +238,37 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
 // is unchanged. Past ORDER_SEARCH_MAX dishes the permutations stop being cheap and longest-
 // first is the only order tried — the previous behaviour, and still an honest schedule, just
 // not a proven-earliest one.
-const ORDER_SEARCH_MAX = 5;
+// ⚠ AND A CAP IS A CLAIM TOO. The first version stopped searching above five dishes while the
+// control still read "get it all done soonest" — six catalog dishes reported 118 minutes where
+// an order exists that serves at 113.
+//
+// Six is now exhaustive: 720 orders, measured at 409ms for that session. That is not free, and
+// it is the reason the bound sits at six rather than higher — 5,040 orders would be seconds.
+// Above it the search narrows rather than stopping, to rotations of longest-first and of its
+// reverse (~2n orders, measured at 20-25ms for eight dishes).
+//
+// ⚠ The rotations were nearly shipped with a comment claiming they are "where a blocked station
+// needs to move". Measured instead: they do NOT find the six-dish order above — 118, no better
+// than longest-first, which is exactly why six had to become exhaustive. What they DO earn is
+// 29 improvements in 155 seven-dish sessions. Both numbers, not the story I liked.
+//
+// Above the exhaustive bound this is not a proof of the earliest and nothing should read it as
+// one; the honest claim there is "the earliest of the orders searched".
+const ORDER_SEARCH_MAX = 6;
+
+const rotationsOf = (n) => {
+  const asc = [...Array(n).keys()];
+  const desc = [...asc].reverse();
+  const out = [];
+  for (const base of [asc, desc]) {
+    for (let k = 1; k < n; k++) out.push([...base.slice(k), ...base.slice(0, k)]);
+  }
+  return out;
+};
 
 const permutationsOf = (n) => {
-  if (n < 2 || n > ORDER_SEARCH_MAX) return [];
+  if (n < 2) return [];
+  if (n > ORDER_SEARCH_MAX) return rotationsOf(n);
   const out = [];
   const walk = (left, acc) => {
     if (!left.length) { out.push(acc); return; }

@@ -7255,7 +7255,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
               // Prep never offers the log — you cooked it for LATER (no award,
               // §5). The stamp writes via onPrepped, then the session advances.
               <div style={{ marginTop: 18 }}>
-                <button onClick={() => prep.onPrepped()} style={{ ...primaryBtn, width: '100%' }}>
+                {/* ⚠ Hand the still-running holds UP. This component is unmounted the moment
+                    the session advances, taking `timers` and the debit computed from them with
+                    it — while `priorMins` statically credits this dish's whole authored
+                    duration. Finish the energy bites with the 30-minute chill going and the
+                    session counted those minutes twice: once as unearned here, then as earned
+                    by the next recipe. Only credited steps are carried, same rule as the debit. */}
+                <button onClick={() => prep.onPrepped(timers.filter((x) => x.stepIdx != null && visited[x.stepIdx] && x.endsAt > Date.now()).map((x) => ({ endsAt: x.endsAt })))} style={{ ...primaryBtn, width: '100%' }}>
                   {prep.index + 1 >= prep.count
                     ? tr('cook:prep.wrapCta', { defaultValue: 'Wrap the session →' })
                     : tr('cook:prep.nextRecipe', { defaultValue: 'Next recipe →' })}
@@ -7358,8 +7364,14 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   // BACKWARD — to zero on a long one — as a reward for using the timer (Codex,
   // round 2). Every other reader of `timers` already filters soft out; this one is
   // the only place that did not.
+  // ⚠ AND ONLY ONCE THE CURSOR HAS PASSED IT. `startAndGo` deliberately leaves the cursor ON
+  // a passive step when the same dish's continuation is next and still blocked, so that step
+  // has contributed nothing to `bsProgressPct`, which credits steps before the cursor. Debiting
+  // its timer subtracts minutes nobody banked — the very error the soft-timer filter above
+  // exists to prevent, arriving through the other door. Measured: starting the hash's 8-minute
+  // hold while stopped on that event moved the board 63% -> 49%.
   const unearnedFor = (rk) => timers.reduce(
-    (s, tm) => s + ((!tm.soft && (rk == null || tm.recipeKey === rk)) ? Math.max(0, (tm.endsAt - now) / 60000) : 0),
+    (s, tm) => s + ((!tm.soft && tm.stepIndex < cursor && (rk == null || tm.recipeKey === rk)) ? Math.max(0, (tm.endsAt - now) / 60000) : 0),
     0,
   );
   const boardPct = React.useMemo(() => bsProgressPct(timeline.map(minsOf), cursor, unearnedFor(null)), [timeline, cursor, timers, now]);
@@ -7428,7 +7440,15 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
       startedRef.current.add(startKey);
       timerIdRef.current += 1;
       const id = timerIdRef.current;
-      queued = { id, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: at + tms[0].seconds * 1000, total: tms[0].seconds };
+      // ⚠ THE ANNOTATION IS THE HOLD; THE PROSE IS ONLY ITS NAME. `bsStepTimers` collapses a
+      // range to its TOP — "simmer 6 to 8 minutes" comes back as 8 — so a window authored at
+      // the range's LOW end still counted the cook down from the maximum and returned them to
+      // overcooked food. The data said 6 and the kitchen got 8. Where the event carries an
+      // authored `min`, that is the duration; the parsed figure is the fallback for a step
+      // with no window at all.
+      const holdMin = (cur.passive === true && cur.min > 0) ? cur.min : null;
+      const secs = holdMin ? holdMin * 60 : tms[0].seconds;
+      queued = { id, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: holdMin ? `${holdMin} min` : tms[0].label, endsAt: at + secs * 1000, total: secs };
       setTimers((arr) => (arr.some((x) => x.iid === cur.iid && x.stepIndex === cursor)
         ? arr
         : [...arr, queued]));
@@ -7613,6 +7633,10 @@ function BSPrepSession({ program, onClose }) {
   const [doneEntries, setDoneEntries] = useStateBSC([]);
   const [saveFailed, setSaveFailed] = useStateBSC(false);
   const [wrapHolds, setWrapHolds] = useStateBSC([]);   // still-running terminal holds at Finish (board → wrap)
+  // Holds still running when a SEQUENTIAL dish was handed off. Kept as raw {endsAt} so the
+  // debit shrinks with the clock and expires by itself; a stored minute figure would not.
+  const [carried, setCarried] = useStateBSC([]);
+  const sessionNow = Date.now();
 
   // Candidates: only meals/recipes with a REAL method walk in a prep session
   // (tier ≤ 2 — mise-only meals stay solo cooks); recipe mapping is the tested
@@ -7659,7 +7683,11 @@ function BSPrepSession({ program, onClose }) {
     return n + ((m && typeof m.min === 'number' && m.min > 0) ? m.min : BS_ORCH.activeStepMin);
   }, 0)), [ordered]);
   const sessionTotalMins = dishMins.reduce((a, b) => a + b, 0);
-  const sessionPriorMins = dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0);
+  // Holds handed up by dishes already behind us, still running. Their minutes are counted in
+  // `dishMins` as though they had elapsed, so they are subtracted until they actually do —
+  // a debit that decays to nothing on its own rather than a flag someone has to clear.
+  const carriedDebit = carried.reduce((n, h) => n + Math.max(0, (h.endsAt - sessionNow) / 60000), 0);
+  const sessionPriorMins = Math.max(0, dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0) - carriedDebit);
   const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
   // The board's allergen claim notes. BSCookMode's own mise block CANNOT carry
   // them here: a prep-session candidate is filtered on `c.steps.length`, so
@@ -7815,9 +7843,10 @@ function BSPrepSession({ program, onClose }) {
   // stage re-render unmounts the button) would otherwise write the SAME recipe's
   // PREPPED record twice, inflating the count. Each index writes exactly once.
   const prepWroteRef = React.useRef(-1);
-  const onPrepped = () => {
+  const onPrepped = (outstanding) => {
     if (prepWroteRef.current === cookIdx) return;
     prepWroteRef.current = cookIdx;
+    if (Array.isArray(outstanding) && outstanding.length) setCarried((arr) => [...arr, ...outstanding]);
     writeEntry(ordered[cookIdx]);
     if (cookIdx + 1 >= ordered.length) setStage('wrap');
     else { setCookIdx(cookIdx + 1); setStage('transition'); }

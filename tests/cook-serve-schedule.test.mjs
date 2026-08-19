@@ -89,7 +89,7 @@ const MOD = await loadModule(SHIM);
 const ORCH = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookOrchestrator.mjs')).href);
 const { bsOrchestrate, BS_COOK_MODE, BS_ORCH } = ORCH;
 const { SHAPE_KITCHEN_RECIPES } = await import(pathToFileURL(join(dirname(SRC), 'shapeKitchenData.js')).href);
-const { bsCookableFromRecipe } = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookable.mjs')).href);
+const { bsCookableFromRecipe, bsStepTimers } = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookable.mjs')).href);
 
 function flatten(node, out = []) {
   if (node == null || node === false) return out;
@@ -268,6 +268,19 @@ test('a convenience timer on the CURRENT step never moves the board backward', (
   const after = pctOf(s);
   assert.equal(after, before,
     `starting an 8-minute convenience timer moved the board ${before}% -> ${after}%; a soft timer banks nothing and owes nothing`);
+
+  // ⚠ AND IT STILL OWES NOTHING ONCE THE CURSOR PASSES IT. The debit later gained a
+  // `stepIndex < cursor` gate, which covers a soft timer on the CURRENT step by accident —
+  // so deleting the `!soft` filter left this test green. Walk past the step with the chip
+  // still running: the step banks its active minutes, and the convenience clock still owes
+  // nothing, because it was never what those minutes measured.
+  if (s.buttons().some((b) => !b.disabled && b.label.startsWith('Next'))) {
+    const banked = pctOf(s);
+    s.click('Next');
+    const walked = pctOf(s);
+    assert.ok(walked >= banked,
+      `walking past a step with a convenience timer running moved the board ${banked}% -> ${walked}%; the chip is not the step's hold`);
+  }
 });
 
 test('a real HOLD still owes its minutes — the round-1 fix survives', () => {
@@ -491,4 +504,118 @@ test('solo cook: a chill still running is not progress you have banked', () => {
   assert.ok(Number.isFinite(after), 'no percentage rendered after advancing past a running chill');
   assert.ok(after < 100,
     `the board reads ${after}% (from ${before}%) with a 30-minute chill still running; those minutes are promised, not banked`);
+});
+
+// ⚠ THE HOLD IS THE ANNOTATION, NOT THE PROSE. `bsStepTimers` collapses a range to its TOP:
+// "roast 12 to 15 minutes" comes back as 15. So a window authored at the LOW end — which is
+// where the cook is actually wanted — still counted down from the maximum, and the annotation
+// was decorative for the one thing it most needed to control. Pinned against the real catalog
+// because the mismatch is a property of the recipe's own words.
+test('prep board: a hold runs for the annotated window, not the parsed maximum', () => {
+  // `bsStepTimers` is inconsistent about ranges: an en-dash form ("12–15 min") comes back as
+  // its LOW end, while the word form collapses to the TOP — "simmer 6 to 8 minutes" parses as
+  // 8. So a window authored at the low end, which is where the cook is actually wanted, still
+  // counted down from the maximum. The annotation was decorative for the one thing it most
+  // needed to control.
+  //
+  // ⚠ Pinned on a fixture rather than the catalog, deliberately and with the reason: every
+  // window in THIS branch's catalog already has `min` equal to what its prose parses to, so
+  // nothing here can exhibit the mismatch. It becomes load-bearing when the low-end
+  // corrections land — the fix has to exist before the data that needs it, not after.
+  const parsedTop = bsStepTimers('Cover, lower the heat and simmer 6 to 8 minutes, until the glaze coats a spoon.');
+  assert.equal(Math.round(parsedTop[0].seconds / 60), 8,
+    'the parser no longer collapses "6 to 8" to its top — if that is fixed, this test is obsolete, not wrong');
+
+  const RANGED = {
+    key: 'ranged-fixture', title: 'Ranged hold fixture',
+    steps: [
+      'Season the chops on both sides and set a heavy skillet over medium-high heat until it shimmers.',
+      'Cover, lower the heat and simmer 6 to 8 minutes, until the glaze coats a spoon.',
+      'Rest them off the heat and spoon the pan glaze back over before serving.',
+    ],
+    stepMeta: [null, { min: 6, passive: true, station: 'stove' }, null],
+  };
+  const plan = bsOrchestrate([RANGED], { ...OPTS, mode: BS_COOK_MODE.SEQUENCE });
+  const s = drive(MOD.BSPrepCook, { items: [], timeline: plan.timeline, onClose() {}, onRecipePrepped() {}, onDone() {} });
+
+  let guard = 0;
+  while (guard++ < 8 && !s.buttons().some((b) => !b.disabled && b.label.startsWith('Start timer'))) {
+    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('Next'));
+    if (!next) break;
+    s.click('Next');
+  }
+  assert.ok(s.buttons().some((b) => b.label.startsWith('Start timer')), 'never reached the window');
+  s.click('Start timer');
+
+  const shown = s.text.match(/(\d+):(\d\d)/);
+  assert.ok(shown, `no countdown rendered after starting the hold — text was ${JSON.stringify(s.text.slice(0, 200))}`);
+  const mins = Number(shown[1]) + (Number(shown[2]) > 0 ? 1 : 0);
+  assert.equal(mins, 6, `the board counts down ${shown[0]}; the window is 6 min and only the PROSE says 8`);
+});
+
+// ⚠ DEBIT ONLY WHAT THE CURSOR HAS CREDITED — and `!soft` is not that test. `startAndGo`
+// deliberately leaves the cursor ON a passive step when the same dish's continuation is next
+// and still blocked, so that step has contributed nothing to a percentage that credits steps
+// BEFORE the cursor. Debiting its hold subtracts minutes nobody banked: the same error the
+// soft-timer filter exists to prevent, arriving through the other door.
+test('prep board: starting a hold the cursor still sits on does not move the board backward', () => {
+  const pair = ['One-pan chicken and rice', 'Steak and sweet potato hash'].map((t) => {
+    const x = SHAPE_KITCHEN_RECIPES.find((y) => y.title === t);
+    assert.ok(x, `catalog no longer has "${t}" — repin this test, do not delete it`);
+    return { key: x.key || x.title, title: x.title, steps: x.steps, stepMeta: x.stepMeta };
+  });
+  const plan = bsOrchestrate(pair, { ...OPTS, mode: BS_COOK_MODE.SERVE });
+  const s = drive(MOD.BSPrepCook, { items: [], timeline: plan.timeline, onClose() {}, onRecipePrepped() {}, onDone() {} });
+
+  // ⚠ EVERY hold, not the first one. The first hold in this plan is followed by the OTHER
+  // dish, so the cursor advances past it and both rules agree — a test that stops there
+  // proves nothing. The discriminating one is the hash's 8-minute hold, whose continuation
+  // belongs to the same dish and is blocked, so `startAndGo` leaves the cursor sitting on it.
+  const moves = [];
+  let guard = 0;
+  while (guard++ < 30) {
+    const labels = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
+    if (labels.some((l) => l.startsWith('Start timer'))) {
+      const before = pctOf(s);
+      s.click('Start timer');
+      moves.push({ before, after: pctOf(s) });
+      continue;
+    }
+    if (!labels.some((l) => l.startsWith('Next'))) break;
+    s.click('Next');
+  }
+  assert.ok(moves.length >= 2,
+    `only ${moves.length} hold(s) reached; this plan has three and the second is the one that discriminates`);
+  const backward = moves.filter((m) => m.after < m.before);
+  assert.deepEqual(backward, [],
+    `a hold moved the board backward (${backward.map((m) => `${m.before}% -> ${m.after}%`).join(', ')}); the cursor has not passed that step, so nothing was banked to take back`);
+});
+
+// ⚠ THE SEARCH BOUND IS PART OF THE PROMISE. Stopping the order search above five dishes while
+// the control still reads "get it all done soonest" is the same defect as the original one-order
+// heuristic, just further out. These six catalog dishes reported 118 minutes with an order
+// available at 113 — and the cheap rotation family does NOT find it, which is why the
+// exhaustive bound had to move rather than the fallback getting cleverer.
+test('serve mode: the order search reaches a six-dish session', () => {
+  const six = ['Red lentil and spinach dahl', 'Turkey chili verde', 'Black-eyed pea and coconut curry',
+    'One-pan chicken and rice', 'Chickpea and spinach curry', 'Tempeh and broccoli teriyaki'].map((title) => {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === title);
+    assert.ok(r, `catalog no longer has "${title}" — repin this test, do not delete it`);
+    return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+  });
+  const plan = bsOrchestrate(six, { mode: BS_COOK_MODE.SERVE });
+  assert.equal(plan.earliestServe, 113,
+    `six dishes serve at ${plan.earliestServe}; 118 is what one fixed order reaches`);
+
+  const EXCL = ['oven', 'stove', 'board'];
+  const bands = plan.timeline.filter((e) => e.station && EXCL.includes(e.station))
+    .map((e) => ({ st: e.station, from: e.at, to: e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin) }));
+  const clashes = [];
+  for (let i = 0; i < bands.length; i++) {
+    for (let j = i + 1; j < bands.length; j++) {
+      const a = bands[i]; const b = bands[j];
+      if (a.st === b.st && a.from < b.to && b.from < a.to) clashes.push(`${a.st} ${a.from}-${a.to} vs ${b.from}-${b.to}`);
+    }
+  }
+  assert.deepEqual(clashes, [], 'an earlier serve time that puts two pans on one station is not a schedule');
 });
