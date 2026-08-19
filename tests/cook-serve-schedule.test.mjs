@@ -66,7 +66,7 @@ ACTIVE_REACT = SHIM;
 
 async function loadModule(reactImpl) {
   const dir = dirname(SRC);
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSPrepCook };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSPrepCook, BSCookMode };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact], plugins: [commonjs], babelrc: false, configFile: false, filename: SRC,
   });
@@ -89,6 +89,7 @@ const MOD = await loadModule(SHIM);
 const ORCH = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookOrchestrator.mjs')).href);
 const { bsOrchestrate, BS_COOK_MODE, BS_ORCH } = ORCH;
 const { SHAPE_KITCHEN_RECIPES } = await import(pathToFileURL(join(dirname(SRC), 'shapeKitchenData.js')).href);
+const { bsCookableFromRecipe } = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookable.mjs')).href);
 
 function flatten(node, out = []) {
   if (node == null || node === false) return out;
@@ -438,4 +439,56 @@ test('serve mode: a single dish is untouched by any of this', () => {
   assert.equal(plan.earliestServe, durationOfRecipe(only),
     'with nothing to contend with, the earliest serve is exactly the dish');
   assert.equal(plan.spread, 0, 'one dish cannot be spread');
+});
+
+// ⚠ THE SAME DEFECT ONE LANE OVER. The interleaved board learned twice that a running
+// hold has not delivered its minutes; the SOLO path credited the authored duration
+// outright. Tap Done on the energy bites' 30-minute chill and the header read 100% with
+// half an hour left on the clock — and in a sequential multi-dish session those phantom
+// minutes were added to the whole evening's progress too.
+//
+// Driven through the real component rather than by calling bsProgressPct with an
+// unearned figure of my own: a pure test would supply the very argument whose ABSENCE
+// was the bug, and would have passed against the broken build.
+test('solo cook: a chill still running is not progress you have banked', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === 'Date and almond energy bites');
+  assert.ok(r, 'catalog no longer has the energy bites — repin this test, do not delete it');
+  const c = bsCookableFromRecipe(r);
+  const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  s.click('Start cooking');
+
+  // Walk to the 30-minute chill, banking the earlier steps honestly on the way. Matched
+  // on the step's own words rather than an index, so a catalog edit fails loudly here
+  // instead of quietly testing some other step.
+  let guard = 0;
+  while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
+    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('✓ Done'));
+    if (!next) break;
+    s.click('✓ Done');
+  }
+  assert.match(s.text, /Chill 30 minutes/, 'never reached the chill step — this recipe cannot exercise the debit');
+
+  const chip = s.buttons().find((b) => !b.disabled && b.label.startsWith('▸ Timer'));
+  assert.ok(chip, `no countdown offered on the chill (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+  assert.match(chip.label, /30 min/, `the chip under test reads "${chip.label}" — not the 30-minute chill`);
+
+  const before = pctOf(s);
+  s.click('▸ Timer');                      // the 30-minute chill goes on
+  // ⚠ BOTH ARMS. Merely STARTING the chill must move nothing: the cook is standing on
+  // that step, its minutes were never credited, and debiting them walks the bar
+  // backward — 23% to 0% here. That is the round-1 regression from the interleaved
+  // lane, and without this line a debit-everything version passed clean.
+  assert.equal(pctOf(s), before,
+    `starting the chill moved the board ${before}% -> ${pctOf(s)}%; an uncredited step owes nothing`);
+
+  // Mark it done while the clock is still running — the exact move that inflated it.
+  // The last step's button reads "Plated", not "Done"; both are the same advance.
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  assert.ok(finish, 'no way to advance past the chill — the scenario cannot be reached');
+  s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
+  const after = pctOf(s);
+
+  assert.ok(Number.isFinite(after), 'no percentage rendered after advancing past a running chill');
+  assert.ok(after < 100,
+    `the board reads ${after}% (from ${before}%) with a 30-minute chill still running; those minutes are promised, not banked`);
 });

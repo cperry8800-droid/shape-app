@@ -6921,11 +6921,24 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     const m = (cookable.stepMeta || [])[i];
     return (m && typeof m.min === 'number' && m.min > 0) ? m.min : BS_ORCH.activeStepMin;
   });
-  const doneMins = stepMins.reduce((n, mins, i) => (visited[i] ? n + mins : n), 0);
+  // ⚠ A STEP MARKED DONE WITH ITS TIMER STILL RUNNING HAS NOT DELIVERED ITS MINUTES.
+  // Tap Done on the energy bites' 30-minute chill and the header read 100% with half an
+  // hour left on the clock. The interleaved board carries this debit already; the solo
+  // path credited the authored duration outright, which is the same defect one lane over.
+  //
+  // Debit ONLY a timer whose step is in `visited` — that is exactly the set whose minutes
+  // were credited. A timer on the step the cook is STANDING at was never credited, and
+  // debiting it walks the bar backward; that was a real regression on the board twice, and
+  // `stepIdx` is what tells the two apart.
+  const unearnedSolo = timers.reduce(
+    (n, x) => n + ((x.stepIdx != null && visited[x.stepIdx] && x.endsAt > now) ? Math.max(0, (x.endsAt - now) / 60000) : 0),
+    0,
+  );
+  const doneMins = Math.max(0, stepMins.reduce((n, mins, i) => (visited[i] ? n + mins : n), 0) - unearnedSolo);
   // OVERALL session progress, when this dish is one of several. A cook walking dish by
   // dish otherwise sees only the dish in front of them and cannot tell whether the
   // evening is nearly over. Absent for a solo cook, where "the session" is this recipe.
-  const overallPct = hasMethod ? bsProgressPct(stepMins, visited) : null;
+  const overallPct = hasMethod ? bsProgressPct(stepMins, visited, unearnedSolo) : null;
   const sessionPct = (prep && typeof prep.totalMins === 'number' && prep.totalMins > 0)
     ? Math.max(0, Math.min(100, Math.round((((prep.priorMins || 0) + doneMins) / prep.totalMins) * 100)))
     : null;
@@ -6990,7 +7003,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {/* Weighted by MINUTES, not by step count: with a 30-minute roast still
                 ahead, "3 of 6" is halfway through the list and nowhere near halfway
                 through the cooking. This is the answer to "how far am I". */}
-            {` · ${bsProgressPct(stepMins, visited)}%`}
+            {` · ${bsProgressPct(stepMins, visited, unearnedSolo)}%`}
           </span>
         )}
       </div>
