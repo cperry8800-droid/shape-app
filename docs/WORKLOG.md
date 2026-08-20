@@ -316,6 +316,22 @@ changelog whenever something ships.
   kind. Purging every lever-less directive would cost **every** opted-out member their one
   move at rollout to spare a rare one, so the kind is trusted there. Bounded to a single
   evaluation per member.
+- ⚠ **AND THE STAMP'S OWNER IS WHOEVER WROTE IT LAST.** The release above keyed on "is
+  anything of this type still held?" — but `types` is **one slot** per (type,key) and two
+  directives can be held at once, so when the check-in was queued **second** the stored
+  signature is the check-in's and the survivor check preserved it anyway. The queued copy
+  now carries its signature and the release matches on it. Items queued before that stamp
+  keep the coarse rule, which is right in the ordinary single-item case and no worse than
+  the bug it replaces in the rare one.
+- ⚠ **THE PATTERN, NOT JUST THE INSTANCES.** Two of the last three review rounds found a
+  defect *inside the preceding fix*, and both were the same shape: **the queue and the dedup
+  map disagree about cardinality**, so a stamp written at queue time can be orphaned or
+  misattributed by anything that later removes an item. The class-level fix is to let the
+  **queue be the record** for a queued item — consult `pendingDigest` in the duplicate check,
+  drop the stamp from the defer branch, stamp what the digest actually emits. Measured on a
+  scratch copy rather than asserted: **6 lines, 37 of 38 tests pass untouched**. Not taken
+  here, because it changes dedup behaviour for **every** notification type inside a PR about
+  a check-in opt-out. Registered.
 - ⚠ **BOTH routes were wired, not only the cron.** `/api/ai/notify` recomputes from the
   same snapshot and had the identical hole — fixing the reported one would have left the
   live path nudging.
