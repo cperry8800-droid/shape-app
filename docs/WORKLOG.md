@@ -252,6 +252,72 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-20 — A dead option, a vanished timer, a false superlative — and two defects inside the fixes for them (#1913 → `5972b786e`)
+
+⚠ **#1913's MERGE MESSAGE IS IMMUTABLE AND NOW WRONG ON ONE COUNT.** It says the copy fix
+left *"five"* locales already saying "earlier". Counted off the merged diff it is **seven**
+— the message repeated the figure this handoff carried instead of measuring it, which is
+the same way #1910's merge message went stale. **Quote the bullet below, not the merge
+message.** (This is the third merge message in three days to be superseded by its own
+records; the ones here were re-measured, the ones written at merge time were not.)
+
+- **Two options ran the same plan.** With no window to weave into, TOGETHER falls back to
+  serial — so *"cook at the same time"* produced the **same timeline** as *"cook
+  separately"* and printed the same minutes, while its row promised simultaneous cooking.
+  The engine had always NAMED the reason (`BS_SERIAL_REASON.NO_WINDOW`); nothing read it.
+  Now unavailable-with-reason, minutes suppressed. ⚠ **A dead choice is worse than a
+  missing one** — it spends the cook's decision on nothing.
+- **A carried timer vanished, and the expiry filter lived at THREE sites** — display,
+  handoff, wrap. Round one fixed *one*; round two found the other two. ⚠ **A hold that
+  finished between the last dish and the wrap is precisely the one the cook must be told
+  about**, so filtering expired holds out re-created the very defect the carry exists to
+  fix, one stage later.
+- **"Out of the kitchen soonest" was unsupported.** TOGETHER is order-sensitive and the
+  order search that would justify a superlative runs on the SERVE path only. Copy changed
+  in the **six** locales that actually claimed an optimum — `de` *am schnellsten*, `en`
+  *soonest*, `es` *lo antes posible*, `id` *paling cepat*, `tr` *en erken*, `vi` *sớm
+  nhất*. ⚠ **The other SEVEN, not five**, already said *earlier/faster* and are
+  supportable (`fr` `ha` `it` `pcm` `pt-BR` `ru` `uk`) — 6 + 7 = **13**, the whole set.
+  Counted off the merged diff; the handoff and the earlier records both said five, which
+  left two locales unaccounted for. ⚠ **A superlative is a claim about a search you either
+  ran or did not.**
+- **An owner ruling routed to the ENG lane.** `OWNER RULING NEEDED —` matched no pattern
+  in `console-triage.mjs`, so a decision needing the owner was filed as engineering work.
+  Fixed **at the classifier**, not at the string — and ⚠ the neighbouring ruling routed
+  correctly only *by accident*, because it happens to contain the word "unruled".
+
+**AND TWO DEFECTS INSIDE THOSE FIXES — the fourth and fifth round of five.**
+
+- ⚠ **The carried hold reached the wrap screen and stopped dead there** (Codex **P1**).
+  `BSPrepSession` has **no `useEffect` and no `setInterval` anywhere**; `if (stage ===
+  'cook')` returns early into `BSCookMode`/`BSPrepCook`, which own the only per-second
+  heartbeats in this flow — so by the time `stage === 'wrap'` renders, **both are
+  unmounted and nothing in the subtree ticks.** `sessionNow` froze at the instant the cook
+  arrived: the countdown never reached "Time's up" and never offered the acknowledgement,
+  which is the one thing the carry exists to deliver, missing from the last screen that
+  can deliver it. The heartbeat added is scoped to the wrap **and** to holds still
+  running, because this component RETURNS the board during the cook stage and a
+  session-wide tick would re-render it every second on top of its own.
+- ⚠ **The debit was computed by a component with no clock** — found by the self-review the
+  P1 required, **one prop away from it**. `carriedDebit` came off the same render-time
+  `sessionNow` and was handed down as a finished number, but the parent does not re-render
+  during a dish, so the debit computed at the handoff was the debit the whole next dish
+  saw. The session figure therefore **under-read by the carried hold's entire remaining
+  duration** for as long as that hold ran. The component's own comment stated the intent it
+  failed to deliver: *"the debit shrinks with the clock and expires by itself."* Moved to
+  the chokepoint — `BSCookMode` already ticks and already receives `prep.carried`.
+
+⚠ **WHY THESE TESTS LOOK UNUSUAL, AND THE RULE WORTH CARRYING.** **No assertion on
+rendered text can catch the wrap defect.** Re-rendering is what the mount harness *does*,
+so a test that calls `render()` supplies the very thing production fails to schedule and
+passes either way — the bug is the WIRING, not the arithmetic. Those tests instead capture
+what a render **registers** and run it against a recording timer. The debit needed **two**
+tests for the same reason: mounting `BSCookMode` supplies `priorMins` itself, so it passes
+whether or not the parent *also* subtracts — and subtracting on both sides charges a
+carried hold **twice**, worse than the frozen figure it replaced. The second walks two
+dishes of a real sequential session and pins that the credit handed down does not move.
+**Seven mutations** across the two fixes, each caught by the intended test.
+
 ### 2026-08-20 — Cook together: three options, three schedulers, and a serve time the plan keeps (#1910 → `056cd0279`)
 
 - **The prep sheet asks WHY before it starts, and the answer now changes the schedule.**
