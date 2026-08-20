@@ -82,6 +82,25 @@ changelog whenever something ships.
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
+  non-trivial change.
+  ⚠ **THE STANDING REVIEWER SYSTEM — RATIFIED BY THE OWNER 2026-08-20.** Read this
+  before the layers below, several of which contradict it and are kept only for their
+  history:
+  **(a) own adversarial self-review** before the first push — still the layer that
+  catches the most; **(b) CodeRabbit ONCE, as a breadth sweep** — a single
+  `@coderabbitai review` on a head you believe final, findings worked, false ones
+  refuted with evidence; **(c) Codex — THE GATE**, which the merge waits on.
+  ⚠ **Not both every round** — hedging spends two finite budgets to answer one question.
+  ⚠ **Never compare their severity labels**: CodeRabbit's "Major" and Codex's "P1" are
+  self-assigned on different scales; report each in its own terms and never sum them.
+  **Why this shape, measured on this repo:** Codex finds the bugs that make a feature
+  *fake* (its P1s here included a scheduler that was computed, displayed, and ignored by
+  the code that runs the cook); CodeRabbit finds more, wider, and noisier (2 of its last
+  5 on #1910 were refutable). The number that decided it: **CodeRabbit found 27 findings
+  on a tree Codex had already reviewed across eight rounds**, and caught two real defects
+  Codex missed. They are complementary, not redundant.
+
+  The layers, in order, for any
   non-trivial change: **(0) CodeRabbit IDE — pre-push.** The CodeRabbit VS Code
   extension (`coderabbit.coderabbit-vscode`, installed locally; sign in to its
   sidebar panel once) reviews the LOCAL diff in-editor **before** pushing, so the
