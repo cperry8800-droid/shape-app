@@ -523,7 +523,7 @@ test('prep board: a hold runs for the annotated window, not the parsed maximum',
 // BEFORE the cursor. Debiting its hold subtracts minutes nobody banked: the same error the
 // soft-timer filter exists to prevent, arriving through the other door.
 test('prep board: starting a hold the cursor still sits on does not move the board backward', () => {
-  const pair = ['One-pan chicken and rice', 'Steak and sweet potato hash'].map((t) => {
+  const pair = ['One-pan chicken and rice', 'Roasted veg and halloumi traybake'].map((t) => {
     const x = SHAPE_KITCHEN_RECIPES.find((y) => y.title === t);
     assert.ok(x, `catalog no longer has "${t}" — repin this test, do not delete it`);
     return { key: x.key || x.title, title: x.title, steps: x.steps, stepMeta: x.stepMeta };
@@ -533,8 +533,16 @@ test('prep board: starting a hold the cursor still sits on does not move the boa
 
   // ⚠ EVERY hold, not the first one. The first hold in this plan is followed by the OTHER
   // dish, so the cursor advances past it and both rules agree — a test that stops there
-  // proves nothing. The discriminating one is the hash's 8-minute hold, whose continuation
-  // belongs to the same dish and is blocked, so `startAndGo` leaves the cursor sitting on it.
+  // proves nothing. The discriminating hold is the one whose continuation belongs to the
+  // SAME dish and is still blocked, so `startAndGo` leaves the cursor sitting on it and the
+  // step has banked nothing to debit.
+  //
+  // ⚠ THE PAIR IS LOAD-BEARING AND WAS RE-CHOSEN. The original fixture reached three holds;
+  // after the cook-windows catalog landed it reaches ONE, so the guard below would have been
+  // the only thing failing and re-pinning the count would have left a test that walks a board
+  // with nothing to discriminate. This pair was picked by driving the real board across the
+  // catalog and keeping one that still reaches two, then confirmed by mutation: widening the
+  // debit guard to `<=` makes this test fail.
   const moves = [];
   let guard = 0;
   while (guard++ < 30) {
@@ -549,7 +557,7 @@ test('prep board: starting a hold the cursor still sits on does not move the boa
     s.click('Next');
   }
   assert.ok(moves.length >= 2,
-    `only ${moves.length} hold(s) reached; this plan has three and the second is the one that discriminates`);
+    `only ${moves.length} hold(s) reached; this plan has two and the second is the one that discriminates`);
   const backward = moves.filter((m) => m.after < m.before);
   assert.deepEqual(backward, [],
     `a hold moved the board backward (${backward.map((m) => `${m.before}% -> ${m.after}%`).join(', ')}); the cursor has not passed that step, so nothing was banked to take back`);
@@ -568,8 +576,18 @@ test('serve mode: the order search reaches a six-dish session', () => {
     return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
   });
   const plan = bsOrchestrate(six, { mode: BS_COOK_MODE.SERVE });
-  assert.equal(plan.earliestServe, 113,
-    `six dishes serve at ${plan.earliestServe}; 118 is what one fixed order reaches`);
+  // ⚠ MEASURED on the current catalog: 111, and a single longest-first order ALSO reaches
+  // 111 for this set. The old message here claimed the search beat a fixed order by 5
+  // minutes; the cook-windows catalog closed that gap, so repeating the claim would be
+  // asserting something no longer true of this fixture. What this test still earns is the
+  // SIX-dish case — the exhaustive order-search bound (BS_ORCH.orderSearchMax) — and that
+  // the plan it returns is actually feasible. The search-beats-one-order claim is pinned
+  // by "the earliest serve time is the earliest over placement ORDERS", which uses a set
+  // where the two still differ.
+  assert.equal(plan.earliestServe, 111,
+    `six dishes serve at ${plan.earliestServe}`);
+  assert.equal(plan.exact, true,
+    'six dishes sit ON the exhaustive bound — if this reports a sample, the bound moved');
 
   const EXCL = ['oven', 'stove', 'board'];
   const bands = plan.timeline.filter((e) => e.station && EXCL.includes(e.station))
