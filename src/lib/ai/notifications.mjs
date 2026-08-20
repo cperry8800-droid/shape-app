@@ -203,13 +203,26 @@ export function isCheckinItem(item) {
 // notification that was never delivered. For `checkin_due` that is PERMANENT — it signs
 // itself with the constant 'due', so no later signature can ever break the tie.
 function releaseDedup(types, item, kept) {
-  // ⚠ A SURVIVING ITEM STILL STANDS BEHIND THE STAMP. A queued item carries no key — both
-  // shapes the purge can match are built with the single key 'self', so a held directive
-  // that is NOT the check-in shares the purged one's dedup entry. Clearing it would let
-  // the same directive be rebuilt and queued a SECOND time while the first still waits.
-  if (kept.some((k) => k && k.type === item.type)) return;
+  // ⚠ THE STAMP IS A SINGLE SLOT PER (type,key) AND THE LAST WRITER OWNS IT. Two directives
+  // can be held at once — a changed signature is not a duplicate — and both are built with
+  // the key 'self', so a queued item carries no key that would tell them apart. Matching on
+  // the SIGNATURE is exact: release the stamp only when it is the purged item's own. A
+  // same-type survivor is NOT evidence the stamp is theirs; when the check-in was queued
+  // second, the stored signature is the check-in's and holding it back suppresses the
+  // rebuilt nudge forever — the very bug this release exists to prevent.
   const prefix = `${item.type}:`;
-  for (const k of Object.keys(types)) if (k.startsWith(prefix)) delete types[k];
+  const entries = Object.keys(types).filter((k) => k.startsWith(prefix));
+  if (nonEmpty(item.sig)) {
+    for (const k of entries) if (types[k] && types[k].sig === item.sig) delete types[k];
+    return;
+  }
+  // ⚠ Items queued before the signature stamp shipped cannot be matched, so fall back to
+  // the coarse rule: release only when nothing of that type is still held. That is right
+  // in the ordinary single-item case and no worse than the bug it replaces in the rare
+  // two-directive one — whereas releasing nothing would cost those members the nudge
+  // permanently. Self-limiting: every item queued from now on carries its signature.
+  if (kept.some((k) => k && k.type === item.type)) return;
+  for (const k of entries) delete types[k];
 }
 
 // CLIENT — from a directive + evaluateClient flags + check-in state + coach events.
@@ -388,7 +401,9 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
-      state.pendingDigest.push({ ...item, at: +now });
+      // ⚠ `sig` rides along on the QUEUED copy (the sent shape is unchanged) so a purge can
+      // tell whether the stored stamp is THIS item's or another held item's.
+      state.pendingDigest.push({ ...item, sig: c.sig, at: +now });
       state.types[sigKey] = { sig: c.sig, at: +now };
       if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
       suppressed.push({ type: c.type, reason: quiet ? 'quiet_hours' : overCap ? 'capped' : 'low_priority_digest' });

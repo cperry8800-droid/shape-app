@@ -453,12 +453,16 @@ test('purging an undelivered check-in releases its dedup stamp', () => {
   assert.deepEqual(on.nextState.types['checkin_due:self'], { sig: 'due', at: 1 }, 'the stamp was cleared for a member who never opted out');
 });
 
-// ⚠ CLEARING A STAMP ANOTHER HELD ITEM IS STILL STANDING BEHIND WOULD DOUBLE IT UP. A
+// ⚠ THE LEGACY PATH — items queued before the signature stamp shipped carry none, so they
+// cannot be matched to their own dedup entry and fall back to a coarser rule: release only
+// when nothing of that type is still held. Right in the ordinary single-item case; in the
+// rare two-directive one it is no worse than the bug it replaces, and releasing nothing
+// would cost those members the nudge permanently. A
 // queued item carries no key, and both shapes the purge can match are built with the
 // single key 'self' — so a held directive that is NOT the check-in shares the purged
 // one's dedup entry. Releasing it would let that same directive be rebuilt and queued a
 // second time while the first is still waiting in the digest.
-test('a stamp a SURVIVING held item still stands behind is not released', () => {
+test('LEGACY, unsignatured: a stamp is released only when nothing of that type survives', () => {
   const checkin = { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: { move: 'check_in' }, priority: 'high', channels: { push: true } };
   const sleep = { type: 'directive', title: 'Your move today', body: "Log last night's sleep", route: 'home', data: { move: 'recovery' }, priority: 'high', channels: { push: true } };
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
@@ -515,4 +519,51 @@ test('a held coach check-in override is purged, and a contact move of the same k
 
   const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
   assert.deepEqual(out.digest.data.items.map((i) => i.data.lever), ['contact'], 'the purge kept or dropped the wrong held override');
+});
+
+// ⚠ A DEFECT INSIDE MY OWN PRECEDING FIX. The dedup stamp is a SINGLE SLOT per (type,key)
+// and the LAST writer owns it. Two directives can sit in the queue at once — a changed
+// signature is not a duplicate — so when the check-in was queued second, the stored
+// signature is the CHECK-IN's, not the survivor's. The type-only survivor check preserved
+// it anyway, and the member who opted out and back in was deduped against a nudge that
+// was never delivered: exactly the bug the release was written to prevent, one layer in.
+// Both fixtures are QUEUED BY THE REAL PATH rather than hand-built, so the signature under
+// test is the one the layer actually stores.
+test('the purged item releases its OWN stamp even when a same-type item survives', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const queue = (directive, last) => decideNotifications({
+    candidates: clientCandidates({ directive, flags: [], tone: 'supportive' }),
+    last, prefs, now: NIGHT, audience: 'client',
+  }).nextState;
+
+  // quiet hours: the sleep move is held first, then the check-in — both waiting.
+  const afterSleep = queue({ ...SLEEP_DIRECTIVE }, { date: 'never' });
+  const afterCheckin = queue({ ...CHECKIN_DIRECTIVE }, afterSleep);
+  assert.equal(afterCheckin.pendingDigest.length, 2, 'both directives must be held for this test to mean anything');
+  const stamped = afterCheckin.types['directive:self'].sig;
+  assert.ok(stamped.includes('Send your weekly check-in'), `the stamp should hold the CHECK-IN signature, not the survivor's: ${stamped}`);
+
+  // opt out, outside quiet hours: the check-in is purged and the sleep move is delivered.
+  const out = decideNotifications({ candidates: [], last: afterCheckin, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.deepEqual(out.digest.data.items.map((i) => i.data.move), ['recovery'], 'the wrong held directive was purged');
+  assert.equal(out.nextState.types['directive:self'], undefined,
+    'kept a stamp that belonged to the PURGED check-in, not to the survivor');
+
+  // ...and back on, with the same check-in still the move: it must ARRIVE.
+  const back = decideNotifications({
+    candidates: clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], tone: 'supportive' }),
+    last: out.nextState, prefs, now: DAYTIME, audience: 'client',
+  });
+  assert.deepEqual(back.send.map((i) => i.type), ['directive'],
+    'the rebuilt check-in was deduped against a nudge that was never delivered');
+
+  // ⚠ THE MIRROR — queued the OTHER way round, the stamp is the SURVIVOR's and must stay.
+  // Releasing it would let the surviving sleep move be rebuilt and queued a second time
+  // while the first copy is still waiting in the digest.
+  const checkinFirst = queue({ ...SLEEP_DIRECTIVE }, queue({ ...CHECKIN_DIRECTIVE }, { date: 'never' }));
+  const survivorSig = checkinFirst.types['directive:self'].sig;
+  assert.ok(survivorSig.includes("log last night's sleep"), `premise: the stamp should now hold the SURVIVOR's signature: ${survivorSig}`);
+  const mirror = decideNotifications({ candidates: [], last: checkinFirst, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.deepEqual(mirror.nextState.types['directive:self'], { sig: survivorSig, at: +NIGHT },
+    'released a stamp that belonged to the SURVIVING directive');
 });
