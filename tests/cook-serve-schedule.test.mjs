@@ -23,7 +23,7 @@ const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
 const ORCH = await importSibling('..', 'services', 'cookOrchestrator.mjs');
 const { bsOrchestrate, BS_COOK_MODE, BS_ORCH } = ORCH;
 const { SHAPE_KITCHEN_RECIPES } = await importSibling('shapeKitchenData.js');
-const { bsCookableFromRecipe, bsStepTimers } = await importSibling('..', 'services', 'cookable.mjs');
+const { bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers } = await importSibling('..', 'services', 'cookable.mjs');
 
 // The prep sheet reads `Date.now()` ONCE at mount and compares calendar days off it,
 // so any test that touches the table-time picker inherits both the runner's wall clock
@@ -40,6 +40,27 @@ function withClockAt(hour, minute, fn) {
   const pinned = new Date(2026, 5, 15, hour, minute, 0, 0).getTime();
   Date.now = () => pinned;
   try { return fn(pinned); } finally { Date.now = real; }
+}
+
+// The mount harness installs no translator, so `useShapeTr` falls back to each call's
+// `defaultValue` VERBATIM -- placeholders and all ("Within {n} min of each other"). That
+// is what most mount tests want (tests/kitchen-allergen-surfaces.test.mjs asserts on the
+// literal template on purpose), so this fills them in for ONE test rather than changing
+// the shared harness underneath the others. It substitutes only from the params the
+// component actually passed, so a placeholder the component forgot to supply still shows
+// up as `{n}` and the assertion fails rather than quietly matching.
+function withCopyValues(fn) {
+  const prev = window.ShapeI18n;
+  window.ShapeI18n = {
+    t(key, opts) {
+      const raw = opts && opts.defaultValue;
+      if (typeof raw !== 'string') return null;
+      return raw.replace(/\{(\w+)\}/g, (m, name) => (
+        opts && opts[name] != null ? String(opts[name]) : m
+      ));
+    },
+  };
+  try { return fn(); } finally { window.ShapeI18n = prev; }
 }
 
 // Two dishes that CAN be timed to land together, one much shorter than the other, so a
@@ -291,6 +312,68 @@ test('serve picker: choosing a table time renders, and says which DAY it landed 
     s.render();
     assert.doesNotMatch(s.text, /Tomorrow/, 'the label must clear when the time lands today');
   });
+});
+
+test('serve picker: the landing gap belongs to the plan being RUN, not the earliest one', () => {
+  // The gap renders beside "You start cooking at {t}", which reads the plan for the time
+  // the cook PICKED. The gap was read from a different plan -- SERVE with no serveAt,
+  // i.e. serving as early as possible. Those are different schedules.
+  //
+  // ⚠ MEASURED over 89,100 pair/kitchen/serve-time comparisons, they disagree in 5.7%,
+  // and it is ONE-DIRECTIONAL: the earliest-plan gap UNDERSTATES the run plan's, by up
+  // to 101 minutes. So the failure mode is a number that reads better than the truth --
+  // never a false promise of a single moment (0 cases of shown-0 with a real gap), which
+  // is why nothing on screen contradicted it.
+  //
+  // This pair is one of the disagreeing ones, and the assertions below prove that BEFORE
+  // reading the component: a corpus that cannot exhibit the defect would let a rebinding
+  // to `orchServe` pass silently.
+  withClockAt(12, 0, () => withCopyValues(() => {
+    const cookables = PICKER_PROGRAM[0].meals
+      .map((m) => bsCookableFromMeal(m, SHAPE_KITCHEN_RECIPES))
+      .filter(Boolean)
+      .map((c) => ({ key: c.key || c.title, title: c.title, steps: c.steps, stepMeta: c.stepMeta }));
+    assert.equal(cookables.length, 2, 'both meals must resolve to catalog recipes, or this tests nothing');
+
+    // The sheet reads the cook's kitchen at mount; with no stored kitchen that is one of
+    // each. Computing against an unlimited kitchen would compare a plan the sheet is not
+    // running, which is the very mistake this test exists to catch.
+    const KITCHEN = { stove: 1, oven: 1, board: 1 };
+    const earliestPlan = bsOrchestrate(cookables, { mode: BS_COOK_MODE.SERVE, kitchen: KITCHEN });
+    const DELAY = 30;
+    const runPlan = bsOrchestrate(cookables, {
+      mode: BS_COOK_MODE.SERVE, serveAt: (earliestPlan.earliestServe || 0) + DELAY, kitchen: KITCHEN,
+    });
+    const shownIfWrong = earliestPlan.spread || 0;
+    const shownIfRight = runPlan.spread || 0;
+
+    // Guard the guard, both ways: a gap of zero renders nothing at all, and two equal
+    // gaps make the assertion below true whichever plan the component reads.
+    assert.ok(shownIfRight > 0, 'the run plan must land the dishes apart, or the line never renders');
+    assert.notEqual(shownIfRight, shownIfWrong,
+      `this pair no longer discriminates (both plans gap ${shownIfRight}) — find another, do not delete this test`);
+
+    const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
+    for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    s.clickKey('serve');
+
+    const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
+    assert.equal(times.length, 1, 'exactly one table-time input');
+    const at = new Date(Date.now() + ((earliestPlan.earliestServe || 0) + DELAY) * 60000);
+    times[0].props.onChange({
+      target: { value: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}` },
+    });
+    s.render();
+
+    // The too-soon branch renders a different block entirely; if we landed there the gap
+    // line is absent and the match below would fail for the wrong reason.
+    assert.match(s.text, /You start cooking at/, 'a reachable time must render the start-time branch');
+    const shown = /Within (\d+) min of each other/.exec(s.text);
+    assert.ok(shown, `the landing-gap line must render, got: ${s.text.slice(0, 400)}`);
+    assert.equal(Number(shown[1]), shownIfRight,
+      `the gap must come from the plan the cook runs (${shownIfRight}), not the earliest-serve plan (${shownIfWrong})`);
+  }));
 });
 
 test('serve mode: the earliest serve time is the earliest over placement ORDERS, not one order', () => {

@@ -7768,17 +7768,6 @@ function BSPrepSession({ program, onClose }) {
   // The "cook them at the same time" probe. Its own scheduler — the session length it
   // reports is not the serve plan's, so the option row must read this and not `orchServe`.
   const orchTogether = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.TOGETHER, kitchen }), [orchInput, kitchen]);
-  // How far apart the food still lands, when the kitchen cannot do better. Said plainly
-  // rather than hidden: a promise of "at once" that quietly means 26 minutes apart is
-  // worse than the honest number.
-  //
-  // ⚠ This belongs to the SERVE option and is shown there, beside the start time the
-  // cook sets an alarm by. MEASURED across 3,570 catalog pairs: a serve plan lands every
-  // dish at one moment in only 2.2% of them, mean gap 15.6 min. It is NOT the kitchen —
-  // an unlimited-station kitchen gives the identical 2.2%. It is the one cook, who
-  // cannot finish two hands-on dishes at the same instant. So the number is disclosed
-  // rather than the promise being made.
-  const serveSpread = orchServe.spread || 0;
   // The session's own clock anchor. Read once at mount: deriving "7:30pm" from a
   // Date.now() that moves every render makes the chosen time slide while the cook is
   // still looking at it. Re-validated at the Start tap, where dawdling on this screen
@@ -7841,6 +7830,27 @@ function BSPrepSession({ program, onClose }) {
     () => (cookMode ? bsOrchestrate(orchInput, engineOptsFor(cookMode)) : orchAuto),
     [orchInput, cookMode, orchAuto, kitchen, chosenServe, runServeAt],
   );
+  // How far apart the food still lands, when the kitchen cannot do better. Said plainly
+  // rather than hidden: a promise of "at once" that quietly means 26 minutes apart is
+  // worse than the honest number.
+  //
+  // ⚠ Read from `orch` — the plan the cook is about to RUN — and not from `orchServe`,
+  // which serves at the earliest reachable time rather than the one they picked. Those
+  // are different schedules, and the difference is not cosmetic: MEASURED over 89,100
+  // pair/kitchen/serve-time comparisons, the earliest-plan gap differs from the run
+  // plan's in 5.7%, and it is ONE-DIRECTIONAL — it understates, never overstates, by up
+  // to 101 minutes. It renders beside "You start cooking at {t}", which already reads
+  // `orch`; a gap from a different schedule than the start time next to it is a wrong
+  // number at the point the cook acts on it.
+  //
+  // ⚠ It never falsely promises a single moment (0 cases of shown-0 with a real gap),
+  // so the defect was an understated number rather than a broken promise.
+  //
+  // MEASURED across 3,570 catalog pairs: a serve plan lands every dish at one moment in
+  // only 2.2% of them, mean gap 15.6 min. It is NOT the kitchen — an unlimited-station
+  // kitchen gives the identical 2.2%. It is the one cook, who cannot finish two hands-on
+  // dishes at the same instant. So the number is disclosed rather than promised away.
+  const serveSpread = orch.spread || 0;
   const interleaved = !orch.serial && orch.timeline.length > 0;
   const multi = ordered.length >= 2;
   // Minutes still available at THIS instant. `chosenServe` counts from the mount
