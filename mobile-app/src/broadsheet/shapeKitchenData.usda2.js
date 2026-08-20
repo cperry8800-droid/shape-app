@@ -40,6 +40,7 @@ export const USDA2_KITCHEN_RECIPES = [
       { n: "2 medium", m: "carrots, ribbon peeled" },
       { n: "3", m: "radishes, sliced" },
       { n: "1/2 cup", m: "rice wine vinegar" },
+      { n: "1/2 cup", m: "warm water" },
       { n: "1 clove", m: "garlic, minced" },
       { n: "1 tsp", m: "honey" },
       { n: "1/4 tsp", m: "salt" },
@@ -51,7 +52,7 @@ export const USDA2_KITCHEN_RECIPES = [
       { n: "1/2", m: "avocado, sliced" },
     ],
     steps: [
-      "Shake the carrot ribbons, radishes, vinegar, garlic, salt, honey and a splash of warm water together in a jar and leave them to pickle for 30 minutes.",
+      "Shake the carrot ribbons, radishes, vinegar, garlic, salt, honey and the warm water together in a jar and leave them to pickle for 30 minutes.",
       "Toss the pork cubes with the lime juice, olive oil, paprika and cumin, then cover and marinate 15 minutes while the grill heats to medium-high.",
       "Bring the quinoa, stock and kale to a boil in a medium saucepan, then cover, drop to low and simmer 15 minutes until the grains uncoil and the liquid is gone; rest 5 minutes off the heat.",
       "Thread the pork onto skewers and grill over medium-high, turning often, until the cubes are lacquered and a thermometer reads 145°F, about 10 minutes. Rest 3 minutes so the juices settle.",
