@@ -23,7 +23,7 @@
 //      where every fault today actually lived.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { bsStepTimers, bsFractionalDuration, BS_TIMER_UNITS, bsCookableFromRecipe } from '../mobile-app/src/services/cookable.mjs';
@@ -35,14 +35,22 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 // The website carries a content-parity copy of the catalog, so the same rules
 // have to hold there or the two drift — a step fixed on mobile and not on the
 // site would render the old double-timer to anyone browsing /recipes.
+// The catalog is no longer ONE file and keeps growing one: each USDA MyPlate
+// import lives in its own module. A HARDCODED list silently excludes whatever it
+// was not told about, and those steps then get scanned on the WEBSITE (inlined
+// into recipes.jsx) and nowhere on mobile — half the truth, reading exactly like
+// a pass. That is not hypothetical: it is what batch 2 did, and the note telling
+// the next person to "add it here" did not survive contact. So the catalog files
+// are DERIVED, and a batch 3 needs no edit to this file.
+const CATALOG_DIR = 'mobile-app/src/broadsheet';
+const CATALOG_FILES = readdirSync(join(ROOT, CATALOG_DIR))
+  .filter((f) => /^shapeKitchenData.*[.]js$/.test(f))
+  .sort();
+// A glob that matches nothing is the same silent pass this exists to prevent.
+if (CATALOG_FILES.length < 2) throw new Error(`cook-steps: only ${CATALOG_FILES.length} catalog file(s) in ${CATALOG_DIR} — the scan would be near-empty`);
+
 const SOURCES = [
-  ['catalog', 'mobile-app/src/broadsheet/shapeKitchenData.js'],
-  // ⚠ The catalog is no longer ONE file. The 50 USDA MyPlate recipes live in
-  // their own module, and a hardcoded source list silently excludes whatever it
-  // was not told about — so without this line their steps are scanned on the
-  // WEBSITE (inlined into recipes.jsx) and nowhere on mobile, which reports half
-  // the truth and reads like a pass. Adding a catalog file means adding it here.
-  ['usda catalog', 'mobile-app/src/broadsheet/shapeKitchenData.usda.js'],
+  ...CATALOG_FILES.map((f) => [`catalog ${f}`, `${CATALOG_DIR}/${f}`]),
   ['demo meal plans', 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'],
   ['website recipes', 'public/newdesign/recipes.jsx'],
 ];
@@ -145,7 +153,11 @@ test('cook steps: no decimal anywhere in a step (it silently kills EVERY timer o
 const TWO_TIMER_OK = [
   /\bor\b/i,                                             // ALTERNATIVE: the cook picks one
   /\b(?:for|in)\s+the\s+last\b/i,                        // NESTED: inside the first wait
-  /[;,]\s*(?:then\s+)?(?:rest|stand|cool|chill|set)\b/i,  // TRAILING HOLD
+  // TRAILING HOLD. The separator may be a full stop as readily as a comma:
+  // "...145°F, about 10 minutes. Rest 3 minutes so the juices settle." is
+  // the same shape as "...; rest 5 minutes off the heat", which this already
+  // exempted. The distinction was punctuation, not meaning.
+  /[;,.]\s*(?:then\s+)?(?:rest|stand|cool|chill|set)\b/i,
 ];
 test('cook steps: at most ONE timer per step (a step is one wait)', () => {
   const bad = ALL
