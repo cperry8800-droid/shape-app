@@ -157,6 +157,20 @@ export function drive(Component, props, opts = {}) {
       renderOnce();
       return api;
     },
+    // Click a control by its React `key` rather than its label. Use this when the test
+    // is about WHICH option was chosen and not about the wording — a key is the stable
+    // identity, so a copy change cannot silently redirect the click or break the test
+    // for a reason unrelated to what it asserts.
+    clickKey(key) {
+      const btn = nodes().find((n) => String(n.key) === String(key) && n.props && typeof n.props.onClick === 'function');
+      if (!btn) {
+        const have = nodes().filter((n) => n.key != null && n.props && n.props.onClick).map((n) => JSON.stringify(String(n.key)));
+        throw new Error(`no control keyed ${JSON.stringify(String(key))} (have: ${have.join(', ')})`);
+      }
+      btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+      renderOnce();
+      return api;
+    },
     // Some controls are a local component rather than a host <button>, so no
     // <button> for them exists in the returned tree — their handler rides on the
     // element's own props. Finding the element at all is itself evidence that the

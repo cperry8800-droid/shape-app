@@ -264,7 +264,7 @@ test('serve picker: choosing a table time renders, and says which DAY it landed 
     const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
     for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
     s.click('Merge the mise');
-    s.click('Serve mode');
+    s.clickKey('serve');   // by key, not by label — the test is about the OPTION, not its wording
 
     assert.match(s.text, /On the table at/, 'the serve-time picker must render');
     const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
@@ -717,4 +717,66 @@ test('serve mode: a plan resting on untimed long steps says so, and authoring th
     'authoring the duration must silence the caveat, or it is measuring the wrong thing');
   assert.ok(bsOrchestrate([authored, short], { mode: BS_COOK_MODE.SERVE }).earliestServe >= 60,
     'and the authored hour must still be scheduled');
+});
+
+test('the three cook options run three DIFFERENT schedulers', () => {
+  // Owner ruling 2026-08-19: "cook at the same time", "cook separately" and "cook to
+  // serve" are three questions, not one question at three times. SOONEST used to run
+  // SERVE with no `serveAt`, which made it the serve option minus its time picker --
+  // two of the three doors opening on the same room.
+  //
+  // ⚠ THIS MUST ASSERT THE PLAN THE SHEET RUNS, NOT THE ROW BADGE. A first version of
+  // this test checked the minutes on the option row; those come from their own memos
+  // and never touch the choice->mode mapping, so rewiring SOONEST back to SERVE left it
+  // GREEN. The road map renders one row per timeline event as `{at}m{title}`, which is
+  // the chosen plan itself -- so that is what is compared.
+  const cookables = SHAPE_KITCHEN_RECIPES.map((r) => {
+    const c = bsCookableFromRecipe(r);
+    if (!c || !Array.isArray(c.steps) || !c.steps.length) return null;
+    return { key: r.key || r.title, title: r.title, steps: c.steps, stepMeta: c.stepMeta || [] };
+  }).filter(Boolean);
+
+  // The first catalog pair whose three modes all disagree. A pair where two of them
+  // agree could not tell those two apart; the search failing is asserted, so this can
+  // never pass vacuously.
+  let found = null;
+  outer:
+  for (let i = 0; i < cookables.length && !found; i++) {
+    for (let j = i + 1; j < cookables.length; j++) {
+      const rs = [cookables[i], cookables[j]];
+      const tog = bsOrchestrate(rs, { mode: BS_COOK_MODE.TOGETHER });
+      const srv = bsOrchestrate(rs, { mode: BS_COOK_MODE.SERVE });
+      const seq = bsOrchestrate(rs, { mode: BS_COOK_MODE.SEQUENCE });
+      const sig = (p) => p.timeline.map((e) => e.at).join(',');
+      if (sig(tog) !== sig(srv) && sig(tog) !== sig(seq) && sig(srv) !== sig(seq)) {
+        found = { rs, tog, srv, seq }; break outer;
+      }
+    }
+  }
+  assert.ok(found, 'no catalog pair separates all three modes — this test cannot discriminate');
+
+  const { rs, tog, srv, seq } = found;
+  const program = [{ meals: rs.map((r, i) => ({ id: `p${i}`, slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 })) }];
+  // Each road-map row is `{at}m` immediately followed by the recipe title, so a minute
+  // token followed by a letter is a step row. A hold chip reads "◷ 18m" and is followed
+  // by the next row's digits, so it does not match.
+  const offsets = (text) => [...text.matchAll(/(\d+)m(?=[A-Za-z])/g)].map((m) => Number(m[1]));
+  const planOffsets = (p) => p.timeline.map((e) => e.at);
+
+  const render = (choiceKey) => withClockAt(12, 0, () => {
+    const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+    for (const m of program[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    s.clickKey(choiceKey);
+    return offsets(s.text);
+  });
+
+  const shownSoonest = render('soonest');
+  const shownSequence = render('sequence');
+
+  assert.deepEqual(shownSoonest, planOffsets(tog),
+    `"cook at the same time" must run the TOGETHER plan. Got ${shownSoonest.join(',')}; TOGETHER is ${planOffsets(tog).join(',')} and SERVE is ${planOffsets(srv).join(',')}`);
+  assert.notDeepEqual(shownSoonest, planOffsets(srv),
+    'the same-time option is running the SERVE scheduler — the two options are the same door again');
+  assert.deepEqual(shownSequence, planOffsets(seq), '"cook separately" must run the SEQUENCE plan');
 });

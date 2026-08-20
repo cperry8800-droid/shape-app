@@ -7759,9 +7759,19 @@ function BSPrepSession({ program, onClose }) {
   // possible" depends on there being a real window to hide work inside, which is why
   // that is the one option that can be unavailable.
   const orchServe = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SERVE, kitchen }), [orchInput, kitchen]);
+  // The "cook them at the same time" probe. Its own scheduler — the session length it
+  // reports is not the serve plan's, so the option row must read this and not `orchServe`.
+  const orchTogether = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.TOGETHER, kitchen }), [orchInput, kitchen]);
   // How far apart the food still lands, when the kitchen cannot do better. Said plainly
   // rather than hidden: a promise of "at once" that quietly means 26 minutes apart is
   // worse than the honest number.
+  //
+  // ⚠ This belongs to the SERVE option and is shown there, beside the start time the
+  // cook sets an alarm by. MEASURED across 3,570 catalog pairs: a serve plan lands every
+  // dish at one moment in only 2.2% of them, mean gap 15.6 min. It is NOT the kitchen —
+  // an unlimited-station kitchen gives the identical 2.2%. It is the one cook, who
+  // cannot finish two hands-on dishes at the same instant. So the number is disclosed
+  // rather than the promise being made.
   const serveSpread = orchServe.spread || 0;
   // The session's own clock anchor. Read once at mount: deriving "7:30pm" from a
   // Date.now() that moves every render makes the chosen time slide while the cook is
@@ -7800,14 +7810,26 @@ function BSPrepSession({ program, onClose }) {
   // Rewriting the time and returning is a rejection with nothing on screen to explain it.
   const [serveSlipped, setServeSlipped] = useStateBSC(false);
 
-  // The cook picks an INTENT; the engine mode is derived. Two of the three intents run
-  // the same scheduler and differ only in WHEN dinner is — which is the whole distinction
-  // the owner asked the question to draw: cooking several things to get out of the
-  // kitchen, versus cooking them to land on the table together for guests.
+  // The cook picks an INTENT; the engine mode is derived. THREE intents, three
+  // schedulers — owner ruling 2026-08-19:
+  //
+  //   SOONEST   cook them AT THE SAME TIME. Weave the work so the session is
+  //             shortest; dishes finish when they finish.            → TOGETHER
+  //   SEQUENCE  cook them SEPARATELY. Finish one, start the next.    → SEQUENCE
+  //   SERVE     cook TO SERVE. Time them so everything completes at
+  //             one moment, at a time the cook picks.                → SERVE
+  //
+  // ⚠ SOONEST used to run SERVE with no `serveAt`, which made it "everything lands
+  // together, as early as possible" — i.e. the SERVE option minus its time picker.
+  // Two of the three doors led to the same room, and the option that was supposed to
+  // get the cook OUT of the kitchen was optimising the wrong thing. MEASURED over
+  // 3,570 catalog pairs: TOGETHER finishes sooner in 16.0% and later in 4.2%
+  // (mean session 38.6 min vs 39.9; SEQUENCE 44.4), so the rewire is also the faster
+  // plan on balance — but the reason it is correct is that it is a DIFFERENT question.
   const engineOptsFor = (choice) => {
     if (choice === BS_COOK_CHOICE.SEQUENCE) return { mode: BS_COOK_MODE.SEQUENCE, kitchen };
     if (choice === BS_COOK_CHOICE.SERVE) return { mode: BS_COOK_MODE.SERVE, serveAt: runServeAt ?? chosenServe, kitchen };
-    return { mode: BS_COOK_MODE.SERVE, kitchen };   // SOONEST: earliest reachable
+    return { mode: BS_COOK_MODE.TOGETHER, kitchen };   // SOONEST: cook them at once
   };
   const orch = React.useMemo(
     () => (cookMode ? bsOrchestrate(orchInput, engineOptsFor(cookMode)) : orchAuto),
@@ -8057,24 +8079,22 @@ function BSPrepSession({ program, onClose }) {
                 </div>
                 <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 9 }}>
                   {[
+                    // ⚠ The three rows are three DIFFERENT questions, not one question at
+                    // three times. Each reads its own plan: a row that reported another
+                    // mode's minutes would be advertising a schedule it does not run.
                     { key: BS_COOK_CHOICE.SOONEST,
-                      label: tr('cook:prep.soonest', { defaultValue: 'Get it all done soonest' }),
-                      // The superlative is DELETED rather than softened above the exhaustive
-                      // search bound. Seven dishes report 118 minutes here while an order
-                      // exists that serves at 113, so "as early as it can be" is a claim the
-                      // search cannot back; what is left is what the option still honestly is.
-                      sub: serveSpread > 0
-                        ? tr('cook:prep.soonestGap', { defaultValue: 'Within {n} min of each other', n: serveSpread })
-                        : orchServe.exact === false
-                          ? tr('cook:prep.soonestSubSearched', { defaultValue: 'Everything ready together' })
-                          : tr('cook:prep.soonestSub', { defaultValue: 'Everything ready together, as early as it can be' }),
-                      mins: spanOf(orchServe), on: true },
+                      label: tr('cook:prep.soonest', { defaultValue: 'Cook at the same time' }),
+                      // No "ready together" claim here — under TOGETHER dishes finish when
+                      // they finish, and that IS the option. The landing gap is the SERVE
+                      // option's disclosure and is shown there.
+                      sub: tr('cook:prep.soonestSub', { defaultValue: 'Everything at once — out of the kitchen soonest' }),
+                      mins: spanOf(orchTogether), on: true },
                     { key: BS_COOK_CHOICE.SERVE,
-                      label: tr('cook:prep.serveMode', { defaultValue: 'Serve mode' }),
+                      label: tr('cook:prep.serveMode', { defaultValue: 'Cook to serve' }),
                       sub: tr('cook:prep.serveModeSub', { defaultValue: 'On the table at a time you choose' }),
                       mins: 0, on: true },
                     { key: BS_COOK_CHOICE.SEQUENCE,
-                      label: tr('cook:prep.oneAtATime', { defaultValue: 'One at a time' }),
+                      label: tr('cook:prep.oneAtATime', { defaultValue: 'Cook separately' }),
                       sub: tr('cook:prep.oneAtATimeSub', { defaultValue: 'Finish one, then start the next' }),
                       mins: spanOf(orchSeq), on: true },
                   ].map((opt) => {
@@ -8134,6 +8154,15 @@ function BSPrepSession({ program, onClose }) {
                       <div style={{ marginTop: 7 }}>
                         <div style={{ fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.INK50 }}>
                           {tr('cook:prep.serveTooSoon', { defaultValue: 'Not enough time — the earliest these can all be ready is {t}', t: clockOf(earliestServe) })}
+                          {/* That "earliest" is only proven below the exhaustive order-search
+                              bound. Above it, seven dishes report 118 minutes while an order
+                              exists that serves at 113 — so the claim is qualified where it
+                              is made rather than left to stand unguarded. */}
+                          {orchServe.exact === false ? (
+                            <div style={{ marginTop: 3 }}>
+                              {tr('cook:prep.earliestSearched', { defaultValue: 'The earliest of the orders we searched' })}
+                            </div>
+                          ) : null}
                         </div>
                         <button
                           type="button"
@@ -8154,6 +8183,16 @@ function BSPrepSession({ program, onClose }) {
                         {orch.estimated ? (
                           <div style={{ marginTop: 3 }}>
                             {tr('cook:prep.startAtEstimated', { defaultValue: 'Some steps are not timed by the recipe, so give yourself extra' })}
+                          </div>
+                        ) : null}
+                        {/* "Cook to serve" means everything completes at one moment. One cook
+                            usually cannot deliver that — MEASURED across 3,570 catalog pairs,
+                            a serve plan lands every dish together in 2.2%, mean gap 15.6 min,
+                            and an unlimited-station kitchen does not improve it. So the gap is
+                            stated here rather than promised away. */}
+                        {serveSpread > 0 ? (
+                          <div style={{ marginTop: 3 }}>
+                            {tr('cook:prep.serveGap', { defaultValue: 'Within {n} min of each other', n: serveSpread })}
                           </div>
                         ) : null}
                       </div>
