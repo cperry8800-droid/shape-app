@@ -237,10 +237,17 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
   const gateTag = (p: FlightPr) => {
     if (p.allGreen)
       return { text: 'AWAITING YOUR WORD', color: N.bg, bg: N.accent, border: N.accent };
-    if (p.ci === 'red' || p.coderabbit === 'changes') return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
+    // ⚠ CodeRabbit no longer decides this tag, because it no longer decides the gate.
+    // It read `coderabbit === 'changes'` as BLOCKED while `prAllGreen` ignored it — the
+    // headline would then contradict the thing it is a headline for.
+    if (p.ci === 'red' || p.codex === 'findings')
+      return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
     if (p.draft) return { text: 'DRAFT', color: N.dim, bg: 'transparent', border: N.dimmer };
-    // Not "IN REVIEW" — nothing is reviewing it, and nothing will until the cap
-    // clears. Saying otherwise is how a cap notice gets mistaken for a pass.
+    // Not "IN REVIEW" in either of the next two: the review has FINISHED in both, and
+    // each needs a different action. Saying "in review" is how a finished-but-unusable
+    // verdict gets waited on instead of acted on.
+    if (p.codex === 'stale')
+      return { text: 'CDX RE-TRIGGER', color: N.gold, bg: 'transparent', border: N.gold };
     if (p.coderabbit === 'limited')
       return { text: 'CR LIMIT REACHED', color: N.gold, bg: 'transparent', border: N.gold };
     return { text: 'IN REVIEW', color: N.gold, bg: 'transparent', border: N.gold };

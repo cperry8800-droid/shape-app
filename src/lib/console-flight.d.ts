@@ -17,8 +17,13 @@ export function coderabbitVerdict(args: {
 }): CoderabbitVerdict;
 
 export function codexVerdict(args: {
-  reviews?: Array<{ user?: { login?: string }; body?: string; commit_id?: string }>;
-  comments?: Array<{ user?: { login?: string }; body?: string }>;
+  reviews?: Array<{
+    user?: { login?: string };
+    body?: string;
+    commit_id?: string;
+    submitted_at?: string;
+  }>;
+  comments?: Array<{ user?: { login?: string }; body?: string; created_at?: string }>;
   headSha?: string;
 }): CodexVerdict;
 

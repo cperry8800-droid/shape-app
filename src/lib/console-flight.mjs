@@ -177,20 +177,33 @@ export function codexVerdict({ reviews, comments, headSha } = {}) {
   // head we cannot name.
   if (!sha) return 'stale';
 
-  let clean = false;
+  // ⚠ LATEST WINS, and returning on the first findings record was WRONG. Refuting a
+  // finding and re-triggering WITHOUT a new commit is a real round, and then both the
+  // findings review and the clean comment that cleared it name the SAME head. Treating
+  // any past finding on a SHA as permanent jams the gate forever on a head Codex has
+  // explicitly passed — fail-closed turning into fail-closed-forever.
+  const onHead = [];
   for (const r of records) {
     const body = String(r?.body || '');
     const m = CODEX_COMMIT_RE.exec(body);
     const named = m ? m[1] : String(r?.commit_id || '');
     if (named.length < 7) continue;          // unpinnable — never a pass
     if (!sha.startsWith(named) && !named.startsWith(sha)) continue;
-    // Findings on this head outrank a clean marker on it, the same way a cap
-    // notice outranks a zero-marker above: reading a findings round as a pass is
-    // the direction that costs something.
-    if (!CODEX_CLEAN_RE.test(body)) return 'findings';
-    clean = true;
+    onHead.push({
+      at: String(r?.submitted_at || r?.created_at || ''),
+      clean: CODEX_CLEAN_RE.test(body),
+    });
   }
-  return clean ? 'clean' : 'stale';
+  if (!onHead.length) return 'stale';
+  // Ascending by timestamp, and where two cannot be ordered — equal stamps, or records
+  // carrying none — CLEAN sorts first so FINDINGS ends up last and still wins. Order that
+  // cannot be established falls back to the conservative reading rather than the lucky one.
+  onHead.sort((a, b) => {
+    if (a.at !== b.at) return a.at < b.at ? -1 : 1;
+    if (a.clean === b.clean) return 0;
+    return a.clean ? -1 : 1;
+  });
+  return onHead[onHead.length - 1].clean ? 'clean' : 'findings';
 }
 
 /**

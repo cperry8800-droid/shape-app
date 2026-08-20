@@ -43,9 +43,36 @@ async function gh(path: string, token: string): Promise<unknown> {
   return res.json();
 }
 
+// ⚠ GITHUB RETURNS THE OLDEST PAGE FIRST, and neither of these endpoints takes a
+// direction parameter. On a PR past 100 comments the NEWEST Codex verdict sits on a
+// later page, so a single `per_page=100` request would hand a head-pinned gate only
+// the old records and it would read 'stale' forever. Follow pages until a short one.
+// The cap bounds the board's latency; beyond it records are missed, and the failure
+// direction of missing them is 'stale' — closed, never a false pass.
+const GH_PAGE_CAP = 5;
+async function ghAll(path: string, token: string): Promise<unknown[]> {
+  const out: unknown[] = [];
+  for (let page = 1; page <= GH_PAGE_CAP; page++) {
+    const sep = path.includes('?') ? '&' : '?';
+    const chunk = (await gh(`${path}${sep}per_page=100&page=${page}`, token)) as unknown[];
+    if (!Array.isArray(chunk) || chunk.length === 0) break;
+    out.push(...chunk);
+    if (chunk.length < 100) break;
+  }
+  return out;
+}
+
 type CheckRun = { name?: string; status?: string; conclusion?: string | null };
-type Review = { user?: { login?: string }; state?: string; commit_id?: string };
-type Comment = { user?: { login?: string }; body?: string };
+// `body` and the timestamps are read by codexVerdict — it pins a verdict to a head from
+// the `Reviewed commit:` field in the body, and orders same-head records by time.
+type Review = {
+  user?: { login?: string };
+  state?: string;
+  commit_id?: string;
+  body?: string;
+  submitted_at?: string;
+};
+type Comment = { user?: { login?: string }; body?: string; created_at?: string };
 
 async function checkRunsFor(sha: string, token: string): Promise<Gate> {
   const data = (await gh(`/repos/${REPO}/commits/${sha}/check-runs?per_page=100`, token)) as {
@@ -79,8 +106,8 @@ async function buildFlight(token: string): Promise<Flight> {
       try {
         const [ciGate, reviews, comments] = await Promise.all([
           headSha ? checkRunsFor(headSha, token) : Promise.resolve<Gate>('none'),
-          gh(`/repos/${REPO}/pulls/${p.number}/reviews?per_page=100`, token) as Promise<Review[]>,
-          gh(`/repos/${REPO}/issues/${p.number}/comments?per_page=100`, token) as Promise<Comment[]>,
+          ghAll(`/repos/${REPO}/pulls/${p.number}/reviews`, token) as Promise<Review[]>,
+          ghAll(`/repos/${REPO}/issues/${p.number}/comments`, token) as Promise<Comment[]>,
         ]);
         ci = ciGate;
         coderabbit = coderabbitVerdict({ reviews, comments, headSha });

@@ -235,11 +235,32 @@ test('codexVerdict — findings on the head close the gate', () => {
   assert.equal(codexVerdict({ reviews: [cxFinds(OLD)], headSha: SHA }), 'stale');
 });
 
-test('codexVerdict — findings OUTRANK a clean marker on the same head', () => {
-  // Reading a findings round as a pass is the failure direction that costs something,
-  // exactly as CR_LIMIT_RE outranks a zero-marker in coderabbitVerdict.
+test('codexVerdict — with no timestamps to order them, findings outrank a clean marker', () => {
+  // Order cannot be established, so fail CLOSED: reading a findings round as a pass is the
+  // direction that costs something, exactly as CR_LIMIT_RE outranks a zero-marker above.
+  // When the records DO carry timestamps, latest-wins governs instead — see below.
   assert.equal(
     codexVerdict({ reviews: [cxFinds(SHA)], comments: [cxClean(SHA)], headSha: SHA }),
+    'findings'
+  );
+});
+// ⚠ FAIL-CLOSED BECAME FAIL-CLOSED-FOREVER, which is its own defect. Refuting a finding
+// and re-triggering WITHOUT a new commit is a real round: both the findings review and the
+// later clean comment then name the SAME head. Returning on the first findings record made
+// that historical round permanently outrank the verdict that cleared it, so the gate could
+// never open for a head Codex had explicitly passed. The rule is LATEST-WINS for the head.
+test('codexVerdict — the NEWEST verdict for the head wins, not the first one seen', () => {
+  const at = (r, t) => ({ ...r, submitted_at: t, created_at: t });
+  const early = at(cxFinds(SHA), '2026-08-20T10:00:00Z');
+  const later = at(cxClean(SHA), '2026-08-20T11:00:00Z');
+  assert.equal(codexVerdict({ reviews: [early], comments: [later], headSha: SHA }), 'clean');
+
+  // ...and the other order still closes it: a clean pass followed by a NEW findings round
+  // on the same head is a gate that must shut again.
+  const clearFirst = at(cxClean(SHA), '2026-08-20T10:00:00Z');
+  const findsLater = at(cxFinds(SHA), '2026-08-20T11:00:00Z');
+  assert.equal(
+    codexVerdict({ reviews: [findsLater], comments: [clearFirst], headSha: SHA }),
     'findings'
   );
 });
