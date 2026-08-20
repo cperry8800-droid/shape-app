@@ -117,5 +117,7 @@
   "prep.startsIn": "Inizia tra {n} min",
   "prep.startNow": "Inizia ora",
   "prep.startAtEstimated": "La ricetta non indica il tempo di alcuni passaggi: tieniti un margine",
-  "prep.earliestSearched": "Il più presto tra gli ordini che abbiamo provato"
+  "prep.earliestSearched": "Il più presto tra gli ordini che abbiamo provato",
+  "prep.noWindow": "Nessun piatto qui ha un'attesa abbastanza lunga da sfruttare",
+  "prep.noStation": "La tua cucina non ha fuochi o forno liberi per la sovrapposizione"
 }

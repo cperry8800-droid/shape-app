@@ -111,11 +111,13 @@
   "prep.serveTooSoon": "Not enough time — the earliest these can all be ready is {t}",
   "prep.soonest": "Cook at the same time",
   "prep.serveGap": "Within {n} min of each other",
-  "prep.soonestSub": "Everything at once — out of the kitchen soonest",
+  "prep.soonestSub": "Everything at once — less time in the kitchen",
   "prep.startAt": "You start cooking at {t}",
   "prep.useEarliest": "Use {t}",
   "prep.startsIn": "Starts in {n} min",
   "prep.startNow": "Start now",
   "prep.startAtEstimated": "Some steps are not timed by the recipe, so give yourself extra time",
-  "prep.earliestSearched": "The earliest of the orders we searched"
+  "prep.earliestSearched": "The earliest of the orders we searched",
+  "prep.noWindow": "No dish here has a wait long enough to cook into",
+  "prep.noStation": "Your kitchen has no free burner or oven for the overlap"
 }

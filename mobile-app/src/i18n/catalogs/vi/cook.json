@@ -111,11 +111,13 @@
   "prep.serveTooSoon": "Không đủ thời gian — sớm nhất tất cả sẵn sàng lúc {t}",
   "prep.soonest": "Nấu cùng lúc",
   "prep.serveGap": "Cách nhau trong {n} phút",
-  "prep.soonestSub": "Tất cả cùng lúc — rời bếp sớm nhất",
+  "prep.soonestSub": "Tất cả cùng lúc — bớt thời gian trong bếp",
   "prep.startAt": "Bạn bắt đầu nấu lúc {t}",
   "prep.useEarliest": "Dùng {t}",
   "prep.startsIn": "Bắt đầu sau {n} phút",
   "prep.startNow": "Bắt đầu ngay",
   "prep.startAtEstimated": "Công thức không tính giờ cho một số bước, hãy trừ hao thêm",
-  "prep.earliestSearched": "Sớm nhất trong các thứ tự đã thử"
+  "prep.earliestSearched": "Sớm nhất trong các thứ tự đã thử",
+  "prep.noWindow": "Không món nào ở đây có khoảng chờ đủ dài để nấu xen vào",
+  "prep.noStation": "Bếp của bạn không còn bếp lò hay lò nướng trống để làm chồng lên"
 }

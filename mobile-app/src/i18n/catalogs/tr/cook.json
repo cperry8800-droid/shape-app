@@ -111,11 +111,13 @@
   "prep.serveTooSoon": "Zaman yetmiyor — hepsi en erken {t} hazır olur",
   "prep.soonest": "Aynı anda pişir",
   "prep.serveGap": "Birbirinden {n} dk arayla",
-  "prep.soonestSub": "Hepsi bir arada — mutfaktan en erken çıkış",
+  "prep.soonestSub": "Hepsi bir arada — mutfakta daha az zaman",
   "prep.startAt": "Saat {t} pişirmeye başlıyorsun",
   "prep.useEarliest": "{t} kullan",
   "prep.startsIn": "{n} dk sonra başlıyor",
   "prep.startNow": "Şimdi başla",
   "prep.startAtEstimated": "Tarif bazı adımlara süre vermiyor, kendine pay bırak",
-  "prep.earliestSearched": "Denediğimiz sıralamalar içinde en erkeni"
+  "prep.earliestSearched": "Denediğimiz sıralamalar içinde en erkeni",
+  "prep.noWindow": "Burada araya girecek kadar uzun beklemesi olan bir yemek yok",
+  "prep.noStation": "Mutfağında çakışma için boş ocak ya da fırın yok"
 }

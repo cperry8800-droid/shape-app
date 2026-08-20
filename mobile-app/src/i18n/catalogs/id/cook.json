@@ -111,11 +111,13 @@
   "prep.serveTooSoon": "Waktunya kurang — paling cepat semuanya siap pukul {t}",
   "prep.soonest": "Masak bersamaan",
   "prep.serveGap": "Selisih {n} mnt satu sama lain",
-  "prep.soonestSub": "Semua sekaligus — paling cepat keluar dari dapur",
+  "prep.soonestSub": "Semua sekaligus — lebih sedikit waktu di dapur",
   "prep.startAt": "Kamu mulai masak pukul {t}",
   "prep.useEarliest": "Pakai {t}",
   "prep.startsIn": "Mulai dalam {n} mnt",
   "prep.startNow": "Mulai sekarang",
   "prep.startAtEstimated": "Resep tidak memberi waktu untuk sebagian langkah, sediakan waktu lebih",
-  "prep.earliestSearched": "Paling awal dari urutan yang kami coba"
+  "prep.earliestSearched": "Paling awal dari urutan yang kami coba",
+  "prep.noWindow": "Tidak ada hidangan di sini dengan jeda cukup lama untuk disisipi",
+  "prep.noStation": "Dapurmu tidak punya tungku atau oven kosong untuk tumpang tindihnya"
 }

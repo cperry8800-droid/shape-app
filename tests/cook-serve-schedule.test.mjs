@@ -15,8 +15,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
-  SRC, drive, pressable, loadBroadsheet, importSibling, jsxOpenTag,
+  ROOT, SRC, drive, pressable, textOf, loadBroadsheet, importSibling, jsxOpenTag,
 } from './helpers/broadsheet-mount.mjs';
 
 const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
@@ -725,6 +726,31 @@ test('prep session: finishing a dish hands its unfinished holds to the session',
   assert.equal(handed.length, 1, `expected the running chill to be handed up, got ${JSON.stringify(handed)}`);
   assert.ok(handed[0].endsAt > Date.now() + 25 * 60000,
     `the carried hold ends at ${handed[0].endsAt}, which is not ~30 minutes out`);
+
+  // ⚠ AND IT MUST CARRY MORE THAN THE ARITHMETIC. Handing up only `endsAt` fed the debit
+  // correctly and destroyed everything a COOK needs: the next dish mounted a fresh
+  // BSCookMode with an empty timer list, so a live 30-minute chill and its finish notice
+  // vanished the moment the previous recipe unmounted.
+  assert.equal(handed[0].dish, r.title,
+    `the carried hold lost the dish it belongs to: ${JSON.stringify(handed[0])}`);
+  assert.ok(handed[0].gist || handed[0].label,
+    `the carried hold lost the words that name it: ${JSON.stringify(handed[0])}`);
+
+  // The NEXT dish must actually show it — the handoff is worth nothing if nothing renders.
+  const next = SHAPE_KITCHEN_RECIPES.find((x) => x.title !== r.title && bsCookableFromRecipe(x));
+  const s2 = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(next), onClose() {},
+    prep: { index: 1, count: 2, priorMins: 0, totalMins: 100, onPrepped() {}, carried: handed },
+  });
+  assert.ok(s2.text.includes(r.title),
+    `the next dish does not mention the hold still running from ${r.title}: ${s2.text.slice(0, 300)}`);
+
+  // ⚠ ...and it must NOT be dismissible here. It belongs to a dish already recorded, and a
+  // dismiss would silently change a figure this screen does not own.
+  const carriedDismiss = s2.nodes().filter((n) => n.type === 'button' && n.props.onClick
+    && String(n.key || '').startsWith('carried-'));
+  assert.equal(carriedDismiss.length, 0,
+    'a carried hold must be read-only on the next dish, not dismissible');
 });
 
 
@@ -880,4 +906,99 @@ test('the three cook options run three DIFFERENT schedulers', () => {
   assert.notDeepEqual(shownSoonest, planOffsets(srv),
     'the same-time option is running the SERVE scheduler — the two options are the same door again');
   assert.deepEqual(shownSequence, planOffsets(seq), '"cook separately" must run the SEQUENCE plan');
+});
+
+// The whole shipping catalog as cookables, built once — these two tests search it for a
+// real pair rather than hand-building fixtures, so they fail loudly if the catalog stops
+// containing the case they exist for.
+const KITCHEN_DATA = await importSibling('shapeKitchenData.js');
+const COOKABLE = await importSibling('..', 'services', 'cookable.mjs');
+const cookables = KITCHEN_DATA.SHAPE_KITCHEN_RECIPES
+  .map((r) => {
+    const c = COOKABLE.bsCookableFromRecipe(r);
+    return c && c.steps && c.steps.length
+      ? { key: r.key || r.title, title: r.title, steps: c.steps, stepMeta: c.stepMeta || [] }
+      : null;
+  })
+  .filter(Boolean);
+
+// ⚠ TWO OPTIONS THAT RUN THE SAME PLAN ARE ONE OPTION WITH A FALSE PROMISE. When no dish
+// has a window to weave into, TOGETHER falls back to serial: it produces the SAME timeline
+// as "cook separately" and therefore the SAME minutes, while its row promised simultaneous
+// cooking. The engine had always NAMED the reason (BS_SERIAL_REASON.NO_WINDOW); nothing
+// read it, so the sheet offered a dead choice with no explanation.
+test('prep sheet: "cook at the same time" is not offered when it cannot weave', () => {
+  const kitchen = { stove: 1, oven: 1, board: 1 };
+
+  // Find REAL catalog pairs rather than hand-building fixtures — a pair I construct myself
+  // cannot tell me the shipping catalog still contains the case.
+  let dead = null;
+  let live = null;
+  for (let i = 0; i < cookables.length && (!dead || !live); i++) {
+    for (let j = i + 1; j < cookables.length && (!dead || !live); j++) {
+      const rs = [cookables[i], cookables[j]];
+      const plan = bsOrchestrate(rs, { mode: BS_COOK_MODE.TOGETHER, kitchen });
+      if (plan?.serial === true && !dead) dead = rs;
+      if (plan?.serial === false && !live) live = rs;
+    }
+  }
+  assert.ok(dead, 'the catalog no longer holds a pair that cannot weave — this test is vacuous');
+  assert.ok(live, 'the catalog no longer holds a pair that CAN weave — guard the guard');
+
+  const sameTimeRow = (rs) => {
+    const program = [{ meals: rs.map((r, i) => ({ id: `p${i}`, slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 })) }];
+    const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+    for (const m of program[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    const row = s.nodes().find((n) => String(n.key) === 'soonest' && n.props && n.props.onClick);
+    assert.ok(row, 'no option row keyed "soonest" rendered');
+    return { row, text: textOf(row) };
+  };
+
+  const d = sameTimeRow(dead);
+  assert.equal(d.row.props.disabled, true,
+    `a pair that cannot weave must not offer "at the same time": ${d.text}`);
+  assert.match(d.text, /wait long enough|free burner/,
+    `the row must say WHY it is unavailable, not merely look dim: ${d.text}`);
+
+  // ⚠ AND THE MINUTES MUST BE GONE. They equal the "cook separately" figure exactly, so
+  // printing them offers a saving that does not exist.
+  //
+  // ⚠ THE FIRST VERSION OF THIS ASSERTION WAS HOLLOW, AND MUTATION-TESTING CAUGHT IT. It
+  // recomputed the sequence span here and looked for THAT number in the row — but the
+  // component schedules against its own persisted kitchen and renders 27 where this test
+  // computed 30, so the regex could never match and the assertion could never fail.
+  // Assert on what the ROW SHOWS, never on a number the test derived for itself.
+  assert.doesNotMatch(d.text, /\d+\s*min/,
+    `the unavailable row still printed minutes — the very figure "cook separately" shows: ${d.text}`);
+
+  // Guard the guard: still offered, still with its minutes, when it CAN weave.
+  const l = sameTimeRow(live);
+  assert.ok(!l.row.props.disabled, `a pair that CAN weave must still offer the option: ${l.text}`);
+  assert.match(l.text, /\d+\s*min/, `an available row must still show its minutes: ${l.text}`);
+});
+
+// ⚠ A SUPERLATIVE THE SCHEDULER CANNOT SUPPORT. TOGETHER is greedy and ORDER-SENSITIVE, and
+// the order search that would justify "soonest" lives on the SERVE path only.
+test('prep sheet: the same-time option claims no optimum it never searched for', () => {
+  const kitchen = { stove: 1, oven: 1, board: 1 };
+  const span = (p) => (p?.timeline?.length
+    ? Math.max(...p.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
+    : null);
+  const byTitle = (t) => cookables.find((r) => r.title === t);
+
+  const trio = ['One-pan chicken and rice', 'Greek yogurt power bowl', 'Catfish stew with brown rice'].map(byTitle);
+  if (trio.every(Boolean)) {
+    const perms = (a) => (a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map((r) => [x, ...r])));
+    const spans = perms(trio).map((o) => span(bsOrchestrate(o, { mode: BS_COOK_MODE.TOGETHER, kitchen }))).filter((x) => x != null);
+    const asGiven = span(bsOrchestrate(trio, { mode: BS_COOK_MODE.TOGETHER, kitchen }));
+    // This is the PREMISE of the copy change, pinned. If the scheduler ever becomes
+    // order-insensitive the superlative would be earnable again, and this is what says so.
+    assert.ok(Math.min(...spans) < asGiven,
+      'TOGETHER is no longer order-sensitive here — revisit whether "soonest" is now earnable');
+  }
+
+  const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', 'cook.json'), 'utf8'));
+  assert.doesNotMatch(en['prep.soonestSub'], /soonest|fastest|quickest|earliest/i,
+    `the same-time copy claims an optimum the greedy scheduler never searched for: ${en['prep.soonestSub']}`);
 });

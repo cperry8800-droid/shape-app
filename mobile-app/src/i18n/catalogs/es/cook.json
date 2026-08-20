@@ -111,11 +111,13 @@
   "prep.serveTooSoon": "No da tiempo — lo antes que pueden estar todos listos es {t}",
   "prep.soonest": "Cocinar al mismo tiempo",
   "prep.serveGap": "Con {n} min de diferencia",
-  "prep.soonestSub": "Todo a la vez: sales de la cocina lo antes posible",
+  "prep.soonestSub": "Todo a la vez: menos tiempo en la cocina",
   "prep.startAt": "Empiezas a cocinar a las {t}",
   "prep.useEarliest": "Usar {t}",
   "prep.startsIn": "Empieza en {n} min",
   "prep.startNow": "Empezar ya",
   "prep.startAtEstimated": "La receta no cronometra algunos pasos, así que date margen",
-  "prep.earliestSearched": "El más temprano de los órdenes que probamos"
+  "prep.earliestSearched": "El más temprano de los órdenes que probamos",
+  "prep.noWindow": "Ningún plato aquí tiene una espera lo bastante larga para aprovechar",
+  "prep.noStation": "Tu cocina no tiene fuego ni horno libre para el solapamiento"
 }
