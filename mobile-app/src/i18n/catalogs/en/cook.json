@@ -116,6 +116,6 @@
   "prep.useEarliest": "Use {t}",
   "prep.startsIn": "Starts in {n} min",
   "prep.startNow": "Start now",
-  "prep.startAtEstimated": "Some steps are not timed by the recipe, so give yourself extra",
+  "prep.startAtEstimated": "Some steps are not timed by the recipe, so give yourself extra time",
   "prep.earliestSearched": "The earliest of the orders we searched"
 }

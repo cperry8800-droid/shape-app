@@ -54,18 +54,25 @@ globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, l
 // outside — a component is instead driven by calling it, walking the element tree
 // it returns, invoking a handler, and calling it again. Effects stay no-ops: the
 // real ones start wall-clock intervals and reach for browser APIs.
-const CTX = { cells: [], idx: 0 };
+// ⚠ Hook cells belong to a DRIVER, not to this module. A single shared cell array is
+// silently wrong the moment two drivers are alive at once: mounting component B would
+// reset the cells, and the next `a.click(...)` would re-render A against B's state —
+// reads succeed and return the wrong values, with nothing to fail on. Each `drive()`
+// owns its cells and installs itself for the duration of a render.
+let ACTIVE_CTX = { cells: [], idx: 0 };
 export const SHIM = {
   ...React,
   useState(init) {
-    const i = CTX.idx++;
-    if (!(i in CTX.cells)) CTX.cells[i] = (typeof init === 'function' ? init() : init);
-    return [CTX.cells[i], (next) => { CTX.cells[i] = (typeof next === 'function' ? next(CTX.cells[i]) : next); }];
+    const ctx = ACTIVE_CTX;
+    const i = ctx.idx++;
+    if (!(i in ctx.cells)) ctx.cells[i] = (typeof init === 'function' ? init() : init);
+    return [ctx.cells[i], (next) => { ctx.cells[i] = (typeof next === 'function' ? next(ctx.cells[i]) : next); }];
   },
   useRef(init) {
-    const i = CTX.idx++;
-    if (!(i in CTX.cells)) CTX.cells[i] = { current: init };
-    return CTX.cells[i];
+    const ctx = ACTIVE_CTX;
+    const i = ctx.idx++;
+    if (!(i in ctx.cells)) ctx.cells[i] = { current: init };
+    return ctx.cells[i];
   },
   useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
   useMemo(fn) { return fn(); },
@@ -87,7 +94,14 @@ export async function loadBroadsheet(exportNames, reactImpl = SHIM) {
   const registry = new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]);
   for (const spec of specs) {
     if (registry.has(spec)) continue;
-    registry.set(spec, await import(pathToFileURL(join(SRC_DIR, spec)).href));
+    // A bare specifier is a PACKAGE, not a sibling file. Joining it onto the source
+    // directory produced an ENOENT for a path that never existed, which reads as a
+    // missing file rather than "this component now imports a package the harness has
+    // not been told about".
+    const isRelative = spec.startsWith('.') || spec.startsWith('/');
+    registry.set(spec, isRelative
+      ? await import(pathToFileURL(join(SRC_DIR, spec)).href)
+      : await import(spec));
   }
   const mod = { exports: {} };
   const req = (spec) => {
@@ -136,9 +150,15 @@ export const pressable = (n) => n.props['aria-pressed'] !== undefined;
 // once). It is a property of the surface under test, so the suite supplies it
 // rather than the harness assuming one.
 export function drive(Component, props, opts = {}) {
-  CTX.cells.length = 0;
+  const ctx = { cells: [], idx: 0 };   // this driver's own state — never shared
   let tree;
-  const renderOnce = () => { CTX.idx = 0; tree = Component(props); return tree; };
+  const renderOnce = () => {
+    const prev = ACTIVE_CTX;
+    ACTIVE_CTX = ctx;
+    ctx.idx = 0;
+    try { tree = Component(props); } finally { ACTIVE_CTX = prev; }
+    return tree;
+  };
   renderOnce();
   const nodes = () => flatten(tree);
   const api = {

@@ -7600,7 +7600,13 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
               {notDue
                 ? (<>
-                    <div role="status" aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+{/* A READOUT, not an alert. Round 1 of review: `aria-live` on a DISABLED
+                        button is commonly skipped, so it stopped being a button. Round 2: the
+                        value re-renders every second, and a live region would then announce on
+                        every tick — continuous interruption. Both are satisfied by a plain
+                        readout: the actionable controls beside it are real buttons and are what
+                        assistive tech reads. */}
+                    <div style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {tr('cook:prep.startsIn', { defaultValue: 'Starts in {n} min', n: dueIn })}
                     </div>
                     <button onClick={() => setJumpedAt(cursor)} style={{ ...quietBtn, flexShrink: 0 }}>
@@ -7610,7 +7616,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
                 : isWindow && !evStarted
                 ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
                 : waitingOn
-                  ? <div role="status" aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</div>
+                  ? <div style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</div>
                   : <button onClick={() => advance()} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
             </div>
           </>)}
@@ -8182,7 +8188,7 @@ function BSPrepSession({ program, onClose }) {
                             start time can be optimistic by more than an hour. */}
                         {orch.estimated ? (
                           <div style={{ marginTop: 3 }}>
-                            {tr('cook:prep.startAtEstimated', { defaultValue: 'Some steps are not timed by the recipe, so give yourself extra' })}
+                            {tr('cook:prep.startAtEstimated', { defaultValue: 'Some steps are not timed by the recipe, so give yourself extra time' })}
                           </div>
                         ) : null}
                         {/* "Cook to serve" means everything completes at one moment. One cook

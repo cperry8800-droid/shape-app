@@ -39,6 +39,7 @@ export const BS_SERIAL_REASON = {
 export const BS_SERVE_ISSUE = {
   TOO_SOON: 'too-soon',    // the serve time is earlier than the longest dish can be cooked
   STATIONS: 'stations',    // an exclusive station forced a dish to finish early
+  COOK: 'cook',            // the COOK was already busy — one pair of hands, not a station
 };
 
 export const BS_ORCH = {
@@ -227,6 +228,13 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
   const hands = [];
   const placed = [];
   let pulled = false;
+  // ⚠ WHICH resource pulled the dish, tracked separately. `pulled` alone was reported as
+  // BS_SERVE_ISSUE.STATIONS, which named the wrong cause: MEASURED over 3,570 catalog
+  // pairs, an UNLIMITED-station kitchen still reports a pull on 3,492 of them — the exact
+  // same count as one burner. A station with capacity 99 cannot pull anything, so every
+  // one of those was the COOK, and the reason code was wrong in 97.8% of plans.
+  let pulledByStation = false;
+  let pulledByCook = false;
   let deficit = 0;
 
   for (const { r, dur } of order) {
@@ -240,12 +248,17 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
         const len = stepCost(m, activeMin);
         const st = m.station ?? null;
         // Both resources are tested and the LARGER pull taken, so one pass clears both
-        // rather than ping-ponging the dish between a station and the cook.
-        const pull = Math.max(
-          stationPull(holds, st, at, at + len, kitchen) || 0,
-          needsHands(m) ? (handsPull(hands, at, at + len) || 0) : 0,
-        );
-        if (pull) clash = pull;
+        // rather than ping-ponging the dish between a station and the cook. Each is also
+        // recorded on its own, because "a station was busy" and "you were busy" are
+        // different facts to report and only one of them is usually true.
+        const byStation = stationPull(holds, st, at, at + len, kitchen) || 0;
+        const byCook = needsHands(m) ? (handsPull(hands, at, at + len) || 0) : 0;
+        const pull = Math.max(byStation, byCook);
+        if (pull) {
+          clash = pull;
+          if (byStation) pulledByStation = true;
+          if (byCook) pulledByCook = true;
+        }
         at += len;
       }
       if (!clash) break;
@@ -270,7 +283,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
       at += len;
     }
   }
-  return { feasible: true, placed, pulled };
+  return { feasible: true, placed, pulled, pulledByStation, pulledByCook };
 }
 
 // ⚠ ONE ORDER IS NOT THE EARLIEST. `placeAt` is a greedy heuristic: it fixes the placement
@@ -386,7 +399,11 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   const spread = vals.length ? Math.max(...vals) - Math.min(...vals) : 0;
   const issues = [];
   if (tooSoon) issues.push(BS_SERVE_ISSUE.TOO_SOON);
-  if (run.pulled) issues.push(BS_SERVE_ISSUE.STATIONS);
+  // Report the resource that actually pulled the dish. These are not exclusive — a
+  // plan can be squeezed by both — and STATIONS is no longer emitted for a clash the
+  // kitchen had nothing to do with.
+  if (run.pulledByStation) issues.push(BS_SERVE_ISSUE.STATIONS);
+  if (run.pulledByCook) issues.push(BS_SERVE_ISSUE.COOK);
   // WARNING - `exact` is the difference between "this is the earliest" and "this is the
   // earliest we looked at", and the caller cannot tell from the number itself. Seven catalog
   // dishes report 118 minutes here while an order exists that serves at 113: rotations of

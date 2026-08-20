@@ -337,3 +337,42 @@ test('progress: a hold that is still running has not delivered its minutes', () 
     assert.equal(bsProgressPct(mins, 2, junk), 83, `junk debit ${String(junk)} changed the figure`);
   }
 });
+
+test('serve mode: a pull names the resource that caused it — the cook is not a station', () => {
+  // ⚠ `pulled` used to be reported as BS_SERVE_ISSUE.STATIONS whichever resource caused
+  // it. MEASURED over 3,570 catalog pairs, an UNLIMITED-station kitchen still reported a
+  // pull on 3,492 of them — the identical count to one burner. A station at capacity 99
+  // cannot pull anything, so every one of those was the COOK, and the reason code was
+  // wrong in 97.8% of plans. Nothing in the UI read `issues` yet, so it was a contract
+  // defect waiting for its first consumer rather than a wrong message on screen.
+  //
+  // Stationless active steps: the ONLY contended resource is the cook's hands.
+  const HANDS = (k) => ({
+    key: k, title: k,
+    steps: ['Chop it.', 'Rest it 20 minutes.', 'Plate it.'],
+    stepMeta: [{}, { min: 20, passive: true, station: 'off' }, {}],
+  });
+  const dishes = [HANDS('a'), HANDS('b'), HANDS('c')];
+
+  // 'off' ties up no station and the active steps declare none, so however generous the
+  // kitchen, only the one pair of hands can clash.
+  const roomy = bsOrchestrate(dishes, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 99, oven: 99, board: 99 } });
+  assert.ok(roomy.spread > 0, 'guard the guard: with no clash at all this test proves nothing');
+  assert.ok(roomy.issues.includes('cook'), `a cook clash must be reported: ${JSON.stringify(roomy.issues)}`);
+  assert.ok(!roomy.issues.includes('stations'),
+    `no station can be busy in an unlimited kitchen, so "stations" is the wrong reason: ${JSON.stringify(roomy.issues)}`);
+
+  // And the honest whole-plan invariant, across both arms: SOME pull is reported exactly
+  // when the food lands apart. Neither reason alone carries that — which is the point.
+  for (const kitchen of [{ stove: 1 }, { stove: 2 }, { stove: 3 }, { stove: 99, oven: 99, board: 99 }]) {
+    for (const set of [HOBS, dishes]) {
+      const base = bsOrchestrate(set, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen });
+      for (const off of [0, 9, 60]) {
+        const o = bsOrchestrate(set, { ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: base.earliestServe + off, kitchen });
+        const pulled = o.issues.includes('stations') || o.issues.includes('cook');
+        assert.equal(pulled, o.spread > 0,
+          `a reported pull and food landing apart are the same fact (stove ${kitchen.stove}, +${off}): ${JSON.stringify(o.issues)} vs spread ${o.spread}`);
+      }
+    }
+  }
+});
