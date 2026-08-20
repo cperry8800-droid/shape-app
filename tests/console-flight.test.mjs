@@ -215,6 +215,20 @@ test('codexVerdict — the commit is read from the body, abbreviated or full', (
   assert.equal(codexVerdict({ comments: [cxClean(SHA.slice(0, 2))], headSha: SHA }), 'stale');
 });
 
+// ⚠ THE 7-CHAR FLOOR SURVIVED MUTATION UNTIL THIS TEST EXISTED. The body path is already
+// guarded by the regex's own {7,40}, so dropping the floor changed no outcome and the line
+// read as dead. It is not: `commit_id` comes straight from GitHub and never passes through
+// that regex, so it is the one path where a too-short value can reach the prefix compare.
+test('codexVerdict — a short commit_id can never masquerade as a head prefix', () => {
+  const short = {
+    user: { login: CODEX },
+    state: 'COMMENTED',
+    commit_id: SHA.slice(0, 3),
+    body: 'Codex Review: here are some automated review suggestions.',
+  };
+  assert.equal(codexVerdict({ reviews: [short], headSha: SHA }), 'stale');
+});
+
 test('codexVerdict — findings on the head close the gate', () => {
   assert.equal(codexVerdict({ reviews: [cxFinds(SHA)], headSha: SHA }), 'findings');
   // Findings on an OLD head, nothing on this one — still not a pass for this head.

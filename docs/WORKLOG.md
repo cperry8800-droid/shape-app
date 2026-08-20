@@ -120,12 +120,10 @@ changelog whenever something ships.
   owner asked for it directly. Triggering it by hand is now **allowed**. (The
   2026-08-18 hand-trigger predated the authorisation and was a rule break at the
   time; it is no longer the rule being broken.)
-  ⚠ **AND IT MAY WELL BE GATING — `src/lib/console-flight.mjs` REQUIRES IT.**
-  Mission Control's `prAllGreen` will not go green without a CodeRabbit
-  approved-or-clean verdict on the head, so the "neither a gate nor a layer to wait
-  on" line below is contradicted by the shipping code. **Pick one reviewer per round
-  rather than hedging with both**, and read the merge-gate note below before deciding
-  which document you are following.
+  ✓ **AND IT NO LONGER GATES — RESOLVED 2026-08-20.** `prAllGreen` used to require a
+  CodeRabbit approved-or-clean verdict *on the head*, which the ratified one-sweep
+  process could never satisfy. CodeRabbit is now reported and never required. **Pick
+  one reviewer per round rather than hedging with both.**
   ⚠ **The gating reviewer is CODEX**, not this — the merge gate is CI
   green **and Codex clean on the final head**. **(3)
   required checks** — `main` branch protection requires ALL THREE CI checks
@@ -141,26 +139,33 @@ changelog whenever something ships.
   supply a merge condition. (⚠ The trailing clause *"and never waiting on
   CodeRabbit is the standing rule"* is itself now stale — see the authorisation
   correction above. You **may** wait on CodeRabbit; it just does not close the gate.)
-  ⚠ **THIS PARAGRAPH AND THE PRODUCT DISAGREE — CHECK `src/lib/console-flight.mjs`
-  BEFORE TRUSTING EITHER.** Mission Control encodes the gate as `prAllGreen`: CI green
-  **AND CodeRabbit approved-or-clean on the head AND Codex present**. It differs from
-  the wording above on **both** counts, and it carries an **owner ruling (2026-07-27)**:
-  - **CodeRabbit IS one of its gates**, though the bullet below long said it "does NOT
-    run" and is "neither a gate nor a layer to wait on".
-  - **`codexPresent` is presence, NOT freshness — deliberately.** Codex leaves *no
-    record at all* when clean (it adds a thumbs-up reaction to the triggering
-    comment), so head-pinning it "would jam every clean pass at `none` and the gate
-    could never open". A **stale** Codex pass is explicitly treated as the owner's
-    re-trigger call. (Registered, not built: read reactions to pin freshness
-    without the trap.)
-  ⚠ **Worked example, #1910 (2026-08-20).** It merged with CI green and CodeRabbit clean
-  on the final head, while **Codex last reviewed `f5d2ef80c`, six commits earlier**.
-  Under `prAllGreen` that is **green** — stale Codex counts. Under the sentence above
-  ("Codex clean on the final head") it is **not**. I first recorded this as a rule break
-  by me; **that was wrong, and the over-correction is worth as much attention as the
-  original error would have been.** The defect is that two documents encode two gates.
-  **The console's version has an owner ruling behind it and should be treated as
-  operative until the owner says otherwise.**
+  ✓ **RESOLVED 2026-08-20 — THE TWO GATES NOW AGREE, AND THIS DOCUMENT IS THE ONE THE
+  CODE MATCHES.** `prAllGreen` is CI green **AND a clean Codex verdict on THIS head**
+  AND not a draft. CodeRabbit left the gate; it keeps its chip.
+  - **Why it had to change, and not just be documented:** `coderabbitVerdict` is
+    head-pinned, so the ratified *"CodeRabbit ONCE"* sweep **stops counting the moment
+    you push a fix for its own findings** — after which the old gate could never open
+    without a re-review the process forbids. The two rules were **unsatisfiable
+    together**, not merely different. Codex raised it independently on #1912.
+  - ⚠ **The 2026-07-27 ruling rested on a premise measurement refutes.** It made
+    `codexPresent` presence-not-freshness because *"Codex leaves no record at all when
+    it is clean"*. Across **every** PR from #1840 (2026-07-26) through #1912, every
+    clean Codex verdict posts an issue comment carrying `Reviewed commit: <sha>`, and
+    **no** trigger comment carries a thumbs-up. #1846, opened **on the ruling's own
+    date**, has two such comments. `codexVerdict` reads that field.
+  - ⚠ **The change is STRICTER, not looser**, and the strictness was backwards before:
+    the reviewer the house calls THE GATE was satisfied by any record the PR ever had,
+    while the one it calls "not a gate" blocked on the head. Verified on the live
+    corpus rather than fixtures — replaying real GitHub records through the shipped
+    function returns **clean** for six PRs and **stale** for #1910 and #1911.
+  ⚠ **Worked example, #1910 (2026-08-20), now the regression case.** It merged with CI
+  green and CodeRabbit clean on the final head, while **Codex last reviewed
+  `f5d2ef80c`** — one of **nine** Codex reviews on that PR, *every one a findings
+  round*, and **none on its final head**. Under the old `prAllGreen` that was green.
+  Under the new one it is **stale**, and the board asks for a re-trigger. ⚠ I first
+  recorded this as a rule break by me; **that was wrong, and the over-correction was
+  worth as much attention as the original error** — the defect was in the gate, not in
+  the merge.
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
@@ -179,15 +184,13 @@ changelog whenever something ships.
     2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
     #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the
     changelog and handoff both say five; this line said four).
-    ⚠ **WHETHER IT GATES IS NOT SETTLED BY THIS BULLET — follow the operative-gate
-    paragraph above, not this one.** `prAllGreen` requires CodeRabbit
-    **approved-or-clean on the current head**, and `coderabbitVerdict` is *head-pinned*:
-    it counts only reviews whose `commit_id` IS the head, so a sweep whose findings you
-    then fixed stops counting the moment you push the fix. **"CodeRabbit ONCE" and
-    `prAllGreen` therefore cannot both be satisfied without a re-review** — the ratified
-    process and the shipping code want different things, and that disagreement is an
-    **OPEN owner ruling**, not something to settle at a merge. Until it is ruled, say
-    which gate you applied.
+    ✓ **SETTLED 2026-08-20 — IT DOES NOT GATE.** It was unsettled because
+    `coderabbitVerdict` is *head-pinned*: it counts only reviews whose `commit_id` IS
+    the head, so a sweep whose findings you then fixed stopped counting the moment you
+    pushed the fix, and `prAllGreen` could not then go green without a re-review the
+    ratified process forbids. **"CodeRabbit ONCE" and the old gate were unsatisfiable
+    together.** CodeRabbit left `prAllGreen`; it is reported and never required, which
+    is what a breadth sweep should be. Codex is the gate and is now head-pinned itself.
     ⚠ Reading its verdict: a clean pass leaves **no review** — it leaves a summary
     *comment* carrying `Actionable comments posted: 0`, which is the marker
     `coderabbitVerdict` matches. Read that comment rather than inferring a pass from
@@ -252,6 +255,43 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-08-20 — The gate trusted the wrong reviewer with the wrong strictness
+
+- **The house process and the shipping gate encoded opposite priorities.** The process
+  calls Codex **the gate** and CodeRabbit a one-time breadth sweep; `prAllGreen` had
+  CodeRabbit **head-pinned and blocking** and Codex **presence-only**, so each reviewer
+  was treated as the opposite of its role. ⚠ **They were not merely different, they were
+  unsatisfiable together**: `coderabbitVerdict` is head-pinned, so the ratified
+  *"CodeRabbit ONCE"* sweep stops counting the moment a fix for its own findings is
+  pushed, after which the gate could never open without the re-review the process
+  forbids. Raised independently by Codex on #1912.
+- ⚠ **THE RULING THAT JUSTIFIED THE ASYMMETRY RESTED ON A PREMISE MEASUREMENT REFUTES.**
+  `codexPresent` was presence-not-freshness (owner, 2026-07-27) because *"Codex leaves no
+  record at all when it is clean — it reacts with a thumbs-up on the triggering
+  comment"*, so head-pinning it *"would jam every clean pass at `none`"*. Across **every**
+  PR from #1840 (2026-07-26) through #1912: **every** clean Codex verdict posts an issue
+  comment carrying `Reviewed commit: <sha>`, and **no** trigger comment carries a
+  thumbs-up. #1846, opened **on the ruling's own date**, carries two. The record the
+  ruling says does not exist is the one Codex has always left, and it names the commit.
+- **`codexPresent` → `codexVerdict`**, head-pinned: `clean` · `findings` · `stale` ·
+  `none`. It reads the commit from the body in both shapes Codex reports in, by prefix
+  with a **7-character floor**. Findings on the head **outrank** a clean marker on it,
+  exactly as a cap notice outranks a zero-marker in `coderabbitVerdict`. Anything that
+  cannot be pinned to this head is `stale` — **fail closed and loud**, because the board
+  can then ask for a re-trigger, where the old behaviour merged silently.
+- ⚠ **THE NET EFFECT IS STRICTER, NOT LOOSER — verified on the LIVE CORPUS, not
+  fixtures.** Replaying real GitHub records through the shipped function returns `clean`
+  for six PRs and **`stale` for #1910 and #1911**. #1910 is the case the records already
+  flag: it merged on `f5d2ef80c`, one of **nine** Codex reviews on that PR, *every one a
+  findings round*, and **none on its final head**. Both arms exercised, so the result is
+  not saturated.
+- ⚠ **A GUARD THAT SURVIVED MUTATION UNTIL ITS CASE WAS PINNED.** Dropping the 7-char
+  floor changed no test outcome, because the body path is already guarded by the regex's
+  own `{7,40}` — the floor only bites on the `commit_id` fallback, which comes straight
+  from GitHub and never passes through that regex. Rather than delete a line that reads
+  dead, the case it exists for is now a test: a 3-character `commit_id` that prefixes the
+  head must not pin a verdict. Seven mutations, all caught.
 
 ### 2026-08-20 — A dead option, a vanished timer, a false superlative — and two defects inside the fixes for them (#1913 → `5972b786e`)
 

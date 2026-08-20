@@ -148,11 +148,12 @@ const CODEX_CLEAN_RE = /find any major issues/i;
  *
  * ⚠ REPLACES `codexPresent`, whose presence-not-freshness rule rested on a premise
  * that measurement refutes. That rule said Codex "leaves no record at all when it
- * is clean — it reacts 👍 on the triggering comment", so head-pinning it "would jam
- * every clean pass at 'none'". Across every PR from #1840 (2026-07-26) through
- * #1912 (2026-08-20): every clean Codex verdict posted an issue comment carrying
- * `Reviewed commit: <sha>`, and no trigger comment carried a 👍. The record the
- * rule says does not exist is the one Codex always leaves, and it names the commit.
+ * is clean — it adds a thumbs-up reaction to the triggering comment", so head-pinning
+ * it "would jam every clean pass at 'none'". Across every PR from #1840 (2026-07-26)
+ * through #1912 (2026-08-20): every clean Codex verdict posted an issue comment
+ * carrying `Reviewed commit: <sha>`, and no trigger comment carried a thumbs-up. The
+ * record the rule says does not exist is the one Codex always leaves, and it names
+ * the commit.
  *
  * The old asymmetry was backwards: the reviewer the house process calls THE GATE
  * was satisfied by any record ever left, while the one it calls "not a gate" was
