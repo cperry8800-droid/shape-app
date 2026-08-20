@@ -580,7 +580,21 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                                       : 'none'
                             }
                           />
-                          <GateChip label="CDX" gate={p.codex === 'present' ? 'green' : 'none'} />
+                          <GateChip
+                            label="CDX"
+                            gate={
+                              p.codex === 'clean'
+                                ? 'green'
+                                : p.codex === 'findings'
+                                  ? 'red'
+                                  : // 'stale' — Codex ran, but not on THIS head. Shown as the
+                                    // warn glyph rather than a dash: a dash reads "never ran",
+                                    // and the action here is a re-trigger, not a first run.
+                                    p.codex === 'stale'
+                                    ? 'blocked'
+                                    : 'none'
+                            }
+                          />
                         </span>
                       </div>
                     </div>
@@ -589,7 +603,11 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                 <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 9.5, color: N.dimmer, lineHeight: 1.7 }}>
                   CR ◇ APPROVED / CLEAN-PASS ✓ · CHANGES ✗ · COMMENTED … · CAPPED, NEVER RAN ⚠ · NO RECORD —
                   (verdicts count on the current head only; a clean pass is read from the edited summary — neither a
-                  dash nor a cap notice is a verdict)
+                  dash nor a cap notice is a verdict). ⚠ CR DOES NOT GATE — it is a breadth sweep and its chip is
+                  reported, never required.
+                  <br />
+                  CDX ◇ CLEAN ON THIS HEAD ✓ · FINDINGS ✗ · RAN, BUT NOT ON THIS HEAD ⚠ · NO RECORD — (Codex IS the
+                  gate; ⚠ means re-trigger, not first run)
                 </div>
               </div>
             )}

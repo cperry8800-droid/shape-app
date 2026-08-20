@@ -15,7 +15,7 @@ import { requireAdminUser } from '@/lib/admin-access';
 import {
   gateFromRuns,
   coderabbitVerdict,
-  codexPresent,
+  codexVerdict,
   prAllGreen,
 } from '@/lib/console-flight.mjs';
 import type { Flight, FlightPr, Gate } from '@/app/console/flight-types';
@@ -84,7 +84,7 @@ async function buildFlight(token: string): Promise<Flight> {
         ]);
         ci = ciGate;
         coderabbit = coderabbitVerdict({ reviews, comments, headSha });
-        codex = codexPresent({ reviews, comments });
+        codex = codexVerdict({ reviews, comments, headSha });
       } catch {
         // Per-PR degrade: gates stay 'none' (no record ≠ a verdict).
       }
@@ -98,7 +98,7 @@ async function buildFlight(token: string): Promise<Flight> {
         ci,
         coderabbit,
         codex,
-        allGreen: prAllGreen({ ci, coderabbit, codex, draft: !!p.draft }),
+        allGreen: prAllGreen({ ci, codex, draft: !!p.draft }),
       };
     })
   );
