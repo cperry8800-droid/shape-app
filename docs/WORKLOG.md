@@ -264,16 +264,18 @@ changelog whenever something ships.
   and never reopened the app kept receiving check-in nudges from the cron. Codex P1 on
   #1899, verified against the code before fixing: `/api/ai/notify/cron` consulted
   `client_settings.dailyCheckin` **zero** times.
-- ⚠ **THE CHECK-IN NUDGE HAS FOUR DOORS, AND MY FIRST FIX FOUND TWO.** No count is given
-  in the heading, because every count I have put on this so far has been low.
-  1. an explicit `checkinDueThisWeek` signal, and 2. the engine's own `checkin_overdue`
-  flag — both feed `checkin_due`, so gating the *call site* would have left the flag
-  firing; the suppression sits at the candidate instead.
+- ⚠ **THE CHECK-IN NUDGE HAS MORE DOORS THAN ANY FIX HAS FOUND.** No number here on
+  purpose: every count put on this has been low — two, then four, then five.
+  1. an explicit `checkinDueThisWeek` signal, and
+  2. the engine's own `checkin_overdue` flag — both feed `checkin_due`, so gating the
+  *call site* would have left the flag firing; the suppression sits at the candidate.
   3. ⚠ **the DIRECTIVE, and it is the loudest.** `checkin_overdue` carries directive
   priority **100** in `dashSignals` (escalating with `missedWeeks`), so for an overdue
   member the ONE move IS *"Send your weekly check-in"* — a HIGH-priority notification the
-  `checkin_due` gate never touched. Suppressed on the **action kind**, which maps 1:1 to
-  the checkin lever, so unrelated directives survive.
+  `checkin_due` gate never touched. Suppressed on the **lever**, so unrelated directives
+  survive. (It was first suppressed on the action *kind*, described here as mapping 1:1
+  to the checkin lever — **that claim was false**, and it cost two rounds: the fifth door
+  below, then its mirror.)
   4. ⚠ **a STORED one.** An item deferred by quiet hours or the daily cap lives in
   `notify_state.pendingDigest` and is re-emitted at the next non-quiet run **without being
   rebuilt** — so suppressing the candidate stopped the rebuild and did nothing about the
@@ -332,6 +334,13 @@ changelog whenever something ships.
   scratch copy rather than asserted: **6 lines, 37 of 38 tests pass untouched**. Not taken
   here, because it changes dedup behaviour for **every** notification type inside a PR about
   a check-in opt-out. Registered.
+- ⚠ **AND THE MIRROR OF THE FIFTH DOOR, IN THE OVER-SUPPRESSING DIRECTION.** Having made
+  the lever the identity, the kind was left in as a belt-and-braces `||` — which lets the
+  **derived alias override the authoritative field**. `sanitizeOverride` takes any 40-char
+  kind, so a coach can set lever `contact` with kind `check_in`, and that member lost their
+  coach's actual move to a check-in opt-out. When a lever is present it now decides **alone**;
+  the kind speaks only for directives stamped before the lever existed. Found by CodeRabbit,
+  reproduced through the real engine before fixing.
 - ⚠ **BOTH routes were wired, not only the cron.** `/api/ai/notify` recomputes from the
   same snapshot and had the identical hole — fixing the reported one would have left the
   live path nudging.

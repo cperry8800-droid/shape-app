@@ -177,7 +177,11 @@ export function isCheckinItem(item) {
   // to 'message'), and the kind can never separate them: the engine emits kind 'message'
   // for the CONTACT lever, so "send me your check-in" and "reach out today" are
   // kind-identical. Kind is still honoured for items stamped before the lever was.
-  if (d.lever) return d.lever === 'checkin' || d.move === 'check_in';
+  // ⚠ WHEN A LEVER IS PRESENT IT DECIDES ALONE. Keeping the kind as a belt-and-braces `||`
+  // let the DERIVED alias override the authoritative field: a coach may set lever 'contact'
+  // with kind 'check_in', and that member would lose their coach's actual move to a
+  // check-in opt-out. The kind speaks only for directives stamped before the lever was.
+  if (d.lever) return d.lever === 'checkin';
   // ⚠ RESIDUAL, ACKNOWLEDGED: an item stamped with a move but NO lever (queued before the
   // lever stamp shipped) cannot be proven not to be a coach check-in override, since a
   // coach may set ANY kind against the checkin lever and 'message' is a legitimate engine
@@ -242,7 +246,10 @@ export function clientCandidates(input) {
   if (directive && directive.action && nonEmpty(directive.action.label)) {
     const moveKind = directive.action.kind || '';
     const lever = directive.lever || '';
-    if (!(checkinOptedOut && (lever === 'checkin' || moveKind === 'check_in'))) {
+    // the lever is the identity; the kind is only its engine-built alias, and speaks
+    // alone only when there is no lever (see isCheckinItem).
+    const isCheckin = lever ? lever === 'checkin' : moveKind === 'check_in';
+    if (!(checkinOptedOut && isCheckin)) {
       const line = nonEmpty(directive.line) ? directive.line : '';
       const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
       out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });

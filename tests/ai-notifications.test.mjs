@@ -337,9 +337,11 @@ test('opting out suppresses the check-in DIRECTIVE, not only the checkin_due nud
   assert.equal(other[0].type, 'directive');
 });
 
-test('a directive carries its move kind, so a HELD copy stays identifiable', () => {
+test('a directive carries its lever and move kind, so a HELD copy stays identifiable', () => {
   // The held-item purge below cannot key on copy — wording is translated and edited. The
-  // action kind is the stable identity, so it is stamped when the candidate is built.
+  // LEVER is the stable identity (the kind is only its engine-built alias, and a coach
+  // override can pair any kind with any lever), so both are stamped when the candidate is
+  // built and the kind is trusted only for items stamped before the lever existed.
   const [d] = clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], tone: 'supportive' });
   assert.equal(d.data.move, 'check_in');
   const [s] = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
@@ -566,4 +568,33 @@ test('the purged item releases its OWN stamp even when a same-type item survives
   const mirror = decideNotifications({ candidates: [], last: checkinFirst, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
   assert.deepEqual(mirror.nextState.types['directive:self'], { sig: survivorSig, at: +NIGHT },
     'released a stamp that belonged to the SURVIVING directive');
+});
+
+// ⚠ THE MIRROR OF THE COACH-OVERRIDE DOOR, IN THE OVER-SUPPRESSING DIRECTION. Having made
+// the lever the identity, the kind was left in as a belt-and-braces `||` — which lets the
+// DERIVED alias override the authoritative field. sanitizeOverride takes any 40-char kind,
+// so a coach can set lever 'contact' with kind 'check_in', and that member lost their
+// coach's actual move to a check-in opt-out. When a lever is present it decides ALONE; the
+// kind speaks only for directives stamped before the lever was.
+test('a NON-check-in lever survives even when its action kind says check_in', () => {
+  const contact = buildDirective({ coachDirective: { lever: 'contact', action: { label: 'Call me back today', kind: 'check_in' } } }, DAYTIME, 'client');
+  assert.equal(contact.lever, 'contact');
+  assert.equal(contact.action.kind, 'check_in', 'premise: the kind must contradict the lever for this test to mean anything');
+
+  const out = clientCandidates({ directive: { ...contact, line: 'x' }, flags: [], checkinOptedOut: true, tone: 'supportive' });
+  assert.deepEqual(out.map((c) => c.type), ['directive'], "the opt-out swallowed the coach's contact move");
+
+  // ...and the same rule on the HELD copy.
+  const held = { type: 'directive', title: 'Your move today', body: 'Call me back today', route: 'home', data: { move: 'check_in', lever: 'contact' }, priority: 'high', channels: { push: true } };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const purge = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [held] }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  // ⚠ assert on the DIGEST, not on the queue: outside quiet hours a surviving held item is
+  // emitted and the queue is cleared, so pendingDigest reads 0 whether or not it survived.
+  assert.deepEqual((purge.digest ? purge.digest.data.items : []).map((i) => i.data.lever), ['contact'],
+    "the held contact move was purged as a check-in");
+
+  // LEGACY, no lever: the kind is all there is, so it still decides.
+  const legacy = { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: { move: 'check_in' }, priority: 'high', channels: { push: true } };
+  const legacyOut = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [legacy] }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(legacyOut.digest, null, 'a legacy check-in directive must still be purged — nothing should have survived to emit');
 });
