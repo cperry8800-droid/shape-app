@@ -117,5 +117,7 @@
   "prep.startsIn": "E go start for {n} min",
   "prep.startNow": "Start now",
   "prep.startAtEstimated": "Di recipe no time some steps, so give yourself extra",
-  "prep.earliestSearched": "Di earliest for di orders wey we check"
+  "prep.earliestSearched": "Di earliest for di orders wey we check",
+  "prep.noWindow": "No dish here dey wait long enough make you start another one",
+  "prep.noStation": "Your kitchen no get free burner or oven for the overlap"
 }

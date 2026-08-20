@@ -117,5 +117,7 @@
   "prep.startsIn": "Zai fara cikin minti {n}",
   "prep.startNow": "Fara yanzu",
   "prep.startAtEstimated": "Girkin bai ba wasu matakai lokaci ba, ka ba kanka ƙarin lokaci",
-  "prep.earliestSearched": "Mafi wuri cikin tsarin da muka gwada"
+  "prep.earliestSearched": "Mafi wuri cikin tsarin da muka gwada",
+  "prep.noWindow": "Babu abinci a nan da ke jira sosai har ka fara wani",
+  "prep.noStation": "Kicin ɗinka ba shi da murhu ko oven da ya rage don haɗuwar"
 }

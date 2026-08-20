@@ -28,7 +28,7 @@ import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bs
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
-import { bsOrchestrate, BS_COOK_MODE, BS_ORCH, bsProgressPct } from '../services/cookOrchestrator.mjs';
+import { bsOrchestrate, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -6939,8 +6939,18 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // dish otherwise sees only the dish in front of them and cannot tell whether the
   // evening is nearly over. Absent for a solo cook, where "the session" is this recipe.
   const overallPct = hasMethod ? bsProgressPct(stepMins, visited, unearnedSolo) : null;
+  // ⚠ THE CARRIED DEBIT IS COMPUTED HERE, NOT HANDED DOWN. A hold still running from an
+  // earlier dish is time that has not actually elapsed, so it is owed back against those
+  // dishes' credit — and it shrinks every second. BSPrepSession hands this component the
+  // screen and then does not re-render until the session advances, so a debit IT computed
+  // would freeze at the handoff and this figure would under-read by that hold's whole
+  // remaining duration for the length of the next dish. `now` above is the value the 1s
+  // heartbeat refreshes, so the credit shrinks with the clock the way the carry has always
+  // been documented to: "the debit shrinks with the clock and expires by itself".
+  const carriedDebit = (prep && Array.isArray(prep.carried) ? prep.carried : [])
+    .reduce((n, h) => n + Math.max(0, (h.endsAt - now) / 60000), 0);
   const sessionPct = (prep && typeof prep.totalMins === 'number' && prep.totalMins > 0)
-    ? Math.max(0, Math.min(100, Math.round((((prep.priorMins || 0) + doneMins) / prep.totalMins) * 100)))
+    ? Math.max(0, Math.min(100, Math.round(((Math.max(0, (prep.priorMins || 0) - carriedDebit) + doneMins) / prep.totalMins) * 100)))
     : null;
   // Allergen claim notes — ONE definition, rendered on EVERY phase a member can
   // reach the food from. It used to live only in the mise, below the `Resume at
@@ -7014,7 +7024,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           ))}
         </div>
       )}
-      {(running.length > 0 || rung.length > 0) && (
+      {(running.length > 0 || rung.length > 0 || (prep?.carried || []).length > 0) && (
         <div style={{ position: 'relative', marginTop: 12, borderTop: `1px solid ${BAND.hair}`, paddingTop: 10, display: 'grid', gap: 8 }}>
           {running.map((x) => {
             const left = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
@@ -7030,6 +7040,41 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                 <div aria-hidden style={{ marginTop: 6, height: 3, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
                   <div style={{ height: '100%', borderRadius: 2, background: heat, boxShadow: `0 0 8px ${bsTHexA(heat, 0.5)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - left / x.total)) * 100)}%`, transition: reduced ? 'none' : 'width 1s linear' }} />
                 </div>
+              </div>
+            );
+          })}
+          {/* ⚠ HOLDS INHERITED FROM AN EARLIER DISH, and they are NOT in `timers`: that
+              array is what the hand-off button reports upward, so a carried hold entering it
+              would be carried a second time and debited twice.
+              ⚠ AND THEY ARE NOT FILTERED BY `endsAt > now`. The first version of this block
+              was, which re-created the very defect it was written to fix one stage later: a
+              chill that ended while the cook was on the transition screen was dropped before
+              anything announced it, and carried holds are absent from `rung` too, so no
+              "time's up" ever came. A hold now survives until the cook ACKNOWLEDGES it.
+              ⚠ The key carries `cid` (dish-scoped), because `timerIdRef` restarts at 0 in
+              every newly mounted BSCookMode — two dishes each handing up their first timer
+              both produced id 1, so `carried-1` appeared twice and React could drop the
+              wrong countdown. */}
+          {(prep?.carried || []).map((x) => {
+            const leftC = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
+            const rangC = x.endsAt <= now;
+            return (
+              <div
+                key={`carried-${x.cid || x.id}`}
+                role={rangC ? 'status' : undefined}
+                aria-live={rangC ? undefined : 'off'}
+                style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, opacity: rangC ? 1 : 0.75 }}
+              >
+                <span style={{ ...bandEyebrow, color: rangC ? heat : BAND.dim, textShadow: rangC ? `0 0 12px ${bsTHexA(heat, 0.5)}` : 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {rangC ? `${tr('cook:timer.up', { defaultValue: "Time's up" })} · ` : '◷ '}{x.dish ? `${x.dish} · ` : ''}{x.gist || x.label}
+                </span>
+                {/* ⚠ Dismiss appears ONLY once it has finished, and that is safe precisely
+                    because it has: the session debit is max(0, endsAt - now), already zero
+                    for an expired hold, so clearing it cannot move a figure this screen does
+                    not own. While it is still RUNNING there is no dismiss, for that reason. */}
+                {rangC
+                  ? <button onClick={() => prep?.onCarriedDone?.(x.cid || x.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: BAND.cream, flexShrink: 0 }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+                  : <span style={{ fontFamily: t.MONO, fontSize: 14, fontWeight: 800, color: BAND.dim, fontVariantNumeric: 'tabular-nums', lineHeight: 1, flexShrink: 0 }}>{fmt(leftC)}</span>}
               </div>
             );
           })}
@@ -7261,7 +7306,21 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                     duration. Finish the energy bites with the 30-minute chill going and the
                     session counted those minutes twice: once as unearned here, then as earned
                     by the next recipe. Only credited steps are carried, same rule as the debit. */}
-                <button onClick={() => prep.onPrepped(timers.filter((x) => x.stepIdx != null && visited[x.stepIdx] && x.endsAt > Date.now()).map((x) => ({ endsAt: x.endsAt })))} style={{ ...primaryBtn, width: '100%' }}>
+                {/* ⚠ AND HAND UP THE WHOLE TIMER, not only `endsAt`. Keeping the bare
+                    number fed the debit correctly and destroyed everything a COOK needs:
+                    the next dish mounted a fresh BSCookMode with an empty timer list and
+                    the wrap read only `wrapHolds`, so a real countdown and its finish
+                    notice simply vanished — advance from the energy bites with their
+                    30-minute chill running and nothing on screen mentions it again.
+                    `dish` is stamped here because the next screen cannot know it.
+                    ⚠ AND THERE IS NO `endsAt > now` TEST HERE. There was, and it meant a hold
+                    that finished while the cook was still on this dish was never handed up at
+                    all — so the display fix downstream could not save what never arrived. An
+                    UNACKNOWLEDGED hold travels whether it is running or finished; the debit it
+                    contributes is max(0, endsAt - now), already zero once expired, so carrying
+                    a finished one costs the arithmetic nothing. Only the credited-step rule
+                    still filters. */}
+                <button onClick={() => prep.onPrepped(timers.filter((x) => x.stepIdx != null && visited[x.stepIdx]).map((x) => ({ id: x.id, label: x.label, gist: x.gist, total: x.total, endsAt: x.endsAt, dish: cookable.title })))} style={{ ...primaryBtn, width: '100%' }}>
                   {prep.index + 1 >= prep.count
                     ? tr('cook:prep.wrapCta', { defaultValue: 'Wrap the session →' })
                     : tr('cook:prep.nextRecipe', { defaultValue: 'Next recipe →' })}
@@ -7647,6 +7706,23 @@ function BSPrepSession({ program, onClose }) {
   // debit shrinks with the clock and expires by itself; a stored minute figure would not.
   const [carried, setCarried] = useStateBSC([]);
   const sessionNow = Date.now();
+  // ⚠ THE WRAP HAS NO SECOND-HAND UNDER IT. `BSPrepCook` and `BSCookMode` own the only
+  // per-second ticks in this flow and BOTH are unmounted by the time `stage === 'wrap'`, so
+  // without this `sessionNow` freezes at the render that entered the wrap: a carried hold's
+  // countdown becomes a still photograph, never reaches "Time's up", and never offers the
+  // acknowledgement — the one thing the carry exists to deliver, missing from the last
+  // screen that can deliver it.
+  // Scoped to the wrap AND to holds that are still running: this component RETURNS the
+  // board during the cook stage, so a session-wide heartbeat would re-render it every
+  // second on top of the one it already runs, and a hold that has rung has nothing left
+  // to count.
+  const [, setWrapTick] = useStateBSC(0);
+  const wrapCounting = stage === 'wrap' && carried.some((h) => h.endsAt > sessionNow);
+  React.useEffect(() => {
+    if (!wrapCounting) return undefined;
+    const iv = setInterval(() => setWrapTick((n) => n + 1), 1000);
+    return () => clearInterval(iv);
+  }, [wrapCounting]);
 
   // Candidates: only meals/recipes with a REAL method walk in a prep session
   // (tier ≤ 2 — mise-only meals stay solo cooks); recipe mapping is the tested
@@ -7696,8 +7772,10 @@ function BSPrepSession({ program, onClose }) {
   // Holds handed up by dishes already behind us, still running. Their minutes are counted in
   // `dishMins` as though they had elapsed, so they are subtracted until they actually do —
   // a debit that decays to nothing on its own rather than a flag someone has to clear.
-  const carriedDebit = carried.reduce((n, h) => n + Math.max(0, (h.endsAt - sessionNow) / 60000), 0);
-  const sessionPriorMins = Math.max(0, dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0) - carriedDebit);
+  // ⚠ RAW, UNDEBITED — the carried debit is applied by BSCookMode, which owns a
+  // second-hand. Subtracting it here computed it against a clock that stops the moment this
+  // component hands over the screen, freezing the figure for the whole of the next dish.
+  const sessionPriorMins = dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0);
   const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
   // The board's allergen claim notes. BSCookMode's own mise block CANNOT carry
   // them here: a prep-session candidate is filtered on `c.steps.length`, so
@@ -7826,9 +7904,25 @@ function BSPrepSession({ program, onClose }) {
     if (choice === BS_COOK_CHOICE.SERVE) return { mode: BS_COOK_MODE.SERVE, serveAt: runServeAt ?? chosenServe, kitchen };
     return { mode: BS_COOK_MODE.TOGETHER, kitchen };   // SOONEST: cook them at once
   };
+  // ⚠ TOGETHER FALLS BACK TO SERIAL when nothing has a window to weave into, and then it
+  // is NOT a different question from "cook separately" -- it runs the same plan and the two
+  // rows print the SAME minutes, while this one promises simultaneous cooking. MEASURED on
+  // the catalog: `Greek yogurt power bowl + Tempo turkey lettuce cups` gives together=27 and
+  // sequence=27, reason 'no-window'. So the option stops being offerable, and a choice made
+  // BEFORE the dish list changed must not survive into the run either -- everything
+  // downstream reads `choice`, never the raw `cookMode`.
+  // The engine already NAMES why it could not weave (BS_SERIAL_REASON); nothing was
+  // reading it, so the cook saw a dead option with no explanation. Two reasons can reach
+  // a multi-dish sheet -- SINGLE cannot (there is more than one dish) and CHOSEN is the
+  // cook's own request, which is the SEQUENCE row rather than a refusal.
+  const serialWhy = (reason) => (reason === BS_SERIAL_REASON.STATIONS
+    ? tr('cook:prep.noStation', { defaultValue: 'Your kitchen has no free burner or oven for the overlap' })
+    : tr('cook:prep.noWindow', { defaultValue: 'No dish here waits long enough for you to start another' }));
+  const togetherOn = !orchTogether.serial;
+  const choice = (cookMode === BS_COOK_CHOICE.SOONEST && !togetherOn) ? null : cookMode;
   const orch = React.useMemo(
-    () => (cookMode ? bsOrchestrate(orchInput, engineOptsFor(cookMode)) : orchAuto),
-    [orchInput, cookMode, orchAuto, kitchen, chosenServe, runServeAt],
+    () => (choice ? bsOrchestrate(orchInput, engineOptsFor(choice)) : orchAuto),
+    [orchInput, choice, orchAuto, kitchen, chosenServe, runServeAt],
   );
   // How far apart the food still lands, when the kitchen cannot do better. Said plainly
   // rather than hidden: a promise of "at once" that quietly means 26 minutes apart is
@@ -7860,7 +7954,7 @@ function BSPrepSession({ program, onClose }) {
   const minsLeftNow = () => Math.round((nowRef.current + chosenServe * 60000 - Date.now()) / 60000);
   // A serve time that cannot be met must not be startable. The engine would clamp to
   // the earliest and run a session for a table time the cook never chose.
-  const cannotStart = (multi && !cookMode) || (cookMode === BS_COOK_CHOICE.SERVE && serveTooSoon);
+  const cannotStart = (multi && !choice) || (choice === BS_COOK_CHOICE.SERVE && serveTooSoon);
   const spanOf = (o) => (o.timeline.length
     ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
     : 0);
@@ -7897,11 +7991,21 @@ function BSPrepSession({ program, onClose }) {
   const onPrepped = (outstanding) => {
     if (prepWroteRef.current === cookIdx) return;
     prepWroteRef.current = cookIdx;
-    if (Array.isArray(outstanding) && outstanding.length) setCarried((arr) => [...arr, ...outstanding]);
+    // ⚠ `cid` is stamped HERE because only the session knows which dish this was.
+    // `timerIdRef` restarts at 0 in every newly mounted BSCookMode, so ids collide across
+    // dishes; `cookIdx` makes them unique for the whole session.
+    if (Array.isArray(outstanding) && outstanding.length) {
+      setCarried((arr) => [...arr, ...outstanding.map((x) => ({ ...x, cid: `${cookIdx}-${x.id}` }))]);
+    }
     writeEntry(ordered[cookIdx]);
     if (cookIdx + 1 >= ordered.length) setStage('wrap');
     else { setCookIdx(cookIdx + 1); setStage('transition'); }
   };
+  // A finished carried hold is cleared only when the cook says so. Safe to drop from
+  // `carried` at that point: the debit it contributes is max(0, endsAt - now), which an
+  // expired hold has already driven to zero, so acknowledging it moves no figure.
+  const onCarriedDone = (cid) => setCarried((arr) => arr.filter((h) => (h.cid || h.id) !== cid));
+
   // The interleaved board records each recipe as its last step completes; a
   // written-key Set guards against a back→forward re-advance double-recording.
   const writtenRef = React.useRef(new Set());
@@ -7932,7 +8036,7 @@ function BSPrepSession({ program, onClose }) {
     }
     if (ordered[cookIdx]) return <BSCookMode
       cookable={ordered[cookIdx].cookable}
-      prep={{ index: cookIdx, count: ordered.length, onPrepped, priorMins: sessionPriorMins, totalMins: sessionTotalMins }}
+      prep={{ index: cookIdx, count: ordered.length, onPrepped, priorMins: sessionPriorMins, totalMins: sessionTotalMins, carried, onCarriedDone }}
       onClose={onClose}
     />;
   }
@@ -8103,8 +8207,21 @@ function BSPrepSession({ program, onClose }) {
                       // No "ready together" claim here — under TOGETHER dishes finish when
                       // they finish, and that IS the option. The landing gap is the SERVE
                       // option's disclosure and is shown there.
-                      sub: tr('cook:prep.soonestSub', { defaultValue: 'Everything at once — out of the kitchen soonest' }),
-                      mins: spanOf(orchTogether), on: true },
+                      // ⚠ AND NO "SOONEST" CLAIM EITHER. TOGETHER is greedy and ORDER-SENSITIVE:
+                      // the order search that would justify a superlative lives on the SERVE
+                      // path only. MEASURED — the catalog trio One-pan chicken and rice + Greek
+                      // yogurt power bowl + Catfish stew plans 50 min in the order the sheet
+                      // sends, while another order of the SAME dishes reaches 47. Rare (1 of 33
+                      // trios, ~3 min) but real, so the copy states what the option DOES rather
+                      // than claiming an optimum nothing searched for.
+                      sub: togetherOn
+                        ? tr('cook:prep.soonestSub', { defaultValue: 'Everything at once — less time in the kitchen' })
+                        : serialWhy(orchTogether.reason),
+                      // ⚠ The minutes are SUPPRESSED when it cannot weave: they equal the
+                      // "cook separately" figure exactly, so printing them offers a saving
+                      // that does not exist.
+                      mins: togetherOn ? spanOf(orchTogether) : 0,
+                      on: togetherOn },
                     { key: BS_COOK_CHOICE.SERVE,
                       label: tr('cook:prep.serveMode', { defaultValue: 'Cook to serve' }),
                       sub: tr('cook:prep.serveModeSub', { defaultValue: 'On the table at a time you choose' }),
@@ -8114,7 +8231,7 @@ function BSPrepSession({ program, onClose }) {
                       sub: tr('cook:prep.oneAtATimeSub', { defaultValue: 'Finish one, then start the next' }),
                       mins: spanOf(orchSeq), on: true },
                   ].map((opt) => {
-                    const picked = cookMode === opt.key;
+                    const picked = choice === opt.key;
                     return (
                       <button
                         key={opt.key}
@@ -8148,7 +8265,7 @@ function BSPrepSession({ program, onClose }) {
                     scheduler works in. The engine refuses a time the food cannot reach
                     and names the earliest one instead of failing, so the refusal is
                     actionable rather than a dead end. */}
-                {cookMode === BS_COOK_CHOICE.SERVE && (
+                {choice === BS_COOK_CHOICE.SERVE && (
                   <div style={{ marginTop: 11, paddingLeft: 10, borderLeft: `2px solid ${bsTHexA(heat, 0.45)}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>
@@ -8223,7 +8340,7 @@ function BSPrepSession({ program, onClose }) {
                 without this reads as a dish that was forgotten. Shown only once a mode
                 is chosen, because the plan does not exist until then, and it re-draws
                 whenever the mode or the kitchen changes. */}
-            {multi && cookMode && orch.timeline.length > 0 && (
+            {multi && choice && orch.timeline.length > 0 && (
               <div style={{ marginTop: 20 }}>
                 <div style={{ ...bandEyebrow, color: t.INK50 }}>
                   {tr('cook:prep.planAsk', { defaultValue: 'The plan' })}
@@ -8247,7 +8364,7 @@ function BSPrepSession({ program, onClose }) {
                   })}
                 </div>
                 <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>
-                  {cookMode === BS_COOK_CHOICE.SERVE
+                  {choice === BS_COOK_CHOICE.SERVE
                     ? tr('cook:prep.planServe', { defaultValue: 'Everything on the table at {n} min', n: spanOf(orch) })
                     : tr('cook:prep.planDone', { defaultValue: 'Last dish done at {n} min', n: spanOf(orch) })}
                   {' · '}
@@ -8271,7 +8388,7 @@ function BSPrepSession({ program, onClose }) {
               <button
                 onClick={() => {
                   if (cannotStart) return;
-                  if (cookMode === BS_COOK_CHOICE.SERVE) {
+                  if (choice === BS_COOK_CHOICE.SERVE) {
                     const left = minsLeftNow();
                     // Dawdling here can turn a reachable time unreachable. Re-offer the
                     // earliest rather than silently serving at a different time.
@@ -8328,6 +8445,27 @@ function BSPrepSession({ program, onClose }) {
             {/* Chills/sets still running at Finish (terminal 'off' holds — they
                 finish unattended by design). Static remaining-at-finish figure:
                 glyph + title + numerals, no prose — no catalog key needed. */}
+            {/* A hold inherited from an earlier dish is still running at the wrap and the
+                cook still has to go back for it. `wrapHolds` only ever held the interleaved
+                board's terminal holds, so on the SEQUENTIAL path this was the last place the
+                countdown could have been mentioned, and it was not. */}
+            {/* ⚠ NOT filtered on expiry either — that was the same defect a third time. A
+                hold that finished between the last dish and this screen is precisely the one
+                the cook must be told about, and the wrap is the last chance to say so. */}
+            {carried.map((h, i) => {
+              const leftS = Math.max(0, Math.ceil((h.endsAt - sessionNow) / 1000));
+              const rang = h.endsAt <= sessionNow;
+              return (
+                <div key={h.cid || `c${i}`} role={rang ? 'status' : undefined} style={{ marginTop: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: rang ? t.INK : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {rang ? `${tr('cook:timer.up', { defaultValue: "Time's up" })} · ` : '◷ '}{h.dish ? `${h.dish} · ` : ''}{h.gist || h.label}{rang ? '' : ` · ${Math.floor(leftS / 60)}:${String(leftS % 60).padStart(2, '0')}`}
+                  </span>
+                  {rang && (
+                    <button onClick={() => onCarriedDone(h.cid || h.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: t.INK50, flexShrink: 0 }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+                  )}
+                </div>
+              );
+            })}
             {wrapHolds.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 {wrapHolds.map((h, i) => (

@@ -15,8 +15,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
-  SRC, drive, pressable, loadBroadsheet, importSibling, jsxOpenTag,
+  ROOT, SRC, SHIM, drive, pressable, textOf, flatten as flattenNode, loadBroadsheet, importSibling, jsxOpenTag,
 } from './helpers/broadsheet-mount.mjs';
 
 const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
@@ -725,6 +726,304 @@ test('prep session: finishing a dish hands its unfinished holds to the session',
   assert.equal(handed.length, 1, `expected the running chill to be handed up, got ${JSON.stringify(handed)}`);
   assert.ok(handed[0].endsAt > Date.now() + 25 * 60000,
     `the carried hold ends at ${handed[0].endsAt}, which is not ~30 minutes out`);
+
+  // ⚠ AND IT MUST CARRY MORE THAN THE ARITHMETIC. Handing up only `endsAt` fed the debit
+  // correctly and destroyed everything a COOK needs: the next dish mounted a fresh
+  // BSCookMode with an empty timer list, so a live 30-minute chill and its finish notice
+  // vanished the moment the previous recipe unmounted.
+  assert.equal(handed[0].dish, r.title,
+    `the carried hold lost the dish it belongs to: ${JSON.stringify(handed[0])}`);
+  assert.ok(handed[0].gist || handed[0].label,
+    `the carried hold lost the words that name it: ${JSON.stringify(handed[0])}`);
+
+  // The NEXT dish must actually show it — the handoff is worth nothing if nothing renders.
+  const next = SHAPE_KITCHEN_RECIPES.find((x) => x.title !== r.title && bsCookableFromRecipe(x));
+  const s2 = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(next), onClose() {},
+    prep: { index: 1, count: 2, priorMins: 0, totalMins: 100, onPrepped() {}, carried: handed },
+  });
+  assert.ok(s2.text.includes(r.title),
+    `the next dish does not mention the hold still running from ${r.title}: ${s2.text.slice(0, 300)}`);
+
+  // ⚠ ...and while it is still RUNNING it must not be dismissible: the session debit is
+  // max(0, endsAt - now), so clearing a live hold would move a figure this screen does
+  // not own.
+  const liveDismiss = s2.nodes().filter((n) => n.type === 'button' && n.props.onClick
+    && /Done/.test(textOf(n)) && String(n.key || '').startsWith('carried-'));
+  assert.equal(liveDismiss.length, 0,
+    'a still-running carried hold must not be dismissible on the next dish');
+});
+
+// ⚠ THE FIX FOR A VANISHING TIMER WAS ONE EDIT AWAY FROM A VANISHING TIMER. The first
+// version of the carried-hold rail filtered on `endsAt > now`, so a chill that ended while
+// the cook was on the transition screen was dropped before anything announced it — and
+// carried holds are absent from the local `rung` list too, so no "time's up" ever came.
+// That is the very defect the carry was written to fix, re-created one stage later.
+test('prep session: a carried hold that EXPIRES is still announced, not silently dropped', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+  const expired = { id: 1, cid: '0-1', label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: Date.now() - 60_000, dish: 'Date and almond energy bites' };
+
+  let cleared = 'never called';
+  const s = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(r), onClose() {},
+    prep: { index: 1, count: 2, priorMins: 0, totalMins: 100, onPrepped() {}, carried: [expired], onCarriedDone(cid) { cleared = cid; } },
+  });
+
+  assert.ok(s.text.includes(expired.dish),
+    `an expired carried hold vanished instead of being announced: ${s.text.slice(0, 300)}`);
+  assert.match(s.text, /Time's up/,
+    `an expired carried hold must say so, not just sit there: ${s.text.slice(0, 300)}`);
+
+  // ...and NOW it is dismissible — its debit is already zero, so clearing it moves nothing.
+  // ⚠ Take the button from INSIDE the carried row. The step itself also renders a "✓ Done",
+  // so a whole-tree search by label clicks the wrong control and the assertion below then
+  // fails for a reason that has nothing to do with carried holds.
+  const row = s.nodes().find((n) => String(n.key || '') === `carried-${expired.cid}`);
+  assert.ok(row, 'the expired carried hold did not render its own row');
+  const btn = flattenNode(row).find((n) => n.type === 'button' && n.props.onClick);
+  assert.ok(btn, `a finished carried hold must be acknowledgeable: ${textOf(row)}`);
+  btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(cleared, expired.cid, `acknowledging must clear THAT hold, got ${JSON.stringify(cleared)}`);
+});
+
+// ⚠ `timerIdRef` restarts at 0 in every newly mounted BSCookMode, so two dishes each handing
+// up their first timer both produce id 1. Keyed on the raw id they collide as "carried-1" and
+// React can drop the wrong countdown when one expires.
+test('prep session: carried holds from different dishes get distinct keys', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+  const mk = (cid, dish) => ({ id: 1, cid, label: 'Rest', gist: 'Rest', total: 600, endsAt: Date.now() + 300_000, dish });
+  const s = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(r), onClose() {},
+    prep: {
+      index: 2, count: 3, priorMins: 0, totalMins: 100, onPrepped() {}, onCarriedDone() {},
+      carried: [mk('0-1', 'First dish'), mk('1-1', 'Second dish')],
+    },
+  });
+  const keys = s.nodes().map((n) => String(n.key || '')).filter((k) => k.startsWith('carried-'));
+  assert.equal(keys.length, 2, `both carried holds must render, got ${JSON.stringify(keys)}`);
+  assert.equal(new Set(keys).size, 2, `carried holds collided on key: ${JSON.stringify(keys)}`);
+});
+
+// ⚠ THE FIX FOR A VANISHING TIMER LEFT THE TIMER STANDING STILL. Carried holds now reach
+// the wrap screen — and stop dead there. `sessionNow` is a plain render-time constant, and
+// the only second-hands in this flow belong to `BSPrepCook` and `BSCookMode`, BOTH of which
+// are unmounted by the time `stage === 'wrap'`. Nothing re-renders the wrap, so the
+// countdown freezes at the instant the cook arrived: it never reaches "Time's up" and never
+// offers the acknowledge button — the one thing the carry exists to deliver, absent from the
+// last screen that can deliver it.
+//
+// ⚠ NO ASSERTION ON THE RENDERED TEXT CAN SEE THIS. Re-rendering is precisely what the
+// harness does, so a test that calls `render()` supplies the very thing production fails to
+// schedule and passes either way. The defect is the WIRING, so the wiring is what these
+// assert. The shared harness makes effects no-ops on purpose (the real ones start wall-clock
+// intervals); these two tests — and only these two — collect what a render registered and
+// run it against a recording timer, restoring both on the way out.
+function withWrapEffects(fn) {
+  const realEffect = SHIM.useEffect;
+  const realSet = globalThis.setInterval;
+  const realClear = globalThis.clearInterval;
+  const realNow = Date.now;
+  const pending = [];
+  const timers = [];
+  SHIM.useEffect = (fx) => { pending.push(fx); };
+  globalThis.setInterval = (cb, ms) => { const h = { cb, ms, live: true }; timers.push(h); return h; };
+  globalThis.clearInterval = (h) => { if (h && typeof h === 'object') h.live = false; };
+  // Local noon, movable. Same reasoning as `withClockAt`: a real wall clock makes the
+  // expiry assertions facts about the hour the suite happens to run in.
+  let clock = new Date(2026, 5, 15, 12, 0, 0, 0).getTime();
+  Date.now = () => clock;
+  const api = {
+    at: (ms) => { clock = ms; },
+    now: () => clock,
+    forget: () => { pending.length = 0; },   // discard what earlier stages registered
+    run: () => pending.splice(0).map((f) => f()).filter((t) => typeof t === 'function'),
+    liveTimers: () => timers.filter((t) => t.live),
+  };
+  try { return fn(api); } finally {
+    SHIM.useEffect = realEffect;
+    globalThis.setInterval = realSet;
+    globalThis.clearInterval = realClear;
+    Date.now = realNow;
+  }
+}
+
+// Walk a ONE-recipe session to the wrap with `hold` still on the clock. One recipe is what
+// puts the wrap directly after the dish (`cookIdx + 1 >= ordered.length`), and the hold is
+// handed up through the real `prep.onPrepped` the cook surface calls — not written into
+// state by the test, which would prove nothing about how a hold actually arrives.
+function wrapWithCarriedHold(hold) {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+  assert.ok(r, 'the catalog has no cookable recipe — this test cannot run');
+  const program = [{ meals: [{ id: 'w1', slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 }] }];
+  const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+  s.click(r.title, pressable);
+  s.click('Merge the mise');
+  s.click('Start the session');
+  s.click('Start this recipe');
+  const board = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
+  assert.ok(board, 'the session never reached a cook surface that can hand a hold up');
+  board.props.prep.onPrepped([hold]);
+  return s;
+}
+
+test('prep session: the wrap screen keeps a carried hold TICKING, not frozen at arrival', () => {
+  withWrapEffects((clock) => {
+    const hold = { id: 1, label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() + 60_000, dish: 'Date and almond energy bites' };
+    const s = wrapWithCarriedHold(hold);
+
+    clock.forget();   // the picker/mise renders are not what this is about
+    s.render();       // ...this is: the wrap, with a minute still to run
+    const teardowns = clock.run();
+
+    assert.match(s.text, /Chill 30 minutes/, 'the carried hold did not reach the wrap at all');
+    assert.doesNotMatch(s.text, /Time's up/, 'guard the guard: the hold must still be RUNNING here');
+
+    const live = clock.liveTimers();
+    assert.equal(live.length, 1,
+      `the wrap must run its own second-hand while a carried hold is still counting — it registered ${live.length}. Without one, sessionNow never moves again and the countdown is a still photograph.`);
+    assert.ok(live[0].ms <= 1000, `a countdown showing seconds cannot tick every ${live[0].ms}ms`);
+
+    // ...and what it drives is THIS row: run the clock past the hold and the wrap must now
+    // say so and offer the acknowledgement.
+    clock.at(hold.endsAt + 1000);
+    live[0].cb();
+    s.render();
+    assert.match(s.text, /Time's up/, `the hold expired and the wrap never said so: ${s.text.slice(0, 300)}`);
+    // ⚠ Find the row by CONTENT, not by key shape: the wrap keys these rows on the bare
+    // `cid` while the cook rail prefixes them `carried-`, and a test pinned to the wrong
+    // scheme fails for a reason that has nothing to do with the countdown.
+    const row = s.nodes()
+      .filter((n) => textOf(n).includes("Time's up")
+        && flattenNode(n).some((x) => x.type === 'button' && x.props.onClick))
+      .sort((a, b) => textOf(a).length - textOf(b).length)[0];
+    assert.ok(row, `a finished carried hold must be acknowledgeable on the wrap: ${s.text.slice(0, 300)}`);
+    const ack = flattenNode(row).find((n) => n.type === 'button' && n.props.onClick);
+    ack.props.onClick({ preventDefault() {}, stopPropagation() {} });
+    s.render();
+    assert.doesNotMatch(s.text, /Chill 30 minutes/,
+      `acknowledging the finished hold did not clear it from the wrap: ${s.text.slice(0, 300)}`);
+
+    // A heartbeat that outlives its screen is a leak: the teardown must stop it.
+    teardowns.forEach((t) => t());
+    assert.equal(clock.liveTimers().length, 0, 'the wrap heartbeat kept running after teardown');
+  });
+});
+
+// ⚠ A HEARTBEAT THAT ALWAYS FIRES IS ITS OWN DEFECT. BSPrepSession returns the BOARD during
+// the cook stage, so a session-wide second-hand would re-render `BSPrepCook`/`BSCookMode`
+// every second ON TOP of the one each already runs. It must start only when there is
+// something left to count.
+test('prep session: the wrap runs NO heartbeat once nothing is left to count', () => {
+  withWrapEffects((clock) => {
+    const rung = { id: 1, label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() - 60_000, dish: 'Date and almond energy bites' };
+    const s = wrapWithCarriedHold(rung);
+
+    clock.forget();
+    s.render();
+    clock.run();
+
+    assert.match(s.text, /Time's up/, 'guard the guard: this hold must have ALREADY rung');
+    assert.equal(clock.liveTimers().length, 0,
+      'the wrap started a second-hand with nothing left to count — every session would then re-render once a second forever');
+  });
+});
+
+// ⚠ THE MISS WAS ONE PROP AWAY FROM THE FIX. `carriedDebit` is computed in BSPrepSession
+// off its render-time `sessionNow` and handed down as a finished number — but the parent
+// does not re-render during a dish, so the debit it computed at the handoff is the debit
+// the whole next dish sees. The component's own comment states the intent it fails to
+// deliver: "the debit shrinks with the clock and expires by itself".
+//
+// Consequence: the session figure under-reads by the carried hold's whole remaining
+// duration for as long as that hold runs — up to ~30 of 100 minutes on a real chill — and
+// only snaps right when something else re-renders the parent.
+//
+// ⚠ AND UNLIKE THE WRAP, RE-RENDERING HERE IS HONEST. BSCookMode runs its own second-hand
+// (`setTick` every 1000ms), so production genuinely re-renders this component every second;
+// a test that calls `render()` is reproducing what really happens, not supplying what
+// production forgot. The debit therefore belongs on THIS side of the prop, where the clock
+// already ticks.
+function withMovableClock(fn) {
+  const realNow = Date.now;
+  let clock = new Date(2026, 5, 15, 12, 0, 0, 0).getTime();
+  Date.now = () => clock;
+  try { return fn({ now: () => clock, at: (ms) => { clock = ms; } }); } finally { Date.now = realNow; }
+}
+
+test('prep session: the session figure credits a carried hold AS IT WINDS DOWN', () => {
+  withMovableClock((clock) => {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+    assert.ok(r, 'the catalog has no cookable recipe — this test cannot run');
+    // A 20-minute chill carried out of the previous dish, against a 100-minute session
+    // whose prior dishes are worth 40 authored minutes.
+    const carried = [{ id: 1, cid: '0-1', label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() + 20 * MIN, dish: 'The previous dish' }];
+    const s = drive(MOD.BSCookMode, {
+      cookable: bsCookableFromRecipe(r), onClose() {},
+      prep: { index: 1, count: 2, priorMins: 40, totalMins: 100, onPrepped() {}, carried, onCarriedDone() {} },
+    });
+    const pct = () => {
+      const m = /(\d+)% done/.exec(s.text);
+      assert.ok(m, `no session figure rendered at all: ${s.text.slice(0, 300)}`);
+      return Number(m[1]);
+    };
+
+    const atHandoff = pct();
+    clock.at(clock.now() + 10 * MIN);   // ten minutes of the chill have run off
+    s.render();                          // ...which the real second-hand does every second
+    const tenMinutesIn = pct();
+
+    assert.ok(tenMinutesIn > atHandoff,
+      `the carried hold wound down ten minutes and the session figure did not move (${atHandoff}% → ${tenMinutesIn}%). The debit is a number computed by a component with no clock.`);
+
+    // ...and it must arrive at the FULL credit once the hold has rung, not merely drift up.
+    clock.at(carried[0].endsAt + MIN);
+    s.render();
+    assert.equal(pct(), 40,
+      `once the carried hold has rung, the prior dishes are fully credited: expected 40%, got ${pct()}%`);
+  });
+});
+
+// ⚠ AND THE TEST ABOVE CANNOT SEE THE OTHER HALF. It mounts BSCookMode and supplies
+// `priorMins` itself, so it passes whether or not BSPrepSession ALSO still subtracts the
+// debit — and subtracting on both sides would charge a carried hold twice, under-reading
+// worse than the frozen figure it replaced. The parent's half needs its own assertion, and
+// the honest one compares two identical walks that differ ONLY in whether a hold was
+// carried: the credit handed down must not move.
+test('prep session: the prior-dish credit handed down is RAW — the debit is never charged twice', () => {
+  withMovableClock((clock) => {
+    const pair = cookables.slice(0, 2);
+    assert.equal(pair.length, 2, 'need two cookable recipes to have a PRIOR dish at all');
+    const program = [{ meals: pair.map((r, i) => ({ id: `d${i}`, slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 })) }];
+
+    // Walk both dishes of a SEQUENTIAL session, handing `outstanding` up at the first one,
+    // and report the prior-dish credit the second dish is handed.
+    const creditAtSecondDish = (outstanding) => {
+      const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+      for (const m of program[0].meals) s.click(m.title, pressable);
+      s.click('Merge the mise');
+      s.clickKey('sequence');          // the serial path — the one that carries holds forward
+      s.click('Start the session');
+      s.click('Start this recipe');
+      const first = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
+      assert.ok(first, 'the session never reached a cook surface for the FIRST dish');
+      first.props.prep.onPrepped(outstanding);
+      s.render();
+      s.click('Start this recipe');
+      const second = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
+      assert.ok(second, 'the session never reached a cook surface for the SECOND dish');
+      assert.equal(second.props.prep.index, 1, 'the session did not advance to the second dish');
+      return second.props.prep.priorMins;
+    };
+
+    const hold = { id: 1, label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() + 20 * MIN, dish: pair[0].title };
+    const withNothingCarried = creditAtSecondDish([]);
+    const withALiveHold = creditAtSecondDish([hold]);
+
+    assert.ok(withNothingCarried > 0,
+      `guard the guard: the first dish must be worth some minutes, got ${withNothingCarried}`);
+    assert.equal(withALiveHold, withNothingCarried,
+      `the prior-dish credit handed down changed when a hold was carried (${withNothingCarried} → ${withALiveHold}). The parent is applying the debit as well as BSCookMode, so a carried hold is charged twice.`);
+  });
 });
 
 
@@ -880,4 +1179,163 @@ test('the three cook options run three DIFFERENT schedulers', () => {
   assert.notDeepEqual(shownSoonest, planOffsets(srv),
     'the same-time option is running the SERVE scheduler — the two options are the same door again');
   assert.deepEqual(shownSequence, planOffsets(seq), '"cook separately" must run the SEQUENCE plan');
+});
+
+// The whole shipping catalog as cookables, built once — these two tests search it for a
+// real pair rather than hand-building fixtures, so they fail loudly if the catalog stops
+// containing the case they exist for.
+const KITCHEN_DATA = await importSibling('shapeKitchenData.js');
+const COOKABLE = await importSibling('..', 'services', 'cookable.mjs');
+const cookables = KITCHEN_DATA.SHAPE_KITCHEN_RECIPES
+  .map((r) => {
+    const c = COOKABLE.bsCookableFromRecipe(r);
+    return c && c.steps && c.steps.length
+      ? { key: r.key || r.title, title: r.title, steps: c.steps, stepMeta: c.stepMeta || [] }
+      : null;
+  })
+  .filter(Boolean);
+
+// ⚠ TWO OPTIONS THAT RUN THE SAME PLAN ARE ONE OPTION WITH A FALSE PROMISE. When no dish
+// has a window to weave into, TOGETHER falls back to serial: it produces the SAME timeline
+// as "cook separately" and therefore the SAME minutes, while its row promised simultaneous
+// cooking. The engine had always NAMED the reason (BS_SERIAL_REASON.NO_WINDOW); nothing
+// read it, so the sheet offered a dead choice with no explanation.
+test('prep sheet: "cook at the same time" is not offered when it cannot weave', () => {
+  const kitchen = { stove: 1, oven: 1, board: 1 };
+
+  // Find REAL catalog pairs rather than hand-building fixtures — a pair I construct myself
+  // cannot tell me the shipping catalog still contains the case.
+  let dead = null;
+  let live = null;
+  for (let i = 0; i < cookables.length && (!dead || !live); i++) {
+    for (let j = i + 1; j < cookables.length && (!dead || !live); j++) {
+      const rs = [cookables[i], cookables[j]];
+      const plan = bsOrchestrate(rs, { mode: BS_COOK_MODE.TOGETHER, kitchen });
+      // ⚠ SELECT ON THE REASON, NOT ON `serial`. A STATIONS plan is serial too, so taking
+      // the first serial pair could hand this test a station-blocked plan while the
+      // assertion below accepts EITHER message — passing without ever exercising NO_WINDOW.
+      if (plan?.serial === true && plan.reason === ORCH.BS_SERIAL_REASON.NO_WINDOW && !dead) dead = rs;
+      if (plan?.serial === false && !live) live = rs;
+    }
+  }
+  assert.ok(dead, 'the catalog no longer holds a pair that cannot weave — this test is vacuous');
+  assert.ok(live, 'the catalog no longer holds a pair that CAN weave — guard the guard');
+
+  const sameTimeRow = (rs) => {
+    const program = [{ meals: rs.map((r, i) => ({ id: `p${i}`, slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 })) }];
+    const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+    for (const m of program[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    const row = s.nodes().find((n) => String(n.key) === 'soonest' && n.props && n.props.onClick);
+    assert.ok(row, 'no option row keyed "soonest" rendered');
+    return { row, text: textOf(row) };
+  };
+
+  const d = sameTimeRow(dead);
+  assert.equal(d.row.props.disabled, true,
+    `a pair that cannot weave must not offer "at the same time": ${d.text}`);
+  // ⚠ The NO_WINDOW message specifically, read from the catalog — not an alternation over
+  // both reasons. `dead` is selected on the reason now, so accepting either message would
+  // let a station-blocked plan satisfy a test written for the no-window one. Reading the
+  // catalog also catches the copy drifting out of sync with the component's defaultValue.
+  const noWindowCopy = JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', 'cook.json'), 'utf8'))['prep.noWindow'];
+  assert.ok(d.text.includes(noWindowCopy),
+    `the row must say WHY it is unavailable, in the NO_WINDOW words (${JSON.stringify(noWindowCopy)}): ${d.text}`);
+
+  // ⚠ AND THE MINUTES MUST BE GONE. They equal the "cook separately" figure exactly, so
+  // printing them offers a saving that does not exist.
+  //
+  // ⚠ THE FIRST VERSION OF THIS ASSERTION WAS HOLLOW, AND MUTATION-TESTING CAUGHT IT. It
+  // recomputed the sequence span here and looked for THAT number in the row — but the
+  // component schedules against its own persisted kitchen and renders 27 where this test
+  // computed 30, so the regex could never match and the assertion could never fail.
+  // Assert on what the ROW SHOWS, never on a number the test derived for itself.
+  assert.doesNotMatch(d.text, /\d+\s*min/,
+    `the unavailable row still printed minutes — the very figure "cook separately" shows: ${d.text}`);
+
+  // Guard the guard: still offered, still with its minutes, when it CAN weave.
+  const l = sameTimeRow(live);
+  assert.ok(!l.row.props.disabled, `a pair that CAN weave must still offer the option: ${l.text}`);
+  assert.match(l.text, /\d+\s*min/, `an available row must still show its minutes: ${l.text}`);
+});
+
+// ⚠ A SUPERLATIVE THE SCHEDULER CANNOT SUPPORT. TOGETHER is greedy and ORDER-SENSITIVE, and
+// the order search that would justify "soonest" lives on the SERVE path only.
+test('prep sheet: the same-time option claims no optimum it never searched for', () => {
+  const kitchen = { stove: 1, oven: 1, board: 1 };
+  const span = (p) => (p?.timeline?.length
+    ? Math.max(...p.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
+    : null);
+  const byTitle = (t) => cookables.find((r) => r.title === t);
+
+  const trio = ['One-pan chicken and rice', 'Greek yogurt power bowl', 'Catfish stew with brown rice'].map(byTitle);
+  if (trio.every(Boolean)) {
+    const perms = (a) => (a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map((r) => [x, ...r])));
+    const spans = perms(trio).map((o) => span(bsOrchestrate(o, { mode: BS_COOK_MODE.TOGETHER, kitchen }))).filter((x) => x != null);
+    const asGiven = span(bsOrchestrate(trio, { mode: BS_COOK_MODE.TOGETHER, kitchen }));
+    // This is the PREMISE of the copy change, pinned. If the scheduler ever becomes
+    // order-insensitive the superlative would be earnable again, and this is what says so.
+    assert.ok(Math.min(...spans) < asGiven,
+      'TOGETHER is no longer order-sensitive here — revisit whether "soonest" is now earnable');
+  }
+
+  const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', 'cook.json'), 'utf8'));
+  assert.doesNotMatch(en['prep.soonestSub'], /soonest|fastest|quickest|earliest/i,
+    `the same-time copy claims an optimum the greedy scheduler never searched for: ${en['prep.soonestSub']}`);
+});
+
+// ⚠ THE SAME RULE AT THREE SITES, AND THE FIRST FIX CHANGED ONE. A carried hold was dropped
+// once expired — on the DISPLAY, on the HANDOFF, and on the WRAP. Fixing only the display
+// was worthless for a hold that finished before the cook tapped "Next recipe": it was never
+// handed up at all, so there was nothing downstream to display. Both tests below were
+// written after mutation-testing showed the suite could not tell the fix from the defect.
+test('prep session: a hold that finishes BEFORE the handoff is still handed up', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === 'Date and almond energy bites');
+  assert.ok(r, 'catalog no longer has the energy bites — repin this test, do not delete it');
+
+  let handed = 'never called';
+  const s = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(r), onClose() {},
+    prep: { index: 0, count: 2, priorMins: 0, totalMins: 100, onPrepped(out) { handed = out; } },
+  });
+
+  let guard = 0;
+  while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
+    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('✓ Done'))) break;
+    s.click('✓ Done');
+  }
+  assert.match(s.text, /Chill 30 minutes/, 'never reached the chill');
+  assert.ok(s.buttons().some((b) => !b.disabled && b.label.startsWith('▸ Timer')), 'no countdown offered');
+  s.click('▸ Timer');
+
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  assert.ok(finish, 'no way to end the dish');
+  s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
+
+  // ⚠ Let the chill FINISH before the cook advances — the case the handoff filter dropped.
+  const real = Date.now;
+  Date.now = () => real() + 45 * 60_000;
+  try {
+    const cta = s.buttons().find((b) => !b.disabled && (b.label.startsWith('Next recipe') || b.label.startsWith('Wrap the session')));
+    assert.ok(cta, `no session CTA (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+    s.click(cta.label.startsWith('Next recipe') ? 'Next recipe' : 'Wrap the session');
+  } finally { Date.now = real; }
+
+  assert.ok(Array.isArray(handed), `onPrepped received ${JSON.stringify(handed)}`);
+  assert.equal(handed.length, 1,
+    `an EXPIRED hold must still be handed up so it can be acknowledged, got ${JSON.stringify(handed)}`);
+  assert.equal(handed[0].dish, r.title, 'the expired hold lost its dish');
+});
+
+// ⚠ AND THE WRAP DROPPED IT TOO — the third site, and the cook's LAST chance to hear that a
+// hold from an earlier dish has finished.
+test('prep session: the WRAP does not filter a carried hold that has finished', () => {
+  const src = readFileSync(SRC, 'utf8');
+  const i = src.indexOf('A hold inherited from an earlier dish is still running at the wrap');
+  assert.ok(i > 0, 'the wrap carried-hold block was renamed — repoint this test');
+  const head = src.slice(i, i + 1500);
+  assert.doesNotMatch(head, /carried\.filter\(\(h\) => h\.endsAt > sessionNow\)/,
+    'the wrap filters expired carried holds again — the third site of the same defect');
+  assert.match(head, /Time's up/,
+    'the wrap must be able to say a carried hold FINISHED, not only count it down');
 });

@@ -111,11 +111,13 @@
   "prep.serveTooSoon": "Zu knapp — frühestens ist alles um {t} fertig",
   "prep.soonest": "Gleichzeitig kochen",
   "prep.serveGap": "Innerhalb von {n} Min zueinander",
-  "prep.soonestSub": "Alles auf einmal — am schnellsten aus der Küche",
+  "prep.soonestSub": "Alles auf einmal — weniger Zeit in der Küche",
   "prep.startAt": "Du fängst um {t} an zu kochen",
   "prep.useEarliest": "{t} nehmen",
   "prep.startsIn": "Startet in {n} Min",
   "prep.startNow": "Jetzt starten",
   "prep.startAtEstimated": "Manche Schritte gibt das Rezept ohne Zeit an — plane Puffer ein",
-  "prep.earliestSearched": "Das früheste der geprüften Reihenfolgen"
+  "prep.earliestSearched": "Das früheste der geprüften Reihenfolgen",
+  "prep.noWindow": "Kein Gericht hier wartet lang genug, um ein anderes zu beginnen",
+  "prep.noStation": "Deine Küche hat keine freie Platte oder Röhre für die Überschneidung"
 }
