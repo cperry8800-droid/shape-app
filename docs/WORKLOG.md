@@ -290,6 +290,15 @@ changelog whenever something ships.
   opted-out member. A directive with no usable move kind is treated as unidentifiable and
   purged **while opted out** — the under-deliver direction this layer already chooses, and
   self-limiting, since every directive built from now on carries its kind.
+- ⚠ **AND THE PURGE CONSUMED THE NUDGE IT REMOVED.** A deferred candidate records its
+  signature in `notify_state.types` so the same nudge is not rebuilt twice; the purge took
+  the queued copy and left the stamp. `checkin_due` signs itself with the **constant**
+  `'due'`, and that map has no TTL and is never pruned — so a member who opted out while
+  one was queued and later opted back in was deduped, **permanently**, against a
+  notification that never went out. A stamp means *handled*; purging un-handles the item,
+  so the stamp is released with it — but only when nothing of that type is **still held**,
+  since a queued item carries no key and a surviving non-check-in directive shares the
+  purged one's entry.
 - ⚠ **BOTH routes were wired, not only the cron.** `/api/ai/notify` recomputes from the
   same snapshot and had the identical hole — fixing the reported one would have left the
   live path nudging.
