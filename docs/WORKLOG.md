@@ -176,7 +176,8 @@ changelog whenever something ships.
   - **CodeRabbit** — **does not run BY ITSELF** (auto-skip notice, <10 stars →
     request-only), but ⚠ **it runs on request and the owner authorised that on
     2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
-    #1910 across four rounds (27 → 6 → 5 → 3 → 0 findings). ⚠ **It is still not a
+    #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the
+    changelog and handoff both say five; this line said four). ⚠ **It is still not a
     gate** — a clean CodeRabbit pass leaves *no review record at all*, so read its
     acknowledgement comment rather than inferring a pass from silence.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
@@ -246,21 +247,35 @@ changelog whenever something ships.
   time* · *cook separately* · *cook to serve* (every dish completing at one moment).
   "Cook at the same time" had been running the SERVE scheduler with **no serve time**, so
   two of the three doors led to the same room and the option meant to get the cook OUT of
-  the kitchen was optimising the wrong thing. MEASURED over 3,570 catalog pairs: TOGETHER
-  finishes sooner in **16.0%** and later in **4.2%** (mean session 38.6 min vs 39.9;
-  SEQUENCE 44.4). It is the faster plan on balance — but the reason it is CORRECT is that
-  it is a different question.
+  the kitchen was optimising the wrong thing. MEASURED over **4,950 catalog pairs** —
+  every pair of the merged 100-recipe catalog — TOGETHER finishes sooner than SERVE in
+  **29.5%** and later in **7.7%** (mean session **51.9 min** vs **53.9**; SEQUENCE
+  **64.4**). It is the faster plan on balance — but the reason it is CORRECT is that it is
+  a different question.
+  ⚠ **THESE SUPERSEDE THE FIGURES IN #1910's MERGE MESSAGE** (3,570 pairs · 16.0% · 4.2% ·
+  38.6/39.9/44.4). 3,570 is exactly **C(85, 2)**, so that measurement predated #1911 and
+  omitted all 1,380 pairs involving the 15 new recipes. The merge message is immutable and
+  now WRONG on this point; these are the numbers to quote.
 - ⚠ **"Cook to serve" is DISCLOSED, not promised.** It lands every dish at one moment in
-  only **2.2%** of pairs, mean gap **15.6 min** — and it is **NOT the kitchen**: an
-  unlimited-station kitchen gives the *identical* 2.2%. It is the one cook, who cannot
-  finish two hands-on dishes at the same instant. The gap is stated beside the start time
+  only **7.4%** of pairs, mean gap **13.5 min** — and it is **overwhelmingly not the
+  kitchen**: an unlimited-station kitchen reaches only **8.6%**. It is the one cook, who
+  cannot finish two hands-on dishes at the same instant.
+  ⚠ **THE EARLIER CLAIM THAT UNLIMITED STATIONS MEASURE *IDENTICALLY* IS WITHDRAWN.** On
+  the 85-recipe catalog both arms read 2.2% and I called them identical; re-measured over
+  all 4,950 pairs they are **7.4% against 8.6%**, so the kitchen accounts for about **1.2
+  points** and the cook for the remaining ~91%. The conclusion holds and the word does
+  not — a saturated pair of equal numbers was hiding a real, if small, difference
+  (see the check-your-check note in the review section). The gap is stated beside the start time
   the cook sets an alarm by. **A true single-moment finish is a scheduler design change —
   registered, not claimed.**
 - **The engine.** ONE placement now answers for the timeline, the serve time AND the
   issues, so the sheet cannot report a schedule it is not showing. A pull **names the
   resource that caused it** — MEASURED, an unlimited kitchen still reported `stations` on
   **3,492 of 3,570** plans, so the reason code was wrong in **97.8%** of them and every one
-  of those was the COOK. ⚠ It has **no UI consumer yet** — a contract fixed ahead of its
+  of those was the COOK. ⚠ That pair of numbers is over the **85-recipe** catalog and is
+  deliberately NOT restated: it measures a defect that is now fixed, so re-running it today
+  would measure the corrected engine and find nothing. A historical measurement gets its
+  denominator named, never a fresh number pasted over it. ⚠ It has **no UI consumer yet** — a contract fixed ahead of its
   first reader.
 - ⚠ **A DISCLOSURE THAT MOVED HOUSE AND STOPPED DESCRIBING ITS NEIGHBOUR.** The landing gap
   was rendered beside "You start cooking at {t}" but read from `orchServe` — the
@@ -391,8 +406,8 @@ oats, soy sauce, broth/stock/bouillon, margarine.
 > `056cd0279`), ON TOP OF SHAPE KITCHEN 100 (#1911 → `3c4ee6e9b`).**
 > The owner ruled that the three cook options are three DIFFERENT questions, and "cook at
 > the same time" stopped running the serve scheduler with no serve time.
-> ⚠ **"Cook to serve" lands every dish at one moment in 2.2% of pairs, and it is NOT the
-> kitchen** — an unlimited-station kitchen gives the identical 2.2%; it is the one cook.
+> ⚠ **"Cook to serve" lands every dish at one moment in 7.4% of pairs, and it is
+> overwhelmingly not the kitchen** — unlimited stations reach only 8.6%; it is the one cook.
 > Disclosed on the sheet rather than promised away.
 > ⚠ **Three of the last four review rounds found a defect inside my own preceding fix**,
 > and **three of my own tests were hollow** — caught by mutation-testing, not by review and
