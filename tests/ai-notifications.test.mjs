@@ -378,3 +378,50 @@ test('opting out purges check-in items already HELD in the digest', () => {
   assert.deepEqual(onKinds, ['checkin_due:', 'directive:check_in', 'coach_message:'],
     `the opt-out leaked into the default path: ${JSON.stringify(onKinds)}`);
 });
+
+// ⚠ THE STAMP ONLY HELPS ITEMS BUILT AFTER IT SHIPPED. A `checkin_overdue` directive already
+// sitting in someone's notify_state.pendingDigest at rollout was finalized with `data: {}`,
+// so it carries no move kind and the purge cannot recognise it — the very first evaluation
+// after deploy would still send "your move today" to a member who had opted out.
+// An unidentifiable directive is therefore purged WHILE OPTED OUT: we cannot prove it is not
+// the check-in, and losing one held directive once is the under-deliver direction this file
+// already chooses. New items always carry the stamp, so this is self-limiting.
+test('a LEGACY held directive with no move stamp is purged when opted out', () => {
+  const legacy = { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: {}, priority: 'high', channels: { push: true } };
+  const known = { type: 'directive', title: 'Your move today', body: "Log last night's sleep", route: 'home', data: { move: 'recovery' }, priority: 'high', channels: { push: true } };
+  const msg = { type: 'coach_message', title: 'Sam sent a message', body: 'x', route: 'chat', data: {}, priority: 'high', channels: { push: true } };
+  const last = { date: 'never', pendingDigest: [legacy, known, msg] };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  const kinds = out.digest.data.items.map((i) => `${i.type}:${(i.data && i.data.move) || '-'}`);
+  // ⚠ The IDENTIFIED non-check-in directive must survive — purging every directive would
+  // silence the one move for anyone who ever turned the check-in off.
+  assert.deepEqual(kinds, ['directive:recovery', 'coach_message:-'],
+    `wrong items purged: ${JSON.stringify(kinds)}`);
+
+  // Pref ON — nothing is purged, including the legacy item.
+  const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
+  assert.equal(on.digest.data.items.length, 3, 'the opt-out leaked into the default path');
+});
+
+// ⚠ A BUG MY OWN FILTER INTRODUCED. `hadPending` gates "emit the digest now" and it read the
+// UNFILTERED last.pendingDigest. So if the only held items were check-in ones — all purged —
+// and this same call defers a new low-priority or over-cap candidate, the digest fired
+// IMMEDIATELY with that new item: the documented next-evaluation deferral defeated, and for
+// an over-cap item the daily cap bypassed. It must read the queue AFTER the purge.
+test('purging every held item does not make THIS call emit the digest', () => {
+  const heldCheckin = { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { push: true } };
+  const last = { date: 'never', pendingDigest: [heldCheckin] };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  // a genuinely LOW-priority candidate, which this layer always defers to the digest
+  const fresh = clientCandidates({ directive: null, flags: [{ key: 'streak_broken', habit: 'Water', reason: 'missed 2 days' }], tone: 'supportive' });
+  assert.equal(fresh.length, 1, 'fixture must produce exactly one low-priority candidate');
+
+  const out = decideNotifications({ candidates: fresh, last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(out.digest, null, 'the freshly deferred item must wait for the NEXT evaluation');
+  assert.deepEqual(out.send, [], 'a low-priority item is never sent immediately');
+  // ...and it is genuinely held, not dropped.
+  assert.equal(out.nextState.pendingDigest.length, 1, 'the new item should be queued for later');
+  assert.equal(out.nextState.pendingDigest[0].type, 'streak_broken');
+});

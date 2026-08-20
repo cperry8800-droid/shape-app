@@ -170,7 +170,18 @@ export function dailyCheckinOn(v) { return v !== false && v !== 'Off'; }
 export function isCheckinItem(item) {
   if (!item || typeof item !== 'object') return false;
   if (item.type === 'checkin_due') return true;
-  return item.type === 'directive' && !!item.data && item.data.move === 'check_in';
+  if (item.type !== 'directive') return false;
+  const move = item.data && item.data.move;
+  if (move) return move === 'check_in';
+  // ⚠ NO USABLE MOVE KIND ⇒ UNIDENTIFIABLE ⇒ PURGED, DELIBERATELY. Directives finalized
+  // before the stamp existed carry `data: {}` (and a directive whose action carried no
+  // kind lands in the same bucket), so an already-queued `checkin_overdue` move is
+  // indistinguishable from any other held directive — and the FIRST evaluation after rollout would otherwise send
+  // "your move today" to someone who had opted out. Unidentifiable means purged here:
+  // we cannot prove it is not the check-in, and losing one held directive once is the
+  // under-deliver direction this layer already chooses. Self-limiting — every directive
+  // built from now on carries its move kind.
+  return true;
 }
 
 // CLIENT — from a directive + evaluateClient flags + check-in state + coach events.
@@ -312,7 +323,13 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   }
 
   const quiet = inQuietHours(now, P);
-  const hadPending = (Array.isArray(last.pendingDigest) ? last.pendingDigest.length : 0) > 0;
+  // ⚠ AFTER THE PURGE, AND BEFORE THIS CALL'S CANDIDATES. Reading the unfiltered
+  // `last.pendingDigest` meant that when every held item was a purged check-in, a new
+  // low-priority or over-cap candidate deferred by THIS call fired the digest immediately —
+  // defeating the next-evaluation deferral this block documents, and for an over-cap item
+  // bypassing the daily cap. `state.pendingDigest` is the filtered queue and nothing has
+  // been added to it yet.
+  const hadPending = state.pendingDigest.length > 0;
   const send = [];
   const suppressed = [];
 
