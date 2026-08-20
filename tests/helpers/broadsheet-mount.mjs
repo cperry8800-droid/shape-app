@@ -38,6 +38,22 @@ export const THEME = new Proxy({
   W: { display: 800, displayHeavy: 800 },
 }, { get: (t, k) => (k in t ? t[k] : '#000'), has: () => true });
 
+// ⚠ This is PROCESS-GLOBAL and permanent, which is a fair thing to flag: a module that
+// feature-detects `window` will take its browser branch for every suite loading this
+// harness. Two things were measured before accepting it.
+//
+// It is LOAD-BEARING. The component reads a bare `window`, not `typeof window`, so
+// without this line the module throws `ReferenceError: window is not defined` at import
+// and two of the three consumer suites fail outright. It cannot be scoped to the render.
+//
+// And the branch-shadowing it could cause is measured at ZERO for this graph: of the 38
+// modules reachable from iosAppBroadsheetClient.jsx, exactly ONE feature-detects window
+// -- public/newdesign/spotlightTour.js, whose two branches are "register
+// window.SpotlightTour" or "don't". No suite asserts on it either way.
+//
+// So the cost is a latent one: a future import that gates real behaviour on `window`
+// would silently only ever be exercised on its browser side here. Re-run the count above
+// if this harness starts covering more of the app.
 globalThis.window = globalThis;
 globalThis.__VITE_IMPORTMETA__ = { env: { BASE_URL: '/m/' } };
 globalThis.useBS = () => THEME;
