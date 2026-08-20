@@ -189,6 +189,90 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-20 — Cook together: three options, three schedulers, and a serve time the plan keeps (#1910 → `056cd0279`)
+
+- **The prep sheet asks WHY before it starts, and the answer now changes the schedule.**
+  **Owner ruling:** the three options are three DIFFERENT questions — *cook at the same
+  time* · *cook separately* · *cook to serve* (every dish completing at one moment).
+  "Cook at the same time" had been running the SERVE scheduler with **no serve time**, so
+  two of the three doors led to the same room and the option meant to get the cook OUT of
+  the kitchen was optimising the wrong thing. MEASURED over 3,570 catalog pairs: TOGETHER
+  finishes sooner in **16.0%** and later in **4.2%** (mean session 38.6 min vs 39.9;
+  SEQUENCE 44.4). It is the faster plan on balance — but the reason it is CORRECT is that
+  it is a different question.
+- ⚠ **"Cook to serve" is DISCLOSED, not promised.** It lands every dish at one moment in
+  only **2.2%** of pairs, mean gap **15.6 min** — and it is **NOT the kitchen**: an
+  unlimited-station kitchen gives the *identical* 2.2%. It is the one cook, who cannot
+  finish two hands-on dishes at the same instant. The gap is stated beside the start time
+  the cook sets an alarm by. **A true single-moment finish is a scheduler design change —
+  registered, not claimed.**
+- **The engine.** ONE placement now answers for the timeline, the serve time AND the
+  issues, so the sheet cannot report a schedule it is not showing. A pull **names the
+  resource that caused it** — MEASURED, an unlimited kitchen still reported `stations` on
+  **3,492 of 3,570** plans, so the reason code was wrong in **97.8%** of them and every one
+  of those was the COOK. ⚠ It has **no UI consumer yet** — a contract fixed ahead of its
+  first reader.
+- ⚠ **A DISCLOSURE THAT MOVED HOUSE AND STOPPED DESCRIBING ITS NEIGHBOUR.** The landing gap
+  was rendered beside "You start cooking at {t}" but read from `orchServe` — the
+  *earliest-reachable* plan — while the start time came from the plan the cook actually
+  picked. Before the rewire those were the same plan; **my own fix moved the disclosure and
+  split them.** MEASURED over 89,100 pair/kitchen/serve-time comparisons: they disagree in
+  **5.7%**, **one-directionally** — the shown gap **understates**, never overstates, by up
+  to **101 minutes**. It never falsely promised a single moment (0 cases of shown-0 against
+  a real gap), which is exactly why nothing on screen contradicted it.
+- ⚠ **AND THE FALLBACK I ADDED CLAIMED TO BE A PROOF.** The earliest-serve search is bounded
+  by ITERATIONS, not minutes; past the bound it fell out infeasible and everything
+  downstream read a placement whose `placed` is undefined — an **empty timeline beside an
+  unreachable serve time**, silent. The serial bound fixes that, but it is an UPPER bound,
+  and `exact` — the flag the sheet reads to choose between *"this is the earliest"* and
+  *"the earliest of the orders we searched"* — stayed **true**. Fixed, and **mutation-tested
+  in both directions** so an over-correction (always-false) fails too.
+  ⚠ Reachable only far outside real data: it needs a recipe past `BS_ORCH.serveSearchMax`
+  steps where the catalog's largest is **8**, and the search is already ~17s at 320.
+- ⚠ **THREE OF MY OWN TESTS WERE HOLLOW, and only mutation-testing caught them.** The
+  options test asserted **row badges** rather than the plan actually run (rewiring SOONEST
+  back to SERVE left it green); the harness-isolation guard used **identically-shaped**
+  components, which share a cell array quite happily; and a hold fixture had **stopped
+  reaching the case it exists for** after the catalog merge. None were caught by review or
+  by a passing suite. **A green test is not a working test.**
+- **Two findings REFUTED with evidence rather than complied with.** The serial fallback
+  "can itself fail" — the named case (100 one-minute steps against 1) returns a complete
+  101-event timeline, and 11 shapes converge including 7- and 8-dish sets past the
+  exhaustive permutation bound. And the Pidgin subtitle "is a fragment" — so are **all 13
+  locales**, the English source included (*"On the table at a time you choose"*); it sits
+  under the option title, not as a sentence. ⚠ The adjacent Pidgin finding **was** taken:
+  `by {t}` for a clock time contradicts the locale's **own** convention (`for {time}`,
+  three instances across coach + marketplace), and mine were the only two `by`s in it.
+- **Review curve 27 → 6 → 5 → 3 → 0** over five rounds; three of the last four rounds found
+  a defect **inside my own preceding fix**. Suite **2100**; `tsc` clean; CI green and
+  CodeRabbit clean on `1177823ac`. Branch kept.
+- **Registered, NOT built:** the single-moment serve objective · the pull reason code's
+  first UI consumer · **71 of 85 recipes still schedule short against their own
+  annotations** (a DATA pass, not an engine one).
+
+### 2026-08-19 — Shape Kitchen reaches 100, and a Prep Session can finally interleave (#1911 → `3c4ee6e9b`)
+
+- Fifteen more USDA MyPlate recipes take the catalog **85 → 100**, and a passive-window
+  overlay takes the recipes that can **HOST** an interleave window from **22 → 55**
+  (two-dish interleave **40.5% → 52.2%**, three-dish **→ 79.5%**).
+- ⚠ **THOSE NUMBERS WERE CORRECTED DOWNWARD FOUR TIMES, and that is this entry's point.**
+  The overlay first claimed 76 hosts / 69.3%; each round removed windows a cook **cannot
+  actually leave** — terminal windows (a leftover hold is a make-ahead, true of a fridge
+  rest and false of a live oven), windows whose parts exceed the whole, attended aromatics,
+  and ranged durations. 76 → 73 → 67 → 61 → 57 → 56 → **55**. **Every correction made the
+  product worse on paper and more honest in the kitchen.**
+- **Nothing fabricates parallelism.** Every `min` is a duration the step text itself states;
+  four recipes that spelled an hour in words ("for one hour") have it written as 60 so the
+  parser can see what the cook could always read. No time, method or meaning changed.
+- ⚠ **A ranged window is its LOW end.** "12–15 minutes" is 12 — the cook must be back when
+  the window *could* end, not when it might.
+- ⚠ **Round 5's P1 was MINE** (oyster sauce), and the round-6 claim that **"no gate can
+  catch attended aromatics" was REFUTED** — a gate keyed on a different property (the
+  uncovered pan) caught three. **"Ungateable" is a claim about ONE gate, not about the
+  class.**
+- ⚠ **No BACKGROUND hold exists:** a hold blocks its own recipe *and* the one modelled
+  burner. **Tuna macros remain an OWNER RULING**, still unresolved.
+
 ### 2026-08-18 — A claim is kept by SPECIFYING the ingredient, never by hiding the recipe
 
 **Owner ruling, and it reversed my rounds 3-4 classifications.** Two questions had been
@@ -243,7 +327,22 @@ oats, soy sauce, broth/stock/bouillon, margarine.
   come out of a named nutritionist or the USDA. The note is its own unattributed block on
   every surface, and the field is `allergenNotes` for exactly that reason.
 
-> **Latest (2026-08-18): COOK MODE LABELS EVERY TIMER, AND THE SHAPE KITCHEN GOES 35 → 85
+> **Latest (2026-08-20): COOK TOGETHER — THREE OPTIONS, THREE SCHEDULERS (#1910 →
+> `056cd0279`), ON TOP OF SHAPE KITCHEN 100 (#1911 → `3c4ee6e9b`).**
+> The owner ruled that the three cook options are three DIFFERENT questions, and "cook at
+> the same time" stopped running the serve scheduler with no serve time.
+> ⚠ **"Cook to serve" lands every dish at one moment in 2.2% of pairs, and it is NOT the
+> kitchen** — an unlimited-station kitchen gives the identical 2.2%; it is the one cook.
+> Disclosed on the sheet rather than promised away.
+> ⚠ **Three of the last four review rounds found a defect inside my own preceding fix**,
+> and **three of my own tests were hollow** — caught by mutation-testing, not by review and
+> not by a passing suite. Findings ran 27 → 6 → 5 → 3 → 0.
+> ⚠ #1911's headline numbers were **corrected downward four times** as windows a cook
+> cannot leave were removed (76 → 55 hosts). Suite **2100**.
+>
+> See the full entries below.
+
+> **Prior (2026-08-18): COOK MODE LABELS EVERY TIMER, AND THE SHAPE KITCHEN GOES 35 → 85
 > (#1906 → `7c4e49ecb` · #1907 → `f7b9f69ec`).**
 > Two PRs, and in **both** the reviewer's findings kept landing in my own preceding fixes —
 > #1906 took **13 Codex rounds**, #1907 took **four** — and rounds 2 and 4 each found a defect
