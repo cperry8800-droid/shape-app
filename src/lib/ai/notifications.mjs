@@ -171,7 +171,14 @@ export function isCheckinItem(item) {
   if (!item || typeof item !== 'object') return false;
   if (item.type === 'checkin_due') return true;
   if (item.type !== 'directive') return false;
-  const move = item.data && item.data.move;
+  const d = item.data || {};
+  // ⚠ THE LEVER IS THE IDENTITY; THE KIND IS ONLY ITS ENGINE-BUILT ALIAS. A coach override
+  // carries lever 'checkin' with ANY action kind (sanitizeOverride defaults an omitted one
+  // to 'message'), and the kind can never separate them: the engine emits kind 'message'
+  // for the CONTACT lever, so "send me your check-in" and "reach out today" are
+  // kind-identical. Kind is still honoured for items stamped before the lever was.
+  if (d.lever) return d.lever === 'checkin' || d.move === 'check_in';
+  const move = d.move;
   if (move) return move === 'check_in';
   // ⚠ NO USABLE MOVE KIND ⇒ UNIDENTIFIABLE ⇒ PURGED, DELIBERATELY. Directives finalized
   // before the stamp existed carry `data: {}` (and a directive whose action carried no
@@ -215,10 +222,11 @@ export function clientCandidates(input) {
   // this function, and the digest purge cannot key on copy — wording is translated.
   if (directive && directive.action && nonEmpty(directive.action.label)) {
     const moveKind = directive.action.kind || '';
-    if (!(checkinOptedOut && moveKind === 'check_in')) {
+    const lever = directive.lever || '';
+    if (!(checkinOptedOut && (lever === 'checkin' || moveKind === 'check_in'))) {
       const line = nonEmpty(directive.line) ? directive.line : '';
       const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
-      out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind } });
+      out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });
     }
   }
 

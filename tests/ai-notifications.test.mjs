@@ -475,3 +475,44 @@ test('a stamp a SURVIVING held item still stands behind is not released', () => 
   assert.equal(alone.nextState.types['directive:self'], undefined, 'the purged directive left its stamp behind');
   assert.deepEqual(alone.nextState.types['coach_message:m1'], { sig: 'm1', at: 1 }, 'the purge cleared an unrelated dedup entry');
 });
+
+// ⚠ THE FIFTH DOOR IS THE COACH OVERRIDE, AND THE ACTION KIND CANNOT SEE IT. sanitizeOverride
+// validates `lever` against a fixed set that includes 'checkin' but takes ANY 40-char string as
+// the action kind, defaulting an omitted one to 'message'; buildDirective keeps that action
+// beside the checkin lever. So a coach who overrides the check-in with their own wording emits
+// a directive the kind-only gate reads as unrelated. The kind can never separate them either:
+// the ENGINE itself emits kind 'message' for the CONTACT lever, so "send me your check-in" and
+// "reach out today" are kind-identical and differ only by lever. The lever is the identity.
+test('a coach check-in override is suppressed, and a kind-identical contact move is not', () => {
+  // built by the REAL engine, not by a fixture that assumes the shape
+  const checkin = buildDirective({ coachDirective: { lever: 'checkin', action: { label: 'Send me your check-in', kind: 'message' } } }, DAYTIME, 'client');
+  const contact = buildDirective({ coachDirective: { lever: 'contact' } }, DAYTIME, 'client');
+  assert.equal(checkin.action.kind, contact.action.kind, 'premise: the two moves must be kind-identical for this test to mean anything');
+  assert.equal(checkin.lever, 'checkin');
+  assert.equal(contact.lever, 'contact');
+
+  const out = clientCandidates({ directive: { ...checkin, line: 'x' }, flags: [], checkinOptedOut: true, tone: 'supportive' });
+  assert.deepEqual(out, [], 'a coach check-in override nudged a member who opted out');
+
+  const kept = clientCandidates({ directive: { ...contact, line: 'x' }, flags: [], checkinOptedOut: true, tone: 'supportive' });
+  assert.deepEqual(kept.map((c) => c.type), ['directive'], 'the opt-out swallowed an unrelated coach move of the same kind');
+
+  // pref ON — the check-in override is untouched
+  const on = clientCandidates({ directive: { ...checkin, line: 'x' }, flags: [], tone: 'supportive' });
+  assert.deepEqual(on.map((c) => c.type), ['directive'], 'the opt-out leaked into the default path');
+});
+
+// A HELD copy has to carry the lever for the same reason: the purge cannot re-derive it.
+test('a held coach check-in override is purged, and a contact move of the same kind is not', () => {
+  const checkin = buildDirective({ coachDirective: { lever: 'checkin', action: { label: 'Send me your check-in', kind: 'message' } } }, DAYTIME, 'client');
+  const [c] = clientCandidates({ directive: { ...checkin, line: 'x' }, flags: [], tone: 'supportive' });
+  assert.equal(c.data.lever, 'checkin', 'the queued copy cannot be identified without the lever');
+
+  const held = { type: 'directive', title: 'Your move today', body: 'Send me your check-in', route: 'home', data: { move: 'message', lever: 'checkin' }, priority: 'high', channels: { push: true } };
+  const reach = { type: 'directive', title: 'Your move today', body: 'Reach out today', route: 'home', data: { move: 'message', lever: 'contact' }, priority: 'high', channels: { push: true } };
+  const last = { date: 'never', pendingDigest: [held, reach] };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.deepEqual(out.digest.data.items.map((i) => i.data.lever), ['contact'], 'the purge kept or dropped the wrong held override');
+});
