@@ -989,7 +989,10 @@ test('prep sheet: "cook at the same time" is not offered when it cannot weave', 
     for (let j = i + 1; j < cookables.length && (!dead || !live); j++) {
       const rs = [cookables[i], cookables[j]];
       const plan = bsOrchestrate(rs, { mode: BS_COOK_MODE.TOGETHER, kitchen });
-      if (plan?.serial === true && !dead) dead = rs;
+      // ⚠ SELECT ON THE REASON, NOT ON `serial`. A STATIONS plan is serial too, so taking
+      // the first serial pair could hand this test a station-blocked plan while the
+      // assertion below accepts EITHER message — passing without ever exercising NO_WINDOW.
+      if (plan?.serial === true && plan.reason === ORCH.BS_SERIAL_REASON.NO_WINDOW && !dead) dead = rs;
       if (plan?.serial === false && !live) live = rs;
     }
   }
@@ -1009,8 +1012,13 @@ test('prep sheet: "cook at the same time" is not offered when it cannot weave', 
   const d = sameTimeRow(dead);
   assert.equal(d.row.props.disabled, true,
     `a pair that cannot weave must not offer "at the same time": ${d.text}`);
-  assert.match(d.text, /wait long enough|free burner/,
-    `the row must say WHY it is unavailable, not merely look dim: ${d.text}`);
+  // ⚠ The NO_WINDOW message specifically, read from the catalog — not an alternation over
+  // both reasons. `dead` is selected on the reason now, so accepting either message would
+  // let a station-blocked plan satisfy a test written for the no-window one. Reading the
+  // catalog also catches the copy drifting out of sync with the component's defaultValue.
+  const noWindowCopy = JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', 'cook.json'), 'utf8'))['prep.noWindow'];
+  assert.ok(d.text.includes(noWindowCopy),
+    `the row must say WHY it is unavailable, in the NO_WINDOW words (${JSON.stringify(noWindowCopy)}): ${d.text}`);
 
   // ⚠ AND THE MINUTES MUST BE GONE. They equal the "cook separately" figure exactly, so
   // printing them offers a saving that does not exist.
@@ -1052,4 +1060,60 @@ test('prep sheet: the same-time option claims no optimum it never searched for',
   const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', 'cook.json'), 'utf8'));
   assert.doesNotMatch(en['prep.soonestSub'], /soonest|fastest|quickest|earliest/i,
     `the same-time copy claims an optimum the greedy scheduler never searched for: ${en['prep.soonestSub']}`);
+});
+
+// ⚠ THE SAME RULE AT THREE SITES, AND THE FIRST FIX CHANGED ONE. A carried hold was dropped
+// once expired — on the DISPLAY, on the HANDOFF, and on the WRAP. Fixing only the display
+// was worthless for a hold that finished before the cook tapped "Next recipe": it was never
+// handed up at all, so there was nothing downstream to display. Both tests below were
+// written after mutation-testing showed the suite could not tell the fix from the defect.
+test('prep session: a hold that finishes BEFORE the handoff is still handed up', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === 'Date and almond energy bites');
+  assert.ok(r, 'catalog no longer has the energy bites — repin this test, do not delete it');
+
+  let handed = 'never called';
+  const s = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(r), onClose() {},
+    prep: { index: 0, count: 2, priorMins: 0, totalMins: 100, onPrepped(out) { handed = out; } },
+  });
+
+  let guard = 0;
+  while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
+    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('✓ Done'))) break;
+    s.click('✓ Done');
+  }
+  assert.match(s.text, /Chill 30 minutes/, 'never reached the chill');
+  assert.ok(s.buttons().some((b) => !b.disabled && b.label.startsWith('▸ Timer')), 'no countdown offered');
+  s.click('▸ Timer');
+
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  assert.ok(finish, 'no way to end the dish');
+  s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
+
+  // ⚠ Let the chill FINISH before the cook advances — the case the handoff filter dropped.
+  const real = Date.now;
+  Date.now = () => real() + 45 * 60_000;
+  try {
+    const cta = s.buttons().find((b) => !b.disabled && (b.label.startsWith('Next recipe') || b.label.startsWith('Wrap the session')));
+    assert.ok(cta, `no session CTA (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+    s.click(cta.label.startsWith('Next recipe') ? 'Next recipe' : 'Wrap the session');
+  } finally { Date.now = real; }
+
+  assert.ok(Array.isArray(handed), `onPrepped received ${JSON.stringify(handed)}`);
+  assert.equal(handed.length, 1,
+    `an EXPIRED hold must still be handed up so it can be acknowledged, got ${JSON.stringify(handed)}`);
+  assert.equal(handed[0].dish, r.title, 'the expired hold lost its dish');
+});
+
+// ⚠ AND THE WRAP DROPPED IT TOO — the third site, and the cook's LAST chance to hear that a
+// hold from an earlier dish has finished.
+test('prep session: the WRAP does not filter a carried hold that has finished', () => {
+  const src = readFileSync(SRC, 'utf8');
+  const i = src.indexOf('A hold inherited from an earlier dish is still running at the wrap');
+  assert.ok(i > 0, 'the wrap carried-hold block was renamed — repoint this test');
+  const head = src.slice(i, i + 1500);
+  assert.doesNotMatch(head, /carried\.filter\(\(h\) => h\.endsAt > sessionNow\)/,
+    'the wrap filters expired carried holds again — the third site of the same defect');
+  assert.match(head, /Time's up/,
+    'the wrap must be able to say a carried hold FINISHED, not only count it down');
 });

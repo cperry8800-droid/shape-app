@@ -7302,8 +7302,15 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                     the wrap read only `wrapHolds`, so a real countdown and its finish
                     notice simply vanished — advance from the energy bites with their
                     30-minute chill running and nothing on screen mentions it again.
-                    `dish` is stamped here because the next screen cannot know it. */}
-                <button onClick={() => prep.onPrepped(timers.filter((x) => x.stepIdx != null && visited[x.stepIdx] && x.endsAt > Date.now()).map((x) => ({ id: x.id, label: x.label, gist: x.gist, total: x.total, endsAt: x.endsAt, dish: cookable.title })))} style={{ ...primaryBtn, width: '100%' }}>
+                    `dish` is stamped here because the next screen cannot know it.
+                    ⚠ AND THERE IS NO `endsAt > now` TEST HERE. There was, and it meant a hold
+                    that finished while the cook was still on this dish was never handed up at
+                    all — so the display fix downstream could not save what never arrived. An
+                    UNACKNOWLEDGED hold travels whether it is running or finished; the debit it
+                    contributes is max(0, endsAt - now), already zero once expired, so carrying
+                    a finished one costs the arithmetic nothing. Only the credited-step rule
+                    still filters. */}
+                <button onClick={() => prep.onPrepped(timers.filter((x) => x.stepIdx != null && visited[x.stepIdx]).map((x) => ({ id: x.id, label: x.label, gist: x.gist, total: x.total, endsAt: x.endsAt, dish: cookable.title })))} style={{ ...primaryBtn, width: '100%' }}>
                   {prep.index + 1 >= prep.count
                     ? tr('cook:prep.wrapCta', { defaultValue: 'Wrap the session →' })
                     : tr('cook:prep.nextRecipe', { defaultValue: 'Next recipe →' })}
@@ -7881,7 +7888,7 @@ function BSPrepSession({ program, onClose }) {
   // cook's own request, which is the SEQUENCE row rather than a refusal.
   const serialWhy = (reason) => (reason === BS_SERIAL_REASON.STATIONS
     ? tr('cook:prep.noStation', { defaultValue: 'Your kitchen has no free burner or oven for the overlap' })
-    : tr('cook:prep.noWindow', { defaultValue: 'No dish here has a wait long enough to cook into' }));
+    : tr('cook:prep.noWindow', { defaultValue: 'No dish here waits long enough for you to start another' }));
   const togetherOn = !orchTogether.serial;
   const choice = (cookMode === BS_COOK_CHOICE.SOONEST && !togetherOn) ? null : cookMode;
   const orch = React.useMemo(
@@ -8413,11 +8420,20 @@ function BSPrepSession({ program, onClose }) {
                 cook still has to go back for it. `wrapHolds` only ever held the interleaved
                 board's terminal holds, so on the SEQUENTIAL path this was the last place the
                 countdown could have been mentioned, and it was not. */}
-            {carried.filter((h) => h.endsAt > sessionNow).map((h, i) => {
+            {/* ⚠ NOT filtered on expiry either — that was the same defect a third time. A
+                hold that finished between the last dish and this screen is precisely the one
+                the cook must be told about, and the wrap is the last chance to say so. */}
+            {carried.map((h, i) => {
               const leftS = Math.max(0, Math.ceil((h.endsAt - sessionNow) / 1000));
+              const rang = h.endsAt <= sessionNow;
               return (
-                <div key={`c${i}`} style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
-                  ◷ {h.dish ? `${h.dish} · ` : ''}{h.gist || h.label} · {Math.floor(leftS / 60)}:{String(leftS % 60).padStart(2, '0')}
+                <div key={h.cid || `c${i}`} role={rang ? 'status' : undefined} style={{ marginTop: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: rang ? t.INK : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {rang ? `${tr('cook:timer.up', { defaultValue: "Time's up" })} · ` : '◷ '}{h.dish ? `${h.dish} · ` : ''}{h.gist || h.label}{rang ? '' : ` · ${Math.floor(leftS / 60)}:${String(leftS % 60).padStart(2, '0')}`}
+                  </span>
+                  {rang && (
+                    <button onClick={() => onCarriedDone(h.cid || h.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: t.INK50, flexShrink: 0 }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+                  )}
                 </div>
               );
             })}

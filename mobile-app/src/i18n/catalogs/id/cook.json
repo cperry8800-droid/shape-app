@@ -118,6 +118,6 @@
   "prep.startNow": "Mulai sekarang",
   "prep.startAtEstimated": "Resep tidak memberi waktu untuk sebagian langkah, sediakan waktu lebih",
   "prep.earliestSearched": "Paling awal dari urutan yang kami coba",
-  "prep.noWindow": "Tidak ada hidangan di sini dengan jeda cukup lama untuk disisipi",
+  "prep.noWindow": "Tidak ada hidangan di sini yang menunggu cukup lama untuk memulai yang lain",
   "prep.noStation": "Dapurmu tidak punya tungku atau oven kosong untuk tumpang tindihnya"
 }

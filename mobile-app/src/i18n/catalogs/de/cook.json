@@ -118,6 +118,6 @@
   "prep.startNow": "Jetzt starten",
   "prep.startAtEstimated": "Manche Schritte gibt das Rezept ohne Zeit an — plane Puffer ein",
   "prep.earliestSearched": "Das früheste der geprüften Reihenfolgen",
-  "prep.noWindow": "Kein Gericht hier hat eine Wartezeit, die lang genug zum Weiterkochen ist",
+  "prep.noWindow": "Kein Gericht hier wartet lang genug, um ein anderes zu beginnen",
   "prep.noStation": "Deine Küche hat keine freie Platte oder Röhre für die Überschneidung"
 }

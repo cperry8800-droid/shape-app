@@ -118,6 +118,6 @@
   "prep.startNow": "Empezar ya",
   "prep.startAtEstimated": "La receta no cronometra algunos pasos, así que date margen",
   "prep.earliestSearched": "El más temprano de los órdenes que probamos",
-  "prep.noWindow": "Ningún plato aquí tiene una espera lo bastante larga para aprovechar",
+  "prep.noWindow": "Ningún plato aquí espera lo suficiente para empezar otro",
   "prep.noStation": "Tu cocina no tiene fuego ni horno libre para el solapamiento"
 }
