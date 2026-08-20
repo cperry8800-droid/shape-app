@@ -253,14 +253,19 @@ changelog whenever something ships.
 ### 2026-08-19 — Shape Kitchen reaches 100, and a Prep Session can finally interleave (#1911 → `3c4ee6e9b`)
 
 - Fifteen more USDA MyPlate recipes take the catalog **85 → 100**, and a passive-window
-  overlay takes the recipes that can **HOST** an interleave window from **22 → 55**
-  (two-dish interleave **40.5% → 52.2%**, three-dish **→ 79.5%**).
-- ⚠ **THOSE NUMBERS WERE CORRECTED DOWNWARD FOUR TIMES, and that is this entry's point.**
+  overlay takes the recipes that can **HOST** an interleave window from **22 → 53**
+  (two-dish interleave **40.5% → 50.8%**).
+- ⚠ **THOSE NUMBERS WERE CORRECTED DOWNWARD REPEATEDLY, and that is this entry's point.**
   The overlay first claimed 76 hosts / 69.3%; each round removed windows a cook **cannot
   actually leave** — terminal windows (a leftover hold is a make-ahead, true of a fridge
   rest and false of a live oven), windows whose parts exceed the whole, attended aromatics,
-  and ranged durations. 76 → 73 → 67 → 61 → 57 → 56 → **55**. **Every correction made the
-  product worse on paper and more honest in the kitchen.**
+  and ranged durations. 76 → 73 → 67 → 61 → 57 → 56 → 55 → **53**. **Every correction made
+  the product worse on paper and more honest in the kitchen.**
+- ⚠ **DO NOT QUOTE #1911's SQUASH MESSAGE for these figures — it is itself superseded.**
+  Its last recorded cost line reads 55 hosts / 52.2%, because the final corrections landed
+  after that text was written. **53 was re-measured against merged `main`** by the engine's
+  own rule (pair each recipe with a stationless hands-on partner and ask whether
+  `bsOrchestrate` actually interleaves), not by a hand-rolled window predicate.
 - **Nothing fabricates parallelism.** Every `min` is a duration the step text itself states;
   four recipes that spelled an hour in words ("for one hour") have it written as 60 so the
   parser can see what the cook could always read. No time, method or meaning changed.
@@ -338,7 +343,7 @@ oats, soy sauce, broth/stock/bouillon, margarine.
 > and **three of my own tests were hollow** — caught by mutation-testing, not by review and
 > not by a passing suite. Findings ran 27 → 6 → 5 → 3 → 0.
 > ⚠ #1911's headline numbers were **corrected downward four times** as windows a cook
-> cannot leave were removed (76 → 55 hosts). Suite **2100**.
+> cannot leave were removed (76 → 53 hosts). Suite **2100**.
 >
 > See the full entries below.
 
