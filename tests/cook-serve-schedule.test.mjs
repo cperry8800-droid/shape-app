@@ -9,132 +9,27 @@
 // was correct in the engine and unenforced in the UI, which is exactly the shape of
 // defect a pure engine test cannot see.
 //
-// Harness is the proven one from tests/kitchen-allergen-surfaces.test.mjs: compile the
-// shipping file in memory, resolve its imports to the real modules, drive the component
-// with a hook shim. Nothing is stubbed or written to disk.
+// Harness is the shared one in tests/helpers/broadsheet-mount.mjs: compile the shipping
+// file in memory, resolve its imports to the real modules, drive the component with a
+// hook shim. Nothing is stubbed or written to disk.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join } from 'node:path';
+import {
+  SRC, drive, pressable, loadBroadsheet, importSibling, jsxOpenTag,
+} from './helpers/broadsheet-mount.mjs';
 
-const require_ = createRequire(import.meta.url);
-const babel = require_('next/dist/compiled/babel/core');
-const presetReact = require_('next/dist/compiled/babel/preset-react');
-const commonjs = require_('next/dist/compiled/babel/plugin-transform-modules-commonjs');
-const React = require_('react');
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx');
-
-const THEME = new Proxy({
-  MONO: 'mono', DISPLAY: 'display', PAPER: '#fff', INK: '#111', INK50: '#777',
-  RULE: '#ccc', padX: 18, isLight: true, W: { display: 800 },
-}, { get: (t, k) => (k in t ? t[k] : '#000'), has: () => true });
-
-globalThis.window = globalThis;
-globalThis.__VITE_IMPORTMETA__ = { env: { BASE_URL: '/m/' } };
-globalThis.useBS = () => THEME;
-let ACTIVE_REACT = React;
-globalThis.useStateBSC = (init) => ACTIVE_REACT.useState(init);
-globalThis._bsScrollTopOnMount = () => {};
-globalThis.BSEyebrow = ({ children }) => React.createElement('div', null, children);
-globalThis.BSPage = ({ children }) => React.createElement('div', null, children);
-globalThis.BSPageHeader = () => null;
-globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
-
-const CTX = { cells: [], idx: 0 };
-const SHIM = {
-  ...React,
-  useState(init) {
-    const i = CTX.idx++;
-    if (!(i in CTX.cells)) CTX.cells[i] = (typeof init === 'function' ? init() : init);
-    return [CTX.cells[i], (next) => { CTX.cells[i] = (typeof next === 'function' ? next(CTX.cells[i]) : next); }];
-  },
-  useRef(init) {
-    const i = CTX.idx++;
-    if (!(i in CTX.cells)) CTX.cells[i] = { current: init };
-    return CTX.cells[i];
-  },
-  useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
-  useMemo(fn) { return fn(); },
-  useCallback(fn) { return fn; },
-  useId() { return 'test-id'; },
-};
-ACTIVE_REACT = SHIM;
-
-async function loadModule(reactImpl) {
-  const dir = dirname(SRC);
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSPrepCook, BSCookMode, BSPrepSession };\n`;
-  const { code } = babel.transformSync(source, {
-    presets: [presetReact], plugins: [commonjs], babelrc: false, configFile: false, filename: SRC,
-  });
-  const specs = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
-  const registry = new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]);
-  for (const spec of specs) {
-    if (registry.has(spec)) continue;
-    registry.set(spec, await import(pathToFileURL(join(dir, spec)).href));
-  }
-  const mod = { exports: {} };
-  // eslint-disable-next-line no-new-func
-  new Function('require', 'module', 'exports', code)((s) => {
-    if (!registry.has(s)) throw new Error(`unmapped import: ${s}`);
-    return registry.get(s);
-  }, mod, mod.exports);
-  return mod.exports;
-}
-
-const MOD = await loadModule(SHIM);
-const ORCH = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookOrchestrator.mjs')).href);
+const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
+const ORCH = await importSibling('..', 'services', 'cookOrchestrator.mjs');
 const { bsOrchestrate, BS_COOK_MODE, BS_ORCH } = ORCH;
-const { SHAPE_KITCHEN_RECIPES } = await import(pathToFileURL(join(dirname(SRC), 'shapeKitchenData.js')).href);
-const { bsCookableFromRecipe, bsStepTimers } = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookable.mjs')).href);
+const { SHAPE_KITCHEN_RECIPES } = await importSibling('shapeKitchenData.js');
+const { bsCookableFromRecipe, bsStepTimers } = await importSibling('..', 'services', 'cookable.mjs');
 
-function flatten(node, out = []) {
-  if (node == null || node === false) return out;
-  if (Array.isArray(node)) { for (const n of node) flatten(n, out); return out; }
-  if (typeof node === 'object' && node.props) { out.push(node); flatten(node.props.children, out); }
-  return out;
-}
-const textOf = (node) => {
-  const parts = [];
-  (function rec(n) {
-    if (n == null || n === false) return;
-    if (typeof n === 'string' || typeof n === 'number') { parts.push(String(n)); return; }
-    if (Array.isArray(n)) { n.forEach(rec); return; }
-    if (typeof n === 'object' && n.props) rec(n.props.children);
-  })(node.props ? node.props.children : node);
-  return parts.join('');
-};
-function drive(Component, props) {
-  CTX.cells.length = 0;
-  let tree;
-  const renderOnce = () => { CTX.idx = 0; tree = Component(props); return tree; };
-  renderOnce();
-  const nodes = () => flatten(tree);
-  const api = {
-    nodes,
-    get text() { return textOf({ props: { children: tree } }); },
-    buttons: () => nodes().filter((n) => n.type === 'button').map((n) => ({ label: textOf(n).trim(), disabled: !!n.props.disabled })),
-    click(label) {
-      const btn = nodes().find((n) => n.type === 'button' && n.props.onClick && textOf(n).trim().startsWith(label));
-      if (!btn) throw new Error(`no button starting ${JSON.stringify(label)} (have: ${api.buttons().map((b) => JSON.stringify(b.label)).join(', ')})`);
-      btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
-      renderOnce();
-      return api;
-    },
-    // Re-render after driving something that is not a button (a time input's onChange).
-    render() { renderOnce(); return api; },
-  };
-  return api;
-}
-
-// The prep sheet reads `Date.now()` ONCE at mount and compares calendar days off it, so
-// any test that touches the table-time picker inherits both the runner's wall clock and
-// its timezone. That is a real flake, not a theoretical one: this file's rollover test
-// passed all evening locally and failed in CI at 00:06 UTC, where "an hour before now"
-// is 23:06 — later today, not yesterday.
+// The prep sheet reads `Date.now()` ONCE at mount and compares calendar days off it,
+// so any test that touches the table-time picker inherits both the runner's wall clock
+// and its timezone. That is a real flake, not a theoretical one: this file's rollover
+// test passed all evening locally and failed in CI at 00:06 UTC, where "an hour before
+// now" is 23:06 -- later today, not yesterday.
 //
 // Pin the clock instead of picking a safer offset. The instant is built from LOCAL
 // components rather than a fixed epoch, because the component's rollover check is
@@ -233,9 +128,11 @@ test('the board is actually HANDED the session clock in the shipping mount', () 
   // production mount site simply never passed it — the gate would be inert in the app
   // and perfect in the suite. This reads the real call site instead.
   const src = readFileSync(SRC, 'utf8');
-  const i = src.indexOf('<BSPrepCook');
-  assert.ok(i > 0, 'BSPrepCook is never mounted — the interleaved board would not render at all');
-  const open = src.slice(i, src.indexOf('/>', i) > 0 ? src.indexOf('>', i) + 1 : i + 400);
+  // ⚠ The tag is read brace-aware. Slicing to the first `>` ends at the first arrow
+  // function in a prop (`onDone={() => …}`), so a prop ordering change would have
+  // truncated the tag and failed for a reason that has nothing to do with the anchor.
+  const open = jsxOpenTag(src, 'BSPrepCook');
+  assert.ok(open, 'BSPrepCook is never mounted — the interleaved board would not render at all');
   assert.match(open, /anchor=\{/,
     'the shipping BSPrepCook mount passes no `anchor`, so the schedule gate can never fire in the app');
   // And the value handed over must be the stamp taken at the Start tap, not a fresh
@@ -353,7 +250,6 @@ const OVEN_TRIO = ['One-pan chicken and rice', 'Sheet-pan salmon, sweet potato a
 // MISE, never SERVE -- so the whole branch was rendered by nothing. A hook-order or
 // TDZ fault there passes parse, tsc, the suite and the build, and takes down the
 // entire prep flow at the tap. This mounts it.
-const pressable = (n) => n.props['aria-pressed'] !== undefined;
 const PICKER_PROGRAM = [{
   meals: [
     { id: 'm1', slot: 'Lunch', title: 'One-pan chicken and rice', kcal: 600, p: 45, c: 55, f: 18 },

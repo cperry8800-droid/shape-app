@@ -15,162 +15,41 @@
 // existed elsewhere in the same file and simply never mounted on these paths.
 // Nothing but a mount can catch that, so this file mounts and DRIVES the real
 // components — the filter is really clicked, the recipes are really selected.
-// Harness technique is the proven one from tests/broadsheet-session-render.mjs:
-// compile the shipping file in memory, resolve its imports to the real modules,
-// call the component with a hook shim. No source file is written or stubbed.
+// Harness is the shared one in tests/helpers/broadsheet-mount.mjs: compile the
+// shipping file in memory, resolve its imports to the real modules, call the
+// component with a hook shim. No source file is written or stubbed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join } from 'node:path';
+import {
+  drive, pressable, count, loadBroadsheet, importSibling,
+} from './helpers/broadsheet-mount.mjs';
 
-const require_ = createRequire(import.meta.url);
-const babel = require_('next/dist/compiled/babel/core');
-const presetReact = require_('next/dist/compiled/babel/preset-react');
-const commonjs = require_('next/dist/compiled/babel/plugin-transform-modules-commonjs');
-const React = require_('react');
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx');
-
-// Total theme map — these components read a long tail of tokens and this file is
-// about what RENDERS, not about the palette; an enumerated stub would fail for a
-// reason unrelated to the code under test.
-const THEME = new Proxy({
-  MONO: 'mono', DISPLAY: 'display', PAPER: '#fff', PAPER2: '#eee', INK: '#111',
-  INK50: '#777', INK70: '#555', RULE: '#ccc', HAIR: '#ddd', ACCENT: '#0f766e',
-  GREEN: '#2f7d32', padX: 18, isLight: true, isMetric: false, W: { display: 800, displayHeavy: 800 },
-}, { get: (t, k) => (k in t ? t[k] : '#000'), has: () => true });
-
-globalThis.window = globalThis;
-globalThis.__VITE_IMPORTMETA__ = { env: { BASE_URL: '/m/' } };
-globalThis.useBS = () => THEME;
-let ACTIVE_REACT = React;
-globalThis.useStateBSC = (init) => ACTIVE_REACT.useState(init);
-globalThis._bsScrollTopOnMount = () => {};
-globalThis.BSEyebrow = ({ children }) => React.createElement('div', null, children);
-globalThis.BSPage = ({ children }) => React.createElement('div', null, children);
-globalThis.BSPageHeader = () => null;
-globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
-
-// The hook shim. `useStateBSC` is a module-LOCAL alias for React.useState
-// (iosAppBroadsheetClient.jsx:41), not a global, so it cannot be stubbed from
-// outside — a component is instead driven by calling it, walking the element tree
-// it returns, invoking a handler, and calling it again. Effects stay no-ops: the
-// real ones start wall-clock intervals and reach for browser APIs.
-// (jsdom IS available here and tests/error-boundary-mount.test.mjs uses it for a
-// true client mount; this shim is the lighter tool, not the only one.)
-const CTX = { cells: [], idx: 0 };
-const SHIM = {
-  ...React,
-  useState(init) {
-    const i = CTX.idx++;
-    if (!(i in CTX.cells)) CTX.cells[i] = (typeof init === 'function' ? init() : init);
-    return [CTX.cells[i], (next) => { CTX.cells[i] = (typeof next === 'function' ? next(CTX.cells[i]) : next); }];
-  },
-  useRef(init) {
-    const i = CTX.idx++;
-    if (!(i in CTX.cells)) CTX.cells[i] = { current: init };
-    return CTX.cells[i];
-  },
-  useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
-  useMemo(fn) { return fn(); },
-  useCallback(fn) { return fn; },
-  useId() { return 'test-id'; },
-};
-ACTIVE_REACT = SHIM;
-
-async function loadModule(reactImpl) {
-  const dir = dirname(SRC);
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSRecipeBox, BSPrepSession, BSCookMode };\n`;
-  const { code } = babel.transformSync(source, {
-    presets: [presetReact], plugins: [commonjs], babelrc: false, configFile: false, filename: SRC,
-  });
-  const specs = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
-  const registry = new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]);
-  for (const spec of specs) {
-    if (registry.has(spec)) continue;
-    registry.set(spec, await import(pathToFileURL(join(dir, spec)).href));
-  }
-  const mod = { exports: {} };
-  const req = (spec) => {
-    if (!registry.has(spec)) throw new Error(`unmapped import: ${spec}`);
-    return registry.get(spec);
-  };
-  // eslint-disable-next-line no-new-func
-  new Function('require', 'module', 'exports', code)(req, mod, mod.exports);
-  return mod.exports;
-}
-
-const MOD = await loadModule(SHIM);
-const DATA = await import(pathToFileURL(join(dirname(SRC), 'shapeKitchenData.js')).href);
+const MOD = await loadBroadsheet(['BSRecipeBox', 'BSPrepSession', 'BSCookMode']);
+const DATA = await importSibling('shapeKitchenData.js');
 const { SHAPE_KITCHEN_RECIPES, recipeNeeds, bsAllergenNoteText } = DATA;
-const { bsCookableFromRecipe } = await import(pathToFileURL(join(dirname(SRC), '..', 'services', 'cookable.mjs')).href);
+const { bsCookableFromRecipe } = await importSibling('..', 'services', 'cookable.mjs');
 
-// ── tree walking ────────────────────────────────────────────────────────────
-function flatten(node, out = []) {
-  if (node == null || node === false) return out;
-  if (Array.isArray(node)) { for (const n of node) flatten(n, out); return out; }
-  if (typeof node === 'object' && node.props) { out.push(node); flatten(node.props.children, out); }
-  return out;
-}
-const textOf = (node) => {
-  const parts = [];
-  (function rec(n) {
-    if (n == null || n === false) return;
-    if (typeof n === 'string' || typeof n === 'number') { parts.push(String(n)); return; }
-    if (Array.isArray(n)) { n.forEach(rec); return; }
-    if (typeof n === 'object' && n.props) rec(n.props.children);
-  })(node.props ? node.props.children : node);
-  return parts.join('');
+// Every result row carries this action exactly once, so it is what tells one
+// recipe's own subtree from the whole list.
+const ROW_MARKER = 'Send to grocery';
+
+// `bsCookableFromRecipe` may return null for a recipe it cannot turn into a method,
+// so `bsCookableFromRecipe(x).steps` inside a `.find` predicate dies with a TypeError
+// on the first such recipe -- and a suite that throws while SELECTING its fixture
+// reports a crash, not a finding. Measured: 0 of the 85 catalog recipes return null
+// today, so this guards a contract rather than a live case.
+const cookableOf = (r) => bsCookableFromRecipe(r) || { steps: [], stepMeta: [] };
+
+// Pick a fixture recipe by predicate, and fail with the REASON when the catalog holds
+// none -- an undefined `r` would otherwise surface as a TypeError three lines later.
+const pickRecipe = (pred, why) => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => pred(x, cookableOf(x)));
+  assert.ok(r, `no catalog recipe ${why} -- this test cannot discriminate`);
+  return r;
 };
-const count = (hay, needle) => hay.split(needle).length - 1;
 
-// Drive a component: fresh hook cells, then render / click / re-render.
-function drive(Component, props) {
-  CTX.cells.length = 0;
-  let tree;
-  const renderOnce = () => { CTX.idx = 0; tree = Component(props); return tree; };
-  renderOnce();
-  const nodes = () => flatten(tree);
-  const api = {
-    nodes,
-    get text() { return textOf({ props: { children: tree } }); },
-    // Click the first button whose rendered text starts with `label`. Buttons
-    // are matched on the accessible text they actually show, never an index.
-    click(label, filter = () => true) {
-      const btns = nodes().filter((n) => n.type === 'button' && n.props.onClick && filter(n));
-      const btn = btns.find((n) => textOf(n).trim().startsWith(label));
-      if (!btn) throw new Error(`no button starting ${JSON.stringify(label)} (have: ${btns.map((n) => JSON.stringify(textOf(n).trim().slice(0, 40))).join(', ')})`);
-      btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
-      renderOnce();
-      return api;
-    },
-    // The advanced FREE FROM chips are a local `Chip` component, so no host
-    // <button> for them exists in the returned tree — their handler rides on the
-    // element's own props. Finding the element at all is itself the proof that
-    // the Filters panel opened (the whole group is behind that toggle).
-    clickChip(label) {
-      const chip = nodes().find((n) => typeof n.type === 'function' && n.props.label === label && typeof n.props.onClick === 'function');
-      if (!chip) throw new Error(`no chip labelled ${JSON.stringify(label)} — is the Filters panel open?`);
-      chip.props.onClick();
-      renderOnce();
-      return api;
-    },
-    // The smallest subtree that holds `title` and exactly one grocery action —
-    // i.e. that recipe's own result row, found by content rather than by shape.
-    row(title) {
-      const hits = nodes()
-        .filter((n) => { const s = textOf(n); return s.includes(title) && count(s, 'Send to grocery') === 1; })
-        .sort((a, b) => textOf(a).length - textOf(b).length);
-      return hits.length ? textOf(hits[0]) : null;
-    },
-  };
-  return api;
-}
+const driveBox = (props) => drive(MOD.BSRecipeBox, props, { rowMarker: ROW_MARKER });
 
-const pressable = (n) => n.props['aria-pressed'] !== undefined;
 
 // The text of ONE note block: from its own eyebrow through its composed text.
 // ⚠ Scoped deliberately — the merged mise's INGREDIENT rows already name every
@@ -203,7 +82,7 @@ test('the catalog still carries restored claims — otherwise every assertion be
 // list having never opened the card that qualifies the claim.
 
 test('recipe box: the Gluten-free filter returns rows that carry their certification', () => {
-  const box = drive(MOD.BSRecipeBox, {
+  const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
   box.click('Filters');
@@ -231,7 +110,7 @@ test('recipe box: the Gluten-free filter returns rows that carry their certifica
 });
 
 test('recipe box: the certification renders BEFORE the row grocery action, unattributed', () => {
-  const box = drive(MOD.BSRecipeBox, {
+  const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
   const r = NOTED.find((x) => recipeNeeds(x).includes('Gluten-free') && x.allergenNotes[0].allergen === 'gluten');
@@ -254,7 +133,7 @@ test('recipe box: the certification renders BEFORE the row grocery action, unatt
 });
 
 test('recipe box: the note block renders on exactly the note-bearing rows', () => {
-  const box = drive(MOD.BSRecipeBox, {
+  const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
   const expected = SHAPE_KITCHEN_RECIPES.reduce((a, r) => a + (r.allergenNotes || []).length, 0);
@@ -381,7 +260,8 @@ test('prep session: identical notes de-duplicate and name every dish they came f
 });
 
 test('prep session: a note-free board renders no note block and does not crash', () => {
-  const plain = SHAPE_KITCHEN_RECIPES.find((r) => r.allergenNotes === undefined && bsCookableFromRecipe(r).steps.length > 0);
+  const plain = pickRecipe((r, c) => r.allergenNotes === undefined && c.steps.length > 0,
+    'carries no allergen note and has a method');
   assert.ok(plain, 'no note-free recipe with a method — the absent path cannot be exercised');
   const s = drive(MOD.BSPrepSession, {
     program: [{ meals: [{ id: 'q1', slot: 'Dinner', title: plain.title }] }], onClose() {},
@@ -398,7 +278,8 @@ test('cook mode: a note-LESS cookable renders every phase without throwing', () 
   // Without the `|| []` coalesce this throws for almost every cook in the app — and a
   // suite that only ever drives note-BEARING recipes never sees it. That exact
   // mutation survived until this test existed.
-  const plain = SHAPE_KITCHEN_RECIPES.find((r) => r.allergenNotes === undefined && bsCookableFromRecipe(r).steps.length > 0);
+  const plain = pickRecipe((r, c) => r.allergenNotes === undefined && c.steps.length > 0,
+    'carries no allergen note and has a method');
   assert.ok(plain, 'no note-free recipe with a method — the absent path cannot be exercised');
   const c = bsCookableFromRecipe(plain);
   assert.equal(c.allergenNotes, null, 'fixture is not actually note-free at the cookable boundary');
@@ -420,7 +301,7 @@ test('cook mode: a note-LESS cookable renders every phase without throwing', () 
 // number actually reaches a cook: a percentage computed and never rendered, or rendered
 // from the wrong variable, is invisible to a pure-function test.
 test('cook mode: the step line carries a percentage, weighted by minutes', () => {
-  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x).steps.length >= 3);
+  const r = pickRecipe((x, c) => c.steps.length >= 3, 'has at least 3 steps');
   const c = bsCookableFromRecipe(r);
   const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   s.click('Start cooking');
@@ -435,11 +316,9 @@ test('cook mode: the step line carries a percentage, weighted by minutes', () =>
 
 test('cook mode: the percentage is minutes done, not steps ticked', () => {
   // A recipe with one long passive step is the case where the two disagree loudly.
-  const r = SHAPE_KITCHEN_RECIPES.find((x) => {
-    const c = bsCookableFromRecipe(x);
-    return c.steps.length >= 4 && (c.stepMeta || []).some((m) => m && m.min >= 15);
-  });
-  assert.ok(r, 'no recipe with a long passive step — this test cannot discriminate');
+  const r = pickRecipe(
+    (x, c) => c.steps.length >= 4 && (c.stepMeta || []).some((m) => m && m.min >= 15),
+    'has a long passive step');
   const c = bsCookableFromRecipe(r);
   const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   s.click('Start cooking');
@@ -454,7 +333,7 @@ test('cook mode: the percentage is minutes done, not steps ticked', () => {
 test('cook mode: overall % is the SESSION for several dishes, the dish for one - and the step line survives', () => {
   // The owner's rule: cooking several, the number is the whole evening; cooking one, it
   // is that dish. And the step-by-step must NOT be replaced by it.
-  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x).steps.length >= 3);
+  const r = pickRecipe((x, c) => c.steps.length >= 3, 'has at least 3 steps');
   const c = bsCookableFromRecipe(r);
 
   const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
