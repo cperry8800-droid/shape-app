@@ -82,6 +82,25 @@ changelog whenever something ships.
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
+  non-trivial change.
+  ⚠ **THE STANDING REVIEWER SYSTEM — RATIFIED BY THE OWNER 2026-08-20.** Read this
+  before the layers below, several of which contradict it and are kept only for their
+  history:
+  **(a) own adversarial self-review** before the first push — still the layer that
+  catches the most; **(b) CodeRabbit ONCE, as a breadth sweep** — a single
+  `@coderabbitai review` on a head you believe final, findings worked, false ones
+  refuted with evidence; **(c) Codex — THE GATE**, which the merge waits on.
+  ⚠ **Not both every round** — hedging spends two finite budgets to answer one question.
+  ⚠ **Never compare their severity labels**: CodeRabbit's "Major" and Codex's "P1" are
+  self-assigned on different scales; report each in its own terms and never sum them.
+  **Why this shape, measured on this repo:** Codex finds the bugs that make a feature
+  *fake* (its P1s here included a scheduler that was computed, displayed, and ignored by
+  the code that runs the cook); CodeRabbit finds more, wider, and noisier (2 of its last
+  5 on #1910 were refutable). The number that decided it: **CodeRabbit found 27 findings
+  on a tree Codex had already reviewed across eight rounds**, and caught two real defects
+  Codex missed. They are complementary, not redundant.
+
+  The layers, in order, for any
   non-trivial change: **(0) CodeRabbit IDE — pre-push.** The CodeRabbit VS Code
   extension (`coderabbit.coderabbit-vscode`, installed locally; sign in to its
   sidebar panel once) reviews the LOCAL diff in-editor **before** pushing, so the
@@ -95,11 +114,18 @@ changelog whenever something ships.
   BOTH halves are now false.** It reviews on request only — its own comment says
   *"Reviews should be triggered manually for repositories with fewer than 10
   stars"* — and it reviewed **neither** PR that day. A review layer disappeared
-  silently while this paragraph still promised it. ⚠ **DO NOT TRIGGER IT — the
-  owner's standing rule is that CodeRabbit is not part of this workflow.** It WAS
-  triggered by hand with `@coderabbitai full review` on 2026-08-18; that was a
-  **rule break**, recorded here so it is not copied. If a second reviewer seems
-  genuinely needed, **ASK the owner** — do not reach for it. **Work without it.**
+  silently while this paragraph still promised it. ⚠ **CORRECTED AGAIN 2026-08-20 — THE OWNER AUTHORISED IT ON 2026-08-19.**
+  This paragraph read *"DO NOT TRIGGER IT — the owner's standing rule is that
+  CodeRabbit is not part of this workflow"*, and that is **no longer true**: the
+  owner asked for it directly. Triggering it by hand is now **allowed**. (The
+  2026-08-18 hand-trigger predated the authorisation and was a rule break at the
+  time; it is no longer the rule being broken.)
+  ⚠ **AND IT MAY WELL BE GATING — `src/lib/console-flight.mjs` REQUIRES IT.**
+  Mission Control's `prAllGreen` will not go green without a CodeRabbit
+  approved-or-clean verdict on the head, so the "neither a gate nor a layer to wait
+  on" line below is contradicted by the shipping code. **Pick one reviewer per round
+  rather than hedging with both**, and read the merge-gate note below before deciding
+  which document you are following.
   ⚠ **The gating reviewer is CODEX**, not this — the merge gate is CI
   green **and Codex clean on the final head**. **(3)
   required checks** — `main` branch protection requires ALL THREE CI checks
@@ -112,7 +138,29 @@ changelog whenever something ships.
   `chatgpt-codex-connector[bot]`, so **absence of findings is not a pass**.
   ⚠ This previously read "after pushing fixes for a CodeRabbit round, WAIT for
   its re-review before merging" — **deleted**: a reviewer that never runs cannot
-  supply a merge condition, and never waiting on CodeRabbit is the standing rule.
+  supply a merge condition. (⚠ The trailing clause *"and never waiting on
+  CodeRabbit is the standing rule"* is itself now stale — see the authorisation
+  correction above. You **may** wait on CodeRabbit; it just does not close the gate.)
+  ⚠ **THIS PARAGRAPH AND THE PRODUCT DISAGREE — CHECK `src/lib/console-flight.mjs`
+  BEFORE TRUSTING EITHER.** Mission Control encodes the gate as `prAllGreen`: CI green
+  **AND CodeRabbit approved-or-clean on the head AND Codex present**. It differs from
+  the wording above on **both** counts, and it carries an **owner ruling (2026-07-27)**:
+  - **CodeRabbit IS one of its gates**, though the bullet below long said it "does NOT
+    run" and is "neither a gate nor a layer to wait on".
+  - **`codexPresent` is presence, NOT freshness — deliberately.** Codex leaves *no
+    record at all* when clean (it adds a thumbs-up reaction to the triggering
+    comment), so head-pinning it "would jam every clean pass at `none` and the gate
+    could never open". A **stale** Codex pass is explicitly treated as the owner's
+    re-trigger call. (Registered, not built: read reactions to pin freshness
+    without the trap.)
+  ⚠ **Worked example, #1910 (2026-08-20).** It merged with CI green and CodeRabbit clean
+  on the final head, while **Codex last reviewed `f5d2ef80c`, six commits earlier**.
+  Under `prAllGreen` that is **green** — stale Codex counts. Under the sentence above
+  ("Codex clean on the final head") it is **not**. I first recorded this as a rule break
+  by me; **that was wrong, and the over-correction is worth as much attention as the
+  original error would have been.** The defect is that two documents encode two gates.
+  **The console's version has an owner ruling behind it and should be treated as
+  operative until the owner says otherwise.**
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
@@ -126,9 +174,25 @@ changelog whenever something ships.
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
   - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
     reports `neutral`) + Preview Comments.
-  - **CodeRabbit** — **does NOT run.** It posts an auto-skip notice (<10 stars →
-    request-only) and nothing more. ⚠ **We do not trigger it**; it is neither a
-    gate nor a layer to wait on. `.coderabbit.yaml` is dormant config.
+  - **CodeRabbit** — **does not run BY ITSELF** (auto-skip notice, <10 stars →
+    request-only), but ⚠ **it runs on request and the owner authorised that on
+    2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
+    #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the
+    changelog and handoff both say five; this line said four).
+    ⚠ **WHETHER IT GATES IS NOT SETTLED BY THIS BULLET — follow the operative-gate
+    paragraph above, not this one.** `prAllGreen` requires CodeRabbit
+    **approved-or-clean on the current head**, and `coderabbitVerdict` is *head-pinned*:
+    it counts only reviews whose `commit_id` IS the head, so a sweep whose findings you
+    then fixed stops counting the moment you push the fix. **"CodeRabbit ONCE" and
+    `prAllGreen` therefore cannot both be satisfied without a re-review** — the ratified
+    process and the shipping code want different things, and that disagreement is an
+    **OPEN owner ruling**, not something to settle at a merge. Until it is ruled, say
+    which gate you applied.
+    ⚠ Reading its verdict: a clean pass leaves **no review** — it leaves a summary
+    *comment* carrying `Actionable comments posted: 0`, which is the marker
+    `coderabbitVerdict` matches. Read that comment rather than inferring a pass from
+    silence, and note a rate-limit notice is **not** a pass (`CR_LIMIT_RE` is checked
+    first and deliberately dominates a zero-marker in the same body).
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -189,6 +253,182 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-20 — A dead option, a vanished timer, a false superlative — and two defects inside the fixes for them (#1913 → `5972b786e`)
+
+⚠ **#1913's MERGE MESSAGE IS IMMUTABLE AND WRONG ON TWO COUNTS.** (1) Its heading *"THE
+THREE AGAINST MERGED MAIN"* stands above **four** bullets — the ENG-routing defect makes it
+four, and the handoff it was written from had the same mismatch. (2) It says the copy fix
+left *"five"* locales already saying "earlier". Counted off the merged diff it is **seven**
+— the message repeated the figure this handoff carried instead of measuring it, which is
+the same way #1910's merge message went stale. **Quote the bullet below, not the merge
+message.** (This is the third merge message in three days to be superseded by its own
+records; the ones here were re-measured, the ones written at merge time were not.)
+
+- **Two options ran the same plan.** With no window to weave into, TOGETHER falls back to
+  serial — so *"cook at the same time"* produced the **same timeline** as *"cook
+  separately"* and printed the same minutes, while its row promised simultaneous cooking.
+  The engine had always NAMED the reason (`BS_SERIAL_REASON.NO_WINDOW`); nothing read it.
+  Now unavailable-with-reason, minutes suppressed. ⚠ **A dead choice is worse than a
+  missing one** — it spends the cook's decision on nothing.
+- **A carried timer vanished, and the expiry filter lived at THREE sites** — display,
+  handoff, wrap. Round one fixed *one*; round two found the other two. ⚠ **A hold that
+  finished between the last dish and the wrap is precisely the one the cook must be told
+  about**, so filtering expired holds out re-created the very defect the carry exists to
+  fix, one stage later.
+- **"Out of the kitchen soonest" was unsupported.** TOGETHER is order-sensitive and the
+  order search that would justify a superlative runs on the SERVE path only. Copy changed
+  in the **six** locales that actually claimed an optimum — `de` *am schnellsten*, `en`
+  *soonest*, `es` *lo antes posible*, `id` *paling cepat*, `tr` *en erken*, `vi` *sớm
+  nhất*. ⚠ **The other SEVEN, not five**, already said *earlier/faster* and are
+  supportable (`fr` `ha` `it` `pcm` `pt-BR` `ru` `uk`) — 6 + 7 = **13**, the whole set.
+  Counted off the merged diff; the handoff and the earlier records both said five, which
+  left two locales unaccounted for. ⚠ **A superlative is a claim about a search you either
+  ran or did not.**
+- **An owner ruling routed to the ENG lane.** `OWNER RULING NEEDED —` matched no pattern
+  in `console-triage.mjs`, so a decision needing the owner was filed as engineering work.
+  Fixed **at the classifier**, not at the string — and ⚠ the neighbouring ruling routed
+  correctly only *by accident*, because it happens to contain the word "unruled".
+
+**AND TWO DEFECTS INSIDE THOSE FIXES — the fourth and fifth round of five.**
+
+- ⚠ **The carried hold reached the wrap screen and stopped dead there** (Codex **P1**).
+  `BSPrepSession` has **no `useEffect` and no `setInterval` anywhere**; `if (stage ===
+  'cook')` returns early into `BSCookMode`/`BSPrepCook`, which own the only per-second
+  heartbeats in this flow — so by the time `stage === 'wrap'` renders, **both are
+  unmounted and nothing in the subtree ticks.** `sessionNow` froze at the instant the cook
+  arrived: the countdown never reached "Time's up" and never offered the acknowledgement,
+  which is the one thing the carry exists to deliver, missing from the last screen that
+  can deliver it. The heartbeat added is scoped to the wrap **and** to holds still
+  running, because this component RETURNS the board during the cook stage and a
+  session-wide tick would re-render it every second on top of its own.
+- ⚠ **The debit was computed by a component with no clock** — found by the self-review the
+  P1 required, **one prop away from it**. `carriedDebit` came off the same render-time
+  `sessionNow` and was handed down as a finished number, but the parent does not re-render
+  during a dish, so the debit computed at the handoff was the debit the whole next dish
+  saw. The session figure therefore **under-read by the carried hold's entire remaining
+  duration** for as long as that hold ran. The component's own comment stated the intent it
+  failed to deliver: *"the debit shrinks with the clock and expires by itself."* Moved to
+  the chokepoint — `BSCookMode` already ticks and already receives `prep.carried`.
+
+⚠ **WHY THESE TESTS LOOK UNUSUAL, AND THE RULE WORTH CARRYING.** **No assertion on
+rendered text can catch the wrap defect.** Re-rendering is what the mount harness *does*,
+so a test that calls `render()` supplies the very thing production fails to schedule and
+passes either way — the bug is the WIRING, not the arithmetic. Those tests instead capture
+what a render **registers** and run it against a recording timer. The debit needed **two**
+tests for the same reason: mounting `BSCookMode` supplies `priorMins` itself, so it passes
+whether or not the parent *also* subtracts — and subtracting on both sides charges a
+carried hold **twice**, worse than the frozen figure it replaced. The second walks two
+dishes of a real sequential session and pins that the credit handed down does not move.
+**Seven mutations** across the two fixes, each caught by the intended test.
+
+### 2026-08-20 — Cook together: three options, three schedulers, and a serve time the plan keeps (#1910 → `056cd0279`)
+
+- **The prep sheet asks WHY before it starts, and the answer now changes the schedule.**
+  **Owner ruling:** the three options are three DIFFERENT questions — *cook at the same
+  time* · *cook separately* · *cook to serve* (every dish completing at one moment).
+  "Cook at the same time" had been running the SERVE scheduler with **no serve time**, so
+  two of the three doors led to the same room and the option meant to get the cook OUT of
+  the kitchen was optimising the wrong thing. MEASURED over **4,950 catalog pairs** —
+  every pair of the merged 100-recipe catalog — TOGETHER finishes sooner than SERVE in
+  **29.5%** and later in **7.7%** (mean session **51.9 min** vs **53.9**; SEQUENCE
+  **64.4**). It is the faster plan on balance — but the reason it is CORRECT is that it is
+  a different question.
+  ⚠ **THESE SUPERSEDE THE FIGURES IN #1910's MERGE MESSAGE** (3,570 pairs · 16.0% · 4.2% ·
+  38.6/39.9/44.4). 3,570 is exactly **C(85, 2)**, so that measurement predated #1911 and
+  omitted all 1,380 pairs involving the 15 new recipes. The merge message is immutable and
+  now WRONG on this point; these are the numbers to quote.
+- ⚠ **"Cook to serve" is DISCLOSED, not promised.** It lands every dish at one moment in
+  only **7.4%** of pairs, mean gap **13.5 min** — and it is **overwhelmingly not the
+  kitchen**: an unlimited-station kitchen reaches only **8.6%**. It is the one cook, who
+  cannot finish two hands-on dishes at the same instant.
+  ⚠ **THE EARLIER CLAIM THAT UNLIMITED STATIONS MEASURE *IDENTICALLY* IS WITHDRAWN.** On
+  the 85-recipe catalog both arms read 2.2% and I called them identical; re-measured over
+  all 4,950 pairs they are **7.4% against 8.6%**, so the kitchen accounts for about **1.2
+  points** and the cook for the remaining ~91%. The conclusion holds and the word does
+  not — a saturated pair of equal numbers was hiding a real, if small, difference
+  (see the check-your-check note in the review section). The gap is stated beside the start time
+  the cook sets an alarm by. **A true single-moment finish is a scheduler design change —
+  registered, not claimed.**
+- **The engine.** ONE placement now answers for the timeline, the serve time AND the
+  issues, so the sheet cannot report a schedule it is not showing. A pull **names the
+  resource that caused it** — MEASURED, an unlimited kitchen still reported `stations` on
+  **3,492 of 3,570** plans, so the reason code was wrong in **97.8%** of them and every one
+  of those was the COOK. ⚠ That pair of numbers is over the **85-recipe** catalog and is
+  deliberately NOT restated: it measures a defect that is now fixed, so re-running it today
+  would measure the corrected engine and find nothing. A historical measurement gets its
+  denominator named, never a fresh number pasted over it. ⚠ It has **no UI consumer yet** — a contract fixed ahead of its
+  first reader.
+- ⚠ **A DISCLOSURE THAT MOVED HOUSE AND STOPPED DESCRIBING ITS NEIGHBOUR.** The landing gap
+  was rendered beside "You start cooking at {t}" but read from `orchServe` — the
+  *earliest-reachable* plan — while the start time came from the plan the cook actually
+  picked. Before the rewire those were the same plan; **my own fix moved the disclosure and
+  split them.** MEASURED over 89,100 pair/kitchen/serve-time comparisons: they disagree in
+  **5.7%**, **one-directionally** — the shown gap **understates**, never overstates, by up
+  to **101 minutes**. It never falsely promised a single moment (0 cases of shown-0 against
+  a real gap), which is exactly why nothing on screen contradicted it.
+- ⚠ **AND THE FALLBACK I ADDED CLAIMED TO BE A PROOF.** The earliest-serve search is bounded
+  by ITERATIONS, not minutes; past the bound it fell out infeasible and everything
+  downstream read a placement whose `placed` is undefined — an **empty timeline beside an
+  unreachable serve time**, silent. The serial bound fixes that, but it is an UPPER bound,
+  and `exact` — the flag the sheet reads to choose between *"this is the earliest"* and
+  *"the earliest of the orders we searched"* — stayed **true**. Fixed, and **mutation-tested
+  in both directions** so an over-correction (always-false) fails too.
+  ⚠ Reachable only far outside real data: it needs a recipe past `BS_ORCH.serveSearchMax`
+  steps where the catalog's largest is **8**, and the search is already ~17s at 320.
+- ⚠ **THREE OF MY OWN TESTS WERE HOLLOW, and only mutation-testing caught them.** The
+  options test asserted **row badges** rather than the plan actually run (rewiring SOONEST
+  back to SERVE left it green); the harness-isolation guard used **identically-shaped**
+  components, which share a cell array quite happily; and a hold fixture had **stopped
+  reaching the case it exists for** after the catalog merge. None were caught by review or
+  by a passing suite. **A green test is not a working test.**
+- **Two findings REFUTED with evidence rather than complied with.** The serial fallback
+  "can itself fail" — the named case (100 one-minute steps against 1) returns a complete
+  101-event timeline, and 11 shapes converge including 7- and 8-dish sets past the
+  exhaustive permutation bound. And the Pidgin subtitle "is a fragment" — so are **all 13
+  locales**, the English source included (*"On the table at a time you choose"*); it sits
+  under the option title, not as a sentence. ⚠ The adjacent Pidgin finding **was** taken:
+  `by {t}` for a clock time contradicts the locale's **own** convention (`for {time}`,
+  three instances across coach + marketplace), and mine were the only two `by`s in it.
+- **Review curve 27 → 6 → 5 → 3 → 0** over five rounds; three of the last four rounds found
+  a defect **inside my own preceding fix**. Suite **2100**; `tsc` clean; CI green and
+  CodeRabbit clean on `1177823ac`. Branch kept.
+- **Registered, NOT built:** the single-moment serve objective · the pull reason code's
+  first UI consumer · **71 of 85 recipes still schedule short against their own
+  annotations** (a DATA pass, not an engine one). ⚠ **THAT 71/85 IS AGAINST THE OLD
+  CATALOG.** It was measured before #1911 took the catalog to **100**, so the **15 recipes
+  imported via `USDA2_KITCHEN_RECIPES` are UNAUDITED** — resolving the 71 does **not**
+  close this residual. Re-measure across all 100 before calling it done; a stale
+  denominator is how a residual gets closed while a sixth of the catalog was never
+  checked.
+
+### 2026-08-19 — Shape Kitchen reaches 100, and a Prep Session can finally interleave (#1911 → `3c4ee6e9b`)
+
+- Fifteen more USDA MyPlate recipes take the catalog **85 → 100**, and a passive-window
+  overlay takes the recipes that can **HOST** an interleave window from **22 → 53**
+  (two-dish interleave **40.5% → 50.8%**).
+- ⚠ **THOSE NUMBERS WERE CORRECTED DOWNWARD REPEATEDLY, and that is this entry's point.**
+  The overlay first claimed 76 hosts / 69.3%; each round removed windows a cook **cannot
+  actually leave** — terminal windows (a leftover hold is a make-ahead, true of a fridge
+  rest and false of a live oven), windows whose parts exceed the whole, attended aromatics,
+  and ranged durations. 76 → 73 → 67 → 61 → 57 → 56 → 55 → **53**. **Every correction made
+  the product worse on paper and more honest in the kitchen.**
+- ⚠ **DO NOT QUOTE #1911's SQUASH MESSAGE for these figures — it is itself superseded.**
+  Its last recorded cost line reads 55 hosts / 52.2%, because the final corrections landed
+  after that text was written. **53 was re-measured against merged `main`** by the engine's
+  own rule (pair each recipe with a stationless hands-on partner and ask whether
+  `bsOrchestrate` actually interleaves), not by a hand-rolled window predicate.
+- **Nothing fabricates parallelism.** Every `min` is a duration the step text itself states;
+  four recipes that spelled an hour in words ("for one hour") have it written as 60 so the
+  parser can see what the cook could always read. No time, method or meaning changed.
+- ⚠ **A ranged window is its LOW end.** "12–15 minutes" is 12 — the cook must be back when
+  the window *could* end, not when it might.
+- ⚠ **Round 5's P1 was MINE** (oyster sauce), and the round-6 claim that **"no gate can
+  catch attended aromatics" was REFUTED** — a gate keyed on a different property (the
+  uncovered pan) caught three. **"Ungateable" is a claim about ONE gate, not about the
+  class.**
+- ⚠ **No BACKGROUND hold exists:** a hold blocks its own recipe *and* the one modelled
+  burner. **Tuna macros remain an OWNER RULING**, still unresolved.
+
 ### 2026-08-18 — A claim is kept by SPECIFYING the ingredient, never by hiding the recipe
 
 **Owner ruling, and it reversed my rounds 3-4 classifications.** Two questions had been
@@ -243,7 +483,22 @@ oats, soy sauce, broth/stock/bouillon, margarine.
   come out of a named nutritionist or the USDA. The note is its own unattributed block on
   every surface, and the field is `allergenNotes` for exactly that reason.
 
-> **Latest (2026-08-18): COOK MODE LABELS EVERY TIMER, AND THE SHAPE KITCHEN GOES 35 → 85
+> **Latest (2026-08-20): COOK TOGETHER — THREE OPTIONS, THREE SCHEDULERS (#1910 →
+> `056cd0279`), ON TOP OF SHAPE KITCHEN 100 (#1911 → `3c4ee6e9b`).**
+> The owner ruled that the three cook options are three DIFFERENT questions, and "cook at
+> the same time" stopped running the serve scheduler with no serve time.
+> ⚠ **"Cook to serve" lands every dish at one moment in 7.4% of pairs, and it is
+> overwhelmingly not the kitchen** — unlimited stations reach only 8.6%; it is the one cook.
+> Disclosed on the sheet rather than promised away.
+> ⚠ **Three of the last four review rounds found a defect inside my own preceding fix**,
+> and **three of my own tests were hollow** — caught by mutation-testing, not by review and
+> not by a passing suite. Findings ran 27 → 6 → 5 → 3 → 0.
+> ⚠ #1911's headline numbers were **corrected downward seven times** as windows a cook
+> cannot leave were removed (76 → 53 hosts). Suite **2100**.
+>
+> See the full entries below.
+
+> **Prior (2026-08-18): COOK MODE LABELS EVERY TIMER, AND THE SHAPE KITCHEN GOES 35 → 85
 > (#1906 → `7c4e49ecb` · #1907 → `f7b9f69ec`).**
 > Two PRs, and in **both** the reviewer's findings kept landing in my own preceding fixes —
 > #1906 took **13 Codex rounds**, #1907 took **four** — and rounds 2 and 4 each found a defect
