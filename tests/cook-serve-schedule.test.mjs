@@ -130,6 +130,23 @@ function drive(Component, props) {
   return api;
 }
 
+// The prep sheet reads `Date.now()` ONCE at mount and compares calendar days off it, so
+// any test that touches the table-time picker inherits both the runner's wall clock and
+// its timezone. That is a real flake, not a theoretical one: this file's rollover test
+// passed all evening locally and failed in CI at 00:06 UTC, where "an hour before now"
+// is 23:06 — later today, not yesterday.
+//
+// Pin the clock instead of picking a safer offset. The instant is built from LOCAL
+// components rather than a fixed epoch, because the component's rollover check is
+// `getDate()` in local time; a fixed epoch would land on a different local hour in every
+// timezone. Noon on a June weekday is far from any DST transition in any zone.
+function withClockAt(hour, minute, fn) {
+  const real = Date.now;
+  const pinned = new Date(2026, 5, 15, hour, minute, 0, 0).getTime();
+  Date.now = () => pinned;
+  try { return fn(pinned); } finally { Date.now = real; }
+}
+
 // Two dishes that CAN be timed to land together, one much shorter than the other, so a
 // serve plan genuinely has to hold the short one back.
 const LONG = {
@@ -345,25 +362,39 @@ const PICKER_PROGRAM = [{
 }];
 
 test('serve picker: choosing a table time renders, and says which DAY it landed on', () => {
-  const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
-  for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
-  s.click('Merge the mise');
-  s.click('Serve mode');
+  // Pinned to local noon, so both branches below are facts about the component rather
+  // than about the hour the suite happens to run in. See `withClockAt`.
+  withClockAt(12, 0, () => {
+    const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
+    for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    s.click('Serve mode');
 
-  assert.match(s.text, /On the table at/, 'the serve-time picker must render');
-  const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
-  assert.equal(times.length, 1, 'exactly one table-time input');
+    assert.match(s.text, /On the table at/, 'the serve-time picker must render');
+    const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
+    assert.equal(times.length, 1, 'exactly one table-time input');
 
-  // A time already past today resolves to TOMORROW. That is right for a cook plating
-  // after midnight and identical for one who mis-taps a minute into the past, so the
-  // day has to be on screen either way -- a silent rollover schedules the session ~23
-  // hours out behind a start time that reads perfectly normal.
-  assert.doesNotMatch(s.text, /Tomorrow/, 'a reachable time today is not labelled tomorrow');
-  const now = new Date();
-  const past = String((now.getHours() + 23) % 24).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  times[0].props.onChange({ target: { value: past } });
-  s.render();
-  assert.match(s.text, /Tomorrow/, 'a time that rolled over must say so');
+    // Guard the guard: the default has to actually land today, or the first assertion
+    // passes for the wrong reason and the label is never exercised. The chosen time
+    // lives in the input's value, not in the rendered text.
+    assert.match(times[0].props.value, /^1[2-9]:/,
+      `the default serve time should be this afternoon, got ${times[0].props.value}`);
+    assert.doesNotMatch(s.text, /Tomorrow/, 'a reachable time today is not labelled tomorrow');
+
+    // A time already past today resolves to TOMORROW. That is right for a cook plating
+    // after midnight and identical for one who mis-taps a minute into the past, so the
+    // day has to be on screen either way -- a silent rollover schedules the session ~23
+    // hours out behind a start time that reads perfectly normal.
+    times[0].props.onChange({ target: { value: '11:00' } });
+    s.render();
+    assert.match(s.text, /Tomorrow/, 'a time that rolled over must say so');
+
+    // ...and it goes away again. A label that never clears would pass the line above
+    // whether or not it tracks the chosen time.
+    times[0].props.onChange({ target: { value: '19:30' } });
+    s.render();
+    assert.doesNotMatch(s.text, /Tomorrow/, 'the label must clear when the time lands today');
+  });
 });
 
 test('serve mode: the earliest serve time is the earliest over placement ORDERS, not one order', () => {
