@@ -433,7 +433,7 @@ test('purging every held item does not make THIS call emit the digest', () => {
 // member who opts out while one is queued and then opts back in is deduped forever against
 // a notification that never went out. The stamp has to be released with the item.
 test('purging an undelivered check-in releases its dedup stamp', () => {
-  const held = { type: 'checkin_due', key: 'self', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true } };
+  const held = { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true } };
   const last = { date: 'never', pendingDigest: [held], types: { 'checkin_due:self': { sig: 'due', at: 1 } } };
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
 
@@ -453,18 +453,25 @@ test('purging an undelivered check-in releases its dedup stamp', () => {
   assert.deepEqual(on.nextState.types['checkin_due:self'], { sig: 'due', at: 1 }, 'the stamp was cleared for a member who never opted out');
 });
 
-// ⚠ THE SAME GAP FOR ITEMS QUEUED BEFORE THIS SHIPPED. A held item finalized by an older
-// deploy carries no `key`, so its dedup entry cannot be addressed exactly. Every type the
-// purge can match is built with a single key, so clearing the type's entries is precise
-// today and, if that ever stops being true, errs toward re-delivering rather than
-// swallowing — the direction that cannot lose a member's only nudge.
-test('a LEGACY held check-in with no key still releases its stamp', () => {
-  const legacy = { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true } };
-  const last = { date: 'never', pendingDigest: [legacy], types: { 'checkin_due:self': { sig: 'due', at: 1 }, 'coach_message:m1': { sig: 'm1', at: 1 } } };
+// ⚠ CLEARING A STAMP ANOTHER HELD ITEM IS STILL STANDING BEHIND WOULD DOUBLE IT UP. A
+// queued item carries no key, and both shapes the purge can match are built with the
+// single key 'self' — so a held directive that is NOT the check-in shares the purged
+// one's dedup entry. Releasing it would let that same directive be rebuilt and queued a
+// second time while the first is still waiting in the digest.
+test('a stamp a SURVIVING held item still stands behind is not released', () => {
+  const checkin = { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: { move: 'check_in' }, priority: 'high', channels: { push: true } };
+  const sleep = { type: 'directive', title: 'Your move today', body: "Log last night's sleep", route: 'home', data: { move: 'recovery' }, priority: 'high', channels: { push: true } };
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const stamps = () => ({ 'directive:self': { sig: 'amber|Send it|', at: 1 }, 'coach_message:m1': { sig: 'm1', at: 1 } });
 
-  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
-  assert.equal(out.nextState.types['checkin_due:self'], undefined, 'a keyless held item left its stamp behind');
-  // ⚠ and it clears ONLY what it purged.
-  assert.deepEqual(out.nextState.types['coach_message:m1'], { sig: 'm1', at: 1 }, 'the purge cleared an unrelated dedup entry');
+  const survives = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [checkin, sleep], types: stamps() }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(survives.nextState.pendingDigest.length, 0, 'both held directives should have gone to the digest');
+  assert.deepEqual(survives.digest.data.items.map((i) => i.data.move), ['recovery'], 'the wrong directive was purged');
+  assert.deepEqual(survives.nextState.types['directive:self'], { sig: 'amber|Send it|', at: 1 },
+    'released a stamp the surviving directive is still standing behind');
+
+  // ...and with nothing of that type left, the stamp IS released — and only that one.
+  const alone = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [checkin], types: stamps() }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(alone.nextState.types['directive:self'], undefined, 'the purged directive left its stamp behind');
+  assert.deepEqual(alone.nextState.types['coach_message:m1'], { sig: 'm1', at: 1 }, 'the purge cleared an unrelated dedup entry');
 });

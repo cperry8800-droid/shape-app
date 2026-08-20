@@ -189,12 +189,12 @@ export function isCheckinItem(item) {
 // released with it: otherwise the rebuilt candidate is suppressed as a duplicate of a
 // notification that was never delivered. For `checkin_due` that is PERMANENT — it signs
 // itself with the constant 'due', so no later signature can ever break the tie.
-function releaseDedup(types, item) {
-  if (nonEmpty(item.key)) { delete types[`${item.type}:${item.key}`]; return; }
-  // ⚠ Items queued before this shipped carry no `key`, so their entry cannot be addressed
-  // exactly. Every type the purge can match is built with a single key ('self'), making
-  // this precise today; if that ever stops being true it errs toward re-delivering rather
-  // than swallowing — the direction that cannot cost a member their only nudge.
+function releaseDedup(types, item, kept) {
+  // ⚠ A SURVIVING ITEM STILL STANDS BEHIND THE STAMP. A queued item carries no key — both
+  // shapes the purge can match are built with the single key 'self', so a held directive
+  // that is NOT the check-in shares the purged one's dedup entry. Clearing it would let
+  // the same directive be rebuilt and queued a SECOND time while the first still waits.
+  if (kept.some((k) => k && k.type === item.type)) return;
   const prefix = `${item.type}:`;
   for (const k of Object.keys(types)) if (k.startsWith(prefix)) delete types[k];
 }
@@ -331,9 +331,11 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     pendingDigest: Array.isArray(last.pendingDigest) ? last.pendingDigest.slice() : [],
   };
   if (checkinOptedOut) {
-    const purged = state.pendingDigest.filter(isCheckinItem);
-    state.pendingDigest = state.pendingDigest.filter((i) => !isCheckinItem(i));
-    for (const i of purged) releaseDedup(state.types, i);
+    const kept = [];
+    const purged = [];
+    for (const i of state.pendingDigest) (isCheckinItem(i) ? purged : kept).push(i);
+    state.pendingDigest = kept;
+    for (const i of purged) releaseDedup(state.types, i, kept);
   }
 
   // Master mute — the authoritative kill switch.
@@ -372,9 +374,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
-      // ⚠ `key` rides along on the QUEUED copy only (the sent shape is unchanged): without
-      // it a purge cannot tell which dedup entry the held item stood for.
-      state.pendingDigest.push({ ...item, key: c.key, at: +now });
+      state.pendingDigest.push({ ...item, at: +now });
       state.types[sigKey] = { sig: c.sig, at: +now };
       if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
       suppressed.push({ type: c.type, reason: quiet ? 'quiet_hours' : overCap ? 'capped' : 'low_priority_digest' });
