@@ -1,4 +1,4 @@
-import type { Gate, CoderabbitVerdict } from '@/app/console/flight-types';
+import type { Gate, CoderabbitVerdict, CodexVerdict } from '@/app/console/flight-types';
 
 export const REQUIRED_CHECKS: ReadonlyArray<string>;
 export const CODERABBIT_BOTS: ReadonlyArray<string>;
@@ -16,14 +16,22 @@ export function coderabbitVerdict(args: {
   headSha?: string;
 }): CoderabbitVerdict;
 
-export function codexPresent(args: {
-  reviews?: Array<{ user?: { login?: string } }>;
-  comments?: Array<{ user?: { login?: string } }>;
-}): 'present' | 'none';
+export function nextPageUrl(link: string | null | undefined): string | null;
 
+export function codexVerdict(args: {
+  reviews?: Array<{
+    user?: { login?: string };
+    body?: string;
+    commit_id?: string;
+    submitted_at?: string;
+  }>;
+  comments?: Array<{ user?: { login?: string }; body?: string; created_at?: string }>;
+  headSha?: string;
+}): CodexVerdict;
+
+// CodeRabbit is deliberately absent: it is a breadth sweep, not a gate.
 export function prAllGreen(p: {
   ci?: string;
-  coderabbit?: string;
   codex?: string;
   draft?: boolean;
 }): boolean;

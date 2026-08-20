@@ -15,7 +15,8 @@ import { requireAdminUser } from '@/lib/admin-access';
 import {
   gateFromRuns,
   coderabbitVerdict,
-  codexPresent,
+  codexVerdict,
+  nextPageUrl,
   prAllGreen,
 } from '@/lib/console-flight.mjs';
 import type { Flight, FlightPr, Gate } from '@/app/console/flight-types';
@@ -43,9 +44,57 @@ async function gh(path: string, token: string): Promise<unknown> {
   return res.json();
 }
 
+// One page, plus the `Link` header that says whether another exists. `gh` stays for
+// single-object endpoints, which have no pagination to follow.
+async function ghPage(url: string, token: string): Promise<{ items: unknown[]; next: string | null }> {
+  const res = await fetch(url, {
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/vnd.github+json',
+      'user-agent': 'shape-mission-control',
+    },
+    signal: AbortSignal.timeout(8000),
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`github ${res.status} on ${url}`);
+  const body = (await res.json()) as unknown;
+  return { items: Array.isArray(body) ? body : [], next: nextPageUrl(res.headers.get('link')) };
+}
+
+// ⚠ RUNS TO EXHAUSTION, AND HITTING THE BOUND THROWS RATHER THAN RETURNING A SHORT LIST.
+// These endpoints paginate OLDEST-FIRST and take no direction parameter, so the newest
+// record — the one a latest-wins gate reads — is on the LAST page. An earlier version of
+// this file capped at five pages and asserted in its own comment that missing records
+// could only ever read 'stale'. ⚠ THAT WAS FALSE: reviews and comments are fetched
+// separately, so a clean COMMENT inside the window can outlive a later findings REVIEW
+// outside it, and the gate then reports a FALSE PASS. A truncated list must therefore
+// never be returned — the throw degrades this PR's gates to 'none' in the caller, which
+// is closed. The bound exists only so a malformed `Link` cycle cannot hang the board.
+const GH_PAGE_LIMIT = 50;
+async function ghAll(path: string, token: string): Promise<unknown[]> {
+  const sep = path.includes('?') ? '&' : '?';
+  let url: string | null = `https://api.github.com${path}${sep}per_page=100`;
+  const out: unknown[] = [];
+  for (let i = 0; i < GH_PAGE_LIMIT && url; i++) {
+    const page = await ghPage(url, token);
+    out.push(...page.items);
+    url = page.next;
+  }
+  if (url) throw new Error(`github pagination exceeded ${GH_PAGE_LIMIT} pages on ${path}`);
+  return out;
+}
+
 type CheckRun = { name?: string; status?: string; conclusion?: string | null };
-type Review = { user?: { login?: string }; state?: string; commit_id?: string };
-type Comment = { user?: { login?: string }; body?: string };
+// `body` and the timestamps are read by codexVerdict — it pins a verdict to a head from
+// the `Reviewed commit:` field in the body, and orders same-head records by time.
+type Review = {
+  user?: { login?: string };
+  state?: string;
+  commit_id?: string;
+  body?: string;
+  submitted_at?: string;
+};
+type Comment = { user?: { login?: string }; body?: string; created_at?: string };
 
 async function checkRunsFor(sha: string, token: string): Promise<Gate> {
   const data = (await gh(`/repos/${REPO}/commits/${sha}/check-runs?per_page=100`, token)) as {
@@ -79,12 +128,12 @@ async function buildFlight(token: string): Promise<Flight> {
       try {
         const [ciGate, reviews, comments] = await Promise.all([
           headSha ? checkRunsFor(headSha, token) : Promise.resolve<Gate>('none'),
-          gh(`/repos/${REPO}/pulls/${p.number}/reviews?per_page=100`, token) as Promise<Review[]>,
-          gh(`/repos/${REPO}/issues/${p.number}/comments?per_page=100`, token) as Promise<Comment[]>,
+          ghAll(`/repos/${REPO}/pulls/${p.number}/reviews`, token) as Promise<Review[]>,
+          ghAll(`/repos/${REPO}/issues/${p.number}/comments`, token) as Promise<Comment[]>,
         ]);
         ci = ciGate;
         coderabbit = coderabbitVerdict({ reviews, comments, headSha });
-        codex = codexPresent({ reviews, comments });
+        codex = codexVerdict({ reviews, comments, headSha });
       } catch {
         // Per-PR degrade: gates stay 'none' (no record ≠ a verdict).
       }
@@ -98,7 +147,7 @@ async function buildFlight(token: string): Promise<Flight> {
         ci,
         coderabbit,
         codex,
-        allGreen: prAllGreen({ ci, coderabbit, codex, draft: !!p.draft }),
+        allGreen: prAllGreen({ ci, codex, draft: !!p.draft }),
       };
     })
   );

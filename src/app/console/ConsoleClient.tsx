@@ -237,10 +237,17 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
   const gateTag = (p: FlightPr) => {
     if (p.allGreen)
       return { text: 'AWAITING YOUR WORD', color: N.bg, bg: N.accent, border: N.accent };
-    if (p.ci === 'red' || p.coderabbit === 'changes') return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
+    // ⚠ CodeRabbit no longer decides this tag, because it no longer decides the gate.
+    // It read `coderabbit === 'changes'` as BLOCKED while `prAllGreen` ignored it — the
+    // headline would then contradict the thing it is a headline for.
+    if (p.ci === 'red' || p.codex === 'findings')
+      return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
     if (p.draft) return { text: 'DRAFT', color: N.dim, bg: 'transparent', border: N.dimmer };
-    // Not "IN REVIEW" — nothing is reviewing it, and nothing will until the cap
-    // clears. Saying otherwise is how a cap notice gets mistaken for a pass.
+    // Not "IN REVIEW" in either of the next two: the review has FINISHED in both, and
+    // each needs a different action. Saying "in review" is how a finished-but-unusable
+    // verdict gets waited on instead of acted on.
+    if (p.codex === 'stale')
+      return { text: 'CDX RE-TRIGGER', color: N.gold, bg: 'transparent', border: N.gold };
     if (p.coderabbit === 'limited')
       return { text: 'CR LIMIT REACHED', color: N.gold, bg: 'transparent', border: N.gold };
     return { text: 'IN REVIEW', color: N.gold, bg: 'transparent', border: N.gold };
@@ -580,7 +587,21 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                                       : 'none'
                             }
                           />
-                          <GateChip label="CDX" gate={p.codex === 'present' ? 'green' : 'none'} />
+                          <GateChip
+                            label="CDX"
+                            gate={
+                              p.codex === 'clean'
+                                ? 'green'
+                                : p.codex === 'findings'
+                                  ? 'red'
+                                  : // 'stale' — Codex ran, but not on THIS head. Shown as the
+                                    // warn glyph rather than a dash: a dash reads "never ran",
+                                    // and the action here is a re-trigger, not a first run.
+                                    p.codex === 'stale'
+                                    ? 'blocked'
+                                    : 'none'
+                            }
+                          />
                         </span>
                       </div>
                     </div>
@@ -589,7 +610,11 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                 <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 9.5, color: N.dimmer, lineHeight: 1.7 }}>
                   CR ◇ APPROVED / CLEAN-PASS ✓ · CHANGES ✗ · COMMENTED … · CAPPED, NEVER RAN ⚠ · NO RECORD —
                   (verdicts count on the current head only; a clean pass is read from the edited summary — neither a
-                  dash nor a cap notice is a verdict)
+                  dash nor a cap notice is a verdict). ⚠ CR DOES NOT GATE — it is a breadth sweep and its chip is
+                  reported, never required.
+                  <br />
+                  CDX ◇ CLEAN ON THIS HEAD ✓ · FINDINGS ✗ · RAN, BUT NOT ON THIS HEAD ⚠ · NO RECORD — (Codex IS the
+                  gate; ⚠ means re-trigger, not first run)
                 </div>
               </div>
             )}

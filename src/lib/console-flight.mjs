@@ -132,39 +132,119 @@ export function coderabbitVerdict({ reviews, comments, headSha } = {}) {
   return 'none';
 }
 
+// Codex names the commit it reviewed, in BOTH shapes it reports in: the issue
+// comment it leaves when clean and the review it leaves when it has findings.
+// "**Reviewed commit:** `e5bd3a02d0`" — the markup around it varies, the field
+// does not. Abbreviated to 10 chars in practice, so matching is by prefix with a
+// 7-char floor; below that a "prefix" is a collision, not an identification.
+const CODEX_COMMIT_RE = /reviewed\s+commit:?\**\s*`?([0-9a-f]{7,40})`?/i;
+// The clean verdict reads "Codex Review: Didn't find any major issues." A findings
+// round says "Here are some automated review suggestions" and never contains this.
+// Matched WITHOUT the apostrophe so a curly quote cannot turn a pass into a stale.
+const CODEX_CLEAN_RE = /find any major issues/i;
+
 /**
- * Codex presence — exact bot identity only.
+ * The `rel="next"` URL from a GitHub `Link` header, or null when there is none.
  *
- * Presence, NOT freshness, and that is a ruling (owner, 2026-07-27) rather
- * than an oversight: Codex leaves no record at all when it is clean — it
- * reacts 👍 on the triggering comment — so head-pinning it the way
- * coderabbitVerdict is head-pinned would jam every clean pass at 'none' and
- * the gate could never open. That is the same false-negative that cost a P1
- * here. The house gate treats a stale Codex pass as the owner's re-trigger
- * call, so the board reports the record that exists rather than guessing.
- * (Registered, not built: read reactions to pin freshness without the trap.)
- * @param {{reviews?: Array<{user?: {login?: string}}>,
- *          comments?: Array<{user?: {login?: string}}>}} args
- * @returns {'present' | 'none'}
+ * ⚠ THE ONLY AUTHORITY ON WHETHER MORE PAGES EXIST. These endpoints paginate
+ * oldest-first and take no direction parameter, so the NEWEST record — the one a
+ * latest-wins gate depends on — is on the LAST page. A record cap is therefore not a
+ * latency trade, it is a correctness bug: cap the reviews and the comments separately
+ * and a clean comment inside the window can outlive a later findings review outside
+ * it, which reports `clean` and marks a PR ready. That is a FALSE PASS, and it is the
+ * direction an earlier version of this file wrongly claimed was impossible.
+ * @param {string | null | undefined} link
+ * @returns {string | null}
  */
-export function codexPresent({ reviews, comments } = {}) {
-  const hit = (l) => isTrusted(l, CODEX_BOTS);
-  const inRevs = (Array.isArray(reviews) ? reviews : []).some((r) => hit(r?.user?.login));
-  const inCmts = (Array.isArray(comments) ? comments : []).some((c) => hit(c?.user?.login));
-  return inRevs || inCmts ? 'present' : 'none';
+export function nextPageUrl(link) {
+  for (const part of String(link || '').split(',')) {
+    // ⚠ The relation needs a boundary: `"?next"?` also matches rel="nextish" and would
+    // walk to a page that is not the next one.
+    const m = /<([^>]+)>\s*;\s*rel\s*=\s*(?:"next"|next\b)/i.exec(part);
+    if (m) return m[1].trim();
+  }
+  return null;
 }
 
 /**
- * AWAITING YOUR WORD = every gate genuinely green: CI full-coverage green,
- * CodeRabbit approved OR clean (both are real verdicts on the head), Codex
- * present, and not a draft.
- * @param {{ci?: string, coderabbit?: string, codex?: string, draft?: boolean}} p
+ * Codex verdict for THIS head — the gate.
+ *
+ * ⚠ REPLACES `codexPresent`, whose presence-not-freshness rule rested on a premise
+ * that measurement refutes. That rule said Codex "leaves no record at all when it
+ * is clean — it adds a thumbs-up reaction to the triggering comment", so head-pinning
+ * it "would jam every clean pass at 'none'". Across every PR from #1840 (2026-07-26)
+ * through #1912 (2026-08-20): every clean Codex verdict posted an issue comment
+ * carrying `Reviewed commit: <sha>`, and no trigger comment carried a thumbs-up. The
+ * record the rule says does not exist is the one Codex always leaves, and it names
+ * the commit.
+ *
+ * The old asymmetry was backwards: the reviewer the house process calls THE GATE
+ * was satisfied by any record ever left, while the one it calls "not a gate" was
+ * head-pinned and blocking. #1910 merged on a Codex pass six commits stale and read
+ * green. This closes that, and the failure direction is CLOSED-and-loud: anything
+ * that cannot be pinned to this head is 'stale', which the board shows as a
+ * re-trigger prompt, never as a pass.
+ * @param {{reviews?: Array<{user?: {login?: string}, body?: string, commit_id?: string}>,
+ *          comments?: Array<{user?: {login?: string}, body?: string}>,
+ *          headSha?: string}} args
+ * @returns {'clean' | 'findings' | 'stale' | 'none'}
  */
-export function prAllGreen({ ci, coderabbit, codex, draft } = {}) {
-  return (
-    ci === 'green' &&
-    (coderabbit === 'approved' || coderabbit === 'clean') &&
-    codex === 'present' &&
-    !draft
-  );
+export function codexVerdict({ reviews, comments, headSha } = {}) {
+  const sha = String(headSha || '');
+  const records = [
+    ...(Array.isArray(reviews) ? reviews : []),
+    ...(Array.isArray(comments) ? comments : []),
+  ].filter((r) => isTrusted(r?.user?.login, CODEX_BOTS));
+  if (!records.length) return 'none';
+  // A record exists but there is no head to pin it against: not a verdict for a
+  // head we cannot name.
+  if (!sha) return 'stale';
+
+  // ⚠ LATEST WINS, and returning on the first findings record was WRONG. Refuting a
+  // finding and re-triggering WITHOUT a new commit is a real round, and then both the
+  // findings review and the clean comment that cleared it name the SAME head. Treating
+  // any past finding on a SHA as permanent jams the gate forever on a head Codex has
+  // explicitly passed — fail-closed turning into fail-closed-forever.
+  const onHead = [];
+  for (const r of records) {
+    const body = String(r?.body || '');
+    const m = CODEX_COMMIT_RE.exec(body);
+    const named = m ? m[1] : String(r?.commit_id || '');
+    if (named.length < 7) continue;          // unpinnable — never a pass
+    if (!sha.startsWith(named) && !named.startsWith(sha)) continue;
+    onHead.push({
+      at: String(r?.submitted_at || r?.created_at || ''),
+      clean: CODEX_CLEAN_RE.test(body),
+    });
+  }
+  if (!onHead.length) return 'stale';
+  // Ascending by timestamp, and where two cannot be ordered — equal stamps, or records
+  // carrying none — CLEAN sorts first so FINDINGS ends up last and still wins. Order that
+  // cannot be established falls back to the conservative reading rather than the lucky one.
+  onHead.sort((a, b) => {
+    if (a.at !== b.at) return a.at < b.at ? -1 : 1;
+    if (a.clean === b.clean) return 0;
+    return a.clean ? -1 : 1;
+  });
+  return onHead[onHead.length - 1].clean ? 'clean' : 'findings';
+}
+
+/**
+ * AWAITING YOUR WORD = CI full-coverage green, a CLEAN CODEX VERDICT ON THIS
+ * HEAD, and not a draft.
+ *
+ * ⚠ CODERABBIT NO LONGER GATES, and removing it is the point rather than a
+ * simplification. `coderabbitVerdict` is head-pinned, so the ratified house
+ * process — ONE CodeRabbit breadth sweep, Codex as the gate — could never
+ * satisfy the old form: the sweep stopped counting the moment a fix for its own
+ * findings was pushed, and the gate then demanded a re-review the process
+ * forbids. The two were unsatisfiable together. CodeRabbit keeps its chip, which
+ * is where a breadth sweep belongs; the gate now says what the house says.
+ *
+ * Net effect is STRICTER, not looser: `codex` must be a verdict on THIS head,
+ * where the old `codexPresent` accepted any Codex record the PR had ever had.
+ * @param {{ci?: string, codex?: string, draft?: boolean}} p
+ */
+export function prAllGreen({ ci, codex, draft } = {}) {
+  return ci === 'green' && codex === 'clean' && !draft;
 }
