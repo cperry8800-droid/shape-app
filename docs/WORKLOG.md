@@ -256,6 +256,39 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-20 — The check-in opt-out reached the Home screen and nothing else
+
+- **A member who opted out kept being nudged.** Turning Settings → Preferences → *Daily
+  check-in* off stops the Home bulletin, but the stored `notify_snapshot` keeps its
+  check-in state and **both** notify paths recompute from it — so someone who opted out
+  and never reopened the app kept receiving check-in nudges from the cron. Codex P1 on
+  #1899, verified against the code before fixing: `/api/ai/notify/cron` consulted
+  `client_settings.dailyCheckin` **zero** times.
+- ⚠ **THE SUPPRESSION IS AT THE CANDIDATE, NOT AT A CALL SITE — `checkin_due` has TWO
+  DOORS.** It fires on an explicit `checkinDueThisWeek` signal **or** on the engine's own
+  `checkin_overdue` flag, so gating the call site would have left the flag firing.
+  `clientCandidates` now takes `checkinOptedOut` and both doors pass through one test.
+- ⚠ **BOTH routes were wired, not only the cron.** `/api/ai/notify` recomputes from the
+  same snapshot and had the identical hole — fixing the reported one would have left the
+  live path nudging.
+- ⚠ **It suppresses ONLY the check-in.** They opted out of a daily check-in nag, not out
+  of coach messages, streaks or the one move; over-correction here would be its own
+  defect, and a test pins that those three still arrive.
+- **`dailyCheckinOn` mirrors mobile's `bsDailyCheckinOn`: ON is the DEFAULT and absence
+  means ON.** An account predating the pref, or a settings read that simply failed, can
+  never read as silently opted out. ⚠ The two are TWINS in separate bundles — change one,
+  change both.
+- ⚠ **THE MOBILE COMMENT WAS OVERCLAIMING AND IS CORRECTED IN PLACE.** It said the engine
+  gates its vitals leg *"the moment a member opts out"*; that was true of the **in-app**
+  engine only, and the server paths cannot see the per-uid mirror it describes.
+- ⚠ **REGISTERED, NOT FIXED — an opt-out that never reaches the server.** `persistPrefs`
+  DECLINES to write when there is no real `client_settings` document yet (offline, query
+  error, or a member who has never had a successful settings read). Until that write
+  lands the server sees no `dailyCheckin` key, which correctly reads as opted IN — so the
+  device goes quiet and the cron does not. This is a property of the **writer** and cannot
+  be fixed from the notify side, which is why it is split into its own `pending` item
+  rather than left inside the completed one.
+
 ### 2026-08-20 — The gate trusted the wrong reviewer with the wrong strictness
 
 - **The house process and the shipping gate encoded opposite priorities.** The process

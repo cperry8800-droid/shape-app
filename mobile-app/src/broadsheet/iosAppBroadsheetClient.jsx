@@ -21997,12 +21997,18 @@ function bsDailyCheckinApply(on) {
 // segmented control contradicting the behaviour it names. A real cloud doc
 // still wins when it arrives (subject to the pane's edit-generation guard).
 function bsDailyCheckinLabel() { return bsDailyCheckinMirrorRead() ? 'On' : 'Off'; }
-// Synchronous pref reader for OTHER modules (spec §3D — the engine gates its
-// vitals leg on it the moment a member opts out). Reads the per-uid mirror,
+// Synchronous pref reader for OTHER modules (spec §3D — the IN-APP engine gates
+// its vitals leg on it the moment a member opts out). Reads the per-uid mirror,
 // so it returns the CURRENT state: true for signed-out, converged after the
 // cloud hydrate, flipped instantly by a Settings toggle. Consumers use
 // tolerant access (window.ShapeCheckinPref?.on?.() === false ⇒ drop the leg;
 // module absent ⇒ ON), so either merge order stands alone.
+// ⚠ THIS MIRROR IS IN-APP ONLY, and "the moment" is true only in here. The two
+// notify routes run server-side with no access to it, so they gate on the
+// PERSISTED `client_settings.dailyCheckin` instead — which converges only once
+// `persistPrefs` lands its cloud write. An opt-out made while that write could
+// not happen (no server doc yet, offline, query error) is honoured on this
+// device and NOT by the cron until the next successful save.
 window.ShapeCheckinPref = { on: () => bsDailyCheckinMirrorRead() };
 
 // useBSDailyCheckinPref — the read hook BSTodayNudge consumes. Seeds

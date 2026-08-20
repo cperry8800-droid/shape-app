@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   clientCandidates, coachCandidates, decideNotifications, NOTIFY_TYPES,
   inQuietHours, localHour, DEFAULT_PREFS, channelsForType, habitReminderCandidates,
+  dailyCheckinOn,
 } from '../src/lib/ai/notifications.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -254,4 +255,57 @@ test('every notify type is informational (carries a deep-link route)', () => {
     assert.ok(typeof meta.route === 'string' && meta.route, `${type} has a route`);
     assert.ok(['client', 'coach'].includes(meta.audience));
   }
+});
+
+// ── SPEC §3D OPT-OUT, HONOURED SERVER-SIDE ───────────────────────────────────────────────
+// ⚠ THE OPT-OUT REACHED THE HOME SCREEN AND NOTHING ELSE. Turning "Daily check-in" off
+// stops the Home bulletin nagging, but the stored `notify_snapshot` keeps its check-in
+// state and BOTH notify paths recompute from it — so a member who opts out and never
+// reopens the app keeps receiving check-in nudges from the cron. The pref has to be read
+// where the candidate is BUILT, not only where it is displayed.
+//
+// ⚠ AND THE CANDIDATE HAS TWO DOORS: an explicit `checkinDueThisWeek` signal AND the
+// engine's own `checkin_overdue` flag. Gating the call site would have left the flag
+// firing, so the suppression lives here, at the one place both doors pass through.
+test('dailyCheckinOn — ON is the DEFAULT, and only an explicit off is off', () => {
+  // Mirrors mobile `bsDailyCheckinOn`: absence is ON, so an account that predates the
+  // pref — or a failed settings read — can never be silently opted out of its check-in.
+  assert.equal(dailyCheckinOn(undefined), true);
+  assert.equal(dailyCheckinOn(null), true);
+  assert.equal(dailyCheckinOn('On'), true);
+  assert.equal(dailyCheckinOn(true), true);
+  // The two shapes the settings row actually stores for off.
+  assert.equal(dailyCheckinOn('Off'), false);
+  assert.equal(dailyCheckinOn(false), false);
+});
+
+test('opting out suppresses the check-in nudge from BOTH doors', () => {
+  const viaSignal = { checkinDueThisWeek: true, flags: [], directive: null, tone: 'supportive' };
+  const viaFlag = { checkinDueThisWeek: false, flags: [{ key: 'checkin_overdue', reason: 'overdue' }], directive: null, tone: 'supportive' };
+
+  // Pref ON (and the default, absent) — today's behaviour, byte-identical.
+  assert.equal(clientCandidates(viaSignal).filter((c) => c.type === 'checkin_due').length, 1);
+  assert.equal(clientCandidates(viaFlag).filter((c) => c.type === 'checkin_due').length, 1);
+
+  // Pref OFF — neither door fires.
+  assert.deepEqual(clientCandidates({ ...viaSignal, checkinOptedOut: true }).filter((c) => c.type === 'checkin_due'), []);
+  assert.deepEqual(clientCandidates({ ...viaFlag, checkinOptedOut: true }).filter((c) => c.type === 'checkin_due'), []);
+});
+
+test('opting out of the check-in silences ONLY the check-in', () => {
+  // ⚠ Over-correction would be its own defect: the member turned off a daily check-in
+  // nag, not every notification. A coach message and the one move must still arrive.
+  const input = {
+    directive: SLEEP_DIRECTIVE,
+    flags: [{ key: 'checkin_overdue', reason: 'overdue' }, { key: 'streak_broken', habit: 'Water', reason: 'missed 2 days' }],
+    checkinDueThisWeek: true,
+    coachEvents: [{ kind: 'message', id: 'm1', coach: 'Sam', preview: 'nice work', conversationId: 'c1' }],
+    tone: 'supportive',
+    checkinOptedOut: true,
+  };
+  const types = clientCandidates(input).map((c) => c.type).sort();
+  assert.ok(!types.includes('checkin_due'), `check-in survived the opt-out: ${types.join(',')}`);
+  assert.ok(types.includes('directive'), `the one move was lost: ${types.join(',')}`);
+  assert.ok(types.includes('streak_broken'), `an unrelated flag was lost: ${types.join(',')}`);
+  assert.ok(types.includes('coach_message'), `a coach message was lost: ${types.join(',')}`);
 });

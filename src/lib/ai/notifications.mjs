@@ -151,9 +151,21 @@ function sanitize(copy) {
 // dedup per-subject (a client id for coach items); `sig` changes only when the
 // underlying event genuinely changes.
 
+// The stored `client_settings.dailyCheckin` value, read as a boolean.
+//
+// ⚠ ON IS THE DEFAULT, AND ABSENCE MEANS ON. An account created before the pref
+// existed — or a settings read that simply failed — must never read as opted OUT,
+// because that would silently stop a check-in the member never turned off. Only the
+// two shapes the settings row actually stores for off are off.
+//
+// ⚠ TWIN: mobile's `bsDailyCheckinOn` (iosAppBroadsheetClient.jsx) is this same rule
+// over this same value. Change one and change both — a drifted copy here means the
+// app and the notifications disagree about what the member asked for.
+export function dailyCheckinOn(v) { return v !== false && v !== 'Off'; }
+
 // CLIENT — from a directive + evaluateClient flags + check-in state + coach events.
 export function clientCandidates(input) {
-  const { directive, flags = [], checkinDueThisWeek, coachEvents = [], goals = [], tone } = input;
+  const { directive, flags = [], checkinDueThisWeek, checkinOptedOut = false, coachEvents = [], goals = [], tone } = input;
   const out = [];
 
   // (AI2) the ONE move — only when it's actionable (not a green/on-track read).
@@ -173,7 +185,15 @@ export function clientCandidates(input) {
     out.push({ type: 'goal_slip', key: 'self', sig: byKey.goal_slip.reason || 'slip', priority: 'med', ctx: { goalLabel: g.label, reason: byKey.goal_slip.reason } });
   }
   // due weekly check-in (engine flag OR an explicit "due" signal)
-  if (checkinDueThisWeek === true || byKey.checkin_overdue) {
+  // ⚠ SPEC §3D — a member who turned Daily check-in OFF is never nudged about it, and
+  // that has to hold for the notification paths too: the Home bulletin already honours
+  // the pref, but BOTH notify routes recompute from the stored snapshot, which keeps its
+  // check-in state after the toggle. The suppression sits HERE because this candidate has
+  // TWO doors — the explicit signal and the engine's own flag — and gating a call site
+  // would leave the other one firing.
+  // ⚠ It suppresses ONLY this candidate. They opted out of a check-in nag, not out of
+  // coach messages, streaks or the one move.
+  if (!checkinOptedOut && (checkinDueThisWeek === true || byKey.checkin_overdue)) {
     out.push({ type: 'checkin_due', key: 'self', sig: 'due', priority: 'med', ctx: {} });
   }
   // coach events (real, server-confirmed) — messages + co-signs

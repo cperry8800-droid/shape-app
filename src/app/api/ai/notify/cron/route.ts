@@ -65,12 +65,21 @@ async function run(request: Request) {
 
     const prefs = await loadPrefs(admin, userId);      // the preference center
     if (prefs.muted) continue;                          // honor master mute
-    const last = await readUserGoal(admin, userId, 'notify_state');
+    // ⚠ Read alongside `notify_state` rather than in a second round trip: this loop
+    // runs for up to BATCH users, so an extra sequential query per user is real cost.
+    const [last, settings] = await Promise.all([
+      readUserGoal(admin, userId, 'notify_state'),
+      readUserGoal(admin, userId, 'client_settings'),
+    ]);
+    // ⚠ SPEC §3D. Turning Daily check-in off stopped the Home bulletin and nothing
+    // else: the stored snapshot keeps its check-in state, so this cron kept nudging a
+    // member who had opted out and never reopened the app. Absence reads as opted IN.
+    const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
     const now = new Date();
     const isCoach = isCoachRole(snapshot.role);  // trainer | nutritionist | dietitian
     const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
 
-    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext });
+    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut });
     const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience });
     const items = digest ? [...send, digest] : send;
     if (items.length) { await deliver(admin, userId, items); delivered += items.length; }

@@ -36,7 +36,14 @@ export async function POST(request: Request) {
 
   // THE preference center is the single source of truth.
   const prefs = await loadPrefs(actor.supabase, actor.user.id);
-  const last = await readUserGoal(actor.supabase, actor.user.id, 'notify_state');
+  // ⚠ SPEC §3D — the same opt-out the cron honours. This route recomputes from the
+  // same snapshot, so gating only the cron would have left the live path nudging a
+  // member who had turned Daily check-in off. Absence of the setting reads as opted IN.
+  const [last, settings] = await Promise.all([
+    readUserGoal(actor.supabase, actor.user.id, 'notify_state'),
+    readUserGoal(actor.supabase, actor.user.id, 'client_settings'),
+  ]);
+  const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
   const now = new Date();
   const tone = prefs.tone;
   const isCoach = isCoachRole(actor.role);
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
     habitContext = await loadHabitContext(actor.supabase, actor.user.id, now, prefs.tz);
   }
 
-  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext });
+  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut });
   const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience });
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one
