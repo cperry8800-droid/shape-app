@@ -176,7 +176,16 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
       assert.ok(Number.isFinite(m.min) && m.min >= MIN_PASSIVE, `${r.title} step ${i}: min ${m.min} below the ${MIN_PASSIVE}-min floor`);
       assert.ok(m.min <= 6 * 60, `${r.title} step ${i}: min ${m.min} exceeds 6h`);
       // No fabrication: the authored `min` must equal a real duration the step text itself states.
+      // ⚠ `bsStepTimers` reduces a RANGE to one figure — "simmer 4 to 5 minutes" comes back as
+      // 5 — so a window correctly set to the low end read as fabricated. Both ends of a stated
+      // range are stated, and the sibling gate below requires the low one; without this the two
+      // rules contradict each other and the honest value is the one that fails.
+      const RANGE_ENDS = /(\d+)\s*(?:to|\u2013|-)\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi;
       const stated = bsStepTimers(r.steps[i]).map((x) => Math.round(x.seconds / 60));
+      for (const hit of String(r.steps[i]).matchAll(RANGE_ENDS)) {
+        const scale = /hour|hr/i.test(hit[3]) ? 60 : 1;
+        stated.push(Number(hit[1]) * scale, Number(hit[2]) * scale);
+      }
       assert.ok(stated.includes(m.min), `${r.title} step ${i}: min ${m.min} not stated in the step — "${r.steps[i].slice(0, 48)}…" states ${JSON.stringify(stated)}`);
     });
   }
@@ -203,6 +212,55 @@ test('catalog: no annotated window is followed by a concurrent-authored same-rec
         `${r.title} step ${i}: annotated window, but step ${i + 1} is authored concurrent with it — "${String(nxt).slice(0, 60)}…" (drop the annotation or restructure the steps)`);
     });
   }
+});
+
+// ⚠ A WINDOW MEANS THE COOK CAN WALK AWAY. The board proves how much this matters:
+// while a hold runs, the HOLDING lane renders only the recipe TITLE, the station and a
+// countdown — the step TEXT is never shown. So annotating a step that asks the cook to
+// come back mid-window ("simmer 2 hours, TURNING the roast once at the halfway mark")
+// hides the instruction until the timer rings: the roast is never turned, the foam is
+// never skimmed, the croutons burn. `cookOrchestrator.mjs`'s own header states the rule
+// — "never a merely-parsed duration (a 'simmer 20 min, stirring' is not hands-off)" —
+// and it shipped violated 9 times (3 of them live on main since the Cook Mode wave).
+//
+// The distinction is grammatical and precise. A GERUND clause modifies the timed action
+// and therefore runs DURING it ("stirring occasionally", "flipping once", "skimming the
+// foam"). The same verb as an IMPERATIVE is setup that completes BEFORE the wait ("Stir
+// in the flour, then simmer 5 minutes"; "Press the tofu … rest 10 minutes"), and a state
+// verb describes the food, not the cook ("until it turns soft"). Measured over the
+// catalog: the gerund rule flags 9 real violations and 0 of the 24 false positives a
+// bare verb match produces.
+test('catalog: an ATTENDED step is never annotated as a hands-off window', () => {
+  // ⚠ A LIST, KNOWINGLY. Round 3 beat the previous list with `spooning` ("roast about an
+  // hour, spooning the pan juices back over the chicken"), so the obvious move was to
+  // match the SHAPE instead — a comma plus a participle. That was tried and measured,
+  // and it is worse: `\w+ing` is morphology, not grammar, so it fires on "bring to a
+  // simmer" and on "string beans". Seven false positives against one real catch.
+  // Telling a gerund from a noun needs a parser this suite does not have, so the list
+  // stays — precise, and honestly incomplete. It is a tripwire for known shapes, NOT a
+  // proof the catalog is clean; only reading a step can establish that.
+  const ATTEND_GERUND = /\b(stirring|turning|flipping|skimming|tossing|basting|spooning|ladling|whisking|shaking|scraping|checking|rotating|nudging|pressing)\b/i;
+  // "without stirring" / "without lifting the lid" is the same shape NEGATED, and means the
+  // opposite: leave it alone. Matched as a shape too, for the same reason.
+  // "without stirring" is an instruction to leave it alone. ⚠ "without stirring TOO OFTEN"
+  // is not — it asks for occasional stirring, and this guard exempted it because it read
+  // only the opening words. A negation counts only when nothing walks it back.
+  const NEGATED = /\bwithout\s+(?:\w+\s+){0,2}\w+ing\b(?!\s+(?:too\s+\w+|much|often|constantly|every|more\s+than))/i;
+
+  // ⚠ Collect, then assert ONCE. An assert inside the loop reports the FIRST violation
+  // and hides the count — which is exactly how a review round named 2 of these 9.
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const text = r.steps[i] || '';
+      if (NEGATED.test(text)) return;
+      const hit = text.match(ATTEND_GERUND);
+      if (hit) bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — "${hit[0]}": ${text.slice(0, 70)}…`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} annotated window(s) ask the cook to attend mid-hold; the board hides the step text, so drop the annotation:\n  ${bad.join('\n  ')}`);
 });
 
 // Spot-check the diet helpers so a logic regression (not just a desync) is caught.
@@ -235,4 +293,312 @@ test("catalog: a terminal annotated window must be station 'off'", () => {
         `${r.title}: terminal window (step ${i}) is '${m.station}' — a live-fire hold would outlive the board`);
     });
   }
+});
+
+// ---------------------------------------------------------------------------------
+// Review round 2 broke the same PREMISE three more ways. The rule is one sentence —
+// an annotated window means the cook can put the dish down and leave the kitchen —
+// and each gate below is a different grammar in which the catalog said that untruthfully.
+// ---------------------------------------------------------------------------------
+
+// (1) THE SAME RULE, A DIFFERENT GRAMMAR. The gerund gate above reads an attendance
+// CLAUSE ("stirring occasionally"). It is blind to an attended cooking METHOD that IS
+// the timed action: "sauté 5 to 8 minutes" carries no gerund, yet a board that sends the
+// cook off to another dish leaves mushrooms and peppers on a hot pan for eight minutes.
+// The tell is that the method verb is followed by its own duration in the same clause —
+// the verb GOVERNS the interval. "so they sauté instead of flooding the pan" is a purpose
+// clause carrying no duration, and requiring the duration is what keeps that one out.
+test('catalog: an attended cooking METHOD never governs an annotated window', () => {
+  // ⚠ The trailing (?![a-z]) rather than \b is load-bearing. `\b` after an accented vowel
+  // can never match, so the first draft of this pattern — /\bsaut[eé]\b/ — found NOTHING
+  // and read as a clean sweep while covering nothing at all. The two asserts below exist
+  // because a silent zero from this gate is indistinguishable from a passing catalog.
+  const METHOD = /(?:^|[^a-z])(saut[eé]|stir-fry|sear|pan-fry|griddle|scramble|deep-fry|soften|sweat)(?![a-z])/i;
+  // `soften` and `sweat` joined after round 3: "soften them in olive oil over medium heat
+  // for 8 minutes" is a soffritto, and needs moving or it catches. Note the gate only
+  // fires when a DURATION sits in the same clause, which is what keeps the doneness use
+  // — "cook about 5 minutes until they soften and give up their liquid" — out of it.
+  const DUR = /\d+\s*(?:to\s*\d+\s*)?(?:minutes?|mins?|hours?|hrs?)/i;
+  assert.ok(METHOD.test('and sauté 5 to 8 minutes'), 'METHOD must match the accented spelling');
+  assert.ok(!METHOD.test('research the topic'), 'METHOD must not match inside a word');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const text = r.steps[i] || '';
+      const hit = METHOD.exec(text);
+      if (!hit) return;
+      // Only the clause the verb sits in can carry the duration that verb governs.
+      const clause = text.slice(hit.index).split(/[.,;]/)[0];
+      if (DUR.test(clause)) bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — "${hit[1]}": ${clause.trim().slice(0, 60)}…`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} annotated window(s) are an attended cooking method — nobody walks away from a hot pan`);
+});
+
+// (2) THE RECIPE HAS ALREADY SPENT THAT TIME. When a step says "marinate 10 minutes while
+// the oven heats" or "rest 5 minutes while you make the dressing", the author has already
+// assigned those minutes to the cook's own next job. Annotating it hands the same minutes
+// to a DIFFERENT dish — and since a hold also blocks its own recipe (`freeAt`), the work
+// the recipe scheduled there is pushed out behind it. A step that OPENS with "While" or
+// "Meanwhile" is itself the detour and likewise cannot host one; four recipes correctly
+// carry no annotation for exactly that reason, and a fifth had been annotated anyway.
+// "the vegetables weep a little liquid that seasons the meat while it sits" describes the
+// food rather than giving the cook a job, and is correctly ignored.
+test('catalog: a window never sits on time the recipe already gave the cook', () => {
+  const COOK_BUSY = /\bwhile\s+(?:you\b|the\s+(?:oven|grill|pan|griddle|broiler|water)\s+(?:heats|preheats|comes\b))/i;
+  const OPENS_CONCURRENT = /^\s*(?:while|meanwhile)\b/i;
+  assert.ok(COOK_BUSY.test('marinate 10 minutes while the oven heats'), 'must catch an appliance warming');
+  assert.ok(!COOK_BUSY.test('liquid that seasons the meat while it sits'), 'must not catch a description of the food');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const text = r.steps[i] || '';
+      if (COOK_BUSY.test(text)) bad.push(`${r.title} step ${i} — the recipe gave those ${m.min}m to the cook: ${text.slice(0, 60)}…`);
+      else if (OPENS_CONCURRENT.test(text)) bad.push(`${r.title} step ${i} — opens as the detour, so it cannot host one: ${text.slice(0, 60)}…`);
+    });
+  }
+  assert.deepEqual(bad, [], `${bad.length} window(s) claim time the recipe had already scheduled`);
+});
+
+// (3) NOTHING SURVIVES THE COUNTDOWN. The HOLDING lane is a title, a station and a clock.
+// An instruction sitting AFTER the duration inside the same step is therefore never shown
+// again — the cursor has already moved on by the time the timer rings. "Freeze the beef 30
+// minutes, THEN SLICE IT into strips" left the following step seasoning "the strips" the
+// cook had never been told to cut. Two steps were split so the hidden half became a step
+// of its own; the rest were dropped, because where the action has to happen the instant
+// the timer rings (chill the eggs, drain the potatoes) it was never a walk-away window.
+// The exemptions are STRUCTURAL rather than a list: a terminal step has no later step to
+// mislead, and a trailing clause that is itself a wait ("set it aside to steam off") asks
+// nothing of the cook. A named exemption list would have gone stale on the next batch.
+test('catalog: an annotated window never hides an instruction behind its timer', () => {
+  const DUR = /\d+\s*(?:to\s*\d+\s*)?(?:minutes?|mins?|hours?|hrs?)/i;
+  // ⚠ This exemption started as a verb LIST (rest|stand|cool|chill|set|leave|keep) and it
+  // swallowed the case that motivated the gate: "then chill in cold water and peel" is an
+  // urgent action, not a wait, and `chill` in the list exempted it. Mutation-testing is the
+  // only reason that was caught — restoring the offending annotation left the gate GREEN.
+  // It is now the single SHAPE it actually has to cover: leaving something where it stands.
+  const STILL_A_WAIT = /^set\s+(?:it|them|the\s+\w+)\s+aside\b/i;
+  assert.ok(STILL_A_WAIT.test('set it aside to steam off in its bowl'), 'must exempt leaving it be');
+  assert.ok(!STILL_A_WAIT.test('chill in cold water and peel'), 'must NOT exempt an urgent action');
+  // Widening the separator alone was measured and is far too broad: "and" also joins
+  // DONENESS clauses ("until the salmon flakes and the edges char"), which flagged 40
+  // steps that ask the cook for nothing. So the separator is widened AND the following
+  // clause must open with something the cook DOES. A doneness cue opens with the food
+  // ("the beans blister"); an instruction opens with a verb.
+  //
+  // WARNING - ROUND 6 WIDENED IT TWICE MORE. The wraps read "chill at least 20 minutes BEFORE
+  // CUTTING each wrap in half" - a separator the gate did not know, and a gerund whose doubled
+  // consonant `cut` could never reach. The baked oats read "...then TOP WITH the Greek yogurt
+  // and a scattering of lemon zest", a verb simply missing from the list, which cost the cook
+  // two listed INGREDIENTS.
+  const HANDOFF_VERBS = 'rest|drain|rinse|remove|take|pull|lift|chill|cool|transfer|tip|uncover|'
+    + 'fluff|fork|slice|cut|spoon|scoop|stir|toss|season|serve|top|garnish|sprinkle|scatter|dot|'
+    + 'drizzle|spread|fold|add|pour|whisk|carve|shred|peel|press|squeeze|finish|plate|divide|'
+    + 'assemble|roll|wrap|brush|swirl|crumble|mash';
+  // WARNING - `taste`, `flake`, `thin` and `adjust` were in the first draft of that list and
+  // were MEASURED BACK OUT: they are things the FOOD does, so they live in doneness clauses.
+  // They flagged the pozole ("until the broth ... tastes rounded rather than sharp") and the
+  // catfish ("until it turns opaque and flakes easily with a fork") - two steps that ask the
+  // cook for nothing. Only transitive kitchen actions belong here.
+  const INFL = String.raw`(?:e?s|e?d|[bcdgklmnprtvz]?ing)?`;   // ...and "cutting", "topping"
+  // WARNING - the conjunction is OPTIONAL after real punctuation. The quinoa reads
+  // "...the liquid is gone; rest 5 minutes off the heat" - a semicolon and no conjunction
+  // whatever, which slipped through a `(?:then|and)` requirement. Mutation-testing caught
+  // that; reading the pattern back had not.
+  const SEP = new RegExp(
+    String.raw`(?:[;.]\s*(?:then\s+|and\s+)?|[,]?\s*(?:then|and)\s+|[,]?\s*before\s+)`
+    + `(?=(?:${HANDOFF_VERBS})${INFL}` + String.raw`\b)`, 'i');
+  // The gate is only as good as its pattern, so the pattern is pinned to the cases that
+  // motivated it - in BOTH directions. A silent SEP would make this whole test vacuous, and
+  // a greedy one would make it noise.
+  for (const fires of ['chill at least 20 minutes before cutting each wrap in half',
+                       'Cool 5 minutes so they settle, then top with the Greek yogurt']) {
+    assert.ok(SEP.test(fires), `SEP went silent on a known hand-off: "${fires}"`);
+  }
+  for (const quiet of ['cook uncovered 20 minutes, until the broth turns brick red and tastes rounded',
+                       'simmer covered 5 minutes, until it turns opaque and flakes easily with a fork']) {
+    assert.ok(!SEP.test(quiet), `SEP fired on a doneness clause: "${quiet}"`);
+  }
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      // ⚠ THE TERMINAL EXEMPTION WAS WRONG. It reasoned that a last step has no later step
+      // to mislead. But starting a terminal hold marks the recipe prepped and sends the cook
+      // to another dish or the wrap — and the wrap renders `◷ {title} · {countdown}`, with
+      // `wrapHolds` carrying only {title, leftS}. The step text is not merely unshown there,
+      // it is not even carried. A terminal hold hides its instruction exactly like the rest.
+      const text = r.steps[i] || '';
+      const d = text.search(DUR);
+      if (d < 0) return;
+      const tail = text.slice(d);
+      // ⚠ THIS LOOKED FOR THE WORD `then` AND ROUND 3 CAME BACK WITH `;` AND `and`: the
+      // quinoa reads "simmer 15 minutes ...; rest 5 minutes off the heat", the rice
+      // "simmer covered on low 15 minutes and rest 5 off the heat" — the same hidden
+      // hand-off, punctuated differently.
+      //
+      const th = tail.search(SEP);
+      if (th < 0) return;
+      const after = tail.slice(th).replace(/^[;,.]?\s*(?:then\s+|and\s+|before\s+)?/i, '');
+      if (STILL_A_WAIT.test(after)) return;
+      bad.push(`${r.title} step ${i} (${m.min}m/${m.station}) — hidden behind the clock: "${after.slice(0, 60)}…"`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} window(s) hide an instruction the board never shows — split the step, or drop the window`);
+});
+
+// (4) THE ARITHMETIC BACKSTOP, and the only one of the four that needs no reading of the
+// prose. A hold blocks its own recipe, so a recipe's hold minutes are minutes it cannot
+// spend on itself. When they exceed the recipe's OWN stated total, the recipe is saying
+// those minutes overlap with its other work — a BACKGROUND hold, which this model cannot
+// express. Picadillo annotated its 45-minute rice that way: a recipe that calls itself 50
+// minutes read 79 on the board, and a two-dish session stopped interleaving altogether.
+// Three recipes trip the sum honestly, because their stated time is hands-on time and
+// deliberately excludes a long chill. They are named with the reason rather than waved
+// through, so that a fourth cannot join them silently.
+test('catalog: hold minutes never outrun the recipe\'s own stated time', () => {
+  const MAKE_AHEAD = {
+    'Overnight oats, three ways': 'the 4-hour chill IS the dish and was never part of "5 min"',
+    'Date and almond energy bites': 'a terminal 30-minute set in the fridge, excluded from hands-on time',
+    'Black skillet beef with kale and red potatoes': 'a 30-minute partial freeze before any cooking begins',
+  };
+  const stated = (t) => {
+    const h = /(\d+)\s*hr/.exec(String(t || ''));
+    const mm = /(\d+)\s*min/.exec(String(t || ''));
+    return (h ? Number(h[1]) * 60 : 0) + (mm ? Number(mm[1]) : 0);
+  };
+  // The first draft read only the leading integer, so "1 hr 15 min" measured as 1 and
+  // half the catalog looked like a violation. A parser this gate depends on gets probed.
+  assert.equal(stated('1 hr 15 min'), 75, 'the time parser must read hours, or this gate measures nothing');
+  assert.equal(stated('45 min'), 45);
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    const st = stated(r.time);
+    if (!st) continue;
+    const held = (r.stepMeta || []).reduce((n, m) => n + (m && m.passive === true && m.min > 0 ? m.min : 0), 0);
+    if (held > st && !MAKE_AHEAD[r.title]) bad.push(`${r.title}: ${held}m of holds inside a stated ${st}m — the recipe says they overlap`);
+  }
+  assert.deepEqual(bad, [], `${bad.length} recipe(s) hold for longer than they claim to take`);
+});
+
+// (5) A RANGE IS A PROMISE ABOUT ITS LOW END. "Simmer uncovered 2 to 5 minutes", with the
+// next step saying "pull the spears while they still snap", is not a five-minute window —
+// the cook is needed at TWO minutes and the annotation pins the maximum. Anything under
+// BS_ORCH.minPassive cannot host an interleave at all, so a range straddling that floor has
+// no honest window inside it and the board would return the cook to overcooked food.
+// Structural, not lexical: it reads the numbers the step itself states.
+test('catalog: a ranged window is its LOW end, never its top', () => {
+  const RANGE = /(\d+)\s*(?:to|–|-)\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/i;
+  const FLOOR = 4;   // BS_ORCH.minPassive — below this the orchestrator hosts nothing
+  assert.deepEqual(RANGE.exec('simmer uncovered 2 to 5 minutes').slice(1, 3), ['2', '5'],
+    'the range parser must read both ends, or this gate measures nothing');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const hit = RANGE.exec(r.steps[i] || '');
+      if (!hit) return;
+      const lo = Number(hit[1]) * (/hour|hr/i.test(hit[3]) ? 60 : 1);
+      // ⚠ The first version of this gate only rejected a range reaching BELOW the floor. That
+      // was half the rule: "simmer 6 to 8 minutes" annotated as 8 keeps the countdown running
+      // for two minutes after the chops are ready. The window is the low end in every case —
+      // the top of a range is where the board returns the cook to something overcooked. The
+      // review named one; the catalog had eight.
+      if (lo < FLOOR) bad.push(`${r.title} step ${i} (${m.min}m) — the cook may be needed at ${lo}m, below the ${FLOOR}m floor`);
+      else if (m.min !== lo) bad.push(`${r.title} step ${i} — window is ${m.min}m but the step states ${lo} to ${hit[2]}; a window is its LOW end`);
+    });
+  }
+  assert.deepEqual(bad, [], `${bad.length} ranged window(s) do not match the low end the step states`);
+});
+// (6) AN INGREDIENT NOBODY IS TOLD TO USE. "1/4 cup chopped pecans" sat in a list while no
+// step ever mentioned pecans: a purchased item wasted, and a dish that no longer matches the
+// nutrition published beside it. Structural — does any step name it?
+//
+// ⚠ The first version of this sweep reduced "2 tbsp olive oil" to the head noun "olive" and
+// dropped words of three letters, so it reported 38 unused ingredients while steps plainly
+// said "heat the oil". Match on ANY content word of the whole measure, keep short nouns like
+// oil and cod, and drop only PREPARATION words — because if "chopped" counts as a match then
+// "chopped pecans" is satisfied by any other chopped thing in the recipe.
+// (7) THE ATTENDED-AROMATICS TRIPWIRE, and a correction to something this wave recorded as
+// impossible. Round 5 concluded that no gate could catch this class, because the prose says
+// "cook the onion" and names no technique at all - true of the METHOD gate, which looks for a
+// verb. This one looks at the PAN instead: a stove window whose step names aromatics and never
+// says the pan is covered is a saute, whatever verb the sentence uses. Review named one of
+// these (the chickpeas); the rule found the barley pilaf and the pot roast as well.
+//
+// WARNING - it is a TRIPWIRE, not a proof. It cannot tell a 4-minute sweat from a 15-minute
+// browning, and it says nothing about aromatics on any other station. It exists so that the
+// next one of these has to be argued for in writing instead of arriving quietly.
+test('catalog: a stove window never sits on uncovered aromatics', () => {
+  const AROMATIC = /\b(?:onion|garlic|shallot|scallion|celery|carrot|leek|ginger)s?\b/i;
+  const COVERED = /\bcover(?:ed)?\b|\blid\b/i;
+  assert.ok(AROMATIC.test('Cook the onion, garlic, celery and carrot for about 15 minutes'),
+    'AROMATIC went silent on the case that motivated the gate');
+  assert.ok(AROMATIC.test('add the onions, carrots and garlic'), 'must read plurals too');
+  assert.ok(COVERED.test('pile the spinach on top without stirring, cover, and leave 10 minutes'),
+    'COVERED must exempt a covered pan');
+  // The ONE exemption, named rather than pattern-matched. A pattern here would quietly grow to
+  // fit whatever arrives next - which is exactly how the last exemption list swallowed `chill`,
+  // the very case its own gate had been written for.
+  const SUBMERGED = new Set([
+    // 8 cups of water and lamb bones in a 6-quart pan: the vegetables are submerged in a stock
+    // being reduced for an hour, not fried in a film of oil. There is nothing here to catch.
+    'Shorba lamb and peanut soup|1',
+  ]);
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true || m.station !== 'stove') return;
+      const text = r.steps[i] || '';
+      if (!AROMATIC.test(text) || COVERED.test(text)) return;
+      if (SUBMERGED.has(`${r.title}|${i}`)) return;
+      bad.push(`${r.title} step ${i} (${m.min}m) - "${text.slice(0, 72)}"`);
+    });
+  }
+  assert.deepEqual(bad, [],
+    `${bad.length} stove window(s) send the cook away from aromatics in an uncovered pan`);
+});
+
+test('catalog: every ingredient is named by some step', () => {
+  const PREP = new Set(['chopped', 'minced', 'diced', 'sliced', 'grated', 'shredded', 'ground', 'fresh',
+    'frozen', 'dried', 'canned', 'cooked', 'raw', 'packed', 'thawed', 'drained', 'rinsed', 'divided',
+    'low', 'sodium', 'reduced', 'fat', 'free', 'whole', 'large', 'small', 'medium', 'ripe', 'unsalted',
+    'salted', 'boneless', 'skinless', 'lean', 'extra', 'virgin', 'plain', 'thin', 'thinly', 'trimmed',
+    'peeled', 'halved', 'quartered', 'cubed', 'crushed', 'toasted', 'optional', 'washed', 'and', 'the',
+    'for', 'with', 'into', 'about', 'your', 'any', 'plus', 'more', 'taste', 'needed', 'pieces', 'wedges']);
+  // A step may name the CATEGORY rather than the variety — "cook the pasta", not "cook the
+  // fusilli". These are the categories the catalog actually writes, and each is a word a cook
+  // reads as the same thing; without them the gate flags five recipes that are perfectly clear.
+  const CATEGORY = [
+    [/penne|fusilli|macaroni|spaghetti|rigatoni|linguine|fettuccine|orzo/, /pasta|noodle/],
+    [/farro|quinoa|barley|bulgur|freekeh/, /grain/],
+    [/honey|maple|agave/, /sweeten/],
+    [/wholegrain|sourdough|rye|ciabatta/, /bread|toast|slice/],
+    [/cheddar|mozzarella|parmesan|gruy|halloumi|feta/, /cheese/],
+  ];
+  const stem = (w) => w.replace(/(ies|es|s)$/i, '');
+  const words = (m) => String(m || '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3 && !PREP.has(w));
+  assert.deepEqual(words('olive oil'), ['olive', 'oil'], 'short nouns must survive, or the sweep is meaningless');
+  assert.deepEqual(words('chopped pecans'), ['pecans'], 'preparation words must not count as a match');
+
+  const bad = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    const method = (r.steps || []).join(' ').toLowerCase();
+    for (const g of r.ingredients || []) {
+      const ws = words(g.m);
+      if (!ws.length) continue;
+      if (ws.some((w) => method.includes(stem(w)))) continue;
+      if (CATEGORY.some(([variety, category]) => variety.test(g.m) && category.test(method))) continue;
+      bad.push(`${r.title}: "${g.n} ${g.m}" — no step ever tells the cook to use it`);
+    }
+  }
+  assert.deepEqual(bad, [], `${bad.length} ingredient(s) are bought and never used`);
 });

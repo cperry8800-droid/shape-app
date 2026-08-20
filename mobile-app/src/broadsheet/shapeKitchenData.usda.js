@@ -134,7 +134,8 @@ export const USDA_KITCHEN_RECIPES = [
       { n: "4 cups", m: "kale leaves" },
     ],
     steps: [
-      "Freeze the beef for 30 minutes until it firms up, then slice it across the grain into strips about 1/8 inch thick and 3 inches wide.",
+      "Freeze the beef for 30 minutes, until it firms up enough to slice cleanly.",
+      "Slice it across the grain into strips about 1/8 inch thick and 3 inches wide.",
       "Mix the paprika, oregano, chilli powder, garlic powder, black pepper, crushed red pepper and dry mustard, and toss the strips until every piece is coated.",
       "Spray a large heavy skillet with cooking spray and preheat it over high heat until a drop of water skitters, then add the meat and stir-fry for 5 minutes until the spices darken and smell toasted.",
       "Add the potatoes, onion, broth and garlic, cover, and cook over medium heat for 20 minutes so the potatoes braise in the seasoned liquid rather than fry.",
@@ -276,8 +277,8 @@ export const USDA_KITCHEN_RECIPES = [
       { n: "2 tsp", m: "salt, optional" },
     ],
     steps: [
-      "Put the lamb bones in a 6-quart saucepan with 8 cups of water and the salt, bring it up to a bare simmer and hold it there for one hour, skimming the grey foam off the top.",
-      "Add the onions, carrots, cabbage wedges, string beans and garlic and simmer, uncovered, for a second hour until every vegetable collapses under a spoon.",
+      "Put the lamb bones in a 6-quart saucepan with 8 cups of water and the salt, bring it up to a bare simmer and hold it there for 60 minutes, skimming the grey foam off the top.",
+      "Add the onions, carrots, cabbage wedges, string beans and garlic and simmer, uncovered, for a further 60 minutes until every vegetable collapses under a spoon.",
       "Lift out the bones and any loose gristle, then purée the soup in batches until it is smooth and the colour of pale caramel.",
       "Thin the peanut butter with the lemon juice in a small bowl until it is pourable, then stir it into the hot soup off the boil so it emulsifies instead of seizing.",
       "Return the pot to low heat for 5 minutes, taste for salt and lemon, and stir in cooked rice if you want it to eat as a full meal.",
@@ -361,7 +362,7 @@ export const USDA_KITCHEN_RECIPES = [
       { n: "4", m: "whole-wheat tortillas, 8 inch", k: "600 kcal" },
     ],
     steps: [
-      "Dice the mangos, chop the pepper and basil, shred the cabbage and grate the carrots, then toss the lot with the chicken in a large bowl.",
+      "Dice the mangos, chop the pepper, basil and green onions, shred the cabbage and grate the carrots, then toss the lot with the chicken in a large bowl.",
       "In a small bowl, whisk the cream cheese, peanut butter and soy sauce until completely smooth — it needs to be thick enough to grip the filling.",
       "Warm each tortilla for about 20 seconds in a dry pan over low heat so it rolls without splitting along the fold.",
       "Spread a quarter of the peanut mixture right to the edges of each tortilla, pile the mango and chicken mix down the centre, and roll up tightly, tucking in the ends.",
@@ -999,7 +1000,7 @@ export const USDA_KITCHEN_RECIPES = [
     steps: [
       "Tip the chopped corn and cornmeal into a large bowl and stir until every kernel is dusted — the meal is what binds these, so take a full minute over it.",
       "Fold through the onion, green pepper, cooked rice, chili powder, black pepper and jalapeno, then shape six patties about 1/2 inch thick.",
-      "Chill the patties on a tray in the fridge for a full hour. Skip this and they slump in the pan; cold cornmeal is what holds the edge.",
+      "Chill the patties on a tray in the fridge for a full 60 minutes. Skip this and they slump in the pan; cold cornmeal is what holds the edge.",
       "Heat a large pan over medium-high, mist both sides of the patties with cooking spray, and brown 5 to 8 minutes until a deep gold crust sets and they release cleanly.",
       "Slide the pan into a 350°F oven for 10 minutes to cook the middle through, adding the tortillas for the last 8 minutes until warm and pliable.",
       "Lay a patty on half of each tortilla and fold it over like a taco while the crust is still crisp and the shell still steams.",
@@ -1057,7 +1058,7 @@ export const USDA_KITCHEN_RECIPES = [
     ],
     steps: [
       "Put the lentils, scallions, carrots, oregano, barley and water into a large soup pot and bring it up to a hard rolling boil over high heat.",
-      "Drop the heat to low and simmer uncovered for one hour, until the lentils have collapsed and the barley has swollen to soft, glossy pearls.",
+      "Drop the heat to low and simmer uncovered for 60 minutes, until the lentils have collapsed and the barley has swollen to soft, glossy pearls.",
       "Chop the canned tomatoes coarsely, tip them in with their liquid, and cook another 45 minutes until the soup is thick enough to hold a spoon upright.",
       "Taste for salt, then stir the red wine vinegar in off the heat right before serving — it lifts the whole pot out of flatness.",
       "Ladle out and let it sit two minutes; barley soup straight off the boil scalds and hides its own flavour.",
@@ -1117,7 +1118,7 @@ export const USDA_KITCHEN_RECIPES = [
       "In a mixing bowl, stir the onion, bell pepper, cooled rice and drained black beans together until the beans are evenly distributed.",
       "Put the vinegar, mustard powder, garlic, salt, black pepper and oil in a jar with a tight lid and shake hard for 20 seconds until it thickens and turns opaque.",
       "Pour the dressing over the bean mixture and fold it through gently with a spatula so the beans stay whole rather than breaking down.",
-      "Cover and chill at least one hour before serving cold — the rice needs that time to drink up the vinegar and season through.",
+      "Cover and chill at least 60 minutes before serving cold — the rice needs that time to drink up the vinegar and season through.",
     ],
     tip: "It holds three days and improves on day two. If it tastes dull straight from the fridge, add a splash more vinegar rather than salt.",
   },

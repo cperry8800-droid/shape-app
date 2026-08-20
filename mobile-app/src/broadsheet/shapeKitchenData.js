@@ -18,6 +18,7 @@
 // by/byRole byline — see bsRecipeAttribution, which is the single place that
 // decides how an unattributed recipe is credited.
 import { USDA_KITCHEN_RECIPES, USDA_NOT_GF, USDA_HAS_DAIRY, USDA_MED } from './shapeKitchenData.usda.js';
+import { USDA2_KITCHEN_RECIPES, USDA2_NOT_GF, USDA2_HAS_DAIRY, USDA2_MED, USDA2_STEP_META } from './shapeKitchenData.usda2.js';
 
 const _SHAPE_KITCHEN_RECIPES_AUTHORED = [
   {
@@ -772,7 +773,8 @@ const _SHAPE_KITCHEN_RECIPES_AUTHORED = [
       { n: "1 tsp", m: "maple syrup" },
     ],
     steps: [
-      "Press the tofu 10 minutes under a heavy pan, then cut into 3/4-inch cubes and toss with the cornstarch until every face is dusted — that starch coat is what fries into a shell.",
+      "Press the tofu 10 minutes under a heavy pan to drive the water out.",
+      "Cut it into 3/4-inch cubes and toss with the cornstarch until every face is dusted — that starch coat is what fries into a shell.",
       "Heat 1 tbsp oil in a nonstick skillet over medium-high until shimmering, add the tofu with space between cubes, and fry 8 minutes, turning every 2, until deep golden and rattling-crisp on most sides.",
       "Off the heat, splash the soy over the hot tofu and toss 10 seconds — it hisses, absorbs, and seasons the crust without softening it.",
       "Massage the shredded kale with a pinch of salt and a squeeze of lemon for 30 seconds until it darkens and relaxes.",
@@ -963,7 +965,7 @@ const _SHAPE_KITCHEN_RECIPES_AUTHORED = [
 ];
 
 // Authored first so the catalog's existing order never shifts.
-export const SHAPE_KITCHEN_RECIPES = [..._SHAPE_KITCHEN_RECIPES_AUTHORED, ...USDA_KITCHEN_RECIPES];
+export const SHAPE_KITCHEN_RECIPES = [..._SHAPE_KITCHEN_RECIPES_AUTHORED, ...USDA_KITCHEN_RECIPES, ...USDA2_KITCHEN_RECIPES];
 
 // ── PR D orchestration (§6): passive-window overlay ────────────────────────
 // Marks ONLY the genuinely hands-off windows in the catalog — a real duration
@@ -1009,26 +1011,158 @@ export const bsRecipeAttribution = (r) => {
 export const _KITCHEN_STEP_META = {
   "One-pan chicken and rice": { 4: { min: 18, passive: true, station: "stove" } },
   "Sheet-pan salmon, sweet potato and broccoli": { 4: { min: 12, passive: true, station: "oven" } },
-  "Steak and sweet potato hash": { 1: { min: 8, passive: true, station: "stove" }, 4: { min: 4, passive: true, station: "off" } },
-  "Red lentil and spinach dahl": { 4: { min: 18, passive: true, station: "stove" } },
+  // step 1 cooks "stirring occasionally" — attended, so it is NOT a window (see ATTENDED note below).
+  // step 4 rests the steak 4 minutes "then slice it thinly" — the slicing is hidden behind the
+  // countdown like the others. At 4 minutes this is the smallest window the orchestrator will
+  // even host, so it is dropped rather than reworded to split it.
+  "Steak and sweet potato hash": {},
+  // step 4 simmers "stirring now and then" — attended. No window; the recipe cannot host.
+  "Red lentil and spinach dahl": {},
   "Chickpea shakshuka": { 2: { min: 8, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
   "Tofu and edamame poke bowl": { 0: { min: 10, passive: true, station: "off" } },
-  "Grilled chicken Caesar, lightened": { 2: { min: 5, passive: true, station: "off" } },
+  // step 2 rests the chicken "while you make the dressing" — and step 3 IS the dressing. The
+  // recipe has already spent that time; holding it sends the cook to another dish instead.
+  "Grilled chicken Caesar, lightened": {},
   "Beef and broccoli stir-fry": { 0: { min: 10, passive: true, station: "off" } },
   "Tempeh and broccoli teriyaki": { 0: { min: 5, passive: true, station: "stove" } },
-  "Tuna niçoise bowl": { 0: { min: 7, passive: true, station: "stove" } },
+  // step 0 boils the eggs "exactly 7 minutes" and then chills and peels them. A window sends the
+  // cook to another dish and the lane shows a countdown with no instruction, so the eggs sit in
+  // hot water past jammy. A hold whose expiry needs action THAT INSTANT is not a walk-away.
+  "Tuna niçoise bowl": {},
   "Roasted veg and halloumi traybake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 10, passive: true, station: "oven" } },
   "Black-eyed pea and coconut curry": { 3: { min: 15, passive: true, station: "stove" } },
   "Cauliflower steak, chimichurri": { 4: { min: 10, passive: true, station: "off" } },
   "Creamy tomato and white bean pasta": { 1: { min: 8, passive: true, station: "stove" } },
   "Beef ragu rigatoni": { 3: { min: 20, passive: true, station: "stove" } },
   "Chickpea and spinach curry": { 4: { min: 15, passive: true, station: "stove" } },
+  // step 0 hid "cut into cubes and toss with the cornstarch" behind its 10-minute press — the next
+  // step adds "the tofu" to hot oil expecting a starch coat nobody was told to apply. Split.
   "Crispy tofu grain bowl": { 0: { min: 10, passive: true, station: "off" } },
   "Overnight oats, three ways": { 1: { min: 240, passive: true, station: "off" } },
-  "Harissa salmon with couscous": { 2: { min: 5, passive: true, station: "off" } },
+  // step 2 opens "While it roasts" — the author already scheduled it against step 1's roast, so
+  // it is the detour, not a host for one. Same reason four other recipes correctly carry none.
+  "Harissa salmon with couscous": {},
   "Date and almond energy bites": { 3: { min: 30, passive: true, station: "off" } },
-  "Turkey chili verde": { 4: { min: 20, passive: true, station: "stove" } },
-  "Lemon-herb chicken meal-prep box": { 0: { min: 10, passive: true, station: "off" }, 1: { min: 15, passive: true, station: "stove" }, 2: { min: 16, passive: true, station: "oven" } },
+  // step 4 cooks "stirring occasionally" — attended. No window; the recipe cannot host.
+  "Turkey chili verde": {},
+  // step 0 marinates "while the oven heats" — author-scheduled concurrency, so it is not the
+  // cook's to spend elsewhere. The rice and the roast are real holds.
+  // step 1 simmers the rice 15 minutes "and rest 5 off the heat" — the pan has to come off
+  // the heat the moment the timer rings, and the lane shows no text to say so. Same shape as
+  // the eggs and the potatoes; the separator is "and" rather than "then", which is exactly
+  // how the previous sweep missed it. The roast is a real window.
+  "Lemon-herb chicken meal-prep box": { 2: { min: 16, passive: true, station: "oven" } },
+  // ── Overlay expansion ───────────────────────────────────────────────────
+  // Without these, a two-dish Together session found no host window ~55% of the
+  // time and the button rendered disabled. Same rules as above: every `min` is a
+  // duration the step's own text states, and no window is followed by a
+  // concurrent-authored step. Hands-on steps carry NO annotation.
+  // step 0 softens onion, carrot and celery in UNCOVERED oil over medium heat. A soffritto
+  // needs moving or it catches, and the method gate missed it only because the prose says
+  // "soften" rather than "saute" — which is the whole problem with matching on vocabulary.
+  "Lentil bolognese": {},
+  // step 0 salts the courgettes "while you prep" — the recipe assigns those 10 minutes to its
+  // own prep, and 10 of a 15-minute recipe is most of it.
+  "Garlic shrimp and courgette noodles": {},
+  // step 4 simmers "turning the roast once at the halfway mark" — attended, so the 2h is not a window.
+  // A ranged window takes the LOW end: the cook is wanted when the food is ready, and the
+  // top of the range is where the board would return them to something overcooked.
+  // ⚠ a TERMINAL hold hides its instruction too. Starting it marks the recipe prepped and
+  // sends the cook to another dish or the wrap, and the wrap renders only
+  // `◷ {title} · {countdown}` — `wrapHolds` carries {title, leftS} and never the text.
+  // The last thing the recipe says is the thing nobody sees.
+  // step 1 water-sautes the onion in TWO TABLESPOONS of water over medium heat. That much
+  // liquid is gone inside a couple of minutes and the onion then sits in a dry pan, which
+  // browns it — the one outcome the step names as failure. The technique wants more water
+  // splashed in as it goes and the recipe never says so, so the window promises what the pan
+  // cannot keep. Its only window, and it was worth 4 minutes: the floor, in a 2h20m recipe.
+  "Slow-simmered beef pot roast": {},
+  "Beef stroganoff with macaroni": { 3: { min: 6, passive: true, station: "stove" } },
+  "Baked pork chops with peppers and onion": { 2: { min: 60, passive: true, station: "off" }, 3: { min: 30, passive: true, station: "oven" }, 4: { min: 15, passive: true, station: "oven" } },
+  // step 0 was "Freeze 30 minutes ... then slice it": the HOLDING lane shows no step text and the
+  // cursor moves on when the timer rings, so the slicing was never surfaced and step 1 asked the
+  // cook to season "the strips" they were never told to cut. Split, so the freeze is the hold and
+  // the slicing is its own step; the later indices shift by one.
+  "Black skillet beef with kale and red potatoes": { 0: { min: 30, passive: true, station: "off" }, 4: { min: 20, passive: true, station: "stove" }, 5: { min: 15, passive: true, station: "stove" } },
+  "Beef pozole with hominy": { 3: { min: 20, passive: true, station: "stove" } },
+  // step 2 is uncovered aromatics; step 3 says "without stirring TOO OFTEN", which asks for
+  // occasional stirring rather than none — the negation is qualified, and the guard that
+  // exempted it read only its opening words. Neither is a window.
+  "Skillet beef and cabbage": {},
+  "Ground beef and root vegetable stew": { 3: { min: 25, passive: true, station: "stove" }, 4: { min: 10, passive: true, station: "off" } },
+  "Grilled skirt steak with salsa criolla": { 1: { min: 60, passive: true, station: "off" } },
+  // step 0 holds the simmer "skimming the grey foam off the top" — attended. Step 1's second
+  // hour states no attendance, so it stays the recipe's window.
+  "Shorba lamb and peanut soup": { 1: { min: 60, passive: true, station: "stove" } },
+  "Braised chicken thighs with wilted spinach": { 3: { min: 30, passive: true, station: "stove" } },
+  // step 3 roasts an hour "spooning the pan juices back over the chicken once or twice" —
+  // an attendance clause the gerund gate missed because its list held `basting` and not
+  // `spooning`. The board hides that text for the full hour, so the bird is never basted.
+  "Roasting-pan chicken with potatoes and carrots": {},
+  // step 4 hides "before cutting each wrap in half" behind a terminal chill — the same shape
+  // as the six dropped last round. The gate missed it twice over: `before` was not a separator
+  // it knew, and `cut` could never match the doubled consonant of "cutting". Both fixed there.
+  "Mango and peanut chicken wraps": {},
+  // step 2 simmers the spears "2 to 5 minutes" and step 3 pulls them "while they still snap".
+  // The annotation pins the MAXIMUM while the cook is needed at the minimum — and 2 minutes
+  // is below BS_ORCH.minPassive, so no honest window fits inside the range at all.
+  "Asparagus and mandarin chicken rice bowl": {},
+  "Turkey tetrazzini bake": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 5, passive: true, station: "stove" } },
+  "Chicken pozole with hominy and lime": { 0: { min: 60, passive: true, station: "stove" }, 3: { min: 45, passive: true, station: "stove" } },
+  "Catfish stew with brown rice": { 1: { min: 10, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
+  "Tuna and chickpea antipasti salad": { 3: { min: 10, passive: true, station: "off" } },
+  // step 3 cooks "flipping once" — attended. No window; the recipe cannot host.
+  "Chargrilled tilapia tacos with peach salsa": {},
+  // step 1 opens "Meanwhile" against step 0's un-annotated pasta boil — it IS the detour the
+  // author scheduled, so it cannot also be a window hosting one. Found by the new gate, not
+  // by review: the sweep that caught the others looked for "while" mid-sentence.
+  "Neapolitan tuna fettuccine with capers": { 2: { min: 5, passive: true, station: "stove" } },
+  "Cumin-lime shrimp over cauliflower rice": { 0: { min: 5, passive: true, station: "off" } },
+  "Sharp cheddar baked macaroni": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 10, passive: true, station: "off" } },
+  "Peppers stuffed with brown rice and beans": { 0: { min: 40, passive: true, station: "stove" }, 4: { min: 30, passive: true, station: "oven" } },
+  "Swiss cheese and vegetable chowder": { 1: { min: 8, passive: true, station: "stove" } },
+  // step 5 hides "then top with the Greek yogurt and a scattering of lemon zest" behind a
+  // terminal 5-minute cool. Two listed INGREDIENTS the guided cook is never told to add — the
+  // ingredient gate cannot see it, because the step text does name them. `top` is now a
+  // hand-off verb. The 25-minute bake is untouched and remains the recipe's window.
+  "Blueberry baked oats in ramekins": { 4: { min: 25, passive: true, station: "oven" } },
+  "Sheet-pan cauliflower and black bean bake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 5, passive: true, station: "oven" } },
+  // step 1 boils the potatoes to "just pliable", then drains and rinses them to stop the cooking —
+  // same instant-action shape as the eggs above. The 40-minute covered bake is a real window.
+  "Noodle-free potato and spinach lasagna": { 6: { min: 35, passive: true, station: "oven" } },
+  "Charred corn and cornmeal patties": { 2: { min: 60, passive: true, station: "off" }, 4: { min: 10, passive: true, station: "oven" } },
+  "Sweet potato and kidney bean chili": { 3: { min: 30, passive: true, station: "stove" } },
+  "Lentil and pearl barley soup": { 1: { min: 60, passive: true, station: "stove" }, 2: { min: 45, passive: true, station: "stove" } },
+  // steps 0 and 1 are ten minutes of uncovered aromatics and then ten more of curry powder
+  // BLOOMING in hot oil — spices scorch faster than anything else in the catalog. Step 3 is
+  // covered, and it is the one real window. No gate catches these: the prose says "cook the
+  // onion", naming no technique at all, which is why review found them and the suite did not.
+  "Curried butternut and chickpea stew": { 3: { min: 10, passive: true, station: "stove" } },
+  "Crispy skillet rice with tofu and peas": { 3: { min: 10, passive: true, station: "stove" } },
+  "Smoky lentil taco filling": { 0: { min: 10, passive: true, station: "stove" } },
+  // step 1 cooks onion, MINCED GARLIC, celery and carrot uncovered in oil for 15 minutes over
+  // the medium-high heat step 0 sets, to an endpoint of "real brown colour" — garlic is long
+  // gone before that. Steps 2 and 3 stay: step 2 raises the heat but puts roughly two cups of
+  // liquid in the pan and names no endpoint to watch for, and step 3 is covered on low.
+  "Skillet chickpeas with wilted spinach": { 2: { min: 5, passive: true, station: "stove" }, 3: { min: 10, passive: true, station: "stove" } },
+  // step 4 roasts "stirring once at the 10-minute mark" — attended. No window.
+  "Sheet-pan roasted vegetables, lemon and herbs": {},
+  "Bell pepper and apple slaw, cider dressing": { 4: { min: 20, passive: true, station: "off" } },
+  // step 1 sautes its 10 minutes. Sauteing IS the timed action and it is attended — the
+  // gerund rule missed it because the verb is an imperative. Step 3 simmers, so it stays.
+  "Spring cabbage and artichoke soup": { 3: { min: 10, passive: true, station: "stove" } },
+  // step 0 is the same oil-and-aromatics sweat as the curried stew's step 0 that this wave
+  // already dropped: onion and celery, medium heat, uncovered. Found by sweeping the class
+  // rather than the site — review named neither this nor the pot roast. The 50-minute covered
+  // barley is the real window and the recipe still hosts on it.
+  "Barley pilaf with mushrooms and celery": { 4: { min: 50, passive: true, station: "stove" } },
+  // step 4 microwaves "3 to 5 minutes more" — the same range-straddling-the-floor shape as the
+  // asparagus, found by the new gate rather than by review. Step 1 states a flat 5 minutes
+  // and stays.
+  "Acorn squash stuffed with cinnamon apples": { 1: { min: 5, passive: true, station: "off" } },
+  // its only window, and it hid "season through" behind an hour of chilling.
+  "Cold black bean and brown rice salad": {},
+  ...USDA2_STEP_META,
 };
 for (const r of SHAPE_KITCHEN_RECIPES) {
   const m = _KITCHEN_STEP_META[r.title];
@@ -1086,14 +1220,37 @@ export const _RECIPE_ALLERGEN_NOTES = [
   ["Tofu and edamame poke bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   ["Asparagus and mandarin chicken rice bowl", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   ["Sizzling chicken and broccoli over brown rice", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
+  // The turkey stir-fry had been EXCLUDED from the gluten-free filter rather than carrying
+  // the note, against the owner ruling that a claim is kept by SPECIFYING the ingredient
+  // and never by hiding the recipe. It also carries chicken stock, hence the broth note.
+  //
+  // ⚠ `Beef and broccoli stir-fry` is NOT here, and that is deliberate. I moved it out of
+  // the exclusion on the same reasoning and it was wrong: it carries OYSTER SAUCE, which is
+  // a wheat risk the GLUTEN regex below does not know and a shellfish allergen besides. A
+  // soy-sauce note would have told a coeliac that one swap made the dish safe. Keeping the
+  // claim needs an oyster-sauce class in the notes framework AND in the gate — an owner
+  // call, not a data edit. Excluded until then.
+  ["Turkey and vegetable stir-fry", "gluten", "soy sauce", GF_SOY, GF_SOY_BRANDS],
   // ── gluten · broth, stock, bouillon ──────────────────────────────────────
   // These five were never classified — they have ALWAYS claimed gluten-free over
   // a generic broth. The note is what makes that claim honest; no set changes.
   ["One-pan chicken and rice", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Red lentil and spinach dahl", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Turkey chili verde", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  // ⚠ The review said soy sauce was this one's only gluten marker. It is not — it also
+  // carries chicken stock, and the existing safety gate refused the claim until BOTH
+  // notes were present. Taking the finding at its word would have advertised it
+  // gluten-free over an unqualified stock.
+  ["Turkey and vegetable stir-fry", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Slow-simmered beef pot roast", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   ["Black skillet beef with kale and red potatoes", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  // Batch 2 arrived carrying the same generic broth, stock and bouillon. Same
+  // treatment: the claim stands and the note names the safe form.
+  ["Pork tenderloin power bowl with quinoa", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Arroz con pollo with browned thighs", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Split pea soup with carrot and thyme", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Cuban black beans over brown rice", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
+  ["Curried quinoa with cauliflower and peas", "gluten", "broth", GF_BROTH, GF_BROTH_BRANDS],
   // ── dairy · margarine ────────────────────────────────────────────────────
   ["Herbed baked salmon with lemon", "dairy", "margarine", DF_MARGARINE, DF_MARGARINE_BRANDS],
 ];
@@ -1133,6 +1290,7 @@ export const _RECIPE_NOT_GF = new Set([
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Crispy tofu grain bowl", "Harissa salmon with couscous", "Cottage cheese protein toast",
   ...USDA_NOT_GF,
+  ...USDA2_NOT_GF,
 ]);
 export const _RECIPE_HAS_DAIRY = new Set([
   "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
@@ -1140,12 +1298,14 @@ export const _RECIPE_HAS_DAIRY = new Set([
   "Chicken pesto pasta", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Overnight oats, three ways", "Garlic shrimp and courgette noodles", "Cottage cheese protein toast",
   ...USDA_HAS_DAIRY,
+  ...USDA2_HAS_DAIRY,
 ]);
 export const _RECIPE_MED = new Set([
   "Sheet-pan salmon, sweet potato and broccoli", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
   "Tuna niçoise bowl", "Roasted veg and halloumi traybake",
   "Harissa salmon with couscous", "Lemon-herb chicken meal-prep box",
   ...USDA_MED,
+  ...USDA2_MED,
 ]);
 export function recipeNeeds(r) {
   const out = [];

@@ -37,7 +37,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SHAPE_KITCHEN_RECIPES, recipeNeeds, _RECIPE_ALLERGEN_NOTES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 
-const GLUTEN = /\b(wheat|flour|bread|breadcrumbs?|panko|pasta|macaroni|noodles?|spaghetti|lasagna|orzo|couscous|barley|rye|oats?|oatmeal|soy sauce|broths?|stocks?|bouillon|tortillas?|crackers?|bulgur|farro|seitan|malt|beer|pita|buns?|cereal|graham|pretzels?)\b/i;
+// ⚠ `oyster sauce` and `hoisin` joined after a real miss: a recipe was moved out of the
+// gluten-free exclusion with a soy-sauce note while still carrying oyster sauce, and this
+// gate had nothing to say because the word was not here. It caught the sibling case (a
+// chicken stock) which is exactly why the miss read as safety — one catch is not coverage.
+// `dressing` is here for the same reason: a commercial dressing is an unqualified wheat
+// risk (malt vinegar, thickeners) and nothing else in the suite knows that.
+const GLUTEN = /\b(wheat|flour|bread|breadcrumbs?|panko|pasta|macaroni|noodles?|spaghetti|lasagna|orzo|couscous|barley|rye|oats?|oatmeal|soy sauce|oyster sauce|hoisin|dressings?|broths?|stocks?|bouillon|tortillas?|crackers?|bulgur|farro|seitan|malt|beer|pita|buns?|cereal|graham|pretzels?)\b/i;
 // `margarine` is here for the same reason `oats` is in the gluten list: the generic
 // product is not reliably free of the allergen (milk solids and whey are common),
 // so a recipe naming it plainly cannot advertise dairy-free.
