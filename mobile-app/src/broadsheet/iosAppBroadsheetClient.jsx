@@ -7394,8 +7394,12 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   // came out early and went cold (Codex, round 1).
   //
   // `anchor` is the wall clock stamped at the Start tap, so the offsets are measured
-  // from when cooking actually began rather than from when the screen opened. Absent
-  // (any non-serve session), the gate is inert and the board behaves exactly as before.
+  // from when cooking actually began rather than from when the screen opened. It is
+  // stamped for EVERY session, and that is correct rather than an oversight: the board
+  // is only ever reached by a plan the SERVE engine placed (SOONEST is serve-at-earliest;
+  // one-at-a-time comes back serial and never renders here), so every step on it carries
+  // a scheduled offset that has to be honoured or a dish lands early and goes cold.
+  // Never a lock either way -- "Start now" is always one tap away.
   const dueIn = (typeof anchor === 'number' && ev)
     ? Math.ceil((ev.at || 0) - (now - anchor) / 60000)
     : 0;
@@ -7596,9 +7600,9 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
               {notDue
                 ? (<>
-                    <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none' }}>
+                    <div role="status" aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {tr('cook:prep.startsIn', { defaultValue: 'Starts in {n} min', n: dueIn })}
-                    </button>
+                    </div>
                     <button onClick={() => setJumpedAt(cursor)} style={{ ...quietBtn, flexShrink: 0 }}>
                       {tr('cook:prep.startNow', { defaultValue: 'Start now' })}
                     </button>
@@ -7606,7 +7610,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
                 : isWindow && !evStarted
                 ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
                 : waitingOn
-                  ? <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</button>
+                  ? <div role="status" aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</div>
                   : <button onClick={() => advance()} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
             </div>
           </>)}
@@ -7786,6 +7790,15 @@ function BSPrepSession({ program, onClose }) {
   const defaultServe = Math.ceil(earliestServe / 5) * 5;
   const chosenServe = serveMins == null ? defaultServe : serveMins;
   const serveTooSoon = chosenServe < earliestServe;
+  // `minsOfClock` sends a time already past today to tomorrow, which is right for a cook
+  // plating after midnight -- and identical for a cook who mis-taps 19:29 at 19:30. The
+  // sheet therefore SAYS which day it landed on rather than quietly scheduling the
+  // session ~23 hours out behind a start time that reads perfectly normal.
+  const serveIsTomorrow = new Date(nowRef.current + chosenServe * 60000).getDate()
+    !== new Date(nowRef.current).getDate();
+  // A Start tap refused because the picked time went stale while this screen sat open.
+  // Rewriting the time and returning is a rejection with nothing on screen to explain it.
+  const [serveSlipped, setServeSlipped] = useStateBSC(false);
 
   // The cook picks an INTENT; the engine mode is derived. Two of the three intents run
   // the same scheduler and differ only in WHEN dinner is — which is the whole distinction
@@ -8108,9 +8121,14 @@ function BSPrepSession({ program, onClose }) {
                       <input
                         type="time"
                         value={clockOf(chosenServe)}
-                        onChange={(e) => { const m = minsOfClock(e.target.value); if (m != null) setServeMins(m); }}
+                        onChange={(e) => { const m = minsOfClock(e.target.value); if (m != null) { setServeMins(m); setServeSlipped(false); } }}
                         style={{ minHeight: 44, padding: '8px 10px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 14 }}
                       />
+                      {serveIsTomorrow ? (
+                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                          {tr('home:when.tomorrow', { defaultValue: 'Tomorrow' })}
+                        </span>
+                      ) : null}
                     </div>
                     {serveTooSoon ? (
                       <div style={{ marginTop: 7 }}>
@@ -8133,7 +8151,7 @@ function BSPrepSession({ program, onClose }) {
                             further up the sheet. A dish whose long steps carry no authored
                             duration is scheduled at the assumed hands-on minutes, so this
                             start time can be optimistic by more than an hour. */}
-                        {orchServe.estimated ? (
+                        {orch.estimated ? (
                           <div style={{ marginTop: 3 }}>
                             {tr('cook:prep.startAtEstimated', { defaultValue: 'Some steps are not timed by the recipe, so give yourself extra' })}
                           </div>
@@ -8174,7 +8192,7 @@ function BSPrepSession({ program, onClose }) {
                   })}
                 </div>
                 <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>
-                  {cookMode === BS_COOK_MODE.SERVE
+                  {cookMode === BS_COOK_CHOICE.SERVE
                     ? tr('cook:prep.planServe', { defaultValue: 'Everything on the table at {n} min', n: spanOf(orch) })
                     : tr('cook:prep.planDone', { defaultValue: 'Last dish done at {n} min', n: spanOf(orch) })}
                   {` · ${orch.timeline.length} `}
@@ -8182,6 +8200,11 @@ function BSPrepSession({ program, onClose }) {
                 </div>
               </div>
             )}
+            {serveSlipped ? (
+              <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.RUST }}>
+                {tr('cook:prep.serveTooSoon', { defaultValue: 'Not enough time — the earliest these can all be ready is {t}', t: clockOf(chosenServe) })}
+              </div>
+            ) : null}
             <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setStage('picker')} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
               <button
@@ -8193,6 +8216,7 @@ function BSPrepSession({ program, onClose }) {
                     // earliest rather than silently serving at a different time.
                     if (left < earliestServe) {
                       setServeMins(Math.ceil((Date.now() - nowRef.current) / 60000) + earliestServe);
+                      setServeSlipped(true);
                       return;
                     }
                     setRunServeAt(left);

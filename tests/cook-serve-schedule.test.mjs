@@ -66,7 +66,7 @@ ACTIVE_REACT = SHIM;
 
 async function loadModule(reactImpl) {
   const dir = dirname(SRC);
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSPrepCook, BSCookMode };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSPrepCook, BSCookMode, BSPrepSession };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact], plugins: [commonjs], babelrc: false, configFile: false, filename: SRC,
   });
@@ -124,6 +124,8 @@ function drive(Component, props) {
       renderOnce();
       return api;
     },
+    // Re-render after driving something that is not a button (a time input's onChange).
+    render() { renderOnce(); return api; },
   };
   return api;
 }
@@ -328,6 +330,41 @@ const OVEN_TRIO = ['One-pan chicken and rice', 'Sheet-pan salmon, sweet potato a
     assert.ok(r, `catalog no longer has "${t}" — repin this test, do not delete it`);
     return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
   });
+
+// ── the SERVE picker mounts ──────────────────────────────────────────────────
+// BSPrepSession owns the serve-time picker, and every test that mounted it drove the
+// MISE, never SERVE -- so the whole branch was rendered by nothing. A hook-order or
+// TDZ fault there passes parse, tsc, the suite and the build, and takes down the
+// entire prep flow at the tap. This mounts it.
+const pressable = (n) => n.props['aria-pressed'] !== undefined;
+const PICKER_PROGRAM = [{
+  meals: [
+    { id: 'm1', slot: 'Lunch', title: 'One-pan chicken and rice', kcal: 600, p: 45, c: 55, f: 18 },
+    { id: 'm2', slot: 'Dinner', title: 'Sheet-pan salmon, sweet potato and broccoli', kcal: 620, p: 42, c: 48, f: 24 },
+  ],
+}];
+
+test('serve picker: choosing a table time renders, and says which DAY it landed on', () => {
+  const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
+  for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
+  s.click('Merge the mise');
+  s.click('Serve mode');
+
+  assert.match(s.text, /On the table at/, 'the serve-time picker must render');
+  const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
+  assert.equal(times.length, 1, 'exactly one table-time input');
+
+  // A time already past today resolves to TOMORROW. That is right for a cook plating
+  // after midnight and identical for one who mis-taps a minute into the past, so the
+  // day has to be on screen either way -- a silent rollover schedules the session ~23
+  // hours out behind a start time that reads perfectly normal.
+  assert.doesNotMatch(s.text, /Tomorrow/, 'a reachable time today is not labelled tomorrow');
+  const now = new Date();
+  const past = String((now.getHours() + 23) % 24).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  times[0].props.onChange({ target: { value: past } });
+  s.render();
+  assert.match(s.text, /Tomorrow/, 'a time that rolled over must say so');
+});
 
 test('serve mode: the earliest serve time is the earliest over placement ORDERS, not one order', () => {
   const plan = bsOrchestrate(OVEN_TRIO, { mode: BS_COOK_MODE.SERVE });
