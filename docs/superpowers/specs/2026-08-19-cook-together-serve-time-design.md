@@ -1,6 +1,6 @@
 # Cook-together serve time — the ask, the backward scheduler, and the docket
 
-**Date:** 2026-08-19 · **Status:** DRAFT — build-ready except the owner questions in §10
+**Date:** 2026-08-19 · **Status:** SUPERSEDED IN PART — see §0 for where the shipped engine diverges; owner questions in §10
 (none block the build; each has a stated default) · **Migrations:** NONE — engine + UI +
 catalogs + tests only · **Authoritative prior record:** `docs/WORKLOG.md` 2026-08-18
 (#1907, the "50 cannot interleave" registration) + the Cook Mode wave entries (#1804–#1809)
@@ -23,6 +23,43 @@ than once. Things that could NOT be verified are in §11.
 > landing together with every gate green. The comment at `:167-172` records it. Adding a
 > mode means adding it to that list, and §7.1 makes the suite fail when the list and the
 > mode vocabulary ever disagree again.
+
+---
+
+## 0. ⚠ WHAT SHIPPED DIVERGES FROM THIS SPEC — read the engine, not this document
+
+This spec was written BEFORE the build and the build moved past it. The five points below
+are places where following this document would now produce the wrong thing. They are
+recorded here rather than rewritten in place, because a design record is worth more as a
+history of the decision than as a stale restatement of the code.
+
+**`mobile-app/src/services/cookOrchestrator.mjs` is the authority on every one of them.**
+
+1. **`opts.kitchen` is part of the `bsOrchestrate` contract.** The contract block in §3
+   omits it, but it is threaded through `placeAt(rs, activeMin, T, kitchen, orderIdx)` and
+   `bestPlacement(rs, activeMin, T, kitchen)` and consumed by `capacityOf(station, kitchen)`.
+   A caller that omits it gets the conservative single-of-each-station default.
+
+2. **Kitchen capacity is IN scope.** §12 says multi-burner capacity is out of scope. It
+   shipped: `capacityOf` reads a per-station count and `stationPull` clears against the
+   station's real capacity. The out-of-scope line is wrong, not merely incomplete.
+
+3. **`earliestServe` is the earliest FEASIBLE serve time, not `max(durations)`.** The
+   longest dish is only a LOWER BOUND — three dishes that each fit alone can be mutually
+   unplaceable at that time. The engine pushes the candidate later by the reported deficit
+   until a placement fits, and its own comment says so in as many words.
+
+4. **The cook is a capacity-one resource.** §6 says station-null active steps may overlap
+   and the board absorbs the wall-clock drift. That was measured false: 1,688 of 1,770
+   dish pairs put one person in two places at once. The engine now models the cook — "ONE
+   COOK, TWO HANDS. Station capacity says nothing about the PERSON."
+
+5. **Do not pin the floor-clamped example in §6 as expected behaviour.** It describes
+   three holds overlapping one exclusive stove, which is exactly what (2) and (4) make
+   impossible. A test asserting it would pin an infeasible plan.
+
+Open questions the build did NOT settle are in §10 and remain open; the handoff carries
+them forward.
 
 ---
 
@@ -308,7 +345,7 @@ live. Returns one lane per `iid` (instance id — NEVER `recipe` key: two select
 of one recipe are separate tracks, the exact identity rule the board's timer gates already
 follow, `:7304-7311`), in timeline `order`:
 
-```
+```js
 { iid, recipe, title, done, total,            // step progress (n of m)
   state: 'waiting'|'active'|'holding'|'done',
   holdEndsAtMs,                                // holding: the live countdown's end
@@ -556,8 +593,11 @@ its `PROGRAM` shape (`:276-283`) with titles that exact-match catalog recipes: a
 
 JSX parse (`@babel/parser`) · `tsc --noEmit` · PowerShell `VITE_BASE=/m/` build (never Git
 Bash — the MSYS path-mangle is on the record) · full `npm test` re-run (never carry a
-suite figure forward) · every touched file LF with zero NUL bytes, verified with
-`tr -cd '\r' < f | wc -c` (not `grep -c`) · mutation-test with `cp file file.bak`, never
+suite figure forward) · every touched file LF with zero NUL bytes — two SEPARATE
+checks, so run both: `tr -cd '\r' < f | wc -c` for carriage returns (not
+`grep -c`, which reports the line count on a one-line file) and
+`tr -cd '\000' < f | wc -c` for NUL bytes. The CR command counts carriage
+returns and says nothing about NULs · mutation-test with `cp file file.bak`, never
 `git checkout --`, always AFTER committing, with an unmutated sanity case at both ends ·
 merge gate: CI green + Codex clean on the final head, findings batched into one push.
 ⚠ `npm test` runs in CI (`Tests (unit + mount)`) but is NOT a required merge check — say
