@@ -177,9 +177,21 @@ changelog whenever something ships.
     request-only), but ⚠ **it runs on request and the owner authorised that on
     2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
     #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the
-    changelog and handoff both say five; this line said four). ⚠ **It is still not a
-    gate** — a clean CodeRabbit pass leaves *no review record at all*, so read its
-    acknowledgement comment rather than inferring a pass from silence.
+    changelog and handoff both say five; this line said four).
+    ⚠ **WHETHER IT GATES IS NOT SETTLED BY THIS BULLET — follow the operative-gate
+    paragraph above, not this one.** `prAllGreen` requires CodeRabbit
+    **approved-or-clean on the current head**, and `coderabbitVerdict` is *head-pinned*:
+    it counts only reviews whose `commit_id` IS the head, so a sweep whose findings you
+    then fixed stops counting the moment you push the fix. **"CodeRabbit ONCE" and
+    `prAllGreen` therefore cannot both be satisfied without a re-review** — the ratified
+    process and the shipping code want different things, and that disagreement is an
+    **OPEN owner ruling**, not something to settle at a merge. Until it is ruled, say
+    which gate you applied.
+    ⚠ Reading its verdict: a clean pass leaves **no review** — it leaves a summary
+    *comment* carrying `Actionable comments posted: 0`, which is the marker
+    `coderabbitVerdict` matches. Read that comment rather than inferring a pass from
+    silence, and note a rate-limit notice is **not** a pass (`CR_LIMIT_RE` is checked
+    first and deliberately dominates a zero-marker in the same body).
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
