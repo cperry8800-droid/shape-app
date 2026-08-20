@@ -7696,6 +7696,23 @@ function BSPrepSession({ program, onClose }) {
   // debit shrinks with the clock and expires by itself; a stored minute figure would not.
   const [carried, setCarried] = useStateBSC([]);
   const sessionNow = Date.now();
+  // ⚠ THE WRAP HAS NO SECOND-HAND UNDER IT. `BSPrepCook` and `BSCookMode` own the only
+  // per-second ticks in this flow and BOTH are unmounted by the time `stage === 'wrap'`, so
+  // without this `sessionNow` freezes at the render that entered the wrap: a carried hold's
+  // countdown becomes a still photograph, never reaches "Time's up", and never offers the
+  // acknowledgement — the one thing the carry exists to deliver, missing from the last
+  // screen that can deliver it.
+  // Scoped to the wrap AND to holds that are still running: this component RETURNS the
+  // board during the cook stage, so a session-wide heartbeat would re-render it every
+  // second on top of the one it already runs, and a hold that has rung has nothing left
+  // to count.
+  const [, setWrapTick] = useStateBSC(0);
+  const wrapCounting = stage === 'wrap' && carried.some((h) => h.endsAt > sessionNow);
+  React.useEffect(() => {
+    if (!wrapCounting) return undefined;
+    const iv = setInterval(() => setWrapTick((n) => n + 1), 1000);
+    return () => clearInterval(iv);
+  }, [wrapCounting]);
 
   // Candidates: only meals/recipes with a REAL method walk in a prep session
   // (tier ≤ 2 — mise-only meals stay solo cooks); recipe mapping is the tested

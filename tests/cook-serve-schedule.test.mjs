@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  ROOT, SRC, drive, pressable, textOf, flatten as flattenNode, loadBroadsheet, importSibling, jsxOpenTag,
+  ROOT, SRC, SHIM, drive, pressable, textOf, flatten as flattenNode, loadBroadsheet, importSibling, jsxOpenTag,
 } from './helpers/broadsheet-mount.mjs';
 
 const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
@@ -802,6 +802,130 @@ test('prep session: carried holds from different dishes get distinct keys', () =
   const keys = s.nodes().map((n) => String(n.key || '')).filter((k) => k.startsWith('carried-'));
   assert.equal(keys.length, 2, `both carried holds must render, got ${JSON.stringify(keys)}`);
   assert.equal(new Set(keys).size, 2, `carried holds collided on key: ${JSON.stringify(keys)}`);
+});
+
+// ⚠ THE FIX FOR A VANISHING TIMER LEFT THE TIMER STANDING STILL. Carried holds now reach
+// the wrap screen — and stop dead there. `sessionNow` is a plain render-time constant, and
+// the only second-hands in this flow belong to `BSPrepCook` and `BSCookMode`, BOTH of which
+// are unmounted by the time `stage === 'wrap'`. Nothing re-renders the wrap, so the
+// countdown freezes at the instant the cook arrived: it never reaches "Time's up" and never
+// offers the acknowledge button — the one thing the carry exists to deliver, absent from the
+// last screen that can deliver it.
+//
+// ⚠ NO ASSERTION ON THE RENDERED TEXT CAN SEE THIS. Re-rendering is precisely what the
+// harness does, so a test that calls `render()` supplies the very thing production fails to
+// schedule and passes either way. The defect is the WIRING, so the wiring is what these
+// assert. The shared harness makes effects no-ops on purpose (the real ones start wall-clock
+// intervals); these two tests — and only these two — collect what a render registered and
+// run it against a recording timer, restoring both on the way out.
+function withWrapEffects(fn) {
+  const realEffect = SHIM.useEffect;
+  const realSet = globalThis.setInterval;
+  const realClear = globalThis.clearInterval;
+  const realNow = Date.now;
+  const pending = [];
+  const timers = [];
+  SHIM.useEffect = (fx) => { pending.push(fx); };
+  globalThis.setInterval = (cb, ms) => { const h = { cb, ms, live: true }; timers.push(h); return h; };
+  globalThis.clearInterval = (h) => { if (h && typeof h === 'object') h.live = false; };
+  // Local noon, movable. Same reasoning as `withClockAt`: a real wall clock makes the
+  // expiry assertions facts about the hour the suite happens to run in.
+  let clock = new Date(2026, 5, 15, 12, 0, 0, 0).getTime();
+  Date.now = () => clock;
+  const api = {
+    at: (ms) => { clock = ms; },
+    now: () => clock,
+    forget: () => { pending.length = 0; },   // discard what earlier stages registered
+    run: () => pending.splice(0).map((f) => f()).filter((t) => typeof t === 'function'),
+    liveTimers: () => timers.filter((t) => t.live),
+  };
+  try { return fn(api); } finally {
+    SHIM.useEffect = realEffect;
+    globalThis.setInterval = realSet;
+    globalThis.clearInterval = realClear;
+    Date.now = realNow;
+  }
+}
+
+// Walk a ONE-recipe session to the wrap with `hold` still on the clock. One recipe is what
+// puts the wrap directly after the dish (`cookIdx + 1 >= ordered.length`), and the hold is
+// handed up through the real `prep.onPrepped` the cook surface calls — not written into
+// state by the test, which would prove nothing about how a hold actually arrives.
+function wrapWithCarriedHold(hold) {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+  assert.ok(r, 'the catalog has no cookable recipe — this test cannot run');
+  const program = [{ meals: [{ id: 'w1', slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 }] }];
+  const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+  s.click(r.title, pressable);
+  s.click('Merge the mise');
+  s.click('Start the session');
+  s.click('Start this recipe');
+  const board = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
+  assert.ok(board, 'the session never reached a cook surface that can hand a hold up');
+  board.props.prep.onPrepped([hold]);
+  return s;
+}
+
+test('prep session: the wrap screen keeps a carried hold TICKING, not frozen at arrival', () => {
+  withWrapEffects((clock) => {
+    const hold = { id: 1, label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() + 60_000, dish: 'Date and almond energy bites' };
+    const s = wrapWithCarriedHold(hold);
+
+    clock.forget();   // the picker/mise renders are not what this is about
+    s.render();       // ...this is: the wrap, with a minute still to run
+    const teardowns = clock.run();
+
+    assert.match(s.text, /Chill 30 minutes/, 'the carried hold did not reach the wrap at all');
+    assert.doesNotMatch(s.text, /Time's up/, 'guard the guard: the hold must still be RUNNING here');
+
+    const live = clock.liveTimers();
+    assert.equal(live.length, 1,
+      `the wrap must run its own second-hand while a carried hold is still counting — it registered ${live.length}. Without one, sessionNow never moves again and the countdown is a still photograph.`);
+    assert.ok(live[0].ms <= 1000, `a countdown showing seconds cannot tick every ${live[0].ms}ms`);
+
+    // ...and what it drives is THIS row: run the clock past the hold and the wrap must now
+    // say so and offer the acknowledgement.
+    clock.at(hold.endsAt + 1000);
+    live[0].cb();
+    s.render();
+    assert.match(s.text, /Time's up/, `the hold expired and the wrap never said so: ${s.text.slice(0, 300)}`);
+    // ⚠ Find the row by CONTENT, not by key shape: the wrap keys these rows on the bare
+    // `cid` while the cook rail prefixes them `carried-`, and a test pinned to the wrong
+    // scheme fails for a reason that has nothing to do with the countdown.
+    const row = s.nodes()
+      .filter((n) => textOf(n).includes("Time's up")
+        && flattenNode(n).some((x) => x.type === 'button' && x.props.onClick))
+      .sort((a, b) => textOf(a).length - textOf(b).length)[0];
+    assert.ok(row, `a finished carried hold must be acknowledgeable on the wrap: ${s.text.slice(0, 300)}`);
+    const ack = flattenNode(row).find((n) => n.type === 'button' && n.props.onClick);
+    ack.props.onClick({ preventDefault() {}, stopPropagation() {} });
+    s.render();
+    assert.doesNotMatch(s.text, /Chill 30 minutes/,
+      `acknowledging the finished hold did not clear it from the wrap: ${s.text.slice(0, 300)}`);
+
+    // A heartbeat that outlives its screen is a leak: the teardown must stop it.
+    teardowns.forEach((t) => t());
+    assert.equal(clock.liveTimers().length, 0, 'the wrap heartbeat kept running after teardown');
+  });
+});
+
+// ⚠ A HEARTBEAT THAT ALWAYS FIRES IS ITS OWN DEFECT. BSPrepSession returns the BOARD during
+// the cook stage, so a session-wide second-hand would re-render `BSPrepCook`/`BSCookMode`
+// every second ON TOP of the one each already runs. It must start only when there is
+// something left to count.
+test('prep session: the wrap runs NO heartbeat once nothing is left to count', () => {
+  withWrapEffects((clock) => {
+    const rung = { id: 1, label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() - 60_000, dish: 'Date and almond energy bites' };
+    const s = wrapWithCarriedHold(rung);
+
+    clock.forget();
+    s.render();
+    clock.run();
+
+    assert.match(s.text, /Time's up/, 'guard the guard: this hold must have ALREADY rung');
+    assert.equal(clock.liveTimers().length, 0,
+      'the wrap started a second-hand with nothing left to count — every session would then re-render once a second forever');
+  });
 });
 
 
