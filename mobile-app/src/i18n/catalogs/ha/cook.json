@@ -97,15 +97,15 @@
   "prep.burners": "Murhu",
   "prep.howAsk": "Yaya za a tsara lokacin?",
   "prep.kitchenAsk": "Kicin ɗinka",
-  "prep.kitchenWhy": "Domin shirin ya yi amfani da murhu da ovens da kake da su kawai.",
+  "prep.kitchenWhy": "Domin shirin ya yi amfani da murhu da tanda da kake da su kawai.",
   "prep.onTableAt": "A kan tebur da ƙarfe",
   "prep.oneAtATime": "Ɗaya bayan ɗaya",
   "prep.oneAtATimeSub": "Gama ɗaya, sannan ka fara na gaba",
-  "prep.ovens": "Ovens",
+  "prep.ovens": "Tanda",
   "prep.planAsk": "Shirin",
   "prep.planDone": "Abinci na ƙarshe zai shirya cikin minti {n}",
   "prep.planServe": "Kome a kan tebur cikin minti {n}",
-  "prep.planSteps": "matakai",
+  "prep.planSteps": "{n, plural, one {# mataki} other {# matakai}}",
   "prep.serveMode": "Yanayin hidima",
   "prep.serveModeSub": "A kan tebur a lokacin da ka zaɓa",
   "prep.serveTooSoon": "Lokaci bai isa ba — mafi wuri duk za su shirya da ƙarfe {t}",
@@ -115,5 +115,7 @@
   "prep.startAt": "Za ka fara dafawa da ƙarfe {t}",
   "prep.useEarliest": "Yi amfani da {t}",
   "prep.startsIn": "Zai fara cikin minti {n}",
-  "prep.startNow": "Fara yanzu"
+  "prep.startNow": "Fara yanzu",
+  "prep.soonestSubSearched": "Duk sun shirya tare",
+  "prep.startAtEstimated": "Girkin bai ba wasu matakai lokaci ba, ka ba kanka ƙarin lokaci"
 }

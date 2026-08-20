@@ -94,7 +94,7 @@
   "prep.station.off": "ruht",
   "prep.waiting": "{title} · noch {t}",
   "doneLabel": "fertig",
-  "prep.burners": "Kochfelder",
+  "prep.burners": "Kochstellen",
   "prep.howAsk": "Wie sollen die getimt werden?",
   "prep.kitchenAsk": "Deine Küche",
   "prep.kitchenWhy": "So nutzt der Plan nur Kochfelder und Öfen, die du wirklich hast.",
@@ -105,7 +105,7 @@
   "prep.planAsk": "Der Plan",
   "prep.planDone": "Letztes Gericht fertig in {n} Min",
   "prep.planServe": "Alles auf dem Tisch in {n} Min",
-  "prep.planSteps": "Schritte",
+  "prep.planSteps": "{n, plural, one {# Schritt} other {# Schritte}}",
   "prep.serveMode": "Servier-Modus",
   "prep.serveModeSub": "Auf dem Tisch zur Zeit deiner Wahl",
   "prep.serveTooSoon": "Zu knapp — frühestens ist alles um {t} fertig",
@@ -115,5 +115,7 @@
   "prep.startAt": "Du fängst um {t} an zu kochen",
   "prep.useEarliest": "{t} nehmen",
   "prep.startsIn": "Startet in {n} Min",
-  "prep.startNow": "Jetzt starten"
+  "prep.startNow": "Jetzt starten",
+  "prep.soonestSubSearched": "Alles gleichzeitig fertig",
+  "prep.startAtEstimated": "Manche Schritte gibt das Rezept ohne Zeit an — plane Puffer ein"
 }

@@ -105,7 +105,7 @@
   "prep.planAsk": "Rencananya",
   "prep.planDone": "Hidangan terakhir siap dalam {n} mnt",
   "prep.planServe": "Semua siap disajikan dalam {n} mnt",
-  "prep.planSteps": "langkah",
+  "prep.planSteps": "{n, plural, one {# langkah} other {# langkah}}",
   "prep.serveMode": "Mode sajian",
   "prep.serveModeSub": "Siap disajikan pada jam yang kamu pilih",
   "prep.serveTooSoon": "Waktunya kurang — paling cepat semuanya siap pukul {t}",
@@ -115,5 +115,7 @@
   "prep.startAt": "Kamu mulai masak pukul {t}",
   "prep.useEarliest": "Pakai {t}",
   "prep.startsIn": "Mulai dalam {n} mnt",
-  "prep.startNow": "Mulai sekarang"
+  "prep.startNow": "Mulai sekarang",
+  "prep.soonestSubSearched": "Semua siap bersamaan",
+  "prep.startAtEstimated": "Resep tidak memberi waktu untuk sebagian langkah, sediakan waktu lebih"
 }

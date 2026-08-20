@@ -8195,8 +8195,14 @@ function BSPrepSession({ program, onClose }) {
                   {cookMode === BS_COOK_CHOICE.SERVE
                     ? tr('cook:prep.planServe', { defaultValue: 'Everything on the table at {n} min', n: spanOf(orch) })
                     : tr('cook:prep.planDone', { defaultValue: 'Last dish done at {n} min', n: spanOf(orch) })}
-                  {` · ${orch.timeline.length} `}
-                  {tr('cook:prep.planSteps', { defaultValue: 'steps' })}
+                  {' · '}
+                  {/* The count rides INSIDE the message. Rendered beside a bare noun it
+                      cannot inflect, so a Slavic locale reads "2 кроків" where the count
+                      demands "2 кроки" — the plural category is the count's to decide. */}
+                  {tr('cook:prep.planSteps', {
+                    defaultValue: '{n, plural, one {# step} other {# steps}}',
+                    n: orch.timeline.length,
+                  })}
                 </div>
               </div>
             )}

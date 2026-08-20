@@ -105,8 +105,8 @@
   "prep.planAsk": "O plano",
   "prep.planDone": "Último prato pronto em {n} min",
   "prep.planServe": "Tudo na mesa em {n} min",
-  "prep.planSteps": "passos",
-  "prep.serveMode": "Modo servir",
+  "prep.planSteps": "{n, plural, one {# passo} other {# passos}}",
+  "prep.serveMode": "Modo de servir",
   "prep.serveModeSub": "Na mesa na hora que você escolher",
   "prep.serveTooSoon": "Não dá tempo — o mais cedo que tudo fica pronto é {t}",
   "prep.soonest": "Terminar tudo o quanto antes",
@@ -115,5 +115,7 @@
   "prep.startAt": "Você começa a cozinhar às {t}",
   "prep.useEarliest": "Usar {t}",
   "prep.startsIn": "Começa em {n} min",
-  "prep.startNow": "Começar agora"
+  "prep.startNow": "Começar agora",
+  "prep.soonestSubSearched": "Tudo pronto junto",
+  "prep.startAtEstimated": "A receita não cronometra alguns passos, então dê uma folga"
 }

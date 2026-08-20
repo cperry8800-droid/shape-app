@@ -92,7 +92,7 @@
   "prep.station.stove": "sur le feu",
   "prep.station.board": "sur la planche",
   "prep.station.off": "au repos",
-  "prep.waiting": "{title} · {t} restant",
+  "prep.waiting": "{title} · il reste {t}",
   "doneLabel": "terminé",
   "prep.burners": "Feux",
   "prep.howAsk": "Comment les organiser ?",
@@ -105,7 +105,7 @@
   "prep.planAsk": "Le plan",
   "prep.planDone": "Dernier plat prêt en {n} min",
   "prep.planServe": "Tout à table en {n} min",
-  "prep.planSteps": "étapes",
+  "prep.planSteps": "{n, plural, one {# étape} other {# étapes}}",
   "prep.serveMode": "Mode service",
   "prep.serveModeSub": "À table à l'heure que vous choisissez",
   "prep.serveTooSoon": "Pas assez de temps — au plus tôt, tout sera prêt à {t}",
@@ -115,5 +115,7 @@
   "prep.startAt": "Vous commencez à cuisiner à {t}",
   "prep.useEarliest": "Utiliser {t}",
   "prep.startsIn": "Commence dans {n} min",
-  "prep.startNow": "Commencer maintenant"
+  "prep.startNow": "Commencer maintenant",
+  "prep.soonestSubSearched": "Tout prêt en même temps",
+  "prep.startAtEstimated": "La recette ne chronomètre pas tous les temps, prévoyez une marge"
 }

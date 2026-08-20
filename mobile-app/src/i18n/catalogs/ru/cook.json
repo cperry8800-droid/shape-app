@@ -105,7 +105,7 @@
   "prep.planAsk": "План",
   "prep.planDone": "Последнее блюдо готово через {n} мин",
   "prep.planServe": "Всё на столе через {n} мин",
-  "prep.planSteps": "шагов",
+  "prep.planSteps": "{n, plural, one {# шаг} few {# шага} many {# шагов} other {# шага}}",
   "prep.serveMode": "Режим подачи",
   "prep.serveModeSub": "На столе в выбранное вами время",
   "prep.serveTooSoon": "Не хватает времени — раньше {t} всё готово не будет",
@@ -115,5 +115,7 @@
   "prep.startAt": "Вы начинаете готовить в {t}",
   "prep.useEarliest": "Выбрать {t}",
   "prep.startsIn": "Начнётся через {n} мин",
-  "prep.startNow": "Начать сейчас"
+  "prep.startNow": "Начать сейчас",
+  "prep.soonestSubSearched": "Всё готово одновременно",
+  "prep.startAtEstimated": "Для части шагов рецепт не даёт времени — заложите запас"
 }

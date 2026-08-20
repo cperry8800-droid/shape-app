@@ -105,7 +105,7 @@
   "prep.planAsk": "План",
   "prep.planDone": "Остання страва готова за {n} хв",
   "prep.planServe": "Усе на столі за {n} хв",
-  "prep.planSteps": "кроків",
+  "prep.planSteps": "{n, plural, one {# крок} few {# кроки} many {# кроків} other {# кроку}}",
   "prep.serveMode": "Режим подачі",
   "prep.serveModeSub": "На столі в обраний вами час",
   "prep.serveTooSoon": "Часу не вистачає — найраніше все буде готове о {t}",
@@ -115,5 +115,7 @@
   "prep.startAt": "Ви починаєте готувати о {t}",
   "prep.useEarliest": "Обрати {t}",
   "prep.startsIn": "Почнеться за {n} хв",
-  "prep.startNow": "Почати зараз"
+  "prep.startNow": "Почати зараз",
+  "prep.soonestSubSearched": "Усе готове одночасно",
+  "prep.startAtEstimated": "Для частини кроків рецепт не дає часу — закладіть запас"
 }

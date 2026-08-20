@@ -105,8 +105,8 @@
   "prep.planAsk": "Kế hoạch",
   "prep.planDone": "Món cuối xong sau {n} phút",
   "prep.planServe": "Tất cả lên bàn sau {n} phút",
-  "prep.planSteps": "bước",
-  "prep.serveMode": "Chế độ dọn bàn",
+  "prep.planSteps": "{n, plural, other {# bước}}",
+  "prep.serveMode": "Chế độ phục vụ",
   "prep.serveModeSub": "Lên bàn đúng giờ bạn chọn",
   "prep.serveTooSoon": "Không đủ thời gian — sớm nhất tất cả sẵn sàng lúc {t}",
   "prep.soonest": "Xong tất cả sớm nhất",
@@ -115,5 +115,7 @@
   "prep.startAt": "Bạn bắt đầu nấu lúc {t}",
   "prep.useEarliest": "Dùng {t}",
   "prep.startsIn": "Bắt đầu sau {n} phút",
-  "prep.startNow": "Bắt đầu ngay"
+  "prep.startNow": "Bắt đầu ngay",
+  "prep.soonestSubSearched": "Tất cả sẵn sàng cùng lúc",
+  "prep.startAtEstimated": "Công thức không tính giờ cho một số bước, hãy trừ hao thêm"
 }

@@ -105,15 +105,17 @@
   "prep.planAsk": "Il piano",
   "prep.planDone": "Ultimo piatto pronto in {n} min",
   "prep.planServe": "Tutto in tavola in {n} min",
-  "prep.planSteps": "passaggi",
+  "prep.planSteps": "{n, plural, one {# passaggio} other {# passaggi}}",
   "prep.serveMode": "Modalità servizio",
   "prep.serveModeSub": "In tavola all'ora che scegli tu",
-  "prep.serveTooSoon": "Non c'è abbastanza tempo — il prima che può essere tutto pronto è {t}",
+  "prep.serveTooSoon": "Non c'è abbastanza tempo — al più presto sarà tutto pronto alle {t}",
   "prep.soonest": "Finire tutto il prima possibile",
   "prep.soonestGap": "A {n} min l'uno dall'altro",
   "prep.soonestSub": "Tutto pronto insieme, il prima possibile",
   "prep.startAt": "Inizi a cucinare alle {t}",
   "prep.useEarliest": "Usa {t}",
   "prep.startsIn": "Inizia tra {n} min",
-  "prep.startNow": "Inizia ora"
+  "prep.startNow": "Inizia ora",
+  "prep.soonestSubSearched": "Tutto pronto insieme",
+  "prep.startAtEstimated": "La ricetta non indica il tempo di alcuni passaggi: tieniti un margine"
 }

@@ -105,7 +105,7 @@
   "prep.planAsk": "Di plan",
   "prep.planDone": "Last food go ready for {n} min",
   "prep.planServe": "Everything for table for {n} min",
-  "prep.planSteps": "steps",
+  "prep.planSteps": "{n, plural, one {# step} other {# steps}}",
   "prep.serveMode": "Serve mode",
   "prep.serveModeSub": "For table by di time wey you choose",
   "prep.serveTooSoon": "Time no reach — di earliest everything fit ready na {t}",
@@ -115,5 +115,7 @@
   "prep.startAt": "You go start to cook by {t}",
   "prep.useEarliest": "Use {t}",
   "prep.startsIn": "E go start for {n} min",
-  "prep.startNow": "Start now"
+  "prep.startNow": "Start now",
+  "prep.soonestSubSearched": "Everything ready together",
+  "prep.startAtEstimated": "Di recipe no time some steps, so give yourself extra"
 }
