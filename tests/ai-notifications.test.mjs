@@ -425,3 +425,46 @@ test('purging every held item does not make THIS call emit the digest', () => {
   assert.equal(out.nextState.pendingDigest.length, 1, 'the new item should be queued for later');
   assert.equal(out.nextState.pendingDigest[0].type, 'streak_broken');
 });
+
+// ⚠ A DEDUP STAMP MEANS "HANDLED", AND A PURGED ITEM WAS NEVER HANDLED. Deferring a
+// check-in records its signature in state.types so the same nudge is not rebuilt twice.
+// The purge above removes the queued copy; the stamp outlived it. And `checkin_due` signs
+// itself with the CONSTANT 'due' — there is no later signature to break the tie — so a
+// member who opts out while one is queued and then opts back in is deduped forever against
+// a notification that never went out. The stamp has to be released with the item.
+test('purging an undelivered check-in releases its dedup stamp', () => {
+  const held = { type: 'checkin_due', key: 'self', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true } };
+  const last = { date: 'never', pendingDigest: [held], types: { 'checkin_due:self': { sig: 'due', at: 1 } } };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const purged = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(purged.nextState.types['checkin_due:self'], undefined, 'the stamp outlived the item it stood for');
+
+  // ...and that is only worth anything if the nudge ACTUALLY ARRIVES once the member
+  // turns the pref back on with the check-in still due.
+  const rebuilt = clientCandidates({ directive: null, flags: [], checkinDueThisWeek: true, tone: 'supportive' });
+  assert.deepEqual(rebuilt.map((c) => c.type), ['checkin_due'], 'fixture must rebuild exactly the check-in candidate');
+  const back = decideNotifications({ candidates: rebuilt, last: purged.nextState, prefs, now: DAYTIME, audience: 'client' });
+  assert.deepEqual(back.send.map((i) => i.type), ['checkin_due'],
+    'the rebuilt check-in was deduped against a nudge that was never delivered');
+
+  // The pref-ON path is untouched: a stamp whose item is still queued survives.
+  const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
+  assert.deepEqual(on.nextState.types['checkin_due:self'], { sig: 'due', at: 1 }, 'the stamp was cleared for a member who never opted out');
+});
+
+// ⚠ THE SAME GAP FOR ITEMS QUEUED BEFORE THIS SHIPPED. A held item finalized by an older
+// deploy carries no `key`, so its dedup entry cannot be addressed exactly. Every type the
+// purge can match is built with a single key, so clearing the type's entries is precise
+// today and, if that ever stops being true, errs toward re-delivering rather than
+// swallowing — the direction that cannot lose a member's only nudge.
+test('a LEGACY held check-in with no key still releases its stamp', () => {
+  const legacy = { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true } };
+  const last = { date: 'never', pendingDigest: [legacy], types: { 'checkin_due:self': { sig: 'due', at: 1 }, 'coach_message:m1': { sig: 'm1', at: 1 } } };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(out.nextState.types['checkin_due:self'], undefined, 'a keyless held item left its stamp behind');
+  // ⚠ and it clears ONLY what it purged.
+  assert.deepEqual(out.nextState.types['coach_message:m1'], { sig: 'm1', at: 1 }, 'the purge cleared an unrelated dedup entry');
+});
