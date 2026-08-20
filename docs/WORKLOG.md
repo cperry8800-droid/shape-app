@@ -255,7 +255,9 @@ changelog whenever something ships.
 
 ### 2026-08-20 — A dead option, a vanished timer, a false superlative — and two defects inside the fixes for them (#1913 → `5972b786e`)
 
-⚠ **#1913's MERGE MESSAGE IS IMMUTABLE AND NOW WRONG ON ONE COUNT.** It says the copy fix
+⚠ **#1913's MERGE MESSAGE IS IMMUTABLE AND WRONG ON TWO COUNTS.** (1) Its heading *"THE
+THREE AGAINST MERGED MAIN"* stands above **four** bullets — the ENG-routing defect makes it
+four, and the handoff it was written from had the same mismatch. (2) It says the copy fix
 left *"five"* locales already saying "earlier". Counted off the merged diff it is **seven**
 — the message repeated the figure this handoff carried instead of measuring it, which is
 the same way #1910's merge message went stale. **Quote the bullet below, not the merge
