@@ -264,10 +264,32 @@ changelog whenever something ships.
   and never reopened the app kept receiving check-in nudges from the cron. Codex P1 on
   #1899, verified against the code before fixing: `/api/ai/notify/cron` consulted
   `client_settings.dailyCheckin` **zero** times.
-- ⚠ **THE SUPPRESSION IS AT THE CANDIDATE, NOT AT A CALL SITE — `checkin_due` has TWO
-  DOORS.** It fires on an explicit `checkinDueThisWeek` signal **or** on the engine's own
-  `checkin_overdue` flag, so gating the call site would have left the flag firing.
-  `clientCandidates` now takes `checkinOptedOut` and both doors pass through one test.
+- ⚠ **THE CHECK-IN NUDGE HAS FOUR DOORS, AND MY FIRST FIX FOUND TWO.** No count is given
+  in the heading, because every count I have put on this so far has been low.
+  1. an explicit `checkinDueThisWeek` signal, and 2. the engine's own `checkin_overdue`
+  flag — both feed `checkin_due`, so gating the *call site* would have left the flag
+  firing; the suppression sits at the candidate instead.
+  3. ⚠ **the DIRECTIVE, and it is the loudest.** `checkin_overdue` carries directive
+  priority **100** in `dashSignals` (escalating with `missedWeeks`), so for an overdue
+  member the ONE move IS *"Send your weekly check-in"* — a HIGH-priority notification the
+  `checkin_due` gate never touched. Suppressed on the **action kind**, which maps 1:1 to
+  the checkin lever, so unrelated directives survive.
+  4. ⚠ **a STORED one.** An item deferred by quiet hours or the daily cap lives in
+  `notify_state.pendingDigest` and is re-emitted at the next non-quiet run **without being
+  rebuilt** — so suppressing the candidate stopped the rebuild and did nothing about the
+  copy already queued. `decideNotifications` now purges held check-in items, keyed on the
+  type and a stamped `data.move`, **never on copy** (wording is translated).
+- ⚠ **AND THE PURGE BROKE THE DEFERRAL UNTIL IT WAS CAUGHT.** `hadPending` read the
+  *unfiltered* queue, so when every held item was a purged check-in and the same call
+  deferred a new low-priority or over-cap candidate, the digest fired **immediately** with
+  that new item — defeating the documented next-evaluation deferral and, for an over-cap
+  item, bypassing the daily cap. It now reads the filtered queue before this call's
+  candidates are added.
+- ⚠ **A LEGACY QUEUED DIRECTIVE CANNOT CARRY THE STAMP.** Anything finalized before it
+  shipped has `data: {}`, so the first evaluation after rollout would still have nudged an
+  opted-out member. A directive with no usable move kind is treated as unidentifiable and
+  purged **while opted out** — the under-deliver direction this layer already chooses, and
+  self-limiting, since every directive built from now on carries its kind.
 - ⚠ **BOTH routes were wired, not only the cron.** `/api/ai/notify` recomputes from the
   same snapshot and had the identical hole — fixing the reported one would have left the
   live path nudging.
