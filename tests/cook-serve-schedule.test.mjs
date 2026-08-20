@@ -1,0 +1,883 @@
+// Serve mode's promise is a CLOCK: "everything on the table at 19:30". The plan that
+// makes that true assigns every step a start minute (`at`), and a dish is deliberately
+// held back so it lands with the rest rather than an hour early and cold.
+//
+// WHY THIS FILE EXISTS. The board computed that plan, displayed it, and then ignored
+// it: `BSPrepCook` rendered `timeline[0]` and advanced purely on cursor and timer
+// state, never reading `at`. A cook could run every delayed step immediately, so the
+// table time they chose was decoration. Nothing but a MOUNT catches that — the schedule
+// was correct in the engine and unenforced in the UI, which is exactly the shape of
+// defect a pure engine test cannot see.
+//
+// Harness is the shared one in tests/helpers/broadsheet-mount.mjs: compile the shipping
+// file in memory, resolve its imports to the real modules, drive the component with a
+// hook shim. Nothing is stubbed or written to disk.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import {
+  SRC, drive, pressable, loadBroadsheet, importSibling, jsxOpenTag,
+} from './helpers/broadsheet-mount.mjs';
+
+const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
+const ORCH = await importSibling('..', 'services', 'cookOrchestrator.mjs');
+const { bsOrchestrate, BS_COOK_MODE, BS_ORCH } = ORCH;
+const { SHAPE_KITCHEN_RECIPES } = await importSibling('shapeKitchenData.js');
+const { bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers } = await importSibling('..', 'services', 'cookable.mjs');
+
+// The prep sheet reads `Date.now()` ONCE at mount and compares calendar days off it,
+// so any test that touches the table-time picker inherits both the runner's wall clock
+// and its timezone. That is a real flake, not a theoretical one: this file's rollover
+// test passed all evening locally and failed in CI at 00:06 UTC, where "an hour before
+// now" is 23:06 -- later today, not yesterday.
+//
+// Pin the clock instead of picking a safer offset. The instant is built from LOCAL
+// components rather than a fixed epoch, because the component's rollover check is
+// `getDate()` in local time; a fixed epoch would land on a different local hour in every
+// timezone. Noon on a June weekday is far from any DST transition in any zone.
+function withClockAt(hour, minute, fn) {
+  const real = Date.now;
+  const pinned = new Date(2026, 5, 15, hour, minute, 0, 0).getTime();
+  Date.now = () => pinned;
+  try { return fn(pinned); } finally { Date.now = real; }
+}
+
+// The mount harness installs no translator, so `useShapeTr` falls back to each call's
+// `defaultValue` VERBATIM -- placeholders and all ("Within {n} min of each other"). That
+// is what most mount tests want (tests/kitchen-allergen-surfaces.test.mjs asserts on the
+// literal template on purpose), so this fills them in for ONE test rather than changing
+// the shared harness underneath the others. It substitutes only from the params the
+// component actually passed, so a placeholder the component forgot to supply still shows
+// up as `{n}` and the assertion fails rather than quietly matching.
+function withCopyValues(fn) {
+  const prev = window.ShapeI18n;
+  window.ShapeI18n = {
+    t(key, opts) {
+      const raw = opts && opts.defaultValue;
+      if (typeof raw !== 'string') return null;
+      return raw.replace(/\{(\w+)\}/g, (m, name) => (
+        opts && opts[name] != null ? String(opts[name]) : m
+      ));
+    },
+  };
+  try { return fn(); } finally { window.ShapeI18n = prev; }
+}
+
+// Two dishes that CAN be timed to land together, one much shorter than the other, so a
+// serve plan genuinely has to hold the short one back.
+const LONG = {
+  key: 'long', title: 'The long braise',
+  steps: ['Brown the meat well on every side.', 'Braise it 40 minutes until it yields.', 'Rest it before slicing.'],
+  stepMeta: [{ min: null, passive: false, station: 'board' }, { min: 40, passive: true, station: 'stove' }, { min: 5, passive: true, station: 'off' }],
+};
+const SHORT = {
+  key: 'short', title: 'The quick greens',
+  steps: ['Wash and trim the greens.', 'Wilt them 5 minutes in the pan.'],
+  stepMeta: [{ min: null, passive: false, station: 'board' }, { min: 5, passive: true, station: 'stove' }],
+};
+const OPTS = { activeStepMin: 3, minPassive: 4, kitchen: { stove: 2, oven: 1 } };
+const MIN = 60000;
+
+const servePlan = (extraDelay) => {
+  const soonest = bsOrchestrate([LONG, SHORT], { ...OPTS, mode: BS_COOK_MODE.SERVE });
+  return bsOrchestrate([LONG, SHORT], { ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: (soonest.earliestServe || 0) + extraDelay });
+};
+
+test('serve plan: a delayed table time really does push the first step later', () => {
+  // Guard the guard. If the plan started at minute zero there would be nothing for the
+  // board to enforce, and every assertion below would pass vacuously.
+  const plan = servePlan(45);
+  const firstAt = Math.min(...plan.timeline.map((e) => e.at));
+  assert.ok(plan.timeline.length > 0, 'no timeline at all');
+  assert.equal(firstAt, 45, `the plan should idle 45 minutes before the first step, got ${firstAt}`);
+});
+
+test('the board HOLDS a step that is not due yet, and says when it is', () => {
+  const plan = servePlan(45);
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline, anchor: Date.now(),
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  const labels = s.buttons().map((b) => b.label).join(' | ');
+  assert.ok(/Starts in/.test(s.text), `no countdown on a step 45 minutes early — buttons: ${labels}`);
+  // The advance actions must be ABSENT, not merely styled differently: a disabled-looking
+  // button that still fires is the same defect wearing a hat.
+  const live = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
+  assert.ok(!live.some((l) => /^Next|^Finish|^Start timer/.test(l)),
+    `a not-yet-due step still offers a live advance action: ${JSON.stringify(live)}`);
+});
+
+test('the cook can overrule the plan for one step, and the board then obeys them', () => {
+  // Never a lock. The cook owns the kitchen; the gate is a default, not a cage.
+  const plan = servePlan(45);
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline, anchor: Date.now(),
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  s.click('Start now');
+  assert.ok(!/Starts in/.test(s.text), 'the countdown survived the override');
+  const live = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
+  assert.ok(live.some((l) => /^Next|^Finish|^Start timer/.test(l)),
+    `overriding did not hand the step back: ${JSON.stringify(live)}`);
+});
+
+test('the gate opens once the planned minute actually arrives', () => {
+  const plan = servePlan(45);
+  // Same plan, but the session began 46 minutes ago — step one is due.
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline, anchor: Date.now() - 46 * MIN,
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  assert.ok(!/Starts in/.test(s.text), 'the board still holds a step whose minute has passed');
+});
+
+test('a session with no clock anchor is never gated', () => {
+  // Every non-serve session — and every session predating the anchor — must behave
+  // exactly as it did before. An inert gate is the whole compatibility story.
+  const plan = servePlan(45);
+  for (const anchor of [undefined, null, NaN, 'nonsense']) {
+    const s = drive(MOD.BSPrepCook, {
+      items: [], timeline: plan.timeline, anchor,
+      onClose() {}, onRecipePrepped() {}, onDone() {},
+    });
+    assert.ok(!/Starts in/.test(s.text), `anchor ${String(anchor)} produced a gate out of nothing`);
+  }
+});
+
+test('the board is actually HANDED the session clock in the shipping mount', () => {
+  // ⚠ Every test above passes `anchor` itself, so all five would stay green if the
+  // production mount site simply never passed it — the gate would be inert in the app
+  // and perfect in the suite. This reads the real call site instead.
+  const src = readFileSync(SRC, 'utf8');
+  // ⚠ The tag is read brace-aware. Slicing to the first `>` ends at the first arrow
+  // function in a prop (`onDone={() => …}`), so a prop ordering change would have
+  // truncated the tag and failed for a reason that has nothing to do with the anchor.
+  const open = jsxOpenTag(src, 'BSPrepCook');
+  assert.ok(open, 'BSPrepCook is never mounted — the interleaved board would not render at all');
+  assert.match(open, /anchor=\{/,
+    'the shipping BSPrepCook mount passes no `anchor`, so the schedule gate can never fire in the app');
+  // And the value handed over must be the stamp taken at the Start tap, not a fresh
+  // clock read — the offsets are measured from when cooking BEGAN.
+  assert.match(open, /anchor=\{sessionAnchor\}/, 'the anchor is not the session start stamp');
+  assert.match(src, /setSessionAnchor\(Date\.now\(\)\)/, 'nothing ever stamps the session start');
+});
+
+// ── the progress debit must not punish the convenience timer ───────────────────
+// Round 1 taught the board that a RUNNING passive hold has not delivered its minutes
+// yet: the cursor moves past a window the instant its timer starts, so those minutes
+// are promised, not banked, and `bsProgressPct` debits them.
+//
+// ⚠ That rule is about HOLDS. A `soft` timer is the plain countdown a cook starts on
+// the step they are STANDING AT — the cursor has not passed it, so nothing credited
+// those minutes in the first place. Debiting them subtracts a figure nobody banked and
+// the bar walks BACKWARD, to zero on a long one, as a reward for using the timer
+// (Codex, round 2). Every other reader of `timers` already filters soft out; the debit
+// was the only one that did not, which is exactly why a mount is what catches it.
+const SEARED = {
+  key: 'seared', title: 'The seared cutlets',
+  steps: [
+    'Trim the cutlets and pat them dry.',
+    'Sear the cutlets 8 minutes, turning once, until the crust is deep brown.',
+    'Rest them on a warm plate before serving.',
+  ],
+  stepMeta: [null, null, null],
+};
+const pctOf = (s) => {
+  const m = s.text.match(/(\d+)%/);
+  return m ? Number(m[1]) : null;
+};
+
+test('a convenience timer on the CURRENT step never moves the board backward', () => {
+  const plan = bsOrchestrate([SEARED], { ...OPTS, mode: BS_COOK_MODE.SEQUENCE });
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline,
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  s.click('Next');                       // step 0 behind us — real, banked minutes
+  const before = pctOf(s);
+  assert.ok(Number.isFinite(before) && before > 0,
+    `the board must have banked something before the timer starts, read ${before}%`);
+  // Guard the guard: without a chip to press there is nothing under test here.
+  const chips = s.buttons().filter((b) => b.label.startsWith('◷'));
+  assert.ok(chips.length > 0, 'no convenience-timer chip on an active step that states a duration');
+
+  s.click('◷');
+  const after = pctOf(s);
+  assert.equal(after, before,
+    `starting an 8-minute convenience timer moved the board ${before}% -> ${after}%; a soft timer banks nothing and owes nothing`);
+
+  // ⚠ AND IT STILL OWES NOTHING ONCE THE CURSOR PASSES IT. The debit later gained a
+  // `stepIndex < cursor` gate, which covers a soft timer on the CURRENT step by accident —
+  // so deleting the `!soft` filter left this test green. Walk past the step with the chip
+  // still running: the step banks its active minutes, and the convenience clock still owes
+  // nothing, because it was never what those minutes measured.
+  if (s.buttons().some((b) => !b.disabled && b.label.startsWith('Next'))) {
+    const banked = pctOf(s);
+    s.click('Next');
+    const walked = pctOf(s);
+    assert.ok(walked >= banked,
+      `walking past a step with a convenience timer running moved the board ${banked}% -> ${walked}%; the chip is not the step's hold`);
+  }
+});
+
+test('a real HOLD still owes its minutes — the round-1 fix survives', () => {
+  // The other arm, and it needs the RIGHT question. Asking only whether the board
+  // stayed under 100% let the defect through at 77%: plenty of steps were still
+  // undone, so the figure was low for a reason that had nothing to do with the debit.
+  //
+  // The discriminating question is what STARTING the hold does. Advancing past a
+  // window credits its minutes, and the debit takes back exactly what has not elapsed,
+  // so a braise that has just gone on must move the board barely at all. Measured on
+  // this plan: 5% before the tap and 5% after — and 5% -> 77% with the debit deleted.
+  const plan = bsOrchestrate([LONG, SHORT], { ...OPTS, mode: BS_COOK_MODE.TOGETHER });
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline,
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  let atHold = null;
+  let guard = 0;
+  while (guard++ < 12) {
+    const labels = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
+    if (labels.some((l) => l.startsWith('Start timer'))) { atHold = pctOf(s); s.click('Start timer'); break; }
+    if (!labels.some((l) => l.startsWith('Next'))) break;
+    s.click('Next');
+  }
+  assert.ok(Number.isFinite(atHold), 'never reached a holding window — this plan cannot exercise the debit');
+  const after = pctOf(s);
+  assert.ok(Number.isFinite(after), 'no percentage rendered once a hold was running');
+  assert.ok(after - atHold <= 2,
+    `putting a 40-minute braise on moved the board ${atHold}% -> ${after}%; those minutes are promised, not banked`);
+});
+
+// ⚠ "GET IT ALL DONE SOONEST" HAS TO ACTUALLY BE SOONEST. The placement was greedy —
+// longest dish first, and only the serve time T was searched — so `earliestServe` was
+// the earliest that ONE ORDER fits, presented as the earliest reachable. On these three
+// catalog dishes it reported 57 while a different order serves at 51, and the ordinary
+// interleaved plan already finished in 55: the mode's single promise, broken, on a
+// button labelled with it.
+//
+// Pinned to the real catalog rather than fixtures. Fixtures would let the constraint
+// that produces the clash (one oven, three dishes wanting it) drift out from under the
+// test while it kept passing — the recipes ARE the input this shipped wrong on.
+const OVEN_TRIO = ['One-pan chicken and rice', 'Sheet-pan salmon, sweet potato and broccoli', 'Roasted veg and halloumi traybake']
+  .map((t) => {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === t);
+    assert.ok(r, `catalog no longer has "${t}" — repin this test, do not delete it`);
+    return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+  });
+
+// ── the SERVE picker mounts ──────────────────────────────────────────────────
+// BSPrepSession owns the serve-time picker, and every test that mounted it drove the
+// MISE, never SERVE -- so the whole branch was rendered by nothing. A hook-order or
+// TDZ fault there passes parse, tsc, the suite and the build, and takes down the
+// entire prep flow at the tap. This mounts it.
+const PICKER_PROGRAM = [{
+  meals: [
+    { id: 'm1', slot: 'Lunch', title: 'One-pan chicken and rice', kcal: 600, p: 45, c: 55, f: 18 },
+    { id: 'm2', slot: 'Dinner', title: 'Sheet-pan salmon, sweet potato and broccoli', kcal: 620, p: 42, c: 48, f: 24 },
+  ],
+}];
+
+test('serve picker: choosing a table time renders, and says which DAY it landed on', () => {
+  // Pinned to local noon, so both branches below are facts about the component rather
+  // than about the hour the suite happens to run in. See `withClockAt`.
+  withClockAt(12, 0, () => {
+    const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
+    for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    s.clickKey('serve');   // by key, not by label — the test is about the OPTION, not its wording
+
+    assert.match(s.text, /On the table at/, 'the serve-time picker must render');
+    const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
+    assert.equal(times.length, 1, 'exactly one table-time input');
+
+    // Guard the guard: the default has to actually land today, or the first assertion
+    // passes for the wrong reason and the label is never exercised. The chosen time
+    // lives in the input's value, not in the rendered text.
+    assert.match(times[0].props.value, /^1[2-9]:/,
+      `the default serve time should be this afternoon, got ${times[0].props.value}`);
+    assert.doesNotMatch(s.text, /Tomorrow/, 'a reachable time today is not labelled tomorrow');
+
+    // A time already past today resolves to TOMORROW. That is right for a cook plating
+    // after midnight and identical for one who mis-taps a minute into the past, so the
+    // day has to be on screen either way -- a silent rollover schedules the session ~23
+    // hours out behind a start time that reads perfectly normal.
+    times[0].props.onChange({ target: { value: '11:00' } });
+    s.render();
+    assert.match(s.text, /Tomorrow/, 'a time that rolled over must say so');
+
+    // ...and it goes away again. A label that never clears would pass the line above
+    // whether or not it tracks the chosen time.
+    times[0].props.onChange({ target: { value: '19:30' } });
+    s.render();
+    assert.doesNotMatch(s.text, /Tomorrow/, 'the label must clear when the time lands today');
+  });
+});
+
+test('serve picker: the landing gap belongs to the plan being RUN, not the earliest one', () => {
+  // The gap renders beside "You start cooking at {t}", which reads the plan for the time
+  // the cook PICKED. The gap was read from a different plan -- SERVE with no serveAt,
+  // i.e. serving as early as possible. Those are different schedules.
+  //
+  // ⚠ MEASURED over 89,100 pair/kitchen/serve-time comparisons, they disagree in 5.7%,
+  // and it is ONE-DIRECTIONAL: the earliest-plan gap UNDERSTATES the run plan's, by up
+  // to 101 minutes. So the failure mode is a number that reads better than the truth --
+  // never a false promise of a single moment (0 cases of shown-0 with a real gap), which
+  // is why nothing on screen contradicted it.
+  //
+  // This pair is one of the disagreeing ones, and the assertions below prove that BEFORE
+  // reading the component: a corpus that cannot exhibit the defect would let a rebinding
+  // to `orchServe` pass silently.
+  withClockAt(12, 0, () => withCopyValues(() => {
+    const cookables = PICKER_PROGRAM[0].meals
+      .map((m) => bsCookableFromMeal(m, SHAPE_KITCHEN_RECIPES))
+      .filter(Boolean)
+      .map((c) => ({ key: c.key || c.title, title: c.title, steps: c.steps, stepMeta: c.stepMeta }));
+    assert.equal(cookables.length, 2, 'both meals must resolve to catalog recipes, or this tests nothing');
+
+    // The sheet reads the cook's kitchen at mount; with no stored kitchen that is one of
+    // each. Computing against an unlimited kitchen would compare a plan the sheet is not
+    // running, which is the very mistake this test exists to catch.
+    const KITCHEN = { stove: 1, oven: 1, board: 1 };
+    const earliestPlan = bsOrchestrate(cookables, { mode: BS_COOK_MODE.SERVE, kitchen: KITCHEN });
+    const DELAY = 30;
+    const runPlan = bsOrchestrate(cookables, {
+      mode: BS_COOK_MODE.SERVE, serveAt: (earliestPlan.earliestServe || 0) + DELAY, kitchen: KITCHEN,
+    });
+    const shownIfWrong = earliestPlan.spread || 0;
+    const shownIfRight = runPlan.spread || 0;
+
+    // Guard the guard, both ways: a gap of zero renders nothing at all, and two equal
+    // gaps make the assertion below true whichever plan the component reads.
+    assert.ok(shownIfRight > 0, 'the run plan must land the dishes apart, or the line never renders');
+    assert.notEqual(shownIfRight, shownIfWrong,
+      `this pair no longer discriminates (both plans gap ${shownIfRight}) — find another, do not delete this test`);
+
+    const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
+    for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    s.clickKey('serve');
+
+    const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
+    assert.equal(times.length, 1, 'exactly one table-time input');
+    const at = new Date(Date.now() + ((earliestPlan.earliestServe || 0) + DELAY) * 60000);
+    times[0].props.onChange({
+      target: { value: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}` },
+    });
+    s.render();
+
+    // The too-soon branch renders a different block entirely; if we landed there the gap
+    // line is absent and the match below would fail for the wrong reason.
+    assert.match(s.text, /You start cooking at/, 'a reachable time must render the start-time branch');
+    const shown = /Within (\d+) min of each other/.exec(s.text);
+    assert.ok(shown, `the landing-gap line must render, got: ${s.text.slice(0, 400)}`);
+    assert.equal(Number(shown[1]), shownIfRight,
+      `the gap must come from the plan the cook runs (${shownIfRight}), not the earliest-serve plan (${shownIfWrong})`);
+  }));
+});
+
+test('serve mode: the earliest serve time is the earliest over placement ORDERS, not one order', () => {
+  const plan = bsOrchestrate(OVEN_TRIO, { mode: BS_COOK_MODE.SERVE });
+  assert.equal(plan.earliestServe, 51,
+    `earliest serve is ${plan.earliestServe}; longest-first alone reports 57, and the plain interleaved plan already lands in 55`);
+
+  // The schedule is re-derived from the RETURNED timeline, not taken on the engine's word.
+  // An earlier version of this mode reported a plan with two pots on one stove as
+  // "issues: ['stations']" — handled-looking, and impossible.
+  const EXCL = ['oven', 'stove', 'board'];
+  const bands = plan.timeline
+    .filter((e) => e.station && EXCL.includes(e.station))
+    .map((e) => ({ st: e.station, from: e.at, to: e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin), who: e.title }));
+  const clashes = [];
+  for (let i = 0; i < bands.length; i++) {
+    for (let j = i + 1; j < bands.length; j++) {
+      const a = bands[i]; const b = bands[j];
+      if (a.st === b.st && a.from < b.to && b.from < a.to) clashes.push(`${a.st}: ${a.who} ${a.from}-${a.to} vs ${b.who} ${b.from}-${b.to}`);
+    }
+  }
+  assert.deepEqual(clashes, [], `${clashes.length} station clash(es) in a schedule reported as feasible`);
+  assert.ok(plan.timeline.every((e) => e.at >= 0), 'no step may be scheduled before the cook starts');
+
+  const ends = {};
+  for (const e of plan.timeline) ends[e.iid] = Math.max(ends[e.iid] || 0, e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin));
+  assert.ok(Math.max(...Object.values(ends)) <= plan.earliestServe,
+    'a dish finishing after the serve time is not a serve-together plan');
+
+  // 12 is not a recorded observation: enumerating every arrangement of these three dishes at
+  // T=51 gives 19 feasible ones, and 12 is the smallest spread any of them reaches. So the
+  // schedule this returns is the tightest available at the earliest time, and the assertion
+  // holds the QUALITY of the plan, not just its serve minute.
+  assert.equal(plan.spread, 12,
+    `spread ${plan.spread}; 12 is the tightest of the 19 arrangements that serve at 51`);
+});
+
+const dishes = (titles) => titles.map((t) => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === t);
+  assert.ok(r, `catalog no longer has "${t}" — repin this test, do not delete it`);
+  return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+});
+const durationOfRecipe = (r) => r.steps.reduce((n, _s, i) => {
+  const m = (r.stepMeta || [])[i];
+  return n + (m && m.min > 0 ? m.min : BS_ORCH.activeStepMin);
+}, 0);
+// Hands-on spans, by dish, from a RETURNED plan.
+const handsSpans = (plan) => plan.timeline
+  .filter((e) => !e.station)
+  .map((e) => ({ iid: e.iid, who: e.title, from: e.at, to: e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin) }));
+const handsClashes = (plan) => {
+  const h = handsSpans(plan);
+  const out = [];
+  for (let i = 0; i < h.length; i++) {
+    for (let j = i + 1; j < h.length; j++) {
+      if (h[i].iid !== h[j].iid && h[i].from < h[j].to && h[j].from < h[i].to) {
+        out.push(`${h[i].who} ${h[i].from}-${h[i].to} vs ${h[j].who} ${h[j].from}-${h[j].to}`);
+      }
+    }
+  }
+  return out;
+};
+
+// ⚠ ONE COOK, TWO HANDS — and a plan is worth nothing if the person cannot perform it.
+// Station capacity says nothing about the person, so two dishes could each be given the
+// same three minutes of chopping with no station contended. The pair below was reported
+// as `earliestServe: 33, spread: 0, issues: []` — a flawless serve-together plan in which
+// both dishes' final hands-on steps sat at 30-33. The board then presents those steps one
+// after the other, so the second dish lands after the time the plan promised.
+//
+// 1,688 of 1,770 catalog pairs were scheduled that way, so this was not an edge case: the
+// serve time and the spread were both systematically optimistic. What the mode exists to
+// save is the wait between cooking one dish and starting the next, and that saving is only
+// real when dish B's hands-on work sits inside dish A's HOLD.
+test('serve mode: one cook cannot do two hands-on steps at once', () => {
+  const plan = bsOrchestrate(dishes(['One-pan chicken and rice', 'Greek yogurt power bowl']), { mode: BS_COOK_MODE.SERVE });
+  assert.deepEqual(handsClashes(plan), [],
+    'two dishes were given the same minutes of the cook — the promised finish is unreachable');
+  // ⚠ I first asserted the serve time would move LATER, which was an assumption rather
+  // than a measurement — it does not. The same 33 minutes is reachable; what changes is
+  // that the arrangement becomes performable. The yogurt bowl is now built ENTIRELY
+  // inside the chicken's 18-minute stove hold, which is precisely the overlap this mode
+  // exists to find. The tell is the spread: it claimed 0 while placing both dishes' final
+  // hands-on steps in the same three minutes, and honestly reports 3.
+  assert.equal(plan.earliestServe, 33, 'the honest arrangement still reaches 33');
+  assert.equal(plan.spread, 3,
+    `spread ${plan.spread}; 0 was claimed by putting both dishes' last steps in one pair of hands`);
+  const inHold = handsSpans(plan).filter((h) => plan.timeline.some((e) =>
+    e.station && e.min > 0 && e.iid !== h.iid && h.from >= e.at && h.to <= e.at + e.min));
+  assert.ok(inHold.length >= 5,
+    `only ${inHold.length} hands-on steps run inside the other dish's hold — the bowl should be built during the rice`);
+});
+
+test('serve mode: a hold hosts the other dish, which is the whole saving', () => {
+  const pair = dishes(['Roasted veg and halloumi traybake', 'One-pan chicken and rice']);
+  const plan = bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE });
+
+  // This asserted `earliestServe === the longest dish (39)` until the cook was modelled.
+  // That premise was arithmetic: both dishes wanted the same last three minutes of the
+  // cook, so 39 was available on paper and impossible in a kitchen. 42 is the first time
+  // both fit one pair of hands, and the schedule that reaches it puts each dish's prep
+  // inside the other's oven/stove hold rather than on top of its hands-on work.
+  assert.equal(plan.earliestServe, 42,
+    `earliest serve ${plan.earliestServe}; 39 is the longest dish alone and ignores the cook`);
+  assert.deepEqual(handsClashes(plan), [], 'the cook is doing two things at once');
+
+  // The saving is real: back-to-back these two are 72 minutes of waiting.
+  const backToBack = pair.reduce((n, r) => n + durationOfRecipe(r), 0);
+  assert.ok(plan.earliestServe < backToBack,
+    `serving at ${plan.earliestServe} must beat cooking them one after the other (${backToBack})`);
+
+  // And the overlap is genuinely inside a hold, not merely a smaller number.
+  const holdSpans = plan.timeline.filter((e) => e.station && e.min > 0)
+    .map((e) => ({ iid: e.iid, from: e.at, to: e.at + e.min }));
+  const hostedWork = handsSpans(plan).filter((h) => holdSpans.some((s) => s.iid !== h.iid && h.from >= s.from && h.to <= s.to));
+  assert.ok(hostedWork.length > 0,
+    'no hands-on step runs inside the other dish\'s hold — nothing is actually being overlapped');
+});
+
+test('serve mode: a single dish is untouched by any of this', () => {
+  const [only] = dishes(['Roasted veg and halloumi traybake']);
+  const plan = bsOrchestrate([only], { mode: BS_COOK_MODE.SERVE });
+  assert.equal(plan.earliestServe, durationOfRecipe(only),
+    'with nothing to contend with, the earliest serve is exactly the dish');
+  assert.equal(plan.spread, 0, 'one dish cannot be spread');
+});
+
+// ⚠ THE SAME DEFECT ONE LANE OVER. The interleaved board learned twice that a running
+// hold has not delivered its minutes; the SOLO path credited the authored duration
+// outright. Tap Done on the energy bites' 30-minute chill and the header read 100% with
+// half an hour left on the clock — and in a sequential multi-dish session those phantom
+// minutes were added to the whole evening's progress too.
+//
+// Driven through the real component rather than by calling bsProgressPct with an
+// unearned figure of my own: a pure test would supply the very argument whose ABSENCE
+// was the bug, and would have passed against the broken build.
+test('solo cook: a chill still running is not progress you have banked', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === 'Date and almond energy bites');
+  assert.ok(r, 'catalog no longer has the energy bites — repin this test, do not delete it');
+  const c = bsCookableFromRecipe(r);
+  const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
+  s.click('Start cooking');
+
+  // Walk to the 30-minute chill, banking the earlier steps honestly on the way. Matched
+  // on the step's own words rather than an index, so a catalog edit fails loudly here
+  // instead of quietly testing some other step.
+  let guard = 0;
+  while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
+    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('✓ Done'));
+    if (!next) break;
+    s.click('✓ Done');
+  }
+  assert.match(s.text, /Chill 30 minutes/, 'never reached the chill step — this recipe cannot exercise the debit');
+
+  const chip = s.buttons().find((b) => !b.disabled && b.label.startsWith('▸ Timer'));
+  assert.ok(chip, `no countdown offered on the chill (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+  assert.match(chip.label, /30 min/, `the chip under test reads "${chip.label}" — not the 30-minute chill`);
+
+  const before = pctOf(s);
+  s.click('▸ Timer');                      // the 30-minute chill goes on
+  // ⚠ BOTH ARMS. Merely STARTING the chill must move nothing: the cook is standing on
+  // that step, its minutes were never credited, and debiting them walks the bar
+  // backward — 23% to 0% here. That is the round-1 regression from the interleaved
+  // lane, and without this line a debit-everything version passed clean.
+  assert.equal(pctOf(s), before,
+    `starting the chill moved the board ${before}% -> ${pctOf(s)}%; an uncredited step owes nothing`);
+
+  // Mark it done while the clock is still running — the exact move that inflated it.
+  // The last step's button reads "Plated", not "Done"; both are the same advance.
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  assert.ok(finish, 'no way to advance past the chill — the scenario cannot be reached');
+  s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
+  const after = pctOf(s);
+
+  assert.ok(Number.isFinite(after), 'no percentage rendered after advancing past a running chill');
+  assert.ok(after < 100,
+    `the board reads ${after}% (from ${before}%) with a 30-minute chill still running; those minutes are promised, not banked`);
+});
+
+// ⚠ THE HOLD IS THE ANNOTATION, NOT THE PROSE. `bsStepTimers` collapses a range to its TOP:
+// "roast 12 to 15 minutes" comes back as 15. So a window authored at the LOW end — which is
+// where the cook is actually wanted — still counted down from the maximum, and the annotation
+// was decorative for the one thing it most needed to control. Pinned against the real catalog
+// because the mismatch is a property of the recipe's own words.
+test('prep board: a hold runs for the annotated window, not the parsed maximum', () => {
+  // `bsStepTimers` is inconsistent about ranges: an en-dash form ("12–15 min") comes back as
+  // its LOW end, while the word form collapses to the TOP — "simmer 6 to 8 minutes" parses as
+  // 8. So a window authored at the low end, which is where the cook is actually wanted, still
+  // counted down from the maximum. The annotation was decorative for the one thing it most
+  // needed to control.
+  //
+  // ⚠ Pinned on a fixture rather than the catalog, deliberately and with the reason: every
+  // window in THIS branch's catalog already has `min` equal to what its prose parses to, so
+  // nothing here can exhibit the mismatch. It becomes load-bearing when the low-end
+  // corrections land — the fix has to exist before the data that needs it, not after.
+  const parsedTop = bsStepTimers('Cover, lower the heat and simmer 6 to 8 minutes, until the glaze coats a spoon.');
+  assert.equal(Math.round(parsedTop[0].seconds / 60), 8,
+    'the parser no longer collapses "6 to 8" to its top — if that is fixed, this test is obsolete, not wrong');
+
+  const RANGED = {
+    key: 'ranged-fixture', title: 'Ranged hold fixture',
+    steps: [
+      'Season the chops on both sides and set a heavy skillet over medium-high heat until it shimmers.',
+      'Cover, lower the heat and simmer 6 to 8 minutes, until the glaze coats a spoon.',
+      'Rest them off the heat and spoon the pan glaze back over before serving.',
+    ],
+    stepMeta: [null, { min: 6, passive: true, station: 'stove' }, null],
+  };
+  const plan = bsOrchestrate([RANGED], { ...OPTS, mode: BS_COOK_MODE.SEQUENCE });
+  const s = drive(MOD.BSPrepCook, { items: [], timeline: plan.timeline, onClose() {}, onRecipePrepped() {}, onDone() {} });
+
+  let guard = 0;
+  while (guard++ < 8 && !s.buttons().some((b) => !b.disabled && b.label.startsWith('Start timer'))) {
+    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('Next'));
+    if (!next) break;
+    s.click('Next');
+  }
+  assert.ok(s.buttons().some((b) => b.label.startsWith('Start timer')), 'never reached the window');
+  s.click('Start timer');
+
+  const shown = s.text.match(/(\d+):(\d\d)/);
+  assert.ok(shown, `no countdown rendered after starting the hold — text was ${JSON.stringify(s.text.slice(0, 200))}`);
+  const mins = Number(shown[1]) + (Number(shown[2]) > 0 ? 1 : 0);
+  assert.equal(mins, 6, `the board counts down ${shown[0]}; the window is 6 min and only the PROSE says 8`);
+});
+
+// ⚠ DEBIT ONLY WHAT THE CURSOR HAS CREDITED — and `!soft` is not that test. `startAndGo`
+// deliberately leaves the cursor ON a passive step when the same dish's continuation is next
+// and still blocked, so that step has contributed nothing to a percentage that credits steps
+// BEFORE the cursor. Debiting its hold subtracts minutes nobody banked: the same error the
+// soft-timer filter exists to prevent, arriving through the other door.
+test('prep board: starting a hold the cursor still sits on does not move the board backward', () => {
+  const pair = ['One-pan chicken and rice', 'Roasted veg and halloumi traybake'].map((t) => {
+    const x = SHAPE_KITCHEN_RECIPES.find((y) => y.title === t);
+    assert.ok(x, `catalog no longer has "${t}" — repin this test, do not delete it`);
+    return { key: x.key || x.title, title: x.title, steps: x.steps, stepMeta: x.stepMeta };
+  });
+  const plan = bsOrchestrate(pair, { ...OPTS, mode: BS_COOK_MODE.SERVE });
+  const s = drive(MOD.BSPrepCook, { items: [], timeline: plan.timeline, onClose() {}, onRecipePrepped() {}, onDone() {} });
+
+  // ⚠ EVERY hold, not the first one. The first hold in this plan is followed by the OTHER
+  // dish, so the cursor advances past it and both rules agree — a test that stops there
+  // proves nothing. The discriminating hold is the one whose continuation belongs to the
+  // SAME dish and is still blocked, so `startAndGo` leaves the cursor sitting on it and the
+  // step has banked nothing to debit.
+  //
+  // ⚠ THE PAIR IS LOAD-BEARING AND WAS RE-CHOSEN. The original fixture reached three holds;
+  // after the cook-windows catalog landed it reaches ONE, so the guard below would have been
+  // the only thing failing and re-pinning the count would have left a test that walks a board
+  // with nothing to discriminate. This pair was picked by driving the real board across the
+  // catalog and keeping one that still reaches two, then confirmed by mutation: widening the
+  // debit guard to `<=` makes this test fail.
+  const moves = [];
+  let guard = 0;
+  while (guard++ < 30) {
+    const labels = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
+    if (labels.some((l) => l.startsWith('Start timer'))) {
+      const before = pctOf(s);
+      s.click('Start timer');
+      moves.push({ before, after: pctOf(s) });
+      continue;
+    }
+    if (!labels.some((l) => l.startsWith('Next'))) break;
+    s.click('Next');
+  }
+  assert.ok(moves.length >= 2,
+    `only ${moves.length} hold(s) reached; this plan has two and the second is the one that discriminates`);
+  const backward = moves.filter((m) => m.after < m.before);
+  assert.deepEqual(backward, [],
+    `a hold moved the board backward (${backward.map((m) => `${m.before}% -> ${m.after}%`).join(', ')}); the cursor has not passed that step, so nothing was banked to take back`);
+});
+
+// ⚠ THE SEARCH BOUND IS PART OF THE PROMISE. Stopping the order search above five dishes while
+// the control still reads "get it all done soonest" is the same defect as the original one-order
+// heuristic, just further out. These six catalog dishes reported 118 minutes with an order
+// available at 113 — and the cheap rotation family does NOT find it, which is why the
+// exhaustive bound had to move rather than the fallback getting cleverer.
+test('serve mode: the order search reaches a six-dish session', () => {
+  const six = ['Red lentil and spinach dahl', 'Turkey chili verde', 'Black-eyed pea and coconut curry',
+    'One-pan chicken and rice', 'Chickpea and spinach curry', 'Tempeh and broccoli teriyaki'].map((title) => {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === title);
+    assert.ok(r, `catalog no longer has "${title}" — repin this test, do not delete it`);
+    return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+  });
+  const plan = bsOrchestrate(six, { mode: BS_COOK_MODE.SERVE });
+  // ⚠ MEASURED on the current catalog: 111, and a single longest-first order ALSO reaches
+  // 111 for this set. The old message here claimed the search beat a fixed order by 5
+  // minutes; the cook-windows catalog closed that gap, so repeating the claim would be
+  // asserting something no longer true of this fixture. What this test still earns is the
+  // SIX-dish case — the exhaustive order-search bound (BS_ORCH.orderSearchMax) — and that
+  // the plan it returns is actually feasible. The search-beats-one-order claim is pinned
+  // by "the earliest serve time is the earliest over placement ORDERS", which uses a set
+  // where the two still differ.
+  assert.equal(plan.earliestServe, 111,
+    `six dishes serve at ${plan.earliestServe}`);
+  assert.equal(plan.exact, true,
+    'six dishes sit ON the exhaustive bound — if this reports a sample, the bound moved');
+
+  const EXCL = ['oven', 'stove', 'board'];
+  const bands = plan.timeline.filter((e) => e.station && EXCL.includes(e.station))
+    .map((e) => ({ st: e.station, from: e.at, to: e.at + (e.min > 0 ? e.min : BS_ORCH.activeStepMin) }));
+  const clashes = [];
+  for (let i = 0; i < bands.length; i++) {
+    for (let j = i + 1; j < bands.length; j++) {
+      const a = bands[i]; const b = bands[j];
+      if (a.st === b.st && a.from < b.to && b.from < a.to) clashes.push(`${a.st} ${a.from}-${a.to} vs ${b.from}-${b.to}`);
+    }
+  }
+  assert.deepEqual(clashes, [], 'an earlier serve time that puts two pans on one station is not a schedule');
+});
+
+// ⚠ THE HANDOFF ITSELF HAD NO COVERAGE. The button that ends a dish inside a Prep Session now
+// passes its still-running holds up, reading `timers` and `visited` from the component's own
+// scope. Scope being correct is not the same as the click working: a wrong binding here throws
+// at click time, which parse, tsc and both builds all pass cleanly.
+test('prep session: finishing a dish hands its unfinished holds to the session', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === 'Date and almond energy bites');
+  assert.ok(r, 'catalog no longer has the energy bites — repin this test, do not delete it');
+  const c = bsCookableFromRecipe(r);
+
+  let handed = 'never called';
+  const s = drive(MOD.BSCookMode, {
+    cookable: c, onClose() {},
+    prep: { index: 0, count: 2, priorMins: 0, totalMins: 100, onPrepped(out) { handed = out; } },
+  });
+
+  // Walk to the chill, put it on, then end the dish while it is still running.
+  let guard = 0;
+  while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
+    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('✓ Done'))) break;
+    s.click('✓ Done');
+  }
+  assert.match(s.text, /Chill 30 minutes/, 'never reached the chill — this recipe cannot exercise the handoff');
+  const chip = s.buttons().find((b) => !b.disabled && b.label.startsWith('▸ Timer'));
+  assert.ok(chip, `no countdown offered on the chill (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+  s.click('▸ Timer');
+
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  assert.ok(finish, 'no way to end the dish');
+  s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
+
+  // Plating does not end the dish inside a session — a separate CTA does, and that is the
+  // button carrying the handoff. Assert we found it rather than silently skipping the click.
+  const cta = s.buttons().find((b) => !b.disabled && (b.label.startsWith('Next recipe') || b.label.startsWith('Wrap the session')));
+  assert.ok(cta, `no session CTA after plating (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
+  s.click(cta.label.startsWith('Next recipe') ? 'Next recipe' : 'Wrap the session');
+
+  assert.ok(Array.isArray(handed), `onPrepped received ${JSON.stringify(handed)} — the handoff did not run`);
+  assert.equal(handed.length, 1, `expected the running chill to be handed up, got ${JSON.stringify(handed)}`);
+  assert.ok(handed[0].endsAt > Date.now() + 25 * 60000,
+    `the carried hold ends at ${handed[0].endsAt}, which is not ~30 minutes out`);
+});
+
+
+// ---------------------------------------------------------------------------------------
+// HOW LONG A STEP TAKES IS NOT WHETHER THE COOK MAY LEAVE DURING IT. The engine conflated
+// them in its two timeline builders, so a step could carry an authored duration, have SERVE
+// placement believe it, and have the plan those builders produced ignore it.
+// ---------------------------------------------------------------------------------------
+
+// WARNING - THE FIRST VERSION OF THIS TEST WAS HOLLOW, and mutation-testing is the only
+// reason I know. It asserted on `max(at + min)` across the timeline, and `evt` puts the
+// authored `min` on the event whatever its passive flag - so the span read 73 even when the
+// clock had advanced by three. Reverting the fix left it GREEN. What actually distinguishes
+// the two builds is WHEN THE NEXT STEP STARTS, so that is what these assert on now.
+const startOf = (tl, key) => Math.min(...tl.filter((e) => e.recipe === key).map((e) => e.at));
+
+test('a step can take an hour without ever being a window the cook may walk away from', () => {
+  // The layered gratin's shape, reduced to a fixture: a step that bakes for an hour and then
+  // tells the cook to rest and slice. It can NEVER be a window - it hides an instruction
+  // behind its own timer - and it still takes seventy minutes of the evening.
+  const bake = {
+    key: 'bake', title: 'Long bake',
+    steps: ['Layer the potatoes and sauce in the dish.', 'Bake 1 hour, until bronzed; rest 10 minutes before serving.'],
+    stepMeta: [null, { min: 70, passive: false, station: 'oven' }],
+  };
+  const quick = { key: 'quick', title: 'Quick bowl', steps: ['Chop.', 'Toss.', 'Plate.'], stepMeta: [null, null, null] };
+
+  const seq = bsOrchestrate([bake, quick], { mode: BS_COOK_MODE.SEQUENCE });
+  assert.ok(startOf(seq.timeline, 'quick') >= 70,
+    `one-at-a-time starts the second dish at ${startOf(seq.timeline, 'quick')} minutes, `
+    + 'walking straight past a 70-minute bake');
+
+  // ...and it is emphatically NOT a window. No `passive` flag, so nothing may be scheduled
+  // inside it - the owner constraint against fabricated parallelism is untouched by this.
+  assert.equal(bsOrchestrate([bake, quick], {}).canInterleave, false,
+    'a duration alone must never make a step host a detour');
+  assert.equal(bsOrchestrate([bake, quick], { mode: BS_COOK_MODE.SERVE }).canInterleave, false,
+    'serve mode agrees: duration is not permission to leave');
+});
+
+test('the INTERLEAVER spends the clock on a long step it is not allowed to leave', () => {
+  // A separate fixture, because the interleaver is a different code path from the serial
+  // builder and only runs when a real window exists. The rest at the end is that window; the
+  // hour in the middle is not, and the cook is standing there for it either way.
+  const bake = {
+    key: 'bake', title: 'Long bake',
+    steps: ['Layer it up.', 'Bake 1 hour, basting twice.', 'Rest before slicing.'],
+    stepMeta: [null, { min: 60, passive: false, station: 'oven' }, { min: 10, passive: true, station: 'off' }],
+  };
+  const quick = { key: 'quick', title: 'Quick bowl', steps: ['Chop.', 'Toss.', 'Plate.'], stepMeta: [null, null, null] };
+  const auto = bsOrchestrate([bake, quick], {});
+  assert.equal(auto.canInterleave, true, 'the rest is a real window - this fixture must interleave');
+  const rest = auto.timeline.find((e) => e.recipe === 'bake' && e.stepIndex === 2);
+  assert.ok(rest.at >= 60 + BS_ORCH.activeStepMin,
+    `the rest is scheduled at ${rest.at} minutes, so the hour of baking before it cost nothing`);
+});
+
+test('serve mode: the sheet is told when "soonest" is the best of a sample, not a proof', () => {
+  const mk = (n) => ({
+    key: 'd' + n, title: 'Dish ' + n,
+    steps: ['Prep it.', 'Leave it be.'],
+    stepMeta: [null, { min: 10, passive: true, station: 'off' }],
+  });
+  const six = Array.from({ length: 6 }, (_, i) => mk(i));
+  assert.equal(BS_ORCH.orderSearchMax, 6, 'the published bound must be the one the search uses');
+  assert.equal(bsOrchestrate(six, { mode: BS_COOK_MODE.SERVE }).exact, true,
+    'six dishes are searched exhaustively, so the figure IS the earliest');
+  assert.equal(bsOrchestrate([...six, mk(6)], { mode: BS_COOK_MODE.SERVE }).exact, false,
+    'seven dishes are searched by rotation only - seven catalog dishes report 118 where an '
+    + 'order exists that serves at 113, so the sheet must not call it the earliest');
+});
+
+test('serve mode: a plan resting on untimed long steps says so, and authoring the time silences it', () => {
+  const untimed = {
+    key: 'u', title: 'Untimed bake',
+    steps: ['Assemble the dish.', 'Bake 1 hour until the top is bronzed.'],
+    stepMeta: [null, null],
+  };
+  const short = { key: 's', title: 'Chop and toss', steps: ['Chop the herbs.', 'Toss for 2 minutes.'], stepMeta: [null, null] };
+
+  assert.equal(bsOrchestrate([untimed, short], { mode: BS_COOK_MODE.SERVE }).estimated, true,
+    'an hour of un-authored bake is exactly the assumption the cook needs warning about');
+  assert.equal(bsOrchestrate([short, { ...short, key: 's2' }], { mode: BS_COOK_MODE.SERVE }).estimated, false,
+    'the flag must have a quiet arm, or the caveat is wallpaper - it fired on 97.5% of catalog '
+    + 'pairs before the threshold, and a caveat that always shows teaches cooks to read past it');
+
+  // The point of the flag: it marks MISSING DATA, so supplying the data clears it. Same steps,
+  // same prose, one authored duration - and the sheet stops hedging.
+  const authored = { ...untimed, stepMeta: [null, { min: 60, passive: false, station: 'oven' }] };
+  assert.equal(bsOrchestrate([authored, short], { mode: BS_COOK_MODE.SERVE }).estimated, false,
+    'authoring the duration must silence the caveat, or it is measuring the wrong thing');
+  assert.ok(bsOrchestrate([authored, short], { mode: BS_COOK_MODE.SERVE }).earliestServe >= 60,
+    'and the authored hour must still be scheduled');
+});
+
+test('the three cook options run three DIFFERENT schedulers', () => {
+  // Owner ruling 2026-08-19: "cook at the same time", "cook separately" and "cook to
+  // serve" are three questions, not one question at three times. SOONEST used to run
+  // SERVE with no `serveAt`, which made it the serve option minus its time picker --
+  // two of the three doors opening on the same room.
+  //
+  // ⚠ THIS MUST ASSERT THE PLAN THE SHEET RUNS, NOT THE ROW BADGE. A first version of
+  // this test checked the minutes on the option row; those come from their own memos
+  // and never touch the choice->mode mapping, so rewiring SOONEST back to SERVE left it
+  // GREEN. The road map renders one row per timeline event as `{at}m{title}`, which is
+  // the chosen plan itself -- so that is what is compared.
+  const cookables = SHAPE_KITCHEN_RECIPES.map((r) => {
+    const c = bsCookableFromRecipe(r);
+    if (!c || !Array.isArray(c.steps) || !c.steps.length) return null;
+    return { key: r.key || r.title, title: r.title, steps: c.steps, stepMeta: c.stepMeta || [] };
+  }).filter(Boolean);
+
+  // The first catalog pair whose three modes all disagree. A pair where two of them
+  // agree could not tell those two apart; the search failing is asserted, so this can
+  // never pass vacuously.
+  let found = null;
+  outer:
+  for (let i = 0; i < cookables.length && !found; i++) {
+    for (let j = i + 1; j < cookables.length; j++) {
+      const rs = [cookables[i], cookables[j]];
+      const tog = bsOrchestrate(rs, { mode: BS_COOK_MODE.TOGETHER });
+      const srv = bsOrchestrate(rs, { mode: BS_COOK_MODE.SERVE });
+      const seq = bsOrchestrate(rs, { mode: BS_COOK_MODE.SEQUENCE });
+      const sig = (p) => p.timeline.map((e) => e.at).join(',');
+      if (sig(tog) !== sig(srv) && sig(tog) !== sig(seq) && sig(srv) !== sig(seq)) {
+        found = { rs, tog, srv, seq }; break outer;
+      }
+    }
+  }
+  assert.ok(found, 'no catalog pair separates all three modes — this test cannot discriminate');
+
+  const { rs, tog, srv, seq } = found;
+  const program = [{ meals: rs.map((r, i) => ({ id: `p${i}`, slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 })) }];
+  // Each road-map row is `{at}m` immediately followed by the recipe title, so a minute
+  // token followed by a letter is a step row. A hold chip reads "◷ 18m" and is followed
+  // by the next row's digits, so it does not match.
+  const offsets = (text) => [...text.matchAll(/(\d+)m(?=[A-Za-z])/g)].map((m) => Number(m[1]));
+  const planOffsets = (p) => p.timeline.map((e) => e.at);
+
+  const render = (choiceKey) => withClockAt(12, 0, () => {
+    const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+    for (const m of program[0].meals) s.click(m.title, pressable);
+    s.click('Merge the mise');
+    s.clickKey(choiceKey);
+    return offsets(s.text);
+  });
+
+  const shownSoonest = render('soonest');
+  const shownSequence = render('sequence');
+
+  assert.deepEqual(shownSoonest, planOffsets(tog),
+    `"cook at the same time" must run the TOGETHER plan. Got ${shownSoonest.join(',')}; TOGETHER is ${planOffsets(tog).join(',')} and SERVE is ${planOffsets(srv).join(',')}`);
+  assert.notDeepEqual(shownSoonest, planOffsets(srv),
+    'the same-time option is running the SERVE scheduler — the two options are the same door again');
+  assert.deepEqual(shownSequence, planOffsets(seq), '"cook separately" must run the SEQUENCE plan');
+});
