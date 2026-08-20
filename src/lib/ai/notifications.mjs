@@ -178,6 +178,12 @@ export function isCheckinItem(item) {
   // for the CONTACT lever, so "send me your check-in" and "reach out today" are
   // kind-identical. Kind is still honoured for items stamped before the lever was.
   if (d.lever) return d.lever === 'checkin' || d.move === 'check_in';
+  // ⚠ RESIDUAL, ACKNOWLEDGED: an item stamped with a move but NO lever (queued before the
+  // lever stamp shipped) cannot be proven not to be a coach check-in override, since a
+  // coach may set ANY kind against the checkin lever and 'message' is a legitimate engine
+  // kind. Purging every lever-less directive would cost every opted-out member their one
+  // move at rollout to spare a rare one, so the kind is trusted here. Bounded to a single
+  // evaluation per member: the item is delivered or purged, and never re-queued unstamped.
   const move = d.move;
   if (move) return move === 'check_in';
   // ⚠ NO USABLE MOVE KIND ⇒ UNIDENTIFIABLE ⇒ PURGED, DELIBERATELY. Directives finalized

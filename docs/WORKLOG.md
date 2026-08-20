@@ -299,6 +299,23 @@ changelog whenever something ships.
   so the stamp is released with it — but only when nothing of that type is **still held**,
   since a queued item carries no key and a surviving non-check-in directive shares the
   purged one's entry.
+- ⚠ **AND A FIFTH DOOR: THE COACH OVERRIDE, WHICH THE ACTION KIND CANNOT SEE.**
+  `sanitizeOverride` validates `lever` against a fixed set that includes `checkin` but takes
+  **any** 40-char string as the action kind, defaulting an omitted one to `message`, and
+  `buildDirective` keeps that action beside the checkin lever — so a coach who overrode the
+  check-in in their own words emitted a directive the kind-only gate read as unrelated, on
+  **every** evaluation. The kind can never separate them: `DIRECTIVE_MOVES` gives the
+  **contact** lever kind `message` too, so *"send me your check-in"* and *"reach out today"*
+  are kind-identical and differ only by lever. The **lever is the identity**; the kind is its
+  engine-built alias. Pinned by a test that asserts the two kinds are **equal** before
+  asserting one is suppressed and the other survives, with both directives built through the
+  real `buildDirective` rather than a fixture that assumes the shape.
+- ⚠ **RESIDUAL, ACKNOWLEDGED.** A held directive stamped with a move but **no lever** (queued
+  before the lever stamp shipped) cannot be proven not to be a coach check-in override, since
+  a coach may set any kind against the checkin lever and `message` is a legitimate engine
+  kind. Purging every lever-less directive would cost **every** opted-out member their one
+  move at rollout to spare a rare one, so the kind is trusted there. Bounded to a single
+  evaluation per member.
 - ⚠ **BOTH routes were wired, not only the cron.** `/api/ai/notify` recomputes from the
   same snapshot and had the identical hole — fixing the reported one would have left the
   live path nudging.
