@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  ROOT, SRC, drive, pressable, textOf, loadBroadsheet, importSibling, jsxOpenTag,
+  ROOT, SRC, drive, pressable, textOf, flatten as flattenNode, loadBroadsheet, importSibling, jsxOpenTag,
 } from './helpers/broadsheet-mount.mjs';
 
 const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
@@ -745,12 +745,63 @@ test('prep session: finishing a dish hands its unfinished holds to the session',
   assert.ok(s2.text.includes(r.title),
     `the next dish does not mention the hold still running from ${r.title}: ${s2.text.slice(0, 300)}`);
 
-  // ⚠ ...and it must NOT be dismissible here. It belongs to a dish already recorded, and a
-  // dismiss would silently change a figure this screen does not own.
-  const carriedDismiss = s2.nodes().filter((n) => n.type === 'button' && n.props.onClick
-    && String(n.key || '').startsWith('carried-'));
-  assert.equal(carriedDismiss.length, 0,
-    'a carried hold must be read-only on the next dish, not dismissible');
+  // ⚠ ...and while it is still RUNNING it must not be dismissible: the session debit is
+  // max(0, endsAt - now), so clearing a live hold would move a figure this screen does
+  // not own.
+  const liveDismiss = s2.nodes().filter((n) => n.type === 'button' && n.props.onClick
+    && /Done/.test(textOf(n)) && String(n.key || '').startsWith('carried-'));
+  assert.equal(liveDismiss.length, 0,
+    'a still-running carried hold must not be dismissible on the next dish');
+});
+
+// ⚠ THE FIX FOR A VANISHING TIMER WAS ONE EDIT AWAY FROM A VANISHING TIMER. The first
+// version of the carried-hold rail filtered on `endsAt > now`, so a chill that ended while
+// the cook was on the transition screen was dropped before anything announced it — and
+// carried holds are absent from the local `rung` list too, so no "time's up" ever came.
+// That is the very defect the carry was written to fix, re-created one stage later.
+test('prep session: a carried hold that EXPIRES is still announced, not silently dropped', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+  const expired = { id: 1, cid: '0-1', label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: Date.now() - 60_000, dish: 'Date and almond energy bites' };
+
+  let cleared = 'never called';
+  const s = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(r), onClose() {},
+    prep: { index: 1, count: 2, priorMins: 0, totalMins: 100, onPrepped() {}, carried: [expired], onCarriedDone(cid) { cleared = cid; } },
+  });
+
+  assert.ok(s.text.includes(expired.dish),
+    `an expired carried hold vanished instead of being announced: ${s.text.slice(0, 300)}`);
+  assert.match(s.text, /Time's up/,
+    `an expired carried hold must say so, not just sit there: ${s.text.slice(0, 300)}`);
+
+  // ...and NOW it is dismissible — its debit is already zero, so clearing it moves nothing.
+  // ⚠ Take the button from INSIDE the carried row. The step itself also renders a "✓ Done",
+  // so a whole-tree search by label clicks the wrong control and the assertion below then
+  // fails for a reason that has nothing to do with carried holds.
+  const row = s.nodes().find((n) => String(n.key || '') === `carried-${expired.cid}`);
+  assert.ok(row, 'the expired carried hold did not render its own row');
+  const btn = flattenNode(row).find((n) => n.type === 'button' && n.props.onClick);
+  assert.ok(btn, `a finished carried hold must be acknowledgeable: ${textOf(row)}`);
+  btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(cleared, expired.cid, `acknowledging must clear THAT hold, got ${JSON.stringify(cleared)}`);
+});
+
+// ⚠ `timerIdRef` restarts at 0 in every newly mounted BSCookMode, so two dishes each handing
+// up their first timer both produce id 1. Keyed on the raw id they collide as "carried-1" and
+// React can drop the wrong countdown when one expires.
+test('prep session: carried holds from different dishes get distinct keys', () => {
+  const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+  const mk = (cid, dish) => ({ id: 1, cid, label: 'Rest', gist: 'Rest', total: 600, endsAt: Date.now() + 300_000, dish });
+  const s = drive(MOD.BSCookMode, {
+    cookable: bsCookableFromRecipe(r), onClose() {},
+    prep: {
+      index: 2, count: 3, priorMins: 0, totalMins: 100, onPrepped() {}, onCarriedDone() {},
+      carried: [mk('0-1', 'First dish'), mk('1-1', 'Second dish')],
+    },
+  });
+  const keys = s.nodes().map((n) => String(n.key || '')).filter((k) => k.startsWith('carried-'));
+  assert.equal(keys.length, 2, `both carried holds must render, got ${JSON.stringify(keys)}`);
+  assert.equal(new Set(keys).size, 2, `carried holds collided on key: ${JSON.stringify(keys)}`);
 });
 
 

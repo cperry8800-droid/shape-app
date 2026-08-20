@@ -198,3 +198,29 @@ test('triageChecklist — garbage in, empty out (never throws)', () => {
   assert.deepEqual(triageChecklist(null).open, []);
   assert.deepEqual(triageChecklist([{ items: null }, {}]).counts.open, 0);
 });
+
+// ⚠ AN OPEN OWNER RULING IS OWNER WORK; A CLOSED ONE IS HISTORY. "OWNER RULING NEEDED —
+// tuna macros" landed in the ENG lane: it matches neither the bare `OWNER —` marker nor
+// any verb in OWNER_NAMED, so /console showed an explicitly owner-blocked decision as
+// engineering work. Its NEIGHBOUR routed correctly only by accident — it happens to
+// contain the word "unruled" — so one working example was hiding a broken rule.
+test('classifyWho — an OPEN owner ruling is owner work, a CLOSED one is not', () => {
+  for (const label of [
+    'OWNER RULING NEEDED — tuna macros: the published source figures do not reconcile with the dish as plated',
+    'OWNER DECISION NEEDED — whether the career award key is partitioned by account',
+    'OWNER CALL NEEDED — the third allergen class',
+  ]) {
+    assert.equal(classifyWho({ status: 'pending', label }), 'you', label);
+  }
+
+  // ⚠ AND THE FIRST FIX FOR THIS OVER-CAPTURED. Adding RULING to the case-INSENSITIVE
+  // OWNER_NAMED set routed these to the owner too — prose about a ruling already made.
+  // Uppercase + anchored + a dash is the line between an open ask and a settled record.
+  for (const label of [
+    'Voice is OPT-IN, default OFF (owner ruling)',
+    'The owner ruled C and all 8 rulings are closed, but a closed ruling is not a build signal',
+    'Store copy follows the owner ruling from 2026-07-02',
+  ]) {
+    assert.equal(classifyWho({ status: 'pending', label }), 'eng', label);
+  }
+});

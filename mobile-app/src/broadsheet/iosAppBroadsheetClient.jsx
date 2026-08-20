@@ -7014,7 +7014,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           ))}
         </div>
       )}
-      {(running.length > 0 || rung.length > 0 || (prep?.carried || []).some((x) => x.endsAt > now)) && (
+      {(running.length > 0 || rung.length > 0 || (prep?.carried || []).length > 0) && (
         <div style={{ position: 'relative', marginTop: 12, borderTop: `1px solid ${BAND.hair}`, paddingTop: 10, display: 'grid', gap: 8 }}>
           {running.map((x) => {
             const left = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
@@ -7033,19 +7033,38 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
               </div>
             );
           })}
-          {/* ⚠ HOLDS INHERITED FROM AN EARLIER DISH — read-only, and deliberately NOT in
-              `timers`. That array is what the hand-off button reports upward, so a carried
-              hold entering it would be carried a second time and debited twice. No dismiss
-              either: it belongs to a dish already recorded, and dismissing it here would
-              silently change a figure this screen does not own. */}
-          {(prep?.carried || []).filter((x) => x.endsAt > now).map((x) => {
+          {/* ⚠ HOLDS INHERITED FROM AN EARLIER DISH, and they are NOT in `timers`: that
+              array is what the hand-off button reports upward, so a carried hold entering it
+              would be carried a second time and debited twice.
+              ⚠ AND THEY ARE NOT FILTERED BY `endsAt > now`. The first version of this block
+              was, which re-created the very defect it was written to fix one stage later: a
+              chill that ended while the cook was on the transition screen was dropped before
+              anything announced it, and carried holds are absent from `rung` too, so no
+              "time's up" ever came. A hold now survives until the cook ACKNOWLEDGES it.
+              ⚠ The key carries `cid` (dish-scoped), because `timerIdRef` restarts at 0 in
+              every newly mounted BSCookMode — two dishes each handing up their first timer
+              both produced id 1, so `carried-1` appeared twice and React could drop the
+              wrong countdown. */}
+          {(prep?.carried || []).map((x) => {
             const leftC = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
+            const rangC = x.endsAt <= now;
             return (
-              <div key={`carried-${x.id}`} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, opacity: 0.75 }} aria-live="off">
-                <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  ◷ {x.dish ? `${x.dish} · ` : ''}{x.gist || x.label}
+              <div
+                key={`carried-${x.cid || x.id}`}
+                role={rangC ? 'status' : undefined}
+                aria-live={rangC ? undefined : 'off'}
+                style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, opacity: rangC ? 1 : 0.75 }}
+              >
+                <span style={{ ...bandEyebrow, color: rangC ? heat : BAND.dim, textShadow: rangC ? `0 0 12px ${bsTHexA(heat, 0.5)}` : 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {rangC ? `${tr('cook:timer.up', { defaultValue: "Time's up" })} · ` : '◷ '}{x.dish ? `${x.dish} · ` : ''}{x.gist || x.label}
                 </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 14, fontWeight: 800, color: BAND.dim, fontVariantNumeric: 'tabular-nums', lineHeight: 1, flexShrink: 0 }}>{fmt(leftC)}</span>
+                {/* ⚠ Dismiss appears ONLY once it has finished, and that is safe precisely
+                    because it has: the session debit is max(0, endsAt - now), already zero
+                    for an expired hold, so clearing it cannot move a figure this screen does
+                    not own. While it is still RUNNING there is no dismiss, for that reason. */}
+                {rangC
+                  ? <button onClick={() => prep?.onCarriedDone?.(x.cid || x.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: BAND.cream, flexShrink: 0 }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+                  : <span style={{ fontFamily: t.MONO, fontSize: 14, fontWeight: 800, color: BAND.dim, fontVariantNumeric: 'tabular-nums', lineHeight: 1, flexShrink: 0 }}>{fmt(leftC)}</span>}
               </div>
             );
           })}
@@ -7936,11 +7955,21 @@ function BSPrepSession({ program, onClose }) {
   const onPrepped = (outstanding) => {
     if (prepWroteRef.current === cookIdx) return;
     prepWroteRef.current = cookIdx;
-    if (Array.isArray(outstanding) && outstanding.length) setCarried((arr) => [...arr, ...outstanding]);
+    // ⚠ `cid` is stamped HERE because only the session knows which dish this was.
+    // `timerIdRef` restarts at 0 in every newly mounted BSCookMode, so ids collide across
+    // dishes; `cookIdx` makes them unique for the whole session.
+    if (Array.isArray(outstanding) && outstanding.length) {
+      setCarried((arr) => [...arr, ...outstanding.map((x) => ({ ...x, cid: `${cookIdx}-${x.id}` }))]);
+    }
     writeEntry(ordered[cookIdx]);
     if (cookIdx + 1 >= ordered.length) setStage('wrap');
     else { setCookIdx(cookIdx + 1); setStage('transition'); }
   };
+  // A finished carried hold is cleared only when the cook says so. Safe to drop from
+  // `carried` at that point: the debit it contributes is max(0, endsAt - now), which an
+  // expired hold has already driven to zero, so acknowledging it moves no figure.
+  const onCarriedDone = (cid) => setCarried((arr) => arr.filter((h) => (h.cid || h.id) !== cid));
+
   // The interleaved board records each recipe as its last step completes; a
   // written-key Set guards against a back→forward re-advance double-recording.
   const writtenRef = React.useRef(new Set());
@@ -7971,7 +8000,7 @@ function BSPrepSession({ program, onClose }) {
     }
     if (ordered[cookIdx]) return <BSCookMode
       cookable={ordered[cookIdx].cookable}
-      prep={{ index: cookIdx, count: ordered.length, onPrepped, priorMins: sessionPriorMins, totalMins: sessionTotalMins, carried }}
+      prep={{ index: cookIdx, count: ordered.length, onPrepped, priorMins: sessionPriorMins, totalMins: sessionTotalMins, carried, onCarriedDone }}
       onClose={onClose}
     />;
   }

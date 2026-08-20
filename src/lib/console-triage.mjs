@@ -53,7 +53,19 @@ const OWNER_NAMED_RE = new RegExp(OWNER_NAMED, 'i');
 // "OWNER: confirm the key". Case-SENSITIVE and anchored to the label (or a
 // bullet) on purpose — lowercase "owner-paid" / "product-photography owner
 // item" are prose about the owner, not a task assigned to them.
-const OWNER_MARKER = /(?:^|[·|]\s*)OWNER\s*[—–:-]/;
+// ⚠ WIDENED 2026-08-20 for "OWNER RULING NEEDED — tuna macros", which landed in the ENG
+// lane: it matches neither the bare `OWNER —` form nor any verb in OWNER_NAMED, so an
+// explicitly owner-blocked DECISION was presented to engineering. The neighbouring
+// "OWNER RULING NEEDED — miso, oyster sauce" routed correctly only by ACCIDENT — it
+// happens to contain the word "unruled". One item looked wrong; the RULE was wrong, and
+// the working neighbour was hiding it.
+//
+// ⚠ It belongs HERE and not in OWNER_NAMED, which is case-INSENSITIVE. Adding `RULING`
+// there routed "Voice is OPT-IN, default OFF (owner ruling)" to the owner too — prose
+// describing a ruling already CLOSED. Uppercase + anchored + a dash is what separates an
+// open ask from a record of a settled one, which is why this marker was case-sensitive
+// to begin with.
+const OWNER_MARKER = /(?:^|[·|]\s*)OWNER(?:\s+(?:RULING|DECISION|CALL)\s+NEEDED)?\s*[—–:-]/;
 
 /**
  * @param {{label?: string, status?: string}} item
