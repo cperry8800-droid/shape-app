@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { dailyCheckinOn } from '../src/lib/ai/notifications.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -424,4 +425,41 @@ test('the two new settings keys exist in the en catalog (the parity gate covers 
   const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', 'settings.json'), 'utf8'));
   assert.equal(en['pref.dailyCheckin'], 'Daily check-in');
   assert.equal(en['pref.dailyCheckinDesc'], 'Show the daily check-in prompt on Home');
+});
+
+// ── THE SERVER HALF OF THE SAME PREF ─────────────────────────────────────────
+// The test above proves Settings carries `dailyCheckin` end to end on the CLIENT. This
+// proves the other end: both notify paths must actually READ it and hand it to both
+// consumers. ⚠ Without this the unit tests would still pass with the wiring deleted —
+// they supply `checkinOptedOut` themselves, so they can never see whether a route
+// derives it. That is exactly how this defect shipped: the pref existed, the Home
+// screen honoured it, and nothing server-side ever looked.
+test('both notify routes derive the check-in opt-out and pass it to BOTH consumers', () => {
+  for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
+    const src = readFileSync(join(ROOT, rel), 'utf8');
+    assert.match(src, /readUserGoal\([^)]*'client_settings'\)/, `${rel}: reads the settings doc`);
+    assert.match(
+      src,
+      /const checkinOptedOut = !Notify\.dailyCheckinOn\(settings\.dailyCheckin\)/,
+      `${rel}: derives the flag from the stored value`
+    );
+    // BOTH consumers. candidatesFor stops the nudge being rebuilt; decideNotifications
+    // purges one already HELD by quiet hours or the cap. Either alone leaves a door open.
+    assert.match(src, /candidatesFor\([^;]*checkinOptedOut/, `${rel}: candidatesFor receives it`);
+    assert.match(src, /decideNotifications\(\{[^;]*checkinOptedOut/, `${rel}: decideNotifications receives it`);
+  }
+});
+
+// ⚠ ON IS THE DEFAULT, AND THAT IS A SAFETY PROPERTY, NOT A STYLE CHOICE. An account
+// created before the pref existed has no `dailyCheckin` key at all, and `persistPrefs`
+// declines to write when there is no settings document — so "absent" is a state real
+// members are in. Reading absent as opted-OUT would silently stop a check-in nobody
+// turned off, which is the failure direction that loses trust.
+test('the stored shapes map to the gate the way the settings row writes them', () => {
+  const optedOut = (stored) => !dailyCheckinOn(stored);
+  assert.equal(optedOut('Off'), true, "the row writes the string 'Off'");
+  assert.equal(optedOut(false), true, 'the spec sketch writes the boolean');
+  assert.equal(optedOut('On'), false);
+  assert.equal(optedOut(undefined), false, 'absent must never read as opted out');
+  assert.equal(optedOut({}.dailyCheckin), false, 'an empty settings doc is opted IN');
 });

@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   }
 
   const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut });
-  const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience });
+  const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut });
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one
   // transaction, so we must choose a failure direction: writing state first means

@@ -80,7 +80,7 @@ async function run(request: Request) {
     const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
 
     const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut });
-    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience });
+    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut });
     const items = digest ? [...send, digest] : send;
     if (items.length) { await deliver(admin, userId, items); delivered += items.length; }
     await writeUserGoal(admin, userId, 'notify_state', nextState);

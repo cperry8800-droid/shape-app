@@ -309,3 +309,66 @@ test('opting out of the check-in silences ONLY the check-in', () => {
   assert.ok(types.includes('streak_broken'), `an unrelated flag was lost: ${types.join(',')}`);
   assert.ok(types.includes('coach_message'), `a coach message was lost: ${types.join(',')}`);
 });
+
+// ⚠ MY "TWO DOORS" WAS ITSELF AN UNDERCOUNT. Codex found a THIRD and a FOURTH, and the
+// third is the HIGHEST-PRIORITY one: `checkin_overdue` carries directive priority 100 in
+// dashSignals (escalating with missedWeeks), so buildDirective selects it as the ONE move
+// and emits a high-priority "Send your weekly check-in" through the `directive` candidate —
+// which the checkin_due gate never touched. Gating the obvious door left the loudest open.
+const CHECKIN_DIRECTIVE = {
+  verdict: 'Check-in due',
+  reason: 'Check-in 2w late',
+  action: { label: 'Send your weekly check-in', kind: 'check_in' },
+  read: { summary30d: '', oneThingNow: 'Send your weekly check-in' },
+  cited: ['checkin_overdue'],
+  line: 'Check-in due. Send your weekly check-in.',
+};
+
+test('opting out suppresses the check-in DIRECTIVE, not only the checkin_due nudge', () => {
+  const base = { flags: [], checkinDueThisWeek: false, tone: 'supportive' };
+  // Pref ON — the directive is the one move, exactly as today.
+  assert.equal(clientCandidates({ ...base, directive: CHECKIN_DIRECTIVE }).length, 1);
+  // Pref OFF — the loudest door closes too.
+  assert.deepEqual(clientCandidates({ ...base, directive: CHECKIN_DIRECTIVE, checkinOptedOut: true }), []);
+  // ⚠ ...and an UNRELATED directive still arrives. Suppressing every directive because
+  // one KIND of it is a check-in would silence the whole "one move" feature.
+  const other = clientCandidates({ ...base, directive: SLEEP_DIRECTIVE, checkinOptedOut: true });
+  assert.equal(other.length, 1, 'an unrelated directive was lost to the check-in opt-out');
+  assert.equal(other[0].type, 'directive');
+});
+
+test('a directive carries its move kind, so a HELD copy stays identifiable', () => {
+  // The held-item purge below cannot key on copy — wording is translated and edited. The
+  // action kind is the stable identity, so it is stamped when the candidate is built.
+  const [d] = clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], tone: 'supportive' });
+  assert.equal(d.data.move, 'check_in');
+  const [s] = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  assert.equal(s.data.move, 'recovery');
+});
+
+// ⚠ THE FOURTH DOOR IS A STORED ONE. An item held by quiet hours or the daily cap lives in
+// last.pendingDigest, and decideNotifications re-emits held items at the next non-quiet run
+// WITHOUT rechecking any preference. Suppressing at the candidate stops it being rebuilt and
+// does nothing about the copy already queued, so the next cron could still deliver "your
+// weekly check-in is ready" AFTER the member opted out.
+test('opting out purges check-in items already HELD in the digest', () => {
+  const held = [
+    { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { push: true } },
+    { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: { move: 'check_in' }, priority: 'high', channels: { push: true } },
+    { type: 'coach_message', title: 'Sam sent a message', body: 'nice work', route: 'chat', data: {}, priority: 'high', channels: { push: true } },
+  ];
+  const last = { date: 'never', pendingDigest: held };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  const titles = (out.digest ? [out.digest] : []).concat(out.send).map((i) => `${i.title} ${i.body}`).join(' | ');
+  assert.ok(!/Check-in ready/.test(titles), `a held checkin_due survived the opt-out: ${titles}`);
+  assert.ok(!/Send your weekly check-in/.test(titles), `a held check-in directive survived the opt-out: ${titles}`);
+  // ⚠ ...and the unrelated held item is still delivered — the queue is filtered, not dropped.
+  assert.ok(/Sam sent a message/.test(titles), `an unrelated held item was lost: ${titles}`);
+
+  // Pref ON — every held item still comes through, byte-identical to today.
+  const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
+  const onTitles = (on.digest ? [on.digest] : []).concat(on.send).map((i) => `${i.title} ${i.body}`).join(' | ');
+  assert.ok(/Check-in ready/.test(onTitles), `the opt-out leaked into the default path: ${onTitles}`);
+});

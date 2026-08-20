@@ -163,16 +163,37 @@ function sanitize(copy) {
 // app and the notifications disagree about what the member asked for.
 export function dailyCheckinOn(v) { return v !== false && v !== 'Off'; }
 
+// A notification that IS the weekly check-in nudge, in EITHER shape it can take: the
+// dedicated `checkin_due` candidate, or the ONE move when the engine's top flag was
+// `checkin_overdue`. Keyed on the type and the stamped move kind — never on copy, which
+// is translated and edited.
+export function isCheckinItem(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (item.type === 'checkin_due') return true;
+  return item.type === 'directive' && !!item.data && item.data.move === 'check_in';
+}
+
 // CLIENT — from a directive + evaluateClient flags + check-in state + coach events.
 export function clientCandidates(input) {
   const { directive, flags = [], checkinDueThisWeek, checkinOptedOut = false, coachEvents = [], goals = [], tone } = input;
   const out = [];
 
   // (AI2) the ONE move — only when it's actionable (not a green/on-track read).
+  // ⚠ THIS IS THE LOUDEST CHECK-IN DOOR, and the easiest to miss. `checkin_overdue` carries
+  // the HIGHEST directive priority in the engine (100, escalating with missedWeeks), so for
+  // an overdue member the ONE move IS "send your weekly check-in" — a high-priority
+  // notification that the `checkin_due` gate below never touches. Suppressed on the ACTION
+  // KIND, which maps 1:1 to the checkin lever, so unrelated directives are untouched: the
+  // member opted out of a check-in, not out of being told the one thing to do today.
+  // ⚠ The move kind is STAMPED into `data` because a deferred copy of this item outlives
+  // this function, and the digest purge cannot key on copy — wording is translated.
   if (directive && directive.action && nonEmpty(directive.action.label)) {
-    const line = nonEmpty(directive.line) ? directive.line : '';
-    const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
-    out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason } });
+    const moveKind = directive.action.kind || '';
+    if (!(checkinOptedOut && moveKind === 'check_in')) {
+      const line = nonEmpty(directive.line) ? directive.line : '';
+      const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
+      out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind } });
+    }
   }
 
   const byKey = {};
@@ -269,7 +290,7 @@ export function habitReminderCandidates(input) {
 // ── the gate: dedup → opt-out → quiet hours / cap → digest ──────────────────
 // candidates: from clientCandidates / coachCandidates. Returns the immediate
 // sends, a single optional digest, the per-channel hints, and the nextState.
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client' }) {
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   const today = ymd(now, P.tz);
   const state = {
@@ -277,7 +298,12 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     sentToday: last.date === today ? (last.sentToday || 0) : 0,
     types: { ...(last.types || {}) },
     coachClients: { ...(last.coachClients || {}) },
-    pendingDigest: Array.isArray(last.pendingDigest) ? last.pendingDigest.slice() : [],
+    // ⚠ A HELD ITEM OUTLIVES THE PREFERENCE THAT ALLOWED IT. Anything deferred by quiet
+    // hours or the daily cap sits here across runs and is re-emitted WITHOUT being rebuilt,
+    // so a check-in queued before the member opted out would still be delivered after.
+    // Suppressing at the candidate stops the rebuild and does nothing about the queue.
+    pendingDigest: (Array.isArray(last.pendingDigest) ? last.pendingDigest : [])
+      .filter((i) => !(checkinOptedOut && isCheckinItem(i))),
   };
 
   // Master mute — the authoritative kill switch.
