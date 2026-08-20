@@ -276,10 +276,25 @@ changelog whenever something ships.
   ruling says does not exist is the one Codex has always left, and it names the commit.
 - **`codexPresent` → `codexVerdict`**, head-pinned: `clean` · `findings` · `stale` ·
   `none`. It reads the commit from the body in both shapes Codex reports in, by prefix
-  with a **7-character floor**. Findings on the head **outrank** a clean marker on it,
-  exactly as a cap notice outranks a zero-marker in `coderabbitVerdict`. Anything that
-  cannot be pinned to this head is `stale` — **fail closed and loud**, because the board
-  can then ask for a re-trigger, where the old behaviour merged silently.
+  with a **7-character floor**. Anything that cannot be pinned to this head is `stale` —
+  **fail closed and loud**, because the board can then ask for a re-trigger, where the
+  old behaviour merged silently.
+- **LATEST WINS for a head, and "findings always outrank clean" was a trap.** Refuting a
+  finding and re-triggering *without a new commit* is a routine round, and then the
+  findings review and the clean comment that cleared it name the **same** head. Treating
+  any past finding on a SHA as permanent jams the gate forever on a head Codex has
+  explicitly passed — fail-closed becoming **fail-closed-forever**. Same-head records are
+  ordered by timestamp and the newest decides. ⚠ Findings still win where order **cannot**
+  be established (equal stamps, or records carrying none): the conservative reading is the
+  **fallback**, not the rule.
+- ⚠ **A RECORD CAP ON A LATEST-WINS GATE IS A CORRECTNESS BUG, NOT A LATENCY TRADE.** These
+  endpoints paginate **oldest-first** and take no direction parameter, so the newest record
+  is on the LAST page. The first version of this change capped at five pages and asserted
+  in its own comment that missing records could only read `stale` — **that claim was false,
+  and Codex refuted it**: reviews and comments are fetched separately, so a clean COMMENT
+  inside the window can outlive a later findings REVIEW outside it and report a **false
+  pass**. Pagination now runs to exhaustion via the `Link` header, and hitting the safety
+  bound **throws** rather than returning a short list, so truncation can never be silent.
 - ⚠ **THE NET EFFECT IS STRICTER, NOT LOOSER — verified on the LIVE CORPUS, not
   fixtures.** Replaying real GitHub records through the shipped function returns `clean`
   for six PRs and **`stale` for #1910 and #1911**. #1910 is the case the records already

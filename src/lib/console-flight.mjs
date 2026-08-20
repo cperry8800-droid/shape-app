@@ -144,6 +144,29 @@ const CODEX_COMMIT_RE = /reviewed\s+commit:?\**\s*`?([0-9a-f]{7,40})`?/i;
 const CODEX_CLEAN_RE = /find any major issues/i;
 
 /**
+ * The `rel="next"` URL from a GitHub `Link` header, or null when there is none.
+ *
+ * ⚠ THE ONLY AUTHORITY ON WHETHER MORE PAGES EXIST. These endpoints paginate
+ * oldest-first and take no direction parameter, so the NEWEST record — the one a
+ * latest-wins gate depends on — is on the LAST page. A record cap is therefore not a
+ * latency trade, it is a correctness bug: cap the reviews and the comments separately
+ * and a clean comment inside the window can outlive a later findings review outside
+ * it, which reports `clean` and marks a PR ready. That is a FALSE PASS, and it is the
+ * direction an earlier version of this file wrongly claimed was impossible.
+ * @param {string | null | undefined} link
+ * @returns {string | null}
+ */
+export function nextPageUrl(link) {
+  for (const part of String(link || '').split(',')) {
+    // ⚠ The relation needs a boundary: `"?next"?` also matches rel="nextish" and would
+    // walk to a page that is not the next one.
+    const m = /<([^>]+)>\s*;\s*rel\s*=\s*(?:"next"|next\b)/i.exec(part);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+/**
  * Codex verdict for THIS head — the gate.
  *
  * ⚠ REPLACES `codexPresent`, whose presence-not-freshness rule rested on a premise

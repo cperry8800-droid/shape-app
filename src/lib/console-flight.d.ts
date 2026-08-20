@@ -16,6 +16,8 @@ export function coderabbitVerdict(args: {
   headSha?: string;
 }): CoderabbitVerdict;
 
+export function nextPageUrl(link: string | null | undefined): string | null;
+
 export function codexVerdict(args: {
   reviews?: Array<{
     user?: { login?: string };

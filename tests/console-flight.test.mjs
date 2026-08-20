@@ -6,6 +6,7 @@ import {
   gateFromRuns,
   coderabbitVerdict,
   codexVerdict,
+  nextPageUrl,
   prAllGreen,
 } from '../src/lib/console-flight.mjs';
 
@@ -306,4 +307,33 @@ test('prAllGreen — CodeRabbit does NOT gate, whatever its verdict', () => {
     assert.equal(prAllGreen({ ...base, coderabbit: v }), true,
       'CodeRabbit verdict ' + JSON.stringify(v) + ' must not decide the gate');
   }
+});
+
+// ⚠ A RECORD CAP ON A LATEST-WINS GATE IS A CORRECTNESS BUG, NOT A LATENCY TRADE.
+// Reviews and comments are fetched separately, so a five-page ceiling could keep a clean
+// COMMENT for the head while the later findings REVIEW fell outside the reviews window —
+// reporting 'clean' and marking the PR ready. The first version of this change asserted in
+// its own comment that missing records could only ever read 'stale'. That claim was FALSE,
+// and Codex refuted it. Pagination now runs to exhaustion, and the Link header is the only
+// thing that knows where the end is.
+test('nextPageUrl — follows rel=next and stops when there is none', () => {
+  const nxt = '<https://api.github.com/x?page=2>; rel="next", <https://api.github.com/x?page=9>; rel="last"';
+  assert.equal(nextPageUrl(nxt), 'https://api.github.com/x?page=2');
+
+  // The LAST page carries prev/first and no next — this is the terminating condition.
+  const end = '<https://api.github.com/x?page=8>; rel="prev", <https://api.github.com/x?page=1>; rel="first"';
+  assert.equal(nextPageUrl(end), null);
+
+  // ⚠ Absent header must terminate, not loop: a single-page response has no Link at all.
+  assert.equal(nextPageUrl(''), null);
+  assert.equal(nextPageUrl(null), null);
+  assert.equal(nextPageUrl(undefined), null);
+
+  // "nextish" rels must not match — only the exact relation ends the walk correctly.
+  assert.equal(nextPageUrl('<https://api.github.com/x?page=2>; rel="nextish"'), null);
+  // ...and whitespace variants that GitHub is entitled to emit still parse.
+  assert.equal(
+    nextPageUrl('<https://api.github.com/x?page=3> ;  rel = "next"'),
+    'https://api.github.com/x?page=3'
+  );
 });

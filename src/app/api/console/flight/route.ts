@@ -16,6 +16,7 @@ import {
   gateFromRuns,
   coderabbitVerdict,
   codexVerdict,
+  nextPageUrl,
   prAllGreen,
 } from '@/lib/console-flight.mjs';
 import type { Flight, FlightPr, Gate } from '@/app/console/flight-types';
@@ -43,22 +44,43 @@ async function gh(path: string, token: string): Promise<unknown> {
   return res.json();
 }
 
-// ⚠ GITHUB RETURNS THE OLDEST PAGE FIRST, and neither of these endpoints takes a
-// direction parameter. On a PR past 100 comments the NEWEST Codex verdict sits on a
-// later page, so a single `per_page=100` request would hand a head-pinned gate only
-// the old records and it would read 'stale' forever. Follow pages until a short one.
-// The cap bounds the board's latency; beyond it records are missed, and the failure
-// direction of missing them is 'stale' — closed, never a false pass.
-const GH_PAGE_CAP = 5;
+// One page, plus the `Link` header that says whether another exists. `gh` stays for
+// single-object endpoints, which have no pagination to follow.
+async function ghPage(url: string, token: string): Promise<{ items: unknown[]; next: string | null }> {
+  const res = await fetch(url, {
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/vnd.github+json',
+      'user-agent': 'shape-mission-control',
+    },
+    signal: AbortSignal.timeout(8000),
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`github ${res.status} on ${url}`);
+  const body = (await res.json()) as unknown;
+  return { items: Array.isArray(body) ? body : [], next: nextPageUrl(res.headers.get('link')) };
+}
+
+// ⚠ RUNS TO EXHAUSTION, AND HITTING THE BOUND THROWS RATHER THAN RETURNING A SHORT LIST.
+// These endpoints paginate OLDEST-FIRST and take no direction parameter, so the newest
+// record — the one a latest-wins gate reads — is on the LAST page. An earlier version of
+// this file capped at five pages and asserted in its own comment that missing records
+// could only ever read 'stale'. ⚠ THAT WAS FALSE: reviews and comments are fetched
+// separately, so a clean COMMENT inside the window can outlive a later findings REVIEW
+// outside it, and the gate then reports a FALSE PASS. A truncated list must therefore
+// never be returned — the throw degrades this PR's gates to 'none' in the caller, which
+// is closed. The bound exists only so a malformed `Link` cycle cannot hang the board.
+const GH_PAGE_LIMIT = 50;
 async function ghAll(path: string, token: string): Promise<unknown[]> {
+  const sep = path.includes('?') ? '&' : '?';
+  let url: string | null = `https://api.github.com${path}${sep}per_page=100`;
   const out: unknown[] = [];
-  for (let page = 1; page <= GH_PAGE_CAP; page++) {
-    const sep = path.includes('?') ? '&' : '?';
-    const chunk = (await gh(`${path}${sep}per_page=100&page=${page}`, token)) as unknown[];
-    if (!Array.isArray(chunk) || chunk.length === 0) break;
-    out.push(...chunk);
-    if (chunk.length < 100) break;
+  for (let i = 0; i < GH_PAGE_LIMIT && url; i++) {
+    const page = await ghPage(url, token);
+    out.push(...page.items);
+    url = page.next;
   }
+  if (url) throw new Error(`github pagination exceeded ${GH_PAGE_LIMIT} pages on ${path}`);
   return out;
 }
 
