@@ -49,6 +49,11 @@ export const BS_ORCH = {
   // because a caller that prints the serve time needs to know whether it is a PROOF of the
   // earliest or the best of a sample - see `exact` on the SERVE result.
   orderSearchMax: 6,
+  // How many times the earliest-serve search may step T later before it gives up and
+  // falls back to the serial bound. Published for the same reason as the bound above --
+  // and read at CALL time, so the fallback below is reachable in a test without building
+  // a 500-step recipe.
+  serveSearchMax: 512,
 };
 
 const STATIONS_EXCLUSIVE = ['oven', 'stove', 'board']; // 'off' (rest/chill) ties up nothing
@@ -369,8 +374,28 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // so it read as handled rather than impossible.
   let earliest = longest;
   let feas = bestPlacement(rs, activeMin, earliest, kitchen);
-  for (let guard = 0; guard < 512 && !feas.feasible; guard++) {
+  for (let guard = 0; guard < BS_ORCH.serveSearchMax && !feas.feasible; guard++) {
     earliest += feas.deficit;
+    feas = bestPlacement(rs, activeMin, earliest, kitchen);
+  }
+  // ⚠ THE GUARD ABOVE BOUNDS ITERATIONS, NOT MINUTES, and each step advances by the real
+  // shortfall -- which MEASURED on two n-step hands-on dishes is exactly one step per
+  // iteration, so the search needs n iterations. Past the bound it used to fall out still
+  // infeasible, and everything below then read an infeasible placement: `placed` is
+  // undefined, so the sheet got an EMPTY timeline beside a serveAt that cannot be reached.
+  // Silent -- no issue, no throw, just no plan.
+  //
+  // Cooking every dish end to end always fits, so the sum of the durations is a serial
+  // upper bound that is feasible by construction. Reproduced with the bound lowered to 8:
+  // two 16-step dishes returned 0 events at an unreachable 24, and return all 32 events at
+  // 32 with this. Costs one extra placement, and only on a path that was already broken.
+  //
+  // ⚠ It is REACHABLE only far outside real data -- it needs a recipe past
+  // BS_ORCH.serveSearchMax steps, where the catalog's largest is 8, and the search is
+  // already ~17s at 320. This makes the failure honest, it does not make that session
+  // usable.
+  if (!feas.feasible) {
+    earliest = durs.reduce((sum, d) => sum + d, 0);
     feas = bestPlacement(rs, activeMin, earliest, kitchen);
   }
 

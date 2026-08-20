@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsOrchestrate, BS_COOK_MODE, bsHoldingAt, BS_ORCH, bsProgressPct } from '../mobile-app/src/services/cookOrchestrator.mjs';
+import { bsOrchestrate, BS_COOK_MODE, bsHoldingAt, BS_ORCH, BS_SERVE_ISSUE, bsProgressPct } from '../mobile-app/src/services/cookOrchestrator.mjs';
 
 // station shorthand
 const A = (station = null) => ({ min: null, passive: false, station }); // active
@@ -358,8 +358,8 @@ test('serve mode: a pull names the resource that caused it — the cook is not a
   // kitchen, only the one pair of hands can clash.
   const roomy = bsOrchestrate(dishes, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen: { stove: 99, oven: 99, board: 99 } });
   assert.ok(roomy.spread > 0, 'guard the guard: with no clash at all this test proves nothing');
-  assert.ok(roomy.issues.includes('cook'), `a cook clash must be reported: ${JSON.stringify(roomy.issues)}`);
-  assert.ok(!roomy.issues.includes('stations'),
+  assert.ok(roomy.issues.includes(BS_SERVE_ISSUE.COOK), `a cook clash must be reported: ${JSON.stringify(roomy.issues)}`);
+  assert.ok(!roomy.issues.includes(BS_SERVE_ISSUE.STATIONS),
     `no station can be busy in an unlimited kitchen, so "stations" is the wrong reason: ${JSON.stringify(roomy.issues)}`);
 
   // And the honest whole-plan invariant, across both arms: SOME pull is reported exactly
@@ -367,12 +367,71 @@ test('serve mode: a pull names the resource that caused it — the cook is not a
   for (const kitchen of [{ stove: 1 }, { stove: 2 }, { stove: 3 }, { stove: 99, oven: 99, board: 99 }]) {
     for (const set of [HOBS, dishes]) {
       const base = bsOrchestrate(set, { ...OPTS, mode: BS_COOK_MODE.SERVE, kitchen });
+      // ⚠ `undefined + off` is NaN, and serveTimeline treats a non-finite serveAt as
+      // "no time asked for" -- so every iteration below would silently re-test the
+      // earliest plan and the equality could hold for a plan this loop never chose.
+      assert.ok(Number.isFinite(base.earliestServe),
+        `serve mode must report a numeric earliestServe: ${JSON.stringify(base.earliestServe)}`);
       for (const off of [0, 9, 60]) {
         const o = bsOrchestrate(set, { ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: base.earliestServe + off, kitchen });
-        const pulled = o.issues.includes('stations') || o.issues.includes('cook');
+        const pulled = o.issues.includes(BS_SERVE_ISSUE.STATIONS) || o.issues.includes(BS_SERVE_ISSUE.COOK);
         assert.equal(pulled, o.spread > 0,
           `a reported pull and food landing apart are the same fact (stove ${kitchen.stove}, +${off}): ${JSON.stringify(o.issues)} vs spread ${o.spread}`);
       }
     }
+  }
+});
+
+// The earliest-serve search steps T later until a feasible placement exists, bounded by
+// BS_ORCH.serveSearchMax iterations. MEASURED: on two n-step hands-on dishes the shortfall
+// advances exactly one step per iteration, so the search needs n of them -- the bound is an
+// ITERATION count, not a minute count, and a long enough session exhausts it.
+//
+// It used to fall out of that loop still infeasible and let everything downstream read an
+// infeasible placement, whose `placed` is undefined: the sheet got an EMPTY timeline beside
+// a serveAt it could never reach, with no issue raised and nothing thrown.
+//
+// The bound is lowered here rather than building a 500-step recipe, because the catalog's
+// largest is 8 and the honest version of this test runs for minutes. What is exercised is
+// the real code path: the search genuinely runs out, and the serial fallback answers.
+test('serve mode: a search that runs out of steps still returns a plan the cook can run', () => {
+  const dish = (key, n) => ({
+    key, title: key,
+    steps: Array.from({ length: n }, (_, i) => `Stir step ${i + 1} for 1 minute.`),
+    stepMeta: Array.from({ length: n }, () => ({ min: 1, passive: false, station: 'stove' })),
+  });
+  const N = 16;
+  const rs = [dish('A', N), dish('B', N)];
+  const kitchen = { stove: 1, oven: 1, board: 1 };
+
+  const prev = BS_ORCH.serveSearchMax;
+  try {
+    // Guard the guard: with room to converge the search answers on its own, so a fallback
+    // that quietly took over every plan would still pass the assertions below.
+    BS_ORCH.serveSearchMax = prev;
+    const converged = bsOrchestrate(rs, { mode: BS_COOK_MODE.SERVE, kitchen });
+    assert.equal(converged.timeline.length, 2 * N, 'the unbounded search must place every step');
+
+    BS_ORCH.serveSearchMax = 8;   // fewer than the N iterations this session needs
+    const plan = bsOrchestrate(rs, { mode: BS_COOK_MODE.SERVE, kitchen });
+
+    // One cook, one stove, no passive windows: the dishes can only run end to end, so the
+    // earliest they can all be ready is the sum of their durations.
+    assert.equal(plan.timeline.length, 2 * N,
+      'a search that ran out must still return every step, not an empty timeline');
+    assert.equal(plan.earliestServe, 2 * N,
+      `earliest serve must be reachable (${2 * N}); got ${plan.earliestServe}`);
+    assert.equal(plan.earliestServe, converged.earliestServe,
+      'the fallback must agree with the search that had room to converge');
+
+    // ...and the returned plan must actually obey the one cook: no two hands-on steps
+    // overlapping. An empty timeline would pass a "no overlap" check vacuously.
+    const spans = plan.timeline.map((e) => [e.at, e.at + (e.min || 0)]).sort((a, b) => a[0] - b[0]);
+    for (let i = 1; i < spans.length; i++) {
+      assert.ok(spans[i][0] >= spans[i - 1][1],
+        `two hands-on steps overlap at ${spans[i][0]} — one cook cannot be in two places`);
+    }
+  } finally {
+    BS_ORCH.serveSearchMax = prev;
   }
 });

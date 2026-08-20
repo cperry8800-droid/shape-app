@@ -111,7 +111,7 @@
   "prep.serveTooSoon": "No da tiempo — lo antes que pueden estar todos listos es {t}",
   "prep.soonest": "Cocinar al mismo tiempo",
   "prep.serveGap": "Con {n} min de diferencia",
-  "prep.soonestSub": "Todo a la vez: sales antes de la cocina",
+  "prep.soonestSub": "Todo a la vez: sales de la cocina lo antes posible",
   "prep.startAt": "Empiezas a cocinar a las {t}",
   "prep.useEarliest": "Usar {t}",
   "prep.startsIn": "Empieza en {n} min",
