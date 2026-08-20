@@ -928,6 +928,104 @@ test('prep session: the wrap runs NO heartbeat once nothing is left to count', (
   });
 });
 
+// ⚠ THE MISS WAS ONE PROP AWAY FROM THE FIX. `carriedDebit` is computed in BSPrepSession
+// off its render-time `sessionNow` and handed down as a finished number — but the parent
+// does not re-render during a dish, so the debit it computed at the handoff is the debit
+// the whole next dish sees. The component's own comment states the intent it fails to
+// deliver: "the debit shrinks with the clock and expires by itself".
+//
+// Consequence: the session figure under-reads by the carried hold's whole remaining
+// duration for as long as that hold runs — up to ~30 of 100 minutes on a real chill — and
+// only snaps right when something else re-renders the parent.
+//
+// ⚠ AND UNLIKE THE WRAP, RE-RENDERING HERE IS HONEST. BSCookMode runs its own second-hand
+// (`setTick` every 1000ms), so production genuinely re-renders this component every second;
+// a test that calls `render()` is reproducing what really happens, not supplying what
+// production forgot. The debit therefore belongs on THIS side of the prop, where the clock
+// already ticks.
+function withMovableClock(fn) {
+  const realNow = Date.now;
+  let clock = new Date(2026, 5, 15, 12, 0, 0, 0).getTime();
+  Date.now = () => clock;
+  try { return fn({ now: () => clock, at: (ms) => { clock = ms; } }); } finally { Date.now = realNow; }
+}
+
+test('prep session: the session figure credits a carried hold AS IT WINDS DOWN', () => {
+  withMovableClock((clock) => {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+    assert.ok(r, 'the catalog has no cookable recipe — this test cannot run');
+    // A 20-minute chill carried out of the previous dish, against a 100-minute session
+    // whose prior dishes are worth 40 authored minutes.
+    const carried = [{ id: 1, cid: '0-1', label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() + 20 * MIN, dish: 'The previous dish' }];
+    const s = drive(MOD.BSCookMode, {
+      cookable: bsCookableFromRecipe(r), onClose() {},
+      prep: { index: 1, count: 2, priorMins: 40, totalMins: 100, onPrepped() {}, carried, onCarriedDone() {} },
+    });
+    const pct = () => {
+      const m = /(\d+)% done/.exec(s.text);
+      assert.ok(m, `no session figure rendered at all: ${s.text.slice(0, 300)}`);
+      return Number(m[1]);
+    };
+
+    const atHandoff = pct();
+    clock.at(clock.now() + 10 * MIN);   // ten minutes of the chill have run off
+    s.render();                          // ...which the real second-hand does every second
+    const tenMinutesIn = pct();
+
+    assert.ok(tenMinutesIn > atHandoff,
+      `the carried hold wound down ten minutes and the session figure did not move (${atHandoff}% → ${tenMinutesIn}%). The debit is a number computed by a component with no clock.`);
+
+    // ...and it must arrive at the FULL credit once the hold has rung, not merely drift up.
+    clock.at(carried[0].endsAt + MIN);
+    s.render();
+    assert.equal(pct(), 40,
+      `once the carried hold has rung, the prior dishes are fully credited: expected 40%, got ${pct()}%`);
+  });
+});
+
+// ⚠ AND THE TEST ABOVE CANNOT SEE THE OTHER HALF. It mounts BSCookMode and supplies
+// `priorMins` itself, so it passes whether or not BSPrepSession ALSO still subtracts the
+// debit — and subtracting on both sides would charge a carried hold twice, under-reading
+// worse than the frozen figure it replaced. The parent's half needs its own assertion, and
+// the honest one compares two identical walks that differ ONLY in whether a hold was
+// carried: the credit handed down must not move.
+test('prep session: the prior-dish credit handed down is RAW — the debit is never charged twice', () => {
+  withMovableClock((clock) => {
+    const pair = cookables.slice(0, 2);
+    assert.equal(pair.length, 2, 'need two cookable recipes to have a PRIOR dish at all');
+    const program = [{ meals: pair.map((r, i) => ({ id: `d${i}`, slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 })) }];
+
+    // Walk both dishes of a SEQUENTIAL session, handing `outstanding` up at the first one,
+    // and report the prior-dish credit the second dish is handed.
+    const creditAtSecondDish = (outstanding) => {
+      const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+      for (const m of program[0].meals) s.click(m.title, pressable);
+      s.click('Merge the mise');
+      s.clickKey('sequence');          // the serial path — the one that carries holds forward
+      s.click('Start the session');
+      s.click('Start this recipe');
+      const first = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
+      assert.ok(first, 'the session never reached a cook surface for the FIRST dish');
+      first.props.prep.onPrepped(outstanding);
+      s.render();
+      s.click('Start this recipe');
+      const second = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
+      assert.ok(second, 'the session never reached a cook surface for the SECOND dish');
+      assert.equal(second.props.prep.index, 1, 'the session did not advance to the second dish');
+      return second.props.prep.priorMins;
+    };
+
+    const hold = { id: 1, label: 'Chill 30 minutes', gist: 'Chill 30 minutes', total: 1800, endsAt: clock.now() + 20 * MIN, dish: pair[0].title };
+    const withNothingCarried = creditAtSecondDish([]);
+    const withALiveHold = creditAtSecondDish([hold]);
+
+    assert.ok(withNothingCarried > 0,
+      `guard the guard: the first dish must be worth some minutes, got ${withNothingCarried}`);
+    assert.equal(withALiveHold, withNothingCarried,
+      `the prior-dish credit handed down changed when a hold was carried (${withNothingCarried} → ${withALiveHold}). The parent is applying the debit as well as BSCookMode, so a carried hold is charged twice.`);
+  });
+});
+
 
 // ---------------------------------------------------------------------------------------
 // HOW LONG A STEP TAKES IS NOT WHETHER THE COOK MAY LEAVE DURING IT. The engine conflated

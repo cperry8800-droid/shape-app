@@ -6939,8 +6939,18 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // dish otherwise sees only the dish in front of them and cannot tell whether the
   // evening is nearly over. Absent for a solo cook, where "the session" is this recipe.
   const overallPct = hasMethod ? bsProgressPct(stepMins, visited, unearnedSolo) : null;
+  // ⚠ THE CARRIED DEBIT IS COMPUTED HERE, NOT HANDED DOWN. A hold still running from an
+  // earlier dish is time that has not actually elapsed, so it is owed back against those
+  // dishes' credit — and it shrinks every second. BSPrepSession hands this component the
+  // screen and then does not re-render until the session advances, so a debit IT computed
+  // would freeze at the handoff and this figure would under-read by that hold's whole
+  // remaining duration for the length of the next dish. `now` above is the value the 1s
+  // heartbeat refreshes, so the credit shrinks with the clock the way the carry has always
+  // been documented to: "the debit shrinks with the clock and expires by itself".
+  const carriedDebit = (prep && Array.isArray(prep.carried) ? prep.carried : [])
+    .reduce((n, h) => n + Math.max(0, (h.endsAt - now) / 60000), 0);
   const sessionPct = (prep && typeof prep.totalMins === 'number' && prep.totalMins > 0)
-    ? Math.max(0, Math.min(100, Math.round((((prep.priorMins || 0) + doneMins) / prep.totalMins) * 100)))
+    ? Math.max(0, Math.min(100, Math.round(((Math.max(0, (prep.priorMins || 0) - carriedDebit) + doneMins) / prep.totalMins) * 100)))
     : null;
   // Allergen claim notes — ONE definition, rendered on EVERY phase a member can
   // reach the food from. It used to live only in the mise, below the `Resume at
@@ -7762,8 +7772,10 @@ function BSPrepSession({ program, onClose }) {
   // Holds handed up by dishes already behind us, still running. Their minutes are counted in
   // `dishMins` as though they had elapsed, so they are subtracted until they actually do —
   // a debit that decays to nothing on its own rather than a flag someone has to clear.
-  const carriedDebit = carried.reduce((n, h) => n + Math.max(0, (h.endsAt - sessionNow) / 60000), 0);
-  const sessionPriorMins = Math.max(0, dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0) - carriedDebit);
+  // ⚠ RAW, UNDEBITED — the carried debit is applied by BSCookMode, which owns a
+  // second-hand. Subtracting it here computed it against a clock that stops the moment this
+  // component hands over the screen, freezing the figure for the whole of the next dish.
+  const sessionPriorMins = dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0);
   const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
   // The board's allergen claim notes. BSCookMode's own mise block CANNOT carry
   // them here: a prep-session candidate is filtered on `c.steps.length`, so
