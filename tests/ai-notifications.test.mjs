@@ -361,14 +361,20 @@ test('opting out purges check-in items already HELD in the digest', () => {
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
 
   const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
-  const titles = (out.digest ? [out.digest] : []).concat(out.send).map((i) => `${i.title} ${i.body}`).join(' | ');
-  assert.ok(!/Check-in ready/.test(titles), `a held checkin_due survived the opt-out: ${titles}`);
-  assert.ok(!/Send your weekly check-in/.test(titles), `a held check-in directive survived the opt-out: ${titles}`);
-  // ⚠ ...and the unrelated held item is still delivered — the queue is filtered, not dropped.
-  assert.ok(/Sam sent a message/.test(titles), `an unrelated held item was lost: ${titles}`);
+  assert.ok(out.digest, 'the unrelated held item should still produce a digest');
+  // ⚠ ASSERT ON data.items, NOT ON THE COPY. The digest body joins item TITLES, so a held
+  // directive's "Send your weekly check-in" lives only in its BODY and never appears in
+  // the digest text — an assertion on that string passes whether or not the purge works.
+  // Mutation-testing caught exactly that: deleting the directive branch of isCheckinItem
+  // left this test green.
+  const kinds = out.digest.data.items.map((i) => `${i.type}:${(i.data && i.data.move) || ''}`);
+  assert.deepEqual(kinds, ['coach_message:'],
+    `the purge kept or dropped the wrong held items: ${JSON.stringify(kinds)}`);
+  assert.equal(out.digest.title, '1 update for you', 'the digest count must reflect the purge');
 
   // Pref ON — every held item still comes through, byte-identical to today.
   const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
-  const onTitles = (on.digest ? [on.digest] : []).concat(on.send).map((i) => `${i.title} ${i.body}`).join(' | ');
-  assert.ok(/Check-in ready/.test(onTitles), `the opt-out leaked into the default path: ${onTitles}`);
+  const onKinds = on.digest.data.items.map((i) => `${i.type}:${(i.data && i.data.move) || ''}`);
+  assert.deepEqual(onKinds, ['checkin_due:', 'directive:check_in', 'coach_message:'],
+    `the opt-out leaked into the default path: ${JSON.stringify(onKinds)}`);
 });
