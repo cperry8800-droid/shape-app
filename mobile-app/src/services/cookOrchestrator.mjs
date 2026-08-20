@@ -394,7 +394,15 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // BS_ORCH.serveSearchMax steps, where the catalog's largest is 8, and the search is
   // already ~17s at 320. This makes the failure honest, it does not make that session
   // usable.
+  //
+  // ⚠ AND THE FALLBACK IS NOT A PROOF. The serial bound is an UPPER bound -- an earlier
+  // serve time almost certainly exists, the search just ran out of room to find it. So it
+  // has to clear `exact` below, or the sheet reads "this is the earliest" off a number
+  // that is only "this is one that works". That is the exact confusion the warning above
+  // `exact` was written for, one layer deeper.
+  let serialFallback = false;
   if (!feas.feasible) {
+    serialFallback = true;
     earliest = durs.reduce((sum, d) => sum + d, 0);
     feas = bestPlacement(rs, activeMin, earliest, kitchen);
   }
@@ -437,7 +445,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // now says so in the result rather than in a comment.
   return {
     timeline, serveAt: T, earliestServe: earliest, spread, issues,
-    exact: rs.length <= ORDER_SEARCH_MAX,
+    exact: rs.length <= ORDER_SEARCH_MAX && !serialFallback,
     estimated: assumesLengths(rs, activeMin),
   };
 }

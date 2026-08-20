@@ -424,6 +424,22 @@ test('serve mode: a search that runs out of steps still returns a plan the cook 
     assert.equal(plan.earliestServe, converged.earliestServe,
       'the fallback must agree with the search that had room to converge');
 
+    // ⚠ AND THE FALLBACK MUST NOT CLAIM TO BE A PROOF. The serial bound is an UPPER
+    // bound -- an earlier serve time almost certainly exists, the search just ran out of
+    // room to find it. `exact` is what the sheet reads to decide between "this is the
+    // earliest" and "the earliest of the orders we searched", so a fallback that left it
+    // true would put a proof claim on a number that is only "one that works".
+    assert.equal(converged.exact, true, 'guard the guard: a converged two-dish search IS exact');
+    assert.equal(plan.exact, false, 'a serial-bound fallback is an upper bound, never a proof');
+
+    // Uneven dishes go through the same fallback. The long dish is placed first and the
+    // short one pulled clear of it, which is a different shape from two equal dishes and
+    // the one a bounded shift loop would be likeliest to give up on.
+    const uneven = [dish('L', 100), dish('S', 1)];
+    const u = bsOrchestrate(uneven, { mode: BS_COOK_MODE.SERVE, kitchen });
+    assert.equal(u.timeline.length, 101, 'an uneven pair must still place every step');
+    assert.equal(u.earliestServe, 101, `uneven serial need is 101; got ${u.earliestServe}`);
+
     // ...and the returned plan must actually obey the one cook: no two hands-on steps
     // overlapping. An empty timeline would pass a "no overlap" check vacuously.
     const spans = plan.timeline.map((e) => [e.at, e.at + (e.min || 0)]).sort((a, b) => a[0] - b[0]);
