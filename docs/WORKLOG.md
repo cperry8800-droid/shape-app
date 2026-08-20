@@ -148,10 +148,11 @@ changelog whenever something ships.
   - **CodeRabbit IS one of its gates**, though the bullet below long said it "does NOT
     run" and is "neither a gate nor a layer to wait on".
   - **`codexPresent` is presence, NOT freshness — deliberately.** Codex leaves *no
-    record at all* when clean (it reacts 👍 on the triggering comment), so head-pinning
-    it "would jam every clean pass at `none` and the gate could never open". A **stale**
-    Codex pass is explicitly treated as the owner's re-trigger call. (Registered, not
-    built: read reactions to pin freshness without the trap.)
+    record at all* when clean (it adds a thumbs-up reaction to the triggering
+    comment), so head-pinning it "would jam every clean pass at `none` and the gate
+    could never open". A **stale** Codex pass is explicitly treated as the owner's
+    re-trigger call. (Registered, not built: read reactions to pin freshness
+    without the trap.)
   ⚠ **Worked example, #1910 (2026-08-20).** It merged with CI green and CodeRabbit clean
   on the final head, while **Codex last reviewed `f5d2ef80c`, six commits earlier**.
   Under `prAllGreen` that is **green** — stale Codex counts. Under the sentence above
