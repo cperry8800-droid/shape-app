@@ -95,11 +95,18 @@ changelog whenever something ships.
   BOTH halves are now false.** It reviews on request only — its own comment says
   *"Reviews should be triggered manually for repositories with fewer than 10
   stars"* — and it reviewed **neither** PR that day. A review layer disappeared
-  silently while this paragraph still promised it. ⚠ **DO NOT TRIGGER IT — the
-  owner's standing rule is that CodeRabbit is not part of this workflow.** It WAS
-  triggered by hand with `@coderabbitai full review` on 2026-08-18; that was a
-  **rule break**, recorded here so it is not copied. If a second reviewer seems
-  genuinely needed, **ASK the owner** — do not reach for it. **Work without it.**
+  silently while this paragraph still promised it. ⚠ **CORRECTED AGAIN 2026-08-20 — THE OWNER AUTHORISED IT ON 2026-08-19.**
+  This paragraph read *"DO NOT TRIGGER IT — the owner's standing rule is that
+  CodeRabbit is not part of this workflow"*, and that is **no longer true**: the
+  owner asked for it directly. Triggering it by hand is now **allowed**. (The
+  2026-08-18 hand-trigger predated the authorisation and was a rule break at the
+  time; it is no longer the rule being broken.)
+  ⚠ **AND IT MAY WELL BE GATING — `src/lib/console-flight.mjs` REQUIRES IT.**
+  Mission Control's `prAllGreen` will not go green without a CodeRabbit
+  approved-or-clean verdict on the head, so the "neither a gate nor a layer to wait
+  on" line below is contradicted by the shipping code. **Pick one reviewer per round
+  rather than hedging with both**, and read the merge-gate note below before deciding
+  which document you are following.
   ⚠ **The gating reviewer is CODEX**, not this — the merge gate is CI
   green **and Codex clean on the final head**. **(3)
   required checks** — `main` branch protection requires ALL THREE CI checks
@@ -112,7 +119,28 @@ changelog whenever something ships.
   `chatgpt-codex-connector[bot]`, so **absence of findings is not a pass**.
   ⚠ This previously read "after pushing fixes for a CodeRabbit round, WAIT for
   its re-review before merging" — **deleted**: a reviewer that never runs cannot
-  supply a merge condition, and never waiting on CodeRabbit is the standing rule.
+  supply a merge condition. (⚠ The trailing clause *"and never waiting on
+  CodeRabbit is the standing rule"* is itself now stale — see the authorisation
+  correction above. You **may** wait on CodeRabbit; it just does not close the gate.)
+  ⚠ **THIS PARAGRAPH AND THE PRODUCT DISAGREE — CHECK `src/lib/console-flight.mjs`
+  BEFORE TRUSTING EITHER.** Mission Control encodes the gate as `prAllGreen`: CI green
+  **AND CodeRabbit approved-or-clean on the head AND Codex present**. It differs from
+  the wording above on **both** counts, and it carries an **owner ruling (2026-07-27)**:
+  - **CodeRabbit IS one of its gates**, though the bullet below long said it "does NOT
+    run" and is "neither a gate nor a layer to wait on".
+  - **`codexPresent` is presence, NOT freshness — deliberately.** Codex leaves *no
+    record at all* when clean (it reacts 👍 on the triggering comment), so head-pinning
+    it "would jam every clean pass at `none` and the gate could never open". A **stale**
+    Codex pass is explicitly treated as the owner's re-trigger call. (Registered, not
+    built: read reactions to pin freshness without the trap.)
+  ⚠ **Worked example, #1910 (2026-08-20).** It merged with CI green and CodeRabbit clean
+  on the final head, while **Codex last reviewed `f5d2ef80c`, six commits earlier**.
+  Under `prAllGreen` that is **green** — stale Codex counts. Under the sentence above
+  ("Codex clean on the final head") it is **not**. I first recorded this as a rule break
+  by me; **that was wrong, and the over-correction is worth as much attention as the
+  original error would have been.** The defect is that two documents encode two gates.
+  **The console's version has an owner ruling behind it and should be treated as
+  operative until the owner says otherwise.**
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
@@ -126,9 +154,12 @@ changelog whenever something ships.
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
   - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
     reports `neutral`) + Preview Comments.
-  - **CodeRabbit** — **does NOT run.** It posts an auto-skip notice (<10 stars →
-    request-only) and nothing more. ⚠ **We do not trigger it**; it is neither a
-    gate nor a layer to wait on. `.coderabbit.yaml` is dormant config.
+  - **CodeRabbit** — **does not run BY ITSELF** (auto-skip notice, <10 stars →
+    request-only), but ⚠ **it runs on request and the owner authorised that on
+    2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
+    #1910 across four rounds (27 → 6 → 5 → 3 → 0 findings). ⚠ **It is still not a
+    gate** — a clean CodeRabbit pass leaves *no review record at all*, so read its
+    acknowledgement comment rather than inferring a pass from silence.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
