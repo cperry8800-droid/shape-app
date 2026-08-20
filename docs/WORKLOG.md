@@ -298,7 +298,12 @@ changelog whenever something ships.
   CodeRabbit clean on `1177823ac`. Branch kept.
 - **Registered, NOT built:** the single-moment serve objective · the pull reason code's
   first UI consumer · **71 of 85 recipes still schedule short against their own
-  annotations** (a DATA pass, not an engine one).
+  annotations** (a DATA pass, not an engine one). ⚠ **THAT 71/85 IS AGAINST THE OLD
+  CATALOG.** It was measured before #1911 took the catalog to **100**, so the **15 recipes
+  imported via `USDA2_KITCHEN_RECIPES` are UNAUDITED** — resolving the 71 does **not**
+  close this residual. Re-measure across all 100 before calling it done; a stale
+  denominator is how a residual gets closed while a sixth of the catalog was never
+  checked.
 
 ### 2026-08-19 — Shape Kitchen reaches 100, and a Prep Session can finally interleave (#1911 → `3c4ee6e9b`)
 
@@ -392,7 +397,7 @@ oats, soy sauce, broth/stock/bouillon, margarine.
 > ⚠ **Three of the last four review rounds found a defect inside my own preceding fix**,
 > and **three of my own tests were hollow** — caught by mutation-testing, not by review and
 > not by a passing suite. Findings ran 27 → 6 → 5 → 3 → 0.
-> ⚠ #1911's headline numbers were **corrected downward four times** as windows a cook
+> ⚠ #1911's headline numbers were **corrected downward seven times** as windows a cook
 > cannot leave were removed (76 → 53 hosts). Suite **2100**.
 >
 > See the full entries below.
