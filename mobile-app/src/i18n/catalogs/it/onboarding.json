@@ -62,5 +62,20 @@
   "score.protect.head": "Proteggi i tuoi punti",
   "score.protect.body": "Resta costante per tenerli. Se salti un check-in o un allenamento a cui ti sei impegnato, il numero cala un po' — un coach può sempre annullare il calo, e non scendi mai sotto 0.",
   "score.gotIt": "Ho capito",
-  "score.seeScore": "Vedi il mio punteggio →"
+  "score.seeScore": "Vedi il mio punteggio →",
+  "dob.eyebrow": "Account",
+  "dob.required": "Obbligatorio",
+  "dob.title": "Conferma la tua data di nascita.",
+  "dob.subtitle": "Adulti dai 18 anni in su",
+  "dob.body": "Shape è per adulti dai 18 anni in su e ogni account deve avere una data di nascita registrata. Te lo chiederemo una sola volta — la data di nascita non potrà essere modificata in seguito, quindi controllala prima di salvare.",
+  "dob.label": "Data di nascita",
+  "dob.cta": "Salva e continua",
+  "dob.saving": "Salvataggio…",
+  "dob.signout": "Esci",
+  "dob.blockedTitle": "Non possiamo completarlo qui.",
+  "dob.blockedBody": "La configurazione del tuo account non è stata completata, quindi non c’è ancora nulla su cui salvarlo. Contatta l’assistenza e sistemeremo tutto.",
+  "dob.genericError": "Non è stato possibile salvare la tua data di nascita. Riprova.",
+  "dob.errInvalidDate": "Inserisci una data di nascita valida.",
+  "dob.errUnder18": "Shape è per adulti dai 18 anni in su.",
+  "dob.errAlreadySet": "La tua data di nascita è già registrata e non può essere modificata qui. Contatta l’assistenza se non è corretta."
 }

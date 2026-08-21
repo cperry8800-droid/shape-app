@@ -25,6 +25,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,20 +41,44 @@ async function readProfile(supabase: Awaited<ReturnType<typeof createClient>>, u
   return { profile: (data ?? null) as Profile | null, error };
 }
 
+// ⚠ EVERY GET ANSWER HERE IS PER-ACCOUNT AND MUST NOT BE REUSED. `force-dynamic`
+// governs how NEXT renders this route; it says nothing to the BROWSER, which is
+// free to serve a cached `needed:false` — or a cached `blocked` — to the NEXT
+// account signed in on the same device. That is the shared-device surface this
+// repo has already had to harden once, and the sibling membership probe in the
+// app carries `cache: 'no-store'` for the same reason.
+//
+// Stamped through one helper rather than at each return, so a fifth answer added
+// later cannot be the one that forgets. POST is deliberately not wrapped:
+// browsers do not cache POST responses, so a helper there would assert a
+// protection that was never the exposure.
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };
+const privateJson = (body: unknown, init?: { status?: number }) =>
+  NextResponse.json(body, { ...(init || {}), headers: PRIVATE_HEADERS });
+
 // GET — does this member still owe us a birthdate?
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
 
   const { profile, error } = await readProfile(supabase, user.id);
   // ⚠ FAIL AS "NOT NEEDED" ON A READ FAULT. This drives a blocking prompt; a
   // transient read error must not trap a member behind a form we cannot tell
   // whether they need. The gate itself is the authority on access — this endpoint
   // only decides whether to ASK.
-  if (error) return NextResponse.json({ needed: false, unknown: true });
+  if (error) return privateJson({ needed: false, unknown: true });
 
-  return NextResponse.json({ needed: !profile?.date_of_birth });
+  // ⚠ A MISSING PROFILE ROW IS A THIRD STATE, NOT A MISSING DATE. `absence
+  // refuses` means such an account is already locked out of every gated
+  // surface, and POST below cannot help it — there is no row to write to. It
+  // is reported separately so the prompt can say something true instead of
+  // presenting a form that is guaranteed to fail. Verified against the live
+  // database 2026-08-21: 2 of 4 confirmed, signed-in accounts are in this
+  // state, so it is the reachable case, not a theoretical one.
+  if (!profile) return privateJson({ needed: true, blocked: 'no_profile' });
+
+  return privateJson({ needed: !profile.date_of_birth });
 }
 
 // POST — supply it, once.
@@ -62,12 +87,12 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
-  }
+  // The shared reader, not a local try/catch: it carries the proxy's size cap
+  // and one malformed-body answer for every route, so this endpoint cannot
+  // drift into being the one that accepts an unbounded payload.
+  const bodyResult = await readJson<unknown>(request);
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const dob = (body as { date_of_birth?: unknown } | null)?.date_of_birth;
 
   // ⚠ VALIDATE WITH THE SHARED HELPER, NEVER A LOCAL PARSE. `isMinorFromDob`
@@ -90,16 +115,54 @@ export async function POST(request: Request) {
     );
   }
 
+  // ⚠ NORMALISE ONCE, HERE, SO ONE STRING IS VALIDATED, STORED AND COMPARED.
+  // `isMinorFromDob` validates `dob.trim()`, so a body carrying surrounding
+  // whitespace passes it — and the raw value was then both written and compared
+  // against the read-back. Postgres parses ' 1985-05-05 ' into the date and hands
+  // back the canonical form, so that comparison could never match: a member whose
+  // save SUCCEEDED was told their date was already on file and to contact
+  // support. Trimming at the point the value is accepted, rather than at either
+  // use, is what keeps the write and the check from ever disagreeing again.
+  const dobValue = (dob as string).trim();
+
   const { profile, error: readErr } = await readProfile(supabase, user.id);
   if (readErr) {
     return NextResponse.json({ error: 'Could not read your profile. Try again.' }, { status: 503 });
+  }
+
+  // ⚠ NO PROFILE ROW MEANS THE UPDATE BELOW MATCHES ZERO ROWS AND REPORTS
+  // SUCCESS. PostgREST does not treat an UPDATE affecting nothing as an error,
+  // so `writeErr` stays null and this route used to answer `ok: true` with a
+  // null date — telling a member their birthday was recorded while the gate
+  // went on refusing them, permanently and with no way to tell. Proven against
+  // the live database 2026-08-21 by running this exact statement under the
+  // caller's own RLS identity: 0 rows written for a profile-less account, 1 for
+  // an account with a row (both arms measured — an equal result would only have
+  // meant the test was broken).
+  //
+  // ⚠ AND THIS ROUTE DELIBERATELY DOES NOT CREATE THE ROW. `profiles.role` is
+  // NOT NULL with no default, so an insert has to choose a role — and
+  // `guard_profile_role_elevation` rewrites any coach role to 'client' on a
+  // non-privileged INSERT. A coach whose row went missing would silently
+  // self-provision as a client and lose their coach surfaces, which is a worse
+  // failure than the one being fixed. Provisioning belongs to the sign-in path
+  // that already owns it (src/app/auth/callback/route.ts), not to an
+  // age-collection endpoint.
+  if (!profile) {
+    return NextResponse.json(
+      {
+        error: 'Your account setup did not finish, so there is nothing to save this to yet. Contact support and we can complete it.',
+        code: 'no_profile',
+      },
+      { status: 409 }
+    );
   }
 
   // ⚠ REFUSE A SECOND WRITE LOUDLY RATHER THAN APPEARING TO ACCEPT IT. The
   // `set_over_18` trigger silently REVERTS any change to a non-null
   // date_of_birth, so writing here would return success while changing nothing —
   // a member correcting a typo would be told it worked. Say so instead.
-  if (profile?.date_of_birth) {
+  if (profile.date_of_birth) {
     return NextResponse.json(
       {
         error: 'Your date of birth is already on file and cannot be changed here. Contact support if it is wrong.',
@@ -113,7 +176,7 @@ export async function POST(request: Request) {
   // and discards anything supplied, which is what makes `true` real proof.
   const { error: writeErr } = await supabase
     .from('profiles')
-    .update({ date_of_birth: dob as string })
+    .update({ date_of_birth: dobValue })
     .eq('id', user.id);
 
   // ⚠ SURFACE THE FAILURE. A swallowed write here leaves the member believing
@@ -126,13 +189,51 @@ export async function POST(request: Request) {
     );
   }
 
-  // Read back rather than assuming: the trigger derives over_18, and confirming it
-  // landed is the difference between "we wrote a row" and "the gate will now
+  // Read back rather than assuming: the trigger derives over_18, and confirming
+  // it landed is the difference between "we wrote a row" and "the gate will now
   // admit them".
-  const { profile: after } = await readProfile(supabase, user.id);
+  //
+  // ⚠ THE READ-BACK IS THE AUTHORITY AND MUST BE ACTED ON. This comment already
+  // claimed as much while the code below simply reported whatever came back and
+  // answered `ok: true` regardless — a described check that was never performed.
+  // Anything short of a stored date is a failure to report, not a success to
+  // decorate, because the member's next screen is the gate that reads this row.
+  const { profile: after, error: verifyErr } = await readProfile(supabase, user.id);
+  if (verifyErr || !after?.date_of_birth) {
+    return NextResponse.json(
+      { error: 'Could not confirm your date of birth was saved. Try again.', code: 'not_persisted' },
+      { status: 503 }
+    );
+  }
+
+  // ⚠ PRESENCE IS NOT PROOF IT IS *THIS* CALLER'S DATE. The already_set guard
+  // above is a read followed by a write, so two requests can both find null and
+  // both proceed. The first write lands; `set_over_18` then silently REVERTS the
+  // second back to the stored value, and PostgREST reports no error — so the
+  // second caller read back a truthy date and was told `ok: true` for a date
+  // that is not the one they sent. That is the same lie this route was just
+  // fixed for, one layer in: a write that did nothing, reported as success.
+  //
+  // Comparing identity closes it for every cause, not just concurrency — a
+  // trigger that rewrites the value, or a future policy that narrows the write,
+  // lands here too. Deliberately NOT paired with a `.is('date_of_birth', null)`
+  // filter on the UPDATE: that would need its own `.select()` to be observable
+  // (a zero-row filtered update is the same PostgREST silence), which puts a
+  // second authority next to this one and makes neither individually testable.
+  // The read-back is the authority; it decides alone.
+  if (after.date_of_birth !== dobValue) {
+    return NextResponse.json(
+      {
+        error: 'Your date of birth is already on file and cannot be changed here. Contact support if it is wrong.',
+        code: 'already_set',
+      },
+      { status: 409 }
+    );
+  }
+
   return NextResponse.json({
     ok: true,
-    date_of_birth: after?.date_of_birth ?? null,
-    over_18: after?.over_18 ?? null,
+    date_of_birth: after.date_of_birth,
+    over_18: after.over_18 ?? null,
   });
 }

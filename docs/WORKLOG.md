@@ -302,6 +302,94 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-21 — The member-facing date-of-birth prompt, and a route that stopped lying about saving it
+
+The owner ruled every account must supply a birthdate. The collect endpoint shipped in #1925;
+this is the prompt that makes it usable — mobile + web — plus the defect that would have made
+it lie to exactly the members it exists to serve.
+
+- ⚠ **THE ROUTE REPORTED SUCCESS ON A WRITE THAT MATCHED NOTHING, AND IT WAS MINE.** For an
+  account with no `profiles` row, `.update()` affects zero rows and **PostgREST does not call
+  that an error** — so `writeErr` stayed null and the route answered `ok: true` with a null
+  date, telling a member their birthday was recorded while the gate went on refusing them,
+  permanently, with nothing on screen to say so. Proven against the **live** database by
+  running that exact statement under the caller's own RLS identity: **0 rows** written for a
+  profile-less account, **1** for an account with a row. ⚠ **Both arms measured on purpose** —
+  an equal result would only have meant the test was broken, which is what the first attempt
+  produced (one `set local request.jwt.claims` applied to both statements, so the control arm
+  ran as the wrong user and RLS blocked it). The read-back is now the **authority**; its
+  comment already claimed as much while the code reported whatever came back and answered `ok`
+  either way.
+- ⚠ **AND IT IS THE REACHABLE CASE.** Measured live: **4 confirmed accounts, 2 profile rows, 0
+  birthdates.** There is no trigger on `auth.users` — provisioning is application-level and
+  only self-heals on the email-confirm callback, which those two will not revisit.
+  `mustRefuseForAge(null)` refuses outright, so they are already locked out. Registered as an
+  **owner** item rather than papered over: creating the rows means choosing each account's
+  role, which is a ruling, not a patch.
+- ⚠ **THE ROUTE DELIBERATELY DOES NOT CREATE THE MISSING ROW.** `profiles.role` is NOT NULL
+  with no default, and `guard_profile_role_elevation` rewrites any coach role to `client` on a
+  non-privileged INSERT — so a coach whose row went missing would silently self-provision as a
+  client and lose their coach surfaces. **Worse than the bug being fixed.** Provisioning
+  belongs to the sign-in path that already owns it.
+- **The prompt, both surfaces.** Mobile `BSDobGate.jsx` — in its own file **so it can be
+  MOUNTED**, because `Main.jsx` calls `createRoot` at module scope and cannot be imported by a
+  test. Web `public/newdesign/dobGate.js` — dependency-free, because **only 21 of 73 portal
+  pages load `/supabase.js`**, so anything keyed on `window.shapeDb` is dead code across most
+  of the surface.
+- ⚠ **BOTH BLOCK ONLY ON AN EXPLICIT `needed: true`.** A 401 mid token-refresh, a 5xx, an HTML
+  error page from a proxy, a shape we do not recognise — every one falls through. That is the
+  **opposite** of the gate, which is the authority on access and fails closed; this only
+  decides whether to **ask**, and blocking on our own uncertainty would shut members out of a
+  product they are entitled to, over a question we could not even establish needed asking.
+- ⚠ **NO CLIENT-SIDE AGE ARITHMETIC.** Two implementations of the 18+ rule already exist, held
+  in step by `tests/age-derive-mirror.test.mjs`. A third would be a third thing to keep
+  aligned, and the bug it introduces — a client that disagrees with the server about one
+  person's birthday — is precisely what that mirror test exists to prevent.
+- ⚠ **THE WEB GATE SHIPPED A STUCK SCROLL LOCK, CAUGHT BY ITS OWN TEST.** `start()` was not
+  idempotent, so a second `DOMContentLoaded` captured the `'hidden'` this file had just
+  written, and releasing it then restored `'hidden'` — overlay closed, portal unscrollable for
+  the rest of the session. Fixed at the **script**, not the test.
+- ⚠ **INJECTED BY THE PRECOMPILE, NOT HAND-ADDED TO 73 PAGES.** That is the rail
+  `sentryInit.js` already rides. A per-page list was rejected for **two** reasons and the
+  second is the one that bites: it is a list the next page silently fails to join, **and** it
+  turns a one-line change into a 73-file diff — past the 50-file threshold where the review
+  gate skips the PR entirely, so the change would ship **unreviewed**. Coverage is now a
+  property of the build, and the build prints its own number: **73/76** (the three without the
+  chat-button anchor are the two redirect stubs and the chat popout, each a NAMED exemption).
+- Sign-out **DELEGATES** to the canonical portal path (newly exposed from `pageShell`, held in
+  a ref so an empty-dep effect cannot pin the first render's copy). That path clears the
+  cookie, the persisted session AND runs the shared-device scrub in an order that took a whole
+  wave to settle; a second copy here would be a copied guard with its rationale left behind.
+- ⚠ **`age-gate.ts`'s HEADER CONTRADICTED ITS OWN LINE 70**, and the stale half is the one that
+  got quoted into a launch document. Corrected in place, with a standing instruction to read
+  `mustRefuseForAge()` rather than any prose copy — that one included.
+
+**⚠ MUTATION-TESTING FOUND TWO GUARDS THE TESTS WERE NOT MEASURING — and both were gaps in the
+TESTS, not the code.** First pass killed 7 of 9.
+
+- **The status was enforced by coincidence.** Deleting `if (!res.ok) return null` changed no
+  test outcome, because every non-OK case the suite enumerated happens to carry a body without
+  `needed`, so the **second** guard caught them all. Nothing pinned the rule the file's own
+  header states. Two vectors now do — a 500 and a 401 that both say `needed: true` must fall
+  through. Not contrived: the route already answers 409 carrying a `no_profile` code, and the
+  read path's 200 body is exactly `{needed, blocked}`.
+- **The stuck scroll lock was covered by OUTCOME, not by mechanism.** Removing `started` alone,
+  or `locked` alone, left the suite green; removing **both** was caught. So the shipped bug was
+  pinned and neither guard was. The test now drives the path they exist for — jsdom hands back
+  a parsed document, so `readyState` is shadowed to reach the `DOMContentLoaded` branch at all
+  — and asserts the probe fires **exactly once** across two events.
+- ⚠ **`locked` SURVIVES AND CANNOT BE PINNED, which is a fact about the code, not a hole.**
+  `lockScroll()` has one caller, inside an idempotent `start()`, so a second capture is
+  unreachable while `started` stands. **Kept** — the invariant belongs at the capture, where a
+  second caller added later inherits it — and the guard now says so, so the next reader neither
+  deletes it as dead nor spends a round writing the test that cannot exist. **Deleting a
+  correct guard to make a number read 10/10 is the over-correction, not the fix.** Final batch:
+  **9 killed / 1 equivalent**, unmutated sanity green at **both** ends.
+
+Copy lands in all 13 wired locales; parity is enforced, so en-only would fail the build. Suite
+**2248/2248** · `tsc` clean · `next build` with `ƒ Proxy (Middleware)` · mobile build with the
+gate confirmed present in the emitted bundle · precompile `--check` writes nothing.
+
 ### 2026-08-21 — The go-live wave: a checklist that cannot rot, and a compliance audit against the live product
 
 Seven PRs. The thread running through them: **records that were true when written and had

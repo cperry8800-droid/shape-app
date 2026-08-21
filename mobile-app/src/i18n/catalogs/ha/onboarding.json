@@ -62,5 +62,20 @@
   "score.protect.head": "Kare makinka",
   "score.protect.body": "Ka ci gaba da daidaito don ka riƙe su. Idan ka tsallake duba ko motsa jiki da ka yi alkawari, lambar tana sauka kaɗan — koci na iya yafe maka a kowane lokaci, kuma ba za ka taɓa sauka ƙasa da 0 ba.",
   "score.gotIt": "Na gane",
-  "score.seeScore": "Duba makina →"
+  "score.seeScore": "Duba makina →",
+  "dob.eyebrow": "Asusu",
+  "dob.required": "Wajibi",
+  "dob.title": "Tabbatar da ranar haihuwarka.",
+  "dob.subtitle": "Manya masu shekaru 18 zuwa sama",
+  "dob.body": "Shape na manya ne masu shekaru 18 zuwa sama, kuma kowane asusu yana bukatar a adana ranar haihuwa. Za a tambaye ka sau ɗaya kawai — ba za a iya canza ranar haihuwa ba daga baya, don haka duba ta kafin ka adana.",
+  "dob.label": "Ranar haihuwa",
+  "dob.cta": "Adana ka ci gaba",
+  "dob.saving": "Ana adanawa…",
+  "dob.signout": "Fita",
+  "dob.blockedTitle": "Ba za mu iya kammala wannan a nan ba.",
+  "dob.blockedBody": "Kafa asusunka bai kammala ba, don haka babu inda za a adana wannan tukuna. Tuntuɓi tallafi za mu gyara shi.",
+  "dob.genericError": "An kasa adana ranar haihuwarka. Sake gwadawa.",
+  "dob.errInvalidDate": "Shigar da ranar haihuwa mai inganci.",
+  "dob.errUnder18": "Shape na manya ne masu shekaru 18 zuwa sama.",
+  "dob.errAlreadySet": "An riga an adana ranar haihuwarka kuma ba za a iya canza ta a nan ba. Tuntuɓi tallafi idan ba daidai ba ce."
 }

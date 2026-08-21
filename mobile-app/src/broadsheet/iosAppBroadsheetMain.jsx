@@ -3,6 +3,7 @@ import * as ReactDOM from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
+import BSDobGate from './BSDobGate.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
@@ -1813,6 +1814,47 @@ function BSAppShell({ tweaks, setTweak }) {
   // Global live notifications — toast the moment a new one lands, anywhere in
   // the app, so updates "appear" without opening the notifications feed.
   const authUserId = authState?.user?.id || null;
+
+  // ── Date-of-birth completion ────────────────────────────────────────────
+  // Asked of REAL signed-in members only. A previewer or a browse-mode
+  // visitor has no account to attach a birthdate to, so asking them would be
+  // a form that cannot succeed. `needed` starts false: until the server has
+  // actually said otherwise, nobody is held.
+  const [dobState, setDobState] = useStateBSM({ needed: false, blocked: '' });
+  // ⚠ WAIT FOR THE SESSION RESTORE, LIKE THE MEMBERSHIP PROBE ABOVE. `authState`
+  // is seeded SYNCHRONOUSLY from the cached state, so `authUserId` — and with it
+  // `signedIn`, and so `memberAllowed` — are already truthy on the first render,
+  // deliberately (see memberGateLoading: the gate must resolve before auth
+  // restores). This effect therefore fired with the CACHED access token, which on
+  // a returning member's cold boot is the expired one. The 401 that came back is
+  // correctly not treated as evidence — but nothing in the dependency array then
+  // CHANGES when the refresh lands, because it is the same user id. So the probe
+  // never ran again and `needed: true` was missed for the whole app session: the
+  // gate silently never appeared, for exactly the ordinary returning member.
+  //
+  // `authReady` flips false→true when the restore completes, which is the one
+  // dependency that re-runs this at the moment a live token exists.
+  useEffectBSM(() => {
+    if (!authReady || !authUserId || !memberAllowed || previewMode || browseMode) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = window.ShapeAuth?.getCachedState?.()?.session?.access_token;
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        // no-store: the answer is per-account, and this device can be shared.
+        const res = await fetch('/api/me/date-of-birth', { headers, credentials: 'same-origin', cache: 'no-store' });
+        // ⚠ A NON-OK RESPONSE MUST NOT HOLD ANYONE. 401 during a token
+        // refresh, 5xx, an HTML error page from a proxy — none of them are
+        // evidence that this member owes us a date.
+        if (!res.ok) return;
+        const d = await res.json().catch(() => null);
+        if (cancelled || !d) return;
+        setDobState({ needed: d.needed === true, blocked: d.blocked || '' });
+      } catch (e) { /* never block on a failed check */ }
+    })();
+    return () => { cancelled = true; };
+  }, [authReady, authUserId, memberAllowed, previewMode, browseMode]);
   useEffectBSM(() => {
     if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};
     const unsub = window.ShapeNotifications.subscribe((n) => {
@@ -2007,6 +2049,15 @@ function BSAppShell({ tweaks, setTweak }) {
               <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
               <BSPreviewBannerGated t={t} onJoin={() => { if (authUserId) bsmStartCheckout(); else { setPreviewMode(false); setLoginMode('create'); setStage('login'); } }} />
             </>
+          ) : dobState.needed ? (
+            // Last gate before the app, and members-only by construction: the
+            // preview branch above already returned, so a previewer never
+            // reaches this line.
+            <BSDobGate
+              blocked={dobState.blocked}
+              onSaved={() => setDobState({ needed: false, blocked: '' })}
+              onLogout={handleLogout}
+            />
           ) : (
             <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
           )

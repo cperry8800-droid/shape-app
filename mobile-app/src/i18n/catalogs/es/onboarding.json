@@ -62,5 +62,20 @@
   "score.protect.head": "Protege tus puntos",
   "score.protect.body": "Mantén la constancia para conservarlos. Si te saltas un check-in o un entrenamiento comprometido, el número baja un poco — un coach siempre puede perdonarlo, y nunca bajas de 0.",
   "score.gotIt": "Entendido",
-  "score.seeScore": "Ver mi score →"
+  "score.seeScore": "Ver mi score →",
+  "dob.eyebrow": "Cuenta",
+  "dob.required": "Obligatorio",
+  "dob.title": "Confirma tu fecha de nacimiento.",
+  "dob.subtitle": "Adultos de 18 años o más",
+  "dob.body": "Shape es para adultos de 18 años o más, y cada cuenta necesita una fecha de nacimiento registrada. Solo te lo pediremos una vez — la fecha de nacimiento no se puede cambiar después, así que revísala antes de guardar.",
+  "dob.label": "Fecha de nacimiento",
+  "dob.cta": "Guardar y continuar",
+  "dob.saving": "Guardando…",
+  "dob.signout": "Cerrar sesión",
+  "dob.blockedTitle": "No podemos completarlo aquí.",
+  "dob.blockedBody": "La configuración de tu cuenta no se completó, así que todavía no hay dónde guardar esto. Contacta con soporte y lo solucionamos.",
+  "dob.genericError": "No se pudo guardar tu fecha de nacimiento. Inténtalo de nuevo.",
+  "dob.errInvalidDate": "Introduce una fecha de nacimiento válida.",
+  "dob.errUnder18": "Shape es para adultos de 18 años o más.",
+  "dob.errAlreadySet": "Tu fecha de nacimiento ya está registrada y no se puede cambiar aquí. Contacta con soporte si es incorrecta."
 }

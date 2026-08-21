@@ -62,5 +62,20 @@
   "score.protect.head": "Schütze deine Punkte",
   "score.protect.body": "Bleib dran, um sie zu behalten. Lässt du ein zugesagtes Check-in oder Workout aus, sinkt die Zahl ein wenig — ein Coach kann das jederzeit erlassen, und du fällst nie unter 0.",
   "score.gotIt": "Verstanden",
-  "score.seeScore": "Meinen Score ansehen →"
+  "score.seeScore": "Meinen Score ansehen →",
+  "dob.eyebrow": "Konto",
+  "dob.required": "Erforderlich",
+  "dob.title": "Bestätige dein Geburtsdatum.",
+  "dob.subtitle": "Erwachsene ab 18 Jahren",
+  "dob.body": "Shape ist für Erwachsene ab 18 Jahren, und für jedes Konto muss ein Geburtsdatum hinterlegt sein. Du wirst nur einmal gefragt — das Geburtsdatum lässt sich danach nicht mehr ändern, prüfe es also vor dem Speichern.",
+  "dob.label": "Geburtsdatum",
+  "dob.cta": "Speichern und fortfahren",
+  "dob.saving": "Wird gespeichert…",
+  "dob.signout": "Abmelden",
+  "dob.blockedTitle": "Das können wir hier nicht abschließen.",
+  "dob.blockedBody": "Die Einrichtung deines Kontos wurde nicht abgeschlossen, deshalb gibt es noch nichts, wo wir das speichern könnten. Wende dich an den Support, wir bringen das in Ordnung.",
+  "dob.genericError": "Dein Geburtsdatum konnte nicht gespeichert werden. Versuche es erneut.",
+  "dob.errInvalidDate": "Gib ein gültiges Geburtsdatum ein.",
+  "dob.errUnder18": "Shape ist für Erwachsene ab 18 Jahren.",
+  "dob.errAlreadySet": "Dein Geburtsdatum ist bereits hinterlegt und kann hier nicht geändert werden. Wende dich an den Support, wenn es falsch ist."
 }

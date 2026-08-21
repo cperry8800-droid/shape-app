@@ -62,5 +62,20 @@
   "score.protect.head": "Lindungi poin Anda",
   "score.protect.body": "Tetap konsisten untuk mempertahankannya. Jika Anda melewatkan check-in atau latihan yang sudah Anda sanggupi, angkanya turun sedikit — pelatih selalu bisa membatalkannya, dan Anda tidak pernah jatuh di bawah 0.",
   "score.gotIt": "Mengerti",
-  "score.seeScore": "Lihat skor saya →"
+  "score.seeScore": "Lihat skor saya →",
+  "dob.eyebrow": "Akun",
+  "dob.required": "Wajib",
+  "dob.title": "Konfirmasi tanggal lahir kamu.",
+  "dob.subtitle": "Dewasa 18 tahun ke atas",
+  "dob.body": "Shape untuk orang dewasa berusia 18 tahun ke atas, dan setiap akun perlu mencantumkan tanggal lahir. Kamu hanya akan ditanya sekali — tanggal lahir tidak bisa diubah setelah itu, jadi periksa dulu sebelum menyimpan.",
+  "dob.label": "Tanggal lahir",
+  "dob.cta": "Simpan dan lanjutkan",
+  "dob.saving": "Menyimpan…",
+  "dob.signout": "Keluar",
+  "dob.blockedTitle": "Kami tidak bisa menyelesaikannya di sini.",
+  "dob.blockedBody": "Penyiapan akun kamu belum selesai, jadi belum ada tempat untuk menyimpan ini. Hubungi dukungan dan kami akan membereskannya.",
+  "dob.genericError": "Tanggal lahir kamu gagal disimpan. Coba lagi.",
+  "dob.errInvalidDate": "Masukkan tanggal lahir yang valid.",
+  "dob.errUnder18": "Shape untuk orang dewasa berusia 18 tahun ke atas.",
+  "dob.errAlreadySet": "Tanggal lahir kamu sudah tersimpan dan tidak bisa diubah di sini. Hubungi dukungan kalau datanya salah."
 }

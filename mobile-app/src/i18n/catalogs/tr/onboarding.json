@@ -62,5 +62,20 @@
   "score.protect.head": "Puanlarını koru",
   "score.protect.body": "Onları korumak için istikrarlı kal. Söz verdiğin bir kontrolü ya da antrenmanı atlarsan sayı biraz düşer — koçun bunu her zaman silebilir ve asla 0'ın altına inmezsin.",
   "score.gotIt": "Anladım",
-  "score.seeScore": "Puanımı gör →"
+  "score.seeScore": "Puanımı gör →",
+  "dob.eyebrow": "Hesap",
+  "dob.required": "Zorunlu",
+  "dob.title": "Doğum tarihini onayla.",
+  "dob.subtitle": "18 yaş ve üzeri yetişkinler",
+  "dob.body": "Shape 18 yaş ve üzeri yetişkinler içindir ve her hesapta kayıtlı bir doğum tarihi bulunmalıdır. Bunu yalnızca bir kez soracağız — doğum tarihi sonradan değiştirilemez, bu yüzden kaydetmeden önce kontrol et.",
+  "dob.label": "Doğum tarihi",
+  "dob.cta": "Kaydet ve devam et",
+  "dob.saving": "Kaydediliyor…",
+  "dob.signout": "Çıkış yap",
+  "dob.blockedTitle": "Bunu burada tamamlayamıyoruz.",
+  "dob.blockedBody": "Hesap kurulumun tamamlanmamış, bu yüzden bunu kaydedecek bir yer henüz yok. Destek ekibiyle iletişime geç, biz halledelim.",
+  "dob.genericError": "Doğum tarihin kaydedilemedi. Tekrar dene.",
+  "dob.errInvalidDate": "Geçerli bir doğum tarihi gir.",
+  "dob.errUnder18": "Shape 18 yaş ve üzeri yetişkinler içindir.",
+  "dob.errAlreadySet": "Doğum tarihin zaten kayıtlı ve burada değiştirilemez. Yanlışsa destek ekibiyle iletişime geç."
 }

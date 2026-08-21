@@ -62,5 +62,20 @@
   "score.protect.head": "Protégez vos points",
   "score.protect.body": "Restez régulier pour les garder. Si vous manquez un bilan ou une séance auxquels vous vous étiez engagé, le chiffre baisse un peu — un coach peut toujours l’annuler, et vous ne descendez jamais sous 0.",
   "score.gotIt": "Compris",
-  "score.seeScore": "Voir mon score →"
+  "score.seeScore": "Voir mon score →",
+  "dob.eyebrow": "Compte",
+  "dob.required": "Obligatoire",
+  "dob.title": "Confirmez votre date de naissance.",
+  "dob.subtitle": "Adultes de 18 ans et plus",
+  "dob.body": "Shape est réservé aux adultes de 18 ans et plus, et chaque compte doit avoir une date de naissance enregistrée. Nous ne vous la demanderons qu’une fois — la date ne pourra plus être modifiée ensuite, alors vérifiez-la avant d’enregistrer.",
+  "dob.label": "Date de naissance",
+  "dob.cta": "Enregistrer et continuer",
+  "dob.saving": "Enregistrement…",
+  "dob.signout": "Se déconnecter",
+  "dob.blockedTitle": "Nous ne pouvons pas finaliser ici.",
+  "dob.blockedBody": "La configuration de votre compte n’a pas abouti, il n’y a donc rien où enregistrer cette information pour l’instant. Contactez le support et nous régulariserons cela.",
+  "dob.genericError": "Impossible d’enregistrer votre date de naissance. Réessayez.",
+  "dob.errInvalidDate": "Saisissez une date de naissance valide.",
+  "dob.errUnder18": "Shape est réservé aux adultes de 18 ans et plus.",
+  "dob.errAlreadySet": "Votre date de naissance est déjà enregistrée et ne peut pas être modifiée ici. Contactez le support si elle est incorrecte."
 }

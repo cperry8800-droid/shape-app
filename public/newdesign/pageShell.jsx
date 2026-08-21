@@ -324,6 +324,70 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
   );
 }
 
+// ⚠ SIGN-OUT MUST NOT BE BOUND TO A COMPONENT MOST PAGES NEVER RENDER. This was
+// exposed only from inside Header's effect, so it existed on the 59 portal pages
+// that render a Header and was UNDEFINED on the other 14 that carry the DOB gate.
+// There, the gate's "Sign out" fell through to a bare redirect to /login — and
+// login.jsx does not clear an existing session on arrival, so the member stayed
+// signed in with no way out. Login.html is itself gate-eligible, so its fallback
+// pointed at the page it was already on: a loop with a live session.
+//
+// Defined at MODULE scope, so loading this file is enough. Not a second copy of
+// the sign-out — the ordering below is the same one handleLogout uses and that
+// took a whole wave to settle (cookie first, then the SDK session and scrub, and
+// a broadcast only on a CONFIRMED cookie clear, because a premature stamp
+// manufactures a signed-in sibling tab that nothing will later correct).
+async function shapePortalSignOutStandalone() {
+  // ⚠ ONE COPY OF THIS ORDERING, AND THIS IS IT. It was tuned across a whole
+  // review wave, and for a while this file held TWO copies — Header's
+  // handleLogout and this one — which is precisely the "copied guard with its
+  // rationale left behind" that dobGate.js refuses to make a third of. A later
+  // fix to one would silently miss the other and reintroduce the class the
+  // ordering exists to prevent, so handleLogout now delegates here.
+  //
+  // ⚠ The RESULT is kept: the SDK-less branch below broadcasts the cross-tab
+  // sign-out, and a sibling reacts by RELOADING. Stamping while the cookie is
+  // still valid sends a dashboard tab back into an authenticated route with no
+  // later event to retire it. A missed broadcast only leaves siblings as they
+  // were before the feature existed; a premature one manufactures a signed-in
+  // tab nothing will correct. When they conflict, take the miss.
+  var cookieCleared = false;
+  try {
+    const outRes = await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+    cookieCleared = Boolean(outRes && outRes.ok);
+  } catch (e) {}
+  // The cookie sign-out alone leaves the persisted Supabase SDK session
+  // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns it
+  // before ever consulting the now-cleared cookie, so the next visitor could
+  // still act as this account through client-side Supabase APIs. Prefer the full
+  // local sign-out (shapeDb.signOut clears that session AND runs the content
+  // scrub); fall back to the scrub alone on any page that doesn't load
+  // supabase.js.
+  try {
+    if (window.shapeDb && window.shapeDb.signOut) {
+      await window.shapeDb.signOut();
+      // ⚠ CARRY THE CONFIRMATION WE ALREADY HAVE. shapeDb.signOut() issues a
+      // SECOND cookie DELETE and gates its own broadcast on that one alone. If
+      // the POST above already cleared the cookie but connectivity dropped
+      // before the redundant DELETE landed, the stamp would be suppressed
+      // despite invalidation being confirmed — leaving siblings holding the
+      // departed member's in-memory state. One confirmation is enough.
+      if (cookieCleared && window.shapeBroadcastSignOut) window.shapeBroadcastSignOut();
+    } else if (window.shapeClearLocalUserContent) {
+      // Pages that never load supabase.js reach THIS branch, and the navigation
+      // below discards the document — so the scrub's async cache purge must be
+      // awaited here, bounded so a stalled CacheStorage can never hang the
+      // sign-out (sign-out always completes).
+      await Promise.race([
+        Promise.resolve(window.shapeClearLocalUserContent({ broadcast: cookieCleared })),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]);
+    }
+  } catch (e) {}
+  window.location.href = '/';
+}
+window.shapePortalSignOut = window.shapePortalSignOut || shapePortalSignOutStandalone;
+
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [authUser, setAuthUser] = React.useState(null);
@@ -337,48 +401,31 @@ function Header({ active }) {
     return () => { cancelled = true; };
   }, []);
   async function handleLogout(e) {
+    // The whole sequence — and the reasons it is in this order — lives in
+    // shapePortalSignOutStandalone above. This handler exists only to swallow the
+    // anchor's default navigation before it runs.
     e.preventDefault();
-    // ⚠ The RESULT is kept: the SDK-less branch below broadcasts the cross-tab
-    // sign-out, and a sibling reacts by RELOADING. Stamping while the cookie is
-    // still valid sends a dashboard tab back into an authenticated route with
-    // no later event to retire it. A missed broadcast only leaves siblings as
-    // they were before the feature existed; a premature one manufactures a
-    // signed-in tab nothing will correct. When they conflict, take the miss.
-    var cookieCleared = false;
-    try {
-      const outRes = await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
-      cookieCleared = Boolean(outRes && outRes.ok);
-    } catch {}
-    // The cookie sign-out alone leaves the persisted Supabase SDK session
-    // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns
-    // it before ever consulting the now-cleared cookie, so the next visitor
-    // could still act as this account through client-side Supabase APIs.
-    // Prefer the full local sign-out (shapeDb.signOut clears that session AND
-    // runs the content scrub); fall back to the scrub alone on any page that
-    // doesn't load supabase.js.
-    try {
-      if (window.shapeDb && window.shapeDb.signOut) {
-        await window.shapeDb.signOut();
-        // ⚠ CARRY THE CONFIRMATION WE ALREADY HAVE. shapeDb.signOut() issues a
-        // SECOND cookie DELETE and gates its own broadcast on that one alone.
-        // If the POST above already cleared the cookie but connectivity dropped
-        // before the redundant DELETE landed, the stamp would be suppressed
-        // despite invalidation being confirmed — leaving siblings holding the
-        // departed member's in-memory state. One confirmation is enough.
-        if (cookieCleared && window.shapeBroadcastSignOut) window.shapeBroadcastSignOut();
-      } else if (window.shapeClearLocalUserContent) {
-        // Pages that never load supabase.js reach THIS branch, and the
-        // navigation below discards the document — so the scrub's async cache
-        // purge must be awaited here, bounded so a stalled CacheStorage can
-        // never hang the sign-out (sign-out always completes).
-        await Promise.race([
-          Promise.resolve(window.shapeClearLocalUserContent({ broadcast: cookieCleared })),
-          new Promise((r) => setTimeout(r, 2000)),
-        ]);
-      }
-    } catch {}
-    window.location.href = '/';
+    await shapePortalSignOutStandalone();
   }
+  // Expose the canonical sign-out so dobGate.js can offer an escape hatch
+  // without reimplementing it. That path clears the cookie, the persisted
+  // Supabase session AND runs the shared-device content scrub, in a broadcast
+  // order that took a whole wave to settle — a second copy of it inside the
+  // gate would be a copied guard with its rationale left behind.
+  //
+  // ⚠ HELD IN A REF, NOT CAPTURED. An empty-dep effect closes over the FIRST
+  // render's handleLogout; reading through a ref that every render refreshes
+  // means the exposed function is always the current one.
+  const logoutRef = React.useRef(null);
+  logoutRef.current = handleLogout;
+  React.useEffect(() => {
+    // The Header's own handler wins while it is mounted — it is the one wired to
+    // this page's React state. The module-scope definition below is the floor for
+    // every page that loads this file WITHOUT rendering a Header.
+    window.shapePortalSignOut = () => logoutRef.current({ preventDefault() {} });
+    return () => { window.shapePortalSignOut = shapePortalSignOutStandalone; };
+  }, []);
+
   async function switchRole(nextRole) {
     setRoleMenuOpen(false);
     if (!authUser || nextRole === authUser.role) return;

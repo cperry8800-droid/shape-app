@@ -15,11 +15,25 @@
 // in the War Room record omitted the last two, so chat read as UNGATED when it is
 // gated, and the coverage counts derived from it were wrong by two routes.
 //
-// ⚠ ONLY AN EXPLICIT `false` IS A PROVEN MINOR. `profiles.over_18` is derived by
-// a DB trigger from `date_of_birth` and is NULL for every account created before
-// that gate existed. Refusing on NULL would lock out the entire pre-existing
-// user base, so absence is not treated as a claim either way — the same rule
-// `membership-core.ts` applies.
+// ⚠ ABSENCE REFUSES — AND THIS PARAGRAPH SAID THE OPPOSITE FOR MONTHS. It read
+// "absence is not treated as a claim either way", describing an `over_18`-only
+// rule that stopped being the rule when mustRefuseForAge() landed. Line ~70 of
+// THIS FILE already said ABSENCE NO LONGER ADMITS, so the two halves of one file
+// disagreed — and the stale half is the one that got quoted into a launch
+// document, and from there into a status board, before anyone read the code.
+// Corrected rather than deleted, because the correction is the useful part.
+//
+// WHAT THE RULE ACTUALLY IS, in `mustRefuseForAge()` (src/lib/age-derive.mjs):
+// a usable `date_of_birth` decides in BOTH directions, so a proven adult is never
+// refused; `over_18` false/true decides next; and only when the row proves nothing
+// either way does `created_at` decide — REFUSED from ADULT_PROOF_REQUIRED_FROM
+// (2026-08-16) onward, grandfathered before it. A null or absent profile REFUSES
+// outright, deliberately: "no row" is what a failed provisioning write leaves
+// behind, and that is not a state to admit on.
+//
+// ⚠ READ mustRefuseForAge() ITSELF, NEVER A PROSE COPY OF IT — including this one.
+// Every wrong claim about this gate so far has come from a summary that was true
+// when written and went false when the rule moved.
 //
 // ⚠ AND `false` IS ONLY PROOF ONCE THE DOB FREEZE IS APPLIED.
 // `over_18` cannot be written directly, but until

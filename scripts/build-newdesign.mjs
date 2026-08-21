@@ -122,7 +122,9 @@ const BABEL_TAG = /<script\s+type="text\/babel"([^>]*)>([\s\S]*?)<\/script>/g;
 const STANDALONE_TAG = /[ \t]*<script[^>]*@babel\/standalone[^>]*><\/script>\r?\n?/g;
 
 const pages = fs.readdirSync(ND).filter((f) => f.endsWith('.html'));
-let pagesTouched = 0, inlineBlocks = 0, externalTags = 0, sentryPages = 0;
+let pagesTouched = 0, inlineBlocks = 0, externalTags = 0, sentryPages = 0, dobGatePages = 0;
+let dobGateEligible = 0;
+const dobGateUninjectable = [];
 
 // Pass 1: compile every externally-referenced .jsx up front, so the manifest
 // injected below is COMPLETE on every page (not just files seen so far).
@@ -215,6 +217,38 @@ const SENTRY_TAG = SITE_DSN
     + `<script defer src="/newdesign/sentryInit.js?v=${SENTRY_INIT_V}"></script>`
   : '';
 
+// The date-of-birth gate rides the same rail as sentryInit.js, and for the same
+// reason: hand-adding a tag to 73 pages is a list the next page silently fails to
+// join, and it makes a one-line change a 73-file diff. Injected here, coverage is
+// a property of the build rather than of anyone remembering.
+//
+// ⚠ ANCHORED ON globalChatButton.js, NOT on every page this script touches. That
+// tag is the portal's de-facto signed-in global, so it is the closest available
+// proxy for "a page a member actually lands on". The pages without it are the two
+// public-profile redirect stubs and the chat POPOUT — a child window, whose opener
+// already carries the gate; a second blocking overlay in there would be wrong.
+const DOB_GATE_SRC = path.join(ND, 'dobGate.js');
+const DOB_GATE_V = fs.existsSync(DOB_GATE_SRC)
+  ? hash8(fs.readFileSync(DOB_GATE_SRC, 'utf8'))
+  : '';
+// ⚠ A MISSING GATE FILE FAILS THE BUILD RATHER THAN DEPLOYING WITHOUT IT.
+// This used to fall through to an empty tag, so a deleted or renamed dobGate.js
+// shipped every portal page with no age-collection prompt at all — and the only
+// trace was a console line, which is not a gate. It is the same silence this
+// wave exists to end: a no-op that reads as success. There is no legitimate
+// tree without this file, so the absence can only be a mistake worth stopping.
+if (!DOB_GATE_V) {
+  throw new Error(
+    'build-newdesign: public/newdesign/dobGate.js is missing — refusing to build the '
+      + 'portal without the age-collection prompt. Restore the file or remove the gate '
+      + 'deliberately (and its coverage test with it).'
+  );
+}
+
+// Content-hashed like every other script this file emits, so an edit to the gate
+// is never served stale from a cache entry that outlives it.
+const DOB_GATE_TAG = `<script defer src="/newdesign/dobGate.js?v=${DOB_GATE_V}"></script>`;
+
 // Pass 2: rewrite the pages.
 for (const page of pages) {
   const abs = path.join(ND, page);
@@ -260,6 +294,29 @@ for (const page of pages) {
     next = next.replace('</head>', `${SENTRY_TAG}</head>`);
     sentryPages++;
   }
+  // Deferred, and after the Sentry tags on purpose: error tracking installs
+  // first, so a fault inside the gate itself is captured rather than silent.
+  // ⚠ ELIGIBILITY AND INJECTION ARE COUNTED SEPARATELY, AND A GAP IS FATAL. The
+  // condition here used to fold both together, so an anchored member page with no
+  // literal `</head>` received NO gate while the build simply printed a lower
+  // number — indistinguishable from the legitimate skips (the redirect stubs and
+  // the chat popout), and the coverage test counted it as covered. An eligible
+  // page that cannot be injected is a member who is never asked, so it stops the
+  // build rather than quietly lowering a total nobody can interpret.
+  if (next.includes('globalChatButton.js')) {
+    dobGateEligible++;
+    // No `if (DOB_GATE_TAG)` here: the tag is unconditional now and a missing gate
+    // file throws far above. Keeping the guard would re-encode the fail-open shape
+    // this wave closed — reintroduce an empty tag and injection would skip
+    // silently AND the equality check below would disable itself, so one mistake
+    // would take out both halves of the protection at once.
+    if (!next.includes('</head>')) {
+      dobGateUninjectable.push(page);
+    } else {
+      next = next.replace('</head>', `${DOB_GATE_TAG}</head>`);
+      dobGatePages++;
+    }
+  }
   if (crlf) next = next.replace(/(?<!\r)\n/g, '\r\n'); // 17 pages are CRLF; keep them whole
   if (!CHECK) fs.writeFileSync(abs, next);
   pagesTouched++;
@@ -277,6 +334,28 @@ console.log(
     ? `newdesign sentry: injected on ${sentryPages}/${pages.length} pages` +
       `${sentryPages < pages.length ? ` (${pages.length - sentryPages} skipped — no script machinery, e.g. pure-redirect stubs)` : ''}`
     : `newdesign sentry: SHAPE_SITE_SENTRY_DSN unset — no DSN injected, static-site error tracking inert on all ${pages.length} pages`
+);
+// Same rule as the Sentry line above: a coverage number nobody prints reads as
+// "everything is covered" the moment a page stops matching the anchor.
+// ⚠ AN ELIGIBLE PAGE THAT COULD NOT BE INJECTED STOPS THE BUILD. Reporting it as
+// a smaller number is the silent path this wave exists to close: the count alone
+// cannot distinguish "3 pages carry no anchor, by design" from "a member page
+// lost its </head> and now ships ungated".
+if (dobGateUninjectable.length) {
+  throw new Error(
+    'build-newdesign: these pages carry the gate anchor but have no </head> to inject into, '
+      + 'so they would ship WITHOUT the age-collection prompt: '
+      + dobGateUninjectable.join(', ')
+  );
+}
+if (dobGatePages !== dobGateEligible) {
+  throw new Error(
+    `build-newdesign: ${dobGateEligible} pages are gate-eligible but only ${dobGatePages} were injected`
+  );
+}
+console.log(
+  `newdesign dob gate: injected on ${dobGatePages}/${pages.length} pages` +
+    `${dobGatePages < pages.length ? ` (${pages.length - dobGatePages} without the chat-button anchor — redirect stubs + the chat popout)` : ''}`
 );
 // Symbolication + release are the two things that decide whether a captured
 // error is READABLE. Both are silent when they fail, so say them out loud.
