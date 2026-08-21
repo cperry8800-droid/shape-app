@@ -62,5 +62,17 @@
   "score.protect.head": "Guard your point",
   "score.protect.body": "Stay consistent make you keep dem. If you miss check-in or workout wey you promise, the number go drop small — but coach fit waive am anytime, and you no go ever go below 0.",
   "score.gotIt": "I don hear",
-  "score.seeScore": "Make I see my score →"
+  "score.seeScore": "Make I see my score →",
+  "dob.eyebrow": "Account",
+  "dob.required": "You must do am",
+  "dob.title": "Confirm di day wey you born.",
+  "dob.subtitle": "Adult wey don reach 18",
+  "dob.body": "Shape na for adult wey don reach 18, and every account must get di day wey dem born di person for file. Na once we go ask you — you no fit change am after, so check am well before you save.",
+  "dob.label": "Day wey you born",
+  "dob.cta": "Save make we continue",
+  "dob.saving": "E dey save…",
+  "dob.signout": "Comot",
+  "dob.blockedTitle": "We no fit finish am for here.",
+  "dob.blockedBody": "Your account setup no complete, so no place dey to save dis one yet. Tell support make we settle am.",
+  "dob.genericError": "We no fit save di day wey you born. Try again."
 }

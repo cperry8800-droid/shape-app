@@ -53,7 +53,16 @@ export async function GET() {
   // only decides whether to ASK.
   if (error) return NextResponse.json({ needed: false, unknown: true });
 
-  return NextResponse.json({ needed: !profile?.date_of_birth });
+  // ⚠ A MISSING PROFILE ROW IS A THIRD STATE, NOT A MISSING DATE. `absence
+  // refuses` means such an account is already locked out of every gated
+  // surface, and POST below cannot help it — there is no row to write to. It
+  // is reported separately so the prompt can say something true instead of
+  // presenting a form that is guaranteed to fail. Verified against the live
+  // database 2026-08-21: 2 of 4 confirmed, signed-in accounts are in this
+  // state, so it is the reachable case, not a theoretical one.
+  if (!profile) return NextResponse.json({ needed: true, blocked: 'no_profile' });
+
+  return NextResponse.json({ needed: !profile.date_of_birth });
 }
 
 // POST — supply it, once.
@@ -95,11 +104,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Could not read your profile. Try again.' }, { status: 503 });
   }
 
+  // ⚠ NO PROFILE ROW MEANS THE UPDATE BELOW MATCHES ZERO ROWS AND REPORTS
+  // SUCCESS. PostgREST does not treat an UPDATE affecting nothing as an error,
+  // so `writeErr` stays null and this route used to answer `ok: true` with a
+  // null date — telling a member their birthday was recorded while the gate
+  // went on refusing them, permanently and with no way to tell. Proven against
+  // the live database 2026-08-21 by running this exact statement under the
+  // caller's own RLS identity: 0 rows written for a profile-less account, 1 for
+  // an account with a row (both arms measured — an equal result would only have
+  // meant the test was broken).
+  //
+  // ⚠ AND THIS ROUTE DELIBERATELY DOES NOT CREATE THE ROW. `profiles.role` is
+  // NOT NULL with no default, so an insert has to choose a role — and
+  // `guard_profile_role_elevation` rewrites any coach role to 'client' on a
+  // non-privileged INSERT. A coach whose row went missing would silently
+  // self-provision as a client and lose their coach surfaces, which is a worse
+  // failure than the one being fixed. Provisioning belongs to the sign-in path
+  // that already owns it (src/app/auth/callback/route.ts), not to an
+  // age-collection endpoint.
+  if (!profile) {
+    return NextResponse.json(
+      {
+        error: 'Your account setup did not finish, so there is nothing to save this to yet. Contact support and we can complete it.',
+        code: 'no_profile',
+      },
+      { status: 409 }
+    );
+  }
+
   // ⚠ REFUSE A SECOND WRITE LOUDLY RATHER THAN APPEARING TO ACCEPT IT. The
   // `set_over_18` trigger silently REVERTS any change to a non-null
   // date_of_birth, so writing here would return success while changing nothing —
   // a member correcting a typo would be told it worked. Say so instead.
-  if (profile?.date_of_birth) {
+  if (profile.date_of_birth) {
     return NextResponse.json(
       {
         error: 'Your date of birth is already on file and cannot be changed here. Contact support if it is wrong.',
@@ -126,13 +163,26 @@ export async function POST(request: Request) {
     );
   }
 
-  // Read back rather than assuming: the trigger derives over_18, and confirming it
-  // landed is the difference between "we wrote a row" and "the gate will now
+  // Read back rather than assuming: the trigger derives over_18, and confirming
+  // it landed is the difference between "we wrote a row" and "the gate will now
   // admit them".
-  const { profile: after } = await readProfile(supabase, user.id);
+  //
+  // ⚠ THE READ-BACK IS THE AUTHORITY AND MUST BE ACTED ON. This comment already
+  // claimed as much while the code below simply reported whatever came back and
+  // answered `ok: true` regardless — a described check that was never performed.
+  // Anything short of a stored date is a failure to report, not a success to
+  // decorate, because the member's next screen is the gate that reads this row.
+  const { profile: after, error: verifyErr } = await readProfile(supabase, user.id);
+  if (verifyErr || !after?.date_of_birth) {
+    return NextResponse.json(
+      { error: 'Could not confirm your date of birth was saved. Try again.', code: 'not_persisted' },
+      { status: 503 }
+    );
+  }
+
   return NextResponse.json({
     ok: true,
-    date_of_birth: after?.date_of_birth ?? null,
-    over_18: after?.over_18 ?? null,
+    date_of_birth: after.date_of_birth,
+    over_18: after.over_18 ?? null,
   });
 }

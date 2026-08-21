@@ -69,8 +69,9 @@ const MOD = await loadRealModule(MAIN_SRC, {
     ['../sentry.mjs', sentrySpy],
     // i18n init is environment setup, not the code under test — deterministic stub.
     ['../i18n/index.js', { initI18n: () => {}, applyDir: () => {}, i18n: { t: (k, o) => (o && o.defaultValue) || k, changeLanguage: () => {} } }],
-    // JSX sibling, never rendered by these tests (native import can't parse JSX).
+    // JSX siblings, never rendered by these tests (native import can't parse JSX).
     ['./BSLanguagePicker.jsx', { default: () => null }],
+    ['./BSDobGate.jsx', { default: () => null }],
     ['react-i18next', { I18nextProvider: ({ children }) => children }],
   ]),
   appendExports: 'export { BSErrorBoundary, bsCrashTestRequested, BSCrashProbe };',

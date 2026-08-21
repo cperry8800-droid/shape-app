@@ -62,5 +62,17 @@
   "score.protect.head": "Bảo vệ điểm của bạn",
   "score.protect.body": "Giữ đều đặn để giữ điểm. Bỏ lỡ một buổi cập nhật hay buổi tập đã cam kết thì con số sẽ giảm một chút — huấn luyện viên luôn có thể miễn cho bạn, và bạn không bao giờ tụt xuống dưới 0.",
   "score.gotIt": "Đã hiểu",
-  "score.seeScore": "Xem điểm của tôi →"
+  "score.seeScore": "Xem điểm của tôi →",
+  "dob.eyebrow": "Tài khoản",
+  "dob.required": "Bắt buộc",
+  "dob.title": "Xác nhận ngày sinh của bạn.",
+  "dob.subtitle": "Người lớn từ 18 tuổi trở lên",
+  "dob.body": "Shape dành cho người từ 18 tuổi trở lên, và mọi tài khoản đều cần có ngày sinh được lưu lại. Chúng tôi chỉ hỏi một lần — sau đó không thể thay đổi, vì vậy hãy kiểm tra kỹ trước khi lưu.",
+  "dob.label": "Ngày sinh",
+  "dob.cta": "Lưu và tiếp tục",
+  "dob.saving": "Đang lưu…",
+  "dob.signout": "Đăng xuất",
+  "dob.blockedTitle": "Chúng tôi không thể hoàn tất ở đây.",
+  "dob.blockedBody": "Việc thiết lập tài khoản của bạn chưa hoàn tất, nên hiện chưa có nơi để lưu thông tin này. Hãy liên hệ bộ phận hỗ trợ, chúng tôi sẽ xử lý.",
+  "dob.genericError": "Không thể lưu ngày sinh của bạn. Vui lòng thử lại."
 }

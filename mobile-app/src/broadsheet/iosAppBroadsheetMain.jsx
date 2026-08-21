@@ -3,6 +3,7 @@ import * as ReactDOM from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
+import BSDobGate from './BSDobGate.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
@@ -1813,6 +1814,33 @@ function BSAppShell({ tweaks, setTweak }) {
   // Global live notifications — toast the moment a new one lands, anywhere in
   // the app, so updates "appear" without opening the notifications feed.
   const authUserId = authState?.user?.id || null;
+
+  // ── Date-of-birth completion ────────────────────────────────────────────
+  // Asked of REAL signed-in members only. A previewer or a browse-mode
+  // visitor has no account to attach a birthdate to, so asking them would be
+  // a form that cannot succeed. `needed` starts false: until the server has
+  // actually said otherwise, nobody is held.
+  const [dobState, setDobState] = useStateBSM({ needed: false, blocked: '' });
+  useEffectBSM(() => {
+    if (!authUserId || !memberAllowed || previewMode || browseMode) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = window.ShapeAuth?.getCachedState?.()?.session?.access_token;
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch('/api/me/date-of-birth', { headers, credentials: 'same-origin' });
+        // ⚠ A NON-OK RESPONSE MUST NOT HOLD ANYONE. 401 during a token
+        // refresh, 5xx, an HTML error page from a proxy — none of them are
+        // evidence that this member owes us a date.
+        if (!res.ok) return;
+        const d = await res.json().catch(() => null);
+        if (cancelled || !d) return;
+        setDobState({ needed: d.needed === true, blocked: d.blocked || '' });
+      } catch (e) { /* never block on a failed check */ }
+    })();
+    return () => { cancelled = true; };
+  }, [authUserId, memberAllowed, previewMode, browseMode]);
   useEffectBSM(() => {
     if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};
     const unsub = window.ShapeNotifications.subscribe((n) => {
@@ -2007,6 +2035,15 @@ function BSAppShell({ tweaks, setTweak }) {
               <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
               <BSPreviewBannerGated t={t} onJoin={() => { if (authUserId) bsmStartCheckout(); else { setPreviewMode(false); setLoginMode('create'); setStage('login'); } }} />
             </>
+          ) : dobState.needed ? (
+            // Last gate before the app, and members-only by construction: the
+            // preview branch above already returned, so a previewer never
+            // reaches this line.
+            <BSDobGate
+              blocked={dobState.blocked}
+              onSaved={() => setDobState({ needed: false, blocked: '' })}
+              onLogout={handleLogout}
+            />
           ) : (
             <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
           )

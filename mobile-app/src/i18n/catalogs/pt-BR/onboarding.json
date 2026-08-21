@@ -62,5 +62,17 @@
   "score.protect.head": "Proteja seus pontos",
   "score.protect.body": "Mantenha a constância para conservá-los. Se você furar um check-in ou treino assumido, o número cai um pouco — um coach sempre pode relevar, e você nunca fica abaixo de 0.",
   "score.gotIt": "Entendi",
-  "score.seeScore": "Ver meu score →"
+  "score.seeScore": "Ver meu score →",
+  "dob.eyebrow": "Conta",
+  "dob.required": "Obrigatório",
+  "dob.title": "Confirme sua data de nascimento.",
+  "dob.subtitle": "Adultos de 18 anos ou mais",
+  "dob.body": "O Shape é para adultos de 18 anos ou mais, e toda conta precisa ter uma data de nascimento registrada. Vamos perguntar só uma vez — depois não dá para alterar, então confira antes de salvar.",
+  "dob.label": "Data de nascimento",
+  "dob.cta": "Salvar e continuar",
+  "dob.saving": "Salvando…",
+  "dob.signout": "Sair",
+  "dob.blockedTitle": "Não dá para concluir por aqui.",
+  "dob.blockedBody": "A configuração da sua conta não foi concluída, então ainda não há onde salvar isso. Fale com o suporte que a gente resolve.",
+  "dob.genericError": "Não foi possível salvar sua data de nascimento. Tente de novo."
 }

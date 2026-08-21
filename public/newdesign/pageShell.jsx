@@ -379,6 +379,22 @@ function Header({ active }) {
     } catch {}
     window.location.href = '/';
   }
+  // Expose the canonical sign-out so dobGate.js can offer an escape hatch
+  // without reimplementing it. That path clears the cookie, the persisted
+  // Supabase session AND runs the shared-device content scrub, in a broadcast
+  // order that took a whole wave to settle — a second copy of it inside the
+  // gate would be a copied guard with its rationale left behind.
+  //
+  // ⚠ HELD IN A REF, NOT CAPTURED. An empty-dep effect closes over the FIRST
+  // render's handleLogout; reading through a ref that every render refreshes
+  // means the exposed function is always the current one.
+  const logoutRef = React.useRef(null);
+  logoutRef.current = handleLogout;
+  React.useEffect(() => {
+    window.shapePortalSignOut = () => logoutRef.current({ preventDefault() {} });
+    return () => { try { delete window.shapePortalSignOut; } catch (e) {} };
+  }, []);
+
   async function switchRole(nextRole) {
     setRoleMenuOpen(false);
     if (!authUser || nextRole === authUser.role) return;

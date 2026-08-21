@@ -62,5 +62,17 @@
   "score.protect.head": "Protect your points",
   "score.protect.body": "Stay consistent to keep them. Skip a committed check-in or workout and the number dips a little — a coach can always waive it, and you never drop below 0.",
   "score.gotIt": "Got it",
-  "score.seeScore": "See my score →"
+  "score.seeScore": "See my score →",
+  "dob.eyebrow": "Account",
+  "dob.required": "Required",
+  "dob.title": "Confirm your date of birth.",
+  "dob.subtitle": "Adults 18 and over",
+  "dob.body": "Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — it can’t be changed afterwards, so check it before you save.",
+  "dob.label": "Date of birth",
+  "dob.cta": "Save and continue",
+  "dob.saving": "Saving…",
+  "dob.signout": "Sign out",
+  "dob.blockedTitle": "We can’t finish this here.",
+  "dob.blockedBody": "Your account setup didn’t complete, so there’s nothing to save this to yet. Contact support and we’ll put it right.",
+  "dob.genericError": "Could not save your date of birth. Try again."
 }

@@ -1,0 +1,106 @@
+// Every portal page a member lands on must carry the date-of-birth gate.
+//
+// ⚠ THE TAG IS NOT IN THE COMMITTED HTML. scripts/build-newdesign.mjs injects it
+// at deploy, the same rail sentryInit.js rides — so this file asserts the RULE
+// that produces the coverage, not the artifact. Scanning the pages for a literal
+// `dobGate.js` would report zero on a perfectly correct tree.
+//
+// Why the rule rather than a hand-added tag: a per-page list is one the next page
+// silently fails to join, and it turns a one-line change into a 73-file diff (big
+// enough that the review gate skips it entirely). Injected at the chokepoint,
+// coverage is a property of the build.
+//
+// globalChatButton.js is the anchor because it is the portal's de-facto signed-in
+// global — the closest available proxy for "a page a member actually lands on".
+// It is a proxy, not a definition, which is why the pages that fall outside it are
+// named individually below rather than pattern-matched away.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { stripComments } from './helpers/strip-comments.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const DIR = join(ROOT, 'public', 'newdesign');
+const BUILD = readFileSync(join(ROOT, 'scripts', 'build-newdesign.mjs'), 'utf8');
+
+// Pages with no chat-button anchor, each for a stated reason. Anything that falls
+// outside the rule has to be added here deliberately.
+const EXEMPT = new Set([
+  'NutritionistPublic.html', // ~1KB public-profile redirect stub, no member session
+  'TrainerPublic.html',      // ~1KB public-profile redirect stub, no member session
+  'chatPopout.html',         // popout child window; its opener already carries the gate
+]);
+
+const pages = readdirSync(DIR).filter((f) => f.endsWith('.html')).sort();
+const hasAnchor = (p) => readFileSync(join(DIR, p), 'utf8').includes('globalChatButton.js');
+
+test('the corpus is real — this test cannot pass vacuously', () => {
+  // A glob that silently returned nothing would make every assertion below true.
+  assert.ok(pages.length > 50, `expected the full portal, found ${pages.length} pages`);
+  assert.ok(pages.filter(hasAnchor).length > 50, 'expected most pages to carry the anchor');
+});
+
+test('the precompile injects the gate, anchored on the chat button', () => {
+  const src = stripComments(BUILD);
+  assert.match(src, /dobGate\.js/, 'the precompile must emit the gate script tag');
+  assert.match(
+    src,
+    /includes\('globalChatButton\.js'\)[\s\S]{0,80}?includes\('<\/head>'\)/,
+    'injection must be gated on the chat-button anchor and a <head> to inject into'
+  );
+  // Content-hashed like every other script this file emits, or an edit to the
+  // gate is served stale from a cache entry that outlives it.
+  assert.match(src, /dobGate\.js\?v=\$\{DOB_GATE_V\}/, 'the tag must carry a content hash');
+});
+
+test('the gate installs AFTER error tracking, never before', () => {
+  // If the gate threw during its own setup ahead of Sentry, the failure would be
+  // invisible — on the one screen standing between a member and the product.
+  const sentryAt = BUILD.indexOf("next.replace('</head>', `${SENTRY_TAG}</head>`)");
+  const gateAt = BUILD.indexOf("next.replace('</head>', `${DOB_GATE_TAG}</head>`)");
+  assert.ok(sentryAt > 0 && gateAt > 0, 'both injection sites must exist');
+  assert.ok(gateAt > sentryAt, 'the gate must be injected after the Sentry tags');
+});
+
+test('every page without the anchor is a NAMED exemption', () => {
+  const unexplained = pages.filter((p) => !hasAnchor(p) && !EXEMPT.has(p));
+  assert.deepEqual(
+    unexplained,
+    [],
+    `pages a member could land on with no gate and no stated reason: ${unexplained.join(', ')}`
+  );
+});
+
+test('the exemption list has no dead entries', () => {
+  // A stale exemption is how a page quietly loses coverage: it gains the anchor,
+  // nobody removes it from here, and the next page with that name inherits a pass
+  // it never earned.
+  const dead = [...EXEMPT].filter((f) => !pages.includes(f) || hasAnchor(f));
+  assert.deepEqual(dead, [], `exemptions no longer needed: ${dead.join(', ')}`);
+});
+
+test('the precompile reports its own coverage out loud', () => {
+  // A coverage number nobody prints reads as "everything is covered" the moment a
+  // page stops matching the anchor. The Sentry line above it exists for the same
+  // reason and is the precedent being followed.
+  assert.match(stripComments(BUILD), /newdesign dob gate: injected on/);
+});
+
+test('the gate script is present and self-contained', () => {
+  // ⚠ COMMENTS STRIPPED FIRST. The file's own header explains WHY it avoids
+  // window.shapeDb, so asserting over raw text fires on the rationale rather than
+  // the code — a guard that fails on its own explanation.
+  const src = stripComments(readFileSync(join(DIR, 'dobGate.js'), 'utf8'));
+  // It runs on 52 pages that never load /supabase.js, so a shapeDb dependency
+  // would make it dead code across most of the portal.
+  assert.doesNotMatch(src, /window\.shapeDb/, 'the gate must not depend on supabase.js');
+  // It must delegate sign-out rather than reimplement the shared-device scrub.
+  assert.match(src, /window\.shapePortalSignOut/);
+  assert.match(
+    readFileSync(join(DIR, 'pageShell.jsx'), 'utf8'),
+    /window\.shapePortalSignOut\s*=/,
+    'pageShell must expose the sign-out the gate delegates to'
+  );
+});
