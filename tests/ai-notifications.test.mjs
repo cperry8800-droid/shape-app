@@ -690,3 +690,27 @@ test('candidatesFor hands clientCandidates the pipeline instant', () => {
   assert.match(src, /clientCandidates\(\{[^;]*now: opts\.now/,
     'opts.now must reach clientCandidates, or the weekly signature keys off the wall clock');
 });
+
+// ⚠ THE DEDUP IDENTITY IS (type, KEY, sig) — AND MY QUEUE CHECK DROPPED THE KEY. The stamp
+// path keys on `${type}:${key}`, but the queued-item check matched on type and signature
+// alone. coachCandidates signs `${severity}:${reason}`, so two DIFFERENT clients in the
+// same state share a signature and differ only by key: once the first was held, the second
+// was classified a duplicate and dropped from that digest, delaying a red client alert.
+test('two held candidates of the same type and signature are told apart by KEY', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const rows = (id, name) => ({ clientId: id, clientName: name, severity: 'red', reason: 'no check-in 3w', flags: [{ owned: true, reason: 'no check-in 3w', discipline: 'training' }] });
+  const cands = coachCandidates({ triageRows: [rows('c1', 'Ana'), rows('c2', 'Bo')], lastSeverity: {} });
+  assert.equal(cands.length, 2, 'fixture must produce one candidate per client');
+  assert.equal(cands[0].sig, cands[1].sig, 'premise: the two must share a signature for this test to mean anything');
+  assert.notEqual(cands[0].key, cands[1].key);
+
+  // quiet hours: both are held. The second must NOT be read as a duplicate of the first.
+  const out = decideNotifications({ candidates: cands, last: { date: 'never' }, prefs, now: NIGHT, audience: 'coach' });
+  assert.equal(out.nextState.pendingDigest.length, 2,
+    'a second client in the same state was dropped as a duplicate of the first');
+  assert.deepEqual(out.nextState.pendingDigest.map((i) => i.key).sort(), ['c1', 'c2']);
+
+  // ...and the same candidate really is still a duplicate of itself.
+  const again = decideNotifications({ candidates: cands, last: out.nextState, prefs, now: NIGHT, audience: 'coach' });
+  assert.equal(again.nextState.pendingDigest.length, 2, 'a genuinely duplicate candidate was queued twice');
+});

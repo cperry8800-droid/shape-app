@@ -438,7 +438,15 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     // A stamp written at queue time is a second, redundant record of the same fact, and
     // it is the one that can be orphaned or misattributed when something later removes
     // the item it stood for. Asking the queue directly cannot go stale.
-    const queued = state.pendingDigest.some((i) => i && i.type === c.type && i.sig === c.sig);
+    // ⚠ THE IDENTITY IS (type, KEY, sig) — the stamp path keys on `${type}:${key}`, and this
+    // must match it. coachCandidates signs `${severity}:${reason}`, so two DIFFERENT clients
+    // in the same state share a signature and differ only by key; matching on type+sig alone
+    // dropped the second from the digest and delayed a red client alert. An item queued
+    // before the key rode along carries none: matching it on type+sig is the old behaviour,
+    // and errs toward suppressing rather than delivering the same nudge twice.
+    const queued = state.pendingDigest.some(
+      (i) => i && i.type === c.type && i.sig === c.sig && (i.key === undefined || i.key === c.key)
+    );
     if (prevSig === c.sig || queued) { suppressed.push({ type: c.type, reason: 'duplicate' }); continue; }
 
     const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch };
