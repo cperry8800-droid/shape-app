@@ -399,7 +399,8 @@ test('coderabbitVerdict — inline findings anchored on the head are CHANGES', (
 // ⚠ THE UNSATISFIABILITY THIS ONCE FIXED HAS DISSOLVED, AND THE GATE SWAPPED BACK. The old
 // contradiction was that `coderabbitVerdict` is head-pinned while the house ran CodeRabbit
 // ONCE as a breadth sweep — so the sweep stopped counting the moment a fix for its own
-// findings was pushed. Codex is no longer used at all (owner, 2026-08-20), and CodeRabbit is
+// findings was pushed. Codex no longer gates and is never triggered (owner, 2026-08-20) —
+// its chip still renders and its verdict is still computed; it just decides nothing. CodeRabbit is
 // re-triggered every round, so head-pinning is exactly what a gate wants: it now says
 // "this head was reviewed and passed" rather than "some head once was".
 test('prAllGreen — CODEX does NOT gate, whatever its verdict', () => {

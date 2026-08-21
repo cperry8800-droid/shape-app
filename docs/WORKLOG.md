@@ -120,8 +120,9 @@ changelog whenever something ships.
   owner asked for it directly. Triggering it by hand is now **allowed**. (The
   2026-08-18 hand-trigger predated the authorisation and was a rule break at the
   time; it is no longer the rule being broken.)
-  ⚠ **CODERABBIT IS THE GATING REVIEWER — owner, 2026-08-20, and CODEX IS NO LONGER
-  USED AT ALL.** The merge gate is CI green **and a CodeRabbit pass on the final head**.
+  ⚠ **CODERABBIT IS THE GATING REVIEWER — owner, 2026-08-20, and CODEX NO LONGER GATES
+  AND IS NEVER TRIGGERED.** It still auto-fires on PR open, `codexVerdict` still runs and
+  `/console` still renders its chip — it just decides nothing. The merge gate is CI green **and a CodeRabbit pass on the final head**.
   A pass is an **APPROVED review on that head**, or a zero-marker comment naming it —
   measured across the last 18 merged PRs, approval is the only signal CodeRabbit emits
   reliably on a clean head. ⚠ **`Actionable comments posted: N` is NOT head-pinned**:
