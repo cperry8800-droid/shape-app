@@ -191,6 +191,66 @@ test('the probe fires once even if DOMContentLoaded arrives twice', async () => 
   assert.equal(doc.documentElement.style.overflow, 'hidden', 'the lock should still be the first capture');
 });
 
+// ⚠ aria-modal="true" is a PROMISE that the page behind is unavailable. jsdom does
+// not move focus on Tab by itself, which is exactly why these assert what the gate's
+// own handler does rather than what a browser would do — the handler IS the trap.
+test('Tab cycles inside the gate instead of escaping to the page behind', async () => {
+  const { doc, win } = boot({ getResp: () => resp(200, { needed: true }) });
+  await settle();
+  // A real control behind the overlay — without the trap this is where Tab off
+  // the last gate control lands, in a page aria-modal says does not exist.
+  const behind = doc.createElement('button');
+  behind.id = 'behind';
+  doc.getElementById('page').appendChild(behind);
+
+  const focusables = [...doc.querySelectorAll(`#${GATE_ID} input, #${GATE_ID} button`)];
+  assert.ok(focusables.length >= 2, 'the gate should offer a form and an escape hatch');
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+
+  const tab = (shiftKey) => {
+    const ev = new win.KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
+    doc.activeElement.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  };
+
+  last.focus();
+  assert.equal(tab(false), true, 'Tab off the last control must be intercepted');
+  assert.equal(doc.activeElement, first, 'and wrap to the first, not to the page behind');
+
+  first.focus();
+  assert.equal(tab(true), true, 'Shift+Tab off the first control must be intercepted');
+  assert.equal(doc.activeElement, last, 'and wrap to the last');
+});
+
+test('the trap skips a control that is disabled mid-save', async () => {
+  // The submit button disables itself while saving, and a disabled control
+  // silently refuses focus — cycling onto it would drop the cycle on the floor.
+  const { doc, win } = boot({ getResp: () => resp(200, { needed: true }) });
+  await settle();
+  const submit = doc.querySelector(`#${GATE_ID} button[type="submit"]`);
+  assert.ok(submit, 'a submit button should exist');
+  submit.disabled = true;
+
+  const enabled = [...doc.querySelectorAll(`#${GATE_ID} input, #${GATE_ID} button`)].filter((el) => !el.disabled);
+  const last = enabled[enabled.length - 1];
+  last.focus();
+  const ev = new win.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  doc.activeElement.dispatchEvent(ev);
+  assert.equal(doc.activeElement, enabled[0], 'the cycle must land on an enabled control');
+  assert.notEqual(doc.activeElement, submit);
+});
+
+test('the blocked panel puts focus inside the dialog', async () => {
+  // It offers no form, so nothing pulls focus in on its own; without this the
+  // first Tab would start behind the overlay.
+  const { doc } = boot({ getResp: () => resp(200, { needed: true, blocked: 'no_profile' }) });
+  await settle();
+  const gate = gateIn(doc);
+  assert.ok(gate.contains(doc.activeElement) || doc.activeElement === gate,
+    'focus should start inside the dialog');
+});
+
 test('the gate mounts once even if the script is evaluated twice', async () => {
   const { doc, win } = boot({ getResp: () => resp(200, { needed: true }) });
   await settle();

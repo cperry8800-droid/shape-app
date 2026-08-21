@@ -80,6 +80,46 @@
     wrap.id = ID;
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
+    wrap.tabIndex = -1;
+
+    // ⚠ aria-modal="true" TELLS ASSISTIVE TECH THE PAGE BEHIND DOES NOT EXIST,
+    // so Tab must not be able to reach it. Without a trap a keyboard user walks
+    // straight out of this overlay into controls their screen reader has been
+    // told are unavailable — the two disagree, and the one that is wrong is the
+    // one they can still operate. Focusables are read at event time because the
+    // submit button disables itself mid-save, and a disabled control silently
+    // refuses focus, which would drop the cycle on the floor.
+    //
+    // The MOBILE twin needs none of this and that is structural, not an
+    // oversight: BSDobGate renders INSTEAD of <App/>, so nothing is behind it.
+    // There is deliberately no Escape-to-close either — this is a gate, and an
+    // escape hatch that dismissed it would defeat the thing it exists to do.
+    // The way out is Sign out, which every state offers.
+    wrap.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Tab') return;
+      var f = wrap.querySelectorAll(
+        'input:not([disabled]), button:not([disabled]), select:not([disabled]),'
+          + ' textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      );
+      if (!f.length) return;
+      var first = f[0];
+      var last = f[f.length - 1];
+      // Only the boundaries need intercepting; every step between them is the
+      // browser's own Tab order, which is already correct inside the dialog.
+      //
+      // ⚠ NO 'focus escaped the dialog' BRANCH, because this listener could
+      // never run in that state: it is scoped to `wrap`, and a keydown fired
+      // while focus sits outside bubbles from there to document without ever
+      // passing through it. A document-level listener would reach that case,
+      // and was rejected — it outlives the node this gate removes on save, so
+      // getting its teardown wrong hijacks Tab across the whole portal, which
+      // is a worse failure than the one being prevented.
+      var active = document.activeElement;
+      if (ev.shiftKey ? active === first : active === last) {
+        ev.preventDefault();
+        try { (ev.shiftKey ? last : first).focus(); } catch (e) {}
+      }
+    });
     wrap.setAttribute('aria-labelledby', ID + '-title');
 
     var card = el('div', { width: '100%', maxWidth: '460px' });
@@ -115,6 +155,9 @@
       card.appendChild(outOnly);
       wrap.appendChild(card);
       document.body.appendChild(wrap);
+      // No form here, so nothing pulls focus in on its own — focus the dialog so
+      // it is announced and Tab starts inside the trap rather than behind it.
+      try { wrap.focus(); } catch (e) {}
       return;
     }
 

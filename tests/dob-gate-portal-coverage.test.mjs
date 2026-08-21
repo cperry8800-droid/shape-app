@@ -81,6 +81,29 @@ test('the exemption list has no dead entries', () => {
   assert.deepEqual(dead, [], `exemptions no longer needed: ${dead.join(', ')}`);
 });
 
+test('a missing gate file FAILS the build rather than deploying without it', () => {
+  // This used to fall through to an empty tag: delete dobGate.js and every portal
+  // page shipped with no age-collection prompt, the only trace being a console
+  // line. A log is not a gate.
+  //
+  // ⚠ ASSERTED ON THE SOURCE, AND THAT LIMIT IS REAL. Proving it by running the
+  // script with the file absent means spawning it somewhere it also cannot find
+  // the 76 pages, so a non-zero exit would prove nothing about THIS rule — it
+  // would pass for the wrong reason. Two spelling assertions instead: the refusal
+  // exists, and the tag has no empty fallback left for it to fall through to.
+  const src = stripComments(BUILD);
+  assert.match(
+    src,
+    /if\s*\(!DOB_GATE_V\)\s*\{[\s\S]{0,400}?throw new Error\(/,
+    'the build must refuse to run without the gate, not emit an empty tag'
+  );
+  assert.doesNotMatch(
+    src,
+    /DOB_GATE_TAG\s*=\s*DOB_GATE_V[\s\S]{0,200}?:\s*''/,
+    'no empty-string fallback may remain — that is the silent path being closed'
+  );
+});
+
 test('the precompile reports its own coverage out loud', () => {
   // A coverage number nobody prints reads as "everything is covered" the moment a
   // page stops matching the anchor. The Sentry line above it exists for the same

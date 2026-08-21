@@ -67,7 +67,7 @@
   "dob.required": "Obligatoire",
   "dob.title": "Confirmez votre date de naissance.",
   "dob.subtitle": "Adultes de 18 ans et plus",
-  "dob.body": "Shape est réservé aux adultes de 18 ans et plus, et chaque compte doit avoir une date de naissance enregistrée. La question ne vous sera posée qu’une fois — elle ne pourra pas être modifiée ensuite, vérifiez-la avant d’enregistrer.",
+  "dob.body": "Shape est réservé aux adultes de 18 ans et plus, et chaque compte doit avoir une date de naissance enregistrée. Nous ne vous la demanderons qu’une fois — la date ne pourra plus être modifiée ensuite, alors vérifiez-la avant d’enregistrer.",
   "dob.label": "Date de naissance",
   "dob.cta": "Enregistrer et continuer",
   "dob.saving": "Enregistrement…",

@@ -25,6 +25,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -71,12 +72,12 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
-  }
+  // The shared reader, not a local try/catch: it carries the proxy's size cap
+  // and one malformed-body answer for every route, so this endpoint cannot
+  // drift into being the one that accepts an unbounded payload.
+  const bodyResult = await readJson<unknown>(request);
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const dob = (body as { date_of_birth?: unknown } | null)?.date_of_birth;
 
   // ⚠ VALIDATE WITH THE SHARED HELPER, NEVER A LOCAL PARSE. `isMinorFromDob`
@@ -177,6 +178,31 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: 'Could not confirm your date of birth was saved. Try again.', code: 'not_persisted' },
       { status: 503 }
+    );
+  }
+
+  // ⚠ PRESENCE IS NOT PROOF IT IS *THIS* CALLER'S DATE. The already_set guard
+  // above is a read followed by a write, so two requests can both find null and
+  // both proceed. The first write lands; `set_over_18` then silently REVERTS the
+  // second back to the stored value, and PostgREST reports no error — so the
+  // second caller read back a truthy date and was told `ok: true` for a date
+  // that is not the one they sent. That is the same lie this route was just
+  // fixed for, one layer in: a write that did nothing, reported as success.
+  //
+  // Comparing identity closes it for every cause, not just concurrency — a
+  // trigger that rewrites the value, or a future policy that narrows the write,
+  // lands here too. Deliberately NOT paired with a `.is('date_of_birth', null)`
+  // filter on the UPDATE: that would need its own `.select()` to be observable
+  // (a zero-row filtered update is the same PostgREST silence), which puts a
+  // second authority next to this one and makes neither individually testable.
+  // The read-back is the authority; it decides alone.
+  if (after.date_of_birth !== (dob as string)) {
+    return NextResponse.json(
+      {
+        error: 'Your date of birth is already on file and cannot be changed here. Contact support if it is wrong.',
+        code: 'already_set',
+      },
+      { status: 409 }
     );
   }
 

@@ -229,11 +229,23 @@ const DOB_GATE_SRC = path.join(ND, 'dobGate.js');
 const DOB_GATE_V = fs.existsSync(DOB_GATE_SRC)
   ? hash8(fs.readFileSync(DOB_GATE_SRC, 'utf8'))
   : '';
+// ⚠ A MISSING GATE FILE FAILS THE BUILD RATHER THAN DEPLOYING WITHOUT IT.
+// This used to fall through to an empty tag, so a deleted or renamed dobGate.js
+// shipped every portal page with no age-collection prompt at all — and the only
+// trace was a console line, which is not a gate. It is the same silence this
+// wave exists to end: a no-op that reads as success. There is no legitimate
+// tree without this file, so the absence can only be a mistake worth stopping.
+if (!DOB_GATE_V) {
+  throw new Error(
+    'build-newdesign: public/newdesign/dobGate.js is missing — refusing to build the '
+      + 'portal without the age-collection prompt. Restore the file or remove the gate '
+      + 'deliberately (and its coverage test with it).'
+  );
+}
+
 // Content-hashed like every other script this file emits, so an edit to the gate
 // is never served stale from a cache entry that outlives it.
-const DOB_GATE_TAG = DOB_GATE_V
-  ? `<script defer src="/newdesign/dobGate.js?v=${DOB_GATE_V}"></script>`
-  : '';
+const DOB_GATE_TAG = `<script defer src="/newdesign/dobGate.js?v=${DOB_GATE_V}"></script>`;
 
 // Pass 2: rewrite the pages.
 for (const page of pages) {
@@ -307,10 +319,8 @@ console.log(
 // Same rule as the Sentry line above: a coverage number nobody prints reads as
 // "everything is covered" the moment a page stops matching the anchor.
 console.log(
-  DOB_GATE_TAG
-    ? `newdesign dob gate: injected on ${dobGatePages}/${pages.length} pages` +
-      `${dobGatePages < pages.length ? ` (${pages.length - dobGatePages} without the chat-button anchor — redirect stubs + the chat popout)` : ''}`
-    : `newdesign dob gate: public/newdesign/dobGate.js missing — the age-collection prompt is absent from the whole portal`
+  `newdesign dob gate: injected on ${dobGatePages}/${pages.length} pages` +
+    `${dobGatePages < pages.length ? ` (${pages.length - dobGatePages} without the chat-button anchor — redirect stubs + the chat popout)` : ''}`
 );
 // Symbolication + release are the two things that decide whether a captured
 // error is READABLE. Both are silent when they fail, so say them out loud.
