@@ -343,6 +343,28 @@ test('coderabbitVerdict — an approval AFTER a finding on the same head clears 
   );
   // A finding with no approval at all is open, whatever its timestamp.
   assert.equal(coderabbitVerdict({ reviews: [], reviewComments: [inline(1000)], headSha: SHA }), 'changes');
+
+  // ⚠ THE LATEST APPROVAL, NOT THE FIRST — a mutation taking the earliest survived until
+  // this case existed. Two rounds on one head: finding, approval, another finding, another
+  // approval. Against the FIRST approval the second finding still reads open and the head
+  // is stranded; against the latest it is answered.
+  assert.equal(
+    coderabbitVerdict({
+      reviews: [review('APPROVED', 2000), review('APPROVED', 4000)],
+      reviewComments: [inline(1000), inline(3000)],
+      headSha: SHA,
+    }),
+    'approved'
+  );
+  // ...and a finding after the LAST approval still closes it, with earlier rounds present.
+  assert.equal(
+    coderabbitVerdict({
+      reviews: [review('APPROVED', 2000), review('APPROVED', 4000)],
+      reviewComments: [inline(1000), inline(5000)],
+      headSha: SHA,
+    }),
+    'changes'
+  );
 });
 
 test('coderabbitVerdict — inline findings anchored on the head are CHANGES', () => {

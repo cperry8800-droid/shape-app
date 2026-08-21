@@ -271,6 +271,13 @@ export function codexVerdict({ reviews, comments, headSha } = {}) {
  * round, which is what makes head-pinning the right property for a gate rather
  * than an unsatisfiable one — it says THIS head was reviewed and passed.
  *
+ * ⚠ CODERABBIT NEVER AUTO-REVIEWS THIS REPO, so 'none' is the DEFAULT state of a new
+ * head, not an exception. It posts a skip-review comment saying the repository "does not
+ * receive automatic reviews because it has fewer than 10 stars" — measured 2026-08-21 on
+ * #1916 and #1917, both of which sat unreviewed while CI went green. Every round needs an
+ * explicit `@coderabbitai full review`, including the first. Blocking on 'none' is right:
+ * waiting is never the recovery, triggering is.
+ *
  * ⚠ 'commented' IS NOT A PASS, and that is measured rather than assumed. Across
  * the last 18 merged PRs, CodeRabbit's "Actionable comments posted: N" summary
  * is edited in place and is NOT head-pinned: #1915 merged with that line still

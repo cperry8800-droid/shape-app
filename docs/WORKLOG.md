@@ -128,6 +128,12 @@ changelog whenever something ships.
   that summary is edited in place, and #1915 merged with it still reading 2 while the
   head review was APPROVED with zero inline findings. Reading it as a verdict on the
   head is how a stale sweep, or a rate-limit notice, gets mistaken for a pass.
+  ⚠ **CODERABBIT NEVER AUTO-REVIEWS THIS REPO** — it posts a skip-review comment saying the
+  repository *"does not receive automatic reviews because it has fewer than 10 stars"*
+  (measured 2026-08-21 on #1916 and #1917, both of which sat unreviewed while CI went
+  green). **Every round needs an explicit `@coderabbitai full review`, including the
+  first.** An untriggered head reads `none` and is blocked — correctly. **Waiting is never
+  the recovery; triggering is.**
   ⚠ **Earlier entries in this file say the gate is Codex** — resolved by this line; the
   contradiction they describe (head-pinning vs a ONE-sweep process) dissolved when
   CodeRabbit began being re-triggered every round. **(3)
