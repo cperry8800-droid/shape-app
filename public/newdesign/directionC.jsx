@@ -154,20 +154,6 @@ const DirC = (() => {
     );
   }
 
-  // ---- Logos band (press substitute, using workplaces feel) ----
-  function Logos() {
-    const logos = ["RUNLAB", "PELOTON", "BARRY'S", "EQUINOX", "LIFETIME", "MIRROR"];
-    return (
-      <section style={{ padding: "40px 72px 80px", textAlign: "center" }}>
-        <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(10,31,27,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 28 }}>Trusted by coaches at</div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 1000, margin: "0 auto", gap: 40, flexWrap: "wrap" }}>
-          {logos.map(l => (
-            <div key={l} style={{ fontFamily: sans, fontSize: 18, fontWeight: 600, letterSpacing: "0.06em", color: "rgba(10,31,27,0.35)" }}>{l}</div>
-          ))}
-        </div>
-      </section>
-    );
-  }
 
   // ---- Audiences ----
   function Audiences() {
@@ -662,7 +648,6 @@ const DirC = (() => {
       <div style={{ background: BG, color: INK, minHeight: "100vh" }}>
         <Nav />
         <Hero />
-        <Logos />
         <Audiences />
         <Marketplace />
         <Score />
