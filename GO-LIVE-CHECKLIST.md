@@ -8,11 +8,14 @@ The ordered sequence for taking what's merged into a working live state.
 COUNTS, or LISTS.** That split is deliberate and it is the whole design.
 
 The 2026-05-30 version of this file named six migrations as "most likely
-outstanding" and called Eat/Train "editorial demo content (no data model)". By
-2026-08-21 there were 200 migrations and Eat/Train had a data model with 21 files
-writing `client_workouts`. Nothing was wrong when written; the file simply kept
-asserting it. A checklist that copies facts from elsewhere goes stale at the
-speed of the thing it copied.
+outstanding" and called Eat/Train "editorial demo content (no data model)". Both
+were true the day they were written. By the time anyone next opened the file the
+migration directory had grown by an order of magnitude and Eat/Train had a real
+data model — and the file was still asserting the old shape. A checklist that
+copies facts from elsewhere goes stale at the speed of the thing it copied.
+
+⚠ **Counts are omitted above on purpose.** Naming the new numbers here would
+recreate the identical defect one revision later.
 
 So: **anything with a status, a count, or a membership list is a link here, never
 a copy.** If you catch yourself pasting a list into this file, put a command that
@@ -21,7 +24,7 @@ computes it instead.
 ### The authoritative sources
 
 | For | Read |
-|---|---|
+| --- | --- |
 | **What is still open** | War Room — `/warroom`, `src/lib/warroom.ts` |
 | **Which migrations exist** | `ls supabase-migrations/*.sql` |
 | **What shipped, when** | `docs/WORKLOG.md` changelog |
@@ -55,23 +58,56 @@ terminal.
 
 ## 1. Database migrations (Supabase SQL editor)
 
-Run any not yet applied. The directory is the source of truth:
-
 ```sh
 ls supabase-migrations/*.sql | sort
 ```
 
-⚠ **"Oldest-first, each is a no-op if already applied" is NO LONGER SAFE ADVICE.**
-It was true of the handful of migrations that existed in May. It is false now: a
-meaningful minority carry an explicit ordering or deploy dependency **in their own
-file header**, and at least one breaks production if run early. Find them:
+⚠ **THAT COMMAND LISTS FILES, NOT APPLIED STATE, AND NOTHING IN THIS REPO TRACKS
+APPLIED STATE.** Migrations here are run by hand in the Supabase SQL editor, which
+does **not** write to `supabase_migrations.schema_migrations` — so the migration
+history the dashboard and CLI read is populated only by the handful ever applied
+through tooling, and is wildly short of the directory. **Do not treat either the
+file list or the migration history as a record of what has run.**
 
-```sh
-grep -rilE "run .*after|only after|before the deploy|step [12] of 2|run before" supabase-migrations/*.sql
+To find out whether a specific migration has been applied, **ask the live catalog
+for the object it creates or drops.** Worked example — `coach-insert-lockout`
+drops a policy, so its absence is the proof it ran:
+
+```sql
+select count(*) from pg_policies
+where schemaname='public' and tablename='client_workouts'
+  and policyname='trainer_insert_on_client_workouts';   -- 0 => the lockout ran
 ```
 
-**Read the header of every migration that grep returns before running it.** Two
-worked examples, so you know the shape of what those headers say:
+⚠ Check that the object was ever **created** by an earlier migration too, or you
+cannot tell "applied" from "never existed".
+
+> Adopting Supabase CLI migration tracking (with `migration repair` to backfill
+> the hand-run ones) would fix this properly. That is a project, not a checklist
+> edit, and it is not started.
+
+### Ordering
+
+⚠ **"Oldest-first, each is a no-op if already applied" is NO LONGER SAFE ADVICE.**
+It was true of the handful of migrations that existed in May. It is false now:
+many carry an explicit ordering or deploy dependency **in their own file header**,
+and at least one breaks production if run early.
+
+⚠ **THERE IS NO COMPLETE GREP FOR THIS, AND DO NOT TRUST ONE.** The headers are
+free prose and say it a dozen different ways — `RUN THIS AFTER`, `STEP 2 of 2`,
+`Depends on …`, `Order matters: …`. A keyword search written against the phrasings
+someone happened to notice **silently under-reports**: the first version of this
+section shipped a grep that missed roughly a third of the constrained migrations,
+and the two examples that exposed it were found by a reviewer rather than by the
+grep. ⚠ **A short result here is not reassurance — it is the failure mode.**
+**Read every migration header you are about to run.** The command below is a
+starting point for triage, never a clearance:
+
+```sh
+grep -rilE "run .*after|only after|before the deploy|step [12] of 2|run before|depends on|order matters|must be applied|prerequisite|apply after" supabase-migrations/*.sql
+```
+
+Two worked examples, so you know the shape of what those headers say:
 
 - `2026-07-31-coach-insert-lockout.sql` — *"RUN THIS AFTER THE DEPLOY THAT SHIPS
   THE NEW PUBLISH PATH."* Applied against the old code it **breaks the website's
@@ -160,14 +196,24 @@ push appears on the lock screen.
 ## 6. Error tracking (Sentry)
 
 ⚠ **Web is live. BOTH APP BINARIES SHIP WITH SENTRY DISABLED**, so a crash in the
-Android or iOS build is currently invisible. This is a GitHub **Actions secrets**
-gap, not a code gap — the workflow already references the names.
+Android or iOS build is currently invisible. Neither is a code gap — both
+pipelines already reference the variable names.
 
-- [ ] Android: add the repo secrets `android-build.yml` reads. Find them:
+⚠ **THE TWO BINARIES ARE CONFIGURED IN DIFFERENT PLACES, AND DOING ONLY ONE LEAVES
+THE OTHER DARK.** Android reads **GitHub Actions secrets**; iOS reads a
+**Codemagic variable group**. Adding the GitHub secrets does nothing for iOS.
+
+- [ ] **Android — GitHub Actions secrets.** Add the ones the workflow reads:
       `grep -n "SENTRY" .github/workflows/android-build.yml`
-      ⚠ `VITE_SENTRY_DSN` is the only one that actually enables capture; the other
-      three only upload source maps.
-- [ ] iOS: create the Codemagic variable group **before** anything references it.
+      ⚠ `VITE_SENTRY_DSN` is the only one that enables capture; the rest upload
+      source maps.
+- [ ] **iOS — Codemagic variable group.** Create the group **before** anything
+      references it: `codemagic.yaml` notes that referencing a group which does
+      not exist yet **breaks the iOS build on the next push to main**, which is
+      why the DSN and upload vars are deliberately still unwired.
+- [ ] ⚠ **Rebuild and re-ship each artifact after configuring it.** Vite inlines
+      `import.meta.env.*` at **build** time, so a binary already in TestFlight or
+      Play can never be fixed by setting a variable — it has to be built again.
 - [ ] Alert rules — without them Sentry files issues that notify nobody.
 - [ ] Fire a real test event on **each** surface and confirm delivery.
 
@@ -179,16 +225,23 @@ Status and the per-surface detail live in the War Room's error-tracking section.
 
 None of this is code. All of it blocks a public launch.
 
-- [ ] **Attorney review** of every document in `docs/legal/` — they are all DRAFT.
-      `ls docs/legal/`
-- [ ] Appoint an EU/UK **Article 27 representative**; sign DPAs/SCCs with
-      sub-processors.
-- [ ] ⚠ **The 18+ gate refuses nobody among existing users.** `profiles.over_18`
-      is derived by a trigger from `date_of_birth` and is **NULL** for every
-      account created before the gate; only an explicit `false` is treated as a
-      proven minor, because refusing on NULL would lock out the entire
-      pre-existing user base. **A date-of-birth completion flow is required before
-      the gate means anything for those accounts.**
+- [ ] **Attorney review** of every document in `docs/legal/` (`ls docs/legal/`).
+      Each file states its own status in its header — read that, rather than
+      trusting a status recorded here.
+- [ ] ⚠ **Article 27 representatives — EU and UK are SEPARATE regimes, and one
+      appointment does not satisfy the other.** If Art.3(2) applies under both,
+      appoint one representative established in an EU member state **and** one in
+      the UK. If counsel concludes an Art.27(2) exception applies, or launch is
+      geo-restricted away from those markets, record that analysis instead — the
+      exceptions are narrow and rarely fit a commercial service.
+- [ ] Sign DPAs/SCCs with sub-processors.
+- [ ] ⚠ **The 18+ gate cannot refuse an account whose age it does not know.**
+      `profiles.over_18` is derived by a trigger from `date_of_birth`, and only an
+      explicit `false` is treated as a proven minor — refusing on NULL would lock
+      out every account predating the gate. **A date-of-birth completion flow is
+      the prerequisite for the gate meaning anything on those accounts.** For how
+      many accounts are currently in that state, query `profiles` — the War Room
+      tracks whether the completion flow has shipped.
 - [ ] ⚠ The gate also covers a **subset** of the API surface. Read the real list,
       never a prose copy of it: `GATED_API_PREFIXES` in
       `src/lib/supabase/middleware.ts`. An earlier prose copy omitted two prefixes,
@@ -200,8 +253,9 @@ None of this is code. All of it blocks a public launch.
 
 ## 8. Android / iOS store builds
 
-- [ ] CI builds a debug APK already. For a signed release add the repo secrets in
-      `DEPLOY.md` §9.
+- [ ] Check what CI builds today before assuming a signed release exists —
+      `.github/workflows/android-build.yml` is the authority, not this line. For a
+      signed release, add the repo secrets named in `DEPLOY.md` §9.
 - [ ] Native iOS chain — see `docs/native-ios-build-checklist.md`.
 
 ---
@@ -211,26 +265,41 @@ None of this is code. All of it blocks a public launch.
 ⚠ **These cannot be run by an agent** — they need seeded, authenticated accounts,
 which is exactly why they are still open. Both are on the War Room board.
 
-- [ ] **Cross-member RLS denial vector** — prove account B cannot read account A's
-      data through the browser-side read.
-- [ ] **Coach-channel denial matrix** — needs three seeded authenticated accounts.
+⚠ **A DENIAL GATE THAT TESTS ONLY READS CAN PASS WITH A WRITE PATH WIDE OPEN.**
+Cover every operation class that crosses a member boundary, not just `select`:
+
+- [ ] **Cross-member RLS denial vector** — with B authenticated, attempt against
+      A's rows: **read · insert · update · delete**, plus the **SECURITY DEFINER
+      RPCs** that take a user id as an argument, **storage** objects under A's
+      prefix, and the **server routes** that read A by id. Each must deny.
+      ⚠ Run it against a table that actually **has A's rows in it** — a denial
+      test over an empty table cannot fail, so it cannot pass either.
+- [ ] **Coach-channel denial matrix** — needs three seeded authenticated accounts
+      (two members, one coach) and the same operation classes per pair.
 
 ---
 
 ## 10. End-to-end smoke test
 
-On the **live** site/app after §1–3, as a brand-new account:
+On the **live** site/app after §1–3. ⚠ **This needs TWO identities, not one** — a
+brand-new **client** account, and a separate seeded authenticated **coach**
+account with a live listing. A single account cannot exercise the coach-side
+permission and notification paths at all, which is exactly where the interesting
+failures are. Sign out and back in at each **⇄ handoff** below.
 
-- [ ] Sign up (email **and** phone) → land signed in.
-- [ ] Subscribe to a coach with a real card → Stripe webhook 2xx.
-- [ ] As the coach: see the **booking request** → **Confirm** → client gets
-      "Session confirmed" → **Join video call** works both sides.
-- [ ] Coach sends a workout / meal plan → client gets the notification.
-- [ ] Client logs an activity → shows in Progress, awards Shape Score, and the
-      coach sees it in the client's Progress breakdown.
-- [ ] Coach toggles **Pause new bookings** → new checkout is blocked.
+- [ ] **[client]** Sign up (email **and** phone) → land signed in.
+- [ ] **[client]** Subscribe to the coach with a real card → Stripe webhook 2xx.
+- [ ] **⇄ handoff to the coach account.**
+- [ ] **[coach]** See the **booking request** → **Confirm**.
+- [ ] **⇄ handoff to the client.** Client gets "Session confirmed" → **Join video
+      call** works for both sides.
+- [ ] **[coach]** Send a workout / meal plan → **[client]** gets the notification.
+- [ ] **[client]** Log an activity → shows in Progress and awards Shape Score →
+      **[coach]** sees it in that client's Progress breakdown.
+- [ ] **[coach]** Toggle **Pause new bookings** → a new checkout is blocked.
 - [ ] Chat both directions → each side gets notified.
-- [ ] Opt out of check-ins in Settings → confirm the cron stops nudging.
+- [ ] **[client]** Opt out of check-ins in Settings → confirm the cron stops
+      nudging.
 
 Anything that breaks here is the real punch list.
 
@@ -246,8 +315,9 @@ rather than pending, and so are worth naming:
   `provider: 'mock'`; there is no real audio until a stream is licensed. Song BPM
   is blocked behind the same thing.
 - **Timezone**: bookings store `scheduled_at` as UTC from a wall-clock picker.
-  Flagged 2026-05 and **never re-verified since** — treat it as unknown, not as
-  known-broken.
+  **Status unknown** — this was flagged once and never re-checked, so treat it as
+  neither confirmed nor cleared. Whether anyone has since verified it belongs in
+  the War Room, not here.
 
 ## Related
 
