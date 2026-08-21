@@ -120,20 +120,26 @@ changelog whenever something ships.
   owner asked for it directly. Triggering it by hand is now **allowed**. (The
   2026-08-18 hand-trigger predated the authorisation and was a rule break at the
   time; it is no longer the rule being broken.)
-  ✓ **AND IT NO LONGER GATES — RESOLVED 2026-08-20.** `prAllGreen` used to require a
-  CodeRabbit approved-or-clean verdict *on the head*, which the ratified one-sweep
-  process could never satisfy. CodeRabbit is now reported and never required. **Pick
-  one reviewer per round rather than hedging with both.**
-  ⚠ **The gating reviewer is CODEX**, not this — the merge gate is CI
-  green **and Codex clean on the final head**. **(3)
+  ⚠ **CODERABBIT IS THE GATING REVIEWER — owner, 2026-08-20, and CODEX IS NO LONGER
+  USED AT ALL.** The merge gate is CI green **and a CodeRabbit pass on the final head**.
+  A pass is an **APPROVED review on that head**, or a zero-marker comment naming it —
+  measured across the last 18 merged PRs, approval is the only signal CodeRabbit emits
+  reliably on a clean head. ⚠ **`Actionable comments posted: N` is NOT head-pinned**:
+  that summary is edited in place, and #1915 merged with it still reading 2 while the
+  head review was APPROVED with zero inline findings. Reading it as a verdict on the
+  head is how a stale sweep, or a rate-limit notice, gets mistaken for a pass.
+  ⚠ **Earlier entries in this file say the gate is Codex** — resolved by this line; the
+  contradiction they describe (head-pinning vs a ONE-sweep process) dissolved when
+  CodeRabbit began being re-triggered every round. **(3)
   required checks** — `main` branch protection requires ALL THREE CI checks
   (`Web (typecheck + build)` + `Mobile (build + public/m sync)` +
   `Secret scan (gitleaks)`) green before a merge (GitHub → Settings →
   Branches; once on, merging on red is impossible). Docs/config-only commits
-  may skip layers 0-1. **"Done" detection (rewritten 2026-08-18):** the merge
-  gate is **CI green on the final head AND Codex clean on the final head** — a
-  clean Codex pass leaves an issue comment or a 👍 from
-  `chatgpt-codex-connector[bot]`, so **absence of findings is not a pass**.
+  may skip layers 0-1. **"Done" detection (rewritten 2026-08-20):** the merge
+  gate is **CI green on the final head AND a CodeRabbit pass on the final head** —
+  **absence of findings is not a pass**, and neither is a `commented` verdict: it
+  means CodeRabbit has spoken on the PR but not on THIS head, so the head is
+  unreviewed and the review needs re-triggering.
   ⚠ This previously read "after pushing fixes for a CodeRabbit round, WAIT for
   its re-review before merging" — **deleted**: a reviewer that never runs cannot
   supply a merge condition. (⚠ The trailing clause *"and never waiting on

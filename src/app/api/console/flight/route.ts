@@ -95,6 +95,10 @@ type Review = {
   submitted_at?: string;
 };
 type Comment = { user?: { login?: string }; body?: string; created_at?: string };
+// Inline review comments — where CodeRabbit files its actual findings. Anchored on
+// `original_commit_id`, NOT `commit_id`: GitHub re-anchors the latter forward onto the
+// current head, so a finding already answered by a later push would look permanently open.
+type ReviewComment = { user?: { login?: string }; original_commit_id?: string };
 
 async function checkRunsFor(sha: string, token: string): Promise<Gate> {
   const data = (await gh(`/repos/${REPO}/commits/${sha}/check-runs?per_page=100`, token)) as {
@@ -126,13 +130,14 @@ async function buildFlight(token: string): Promise<Flight> {
       let codex: FlightPr['codex'] = 'none';
       const headSha = p.head?.sha || '';
       try {
-        const [ciGate, reviews, comments] = await Promise.all([
+        const [ciGate, reviews, comments, reviewComments] = await Promise.all([
           headSha ? checkRunsFor(headSha, token) : Promise.resolve<Gate>('none'),
           ghAll(`/repos/${REPO}/pulls/${p.number}/reviews`, token) as Promise<Review[]>,
           ghAll(`/repos/${REPO}/issues/${p.number}/comments`, token) as Promise<Comment[]>,
+          ghAll(`/repos/${REPO}/pulls/${p.number}/comments`, token) as Promise<ReviewComment[]>,
         ]);
         ci = ciGate;
-        coderabbit = coderabbitVerdict({ reviews, comments, headSha });
+        coderabbit = coderabbitVerdict({ reviews, comments, reviewComments, headSha });
         codex = codexVerdict({ reviews, comments, headSha });
       } catch {
         // Per-PR degrade: gates stay 'none' (no record ≠ a verdict).
@@ -147,7 +152,7 @@ async function buildFlight(token: string): Promise<Flight> {
         ci,
         coderabbit,
         codex,
-        allGreen: prAllGreen({ ci, codex, draft: !!p.draft }),
+        allGreen: prAllGreen({ ci, coderabbit, draft: !!p.draft }),
       };
     })
   );

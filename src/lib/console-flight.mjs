@@ -93,14 +93,25 @@ export function gateFromRuns(runs) {
  *   that has since cleared must not strand later pushes at CAPPED.
  * @param {{reviews?: Array<{user?: {login?: string}, state?: string, commit_id?: string}>,
  *          comments?: Array<{user?: {login?: string}, body?: string}>,
+ *          reviewComments?: Array<{user?: {login?: string}, original_commit_id?: string}>,
  *          headSha?: string}} args
  * @returns {'approved' | 'clean' | 'changes' | 'commented' | 'limited' | 'none'}
  */
-export function coderabbitVerdict({ reviews, comments, headSha } = {}) {
+export function coderabbitVerdict({ reviews, comments, reviewComments, headSha } = {}) {
   const sha = String(headSha || '');
   const revs = (Array.isArray(reviews) ? reviews : []).filter((r) =>
     isTrusted(r?.user?.login, CODERABBIT_BOTS)
   );
+  // ⚠ A REVIEW STATE IS NOT THE WHOLE VERDICT. CodeRabbit files its findings as inline
+  // review comments and the review containing them is often COMMENTED rather than
+  // CHANGES_REQUESTED, so a state-only read returns 'commented' for a head that has open
+  // findings on it. As a chip that was vague; as the GATE it is a false pass. Anchored on
+  // `original_commit_id`, never `commit_id` — GitHub re-anchors the latter forward, so a
+  // finding already answered by a later push would otherwise strand the gate forever.
+  const openFindings = (Array.isArray(reviewComments) ? reviewComments : []).some(
+    (c) => isTrusted(c?.user?.login, CODERABBIT_BOTS) && !!sha && String(c?.original_commit_id || '') === sha
+  );
+  if (openFindings) return 'changes';
   const onHead = sha ? revs.filter((r) => String(r?.commit_id || '') === sha) : [];
   const last = onHead[onHead.length - 1];
   if (last?.state === 'CHANGES_REQUESTED') return 'changes';
@@ -230,21 +241,27 @@ export function codexVerdict({ reviews, comments, headSha } = {}) {
 }
 
 /**
- * AWAITING YOUR WORD = CI full-coverage green, a CLEAN CODEX VERDICT ON THIS
- * HEAD, and not a draft.
+ * AWAITING YOUR WORD = CI full-coverage green, a CODERABBIT PASS ON THIS HEAD,
+ * and not a draft.
  *
- * ⚠ CODERABBIT NO LONGER GATES, and removing it is the point rather than a
- * simplification. `coderabbitVerdict` is head-pinned, so the ratified house
- * process — ONE CodeRabbit breadth sweep, Codex as the gate — could never
- * satisfy the old form: the sweep stopped counting the moment a fix for its own
- * findings was pushed, and the gate then demanded a re-review the process
- * forbids. The two were unsatisfiable together. CodeRabbit keeps its chip, which
- * is where a breadth sweep belongs; the gate now says what the house says.
+ * ⚠ CODEX NO LONGER GATES — the house stopped using it (owner, 2026-08-20), so
+ * a clean Codex record says nothing about whether this head was reviewed. It
+ * keeps its chip; it cannot open or close the gate.
  *
- * Net effect is STRICTER, not looser: `codex` must be a verdict on THIS head,
- * where the old `codexPresent` accepted any Codex record the PR had ever had.
- * @param {{ci?: string, codex?: string, draft?: boolean}} p
+ * ⚠ AND THE CONTRADICTION THAT ONCE REMOVED CODERABBIT HAS DISSOLVED. The old
+ * problem was that `coderabbitVerdict` is head-pinned while the house ran
+ * CodeRabbit ONCE as a breadth sweep: the sweep stopped counting the moment a
+ * fix for its own findings was pushed. CodeRabbit is now re-triggered every
+ * round, which is what makes head-pinning the right property for a gate rather
+ * than an unsatisfiable one — it says THIS head was reviewed and passed.
+ *
+ * ⚠ 'commented' IS NOT A PASS, and that is measured rather than assumed. Across
+ * the last 18 merged PRs, CodeRabbit's "Actionable comments posted: N" summary
+ * is edited in place and is NOT head-pinned: #1915 merged with that line still
+ * reading 2 while the head review was APPROVED with zero inline findings. Only
+ * an approval on this head, or a zero-marker that names it, is a pass.
+ * @param {{ci?: string, coderabbit?: string, draft?: boolean}} p
  */
-export function prAllGreen({ ci, codex, draft } = {}) {
-  return ci === 'green' && codex === 'clean' && !draft;
+export function prAllGreen({ ci, coderabbit, draft } = {}) {
+  return ci === 'green' && (coderabbit === 'approved' || coderabbit === 'clean') && !draft;
 }
