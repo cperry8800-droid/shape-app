@@ -99,6 +99,32 @@ test('the build refuses an eligible page it cannot inject', () => {
     'and must STOP the build rather than lower a count nobody can interpret');
 });
 
+// ⚠ THE GATE'S ESCAPE HATCH IS ONLY REAL IF THE SIGN-OUT EXISTS ON THE PAGE.
+// window.shapePortalSignOut used to be exposed ONLY from inside the Header
+// component's effect, so it was undefined on the 14 gate-eligible pages that
+// never render a Header — and there "Sign out" degraded to a redirect to /login,
+// which clears nothing. Measured at the time: 73 eligible, 59 render a Header, 9
+// load pageShell without rendering one, 5 never load pageShell at all.
+//
+// Asserted on the SOURCE because pageShell.jsx is a babel-compiled script with no
+// module boundary a test can import. Two halves: the definition must sit at module
+// scope, and the Header's cleanup must RESTORE it rather than delete it — an
+// unmount that deleted the global would recreate the hole on any page that mounts
+// and later drops a Header.
+test('the canonical sign-out exists without a Header being rendered', () => {
+  const shell = stripComments(readFileSync(join(DIR, 'pageShell.jsx'), 'utf8'));
+  const headerAt = shell.indexOf('function Header(');
+  assert.ok(headerAt > 0, 'Header should exist');
+
+  const assignAt = shell.indexOf('window.shapePortalSignOut =');
+  assert.ok(assignAt > 0 && assignAt < headerAt,
+    'the sign-out must be assigned at MODULE scope, before Header — binding it to a '
+    + 'component most portal pages never render is what left 14 gated pages without one');
+
+  assert.doesNotMatch(shell, /delete window\.shapePortalSignOut/,
+    'unmounting a Header must RESTORE the standalone, never delete the global');
+});
+
 test('the exemption list has no dead entries', () => {
   // A stale exemption is how a page quietly loses coverage: it gains the anchor,
   // nobody removes it from here, and the next page with that name inherits a pass
