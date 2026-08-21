@@ -47,7 +47,7 @@ test('a flag with no reason produces nothing (no fabricated copy)', () => {
 
 // ── (a) PREVIEW: client, coach-flagged sleep directive → deep-link Home ──────
 test('(a) client gets the coach-flagged sleep directive, deep-linking Home', () => {
-  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: NIGHT, tone: 'supportive' });
   assert.equal(cands.length, 1);
   const d = cands[0];
   assert.equal(d.type, 'directive');
@@ -89,7 +89,7 @@ test('a flag routed to the OTHER pro is not notified to this one', () => {
 
 // ── NOT NAGGING: dedup ───────────────────────────────────────────────────────
 test('dedup — the same event does not fire twice', () => {
-  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: NIGHT, tone: 'supportive' });
   const first = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ }, now: DAYTIME, audience: 'client' });
   assert.equal(first.send.length, 1);
   const second = decideNotifications({ candidates: cands, last: first.nextState, prefs: { tz: TZ }, now: DAYTIME, audience: 'client' });
@@ -104,14 +104,14 @@ test('coach: an unchanged severity does not re-nag', () => {
 
 // ── CONTROL: per-type × per-channel matrix ───────────────────────────────────
 test('all channels off for a type → that type is fully opted out', () => {
-  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: NIGHT, tone: 'supportive' });
   const { send, suppressed } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ, matrix: { directive: { inapp: false, push: false, email: false } } }, now: DAYTIME, audience: 'client' });
   assert.equal(send.length, 0);
   assert.ok(suppressed.some(s => s.type === 'directive' && s.reason === 'opted_out'));
 });
 
 test('push off but in-app on → still sends, channels reflect the choice', () => {
-  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: NIGHT, tone: 'supportive' });
   const { send } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ, matrix: { directive: { inapp: true, push: false, email: false } } }, now: DAYTIME, audience: 'client' });
   assert.equal(send.length, 1);
   assert.deepEqual(send[0].channels, { inapp: true, push: false, email: false });
@@ -123,7 +123,7 @@ test('email is opt-in: off by default, on when chosen', () => {
 });
 
 test('master mute → nothing sends', () => {
-  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: NIGHT, tone: 'supportive' });
   const { send, suppressed } = decideNotifications({ candidates: cands, last: {}, prefs: { muted: true, tz: TZ }, now: DAYTIME, audience: 'client' });
   assert.equal(send.length, 0);
   assert.ok(suppressed.every(s => s.reason === 'muted'));
@@ -349,9 +349,9 @@ test('a directive carries its lever and move kind, so a HELD copy stays identifi
   // LEVER is the stable identity (the kind is only its engine-built alias, and a coach
   // override can pair any kind with any lever), so both are stamped when the candidate is
   // built and the kind is trusted only for items stamped before the lever existed.
-  const [d] = clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], tone: 'supportive' });
+  const [d] = clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], now: DAYTIME, tone: 'supportive' });
   assert.equal(d.data.move, 'check_in');
-  const [s] = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const [s] = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: DAYTIME, tone: 'supportive' });
   assert.equal(s.data.move, 'recovery');
 });
 
@@ -451,7 +451,7 @@ test('purging an undelivered check-in releases its dedup stamp', () => {
 
   // ...and that is only worth anything if the nudge ACTUALLY ARRIVES once the member
   // turns the pref back on with the check-in still due.
-  const rebuilt = clientCandidates({ directive: null, flags: [], checkinDueThisWeek: true, tone: 'supportive' });
+  const rebuilt = clientCandidates({ directive: null, flags: [], checkinDueThisWeek: true, now: DAYTIME, tone: 'supportive' });
   assert.deepEqual(rebuilt.map((c) => c.type), ['checkin_due'], 'fixture must rebuild exactly the check-in candidate');
   const back = decideNotifications({ candidates: rebuilt, last: purged.nextState, prefs, now: DAYTIME, audience: 'client' });
   assert.deepEqual(back.send.map((i) => i.type), ['checkin_due'],
@@ -540,7 +540,7 @@ test('a held coach check-in override is purged, and a contact move of the same k
 test('purging one of two held directives cannot strand the other, or itself', () => {
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
   const queue = (directive, last) => decideNotifications({
-    candidates: clientCandidates({ directive, flags: [], tone: 'supportive' }),
+    candidates: clientCandidates({ directive, flags: [], now: NIGHT, tone: 'supportive' }),
     last, prefs, now: NIGHT, audience: 'client',
   }).nextState;
 
@@ -555,14 +555,14 @@ test('purging one of two held directives cannot strand the other, or itself', ()
 
     // the SURVIVOR was delivered, so it is stamped and does not come round again...
     const sleepAgain = decideNotifications({
-      candidates: clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' }),
+      candidates: clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: DAYTIME, tone: 'supportive' }),
       last: out.nextState, prefs, now: DAYTIME, audience: 'client',
     });
     assert.deepEqual(sleepAgain.send, [], 'a delivered move was sent twice');
 
     // ...and the PURGED one was never delivered, so opting back in must bring it.
     const back = decideNotifications({
-      candidates: clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], tone: 'supportive' }),
+      candidates: clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], now: DAYTIME, tone: 'supportive' }),
       last: out.nextState, prefs, now: DAYTIME, audience: 'client',
     });
     assert.deepEqual(back.send.map((i) => i.type), ['directive'],
@@ -606,7 +606,7 @@ test('a NON-check-in lever survives even when its action kind says check_in', ()
 // QUEUE, and the stamp is written only when the digest actually delivers it.
 test('a deferred item is recorded by the QUEUE, not by a dedup stamp', () => {
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
-  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], now: NIGHT, tone: 'supportive' });
   const held = decideNotifications({ candidates: cands, last: { date: 'never' }, prefs, now: NIGHT, audience: 'client' });
   assert.equal(held.nextState.pendingDigest.length, 1, 'quiet hours must hold it');
   assert.equal(held.nextState.types['directive:self'], undefined,
@@ -726,7 +726,7 @@ test('two held candidates of the same type and signature are told apart by KEY',
 test('a digest that delivers two items for one key remembers BOTH signatures', () => {
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
   const queue = (directive, last) => decideNotifications({
-    candidates: clientCandidates({ directive, flags: [], tone: 'supportive' }),
+    candidates: clientCandidates({ directive, flags: [], now: NIGHT, tone: 'supportive' }),
     last, prefs, now: NIGHT, audience: 'client',
   }).nextState;
 
@@ -738,7 +738,7 @@ test('a digest that delivers two items for one key remembers BOTH signatures', (
   // BOTH are now delivered, so NEITHER may be sent again.
   for (const d of [SLEEP_DIRECTIVE, CHECKIN_DIRECTIVE]) {
     const again = decideNotifications({
-      candidates: clientCandidates({ directive: d, flags: [], tone: 'supportive' }),
+      candidates: clientCandidates({ directive: d, flags: [], now: DAYTIME, tone: 'supportive' }),
       last: out.nextState, prefs, now: DAYTIME, audience: 'client',
     });
     assert.deepEqual(again.send, [],
@@ -748,7 +748,7 @@ test('a digest that delivers two items for one key remembers BOTH signatures', (
   // ...and a genuinely NEW signature still gets through.
   const fresh = { ...SLEEP_DIRECTIVE, action: { label: 'go to bed an hour earlier', kind: 'log_sleep' } };
   const sent = decideNotifications({
-    candidates: clientCandidates({ directive: fresh, flags: [], tone: 'supportive' }),
+    candidates: clientCandidates({ directive: fresh, flags: [], now: DAYTIME, tone: 'supportive' }),
     last: out.nextState, prefs, now: DAYTIME, audience: 'client',
   });
   assert.deepEqual(sent.send.map((i) => i.type), ['directive'], 'a new move was suppressed as a duplicate');
@@ -799,4 +799,62 @@ test('a stamp written at queue time by the PREVIOUS deploy is released with its 
   });
   assert.deepEqual(back.send.map((i) => i.type), ['checkin_due'],
     'the rebuilt check-in was deduped against a nudge that was never delivered');
+});
+
+// ⚠ DEFENSIVE, AND SAID SO RATHER THAN DRESSED UP AS REACHABLE. A review round argued a
+// legacy queue-time stamp could share its slot with signatures the digest delivered later,
+// so deleting the whole entry would forget those. I could not construct that state through
+// the public flow, and the reason is structural: the only ways to deliver are an immediate
+// send and a digest emit, and BOTH require a non-quiet call — in which `hadPending` is
+// already true, so the same call drains the queue that holds the legacy item. Traced it:
+// a quiet call queues the new week beside the legacy item without delivering either, and
+// the next non-quiet call delivers BOTH and empties the queue.
+// The partial drop is kept anyway: it is correct whether or not the state is reachable, it
+// costs one filter, and this exact line has now been wrong in both directions. The state is
+// therefore built by hand, which is the honest way to pin a defensive branch.
+test('releasing one signature keeps the others in the same slot', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const now = new Date('2026-06-24T10:00:00Z');
+  const legacyQueued = { type: 'checkin_due', key: 'self', sig: 'due:2026-06-15', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true }, at: +now };
+  const last = { date: 'never', pendingDigest: [legacyQueued], types: { 'checkin_due:self': {
+    sigs: [{ s: 'due:2026-06-15', at: +now }, { s: 'due:2026-06-22', at: +now }],
+    sig: 'due:2026-06-22', at: +now,
+  } } };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now, audience: 'client', checkinOptedOut: true });
+  assert.deepEqual(sigsOf(out.nextState.types['checkin_due:self']), ['due:2026-06-22'],
+    'releasing the purged signature threw away another one in the same slot');
+
+  // and when the slot empties, it goes rather than lingering as an empty husk
+  const only = { date: 'never', pendingDigest: [legacyQueued], types: { 'checkin_due:self': { sig: 'due:2026-06-15', at: +now } } };
+  const gone = decideNotifications({ candidates: [], last: only, prefs, now, audience: 'client', checkinOptedOut: true });
+  assert.equal(gone.nextState.types['checkin_due:self'], undefined, 'the emptied slot was left behind');
+});
+
+// ⚠ AGE ALONE DOES NOT BOUND A LIST. `habit_reminder` signs `habitId:YMD`, so one key
+// accumulates a signature a day; a `directive:self` signature changes with the verdict,
+// label or citations and the cron re-evaluates hourly. Inside the 30-day window the count
+// per slot was unbounded — the same growth class this change set is closing, in the very
+// structure that closes it.
+test('the signature list per entry is bounded by COUNT as well as by age', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  let state = { date: 'never' };
+  const base = new Date('2026-06-17T10:00:00Z');
+  for (let i = 0; i < 60; i++) {
+    const now = new Date(+base + i * 3600000);
+    const directive = { ...SLEEP_DIRECTIVE, verdict: `Recovery is the lever ${i}` };
+    state = decideNotifications({
+      candidates: clientCandidates({ directive, flags: [], now, tone: 'supportive' }),
+      last: state, prefs, now, audience: 'client',
+    }).nextState;
+  }
+  const n = sigsOf(state.types['directive:self']).length;
+  assert.ok(n <= 24, `one slot grew to ${n} signatures inside the TTL window — age alone does not bound it`);
+  // ...and it keeps the NEWEST, so a signature just delivered is still deduplicated.
+  const lastNow = new Date(+base + 59 * 3600000);
+  const again = decideNotifications({
+    candidates: clientCandidates({ directive: { ...SLEEP_DIRECTIVE, verdict: 'Recovery is the lever 59' }, flags: [], now: lastNow, tone: 'supportive' }),
+    last: state, prefs, now: lastNow, audience: 'client',
+  });
+  assert.deepEqual(again.send, [], 'the cap evicted the most recent signature');
 });

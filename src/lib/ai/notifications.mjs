@@ -91,6 +91,19 @@ function weekKey(d) {
 // How long a dedup stamp is kept. `at` was written and never read; it is now what bounds
 // the map. Four signature generations at the weekly cadence above.
 const DEDUP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+// ⚠ AND BY COUNT, because age alone does not bound a list. `habit_reminder` signs
+// `habitId:YMD` so one key gains a signature a day, and a `directive:self` signature
+// changes with the verdict, label or citations while the cron re-evaluates hourly — inside
+// the TTL window a single slot could grow without limit, which is the growth class this
+// file is closing. Evicting the OLDEST can only ever cost a re-send of something that many
+// distinct signatures ago; keeping them all costs the blob every cron pass rewrites.
+const MAX_SIGS_PER_KEY = 24;
+
+function newestSigs(list) {
+  const sorted = list.slice().sort((a, b) => a.at - b.at);
+  return sorted.slice(-MAX_SIGS_PER_KEY);
+}
 export function localHour(now, tz) {
   try {
     const s = new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC', hour: '2-digit', hour12: false }).format(now);
@@ -233,13 +246,20 @@ function releaseDedup(types, item, kept) {
   const prefix = `${item.type}:`;
   const entries = Object.keys(types).filter((k) => k.startsWith(prefix));
   if (nonEmpty(item.sig)) {
-    // ⚠ WHOLE-ENTRY DELETE IS CORRECT HERE, and a partial drop was unexercised code: a
-    // mutation replacing it with this survived, which is the tell. A QUEUED item's
-    // signature can never also be a DELIVERED one for the same key — a candidate whose
-    // signature was already delivered is suppressed before it can be queued — so the only
-    // entries this can match hold exactly that one signature, written at queue time by the
-    // deploy that predates the queue becoming the record.
-    for (const k of entries) if (stampSigs(types[k]).some((x) => x.s === item.sig)) delete types[k];
+    // ⚠ DROP ONLY THE PURGED SIGNATURE. A queued item's signature is never also a delivered
+    // one — a candidate already delivered is suppressed before it can be queued — but that
+    // is a fact about the SIGNATURE, not about the ENTRY, and an earlier version of this
+    // comment confused the two. A legacy queue-time stamp shares its slot with every
+    // signature the digest delivered afterwards, so deleting the entry forgets those and
+    // re-sends them. Delete the slot only once nothing is left in it.
+    for (const k of entries) {
+      const all = stampSigs(types[k]);
+      const rest = all.filter((x) => x.s !== item.sig);
+      if (rest.length === all.length) continue;                    // not this entry's
+      if (!rest.length) { delete types[k]; continue; }
+      const newest = rest.reduce((a, b) => (b.at > a.at ? b : a));
+      types[k] = { sig: newest.s, sigs: rest, at: newest.at };
+    }
     return;
   }
   // ⚠ Items queued before the signature stamp shipped cannot be matched, so fall back to
@@ -390,7 +410,7 @@ function stampSigs(entry) {
 function rememberSig(types, sigKey, sig, now) {
   const live = stampSigs(types[sigKey]).filter((x) => x.s !== sig);
   live.push({ s: sig, at: +now });
-  types[sigKey] = { sig, sigs: live, at: +now };
+  types[sigKey] = { sig, sigs: newestSigs(live), at: +now };
 }
 
 function pruneStamps(types, now) {
@@ -398,7 +418,7 @@ function pruneStamps(types, now) {
   const floor = +now - DEDUP_TTL_MS;
   for (const [k, v] of Object.entries(types || {})) {
     // An undatable stamp is the same unbounded growth, and cannot be shown to be live.
-    const live = stampSigs(v).filter((x) => x.at >= floor);
+    const live = newestSigs(stampSigs(v).filter((x) => x.at >= floor));
     if (!live.length) continue;
     const newest = live.reduce((a, b) => (b.at > a.at ? b : a));
     out[k] = { sig: newest.s, sigs: live, at: newest.at };

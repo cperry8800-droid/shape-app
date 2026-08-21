@@ -508,3 +508,22 @@ test('both Home surfaces consult the pref', () => {
   assert.match(src, /\{checkinDue && checkinPrefOn &&/,
     'the WEEKLY bulletin derives from a missing row and must also consult the pref');
 });
+
+// ⚠ SUPPRESSING A LEAD IS ONLY HALF THE BEHAVIOUR — the other half is that Home then leads
+// with the NEXT thing. A review round asked for that end to end; Home still cannot be
+// mounted here (a child resolves undefined, a pre-existing gap), so this pins the STRUCTURE
+// that produces the fallback rather than claiming to observe it: the engine move is pushed
+// CONDITIONALLY, and the other candidates are pushed independently of it. A regression that
+// nested them under the engine move — leaving an opted-out member with a blank lead — stops
+// matching. Stated as a structural guard, not as proof of the rendered output.
+test('a suppressed check-in lead falls through to the next move', () => {
+  const src = readFileSync(SRC, 'utf8');
+  assert.match(src, /if \(engineMove\) todo\.push\(/,
+    'the engine move must be pushed conditionally, or suppression cannot fall through');
+  const block = src.slice(src.indexOf('if (engineMove) todo.push('));
+  const others = block.slice(0, 2000).match(/todo\.push\(/g) || [];
+  assert.ok(others.length >= 3,
+    `the fallback candidates must follow the engine move, not nest under it (found ${others.length} pushes)`);
+  assert.match(block.slice(0, 2000), /if \(selWorkout && selWorkout\.title\) todo\.push\(/,
+    'the next lead must be pushed by its OWN condition, independent of the engine move');
+});
