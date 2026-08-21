@@ -305,13 +305,16 @@ for (const page of pages) {
   // build rather than quietly lowering a total nobody can interpret.
   if (next.includes('globalChatButton.js')) {
     dobGateEligible++;
-    if (DOB_GATE_TAG) {
-      if (!next.includes('</head>')) {
-        dobGateUninjectable.push(page);
-      } else {
-        next = next.replace('</head>', `${DOB_GATE_TAG}</head>`);
-        dobGatePages++;
-      }
+    // No `if (DOB_GATE_TAG)` here: the tag is unconditional now and a missing gate
+    // file throws far above. Keeping the guard would re-encode the fail-open shape
+    // this wave closed — reintroduce an empty tag and injection would skip
+    // silently AND the equality check below would disable itself, so one mistake
+    // would take out both halves of the protection at once.
+    if (!next.includes('</head>')) {
+      dobGateUninjectable.push(page);
+    } else {
+      next = next.replace('</head>', `${DOB_GATE_TAG}</head>`);
+      dobGatePages++;
     }
   }
   if (crlf) next = next.replace(/(?<!\r)\n/g, '\r\n'); // 17 pages are CRLF; keep them whole
@@ -345,7 +348,7 @@ if (dobGateUninjectable.length) {
       + dobGateUninjectable.join(', ')
   );
 }
-if (DOB_GATE_TAG && dobGatePages !== dobGateEligible) {
+if (dobGatePages !== dobGateEligible) {
   throw new Error(
     `build-newdesign: ${dobGateEligible} pages are gate-eligible but only ${dobGatePages} were injected`
   );

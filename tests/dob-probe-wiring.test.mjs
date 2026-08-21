@@ -30,6 +30,12 @@ function callerFiles() {
   });
 }
 
+// Files that NAME the endpoint without ever calling it. src/lib/warroom.ts
+// carries it in a records label, 166,200 characters from its only unrelated
+// fetch(). Kept as a declared set rather than a proximity guess — see the note at
+// the skip below — and held honest by the dead-entry test underneath.
+const MENTION_ONLY = new Set(['src/lib/warroom.ts']);
+
 const FETCH_CALL = /fetch\(\s*[`'"][^`'"]*\/api\/me\/date-of-birth[^`'"]*[`'"]/g;
 const BACKSLASH = String.fromCharCode(92);
 
@@ -169,15 +175,14 @@ test('every client that calls the DOB endpoint sends cache: no-store', () => {
     const src = stripComments(readFileSync(join(ROOT, f), 'utf8'));
     const sites = dobCallSites(src);
     if (!sites.length) {
-      // A file can MENTION the endpoint without calling it — src/lib/warroom.ts
-      // names it in a records label, 166,200 characters from its only unrelated
-      // fetch(). Distinguishing a mention from a call this rule cannot parse is
-      // the difference between a useful failure and a permanent false alarm, and
-      // a permanent false alarm gets deleted. A real call has the endpoint inside
-      // the fetch's arguments; prose does not.
-      const nearCall = [...src.matchAll(/fetch\s*\(/g)]
-        .some((m) => src.slice(m.index, m.index + 160).includes(ENDPOINT));
-      if (nearCall) uninspectable.push(f);
+      // ⚠ DECLARED, NOT INFERRED — and that distinction is the whole lesson of
+      // this file. The previous version guessed, by looking for the endpoint
+      // within 160 characters of a `fetch(`. A caller that built the URL first
+      // (`const url = ENDPOINT; fetch(url, {...})`) produces no parsed sites AND
+      // no proximity hit, so the file was skipped in silence and its cache option
+      // never checked — the same blind pass as the three above, one layer out.
+      // Naming the exception means any NEW unparsable caller fails loudly.
+      if (!MENTION_ONLY.has(f)) uninspectable.push(f);
       continue;
     }
     sites.forEach((site, i) => {
@@ -203,6 +208,19 @@ test('every client that calls the DOB endpoint sends cache: no-store', () => {
 // treated as evidence, but no dependency then CHANGED when the refresh landed,
 // because it is the same user id. `needed: true` was missed for the whole
 // session and the gate silently never appeared.
+test('the mention-only list has no dead entries', () => {
+  // A stale exemption is how a file quietly stops being checked: it gains a real
+  // call, nobody removes it from here, and the rule waves it through forever.
+  const dead = [...MENTION_ONLY].filter((f) => {
+    let src;
+    try { src = stripComments(readFileSync(join(ROOT, f), 'utf8')); } catch { return true; }
+    return !src.includes(ENDPOINT) || dobCallSites(src).length > 0;
+  });
+  assert.deepEqual(dead, [],
+    `these no longer need an exemption — they either dropped the endpoint or now `
+    + `contain a parsable call: ${dead.join(', ')}`);
+});
+
 test('the DOB probe waits for the session restore, and re-runs when it lands', () => {
   const src = stripComments(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), 'utf8'));
   const start = src.indexOf(ENDPOINT);

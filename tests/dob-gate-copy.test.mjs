@@ -94,6 +94,15 @@ for (const loc of locales) {
     // names the date ("every account needs a date of birth on file"), so checking
     // the whole body would pass no matter what the warning said — the vacuous
     // pass this suite has already been bitten by twice.
+    // ⚠ PIN THE COUNT, OR THE VACUOUS PASS COMES BACK. indexOf takes the FIRST
+    // em-dash, and every locale's first sentence already names the date — so a
+    // translator adding an earlier dash would move the boundary, let that first
+    // sentence satisfy this rule, and silently restore the exact hole the test
+    // exists to close. A copy edit must fail loudly, not weaken the check.
+    const dashes = [...body].filter((c) => c === '—').length;
+    assert.equal(dashes, 1,
+      `${loc}: expected exactly one em-dash — a second moves the clause boundary and lets `
+      + `the first sentence satisfy this rule without the warning ever being read`);
     const dash = body.indexOf('—');
     assert.ok(dash > 0, `${loc}: expected the em-dash that introduces the warning`);
     const clause = body.slice(dash + 1);

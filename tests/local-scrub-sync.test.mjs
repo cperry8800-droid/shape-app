@@ -135,12 +135,27 @@ test('pageShell fallback logout awaits the purge before navigating', () => {
   const src = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
   // The inline copy must RETURN the delete promise (Promise.all over deletes)…
   assert.match(src, /return caches\.keys\(\)\.then\(function \(keys\) \{\s*return Promise\.all\(/);
-  // …and handleLogout's no-supabase branch (About/Pricing never load
-  // supabase.js) must await it, bounded, before window.location.href.
-  const start = src.indexOf('async function handleLogout');
-  assert.ok(start >= 0, 'handleLogout not found');
+  // …and the no-supabase branch (About/Pricing never load supabase.js) must await
+  // it, bounded, before window.location.href.
+  //
+  // ⚠ ANCHORED ON shapePortalSignOutStandalone, NOT handleLogout. The sign-out
+  // ordering used to be duplicated in both; it is now written once here and
+  // handleLogout delegates, so this is where the property lives. The duplication
+  // is separately forbidden by the single-owner assertion below — without that,
+  // re-introducing a second copy would leave this test passing on the first one.
+  const start = src.indexOf('async function shapePortalSignOutStandalone');
+  assert.ok(start >= 0, 'shapePortalSignOutStandalone not found');
   const slice = src.slice(start, src.indexOf("window.location.href = '/'", start));
   assert.match(slice, /await Promise\.race\(\[\s*Promise\.resolve\(window\.shapeClearLocalUserContent\(\{ broadcast: cookieCleared \}\)\)/);
+
+  // ⚠ ONE OWNER. This ordering was tuned across a whole review wave and was for a
+  // time COPIED into handleLogout — two independent copies of a sequence whose
+  // comments describe it as fragile, so a later fix to one would silently miss the
+  // other. The cookie POST is the sequence's first step, so counting it counts the
+  // copies.
+  const copies = src.split("fetch('/api/auth/signout'").length - 1;
+  assert.equal(copies, 1,
+    'the sign-out ordering must exist once; a second copy is how the fixed bug returns');
 });
 
 test('index.html sign-out routes the scrub promise into go(), bounded', () => {

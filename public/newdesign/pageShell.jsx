@@ -338,18 +338,46 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
 // a broadcast only on a CONFIRMED cookie clear, because a premature stamp
 // manufactures a signed-in sibling tab that nothing will later correct).
 async function shapePortalSignOutStandalone() {
+  // ⚠ ONE COPY OF THIS ORDERING, AND THIS IS IT. It was tuned across a whole
+  // review wave, and for a while this file held TWO copies — Header's
+  // handleLogout and this one — which is precisely the "copied guard with its
+  // rationale left behind" that dobGate.js refuses to make a third of. A later
+  // fix to one would silently miss the other and reintroduce the class the
+  // ordering exists to prevent, so handleLogout now delegates here.
+  //
+  // ⚠ The RESULT is kept: the SDK-less branch below broadcasts the cross-tab
+  // sign-out, and a sibling reacts by RELOADING. Stamping while the cookie is
+  // still valid sends a dashboard tab back into an authenticated route with no
+  // later event to retire it. A missed broadcast only leaves siblings as they
+  // were before the feature existed; a premature one manufactures a signed-in
+  // tab nothing will correct. When they conflict, take the miss.
   var cookieCleared = false;
   try {
     const outRes = await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
     cookieCleared = Boolean(outRes && outRes.ok);
   } catch (e) {}
+  // The cookie sign-out alone leaves the persisted Supabase SDK session
+  // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns it
+  // before ever consulting the now-cleared cookie, so the next visitor could
+  // still act as this account through client-side Supabase APIs. Prefer the full
+  // local sign-out (shapeDb.signOut clears that session AND runs the content
+  // scrub); fall back to the scrub alone on any page that doesn't load
+  // supabase.js.
   try {
     if (window.shapeDb && window.shapeDb.signOut) {
       await window.shapeDb.signOut();
+      // ⚠ CARRY THE CONFIRMATION WE ALREADY HAVE. shapeDb.signOut() issues a
+      // SECOND cookie DELETE and gates its own broadcast on that one alone. If
+      // the POST above already cleared the cookie but connectivity dropped
+      // before the redundant DELETE landed, the stamp would be suppressed
+      // despite invalidation being confirmed — leaving siblings holding the
+      // departed member's in-memory state. One confirmation is enough.
       if (cookieCleared && window.shapeBroadcastSignOut) window.shapeBroadcastSignOut();
     } else if (window.shapeClearLocalUserContent) {
-      // Bounded: the navigation below discards the document, and a stalled
-      // CacheStorage must never be able to hang the sign-out.
+      // Pages that never load supabase.js reach THIS branch, and the navigation
+      // below discards the document — so the scrub's async cache purge must be
+      // awaited here, bounded so a stalled CacheStorage can never hang the
+      // sign-out (sign-out always completes).
       await Promise.race([
         Promise.resolve(window.shapeClearLocalUserContent({ broadcast: cookieCleared })),
         new Promise((r) => setTimeout(r, 2000)),
@@ -373,47 +401,11 @@ function Header({ active }) {
     return () => { cancelled = true; };
   }, []);
   async function handleLogout(e) {
+    // The whole sequence — and the reasons it is in this order — lives in
+    // shapePortalSignOutStandalone above. This handler exists only to swallow the
+    // anchor's default navigation before it runs.
     e.preventDefault();
-    // ⚠ The RESULT is kept: the SDK-less branch below broadcasts the cross-tab
-    // sign-out, and a sibling reacts by RELOADING. Stamping while the cookie is
-    // still valid sends a dashboard tab back into an authenticated route with
-    // no later event to retire it. A missed broadcast only leaves siblings as
-    // they were before the feature existed; a premature one manufactures a
-    // signed-in tab nothing will correct. When they conflict, take the miss.
-    var cookieCleared = false;
-    try {
-      const outRes = await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
-      cookieCleared = Boolean(outRes && outRes.ok);
-    } catch {}
-    // The cookie sign-out alone leaves the persisted Supabase SDK session
-    // (localStorage 'shape.auth') on the device — shapeDb.getSession() returns
-    // it before ever consulting the now-cleared cookie, so the next visitor
-    // could still act as this account through client-side Supabase APIs.
-    // Prefer the full local sign-out (shapeDb.signOut clears that session AND
-    // runs the content scrub); fall back to the scrub alone on any page that
-    // doesn't load supabase.js.
-    try {
-      if (window.shapeDb && window.shapeDb.signOut) {
-        await window.shapeDb.signOut();
-        // ⚠ CARRY THE CONFIRMATION WE ALREADY HAVE. shapeDb.signOut() issues a
-        // SECOND cookie DELETE and gates its own broadcast on that one alone.
-        // If the POST above already cleared the cookie but connectivity dropped
-        // before the redundant DELETE landed, the stamp would be suppressed
-        // despite invalidation being confirmed — leaving siblings holding the
-        // departed member's in-memory state. One confirmation is enough.
-        if (cookieCleared && window.shapeBroadcastSignOut) window.shapeBroadcastSignOut();
-      } else if (window.shapeClearLocalUserContent) {
-        // Pages that never load supabase.js reach THIS branch, and the
-        // navigation below discards the document — so the scrub's async cache
-        // purge must be awaited here, bounded so a stalled CacheStorage can
-        // never hang the sign-out (sign-out always completes).
-        await Promise.race([
-          Promise.resolve(window.shapeClearLocalUserContent({ broadcast: cookieCleared })),
-          new Promise((r) => setTimeout(r, 2000)),
-        ]);
-      }
-    } catch {}
-    window.location.href = '/';
+    await shapePortalSignOutStandalone();
   }
   // Expose the canonical sign-out so dobGate.js can offer an escape hatch
   // without reimplementing it. That path clears the cookie, the persisted

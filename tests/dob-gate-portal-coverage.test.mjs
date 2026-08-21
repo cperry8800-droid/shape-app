@@ -45,11 +45,17 @@ test('the corpus is real — this test cannot pass vacuously', () => {
 test('the precompile injects the gate, anchored on the chat button', () => {
   const src = stripComments(BUILD);
   assert.match(src, /dobGate\.js/, 'the precompile must emit the gate script tag');
-  assert.match(
-    src,
-    /includes\('globalChatButton\.js'\)[\s\S]{0,80}?includes\('<\/head>'\)/,
-    'injection must be gated on the chat-button anchor and a <head> to inject into'
-  );
+  // ⚠ TWO INDEPENDENT CONDITIONS, NOT A PROXIMITY WINDOW. This asserted that the
+  // two `includes` calls sat within 80 characters of each other, which broke for
+  // FORMATTING reasons the moment the branch gained a counter — and a character
+  // budget was never the property worth protecting anyway. The relationship
+  // between them is carried by the two tests below: one proves every anchored
+  // page has an injection target, the other proves the build counts eligibility
+  // separately and throws on a gap.
+  assert.match(src, /includes\('globalChatButton\.js'\)/,
+    'injection must be gated on the chat-button anchor');
+  assert.match(src, /includes\('<\/head>'\)/,
+    'and on a <head> to inject into');
   // Content-hashed like every other script this file emits, or an edit to the
   // gate is served stale from a cache entry that outlives it.
   assert.match(src, /dobGate\.js\?v=\$\{DOB_GATE_V\}/, 'the tag must carry a content hash');
