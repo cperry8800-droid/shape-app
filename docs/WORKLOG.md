@@ -154,9 +154,13 @@ changelog whenever something ships.
   Branches; once on, merging on red is impossible). Docs/config-only commits
   may skip layers 0-1. **"Done" detection (rewritten 2026-08-20):** the merge
   gate is **CI green on the final head AND a CodeRabbit pass on the final head** —
-  **absence of findings is not a pass**, and neither is a `commented` verdict: it
-  means CodeRabbit has spoken on the PR but not on THIS head, so the head is
-  unreviewed and the review needs re-triggering.
+  **absence of findings is not a pass**, and neither is a `commented` verdict.
+  ⚠ `commented` does **not** mean the head was never looked at — it means **there is no
+  SETTLED verdict on this head yet**: either CodeRabbit has spoken only on earlier heads,
+  or the only records here are unsettled `COMMENTED` containers, which it also posts when
+  it replies to a thread. Re-trigger, or wait out a review already running.
+  ⚠ It never conceals findings — head-pinned inline comments are read first and return
+  `changes`.
   ⚠ This previously read "after pushing fixes for a CodeRabbit round, WAIT for
   its re-review before merging" — **deleted**: a reviewer that never runs cannot
   supply a merge condition. (⚠ The trailing clause *"and never waiting on
@@ -300,8 +304,13 @@ changelog whenever something ships.
   `approved` 2 · `clean` 1 · `commented` **15**. APPROVED on the head is the only signal
   CodeRabbit emits reliably when clean. **`Actionable comments posted: N` is NOT head-pinned**
   — that summary is edited in place, and #1915 merged with it still reading **2** while the
-  head review was APPROVED with **zero** inline findings. So `commented` is not a pass; it
-  means the head is unreviewed.
+  head review was APPROVED with **zero** inline findings. So `commented` is not a pass.
+  ⚠ **This line read *"it means the head is unreviewed"*, which is too strong.** It means
+  **no settled verdict on this head yet** — measured on this PR: head `2618862d3` read
+  `COMMENTED, COMMENTED` for three minutes (reply containers) before the real
+  `CHANGES_REQUESTED` landed. ⚠ And it never conceals findings: `openFindings` is checked
+  **before** any review state, so a head carrying head-pinned inline comments returns
+  `changes`, never `commented`.
 - ⚠ **A REVIEW STATE IS NOT THE WHOLE VERDICT.** CodeRabbit files findings as **inline review
   comments** and the containing review is often `COMMENTED`, not `CHANGES_REQUESTED` — a
   state-only read returned `commented` for a head with open findings on it. `coderabbitVerdict`
