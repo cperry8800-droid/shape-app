@@ -79,7 +79,7 @@ async function loadModule() {
   const dir = dirname(SRC);
   // Substitute ALL of `import.meta` — the file also probes a bare
   // `typeof import.meta`, a SyntaxError inside a CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, bsCheckinLeadSuppressed, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -421,10 +421,20 @@ test('every Settings write goes through the deferred, merge-on-a-real-document w
   assert.match(settings, /const fresh = \(k\) => !\(k in edited\);/, 'the hydrate applies only un-edited keys');
 });
 
-test('the two new settings keys exist in the en catalog (the parity gate covers the other 12)', () => {
+// ⚠ RENAMED, BECAUSE THE LABEL UNDERSTATED WHAT THE PREF DOES. It governs every check-in
+// surface — the Home prompt, the weekly bulletin, the lead, and both notification routes —
+// so "Daily check-in" named the smallest of them, and the description named only the Home
+// prompt. The KEY is unchanged on purpose: renaming it would drop the other 12 locales back
+// to English, whereas leaving it lets each keep its existing (now slightly narrow)
+// translation until they are updated. That drift is registered.
+test('the two settings keys carry the RENAMED English copy (the parity gate covers the other 12)', () => {
   const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', 'settings.json'), 'utf8'));
-  assert.equal(en['pref.dailyCheckin'], 'Daily check-in');
-  assert.equal(en['pref.dailyCheckinDesc'], 'Show the daily check-in prompt on Home');
+  assert.equal(en['pref.dailyCheckin'], 'Check-ins');
+  assert.equal(en['pref.dailyCheckinDesc'], 'Check-in prompts on Home, and check-in notifications');
+  // ...and the shipping default must not drift from the catalog it falls back to.
+  const src = readFileSync(SRC, 'utf8');
+  assert.match(src, /settings:pref\.dailyCheckin', \{ defaultValue: 'Check-ins' \}/);
+  assert.match(src, /defaultValue: 'Check-in prompts on Home, and check-in notifications' \}/);
 });
 
 // ── THE SERVER HALF OF THE SAME PREF ─────────────────────────────────────────
@@ -462,4 +472,58 @@ test('the stored shapes map to the gate the way the settings row writes them', (
   assert.equal(optedOut('On'), false);
   assert.equal(optedOut(undefined), false, 'absent must never read as opted out');
   assert.equal(optedOut({}.dailyCheckin), false, 'an empty settings doc is opted IN');
+});
+
+
+// ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE (owner ruling 2026-08-21), AND THE LEAD WAS THE
+// ONE IT DID NOT REACH. BSTodayNudge self-gated, but Home's lead never consulted the pref —
+// and Home deliberately suppresses BOTH bulletins whenever the lead is the check-in, so an
+// opted-out member had the quiet surfaces hidden by their pref and "I'll check in →" left
+// standing. The rule is a named function because engineFlag arrives from an async effect:
+// a render-level test never reaches that branch, so an inlined predicate is untestable.
+test('the check-in LEAD is suppressed by the pref, and nothing else is', () => {
+  const checkin = { lever: 'checkin', action: { label: 'Send your weekly check-in' } };
+  const meal = { lever: 'nutrition', action: { label: 'Log a meal today' } };
+  assert.equal(MOD.bsCheckinLeadSuppressed(checkin, false), true,
+    'the check-in lead reached a member who opted out — the loudest surface of all');
+  assert.equal(MOD.bsCheckinLeadSuppressed(checkin, true), false, 'the opt-out leaked into the default path');
+  // ⚠ ONLY the check-in: they opted out of check-ins, not out of being told the one thing
+  // to do today.
+  assert.equal(MOD.bsCheckinLeadSuppressed(meal, false), false, 'the opt-out swallowed an unrelated move');
+  assert.equal(MOD.bsCheckinLeadSuppressed(meal, true), false);
+  // No lead at all is not a suppressed lead.
+  assert.equal(MOD.bsCheckinLeadSuppressed(null, false), false);
+});
+
+// ⚠ A PREDICATE NOBODY CALLS IS NOT A GATE. Both surfaces are wired at a call site the
+// tests above cannot see, and Home cannot be mounted in this harness (a child component
+// resolves undefined — a pre-existing gap, unrelated to this change), so the wiring is
+// asserted against the source.
+test('both Home surfaces consult the pref', () => {
+  const src = readFileSync(SRC, 'utf8');
+  assert.match(src, /const checkinPrefOn = useBSDailyCheckinPref\(\);/,
+    'Home must read the pref at all');
+  assert.match(src, /engineFlag && !bsCheckinLeadSuppressed\(engineFlag, checkinPrefOn\)/,
+    'the LEAD must consult the rule, or the loudest check-in surface ignores the pref');
+  assert.match(src, /\{checkinDue && checkinPrefOn &&/,
+    'the WEEKLY bulletin derives from a missing row and must also consult the pref');
+});
+
+// ⚠ SUPPRESSING A LEAD IS ONLY HALF THE BEHAVIOUR — the other half is that Home then leads
+// with the NEXT thing. A review round asked for that end to end; Home still cannot be
+// mounted here (a child resolves undefined, a pre-existing gap), so this pins the STRUCTURE
+// that produces the fallback rather than claiming to observe it: the engine move is pushed
+// CONDITIONALLY, and the other candidates are pushed independently of it. A regression that
+// nested them under the engine move — leaving an opted-out member with a blank lead — stops
+// matching. Stated as a structural guard, not as proof of the rendered output.
+test('a suppressed check-in lead falls through to the next move', () => {
+  const src = readFileSync(SRC, 'utf8');
+  assert.match(src, /if \(engineMove\) todo\.push\(/,
+    'the engine move must be pushed conditionally, or suppression cannot fall through');
+  const block = src.slice(src.indexOf('if (engineMove) todo.push('));
+  const others = block.slice(0, 2000).match(/todo\.push\(/g) || [];
+  assert.ok(others.length >= 3,
+    `the fallback candidates must follow the engine move, not nest under it (found ${others.length} pushes)`);
+  assert.match(block.slice(0, 2000), /if \(selWorkout && selWorkout\.title\) todo\.push\(/,
+    'the next lead must be pushed by its OWN condition, independent of the engine move');
 });

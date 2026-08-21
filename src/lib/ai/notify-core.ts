@@ -123,6 +123,9 @@ export function candidatesFor(
       checkinDueThisWeek: (record as { checkinDueThisWeek?: boolean }).checkinDueThisWeek === true,
       checkinOptedOut: opts.checkinOptedOut === true,
       coachEvents: Array.isArray((record as { coachEvents?: unknown[] }).coachEvents) ? (record as { coachEvents?: unknown[] }).coachEvents : [],
+      // ⚠ The self-keyed signatures carry the WEEK, so they must key off the pipeline's
+      // instant rather than the wall clock this function would otherwise default to.
+      now: opts.now,
       tone: opts.tone,
     }));
   }

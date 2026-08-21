@@ -75,6 +75,49 @@ function ymd(d, tz) {
     return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   } catch { return new Date(d).toISOString().slice(0, 10); }
 }
+
+// The Monday of the week `d` falls in, as YYYY-MM-DD. Deliberately UTC rather than the
+// member's zone: this only ever bounds how OFTEN a nudge may recur, so a boundary a few
+// hours out costs nothing, while a per-member zone would make the same week resolve two
+// ways for a member who travels — and re-fire a nudge they already had.
+function weekKey(d) {
+  const t = new Date(d);
+  const day = t.getUTCDay();                       // 0=Sun
+  const monday = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()));
+  monday.setUTCDate(monday.getUTCDate() - ((day + 6) % 7));
+  return monday.toISOString().slice(0, 10);
+}
+
+// How long a dedup stamp is kept. `at` was written and never read; it is now what bounds
+// the map. Four signature generations at the weekly cadence above.
+const DEDUP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+// ⚠ AND BY COUNT, because age alone does not bound a list. `habit_reminder` signs
+// `habitId:YMD` so one key gains a signature a day, and a `directive:self` signature
+// changes with the verdict, label or citations while the cron re-evaluates hourly — inside
+// the TTL window a single slot could grow without limit, which is the growth class this
+// file is closing. Evicting the OLDEST can only ever cost a re-send of something that many
+// distinct signatures ago; keeping them all costs the blob every cron pass rewrites.
+export const MAX_SIGS_PER_KEY = 24;
+
+// ⚠ AND A GLOBAL BOUND, because capping each entry leaves the NUMBER of entries free.
+// coach_message / coach_cosign key on the event id, so a busy member mints a fresh entry
+// per message and only age retires them. The whole blob is `user_goals.data`, which has no
+// size constraint, and `writeUserGoal` swallows its upsert error — so an oversized payload
+// fails SILENTLY and loses the dedup state entirely, which is a worse outcome than any
+// eviction. Newest-first by `at`: the oldest entries are the ones whose signatures are
+// closest to ageing out anyway.
+export const MAX_STAMP_KEYS = 200;
+
+// The digest queue has no natural ceiling either. It drains on the first non-quiet
+// evaluation, so reaching this bound means something upstream is already wrong; dropping
+// the OLDEST held items is the under-deliver direction this layer chooses everywhere else.
+export const MAX_PENDING_DIGEST = 50;
+
+function newestSigs(list) {
+  const sorted = list.slice().sort((a, b) => a.at - b.at);
+  return sorted.slice(-MAX_SIGS_PER_KEY);
+}
 export function localHour(now, tz) {
   try {
     const s = new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC', hour: '2-digit', hour12: false }).format(now);
@@ -217,7 +260,20 @@ function releaseDedup(types, item, kept) {
   const prefix = `${item.type}:`;
   const entries = Object.keys(types).filter((k) => k.startsWith(prefix));
   if (nonEmpty(item.sig)) {
-    for (const k of entries) if (types[k] && types[k].sig === item.sig) delete types[k];
+    // ⚠ DROP ONLY THE PURGED SIGNATURE. A queued item's signature is never also a delivered
+    // one — a candidate already delivered is suppressed before it can be queued — but that
+    // is a fact about the SIGNATURE, not about the ENTRY, and an earlier version of this
+    // comment confused the two. A legacy queue-time stamp shares its slot with every
+    // signature the digest delivered afterwards, so deleting the entry forgets those and
+    // re-sends them. Delete the slot only once nothing is left in it.
+    for (const k of entries) {
+      const all = stampSigs(types[k]);
+      const rest = all.filter((x) => x.s !== item.sig);
+      if (rest.length === all.length) continue;                    // not this entry's
+      if (!rest.length) { delete types[k]; continue; }
+      const newest = rest.reduce((a, b) => (b.at > a.at ? b : a));
+      types[k] = { sig: newest.s, sigs: rest, at: newest.at };
+    }
     return;
   }
   // ⚠ Items queued before the signature stamp shipped cannot be matched, so fall back to
@@ -231,7 +287,8 @@ function releaseDedup(types, item, kept) {
 
 // CLIENT — from a directive + evaluateClient flags + check-in state + coach events.
 export function clientCandidates(input) {
-  const { directive, flags = [], checkinDueThisWeek, checkinOptedOut = false, coachEvents = [], goals = [], tone } = input;
+  const { directive, flags = [], checkinDueThisWeek, checkinOptedOut = false, coachEvents = [], goals = [], now = new Date(), tone } = input;
+  const wk = weekKey(now);
   const out = [];
 
   // (AI2) the ONE move — only when it's actionable (not a green/on-track read).
@@ -252,18 +309,18 @@ export function clientCandidates(input) {
     if (!(checkinOptedOut && isCheckin)) {
       const line = nonEmpty(directive.line) ? directive.line : '';
       const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
-      out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });
+      out.push({ type: 'directive', key: 'self', sig: `${sig}|${wk}`, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });
     }
   }
 
   const byKey = {};
   for (const f of flags) if (f && f.key) byKey[f.key] = f;
 
-  if (byKey.streak_broken) out.push({ type: 'streak_broken', key: 'self', sig: 'broken', priority: 'low', ctx: { habit: byKey.streak_broken.habit, reason: byKey.streak_broken.reason } });
-  if (byKey.score_drop)    out.push({ type: 'score_drop',    key: 'self', sig: byKey.score_drop.reason || 'drop', priority: 'med', ctx: { reason: byKey.score_drop.reason } });
+  if (byKey.streak_broken) out.push({ type: 'streak_broken', key: 'self', sig: `${byKey.streak_broken.reason || 'broken'}:${wk}`, priority: 'low', ctx: { habit: byKey.streak_broken.habit, reason: byKey.streak_broken.reason } });
+  if (byKey.score_drop)    out.push({ type: 'score_drop',    key: 'self', sig: `${byKey.score_drop.reason || 'drop'}:${wk}`, priority: 'med', ctx: { reason: byKey.score_drop.reason } });
   if (byKey.goal_slip) {
     const g = goals[0] || {};
-    out.push({ type: 'goal_slip', key: 'self', sig: byKey.goal_slip.reason || 'slip', priority: 'med', ctx: { goalLabel: g.label, reason: byKey.goal_slip.reason } });
+    out.push({ type: 'goal_slip', key: 'self', sig: `${byKey.goal_slip.reason || 'slip'}:${wk}`, priority: 'med', ctx: { goalLabel: g.label, reason: byKey.goal_slip.reason } });
   }
   // due weekly check-in (engine flag OR an explicit "due" signal)
   // ⚠ SPEC §3D — a member who turned Daily check-in OFF is never nudged about it, and
@@ -275,7 +332,7 @@ export function clientCandidates(input) {
   // ⚠ It suppresses ONLY this candidate. They opted out of a check-in nag, not out of
   // coach messages, streaks or the one move.
   if (!checkinOptedOut && (checkinDueThisWeek === true || byKey.checkin_overdue)) {
-    out.push({ type: 'checkin_due', key: 'self', sig: 'due', priority: 'med', ctx: {} });
+    out.push({ type: 'checkin_due', key: 'self', sig: `due:${wk}`, priority: 'med', ctx: {} });
   }
   // coach events (real, server-confirmed) — messages + co-signs
   for (const e of coachEvents) {
@@ -350,19 +407,62 @@ export function habitReminderCandidates(input) {
 // ── the gate: dedup → opt-out → quiet hours / cap → digest ──────────────────
 // candidates: from clientCandidates / coachCandidates. Returns the immediate
 // sends, a single optional digest, the per-channel hints, and the nextState.
+// ⚠ ONE SLOT PER (type,key) CANNOT REMEMBER TWO DELIVERIES — the same single-slot shape
+// that caused the orphaned stamps, one layer on. When a single digest delivers two items
+// for one key, the second signature overwrote the first and the earlier one read as never
+// sent. An entry therefore holds a LIST, and each signature carries its own age so the
+// list is bounded by the TTL rather than by how often the key is touched — a plain array
+// with one entry timestamp would never expire for a key written every day, which is the
+// unbounded growth this file just finished fixing.
+// `sig` is kept alongside as the most recent, for entries written before the list existed.
+function stampSigs(entry) {
+  if (!entry) return [];
+  if (Array.isArray(entry.sigs)) return entry.sigs.filter((x) => x && nonEmpty(x.s) && Number.isFinite(x.at));
+  return nonEmpty(entry.sig) && Number.isFinite(entry.at) ? [{ s: entry.sig, at: entry.at }] : [];
+}
+
+function rememberSig(types, sigKey, sig, now) {
+  const live = stampSigs(types[sigKey]).filter((x) => x.s !== sig);
+  live.push({ s: sig, at: +now });
+  types[sigKey] = { sig, sigs: newestSigs(live), at: +now };
+}
+
+function pruneStamps(types, now) {
+  const out = {};
+  const floor = +now - DEDUP_TTL_MS;
+  for (const [k, v] of Object.entries(types || {})) {
+    // An undatable stamp is the same unbounded growth, and cannot be shown to be live.
+    const live = newestSigs(stampSigs(v).filter((x) => x.at >= floor));
+    if (!live.length) continue;
+    const newest = live.reduce((a, b) => (b.at > a.at ? b : a));
+    out[k] = { sig: newest.s, sigs: live, at: newest.at };
+  }
+  const keys = Object.keys(out);
+  if (keys.length <= MAX_STAMP_KEYS) return out;
+  keys.sort((a, b) => out[a].at - out[b].at);
+  for (const k of keys.slice(0, keys.length - MAX_STAMP_KEYS)) delete out[k];
+  return out;
+}
+
 export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   const today = ymd(now, P.tz);
   const state = {
     date: today,
     sentToday: last.date === today ? (last.sentToday || 0) : 0,
-    types: { ...(last.types || {}) },
+    // ⚠ PRUNED, OR IT GROWS FOREVER. coach_message / coach_cosign key on the EVENT id, so
+    // every message a member ever received left a permanent entry in a user_goals blob
+    // read and rewritten on every cron pass. Dropping an entry can only cost a duplicate
+    // notification, never a silent loss — and nothing that recurs is dropped: event ids
+    // never repeat, and the self-keyed signatures carry the week, so they have already
+    // changed several times over by the time one ages out.
+    types: pruneStamps(last.types, now),
     coachClients: { ...(last.coachClients || {}) },
     // ⚠ A HELD ITEM OUTLIVES THE PREFERENCE THAT ALLOWED IT. Anything deferred by quiet
     // hours or the daily cap sits here across runs and is re-emitted WITHOUT being rebuilt,
     // so a check-in queued before the member opted out would still be delivered after.
     // Suppressing at the candidate stops the rebuild and does nothing about the queue.
-    pendingDigest: Array.isArray(last.pendingDigest) ? last.pendingDigest.slice() : [],
+    pendingDigest: (Array.isArray(last.pendingDigest) ? last.pendingDigest : []).slice(-MAX_PENDING_DIGEST),
   };
   if (checkinOptedOut) {
     const kept = [];
@@ -399,8 +499,21 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     // dedup: per (type+key) signature
     const sigKey = `${c.type}:${c.key}`;
-    const prevSig = state.types[sigKey] && state.types[sigKey].sig;
-    if (prevSig === c.sig) { suppressed.push({ type: c.type, reason: 'duplicate' }); continue; }
+    const delivered = stampSigs(state.types[sigKey]).some((x) => x.s === c.sig);
+    // ⚠ THE QUEUE IS THE RECORD FOR A QUEUED ITEM, the stamp only for a DELIVERED one.
+    // A stamp written at queue time is a second, redundant record of the same fact, and
+    // it is the one that can be orphaned or misattributed when something later removes
+    // the item it stood for. Asking the queue directly cannot go stale.
+    // ⚠ THE IDENTITY IS (type, KEY, sig) — the stamp path keys on `${type}:${key}`, and this
+    // must match it. coachCandidates signs `${severity}:${reason}`, so two DIFFERENT clients
+    // in the same state share a signature and differ only by key; matching on type+sig alone
+    // dropped the second from the digest and delayed a red client alert. An item queued
+    // before the key rode along carries none: matching it on type+sig is the old behaviour,
+    // and errs toward suppressing rather than delivering the same nudge twice.
+    const queued = state.pendingDigest.some(
+      (i) => i && i.type === c.type && i.sig === c.sig && (i.key === undefined || i.key === c.key)
+    );
+    if (delivered || queued) { suppressed.push({ type: c.type, reason: 'duplicate' }); continue; }
 
     const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch };
 
@@ -408,10 +521,9 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
-      // ⚠ `sig` rides along on the QUEUED copy (the sent shape is unchanged) so a purge can
-      // tell whether the stored stamp is THIS item's or another held item's.
-      state.pendingDigest.push({ ...item, sig: c.sig, at: +now });
-      state.types[sigKey] = { sig: c.sig, at: +now };
+      // ⚠ NOT STAMPED. `sig` and `key` ride along so the queue can answer both the
+      // duplicate question above and, on delivery, which stamp to write.
+      state.pendingDigest.push({ ...item, sig: c.sig, key: c.key, at: +now });
       if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
       suppressed.push({ type: c.type, reason: quiet ? 'quiet_hours' : overCap ? 'capped' : 'low_priority_digest' });
       continue;
@@ -419,7 +531,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     send.push(item);
     state.sentToday += 1;
-    state.types[sigKey] = { sig: c.sig, at: +now };
+    rememberSig(state.types, sigKey, c.sig, now);
     if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
   }
 
@@ -445,6 +557,12 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
         email: items.some((i) => i.channels && i.channels.email),
       },
     };
+    // DELIVERY is what stamps: these items have now actually reached the member, so the
+    // same signature should not come round again. Legacy items carry no sig/key and are
+    // skipped — they were stamped at queue time by the deploy that queued them.
+    for (const i of items) {
+      if (nonEmpty(i.sig) && nonEmpty(i.key)) rememberSig(state.types, `${i.type}:${i.key}`, i.sig, now);
+    }
     state.pendingDigest = [];
   }
 

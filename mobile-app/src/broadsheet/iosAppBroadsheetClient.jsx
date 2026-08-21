@@ -3134,6 +3134,17 @@ function bsHomeLiveWeek(plan, t) {
   };
 }
 
+// Whether the engine's lead is a check-in move the member has opted out of. Named rather
+// than inlined so it is testable without mounting the whole Home screen: engineFlag
+// arrives from an async effect, so a render-level test cannot reach this branch.
+// ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE (owner ruling 2026-08-21), and the LEAD was
+// the one it did not reach — while Home suppresses both bulletins whenever the lead IS
+// the check-in, so an opted-out member had the quiet surfaces hidden and the loudest one
+// left standing. A suppressed lead falls through to the next move; it never empties the rail.
+function bsCheckinLeadSuppressed(engineFlag, prefOn) {
+  return !!engineFlag && !prefOn && engineFlag.lever === 'checkin';
+}
+
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -3248,6 +3259,15 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const habitFlashTimer = React.useRef(null);
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
+  // ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE, NOT JUST THE DAILY PROMPT (owner ruling
+  // 2026-08-21). BSTodayNudge self-gates on this same hook, but the weekly bulletin and
+  // the LEAD did not consult it at all — and when the lead IS the check-in, the two
+  // bulletins below are deliberately suppressed to avoid duplication, so an opted-out
+  // member had the quiet surfaces hidden by their pref and the loudest one left standing.
+  // A second instance of this hook is deliberate and safe: it seeds from the same per-uid
+  // mirror and converges on the same value, unlike useBSCheckinLogged whose two instances
+  // would race one async fetch against another.
+  const checkinPrefOn = useBSDailyCheckinPref();
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
@@ -3546,7 +3566,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // CTAs are framed as a first-person PROMISE ("I'll …"), not a command — tapping
     // the day's next move feels like making a pledge you then keep (commitment &
     // consistency). The head stays the directive; the button is the promise.
-    const engineMove = engineFlag ? ({
+    // A suppressed check-in lead leaves engineMove null exactly as a lever with no move
+    // (sleep) does, so the workout / meal / habit entries below take the lead.
+    const engineMove = engineFlag && !bsCheckinLeadSuppressed(engineFlag, checkinPrefOn) ? ({
       // head defaultValues read the SHARED BS_LEVER_HEADS (dailyWire.mjs) so the
       // Shape Daily telegram and this Home lead can never say a different move;
       // i18n overrides still ride on top via the tr() key.
@@ -3803,7 +3825,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {!(engineFlag && engineFlag.lever === 'checkin') && (
         <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
       )}
-      {checkinDue && !(engineFlag && engineFlag.lever === 'checkin') && (
+      {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
 
@@ -28378,7 +28400,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:pref.dinner', { defaultValue: 'Dinner time' }),     key: 'mealDinner',    dropdown: PREF_OPTIONS.mealDinner },
         { l: tr('settings:pref.trainingPhase', { defaultValue: 'Training phase' }),  key: 'trainingPhase', dropdown: PREF_OPTIONS.trainingPhase },
         { l: tr('settings:pref.nutritionPhase', { defaultValue: 'Nutrition phase' }), key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
-        { l: tr('settings:pref.dailyCheckin', { defaultValue: 'Daily check-in' }), key: 'dailyCheckin', segmented: PREF_OPTIONS.dailyCheckin, desc: tr('settings:pref.dailyCheckinDesc', { defaultValue: 'Show the daily check-in prompt on Home' }) },
+        { l: tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' }), key: 'dailyCheckin', segmented: PREF_OPTIONS.dailyCheckin, desc: tr('settings:pref.dailyCheckinDesc', { defaultValue: 'Check-in prompts on Home, and check-in notifications' }) },
       ],
     },
     {
