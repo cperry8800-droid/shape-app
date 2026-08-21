@@ -233,7 +233,15 @@ function releaseDedup(types, item, kept) {
   const prefix = `${item.type}:`;
   const entries = Object.keys(types).filter((k) => k.startsWith(prefix));
   if (nonEmpty(item.sig)) {
-    for (const k of entries) if (types[k] && types[k].sig === item.sig) delete types[k];
+    for (const k of entries) {
+      const rest = stampSigs(types[k]).filter((x) => x.s !== item.sig);
+      if (rest.length === stampSigs(types[k]).length) continue;   // not this entry's
+      // Drop only the purged signature: an entry can now hold several DELIVERED ones and
+      // forgetting those would re-send them.
+      if (!rest.length) { delete types[k]; continue; }
+      const newest = rest.reduce((a, b) => (b.at > a.at ? b : a));
+      types[k] = { sig: newest.s, sigs: rest, at: newest.at };
+    }
     return;
   }
   // ⚠ Items queued before the signature stamp shipped cannot be matched, so fall back to
@@ -367,13 +375,35 @@ export function habitReminderCandidates(input) {
 // ── the gate: dedup → opt-out → quiet hours / cap → digest ──────────────────
 // candidates: from clientCandidates / coachCandidates. Returns the immediate
 // sends, a single optional digest, the per-channel hints, and the nextState.
+// ⚠ ONE SLOT PER (type,key) CANNOT REMEMBER TWO DELIVERIES — the same single-slot shape
+// that caused the orphaned stamps, one layer on. When a single digest delivers two items
+// for one key, the second signature overwrote the first and the earlier one read as never
+// sent. An entry therefore holds a LIST, and each signature carries its own age so the
+// list is bounded by the TTL rather than by how often the key is touched — a plain array
+// with one entry timestamp would never expire for a key written every day, which is the
+// unbounded growth this file just finished fixing.
+// `sig` is kept alongside as the most recent, for entries written before the list existed.
+function stampSigs(entry) {
+  if (!entry) return [];
+  if (Array.isArray(entry.sigs)) return entry.sigs.filter((x) => x && nonEmpty(x.s) && Number.isFinite(x.at));
+  return nonEmpty(entry.sig) && Number.isFinite(entry.at) ? [{ s: entry.sig, at: entry.at }] : [];
+}
+
+function rememberSig(types, sigKey, sig, now) {
+  const live = stampSigs(types[sigKey]).filter((x) => x.s !== sig);
+  live.push({ s: sig, at: +now });
+  types[sigKey] = { sig, sigs: live, at: +now };
+}
+
 function pruneStamps(types, now) {
   const out = {};
   const floor = +now - DEDUP_TTL_MS;
   for (const [k, v] of Object.entries(types || {})) {
     // An undatable stamp is the same unbounded growth, and cannot be shown to be live.
-    if (!v || !Number.isFinite(v.at) || v.at < floor) continue;
-    out[k] = v;
+    const live = stampSigs(v).filter((x) => x.at >= floor);
+    if (!live.length) continue;
+    const newest = live.reduce((a, b) => (b.at > a.at ? b : a));
+    out[k] = { sig: newest.s, sigs: live, at: newest.at };
   }
   return out;
 }
@@ -433,7 +463,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     // dedup: per (type+key) signature
     const sigKey = `${c.type}:${c.key}`;
-    const prevSig = state.types[sigKey] && state.types[sigKey].sig;
+    const delivered = stampSigs(state.types[sigKey]).some((x) => x.s === c.sig);
     // ⚠ THE QUEUE IS THE RECORD FOR A QUEUED ITEM, the stamp only for a DELIVERED one.
     // A stamp written at queue time is a second, redundant record of the same fact, and
     // it is the one that can be orphaned or misattributed when something later removes
@@ -447,7 +477,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     const queued = state.pendingDigest.some(
       (i) => i && i.type === c.type && i.sig === c.sig && (i.key === undefined || i.key === c.key)
     );
-    if (prevSig === c.sig || queued) { suppressed.push({ type: c.type, reason: 'duplicate' }); continue; }
+    if (delivered || queued) { suppressed.push({ type: c.type, reason: 'duplicate' }); continue; }
 
     const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch };
 
@@ -465,7 +495,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     send.push(item);
     state.sentToday += 1;
-    state.types[sigKey] = { sig: c.sig, at: +now };
+    rememberSig(state.types, sigKey, c.sig, now);
     if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
   }
 
@@ -495,7 +525,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     // same signature should not come round again. Legacy items carry no sig/key and are
     // skipped — they were stamped at queue time by the deploy that queued them.
     for (const i of items) {
-      if (nonEmpty(i.sig) && nonEmpty(i.key)) state.types[`${i.type}:${i.key}`] = { sig: i.sig, at: +now };
+      if (nonEmpty(i.sig) && nonEmpty(i.key)) rememberSig(state.types, `${i.type}:${i.key}`, i.sig, now);
     }
     state.pendingDigest = [];
   }

@@ -17,6 +17,9 @@ const DAYTIME = new Date('2026-06-17T10:00:00Z'); // 10:00 — outside default q
 // A dedup stamp written moments ago. Fixtures used `at: 1` (1970) until stamps were pruned
 // by age — an ancient stamp is now dropped before the test reaches its actual subject.
 const LIVE = +new Date('2026-06-17T09:00:00Z');
+// What a dedup entry REMEMBERS. The entry holds `{ sig, sigs: [{ s, at }], at }`; asserting
+// on that literal shape pins an implementation detail, and it has already changed twice.
+const sigsOf = (entry) => (entry && Array.isArray(entry.sigs) ? entry.sigs.map((x) => x.s) : entry && entry.sig ? [entry.sig] : []);
 const NIGHT = new Date('2026-06-17T23:30:00Z');   // 23:30 — inside default quiet (22–7)
 
 // A coach-flagged sleep directive (engine output); `line` is the verbatim shown text.
@@ -456,7 +459,7 @@ test('purging an undelivered check-in releases its dedup stamp', () => {
 
   // The pref-ON path is untouched: a stamp whose item is still queued survives.
   const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
-  assert.deepEqual(on.nextState.types['checkin_due:self'], { sig: 'due', at: LIVE }, 'the stamp was cleared for a member who never opted out');
+  assert.deepEqual(sigsOf(on.nextState.types['checkin_due:self']), ['due'], 'the stamp was cleared for a member who never opted out');
 });
 
 // ⚠ THE LEGACY PATH — items queued before the signature stamp shipped carry none, so they
@@ -477,13 +480,13 @@ test('LEGACY, unsignatured: a stamp is released only when nothing of that type s
   const survives = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [checkin, sleep], types: stamps() }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
   assert.equal(survives.nextState.pendingDigest.length, 0, 'both held directives should have gone to the digest');
   assert.deepEqual(survives.digest.data.items.map((i) => i.data.move), ['recovery'], 'the wrong directive was purged');
-  assert.deepEqual(survives.nextState.types['directive:self'], { sig: 'amber|Send it|', at: LIVE },
+  assert.deepEqual(sigsOf(survives.nextState.types['directive:self']), ['amber|Send it|'],
     'released a stamp the surviving directive is still standing behind');
 
   // ...and with nothing of that type left, the stamp IS released — and only that one.
   const alone = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [checkin], types: stamps() }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
   assert.equal(alone.nextState.types['directive:self'], undefined, 'the purged directive left its stamp behind');
-  assert.deepEqual(alone.nextState.types['coach_message:m1'], { sig: 'm1', at: LIVE }, 'the purge cleared an unrelated dedup entry');
+  assert.deepEqual(sigsOf(alone.nextState.types['coach_message:m1']), ['m1'], 'the purge cleared an unrelated dedup entry');
 });
 
 // ⚠ THE FIFTH DOOR IS THE COACH OVERRIDE, AND THE ACTION KIND CANNOT SEE IT. sanitizeOverride
@@ -676,7 +679,7 @@ test('dedup stamps are pruned by age, so notify_state cannot grow forever', () =
   const out = decideNotifications({ candidates: [], last, prefs, now, audience: 'client' });
   assert.equal(out.nextState.types['coach_message:old'], undefined, 'an ancient stamp must not live forever');
   assert.equal(out.nextState.types['coach_message:undated'], undefined, 'a stamp that cannot be dated is the same unbounded growth');
-  assert.deepEqual(out.nextState.types['coach_message:recent'], { sig: 'recent', at: +now - 3 * day },
+  assert.deepEqual(sigsOf(out.nextState.types['coach_message:recent']), ['recent'],
     'a live stamp was pruned — that resurrects a notification the member already had');
 });
 
@@ -713,4 +716,57 @@ test('two held candidates of the same type and signature are told apart by KEY',
   // ...and the same candidate really is still a duplicate of itself.
   const again = decideNotifications({ candidates: cands, last: out.nextState, prefs, now: NIGHT, audience: 'coach' });
   assert.equal(again.nextState.pendingDigest.length, 2, 'a genuinely duplicate candidate was queued twice');
+});
+
+// ⚠ ONE SLOT PER (type,key) CANNOT REMEMBER TWO DELIVERIES — the same single-slot shape
+// that caused the orphaned stamps, one layer further on. Two directives can be held at
+// once (a changed signature is not a duplicate), and when ONE digest delivers both, the
+// second signature overwrote the first. The earlier directive then read as never sent and
+// was delivered a SECOND time the moment its content came back round.
+test('a digest that delivers two items for one key remembers BOTH signatures', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const queue = (directive, last) => decideNotifications({
+    candidates: clientCandidates({ directive, flags: [], tone: 'supportive' }),
+    last, prefs, now: NIGHT, audience: 'client',
+  }).nextState;
+
+  const both = queue({ ...CHECKIN_DIRECTIVE }, queue({ ...SLEEP_DIRECTIVE }, { date: 'never' }));
+  assert.equal(both.pendingDigest.length, 2, 'both directives must be held for this test to mean anything');
+  const out = decideNotifications({ candidates: [], last: both, prefs, now: DAYTIME, audience: 'client' });
+  assert.equal(out.digest.data.items.length, 2, 'one digest must deliver both');
+
+  // BOTH are now delivered, so NEITHER may be sent again.
+  for (const d of [SLEEP_DIRECTIVE, CHECKIN_DIRECTIVE]) {
+    const again = decideNotifications({
+      candidates: clientCandidates({ directive: d, flags: [], tone: 'supportive' }),
+      last: out.nextState, prefs, now: DAYTIME, audience: 'client',
+    });
+    assert.deepEqual(again.send, [],
+      `a directive delivered in that digest was sent again: ${d.action.label}`);
+  }
+
+  // ...and a genuinely NEW signature still gets through.
+  const fresh = { ...SLEEP_DIRECTIVE, action: { label: 'go to bed an hour earlier', kind: 'log_sleep' } };
+  const sent = decideNotifications({
+    candidates: clientCandidates({ directive: fresh, flags: [], tone: 'supportive' }),
+    last: out.nextState, prefs, now: DAYTIME, audience: 'client',
+  });
+  assert.deepEqual(sent.send.map((i) => i.type), ['directive'], 'a new move was suppressed as a duplicate');
+});
+
+// ⚠ A LIST BOUNDED BY THE ENTRY'S AGE WOULD NEVER EXPIRE FOR A KEY WRITTEN EVERY DAY —
+// exactly the unbounded growth this file just finished fixing. Each signature therefore
+// carries its OWN age, so an entry touched daily still sheds signatures older than the TTL.
+test('an entry kept alive by fresh writes still sheds its old signatures', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const now = new Date('2026-06-17T10:00:00Z');
+  const day = 86400000;
+  const last = { date: 'never', types: { 'directive:self': { sigs: [
+    { s: 'ancient', at: +now - 60 * day },
+    { s: 'stale', at: +now - 31 * day },
+    { s: 'live', at: +now - 2 * day },
+  ], sig: 'live', at: +now - 2 * day } } };
+  const out = decideNotifications({ candidates: [], last, prefs, now, audience: 'client' });
+  assert.deepEqual(sigsOf(out.nextState.types['directive:self']), ['live'],
+    'signatures older than the TTL survived on an entry kept alive by a recent write');
 });
