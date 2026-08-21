@@ -107,12 +107,12 @@ export const MAX_SIGS_PER_KEY = 24;
 // fails SILENTLY and loses the dedup state entirely, which is a worse outcome than any
 // eviction. Newest-first by `at`: the oldest entries are the ones whose signatures are
 // closest to ageing out anyway.
-const MAX_STAMP_KEYS = 200;
+export const MAX_STAMP_KEYS = 200;
 
 // The digest queue has no natural ceiling either. It drains on the first non-quiet
 // evaluation, so reaching this bound means something upstream is already wrong; dropping
 // the OLDEST held items is the under-deliver direction this layer chooses everywhere else.
-const MAX_PENDING_DIGEST = 50;
+export const MAX_PENDING_DIGEST = 50;
 
 function newestSigs(list) {
   const sorted = list.slice().sort((a, b) => a.at - b.at);

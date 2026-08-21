@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import {
   clientCandidates, coachCandidates, decideNotifications, NOTIFY_TYPES,
   inQuietHours, localHour, DEFAULT_PREFS, channelsForType, habitReminderCandidates,
-  dailyCheckinOn, MAX_SIGS_PER_KEY,
+  dailyCheckinOn, MAX_SIGS_PER_KEY, MAX_STAMP_KEYS, MAX_PENDING_DIGEST,
 } from '../src/lib/ai/notifications.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -688,10 +688,18 @@ test('dedup stamps are pruned by age, so notify_state cannot grow forever', () =
 // would just be keyed to a different instant than the rest of the pipeline, silently, and
 // every test above would stay green because each supplies its own `now`. This asserts the
 // real call site.
+// ⚠ A SOURCE GUARD, AND SCOPED AS ONE. Calling `candidatesFor` directly would be better —
+// it is exported and needs no DOM — but notify-core.ts is TypeScript importing through the
+// `@/` alias, so `node --test` cannot load it (ERR_MODULE_NOT_FOUND); there is no TS loader
+// in this harness. Two of the ways a grep goes wrong are fixed instead: COMMENTS are
+// stripped first, so prose carrying the same literal cannot satisfy it, and the match is on
+// `now` in any form rather than the exact spelling `now: opts.now`, so destructuring the
+// parameter and passing the shorthand still passes.
 test('candidatesFor hands clientCandidates the pipeline instant', () => {
-  const src = readFileSync(new URL('../src/lib/ai/notify-core.ts', import.meta.url), 'utf8');
-  assert.match(src, /clientCandidates\(\{[^;]*now: opts\.now/,
-    'opts.now must reach clientCandidates, or the weekly signature keys off the wall clock');
+  const raw = readFileSync(new URL('../src/lib/ai/notify-core.ts', import.meta.url), 'utf8');
+  const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  assert.match(src, /clientCandidates\(\{[^;]*\bnow\b/,
+    'the pipeline instant must reach clientCandidates, or the weekly signature keys off the wall clock');
 });
 
 // ⚠ THE DEDUP IDENTITY IS (type, KEY, sig) — AND MY QUEUE CHECK DROPPED THE KEY. The stamp
@@ -879,12 +887,13 @@ test('the stamp map is bounded by entry COUNT, keeping the newest', () => {
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
   const now = new Date('2026-06-17T10:00:00Z');
   const types = {};
-  for (let i = 0; i < 400; i++) types[`coach_message:m${i}`] = { sig: `m${i}`, at: +now - (400 - i) * 60000 };
+  const over = MAX_STAMP_KEYS * 2;
+  for (let i = 0; i < over; i++) types[`coach_message:m${i}`] = { sig: `m${i}`, at: +now - (over - i) * 60000 };
   const out = decideNotifications({ candidates: [], last: { date: 'never', types }, prefs, now, audience: 'client' });
   const keys = Object.keys(out.nextState.types);
-  assert.ok(keys.length <= 200, `the map kept ${keys.length} entries — per-entry caps do not bound the map`);
+  assert.ok(keys.length <= MAX_STAMP_KEYS, `the map kept ${keys.length} entries — per-entry caps do not bound the map`);
   // the NEWEST survive: the oldest are the ones closest to ageing out anyway
-  assert.ok(keys.includes('coach_message:m399'), 'the most recent stamp was evicted');
+  assert.ok(keys.includes(`coach_message:m${over - 1}`), 'the most recent stamp was evicted');
   assert.ok(!keys.includes('coach_message:m0'), 'the oldest stamp survived a full map');
 });
 
@@ -895,9 +904,10 @@ test('the digest queue is bounded, dropping the oldest held items', () => {
   const prefs = { ...DEFAULT_PREFS, tz: TZ };
   const now = new Date('2026-06-17T23:30:00Z');
   const held = [];
-  for (let i = 0; i < 120; i++) held.push({ type: 'coach_message', key: `m${i}`, sig: `m${i}`, title: `msg ${i}`, body: 'b', route: 'chat', data: {}, priority: 'high', channels: { push: true }, at: +now - (120 - i) * 60000 });
+  const many = MAX_PENDING_DIGEST * 2;
+  for (let i = 0; i < many; i++) held.push({ type: 'coach_message', key: `m${i}`, sig: `m${i}`, title: `msg ${i}`, body: 'b', route: 'chat', data: {}, priority: 'high', channels: { push: true }, at: +now - (many - i) * 60000 });
   const out = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: held }, prefs, now, audience: 'client' });
   const q = out.nextState.pendingDigest;
-  assert.ok(q.length <= 50, `the queue kept ${q.length} items`);
-  assert.equal(q[q.length - 1].sig, 'm119', 'the most recent held item was dropped');
+  assert.ok(q.length <= MAX_PENDING_DIGEST, `the queue kept ${q.length} items`);
+  assert.equal(q[q.length - 1].sig, `m${many - 1}`, 'the most recent held item was dropped');
 });
