@@ -28,7 +28,14 @@ computes it instead.
 | **What is still open** | War Room — `/warroom`, `src/lib/warroom.ts` |
 | **Which migrations exist** | `ls supabase-migrations/*.sql` |
 | **What shipped, when** | `docs/WORKLOG.md` changelog |
-| **Current session state** | `ls -t docs/HANDOFF-*.md \| head -1` |
+| **Current session state** | `ls docs/HANDOFF-*.md \| sort -r \| head -1` |
+
+⚠ **Sort handoffs by the DATE IN THE FILENAME, not `ls -t`.** Modification time is
+re-stamped by any checkout, branch switch or edit, so `ls -t` reorders files whose
+names say otherwise — in this repo `HANDOFF-2026-08-18.md` currently carries a
+later mtime than `HANDOFF-2026-08-19.md` and sorts above it. The names are
+zero-padded ISO dates, so a lexical sort is both correct and stable.
+⚠ `docs/WORKLOG.md` documents the `ls -t` form and has the same defect.
 
 The War Room is the go-live status board. Every item below that has an open/done
 state lives there as `status: 'manual'` (owner does it) or `status: 'pending'`
@@ -208,13 +215,15 @@ push appears on the lock screen.
 
 ## 6. Error tracking (Sentry)
 
-⚠ **Web is live. BOTH APP BINARIES SHIP WITH SENTRY DISABLED**, so a crash in the
-Android or iOS build is currently invisible. Neither is a code gap — both
-pipelines already reference the variable names.
-
 ⚠ **THE TWO BINARIES ARE CONFIGURED IN DIFFERENT PLACES, AND DOING ONLY ONE LEAVES
 THE OTHER DARK.** Android reads **GitHub Actions secrets**; iOS reads a
 **Codemagic variable group**. Adding the GitHub secrets does nothing for iOS.
+Neither is a code gap — both pipelines already reference the variable names.
+
+**Whether either binary currently captures anything is a status, so check it, do
+not read it here** — the War Room's error-tracking section carries the per-surface
+state. The check itself: a binary has capture only if its pipeline supplied a DSN
+**at the build that produced it**.
 
 - [ ] **Android — GitHub Actions secrets.** Add the ones the workflow reads:
       `grep -n "SENTRY" .github/workflows/android-build.yml`
@@ -292,11 +301,27 @@ which is exactly why they are still open. Both are on the War Room board.
 ⚠ **A DENIAL GATE THAT TESTS ONLY READS CAN PASS WITH A WRITE PATH WIDE OPEN.**
 Cover every operation class that crosses a member boundary, not just `select`:
 
-- [ ] **Cross-member RLS denial vector** — with B authenticated, attempt against
-      A's rows: **read · insert · update · delete**, plus the **SECURITY DEFINER
-      RPCs** that take a user id as an argument, **storage** objects under A's
-      prefix, and the **server routes** that read A by id. Each must deny.
-      ⚠ Run it against a table that actually **has A's rows in it** — a denial
+⚠ **"EVERYTHING MUST DENY" IS THE WRONG GATE AND WOULD FAIL ON CORRECT CODE.** An
+active coach is *supposed* to read their own client, so the matrix has to be keyed
+on the **relationship**, not just on "a different user id". Getting this backwards
+is worse than not testing: someone makes the test pass by removing legitimate
+coach access.
+
+- [ ] **Cross-member RLS denial vector.** Two axes — who is asking, and for what.
+      - **B, an unrelated member, against A:** every operation denies —
+        **read · insert · update · delete**, the **SECURITY DEFINER RPCs** taking a
+        user id, **storage** objects under A's prefix, and the **server routes**
+        that read A by id.
+      - **A coach with an ACTIVE relationship to A:** the documented reads
+        **succeed** (that is the product), and everything outside them denies —
+        no writes to A's private rows, nothing beyond the scope the RPC exposes.
+      - **A coach with NO active relationship, or an ENDED one:** denies exactly
+        like B. Ending a relationship must actually close the door.
+      - **Display-only RPCs** (e.g. `get_display_names`) are the deliberate
+        exception: they return display fields to a broad audience by design.
+        Assert the **narrow** shape — that they return display fields and **not**
+        email, phone, DOB or Stripe ids — rather than asserting they deny.
+      ⚠ Run every case against tables that actually **hold A's rows** — a denial
       test over an empty table cannot fail, so it cannot pass either.
 - [ ] **Coach-channel denial matrix** — needs three seeded authenticated accounts
       (two members, one coach) and the same operation classes per pair.
