@@ -37,6 +37,15 @@ const CR_CLEAN_RE = /actionable comments posted:\s*0\b|no actionable comments we
 // would jam the gate at CAPPED forever. The stamp is CodeRabbit's, not ours.
 const CR_LIMIT_RE = /<!--[^>]*rate limited by coderabbit\.ai[^>]*-->/i;
 
+// ⚠ AND A FAIR-USAGE NOTICE IS NOT A CAP — do not add it here, however much it reads like
+// one. When the included-review quota is spent CodeRabbit appends a note to its ordinary
+// "Action performed" reply saying the review may still proceed through usage-based billing
+// and naming when the next included one lands. Measured 2026-08-21 on #1916 and #1917: the
+// SAME comment carrying that note also said the full review had finished, and a real
+// CHANGES_REQUESTED review followed it. Matching on it would report CAPPED for heads that
+// were genuinely reviewed — a false block where the marker above catches a true one. It
+// also carries no marker of its own, only CodeRabbit's generic auto-reply stamp.
+
 export const CODEX_BOTS = ['chatgpt-codex-connector[bot]'];
 
 // Conclusions that mean the check did not pass. `startup_failure` / `stale`
