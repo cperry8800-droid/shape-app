@@ -269,7 +269,46 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-21 — The dedup layer stopped keeping two records of the same fact
+### 2026-08-21 — CodeRabbit became the gating reviewer (#1916 → `a81b74d8a`)
+
+- **Owner ruling, mid-turn:** *"stop using codex for now, only coderabbit"*. #1914 had made
+  `prAllGreen` require a clean **Codex** verdict on the head one day earlier, so with Codex
+  retired `/console` would have reported **every** PR as not-mergeable regardless of CI. The
+  gate now reads CodeRabbit: CI green **AND** `approved`-or-`clean` on this head **AND** not
+  a draft. ⚠ Amended the next day — **Codex gets ONE round after CodeRabbit clears**, not a
+  round per fix push.
+- ⚠ **THE CONTRADICTION DISSOLVED RATHER THAN BEING OVERRIDDEN.** CodeRabbit left the gate in
+  #1914 because `coderabbitVerdict` is head-pinned while the house ran it **once** as a
+  breadth sweep — so the sweep stopped counting the moment a fix for its own findings was
+  pushed. It is now re-triggered **every round**, which is exactly what makes head-pinning
+  the right property for a gate: it says *this head* was reviewed and passed.
+- ⚠ **WHAT COUNTS AS A PASS IS MEASURED, NOT ASSUMED.** Run over the last 18 merged PRs:
+  `approved` 2 · `clean` 1 · `commented` **15**. APPROVED on the head is the only signal
+  CodeRabbit emits reliably when clean. **`Actionable comments posted: N` is NOT head-pinned**
+  — that summary is edited in place, and #1915 merged with it still reading **2** while the
+  head review was APPROVED with **zero** inline findings. So `commented` is not a pass; it
+  means the head is unreviewed.
+- ⚠ **A REVIEW STATE IS NOT THE WHOLE VERDICT.** CodeRabbit files findings as **inline review
+  comments** and the containing review is often `COMMENTED`, not `CHANGES_REQUESTED` — a
+  state-only read returned `commented` for a head with open findings on it. `coderabbitVerdict`
+  now takes `reviewComments`, anchored on `original_commit_id` and never `commit_id`, which
+  GitHub re-anchors forward. The route did not fetch them at all, so a guard asserts the real
+  call site: every verdict test hands them in by hand and would stay green with the route
+  unwired.
+- ⚠ **CODERABBIT DOES NOT AUTO-REVIEW THIS REPO** — *"fewer than 10 stars"*. Both #1916 and
+  #1917 sat with **no review at all** while CI went green. A new head is unreviewed until you
+  post `@coderabbitai full review`; the recovery is always to trigger, never to wait.
+- ⚠ **AND A FAIR-USAGE NOTICE IS NOT A CAP.** When the included-review quota is spent
+  CodeRabbit appends a note about usage-based billing to its ordinary reply. It reads exactly
+  like a rate limit. The **same** comment said the full review had finished, and a real
+  CHANGES_REQUESTED followed — matching it would report CAPPED for heads that were genuinely
+  reviewed. I mis-diagnosed it as a block first, and the code now says why not to.
+- Swept: `/console`'s headline keyed on `p.codex` for BLOCKED and CDX RE-TRIGGER, rendering a
+  verdict from a reviewer the house no longer runs; and **the JSDoc types in the `.mjs` govern
+  over the `.d.ts`**, so updating only the declaration file left `tsc` reporting the old
+  shapes.
+
+### 2026-08-21 — The dedup layer stopped keeping two records of the same fact (#1917 → `d2f63bb9d`)
 
 - ⚠ **THE QUEUE IS THE RECORD FOR A QUEUED ITEM.** `notify_state.types` holds **one slot**
   per `(type,key)` while `pendingDigest` can hold several items mapping to it, so a stamp
