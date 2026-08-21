@@ -91,9 +91,9 @@ export function gateFromRuns(runs) {
  *   a cap notice mistaken for a pass; treating it as any flavour of reviewed
  *   is how that happens. It is head-pinned like everything else here — a cap
  *   that has since cleared must not strand later pushes at CAPPED.
- * @param {{reviews?: Array<{user?: {login?: string}, state?: string, commit_id?: string}>,
+ * @param {{reviews?: Array<{user?: {login?: string}, state?: string, commit_id?: string, submitted_at?: string}>,
  *          comments?: Array<{user?: {login?: string}, body?: string}>,
- *          reviewComments?: Array<{user?: {login?: string}, original_commit_id?: string}>,
+ *          reviewComments?: Array<{user?: {login?: string}, original_commit_id?: string, created_at?: string}>,
  *          headSha?: string}} args
  * @returns {'approved' | 'clean' | 'changes' | 'commented' | 'limited' | 'none'}
  */
@@ -108,11 +108,27 @@ export function coderabbitVerdict({ reviews, comments, reviewComments, headSha }
   // findings on it. As a chip that was vague; as the GATE it is a false pass. Anchored on
   // `original_commit_id`, never `commit_id` — GitHub re-anchors the latter forward, so a
   // finding already answered by a later push would otherwise strand the gate forever.
-  const openFindings = (Array.isArray(reviewComments) ? reviewComments : []).some(
-    (c) => isTrusted(c?.user?.login, CODERABBIT_BOTS) && !!sha && String(c?.original_commit_id || '') === sha
-  );
-  if (openFindings) return 'changes';
   const onHead = sha ? revs.filter((r) => String(r?.commit_id || '') === sha) : [];
+  // ⚠ AND "ANY FINDING ON THIS HEAD" FAILS CLOSED FOREVER. Refuting a finding and re-running
+  // the review WITHOUT a new commit leaves the original comment in place with the same
+  // `original_commit_id`, so the head could never pass however many approvals followed —
+  // the same shape as #1914's findings-outrank-clean bug, one layer over. The REST API
+  // exposes no thread-resolution state, so ORDER settles it: a finding counts only while it
+  // is NEWER than the latest approval on this head. Where order cannot be established the
+  // finding wins, because that costs a push and the other way costs a false pass.
+  const approvedAt = onHead
+    .filter((r) => r?.state === 'APPROVED')
+    .map((r) => String(r?.submitted_at || ''))
+    .filter(Boolean)
+    .sort()
+    .pop() || '';
+  const openFindings = (Array.isArray(reviewComments) ? reviewComments : []).some((c) => {
+    if (!isTrusted(c?.user?.login, CODERABBIT_BOTS)) return false;
+    if (!sha || String(c?.original_commit_id || '') !== sha) return false;
+    const at = String(c?.created_at || '');
+    return !(approvedAt && at && at < approvedAt);
+  });
+  if (openFindings) return 'changes';
   const last = onHead[onHead.length - 1];
   if (last?.state === 'CHANGES_REQUESTED') return 'changes';
   if (last?.state === 'APPROVED') return 'approved';

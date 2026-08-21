@@ -98,7 +98,7 @@ type Comment = { user?: { login?: string }; body?: string; created_at?: string }
 // Inline review comments — where CodeRabbit files its actual findings. Anchored on
 // `original_commit_id`, NOT `commit_id`: GitHub re-anchors the latter forward onto the
 // current head, so a finding already answered by a later push would look permanently open.
-type ReviewComment = { user?: { login?: string }; original_commit_id?: string };
+type ReviewComment = { user?: { login?: string }; original_commit_id?: string; created_at?: string };
 
 async function checkRunsFor(sha: string, token: string): Promise<Gate> {
   const data = (await gh(`/repos/${REPO}/commits/${sha}/check-runs?per_page=100`, token)) as {

@@ -313,6 +313,38 @@ test('prAllGreen — the gate is CI + a CODERABBIT PASS ON THIS HEAD', () => {
 // comments and its containing review is often COMMENTED, not CHANGES_REQUESTED — so a
 // state-only read returns 'commented' for a head that has open findings on it. As a CHIP
 // that was merely vague; as the GATE it would be a false pass.
+// ⚠ FAILS CLOSED FOREVER — the same trap as #1914's findings-outrank-clean, one layer over.
+// Refuting a finding and re-running the review WITHOUT a new commit leaves the original
+// inline comment in place with the same original_commit_id, so "any finding on this head"
+// stays true and the head can never pass, no matter how many approvals follow. The REST API
+// exposes no thread-resolution state, so ORDER is what settles it: a finding counts only
+// while it is NEWER than the latest approval on that head. Same latest-wins shape the Codex
+// verdict already uses.
+test('coderabbitVerdict — an approval AFTER a finding on the same head clears it', () => {
+  const at = (t) => new Date(t).toISOString();
+  const inline = (t) => ({ user: { login: 'coderabbitai[bot]' }, original_commit_id: SHA, created_at: at(t) });
+  const review = (state, t) => ({ user: { login: 'coderabbitai[bot]' }, state, commit_id: SHA, submitted_at: at(t) });
+
+  // finding, then a re-run that approves — no new commit. The head must be able to pass.
+  assert.equal(
+    coderabbitVerdict({ reviews: [review('APPROVED', 2000)], reviewComments: [inline(1000)], headSha: SHA }),
+    'approved'
+  );
+  // ...and the other order still closes the gate: a finding filed AFTER the approval is open.
+  assert.equal(
+    coderabbitVerdict({ reviews: [review('APPROVED', 1000)], reviewComments: [inline(2000)], headSha: SHA }),
+    'changes'
+  );
+  // An approval with no ordering information cannot be shown to answer the finding, and the
+  // conservative reading is the one that costs a push rather than a false pass.
+  assert.equal(
+    coderabbitVerdict({ reviews: [{ user: { login: 'coderabbitai[bot]' }, state: 'APPROVED', commit_id: SHA }], reviewComments: [inline(1000)], headSha: SHA }),
+    'changes'
+  );
+  // A finding with no approval at all is open, whatever its timestamp.
+  assert.equal(coderabbitVerdict({ reviews: [], reviewComments: [inline(1000)], headSha: SHA }), 'changes');
+});
+
 test('coderabbitVerdict — inline findings anchored on the head are CHANGES', () => {
   const inline = (sha) => ({ user: { login: 'coderabbitai[bot]' }, original_commit_id: sha });
   assert.equal(

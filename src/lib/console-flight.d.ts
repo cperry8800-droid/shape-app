@@ -11,9 +11,9 @@ export function gateFromRuns(
 ): Exclude<Gate, 'blocked'>;
 
 export function coderabbitVerdict(args: {
-  reviews?: Array<{ user?: { login?: string }; state?: string; commit_id?: string }>;
+  reviews?: Array<{ user?: { login?: string }; state?: string; commit_id?: string; submitted_at?: string }>;
   comments?: Array<{ user?: { login?: string }; body?: string }>;
-  reviewComments?: Array<{ user?: { login?: string }; original_commit_id?: string }>;
+  reviewComments?: Array<{ user?: { login?: string }; original_commit_id?: string; created_at?: string }>;
   headSha?: string;
 }): CoderabbitVerdict;
 
