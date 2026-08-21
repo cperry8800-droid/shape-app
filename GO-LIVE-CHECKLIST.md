@@ -62,10 +62,11 @@ audit found it serving the last four characters of `STRIPE_SECRET_KEY` and
 while its own header claimed "no secrets in response". A non-admin gets 404
 because an unauthorized caller has no business learning the route exists.
 
-Admin is an **email allowlist** — `getAdminEmails()` in `src/lib/admin-access.ts`,
-built from the `ADMIN_EMAILS` and `APPLICATIONS_EMAIL` env vars plus three
-built-in defaults. So health checks need a signed-in browser session, not a
-terminal.
+Admin is an **email allowlist** — `getAdminEmails()` in `src/lib/admin-access.ts`
+is the authority; read it there. It merges the `ADMIN_EMAILS` and
+`APPLICATIONS_EMAIL` env vars with a set of built-in defaults, so confirm the
+**effective** list in the deployed environment rather than assuming either source
+alone. Health checks therefore need a signed-in browser session, not a terminal.
 
 ---
 
@@ -270,8 +271,13 @@ None of this is code. All of it blocks a public launch.
       **What is actually open** is the grandfathered cohort — the accounts created
       before the cutoff, which absence still admits. Closing it needs a
       date-of-birth completion flow **and an owner/counsel decision** on whether to
-      un-grandfather them at all. Test `NULL`, `false` and `true` across every
-      age-restricted route before launch.
+      un-grandfather them at all. **Test every age-restricted route and action
+      against five fixtures**, not three: a valid adult DOB · a valid minor DOB ·
+      no proof with `created_at` **before** the cutoff (admits) · no proof with
+      `created_at` **on/after** it (refuses) · and an **absent profile** (refuses).
+      ⚠ Also confirm each caller actually **selects `created_at`** — a forgotten
+      column makes an account unplaceable and it refuses, so the omission shows up
+      as a locked-out member rather than as a failing test.
       ⚠ **`src/lib/age-gate.ts`'s own file header contradicts this**, still saying
       absence "is not treated as a claim either way", while line ~70 of the same
       file correctly says absence no longer admits. Trust `mustRefuseForAge()`.
@@ -340,10 +346,15 @@ account cannot exercise the coach-side permission and notification paths at all,
 which is exactly where the interesting failures are. Sign out and back in at each
 **⇄ handoff** below.
 
-⚠ **The coach fixture must have completed LIVE Stripe Connect onboarding**
-(`stripe_account_status = 'active'`). Without it the checkout route correctly
-blocks that coach — so the payout path goes untested while the run still looks
-like a pass.
+⚠ **The coach fixture must reach `stripe_account_status = 'active'` BY ACTUALLY
+COMPLETING LIVE CONNECT ONBOARDING — do not seed the column.** Setting the flag
+directly produces a fixture that passes checkout while leaving the onboarding and
+status-gate paths entirely unexercised, which is the same false-pass shape as
+testing a denial against an empty table. Walk the real flow, confirm
+`stripe_account_id` persists and the status flips via the success page or the
+`account.updated` webhook, and exercise a **refresh / re-entry before completion**
+so the incomplete-onboarding branch is covered too. Until the status is `active`
+the checkout route correctly blocks that coach.
 
 - [ ] **[client]** Sign up (email **and** phone) → land signed in.
 - [ ] **[client]** Subscribe to the coach with a real card → Stripe webhook 2xx.
