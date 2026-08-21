@@ -67,7 +67,7 @@
   "dob.required": "Bắt buộc",
   "dob.title": "Xác nhận ngày sinh của bạn.",
   "dob.subtitle": "Người lớn từ 18 tuổi trở lên",
-  "dob.body": "Shape dành cho người từ 18 tuổi trở lên, và mọi tài khoản đều cần có ngày sinh được lưu lại. Chúng tôi chỉ hỏi một lần — sau đó không thể thay đổi, vì vậy hãy kiểm tra kỹ trước khi lưu.",
+  "dob.body": "Shape dành cho người từ 18 tuổi trở lên, và mọi tài khoản đều cần có ngày sinh được lưu lại. Chúng tôi chỉ hỏi một lần — sau đó không thể thay đổi ngày sinh, vì vậy hãy kiểm tra kỹ trước khi lưu.",
   "dob.label": "Ngày sinh",
   "dob.cta": "Lưu và tiếp tục",
   "dob.saving": "Đang lưu…",

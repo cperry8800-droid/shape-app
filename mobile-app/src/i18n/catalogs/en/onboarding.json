@@ -67,7 +67,7 @@
   "dob.required": "Required",
   "dob.title": "Confirm your date of birth.",
   "dob.subtitle": "Adults 18 and over",
-  "dob.body": "Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — it can’t be changed afterwards, so check it before you save.",
+  "dob.body": "Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — the date can’t be changed afterwards, so check it before you save.",
   "dob.label": "Date of birth",
   "dob.cta": "Save and continue",
   "dob.saving": "Saving…",

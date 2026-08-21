@@ -302,9 +302,15 @@ test('the blocked panel puts focus inside the dialog', async () => {
 });
 
 test('the gate mounts once even if the script is evaluated twice', async () => {
-  const { doc, win } = boot({ getResp: () => resp(200, { needed: true }) });
+  const { doc, win, calls } = boot({ getResp: () => resp(200, { needed: true }) });
   await settle();
   win.eval(SRC);
   await settle();
   assert.equal(doc.querySelectorAll(`#${GATE_ID}`).length, 1);
+  // ⚠ ONE OVERLAY IS NOT ONE PROBE. Asserting only the DOM left the test passing
+  // if the second evaluation fired its own GET and render() merely suppressed the
+  // duplicate overlay — a silent doubling of a per-member request on every page,
+  // invisible to the assertion above it. The guard is the call count.
+  assert.equal(calls.filter((c) => c.method === 'GET').length, 1,
+    'a second evaluation must not probe the endpoint again');
 });

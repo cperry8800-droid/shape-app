@@ -67,7 +67,7 @@
   "dob.required": "Zorunlu",
   "dob.title": "Doğum tarihini onayla.",
   "dob.subtitle": "18 yaş ve üzeri yetişkinler",
-  "dob.body": "Shape 18 yaş ve üzeri yetişkinler içindir ve her hesapta kayıtlı bir doğum tarihi bulunmalıdır. Bunu yalnızca bir kez soracağız — sonradan değiştirilemez, bu yüzden kaydetmeden önce kontrol et.",
+  "dob.body": "Shape 18 yaş ve üzeri yetişkinler içindir ve her hesapta kayıtlı bir doğum tarihi bulunmalıdır. Bunu yalnızca bir kez soracağız — doğum tarihi sonradan değiştirilemez, bu yüzden kaydetmeden önce kontrol et.",
   "dob.label": "Doğum tarihi",
   "dob.cta": "Kaydet ve devam et",
   "dob.saving": "Kaydediliyor…",

@@ -67,7 +67,7 @@
   "dob.required": "Erforderlich",
   "dob.title": "Bestätige dein Geburtsdatum.",
   "dob.subtitle": "Erwachsene ab 18 Jahren",
-  "dob.body": "Shape ist für Erwachsene ab 18 Jahren, und für jedes Konto muss ein Geburtsdatum hinterlegt sein. Du wirst nur einmal gefragt — es lässt sich danach nicht mehr ändern, prüfe es also vor dem Speichern.",
+  "dob.body": "Shape ist für Erwachsene ab 18 Jahren, und für jedes Konto muss ein Geburtsdatum hinterlegt sein. Du wirst nur einmal gefragt — das Geburtsdatum lässt sich danach nicht mehr ändern, prüfe es also vor dem Speichern.",
   "dob.label": "Geburtsdatum",
   "dob.cta": "Speichern und fortfahren",
   "dob.saving": "Wird gespeichert…",

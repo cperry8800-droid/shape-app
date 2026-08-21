@@ -67,7 +67,7 @@
   "dob.required": "Wajib",
   "dob.title": "Konfirmasi tanggal lahir kamu.",
   "dob.subtitle": "Dewasa 18 tahun ke atas",
-  "dob.body": "Shape untuk orang dewasa berusia 18 tahun ke atas, dan setiap akun perlu mencantumkan tanggal lahir. Kamu hanya akan ditanya sekali — setelah itu tidak bisa diubah, jadi periksa dulu sebelum menyimpan.",
+  "dob.body": "Shape untuk orang dewasa berusia 18 tahun ke atas, dan setiap akun perlu mencantumkan tanggal lahir. Kamu hanya akan ditanya sekali — tanggal lahir tidak bisa diubah setelah itu, jadi periksa dulu sebelum menyimpan.",
   "dob.label": "Tanggal lahir",
   "dob.cta": "Simpan dan lanjutkan",
   "dob.saving": "Menyimpan…",

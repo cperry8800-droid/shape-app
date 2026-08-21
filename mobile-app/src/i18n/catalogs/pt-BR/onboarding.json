@@ -67,7 +67,7 @@
   "dob.required": "Obrigatório",
   "dob.title": "Confirme sua data de nascimento.",
   "dob.subtitle": "Adultos de 18 anos ou mais",
-  "dob.body": "O Shape é para adultos de 18 anos ou mais, e toda conta precisa ter uma data de nascimento registrada. Vamos perguntar só uma vez — depois não dá para alterar, então confira antes de salvar.",
+  "dob.body": "O Shape é para adultos de 18 anos ou mais, e toda conta precisa ter uma data de nascimento registrada. Vamos perguntar só uma vez — a data de nascimento não pode ser alterada depois, então confira antes de salvar.",
   "dob.label": "Data de nascimento",
   "dob.cta": "Salvar e continuar",
   "dob.saving": "Salvando…",
