@@ -100,6 +100,16 @@ export async function POST(request: Request) {
     );
   }
 
+  // ⚠ NORMALISE ONCE, HERE, SO ONE STRING IS VALIDATED, STORED AND COMPARED.
+  // `isMinorFromDob` validates `dob.trim()`, so a body carrying surrounding
+  // whitespace passes it — and the raw value was then both written and compared
+  // against the read-back. Postgres parses ' 1985-05-05 ' into the date and hands
+  // back the canonical form, so that comparison could never match: a member whose
+  // save SUCCEEDED was told their date was already on file and to contact
+  // support. Trimming at the point the value is accepted, rather than at either
+  // use, is what keeps the write and the check from ever disagreeing again.
+  const dobValue = (dob as string).trim();
+
   const { profile, error: readErr } = await readProfile(supabase, user.id);
   if (readErr) {
     return NextResponse.json({ error: 'Could not read your profile. Try again.' }, { status: 503 });
@@ -151,7 +161,7 @@ export async function POST(request: Request) {
   // and discards anything supplied, which is what makes `true` real proof.
   const { error: writeErr } = await supabase
     .from('profiles')
-    .update({ date_of_birth: dob as string })
+    .update({ date_of_birth: dobValue })
     .eq('id', user.id);
 
   // ⚠ SURFACE THE FAILURE. A swallowed write here leaves the member believing
@@ -196,7 +206,7 @@ export async function POST(request: Request) {
   // (a zero-row filtered update is the same PostgREST silence), which puts a
   // second authority next to this one and makes neither individually testable.
   // The read-back is the authority; it decides alone.
-  if (after.date_of_birth !== (dob as string)) {
+  if (after.date_of_birth !== dobValue) {
     return NextResponse.json(
       {
         error: 'Your date of birth is already on file and cannot be changed here. Contact support if it is wrong.',

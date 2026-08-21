@@ -255,3 +255,23 @@ test('GET refuses an unauthenticated caller', async () => {
   const res = await (await loadRoute(makeClient({ user: null }))).GET();
   assert.equal(res.status, 401);
 });
+
+// ⚠ THE IDENTITY COMPARISON MUST COMPARE THE VALUE POSTGRES ACTUALLY STORES.
+// `isMinorFromDob` validates `dob.trim()`, so a body carrying surrounding
+// whitespace passes validation — and the raw string was then both WRITTEN and
+// COMPARED. Postgres parses ' 1985-05-05 ' into the date 1985-05-05 and hands
+// back the canonical form, so the read-back could never equal what was sent, and
+// the member was told their date was "already on file — contact support" on the
+// first save that actually SUCCEEDED. That is the same lie one layer further in:
+// a write that landed, reported as a refusal. Normalising once, before the write,
+// makes the value validated, the value stored and the value compared one string.
+test('surrounding whitespace does not turn a successful save into a refusal', async () => {
+  const client = makeClient({ reads: [row(null), row('1985-05-05', true)] });
+  const { status, body, calls } = await callPost(client, ' 1985-05-05\n');
+
+  assert.deepEqual(calls.updates[0].patch, { date_of_birth: '1985-05-05' },
+    'the trimmed date is what goes to the database');
+  assert.equal(status, 200, 'a write that landed must not be reported as already_set');
+  assert.equal(body.ok, true);
+  assert.equal(body.date_of_birth, '1985-05-05');
+});
