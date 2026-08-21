@@ -256,6 +256,48 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-21 — The dedup layer stopped keeping two records of the same fact
+
+- ⚠ **THE QUEUE IS THE RECORD FOR A QUEUED ITEM.** `notify_state.types` holds **one slot**
+  per `(type,key)` while `pendingDigest` can hold several items mapping to it, so a stamp
+  written at queue time could be orphaned or misattributed by anything that later removed
+  the item it stood for — the shape behind **two of the five review rounds on #1915**. A
+  deferred item is no longer stamped: the duplicate check asks the queue, and **delivery**
+  is what stamps. The class is pinned as impossible in both queue orderings rather than
+  handled case by case. Measured before it was built — 6 lines, 37 of 38 tests untouched.
+- ⚠ **TWO NOTIFICATIONS FIRED AT MOST ONCE PER MEMBER, EVER.** `checkin_due` signed itself
+  the constant `'due'` and `streak_broken` `'broken'`, while `score_drop` / `goal_slip`
+  signed with a reason **string** — once per distinct reason, forever, in a map with no TTL.
+  Every self-keyed client candidate now signs with its content **and the week**, so it
+  recurs at most weekly, still bounded by the daily cap, quiet hours and the digest.
+  `habit_reminder` already day-scoped its signature, which is what made the others read as
+  an oversight rather than a policy. The week is **UTC on purpose**: it only bounds how
+  often a nudge may recur, and a per-member zone would resolve the same week two ways for
+  someone who travels — and re-fire a nudge they already had.
+- ⚠ **AND THE MAP GREW WITHOUT BOUND.** `coach_message` / `coach_cosign` key on the **event
+  id**, so every message a member ever received left a permanent entry in a `user_goals`
+  blob read and rewritten on every cron pass. `at` was written and never read; it now bounds
+  the map at 30 days. Dropping an entry can only cost a duplicate, never a silent loss.
+- ⚠ **`candidatesFor` NEVER PASSED `now`.** The weekly signature would have keyed off the
+  wall clock while the rest of the pipeline used the caller's instant — silently, because a
+  default parameter makes an unwired caller look plausible and every unit test supplies its
+  own. A guard asserts the real call site.
+- ⚠ **ONE PREF, ALL CHECK-INS (owner ruling).** `BSTodayNudge` self-gated, but Home's
+  **lead** and the **weekly bulletin** never consulted the pref — and when the lead IS the
+  check-in, Home deliberately suppresses both bulletins to avoid duplication, so an
+  opted-out member had the quiet surfaces hidden by their pref and *"I'll check in →"* left
+  standing. A suppressed lead falls through to the next move; it never empties the rail.
+  The label is now **Check-ins** — *Daily check-in* named the smallest surface it governs.
+- ⚠ **WHAT THIS COULD NOT PROVE.** `BSClientHome` cannot be mounted in the jsdom harness — a
+  child resolves undefined at render, a **pre-existing** gap unrelated to this change. The
+  lead rule is therefore a **named function** (`bsCheckinLeadSuppressed`) unit-tested in
+  both directions, plus source guards on both call sites, rather than an end-to-end mount.
+  Registered, because Home is where engineFlag, the pref hooks and the bulletins all meet
+  and none of it is mount-covered.
+- ⚠ **12 LOCALES STILL SAY "DAILY".** The i18n key was deliberately **not** renamed —
+  renaming drops the other locales back to English, whereas keeping it lets each hold its
+  existing translation. Those two keys need a translation pass, not a code change.
+
 ### 2026-08-20 — The check-in opt-out reached the Home screen and nothing else
 
 - **A member who opted out kept being nudged.** Turning Settings → Preferences → *Daily
