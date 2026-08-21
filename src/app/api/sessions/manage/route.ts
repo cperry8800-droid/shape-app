@@ -153,8 +153,14 @@ export async function POST(request: Request) {
   if (action === 'reschedule' && newScheduledAt) patch.scheduled_at = newScheduledAt;
 
   // On confirm of a video session with no link yet, attach the in-app room.
+  // ⚠ videoRoomUrl RETURNS NULL WHEN NO JITSI DOMAIN IS CONFIGURED — it no longer
+  // falls back to the public meet.jit.si instance. Leave meeting_url unset rather
+  // than writing null over an existing value, and let the confirm succeed: the
+  // session is still confirmed, it simply has no video room, and every surface
+  // that offers one already gates on a truthy meetingUrl.
   if (action === 'confirm' && session.type === 'video' && !session.meeting_url) {
-    patch.meeting_url = videoRoomUrl(session.id);
+    const room = videoRoomUrl(session.id);
+    if (room) patch.meeting_url = room;
   }
 
   const { data: updated, error: updErr } = await supabase
