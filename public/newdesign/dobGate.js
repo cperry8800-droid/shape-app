@@ -115,7 +115,19 @@
       // getting its teardown wrong hijacks Tab across the whole portal, which
       // is a worse failure than the one being prevented.
       var active = document.activeElement;
-      if (ev.shiftKey ? active === first : active === last) {
+      // ⚠ THE CONTAINER IS A BOUNDARY TOO. `wrap` carries tabIndex -1 so it is
+      // deliberately not tab-REACHABLE — which also keeps it out of `f`, so focus
+      // resting ON it matched neither end and fell straight through this check.
+      // Shift+Tab then ran backward out of an aria-modal dialog into the page it
+      // tells assistive tech is unavailable. Forward needs no case: document order
+      // from the container runs into its own children.
+      //
+      // Keyed on the container rather than on blocked mode, because focus lands
+      // here two ways — the blocked panel focuses it deliberately, and tabIndex -1
+      // is also CLICK-focusable, so a backdrop click puts focus here in the
+      // ordinary form state as well.
+      var atBackEdge = active === first || active === wrap;
+      if (ev.shiftKey ? atBackEdge : active === last) {
         ev.preventDefault();
         try { (ev.shiftKey ? last : first).focus(); } catch (e) {}
       }

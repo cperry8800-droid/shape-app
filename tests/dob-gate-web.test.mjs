@@ -241,6 +241,56 @@ test('the trap skips a control that is disabled mid-save', async () => {
   assert.notEqual(doc.activeElement, submit);
 });
 
+// ⚠ THE CONTAINER IS A FOCUS POSITION THE TRAP DID NOT KNOW ABOUT. `wrap` carries
+// tabIndex -1 so it is deliberately NOT tab-REACHABLE — which also means the
+// focusable query excludes it, so when focus sits ON it, it is neither `first` nor
+// `last` and the boundary check matched nothing. Forward Tab was fine (document
+// order runs into the dialog's own children), but Shift+Tab ran BACKWARD, out of
+// an aria-modal dialog and into the page it tells assistive tech is unavailable.
+//
+// Reachable two ways, and the second is why the fix keys on the container rather
+// than on blocked mode: the blocked panel focuses `wrap` on purpose, and
+// tabIndex -1 also makes it CLICK-focusable, so a backdrop click puts focus there
+// in the ordinary form state too.
+test('Shift+Tab from the dialog container stays inside it', async () => {
+  const { doc, win } = boot({ getResp: () => resp(200, { needed: true, blocked: 'no_profile' }) });
+  await settle();
+  const behind = doc.createElement('button');
+  behind.id = 'behind-blocked';
+  doc.getElementById('page').appendChild(behind);
+
+  const gate = gateIn(doc);
+  gate.focus();
+  assert.equal(doc.activeElement, gate, 'the blocked panel starts focus on the container');
+
+  const ev = new win.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+  doc.activeElement.dispatchEvent(ev);
+  assert.equal(ev.defaultPrevented, true, 'Shift+Tab off the container must be intercepted');
+
+  const f = [...gate.querySelectorAll('input, button')];
+  assert.equal(doc.activeElement, f[f.length - 1], 'and wrap to the last control inside the gate');
+  assert.notEqual(doc.activeElement, behind);
+});
+
+test('a backdrop click does not open the same hole in the form state', async () => {
+  // Same container, ordinary (non-blocked) gate: tabIndex -1 is click-focusable,
+  // so this is where a member's stray click actually lands.
+  const { doc, win } = boot({ getResp: () => resp(200, { needed: true }) });
+  await settle();
+  const behind = doc.createElement('button');
+  behind.id = 'behind-form';
+  doc.getElementById('page').appendChild(behind);
+
+  const gate = gateIn(doc);
+  gate.focus();
+  const ev = new win.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+  doc.activeElement.dispatchEvent(ev);
+
+  assert.equal(ev.defaultPrevented, true, 'the container is a boundary in every state');
+  assert.ok(gate.contains(doc.activeElement), 'focus must stay inside the dialog');
+  assert.notEqual(doc.activeElement, behind);
+});
+
 test('the blocked panel puts focus inside the dialog', async () => {
   // It offers no form, so nothing pulls focus in on its own; without this the
   // first Tab would start behind the overlay.
