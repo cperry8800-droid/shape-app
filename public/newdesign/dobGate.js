@@ -239,6 +239,14 @@
   // — the overlay closes and the portal underneath can never be scrolled
   // again. `locked` makes the capture idempotent instead of trusting that
   // start() only ever runs once.
+  //
+  // ⚠ THIS GUARD IS SECOND-LINE AND NO TEST CAN REACH IT. lockScroll() has
+  // exactly one caller, inside a start() that is itself idempotent — so with
+  // `started` in place a second capture is unreachable, and mutation-testing
+  // reports removing `locked` alone as a survivor. Removing BOTH is caught.
+  // It is kept because the invariant belongs at the capture, where a second
+  // caller added later inherits it; do not read the survivor as dead code,
+  // and do not try to pin it with a test that cannot exist.
   var prevOverflow = '';
   var locked = false;
 

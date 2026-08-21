@@ -31,7 +31,7 @@ function resp(status, body, { notJson = false } = {}) {
 
 // Boot the gate against a scripted backend. `calls` records what it asked for,
 // so a test can prove the POST carried the date the member typed.
-function boot({ getResp, postResp } = {}) {
+function boot({ getResp, postResp, deferReady = false } = {}) {
   const dom = new JSDOM('<!doctype html><html><body><main id="page">portal</main></body></html>', {
     runScripts: 'outside-only',
   });
@@ -44,6 +44,13 @@ function boot({ getResp, postResp } = {}) {
     }
     return postResp ? Promise.resolve(postResp()) : Promise.reject(new Error('offline'));
   };
+  // jsdom finishes parsing before it hands the document back, so readyState is
+  // already 'complete' and the file takes its run-immediately branch. Shadowing
+  // it is the only way to reach the DOMContentLoaded branch — which is the only
+  // path on which start() can ever be asked to run a second time.
+  if (deferReady) {
+    Object.defineProperty(win.document, 'readyState', { value: 'loading', configurable: true });
+  }
   win.eval(SRC);
   if (win.document.readyState === 'loading') {
     win.document.dispatchEvent(new win.Event('DOMContentLoaded'));
@@ -85,6 +92,12 @@ for (const [label, getResp] of [
   ['200 with an empty body', () => resp(200, null)],
   ['200 with no `needed` field', () => resp(200, { unknown: true })],
   ['200 with needed as the STRING "true"', () => resp(200, { needed: 'true' })],
+  // ⚠ THE STATUS IS PART OF THE ANSWER. A response the server refused is not
+  // evidence about this member, whatever its body happens to contain — an error
+  // page, a cached copy, a shape a future route revision answers 4xx/5xx with.
+  // Reading the body first would let a refused response hold the whole portal.
+  ['a 500 whose body still says needed', () => resp(500, { needed: true })],
+  ['a 401 whose body still says needed', () => resp(401, { needed: true, blocked: 'no_profile' })],
   ['the read failing outright', null],
 ]) {
   test(`does not block on: ${label}`, async () => {
@@ -157,6 +170,25 @@ test('sign-out delegates to the portal path rather than reimplementing it', asyn
   assert.ok(out, 'an escape hatch must exist — this overlay is the whole page');
   out.dispatchEvent(new win.Event('click', { bubbles: true }));
   assert.equal(called, 1, 'it must call the canonical sign-out, not roll its own');
+});
+
+test('the probe fires once even if DOMContentLoaded arrives twice', async () => {
+  // A re-injected tag or a restored page can fire it again. A second run would
+  // issue a second probe AND a second scroll-lock capture — and the second
+  // capture reads back the 'hidden' this file itself wrote, so releasing it
+  // later would restore 'hidden' and leave the portal unscrollable.
+  const { doc, win, calls } = boot({ deferReady: true, getResp: () => resp(200, { needed: true }) });
+  await settle();
+  doc.dispatchEvent(new win.Event('DOMContentLoaded'));
+  await settle();
+
+  assert.equal(
+    calls.filter((c) => c.method === 'GET').length,
+    1,
+    'the gate must probe exactly once per page, however often the event fires'
+  );
+  assert.equal(doc.querySelectorAll(`#${GATE_ID}`).length, 1, 'and mount exactly one overlay');
+  assert.equal(doc.documentElement.style.overflow, 'hidden', 'the lock should still be the first capture');
 });
 
 test('the gate mounts once even if the script is evaluated twice', async () => {
