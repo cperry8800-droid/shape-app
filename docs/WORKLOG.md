@@ -129,6 +129,15 @@ changelog whenever something ships.
   owner asked for it directly. Triggering it by hand is now **allowed**. (The
   2026-08-18 hand-trigger predated the authorisation and was a rule break at the
   time; it is no longer the rule being broken.)
+  ⚠ **RECORDS-ONLY DIFFS GET NO REVIEW ROUND — owner, 2026-08-21:** *"i also dont understand
+  the constant back and forth reviews on record updates"*. A diff touching only `docs/**` and
+  war-room label text **merges on CI green**, full stop. The gate below keeps its full force
+  on anything that ships code. **Why, measured:** #1918 was records-only and took FOUR rounds
+  — 3 → 1 → 3 → 2 findings — producing a hyphen, several wording notes, one stale count and
+  one repo-settings observation. That curve is **flat**, and English wording has no ground
+  truth for a reviewer to be right about, so a language-model reviewer aimed at prose **cannot
+  converge**. It is not free either: the included allowance is ~1 review/hour and the rest
+  bills the owner.
   ⚠ **CODERABBIT IS THE GATING REVIEWER — owner, 2026-08-20 — AND CODEX IS OUT
   ENTIRELY: never triggered, never waited on, out of credits (owner, 2026-08-21).** It may
   still auto-fire on PR open, `codexVerdict` still runs and `/console` still renders its
