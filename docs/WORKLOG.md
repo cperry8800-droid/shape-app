@@ -83,22 +83,31 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE STANDING REVIEWER SYSTEM — RATIFIED BY THE OWNER 2026-08-20.** Read this
-  before the layers below, several of which contradict it and are kept only for their
+  ⚠ **THE REVIEWER SYSTEM — CURRENT, AND THE ONLY VERSION THAT BINDS.** Owner,
+  2026-08-21: *"no more codex, out of credits, only coderabbit"*. Read this before the
+  layers below, several of which describe superseded systems and are kept only for their
   history:
   **(a) own adversarial self-review** before the first push — still the layer that
-  catches the most; **(b) CodeRabbit ONCE, as a breadth sweep** — a single
-  `@coderabbitai review` on a head you believe final, findings worked, false ones
-  refuted with evidence; **(c) Codex — THE GATE**, which the merge waits on.
-  ⚠ **Not both every round** — hedging spends two finite budgets to answer one question.
-  ⚠ **Never compare their severity labels**: CodeRabbit's "Major" and Codex's "P1" are
-  self-assigned on different scales; report each in its own terms and never sum them.
-  **Why this shape, measured on this repo:** Codex finds the bugs that make a feature
-  *fake* (its P1s here included a scheduler that was computed, displayed, and ignored by
-  the code that runs the cook); CodeRabbit finds more, wider, and noisier (2 of its last
-  5 on #1910 were refutable). The number that decided it: **CodeRabbit found 27 findings
-  on a tree Codex had already reviewed across eight rounds**, and caught two real defects
-  Codex missed. They are complementary, not redundant.
+  catches the most, and now the ONLY one that runs before a reviewer sees the diff;
+  **(b) CodeRabbit — THE GATE, re-triggered EVERY round** — `@coderabbitai full review`
+  on each head you believe final, findings worked, false ones refuted with evidence.
+  **There is no second reviewer.**
+  ⚠ **CODEX IS OUT — THE ACCOUNT HAS NO CREDITS.** Never trigger it, never wait on it,
+  never gate on it. It may still auto-fire on PR open, and a finding it has **already
+  posted** is free to read — two such were real defects on 2026-08-21 — because reading a
+  record is not running a reviewer.
+  ⚠ **Two earlier rules are DEAD and will read as live if you skim:** *"CodeRabbit ONCE
+  as a breadth sweep, Codex the gate"* (2026-08-20) and *"Codex gets ONE round after
+  CodeRabbit clears"* (2026-08-21, superseded the same day it was written).
+  ⚠ **Never compare severity labels across reviewers**: CodeRabbit's "Major" and Codex's
+  "P1" are self-assigned on different scales; report each in its own terms, never sum them.
+  **What the measurement said while both ran, because it says what layer (a) now has to
+  absorb:** Codex found the bugs that make a feature *fake* (its P1s here included a
+  scheduler computed, displayed, and ignored by the code that runs the cook); CodeRabbit
+  finds more, wider, and noisier (2 of its last 5 on #1910 were refutable), and it found
+  **27 findings on a tree Codex had already reviewed across eight rounds**, including two
+  real defects Codex missed. They were complementary, not redundant — so losing Codex
+  loses a real layer, and self-review is what has to cover it.
 
   The layers, in order, for any
   non-trivial change: **(0) CodeRabbit IDE — pre-push.** The CodeRabbit VS Code
@@ -120,9 +129,10 @@ changelog whenever something ships.
   owner asked for it directly. Triggering it by hand is now **allowed**. (The
   2026-08-18 hand-trigger predated the authorisation and was a rule break at the
   time; it is no longer the rule being broken.)
-  ⚠ **CODERABBIT IS THE GATING REVIEWER — owner, 2026-08-20, and CODEX NO LONGER GATES
-  AND IS NEVER TRIGGERED.** It still auto-fires on PR open, `codexVerdict` still runs and
-  `/console` still renders its chip — it just decides nothing. The merge gate is CI green **and a CodeRabbit pass on the final head**.
+  ⚠ **CODERABBIT IS THE GATING REVIEWER — owner, 2026-08-20 — AND CODEX IS OUT
+  ENTIRELY: never triggered, never waited on, out of credits (owner, 2026-08-21).** It may
+  still auto-fire on PR open, `codexVerdict` still runs and `/console` still renders its
+  chip — it just decides nothing, and nothing in the merge path reads it. The merge gate is CI green **and a CodeRabbit pass on the final head**.
   A pass is an **APPROVED review on that head**, or a zero-marker comment naming it —
   measured across the last 18 merged PRs, approval is the only signal CodeRabbit emits
   reliably on a clean head. ⚠ **`Actionable comments posted: N` is NOT head-pinned**:
@@ -152,9 +162,10 @@ changelog whenever something ships.
   supply a merge condition. (⚠ The trailing clause *"and never waiting on
   CodeRabbit is the standing rule"* is itself now stale — see the authorisation
   correction above. You **may** wait on CodeRabbit; it just does not close the gate.)
-  ✓ **RESOLVED 2026-08-20 — THE TWO GATES NOW AGREE, AND THIS DOCUMENT IS THE ONE THE
-  CODE MATCHES.** `prAllGreen` is CI green **AND a clean Codex verdict on THIS head**
-  AND not a draft. CodeRabbit left the gate; it keeps its chip.
+  ⚠ **THIS READ "RESOLVED 2026-08-20 — `prAllGreen` is CI green AND a clean CODEX
+  verdict on THIS head". That shipped in #1914 and was REPLACED THE NEXT DAY by #1916:**
+  the gate is CI green **AND a CodeRabbit `approved`-or-`clean` verdict on THIS head**
+  AND not a draft. Codex keeps its chip and decides nothing.
   - **Why it had to change, and not just be documented:** `coderabbitVerdict` is
     head-pinned, so the ratified *"CodeRabbit ONCE"* sweep **stops counting the moment
     you push a fix for its own findings** — after which the old gate could never open
@@ -197,13 +208,14 @@ changelog whenever something ships.
     2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
     #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the
     changelog and handoff both say five; this line said four).
-    ✓ **SETTLED 2026-08-20 — IT DOES NOT GATE.** It was unsettled because
+    ⚠ **THIS READ "SETTLED 2026-08-20 — IT DOES NOT GATE". IT GATES**, since #1916
+    (2026-08-21). It was unsettled because
     `coderabbitVerdict` is *head-pinned*: it counts only reviews whose `commit_id` IS
     the head, so a sweep whose findings you then fixed stopped counting the moment you
     pushed the fix, and `prAllGreen` could not then go green without a re-review the
-    ratified process forbids. **"CodeRabbit ONCE" and the old gate were unsatisfiable
-    together.** CodeRabbit left `prAllGreen`; it is reported and never required, which
-    is what a breadth sweep should be. Codex is the gate and is now head-pinned itself.
+    process then forbade. **"CodeRabbit ONCE" and the old gate were unsatisfiable
+    together** — and that contradiction **dissolved** rather than being overridden: with
+    CodeRabbit re-triggered every round, head-pinning is exactly what a gate wants.
     ⚠ Reading its verdict: a clean pass leaves **no review** — it leaves a summary
     *comment* carrying `Actionable comments posted: 0`, which is the marker
     `coderabbitVerdict` matches. Read that comment rather than inferring a pass from
@@ -275,8 +287,10 @@ changelog whenever something ships.
   `prAllGreen` require a clean **Codex** verdict on the head one day earlier, so with Codex
   retired `/console` would have reported **every** PR as not-mergeable regardless of CI. The
   gate now reads CodeRabbit: CI green **AND** `approved`-or-`clean` on this head **AND** not
-  a draft. ⚠ Amended the next day — **Codex gets ONE round after CodeRabbit clears**, not a
-  round per fix push.
+  a draft. ⚠ **Amended twice more the same day, and this is where it landed:** Codex is
+  out entirely — *"no more codex, out of credits, only coderabbit"* — so CodeRabbit is not
+  merely the gate, it is the only reviewer. The intermediate *"one round after CodeRabbit
+  clears"* rule lasted a few hours and is dead.
 - ⚠ **THE CONTRADICTION DISSOLVED RATHER THAN BEING OVERRIDDEN.** CodeRabbit left the gate in
   #1914 because `coderabbitVerdict` is head-pinned while the house ran it **once** as a
   breadth sweep — so the sweep stopped counting the moment a fix for its own findings was
@@ -292,8 +306,8 @@ changelog whenever something ships.
   comments** and the containing review is often `COMMENTED`, not `CHANGES_REQUESTED` — a
   state-only read returned `commented` for a head with open findings on it. `coderabbitVerdict`
   now takes `reviewComments`, anchored on `original_commit_id` and never `commit_id`, which
-  GitHub re-anchors forward. The route did not fetch them at all, so a guard asserts the real
-  call site: every verdict test hands them in by hand and would stay green with the route
+  GitHub re-anchors forward. **The route had not been fetching them at all** — it does now,
+  in the same `Promise.all` as the reviews — so a guard asserts the real call site: every verdict test hands them in by hand and would stay green with the route
   unwired.
 - ⚠ **CODERABBIT DOES NOT AUTO-REVIEW THIS REPO** — *"fewer than 10 stars"*. Both #1916 and
   #1917 sat with **no review at all** while CI went green. A new head is unreviewed until you
