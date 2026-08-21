@@ -74,5 +74,8 @@
   "dob.signout": "Sair",
   "dob.blockedTitle": "Não dá para concluir por aqui.",
   "dob.blockedBody": "A configuração da sua conta não foi concluída, então ainda não há onde salvar isso. Fale com o suporte que a gente resolve.",
-  "dob.genericError": "Não foi possível salvar sua data de nascimento. Tente de novo."
+  "dob.genericError": "Não foi possível salvar sua data de nascimento. Tente de novo.",
+  "dob.errInvalidDate": "Informe uma data de nascimento válida.",
+  "dob.errUnder18": "O Shape é para adultos de 18 anos ou mais.",
+  "dob.errAlreadySet": "Sua data de nascimento já está registrada e não pode ser alterada aqui. Fale com o suporte se estiver errada."
 }

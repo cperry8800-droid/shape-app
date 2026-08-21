@@ -74,5 +74,8 @@
   "dob.signout": "Sign out",
   "dob.blockedTitle": "We can’t finish this here.",
   "dob.blockedBody": "Your account setup didn’t complete, so there’s nothing to save this to yet. Contact support and we’ll put it right.",
-  "dob.genericError": "Could not save your date of birth. Try again."
+  "dob.genericError": "Could not save your date of birth. Try again.",
+  "dob.errInvalidDate": "Enter a real date of birth.",
+  "dob.errUnder18": "Shape is for adults 18 and over.",
+  "dob.errAlreadySet": "Your date of birth is already on file and can’t be changed here. Contact support if it’s wrong."
 }

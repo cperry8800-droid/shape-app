@@ -74,5 +74,8 @@
   "dob.signout": "Çıkış yap",
   "dob.blockedTitle": "Bunu burada tamamlayamıyoruz.",
   "dob.blockedBody": "Hesap kurulumun tamamlanmamış, bu yüzden bunu kaydedecek bir yer henüz yok. Destek ekibiyle iletişime geç, biz halledelim.",
-  "dob.genericError": "Doğum tarihin kaydedilemedi. Tekrar dene."
+  "dob.genericError": "Doğum tarihin kaydedilemedi. Tekrar dene.",
+  "dob.errInvalidDate": "Geçerli bir doğum tarihi gir.",
+  "dob.errUnder18": "Shape 18 yaş ve üzeri yetişkinler içindir.",
+  "dob.errAlreadySet": "Doğum tarihin zaten kayıtlı ve burada değiştirilemez. Yanlışsa destek ekibiyle iletişime geç."
 }

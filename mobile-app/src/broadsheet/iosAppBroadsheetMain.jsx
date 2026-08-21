@@ -1821,15 +1821,29 @@ function BSAppShell({ tweaks, setTweak }) {
   // a form that cannot succeed. `needed` starts false: until the server has
   // actually said otherwise, nobody is held.
   const [dobState, setDobState] = useStateBSM({ needed: false, blocked: '' });
+  // ⚠ WAIT FOR THE SESSION RESTORE, LIKE THE MEMBERSHIP PROBE ABOVE. `authState`
+  // is seeded SYNCHRONOUSLY from the cached state, so `authUserId` — and with it
+  // `signedIn`, and so `memberAllowed` — are already truthy on the first render,
+  // deliberately (see memberGateLoading: the gate must resolve before auth
+  // restores). This effect therefore fired with the CACHED access token, which on
+  // a returning member's cold boot is the expired one. The 401 that came back is
+  // correctly not treated as evidence — but nothing in the dependency array then
+  // CHANGES when the refresh lands, because it is the same user id. So the probe
+  // never ran again and `needed: true` was missed for the whole app session: the
+  // gate silently never appeared, for exactly the ordinary returning member.
+  //
+  // `authReady` flips false→true when the restore completes, which is the one
+  // dependency that re-runs this at the moment a live token exists.
   useEffectBSM(() => {
-    if (!authUserId || !memberAllowed || previewMode || browseMode) return undefined;
+    if (!authReady || !authUserId || !memberAllowed || previewMode || browseMode) return undefined;
     let cancelled = false;
     (async () => {
       try {
         const token = window.ShapeAuth?.getCachedState?.()?.session?.access_token;
         const headers = {};
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch('/api/me/date-of-birth', { headers, credentials: 'same-origin' });
+        // no-store: the answer is per-account, and this device can be shared.
+        const res = await fetch('/api/me/date-of-birth', { headers, credentials: 'same-origin', cache: 'no-store' });
         // ⚠ A NON-OK RESPONSE MUST NOT HOLD ANYONE. 401 during a token
         // refresh, 5xx, an HTML error page from a proxy — none of them are
         // evidence that this member owes us a date.
@@ -1840,7 +1854,7 @@ function BSAppShell({ tweaks, setTweak }) {
       } catch (e) { /* never block on a failed check */ }
     })();
     return () => { cancelled = true; };
-  }, [authUserId, memberAllowed, previewMode, browseMode]);
+  }, [authReady, authUserId, memberAllowed, previewMode, browseMode]);
   useEffectBSM(() => {
     if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};
     const unsub = window.ShapeNotifications.subscribe((n) => {

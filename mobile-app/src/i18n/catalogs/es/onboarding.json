@@ -74,5 +74,8 @@
   "dob.signout": "Cerrar sesión",
   "dob.blockedTitle": "No podemos completarlo aquí.",
   "dob.blockedBody": "La configuración de tu cuenta no se completó, así que todavía no hay dónde guardar esto. Contacta con soporte y lo solucionamos.",
-  "dob.genericError": "No se pudo guardar tu fecha de nacimiento. Inténtalo de nuevo."
+  "dob.genericError": "No se pudo guardar tu fecha de nacimiento. Inténtalo de nuevo.",
+  "dob.errInvalidDate": "Introduce una fecha de nacimiento válida.",
+  "dob.errUnder18": "Shape es para adultos de 18 años o más.",
+  "dob.errAlreadySet": "Tu fecha de nacimiento ya está registrada y no se puede cambiar aquí. Contacta con soporte si es incorrecta."
 }

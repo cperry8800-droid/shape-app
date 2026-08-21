@@ -187,3 +187,63 @@ test('an escape hatch exists in both states', () => {
     ui.unmount();
   }
 });
+
+// ⚠ THE ROUTE'S `error` IS ALWAYS A SENTENCE, AND ALWAYS ENGLISH. It never
+// carries a bare code — so nothing ever rendered `not_persisted` on screen — but
+// rendering it put ENGLISH in front of a member reading the app in one of the
+// other twelve locales, on the one screen standing between them and the product.
+// The distinctive server sentence below is what a leak looks like: if it reaches
+// the alert, the component is echoing the server instead of translating the code.
+test('a coded refusal renders localized copy, not the server’s English', async () => {
+  stubFetch(() => resp(409, {
+    error: 'SERVER-SIDE-ENGLISH-THAT-MUST-NOT-REACH-THE-MEMBER',
+    code: 'already_set',
+  }));
+  const ui = mount({});
+  typeDate(ui, '1990-04-02');
+  submit(ui);
+  await settle();
+
+  const text = ui.alert()?.textContent || '';
+  assert.ok(text.trim(), 'the member must still be told why');
+  assert.ok(!text.includes('SERVER-SIDE-ENGLISH-THAT-MUST-NOT-REACH-THE-MEMBER'),
+    'the server sentence must not be echoed');
+  assert.match(text, /already on file/i, 'the already_set copy should come from the catalog');
+  ui.unmount();
+});
+
+// ⚠ AND THE FALLBACK MUST NOT BE `d.error` EITHER. A code we do not recognise is
+// exactly when the English would leak, so the generic localized line is the
+// floor — a future code added to the route cannot put English on this screen.
+test('an unrecognised code falls back to the generic line, never the raw sentence', async () => {
+  stubFetch(() => resp(500, {
+    error: 'SERVER-SIDE-ENGLISH-THAT-MUST-NOT-REACH-THE-MEMBER',
+    code: 'some_code_added_next_year',
+  }));
+  const ui = mount({});
+  typeDate(ui, '1990-04-02');
+  submit(ui);
+  await settle();
+
+  const text = ui.alert()?.textContent || '';
+  assert.ok(!text.includes('SERVER-SIDE-ENGLISH-THAT-MUST-NOT-REACH-THE-MEMBER'));
+  assert.match(text, /could not save/i, 'the generic localized line is the floor');
+  ui.unmount();
+});
+
+// The advice differs per code and getting it wrong loops the member: telling an
+// `already_set` or `no_profile` account to "try again" points them at a form that
+// cannot succeed. Pinned so a later simplification to one generic line is caught.
+test('contact-support codes do not get told to try again', async () => {
+  for (const code of ['already_set', 'no_profile']) {
+    stubFetch(() => resp(409, { error: 'x', code }));
+    const ui = mount({});
+    typeDate(ui, '1990-04-02');
+    submit(ui);
+    await settle();
+    const text = ui.alert()?.textContent || '';
+    assert.match(text, /support/i, `${code} must point at support`);
+    assert.ok(!/try again/i.test(text), `${code} must not say "try again"`);
+    ui.unmount();
+  }
+});

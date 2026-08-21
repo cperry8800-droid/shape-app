@@ -275,3 +275,26 @@ test('surrounding whitespace does not turn a successful save into a refusal', as
   assert.equal(body.ok, true);
   assert.equal(body.date_of_birth, '1985-05-05');
 });
+
+// ⚠ `force-dynamic` IS A SERVER DIRECTIVE AND SAYS NOTHING TO THE BROWSER. Every
+// answer here is per-account — `needed`, and the `blocked` state that names why —
+// and the devices this ships to are shared. Without an explicit header the next
+// account signed in on the same machine can be served the previous one's answer
+// from cache. Asserted over ALL FOUR answers rather than the happy one, because a
+// header stamped at three of four return points is the same exposure with a
+// passing test in front of it.
+test('every GET answer forbids caching', async () => {
+  const cases = [
+    ['owes a date', makeClient({ reads: [row(null)] })],
+    ['already settled', makeClient({ reads: [row('1990-01-01', true)] })],
+    ['no profile row', makeClient({ reads: [noRow] })],
+    ['read fault', makeClient({ reads: [readFault] })],
+    ['unauthenticated', makeClient({ user: null })],
+  ];
+  for (const [label, client] of cases) {
+    const res = await (await loadRoute(client)).GET();
+    const cc = res.headers.get('cache-control') || '';
+    assert.match(cc, /no-store/, `${label}: must not be cacheable (got "${cc}")`);
+    assert.match(cc, /private/, `${label}: must not be shared-cacheable (got "${cc}")`);
+  }
+});

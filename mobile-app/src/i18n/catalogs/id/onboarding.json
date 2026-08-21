@@ -74,5 +74,8 @@
   "dob.signout": "Keluar",
   "dob.blockedTitle": "Kami tidak bisa menyelesaikannya di sini.",
   "dob.blockedBody": "Penyiapan akun kamu belum selesai, jadi belum ada tempat untuk menyimpan ini. Hubungi dukungan dan kami akan membereskannya.",
-  "dob.genericError": "Tanggal lahir kamu gagal disimpan. Coba lagi."
+  "dob.genericError": "Tanggal lahir kamu gagal disimpan. Coba lagi.",
+  "dob.errInvalidDate": "Masukkan tanggal lahir yang valid.",
+  "dob.errUnder18": "Shape untuk orang dewasa berusia 18 tahun ke atas.",
+  "dob.errAlreadySet": "Tanggal lahir kamu sudah tersimpan dan tidak bisa diubah di sini. Hubungi dukungan kalau datanya salah."
 }

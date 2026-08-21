@@ -253,6 +253,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
+        cache: 'no-store',
         body: JSON.stringify({ date_of_birth: input.value }),
       })
         .then(function (res) {
@@ -326,7 +327,8 @@
   function start() {
     if (started) return;
     started = true;
-    fetch('/api/me/date-of-birth', { credentials: 'same-origin' })
+    // no-store: per-account answer, and a portal machine can be shared.
+    fetch('/api/me/date-of-birth', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (res) {
         // A non-OK response is not evidence that this member owes us a date.
         if (!res.ok) return null;

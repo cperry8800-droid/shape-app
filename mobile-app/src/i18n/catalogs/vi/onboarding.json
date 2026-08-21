@@ -74,5 +74,8 @@
   "dob.signout": "Đăng xuất",
   "dob.blockedTitle": "Chúng tôi không thể hoàn tất ở đây.",
   "dob.blockedBody": "Việc thiết lập tài khoản của bạn chưa hoàn tất, nên hiện chưa có nơi để lưu thông tin này. Hãy liên hệ bộ phận hỗ trợ, chúng tôi sẽ xử lý.",
-  "dob.genericError": "Không thể lưu ngày sinh của bạn. Vui lòng thử lại."
+  "dob.genericError": "Không thể lưu ngày sinh của bạn. Vui lòng thử lại.",
+  "dob.errInvalidDate": "Hãy nhập ngày sinh hợp lệ.",
+  "dob.errUnder18": "Shape dành cho người từ 18 tuổi trở lên.",
+  "dob.errAlreadySet": "Ngày sinh của bạn đã được lưu và không thể thay đổi tại đây. Hãy liên hệ bộ phận hỗ trợ nếu thông tin bị sai."
 }

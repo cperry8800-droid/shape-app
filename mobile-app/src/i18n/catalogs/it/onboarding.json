@@ -74,5 +74,8 @@
   "dob.signout": "Esci",
   "dob.blockedTitle": "Non possiamo completarlo qui.",
   "dob.blockedBody": "La configurazione del tuo account non è stata completata, quindi non c’è ancora nulla su cui salvarlo. Contatta l’assistenza e sistemeremo tutto.",
-  "dob.genericError": "Non è stato possibile salvare la tua data di nascita. Riprova."
+  "dob.genericError": "Non è stato possibile salvare la tua data di nascita. Riprova.",
+  "dob.errInvalidDate": "Inserisci una data di nascita valida.",
+  "dob.errUnder18": "Shape è per adulti dai 18 anni in su.",
+  "dob.errAlreadySet": "La tua data di nascita è già registrata e non può essere modificata qui. Contatta l’assistenza se non è corretta."
 }

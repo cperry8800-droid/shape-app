@@ -278,9 +278,12 @@ None of this is code. All of it blocks a public launch.
       ⚠ Also confirm each caller actually **selects `created_at`** — a forgotten
       column makes an account unplaceable and it refuses, so the omission shows up
       as a locked-out member rather than as a failing test.
-      ⚠ **`src/lib/age-gate.ts`'s own file header contradicts this**, still saying
-      absence "is not treated as a claim either way", while line ~70 of the same
-      file correctly says absence no longer admits. Trust `mustRefuseForAge()`.
+      ⚠ **`src/lib/age-gate.ts`'s own file header contradicted this until
+      2026-08-21**, saying absence "is not treated as a claim either way" while
+      line ~70 of the same file correctly said absence no longer admits. The
+      header has been corrected and now states that absence refuses. Trust
+      `mustRefuseForAge()` regardless — a prose copy is what went stale here, and
+      this line is the copy that outlived the source it described.
 - [ ] ⚠ The gate also covers a **subset** of the API surface. Read the real list,
       never a prose copy of it: `GATED_API_PREFIXES` in
       `src/lib/supabase/middleware.ts`. An earlier prose copy omitted two prefixes,

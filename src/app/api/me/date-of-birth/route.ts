@@ -41,18 +41,33 @@ async function readProfile(supabase: Awaited<ReturnType<typeof createClient>>, u
   return { profile: (data ?? null) as Profile | null, error };
 }
 
+// ⚠ EVERY GET ANSWER HERE IS PER-ACCOUNT AND MUST NOT BE REUSED. `force-dynamic`
+// governs how NEXT renders this route; it says nothing to the BROWSER, which is
+// free to serve a cached `needed:false` — or a cached `blocked` — to the NEXT
+// account signed in on the same device. That is the shared-device surface this
+// repo has already had to harden once, and the sibling membership probe in the
+// app carries `cache: 'no-store'` for the same reason.
+//
+// Stamped through one helper rather than at each return, so a fifth answer added
+// later cannot be the one that forgets. POST is deliberately not wrapped:
+// browsers do not cache POST responses, so a helper there would assert a
+// protection that was never the exposure.
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };
+const privateJson = (body: unknown, init?: { status?: number }) =>
+  NextResponse.json(body, { ...(init || {}), headers: PRIVATE_HEADERS });
+
 // GET — does this member still owe us a birthdate?
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
 
   const { profile, error } = await readProfile(supabase, user.id);
   // ⚠ FAIL AS "NOT NEEDED" ON A READ FAULT. This drives a blocking prompt; a
   // transient read error must not trap a member behind a form we cannot tell
   // whether they need. The gate itself is the authority on access — this endpoint
   // only decides whether to ASK.
-  if (error) return NextResponse.json({ needed: false, unknown: true });
+  if (error) return privateJson({ needed: false, unknown: true });
 
   // ⚠ A MISSING PROFILE ROW IS A THIRD STATE, NOT A MISSING DATE. `absence
   // refuses` means such an account is already locked out of every gated
@@ -61,9 +76,9 @@ export async function GET() {
   // presenting a form that is guaranteed to fail. Verified against the live
   // database 2026-08-21: 2 of 4 confirmed, signed-in accounts are in this
   // state, so it is the reachable case, not a theoretical one.
-  if (!profile) return NextResponse.json({ needed: true, blocked: 'no_profile' });
+  if (!profile) return privateJson({ needed: true, blocked: 'no_profile' });
 
-  return NextResponse.json({ needed: !profile.date_of_birth });
+  return privateJson({ needed: !profile.date_of_birth });
 }
 
 // POST — supply it, once.

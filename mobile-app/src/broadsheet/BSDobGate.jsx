@@ -33,6 +33,31 @@ import { useTr } from '../i18n/index.js';
 // profiles row at all, so there is nothing for POST to write to and no form we
 // could show that would succeed. Verified live 2026-08-21 — 2 of 4 confirmed,
 // signed-in accounts are in that state.
+// ⚠ THE ROUTE'S `error` STRING IS ENGLISH, AND THIS SCREEN IS NOT. Every answer
+// carries a human sentence, so rendering `d.error` never showed a bare code — but
+// it did show English to a member reading the app in one of the other twelve
+// locales, on the one screen standing between them and the product. The `code` is
+// the stable, translatable half of the contract; the sentence is the fallback for
+// a shape we do not recognise.
+//
+// Mapped rather than blanket-replaced with the generic line: `already_set` and
+// `no_profile` both mean "contact support", and telling those members to "try
+// again" would loop them against a form that cannot succeed.
+const DOB_ERROR_KEYS = {
+  invalid_date: ['dob.errInvalidDate', 'Enter a real date of birth.'],
+  under_18: ['dob.errUnder18', 'Shape is for adults 18 and over.'],
+  already_set: ['dob.errAlreadySet', 'Your date of birth is already on file and can’t be changed here. Contact support if it’s wrong.'],
+  no_profile: ['dob.blockedBody', 'Your account setup didn’t complete, so there’s nothing to save this to yet. Contact support and we’ll put it right.'],
+};
+
+function errorCopyFor(tr, d) {
+  const hit = d && d.code && DOB_ERROR_KEYS[d.code];
+  if (hit) return tr(hit[0], { defaultValue: hit[1] });
+  // An unrecognised code — or none at all — falls back to the generic line rather
+  // than to `d.error`, so a future code cannot leak English onto this screen.
+  return tr('dob.genericError', { defaultValue: 'Could not save your date of birth. Try again.' });
+}
+
 export default function BSDobGate({ blocked, onSaved, onLogout }) {
   const { tr } = useTr('onboarding');
   const [dob, setDob] = React.useState('');
@@ -58,7 +83,7 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch('/api/me/date-of-birth', {
-        method: 'POST', headers, credentials: 'same-origin',
+        method: 'POST', headers, credentials: 'same-origin', cache: 'no-store',
         body: JSON.stringify({ date_of_birth: dob }),
       });
       const d = await res.json().catch(() => null);
@@ -67,7 +92,7 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
       // holds the date, and treating that as saved would put the member back in
       // front of the same gate with no idea why.
       if (res.ok && d && d.ok === true) { onSaved && onSaved(); return; }
-      setErr((d && d.error) || tr('dob.genericError', { defaultValue: 'Could not save your date of birth. Try again.' }));
+      setErr(errorCopyFor(tr, d));
     } catch (e2) {
       setErr(tr('dob.genericError', { defaultValue: 'Could not save your date of birth. Try again.' }));
     } finally {

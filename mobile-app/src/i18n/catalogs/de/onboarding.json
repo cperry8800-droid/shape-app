@@ -74,5 +74,8 @@
   "dob.signout": "Abmelden",
   "dob.blockedTitle": "Das können wir hier nicht abschließen.",
   "dob.blockedBody": "Die Einrichtung deines Kontos wurde nicht abgeschlossen, deshalb gibt es noch nichts, wo wir das speichern könnten. Wende dich an den Support, wir bringen das in Ordnung.",
-  "dob.genericError": "Dein Geburtsdatum konnte nicht gespeichert werden. Versuche es erneut."
+  "dob.genericError": "Dein Geburtsdatum konnte nicht gespeichert werden. Versuche es erneut.",
+  "dob.errInvalidDate": "Gib ein gültiges Geburtsdatum ein.",
+  "dob.errUnder18": "Shape ist für Erwachsene ab 18 Jahren.",
+  "dob.errAlreadySet": "Dein Geburtsdatum ist bereits hinterlegt und kann hier nicht geändert werden. Wende dich an den Support, wenn es falsch ist."
 }

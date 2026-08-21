@@ -74,5 +74,8 @@
   "dob.signout": "Comot",
   "dob.blockedTitle": "We no fit finish am for here.",
   "dob.blockedBody": "Your account setup no complete, so no place dey to save dis one yet. Tell support make we settle am.",
-  "dob.genericError": "We no fit save di day wey you born. Try again."
+  "dob.genericError": "We no fit save di day wey you born. Try again.",
+  "dob.errInvalidDate": "Put di correct day wey dem born you.",
+  "dob.errUnder18": "Shape na for adult wey don reach 18.",
+  "dob.errAlreadySet": "Dem don already save di day wey dem born you, and you no fit change am here. Tell support if e no correct."
 }
