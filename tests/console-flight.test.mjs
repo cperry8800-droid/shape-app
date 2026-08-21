@@ -1,6 +1,7 @@
 // Flight gates — both review-round P1s pinned here, plus the spoof vector.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   REQUIRED_CHECKS,
   gateFromRuns,
@@ -122,12 +123,11 @@ test('coderabbitVerdict — a rate-limit notice is NOT a review (round-6 P1)', (
       `Reviewing files that changed from the base of the PR and between deadbeef and ${SHA}.`,
   };
   assert.equal(coderabbitVerdict({ comments: [capped], headSha: SHA }), 'limited');
-  // ⚠ THE SECOND HALF OF THIS TEST IS DELETED, DELIBERATELY. It asserted that a capped
-  // CodeRabbit never satisfies prAllGreen. That is now structurally impossible rather than
-  // merely true — CodeRabbit left the gate entirely, so no verdict of its can open or close
-  // it, and 'limited' is covered with the rest in "CodeRabbit does NOT gate, whatever its
-  // verdict". What this test still protects is the CHIP's honesty: a cap must never read as
-  // a clean pass, which is the claim that made it a P1.
+  // ⚠ AND A CAP MUST NEVER OPEN THE GATE. This was the claim that made it a P1: a rate-limit
+  // notice names the head in its commit-range block, so anything keying on "mentions the
+  // head" reads a review that never ran as a review that passed. Now that CodeRabbit gates
+  // again, the assertion is live rather than structural.
+  assert.equal(prAllGreen({ ci: 'green', coderabbit: 'limited', draft: false }), false);
 });
 
 test('coderabbitVerdict — a cap that has since cleared does not strand later pushes (round-7 P2)', () => {
@@ -205,7 +205,8 @@ const OLD = 'aaaaaaaaaa1111111111222222222233333333cc';
 test('codexVerdict — a clean pass counts ONLY on the current head', () => {
   assert.equal(codexVerdict({ comments: [cxClean(SHA)], headSha: SHA }), 'clean');
   // The hole this closes: a clean verdict from an earlier push is NOT a verdict on this
-  // head. Under codexPresent it returned 'present' and opened the gate.
+  // head. Under codexPresent it returned 'present' and opened the gate — which Codex no
+  // longer does at all, so this now protects the CHIP's honesty rather than the gate's.
   assert.equal(codexVerdict({ comments: [cxClean(OLD)], headSha: SHA }), 'stale');
 });
 
@@ -230,7 +231,7 @@ test('codexVerdict — a short commit_id can never masquerade as a head prefix',
   assert.equal(codexVerdict({ reviews: [short], headSha: SHA }), 'stale');
 });
 
-test('codexVerdict — findings on the head close the gate', () => {
+test('codexVerdict — findings on the head are FINDINGS (chip only; Codex no longer gates)', () => {
   assert.equal(codexVerdict({ reviews: [cxFinds(SHA)], headSha: SHA }), 'findings');
   // Findings on an OLD head, nothing on this one — still not a pass for this head.
   assert.equal(codexVerdict({ reviews: [cxFinds(OLD)], headSha: SHA }), 'stale');
@@ -284,28 +285,134 @@ test('codexVerdict — trusted login is exact; a substring never passes (CWE-290
   assert.equal(codexVerdict({ comments: [spoof], headSha: SHA }), 'none');
 });
 
-test('prAllGreen — the gate is CI + a CLEAN CODEX VERDICT ON THIS HEAD', () => {
+test('prAllGreen — the gate is CI + a CODERABBIT PASS ON THIS HEAD', () => {
   const base = { ci: 'green', draft: false };
-  assert.equal(prAllGreen({ ...base, codex: 'clean' }), true);
-  assert.equal(prAllGreen({ ...base, codex: 'stale' }), false);
-  assert.equal(prAllGreen({ ...base, codex: 'findings' }), false);
-  assert.equal(prAllGreen({ ...base, codex: 'none' }), false);
-  assert.equal(prAllGreen({ ...base, codex: 'clean', draft: true }), false);
-  assert.equal(prAllGreen({ ...base, codex: 'clean', ci: 'none' }), false);
-  // ⚠ The old value must not sneak through: 'present' is no longer a verdict.
-  assert.equal(prAllGreen({ ...base, codex: 'present' }), false);
+  // The two ways CodeRabbit says "nothing to report". Measured across the last 18 merged
+  // PRs: APPROVED is the only signal it emits reliably on a clean head (2 of 2 clean heads
+  // approved), and the head-pinned zero-marker is the other, rarer one.
+  assert.equal(prAllGreen({ ...base, coderabbit: 'approved' }), true);
+  assert.equal(prAllGreen({ ...base, coderabbit: 'clean' }), true);
+  // ⚠ 'commented' is NOT a pass. Its summary line is edited in place and is NOT head-pinned:
+  // #1915 merged with the PR-wide line still reading "Actionable comments posted: 2" while
+  // the head review was APPROVED with zero inline findings. Reading that as a verdict on
+  // this head is how a cap or a stale sweep gets mistaken for a pass.
+  assert.equal(prAllGreen({ ...base, coderabbit: 'commented' }), false);
+  assert.equal(prAllGreen({ ...base, coderabbit: 'changes' }), false);
+  assert.equal(prAllGreen({ ...base, coderabbit: 'limited' }), false);
+  assert.equal(prAllGreen({ ...base, coderabbit: 'none' }), false);
+  assert.equal(prAllGreen({ ...base, coderabbit: 'approved', draft: true }), false);
+  assert.equal(prAllGreen({ ...base, coderabbit: 'approved', ci: 'none' }), false);
+  // ⚠ CODEX NO LONGER GATES, and a Codex verdict must not open the gate on its own — the
+  // house stopped using it, so a clean Codex record says nothing about whether this head
+  // was reviewed at all.
+  assert.equal(prAllGreen({ ...base, codex: 'clean' }), false);
+  assert.equal(prAllGreen({ ...base, codex: 'clean', coderabbit: 'changes' }), false);
 });
 
-// ⚠ THIS IS THE UNSATISFIABILITY FIX, AND IT IS THE POINT OF THE CHANGE. `coderabbitVerdict`
-// is head-pinned, so the ratified "CodeRabbit ONCE" sweep stops counting the moment you push
-// a fix for its own findings — after which the old gate could never go green without a
-// re-review the process forbids. CodeRabbit is a breadth sweep, not a gate; it still renders
-// its chip, and it no longer blocks.
-test('prAllGreen — CodeRabbit does NOT gate, whatever its verdict', () => {
-  const base = { ci: 'green', codex: 'clean', draft: false };
-  for (const v of ['approved', 'clean', 'changes', 'commented', 'limited', 'none', undefined]) {
-    assert.equal(prAllGreen({ ...base, coderabbit: v }), true,
-      'CodeRabbit verdict ' + JSON.stringify(v) + ' must not decide the gate');
+// ⚠ A REVIEW STATE IS NOT THE WHOLE VERDICT. CodeRabbit posts its findings as inline review
+// comments and its containing review is often COMMENTED, not CHANGES_REQUESTED — so a
+// state-only read returns 'commented' for a head that has open findings on it. As a CHIP
+// that was merely vague; as the GATE it would be a false pass.
+// ⚠ FAILS CLOSED FOREVER — the same trap as #1914's findings-outrank-clean, one layer over.
+// Refuting a finding and re-running the review WITHOUT a new commit leaves the original
+// inline comment in place with the same original_commit_id, so "any finding on this head"
+// stays true and the head can never pass, no matter how many approvals follow. The REST API
+// exposes no thread-resolution state, so ORDER is what settles it: a finding counts only
+// while it is NEWER than the latest approval on that head. Same latest-wins shape the Codex
+// verdict already uses.
+test('coderabbitVerdict — an approval AFTER a finding on the same head clears it', () => {
+  const at = (t) => new Date(t).toISOString();
+  const inline = (t) => ({ user: { login: 'coderabbitai[bot]' }, original_commit_id: SHA, created_at: at(t) });
+  const review = (state, t) => ({ user: { login: 'coderabbitai[bot]' }, state, commit_id: SHA, submitted_at: at(t) });
+
+  // finding, then a re-run that approves — no new commit. The head must be able to pass.
+  assert.equal(
+    coderabbitVerdict({ reviews: [review('APPROVED', 2000)], reviewComments: [inline(1000)], headSha: SHA }),
+    'approved'
+  );
+  // ...and the other order still closes the gate: a finding filed AFTER the approval is open.
+  assert.equal(
+    coderabbitVerdict({ reviews: [review('APPROVED', 1000)], reviewComments: [inline(2000)], headSha: SHA }),
+    'changes'
+  );
+  // An approval with no ordering information cannot be shown to answer the finding, and the
+  // conservative reading is the one that costs a push rather than a false pass.
+  assert.equal(
+    coderabbitVerdict({ reviews: [{ user: { login: 'coderabbitai[bot]' }, state: 'APPROVED', commit_id: SHA }], reviewComments: [inline(1000)], headSha: SHA }),
+    'changes'
+  );
+  // A finding with no approval at all is open, whatever its timestamp.
+  assert.equal(coderabbitVerdict({ reviews: [], reviewComments: [inline(1000)], headSha: SHA }), 'changes');
+
+  // ⚠ THE LATEST APPROVAL, NOT THE FIRST — a mutation taking the earliest survived until
+  // this case existed. Two rounds on one head: finding, approval, another finding, another
+  // approval. Against the FIRST approval the second finding still reads open and the head
+  // is stranded; against the latest it is answered.
+  assert.equal(
+    coderabbitVerdict({
+      reviews: [review('APPROVED', 2000), review('APPROVED', 4000)],
+      reviewComments: [inline(1000), inline(3000)],
+      headSha: SHA,
+    }),
+    'approved'
+  );
+  // ...and a finding after the LAST approval still closes it, with earlier rounds present.
+  assert.equal(
+    coderabbitVerdict({
+      reviews: [review('APPROVED', 2000), review('APPROVED', 4000)],
+      reviewComments: [inline(1000), inline(5000)],
+      headSha: SHA,
+    }),
+    'changes'
+  );
+});
+
+test('coderabbitVerdict — inline findings anchored on the head are CHANGES', () => {
+  const inline = (sha) => ({ user: { login: 'coderabbitai[bot]' }, original_commit_id: sha });
+  assert.equal(
+    coderabbitVerdict({ reviews: [cr('COMMENTED')], reviewComments: [inline(SHA)], headSha: SHA }),
+    'changes'
+  );
+  // An approval cannot outrank an open finding on the SAME head.
+  assert.equal(
+    coderabbitVerdict({ reviews: [cr('APPROVED')], reviewComments: [inline(SHA)], headSha: SHA }),
+    'changes'
+  );
+  // ⚠ Anchored on an EARLIER push — that finding was answered by the push that moved the
+  // head, so it must not strand the gate. This is the original_commit_id rule.
+  const OLD = 'deadbeef' + SHA.slice(8);
+  assert.equal(
+    coderabbitVerdict({ reviews: [cr('APPROVED')], reviewComments: [inline(OLD)], headSha: SHA }),
+    'approved'
+  );
+  // A human's inline comment is not a CodeRabbit finding.
+  assert.equal(
+    coderabbitVerdict({
+      reviews: [cr('APPROVED')],
+      reviewComments: [{ user: { login: 'cperry8800-droid' }, original_commit_id: SHA }],
+      headSha: SHA,
+    }),
+    'approved'
+  );
+});
+
+// ⚠ THE UNSATISFIABILITY THIS ONCE FIXED HAS DISSOLVED, AND THE GATE SWAPPED BACK. The old
+// contradiction was that `coderabbitVerdict` is head-pinned while the house ran CodeRabbit
+// ONCE as a breadth sweep — so the sweep stopped counting the moment a fix for its own
+// findings was pushed. Codex no longer gates and is never triggered (owner, 2026-08-20) —
+// its chip still renders and its verdict is still computed; it just decides nothing. CodeRabbit is
+// re-triggered every round, so head-pinning is exactly what a gate wants: it now says
+// "this head was reviewed and passed" rather than "some head once was".
+test('prAllGreen — CODEX does NOT gate, whatever its verdict', () => {
+  const base = { ci: 'green', coderabbit: 'approved', draft: false };
+  for (const v of ['clean', 'findings', 'stale', 'none', undefined]) {
+    assert.equal(prAllGreen({ ...base, codex: v }), true,
+      'Codex verdict ' + JSON.stringify(v) + ' must not decide the gate');
+  }
+  // ...and it cannot rescue a head CodeRabbit has not passed.
+  for (const v of ['clean', 'findings', 'stale', 'none', undefined]) {
+    assert.equal(prAllGreen({ ...base, coderabbit: 'commented', codex: v }), false,
+      'Codex verdict ' + JSON.stringify(v) + ' must not open the gate on its own');
   }
 });
 
@@ -336,4 +443,18 @@ test('nextPageUrl — follows rel=next and stops when there is none', () => {
     nextPageUrl('<https://api.github.com/x?page=3> ;  rel = "next"'),
     'https://api.github.com/x?page=3'
   );
+});
+
+// ⚠ A TEST THAT SUPPLIES THE INPUT CANNOT SEE THE WIRING. Every verdict test above hands
+// `reviewComments` in by hand, so all of them stay green if the route never fetches them —
+// and the gate would then read APPROVED for a head with open findings on it. This asserts
+// the real call site.
+test('the flight route feeds the gate what the gate now reads', () => {
+  const src = readFileSync(new URL('../src/app/api/console/flight/route.ts', import.meta.url), 'utf8');
+  assert.match(src, /pulls\/\$\{p\.number\}\/comments/,
+    'the route must fetch the PR review comments — inline findings live there');
+  assert.match(src, /coderabbitVerdict\(\{[^}]*reviewComments/,
+    'reviewComments must reach coderabbitVerdict, or head findings are invisible to it');
+  assert.match(src, /prAllGreen\(\{[^}]*coderabbit/,
+    'prAllGreen must be given the CodeRabbit verdict — it is the gate now');
 });

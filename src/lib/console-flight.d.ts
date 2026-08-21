@@ -11,8 +11,9 @@ export function gateFromRuns(
 ): Exclude<Gate, 'blocked'>;
 
 export function coderabbitVerdict(args: {
-  reviews?: Array<{ user?: { login?: string }; state?: string; commit_id?: string }>;
+  reviews?: Array<{ user?: { login?: string }; state?: string; commit_id?: string; submitted_at?: string }>;
   comments?: Array<{ user?: { login?: string }; body?: string }>;
+  reviewComments?: Array<{ user?: { login?: string }; original_commit_id?: string; created_at?: string }>;
   headSha?: string;
 }): CoderabbitVerdict;
 
@@ -29,9 +30,10 @@ export function codexVerdict(args: {
   headSha?: string;
 }): CodexVerdict;
 
-// CodeRabbit is deliberately absent: it is a breadth sweep, not a gate.
+// Codex is deliberately absent: the house stopped using it (owner, 2026-08-20), so a
+// Codex record says nothing about whether THIS head was reviewed.
 export function prAllGreen(p: {
   ci?: string;
-  codex?: string;
+  coderabbit?: string;
   draft?: boolean;
 }): boolean;

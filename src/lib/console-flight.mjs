@@ -37,6 +37,15 @@ const CR_CLEAN_RE = /actionable comments posted:\s*0\b|no actionable comments we
 // would jam the gate at CAPPED forever. The stamp is CodeRabbit's, not ours.
 const CR_LIMIT_RE = /<!--[^>]*rate limited by coderabbit\.ai[^>]*-->/i;
 
+// ⚠ AND A FAIR-USAGE NOTICE IS NOT A CAP — do not add it here, however much it reads like
+// one. When the included-review quota is spent CodeRabbit appends a note to its ordinary
+// "Action performed" reply saying the review may still proceed through usage-based billing
+// and naming when the next included one lands. Measured 2026-08-21 on #1916 and #1917: the
+// SAME comment carrying that note also said the full review had finished, and a real
+// CHANGES_REQUESTED review followed it. Matching on it would report CAPPED for heads that
+// were genuinely reviewed — a false block where the marker above catches a true one. It
+// also carries no marker of its own, only CodeRabbit's generic auto-reply stamp.
+
 export const CODEX_BOTS = ['chatgpt-codex-connector[bot]'];
 
 // Conclusions that mean the check did not pass. `startup_failure` / `stale`
@@ -91,17 +100,44 @@ export function gateFromRuns(runs) {
  *   a cap notice mistaken for a pass; treating it as any flavour of reviewed
  *   is how that happens. It is head-pinned like everything else here — a cap
  *   that has since cleared must not strand later pushes at CAPPED.
- * @param {{reviews?: Array<{user?: {login?: string}, state?: string, commit_id?: string}>,
+ * @param {{reviews?: Array<{user?: {login?: string}, state?: string, commit_id?: string, submitted_at?: string}>,
  *          comments?: Array<{user?: {login?: string}, body?: string}>,
+ *          reviewComments?: Array<{user?: {login?: string}, original_commit_id?: string, created_at?: string}>,
  *          headSha?: string}} args
  * @returns {'approved' | 'clean' | 'changes' | 'commented' | 'limited' | 'none'}
  */
-export function coderabbitVerdict({ reviews, comments, headSha } = {}) {
+export function coderabbitVerdict({ reviews, comments, reviewComments, headSha } = {}) {
   const sha = String(headSha || '');
   const revs = (Array.isArray(reviews) ? reviews : []).filter((r) =>
     isTrusted(r?.user?.login, CODERABBIT_BOTS)
   );
+  // ⚠ A REVIEW STATE IS NOT THE WHOLE VERDICT. CodeRabbit files its findings as inline
+  // review comments and the review containing them is often COMMENTED rather than
+  // CHANGES_REQUESTED, so a state-only read returns 'commented' for a head that has open
+  // findings on it. As a chip that was vague; as the GATE it is a false pass. Anchored on
+  // `original_commit_id`, never `commit_id` — GitHub re-anchors the latter forward, so a
+  // finding already answered by a later push would otherwise strand the gate forever.
   const onHead = sha ? revs.filter((r) => String(r?.commit_id || '') === sha) : [];
+  // ⚠ AND "ANY FINDING ON THIS HEAD" FAILS CLOSED FOREVER. Refuting a finding and re-running
+  // the review WITHOUT a new commit leaves the original comment in place with the same
+  // `original_commit_id`, so the head could never pass however many approvals followed —
+  // the same shape as #1914's findings-outrank-clean bug, one layer over. The REST API
+  // exposes no thread-resolution state, so ORDER settles it: a finding counts only while it
+  // is NEWER than the latest approval on this head. Where order cannot be established the
+  // finding wins, because that costs a push and the other way costs a false pass.
+  const approvedAt = onHead
+    .filter((r) => r?.state === 'APPROVED')
+    .map((r) => String(r?.submitted_at || ''))
+    .filter(Boolean)
+    .sort()
+    .pop() || '';
+  const openFindings = (Array.isArray(reviewComments) ? reviewComments : []).some((c) => {
+    if (!isTrusted(c?.user?.login, CODERABBIT_BOTS)) return false;
+    if (!sha || String(c?.original_commit_id || '') !== sha) return false;
+    const at = String(c?.created_at || '');
+    return !(approvedAt && at && at < approvedAt);
+  });
+  if (openFindings) return 'changes';
   const last = onHead[onHead.length - 1];
   if (last?.state === 'CHANGES_REQUESTED') return 'changes';
   if (last?.state === 'APPROVED') return 'approved';
@@ -230,21 +266,34 @@ export function codexVerdict({ reviews, comments, headSha } = {}) {
 }
 
 /**
- * AWAITING YOUR WORD = CI full-coverage green, a CLEAN CODEX VERDICT ON THIS
- * HEAD, and not a draft.
+ * AWAITING YOUR WORD = CI full-coverage green, a CODERABBIT PASS ON THIS HEAD,
+ * and not a draft.
  *
- * ⚠ CODERABBIT NO LONGER GATES, and removing it is the point rather than a
- * simplification. `coderabbitVerdict` is head-pinned, so the ratified house
- * process — ONE CodeRabbit breadth sweep, Codex as the gate — could never
- * satisfy the old form: the sweep stopped counting the moment a fix for its own
- * findings was pushed, and the gate then demanded a re-review the process
- * forbids. The two were unsatisfiable together. CodeRabbit keeps its chip, which
- * is where a breadth sweep belongs; the gate now says what the house says.
+ * ⚠ CODEX NO LONGER GATES — the house stopped using it (owner, 2026-08-20), so
+ * a clean Codex record says nothing about whether this head was reviewed. It
+ * keeps its chip; it cannot open or close the gate.
  *
- * Net effect is STRICTER, not looser: `codex` must be a verdict on THIS head,
- * where the old `codexPresent` accepted any Codex record the PR had ever had.
- * @param {{ci?: string, codex?: string, draft?: boolean}} p
+ * ⚠ AND THE CONTRADICTION THAT ONCE REMOVED CODERABBIT HAS DISSOLVED. The old
+ * problem was that `coderabbitVerdict` is head-pinned while the house ran
+ * CodeRabbit ONCE as a breadth sweep: the sweep stopped counting the moment a
+ * fix for its own findings was pushed. CodeRabbit is now re-triggered every
+ * round, which is what makes head-pinning the right property for a gate rather
+ * than an unsatisfiable one — it says THIS head was reviewed and passed.
+ *
+ * ⚠ CODERABBIT NEVER AUTO-REVIEWS THIS REPO, so 'none' is the DEFAULT state of a new
+ * head, not an exception. It posts a skip-review comment saying the repository "does not
+ * receive automatic reviews because it has fewer than 10 stars" — measured 2026-08-21 on
+ * #1916 and #1917, both of which sat unreviewed while CI went green. Every round needs an
+ * explicit `@coderabbitai full review`, including the first. Blocking on 'none' is right:
+ * waiting is never the recovery, triggering is.
+ *
+ * ⚠ 'commented' IS NOT A PASS, and that is measured rather than assumed. Across
+ * the last 18 merged PRs, CodeRabbit's "Actionable comments posted: N" summary
+ * is edited in place and is NOT head-pinned: #1915 merged with that line still
+ * reading 2 while the head review was APPROVED with zero inline findings. Only
+ * an approval on this head, or a zero-marker that names it, is a pass.
+ * @param {{ci?: string, coderabbit?: string, draft?: boolean}} p
  */
-export function prAllGreen({ ci, codex, draft } = {}) {
-  return ci === 'green' && codex === 'clean' && !draft;
+export function prAllGreen({ ci, coderabbit, draft } = {}) {
+  return ci === 'green' && (coderabbit === 'approved' || coderabbit === 'clean') && !draft;
 }

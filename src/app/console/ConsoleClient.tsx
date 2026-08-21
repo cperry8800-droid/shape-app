@@ -237,19 +237,22 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
   const gateTag = (p: FlightPr) => {
     if (p.allGreen)
       return { text: 'AWAITING YOUR WORD', color: N.bg, bg: N.accent, border: N.accent };
-    // ⚠ CodeRabbit no longer decides this tag, because it no longer decides the gate.
-    // It read `coderabbit === 'changes'` as BLOCKED while `prAllGreen` ignored it — the
-    // headline would then contradict the thing it is a headline for.
-    if (p.ci === 'red' || p.codex === 'findings')
+    // ⚠ THE HEADLINE MUST KEY ON WHOEVER GATES, or it contradicts the thing it is a
+    // headline for. CodeRabbit gates now (owner, 2026-08-20), so it decides this tag and
+    // Codex no longer appears here at all — a Codex verdict on a reviewer the house has
+    // stopped running would be a stale claim rendered as a status.
+    if (p.ci === 'red' || p.coderabbit === 'changes')
       return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
     if (p.draft) return { text: 'DRAFT', color: N.dim, bg: 'transparent', border: N.dimmer };
     // Not "IN REVIEW" in either of the next two: the review has FINISHED in both, and
     // each needs a different action. Saying "in review" is how a finished-but-unusable
     // verdict gets waited on instead of acted on.
-    if (p.codex === 'stale')
-      return { text: 'CDX RE-TRIGGER', color: N.gold, bg: 'transparent', border: N.gold };
     if (p.coderabbit === 'limited')
       return { text: 'CR LIMIT REACHED', color: N.gold, bg: 'transparent', border: N.gold };
+    // 'commented' means CodeRabbit has spoken on this PR but not passed THIS head — the
+    // sweep predates the current push, so the head is unreviewed and needs another run.
+    if (p.coderabbit === 'commented' || p.coderabbit === 'none')
+      return { text: 'CR RE-TRIGGER', color: N.gold, bg: 'transparent', border: N.gold };
     return { text: 'IN REVIEW', color: N.gold, bg: 'transparent', border: N.gold };
   };
 
