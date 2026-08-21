@@ -302,6 +302,69 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-21 — The go-live wave: a checklist that cannot rot, and a compliance audit against the live product
+
+Seven PRs. The thread running through them: **records that were true when written and had
+since gone false**, and the habit that produces them.
+
+- **Records-only diffs get no review round (#1919 → `ba0045469`)** and **two records that
+  existed only on this machine (#1920 → `b3f1b6521`)** — `docs/HANDOFF-2026-08-19.md` and the
+  §C weekly-readout spec were written, referenced, and never committed. The spec matters
+  more than an ordinary orphan: §C is **not built** and `/api/ai/weekly-readout` is orphaned,
+  so that file was the only explanation of what the route was for.
+- **An owner migration the board still called open (#1922 → `8b6c808ca`)** —
+  `2026-07-31-coach-insert-lockout.sql` had already run. Proved from the live catalog, not
+  inferred: `2026-06-17-coach-write-scope.sql` **creates** the policy and the catalog no
+  longer has it, so it was created and dropped. ⚠ The `status` field was load-bearing —
+  at `manual` the board reported a finished migration as an outstanding **owner action**,
+  and it was being carried on the go-live list as a launch blocker.
+- **The go-live checklist stops copying facts it cannot keep current (#1921 → `d72144399`)**
+  — untouched since 2026-05-30 and wrong three ways: it told you to open `/api/health`
+  (**admin-only since 2026-07-30, returns 404**), it said run migrations oldest-first as
+  no-ops (**13 carry ordering constraints in their own headers**; one breaks the publish
+  button if run early), and it called Eat/Train "editorial demo content (no data model)".
+  ⚠ **The fix is the contract at the top, not the three corrections** — the file now holds
+  ORDER and VERIFICATION METHOD only; anything with a status, a count or a membership list
+  is a link, never a copy. Four review rounds, 18 fixes.
+- **Removed an endorsement Shape has not earned (#1923 → `acd5bf9ef`)** — a band reading
+  "Trusted by coaches at" above six real trademarks, whose own code comment called it a
+  "press substitute". ⚠ It was in **two** trees; the sweep that found the first searched
+  only `public/newdesign/`.
+- **Erase what deletion missed, and stop advertising what does not exist (#1924 →
+  `c80442272`)** — three tables kept a deleted member's uuid indefinitely, and live pages
+  advertised Cronometer, Google Fit and MyFitnessPal, none of which has **any**
+  implementation.
+- **A door that stays open when the age gate starts refusing (#1925 → `b61097ba9`)** —
+  `POST/GET /api/me/date-of-birth`, the collect half of the owner's ruling below.
+
+**⚠ OWNER RULING 2026-08-21 — EVERY ACCOUNT MUST SUPPLY A BIRTHDATE.** This ends the
+grandfathering in `mustRefuseForAge()`. ⚠ **It cannot be applied as one line**: deleting the
+clause 403s every pre-cutoff account across all seven gated prefixes **including the screens
+they need to comply**. Collect first, enforce second — the same shape as the profiles PII
+lockdown. The prompt is not built and the clause is untouched; War Room carries both.
+
+**⚠ THE AGE GATE IS NOT INERT, AND THIS FILE'S OWN SOURCE SAID OTHERWISE.**
+`src/lib/age-gate.ts`'s file header still claims absence "is not treated as a claim either
+way", while line ~70 of that same file says **ABSENCE NO LONGER ADMITS**. Two comments in
+one file, disagreeing — and the stale one was quoted into a launch document before anyone
+read the code. **Read `mustRefuseForAge()` in `src/lib/age-derive.mjs`, never a prose copy.**
+
+**Compliance audit, against the live product rather than the drafts.** Findings are on the
+War Room; the full write-up went to counsel **privately** and deliberately not into this
+repo. Headlines: **four live sub-processors appear in none of the ten `docs/legal/`
+documents** — Jitsi is the architectural one, since `src/lib/video.ts` defaults every
+coaching video call to the **free public** `meet.jit.si` with no DPA — and the retention
+schedule **promises sub-processor deletion that nothing performs**.
+
+⚠ **The repository is public**, and three files in `docs/legal/` carry confidentiality
+markers; one says "PRIVATE, not published" and has been readable since 2026-06-16. Deleting
+them does not undo it — they are in history. Registered as an **owner** item.
+
+⚠ **Method caution worth carrying:** the two most significant register omissions (Jitsi,
+Twilio) are the two **least visible to a source-based review** — one is a console setting,
+the other a bare hostname default. Remaining gaps likely resemble those two, and only a
+vendor-invoice reconciliation would find them.
+
 ### 2026-08-21 — CodeRabbit became the gating reviewer (#1916 → `a81b74d8a`)
 
 - **Owner ruling, mid-turn:** *"stop using codex for now, only coderabbit"*. #1914 had made
