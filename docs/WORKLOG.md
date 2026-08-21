@@ -387,7 +387,7 @@ TESTS, not the code.** First pass killed 7 of 9.
   **9 killed / 1 equivalent**, unmutated sanity green at **both** ends.
 
 Copy lands in all 13 wired locales; parity is enforced, so en-only would fail the build. Suite
-**2201/2201** · `tsc` clean · `next build` with `ƒ Proxy (Middleware)` · mobile build with the
+**2248/2248** · `tsc` clean · `next build` with `ƒ Proxy (Middleware)` · mobile build with the
 gate confirmed present in the emitted bundle · precompile `--check` writes nothing.
 
 ### 2026-08-21 — The go-live wave: a checklist that cannot rot, and a compliance audit against the live product

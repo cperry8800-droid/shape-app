@@ -123,6 +123,8 @@ const STANDALONE_TAG = /[ \t]*<script[^>]*@babel\/standalone[^>]*><\/script>\r?\
 
 const pages = fs.readdirSync(ND).filter((f) => f.endsWith('.html'));
 let pagesTouched = 0, inlineBlocks = 0, externalTags = 0, sentryPages = 0, dobGatePages = 0;
+let dobGateEligible = 0;
+const dobGateUninjectable = [];
 
 // Pass 1: compile every externally-referenced .jsx up front, so the manifest
 // injected below is COMPLETE on every page (not just files seen so far).
@@ -294,9 +296,23 @@ for (const page of pages) {
   }
   // Deferred, and after the Sentry tags on purpose: error tracking installs
   // first, so a fault inside the gate itself is captured rather than silent.
-  if (DOB_GATE_TAG && next.includes('globalChatButton.js') && next.includes('</head>')) {
-    next = next.replace('</head>', `${DOB_GATE_TAG}</head>`);
-    dobGatePages++;
+  // ⚠ ELIGIBILITY AND INJECTION ARE COUNTED SEPARATELY, AND A GAP IS FATAL. The
+  // condition here used to fold both together, so an anchored member page with no
+  // literal `</head>` received NO gate while the build simply printed a lower
+  // number — indistinguishable from the legitimate skips (the redirect stubs and
+  // the chat popout), and the coverage test counted it as covered. An eligible
+  // page that cannot be injected is a member who is never asked, so it stops the
+  // build rather than quietly lowering a total nobody can interpret.
+  if (next.includes('globalChatButton.js')) {
+    dobGateEligible++;
+    if (DOB_GATE_TAG) {
+      if (!next.includes('</head>')) {
+        dobGateUninjectable.push(page);
+      } else {
+        next = next.replace('</head>', `${DOB_GATE_TAG}</head>`);
+        dobGatePages++;
+      }
+    }
   }
   if (crlf) next = next.replace(/(?<!\r)\n/g, '\r\n'); // 17 pages are CRLF; keep them whole
   if (!CHECK) fs.writeFileSync(abs, next);
@@ -318,6 +334,22 @@ console.log(
 );
 // Same rule as the Sentry line above: a coverage number nobody prints reads as
 // "everything is covered" the moment a page stops matching the anchor.
+// ⚠ AN ELIGIBLE PAGE THAT COULD NOT BE INJECTED STOPS THE BUILD. Reporting it as
+// a smaller number is the silent path this wave exists to close: the count alone
+// cannot distinguish "3 pages carry no anchor, by design" from "a member page
+// lost its </head> and now ships ungated".
+if (dobGateUninjectable.length) {
+  throw new Error(
+    'build-newdesign: these pages carry the gate anchor but have no </head> to inject into, '
+      + 'so they would ship WITHOUT the age-collection prompt: '
+      + dobGateUninjectable.join(', ')
+  );
+}
+if (DOB_GATE_TAG && dobGatePages !== dobGateEligible) {
+  throw new Error(
+    `build-newdesign: ${dobGateEligible} pages are gate-eligible but only ${dobGatePages} were injected`
+  );
+}
 console.log(
   `newdesign dob gate: injected on ${dobGatePages}/${pages.length} pages` +
     `${dobGatePages < pages.length ? ` (${pages.length - dobGatePages} without the chat-button anchor — redirect stubs + the chat popout)` : ''}`

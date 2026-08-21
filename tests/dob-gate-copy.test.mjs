@@ -69,6 +69,23 @@ test('every locale that ships the gate is covered by this rule', () => {
     + `add the date noun rather than letting the newest catalog be the unchecked one: ${uncovered.join(', ')}`);
 });
 
+// ⚠ ONE CATALOG HELD THREE PHRASINGS, AND TWO OF THEM SAID THE WRONG THING.
+// Nigerian Pidgin marks the passive with "dem": "di day wey dem born you" is the
+// day you WERE born, while "di day wey you born" reads as the day YOU gave birth.
+// dob.title, dob.label and dob.genericError carried the second form while the
+// error strings added later carried the first, so the same screen asked two
+// different questions. A wording drift inside one locale is invisible to any
+// key-completeness check, which is why it needs its own.
+test('pcm uses one passive phrasing for the birth date throughout', () => {
+  const cat = JSON.parse(readFileSync(join(CATALOGS, 'pcm', 'onboarding.json'), 'utf8'));
+  const wrong = Object.entries(cat)
+    .filter(([k, v]) => k.startsWith('dob.') && /wey you born/i.test(v))
+    .map(([k]) => k);
+  assert.deepEqual(wrong, [],
+    `"wey you born" says the day the MEMBER gave birth; the passive is `
+    + `"wey dem born you": ${wrong.join(', ')}`);
+});
+
 for (const loc of locales) {
   test(`${loc}: the immutability clause names the date, not a pronoun`, () => {
     const body = JSON.parse(readFileSync(join(CATALOGS, loc, 'onboarding.json'), 'utf8'))['dob.body'];

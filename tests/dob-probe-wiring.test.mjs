@@ -31,29 +31,33 @@ function callerFiles() {
 }
 
 const FETCH_CALL = /fetch\(\s*[`'"][^`'"]*\/api\/me\/date-of-birth[^`'"]*[`'"]/g;
-const SENDS_NO_STORE = /cache:\s*['"`]no-store['"`]/;
+const BACKSLASH = String.fromCharCode(92);
 
-// ⚠ THIS RULE HAS NOW BEEN WRONG TWICE, IN TWO DIFFERENT DIRECTIONS, so it is a
-// pure function over a string with its own adversarial tests below. A checker
-// nobody can feed hostile input to is a checker nobody has checked.
+// ⚠ THIS RULE HAS NOW BEEN WRONG THREE TIMES, IN THREE DIRECTIONS, which is why
+// it is a pure function over a string with its own adversarial tests below. A
+// checker nobody can feed hostile input to is a checker nobody has checked.
 //
 //   1. It split on the literal `fetch('<endpoint>'`, so a caller using DOUBLE
 //      quotes matched nothing and the rule passed having inspected nothing.
-//   2. It then read a fixed 400-character window after the match, which could
-//      reach PAST this call and borrow `cache: 'no-store'` from the next,
-//      unrelated request — approving a cacheable DOB probe.
+//   2. It then read a fixed 400-character window after the match, which reached
+//      PAST this call and borrowed `cache: 'no-store'` from the next, unrelated
+//      request — approving a cacheable DOB probe.
+//   3. It then matched that text ANYWHERE in the arguments, so a request with
+//      `headers: { note: "cache: 'no-store'" }` and no RequestInit.cache at all
+//      passed. Text that mentions the option is not the option.
 //
-// Both holes have one shape: the rule reported success about something it had not
-// actually looked at. So the window is now the call's OWN argument list, found by
-// scanning to its matching close paren, quote-aware so a paren inside a string
-// cannot end it early.
+// All three have one shape: the rule reporting success about something it had not
+// actually looked at. So it now reads the call's OWN arguments (scanning to the
+// matching close paren) and only its TOP-LEVEL options, never nested values.
+
+/** Text of this fetch call's arguments, or null if the call is unbalanced. */
 function argumentsOf(src, from) {
   let depth = 1;              // we begin just inside `fetch(`
   let quote = null;
   for (let i = from; i < src.length; i += 1) {
     const ch = src[i];
     if (quote) {
-      if (ch === '\\') { i += 1; continue; }
+      if (ch === BACKSLASH) { i += 1; continue; }
       if (ch === quote) quote = null;
       continue;
     }
@@ -67,6 +71,49 @@ function argumentsOf(src, from) {
   return null;                // unbalanced — unreadable, and never treated as clean
 }
 
+/**
+ * The TOP-LEVEL entries of the options object in `args`, as raw "key: value"
+ * strings. Nested objects, arrays and calls are stepped over whole, so text
+ * inside them can never be mistaken for an option of the request itself.
+ */
+function topLevelOptions(args) {
+  const start = args.indexOf('{');
+  if (start < 0) return [];
+  const parts = [];
+  let buf = '';
+  let depth = 0;
+  let quote = null;
+  for (let i = start; i < args.length; i += 1) {
+    const ch = args[i];
+    if (quote) {
+      buf += ch;
+      if (ch === BACKSLASH) { buf += args[i + 1] || ''; i += 1; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; buf += ch; continue; }
+    if (ch === '{' || ch === '[' || ch === '(') {
+      depth += 1;
+      if (depth > 1) buf += ch;
+      continue;
+    }
+    if (ch === '}' || ch === ']' || ch === ')') {
+      depth -= 1;
+      if (depth === 0) { parts.push(buf); break; }
+      buf += ch;
+      continue;
+    }
+    if (ch === ',' && depth === 1) { parts.push(buf); buf = ''; continue; }
+    buf += ch;
+  }
+  return parts.map((s) => s.trim()).filter(Boolean);
+}
+
+/** True when THIS request sets RequestInit.cache to 'no-store' itself. */
+function sendsNoStore(args) {
+  return topLevelOptions(args).some((entry) => /^cache\s*:\s*['"`]no-store['"`]$/.test(entry));
+}
+
 /** Call sites of the DOB endpoint in `src`, each with its own argument text. */
 function dobCallSites(src) {
   return [...src.matchAll(FETCH_CALL)].map((m) => ({
@@ -76,8 +123,7 @@ function dobCallSites(src) {
 }
 
 test('the no-store rule reads only the call it is judging', () => {
-  // ⚠ THE REGRESSION THAT MOTIVATED THE REWRITE. A cacheable DOB request followed
-  // by an unrelated no-store request passed the previous version outright.
+  // Hole 2: a cacheable DOB call followed by an unrelated no-store request.
   const borrowed = [
     "fetch('/api/me/date-of-birth', { credentials: 'same-origin' });",
     'logSomething();',
@@ -85,25 +131,30 @@ test('the no-store rule reads only the call it is judging', () => {
   ].join('\n');
   const [dob] = dobCallSites(borrowed);
   assert.ok(dob, 'the DOB call must be found');
-  assert.ok(!SENDS_NO_STORE.test(dob.args),
+  assert.ok(!sendsNoStore(dob.args),
     'a cacheable DOB call must not be excused by a LATER request that happens to set no-store');
 
-  // The honest positive: its own options are read correctly.
-  const ok = "fetch('/api/me/date-of-birth', { credentials: 'same-origin', cache: 'no-store' })";
-  assert.ok(SENDS_NO_STORE.test(dobCallSites(ok)[0].args));
+  // Hole 3: the option NAMED inside a nested value, never set on the request.
+  const nestedText = 'fetch(\'/api/me/date-of-birth\', { headers: { note: "cache: \'no-store\'" }, credentials: \'same-origin\' })';
+  assert.ok(!sendsNoStore(dobCallSites(nestedText)[0].args),
+    'text mentioning the option inside headers is not RequestInit.cache');
 
-  // Quoting must not change the verdict — the FIRST hole this rule had.
+  // Hole 1: quoting must not change the verdict.
   for (const q of ["'", '"', '`']) {
     const src = `fetch(${q}/api/me/date-of-birth${q}, { credentials: 'same-origin' })`;
     const [site] = dobCallSites(src);
     assert.ok(site, `a ${q}-quoted call must still be found`);
-    assert.ok(!SENDS_NO_STORE.test(site.args), `a ${q}-quoted cacheable call must be flagged`);
+    assert.ok(!sendsNoStore(site.args), `a ${q}-quoted cacheable call must be flagged`);
   }
 
-  // A nested call inside the options must not end this call's window early.
-  const nested = "fetch('/api/me/date-of-birth', { headers: buildHeaders(token), cache: 'no-store' })";
-  assert.ok(SENDS_NO_STORE.test(dobCallSites(nested)[0].args),
-    'a nested call in the options must not truncate the arguments this rule reads');
+  // The honest positives: the option really set, including past a nested value
+  // and a nested call, which must not truncate this call's own arguments.
+  assert.ok(sendsNoStore(dobCallSites(
+    "fetch('/api/me/date-of-birth', { credentials: 'same-origin', cache: 'no-store' })")[0].args));
+  assert.ok(sendsNoStore(dobCallSites(
+    "fetch('/api/me/date-of-birth', { headers: { a: 1 }, cache: 'no-store' })")[0].args));
+  assert.ok(sendsNoStore(dobCallSites(
+    "fetch('/api/me/date-of-birth', { headers: buildHeaders(token), cache: 'no-store' })")[0].args));
 });
 
 test('every client that calls the DOB endpoint sends cache: no-store', () => {
@@ -132,7 +183,7 @@ test('every client that calls the DOB endpoint sends cache: no-store', () => {
     sites.forEach((site, i) => {
       inspected += 1;
       if (site.args === null) { uninspectable.push(`${f} (call ${i + 1}: unbalanced)`); return; }
-      if (!SENDS_NO_STORE.test(site.args)) offenders.push(`${f} (call ${i + 1})`);
+      if (!sendsNoStore(site.args)) offenders.push(`${f} (call ${i + 1})`);
     });
   }
 

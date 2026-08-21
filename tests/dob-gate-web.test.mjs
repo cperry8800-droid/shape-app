@@ -33,6 +33,10 @@ function resp(status, body, { notJson = false } = {}) {
 // so a test can prove the POST carried the date the member typed.
 function boot({ getResp, postResp, deferReady = false } = {}) {
   const dom = new JSDOM('<!doctype html><html><body><main id="page">portal</main></body></html>', {
+    // A real base URL: the gate navigates on sign-out, and relative navigation
+    // cannot even be PARSED against about:blank — without this the fallback path
+    // throws before any assertion about it can run.
+    url: 'https://portal.test/ClientPlaylists.html',
     runScripts: 'outside-only',
   });
   const win = dom.window;
@@ -170,6 +174,24 @@ test('sign-out delegates to the portal path rather than reimplementing it', asyn
   assert.ok(out, 'an escape hatch must exist — this overlay is the whole page');
   out.dispatchEvent(new win.Event('click', { bubbles: true }));
   assert.equal(called, 1, 'it must call the canonical sign-out, not roll its own');
+});
+
+// ⚠ THE FALLBACK USED TO LEAVE THE MEMBER SIGNED IN. When pageShell is absent it
+// redirected to /login on the claim that /login "carries the canonical sign-out
+// path" — login.jsx clears nothing on arrival, so the session survived, and on
+// Login.html (itself gate-eligible) the redirect pointed at the same page. The
+// because-clause asserting the fallback was safe was the thing that was wrong.
+test('with no portal sign-out present, the fallback still kills the server session', async () => {
+  const { doc, win, calls } = boot({ getResp: () => resp(200, { needed: true }) });
+  await settle();
+  assert.equal(typeof win.shapePortalSignOut, 'undefined', 'this is the pageShell-less case');
+
+  const out = [...doc.querySelectorAll(`#${GATE_ID} button`)].find((b) => /sign out/i.test(b.textContent));
+  out.dispatchEvent(new win.Event('click', { bubbles: true }));
+  await settle();
+
+  const kill = calls.find((c) => c.url.includes('/api/auth/signout') && c.method === 'POST');
+  assert.ok(kill, 'the cookie session must be invalidated before navigating away');
 });
 
 test('the probe fires once even if DOMContentLoaded arrives twice', async () => {

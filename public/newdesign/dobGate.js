@@ -64,9 +64,25 @@
 
   function signOut() {
     if (typeof window.shapePortalSignOut === 'function') { window.shapePortalSignOut(); return; }
-    // pageShell isn't on this page. Do NOT hand-roll the scrub — send them to
-    // the login screen, which carries the canonical sign-out path.
-    window.location.href = '/login';
+    // ⚠ THIS BRANCH USED TO SAY /login "carries the canonical sign-out path".
+    // IT DOES NOT. login.jsx clears nothing on arrival, so the redirect left the
+    // member SIGNED IN behind a gate whose only escape hatch was that button —
+    // and Login.html is itself gate-eligible, so there the redirect pointed at
+    // the page they were already on: a loop with a live session. The comment
+    // asserting the fallback was safe was the thing that was wrong.
+    //
+    // pageShell now defines the canonical path at module scope, so this branch is
+    // reached only by the five portal pages that never load it at all. That is
+    // also why the local scrub cannot run here — those pages load neither
+    // supabase.js nor the scrub — which is a reason to kill the SERVER session,
+    // not a reason to skip it. One endpoint, the same one the canonical path
+    // calls first; navigation happens either way so a failed call can never
+    // strand the member on the gate.
+    var go = function () { window.location.href = '/login'; };
+    try {
+      var out = fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+      if (out && typeof out.then === 'function') { out.then(go, go); } else { go(); }
+    } catch (e) { go(); }
   }
 
   function render(blocked) {

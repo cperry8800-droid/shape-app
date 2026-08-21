@@ -324,6 +324,42 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
   );
 }
 
+// ⚠ SIGN-OUT MUST NOT BE BOUND TO A COMPONENT MOST PAGES NEVER RENDER. This was
+// exposed only from inside Header's effect, so it existed on the 59 portal pages
+// that render a Header and was UNDEFINED on the other 14 that carry the DOB gate.
+// There, the gate's "Sign out" fell through to a bare redirect to /login — and
+// login.jsx does not clear an existing session on arrival, so the member stayed
+// signed in with no way out. Login.html is itself gate-eligible, so its fallback
+// pointed at the page it was already on: a loop with a live session.
+//
+// Defined at MODULE scope, so loading this file is enough. Not a second copy of
+// the sign-out — the ordering below is the same one handleLogout uses and that
+// took a whole wave to settle (cookie first, then the SDK session and scrub, and
+// a broadcast only on a CONFIRMED cookie clear, because a premature stamp
+// manufactures a signed-in sibling tab that nothing will later correct).
+async function shapePortalSignOutStandalone() {
+  var cookieCleared = false;
+  try {
+    const outRes = await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+    cookieCleared = Boolean(outRes && outRes.ok);
+  } catch (e) {}
+  try {
+    if (window.shapeDb && window.shapeDb.signOut) {
+      await window.shapeDb.signOut();
+      if (cookieCleared && window.shapeBroadcastSignOut) window.shapeBroadcastSignOut();
+    } else if (window.shapeClearLocalUserContent) {
+      // Bounded: the navigation below discards the document, and a stalled
+      // CacheStorage must never be able to hang the sign-out.
+      await Promise.race([
+        Promise.resolve(window.shapeClearLocalUserContent({ broadcast: cookieCleared })),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]);
+    }
+  } catch (e) {}
+  window.location.href = '/';
+}
+window.shapePortalSignOut = window.shapePortalSignOut || shapePortalSignOutStandalone;
+
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [authUser, setAuthUser] = React.useState(null);
@@ -391,8 +427,11 @@ function Header({ active }) {
   const logoutRef = React.useRef(null);
   logoutRef.current = handleLogout;
   React.useEffect(() => {
+    // The Header's own handler wins while it is mounted — it is the one wired to
+    // this page's React state. The module-scope definition below is the floor for
+    // every page that loads this file WITHOUT rendering a Header.
     window.shapePortalSignOut = () => logoutRef.current({ preventDefault() {} });
-    return () => { try { delete window.shapePortalSignOut; } catch (e) {} };
+    return () => { window.shapePortalSignOut = shapePortalSignOutStandalone; };
   }, []);
 
   async function switchRole(nextRole) {

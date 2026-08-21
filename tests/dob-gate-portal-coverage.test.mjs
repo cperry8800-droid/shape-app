@@ -73,6 +73,32 @@ test('every page without the anchor is a NAMED exemption', () => {
   );
 });
 
+// ⚠ THE ANCHOR IS NOT THE WHOLE CONDITION, AND THIS TEST USED TO ACT AS IF IT
+// WERE. Injection also needs a literal `</head>`, so an anchored member page
+// without one received NO gate while the build printed a lower number and this
+// suite still counted it as covered — two independent signals both reading
+// "fine" about a page that ships ungated. The build now refuses such a page;
+// this asserts the same property from the tree, so the rule holds even for
+// someone reading the tests rather than running the build.
+test('every anchored page actually has somewhere to inject the gate', () => {
+  const noTarget = pages.filter((p) => hasAnchor(p) && !readFileSync(join(DIR, p), 'utf8').includes('</head>'));
+  assert.deepEqual(noTarget, [],
+    `these pages carry the anchor but have no </head>, so they would ship WITHOUT the `
+    + `age-collection prompt while the coverage count merely looked lower: ${noTarget.join(', ')}`);
+});
+
+test('the build refuses an eligible page it cannot inject', () => {
+  // The counterpart to the rule above, asserted on the build SOURCE: eligibility
+  // and injection are counted separately and a gap throws. Without this, someone
+  // could restore the old single folded condition and the tree-level test above
+  // would still pass on today's pages.
+  const src = stripComments(BUILD);
+  assert.match(src, /dobGateEligible\+\+/, 'eligibility must be counted separately from injection');
+  assert.match(src, /dobGateUninjectable\.push\(/, 'an eligible page with no target must be recorded');
+  assert.match(src, /if\s*\(dobGateUninjectable\.length\)\s*\{[\s\S]{0,300}?throw new Error\(/,
+    'and must STOP the build rather than lower a count nobody can interpret');
+});
+
 test('the exemption list has no dead entries', () => {
   // A stale exemption is how a page quietly loses coverage: it gains the anchor,
   // nobody removes it from here, and the next page with that name inherits a pass
