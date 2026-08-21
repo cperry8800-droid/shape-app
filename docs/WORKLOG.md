@@ -278,6 +278,12 @@ changelog whenever something ships.
   id**, so every message a member ever received left a permanent entry in a `user_goals`
   blob read and rewritten on every cron pass. `at` was written and never read; it now bounds
   the map at 30 days. Dropping an entry can only cost a duplicate, never a silent loss.
+  ⚠ **AND AGE ALONE IS NOT A BOUND**, which took a further round to see. Three structural
+  caps sit beside the TTL: **24** signatures per `(type,key)` (a key written daily never
+  ages out, so its list grew freely), **200** entries in the map, and **50** items in the
+  digest queue. The sharp edge is that `writeUserGoal` **swallows its upsert error**, so an
+  oversized blob does not fail loudly — it loses the dedup state entirely, which is worse
+  than any eviction.
 - ⚠ **`candidatesFor` NEVER PASSED `now`.** The weekly signature would have keyed off the
   wall clock while the rest of the pipeline used the caller's instant — silently, because a
   default parameter makes an unwired caller look plausible and every unit test supplies its
@@ -294,9 +300,15 @@ changelog whenever something ships.
   both directions, plus source guards on both call sites, rather than an end-to-end mount.
   Registered, because Home is where engineFlag, the pref hooks and the bulletins all meet
   and none of it is mount-covered.
-- ⚠ **12 LOCALES STILL SAY "DAILY".** The i18n key was deliberately **not** renamed —
-  renaming drops the other locales back to English, whereas keeping it lets each hold its
-  existing translation. Those two keys need a translation pass, not a code change.
+- ✅ **ALL 12 NON-ENGLISH CATALOGS NOW DESCRIBE THE WIDER SCOPE.** Each dropped the "daily"
+  modifier and now names **both** surfaces — Home prompts and notifications — in the
+  register and loanword choice it already used. The i18n **key** was deliberately not
+  renamed: a key 13 catalogs share buys nothing by moving and risks a missed catalog, so
+  the key stayed and the copy moved. ⚠ The translations are **machine-authored** and want
+  a native pass before launch — the standing caveat on this rollout.
+  ⚠ This bullet said the opposite for one round, after the war room item had already been
+  flipped to `done` — the same claim fixed in one record and left standing in the other,
+  which is the failure this file keeps repeating.
 
 ### 2026-08-20 — The check-in opt-out reached the Home screen and nothing else
 
