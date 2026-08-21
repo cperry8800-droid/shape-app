@@ -233,15 +233,13 @@ function releaseDedup(types, item, kept) {
   const prefix = `${item.type}:`;
   const entries = Object.keys(types).filter((k) => k.startsWith(prefix));
   if (nonEmpty(item.sig)) {
-    for (const k of entries) {
-      const rest = stampSigs(types[k]).filter((x) => x.s !== item.sig);
-      if (rest.length === stampSigs(types[k]).length) continue;   // not this entry's
-      // Drop only the purged signature: an entry can now hold several DELIVERED ones and
-      // forgetting those would re-send them.
-      if (!rest.length) { delete types[k]; continue; }
-      const newest = rest.reduce((a, b) => (b.at > a.at ? b : a));
-      types[k] = { sig: newest.s, sigs: rest, at: newest.at };
-    }
+    // ⚠ WHOLE-ENTRY DELETE IS CORRECT HERE, and a partial drop was unexercised code: a
+    // mutation replacing it with this survived, which is the tell. A QUEUED item's
+    // signature can never also be a DELIVERED one for the same key — a candidate whose
+    // signature was already delivered is suppressed before it can be queued — so the only
+    // entries this can match hold exactly that one signature, written at queue time by the
+    // deploy that predates the queue becoming the record.
+    for (const k of entries) if (stampSigs(types[k]).some((x) => x.s === item.sig)) delete types[k];
     return;
   }
   // ⚠ Items queued before the signature stamp shipped cannot be matched, so fall back to

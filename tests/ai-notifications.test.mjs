@@ -770,3 +770,33 @@ test('an entry kept alive by fresh writes still sheds its old signatures', () =>
   assert.deepEqual(sigsOf(out.nextState.types['directive:self']), ['live'],
     'signatures older than the TTL survived on an entry kept alive by a recent write');
 });
+
+// ⚠ THE STATE THE LIVE DEPLOY IS WRITING RIGHT NOW, which this code no longer produces —
+// so no other test in this file can exhibit it. Since #1915 production queues an item
+// CARRYING its signature AND stamps notify_state.types at the same moment. After the queue
+// became the record, that pairing stops being written, but every member already holding one
+// still has it: on the first evaluation after rollout the queued copy is purged on opt-out
+// and, without the release, the stamp outlives it — the orphaned-stamp bug all over again,
+// and permanent for checkin_due, which cannot re-sign inside the same week.
+test('a stamp written at queue time by the PREVIOUS deploy is released with its item', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const now = new Date('2026-06-17T10:00:00Z');
+  const queuedByOldDeploy = { type: 'checkin_due', key: 'self', sig: 'due:2026-06-15', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true }, at: LIVE };
+  const last = { date: 'never', pendingDigest: [queuedByOldDeploy], types: {
+    'checkin_due:self': { sig: 'due:2026-06-15', at: LIVE },
+    'coach_message:m1': { sig: 'm1', at: LIVE },
+  } };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now, audience: 'client', checkinOptedOut: true });
+  assert.equal(out.nextState.types['checkin_due:self'], undefined,
+    'the stamp outlived the queued item it was written for — that member never gets the nudge');
+  assert.deepEqual(sigsOf(out.nextState.types['coach_message:m1']), ['m1'], 'an unrelated entry was released');
+
+  // ...and it must actually ARRIVE once the member opts back in, same week and all.
+  const back = decideNotifications({
+    candidates: clientCandidates({ directive: null, flags: [], checkinDueThisWeek: true, now, tone: 'supportive' }),
+    last: out.nextState, prefs, now, audience: 'client',
+  });
+  assert.deepEqual(back.send.map((i) => i.type), ['checkin_due'],
+    'the rebuilt check-in was deduped against a nudge that was never delivered');
+});
