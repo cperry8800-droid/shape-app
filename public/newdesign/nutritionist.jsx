@@ -143,7 +143,7 @@ function NutStats() {
 function NutWhy() {
   const pillars = [
     { n: "01", title: "Keep your license clean", body: "HIPAA-aligned client records. Scope-of-practice flags. RD/CSSD/CNS credentials verified on intake. Built with licensed dietitians, not by moving fast and breaking rules." },
-    { n: "02", title: "Plans clients actually follow", body: "Meal plan builder with macro targets and food logging. Swap rules clients can use. Import from Cronometer, MyFitnessPal, or your own templates." },
+    { n: "02", title: "Plans clients actually follow", body: "Meal plan builder with macro targets and food logging. Swap rules clients can use. Build from your own reusable templates." },
     { n: "03", title: "Demand that fits your practice", body: "Members search by specialty — endurance fueling, gut health, plant-forward, clinical. You set scope, Shape sends you the right people." },
   ];
   return (
@@ -286,7 +286,7 @@ function NutEarnings() {
 function NutTools() {
   const tools = [
     { t: "Meal plan builder", b: "Macro targets, swap rules, grocery lists that auto-generate. Save any plan as a template, reuse across clients." },
-    { t: "Food log review", b: "Client logs land in one thread. Flag outliers, leave timestamped notes. Logs integrate with Cronometer, MFP, Apple Health." },
+    { t: "Food log review", b: "Client logs land in one thread. Flag outliers, leave timestamped notes, and keep the whole history in one place." },
     { t: "Client roster", b: "Adherence, weight trend, flagged clients, upcoming consults — all one screen. Filter by specialty or protocol." },
     { t: "Scheduling", b: "Two-way sync with Google, Apple, Outlook. Clients book 20-min check-ins or 60-min consults. Auto-reminders, intake forms." },
     { t: "Messaging", b: "Secure client chat. Voice notes, photos of meals and labs, saved replies for the questions you answer weekly." },

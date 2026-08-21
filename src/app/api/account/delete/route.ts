@@ -62,6 +62,18 @@ const PURGE: { table: string; col: string }[] = [
   { table: 'coach_soundtracks', col: 'owner_id' },
   { table: 'trainers', col: 'owner_id' },
   { table: 'nutritionists', col: 'owner_id' },
+  // ⚠ COACH-OWNED BUT CLIENT-KEYED — the axis the list above misses.
+  // The three tables below carry BOTH an owner_id and a client_id, and only the
+  // owner side was ever considered. Verified against the live catalog: the ONLY
+  // foreign key across all three is coach_grocery_lists.owner_id -> auth.users
+  // (cascade). There is no FK on any client_id — not to auth.users and not to
+  // profiles — so on a MEMBER's deletion nothing cascades and nothing nulls, and
+  // their uuid stays in the row indefinitely. Erasing by client_id is what the
+  // retention schedule already promises; a row keyed to a deleted member has no
+  // meaning to the coach either, so this orphans nothing.
+  { table: 'coach_focus_banners', col: 'client_id' },
+  { table: 'coach_grocery_lists', col: 'client_id' },
+  { table: 'coach_pushed_items', col: 'client_id' },
 ];
 
 // Storage buckets that hold the user's files under a `<uid>/` prefix (the purge
