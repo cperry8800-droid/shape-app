@@ -145,6 +145,14 @@ changelog whenever something ships.
   green). **Every round needs an explicit `@coderabbitai full review`, including the
   first.** An untriggered head reads `none` and is blocked — correctly. **Waiting is never
   the recovery; triggering is.**
+  ⚠ **BUT A TRIGGER NOW COSTS SOMETHING, because it is the only reviewer.** The included
+  allowance runs at roughly **one review per hour** (*"Your plan provides up to 1 included
+  review per hour; 0 remain after this review"*, #1918); past that a trigger bills the
+  owner's plan. So **batch every fix into ONE push per round** — the long-standing rule,
+  now with a price attached — and when the allowance is spent and nothing is blocked, wait
+  out the hour instead of buying a round. ⚠ That notice is **not** a cap: three reviews
+  landed on #1918 after the first one. A notice naming a number is not a refusal, and a
+  real cap says something else (`rate limited by coderabbit.ai` / `Review limit reached`).
   ⚠ **Earlier entries in this file say the gate is Codex** — resolved by this line; the
   contradiction they describe (head-pinning vs a ONE-sweep process) dissolved when
   CodeRabbit began being re-triggered every round. **(3)
@@ -301,8 +309,11 @@ changelog whenever something ships.
   pushed. It is now re-triggered **every round**, which is exactly what makes head-pinning
   the right property for a gate: it says *this head* was reviewed and passed.
 - ⚠ **WHAT COUNTS AS A PASS IS MEASURED, NOT ASSUMED.** Run over the last 18 merged PRs:
-  `approved` 2 · `clean` 1 · `commented` **15**. APPROVED on the head is the only signal
-  CodeRabbit emits reliably when clean. **`Actionable comments posted: N` is NOT head-pinned**
+  `approved` 2 · `clean` 1 · `commented` **15**. **TWO things are a pass**: an APPROVED
+  review whose `commit_id` is the head, or a summary **comment** carrying a zero marker
+  that names the head (the `clean` verdict). Approval is the common one — but `clean` is
+  not decorative, and a poller watching the reviews API alone **hangs forever** on a PR
+  whose pass arrives as a comment. **`Actionable comments posted: N` is NOT head-pinned**
   — that summary is edited in place, and #1915 merged with it still reading **2** while the
   head review was APPROVED with **zero** inline findings. So `commented` is not a pass.
   ⚠ **This line read *"it means the head is unreviewed"*, which is too strong.** It means
