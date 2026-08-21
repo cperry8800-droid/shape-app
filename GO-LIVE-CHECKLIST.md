@@ -41,6 +41,12 @@ tells you which are left.**
 
 - [ ] Vercel project deploys from `main`; `https://theshapecommunity.com` resolves.
 - [ ] **Sign in as an admin, then open `/warroom` and `/console`.**
+- [ ] ⚠ **Test the DENIAL side too — a gate is only proven by the request it
+      refuses.** Signed **out**, and again as an authenticated **non-admin**, hit
+      `/api/health`, `/warroom` and `/console`: each must refuse, and
+      `/api/health` must return **404 carrying no configuration data**. Confirming
+      only that an admin gets in leaves an open route indistinguishable from a
+      closed one.
 
 ⚠ **`/api/health` is ADMIN-ONLY and returns 404 — not 403 — to everyone else.**
 Do not curl it. It was unauthenticated until 2026-07-30, when an access-control
@@ -158,6 +164,13 @@ includes `notifications`.
 and both other Stripe keys `true`. Then a real subscribe → Stripe → Webhooks
 shows **2xx**.
 
+⚠ **`/api/health` reports only that `STRIPE_PLATFORM_PRICE_ID` is SET, and the
+checkout route uses it without validating it.** A stale, test-mode, inactive or
+simply wrong price ID passes that boolean and then charges the wrong thing. Before
+the first real checkout, retrieve the Price in **live** mode and confirm its
+`active` status, `recurring` interval, product, currency **and amount** are the
+ones you intend.
+
 > The coach cut and payout to a connected account only work once that coach has
 > completed **live** Connect onboarding — their `stripe_account_status` flips to
 > `active` on the `account.updated` webhook. Until then the checkout route
@@ -235,13 +248,24 @@ None of this is code. All of it blocks a public launch.
       geo-restricted away from those markets, record that analysis instead — the
       exceptions are narrow and rarely fit a commercial service.
 - [ ] Sign DPAs/SCCs with sub-processors.
-- [ ] ⚠ **The 18+ gate cannot refuse an account whose age it does not know.**
-      `profiles.over_18` is derived by a trigger from `date_of_birth`, and only an
-      explicit `false` is treated as a proven minor — refusing on NULL would lock
-      out every account predating the gate. **A date-of-birth completion flow is
-      the prerequisite for the gate meaning anything on those accounts.** For how
-      many accounts are currently in that state, query `profiles` — the War Room
-      tracks whether the completion flow has shipped.
+- [ ] ⚠ **The 18+ gate REFUSES an unproven account — but grandfathers the ones
+      that predate the rule.** The policy is `mustRefuseForAge()` in
+      `src/lib/age-derive.mjs`; read it there, not from a prose copy. A usable
+      `date_of_birth` decides in **both** directions, so a proven adult is never
+      refused by the cutoff. When the row proves nothing either way, the account's
+      `created_at` decides: **on/after `ADULT_PROOF_REQUIRED_FROM` it is refused**,
+      before it is grandfathered. A **null/absent profile refuses** — that is
+      deliberate, because "no row" is what a failed provisioning write leaves.
+      ⚠ Callers must `select created_at` alongside the age columns; a forgotten
+      column reads as unplaceable and refuses.
+      **What is actually open** is the grandfathered cohort — the accounts created
+      before the cutoff, which absence still admits. Closing it needs a
+      date-of-birth completion flow **and an owner/counsel decision** on whether to
+      un-grandfather them at all. Test `NULL`, `false` and `true` across every
+      age-restricted route before launch.
+      ⚠ **`src/lib/age-gate.ts`'s own file header contradicts this**, still saying
+      absence "is not treated as a claim either way", while line ~70 of the same
+      file correctly says absence no longer admits. Trust `mustRefuseForAge()`.
 - [ ] ⚠ The gate also covers a **subset** of the API surface. Read the real list,
       never a prose copy of it: `GATED_API_PREFIXES` in
       `src/lib/supabase/middleware.ts`. An earlier prose copy omitted two prefixes,
@@ -281,11 +305,20 @@ Cover every operation class that crosses a member boundary, not just `select`:
 
 ## 10. End-to-end smoke test
 
-On the **live** site/app after §1–3. ⚠ **This needs TWO identities, not one** — a
-brand-new **client** account, and a separate seeded authenticated **coach**
-account with a live listing. A single account cannot exercise the coach-side
-permission and notification paths at all, which is exactly where the interesting
-failures are. Sign out and back in at each **⇄ handoff** below.
+⚠ **Run this LAST — after §1–9, not after §1–3.** The steps below exercise Jitsi
+(§4), push notifications (§5), a shipped binary (§8) and seeded accounts (§9), so
+running it early fails on unfinished setup rather than on real defects.
+
+⚠ **This needs TWO identities, not one** — a brand-new **client** account, and a
+separate seeded authenticated **coach** account with a live listing. A single
+account cannot exercise the coach-side permission and notification paths at all,
+which is exactly where the interesting failures are. Sign out and back in at each
+**⇄ handoff** below.
+
+⚠ **The coach fixture must have completed LIVE Stripe Connect onboarding**
+(`stripe_account_status = 'active'`). Without it the checkout route correctly
+blocks that coach — so the payout path goes untested while the run still looks
+like a pass.
 
 - [ ] **[client]** Sign up (email **and** phone) → land signed in.
 - [ ] **[client]** Subscribe to the coach with a real card → Stripe webhook 2xx.
