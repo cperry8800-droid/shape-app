@@ -256,6 +256,112 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-20 — The check-in opt-out reached the Home screen and nothing else
+
+- **A member who opted out kept being nudged.** Turning Settings → Preferences → *Daily
+  check-in* off stops the Home bulletin, but the stored `notify_snapshot` keeps its
+  check-in state and **both** notify paths recompute from it — so someone who opted out
+  and never reopened the app kept receiving check-in nudges from the cron. Codex P1 on
+  #1899, verified against the code before fixing: `/api/ai/notify/cron` consulted
+  `client_settings.dailyCheckin` **zero** times.
+- ⚠ **THE CHECK-IN NUDGE HAS MORE DOORS THAN ANY FIX HAS FOUND.** No number here on
+  purpose: every count put on this has been low — two, then four, then five.
+  1. an explicit `checkinDueThisWeek` signal, and
+  2. the engine's own `checkin_overdue` flag — both feed `checkin_due`, so gating the
+  *call site* would have left the flag firing; the suppression sits at the candidate.
+  3. ⚠ **the DIRECTIVE, and it is the loudest.** `checkin_overdue` carries directive
+  priority **100** in `dashSignals` (escalating with `missedWeeks`), so for an overdue
+  member the ONE move IS *"Send your weekly check-in"* — a HIGH-priority notification the
+  `checkin_due` gate never touched. Suppressed on the **lever**, so unrelated directives
+  survive. (It was first suppressed on the action *kind*, described here as mapping 1:1
+  to the checkin lever — **that claim was false**, and it cost two rounds: the fifth door
+  below, then its mirror.)
+  4. ⚠ **a STORED one.** An item deferred by quiet hours or the daily cap lives in
+  `notify_state.pendingDigest` and is re-emitted at the next non-quiet run **without being
+  rebuilt** — so suppressing the candidate stopped the rebuild and did nothing about the
+  copy already queued. `decideNotifications` now purges held check-in items, keyed on the
+  type and a stamped `data.move`, **never on copy** (wording is translated).
+- ⚠ **AND THE PURGE BROKE THE DEFERRAL UNTIL IT WAS CAUGHT.** `hadPending` read the
+  *unfiltered* queue, so when every held item was a purged check-in and the same call
+  deferred a new low-priority or over-cap candidate, the digest fired **immediately** with
+  that new item — defeating the documented next-evaluation deferral and, for an over-cap
+  item, bypassing the daily cap. It now reads the filtered queue before this call's
+  candidates are added.
+- ⚠ **A LEGACY QUEUED DIRECTIVE CANNOT CARRY THE STAMP.** Anything finalized before it
+  shipped has `data: {}`, so the first evaluation after rollout would still have nudged an
+  opted-out member. A directive with no usable move kind is treated as unidentifiable and
+  purged **while opted out** — the under-deliver direction this layer already chooses, and
+  self-limiting, since every directive built from now on carries its kind.
+- ⚠ **AND THE PURGE CONSUMED THE NUDGE IT REMOVED.** A deferred candidate records its
+  signature in `notify_state.types` so the same nudge is not rebuilt twice; the purge took
+  the queued copy and left the stamp. `checkin_due` signs itself with the **constant**
+  `'due'`, and that map has no TTL and is never pruned — so a member who opted out while
+  one was queued and later opted back in was deduped, **permanently**, against a
+  notification that never went out. A stamp means *handled*; purging un-handles the item,
+  so the stamp is released with it — but only when nothing of that type is **still held**,
+  since a queued item carries no key and a surviving non-check-in directive shares the
+  purged one's entry.
+- ⚠ **AND A FIFTH DOOR: THE COACH OVERRIDE, WHICH THE ACTION KIND CANNOT SEE.**
+  `sanitizeOverride` validates `lever` against a fixed set that includes `checkin` but takes
+  **any** 40-char string as the action kind, defaulting an omitted one to `message`, and
+  `buildDirective` keeps that action beside the checkin lever — so a coach who overrode the
+  check-in in their own words emitted a directive the kind-only gate read as unrelated, on
+  **every** evaluation. The kind can never separate them: `DIRECTIVE_MOVES` gives the
+  **contact** lever kind `message` too, so *"send me your check-in"* and *"reach out today"*
+  are kind-identical and differ only by lever. The **lever is the identity**; the kind is its
+  engine-built alias. Pinned by a test that asserts the two kinds are **equal** before
+  asserting one is suppressed and the other survives, with both directives built through the
+  real `buildDirective` rather than a fixture that assumes the shape.
+- ⚠ **RESIDUAL, ACKNOWLEDGED.** A held directive stamped with a move but **no lever** (queued
+  before the lever stamp shipped) cannot be proven not to be a coach check-in override, since
+  a coach may set any kind against the checkin lever and `message` is a legitimate engine
+  kind. Purging every lever-less directive would cost **every** opted-out member their one
+  move at rollout to spare a rare one, so the kind is trusted there. Bounded to a single
+  evaluation per member.
+- ⚠ **AND THE STAMP'S OWNER IS WHOEVER WROTE IT LAST.** The release above keyed on "is
+  anything of this type still held?" — but `types` is **one slot** per (type,key) and two
+  directives can be held at once, so when the check-in was queued **second** the stored
+  signature is the check-in's and the survivor check preserved it anyway. The queued copy
+  now carries its signature and the release matches on it. Items queued before that stamp
+  keep the coarse rule, which is right in the ordinary single-item case and no worse than
+  the bug it replaces in the rare one.
+- ⚠ **THE PATTERN, NOT JUST THE INSTANCES.** Two of the last three review rounds found a
+  defect *inside the preceding fix*, and both were the same shape: **the queue and the dedup
+  map disagree about cardinality**, so a stamp written at queue time can be orphaned or
+  misattributed by anything that later removes an item. The class-level fix is to let the
+  **queue be the record** for a queued item — consult `pendingDigest` in the duplicate check,
+  drop the stamp from the defer branch, stamp what the digest actually emits. Measured on a
+  scratch copy rather than asserted: **6 lines, 37 of 38 tests pass untouched**. Not taken
+  here, because it changes dedup behaviour for **every** notification type inside a PR about
+  a check-in opt-out. Registered.
+- ⚠ **AND THE MIRROR OF THE FIFTH DOOR, IN THE OVER-SUPPRESSING DIRECTION.** Having made
+  the lever the identity, the kind was left in as a belt-and-braces `||` — which lets the
+  **derived alias override the authoritative field**. `sanitizeOverride` takes any 40-char
+  kind, so a coach can set lever `contact` with kind `check_in`, and that member lost their
+  coach's actual move to a check-in opt-out. When a lever is present it now decides **alone**;
+  the kind speaks only for directives stamped before the lever existed. Found by CodeRabbit,
+  reproduced through the real engine before fixing.
+- ⚠ **BOTH routes were wired, not only the cron.** `/api/ai/notify` recomputes from the
+  same snapshot and had the identical hole — fixing the reported one would have left the
+  live path nudging.
+- ⚠ **It suppresses ONLY the check-in.** They opted out of a daily check-in nag, not out
+  of coach messages, streaks or the one move; over-correction here would be its own
+  defect, and a test pins that those three still arrive.
+- **`dailyCheckinOn` mirrors mobile's `bsDailyCheckinOn`: ON is the DEFAULT and absence
+  means ON.** An account predating the pref, or a settings read that simply failed, can
+  never read as silently opted out. ⚠ The two are TWINS in separate bundles — change one,
+  change both.
+- ⚠ **THE MOBILE COMMENT WAS OVERCLAIMING AND IS CORRECTED IN PLACE.** It said the engine
+  gates its vitals leg *"the moment a member opts out"*; that was true of the **in-app**
+  engine only, and the server paths cannot see the per-uid mirror it describes.
+- ⚠ **REGISTERED, NOT FIXED — an opt-out that never reaches the server.** `persistPrefs`
+  DECLINES to write when there is no real `client_settings` document yet (offline, query
+  error, or a member who has never had a successful settings read). Until that write
+  lands the server sees no `dailyCheckin` key, which correctly reads as opted IN — so the
+  device goes quiet and the cron does not. This is a property of the **writer** and cannot
+  be fixed from the notify side, which is why it is split into its own `pending` item
+  rather than left inside the completed one.
+
 ### 2026-08-20 — The gate trusted the wrong reviewer with the wrong strictness
 
 - **The house process and the shipping gate encoded opposite priorities.** The process

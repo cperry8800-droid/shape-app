@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   clientCandidates, coachCandidates, decideNotifications, NOTIFY_TYPES,
   inQuietHours, localHour, DEFAULT_PREFS, channelsForType, habitReminderCandidates,
+  dailyCheckinOn,
 } from '../src/lib/ai/notifications.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -254,4 +255,346 @@ test('every notify type is informational (carries a deep-link route)', () => {
     assert.ok(typeof meta.route === 'string' && meta.route, `${type} has a route`);
     assert.ok(['client', 'coach'].includes(meta.audience));
   }
+});
+
+// ── SPEC §3D OPT-OUT, HONOURED SERVER-SIDE ───────────────────────────────────────────────
+// ⚠ THE OPT-OUT REACHED THE HOME SCREEN AND NOTHING ELSE. Turning "Daily check-in" off
+// stops the Home bulletin nagging, but the stored `notify_snapshot` keeps its check-in
+// state and BOTH notify paths recompute from it — so a member who opts out and never
+// reopens the app keeps receiving check-in nudges from the cron. The pref has to be read
+// where the candidate is BUILT, not only where it is displayed.
+//
+// ⚠ AND THE CANDIDATE HAS TWO DOORS: an explicit `checkinDueThisWeek` signal AND the
+// engine's own `checkin_overdue` flag. Gating the call site would have left the flag
+// firing, so the suppression lives here, at the one place both doors pass through.
+test('dailyCheckinOn — ON is the DEFAULT, and only an explicit off is off', () => {
+  // Mirrors mobile `bsDailyCheckinOn`: absence is ON, so an account that predates the
+  // pref — or a failed settings read — can never be silently opted out of its check-in.
+  assert.equal(dailyCheckinOn(undefined), true);
+  assert.equal(dailyCheckinOn(null), true);
+  assert.equal(dailyCheckinOn('On'), true);
+  assert.equal(dailyCheckinOn(true), true);
+  // The two shapes the settings row actually stores for off.
+  assert.equal(dailyCheckinOn('Off'), false);
+  assert.equal(dailyCheckinOn(false), false);
+});
+
+test('opting out suppresses the check-in nudge from BOTH doors', () => {
+  const viaSignal = { checkinDueThisWeek: true, flags: [], directive: null, tone: 'supportive' };
+  const viaFlag = { checkinDueThisWeek: false, flags: [{ key: 'checkin_overdue', reason: 'overdue' }], directive: null, tone: 'supportive' };
+
+  // Pref ON (and the default, absent) — today's behaviour, byte-identical.
+  assert.equal(clientCandidates(viaSignal).filter((c) => c.type === 'checkin_due').length, 1);
+  assert.equal(clientCandidates(viaFlag).filter((c) => c.type === 'checkin_due').length, 1);
+
+  // Pref OFF — neither door fires.
+  assert.deepEqual(clientCandidates({ ...viaSignal, checkinOptedOut: true }).filter((c) => c.type === 'checkin_due'), []);
+  assert.deepEqual(clientCandidates({ ...viaFlag, checkinOptedOut: true }).filter((c) => c.type === 'checkin_due'), []);
+});
+
+test('opting out of the check-in silences ONLY the check-in', () => {
+  // ⚠ Over-correction would be its own defect: the member turned off a daily check-in
+  // nag, not every notification. A coach message and the one move must still arrive.
+  const input = {
+    directive: SLEEP_DIRECTIVE,
+    flags: [{ key: 'checkin_overdue', reason: 'overdue' }, { key: 'streak_broken', habit: 'Water', reason: 'missed 2 days' }],
+    checkinDueThisWeek: true,
+    coachEvents: [{ kind: 'message', id: 'm1', coach: 'Sam', preview: 'nice work', conversationId: 'c1' }],
+    tone: 'supportive',
+    checkinOptedOut: true,
+  };
+  const types = clientCandidates(input).map((c) => c.type).sort();
+  assert.ok(!types.includes('checkin_due'), `check-in survived the opt-out: ${types.join(',')}`);
+  assert.ok(types.includes('directive'), `the one move was lost: ${types.join(',')}`);
+  assert.ok(types.includes('streak_broken'), `an unrelated flag was lost: ${types.join(',')}`);
+  assert.ok(types.includes('coach_message'), `a coach message was lost: ${types.join(',')}`);
+});
+
+// ⚠ MY "TWO DOORS" WAS ITSELF AN UNDERCOUNT. Codex found a THIRD and a FOURTH, and the
+// third is the HIGHEST-PRIORITY one: `checkin_overdue` carries directive priority 100 in
+// dashSignals (escalating with missedWeeks), so buildDirective selects it as the ONE move
+// and emits a high-priority "Send your weekly check-in" through the `directive` candidate —
+// which the checkin_due gate never touched. Gating the obvious door left the loudest open.
+const CHECKIN_DIRECTIVE = {
+  verdict: 'Check-in due',
+  reason: 'Check-in 2w late',
+  action: { label: 'Send your weekly check-in', kind: 'check_in' },
+  read: { summary30d: '', oneThingNow: 'Send your weekly check-in' },
+  cited: ['checkin_overdue'],
+  line: 'Check-in due. Send your weekly check-in.',
+};
+
+test('opting out suppresses the check-in DIRECTIVE, not only the checkin_due nudge', () => {
+  const base = { flags: [], checkinDueThisWeek: false, tone: 'supportive' };
+  // Pref ON — the directive is the one move, exactly as today.
+  assert.equal(clientCandidates({ ...base, directive: CHECKIN_DIRECTIVE }).length, 1);
+  // Pref OFF — the loudest door closes too.
+  assert.deepEqual(clientCandidates({ ...base, directive: CHECKIN_DIRECTIVE, checkinOptedOut: true }), []);
+  // ⚠ ...and an UNRELATED directive still arrives. Suppressing every directive because
+  // one KIND of it is a check-in would silence the whole "one move" feature.
+  const other = clientCandidates({ ...base, directive: SLEEP_DIRECTIVE, checkinOptedOut: true });
+  assert.equal(other.length, 1, 'an unrelated directive was lost to the check-in opt-out');
+  assert.equal(other[0].type, 'directive');
+});
+
+test('a directive carries its lever and move kind, so a HELD copy stays identifiable', () => {
+  // The held-item purge below cannot key on copy — wording is translated and edited. The
+  // LEVER is the stable identity (the kind is only its engine-built alias, and a coach
+  // override can pair any kind with any lever), so both are stamped when the candidate is
+  // built and the kind is trusted only for items stamped before the lever existed.
+  const [d] = clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], tone: 'supportive' });
+  assert.equal(d.data.move, 'check_in');
+  const [s] = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  assert.equal(s.data.move, 'recovery');
+});
+
+// ⚠ THE FOURTH DOOR IS A STORED ONE. An item held by quiet hours or the daily cap lives in
+// last.pendingDigest, and decideNotifications re-emits held items at the next non-quiet run
+// WITHOUT rechecking any preference. Suppressing at the candidate stops it being rebuilt and
+// does nothing about the copy already queued, so the next cron could still deliver "your
+// weekly check-in is ready" AFTER the member opted out.
+test('opting out purges check-in items already HELD in the digest', () => {
+  const held = [
+    { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { push: true } },
+    { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: { move: 'check_in' }, priority: 'high', channels: { push: true } },
+    { type: 'coach_message', title: 'Sam sent a message', body: 'nice work', route: 'chat', data: {}, priority: 'high', channels: { push: true } },
+  ];
+  const last = { date: 'never', pendingDigest: held };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.ok(out.digest, 'the unrelated held item should still produce a digest');
+  // ⚠ ASSERT ON data.items, NOT ON THE COPY. The digest body joins item TITLES, so a held
+  // directive's "Send your weekly check-in" lives only in its BODY and never appears in
+  // the digest text — an assertion on that string passes whether or not the purge works.
+  // Mutation-testing caught exactly that: deleting the directive branch of isCheckinItem
+  // left this test green.
+  const kinds = out.digest.data.items.map((i) => `${i.type}:${(i.data && i.data.move) || ''}`);
+  assert.deepEqual(kinds, ['coach_message:'],
+    `the purge kept or dropped the wrong held items: ${JSON.stringify(kinds)}`);
+  assert.equal(out.digest.title, '1 update for you', 'the digest count must reflect the purge');
+
+  // Pref ON — every held item still comes through, byte-identical to today.
+  const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
+  const onKinds = on.digest.data.items.map((i) => `${i.type}:${(i.data && i.data.move) || ''}`);
+  assert.deepEqual(onKinds, ['checkin_due:', 'directive:check_in', 'coach_message:'],
+    `the opt-out leaked into the default path: ${JSON.stringify(onKinds)}`);
+});
+
+// ⚠ THE STAMP ONLY HELPS ITEMS BUILT AFTER IT SHIPPED. A `checkin_overdue` directive already
+// sitting in someone's notify_state.pendingDigest at rollout was finalized with `data: {}`,
+// so it carries no move kind and the purge cannot recognise it — the very first evaluation
+// after deploy would still send "your move today" to a member who had opted out.
+// An unidentifiable directive is therefore purged WHILE OPTED OUT: we cannot prove it is not
+// the check-in, and losing one held directive once is the under-deliver direction this file
+// already chooses. New items always carry the stamp, so this is self-limiting.
+test('a LEGACY held directive with no move stamp is purged when opted out', () => {
+  const legacy = { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: {}, priority: 'high', channels: { push: true } };
+  const known = { type: 'directive', title: 'Your move today', body: "Log last night's sleep", route: 'home', data: { move: 'recovery' }, priority: 'high', channels: { push: true } };
+  const msg = { type: 'coach_message', title: 'Sam sent a message', body: 'x', route: 'chat', data: {}, priority: 'high', channels: { push: true } };
+  const last = { date: 'never', pendingDigest: [legacy, known, msg] };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  const kinds = out.digest.data.items.map((i) => `${i.type}:${(i.data && i.data.move) || '-'}`);
+  // ⚠ The IDENTIFIED non-check-in directive must survive — purging every directive would
+  // silence the one move for anyone who ever turned the check-in off.
+  assert.deepEqual(kinds, ['directive:recovery', 'coach_message:-'],
+    `wrong items purged: ${JSON.stringify(kinds)}`);
+
+  // Pref ON — nothing is purged, including the legacy item.
+  const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
+  assert.equal(on.digest.data.items.length, 3, 'the opt-out leaked into the default path');
+});
+
+// ⚠ A BUG MY OWN FILTER INTRODUCED. `hadPending` gates "emit the digest now" and it read the
+// UNFILTERED last.pendingDigest. So if the only held items were check-in ones — all purged —
+// and this same call defers a new low-priority or over-cap candidate, the digest fired
+// IMMEDIATELY with that new item: the documented next-evaluation deferral defeated, and for
+// an over-cap item the daily cap bypassed. It must read the queue AFTER the purge.
+test('purging every held item does not make THIS call emit the digest', () => {
+  const heldCheckin = { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { push: true } };
+  const last = { date: 'never', pendingDigest: [heldCheckin] };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  // a genuinely LOW-priority candidate, which this layer always defers to the digest
+  const fresh = clientCandidates({ directive: null, flags: [{ key: 'streak_broken', habit: 'Water', reason: 'missed 2 days' }], tone: 'supportive' });
+  assert.equal(fresh.length, 1, 'fixture must produce exactly one low-priority candidate');
+
+  const out = decideNotifications({ candidates: fresh, last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(out.digest, null, 'the freshly deferred item must wait for the NEXT evaluation');
+  assert.deepEqual(out.send, [], 'a low-priority item is never sent immediately');
+  // ...and it is genuinely held, not dropped.
+  assert.equal(out.nextState.pendingDigest.length, 1, 'the new item should be queued for later');
+  assert.equal(out.nextState.pendingDigest[0].type, 'streak_broken');
+});
+
+// ⚠ A DEDUP STAMP MEANS "HANDLED", AND A PURGED ITEM WAS NEVER HANDLED. Deferring a
+// check-in records its signature in state.types so the same nudge is not rebuilt twice.
+// The purge above removes the queued copy; the stamp outlived it. And `checkin_due` signs
+// itself with the CONSTANT 'due' — there is no later signature to break the tie — so a
+// member who opts out while one is queued and then opts back in is deduped forever against
+// a notification that never went out. The stamp has to be released with the item.
+test('purging an undelivered check-in releases its dedup stamp', () => {
+  const held = { type: 'checkin_due', title: 'Check-in ready', body: 'b', route: 'checkin', data: {}, priority: 'med', channels: { inapp: true, push: true } };
+  const last = { date: 'never', pendingDigest: [held], types: { 'checkin_due:self': { sig: 'due', at: 1 } } };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const purged = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(purged.nextState.types['checkin_due:self'], undefined, 'the stamp outlived the item it stood for');
+
+  // ...and that is only worth anything if the nudge ACTUALLY ARRIVES once the member
+  // turns the pref back on with the check-in still due.
+  const rebuilt = clientCandidates({ directive: null, flags: [], checkinDueThisWeek: true, tone: 'supportive' });
+  assert.deepEqual(rebuilt.map((c) => c.type), ['checkin_due'], 'fixture must rebuild exactly the check-in candidate');
+  const back = decideNotifications({ candidates: rebuilt, last: purged.nextState, prefs, now: DAYTIME, audience: 'client' });
+  assert.deepEqual(back.send.map((i) => i.type), ['checkin_due'],
+    'the rebuilt check-in was deduped against a nudge that was never delivered');
+
+  // The pref-ON path is untouched: a stamp whose item is still queued survives.
+  const on = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client' });
+  assert.deepEqual(on.nextState.types['checkin_due:self'], { sig: 'due', at: 1 }, 'the stamp was cleared for a member who never opted out');
+});
+
+// ⚠ THE LEGACY PATH — items queued before the signature stamp shipped carry none, so they
+// cannot be matched to their own dedup entry and fall back to a coarser rule: release only
+// when nothing of that type is still held. Right in the ordinary single-item case; in the
+// rare two-directive one it is no worse than the bug it replaces, and releasing nothing
+// would cost those members the nudge permanently. A
+// queued item carries no key, and both shapes the purge can match are built with the
+// single key 'self' — so a held directive that is NOT the check-in shares the purged
+// one's dedup entry. Releasing it would let that same directive be rebuilt and queued a
+// second time while the first is still waiting in the digest.
+test('LEGACY, unsignatured: a stamp is released only when nothing of that type survives', () => {
+  const checkin = { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: { move: 'check_in' }, priority: 'high', channels: { push: true } };
+  const sleep = { type: 'directive', title: 'Your move today', body: "Log last night's sleep", route: 'home', data: { move: 'recovery' }, priority: 'high', channels: { push: true } };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const stamps = () => ({ 'directive:self': { sig: 'amber|Send it|', at: 1 }, 'coach_message:m1': { sig: 'm1', at: 1 } });
+
+  const survives = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [checkin, sleep], types: stamps() }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(survives.nextState.pendingDigest.length, 0, 'both held directives should have gone to the digest');
+  assert.deepEqual(survives.digest.data.items.map((i) => i.data.move), ['recovery'], 'the wrong directive was purged');
+  assert.deepEqual(survives.nextState.types['directive:self'], { sig: 'amber|Send it|', at: 1 },
+    'released a stamp the surviving directive is still standing behind');
+
+  // ...and with nothing of that type left, the stamp IS released — and only that one.
+  const alone = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [checkin], types: stamps() }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(alone.nextState.types['directive:self'], undefined, 'the purged directive left its stamp behind');
+  assert.deepEqual(alone.nextState.types['coach_message:m1'], { sig: 'm1', at: 1 }, 'the purge cleared an unrelated dedup entry');
+});
+
+// ⚠ THE FIFTH DOOR IS THE COACH OVERRIDE, AND THE ACTION KIND CANNOT SEE IT. sanitizeOverride
+// validates `lever` against a fixed set that includes 'checkin' but takes ANY 40-char string as
+// the action kind, defaulting an omitted one to 'message'; buildDirective keeps that action
+// beside the checkin lever. So a coach who overrides the check-in with their own wording emits
+// a directive the kind-only gate reads as unrelated. The kind can never separate them either:
+// the ENGINE itself emits kind 'message' for the CONTACT lever, so "send me your check-in" and
+// "reach out today" are kind-identical and differ only by lever. The lever is the identity.
+test('a coach check-in override is suppressed, and a kind-identical contact move is not', () => {
+  // built by the REAL engine, not by a fixture that assumes the shape
+  const checkin = buildDirective({ coachDirective: { lever: 'checkin', action: { label: 'Send me your check-in', kind: 'message' } } }, DAYTIME, 'client');
+  const contact = buildDirective({ coachDirective: { lever: 'contact' } }, DAYTIME, 'client');
+  assert.equal(checkin.action.kind, contact.action.kind, 'premise: the two moves must be kind-identical for this test to mean anything');
+  assert.equal(checkin.lever, 'checkin');
+  assert.equal(contact.lever, 'contact');
+
+  const out = clientCandidates({ directive: { ...checkin, line: 'x' }, flags: [], checkinOptedOut: true, tone: 'supportive' });
+  assert.deepEqual(out, [], 'a coach check-in override nudged a member who opted out');
+
+  const kept = clientCandidates({ directive: { ...contact, line: 'x' }, flags: [], checkinOptedOut: true, tone: 'supportive' });
+  assert.deepEqual(kept.map((c) => c.type), ['directive'], 'the opt-out swallowed an unrelated coach move of the same kind');
+
+  // pref ON — the check-in override is untouched
+  const on = clientCandidates({ directive: { ...checkin, line: 'x' }, flags: [], tone: 'supportive' });
+  assert.deepEqual(on.map((c) => c.type), ['directive'], 'the opt-out leaked into the default path');
+});
+
+// A HELD copy has to carry the lever for the same reason: the purge cannot re-derive it.
+test('a held coach check-in override is purged, and a contact move of the same kind is not', () => {
+  const checkin = buildDirective({ coachDirective: { lever: 'checkin', action: { label: 'Send me your check-in', kind: 'message' } } }, DAYTIME, 'client');
+  const [c] = clientCandidates({ directive: { ...checkin, line: 'x' }, flags: [], tone: 'supportive' });
+  assert.equal(c.data.lever, 'checkin', 'the queued copy cannot be identified without the lever');
+
+  const held = { type: 'directive', title: 'Your move today', body: 'Send me your check-in', route: 'home', data: { move: 'message', lever: 'checkin' }, priority: 'high', channels: { push: true } };
+  const reach = { type: 'directive', title: 'Your move today', body: 'Reach out today', route: 'home', data: { move: 'message', lever: 'contact' }, priority: 'high', channels: { push: true } };
+  const last = { date: 'never', pendingDigest: [held, reach] };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  const out = decideNotifications({ candidates: [], last, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.deepEqual(out.digest.data.items.map((i) => i.data.lever), ['contact'], 'the purge kept or dropped the wrong held override');
+});
+
+// ⚠ A DEFECT INSIDE MY OWN PRECEDING FIX. The dedup stamp is a SINGLE SLOT per (type,key)
+// and the LAST writer owns it. Two directives can sit in the queue at once — a changed
+// signature is not a duplicate — so when the check-in was queued second, the stored
+// signature is the CHECK-IN's, not the survivor's. The type-only survivor check preserved
+// it anyway, and the member who opted out and back in was deduped against a nudge that
+// was never delivered: exactly the bug the release was written to prevent, one layer in.
+// Both fixtures are QUEUED BY THE REAL PATH rather than hand-built, so the signature under
+// test is the one the layer actually stores.
+test('the purged item releases its OWN stamp even when a same-type item survives', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const queue = (directive, last) => decideNotifications({
+    candidates: clientCandidates({ directive, flags: [], tone: 'supportive' }),
+    last, prefs, now: NIGHT, audience: 'client',
+  }).nextState;
+
+  // quiet hours: the sleep move is held first, then the check-in — both waiting.
+  const afterSleep = queue({ ...SLEEP_DIRECTIVE }, { date: 'never' });
+  const afterCheckin = queue({ ...CHECKIN_DIRECTIVE }, afterSleep);
+  assert.equal(afterCheckin.pendingDigest.length, 2, 'both directives must be held for this test to mean anything');
+  const stamped = afterCheckin.types['directive:self'].sig;
+  assert.ok(stamped.includes('Send your weekly check-in'), `the stamp should hold the CHECK-IN signature, not the survivor's: ${stamped}`);
+
+  // opt out, outside quiet hours: the check-in is purged and the sleep move is delivered.
+  const out = decideNotifications({ candidates: [], last: afterCheckin, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.deepEqual(out.digest.data.items.map((i) => i.data.move), ['recovery'], 'the wrong held directive was purged');
+  assert.equal(out.nextState.types['directive:self'], undefined,
+    'kept a stamp that belonged to the PURGED check-in, not to the survivor');
+
+  // ...and back on, with the same check-in still the move: it must ARRIVE.
+  const back = decideNotifications({
+    candidates: clientCandidates({ directive: CHECKIN_DIRECTIVE, flags: [], tone: 'supportive' }),
+    last: out.nextState, prefs, now: DAYTIME, audience: 'client',
+  });
+  assert.deepEqual(back.send.map((i) => i.type), ['directive'],
+    'the rebuilt check-in was deduped against a nudge that was never delivered');
+
+  // ⚠ THE MIRROR — queued the OTHER way round, the stamp is the SURVIVOR's and must stay.
+  // Releasing it would let the surviving sleep move be rebuilt and queued a second time
+  // while the first copy is still waiting in the digest.
+  const checkinFirst = queue({ ...SLEEP_DIRECTIVE }, queue({ ...CHECKIN_DIRECTIVE }, { date: 'never' }));
+  const survivorSig = checkinFirst.types['directive:self'].sig;
+  assert.ok(survivorSig.includes("log last night's sleep"), `premise: the stamp should now hold the SURVIVOR's signature: ${survivorSig}`);
+  const mirror = decideNotifications({ candidates: [], last: checkinFirst, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.deepEqual(mirror.nextState.types['directive:self'], { sig: survivorSig, at: +NIGHT },
+    'released a stamp that belonged to the SURVIVING directive');
+});
+
+// ⚠ THE MIRROR OF THE COACH-OVERRIDE DOOR, IN THE OVER-SUPPRESSING DIRECTION. Having made
+// the lever the identity, the kind was left in as a belt-and-braces `||` — which lets the
+// DERIVED alias override the authoritative field. sanitizeOverride takes any 40-char kind,
+// so a coach can set lever 'contact' with kind 'check_in', and that member lost their
+// coach's actual move to a check-in opt-out. When a lever is present it decides ALONE; the
+// kind speaks only for directives stamped before the lever was.
+test('a NON-check-in lever survives even when its action kind says check_in', () => {
+  const contact = buildDirective({ coachDirective: { lever: 'contact', action: { label: 'Call me back today', kind: 'check_in' } } }, DAYTIME, 'client');
+  assert.equal(contact.lever, 'contact');
+  assert.equal(contact.action.kind, 'check_in', 'premise: the kind must contradict the lever for this test to mean anything');
+
+  const out = clientCandidates({ directive: { ...contact, line: 'x' }, flags: [], checkinOptedOut: true, tone: 'supportive' });
+  assert.deepEqual(out.map((c) => c.type), ['directive'], "the opt-out swallowed the coach's contact move");
+
+  // ...and the same rule on the HELD copy.
+  const held = { type: 'directive', title: 'Your move today', body: 'Call me back today', route: 'home', data: { move: 'check_in', lever: 'contact' }, priority: 'high', channels: { push: true } };
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const purge = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [held] }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  // ⚠ assert on the DIGEST, not on the queue: outside quiet hours a surviving held item is
+  // emitted and the queue is cleared, so pendingDigest reads 0 whether or not it survived.
+  assert.deepEqual((purge.digest ? purge.digest.data.items : []).map((i) => i.data.lever), ['contact'],
+    "the held contact move was purged as a check-in");
+
+  // LEGACY, no lever: the kind is all there is, so it still decides.
+  const legacy = { type: 'directive', title: 'Your move today', body: 'Send your weekly check-in', route: 'home', data: { move: 'check_in' }, priority: 'high', channels: { push: true } };
+  const legacyOut = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [legacy] }, prefs, now: DAYTIME, audience: 'client', checkinOptedOut: true });
+  assert.equal(legacyOut.digest, null, 'a legacy check-in directive must still be purged — nothing should have survived to emit');
 });

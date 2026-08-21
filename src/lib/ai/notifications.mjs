@@ -151,16 +151,109 @@ function sanitize(copy) {
 // dedup per-subject (a client id for coach items); `sig` changes only when the
 // underlying event genuinely changes.
 
+// The stored `client_settings.dailyCheckin` value, read as a boolean.
+//
+// ⚠ ON IS THE DEFAULT, AND ABSENCE MEANS ON. An account created before the pref
+// existed — or a settings read that simply failed — must never read as opted OUT,
+// because that would silently stop a check-in the member never turned off. Only the
+// two shapes the settings row actually stores for off are off.
+//
+// ⚠ TWIN: mobile's `bsDailyCheckinOn` (iosAppBroadsheetClient.jsx) is this same rule
+// over this same value. Change one and change both — a drifted copy here means the
+// app and the notifications disagree about what the member asked for.
+export function dailyCheckinOn(v) { return v !== false && v !== 'Off'; }
+
+// A notification that IS the weekly check-in nudge, in EITHER shape it can take: the
+// dedicated `checkin_due` candidate, or the ONE move when the engine's top flag was
+// `checkin_overdue`. Keyed on the type and the stamped move kind — never on copy, which
+// is translated and edited.
+export function isCheckinItem(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (item.type === 'checkin_due') return true;
+  if (item.type !== 'directive') return false;
+  const d = item.data || {};
+  // ⚠ THE LEVER IS THE IDENTITY; THE KIND IS ONLY ITS ENGINE-BUILT ALIAS. A coach override
+  // carries lever 'checkin' with ANY action kind (sanitizeOverride defaults an omitted one
+  // to 'message'), and the kind can never separate them: the engine emits kind 'message'
+  // for the CONTACT lever, so "send me your check-in" and "reach out today" are
+  // kind-identical. Kind is still honoured for items stamped before the lever was.
+  // ⚠ WHEN A LEVER IS PRESENT IT DECIDES ALONE. Keeping the kind as a belt-and-braces `||`
+  // let the DERIVED alias override the authoritative field: a coach may set lever 'contact'
+  // with kind 'check_in', and that member would lose their coach's actual move to a
+  // check-in opt-out. The kind speaks only for directives stamped before the lever was.
+  if (d.lever) return d.lever === 'checkin';
+  // ⚠ RESIDUAL, ACKNOWLEDGED: an item stamped with a move but NO lever (queued before the
+  // lever stamp shipped) cannot be proven not to be a coach check-in override, since a
+  // coach may set ANY kind against the checkin lever and 'message' is a legitimate engine
+  // kind. Purging every lever-less directive would cost every opted-out member their one
+  // move at rollout to spare a rare one, so the kind is trusted here. Bounded to a single
+  // evaluation per member: the item is delivered or purged, and never re-queued unstamped.
+  const move = d.move;
+  if (move) return move === 'check_in';
+  // ⚠ NO USABLE MOVE KIND ⇒ UNIDENTIFIABLE ⇒ PURGED, DELIBERATELY. Directives finalized
+  // before the stamp existed carry `data: {}` (and a directive whose action carried no
+  // kind lands in the same bucket), so an already-queued `checkin_overdue` move is
+  // indistinguishable from any other held directive — and the FIRST evaluation after rollout would otherwise send
+  // "your move today" to someone who had opted out. Unidentifiable means purged here:
+  // we cannot prove it is not the check-in, and losing one held directive once is the
+  // under-deliver direction this layer already chooses. Self-limiting — every directive
+  // built from now on carries its move kind.
+  return true;
+}
+
+// A dedup stamp in `state.types` means the candidate was HANDLED — sent, or queued for
+// the digest. Purging an item from that queue un-handles it, so the stamp has to be
+// released with it: otherwise the rebuilt candidate is suppressed as a duplicate of a
+// notification that was never delivered. For `checkin_due` that is PERMANENT — it signs
+// itself with the constant 'due', so no later signature can ever break the tie.
+function releaseDedup(types, item, kept) {
+  // ⚠ THE STAMP IS A SINGLE SLOT PER (type,key) AND THE LAST WRITER OWNS IT. Two directives
+  // can be held at once — a changed signature is not a duplicate — and both are built with
+  // the key 'self', so a queued item carries no key that would tell them apart. Matching on
+  // the SIGNATURE is exact: release the stamp only when it is the purged item's own. A
+  // same-type survivor is NOT evidence the stamp is theirs; when the check-in was queued
+  // second, the stored signature is the check-in's and holding it back suppresses the
+  // rebuilt nudge forever — the very bug this release exists to prevent.
+  const prefix = `${item.type}:`;
+  const entries = Object.keys(types).filter((k) => k.startsWith(prefix));
+  if (nonEmpty(item.sig)) {
+    for (const k of entries) if (types[k] && types[k].sig === item.sig) delete types[k];
+    return;
+  }
+  // ⚠ Items queued before the signature stamp shipped cannot be matched, so fall back to
+  // the coarse rule: release only when nothing of that type is still held. That is right
+  // in the ordinary single-item case and no worse than the bug it replaces in the rare
+  // two-directive one — whereas releasing nothing would cost those members the nudge
+  // permanently. Self-limiting: every item queued from now on carries its signature.
+  if (kept.some((k) => k && k.type === item.type)) return;
+  for (const k of entries) delete types[k];
+}
+
 // CLIENT — from a directive + evaluateClient flags + check-in state + coach events.
 export function clientCandidates(input) {
-  const { directive, flags = [], checkinDueThisWeek, coachEvents = [], goals = [], tone } = input;
+  const { directive, flags = [], checkinDueThisWeek, checkinOptedOut = false, coachEvents = [], goals = [], tone } = input;
   const out = [];
 
   // (AI2) the ONE move — only when it's actionable (not a green/on-track read).
+  // ⚠ THIS IS THE LOUDEST CHECK-IN DOOR, and the easiest to miss. `checkin_overdue` carries
+  // the HIGHEST directive priority in the engine (100, escalating with missedWeeks), so for
+  // an overdue member the ONE move IS "send your weekly check-in" — a high-priority
+  // notification that the `checkin_due` gate below never touches. Suppressed on the ACTION
+  // KIND, which maps 1:1 to the checkin lever, so unrelated directives are untouched: the
+  // member opted out of a check-in, not out of being told the one thing to do today.
+  // ⚠ The move kind is STAMPED into `data` because a deferred copy of this item outlives
+  // this function, and the digest purge cannot key on copy — wording is translated.
   if (directive && directive.action && nonEmpty(directive.action.label)) {
-    const line = nonEmpty(directive.line) ? directive.line : '';
-    const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
-    out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason } });
+    const moveKind = directive.action.kind || '';
+    const lever = directive.lever || '';
+    // the lever is the identity; the kind is only its engine-built alias, and speaks
+    // alone only when there is no lever (see isCheckinItem).
+    const isCheckin = lever ? lever === 'checkin' : moveKind === 'check_in';
+    if (!(checkinOptedOut && isCheckin)) {
+      const line = nonEmpty(directive.line) ? directive.line : '';
+      const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
+      out.push({ type: 'directive', key: 'self', sig, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });
+    }
   }
 
   const byKey = {};
@@ -173,7 +266,15 @@ export function clientCandidates(input) {
     out.push({ type: 'goal_slip', key: 'self', sig: byKey.goal_slip.reason || 'slip', priority: 'med', ctx: { goalLabel: g.label, reason: byKey.goal_slip.reason } });
   }
   // due weekly check-in (engine flag OR an explicit "due" signal)
-  if (checkinDueThisWeek === true || byKey.checkin_overdue) {
+  // ⚠ SPEC §3D — a member who turned Daily check-in OFF is never nudged about it, and
+  // that has to hold for the notification paths too: the Home bulletin already honours
+  // the pref, but BOTH notify routes recompute from the stored snapshot, which keeps its
+  // check-in state after the toggle. The suppression sits HERE because this candidate has
+  // TWO doors — the explicit signal and the engine's own flag — and gating a call site
+  // would leave the other one firing.
+  // ⚠ It suppresses ONLY this candidate. They opted out of a check-in nag, not out of
+  // coach messages, streaks or the one move.
+  if (!checkinOptedOut && (checkinDueThisWeek === true || byKey.checkin_overdue)) {
     out.push({ type: 'checkin_due', key: 'self', sig: 'due', priority: 'med', ctx: {} });
   }
   // coach events (real, server-confirmed) — messages + co-signs
@@ -249,7 +350,7 @@ export function habitReminderCandidates(input) {
 // ── the gate: dedup → opt-out → quiet hours / cap → digest ──────────────────
 // candidates: from clientCandidates / coachCandidates. Returns the immediate
 // sends, a single optional digest, the per-channel hints, and the nextState.
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client' }) {
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   const today = ymd(now, P.tz);
   const state = {
@@ -257,8 +358,19 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     sentToday: last.date === today ? (last.sentToday || 0) : 0,
     types: { ...(last.types || {}) },
     coachClients: { ...(last.coachClients || {}) },
+    // ⚠ A HELD ITEM OUTLIVES THE PREFERENCE THAT ALLOWED IT. Anything deferred by quiet
+    // hours or the daily cap sits here across runs and is re-emitted WITHOUT being rebuilt,
+    // so a check-in queued before the member opted out would still be delivered after.
+    // Suppressing at the candidate stops the rebuild and does nothing about the queue.
     pendingDigest: Array.isArray(last.pendingDigest) ? last.pendingDigest.slice() : [],
   };
+  if (checkinOptedOut) {
+    const kept = [];
+    const purged = [];
+    for (const i of state.pendingDigest) (isCheckinItem(i) ? purged : kept).push(i);
+    state.pendingDigest = kept;
+    for (const i of purged) releaseDedup(state.types, i, kept);
+  }
 
   // Master mute — the authoritative kill switch.
   if (P.muted === true) {
@@ -266,7 +378,13 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   }
 
   const quiet = inQuietHours(now, P);
-  const hadPending = (Array.isArray(last.pendingDigest) ? last.pendingDigest.length : 0) > 0;
+  // ⚠ AFTER THE PURGE, AND BEFORE THIS CALL'S CANDIDATES. Reading the unfiltered
+  // `last.pendingDigest` meant that when every held item was a purged check-in, a new
+  // low-priority or over-cap candidate deferred by THIS call fired the digest immediately —
+  // defeating the next-evaluation deferral this block documents, and for an over-cap item
+  // bypassing the daily cap. `state.pendingDigest` is the filtered queue and nothing has
+  // been added to it yet.
+  const hadPending = state.pendingDigest.length > 0;
   const send = [];
   const suppressed = [];
 
@@ -290,7 +408,9 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
-      state.pendingDigest.push({ ...item, at: +now });
+      // ⚠ `sig` rides along on the QUEUED copy (the sent shape is unchanged) so a purge can
+      // tell whether the stored stamp is THIS item's or another held item's.
+      state.pendingDigest.push({ ...item, sig: c.sig, at: +now });
       state.types[sigKey] = { sig: c.sig, at: +now };
       if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
       suppressed.push({ type: c.type, reason: quiet ? 'quiet_hours' : overCap ? 'capped' : 'low_priority_digest' });

@@ -23,8 +23,9 @@ export const Notify = NotifyLayer as unknown as {
   clientCandidates: (input: Record<string, unknown>) => Candidate[];
   coachCandidates: (input: Record<string, unknown>) => Candidate[];
   habitReminderCandidates: (input: Record<string, unknown>) => Candidate[];
-  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string }) => DecideResult;
+  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean }) => DecideResult;
   DEFAULT_PREFS: Record<string, unknown>;
+  dailyCheckinOn: (v: unknown) => boolean;
 };
 
 export type Prefs = { muted: boolean; quietStart: number; quietEnd: number; tz: string; maxPerDay: number; tone: string; matrix: Record<string, Record<string, boolean>> };
@@ -86,7 +87,16 @@ const engine = DashSignals as unknown as {
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
 export function candidatesFor(
   snapshot: Snapshot,
-  opts: { tone: string; lastSeverity: Record<string, string>; now: Date; habitContext?: HabitContext },
+  // ⚠ `checkinOptedOut` is NOT derived here. This function has no client and cannot
+  // read the member's settings, so each caller supplies it — and a caller that forgets
+  // gets the safe default (opted IN), never a silent opt-out.
+  opts: {
+    tone: string;
+    lastSeverity: Record<string, string>;
+    now: Date;
+    habitContext?: HabitContext;
+    checkinOptedOut?: boolean;
+  },
 ): { audience: 'client' | 'coach'; candidates: Candidate[] } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
@@ -111,6 +121,7 @@ export function candidatesFor(
       flags,
       goals: Array.isArray((record as { goals?: unknown[] }).goals) ? (record as { goals?: unknown[] }).goals : [],
       checkinDueThisWeek: (record as { checkinDueThisWeek?: boolean }).checkinDueThisWeek === true,
+      checkinOptedOut: opts.checkinOptedOut === true,
       coachEvents: Array.isArray((record as { coachEvents?: unknown[] }).coachEvents) ? (record as { coachEvents?: unknown[] }).coachEvents : [],
       tone: opts.tone,
     }));
