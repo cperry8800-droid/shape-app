@@ -98,7 +98,21 @@ const DEDUP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 // the TTL window a single slot could grow without limit, which is the growth class this
 // file is closing. Evicting the OLDEST can only ever cost a re-send of something that many
 // distinct signatures ago; keeping them all costs the blob every cron pass rewrites.
-const MAX_SIGS_PER_KEY = 24;
+export const MAX_SIGS_PER_KEY = 24;
+
+// ⚠ AND A GLOBAL BOUND, because capping each entry leaves the NUMBER of entries free.
+// coach_message / coach_cosign key on the event id, so a busy member mints a fresh entry
+// per message and only age retires them. The whole blob is `user_goals.data`, which has no
+// size constraint, and `writeUserGoal` swallows its upsert error — so an oversized payload
+// fails SILENTLY and loses the dedup state entirely, which is a worse outcome than any
+// eviction. Newest-first by `at`: the oldest entries are the ones whose signatures are
+// closest to ageing out anyway.
+const MAX_STAMP_KEYS = 200;
+
+// The digest queue has no natural ceiling either. It drains on the first non-quiet
+// evaluation, so reaching this bound means something upstream is already wrong; dropping
+// the OLDEST held items is the under-deliver direction this layer chooses everywhere else.
+const MAX_PENDING_DIGEST = 50;
 
 function newestSigs(list) {
   const sorted = list.slice().sort((a, b) => a.at - b.at);
@@ -423,6 +437,10 @@ function pruneStamps(types, now) {
     const newest = live.reduce((a, b) => (b.at > a.at ? b : a));
     out[k] = { sig: newest.s, sigs: live, at: newest.at };
   }
+  const keys = Object.keys(out);
+  if (keys.length <= MAX_STAMP_KEYS) return out;
+  keys.sort((a, b) => out[a].at - out[b].at);
+  for (const k of keys.slice(0, keys.length - MAX_STAMP_KEYS)) delete out[k];
   return out;
 }
 
@@ -444,7 +462,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     // hours or the daily cap sits here across runs and is re-emitted WITHOUT being rebuilt,
     // so a check-in queued before the member opted out would still be delivered after.
     // Suppressing at the candidate stops the rebuild and does nothing about the queue.
-    pendingDigest: Array.isArray(last.pendingDigest) ? last.pendingDigest.slice() : [],
+    pendingDigest: (Array.isArray(last.pendingDigest) ? last.pendingDigest : []).slice(-MAX_PENDING_DIGEST),
   };
   if (checkinOptedOut) {
     const kept = [];

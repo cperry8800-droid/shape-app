@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import {
   clientCandidates, coachCandidates, decideNotifications, NOTIFY_TYPES,
   inQuietHours, localHour, DEFAULT_PREFS, channelsForType, habitReminderCandidates,
-  dailyCheckinOn,
+  dailyCheckinOn, MAX_SIGS_PER_KEY,
 } from '../src/lib/ai/notifications.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -849,12 +849,55 @@ test('the signature list per entry is bounded by COUNT as well as by age', () =>
     }).nextState;
   }
   const n = sigsOf(state.types['directive:self']).length;
-  assert.ok(n <= 24, `one slot grew to ${n} signatures inside the TTL window — age alone does not bound it`);
-  // ...and it keeps the NEWEST, so a signature just delivered is still deduplicated.
+  assert.ok(n <= MAX_SIGS_PER_KEY, `one slot grew to ${n} signatures inside the TTL window — age alone does not bound it`);
+
+  // ⚠ DRAIN THE QUEUE BEFORE ASSERTING, or this measures nothing. The last loop iteration
+  // leaves its item QUEUED, not delivered, so a re-offer is caught by the queued-item
+  // duplicate check and never reaches the stamp — an inverted cap passed the earlier
+  // version of this assertion, and the message claimed a property it did not test.
+  const drain = new Date(+base + 72 * 3600000);   // +3 days, 10:00 UTC — outside quiet, same week
+  const drained = decideNotifications({ candidates: [], last: state, prefs, now: drain, audience: 'client' });
+  assert.ok(drained.digest, 'fixture must deliver the held item, or the stamp is never written');
+  assert.equal(drained.nextState.pendingDigest.length, 0, 'the queue must be empty so the next check reads the STAMP');
+
+  // the signature just DELIVERED must still be remembered — a cap evicting the newest
+  // would drop it, and now that the queue is empty only the stamp can suppress it.
   const lastNow = new Date(+base + 59 * 3600000);
   const again = decideNotifications({
     candidates: clientCandidates({ directive: { ...SLEEP_DIRECTIVE, verdict: 'Recovery is the lever 59' }, flags: [], now: lastNow, tone: 'supportive' }),
-    last: state, prefs, now: lastNow, audience: 'client',
+    last: drained.nextState, prefs, now: drain, audience: 'client',
   });
   assert.deepEqual(again.send, [], 'the cap evicted the most recent signature');
+});
+
+// ⚠ CAPPING EACH ENTRY LEAVES THE NUMBER OF ENTRIES FREE — half a bound is not a bound.
+// coach_message / coach_cosign key on the EVENT id, so a busy member mints a fresh slot per
+// message and only age retires them. The whole map lives in `user_goals.data`, which has no
+// size constraint, and writeUserGoal swallows its upsert error — an oversized payload fails
+// SILENTLY and loses the dedup state entirely, which is worse than any eviction.
+test('the stamp map is bounded by entry COUNT, keeping the newest', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const now = new Date('2026-06-17T10:00:00Z');
+  const types = {};
+  for (let i = 0; i < 400; i++) types[`coach_message:m${i}`] = { sig: `m${i}`, at: +now - (400 - i) * 60000 };
+  const out = decideNotifications({ candidates: [], last: { date: 'never', types }, prefs, now, audience: 'client' });
+  const keys = Object.keys(out.nextState.types);
+  assert.ok(keys.length <= 200, `the map kept ${keys.length} entries — per-entry caps do not bound the map`);
+  // the NEWEST survive: the oldest are the ones closest to ageing out anyway
+  assert.ok(keys.includes('coach_message:m399'), 'the most recent stamp was evicted');
+  assert.ok(!keys.includes('coach_message:m0'), 'the oldest stamp survived a full map');
+});
+
+// ⚠ AND THE QUEUE HAS NO NATURAL CEILING EITHER. It drains on the first non-quiet
+// evaluation, so reaching this bound means something upstream is already wrong — but an
+// unbounded queue rides in the same blob as the stamps and takes them down with it.
+test('the digest queue is bounded, dropping the oldest held items', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const now = new Date('2026-06-17T23:30:00Z');
+  const held = [];
+  for (let i = 0; i < 120; i++) held.push({ type: 'coach_message', key: `m${i}`, sig: `m${i}`, title: `msg ${i}`, body: 'b', route: 'chat', data: {}, priority: 'high', channels: { push: true }, at: +now - (120 - i) * 60000 });
+  const out = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: held }, prefs, now, audience: 'client' });
+  const q = out.nextState.pendingDigest;
+  assert.ok(q.length <= 50, `the queue kept ${q.length} items`);
+  assert.equal(q[q.length - 1].sig, 'm119', 'the most recent held item was dropped');
 });

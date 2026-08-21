@@ -261,7 +261,7 @@ changelog whenever something ships.
 - ⚠ **THE QUEUE IS THE RECORD FOR A QUEUED ITEM.** `notify_state.types` holds **one slot**
   per `(type,key)` while `pendingDigest` can hold several items mapping to it, so a stamp
   written at queue time could be orphaned or misattributed by anything that later removed
-  the item it stood for — the shape behind **two of the five review rounds on #1915**. A
+  the item it stood for — the shape behind **two of the five Codex review rounds on #1915**. A
   deferred item is no longer stamped: the duplicate check asks the queue, and **delivery**
   is what stamps. The class is pinned as impossible in both queue orderings rather than
   handled case by case. Measured before it was built — 6 lines, 37 of 38 tests untouched.
