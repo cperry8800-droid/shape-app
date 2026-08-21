@@ -30,20 +30,54 @@ function callerFiles() {
   });
 }
 
+// ⚠ THE FIRST VERSION OF THIS RULE PASSED VACUOUSLY, AND ITS OWN MUTATION TEST
+// MISSED THAT. It split on the literal `fetch('<endpoint>'`, so a caller that kept
+// the endpoint but used DOUBLE quotes — or a template literal, or a query string —
+// matched nothing, contributed no offenders, and the rule reported success having
+// inspected NOTHING. Proven by mutation: re-quoting one call site and deleting its
+// `no-store` still passed. The mutation that would have caught it changed the
+// SHAPE of the call, not the property being asserted — mutating only the thing you
+// already believe in confirms only what you already believe.
+//
+// So the rule now has two halves, and the second is what keeps it honest: every
+// file containing the endpoint must yield at least one call site this test could
+// actually READ. A file it cannot parse is a failure, not a pass.
+const FETCH_CALL = /fetch\(\s*[`'"][^`'"]*\/api\/me\/date-of-birth[^`'"]*[`'"]/g;
+
 test('every client that calls the DOB endpoint sends cache: no-store', () => {
   const files = callerFiles();
   assert.ok(files.length >= 3, `expected the mobile + web callers, found ${files.length}`);
 
   const offenders = [];
+  const uninspectable = [];
+  let inspected = 0;
+
   for (const f of files) {
     const src = stripComments(readFileSync(join(ROOT, f), 'utf8'));
-    // Each fetch() to this endpoint, up to the end of its options object.
-    const calls = src.split(`fetch('${ENDPOINT}'`).slice(1);
-    calls.forEach((tail, i) => {
-      const opts = tail.slice(0, 400);
-      if (!/cache:\s*'no-store'/.test(opts)) offenders.push(`${f} (call ${i + 1})`);
+    const hits = [...src.matchAll(FETCH_CALL)];
+    if (!hits.length) {
+      // A file can MENTION the endpoint without calling it — src/lib/warroom.ts
+      // names it in a records label, 166k characters from its only unrelated
+      // fetch(). Distinguishing a mention from a call this rule cannot parse is
+      // the difference between a useful failure and a permanent false alarm that
+      // gets deleted. A real call has the endpoint inside the fetch's arguments;
+      // prose does not.
+      const nearCall = [...src.matchAll(/fetch\s*\(/g)]
+        .some((m) => src.slice(m.index, m.index + 160).includes(ENDPOINT));
+      if (nearCall) uninspectable.push(f);
+      continue;
+    }
+    hits.forEach((m, i) => {
+      inspected += 1;
+      const opts = src.slice(m.index + m[0].length, m.index + m[0].length + 400);
+      if (!/cache:\s*['"]no-store['"]/.test(opts)) offenders.push(`${f} (call ${i + 1})`);
     });
   }
+
+  assert.deepEqual(uninspectable, [],
+    'these files reference the endpoint but this rule could not find a fetch() to check — '
+    + `it went blind rather than finding nothing wrong:\n  ${uninspectable.join('\n  ')}`);
+  assert.ok(inspected >= 4, `expected at least the four known call sites, inspected ${inspected}`);
   assert.deepEqual(offenders, [],
     `a per-account answer must never be served from cache on a shared device:\n  ${offenders.join('\n  ')}`);
 });
