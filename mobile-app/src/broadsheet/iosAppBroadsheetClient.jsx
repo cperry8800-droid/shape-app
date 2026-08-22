@@ -11338,6 +11338,32 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // the hero's climb as the you-are-here marker); just the type column, full
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
+// The viewer-entitled age for a member, or null.
+//
+// ⚠ THE SERVER DECIDES, NOT THIS HOOK. It asks one door — self, the member's coach,
+// or an explicit public opt-in — and gets back an integer or nothing. There is no
+// birthdate on this side to leak, and no rule here to drift out of step with the
+// one in SQL.
+//
+// A per-mount request, cleared on unmount and on a change of subject so a slow
+// response for member A can never render as member B's age.
+function useBSMemberAge(userId) {
+  const [age, setAge] = React.useState(null);
+  React.useEffect(() => {
+    setAge(null);              // reset FIRST — B must never briefly show A's age
+    if (!userId) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const n = await window.ShapeMemberAge?.get?.(userId);
+        if (alive && typeof n === 'number') setAge(n);
+      } catch (e) { /* honestly absent */ }
+    })();
+    return () => { alive = false; };
+  }, [userId]);
+  return age;
+}
+
 function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const reduced = bsSdReduced();
@@ -13503,6 +13529,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const city = person.city || '';
   const handle = (live && live.username && '@' + live.username) || (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const pronouns = (!isPrivate && live && live.pronouns) || '';
+  // The age is asked for by user id, so it is only ever a REAL account's age — a
+  // demo persona has no id and renders nothing rather than a fabricated number.
+  // Whether it comes back at all is the server's call (self · their coach · the
+  // member's own public opt-in); null renders as absence, never as "private".
+  const memberAge = useBSMemberAge(person.userId);
   // When there's no live points (signed-out demo), seed the displayed score from
   // the tier so the number agrees with the tier name + avatar (no Base-with-1284).
   const score = points != null ? points : (() => {
@@ -13955,7 +13986,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           just off the screen edge (owner request — near-edge-to-edge). ── */}
       <div style={{ position: 'relative' }}>
         <div data-tour={meMode ? 'hero-me' : undefined} style={{ position: 'relative', padding: meMode ? '10px 8px 0' : '14px 8px 0' }}>
-          <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
+          <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, memberAge == null ? '' : `${memberAge}`, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
             photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
             onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
@@ -27588,6 +27619,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
     profileVisibility: ['Public', 'Just friends', 'Private'],
+    agePublic: ['Off', 'On'],
     onlineVisible:     ['On', 'Off'],
     shareWorkoutData:  ['On', 'Off'],
     dailyCheckin:      ['On', 'Off'],
@@ -27654,6 +27686,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const dcOn = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
       const edited = editedRef.current;
       const patch = { ...s, dailyCheckin: dcOn ? 'On' : 'Off' };
+      // ⚠ THE AGE TOGGLE IS NEVER TAKEN FROM THIS DOC. profiles.age_public is the
+      // store member_dob_for_viewer reads, and its own effect seeds the row. Today
+      // the key cannot be here (persistPrefs is never called for it), so this delete
+      // is a no-op — it exists so that stays true: if a whole-doc save ever smuggled
+      // a stale copy in, this hydrate would otherwise overwrite the member's real
+      // choice with it, and the next tap would write the wrong value back.
+      delete patch.agePublic;
       Object.keys(edited).forEach(k => { delete patch[k]; });
       setPrefs(p => ({ ...p, ...patch }));
       const fresh = (k) => !(k in edited);
@@ -27708,6 +27747,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     window.addEventListener('shape:voice', sync);
     return () => window.removeEventListener('shape:voice', sync);
   }, []);
+
+  // Seed the age toggle from profiles.age_public — the store the RPC reads.
+  //
+  // ⚠ WITHOUT THIS THE ROW WOULD RENDER 'Off' FOR EVERYONE, including a member who
+  // had turned it ON, and their next tap would write that wrong value back. A null
+  // read means "could not tell" (a failed read, or signed out), so the row is left
+  // exactly as it is rather than being asserted either way.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const on = await window.ShapeAgeVisibility?.get?.();
+        if (cancelled || on === null || on === undefined) return;
+        setPrefs(p => (p.agePublic === (on ? 'On' : 'Off') ? p : { ...p, agePublic: on ? 'On' : 'Off' }));
+      } catch (e) { /* leave the row untouched */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const cyclePref = (key, label) => {
     const opts = PREF_OPTIONS[key];
     if (!opts) return;
@@ -27715,6 +27772,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
+      // ⚠ NOT persistPrefs. profiles.age_public is the store member_dob_for_viewer
+      // actually reads; writing a second copy into client_settings would create a
+      // stale answer to a disclosure question. Optimistic, with a rollback + an
+      // honest toast, because a silent failure here would leave the member believing
+      // their age is public (or private) when it is the opposite.
+      if (key === 'agePublic') {
+        const prev = p[key];
+        (async () => {
+          try { await window.ShapeAgeVisibility?.set?.(next[key] === 'On'); }
+          catch (e) {
+            setPrefs(q => ({ ...q, agePublic: prev }));
+            window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
+          }
+        })();
+        return next;
+      }
       persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
@@ -27730,6 +27803,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
+      // ⚠ NOT persistPrefs. profiles.age_public is the store member_dob_for_viewer
+      // actually reads; writing a second copy into client_settings would create a
+      // stale answer to a disclosure question. Optimistic, with a rollback + an
+      // honest toast, because a silent failure here would leave the member believing
+      // their age is public (or private) when it is the opposite.
+      if (key === 'agePublic') {
+        const prev = p[key];
+        (async () => {
+          try { await window.ShapeAgeVisibility?.set?.(next[key] === 'On'); }
+          catch (e) {
+            setPrefs(q => ({ ...q, agePublic: prev }));
+            window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
+          }
+        })();
+        return next;
+      }
       persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
@@ -28410,6 +28499,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:privacy.visibility', { defaultValue: 'Profile visibility' }), key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: tr('settings:privacy.visibilityDesc', { defaultValue: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' }) },
         { l: tr('settings:privacy.online', { defaultValue: 'Show when I’m online' }), key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: tr('settings:privacy.onlineDesc', { defaultValue: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' }) },
         { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' }) },
+        { l: tr('settings:privacy.agePublic', { defaultValue: 'Show my age on my profile' }), key: 'agePublic', segmented: PREF_OPTIONS.agePublic, desc: tr('settings:privacy.agePublicDesc', { defaultValue: 'Off by default. When on, your age — never your date of birth — shows on your profile. Your coaches always see your age for the clients they work with, because it changes how they program for you.' }) },
       ],
     },
     {

@@ -7099,6 +7099,67 @@ async function reconcileSet({ clientId, metric, source } = {}) {
 }
 window.ShapeReconcile = { get: reconcileGet, set: reconcileSet };
 
+// ── Age visibility ───────────────────────────────────────────────────────────
+// The member's opt-in to showing their AGE (never their birthdate) publicly.
+//
+// ⚠ THE COLUMN IS THE ONLY STORE, DELIBERATELY. This does NOT mirror into
+// `client_settings` the way the other preference rows do: `member_dob_for_viewer`
+// reads `profiles.age_public`, so a second copy would be a second answer to a
+// disclosure question — and the copy the RPC does not read is the one that would
+// silently go stale. Settings renders from this read and writes straight back.
+//
+// ⚠ NO SERVICE ROLE. The `users update own profile` policy (auth.uid() = id on
+// both USING and WITH CHECK) already permits exactly this write and nothing wider,
+// and no coach-update policy exists — so a coach can never flip a client's toggle.
+async function getAgePublic() {
+  try {
+    const uid = getCachedState()?.user?.id;
+    if (!uid) return null;
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('age_public')
+      .eq('id', uid)
+      .maybeSingle();
+    // ⚠ A FAILED READ IS NOT "OFF". PostgREST resolves {data:null,error} rather
+    // than throwing, so returning false here would render a member's own choice
+    // back to them as off — and the next toggle would write that wrong value in.
+    // Null means "could not tell"; the caller leaves the row alone.
+    if (error) return null;
+    return data ? data.age_public === true : null;
+  } catch (e) { return null; }
+}
+
+async function setAgePublic(on) {
+  const uid = getCachedState()?.user?.id;
+  if (!uid) throw new Error('Sign in to change this.');
+  const { error } = await supabase
+    .from('profiles')
+    .update({ age_public: !!on })
+    .eq('id', uid);
+  if (error) throw error;
+  return !!on;
+}
+
+window.ShapeAgeVisibility = { get: getAgePublic, set: setAgePublic };
+
+// The member's AGE as this viewer is entitled to see it — an integer or null.
+//
+// ⚠ DELIBERATELY NOT CACHED. A cached age would outlive the toggle that governs
+// it: a member switching their profile to private would keep showing an age to
+// anyone whose cache still held it, which is the one direction this feature must
+// never fail in. It is one small request on a profile open.
+//
+// Null covers every case on purpose — no date on file, not entitled, read fault —
+// because distinguishing them would itself disclose the member's choice.
+async function memberAge(userId) {
+  if (!userId) return null;
+  const data = await getJsonOrDefault(`${apiBaseUrl || ''}/api/members/${encodeURIComponent(userId)}/age`, null);
+  const n = data && typeof data.age === 'number' ? data.age : null;
+  return Number.isFinite(n) ? n : null;
+}
+
+window.ShapeMemberAge = { get: memberAge };
+
 async function evaluateNotifications(force) {
   if (!apiBaseUrl || !state.session?.access_token) return null;
   // Throttle (the server layer dedups too, but don't hammer the endpoint).
