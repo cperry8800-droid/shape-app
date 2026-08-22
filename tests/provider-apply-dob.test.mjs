@@ -100,7 +100,14 @@ const NOT_APPLY_SURFACES = new Map([
 
 test('no unregistered surface posts to /api/apply', () => {
   const known = new Set([...APPLY_CALLERS.map((c) => c.file), ...NOT_APPLY_SURFACES.keys()]);
-  const skipDirs = new Set(['node_modules', '.git', '.next', 'dist', 'm', 'ios', 'android']);
+  // ⚠ `nd` IS BUILD OUTPUT, like `dist` and `m` beside it, and leaving it out of
+  // this list made the guard fail on a copy of a file it had already checked.
+  // scripts/build-newdesign.mjs precompiles the newdesign JSX into
+  // public/newdesign/nd/; the directory is gitignored and regenerated at deploy,
+  // so anything in it is a duplicate of a source this walk already visited. Run
+  // that script once locally and this test went red on public/newdesign/nd/
+  // signup.js — a registered surface reported as an unregistered one.
+  const skipDirs = new Set(['node_modules', '.git', '.next', 'dist', 'm', 'nd', 'ios', 'android']);
   const exts = /\.(m?js|jsx|ts|tsx|html)$/;
   const found = [];
 

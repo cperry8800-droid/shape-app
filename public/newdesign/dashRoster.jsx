@@ -397,6 +397,35 @@ const DashConsultDrawer = DashClientDrawer;
 function DashRosterTable({ triage, role, filter, query }) {
   const [open, setOpen] = React.useState(null);
   const ink50 = DASH_ROSTER_INK50;
+
+  // Client AGES (never birthdates) — a coach always sees them for their own
+  // clients, which is the SERVER's rule (member_dobs_for_viewer answers on the
+  // active-subscription link), not this table's. ONE request for the whole
+  // table rather than one per row, and it lives HERE rather than in the two
+  // role pages above so trainer and nutritionist cannot drift apart.
+  //
+  // ⚠ KEYED ON THE IDS, NOT THE ARRAY. `triage` is a fresh array identity on
+  // every parent render, so depending on it directly would refetch forever.
+  // The joined id string changes only when the roster actually changes.
+  const idKey = triage.map((r) => r.client.profile.id).filter(Boolean).join(",");
+  const [ages, setAges] = React.useState({});
+  React.useEffect(() => {
+    setAges({});                       // reset FIRST — never show one roster's ages over another
+    const ids = idKey ? idKey.split(",") : [];
+    if (!ids.length) return undefined;
+    let on = true;
+    fetch("/api/members/ages", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (on && d && d.ages) setAges(d.ages); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [idKey]);
   const view = DASH_ROSTER_VIEWS[role] || DASH_ROSTER_VIEWS.nutritionist;
 
   const matchesFilter = (r) => {
@@ -435,6 +464,11 @@ function DashRosterTable({ triage, role, filter, query }) {
             <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
               <span style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 2, background: sevColor }} />
               <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.profile.name}</span>
+              {/* ⚠ typeof, not truthiness — 0 is a real age. Absence renders as
+                  nothing, never as a placeholder or "private". */}
+              {typeof ages[rec.profile.id] === "number" && (
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: ink50, flexShrink: 0 }}>{ages[rec.profile.id]}</span>
+              )}
               {r.flags.length > 0 && <DashPill c={sevColor}>{r.flags[0].label}</DashPill>}
               {rec.profile.isNew && r.severity === "green" && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
             </div>

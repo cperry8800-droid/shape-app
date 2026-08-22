@@ -238,8 +238,57 @@ function ClientMeSettings() {
   const [fieldEdit, setFieldEdit] = React.useState(null); // { key, label }
   const [toast, setToast] = React.useState(null);
   const [onlineVisible, setOnlineVisible] = React.useState(true);
+  // null = we could not tell (not signed in, or the read failed). NOT false:
+  // rendering "Off" for a member who had turned it ON would show them the
+  // opposite of their own choice, and the next tap would write that back.
+  const [agePublic, setAgePublic] = React.useState(null);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
+
+  // Age visibility — profiles.age_public, through a ROUTE rather than the browser
+  // Supabase client. That client is ANON until window.shapeDb.getSession() bridges
+  // the cookie session (#1769); an unbridged write is refused by RLS, matches zero
+  // rows, and PostgREST does not call that an error — so it would report success
+  // and leave the member believing their age is public when it is not.
+  React.useEffect(() => {
+    let on = true;
+    fetch("/api/me/age-public", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (on && d && typeof d.agePublic === "boolean") setAgePublic(d.agePublic); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
+
+  async function toggleAgePublic() {
+    // ⚠ NEVER GUESS FROM "UNKNOWN". `!null` is true, so a blind toggle here would
+    // turn a member's age PUBLIC because a read failed. Refuse and say so.
+    if (agePublic == null) { showToast("Couldn't load this setting — refresh and try again."); return; }
+    const prev = agePublic;
+    const next = !prev;
+    setAgePublic(next);                       // optimistic
+    try {
+      const res = await fetch("/api/me/age-public", {
+        method: "PUT",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agePublic: next }),
+      });
+      const d = await res.json().catch(() => null);
+      // The route re-reads the row and returns what is ACTUALLY stored; trust
+      // that over what we asked for.
+      if (res.ok && d && typeof d.agePublic === "boolean") {
+        setAgePublic(d.agePublic);
+        showToast("Saved.");
+        return;
+      }
+      setAgePublic(prev);
+      showToast((d && d.error) || "Could not save that — try again.");
+    } catch (e) {
+      setAgePublic(prev);
+      showToast("Could not save that — try again.");
+    }
+  }
 
   async function toggleOnlineVisible() {
     const next = !onlineVisible;
@@ -438,6 +487,9 @@ function ClientMeSettings() {
           <Row label="Profile visibility" value={p.profileVisibility || "—"} action="CHANGE" onAction={() => openField("profileVisibility", "Profile visibility")} />
           <Row label="Show when I'm online" value={onlineVisible ? "On" : "Off"} action="TOGGLE" onAction={toggleOnlineVisible} />
           <Row label="Share data with coaches" value={p.shareDataWithCoaches || "—"} action="CHANGE" onAction={() => openField("shareDataWithCoaches", "Share data with coaches")} />
+          {/* Your coaches always see your age for the clients they work with —
+              that is the server's rule (member_dobs_for_viewer), not this row's. */}
+          <Row label="Show my age on my profile" value={agePublic == null ? "—" : agePublic ? "On" : "Off"} action="TOGGLE" onAction={toggleAgePublic} />
           <Row label="Community posts" value={p.communityPosts ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("communityPosts")} />
           <Row label="Marketing emails" value={p.marketingEmails ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("marketingEmails")} />
         </Card>

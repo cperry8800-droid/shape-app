@@ -26,6 +26,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ageFromDob } from '@/lib/age-derive.mjs';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,14 +45,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_IDS = 500;
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return privateJson({ error: 'Expected a JSON body.', code: 'bad_body' }, { status: 400 });
-  }
-
-  const raw = (body as { ids?: unknown } | null)?.ids;
+  // The shared reader, not a local try/catch: it carries the proxy's size cap and
+  // one malformed-body answer for every route, so this endpoint — which accepts a
+  // list — cannot drift into being the one that takes an unbounded payload.
+  const bodyResult = await readJson<unknown>(request);
+  if (!bodyResult.ok) return bodyResult.response;
+  const raw = (bodyResult.data as { ids?: unknown } | null)?.ids;
   if (!Array.isArray(raw)) {
     return privateJson({ error: 'Expected { ids: string[] }.', code: 'bad_body' }, { status: 400 });
   }
