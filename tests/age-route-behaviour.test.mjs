@@ -29,12 +29,21 @@ const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts')
   registry: new Map([['next/server', nextServer]]),
 });
 
-function loadRoute(file, client) {
+// `adminClient` defaults to the same scripted client. The ages route reaches the
+// RPC through the ADMIN client (the SQL door is granted to service_role alone —
+// no browser identity can call it), so the registry has to supply both.
+function loadRoute(file, client, { adminClient, adminThrows } = {}) {
   return loadRealModule(join(ROOT, file), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => client }],
+      ['@/lib/supabase/admin', {
+        createAdminClient: () => {
+          if (adminThrows) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
+          return adminClient || client;
+        },
+      }],
       ['@/lib/age-derive.mjs', ageDerive],
       ['@/lib/request-utils', requestUtils],
     ]),
@@ -189,8 +198,8 @@ test('every age-public answer forbids caching — it is per-account', async () =
 // ── /api/members/ages ────────────────────────────────────────────────────────
 const AGES = 'src/app/api/members/ages/route.ts';
 
-async function ages(client, ids, raw) {
-  const mod = await loadRoute(AGES, client);
+async function ages(client, ids, raw, opts) {
+  const mod = await loadRoute(AGES, client, opts);
   const res = await mod.POST(new Request('http://localhost/api/members/ages', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -255,6 +264,47 @@ test('a malformed id is refused rather than dropped', async () => {
   assert.equal(status, 400);
   assert.equal(body.code, 'invalid_id');
   assert.equal(calls.rpcs.length, 0);
+});
+
+test('a NON-STRING id is refused too, not silently filtered away', async () => {
+  // The regression this pins: an earlier version dropped non-strings BEFORE
+  // validating, so `['<uuid>', 42]` answered 200 for the good half and the bad
+  // element vanished without a word.
+  for (const bad of [42, null, {}, [], true]) {
+    const client = makeClient({ rpc: { data: [], error: null } });
+    const { status, body, calls } = await ages(client, [UID, bad]);
+    assert.equal(status, 400, `${JSON.stringify(bad)} must be refused`);
+    assert.equal(body.code, 'invalid_id');
+    assert.equal(calls.rpcs.length, 0, 'and must never reach the database');
+  }
+});
+
+// ⚠ THE ONE INVARIANT THE ADMIN CLIENT MAKES LOAD-BEARING. The RPC is granted to
+// service_role alone, so this route holds power a browser does not. Everything
+// rests on `viewer` being the verified session's id and never caller input.
+test('the viewer is the SESSION user, never anything the caller supplied', async () => {
+  const client = makeClient({ user: { id: UID }, rpc: { data: [], error: null } });
+  const mod = await loadRoute(AGES, client);
+  const res = await mod.POST(new Request('http://localhost/api/members/ages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    // Every plausible smuggling shape, all ignored.
+    body: JSON.stringify({ ids: [OTHER], viewer: OTHER, userId: OTHER, user_id: OTHER }),
+  }));
+  await res.json();
+
+  const { args } = client._calls.rpcs[0];
+  assert.equal(args.viewer, UID, 'the viewer must be the authenticated session user');
+  assert.notEqual(args.viewer, OTHER, 'a body-supplied viewer must never be honoured');
+  assert.deepEqual(args.targets, [OTHER], 'targets still come from the caller — the RPC filters them');
+});
+
+test('a missing service key is 503, not "these members have no age"', async () => {
+  const client = makeClient({ rpc: { data: [], error: null } });
+  const { status, body } = await ages(client, [UID], undefined, { adminThrows: true });
+  assert.equal(status, 503);
+  assert.equal(body.code, 'unavailable');
+  assert.ok(!body.ages, 'a broken deployment must not render as absence');
 });
 
 test('a read fault is 503, not an empty roster of ages', async () => {

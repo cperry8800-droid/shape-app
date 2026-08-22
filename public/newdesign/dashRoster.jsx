@@ -414,16 +414,25 @@ function DashRosterTable({ triage, role, filter, query }) {
     const ids = idKey ? idKey.split(",") : [];
     if (!ids.length) return undefined;
     let on = true;
-    fetch("/api/members/ages", {
-      method: "POST",
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on && d && d.ages) setAges(d.ages); })
-      .catch(() => {});
+    // ⚠ CHUNKED AT THE ENDPOINT'S OWN CAP (500). The route REFUSES a longer ask
+    // rather than truncating, so a roster past it would 400 and every client
+    // would render age-less — reading as "they all keep it private". A failed
+    // chunk costs only its own members; absence already covers every kind of no.
+    const CHUNK = 500;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+    Promise.all(chunks.map((c) =>
+      fetch("/api/members/ages", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: c }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => (d && d.ages) || {})
+        .catch(() => ({}))
+    )).then((maps) => { if (on) setAges(Object.assign({}, ...maps)); });
     return () => { on = false; };
   }, [idKey]);
   const view = DASH_ROSTER_VIEWS[role] || DASH_ROSTER_VIEWS.nutritionist;

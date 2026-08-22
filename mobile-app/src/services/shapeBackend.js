@@ -7164,26 +7164,45 @@ window.ShapeAgeVisibility = { get: getAgePublic, set: setAgePublic };
 // An id simply MISSING from the map is every kind of "no" at once — no date on
 // file, not entitled, read fault — because telling those apart would itself
 // disclose the member's choice. Callers render absence, never "private".
+// ⚠ CHUNKED AT THE ENDPOINT'S OWN CAP. /api/members/ages REFUSES more than 500
+// ids rather than truncating, so a roster past that would come back 400 and every
+// client on it would render age-less — which reads as "they all keep it private".
+// The cap is the server's; the chunking is how a caller stays inside it honestly.
+const MEMBER_AGES_CHUNK = 500;
+
+async function memberAgesChunk(ids) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/members/ages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+    credentials: 'same-origin',
+    cache: 'no-store',
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) return {};
+  const d = await res.json();
+  const out = {};
+  // Number-check every value rather than trusting the shape: a non-numeric age
+  // would render as text beside a member's name.
+  Object.entries((d && d.ages) || {}).forEach(([k, v]) => {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  });
+  return out;
+}
+
 async function memberAges(userIds) {
   const ids = [...new Set((Array.isArray(userIds) ? userIds : [userIds]).filter(Boolean))];
   if (!ids.length || !state.session?.access_token) return {};
   try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/members/ages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
-      credentials: 'same-origin',
-      cache: 'no-store',
-      body: JSON.stringify({ ids }),
-    });
-    if (!res.ok) return {};
-    const d = await res.json();
-    const out = {};
-    // Number-check every value rather than trusting the shape: a non-numeric age
-    // would render as text beside a member's name.
-    Object.entries((d && d.ages) || {}).forEach(([k, v]) => {
-      if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
-    });
-    return out;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += MEMBER_AGES_CHUNK) {
+      chunks.push(ids.slice(i, i + MEMBER_AGES_CHUNK));
+    }
+    // ⚠ A FAILED CHUNK COSTS ONLY ITS OWN MEMBERS, NEVER THE WHOLE ROSTER.
+    // Merging what succeeded is consistent with this feature's one rule —
+    // absence already covers every kind of "no" — whereas discarding everything
+    // because one request failed would blank ages we did read.
+    const maps = await Promise.all(chunks.map((c) => memberAgesChunk(c).catch(() => ({}))));
+    return Object.assign({}, ...maps);
   } catch (e) { return {}; }
 }
 

@@ -27771,29 +27771,58 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     })();
     return () => { cancelled = true; };
   }, []);
+  // ⚠ THE AGE TOGGLE'S ONE WRITER. Both entry points (cyclePref + setPref) route
+  // here, so the rules below cannot hold on one path and not the other.
+  //
+  // ⚠ NOT persistPrefs. profiles.age_public is the store member_dobs_for_viewer
+  // reads; a second copy in client_settings would be a stale answer to a
+  // disclosure question, and the copy the RPC does not read is the one that drifts.
+  //
+  // ⚠ A MISSING DOOR IS A FAILURE, NOT A SUCCESS. `window.ShapeAgeVisibility?.set?.()`
+  // returns undefined and throws nothing when the data layer has not loaded — so an
+  // optimistic flip would stand while NOTHING was written, telling a member their age
+  // is public when it is not. The function has to actually exist to count as saved.
+  //
+  // ⚠ ROLL BACK ONLY IF THIS WRITE IS STILL THE CURRENT ONE. Two quick taps put two
+  // writes in flight; if the first fails after the second succeeded, an unconditional
+  // rollback would revert the member's newer, saved choice. A token pins each attempt
+  // to the state it produced.
+  //
+  // Persistence deliberately does NOT run inside a setPrefs updater — an updater can
+  // be invoked more than once for a render, which would fire the write twice.
+  const prefsRef = React.useRef(prefs);
+  React.useEffect(() => { prefsRef.current = prefs; }, [prefs]);
+  const ageWriteRef = React.useRef(0);
+  const persistAgePublic = React.useCallback(async (nextLabel) => {
+    const prev = prefsRef.current.agePublic;
+    if (prev === nextLabel) return;
+    const token = ageWriteRef.current + 1;
+    ageWriteRef.current = token;
+    setPrefs((p) => ({ ...p, agePublic: nextLabel }));   // optimistic
+    const write = window.ShapeAgeVisibility?.set;
+    if (typeof write === 'function') {
+      try {
+        await write(nextLabel === 'On');
+        return;                                          // stored — the flip stands
+      } catch (e) { /* fall through to the rollback */ }
+    }
+    if (token !== ageWriteRef.current) return;           // a newer choice already won
+    setPrefs((p) => ({ ...p, agePublic: prev }));
+    window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
+  }, [tr]);
+
   const cyclePref = (key, label) => {
     const opts = PREF_OPTIONS[key];
     if (!opts) return;
+    if (key === 'agePublic') {
+      const idx = Math.max(0, opts.indexOf(prefsRef.current.agePublic));
+      persistAgePublic(opts[(idx + 1) % opts.length]);
+      return;
+    }
     setPrefs(p => {
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
-      // ⚠ NOT persistPrefs. profiles.age_public is the store member_dob_for_viewer
-      // actually reads; writing a second copy into client_settings would create a
-      // stale answer to a disclosure question. Optimistic, with a rollback + an
-      // honest toast, because a silent failure here would leave the member believing
-      // their age is public (or private) when it is the opposite.
-      if (key === 'agePublic') {
-        const prev = p[key];
-        (async () => {
-          try { await window.ShapeAgeVisibility?.set?.(next[key] === 'On'); }
-          catch (e) {
-            setPrefs(q => ({ ...q, agePublic: prev }));
-            window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
-          }
-        })();
-        return next;
-      }
       persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
@@ -27805,26 +27834,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     });
   };
   const setPref = (key, value) => {
+    // agePublic never touches persistPrefs — see the one writer above.
+    if (key === 'agePublic') { persistAgePublic(value); return; }
     setPrefs(p => {
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
       if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
-      // ⚠ NOT persistPrefs. profiles.age_public is the store member_dob_for_viewer
-      // actually reads; writing a second copy into client_settings would create a
-      // stale answer to a disclosure question. Optimistic, with a rollback + an
-      // honest toast, because a silent failure here would leave the member believing
-      // their age is public (or private) when it is the opposite.
-      if (key === 'agePublic') {
-        const prev = p[key];
-        (async () => {
-          try { await window.ShapeAgeVisibility?.set?.(next[key] === 'On'); }
-          catch (e) {
-            setPrefs(q => ({ ...q, agePublic: prev }));
-            window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
-          }
-        })();
-        return next;
-      }
       persistPrefs(key, next[key]); // the ONE cloud writer — never a bare whole-doc save
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);

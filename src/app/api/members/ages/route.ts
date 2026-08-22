@@ -10,12 +10,24 @@
 // birthday to every viewer. Column grants cannot fix that after the fact; it is
 // a row-level question.
 //
-// ⚠ AUTHORIZATION IS THE RPC'S, NOT THIS FILE'S, AND THAT IS DELIBERATE. The
-// rule — self, or the member's coach through an active subscription, or an
-// explicit `age_public` opt-in — lives in SQL next to the data it governs, so
-// RLS and this route cannot drift apart. The handler runs on the CALLER's
-// client, so it holds no power of its own: with no service key here, a mistake
-// in this file can leak nothing the caller could not already read.
+// ⚠ AUTHORIZATION IS THE RPC'S, NOT THIS FILE'S. The rule — self, or the
+// member's coach through an active subscription, or an explicit `age_public`
+// opt-in — lives in SQL next to the data it governs, so RLS and this route
+// cannot drift apart.
+//
+// ⚠ THE ADMIN CLIENT IS USED HERE, AND THE REASON IS THE WHOLE POINT OF THIS
+// ROUTE. `member_dobs_for_viewer` returns DATES, so it must not be callable by
+// any browser identity — an earlier version granted it to `authenticated`, which
+// let any signed-in member read an opted-in member's exact birthdate straight
+// from PostgREST, defeating the reduction below. It is now granted to
+// `service_role` alone, which means only a server can ask it.
+//
+// ⚠ SO THE ONE INVARIANT THAT MATTERS IS THE VIEWER. `viewer` is ALWAYS the id
+// from this request's verified session — never anything in the body. The caller
+// supplies only `targets`, and every one of those is independently filtered by
+// the SQL rule, so an arbitrary id list can widen nothing. The admin client's
+// only job here is reaching a function browsers cannot; it is not a shortcut
+// past an authorization check.
 //
 // ⚠ AN OMITTED ID IS THE ONLY ANSWER FOR EVERY KIND OF "NO". Not entitled, and
 // entitled-but-no-date-on-file, are both simply absent from the map — the RPC
@@ -25,6 +37,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { ageFromDob } from '@/lib/age-derive.mjs';
 import { readJson } from '@/lib/request-utils';
 
@@ -55,18 +68,21 @@ export async function POST(request: Request) {
     return privateJson({ error: 'Expected { ids: string[] }.', code: 'bad_body' }, { status: 400 });
   }
 
-  // Dedupe before the cap, so a caller asking about the same member twice is not
-  // punished for it, and the RPC never sees a longer array than it needs.
-  const ids = [...new Set(raw.filter((v): v is string => typeof v === 'string'))];
-
-  // ⚠ REFUSE A MALFORMED ID RATHER THAN DROPPING IT. A dropped id comes back as
-  // an absent age, which renders identically to "this member is private" — so a
-  // typo upstream would look like a member's deliberate choice, and nothing
-  // would ever report the mistake.
-  const bad = ids.filter((v) => !UUID.test(v));
+  // ⚠ REFUSE A MALFORMED ID RATHER THAN DROPPING IT, AND THAT INCLUDES A
+  // NON-STRING. A dropped id comes back as an absent age, which renders
+  // identically to "this member keeps their age private" — so a bug upstream
+  // would look like a member's deliberate choice and nothing would ever report
+  // it. An earlier version filtered non-strings out before validating, so
+  // `{ ids: ['<uuid>', 42] }` answered 200 for the good half; every element is
+  // now checked, before the dedupe can hide one.
+  const bad = raw.filter((v) => typeof v !== 'string' || !UUID.test(v));
   if (bad.length) {
     return privateJson({ error: 'Invalid member id.', code: 'invalid_id', count: bad.length }, { status: 400 });
   }
+
+  // Dedupe after validating, so a caller asking about the same member twice is
+  // not punished for it and the RPC never sees a longer array than it needs.
+  const ids = [...new Set(raw as string[])];
 
   // ⚠ REFUSE, NEVER TRUNCATE. Answering the first 500 of a longer ask would
   // render the rest as "no age on file" — a claim this route would not have
@@ -85,7 +101,21 @@ export async function POST(request: Request) {
   // An empty ask is not a failure — answer it without troubling the database.
   if (!ids.length) return privateJson({ ages: {} });
 
-  const { data, error } = await supabase.rpc('member_dobs_for_viewer', { targets: ids });
+  // ⚠ `viewer: user.id` COMES FROM THE VERIFIED SESSION ABOVE, NEVER THE BODY.
+  // That single argument is what the SQL rule keys every branch on, so it is the
+  // one value in this file a mistake could actually widen.
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    // A missing service key breaks this feature; it must not read as "nobody
+    // here has an age on file".
+    return privateJson({ error: 'Could not read these members.', code: 'unavailable' }, { status: 503 });
+  }
+  const { data, error } = await admin.rpc('member_dobs_for_viewer', {
+    viewer: user.id,
+    targets: ids,
+  });
 
   // ⚠ A READ FAULT IS NOT A REFUSAL. Answering `{ ages: {} }` here would render
   // as "none of these members has an age", which is a claim we cannot make from a
