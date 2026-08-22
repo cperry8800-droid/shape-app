@@ -192,6 +192,7 @@
   "case.ckStress": "Stres",
   "case.ckTraining": "Antrenman",
   "case.clientSince": "DANIŞAN · {since}",
+  "case.age": "YAŞ {n}",
   "case.coManaging": "{role} · ORTAK YÖNETİM",
   "case.coachNoteHead": "KOÇ NOTU · YALNIZCA SEN GÖRÜRSÜN",
   "case.commitHabits": "Alışkanlık işaretlemeleri",

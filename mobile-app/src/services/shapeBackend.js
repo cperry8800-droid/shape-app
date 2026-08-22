@@ -7142,23 +7142,52 @@ async function setAgePublic(on) {
 
 window.ShapeAgeVisibility = { get: getAgePublic, set: setAgePublic };
 
-// The member's AGE as this viewer is entitled to see it — an integer or null.
+// Members' AGES as this viewer is entitled to see them — { id: age }, integers.
+//
+// ⚠ ONE BATCH DOOR FOR ALL THREE READERS. The member's own profile, a coach's
+// Case File and the coach roster all ask THIS, the roster with a whole client
+// list and the other two with an array of one — the same shape
+// ShapeProfiles.getUserPoints([uid]) is already called with from the Case File.
+// A scalar door beside it would have meant a second copy of an authorization
+// rule, and the copy that stops being edited is the one that goes wrong.
+//
+// ⚠ A ROUTE, NOT A DIRECT RPC, UNLIKE ShapeRosterVariance. supabase.rpc() would
+// put the raw DATES on the wire; for a member who opted in that publishes their
+// exact birthday to every viewer. The route reduces each date to an integer
+// server-side, so no birthdate ever reaches a browser.
 //
 // ⚠ DELIBERATELY NOT CACHED. A cached age would outlive the toggle that governs
-// it: a member switching their profile to private would keep showing an age to
-// anyone whose cache still held it, which is the one direction this feature must
-// never fail in. It is one small request on a profile open.
+// it: a member switching their profile back to private would keep showing an age
+// to anyone whose cache still held it, which is the one direction this feature
+// must never fail in. It is one request per roster view, not one per client.
 //
-// Null covers every case on purpose — no date on file, not entitled, read fault —
-// because distinguishing them would itself disclose the member's choice.
-async function memberAge(userId) {
-  if (!userId) return null;
-  const data = await getJsonOrDefault(`${apiBaseUrl || ''}/api/members/${encodeURIComponent(userId)}/age`, null);
-  const n = data && typeof data.age === 'number' ? data.age : null;
-  return Number.isFinite(n) ? n : null;
+// An id simply MISSING from the map is every kind of "no" at once — no date on
+// file, not entitled, read fault — because telling those apart would itself
+// disclose the member's choice. Callers render absence, never "private".
+async function memberAges(userIds) {
+  const ids = [...new Set((Array.isArray(userIds) ? userIds : [userIds]).filter(Boolean))];
+  if (!ids.length || !state.session?.access_token) return {};
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/members/ages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) return {};
+    const d = await res.json();
+    const out = {};
+    // Number-check every value rather than trusting the shape: a non-numeric age
+    // would render as text beside a member's name.
+    Object.entries((d && d.ages) || {}).forEach(([k, v]) => {
+      if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+    });
+    return out;
+  } catch (e) { return {}; }
 }
 
-window.ShapeMemberAge = { get: memberAge };
+window.ShapeMemberAges = { get: memberAges };
 
 async function evaluateNotifications(force) {
   if (!apiBaseUrl || !state.session?.access_token) return null;

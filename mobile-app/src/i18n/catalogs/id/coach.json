@@ -192,6 +192,7 @@
   "case.ckStress": "Stres",
   "case.ckTraining": "Latihan",
   "case.clientSince": "KLIEN SEJAK {since}",
+  "case.age": "USIA {n}",
   "case.coManaging": "{role} · MENDAMPINGI BERSAMA",
   "case.coachNoteHead": "CATATAN PELATIH · HANYA KAMU YANG MELIHAT INI",
   "case.commitHabits": "Kebiasaan tercentang",

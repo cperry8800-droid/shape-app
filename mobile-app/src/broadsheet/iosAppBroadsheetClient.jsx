@@ -11345,6 +11345,11 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // birthdate on this side to leak, and no rule here to drift out of step with the
 // one in SQL.
 //
+// The door is a BATCH one, asked here with an array of one — the same shape
+// ShapeProfiles.getUserPoints([uid]) is called with. The coach roster asks it for a
+// whole client list; sharing it means the age rule has exactly one implementation
+// rather than one per surface.
+//
 // A per-mount request, cleared on unmount and on a change of subject so a slow
 // response for member A can never render as member B's age.
 function useBSMemberAge(userId) {
@@ -11355,7 +11360,8 @@ function useBSMemberAge(userId) {
     let alive = true;
     (async () => {
       try {
-        const n = await window.ShapeMemberAge?.get?.(userId);
+        const map = await window.ShapeMemberAges?.get?.([userId]);
+        const n = map && map[userId];
         if (alive && typeof n === 'number') setAge(n);
       } catch (e) { /* honestly absent */ }
     })();

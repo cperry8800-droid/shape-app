@@ -192,6 +192,7 @@
   "case.ckStress": "Стресс",
   "case.ckTraining": "Тренировки",
   "case.clientSince": "КЛИЕНТ С {since}",
+  "case.age": "ВОЗРАСТ {n}",
   "case.coManaging": "{role} · СОВМЕСТНОЕ ВЕДЕНИЕ",
   "case.coachNoteHead": "ЗАМЕТКА ТРЕНЕРА · ВИДНА ТОЛЬКО ВАМ",
   "case.commitHabits": "Отметки привычек",
