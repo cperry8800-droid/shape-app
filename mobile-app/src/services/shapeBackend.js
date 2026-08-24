@@ -7132,12 +7132,22 @@ async function getAgePublic() {
 async function setAgePublic(on) {
   const uid = getCachedState()?.user?.id;
   if (!uid) throw new Error('Sign in to change this.');
-  const { error } = await supabase
+  const want = !!on;
+  // ⚠ THE STORED ROW IS THE AUTHORITY, NOT THE ABSENCE OF AN ERROR. PostgREST
+  // reports an UPDATE that matched ZERO rows as success, so `if (error) throw`
+  // alone returns `want` for a member whose profile row is missing or whose write
+  // RLS refuses — and the toggle then stands while nothing was written, telling a
+  // member their age is public when it is not. That is this feature's one
+  // unacceptable direction, so ask for the row back and believe only that.
+  const { data, error } = await supabase
     .from('profiles')
-    .update({ age_public: !!on })
-    .eq('id', uid);
+    .update({ age_public: want })
+    .eq('id', uid)
+    .select('age_public');
   if (error) throw error;
-  return !!on;
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row || row.age_public !== want) throw new Error('Could not save that — try again.');
+  return want;
 }
 
 window.ShapeAgeVisibility = { get: getAgePublic, set: setAgePublic };

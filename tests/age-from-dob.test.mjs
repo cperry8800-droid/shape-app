@@ -78,7 +78,14 @@ test('age and the 18+ gate agree about the same person on the same instant', () 
   assert.ok(checked === 801, `swept the whole boundary window, got ${checked}`);
 
   // The leap-day pair, on the exact instant that has diverged before.
+  // ⚠ THE NON-NULL ASSERT IS WHAT MAKES THIS PAIR ABLE TO FAIL. `null < 18` is
+  // true, so a regression of ageFromDob to null would satisfy the comparison on
+  // both sides and this guard would report nothing — the sweep above asserts
+  // non-null for exactly that reason, and the pair was missing it.
   const leapNow = at('2028-02-29T13:00:00Z');
-  assert.equal(ageFromDob('2010-03-01', leapNow) < 18, isMinorFromDob('2010-03-01', leapNow));
-  assert.equal(ageFromDob('2010-02-28', leapNow) < 18, isMinorFromDob('2010-02-28', leapNow));
+  for (const dob of ['2010-03-01', '2010-02-28']) {
+    const age = ageFromDob(dob, leapNow);
+    assert.notEqual(age, null, `${dob} should have an age`);
+    assert.equal(age < 18, isMinorFromDob(dob, leapNow), `${dob}: age ${age}`);
+  }
 });

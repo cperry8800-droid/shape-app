@@ -58,6 +58,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_IDS = 500;
 
 export async function POST(request: Request) {
+  // ⚠ AUTHENTICATE FIRST. Everything below — parsing, validating up to 500 ids,
+  // deduping — is work an anonymous caller could otherwise drive on every request.
+  // `readJson` bounds the payload, so this is cheap rather than critical, but the
+  // order now also matches /api/me/age-public, which calls getUser() first.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
+
   // The shared reader, not a local try/catch: it carries the proxy's size cap and
   // one malformed-body answer for every route, so this endpoint — which accepts a
   // list — cannot drift into being the one that takes an unbounded payload.
@@ -93,10 +101,6 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
 
   // An empty ask is not a failure — answer it without troubling the database.
   if (!ids.length) return privateJson({ ages: {} });

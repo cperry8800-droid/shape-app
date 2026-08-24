@@ -299,6 +299,28 @@ test('the viewer is the SESSION user, never anything the caller supplied', async
   assert.deepEqual(args.targets, [OTHER], 'targets still come from the caller — the RPC filters them');
 });
 
+// ⚠ EVERY OTHER TEST HERE IS BLIND TO THIS. `loadRoute` defaults the admin client
+// to the same scripted object, so both identities record onto one `_calls.rpcs`:
+// a regression to `supabase.rpc(...)` on the RLS-scoped session client would leave
+// the whole file green while failing in production, where the function is granted
+// to service_role alone. This is the only test that can tell the two apart.
+test('the RPC goes through the ADMIN client, never the session client', async () => {
+  const session = makeClient({ user: { id: UID }, rpc: { data: [], error: null } });
+  const admin = makeClient({ user: { id: OTHER }, rpc: { data: [], error: null } });
+  const mod = await loadRoute(AGES, session, { adminClient: admin });
+  const res = await mod.POST(new Request('http://localhost/api/members/ages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ids: [UID] }),
+  }));
+  await res.json();
+
+  assert.equal(admin._calls.rpcs.length, 1, 'the RPC must land on the admin client');
+  assert.equal(session._calls.rpcs.length, 0, 'and never on the RLS-scoped session client');
+  // The session client stays the one that says WHO is asking.
+  assert.equal(admin._calls.rpcs[0].args.viewer, UID, 'the viewer still comes from the session');
+});
+
 test('a missing service key is 503, not "these members have no age"', async () => {
   const client = makeClient({ rpc: { data: [], error: null } });
   const { status, body } = await ages(client, [UID], undefined, { adminThrows: true });

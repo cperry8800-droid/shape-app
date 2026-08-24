@@ -242,6 +242,13 @@ function ClientMeSettings() {
   // rendering "Off" for a member who had turned it ON would show them the
   // opposite of their own choice, and the next tap would write that back.
   const [agePublic, setAgePublic] = React.useState(null);
+  // ⚠ ONE WRITE WINS. Two quick taps start two PUTs whose responses can land out
+  // of order, and a rollback from the FIRST would otherwise overwrite the choice
+  // the SECOND already saved — leaving this row disagreeing with the stored
+  // profiles.age_public. Every write takes a token; only the newest may touch
+  // state. The mobile toggle has carried this guard since the last round; this is
+  // its web twin, which did not.
+  const ageWriteRef = React.useRef(0);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
 
@@ -254,7 +261,8 @@ function ClientMeSettings() {
     let on = true;
     fetch("/api/me/age-public", { credentials: "same-origin", cache: "no-store" })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (on && d && typeof d.agePublic === "boolean") setAgePublic(d.agePublic); })
+      // A slow hydrate must not clobber a choice the member has already made.
+      .then(d => { if (on && ageWriteRef.current === 0 && d && typeof d.agePublic === "boolean") setAgePublic(d.agePublic); })
       .catch(() => {});
     return () => { on = false; };
   }, []);
@@ -265,6 +273,8 @@ function ClientMeSettings() {
     if (agePublic == null) { showToast("Couldn't load this setting — refresh and try again."); return; }
     const prev = agePublic;
     const next = !prev;
+    const token = ageWriteRef.current + 1;
+    ageWriteRef.current = token;
     setAgePublic(next);                       // optimistic
     try {
       const res = await fetch("/api/me/age-public", {
@@ -275,6 +285,7 @@ function ClientMeSettings() {
         body: JSON.stringify({ agePublic: next }),
       });
       const d = await res.json().catch(() => null);
+      if (token !== ageWriteRef.current) return;   // a newer tap already owns the row
       // The route re-reads the row and returns what is ACTUALLY stored; trust
       // that over what we asked for.
       if (res.ok && d && typeof d.agePublic === "boolean") {
@@ -285,6 +296,7 @@ function ClientMeSettings() {
       setAgePublic(prev);
       showToast((d && d.error) || "Could not save that — try again.");
     } catch (e) {
+      if (token !== ageWriteRef.current) return;
       setAgePublic(prev);
       showToast("Could not save that — try again.");
     }
