@@ -42,8 +42,10 @@
 -- `authenticated` inherits PUBLIC, which is exactly the door this file exists to shut.
 -- Run statement-by-statement (psql -f, autocommit) that window is real. Wrapping the file
 -- in one transaction makes the function's first visible state the locked-down one.
--- The convention is the repo's own: 2026-08-02-rpc-grant-lockdown.sql does the same for
--- the same reason.
+-- Wrapping a grant-lockdown migration is the repo's own convention — see
+-- 2026-08-02-rpc-grant-lockdown.sql. (Its transaction covers a revoke/grant SET; the
+-- create-window above is specific to a brand-new signature, so the reason here is
+-- narrower than that file's, not identical to it.)
 begin;
 
 create or replace function public.member_dobs_for_viewer(viewer uuid, targets uuid[])
