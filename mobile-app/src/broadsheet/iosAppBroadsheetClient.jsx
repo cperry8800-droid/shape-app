@@ -27693,7 +27693,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const edited = editedRef.current;
       const patch = { ...s, dailyCheckin: dcOn ? 'On' : 'Off' };
       // ⚠ THE AGE TOGGLE IS NEVER TAKEN FROM THIS DOC. profiles.age_public is the
-      // store member_dob_for_viewer reads, and its own effect seeds the row. Today
+      // store member_dobs_for_viewer reads, and its own effect seeds the row. Today
       // the key cannot be here (persistPrefs is never called for it), so this delete
       // is a no-op — it exists so that stays true: if a whole-doc save ever smuggled
       // a stale copy in, this hydrate would otherwise overwrite the member's real
@@ -27760,12 +27760,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // had turned it ON, and their next tap would write that wrong value back. A null
   // read means "could not tell" (a failed read, or signed out), so the row is left
   // exactly as it is rather than being asserted either way.
+  const ageConfirmedRef = React.useRef(null);   // last value the SERVER confirmed
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const on = await window.ShapeAgeVisibility?.get?.();
         if (cancelled || on === null || on === undefined) return;
+        ageConfirmedRef.current = on ? 'On' : 'Off';
         setPrefs(p => (p.agePublic === (on ? 'On' : 'Off') ? p : { ...p, agePublic: on ? 'On' : 'Off' }));
       } catch (e) { /* leave the row untouched */ }
     })();
@@ -27793,6 +27795,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const prefsRef = React.useRef(prefs);
   React.useEffect(() => { prefsRef.current = prefs; }, [prefs]);
   const ageWriteRef = React.useRef(0);
+  // ⚠ ROLL BACK TO WHAT THE SERVER LAST CONFIRMED, NOT TO `prev`. `prev` is read
+  // from prefsRef at tap time, so after a second tap it holds the FIRST tap's
+  // OPTIMISTIC value. If both writes then fail, rolling back to it asserts a value
+  // the server never stored — and it can assert 'On' for a member who is 'Off'.
   const persistAgePublic = React.useCallback(async (nextLabel) => {
     const prev = prefsRef.current.agePublic;
     if (prev === nextLabel) return;
@@ -27803,11 +27809,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     if (typeof write === 'function') {
       try {
         await write(nextLabel === 'On');
+        ageConfirmedRef.current = nextLabel;              // the server took it
         return;                                          // stored — the flip stands
       } catch (e) { /* fall through to the rollback */ }
     }
     if (token !== ageWriteRef.current) return;           // a newer choice already won
-    setPrefs((p) => ({ ...p, agePublic: prev }));
+    const back = ageConfirmedRef.current == null ? prev : ageConfirmedRef.current;
+    setPrefs((p) => ({ ...p, agePublic: back }));
     window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
   }, [tr]);
 

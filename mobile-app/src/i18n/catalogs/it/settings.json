@@ -62,7 +62,7 @@
   "privacy.shareWorkout": "Condividi i dati di allenamento",
   "privacy.shareWorkoutDesc": "Quando è attivo, i tuoi allenamenti, i record e l'attività possono comparire sul tuo profilo e nel feed della community. Disattivo mantiene il tuo allenamento visibile solo a te e ai tuoi coach collegati.",
   "privacy.agePublic": "Mostra la mia età sul profilo",
-  "privacy.agePublicDesc": "Disattivato per impostazione predefinita. Se attivo, la tua età — mai la data di nascita — compare sul tuo profilo. I tuoi coach vedono sempre l'età dei clienti che seguono, perché cambia il modo in cui programmano per te.",
+  "privacy.agePublicDesc": "Disattivato per impostazione predefinita. Quando è attivo, la tua età — mai la data di nascita — compare sul tuo profilo. I tuoi coach vedono sempre l'età dei clienti che seguono, perché cambia il modo in cui programmano per te.",
   "about.aboutShape": "Informazioni su Shape",
   "about.aboutShapeMeta": "La nostra storia",
   "about.pricing": "Prezzi",

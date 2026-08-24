@@ -91,3 +91,8 @@ grant execute on function public.member_dobs_for_viewer(uuid, uuid[]) to service
 -- (/api/members/ages now passes the viewer explicitly) and must not survive as a
 -- second door with a weaker grant.
 drop function if exists public.member_dobs_for_viewer(uuid[]);
+
+-- ⚠ AND THE SCALAR DOOR FROM 2026-08-22-age-visibility.sql, WHICH RETURNED A
+-- `date` TO `authenticated`. The create is removed from that file so no replay can
+-- reintroduce it; this drop cleans any environment provisioned before that change.
+drop function if exists public.member_dob_for_viewer(uuid);

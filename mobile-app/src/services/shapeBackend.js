@@ -7103,7 +7103,7 @@ window.ShapeReconcile = { get: reconcileGet, set: reconcileSet };
 // The member's opt-in to showing their AGE (never their birthdate) publicly.
 //
 // ⚠ THE COLUMN IS THE ONLY STORE, DELIBERATELY. This does NOT mirror into
-// `client_settings` the way the other preference rows do: `member_dob_for_viewer`
+// `client_settings` the way the other preference rows do: `member_dobs_for_viewer`
 // reads `profiles.age_public`, so a second copy would be a second answer to a
 // disclosure question — and the copy the RPC does not read is the one that would
 // silently go stale. Settings renders from this read and writes straight back.
@@ -7199,8 +7199,22 @@ async function memberAgesChunk(ids) {
   return out;
 }
 
+// The id shape /api/members/ages accepts. Kept here so a malformed value is
+// rejected before it can cost its whole chunk.
+const MEMBER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function memberAges(userIds) {
-  const ids = [...new Set((Array.isArray(userIds) ? userIds : [userIds]).filter(Boolean))];
+  // ⚠ VALIDATE EACH ID, NOT JUST ITS TRUTHINESS. The route REFUSES a batch that
+  // contains a malformed id rather than dropping it — correct there, because it
+  // cannot tell a typo from an attack — so one bad value 400s its entire chunk and
+  // costs up to 499 VALID members their ages, rendering every one of them as
+  // "keeps their age private". Dropping it here hides nothing real: a non-UUID
+  // cannot name a member, so there is no age behind it to lose. `filter(Boolean)`
+  // kept every truthy malformed value, which is how the chunk was being lost.
+  const ids = [...new Set(
+    (Array.isArray(userIds) ? userIds : [userIds])
+      .filter((v) => typeof v === 'string' && MEMBER_ID_RE.test(v))
+  )];
   if (!ids.length || !state.session?.access_token) return {};
   try {
     const chunks = [];

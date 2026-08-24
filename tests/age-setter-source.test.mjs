@@ -1,4 +1,8 @@
-// The MOBILE age setter must check the UPDATE RESULT, not merely the error.
+// The MOBILE age paths in shapeBackend.js, guarded at the source.
+//
+// Two invariants live here: the setter must check the UPDATE RESULT rather than
+// merely the error, and the batch reader must VALIDATE each id rather than merely
+// its truthiness.
 //
 // ⚠ THE DEFECT THIS PINS. `supabase.from('profiles').update(...).eq('id', uid)`
 // resolves `{ error: null }` when it matched ZERO rows — PostgREST does not call
@@ -27,6 +31,15 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = 'mobile-app/src/services/shapeBackend.js';
+
+function slice(fnStart, endMarker) {
+  const src = readFileSync(join(ROOT, SRC), 'utf8');
+  const start = src.indexOf(fnStart);
+  assert.ok(start > 0, `${SRC} must still define ${fnStart}`);
+  const end = src.indexOf(endMarker, start);
+  assert.ok(end > start, `the ${fnStart} slice must terminate`);
+  return src.slice(start, end);
+}
 
 function setterSource() {
   const src = readFileSync(join(ROOT, SRC), 'utf8');
@@ -70,4 +83,41 @@ test('the error-only write shape is absent', () => {
     !/const \{ error \} = await supabase/.test(fn),
     'an error-only destructure cannot distinguish a zero-row update from a saved one'
   );
+});
+
+// ⚠ ONE MALFORMED ID MUST NOT COST ITS WHOLE CHUNK. /api/members/ages REFUSES a
+// batch containing a malformed id rather than dropping it — correct there, since
+// it cannot tell a typo from an attack — so a single bad value 400s its chunk and
+// costs up to 499 VALID members their ages, every one of them rendering as "keeps
+// their age private". `filter(Boolean)` kept every truthy malformed value, which
+// is exactly how the chunk was lost.
+test('memberAges validates each id, not just its truthiness', () => {
+  const fn = slice('async function memberAges(', 'window.ShapeMemberAges');
+  assert.ok(
+    !/\.filter\(Boolean\)/.test(fn),
+    'filter(Boolean) keeps malformed truthy ids — the shape that lost the chunk'
+  );
+  assert.match(
+    fn, /MEMBER_ID_RE\.test\(/,
+    'each id must be matched against the route\u2019s accepted id shape'
+  );
+  assert.match(
+    fn, /typeof v === 'string'/,
+    'a non-string must be rejected before the regex sees it'
+  );
+});
+
+// The pattern itself has to be the route's, or the filter passes ids the route
+// will refuse — reintroducing the defect through a laxer local copy.
+test('the mobile id pattern matches the route\u2019s UUID shape', () => {
+  const src = readFileSync(join(ROOT, SRC), 'utf8');
+  // Rebuilt with `new RegExp` from the captured BODY rather than eval'd: this
+  // reads a source file, and a pattern string cannot execute code.
+  const m = /const MEMBER_ID_RE = \/\^(.*?)\$\/i;/.exec(src);
+  assert.ok(m, 'MEMBER_ID_RE must be declared as a literal regex');
+  const re = new RegExp('^' + m[1] + '$', 'i');
+  assert.ok(re.test('11111111-1111-4111-8111-111111111111'), 'a real uuid must pass');
+  for (const bad of ['', 'nope', '1111', '11111111-1111-4111-8111', 42, '11111111_1111_4111_8111_111111111111']) {
+    assert.ok(!re.test(String(bad)), `${JSON.stringify(bad)} must not pass`);
+  }
 });

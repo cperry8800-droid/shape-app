@@ -62,7 +62,7 @@
   "privacy.shareWorkout": "Partager les données d'entraînement",
   "privacy.shareWorkoutDesc": "Quand activé, vos entraînements, records et activités peuvent apparaître sur votre profil et dans le fil de la communauté. Désactivé, votre entraînement reste visible uniquement par vous et vos coachs liés.",
   "privacy.agePublic": "Afficher mon âge sur mon profil",
-  "privacy.agePublicDesc": "Désactivé par défaut. Une fois activé, votre âge — jamais votre date de naissance — s'affiche sur votre profil. Vos coachs voient toujours l'âge de leurs clients, car cela change la façon dont ils programment pour vous.",
+  "privacy.agePublicDesc": "Désactivé par défaut. Quand activé, votre âge — jamais votre date de naissance — s'affiche sur votre profil. Vos coachs voient toujours l'âge de leurs clients, car cela change la façon dont ils programment pour vous.",
   "about.aboutShape": "À propos de Shape",
   "about.aboutShapeMeta": "Notre histoire",
   "about.pricing": "Tarifs",

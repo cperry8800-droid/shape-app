@@ -3,9 +3,8 @@
 --
 -- ⚠ THE BIRTHDATE IS THE PII; THE AGE IS THE SAFE, DERIVED FORM. The whole point
 -- of this migration is that no caller ever receives a date they are not already
--- entitled to. `member_dob_for_viewer()` is the ONLY new read path, it runs as
--- the CALLER rather than with a service key, and the API route above it reduces
--- what it returns to an integer before anything reaches a browser.
+-- entitled to. The read path lives in 2026-08-22-age-visibility-server-only.sql;
+-- this file adds only the opt-in COLUMN. See the note at the foot of this file.
 --
 -- ⚠ WHY A COLUMN AND NOT A KEY IN client_profiles.data. The existing preference
 -- blob would have worked for a display toggle, but this flag GATES DISCLOSURE of
@@ -29,55 +28,35 @@ alter table public.profiles
 comment on column public.profiles.age_public is
   'Member opt-in to showing their AGE (never their birthdate) on their public profile. '
   'Default false: absence of a choice is not consent. Coaches see their own clients'' age '
-  'regardless of this flag, which is why member_dob_for_viewer() checks the coach '
+  'regardless of this flag, which is why member_dobs_for_viewer() checks the coach '
   'relationship separately rather than folding it into this column.';
 
--- ── The one read path ────────────────────────────────────────────────────────
--- SECURITY DEFINER so it can see rows the CALLER's RLS hides, and it therefore
--- has to do the whole authorization check itself. Three ways to be entitled:
+-- ── The read path is NOT here, deliberately ──────────────────────────
 --
---   1. It is your own row.
---   2. You are the member's coach, through the same active/trialing subscription
---      that `providers_read_subscriber_profiles_base` already uses. ⚠ THAT POLICY
---      ALREADY GIVES COACHES THE RAW DATE for those clients, so this branch grants
---      nothing new — it exists so the route has ONE door to ask rather than two
---      code paths that could drift apart.
---   3. The member opted in.
+-- ⚠ THIS FILE ORIGINALLY CREATED `member_dob_for_viewer(uuid)` — A FUNCTION
+-- RETURNING `date` — AND GRANTED EXECUTE ON IT TO `authenticated`. PostgREST
+-- exposes every function in `public`, so that grant made raw `date_of_birth`
+-- readable from any signed-in browser console, defeating the reduction to an
+-- integer that this feature exists to perform. It was superseded the same day by
+-- the batch door and dropped.
 --
--- ⚠ NULL IS THE REFUSAL, AND IT IS INDISTINGUISHABLE FROM "no date on file".
--- Deliberate: a caller must not be able to tell "this member hid their age" from
--- "this member has not supplied one", because the first is itself a disclosure.
-create or replace function public.member_dob_for_viewer(target uuid)
-returns date
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select p.date_of_birth
-  from public.profiles p
-  where p.id = target
-    and auth.uid() is not null              -- never answer an anonymous caller
-    and (
-      p.id = auth.uid()
-      or p.age_public = true
-      or exists (
-        select 1
-        from public.subscriptions s
-        left join public.trainers      t on t.id = s.provider_id and s.provider_role = 'trainer'
-        left join public.nutritionists n on n.id = s.provider_id and s.provider_role = 'nutritionist'
-        where s.client_id = p.id
-          and s.status = any (array['active','trialing'])
-          and (t.owner_id = auth.uid() or n.owner_id = auth.uid())
-      )
-    );
-$$;
-
--- ⚠ REVOKE FROM public AND anon EXPLICITLY. Supabase grants EXECUTE to `public`
--- on a new function by default, and `anon` inherits it — the exact gap this repo
--- has already had to close twice on RPCs. The auth.uid() guard inside would refuse
--- an anonymous caller anyway, but a defence that depends on one clause is not a
--- defence; take the grant away as well.
-revoke all on function public.member_dob_for_viewer(uuid) from public;
-revoke all on function public.member_dob_for_viewer(uuid) from anon;
-grant execute on function public.member_dob_for_viewer(uuid) to authenticated;
+-- ⚠ IT IS REMOVED HERE RATHER THAN LEFT FOR A LATER FILE TO DROP, BECAUSE
+-- FILENAME ORDER DOES NOT MATCH THE ORDER THESE WERE APPLIED. `-` (0x2D) sorts
+-- before `.` (0x2E), so a replay by filename runs:
+--
+--     2026-08-22-age-visibility-batch.sql
+--     2026-08-22-age-visibility-server-only.sql
+--     2026-08-22-age-visibility.sql        <- this file, LAST
+--
+-- The drop in -batch.sql therefore ran BEFORE the create, and any environment
+-- rebuilt from these files would have ended with the grant restored and nothing
+-- left to revoke it. Production is unaffected — the applied order was correct —
+-- but a replay was one `psql -f` away from re-opening it.
+--
+-- Encoding the order in the filenames would have fixed only a replay that honours
+-- names. Removing the function makes the outcome ORDER-INDEPENDENT: no sequence of
+-- these three files can produce a browser-callable date door.
+--
+-- The surviving door is `member_dobs_for_viewer(viewer uuid, targets uuid[])` in
+-- 2026-08-22-age-visibility-server-only.sql, granted to `service_role` alone and
+-- reached only through /api/members/ages, which returns integers.

@@ -293,7 +293,11 @@ test('the viewer is the SESSION user, never anything the caller supplied', async
   }));
   await res.json();
 
-  const { args } = client._calls.rpcs[0];
+  const { name, args } = client._calls.rpcs[0];
+  // ⚠ THE NAME IS A CROSS-FILE CONTRACT. -server-only.sql drops the one-argument
+  // overload, so a rename or a revert to the old signature breaks against the live
+  // database while every argument assertion here stays green.
+  assert.equal(name, 'member_dobs_for_viewer', 'the RPC name must match the migration');
   assert.equal(args.viewer, UID, 'the viewer must be the authenticated session user');
   assert.notEqual(args.viewer, OTHER, 'a body-supplied viewer must never be honoured');
   assert.deepEqual(args.targets, [OTHER], 'targets still come from the caller — the RPC filters them');

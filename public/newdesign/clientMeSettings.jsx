@@ -249,6 +249,12 @@ function ClientMeSettings() {
   // state. The mobile toggle has carried this guard since the last round; this is
   // its web twin, which did not.
   const ageWriteRef = React.useRef(0);
+  // ⚠ AND ROLL BACK TO WHAT THE SERVER LAST CONFIRMED, NOT TO `prev`. `prev` is
+  // read at tap time, so after a second tap it holds the FIRST tap's optimistic
+  // value. If both writes then fail, rolling back to it asserts a value the server
+  // never stored — and it can assert "public" for a member who is not. This ref
+  // only ever holds a value the server actually returned.
+  const ageConfirmedRef = React.useRef(null);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
 
@@ -262,7 +268,10 @@ function ClientMeSettings() {
     fetch("/api/me/age-public", { credentials: "same-origin", cache: "no-store" })
       .then(r => (r.ok ? r.json() : null))
       // A slow hydrate must not clobber a choice the member has already made.
-      .then(d => { if (on && ageWriteRef.current === 0 && d && typeof d.agePublic === "boolean") setAgePublic(d.agePublic); })
+      .then(d => {
+        if (!on || ageWriteRef.current !== 0) return;
+        if (d && typeof d.agePublic === "boolean") { ageConfirmedRef.current = d.agePublic; setAgePublic(d.agePublic); }
+      })
       .catch(() => {});
     return () => { on = false; };
   }, []);
@@ -289,15 +298,16 @@ function ClientMeSettings() {
       // The route re-reads the row and returns what is ACTUALLY stored; trust
       // that over what we asked for.
       if (res.ok && d && typeof d.agePublic === "boolean") {
+        ageConfirmedRef.current = d.agePublic;
         setAgePublic(d.agePublic);
         showToast("Saved.");
         return;
       }
-      setAgePublic(prev);
+      setAgePublic(ageConfirmedRef.current === null ? prev : ageConfirmedRef.current);
       showToast((d && d.error) || "Could not save that — try again.");
     } catch (e) {
       if (token !== ageWriteRef.current) return;
-      setAgePublic(prev);
+      setAgePublic(ageConfirmedRef.current === null ? prev : ageConfirmedRef.current);
       showToast("Could not save that — try again.");
     }
   }
