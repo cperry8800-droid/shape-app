@@ -27767,6 +27767,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // exactly as it is rather than being asserted either way.
   const ageConfirmedRef = React.useRef(null);   // last value the SERVER confirmed
   const ageWriteRef = React.useRef(0);          // generation of the newest write
+  // Declared HERE, above every age path, so each one can update it synchronously.
+  const prefsRef = React.useRef(prefs);
+  React.useEffect(() => { prefsRef.current = prefs; }, [prefs]);
+  // ⚠ prefsRef IS THE INPUT TO THE NEXT TAP, so it has to move WITH the row rather than
+  // a render behind it. `cyclePref` reads `prefsRef.current.agePublic` to decide the next
+  // value, and `persistAgePublic` reads it as `prev`; the sync effect above only lands
+  // after a committed render. Both failures inside that window keep a member PUBLIC:
+  //   • two taps from Off both compute indexOf('Off') → 'On', so the row can never be
+  //     tapped back off; and
+  //   • an explicit setPref('agePublic','Off') compares a stale prev 'Off' to 'Off',
+  //     hits the equality guard, and returns having written NOTHING — the member
+  //     selects Off and stays visible, with no error and no toast.
+  // So every agePublic transition goes through this one setter.
+  const setAgePublicPref = React.useCallback((label) => {
+    prefsRef.current = { ...prefsRef.current, agePublic: label };
+    setPrefs((p) => (p.agePublic === label ? p : { ...p, agePublic: label }));
+  }, []);
   React.useEffect(() => {
     let cancelled = false;
     // ⚠ A READ THAT STARTED BEFORE A WRITE MUST NOT LAND AFTER IT. This hydrate can read
@@ -27782,7 +27799,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         if (cancelled || ageWriteRef.current !== gen) return;
         if (on === null || on === undefined) return;
         ageConfirmedRef.current = on ? 'On' : 'Off';
-        setPrefs(p => (p.agePublic === (on ? 'On' : 'Off') ? p : { ...p, agePublic: on ? 'On' : 'Off' }));
+        setAgePublicPref(on ? 'On' : 'Off');
       } catch (e) { /* leave the row untouched */ }
     })();
     return () => { cancelled = true; };
@@ -27806,8 +27823,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   //
   // Persistence deliberately does NOT run inside a setPrefs updater — an updater can
   // be invoked more than once for a render, which would fire the write twice.
-  const prefsRef = React.useRef(prefs);
-  React.useEffect(() => { prefsRef.current = prefs; }, [prefs]);
+  // (prefsRef + its sync effect are declared above, with setAgePublicPref.)
   // ⚠ ROLL BACK TO WHAT THE SERVER LAST CONFIRMED, NOT TO `prev`. `prev` is read
   // from prefsRef at tap time, so after a second tap it holds the FIRST tap's
   // OPTIMISTIC value. If both writes then fail, rolling back to it asserts a value
@@ -27817,7 +27833,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     if (prev === nextLabel) return;
     const token = ageWriteRef.current + 1;
     ageWriteRef.current = token;
-    setPrefs((p) => ({ ...p, agePublic: nextLabel }));   // optimistic
+    setAgePublicPref(nextLabel);                         // optimistic
     const write = window.ShapeAgeVisibility?.set;
     if (typeof write === 'function') {
       try {
@@ -27844,7 +27860,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const back = settled !== null
       ? settled
       : (ageConfirmedRef.current == null ? prev : ageConfirmedRef.current);
-    setPrefs((p) => ({ ...p, agePublic: back }));
+    setAgePublicPref(back);
     if (settled === nextLabel) return;                   // it landed after all
     window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
   }, [tr]);

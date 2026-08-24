@@ -527,3 +527,51 @@ test('a suppressed check-in lead falls through to the next move', () => {
   assert.match(block.slice(0, 2000), /if \(selWorkout && selWorkout\.title\) todo\.push\(/,
     'the next lead must be pushed by its OWN condition, independent of the engine move');
 });
+
+// ── agePublic moves prefsRef SYNCHRONOUSLY (CodeRabbit, #1929 round 5) ──────
+// ⚠ prefsRef is synced by a PASSIVE effect, which runs after paint — so it lags a
+// committed render even though React flushes state synchronously for discrete
+// events. agePublic is the ONE pref that reads prefsRef as its input instead of a
+// setPrefs updater's live `p`: cyclePref picks the next value from
+// prefsRef.current.agePublic, and persistAgePublic reads it as `prev`. Inside that
+// lag BOTH failures keep a member PUBLIC — two taps from Off each compute 'On' so
+// the row cannot be tapped back off, and an explicit setPref('agePublic','Off')
+// compares a stale 'Off' to 'Off', hits the equality guard, and writes NOTHING with
+// no error and no toast.
+//
+// So every agePublic transition must go through setAgePublicPref, which updates the
+// ref and the state together. Source-level because BSSettings is too heavy to mount
+// (same reason as the guards above). Mutation-checked: restoring any direct
+// `setPrefs(... agePublic ...)` call fails the first assertion, and deleting the
+// ref write inside the setter fails the second.
+test('every agePublic transition updates prefsRef synchronously', () => {
+  const src = readFileSync(SRC, 'utf8');
+  const settings = src.slice(src.indexOf('function BSSettings('));
+  assert.ok(settings.length > 0, 'BSSettings is in the source');
+
+  // The setter exists and writes BOTH the ref and the state.
+  assert.match(
+    settings,
+    /const setAgePublicPref = React\.useCallback\(\(label\) => \{\s*prefsRef\.current = \{ \.\.\.prefsRef\.current, agePublic: label \};/,
+    'setAgePublicPref updates prefsRef before setPrefs — the ref is the next tap\u2019s input',
+  );
+
+  // Nothing else may move agePublic. A direct setPrefs leaves prefsRef a render behind.
+  const direct = settings.match(/setPrefs\([^)]*agePublic/g) || [];
+  assert.deepEqual(
+    direct.filter((m) => !/p\.agePublic === label/.test(m)),
+    [],
+    'agePublic is set ONLY through setAgePublicPref (a direct setPrefs strands prefsRef)',
+  );
+
+  // All three transitions route through it: hydrate, optimistic, rollback.
+  // (The declaration reads `setAgePublicPref = React.useCallback(`, so it is NOT a
+  // `setAgePublicPref(` match — this counts call sites only. Getting that wrong is
+  // how a guard passes for the wrong reason; it failed loudly first.)
+  const routed = settings.match(/setAgePublicPref\(/g) || [];
+  assert.equal(
+    routed.length,
+    3,
+    `expected exactly three call sites (hydrate, optimistic, rollback); found ${routed.length}`,
+  );
+});

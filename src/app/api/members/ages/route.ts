@@ -108,6 +108,31 @@ export async function POST(request: Request) {
   // ⚠ `viewer: user.id` COMES FROM THE VERIFIED SESSION ABOVE, NEVER THE BODY.
   // That single argument is what the SQL rule keys every branch on, so it is the
   // one value in this file a mistake could actually widen.
+  //
+  // ⚠ THE ADMIN CLIENT IS DELIBERATE HERE, AND THE CALLER'S RLS CLIENT CANNOT REPLACE
+  // IT. This is the one documented exception to "RLS stays authoritative at the
+  // endpoint", so read this before changing it:
+  //   • member_dobs_for_viewer is granted to service_role ALONE. That grant IS the
+  //     security fix of this wave — PostgREST exposes every function in `public`, so
+  //     granting it to `authenticated` would let any signed-in member call
+  //     /rest/v1/rpc/member_dobs_for_viewer from a browser console and read raw
+  //     date_of_birth values, bypassing the reduction below. Swapping in an
+  //     RLS-scoped client does not narrow this route; it 500s it, and the only way to
+  //     make that call succeed is to re-open the door.
+  //   • Authorization is not skipped, it MOVED. The RPC is SECURITY DEFINER and does
+  //     the whole entitlement check itself — self, an active coach link, or an
+  //     explicit age_public opt-in — keyed on `viewer`, which the caller cannot set.
+  //     `tests/age-route-behaviour.test.mjs` drives the real handler with a hostile
+  //     body and asserts the RPC still receives the SESSION id, and that it lands on
+  //     the admin client rather than the session one. Mutation-checked.
+  //   • No date leaves the server: the reduction to an integer happens below.
+  // The alternative — compute the age in SQL and grant the function to
+  // `authenticated` — was considered and REJECTED, and the reasons are unchanged:
+  // CI has no database, so SQL cannot be behaviourally tested here, and it would add
+  // a THIRD implementation of the age derivation (both console routes already carry
+  // local copies). The failure mode of a second implementation is anniversary
+  // arithmetic — Feb 29 clamps in Postgres and rolls in JS — which is exactly the
+  // kind of drift that ships silently. ageFromDob() stays the single derivation.
   let admin;
   try {
     admin = createAdminClient();
