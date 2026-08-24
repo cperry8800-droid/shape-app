@@ -36,6 +36,16 @@
 -- the viewer at all, so a NULL viewer would still return every opted-in member's
 -- date. Absence must refuse, not fall through to the one branch that ignores it.
 
+-- ⚠ THE CREATE AND THE REVOKES MUST NOT BE SEPARATELY COMMITTED. Postgres grants EXECUTE
+-- to PUBLIC by default on a brand-new function signature, so between the `create` below
+-- and the `revoke`s further down this function is briefly callable by everyone —
+-- `authenticated` inherits PUBLIC, which is exactly the door this file exists to shut.
+-- Run statement-by-statement (psql -f, autocommit) that window is real. Wrapping the file
+-- in one transaction makes the function's first visible state the locked-down one.
+-- The convention is the repo's own: 2026-08-02-rpc-grant-lockdown.sql does the same for
+-- the same reason.
+begin;
+
 create or replace function public.member_dobs_for_viewer(viewer uuid, targets uuid[])
 returns table (member_id uuid, dob date)
 language plpgsql
@@ -96,3 +106,5 @@ drop function if exists public.member_dobs_for_viewer(uuid[]);
 -- `date` TO `authenticated`. The create is removed from that file so no replay can
 -- reintroduce it; this drop cleans any environment provisioned before that change.
 drop function if exists public.member_dob_for_viewer(uuid);
+
+commit;

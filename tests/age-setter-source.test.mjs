@@ -41,6 +41,23 @@ function slice(fnStart, endMarker) {
   return src.slice(start, end);
 }
 
+// ⚠ FIXTURES ALONE CANNOT SEE DRIFT. The first version of the parity test below ran a
+// handful of values through MEMBER_ID_RE and passed whenever that pattern was
+// self-consistent — INCLUDING when the ROUTE's pattern had moved away from it. Both
+// directions of that drift are real defects: a client filter LOOSER than the route
+// forwards ids the route 400s, losing the whole chunk this filter exists to protect;
+// a TIGHTER one silently drops members who are real. So the two patterns are compared
+// to EACH OTHER, and the corpus runs through the agreed result, not one side of it.
+const ROUTE = 'src/app/api/members/ages/route.ts';
+
+function patternOf(file, decl) {
+  const src = readFileSync(join(ROOT, file), 'utf8');
+  const m = new RegExp('const ' + decl + ' = /\\^(.*?)\\$/i;').exec(src);
+  assert.ok(m, file + ' must still declare ' + decl + ' as a literal /^...$/i regex — '
+    + 'this guard cannot read any other form, so it refuses rather than report clean');
+  return m[1];
+}
+
 function setterSource() {
   const src = readFileSync(join(ROOT, SRC), 'utf8');
   const start = src.indexOf('async function setAgePublic(');
@@ -110,12 +127,15 @@ test('memberAges validates each id, not just its truthiness', () => {
 // The pattern itself has to be the route's, or the filter passes ids the route
 // will refuse — reintroducing the defect through a laxer local copy.
 test('the mobile id pattern matches the route\u2019s UUID shape', () => {
-  const src = readFileSync(join(ROOT, SRC), 'utf8');
+  const mobile = patternOf(SRC, 'MEMBER_ID_RE');
+  const route = patternOf(ROUTE, 'UUID');
+  assert.equal(mobile, route,
+    'MEMBER_ID_RE and the route’s UUID must be the same pattern — a looser '
+    + 'client filter forwards ids the route refuses, and a tighter one drops real members');
+
   // Rebuilt with `new RegExp` from the captured BODY rather than eval'd: this
   // reads a source file, and a pattern string cannot execute code.
-  const m = /const MEMBER_ID_RE = \/\^(.*?)\$\/i;/.exec(src);
-  assert.ok(m, 'MEMBER_ID_RE must be declared as a literal regex');
-  const re = new RegExp('^' + m[1] + '$', 'i');
+  const re = new RegExp('^' + mobile + '$', 'i');
   assert.ok(re.test('11111111-1111-4111-8111-111111111111'), 'a real uuid must pass');
   for (const bad of ['', 'nope', '1111', '11111111-1111-4111-8111', 42, '11111111_1111_4111_8111_111111111111']) {
     assert.ok(!re.test(String(bad)), `${JSON.stringify(bad)} must not pass`);

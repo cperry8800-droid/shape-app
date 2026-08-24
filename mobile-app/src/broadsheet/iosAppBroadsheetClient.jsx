@@ -11352,22 +11352,27 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 //
 // A per-mount request, cleared on unmount and on a change of subject so a slow
 // response for member A can never render as member B's age.
+//
+// ⚠ THE ANSWER CARRIES THE MEMBER IT IS ABOUT, AND THE RENDER FILTERS ON IT. Resetting
+// inside the effect is too late: an effect runs AFTER the render that changed `userId`
+// has already committed, so a profile switched from A to B paints one frame with B's
+// name beside A's age — a number B may have chosen not to publish. Pairing the age with
+// its subject makes that frame impossible rather than brief, and costs no extra render.
 function useBSMemberAge(userId) {
-  const [age, setAge] = React.useState(null);
+  const [entry, setEntry] = React.useState({ uid: null, age: null });
   React.useEffect(() => {
-    setAge(null);              // reset FIRST — B must never briefly show A's age
     if (!userId) return undefined;
     let alive = true;
     (async () => {
       try {
         const map = await window.ShapeMemberAges?.get?.([userId]);
         const n = map && map[userId];
-        if (alive && typeof n === 'number') setAge(n);
+        if (alive && typeof n === 'number') setEntry({ uid: userId, age: n });
       } catch (e) { /* honestly absent */ }
     })();
     return () => { alive = false; };
   }, [userId]);
-  return age;
+  return entry.uid === userId ? entry.age : null;
 }
 
 function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
@@ -27761,12 +27766,21 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // read means "could not tell" (a failed read, or signed out), so the row is left
   // exactly as it is rather than being asserted either way.
   const ageConfirmedRef = React.useRef(null);   // last value the SERVER confirmed
+  const ageWriteRef = React.useRef(0);          // generation of the newest write
   React.useEffect(() => {
     let cancelled = false;
+    // ⚠ A READ THAT STARTED BEFORE A WRITE MUST NOT LAND AFTER IT. This hydrate can read
+    // 'Off', the member can then turn the row ON and have that stored, and only THEN does
+    // this response arrive — writing the stale 'Off' into both the row AND
+    // ageConfirmedRef, so even the rollback value is poisoned. The member is then told
+    // their age is private while the server has it public, which is this row's one
+    // unacceptable direction. `cancelled` cannot see it: nothing unmounted.
+    const gen = ageWriteRef.current;
     (async () => {
       try {
         const on = await window.ShapeAgeVisibility?.get?.();
-        if (cancelled || on === null || on === undefined) return;
+        if (cancelled || ageWriteRef.current !== gen) return;
+        if (on === null || on === undefined) return;
         ageConfirmedRef.current = on ? 'On' : 'Off';
         setPrefs(p => (p.agePublic === (on ? 'On' : 'Off') ? p : { ...p, agePublic: on ? 'On' : 'Off' }));
       } catch (e) { /* leave the row untouched */ }
@@ -27794,7 +27808,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // be invoked more than once for a render, which would fire the write twice.
   const prefsRef = React.useRef(prefs);
   React.useEffect(() => { prefsRef.current = prefs; }, [prefs]);
-  const ageWriteRef = React.useRef(0);
   // ⚠ ROLL BACK TO WHAT THE SERVER LAST CONFIRMED, NOT TO `prev`. `prev` is read
   // from prefsRef at tap time, so after a second tap it holds the FIRST tap's
   // OPTIMISTIC value. If both writes then fail, rolling back to it asserts a value
@@ -27814,8 +27827,25 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       } catch (e) { /* fall through to the rollback */ }
     }
     if (token !== ageWriteRef.current) return;           // a newer choice already won
-    const back = ageConfirmedRef.current == null ? prev : ageConfirmedRef.current;
+    // ⚠ A FAILED WRITE DOES NOT MEAN AN UNCHANGED ROW. The request can commit and still
+    // throw on the way back (a connection dropped after the UPDATE landed), so rolling
+    // straight back would assert a value the server may no longer hold — and this row's
+    // wrong direction is telling a member their age is private while it is public. Ask
+    // the server what it actually stores before deciding. The web twin shows an explicit
+    // UNKNOWN here instead; this segmented row can only render 'On' or 'Off', so it
+    // RESOLVES the doubt rather than displaying it.
+    let settled = null;
+    try {
+      const now = await window.ShapeAgeVisibility?.get?.();
+      if (now === true || now === false) settled = now ? 'On' : 'Off';
+    } catch (e) { /* still unknown */ }
+    if (token !== ageWriteRef.current) return;
+    if (settled !== null) ageConfirmedRef.current = settled;
+    const back = settled !== null
+      ? settled
+      : (ageConfirmedRef.current == null ? prev : ageConfirmedRef.current);
     setPrefs((p) => ({ ...p, agePublic: back }));
+    if (settled === nextLabel) return;                   // it landed after all
     window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
   }, [tr]);
 

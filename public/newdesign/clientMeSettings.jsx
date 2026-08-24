@@ -276,6 +276,30 @@ function ClientMeSettings() {
     return () => { on = false; };
   }, []);
 
+  // The write's outcome is unknown — say so, then ask the server.
+  //
+  // ⚠ NOTHING HERE ASSERTS A VALUE THE SERVER DID NOT RETURN. `null` is a state this row
+  // already renders honestly, and toggleAgePublic refuses to guess from it — so an
+  // unknown outcome costs the member one re-read, where a guess could tell them their
+  // age is private while it is public.
+  async function resolveAgePublic(token) {
+    ageConfirmedRef.current = null;
+    setAgePublic(null);
+    try {
+      const r = await fetch("/api/me/age-public", { credentials: "same-origin", cache: "no-store" });
+      const d = await r.json().catch(() => null);
+      if (token !== ageWriteRef.current) return;
+      if (r.ok && d && typeof d.agePublic === "boolean") {
+        ageConfirmedRef.current = d.agePublic;
+        setAgePublic(d.agePublic);
+        showToast(d.agePublic ? "Your age is visible." : "Your age stays private.");
+        return;
+      }
+    } catch (e) { /* still unknown */ }
+    if (token !== ageWriteRef.current) return;
+    showToast("We couldn't confirm that — refresh to check.");
+  }
+
   async function toggleAgePublic() {
     // ⚠ NEVER GUESS FROM "UNKNOWN". `!null` is true, so a blind toggle here would
     // turn a member's age PUBLIC because a read failed. Refuse and say so.
@@ -295,20 +319,27 @@ function ClientMeSettings() {
       });
       const d = await res.json().catch(() => null);
       if (token !== ageWriteRef.current) return;   // a newer tap already owns the row
-      // The route re-reads the row and returns what is ACTUALLY stored; trust
-      // that over what we asked for.
-      if (res.ok && d && typeof d.agePublic === "boolean") {
+      // The route re-reads the row and returns what is ACTUALLY stored; trust that over
+      // what we asked for. ⚠ A NON-2xx CAN CARRY IT TOO — 409 `not_saved` reports the
+      // stored value precisely BECAUSE the write did not take, and that is a confirmed
+      // fact about the row, not a guess.
+      if (d && typeof d.agePublic === "boolean") {
         ageConfirmedRef.current = d.agePublic;
         setAgePublic(d.agePublic);
-        showToast("Saved.");
+        showToast(res.ok ? "Saved." : (d.error || "That didn't save."));
         return;
       }
+      // ⚠ `unconfirmed` MEANS THE WRITE MAY HAVE LANDED. The route returns it when the
+      // UPDATE reported no error but the read-back failed, so the row's state is
+      // genuinely unknown — and rolling back would announce "private" over an age that
+      // is now public.
+      if (d && d.code === "unconfirmed") { await resolveAgePublic(token); return; }
       setAgePublic(ageConfirmedRef.current === null ? prev : ageConfirmedRef.current);
       showToast((d && d.error) || "Could not save that — try again.");
     } catch (e) {
       if (token !== ageWriteRef.current) return;
-      setAgePublic(ageConfirmedRef.current === null ? prev : ageConfirmedRef.current);
-      showToast("Could not save that — try again.");
+      // Same ambiguity: the request can commit and still fail on the way back.
+      await resolveAgePublic(token);
     }
   }
 
