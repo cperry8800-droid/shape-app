@@ -624,8 +624,18 @@ Twilio) are the two **least visible to a source-based review** — one is a cons
 the other a bare hostname default. Remaining gaps likely resemble those two, and only a
 vendor-invoice reconciliation would find them.
 
-### 2026-08-21 — CodeRabbit became the gating reviewer (#1916 → `a81b74d8a`)
+### 2026-08-21 — CodeRabbit became the gating reviewer (#1916 → `a81b74d8a`) — ⚠ SUPERSEDED 2026-08-24
 
+- ⚠ **THIS HEADING IS HISTORY: CodeRabbit was retired three days later** (owner, 2026-08-24:
+  *"no more coderabbit"*), and the gate has been **CI green + not a draft** ever since
+  (#1930 → `eec328a55`). The heading is marked rather than rewritten because a dated entry
+  should keep saying what was true on its date — but a *heading* is what a skim and a grep
+  land on, so it has to carry its own expiry.
+- ⚠ **AND READ THE NEXT BULLET AS THE SHARPEST VERSION OF THE LESSON.** It diagnoses the
+  trap precisely — retiring the named reviewer made `/console` report every PR as
+  not-mergeable regardless of CI — and then, in the very next sentence, **re-enters it with a
+  different name**. Fixing which reviewer is named is not fixing the defect; **naming one at
+  all** is the defect. It cost the same outage a second time, 2026-08-24 to 2026-08-26.
 - **Owner ruling, mid-turn:** *"stop using codex for now, only coderabbit"*. #1914 had made
   `prAllGreen` require a clean **Codex** verdict on the head one day earlier, so with Codex
   retired `/console` would have reported **every** PR as not-mergeable regardless of CI. The
