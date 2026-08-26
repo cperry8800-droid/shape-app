@@ -94,7 +94,8 @@ function env({ uid = null, doc = {} } = {}) {
   globalThis.ShapeAuth = dom.window.ShapeAuth;
   dom.window.shapeDb = {
     getUserGoals: typeof doc === 'function' ? doc : async () => doc,
-    saveUserGoals: async () => ({}),
+    saveUserGoals: async () => ({ ok: true }),
+    getUser: async () => (uid ? { id: uid } : null),
   };
   dom.window.localStorage.clear();
 }
@@ -171,30 +172,113 @@ test('bsOnlineRailApply writes the mirror AND dispatches the live event', () => 
   }
 });
 
-// ⚠ Both arms measured on purpose — a decline test alone could pass because the
-// helper is broken, not because it declined (check-the-check).
+// ⚠ Every arm measured on purpose — a decline test alone could pass because the
+// helper is broken, not because it declined (check-the-check). The lane is
+// async: settle it with a macrotask tick after each call.
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
 test('bsOnlineRailPersist merges onto a REAL doc and declines a null one — never a bare clobber', async () => {
   env({ uid: 'rail-d' });
   const saves = [];
   // Arm 1: a real doc — the save must carry the SIBLINGS plus the new key.
   dom.window.shapeDb = {
     getUserGoals: async () => ({ units: 'Metric · kg / km', dailyCheckin: 'Off' }),
-    saveUserGoals: async (kind, data) => { saves.push([kind, data]); },
+    saveUserGoals: async (kind, data) => { saves.push([kind, data]); return { ok: true }; },
+    getUser: async () => ({ id: 'rail-d' }),
   };
+  // The real call order: hideRail applies (mirror + event) BEFORE persisting —
+  // the success path deliberately only REWRITES an existing record, so a member
+  // who toggled back ON mid-flight is never re-hidden by a landing save.
+  MOD.bsOnlineRailApply(false);
   MOD.bsOnlineRailPersist(false);
-  await new Promise((r) => setTimeout(r, 0));
+  await tick(); await tick();
   assert.equal(saves.length, 1);
   assert.equal(saves[0][0], 'client_settings');
   assert.deepEqual(saves[0][1], { units: 'Metric · kg / km', dailyCheckin: 'Off', onlineRail: 'Off' });
-  // Arm 2: a null read (offline / query error) — DECLINE: no save at all. The
-  // mirror still hides this device; publishing {} would erase every sibling.
+  // …and a successful save leaves a PLAIN (non-pending) mirror record.
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-d'))), { uid: 'rail-d', off: true });
+  // Arm 2: a null read (offline / query error) — DECLINE: no save, and the
+  // choice survives as a PENDING record for the hydrate to re-issue.
+  dom.window.localStorage.clear();
   dom.window.shapeDb = {
     getUserGoals: async () => null,
-    saveUserGoals: async (kind, data) => { saves.push([kind, data]); },
+    saveUserGoals: async (kind, data) => { saves.push([kind, data]); return { ok: true }; },
+    getUser: async () => ({ id: 'rail-d' }),
   };
   MOD.bsOnlineRailPersist(false);
-  await new Promise((r) => setTimeout(r, 0));
+  await tick(); await tick();
   assert.equal(saves.length, 1, 'a null read must never produce a save');
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-d'))), { uid: 'rail-d', off: true, pending: true });
+});
+
+// ⚠ THE P1: saveUserGoals resolves the CURRENT user at save time, so a save
+// issued by account A must be DISCARDED if the account changed while the read
+// was in flight — otherwise B's row receives A's whole settings blob.
+test('an account switch mid-flight discards the save — never writes A’s blob into B’s row', async () => {
+  env({ uid: 'rail-i' });
+  const saves = [];
+  dom.window.shapeDb = {
+    getUserGoals: async () => ({ units: 'Metric · kg / km' }),
+    saveUserGoals: async (kind, data) => { saves.push([kind, data]); return { ok: true }; },
+    // By the time the identity re-check runs, the CURRENT user is someone else.
+    getUser: async () => ({ id: 'rail-OTHER' }),
+  };
+  MOD.bsOnlineRailPersist(false);
+  await tick(); await tick();
+  assert.equal(saves.length, 0, 'a changed identity must discard the write');
+  // The initiator’s choice still survives, pending, under the INITIATOR’s key.
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-i'))), { uid: 'rail-i', off: true, pending: true });
+});
+
+// ⚠ THE LOCAL RACE: two whole-doc writers in flight at once can each land a
+// snapshot that predates the other. The lane serializes them: the second
+// writer’s READ must not start until the first writer’s save resolved.
+test('the serial lane orders local client_settings writers — the second read waits for the first save', async () => {
+  env({ uid: 'rail-j' });
+  const log = [];
+  let releaseFirstSave;
+  const firstSaveGate = new Promise((r) => { releaseFirstSave = r; });
+  let call = 0;
+  dom.window.shapeDb = {
+    getUserGoals: async () => { call += 1; log.push('read' + call); return { seq: call }; },
+    saveUserGoals: async (kind, data) => {
+      log.push('save' + data.seq);
+      if (data.seq === 1) await firstSaveGate; // hold the first save open
+      return { ok: true };
+    },
+    getUser: async () => ({ id: 'rail-j' }),
+  };
+  MOD.bsOnlineRailPersist(false);
+  MOD.bsOnlineRailPersist(false);
+  await tick(); await tick();
+  assert.deepEqual(log, ['read1', 'save1'], 'the second writer must not even READ while the first save is in flight');
+  releaseFirstSave();
+  await tick(); await tick();
+  assert.deepEqual(log, ['read1', 'save1', 'read2', 'save2']);
+});
+
+// ⚠ THE PENDING RETRY: a hide whose cloud write declined must not be converged
+// away by a doc that predates it — the hydrate keeps OFF and RE-ISSUES.
+test('a pending hide survives the hydrate: stays OFF and re-issues the persist', async () => {
+  env({ uid: 'rail-k', doc: {} });
+  const saves = [];
+  dom.window.shapeDb = {
+    getUserGoals: async () => ({}), // a real doc WITHOUT the key
+    saveUserGoals: async (kind, data) => { saves.push(data); return { ok: true }; },
+    getUser: async () => ({ id: 'rail-k' }),
+  };
+  dom.window.localStorage.setItem(lsKey('rail-k'), JSON.stringify({ uid: 'rail-k', off: true, pending: true }));
+  const m = await mount(React.createElement(Probe));
+  try {
+    await React.act(async () => { await tick(); await tick(); });
+    assert.match(m.host.textContent, /RAIL-OFF/, 'a pending hide must not be converged back ON');
+    assert.equal(saves.length, 1, 'the hydrate must re-issue the declined persist');
+    assert.equal(saves[0].onlineRail, 'Off');
+    // The successful re-issue settles the record to plain (non-pending).
+    assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-k'))), { uid: 'rail-k', off: true });
+  } finally {
+    m.unmount();
+  }
 });
 
 test('a Settings toggle (or the inline ×) re-renders a mounted feed live — apply is the whole wire', async () => {
@@ -227,9 +311,11 @@ for (const [label, doc] of [
   });
 }
 
-test('a real doc WITHOUT the key converges a stale OFF mirror back ON — the doc is the truth', async () => {
+test('a real doc WITHOUT the key converges a stale PLAIN OFF mirror back ON — the doc is the truth', async () => {
   env({ uid: 'rail-g', doc: {} });
-  MOD.bsOnlineRailMirrorWrite(false); // stale local OFF (e.g. a declined persist)
+  // PLAIN (non-pending) stale OFF — e.g. the doc was cleared from another
+  // device. Only a PENDING record survives convergence; this one must not.
+  MOD.bsOnlineRailMirrorWrite(false);
   const m = await mount(React.createElement(Probe));
   try {
     assert.match(m.host.textContent, /RAIL-ON/);
@@ -267,4 +353,10 @@ test('the feed consumes the pref, the pane owns the row, both writers apply it',
     'the pane hydrate must converge a mounted feed');
   assert.match(src, /\{loggedIn && \(\s*<button onClick=\{hideRail\}/,
     'the inline × must exist and stay signed-in-only (the demo rail is byte-identical)');
+  // Round-1 review guards (Codex P1/P2 on #1933) — the pane half of each fix
+  // lives outside anything a probe can mount, so it is pinned at the source:
+  assert.match(src, /const railFold = \(!\('onlineRail' in editedRef\.current\) && !bsOnlineRailMirrorRead\(\)\) \? \{ onlineRail: 'Off' \} : null;/,
+    'persistPrefs must fold an unedited inline hide into its saves, or a pre-hide doc snapshot reverts the ×');
+  assert.match(src, /const read = bsSettingsWriteSerial\(\(\) => window\.shapeDb\.getUserGoals\('client_settings'\)\)\.catch\(\(\) => null\);/,
+    'the pane hydrate must read THROUGH the lane — read-your-own-writes after the ×');
 });

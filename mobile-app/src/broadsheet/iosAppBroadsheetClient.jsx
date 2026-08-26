@@ -22193,21 +22193,62 @@ function bsOnlineRailApply(on) {
   try { window.dispatchEvent(new CustomEvent('shape:onlineRailPref', { detail: { on: !!on } })); } catch (e) {}
 }
 function bsOnlineRailLabel() { return bsOnlineRailMirrorRead() ? 'On' : 'Off'; }
+// One-at-a-time lane for THIS CLIENT's client_settings traffic. Every local
+// writer replaces the WHOLE doc (saveUserGoals is a blind upsert), so two
+// in-flight writers can each land a snapshot that predates the other — the
+// inline × racing a Settings edit was Codex P2 on #1933. Reads may join the
+// lane too: a read queued behind a write sees its effect (read-your-own-writes),
+// which is what keeps a Settings pane opened right after the × from hydrating a
+// pre-hide doc. Cross-DEVICE races remain — that is every client_settings
+// writer's pre-existing shape and no client-side lane can order two devices.
+let bsSettingsWriteChain = Promise.resolve();
+function bsSettingsWriteSerial(step) {
+  const run = bsSettingsWriteChain.then(step, step);
+  bsSettingsWriteChain = run.then(() => {}, () => {}); // failures never wedge the lane
+  return run;
+}
 // The rail's inline HIDE × is a cloud writer OUTSIDE the Settings pane, so it
-// follows the pane's persistPrefs rules or the pane's next hydrate undoes it:
-// read-merge-write onto a REAL server document, and DECLINE when one cannot be
-// obtained — the mirror still hides this device, and the pane's next
-// successful save persists the choice. The decline window is narrow in
-// practice: the × only renders on a rail that live presence data is actively
-// feeding. ⚠ Never write { onlineRail } alone — saveUserGoals UPSERTS the
-// whole blob, so a bare write would erase every sibling preference.
+// carries the pane's decline rule itself: read-merge-write onto a REAL server
+// document inside the serial lane, never a bare { onlineRail } (the upsert
+// would erase every sibling preference).
+// ⚠ THE SAVE IS BOUND TO THE INITIATING ACCOUNT (Codex P1 on #1933):
+// saveUserGoals resolves the CURRENT user at save time, so an account switch
+// while the read is in flight would write account A's whole settings blob into
+// account B's row. getUser() below is the same resolution the save performs;
+// a changed or unresolvable identity DISCARDS the write.
+// ⚠ A DECLINED OR DISCARDED HIDE IS MARKED PENDING on the per-uid mirror
+// record, and the hook's hydrate re-issues it instead of converging the
+// default back over the member's choice (Codex P2 on #1933 — an earlier
+// comment here claimed the pane's next save would persist it, which was false:
+// persistPrefs merges only the keys edited IN the pane).
 function bsOnlineRailPersist(on) {
   const db = window.shapeDb;
   if (!(db && db.getUserGoals && db.saveUserGoals)) return;
-  db.getUserGoals('client_settings').then((s) => {
-    if (!(s && typeof s === 'object')) return; // no real doc — decline, never clobber
-    try { db.saveUserGoals('client_settings', { ...s, onlineRail: on ? 'On' : 'Off' }); } catch (e) {}
-  }).catch(() => {});
+  const uid0 = bsCheckinPrefUid();
+  if (!uid0) return; // signed-out: nothing to bind a save to
+  const markPending = () => {
+    if (on) return; // the × only hides; an On persist is the pane's, with its own retry
+    try { localStorage.setItem(bsOnlineRailLsKey(uid0), JSON.stringify({ uid: uid0, off: true, pending: true })); } catch (e) {}
+  };
+  bsSettingsWriteSerial(async () => {
+    const s = await db.getUserGoals('client_settings').catch(() => null);
+    if (!(s && typeof s === 'object')) { markPending(); return; } // no real doc — decline, never clobber
+    const u = db.getUser ? await db.getUser().catch(() => null) : null;
+    const nowUid = u ? u.id : bsCheckinPrefUid();
+    if (nowUid !== uid0) { markPending(); return; } // account changed mid-flight — discard
+    try {
+      const res = await db.saveUserGoals('client_settings', { ...s, onlineRail: on ? 'On' : 'Off' });
+      if (!on && res && !res.error) {
+        // Clear the pending mark — but only if a record still exists: the member
+        // may have toggled back ON while this was in flight, and re-creating an
+        // OFF record here would silently revert that newer choice.
+        try {
+          const cur = localStorage.getItem(bsOnlineRailLsKey(uid0));
+          if (cur) localStorage.setItem(bsOnlineRailLsKey(uid0), JSON.stringify({ uid: uid0, off: true }));
+        } catch (e) {}
+      }
+    } catch (e) {}
+  });
 }
 // useBSOnlineRailPref — BSClientFeed's read hook. Same three halves as
 // useBSDailyCheckinPref (synchronous mirror seed · cloud hydrate that a null
@@ -22223,10 +22264,19 @@ function useBSOnlineRailPref() {
     if (!uid || !(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
     const gen = editGenRef.current;
-    window.shapeDb.getUserGoals('client_settings').then((s) => {
+    bsSettingsWriteSerial(() => window.shapeDb.getUserGoals('client_settings')).then((s) => {
       if (!alive) return;
       if (editGenRef.current !== gen) return; // a toggle landed mid-flight — it wins
       if (!s || typeof s !== 'object') return; // null read: keep the seed
+      // A PENDING hide (a × whose cloud write declined) must not be converged
+      // away by a doc that predates it: keep OFF and RE-ISSUE the persist.
+      let pendingOff = false;
+      try {
+        const raw = localStorage.getItem(bsOnlineRailLsKey(uid));
+        const rec = raw && JSON.parse(raw);
+        pendingOff = !!(rec && rec.pending === true && rec.off === true && rec.uid === uid);
+      } catch (e) {}
+      if (pendingOff && !('onlineRail' in s)) { setOn(false); try { bsOnlineRailPersist(false); } catch (e) {} return; }
       const next = ('onlineRail' in s) ? bsOnlineRailOn(s.onlineRail) : true;
       bsOnlineRailMirrorWrite(next);
       setOn(next);
@@ -27807,7 +27857,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     let alive = true;
     // getUserGoals resolves NULL for every can't-know case and never rejects;
     // the catch is belt-and-braces so persistPrefs can always await this.
-    const read = window.shapeDb.getUserGoals('client_settings').catch(() => null);
+    // Queued behind any in-flight × write so a pane opened right after an
+    // inline hide hydrates the doc INCLUDING it — not the pre-hide snapshot.
+    const read = bsSettingsWriteSerial(() => window.shapeDb.getUserGoals('client_settings')).catch(() => null);
     hydrateRef.current = read;
     read.then(s => {
       if (!(s && typeof s === 'object')) return;
@@ -27857,7 +27909,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       // member's choice still stands locally (and, for the check-in pref, in
       // its mirror); the next edit after a successful read persists it.
       if (!(doc && typeof doc === 'object')) return;
-      try { db.saveUserGoals('client_settings', { ...doc, ...editedRef.current }); } catch (e) {}
+      // The save joins the client-wide serial lane, and FOLDS IN an unedited
+      // inline hide (mirror OFF): the × writes outside this pane, so a doc
+      // snapshot from before it landed would otherwise revert the hide on the
+      // member's next unrelated edit (Codex P2 on #1933). Folded only when the
+      // row was not edited HERE — an in-pane edit is already in editedRef and
+      // wins by spread order.
+      bsSettingsWriteSerial(() => {
+        const railFold = (!('onlineRail' in editedRef.current) && !bsOnlineRailMirrorRead()) ? { onlineRail: 'Off' } : null;
+        try { return db.saveUserGoals('client_settings', { ...doc, ...railFold, ...editedRef.current }); } catch (e) { return null; }
+      });
     };
     if (serverDocRef.current) { write(serverDocRef.current); return; }
     // Pre-hydrate: defer to the read already in flight; if that one came back

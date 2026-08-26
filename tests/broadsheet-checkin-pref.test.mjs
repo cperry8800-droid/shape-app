@@ -399,11 +399,14 @@ test('every Settings write goes through the deferred, merge-on-a-real-document w
   const writers = settings.match(/persistPrefs\(key, next\[key\]\);/g) || [];
   assert.equal(writers.length, 2, 'cyclePref AND setPref both write through persistPrefs');
   assert.match(settings, /const persistPrefs = \(key, value\) => \{/, 'the pane declares one cloud writer');
-  // It merges the member's edits onto a REAL server document...
+  // It merges the member's edits onto a REAL server document. Since the
+  // online-rail round (#1933) the write also rides the client-wide serial lane
+  // and folds in an unedited inline hide (railFold) — edited keys still spread
+  // LAST, so an in-pane edit always wins over the fold.
   assert.match(
     settings,
-    /db\.saveUserGoals\('client_settings', \{ \.\.\.doc, \.\.\.editedRef\.current \}\)/,
-    'the write merges edited keys onto the server document',
+    /db\.saveUserGoals\('client_settings', \{ \.\.\.doc, \.\.\.railFold, \.\.\.editedRef\.current \}\)/,
+    'the write merges edited keys (last) onto the server document',
   );
   // ...and declines to write at all when it cannot obtain one.
   assert.match(
