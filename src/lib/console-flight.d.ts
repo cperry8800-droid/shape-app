@@ -30,10 +30,12 @@ export function codexVerdict(args: {
   headSha?: string;
 }): CodexVerdict;
 
-// Codex is deliberately absent: the house stopped using it (owner, 2026-08-20), so a
-// Codex record says nothing about whether THIS head was reviewed.
+// BOTH reviewers are deliberately absent: Codex was dropped 2026-08-20 and CodeRabbit
+// 2026-08-24, so neither record says anything about whether THIS head was reviewed.
+// Their absence from this type is LOAD-BEARING — a caller that tries to feed a reviewer
+// verdict back into the gate now fails to compile, rather than quietly closing the gate
+// forever the next time a reviewer is retired.
 export function prAllGreen(p: {
   ci?: string;
-  coderabbit?: string;
   draft?: boolean;
 }): boolean;

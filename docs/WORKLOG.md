@@ -55,7 +55,9 @@ changelog whenever something ships.
   **all** of `public/newdesign/` (it's the only place `.jsx?v=` refs exist), so
   there is no exception. **Do not sweep `?v=` across a shared jsx's consumers**
   — `pageShell.jsx` has 69, which makes a 70-file PR that **CodeRabbit
-  auto-skips (>50 files = no review at all)**. Keep the PR to the jsx file. (The
+  auto-skips (>50 files = no review at all)**. ⚠ **CORRECTED 2026-08-24 — that reason
+  retired with CodeRabbit; the advice did not.** A 70-file `?v` sweep is still 69 files of
+  churn the deploy already does for you. Keep the PR to the jsx file. (The
   hand-written `?v` only affects the raw-babel dev path — a stale local copy is
   one hard-refresh.) A few legacy `*.jsx` files (e.g. `memberProfile.jsx`) are
   **orphaned/dead** (nothing loads them) — confirm a file is actually referenced
@@ -78,12 +80,34 @@ changelog whenever something ships.
   and changes to shared code that other profiles/pages also render. (**No longer
   check for "missed `?v=` bumps"** — that convention is obsolete, see the
   newdesign bullet above; flag a *needless* 69-file `?v` sweep instead, since it
-  trips CodeRabbit's 50-file skip.) Docs/copy-only tweaks can
+  trips CodeRabbit's 50-file skip — ⚠ **that reason retired with CodeRabbit on
+  2026-08-24; the sweep is still needless churn**.) Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT, AND THE ONLY VERSION THAT BINDS.** Owner,
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-08-24, AND THE ONLY VERSION THAT
+  BINDS.** Owner, 2026-08-24: *"no more coderabbit"*. **THERE IS NO REVIEWER.** The
+  merge gate is **CI green on the final head AND not a draft** — nothing else. Layer
+  (a), your own adversarial self-review before pushing, is now the ONLY layer that reads
+  a diff for *intent*; CI checks that the code builds and typechecks, which is a
+  different question.
+  ⚠ **EVERYTHING BELOW THIS LINE THAT NAMES A GATING REVIEWER IS HISTORY, KEPT ON
+  PURPOSE.** It is not deleted, because two of its rules turned out to be about reviewers
+  in general rather than about CodeRabbit: **a verdict is only about the head it names**,
+  and **the absence of a record is never a pass**. Each superseded claim carries its own
+  ⚠ CORRECTED marker — if you find one that does not, the marker is missing, not the
+  claim revived.
+  ⚠ **AND THE RETIREMENT HAD A CODE CONSEQUENCE NOBODY NOTICED FOR TWO DAYS.**
+  `prAllGreen` required a *named* reviewer's pass, so a retired reviewer's permanent
+  `none` closed the gate on every green PR: `/console` reported **every PR as
+  not-mergeable regardless of CI**, 2026-08-24 → 2026-08-26. **This was the SECOND time
+  in four days** — the same defect shipped with Codex in #1914 and again with CodeRabbit
+  in #1916. Fixed 2026-08-26 by removing reviewers from the gate's inputs *and from its
+  TYPE*, so re-wiring one fails to compile. **When a rule names a party who can leave, it
+  has an expiry date nobody wrote down.**
+  ⚠ **THE REVIEWER SYSTEM AS OF 2026-08-21 — SUPERSEDED BY THE BANNER ABOVE, kept for
+  its reasoning.** Owner,
   2026-08-21: *"no more codex, out of credits, only coderabbit"*. Read this before the
   layers below, several of which describe superseded systems and are kept only for their
   history:
@@ -142,6 +166,9 @@ changelog whenever something ships.
   ENTIRELY: never triggered, never waited on, out of credits (owner, 2026-08-21).** It may
   still auto-fire on PR open, `codexVerdict` still runs and `/console` still renders its
   chip — it just decides nothing, and nothing in the merge path reads it. The merge gate is CI green **and a CodeRabbit pass on the final head**.
+  ⚠ **CORRECTED 2026-08-24 — CodeRabbit is out too, so this sentence no longer
+  describes the gate: it is CI green on the final head AND not a draft.** What survives
+  it is the reading rule underneath — a pass must be pinned to the head it judged.
   A pass is an **APPROVED review on that head**, or a zero-marker comment naming it —
   measured across the last 18 merged PRs, approval is the only signal CodeRabbit emits
   reliably on a clean head. ⚠ **`Actionable comments posted: N` is NOT head-pinned**:
@@ -162,6 +189,11 @@ changelog whenever something ships.
   out the hour instead of buying a round. ⚠ That notice is **not** a cap: three reviews
   landed on #1918 after the first one. A notice naming a number is not a refusal, and a
   real cap says something else (`rate limited by coderabbit.ai` / `Review limit reached`).
+  ⚠ **CORRECTED 2026-08-24 — THE ECONOMY ABOVE IS MOOT: there is nothing left to buy.**
+  Kept because the rule it produced outlived its subject — **batch every fix into ONE push
+  per round** — which is now about not publishing half-finished heads rather than about a
+  bill. ⚠ And the distinction it drew generalises to any metered service: **a notice
+  naming a number is not a refusal.**
   ⚠ **Earlier entries in this file say the gate is Codex** — resolved by this line; the
   contradiction they describe (head-pinning vs a ONE-sweep process) dissolved when
   CodeRabbit began being re-triggered every round. **(3)
@@ -172,6 +204,10 @@ changelog whenever something ships.
   may skip layers 0-1. **"Done" detection (rewritten 2026-08-20):** the merge
   gate is **CI green on the final head AND a CodeRabbit pass on the final head** —
   **absence of findings is not a pass**, and neither is a `commented` verdict.
+  ⚠ **CORRECTED 2026-08-24 — "done" is now CI green on the final head AND not a
+  draft.** The two principles under it are why this is corrected and not cut: **absence of
+  a record is never a pass**, and **a verdict is only about the head it names**. Both
+  outlive any particular reviewer.
   ⚠ `commented` does **not** mean the head was never looked at — it means **there is no
   SETTLED verdict on this head yet**: either CodeRabbit has spoken only on earlier heads,
   or the only records here are unsettled `COMMENTED` containers, which it also posts when
@@ -187,6 +223,15 @@ changelog whenever something ships.
   verdict on THIS head". That shipped in #1914 and was REPLACED THE NEXT DAY by #1916:**
   the gate is CI green **AND a CodeRabbit `approved`-or-`clean` verdict on THIS head**
   AND not a draft. Codex keeps its chip and decides nothing.
+  ⚠ **CORRECTED 2026-08-26 — AND THIS PARAGRAPH IS WHERE THE DEFECT LIVED.** Read its
+  two sentences in sequence: #1914 pinned the gate to **CODEX** days before Codex was
+  retired; #1916 repinned it to **CODERABBIT** three days before CodeRabbit was retired.
+  Each rewrite corrected the previous reviewer's *name* and faithfully re-created the
+  trap, because the trap is **naming a reviewer at all** — a retired one's verdict pins at
+  `none` forever, and `none` is the blocking case. `/console` called every PR
+  not-mergeable regardless of CI from 2026-08-24 to 2026-08-26. Fixed by removing both
+  reviewers from `prAllGreen`'s inputs **and from its TYPE**, so a caller that re-wires one
+  fails to compile instead of silently closing the gate a third time.
   - **Why it had to change, and not just be documented:** `coderabbitVerdict` is
     head-pinned, so the ratified *"CodeRabbit ONCE"* sweep **stops counting the moment
     you push a fix for its own findings** — after which the old gate could never open
@@ -301,6 +346,54 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-08-26 — The merge gate stopped naming a reviewer, and the board caught up
+
+- ⚠ **`/console` had been calling EVERY PR not-mergeable since 2026-08-24, regardless of
+  CI.** `prAllGreen` required `coderabbit === 'approved' || 'clean'`, and a retired
+  reviewer never posts again — so its verdict pins at `none`, which is the blocking case.
+  The gate is now `ci === 'green' && !draft`, matching the owner ruling.
+- ⚠ **THE SAME DEFECT SHIPPED TWICE, FOUR DAYS APART, AND THE SECOND TIME WAS INSIDE THE
+  FIX FOR THE FIRST.** #1914 pinned the gate to a clean **Codex** verdict days before Codex
+  was retired; #1916 caught that and repinned it to a **CodeRabbit** pass three days before
+  CodeRabbit was retired. Correcting the reviewer's *name* preserves the trap: **naming a
+  reviewer at all** gives the gate an expiry date nobody writes down. It now reads only
+  properties the house controls.
+- **Fixed as a type, not just a value.** Both reviewer fields are gone from `prAllGreen`'s
+  declaration in `console-flight.d.ts`, so a caller that feeds a verdict back in fails to
+  compile. ⚠ **And the absence is asserted at the REAL CALL SITE** — `prAllGreen` is pure,
+  so every unit test builds its own argument and none of them can see what the route
+  passes. The wiring guard that used to require the verdict now forbids it. Mutation-checked
+  four ways (reviewer re-wired · draft term dropped · stuck open · stuck closed), all caught,
+  with unmutated sanity runs at both ends.
+- ⚠ **AND THE FIX WAS INCOMPLETE UNTIL THE SIBLING ONE FUNCTION OVER WAS SWEPT.**
+  `gateTag` in `ConsoleClient.tsx` — the headline the owner actually reads — branched on
+  `p.coderabbit === 'commented' || 'none'` and printed **CR RE-TRIGGER**. A retired reviewer
+  answers `none` forever, so **every PR whose CI had not finished displayed an instruction
+  nobody could carry out**. Fixing `prAllGreen` alone would have left that standing, and it is
+  the more visible of the two. Each remaining CI state is now named as itself: `CI RUNNING`
+  for a run in progress, `CI INCOMPLETE` for no success record — which is also what a
+  degraded per-PR fetch leaves behind, so it must not claim the checks are merely running.
+- **`coderabbitVerdict` and `codexVerdict` are kept and still correct** — head-pinning,
+  `commented` not being a pass, a rate-limit notice not being a cap. That is knowledge about
+  how to *read* a review and it outlives the reviewer; only the gating was removed.
+- **War Room: the age-visibility wave (#1929) registered**, plus its read-path invariants
+  and the two bug-class siblings it deliberately left open. The two reviewer items are
+  corrected in place — one flipped to done as **dissolved** (there is no reviewer half for
+  GitHub to enforce), and a new pending item records what actually changed: the pre-push
+  class sweep is now the **only** layer that reads a diff for intent, which needs an owner
+  ruling before launch.
+- ⚠ **FOUR API ROUTES EXISTED ON DISK AND WERE NEVER IN `RAW_ROUTES`** — `/api/me/age-public`
+  and `/api/members/ages` (#1929), `/api/me/date-of-birth` (#1925, whose behaviour the board
+  already described in prose without ever registering the route), and
+  `/api/cron/guardrail-health`. The inventory is a count the board reports as fact, so a
+  missing row is a wrong number, not a missing convenience. All four added; `/api/members`
+  now classifies as Community & social rather than falling through to marketplace plumbing.
+- **How we work: the reviewer stack corrected in place, nothing deleted.** A banner at the
+  head of the stack states the current gate; every superseded claim below carries its own
+  ⚠ CORRECTED marker. The history is kept because two of its rules were never about
+  CodeRabbit: a verdict is only about the head it names, and absence of a record is never a
+  pass.
 
 ### 2026-08-26 — Age visibility: a member opt-in that never hands over the date behind it (#1929)
 

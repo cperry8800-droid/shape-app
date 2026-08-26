@@ -238,22 +238,22 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
     if (p.allGreen)
       return { text: 'AWAITING YOUR WORD', color: N.bg, bg: N.accent, border: N.accent };
     // ⚠ THE HEADLINE MUST KEY ON WHOEVER GATES, or it contradicts the thing it is a
-    // headline for. CodeRabbit gates now (owner, 2026-08-20), so it decides this tag and
-    // Codex no longer appears here at all — a Codex verdict on a reviewer the house has
-    // stopped running would be a stale claim rendered as a status.
-    if (p.ci === 'red' || p.coderabbit === 'changes')
-      return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
+    // headline for — and since 2026-08-24 NOBODY reviews (owner: "no more coderabbit",
+    // after Codex on 2026-08-20). Both verdicts still render as their own chips below; neither
+    // may decide this tag.
+    // ⚠ THIS BRANCH USED TO READ 'CR RE-TRIGGER' ON `coderabbit === 'none'`, AND A RETIRED
+    // REVIEWER ANSWERS 'none' FOREVER — so every PR whose CI had not finished printed an
+    // instruction nobody could carry out. A status that names an impossible next action is
+    // worse than one that says nothing. CI and draft are now the whole gate, and each
+    // remaining CI state is named as itself rather than blamed on a reviewer.
+    if (p.ci === 'red') return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
     if (p.draft) return { text: 'DRAFT', color: N.dim, bg: 'transparent', border: N.dimmer };
-    // Not "IN REVIEW" in either of the next two: the review has FINISHED in both, and
-    // each needs a different action. Saying "in review" is how a finished-but-unusable
-    // verdict gets waited on instead of acted on.
-    if (p.coderabbit === 'limited')
-      return { text: 'CR LIMIT REACHED', color: N.gold, bg: 'transparent', border: N.gold };
-    // 'commented' means CodeRabbit has spoken on this PR but not passed THIS head — the
-    // sweep predates the current push, so the head is unreviewed and needs another run.
-    if (p.coderabbit === 'commented' || p.coderabbit === 'none')
-      return { text: 'CR RE-TRIGGER', color: N.gold, bg: 'transparent', border: N.gold };
-    return { text: 'IN REVIEW', color: N.gold, bg: 'transparent', border: N.gold };
+    if (p.ci === 'running')
+      return { text: 'CI RUNNING', color: N.gold, bg: 'transparent', border: N.gold };
+    // Everything left is 'none' or 'blocked': not every required check has a success record
+    // yet. That is also what a degraded per-PR fetch leaves behind, so this must not claim
+    // the checks are merely "running" — an unread gate is not a gate in progress.
+    return { text: 'CI INCOMPLETE', color: N.gold, bg: 'transparent', border: N.gold };
   };
 
   return (
