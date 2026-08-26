@@ -238,8 +238,110 @@ function ClientMeSettings() {
   const [fieldEdit, setFieldEdit] = React.useState(null); // { key, label }
   const [toast, setToast] = React.useState(null);
   const [onlineVisible, setOnlineVisible] = React.useState(true);
+  // null = we could not tell (not signed in, or the read failed). NOT false:
+  // rendering "Off" for a member who had turned it ON would show them the
+  // opposite of their own choice, and the next tap would write that back.
+  const [agePublic, setAgePublic] = React.useState(null);
+  // ⚠ ONE WRITE WINS. Two quick taps start two PUTs whose responses can land out
+  // of order, and a rollback from the FIRST would otherwise overwrite the choice
+  // the SECOND already saved — leaving this row disagreeing with the stored
+  // profiles.age_public. Every write takes a token; only the newest may touch
+  // state. The mobile toggle has carried this guard since the last round; this is
+  // its web twin, which did not.
+  const ageWriteRef = React.useRef(0);
+  // ⚠ AND ROLL BACK TO WHAT THE SERVER LAST CONFIRMED, NOT TO `prev`. `prev` is
+  // read at tap time, so after a second tap it holds the FIRST tap's optimistic
+  // value. If both writes then fail, rolling back to it asserts a value the server
+  // never stored — and it can assert "public" for a member who is not. This ref
+  // only ever holds a value the server actually returned.
+  const ageConfirmedRef = React.useRef(null);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
+
+  // Age visibility — profiles.age_public, through a ROUTE rather than the browser
+  // Supabase client. That client is ANON until window.shapeDb.getSession() bridges
+  // the cookie session (#1769); an unbridged write is refused by RLS, matches zero
+  // rows, and PostgREST does not call that an error — so it would report success
+  // and leave the member believing their age is public when it is not.
+  React.useEffect(() => {
+    let on = true;
+    fetch("/api/me/age-public", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      // A slow hydrate must not clobber a choice the member has already made.
+      .then(d => {
+        if (!on || ageWriteRef.current !== 0) return;
+        if (d && typeof d.agePublic === "boolean") { ageConfirmedRef.current = d.agePublic; setAgePublic(d.agePublic); }
+      })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
+
+  // The write's outcome is unknown — say so, then ask the server.
+  //
+  // ⚠ NOTHING HERE ASSERTS A VALUE THE SERVER DID NOT RETURN. `null` is a state this row
+  // already renders honestly, and toggleAgePublic refuses to guess from it — so an
+  // unknown outcome costs the member one re-read, where a guess could tell them their
+  // age is private while it is public.
+  async function resolveAgePublic(token) {
+    ageConfirmedRef.current = null;
+    setAgePublic(null);
+    try {
+      const r = await fetch("/api/me/age-public", { credentials: "same-origin", cache: "no-store" });
+      const d = await r.json().catch(() => null);
+      if (token !== ageWriteRef.current) return;
+      if (r.ok && d && typeof d.agePublic === "boolean") {
+        ageConfirmedRef.current = d.agePublic;
+        setAgePublic(d.agePublic);
+        showToast(d.agePublic ? "Your age is visible." : "Your age stays private.");
+        return;
+      }
+    } catch (e) { /* still unknown */ }
+    if (token !== ageWriteRef.current) return;
+    showToast("We couldn't confirm that — refresh to check.");
+  }
+
+  async function toggleAgePublic() {
+    // ⚠ NEVER GUESS FROM "UNKNOWN". `!null` is true, so a blind toggle here would
+    // turn a member's age PUBLIC because a read failed. Refuse and say so.
+    if (agePublic == null) { showToast("Couldn't load this setting — refresh and try again."); return; }
+    const prev = agePublic;
+    const next = !prev;
+    const token = ageWriteRef.current + 1;
+    ageWriteRef.current = token;
+    setAgePublic(next);                       // optimistic
+    try {
+      const res = await fetch("/api/me/age-public", {
+        method: "PUT",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agePublic: next }),
+      });
+      const d = await res.json().catch(() => null);
+      if (token !== ageWriteRef.current) return;   // a newer tap already owns the row
+      // The route re-reads the row and returns what is ACTUALLY stored; trust that over
+      // what we asked for. ⚠ A NON-2xx CAN CARRY IT TOO — 409 `not_saved` reports the
+      // stored value precisely BECAUSE the write did not take, and that is a confirmed
+      // fact about the row, not a guess.
+      if (d && typeof d.agePublic === "boolean") {
+        ageConfirmedRef.current = d.agePublic;
+        setAgePublic(d.agePublic);
+        showToast(res.ok ? "Saved." : (d.error || "That didn't save."));
+        return;
+      }
+      // ⚠ `unconfirmed` MEANS THE WRITE MAY HAVE LANDED. The route returns it when the
+      // UPDATE reported no error but the read-back failed, so the row's state is
+      // genuinely unknown — and rolling back would announce "private" over an age that
+      // is now public.
+      if (d && d.code === "unconfirmed") { await resolveAgePublic(token); return; }
+      setAgePublic(ageConfirmedRef.current === null ? prev : ageConfirmedRef.current);
+      showToast((d && d.error) || "Could not save that — try again.");
+    } catch (e) {
+      if (token !== ageWriteRef.current) return;
+      // Same ambiguity: the request can commit and still fail on the way back.
+      await resolveAgePublic(token);
+    }
+  }
 
   async function toggleOnlineVisible() {
     const next = !onlineVisible;
@@ -438,6 +540,9 @@ function ClientMeSettings() {
           <Row label="Profile visibility" value={p.profileVisibility || "—"} action="CHANGE" onAction={() => openField("profileVisibility", "Profile visibility")} />
           <Row label="Show when I'm online" value={onlineVisible ? "On" : "Off"} action="TOGGLE" onAction={toggleOnlineVisible} />
           <Row label="Share data with coaches" value={p.shareDataWithCoaches || "—"} action="CHANGE" onAction={() => openField("shareDataWithCoaches", "Share data with coaches")} />
+          {/* Your coaches always see your age for the clients they work with —
+              that is the server's rule (member_dobs_for_viewer), not this row's. */}
+          <Row label="Show my age on my profile" value={agePublic == null ? "—" : agePublic ? "On" : "Off"} action="TOGGLE" onAction={toggleAgePublic} />
           <Row label="Community posts" value={p.communityPosts ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("communityPosts")} />
           <Row label="Marketing emails" value={p.marketingEmails ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("marketingEmails")} />
         </Card>

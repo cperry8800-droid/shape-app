@@ -132,7 +132,15 @@ export function mustRefuseForAge(profile, now = Date.now()) {
   return created >= ADULT_PROOF_REQUIRED_FROM;
 }
 
-export function isMinorFromDob(dob, now = Date.now()) {
+/**
+ * The ONE parse of a `YYYY-MM-DD` birthdate: `{y, mo, d, born}` or null.
+ *
+ * Extracted so age and the 18+ rule cannot disagree about which strings are
+ * valid — a second copy is a second thing to keep in step, which is the class of
+ * defect this whole module exists to prevent. Behaviour is unchanged from the
+ * inline version isMinorFromDob carried; the mirror test asserts that.
+ */
+function parseDobParts(dob) {
   if (typeof dob !== 'string') return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob.trim());
   if (!m) return null;
@@ -145,6 +153,13 @@ export function isMinorFromDob(dob, now = Date.now()) {
   if (!Number.isFinite(born)) return null;
   const probe = new Date(born);
   if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== mo - 1 || probe.getUTCDate() !== d) return null;
+  return { y, mo, d, born };
+}
+
+export function isMinorFromDob(dob, now = Date.now()) {
+  const parts = parseDobParts(dob);
+  if (!parts) return null;
+  const { y, mo, d, born } = parts;
   // Read the calendar day at UTC−12 so "today" means today in the LAST timezone
   // to reach it — see the header. Subtracting from the instant is exactly the
   // westernmost local date; no tz database lookup is involved.
@@ -173,4 +188,51 @@ export function isMinorFromDob(dob, now = Date.now()) {
   // Day 0 of the NEXT month is the last day of the intended one — the clamp.
   if (new Date(cutoff).getUTCMonth() !== cm) cutoff = Date.UTC(cy, cm + 1, 0);
   return born > cutoff;
+}
+
+/**
+ * The member's age in whole years as of `now`, or NULL when there is no usable
+ * date or clock. Null means "says nothing" — never 0.
+ *
+ * ⚠ READS THE SAME REFERENCE DAY AS THE 18+ RULE (UTC−12), DELIBERATELY. Using a
+ * different clock here would let the gate and the displayed age disagree about
+ * whether someone's birthday has happened — one person, two answers, which is
+ * exactly the divergence this module exists to prevent. The cost is that an age
+ * ticks over up to a day late for members east of UTC−12, in the same
+ * under-stating direction the gate already chose.
+ *
+ * ⚠ FEB 29 IS CLAMPED, NOT ROLLED, matching isMinorFromDob and Postgres. In a
+ * non-leap year the anniversary of a Feb 29 birth falls on Feb 28 — rolling it to
+ * Mar 1 would leave a leap-day member reading a year younger for one day.
+ */
+export function ageFromDob(dob, now = Date.now()) {
+  const parts = parseDobParts(dob);
+  if (!parts) return null;
+  const { y, mo, d } = parts;
+
+  // Same clock-validity guard as the gate: a finite input can still be outside the
+  // Date range, and every field read then yields NaN — which would fall through the
+  // comparisons below and produce a fabricated age from a clock we could not read.
+  const ref = new Date((typeof now === 'number' ? now : now.getTime()) - ADULT_REFERENCE_OFFSET_MS);
+  if (!Number.isFinite(ref.getTime())) return null;
+
+  const ry = ref.getUTCFullYear();
+  const rm = ref.getUTCMonth() + 1;
+  const rd = ref.getUTCDate();
+
+  // The anniversary's day-of-month in the reference year, clamped for Feb 29.
+  let annivDay = d;
+  if (mo === 2 && d === 29) {
+    const leap = (ry % 4 === 0 && ry % 100 !== 0) || ry % 400 === 0;
+    if (!leap) annivDay = 28;
+  }
+
+  let age = ry - y;
+  // Not yet reached this year's anniversary ⇒ one year younger.
+  if (rm < mo || (rm === mo && rd < annivDay)) age -= 1;
+
+  // A future birthdate has no age. Null rather than a negative number: a caller
+  // rendering "-3" is worse than a caller rendering nothing.
+  if (age < 0) return null;
+  return age;
 }

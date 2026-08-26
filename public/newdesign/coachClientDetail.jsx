@@ -340,6 +340,12 @@ function CoachClientDetailPage() {
   // called straight from the browser, and bsVarianceCopy is the ONE copy source
   // shared with the mobile Case File, so the two surfaces cannot drift.
   const [varRead, setVarRead] = React.useState(null);
+  // The client's AGE (never their birthdate). A coach always sees it for their
+  // own clients, and that is the SERVER's judgement: member_dobs_for_viewer
+  // answers on the active-subscription link, so the member's public/private
+  // toggle does not enter into it. A route rather than the definer RPC beside
+  // it, because the RPC returns DATES and this page must never hold one.
+  const [memberAge, setMemberAge] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -351,6 +357,27 @@ function CoachClientDetailPage() {
       .then(d => { if (!cancelled) setData(d); })
       .catch(e => { if (!cancelled) setErr((e && e.error) || "Could not load."); });
     return () => { cancelled = true; };
+  }, [clientId]);
+
+  React.useEffect(() => {
+    setMemberAge(null);  // reset FIRST — one client's age must never land on another
+    if (!clientId) return undefined;
+    let on = true;
+    fetch("/api/members/ages", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [clientId] }),
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const n = d && d.ages && d.ages[clientId];
+        // ⚠ typeof, not truthiness — 0 is a real age.
+        if (on && typeof n === "number") setMemberAge(n);
+      })
+      .catch(() => {});
+    return () => { on = false; };
   }, [clientId]);
 
   React.useEffect(() => {
@@ -489,7 +516,7 @@ function CoachClientDetailPage() {
     <DashPage
       navItems={navItems}
       payoutCard={payout}
-      eyebrow="CLIENT"
+      eyebrow={typeof memberAge === "number" ? `CLIENT · AGE ${memberAge}` : "CLIENT"}
       title={data.client.name}
       subtitle={careTeamPartial
         ? `Couldn't load this client's care team — that's a loading problem, not an empty one. Refresh to try again.`

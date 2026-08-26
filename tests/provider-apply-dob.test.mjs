@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { stripComments } from './helpers/strip-comments.mjs';
 
 // ⚠ WHY THIS GUARD EXISTS — the regression it was written to end.
@@ -100,30 +101,36 @@ const NOT_APPLY_SURFACES = new Map([
 
 test('no unregistered surface posts to /api/apply', () => {
   const known = new Set([...APPLY_CALLERS.map((c) => c.file), ...NOT_APPLY_SURFACES.keys()]);
-  const skipDirs = new Set(['node_modules', '.git', '.next', 'dist', 'm', 'ios', 'android']);
+  // ⚠ THE FILE LIST IS DERIVED FROM `git ls-files`, NOT A HAND-WALKED TREE WITH A
+  // SKIP-LIST. The previous version skipped any directory *named* `nd`/`m`/`dist`/
+  // `ios`/`android` at ANY depth, so a real source directory that happened to share
+  // one of those names would be silently unscanned and an unregistered /api/apply
+  // surface could hide in it — the guard reporting clean about files it never opened.
+  // Deriving from the index removes the whole class instead of anchoring each entry:
+  // the build output this list existed to dodge (public/newdesign/nd, public/m,
+  // mobile-app/dist) is gitignored, so it cannot appear at all, and nothing new has
+  // to be remembered when the next generated directory lands.
+  //
+  // Measured before switching: 0 tracked files under mobile-app/{ios,android} match
+  // the extensions, and no tracked nd/m/dist directory exists anywhere — so this
+  // widens coverage without pulling in native or generated noise.
+  // Same technique as tests/source-no-control-bytes.test.mjs.
   const exts = /\.(m?js|jsx|ts|tsx|html)$/;
+  const prefixes = ['public/', 'src/', 'mobile-app/src/'];
+  const tracked = execFileSync('git', ['ls-files', '-z'], {
+    cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+  }).split('\0').filter(Boolean);
+  assert.ok(tracked.length > 0, 'git ls-files returned nothing — the guard cannot scan, so it refuses rather than report clean');
+
   const found = [];
-
-  function walk(dir) {
-    for (const entry of readdirSync(dir)) {
-      if (skipDirs.has(entry)) continue;
-      const abs = join(dir, entry);
-      if (statSync(abs).isDirectory()) {
-        walk(abs);
-        continue;
-      }
-      if (!exts.test(entry)) continue;
-      const rel = relative(ROOT, abs).split('\\').join('/');
-      const src = stripComments(readFileSync(abs, 'utf8'));
-      // A POST to the apply route: the path plus a fetch in the same file.
-      if (/["'`][^"'`]*\/api\/apply["'`]/.test(src) && /fetch\s*\(/.test(src)) {
-        found.push(rel);
-      }
+  for (const rel of tracked) {
+    if (!prefixes.some((p) => rel.startsWith(p))) continue;
+    if (!exts.test(rel)) continue;
+    const src = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+    // A POST to the apply route: the path plus a fetch in the same file.
+    if (/["'`][^"'`]*\/api\/apply["'`]/.test(src) && /fetch\s*\(/.test(src)) {
+      found.push(rel);
     }
-  }
-
-  for (const top of ['public', 'src', 'mobile-app/src']) {
-    walk(join(ROOT, top));
   }
 
   const unregistered = found.filter((f) => !known.has(f));

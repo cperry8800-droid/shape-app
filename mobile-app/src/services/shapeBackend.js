@@ -7099,6 +7099,139 @@ async function reconcileSet({ clientId, metric, source } = {}) {
 }
 window.ShapeReconcile = { get: reconcileGet, set: reconcileSet };
 
+// ── Age visibility ───────────────────────────────────────────────────────────
+// The member's opt-in to showing their AGE (never their birthdate) publicly.
+//
+// ⚠ THE COLUMN IS THE ONLY STORE, DELIBERATELY. This does NOT mirror into
+// `client_settings` the way the other preference rows do: `member_dobs_for_viewer`
+// reads `profiles.age_public`, so a second copy would be a second answer to a
+// disclosure question — and the copy the RPC does not read is the one that would
+// silently go stale. Settings renders from this read and writes straight back.
+//
+// ⚠ NO SERVICE ROLE. The `users update own profile` policy (auth.uid() = id on
+// both USING and WITH CHECK) already permits exactly this write and nothing wider,
+// and no coach-update policy exists — so a coach can never flip a client's toggle.
+async function getAgePublic() {
+  try {
+    const uid = getCachedState()?.user?.id;
+    if (!uid) return null;
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('age_public')
+      .eq('id', uid)
+      .maybeSingle();
+    // ⚠ A FAILED READ IS NOT "OFF". PostgREST resolves {data:null,error} rather
+    // than throwing, so returning false here would render a member's own choice
+    // back to them as off — and the next toggle would write that wrong value in.
+    // Null means "could not tell"; the caller leaves the row alone.
+    if (error) return null;
+    return data ? data.age_public === true : null;
+  } catch (e) { return null; }
+}
+
+async function setAgePublic(on) {
+  const uid = getCachedState()?.user?.id;
+  if (!uid) throw new Error('Sign in to change this.');
+  const want = !!on;
+  // ⚠ THE STORED ROW IS THE AUTHORITY, NOT THE ABSENCE OF AN ERROR. PostgREST
+  // reports an UPDATE that matched ZERO rows as success, so `if (error) throw`
+  // alone returns `want` for a member whose profile row is missing or whose write
+  // RLS refuses — and the toggle then stands while nothing was written, telling a
+  // member their age is public when it is not. That is this feature's one
+  // unacceptable direction, so ask for the row back and believe only that.
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ age_public: want })
+    .eq('id', uid)
+    .select('age_public');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row || row.age_public !== want) throw new Error('Could not save that — try again.');
+  return want;
+}
+
+window.ShapeAgeVisibility = { get: getAgePublic, set: setAgePublic };
+
+// Members' AGES as this viewer is entitled to see them — { id: age }, integers.
+//
+// ⚠ ONE BATCH DOOR FOR ALL THREE READERS. The member's own profile, a coach's
+// Case File and the coach roster all ask THIS, the roster with a whole client
+// list and the other two with an array of one — the same shape
+// ShapeProfiles.getUserPoints([uid]) is already called with from the Case File.
+// A scalar door beside it would have meant a second copy of an authorization
+// rule, and the copy that stops being edited is the one that goes wrong.
+//
+// ⚠ A ROUTE, NOT A DIRECT RPC, UNLIKE ShapeRosterVariance. supabase.rpc() would
+// put the raw DATES on the wire; for a member who opted in that publishes their
+// exact birthday to every viewer. The route reduces each date to an integer
+// server-side, so no birthdate ever reaches a browser.
+//
+// ⚠ DELIBERATELY NOT CACHED. A cached age would outlive the toggle that governs
+// it: a member switching their profile back to private would keep showing an age
+// to anyone whose cache still held it, which is the one direction this feature
+// must never fail in. It is one request per roster view, not one per client.
+//
+// An id simply MISSING from the map is every kind of "no" at once — no date on
+// file, not entitled, read fault — because telling those apart would itself
+// disclose the member's choice. Callers render absence, never "private".
+// ⚠ CHUNKED AT THE ENDPOINT'S OWN CAP. /api/members/ages REFUSES more than 500
+// ids rather than truncating, so a roster past that would come back 400 and every
+// client on it would render age-less — which reads as "they all keep it private".
+// The cap is the server's; the chunking is how a caller stays inside it honestly.
+const MEMBER_AGES_CHUNK = 500;
+
+async function memberAgesChunk(ids) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/members/ages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+    credentials: 'same-origin',
+    cache: 'no-store',
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) return {};
+  const d = await res.json();
+  const out = {};
+  // Number-check every value rather than trusting the shape: a non-numeric age
+  // would render as text beside a member's name.
+  Object.entries((d && d.ages) || {}).forEach(([k, v]) => {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  });
+  return out;
+}
+
+// The id shape /api/members/ages accepts. Kept here so a malformed value is
+// rejected before it can cost its whole chunk.
+const MEMBER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function memberAges(userIds) {
+  // ⚠ VALIDATE EACH ID, NOT JUST ITS TRUTHINESS. The route REFUSES a batch that
+  // contains a malformed id rather than dropping it — correct there, because it
+  // cannot tell a typo from an attack — so one bad value 400s its entire chunk and
+  // costs up to 499 VALID members their ages, rendering every one of them as
+  // "keeps their age private". Dropping it here hides nothing real: a non-UUID
+  // cannot name a member, so there is no age behind it to lose. `filter(Boolean)`
+  // kept every truthy malformed value, which is how the chunk was being lost.
+  const ids = [...new Set(
+    (Array.isArray(userIds) ? userIds : [userIds])
+      .filter((v) => typeof v === 'string' && MEMBER_ID_RE.test(v))
+  )];
+  if (!ids.length || !state.session?.access_token) return {};
+  try {
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += MEMBER_AGES_CHUNK) {
+      chunks.push(ids.slice(i, i + MEMBER_AGES_CHUNK));
+    }
+    // ⚠ A FAILED CHUNK COSTS ONLY ITS OWN MEMBERS, NEVER THE WHOLE ROSTER.
+    // Merging what succeeded is consistent with this feature's one rule —
+    // absence already covers every kind of "no" — whereas discarding everything
+    // because one request failed would blank ages we did read.
+    const maps = await Promise.all(chunks.map((c) => memberAgesChunk(c).catch(() => ({}))));
+    return Object.assign({}, ...maps);
+  } catch (e) { return {}; }
+}
+
+window.ShapeMemberAges = { get: memberAges };
+
 async function evaluateNotifications(force) {
   if (!apiBaseUrl || !state.session?.access_token) return null;
   // Throttle (the server layer dedups too, but don't hammer the endpoint).

@@ -11338,6 +11338,43 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // the hero's climb as the you-are-here marker); just the type column, full
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
+// The viewer-entitled age for a member, or null.
+//
+// ⚠ THE SERVER DECIDES, NOT THIS HOOK. It asks one door — self, the member's coach,
+// or an explicit public opt-in — and gets back an integer or nothing. There is no
+// birthdate on this side to leak, and no rule here to drift out of step with the
+// one in SQL.
+//
+// The door is a BATCH one, asked here with an array of one — the same shape
+// ShapeProfiles.getUserPoints([uid]) is called with. The coach roster asks it for a
+// whole client list; sharing it means the age rule has exactly one implementation
+// rather than one per surface.
+//
+// A per-mount request, cleared on unmount and on a change of subject so a slow
+// response for member A can never render as member B's age.
+//
+// ⚠ THE ANSWER CARRIES THE MEMBER IT IS ABOUT, AND THE RENDER FILTERS ON IT. Resetting
+// inside the effect is too late: an effect runs AFTER the render that changed `userId`
+// has already committed, so a profile switched from A to B paints one frame with B's
+// name beside A's age — a number B may have chosen not to publish. Pairing the age with
+// its subject makes that frame impossible rather than brief, and costs no extra render.
+function useBSMemberAge(userId) {
+  const [entry, setEntry] = React.useState({ uid: null, age: null });
+  React.useEffect(() => {
+    if (!userId) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const map = await window.ShapeMemberAges?.get?.([userId]);
+        const n = map && map[userId];
+        if (alive && typeof n === 'number') setEntry({ uid: userId, age: n });
+      } catch (e) { /* honestly absent */ }
+    })();
+    return () => { alive = false; };
+  }, [userId]);
+  return entry.uid === userId ? entry.age : null;
+}
+
 function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const reduced = bsSdReduced();
@@ -13503,6 +13540,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const city = person.city || '';
   const handle = (live && live.username && '@' + live.username) || (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const pronouns = (!isPrivate && live && live.pronouns) || '';
+  // The age is asked for by user id, so it is only ever a REAL account's age — a
+  // demo persona has no id and renders nothing rather than a fabricated number.
+  // Whether it comes back at all is the server's call (self · their coach · the
+  // member's own public opt-in); null renders as absence, never as "private".
+  const memberAge = useBSMemberAge(person.userId);
   // When there's no live points (signed-out demo), seed the displayed score from
   // the tier so the number agrees with the tier name + avatar (no Base-with-1284).
   const score = points != null ? points : (() => {
@@ -13955,7 +13997,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           just off the screen edge (owner request — near-edge-to-edge). ── */}
       <div style={{ position: 'relative' }}>
         <div data-tour={meMode ? 'hero-me' : undefined} style={{ position: 'relative', padding: meMode ? '10px 8px 0' : '14px 8px 0' }}>
-          <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
+          <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, memberAge == null ? '' : `${memberAge}`, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
             photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
             onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
@@ -27588,6 +27630,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
     profileVisibility: ['Public', 'Just friends', 'Private'],
+    agePublic: ['Off', 'On'],
     onlineVisible:     ['On', 'Off'],
     shareWorkoutData:  ['On', 'Off'],
     dailyCheckin:      ['On', 'Off'],
@@ -27654,6 +27697,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const dcOn = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
       const edited = editedRef.current;
       const patch = { ...s, dailyCheckin: dcOn ? 'On' : 'Off' };
+      // ⚠ THE AGE TOGGLE IS NEVER TAKEN FROM THIS DOC. profiles.age_public is the
+      // store member_dobs_for_viewer reads, and its own effect seeds the row. Today
+      // the key cannot be here (persistPrefs is never called for it), so this delete
+      // is a no-op — it exists so that stays true: if a whole-doc save ever smuggled
+      // a stale copy in, this hydrate would otherwise overwrite the member's real
+      // choice with it, and the next tap would write the wrong value back.
+      delete patch.agePublic;
       Object.keys(edited).forEach(k => { delete patch[k]; });
       setPrefs(p => ({ ...p, ...patch }));
       const fresh = (k) => !(k in edited);
@@ -27708,9 +27758,121 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     window.addEventListener('shape:voice', sync);
     return () => window.removeEventListener('shape:voice', sync);
   }, []);
+
+  // Seed the age toggle from profiles.age_public — the store the RPC reads.
+  //
+  // ⚠ WITHOUT THIS THE ROW WOULD RENDER 'Off' FOR EVERYONE, including a member who
+  // had turned it ON, and their next tap would write that wrong value back. A null
+  // read means "could not tell" (a failed read, or signed out), so the row is left
+  // exactly as it is rather than being asserted either way.
+  const ageConfirmedRef = React.useRef(null);   // last value the SERVER confirmed
+  const ageWriteRef = React.useRef(0);          // generation of the newest write
+  // Declared HERE, above every age path, so each one can update it synchronously.
+  const prefsRef = React.useRef(prefs);
+  React.useEffect(() => { prefsRef.current = prefs; }, [prefs]);
+  // ⚠ prefsRef IS THE INPUT TO THE NEXT TAP, so it has to move WITH the row rather than
+  // a render behind it. `cyclePref` reads `prefsRef.current.agePublic` to decide the next
+  // value, and `persistAgePublic` reads it as `prev`; the sync effect above only lands
+  // after a committed render. Both failures inside that window keep a member PUBLIC:
+  //   • two taps from Off both compute indexOf('Off') → 'On', so the row can never be
+  //     tapped back off; and
+  //   • an explicit setPref('agePublic','Off') compares a stale prev 'Off' to 'Off',
+  //     hits the equality guard, and returns having written NOTHING — the member
+  //     selects Off and stays visible, with no error and no toast.
+  // So every agePublic transition goes through this one setter.
+  const setAgePublicPref = React.useCallback((label) => {
+    prefsRef.current = { ...prefsRef.current, agePublic: label };
+    setPrefs((p) => (p.agePublic === label ? p : { ...p, agePublic: label }));
+  }, []);
+  React.useEffect(() => {
+    let cancelled = false;
+    // ⚠ A READ THAT STARTED BEFORE A WRITE MUST NOT LAND AFTER IT. This hydrate can read
+    // 'Off', the member can then turn the row ON and have that stored, and only THEN does
+    // this response arrive — writing the stale 'Off' into both the row AND
+    // ageConfirmedRef, so even the rollback value is poisoned. The member is then told
+    // their age is private while the server has it public, which is this row's one
+    // unacceptable direction. `cancelled` cannot see it: nothing unmounted.
+    const gen = ageWriteRef.current;
+    (async () => {
+      try {
+        const on = await window.ShapeAgeVisibility?.get?.();
+        if (cancelled || ageWriteRef.current !== gen) return;
+        if (on === null || on === undefined) return;
+        ageConfirmedRef.current = on ? 'On' : 'Off';
+        setAgePublicPref(on ? 'On' : 'Off');
+      } catch (e) { /* leave the row untouched */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  // ⚠ THE AGE TOGGLE'S ONE WRITER. Both entry points (cyclePref + setPref) route
+  // here, so the rules below cannot hold on one path and not the other.
+  //
+  // ⚠ NOT persistPrefs. profiles.age_public is the store member_dobs_for_viewer
+  // reads; a second copy in client_settings would be a stale answer to a
+  // disclosure question, and the copy the RPC does not read is the one that drifts.
+  //
+  // ⚠ A MISSING DOOR IS A FAILURE, NOT A SUCCESS. `window.ShapeAgeVisibility?.set?.()`
+  // returns undefined and throws nothing when the data layer has not loaded — so an
+  // optimistic flip would stand while NOTHING was written, telling a member their age
+  // is public when it is not. The function has to actually exist to count as saved.
+  //
+  // ⚠ ROLL BACK ONLY IF THIS WRITE IS STILL THE CURRENT ONE. Two quick taps put two
+  // writes in flight; if the first fails after the second succeeded, an unconditional
+  // rollback would revert the member's newer, saved choice. A token pins each attempt
+  // to the state it produced.
+  //
+  // Persistence deliberately does NOT run inside a setPrefs updater — an updater can
+  // be invoked more than once for a render, which would fire the write twice.
+  // (prefsRef + its sync effect are declared above, with setAgePublicPref.)
+  // ⚠ ROLL BACK TO WHAT THE SERVER LAST CONFIRMED, NOT TO `prev`. `prev` is read
+  // from prefsRef at tap time, so after a second tap it holds the FIRST tap's
+  // OPTIMISTIC value. If both writes then fail, rolling back to it asserts a value
+  // the server never stored — and it can assert 'On' for a member who is 'Off'.
+  const persistAgePublic = React.useCallback(async (nextLabel) => {
+    const prev = prefsRef.current.agePublic;
+    if (prev === nextLabel) return;
+    const token = ageWriteRef.current + 1;
+    ageWriteRef.current = token;
+    setAgePublicPref(nextLabel);                         // optimistic
+    const write = window.ShapeAgeVisibility?.set;
+    if (typeof write === 'function') {
+      try {
+        await write(nextLabel === 'On');
+        ageConfirmedRef.current = nextLabel;              // the server took it
+        return;                                          // stored — the flip stands
+      } catch (e) { /* fall through to the rollback */ }
+    }
+    if (token !== ageWriteRef.current) return;           // a newer choice already won
+    // ⚠ A FAILED WRITE DOES NOT MEAN AN UNCHANGED ROW. The request can commit and still
+    // throw on the way back (a connection dropped after the UPDATE landed), so rolling
+    // straight back would assert a value the server may no longer hold — and this row's
+    // wrong direction is telling a member their age is private while it is public. Ask
+    // the server what it actually stores before deciding. The web twin shows an explicit
+    // UNKNOWN here instead; this segmented row can only render 'On' or 'Off', so it
+    // RESOLVES the doubt rather than displaying it.
+    let settled = null;
+    try {
+      const now = await window.ShapeAgeVisibility?.get?.();
+      if (now === true || now === false) settled = now ? 'On' : 'Off';
+    } catch (e) { /* still unknown */ }
+    if (token !== ageWriteRef.current) return;
+    if (settled !== null) ageConfirmedRef.current = settled;
+    const back = settled !== null
+      ? settled
+      : (ageConfirmedRef.current == null ? prev : ageConfirmedRef.current);
+    setAgePublicPref(back);
+    if (settled === nextLabel) return;                   // it landed after all
+    window.__bsToast?.(tr('settings:toast.ageSaveFailed', { defaultValue: 'Could not save that — try again' }), 'error');
+  }, [tr]);
+
   const cyclePref = (key, label) => {
     const opts = PREF_OPTIONS[key];
     if (!opts) return;
+    if (key === 'agePublic') {
+      const idx = Math.max(0, opts.indexOf(prefsRef.current.agePublic));
+      persistAgePublic(opts[(idx + 1) % opts.length]);
+      return;
+    }
     setPrefs(p => {
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
@@ -27726,6 +27888,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     });
   };
   const setPref = (key, value) => {
+    // agePublic never touches persistPrefs — see the one writer above.
+    if (key === 'agePublic') { persistAgePublic(value); return; }
     setPrefs(p => {
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
@@ -28410,6 +28574,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:privacy.visibility', { defaultValue: 'Profile visibility' }), key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: tr('settings:privacy.visibilityDesc', { defaultValue: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' }) },
         { l: tr('settings:privacy.online', { defaultValue: 'Show when I’m online' }), key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: tr('settings:privacy.onlineDesc', { defaultValue: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' }) },
         { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' }) },
+        { l: tr('settings:privacy.agePublic', { defaultValue: 'Show my age on my profile' }), key: 'agePublic', segmented: PREF_OPTIONS.agePublic, desc: tr('settings:privacy.agePublicDesc', { defaultValue: 'Off by default. When on, your age — never your date of birth — shows on your profile. Your coaches always see your age for the clients they work with, because it changes how they program for you.' }) },
       ],
     },
     {

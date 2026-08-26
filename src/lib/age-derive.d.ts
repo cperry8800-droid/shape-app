@@ -32,3 +32,14 @@ export declare function mustRefuseForAge(
     | undefined,
   now?: Date | number
 ): boolean;
+
+/**
+ * The member's age in whole years as of `now`, or NULL when there is no usable
+ * date or clock (never 0, never negative).
+ *
+ * Reads the SAME UTC−12 reference day as isMinorFromDob, deliberately: a different
+ * clock here would let the gate and the displayed age disagree about whether a
+ * birthday has happened. Feb 29 clamps to Feb 28 in a non-leap year, matching
+ * Postgres — there is no SQL twin of this function for exactly that reason.
+ */
+export declare function ageFromDob(dob: unknown, now?: Date | number): number | null;

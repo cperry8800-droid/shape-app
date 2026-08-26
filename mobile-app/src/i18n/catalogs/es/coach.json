@@ -192,6 +192,7 @@
   "case.ckStress": "Estrés",
   "case.ckTraining": "Entrenamiento",
   "case.clientSince": "CLIENTE {since}",
+  "case.age": "EDAD {n}",
   "case.coManaging": "{role} · COGESTIÓN",
   "case.coachNoteHead": "NOTA DEL COACH · SOLO TÚ LA VES",
   "case.commitHabits": "Hábitos marcados",

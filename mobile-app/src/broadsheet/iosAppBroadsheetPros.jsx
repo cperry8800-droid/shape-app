@@ -2098,17 +2098,27 @@ function useBSProRoster(role) {
       // the other's key. Both degrade silently to an empty map.
       const W = (typeof window !== 'undefined' && window.ShapeRosterWeekend) || null;
       const V = (typeof window !== 'undefined' && window.ShapeRosterVariance) || null;
+      // The coach ALWAYS sees an age for their own clients, and that judgement is
+      // the server's, not this hook's: member_dobs_for_viewer answers on the
+      // active-subscription link, so a member's public/private toggle never
+      // enters into it. ONE request for the whole roster, joined to the two
+      // enrichments already here rather than added as a third setLive — see the
+      // note above for why a separate one would erase their keys.
+      const A = (typeof window !== 'undefined' && window.ShapeMemberAges) || null;
       const ids = rows.map((r) => r.userId);
       Promise.all([
         W && W.get ? W.get(ids).then((res) => (res && res.split) || {}).catch(() => ({})) : Promise.resolve({}),
         V && V.get ? V.get(ids).catch(() => ({})) : Promise.resolve({}),
-      ]).then(([split, varMap]) => {
+        A && A.get ? A.get(ids).catch(() => ({})) : Promise.resolve({}),
+      ]).then(([split, varMap, ageMap]) => {
         if (!on) return;
-        if (!Object.keys(split).length && !Object.keys(varMap).length) return;
+        if (!Object.keys(split).length && !Object.keys(varMap).length && !Object.keys(ageMap).length) return;
         setLive(rows.map((r) => {
           const extra = {};
           if (split[r.userId]) extra._wknd = split[r.userId];
           if (varMap[r.userId]) extra._var = varMap[r.userId];
+          // ⚠ typeof, not truthiness — 0 is a real age and must not vanish here.
+          if (typeof ageMap[r.userId] === 'number') extra._age = ageMap[r.userId];
           return Object.keys(extra).length ? { ...r, ...extra } : r;
         }));
       }).catch(() => {});
@@ -2169,6 +2179,13 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
   React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
   const [needsRef, needsSeen] = useSdInView();
   const [trackRef, trackSeen] = useSdInView();
+
+  // The client's age, as a string, or null when there is none to show.
+  // ⚠ A STRING, NOT THE NUMBER: every row below composes its meta through
+  // `.filter(Boolean)`, and a bare 0 would be dropped by it — 0 is a real age.
+  // `_age` is absent for demo rows and for anyone the roster read could not
+  // answer for; absence renders as nothing, never as a placeholder or "private".
+  const ageWord = (c) => (typeof c._age === 'number' ? String(c._age) : null);
 
   const [expanded, setExpanded] = useStateBSP(false);
   const [showAdd, setShowAdd] = useStateBSP(false);
@@ -2270,7 +2287,9 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                   >
                     <BSFacetAvatar size={42} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15 }}>{c.n}</div>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
+                        {c.n}{ageWord(c) ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em' }}> · {ageWord(c)}</span> : null}
+                      </div>
                       <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.35 }}>{sig.directive}</div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -2307,7 +2326,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                 >
                   <span aria-hidden style={{ width: 4, height: 4, borderRadius: 999, background: `${t.INK}30`, justifySelf: 'center' }} />
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.n}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{[c.r, c.streak ? `${c.streak}D` : null].filter(Boolean).join(' · ')}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{[ageWord(c), c.r, c.streak ? `${c.streak}D` : null].filter(Boolean).join(' · ')}</span>
                 </button>
               ))}
             </div>
@@ -2337,7 +2356,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                   >
                     <span aria-hidden style={{ width: 4, height: 4, borderRadius: 999, background: `${t.INK}30`, justifySelf: 'center' }} />
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.n}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{c.r || tr('coach:roster.labelPast', { defaultValue: 'PAST' })}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{[ageWord(c), c.r || tr('coach:roster.labelPast', { defaultValue: 'PAST' })].filter(Boolean).join(' · ')}</span>
                   </button>
                 ))}
               </div>
@@ -4150,6 +4169,27 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       .catch(() => {});
     return () => { on = false; };
   }, [clientUid]);
+  // The client's AGE (never their birthdate) — a coach always sees it for their
+  // own clients. ⚠ THAT IS THE SERVER'S JUDGEMENT, NOT THIS COMPONENT'S:
+  // member_dobs_for_viewer answers on the active-subscription link, so the
+  // member's public/private toggle does not enter into it, and there is no rule
+  // here that could drift out of step with the one in SQL. Absent for demo rows
+  // (no uid) and for any client it could not answer for; absence renders as
+  // nothing rather than as "private", which would itself disclose a choice.
+  const [memberAge, setMemberAge] = useStateBSP(null);
+  useEffectBSP(() => {
+    setMemberAge(null);       // reset FIRST — one client's age must never land on another
+    if (!clientUid || !window.ShapeMemberAges?.get) return undefined;
+    let on = true;
+    window.ShapeMemberAges.get([clientUid])
+      .then((map) => {
+        const n = map && map[clientUid];
+        // ⚠ typeof, not truthiness — 0 is a real age.
+        if (on && typeof n === 'number') setMemberAge(n);
+      })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [clientUid]);
   useEffectBSP(() => {
     if (clientUid && window.ShapeProgramApi?.get) {
       window.ShapeProgramApi.get(clientUid).then(p => { if (p && (p.trainingPhase || p.nutritionPhase)) setPhase(prev => ({ ...prev, ...p })); }).catch(() => {});
@@ -4491,7 +4531,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
         <BSFacetAvatar size={56} c={heat} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
-        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.clientSince', { defaultValue: 'CLIENT {since}', since: sinceLabel })}</div>
+        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
+          {[tr('coach:case.clientSince', { defaultValue: 'CLIENT {since}', since: sinceLabel }),
+            // ⚠ typeof, not truthiness — 0 is a real age, and `.filter(Boolean)`
+            // below would drop it if this returned the bare number.
+            typeof memberAge === 'number' ? tr('coach:case.age', { defaultValue: 'AGE {n}', n: memberAge }) : null,
+           ].filter(Boolean).join(' · ')}
+        </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: t.INK70 }}>
           <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: isPast ? t.INK50 : heat, display: 'inline-block' }} />
           {statusLabel}
