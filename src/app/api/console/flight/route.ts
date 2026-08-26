@@ -152,7 +152,7 @@ async function buildFlight(token: string): Promise<Flight> {
         ci,
         coderabbit,
         codex,
-        allGreen: prAllGreen({ ci, coderabbit, draft: !!p.draft }),
+        allGreen: prAllGreen({ ci, draft: !!p.draft }),
       };
     })
   );

@@ -123,11 +123,12 @@ test('coderabbitVerdict — a rate-limit notice is NOT a review (round-6 P1)', (
       `Reviewing files that changed from the base of the PR and between deadbeef and ${SHA}.`,
   };
   assert.equal(coderabbitVerdict({ comments: [capped], headSha: SHA }), 'limited');
-  // ⚠ AND A CAP MUST NEVER OPEN THE GATE. This was the claim that made it a P1: a rate-limit
-  // notice names the head in its commit-range block, so anything keying on "mentions the
-  // head" reads a review that never ran as a review that passed. Now that CodeRabbit gates
-  // again, the assertion is live rather than structural.
-  assert.equal(prAllGreen({ ci: 'green', coderabbit: 'limited', draft: false }), false);
+  // ⚠ THE GATE ASSERTION THAT STOOD HERE IS DELETED, NOT SILENTLY WEAKENED. It read that a
+  // cap must never OPEN the gate — true while CodeRabbit gated, and unassertable now that no
+  // reviewer does (owner, 2026-08-24). What made it a P1 survives in the line above: 'limited'
+  // is its own verdict, so a rate-limit notice naming the head in its commit-range block is
+  // still never read as a review that passed. The chip keeps telling the truth about that;
+  // nothing gates on the answer any more.
 });
 
 test('coderabbitVerdict — a cap that has since cleared does not strand later pushes (round-7 P2)', () => {
@@ -285,28 +286,30 @@ test('codexVerdict — trusted login is exact; a substring never passes (CWE-290
   assert.equal(codexVerdict({ comments: [spoof], headSha: SHA }), 'none');
 });
 
-test('prAllGreen — the gate is CI + a CODERABBIT PASS ON THIS HEAD', () => {
+test('prAllGreen — the gate is CI + not a draft, and NO reviewer decides it', () => {
   const base = { ci: 'green', draft: false };
-  // The two ways CodeRabbit says "nothing to report". Measured across the last 18 merged
-  // PRs: APPROVED is the only signal it emits reliably on a clean head (2 of 2 clean heads
-  // approved), and the head-pinned zero-marker is the other, rarer one.
-  assert.equal(prAllGreen({ ...base, coderabbit: 'approved' }), true);
-  assert.equal(prAllGreen({ ...base, coderabbit: 'clean' }), true);
-  // ⚠ 'commented' is NOT a pass. Its summary line is edited in place and is NOT head-pinned:
-  // #1915 merged with the PR-wide line still reading "Actionable comments posted: 2" while
-  // the head review was APPROVED with zero inline findings. Reading that as a verdict on
-  // this head is how a cap or a stale sweep gets mistaken for a pass.
-  assert.equal(prAllGreen({ ...base, coderabbit: 'commented' }), false);
-  assert.equal(prAllGreen({ ...base, coderabbit: 'changes' }), false);
-  assert.equal(prAllGreen({ ...base, coderabbit: 'limited' }), false);
-  assert.equal(prAllGreen({ ...base, coderabbit: 'none' }), false);
-  assert.equal(prAllGreen({ ...base, coderabbit: 'approved', draft: true }), false);
-  assert.equal(prAllGreen({ ...base, coderabbit: 'approved', ci: 'none' }), false);
-  // ⚠ CODEX NO LONGER GATES, and a Codex verdict must not open the gate on its own — the
-  // house stopped using it, so a clean Codex record says nothing about whether this head
-  // was reviewed at all.
-  assert.equal(prAllGreen({ ...base, codex: 'clean' }), false);
-  assert.equal(prAllGreen({ ...base, codex: 'clean', coderabbit: 'changes' }), false);
+  // Sanity at this end: the two properties that DO decide.
+  assert.equal(prAllGreen(base), true);
+  assert.equal(prAllGreen({ ...base, ci: 'none' }), false);
+  assert.equal(prAllGreen({ ...base, ci: 'red' }), false);
+  assert.equal(prAllGreen({ ...base, draft: true }), false);
+  assert.equal(prAllGreen(), false);
+  // ⚠ NO REVIEWER VERDICT MAY MOVE THE ANSWER IN EITHER DIRECTION (owner, 2026-08-24:
+  // "no more coderabbit", after Codex on 2026-08-20). Both chips are still computed and
+  // still rendered; neither is an input to this function.
+  const VERDICTS = ['none', 'approved', 'clean', 'commented', 'changes', 'limited', 'stale',
+    'findings', undefined];
+  for (const v of VERDICTS) {
+    const shown = JSON.stringify(v);
+    assert.equal(prAllGreen({ ...base, coderabbit: v }), true,
+      'CodeRabbit verdict ' + shown + ' must not close a green non-draft PR');
+    assert.equal(prAllGreen({ ...base, codex: v }), true,
+      'Codex verdict ' + shown + ' must not close a green non-draft PR');
+    assert.equal(prAllGreen({ ci: 'none', draft: false, coderabbit: v, codex: v }), false,
+      'verdict ' + shown + ' must not rescue a PR whose CI is not green');
+    assert.equal(prAllGreen({ ci: 'green', draft: true, coderabbit: v, codex: v }), false,
+      'verdict ' + shown + ' must not rescue a draft');
+  }
 });
 
 // ⚠ A REVIEW STATE IS NOT THE WHOLE VERDICT. CodeRabbit posts its findings as inline review
@@ -396,24 +399,26 @@ test('coderabbitVerdict — inline findings anchored on the head are CHANGES', (
   );
 });
 
-// ⚠ THE UNSATISFIABILITY THIS ONCE FIXED HAS DISSOLVED, AND THE GATE SWAPPED BACK. The old
-// contradiction was that `coderabbitVerdict` is head-pinned while the house ran CodeRabbit
-// ONCE as a breadth sweep — so the sweep stopped counting the moment a fix for its own
-// findings was pushed. Codex no longer gates and is never triggered (owner, 2026-08-20) —
-// its chip still renders and its verdict is still computed; it just decides nothing. CodeRabbit is
-// re-triggered every round, so head-pinning is exactly what a gate wants: it now says
-// "this head was reviewed and passed" rather than "some head once was".
-test('prAllGreen — CODEX does NOT gate, whatever its verdict', () => {
-  const base = { ci: 'green', coderabbit: 'approved', draft: false };
-  for (const v of ['clean', 'findings', 'stale', 'none', undefined]) {
-    assert.equal(prAllGreen({ ...base, codex: v }), true,
-      'Codex verdict ' + JSON.stringify(v) + ' must not decide the gate');
+// ⚠ THIS TEST EXISTS BECAUSE THE SAME DEFECT SHIPPED TWICE, FOUR DAYS APART. A gate that
+// names a reviewer flips CLOSED the day that reviewer is retired: the verdict pins at 'none'
+// forever, and 'none' is the blocking case. #1914 made the gate require a clean CODEX verdict
+// days before Codex was dropped (caught while writing the replacement); #1916 replaced it with
+// a CODERABBIT pass three days before CodeRabbit was dropped — and that one was NOT caught, so
+// /console called every PR not-mergeable regardless of CI from 2026-08-24 until this fix.
+// The remedy is not a third reviewer name. It is that the gate reads only what the house
+// controls, which is what the loop below pins.
+test('prAllGreen — retiring a reviewer cannot close the gate (#1914 / #1916 regression)', () => {
+  const RETIRED = ['none', undefined, 'stale', 'findings', 'limited', 'commented', 'changes'];
+  for (const cr of RETIRED) {
+    for (const cx of RETIRED) {
+      assert.equal(prAllGreen({ ci: 'green', draft: false, coderabbit: cr, codex: cx }), true,
+        'a green non-draft PR must stay mergeable with coderabbit=' + JSON.stringify(cr) +
+        ' codex=' + JSON.stringify(cx));
+    }
   }
-  // ...and it cannot rescue a head CodeRabbit has not passed.
-  for (const v of ['clean', 'findings', 'stale', 'none', undefined]) {
-    assert.equal(prAllGreen({ ...base, coderabbit: 'commented', codex: v }), false,
-      'Codex verdict ' + JSON.stringify(v) + ' must not open the gate on its own');
-  }
+  // Sanity at the far end, so a function stuck returning true would not pass this test.
+  assert.equal(prAllGreen({ ci: 'none', draft: false }), false);
+  assert.equal(prAllGreen({ ci: 'green', draft: true }), false);
 });
 
 // ⚠ A RECORD CAP ON A LATEST-WINS GATE IS A CORRECTNESS BUG, NOT A LATENCY TRADE.
@@ -449,12 +454,19 @@ test('nextPageUrl — follows rel=next and stops when there is none', () => {
 // `reviewComments` in by hand, so all of them stay green if the route never fetches them —
 // and the gate would then read APPROVED for a head with open findings on it. This asserts
 // the real call site.
-test('the flight route feeds the gate what the gate now reads', () => {
+test('the flight route feeds the chips their data, and the gate no reviewer at all', () => {
   const src = readFileSync(new URL('../src/app/api/console/flight/route.ts', import.meta.url), 'utf8');
   assert.match(src, /pulls\/\$\{p\.number\}\/comments/,
     'the route must fetch the PR review comments — inline findings live there');
   assert.match(src, /coderabbitVerdict\(\{[^}]*reviewComments/,
-    'reviewComments must reach coderabbitVerdict, or head findings are invisible to it');
-  assert.match(src, /prAllGreen\(\{[^}]*coderabbit/,
-    'prAllGreen must be given the CodeRabbit verdict — it is the gate now');
+    'reviewComments must reach coderabbitVerdict, or head findings are invisible to the chip');
+  // ⚠ AND THE INVERSE IS NOW THE LOAD-BEARING HALF. No reviewer has gated since 2026-08-24,
+  // and the way this defect comes back is someone wiring a verdict in AT THE CALL SITE — which
+  // no unit test of prAllGreen can see, because every one of them builds its own argument.
+  // Twice now a retired reviewer's permanent 'none' has closed the gate on every green PR, so
+  // the absence is asserted where the bug actually travels.
+  assert.doesNotMatch(src, /prAllGreen\(\{[^}]*coderabbit/,
+    'prAllGreen must NOT be fed a CodeRabbit verdict — no reviewer gates (owner, 2026-08-24)');
+  assert.doesNotMatch(src, /prAllGreen\(\{[^}]*codex/,
+    'prAllGreen must NOT be fed a Codex verdict — no reviewer gates (owner, 2026-08-20)');
 });

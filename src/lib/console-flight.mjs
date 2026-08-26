@@ -266,34 +266,28 @@ export function codexVerdict({ reviews, comments, headSha } = {}) {
 }
 
 /**
- * AWAITING YOUR WORD = CI full-coverage green, a CODERABBIT PASS ON THIS HEAD,
- * and not a draft.
+ * AWAITING YOUR WORD = CI full-coverage green and not a draft.
  *
- * ⚠ CODEX NO LONGER GATES — the house stopped using it (owner, 2026-08-20), so
- * a clean Codex record says nothing about whether this head was reviewed. It
- * keeps its chip; it cannot open or close the gate.
+ * ⚠ NO REVIEWER GATES ANY MORE. Codex went first (owner, 2026-08-20), CodeRabbit
+ * followed (owner, 2026-08-24: "no more coderabbit"). Both verdicts are still computed
+ * and still render as chips; neither can open or close the gate.
  *
- * ⚠ AND THE CONTRADICTION THAT ONCE REMOVED CODERABBIT HAS DISSOLVED. The old
- * problem was that `coderabbitVerdict` is head-pinned while the house ran
- * CodeRabbit ONCE as a breadth sweep: the sweep stopped counting the moment a
- * fix for its own findings was pushed. CodeRabbit is now re-triggered every
- * round, which is what makes head-pinning the right property for a gate rather
- * than an unsatisfiable one — it says THIS head was reviewed and passed.
+ * ⚠ THE FAILURE THIS SHAPE KEEPS PRODUCING, NOW TWICE. A gate that names a reviewer
+ * flips CLOSED the day that reviewer is retired, because its verdict pins at 'none'
+ * forever and 'none' is the blocking case. #1914 required a clean CODEX verdict days
+ * before Codex was dropped; #1916 replaced it with a CODERABBIT pass three days before
+ * CodeRabbit was dropped. The first was caught while writing the replacement. THE SECOND
+ * WAS NOT, and /console reported every PR as not-mergeable regardless of CI from
+ * 2026-08-24 until this fix. The gate now reads only properties the house itself
+ * controls — a green CI run and a non-draft PR — so retiring a reviewer cannot close it
+ * a third time.
  *
- * ⚠ CODERABBIT NEVER AUTO-REVIEWS THIS REPO, so 'none' is the DEFAULT state of a new
- * head, not an exception. It posts a skip-review comment saying the repository "does not
- * receive automatic reviews because it has fewer than 10 stars" — measured 2026-08-21 on
- * #1916 and #1917, both of which sat unreviewed while CI went green. Every round needs an
- * explicit `@coderabbitai full review`, including the first. Blocking on 'none' is right:
- * waiting is never the recovery, triggering is.
- *
- * ⚠ 'commented' IS NOT A PASS, and that is measured rather than assumed. Across
- * the last 18 merged PRs, CodeRabbit's "Actionable comments posted: N" summary
- * is edited in place and is NOT head-pinned: #1915 merged with that line still
- * reading 2 while the head review was APPROVED with zero inline findings. Only
- * an approval on this head, or a zero-marker that names it, is a pass.
- * @param {{ci?: string, coderabbit?: string, draft?: boolean}} p
+ * ⚠ `coderabbitVerdict` and `codexVerdict` ARE STILL CORRECT AND STILL WORTH READING:
+ * head-pinning, 'commented' not being a pass, a rate-limit notice not being a cap. That
+ * knowledge is about how to READ a review and it outlives the reviewer. What changed is
+ * only that nothing downstream gates on the answer.
+ * @param {{ci?: string, draft?: boolean}} p
  */
-export function prAllGreen({ ci, coderabbit, draft } = {}) {
-  return ci === 'green' && (coderabbit === 'approved' || coderabbit === 'clean') && !draft;
+export function prAllGreen({ ci, draft } = {}) {
+  return ci === 'green' && !draft;
 }
