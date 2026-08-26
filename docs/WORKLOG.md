@@ -104,7 +104,8 @@ changelog whenever something ships.
   not-mergeable regardless of CI**, 2026-08-24 → 2026-08-26. **This was the SECOND time
   in four days** — the same defect shipped with Codex in #1914 and again with CodeRabbit
   in #1916. Fixed 2026-08-26 by removing reviewers from the gate's inputs *and from its
-  TYPE*, so re-wiring one fails to compile. **When a rule names a party who can leave, it
+  TYPE* (#1930 → eec328a55), so re-wiring one fails to compile. **When a rule names a
+  party who can leave, it
   has an expiry date nobody wrote down.**
   ⚠ **THE REVIEWER SYSTEM AS OF 2026-08-21 — SUPERSEDED BY THE BANNER ABOVE, kept for
   its reasoning.** Owner,
@@ -347,7 +348,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-26 — The merge gate stopped naming a reviewer, and the board caught up
+### 2026-08-26 — The merge gate stopped naming a reviewer, and the board caught up (#1930 → eec328a55)
 
 - ⚠ **`/console` had been calling EVERY PR not-mergeable since 2026-08-24, regardless of
   CI.** `prAllGreen` required `coderabbit === 'approved' || 'clean'`, and a retired
