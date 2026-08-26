@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Fase nutrisi",
   "pref.dailyCheckin": "Check-in",
   "pref.dailyCheckinDesc": "Pengingat check-in di Beranda dan notifikasi check-in",
+  "pref.onlineRail": "Anggota online",
+  "pref.onlineRailDesc": "Baris “online sekarang” di bagian atas Komunitas. Hanya disembunyikan dari tampilan sendiri — orang lain tetap bisa melihat status online seperti biasa.",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Metrik",
   "privacy.visibility": "Visibilitas profil",

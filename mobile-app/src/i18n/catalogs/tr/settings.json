@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Beslenme evresi",
   "pref.dailyCheckin": "Check-in’ler",
   "pref.dailyCheckinDesc": "Ana sayfadaki check-in hatırlatmaları ve check-in bildirimleri",
+  "pref.onlineRail": "Çevrimiçi üyeler",
+  "pref.onlineRailDesc": "Topluluk sayfasının üstündeki “şu an çevrimiçi” sırası. Gizlemek yalnızca senin görünümünü değiştirir — başkalarının seni çevrimiçi görmesini değiştirmez.",
   "pref.unitsImperial": "İngiliz",
   "pref.unitsMetric": "Metrik",
   "privacy.visibility": "Profil görünürlüğü",

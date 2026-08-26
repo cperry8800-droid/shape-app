@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Nutrition phase",
   "pref.dailyCheckin": "Check-ins",
   "pref.dailyCheckinDesc": "Check-in prompts on Home, and check-in notifications",
+  "pref.onlineRail": "Online members",
+  "pref.onlineRailDesc": "The “online now” row of members at the top of Community. Hiding it changes only your view — it never changes whether others can see you online.",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Metric",
   "privacy.visibility": "Profile visibility",

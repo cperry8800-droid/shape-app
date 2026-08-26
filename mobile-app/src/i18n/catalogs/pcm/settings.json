@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Food phase",
   "pref.dailyCheckin": "Check-in dem",
   "pref.dailyCheckinDesc": "Check-in reminder for Home, and check-in notification dem",
+  "pref.onlineRail": "People wey dey online",
+  "pref.onlineRailDesc": "The “online now” row for top of Community. To hide am na only your own view e go change — e no change whether other people fit see say you dey online.",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Metric",
   "privacy.visibility": "Who fit see your profile",

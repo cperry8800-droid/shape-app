@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Фаза питания",
   "pref.dailyCheckin": "Чек-ины",
   "pref.dailyCheckinDesc": "Напоминания о чек-ине на Главной и уведомления о чек-ине",
+  "pref.onlineRail": "Участники онлайн",
+  "pref.onlineRailDesc": "Ряд «сейчас онлайн» вверху Сообщества. Скрытие меняет только ваш вид — другие по-прежнему видят, когда вы онлайн.",
   "pref.unitsImperial": "Имперская",
   "pref.unitsMetric": "Метрическая",
   "privacy.visibility": "Видимость профиля",

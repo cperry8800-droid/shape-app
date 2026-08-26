@@ -17876,6 +17876,21 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // hooks after a conditional return crash React ("fewer hooks than expected", #300).
   const [realActive, setRealActive] = useStateBSC([]);
   const [boostFor, setBoostFor] = useStateBSC(null);   // rail person mid-activity → live-boost sheet
+  // Settings → Preferences → "Online members" (default ON), plus the rail's own
+  // inline HIDE ×. The one-shot note after a hide points at the way back; its
+  // timer lives in a ref so the unmount cleanup can clear it (the cleanup only
+  // touches the ref, so the empty-dep first-render closure is safe here).
+  const railOn = useBSOnlineRailPref();
+  const [railHideNote, setRailHideNote] = useStateBSC(false);
+  const railNoteTimer = React.useRef(null);
+  React.useEffect(() => () => { try { clearTimeout(railNoteTimer.current); } catch (e) {} }, []);
+  const hideRail = () => {
+    try { bsOnlineRailApply(false); } catch (e) {}   // mirror + live re-render (this render included)
+    try { bsOnlineRailPersist(false); } catch (e) {} // cloud, with the pane's decline rule
+    setRailHideNote(true);
+    try { clearTimeout(railNoteTimer.current); } catch (e) {}
+    railNoteTimer.current = setTimeout(() => setRailHideNote(false), 3200);
+  };
   React.useEffect(() => {
     if (!window.ShapePresence?.activeNow) return undefined;
     let on = true;
@@ -17999,12 +18014,24 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       </div>
 
       {/* Live "training now" presence rail — hidden when nobody's active (a
-          signed-in member with no active people sees no rail). */}
-      {railPeople.length > 0 && (
+          signed-in member with no active people sees no rail), and hidden by
+          choice via railOn (Settings → Preferences → "Online members", or the
+          inline HIDE × below). OFF renders NOTHING — deliberately the exact
+          state the empty-rail branch already produces, not a new layout. */}
+      {railOn && railPeople.length > 0 && (
       <div style={{ padding: `4px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
+            {/* Signed-in only: the demo cast's rail stays byte-identical, and a
+                signed-out tap could not persist anyway (no uid — apply would
+                no-op and the hook pins ON). */}
+            {loggedIn && (
+              <button onClick={hideRail} aria-label={tr('feed:rail.hideAria', { defaultValue: 'Hide the online members rail' })}
+                style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
+                {tr('feed:rail.hide', { defaultValue: 'Hide' })} <span aria-hidden>×</span>
+              </button>
+            )}
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '14px 12px 6px' }}>
             {railPeople.map((p, i) => {
@@ -18029,6 +18056,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             })}
           </div>
       </div>
+      )}
+      {/* One-shot after the inline ×: where to bring the rail back. Timed out
+          by hideRail's ref timer; never rendered for a Settings-made change. */}
+      {!railOn && railHideNote && (
+        <div style={{ padding: `6px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+          {tr('feed:rail.restoreNote', { defaultValue: 'Restore any time in Settings → Preferences' })}
+        </div>
       )}
 
       {boostFor && (
@@ -22117,6 +22151,95 @@ function useBSDailyCheckinPref() {
     };
     window.addEventListener('shape:checkinPref', onEvt);
     return () => window.removeEventListener('shape:checkinPref', onEvt);
+  }, []);
+  return uid ? on : true;
+}
+
+// ---- Online-rail preference ("Online members" · Settings → Preferences) ----
+// Whether the Community presence rail renders for THIS member (default ON).
+// Deliberately the daily check-in pref's shape, helper for helper — one
+// canonical predicate, a per-uid localStorage mirror, an apply() that tells a
+// mounted feed live, a seed label for the Settings row, and a read hook — and
+// the rules those halves obey are documented ONCE on the check-in block above
+// rather than restated: stored in the client_settings doc, absent/true/'On'
+// read ON and only an explicit false/'Off' reads OFF, signed-out (the demo
+// cast) is always ON.
+// ⚠ This hides the MEMBER'S OWN VIEW of the rail. Whether THEY appear in
+// other members' rails is `onlineVisible` (presence) — different setting, on
+// purpose: browsing without the rail is not the same choice as browsing unseen.
+function bsOnlineRailOn(v) { return v !== false && v !== 'Off'; }
+const BS_ONLINE_RAIL_LS = 'shape.onlineRail';
+function bsOnlineRailLsKey(uid) { return BS_ONLINE_RAIL_LS + '.' + uid; }
+function bsOnlineRailMirrorRead() {
+  try {
+    const uid = bsCheckinPrefUid();
+    if (!uid) return true;
+    const raw = localStorage.getItem(bsOnlineRailLsKey(uid));
+    if (!raw) return true;
+    const rec = JSON.parse(raw);
+    return !(rec && rec.off === true && rec.uid === uid);
+  } catch (e) { return true; }
+}
+function bsOnlineRailMirrorWrite(on) {
+  try {
+    const uid = bsCheckinPrefUid();
+    if (!uid) return;
+    if (on) localStorage.removeItem(bsOnlineRailLsKey(uid));
+    else localStorage.setItem(bsOnlineRailLsKey(uid), JSON.stringify({ uid, off: true }));
+  } catch (e) {}
+}
+function bsOnlineRailApply(on) {
+  bsOnlineRailMirrorWrite(on);
+  try { window.dispatchEvent(new CustomEvent('shape:onlineRailPref', { detail: { on: !!on } })); } catch (e) {}
+}
+function bsOnlineRailLabel() { return bsOnlineRailMirrorRead() ? 'On' : 'Off'; }
+// The rail's inline HIDE × is a cloud writer OUTSIDE the Settings pane, so it
+// follows the pane's persistPrefs rules or the pane's next hydrate undoes it:
+// read-merge-write onto a REAL server document, and DECLINE when one cannot be
+// obtained — the mirror still hides this device, and the pane's next
+// successful save persists the choice. The decline window is narrow in
+// practice: the × only renders on a rail that live presence data is actively
+// feeding. ⚠ Never write { onlineRail } alone — saveUserGoals UPSERTS the
+// whole blob, so a bare write would erase every sibling preference.
+function bsOnlineRailPersist(on) {
+  const db = window.shapeDb;
+  if (!(db && db.getUserGoals && db.saveUserGoals)) return;
+  db.getUserGoals('client_settings').then((s) => {
+    if (!(s && typeof s === 'object')) return; // no real doc — decline, never clobber
+    try { db.saveUserGoals('client_settings', { ...s, onlineRail: on ? 'On' : 'Off' }); } catch (e) {}
+  }).catch(() => {});
+}
+// useBSOnlineRailPref — BSClientFeed's read hook. Same three halves as
+// useBSDailyCheckinPref (synchronous mirror seed · cloud hydrate that a null
+// read never reverts · live 'shape:onlineRailPref' events from Settings or the
+// inline ×), same edit-generation guard against a hydrate landing after a
+// toggle. Signed-out always ON so the demo rail stays byte-identical.
+function useBSOnlineRailPref() {
+  const uid = bsCheckinPrefUid();
+  const [on, setOn] = useStateBSC(() => bsOnlineRailMirrorRead());
+  const editGenRef = React.useRef(0);
+  React.useEffect(() => {
+    setOn(bsOnlineRailMirrorRead());
+    if (!uid || !(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    const gen = editGenRef.current;
+    window.shapeDb.getUserGoals('client_settings').then((s) => {
+      if (!alive) return;
+      if (editGenRef.current !== gen) return; // a toggle landed mid-flight — it wins
+      if (!s || typeof s !== 'object') return; // null read: keep the seed
+      const next = ('onlineRail' in s) ? bsOnlineRailOn(s.onlineRail) : true;
+      bsOnlineRailMirrorWrite(next);
+      setOn(next);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [uid]);
+  React.useEffect(() => {
+    const onEvt = (e) => {
+      editGenRef.current += 1;
+      setOn(e && e.detail ? !!e.detail.on : bsOnlineRailMirrorRead());
+    };
+    window.addEventListener('shape:onlineRailPref', onEvt);
+    return () => window.removeEventListener('shape:onlineRailPref', onEvt);
   }, []);
   return uid ? on : true;
 }
@@ -27634,6 +27757,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     onlineVisible:     ['On', 'Off'],
     shareWorkoutData:  ['On', 'Off'],
     dailyCheckin:      ['On', 'Off'],
+    onlineRail:        ['On', 'Off'],
     mealBreakfast:     BS_MEAL_TIME_OPTS,
     mealLunch:         BS_MEAL_TIME_OPTS,
     mealSnack:         BS_MEAL_TIME_OPTS,
@@ -27677,7 +27801,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const editedRef = React.useRef({});   // { key: value } the member changed HERE
   const serverDocRef = React.useRef(null); // the newest REAL document we've seen
   const hydrateRef = React.useRef(null);   // this pane's first read, in flight
-  const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel() }));
+  const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel(), onlineRail: bsOnlineRailLabel() }));
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
@@ -27695,8 +27819,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       // ABSENT key reads ON — the SAME rule useBSDailyCheckinPref applies, so
       // the row and Home can never converge on different answers.
       const dcOn = ('dailyCheckin' in s) ? bsDailyCheckinOn(s.dailyCheckin) : true;
+      const orOn = ('onlineRail' in s) ? bsOnlineRailOn(s.onlineRail) : true;
       const edited = editedRef.current;
-      const patch = { ...s, dailyCheckin: dcOn ? 'On' : 'Off' };
+      const patch = { ...s, dailyCheckin: dcOn ? 'On' : 'Off', onlineRail: orOn ? 'On' : 'Off' };
       // ⚠ THE AGE TOGGLE IS NEVER TAKEN FROM THIS DOC. profiles.age_public is the
       // store member_dobs_for_viewer reads, and its own effect seeds the row. Today
       // the key cannot be here (persistPrefs is never called for it), so this delete
@@ -27713,6 +27838,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       }
       // The apply() keeps the mirror + a mounted Home in sync with the doc.
       if (fresh('dailyCheckin')) { try { bsDailyCheckinApply(dcOn); } catch (e) {} }
+      if (fresh('onlineRail')) { try { bsOnlineRailApply(orOn); } catch (e) {} }
       // The member's own edits win over the doc for meal times too.
       window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s, ...edited });
       if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
@@ -27882,6 +28008,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D; persistPrefs already outdated the hydrate)
+      if (key === 'onlineRail') { try { bsOnlineRailApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live feed re-render (same contract as dailyCheckin)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -27899,6 +28026,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'dailyCheckin') { try { bsDailyCheckinApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live Home re-render (spec §3D; persistPrefs already outdated the hydrate)
+      if (key === 'onlineRail') { try { bsOnlineRailApply(next[key] !== 'Off'); } catch (e) {} } // mirror + live feed re-render (same contract as dailyCheckin)
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
@@ -28565,6 +28693,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:pref.trainingPhase', { defaultValue: 'Training phase' }),  key: 'trainingPhase', dropdown: PREF_OPTIONS.trainingPhase },
         { l: tr('settings:pref.nutritionPhase', { defaultValue: 'Nutrition phase' }), key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
         { l: tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' }), key: 'dailyCheckin', segmented: PREF_OPTIONS.dailyCheckin, desc: tr('settings:pref.dailyCheckinDesc', { defaultValue: 'Check-in prompts on Home, and check-in notifications' }) },
+        { l: tr('settings:pref.onlineRail', { defaultValue: 'Online members' }), key: 'onlineRail', segmented: PREF_OPTIONS.onlineRail, desc: tr('settings:pref.onlineRailDesc', { defaultValue: 'The “online now” row of members at the top of Community. Hiding it changes only your view — it never changes whether others can see you online.' }) },
       ],
     },
     {

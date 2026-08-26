@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Fase de nutrición",
   "pref.dailyCheckin": "Check-ins",
   "pref.dailyCheckinDesc": "Avisos de check-in en Inicio y notificaciones de check-in",
+  "pref.onlineRail": "Miembros en línea",
+  "pref.onlineRailDesc": "La fila «en línea ahora» en la parte superior de Comunidad. Ocultarla solo cambia tu vista — no cambia si otros pueden verte en línea.",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Métrico",
   "privacy.visibility": "Visibilidad del perfil",
