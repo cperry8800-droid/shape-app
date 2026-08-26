@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Фаза харчування",
   "pref.dailyCheckin": "Чек-іни",
   "pref.dailyCheckinDesc": "Нагадування про чек-ін на Головній та сповіщення про чек-ін",
+  "pref.onlineRail": "Учасники онлайн",
+  "pref.onlineRailDesc": "Ряд «зараз онлайн» угорі Спільноти. Приховування діє лише для вас — інші, як і раніше, бачать, коли ви онлайн.",
   "pref.unitsImperial": "Імперська",
   "pref.unitsMetric": "Метрична",
   "privacy.visibility": "Видимість профілю",

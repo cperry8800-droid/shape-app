@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Ernährungsphase",
   "pref.dailyCheckin": "Check-ins",
   "pref.dailyCheckinDesc": "Check-in-Hinweise auf der Startseite und Check-in-Benachrichtigungen",
+  "pref.onlineRail": "Online-Mitglieder",
+  "pref.onlineRailDesc": "Die „Jetzt online“-Leiste oben in der Community. Das Ausblenden ändert nur deine Ansicht — ob andere dich online sehen, ändert sich nicht.",
   "pref.unitsImperial": "Imperial",
   "pref.unitsMetric": "Metrisch",
   "privacy.visibility": "Profilsichtbarkeit",

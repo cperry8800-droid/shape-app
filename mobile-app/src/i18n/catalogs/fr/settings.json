@@ -53,6 +53,8 @@
   "pref.nutritionPhase": "Phase de nutrition",
   "pref.dailyCheckin": "Bilans",
   "pref.dailyCheckinDesc": "Rappels de bilan sur l’Accueil et notifications de bilan",
+  "pref.onlineRail": "Membres en ligne",
+  "pref.onlineRailDesc": "La rangée « en ligne » en haut de Communauté. La masquer ne change que votre affichage — les autres peuvent toujours voir si vous êtes en ligne.",
   "pref.unitsImperial": "Impérial",
   "pref.unitsMetric": "Métrique",
   "privacy.visibility": "Visibilité du profil",
