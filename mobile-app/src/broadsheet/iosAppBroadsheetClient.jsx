@@ -22238,6 +22238,11 @@ function bsOnlineRailPersist(on) {
     if (nowUid !== uid0) { markPending(); return; } // account changed mid-flight — discard
     try {
       const res = await db.saveUserGoals('client_settings', { ...s, onlineRail: on ? 'On' : 'Off' });
+      // A save that FAILED (res.error) is a hide that did not persist — mark it
+      // pending exactly like a declined read, or the next hydrate of a doc
+      // without the key would silently converge the choice away (round-2 review:
+      // the decline and mismatch branches marked pending; this one did not).
+      if (!on && (!res || res.error)) { markPending(); return; }
       if (!on && res && !res.error) {
         // Clear the pending mark — but only if a record still exists: the member
         // may have toggled back ON while this was in flight, and re-creating an
@@ -22247,7 +22252,7 @@ function bsOnlineRailPersist(on) {
           if (cur) localStorage.setItem(bsOnlineRailLsKey(uid0), JSON.stringify({ uid: uid0, off: true }));
         } catch (e) {}
       }
-    } catch (e) {}
+    } catch (e) { markPending(); }
   });
 }
 // useBSOnlineRailPref — BSClientFeed's read hook. Same three halves as

@@ -211,6 +211,59 @@ test('bsOnlineRailPersist merges onto a REAL doc and declines a null one — nev
   assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-d'))), { uid: 'rail-d', off: true, pending: true });
 });
 
+// ⚠ ROUND 2: a save that FAILED (res.error) or THREW is a hide that did not
+// persist — it must leave the same PENDING record a declined read leaves, or
+// the next hydrate of a doc without the key silently converges the choice away.
+test('a failed or thrown save marks the hide pending — same contract as a declined read', async () => {
+  env({ uid: 'rail-m' });
+  // Arm 1: the backend REPORTS failure ({ error }).
+  dom.window.shapeDb = {
+    getUserGoals: async () => ({}),
+    saveUserGoals: async () => ({ error: { message: 'nope' } }),
+    getUser: async () => ({ id: 'rail-m' }),
+  };
+  MOD.bsOnlineRailApply(false);
+  MOD.bsOnlineRailPersist(false);
+  await tick(); await tick();
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-m'))), { uid: 'rail-m', off: true, pending: true });
+  // Arm 2: the save THROWS.
+  dom.window.localStorage.clear();
+  dom.window.shapeDb = {
+    getUserGoals: async () => ({}),
+    saveUserGoals: async () => { throw new Error('boom'); },
+    getUser: async () => ({ id: 'rail-m' }),
+  };
+  MOD.bsOnlineRailApply(false);
+  MOD.bsOnlineRailPersist(false);
+  await tick(); await tick();
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-m'))), { uid: 'rail-m', off: true, pending: true });
+});
+
+// ⚠ AND THE DELIBERATE NON-FIX, pinned so a future "fix" has to delete a test:
+// a pending hide is retried only over an ABSENT key. An explicit 'On' in the
+// doc is a choice with no ordering information — retrying over it could
+// resurrect an OLDER intent across devices (the visOverride resurrection
+// shape). The doc wins; the member sees the rail return and can re-hide.
+test("a pending hide does NOT override an explicit onlineRail:'On' in the doc", async () => {
+  env({ uid: 'rail-n', doc: { onlineRail: 'On' } });
+  const saves = [];
+  dom.window.shapeDb = {
+    getUserGoals: async () => ({ onlineRail: 'On' }),
+    saveUserGoals: async (kind, data) => { saves.push(data); return { ok: true }; },
+    getUser: async () => ({ id: 'rail-n' }),
+  };
+  dom.window.localStorage.setItem(lsKey('rail-n'), JSON.stringify({ uid: 'rail-n', off: true, pending: true }));
+  const m = await mount(React.createElement(Probe));
+  try {
+    await React.act(async () => { await tick(); await tick(); });
+    assert.match(m.host.textContent, /RAIL-ON/, 'an explicit doc choice wins over a pending local hide');
+    assert.equal(saves.length, 0, 'the pending hide must not be re-issued over an explicit On');
+    assert.equal(dom.window.localStorage.getItem(lsKey('rail-n')), null, 'the mirror converges to the doc');
+  } finally {
+    m.unmount();
+  }
+});
+
 // ⚠ THE P1: saveUserGoals resolves the CURRENT user at save time, so a save
 // issued by account A must be DISCARDED if the account changed while the read
 // was in flight — otherwise B's row receives A's whole settings blob.
