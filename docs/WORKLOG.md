@@ -348,6 +348,44 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-26 — The online rail becomes a choice (#1933 → ed263722c)
+
+- **A member choice to hide the “online now” avatar strip on Community.** Default ON.
+  Inline **HIDE ×** on the rail header (signed-in only — the demo cast's rail is
+  byte-identical) + Settings → Preferences → **“Online members”** as the way back,
+  directly under Check-ins. OFF renders NOTHING — the exact state the empty-rail branch
+  already produces. Hiding changes **your view only**; appearing in others' rails stays
+  `onlineVisible`, a different setting on purpose. The check-in pref's shape helper for
+  helper: canonical predicate, per-uid mirror, `apply()` → `shape:onlineRailPref`,
+  seed label, read hook with the edit-generation guard. i18n: 5 keys × 13 locales.
+- ⚠ **CODERABBIT WAS RE-ENGAGED FOR THIS PR ON THE OWNER'S WORD** (“run coderabbit on
+  spec” → “or the PR”, 2026-08-26) — the 2026-08-24 retirement is a default, not a ban;
+  a trigger is per-task on the owner's ask. Two rounds ran; Codex also auto-fired free.
+  Round-cadence note: the fair-usage window is real — one re-trigger landed **one minute
+  early** and was refused (“next included review available in 1 minute”); the recovery was
+  a fresh trigger after the window opened, confirmed by the bot's own “Full review
+  triggered” reply, never by assuming.
+- ⚠ **ROUND 1, ALL FIVE REAL — INCLUDING A P1 IN MY OWN NEW CODE.** `saveUserGoals`
+  resolves `getUser()` AT SAVE TIME, so the inline ×'s read-then-write could carry account
+  A's whole `client_settings` blob into account B's row across a sign-out. The persist now
+  captures the initiating uid, re-resolves through the same `getUser()` the save uses, and
+  DISCARDS on mismatch (marking the choice pending under the initiator's key). Plus: a
+  client-wide **serial lane** for local client_settings writers (reads join it — read-your-own-writes), the pane's save **folds in** an unedited inline hide, a declined
+  hide is marked **pending** and re-issued by the hydrate — which also caught my comment
+  overclaiming (“the pane's next save persists it” was FALSE: persistPrefs merges only
+  editedRef). ru grammar + the sibling calques in ru/uk swept.
+- ⚠ **ROUND 2 FOUND THE SAME CLASS ONE BRANCH OVER** — a save returning `res.error`
+  (or throwing) marked nothing pending. Fixed, both arms mutation-checked. **Its second
+  remedy half was REFUTED with a pinned test**: retrying a pending hide over an EXPLICIT
+  `onlineRail: 'On'` could resurrect an older intent across devices (the `visOverride`
+  resurrection shape); the doc wins, retry stays scoped to ABSENT keys. pcm wording taken
+  verbatim from the reviewer.
+- **Merged after two rounds, all findings worked or refuted, without a third-round verdict**
+  — a third round existed to bless the bot's own suggested wording, which is the
+  round-dragging rule by its plainest case. Gate on the final head: **2301/2301** · tsc 0 ·
+  mobile build 0 · next build 0 · CI green on 4 checks · 16 feature tests, **11 mutations
+  across the wave, all caught**, unmutated sanity at both ends every time.
+
 ### 2026-08-26 — The merge gate stopped naming a reviewer, and the board caught up (#1930 → eec328a55)
 
 - ⚠ **`/console` had been calling EVERY PR not-mergeable since 2026-08-24, regardless of
