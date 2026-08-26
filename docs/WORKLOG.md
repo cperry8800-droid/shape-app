@@ -302,6 +302,83 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-26 — Age visibility: a member opt-in that never hands over the date behind it (#1929)
+
+- **A member-controlled toggle shows their AGE; the DATE OF BIRTH it is derived from never
+  leaves the server.** Default OFF. Coaches always see their own clients' ages regardless of
+  the toggle, because it changes how they program. Not on community posts.
+- ⚠ **THE DEFECT WAS MINE AND IT DEFEATED THE FEATURE'S PREMISE.** The first cut granted
+  EXECUTE on a function returning raw `date_of_birth` to **`authenticated`**. PostgREST
+  exposes every function in `public`, so **the grant WAS the door**: a member who opted in to
+  showing their AGE was handing every signed-in member their exact BIRTHDATE. They consented
+  to the derived integer, not the PII behind it. Only the `age_public = true` branch actually
+  leaked — self already reads its own date through RLS and a coach already reads a client's
+  through `providers_read_subscriber_profiles_base` — which is why it survived review.
+- ⚠ **AND IT TOOK THREE ROUNDS TO CLOSE BECAUSE I FIXED INSTANCES, NOT THE CLASS.** The
+  scalar door went in round 3; the **array door was one file over**, in a file I had open at
+  the time, and one `grep "grant execute"` would have returned it. **Filename order is not the
+  order migrations ran** (`-` 0x2D sorts before `.` 0x2E), which is what made the replay
+  hazard invisible — and production was correct throughout, which is what kept it hidden.
+- **The outcome is now ORDER-INDEPENDENT rather than correct-by-ordering:** ONE file creates
+  the read path (the viewer-parameter form), ONE grant exists (**service_role**), and BOTH
+  dangerous signatures are dropped in TWO files — so no sequence of the three migrations can
+  produce a browser-callable date door. `-server-only.sql` is also wrapped in one transaction:
+  Postgres grants EXECUTE to PUBLIC by default on a new signature, so a create-then-revoke file
+  has a real open window when run statement-by-statement.
+- **The read path.** `member_dobs_for_viewer(viewer uuid, targets uuid[])` — SECURITY
+  DEFINER, `search_path = public, pg_temp`, service_role only. ⚠ **`viewer is not null` is
+  load-bearing**: `age_public = true` does not depend on the viewer, so a NULL viewer would
+  otherwise return every opted-in member's date. `/api/members/ages` authenticates FIRST,
+  passes the **verified session id** as `viewer` (never caller input — mutation-checked), and
+  reduces to an integer server-side. ⚠ **REFUSE, never truncate, over the 500 cap** —
+  silently answering the first 500 renders as "these members have no age", a claim the
+  function never checked.
+- ⚠ **THE AGE IS NOT COMPUTED IN SQL, DELIBERATELY.** Genuinely attractive (a direct call
+  becomes harmless *by construction*) and rejected: **CI has no database**, so SQL cannot be
+  behaviourally tested here, and it would be a **THIRD** implementation of arithmetic whose
+  failure mode is Feb 29 **clamping in Postgres and rolling in JS**. `ageFromDob()` in Node
+  stays the single derivation. The service-role client is the one documented exception to
+  "RLS stays authoritative at the endpoint", and the rationale now lives at the call site.
+- **Honesty rules the surfaces enforce:** a failed read is `null` ("could not tell"), never
+  `false` (which would read as a deliberate choice to stay private) · `typeof x === 'number'`,
+  never truthiness, since 0 is a real age and every roster row composes its meta through
+  `.filter(Boolean)` · **the stored row is the authority, not the absence of an error** —
+  PostgREST does not call a zero-row UPDATE an error, so an error-only check reports "saved"
+  while nothing was written.
+- ⚠ **AN AMBIGUOUS WRITE IS NOT A ROLLBACK, AND THE TWINS RESOLVE IT DIFFERENTLY ON
+  PURPOSE.** The route answers 503 `unconfirmed` when the UPDATE reported no error but the
+  read-back failed; a dropped connection after a commit is the same shape. The **web** row
+  already treats `null` as UNKNOWN and refuses to guess from it, so it shows unknown and
+  re-reads. The **mobile** row is a segmented control whose options are only `['Off','On']` —
+  a null there hits `Math.max(0, indexOf(...))` and silently renders **'Off'**, asserting
+  "private" over an age that may be public — so it re-reads and **resolves** the doubt instead
+  of displaying it. Ask what each twin can honestly draw before copying a fix across.
+- **Late findings worth naming.** A stale `prefsRef` — synced by a **passive** effect, so it
+  lags a committed render — could keep a member PUBLIC two ways: two taps from Off each
+  computed 'On' so the row could not be tapped back off, and an explicit "Off" compared a stale
+  value, hit an equality guard, and **wrote nothing, with no error and no toast**. Every
+  transition now goes through one setter that moves the ref and the state together. A guard
+  that skipped any directory **named** `nd`/`m`/`dist`/`ios`/`android` reported clean about
+  files it never opened — the file list now derives from `git ls-files` (proven both ways with
+  a planted caller the old walk could not see). And `useBSMemberAge` reset its cache **inside an
+  effect**, which runs AFTER the render commits, so switching profiles painted one frame with
+  B's name beside A's age; the age now carries its subject and the render filters on it.
+- ⚠ **PRODUCTION IS UNAFFECTED BY THE MIGRATION EDITS — nothing is owed to the owner.** The
+  live catalog already carries only `member_dobs_for_viewer(viewer, targets)` granted to
+  postgres + service_role; the file changes make a **replay** safe, they do not change deployed
+  state.
+- ⚠ **CODERABBIT WAS RETIRED MID-WAVE** (owner, 2026-08-24: *"no more coderabbit"*), after
+  five rounds on this PR — rounds 4 and 5 were **8 findings, essentially all self-catchable**.
+  See the reviewer note in "How we work": there is now **no reviewer**, the merge gate is **CI
+  green + not a draft**, and the pre-push class sweep is the only remaining layer.
+- Gate on the final head: `tsc` 0 · **2285/2285** · `next build` 0 with `ƒ Proxy
+  (Middleware)` · mobile build 0 · newdesign precompile `--check` 0 · CI green on 8 checks.
+  Every guard added in this wave was mutation-checked with unmutated sanity cases at both ends.
+- **Registered, deliberately NOT fixed here:** the web `toggleOnlineVisible` toggle carries the
+  same false-"Saved." shape this wave fixed for age (pre-existing, different feature), and
+  `tests/legal-transfer-claims.test.mjs` recurses with **no** skip-list at all, so it can scan
+  generated build output — the same class inverted.
+
 ### 2026-08-21 — The member-facing date-of-birth prompt, and a route that stopped lying about saving it
 
 The owner ruled every account must supply a birthdate. The collect endpoint shipped in #1925;
