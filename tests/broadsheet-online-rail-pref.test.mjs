@@ -147,13 +147,55 @@ test('the OFF mirror is uid-scoped, and one account’s default-ON can never del
   assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(lsKey('rail-a'))), { uid: 'rail-a', off: true });
 });
 
-test('signed-out is always ON — even over a stale OFF record on the device', () => {
+test('signed-out defaults ON, and never inherits another account\'s OFF', () => {
   env({ uid: null });
+  dom.window.localStorage.removeItem(lsKey('__demo__'));
   dom.window.localStorage.setItem(lsKey('somebody'), JSON.stringify({ uid: 'somebody', off: true }));
   assert.equal(MOD.bsOnlineRailMirrorRead(), true);
   const r = renderStatic(React.createElement(Probe));
   assert.equal(r.warnings.length, 0, r.warnings.join('\n'));
   assert.match(r.html, /RAIL-ON/);
+});
+
+// The demo half of the choice (owner call, 2026-08-27). The PREVIEW is the only
+// place the rail is reachable today — a signed-in member's rail needs live
+// presence to be non-empty — so a signed-out hide has to actually take, not
+// no-op against a hook that pinned ON.
+test('signed-out can hide the rail, and it holds', () => {
+  env({ uid: null });
+  dom.window.localStorage.removeItem(lsKey('__demo__'));
+  MOD.bsOnlineRailApply(false);
+  assert.deepEqual(
+    JSON.parse(dom.window.localStorage.getItem(lsKey('__demo__'))),
+    { uid: '__demo__', off: true },
+    'the demo choice lands under its OWN key, never a real uid');
+  assert.equal(MOD.bsOnlineRailMirrorRead(), false);
+  const r = renderStatic(React.createElement(Probe));
+  assert.equal(r.warnings.length, 0, r.warnings.join('\n'));
+  assert.match(r.html, /RAIL-OFF/, 'the hook must honour the demo mirror, not pin ON');
+  MOD.bsOnlineRailApply(true);
+  assert.equal(dom.window.localStorage.getItem(lsKey('__demo__')), null);
+});
+
+// ⚠ The isolation that makes the demo key safe: it is not a real account, so
+// signing in must read the cloud value rather than inherit whatever was tapped
+// in preview — and no demo tap may ever bind a save to an account (the Codex P1
+// this wave already paid for).
+test('a demo hide never follows the member into a real account', async () => {
+  env({ uid: null });
+  MOD.bsOnlineRailApply(false);
+  assert.equal(MOD.bsOnlineRailMirrorRead(), false);
+  const saves = [];
+  env({ uid: 'rail-demo-x', doc: { units: 'Imperial' } });
+  dom.window.shapeDb.saveUserGoals = async (k, v) => { saves.push(v); return { ok: true }; };
+  assert.equal(MOD.bsOnlineRailMirrorRead(), true, 'the signed-in account reads its own key, not the demo one');
+  // …and the persist a signed-OUT tap attempts writes nothing at all.
+  env({ uid: null });
+  dom.window.shapeDb.saveUserGoals = async (k, v) => { saves.push(v); return { ok: true }; };
+  MOD.bsOnlineRailPersist(false);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(saves, [], 'a signed-out hide must never reach saveUserGoals');
+  dom.window.localStorage.removeItem(lsKey('__demo__'));
 });
 
 test('bsOnlineRailApply writes the mirror AND dispatches the live event', () => {
@@ -404,8 +446,21 @@ test('the feed consumes the pref, the pane owns the row, both writers apply it',
     'BOTH pane writers (cyclePref + setPref) must apply the toggle');
   assert.match(src, /if \(fresh\('onlineRail'\)\) \{ try \{ bsOnlineRailApply\(orOn\); \} catch \(e\) \{\} \}/,
     'the pane hydrate must converge a mounted feed');
-  assert.match(src, /\{loggedIn && \(\s*<button onClick=\{hideRail\}/,
-    'the inline × must exist and stay signed-in-only (the demo rail is byte-identical)');
+  assert.match(src, /<button onClick=\{hideRail\}/,
+    'the inline × must exist');
+  // ⚠ Asserted on what the code ANSWERS, not how it is SPELLED: a regex pinned
+  // to `{loggedIn && (` passed happily against `{loggedIn && <button` — one
+  // space of difference, the whole guard blind. The window before the button is
+  // searched for the identifier instead, so every spelling of the gate fails.
+  const railBtn = src.indexOf('<button onClick={hideRail}');
+  assert.ok(railBtn > 0, 'the inline × must exist');
+  const before = src.slice(railBtn - 500, railBtn);
+  assert.ok(!/loggedIn/.test(before),
+    'the × must NOT be gated on sign-in — the preview is where it is reachable (owner call, 2026-08-27)');
+  assert.match(src, /function bsOnlineRailUid\(\) \{ return bsCheckinPrefUid\(\) \|\| BS_ONLINE_RAIL_DEMO_UID; \}/,
+    'the MIRROR resolves a demo sentinel so a signed-out choice can persist device-locally');
+  assert.match(src, /const uid0 = bsCheckinPrefUid\(\);\n  if \(!uid0\) return; \/\/ signed-out: nothing to bind a save to/,
+    'the CLOUD persist must still resolve the REAL uid and decline without one');
   // Round-1 review guards (Codex P1/P2 on #1933) — the pane half of each fix
   // lives outside anything a probe can mount, so it is pinned at the source:
   assert.match(src, /const railFold = \(!\('onlineRail' in editedRef\.current\) && !bsOnlineRailMirrorRead\(\)\) \? \{ onlineRail: 'Off' \} : null;/,

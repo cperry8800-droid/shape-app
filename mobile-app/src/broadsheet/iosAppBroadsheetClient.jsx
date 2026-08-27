@@ -18023,15 +18023,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
-            {/* Signed-in only: the demo cast's rail stays byte-identical, and a
-                signed-out tap could not persist anyway (no uid — apply would
-                no-op and the hook pins ON). */}
-            {loggedIn && (
-              <button onClick={hideRail} aria-label={tr('feed:rail.hideAria', { defaultValue: 'Hide the online members rail' })}
-                style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
-                {tr('feed:rail.hide', { defaultValue: 'Hide' })} <span aria-hidden>×</span>
-              </button>
-            )}
+            {/* Signed-in AND signed-out (owner call, 2026-08-27): the preview is
+                where this is reachable at all — a signed-in member sees no rail
+                until live presence is non-empty. A demo tap persists to the
+                demo mirror key only; bsOnlineRailPersist still declines without
+                a real uid, so nothing is written to any account. */}
+            <button onClick={hideRail} aria-label={tr('feed:rail.hideAria', { defaultValue: 'Hide the online members rail' })}
+              style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
+              {tr('feed:rail.hide', { defaultValue: 'Hide' })} <span aria-hidden>×</span>
+            </button>
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '14px 12px 6px' }}>
             {railPeople.map((p, i) => {
@@ -22162,18 +22162,29 @@ function useBSDailyCheckinPref() {
 // mounted feed live, a seed label for the Settings row, and a read hook — and
 // the rules those halves obey are documented ONCE on the check-in block above
 // rather than restated: stored in the client_settings doc, absent/true/'On'
-// read ON and only an explicit false/'Off' reads OFF, signed-out (the demo
-// cast) is always ON.
+// read ON and only an explicit false/'Off' reads OFF — and signed-out (the
+// demo cast) keeps the choice under its OWN mirror key rather than being
+// pinned ON, because the PREVIEW is where this affordance is reachable at all
+// today: the rail needs railPeople.length > 0, and for a signed-in member that
+// is live presence, which is empty until two accounts are online at once. The
+// demo key is never read by a real account (per-uid keys), so a member who
+// hid it in preview and then signs in still hydrates their own cloud value.
 // ⚠ This hides the MEMBER'S OWN VIEW of the rail. Whether THEY appear in
 // other members' rails is `onlineVisible` (presence) — different setting, on
 // purpose: browsing without the rail is not the same choice as browsing unseen.
 function bsOnlineRailOn(v) { return v !== false && v !== 'Off'; }
 const BS_ONLINE_RAIL_LS = 'shape.onlineRail';
 function bsOnlineRailLsKey(uid) { return BS_ONLINE_RAIL_LS + '.' + uid; }
+// ⚠ MIRROR-ONLY. Every CLOUD path (bsOnlineRailPersist, the hook's hydrate and
+// its pending-mark read) resolves bsCheckinPrefUid() DIRECTLY and declines when
+// it is absent — a demo choice must never bind a saveUserGoals to an account,
+// which is the Codex P1 this wave already paid for. The sentinel is not
+// uuid-shaped, so it can never collide with a real uid.
+const BS_ONLINE_RAIL_DEMO_UID = '__demo__';
+function bsOnlineRailUid() { return bsCheckinPrefUid() || BS_ONLINE_RAIL_DEMO_UID; }
 function bsOnlineRailMirrorRead() {
   try {
-    const uid = bsCheckinPrefUid();
-    if (!uid) return true;
+    const uid = bsOnlineRailUid();
     const raw = localStorage.getItem(bsOnlineRailLsKey(uid));
     if (!raw) return true;
     const rec = JSON.parse(raw);
@@ -22182,8 +22193,7 @@ function bsOnlineRailMirrorRead() {
 }
 function bsOnlineRailMirrorWrite(on) {
   try {
-    const uid = bsCheckinPrefUid();
-    if (!uid) return;
+    const uid = bsOnlineRailUid();
     if (on) localStorage.removeItem(bsOnlineRailLsKey(uid));
     else localStorage.setItem(bsOnlineRailLsKey(uid), JSON.stringify({ uid, off: true }));
   } catch (e) {}
@@ -22259,7 +22269,10 @@ function bsOnlineRailPersist(on) {
 // useBSDailyCheckinPref (synchronous mirror seed · cloud hydrate that a null
 // read never reverts · live 'shape:onlineRailPref' events from Settings or the
 // inline ×), same edit-generation guard against a hydrate landing after a
-// toggle. Signed-out always ON so the demo rail stays byte-identical.
+// toggle. Signed-out reads the demo mirror (see bsOnlineRailUid) rather than
+// being pinned ON — the preview is the one place the rail is reachable today.
+// The cloud half stays bound to a REAL uid: no hydrate and no persist runs
+// without one, so a demo choice is device-local by construction.
 function useBSOnlineRailPref() {
   const uid = bsCheckinPrefUid();
   const [on, setOn] = useStateBSC(() => bsOnlineRailMirrorRead());
@@ -22296,7 +22309,7 @@ function useBSOnlineRailPref() {
     window.addEventListener('shape:onlineRailPref', onEvt);
     return () => window.removeEventListener('shape:onlineRailPref', onEvt);
   }, []);
-  return uid ? on : true;
+  return on;
 }
 
 // useBSCheckinLogged — the manual-signal "logged for today" predicate, extracted

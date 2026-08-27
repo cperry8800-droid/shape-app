@@ -348,11 +348,43 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable
+
+- **Owner call: the signed-out preview now shows the inline HIDE ×.** #1933 gated it
+  `{loggedIn && …}` so the demo cast's rail stayed byte-identical — and the consequence,
+  found when the owner went looking for the shipped feature and could not find it, is that
+  **the affordance was unreachable in every state on the live app**. The rail renders only
+  when `railPeople.length > 0`; for a signed-in member that is live presence, which is
+  empty (4 accounts, none active since June), so a signed-in member sees no rail and has
+  nothing to hide, while the preview — the one surface that always has a rail, because it
+  falls back to `TRAINING_NOW` — was the half deliberately denied the button.
+- ⚠ **THE FIX IS A DEMO-SCOPED MIRROR KEY, NOT A LOOSENED CLOUD PATH.** Three gates had to
+  move together or the button would render and do nothing: the render gate, the mirror
+  (`bsOnlineRailMirrorRead/Write` returned early on a null uid), and the hook's
+  `return uid ? on : true`, which pinned signed-out ON. The mirror now resolves
+  `bsOnlineRailUid() = bsCheckinPrefUid() || '__demo__'`. **Every CLOUD path still resolves
+  the REAL uid and declines without one** — a demo tap can never bind a `saveUserGoals` to
+  an account, which is the Codex P1 this wave already paid for once. Per-uid keys mean a
+  member who hides it in preview and then signs in still hydrates their own value; the
+  sentinel is not uuid-shaped, so it cannot collide with a real account.
+- ⚠ **A GUARD THAT PINNED A SPELLING INSTEAD OF A FACT, CAUGHT BY MUTATION-TESTING MY OWN
+  TEST.** The source assertion was `doesNotMatch(/\{loggedIn && \(\s*<button onClick=\{hideRail\}/)`
+  — so re-gating the button as `{loggedIn && <button`, one space and a paren different,
+  left all 18 tests green. It now searches the 500 characters BEFORE the button for the
+  identifier at all, so every spelling of the gate fails. Same lesson as the #1916 drift
+  guard: **assert what the code ANSWERS, not how it is written.**
+- Verified: **2302/2302** · `tsc` 0 · mobile build 0 with `__demo__` confirmed in the
+  emitted bundle · **4 mutations, all caught** (re-gate the button in its paren-less
+  spelling · re-pin the hook ON · drop the demo sentinel · and the over-correction, letting
+  a demo hide reach the cloud), unmutated sanity green at both ends.
+
 ### 2026-08-26 — The online rail becomes a choice (#1933 → ed263722c)
 
 - **A member choice to hide the “online now” avatar strip on Community.** Default ON.
-  Inline **HIDE ×** on the rail header (signed-in only — the demo cast's rail is
-  byte-identical) + Settings → Preferences → **“Online members”** as the way back,
+  Inline **HIDE ×** on the rail header (⚠ **CORRECTED 2026-08-27 — this read
+  “signed-in only — the demo cast's rail is byte-identical” and that is no longer
+  true**: the owner ruled the preview must show the ability, so the × renders
+  signed-out too; see the 2026-08-27 entry) + Settings → Preferences → **“Online members”** as the way back,
   directly under Check-ins. OFF renders NOTHING — the exact state the empty-rail branch
   already produces. Hiding changes **your view only**; appearing in others' rails stays
   `onlineVisible`, a different setting on purpose. The check-in pref's shape helper for
