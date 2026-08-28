@@ -348,7 +348,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-28 — The hidden rail gets its way back in place, and the chat header gets air
+### 2026-08-28 — The hidden rail gets its way back in place, and the chat header gets air (#1943 → 5cffcff36)
 
 - **Owner asks, same message thread:** (1) once the online rail is hidden, a **SHOW button**
   appears on the chat page itself; (2) more spacing between the Community headline and the tab
