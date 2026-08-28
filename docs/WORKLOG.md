@@ -348,6 +348,36 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-28 — The legal-claim sweep stops scanning the build output
+
+- **Half (b) of the item #1929 registered**, and the same class as half (a) inverted:
+  that guard skipped directories by **NAME** and reported clean about files it never
+  opened; this one had **no skip-list at all** and so opened files it should not have.
+- `tests/legal-transfer-claims.test.mjs` enumerated pages by reading the **filesystem**,
+  so once a build had run it also scanned generated output — `public/m` (the mobile
+  bundle) and `public/newdesign/nd` (the precompile), **both gitignored**.
+  ⚠ **Reproduced rather than assumed:** dropping a single generated
+  `public/m/index.html` carrying *"bound by contract"* turned the suite **red on a file
+  that is not source, does not appear in `git status`, and nobody edited** — the worst
+  kind of red, because there is no local change to explain it. Latent in this container
+  only because no build had run; `find` and `git ls-files` both returned 181.
+- **Now derived from `git ls-files`**, the technique its two sibling guards already use
+  (`provider-apply-dob`, `source-no-control-bytes`): ignored output cannot appear, no
+  tracked page can be missed, and nothing has to be remembered when the next generated
+  directory lands. An unreadable index **REFUSES** rather than reporting every ban as
+  passing — the loudest possible false pass, since the suite would go green while
+  scanning no legal surface at all.
+- ⚠ **A MUTATION SURVIVED AND THE FIX WAS TO MAKE THE GUARD REACHABLE, NOT TO DOCUMENT
+  IT.** Removing the empty-index refusal changed nothing, because a live repo never
+  returns an empty index — the shape a later reader deletes as dead. One parameter makes
+  the branch reachable from a test. **Documenting an unpinnable guard is right only when
+  it genuinely cannot be pinned; here it could be, for one parameter.**
+- The tracked-only rule is pinned by a probe that **genuinely creates an untracked page
+  on disk** and asserts the derivation ignores it — the question is what the derivation
+  does with a real file, not what a comment claims about it.
+- Verified: **2320/2320** · `tsc` 0 · **2 mutations, both caught** (restore the
+  filesystem walk · drop the empty-index refusal), unmutated sanity green at both ends.
+
 ### 2026-08-28 — The online-visibility toggle stops announcing a save it never checked (#1938 → f6252294f)
 
 - **Registered by #1929 and deliberately left there; read against the code, it was worse
