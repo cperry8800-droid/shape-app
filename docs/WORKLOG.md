@@ -348,7 +348,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-28 — An unproven read may no longer close an open alert episode
+### 2026-08-28 — An unproven read may no longer close an open alert episode (#1942 → 03514b24c)
 
 - **Registered since the Layer 2 review rounds and left there as "none load-bearing"; it is
   load-bearing.** Every guardrail-health check except `rpe_dropped` is computed on the 7d
@@ -408,6 +408,16 @@ changelog whenever something ships.
   `readState` reads as proven · gate `rpe_dropped` too · unwire the route · suppress alerts on an
   unproven read · unprotect the rate checks alone · carry ALWAYS so a proven `ok` can never close),
   unmutated sanity green at both ends and the tree restored clean after each.
+- ⚠ **AND THE SWEEP THAT FOLLOWED FOUND THE BOARD STALE TWICE** — both corrected in the same pass,
+  because a `pending` item describing shipped work is the same false record as an unstamped
+  heading. **The Sentry upload-credential gate on the debug-APK job** read *"REGISTERED, NOT BUILT
+  … one-line change when they land"*, but it **shipped in #1886** (`632557060`) and the workflow
+  carries it verbatim — verified in the file, not inferred. And **`avgHydrationL`** was registered
+  as *"render it or delete the compute"*; **#1905 deleted it** (`4f58a512d` — that route now holds
+  zero hydration references), so only the energy/hunger trend-tab half is open. ⚠ Worth naming:
+  `/api/client/progress` **already serves** `series.energy`, `series.hunger` and
+  `series.sleepQuality`, so a member logs all three daily through the check-in and can see none of
+  them — the gap is the two tab lists, nothing upstream.
 
 ### 2026-08-28 — One recency window for both member-engine legs, with the ceiling it lacked (#1940 → 80d807469)
 
