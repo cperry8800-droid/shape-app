@@ -407,6 +407,24 @@ changelog whenever something ships.
   deleted as dead. **The step is unreachable from `setVisible`** (its body is fully
   try/caught, so it never rejects today), so the guard drives `_settingsSerial`
   **directly**: the invariant belongs at the lane, where the next caller inherits it.
+- ⚠ **AND THE QUEUED WRITE IS BOUND TO THE ACCOUNT THAT TAPPED** (CodeRabbit round 2, and
+  the one place the lane made something *worse*). `getUserGoals` and `saveUserGoals` each
+  resolve `getUser()` **independently at their own call time**, and the save REPLACES that
+  user's whole document — so a session that becomes account B while the step is queued
+  would read A's document and upsert it into **B's row**, destroying B's units, privacy,
+  meal times and the rest. The lane lengthens that window by design, since a stalled
+  predecessor holds the step back. Remedy is the one the mobile twin already paid a round
+  for in **#1933** — capture the initiating uid, re-resolve through the **same `getUser()`
+  the save uses**, discard on mismatch — checked on **both sides of the read**, because
+  checking only after it still lets a switch to B **and back to A** write B's document into
+  A's row. The row names that case distinctly rather than folding it into "that didn't
+  save": the write was refused on purpose, and the preference is still unsaved on an
+  account they are no longer signed in to.
+- ⚠ **A MUTATION SURVIVED AND THE FIXTURE WAS WHY, NOT THE CODE.** Dropping the **pre-read**
+  identity check passed, because a one-way switch is caught by the post-read check too —
+  the two differ only on a switch **away and back**. That case is now a vector rather than
+  an assumption, and it kills the mutation. **When two guards look redundant, find the
+  input that separates them before deleting either.**
 - ⚠ **AND THE SELF-REVIEW OF THAT LANE FOUND THE SAME CLASS ONE SEAM OVER — A STALE READ
   OVERWRITING A FRESH INTENT.** `setVisible` calls `startWebPresence` whenever no channel
   exists yet, and that is **ordinary rather than exotic**: the module-load call races auth
@@ -436,13 +454,15 @@ changelog whenever something ships.
   `/supabase.js` has never carried a query on any of its **57** references — adding one
   would be a 57-file sweep for nothing. **CRLF preserved** on `clientMeSettings.jsx`, the
   repo's one CRLF-tracked file.
-- Verified: **2314/2314** (+12) · `tsc` 0 · both files parse · **12 mutations across the
+- Verified: **2318/2318** (+16) · `tsc` 0 · both files parse · **16 mutations across the
   wave** (restore the `d || {}` data-loss shape · fire-and-forget the save again · say
   "Saved." unconditionally · roll the row back on failure · collapse both failure messages
   · drop the signed-out early return · remove the lane · stop it chaining · move the flip
   inside it · drop both failure handlers · ignore the in-session choice on hydrate · never
-  stamp it) — **all caught**, plus the two documented equivalents above, each covered by
-  its redundant partner. Unmutated sanity green at both ends of every batch.
+  stamp it · drop either identity check · let a signed-out initiator through · fold the
+  declined message into the generic one) — **all caught**, plus the two documented
+  equivalents above, each covered by its redundant partner. Unmutated sanity green at both
+  ends of every batch.
 
 ### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable (#1936 → 17f71d966)
 
