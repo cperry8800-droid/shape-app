@@ -348,6 +348,59 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-28 — A member can finally SEE the gauges they log every day (#1946)
+
+- **Energy · Hunger · Rested join the Progress trend tabs, both surfaces.** The daily
+  check-in has asked for all three (1–10) since the check-in engine wave, and
+  `/api/client/progress` has SERVED `series.energy` / `series.hunger` /
+  `series.sleepQuality` the whole time — but neither Progress surface listed them, so
+  a member logged them daily and could see none of it. Mobile `BSPROG_TREND_TABS` (+
+  the empty/demo series keys) and web `DPR_TREND_TABS` (+ `DPR_DEMO`) now carry them.
+  **No backend change** — this was two tab lists, nothing upstream. Closes the open
+  half of the registered `avgHydrationL` item (the hydration half had been resolved by
+  deletion in #1905).
+- ⚠ **AND IT MADE A PRE-EXISTING WEB DEFECT ORDINARY, WHICH IS WHY IT IS FIXED HERE.**
+  The trend state defaults to the hardcoded `weight`, while only **available** tabs
+  (a series with ≥2 points) render as buttons. A new account that checks in daily but
+  has never weighed in therefore had NO lit button over an empty Weight chart — a
+  state that was previously exotic and is now the normal new-member shape. The active
+  tab is **resolved against `availableTabs`** (falling back to the first tab with real
+  data), and the button lights off **that resolved tab, not the raw state** — the
+  second half matters on its own: lighting the raw state would leave the fallback
+  chart and the lit button naming different metrics.
+- **The demo series use DAILY spacing** (CodeRabbit): the surrounding body-composition
+  demo series are biweekly, and copying that cadence would have drawn the *daily*
+  check-in gauges as fortnightly samples.
+- Mobile deliberately keeps rendering **every** tab (its honest empty chart tells a
+  member with no data to log some), so it never had the web's no-lit-button state.
+- Verified: both files parse · newdesign precompile `--check` 0 · mobile build 0 ·
+  `npm test` 2336/2336.
+
+### 2026-08-28 — The founder portrait sits on the page, and the card closes it (#1945 → 21e2a9b47)
+
+- **Owner, three asks in one look:** *"update my look in this photo"* · *"looks out of
+  place"* · *"move my picture to the bottom of that page"*.
+- **The portrait is re-cut, not re-graded.** The office background is **removed
+  entirely** (the person cut out), the cutout graded down to the dark editorial ground,
+  its edge softened, and the torso **faded to transparent at the bottom** so the
+  portrait dissolves into the page instead of ending in a frame. Both copies replaced
+  (`public/newdesign/founder.webp` + `mobile-app/public/founder.webp`, 640×640 WebP
+  with alpha, 54 KB → 40 KB). ⚠ **Judge a portrait treatment composited on the page's
+  own ground, at its real render size** — the first attempt (a feather + vignette over
+  the existing image) read fine in isolation and still left a bright office on a
+  near-black page.
+- **The card moved to the PAGE BOTTOM on both surfaces** — directly under the letter's
+  last line, before the CTA — reversing the 2026-07-21 moved-up call, and it now **IS
+  the sign-off**: it carries the signed name, so the separate sign-off block
+  (`AboutSignoff` on web, the sign-off div on mobile) is **deleted** rather than left
+  as a second signature. Website order: Hero → Vision → Letter → Founder → CTA.
+- ⚠ **`public/newdesign/about.jsx` IS THE REPO'S CRLF-TRACKED FILE and three guarded
+  patch attempts refused to write before this landed.** Two lessons, both cheap next
+  time: LF-literal replacements match **nothing** on it (`cat -A` shows every line
+  ending `^M$`), and a guard asserting `count("AboutSignoff") == 0` fails when the
+  **replacement comment you are writing** contains that word. The asserts did their
+  job — the file was never left half-patched.
+
 ### 2026-08-28 — The hidden rail gets its way back in place, and the chat header gets air (#1943 → 5cffcff36)
 
 - **Owner asks, same message thread:** (1) once the online rail is hidden, a **SHOW button**

@@ -30,7 +30,12 @@ const DPR_DAY = 86400000;
 function dprIso(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
-function dprAgo(days) { return dprIso(new Date(Date.now() - days * DPR_DAY)); }
+// N calendar days back in the viewer's LOCAL zone. Noon-anchored + setDate()
+// rather than fixed-24h ms: across a DST shift, subtracting 86400000 twice from
+// a local wall clock can land two consecutive points on the SAME calendar date.
+// Invisible while every demo series was weekly/biweekly; reachable now that the
+// check-in gauges are daily.
+function dprAgo(days) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - days); return dprIso(d); }
 function dprDate(v) {
   if (!v) return "";
   try { return new Date(String(v).length === 10 ? v + "T00:00:00" : v).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; }
@@ -74,6 +79,11 @@ const DPR_DEMO = (() => {
       bodyFat: [26.4, 25.8, 25.3, 24.8, 24.4, 23.8, 23.3, 22.8, 22.4, 22.1].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
       strength: [205, 215, 225, 230, 235, 245, 250, 255, 260, 265].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
       sleep: [6.4, 6.8, 7.0, 7.2, 7.1, 7.3, 7.4, 7.2, 7.4, 7.5].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
+      // Daily spacing — these are the DAILY check-in gauges; the biweekly
+      // cadence above belongs to the body-composition series.
+      energy: [5, 6, 6, 7, 6, 7, 7, 8, 7, 8].map((v, i, a) => ({ date: dprAgo(a.length - 1 - i), value: v })),
+      hunger: [7, 7, 6, 6, 5, 6, 5, 5, 4, 5].map((v, i, a) => ({ date: dprAgo(a.length - 1 - i), value: v })),
+      sleepQuality: [5, 6, 6, 7, 7, 7, 8, 7, 8, 8].map((v, i, a) => ({ date: dprAgo(a.length - 1 - i), value: v })),
     },
     prs: [
       { move: "Back squat", best: 265, bestReps: 5, unit: "lb", bestAt: dprAgo(12) },
@@ -103,6 +113,12 @@ const DPR_TREND_TABS = [
   { k: "strength", label: "Strength", unit: "lb", color: "#e8b14a", fmt: (v) => Math.round(v) },
   { k: "restingHr", label: "Resting HR", unit: "bpm", color: "#d2693f", fmt: (v) => Math.round(v) },
   { k: "sleep", label: "Sleep", unit: "h", color: "#a86bc4", fmt: (v) => v.toFixed(1) },
+  // The daily check-in gauges (1–10 self-ratings; series served by
+  // /api/client/progress). availableTabs already hides any tab with <2 points,
+  // so members who don't check in never see these.
+  { k: "energy", label: "Energy", unit: "/10", color: "#ffd166", fmt: (v) => v.toFixed(1) },
+  { k: "hunger", label: "Hunger", unit: "/10", color: "#f08a6b", fmt: (v) => v.toFixed(1) },
+  { k: "sleepQuality", label: "Rested", unit: "/10", color: "#b8a1e8", fmt: (v) => v.toFixed(1) },
   { k: "hrv", label: "HRV", unit: "ms", color: "#9be3a8", fmt: (v) => Math.round(v) },
   { k: "volume", label: "Volume", unit: "min/d", color: "#f5a0c8", fmt: (v) => Math.round(v) },
   { k: "protein", label: "Protein", unit: "g", color: "#ffb46b", fmt: (v) => Math.round(v) },
@@ -692,14 +708,26 @@ function ClientProgressPage() {
   })();
 
   // ── Below-the-fold data ──
-  const series = live && progress && progress.series ? progress.series : DPR_DEMO.series;
+  // A signed-in member NEVER reads the demo series. `live` is true when EITHER
+  // the progress or the dashboard fetch landed, so a failed progress read used
+  // to fall through to DPR_DEMO while the demo band stayed hidden — presenting
+  // fabricated figures as the member's own readings. Worst for the check-in
+  // gauges: Energy/Hunger/Rested are self-reported health data, not estimates.
+  // Empty is the honest answer — the chart then says "Log more … to draw this
+  // trend." Matches the sibling `prs`/`lifts` lines directly below.
+  const series = live ? ((progress && progress.series) || {}) : DPR_DEMO.series;
   const prs = live ? ((progress && progress.prs) || []) : DPR_DEMO.prs;
   const lifts = live ? ((strength && strength.lifts) || []) : DPR_DEMO.lifts;
-  const activeTab = DPR_TREND_TABS.find((t) => t.k === trend) || DPR_TREND_TABS[0];
+  const availableTabs = DPR_TREND_TABS.filter((t) => (series[t.k] || []).length >= 2);
+  // The default trend is Weight, but only the AVAILABLE tabs render as buttons —
+  // so a member with data in some other series (a new account that checks in
+  // daily but has never weighed in) would otherwise see no selected button over
+  // an empty Weight chart. Fall back to the first tab that actually has data.
+  const selectedTab = DPR_TREND_TABS.find((t) => t.k === trend) || DPR_TREND_TABS[0];
+  const activeTab = availableTabs.some((t) => t.k === selectedTab.k) ? selectedTab : (availableTabs[0] || selectedTab);
   const activeSeries = (series[activeTab.k] || []).map((s) => Number(s.value)).filter((v) => isFinite(v));
   const latestVal = activeSeries.length ? activeSeries[activeSeries.length - 1] : null;
   const deltaVal = activeSeries.length >= 2 ? latestVal - activeSeries[0] : null;
-  const availableTabs = DPR_TREND_TABS.filter((t) => (series[t.k] || []).length >= 2);
 
   // Consistency = streaks and wins (NEVER a bare adherence percentage).
   const kpis = live && dash ? dash.kpis : DPR_DEMO.kpis;
@@ -838,7 +866,7 @@ function ClientProgressPage() {
         )}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
           {(availableTabs.length ? availableTabs : [DPR_TREND_TABS[0]]).map((t) => {
-            const on = trend === t.k;
+            const on = activeTab.k === t.k;   // the RESOLVED tab, not the raw state — or the fallback chart and the lit button disagree
             return (
               <button key={t.k} onClick={() => setTrend(t.k)} style={{ fontFamily: DPR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "transparent", color: on ? t.color : "rgba(242,237,228,0.6)", border: "1px solid " + (on ? t.color + "77" : "rgba(242,237,228,0.14)"), borderLeft: "3px solid " + (on ? t.color : "rgba(242,237,228,0.18)") }}>{t.label}</button>
             );

@@ -29952,6 +29952,9 @@ const BSPROG_DEMO = {
       volume: [180, 195, 205, 210, 225, 200, 230, 240, 250, 235, 255, 260, 270, 255, 280, 275, 290, 285, 300, 295],
       protein: [142, 138, 156, 148, 160, 164, 158, 168, 172, 165, 170, 175, 168, 180, 172, 178, 184, 175, 182, 185],
       hydration: [2.1, 2.4, 2.2, 2.6, 2.5, 2.7, 2.3, 2.8, 2.6, 2.9, 2.7, 3, 2.8, 3.1, 2.9, 3, 2.8, 3.1, 2.9, 3],
+      energy: [5, 5, 6, 5, 6, 6, 7, 6, 7, 7, 6, 7, 8, 7, 7, 8, 8, 7, 8, 8],
+      hunger: [7, 7, 6, 7, 6, 6, 6, 5, 6, 5, 6, 5, 5, 5, 4, 5, 5, 4, 5, 4],
+      sleepQuality: [5, 6, 6, 5, 7, 6, 7, 7, 6, 7, 8, 7, 7, 8, 7, 8, 8, 7, 8, 8],
     },
   },
   train: {
@@ -29999,7 +30002,7 @@ const BSPROG_EMPTY = {
   overall: {
     kpis: { weightChange: null, weightLatest: null, bodyFatLatest: null, bodyFatFirst: null, restingHr: null, restingHrDelta: null, sleepAvg: null },
     prs: [],
-    series: { weight: [], bodyFat: [], strength: [], restingHr: [], sleep: [], hrv: [], volume: [], protein: [], hydration: [] },
+    series: { weight: [], bodyFat: [], strength: [], restingHr: [], sleep: [], hrv: [], volume: [], protein: [], hydration: [], energy: [], hunger: [], sleepQuality: [] },
   },
   train: {
     stats: { completedCount: 0, thisWeekCount: 0, volume7dLb: 0, avgRpe: null, currentStreak: 0, longestStreak: 0, totalVolumeLb: 0 },
@@ -30019,6 +30022,12 @@ const BSPROG_TREND_TABS = [
   { k: 'strength', label: 'Strength', unit: 'lb', fmt: (v) => Math.round(v) },
   { k: 'restingHr', label: 'Resting HR', unit: 'bpm', fmt: (v) => Math.round(v) },
   { k: 'sleep', label: 'Sleep', unit: 'h', fmt: (v) => v.toFixed(1) },
+  // The daily check-in gauges (1–10 self-ratings, series served by
+  // /api/client/progress since the check-in engine wave) — a member who logs
+  // energy/hunger/rested every day can finally SEE the trend they're feeding.
+  { k: 'energy', label: 'Energy', unit: '/10', fmt: (v) => v.toFixed(1) },
+  { k: 'hunger', label: 'Hunger', unit: '/10', fmt: (v) => v.toFixed(1) },
+  { k: 'sleepQuality', label: 'Rested', unit: '/10', fmt: (v) => v.toFixed(1) },
   { k: 'hrv', label: 'HRV', unit: 'ms', fmt: (v) => Math.round(v) },
   { k: 'volume', label: 'Volume', unit: 'min', fmt: (v) => Math.round(v) },
   { k: 'protein', label: 'Protein', unit: 'g', fmt: (v) => Math.round(v) },
