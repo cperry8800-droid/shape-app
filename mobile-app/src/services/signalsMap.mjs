@@ -112,14 +112,60 @@ export function recordFromSelfData(raw = {}, deps = {}) {
   return rec;
 }
 
+// The recency window BOTH member-engine legs read, in one place so they cannot
+// disagree about what "this week" means. Points carry an ISO 'YYYY-MM-DD' date, so
+// lexicographic compares are exact and tz-arithmetic-free; the bounds are built from
+// LOCAL date parts because snapshot_date is written from the member's local day
+// (_localDate()).
+//
+// ⚠ THE CEILING IS TOMORROW, NOT TODAY, and that is deliberate. snapshot_date is the
+// member's LOCAL day, so a member ahead of the clock this code runs on legitimately
+// writes one — the same one-day tolerance the coach chokepoint (bsVitalsLeg) already
+// carries. Beyond that is not a timezone artifact: /api/client/checkin takes the day
+// from the REQUEST, so 2099-01-01 is writable, and being newest it would otherwise be
+// the member's `lastNight`, their RESTED rating and a readiness input FOREVER.
+function recentWindow(now) {
+  const d = now instanceof Date && Number.isFinite(now.getTime()) ? now : new Date();
+  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  return {
+    cutoff: iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 6)),
+    ceiling: iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)),
+  };
+}
+
+// A point is in-window only if it can PROVE it is: an unusable or absent date is
+// treated as absence, which under-fires rather than over-fires.
+function inWindow(p, w) {
+  return !!p && typeof p.date === 'string' && p.date >= w.cutoff && p.date <= w.ceiling;
+}
+
 // Build the engine's recovery.sleepHours from the progress rollup's sleep series
 // (the same `series.sleep` the progress route returns). null when there is no
 // real sleep data — never fabricated. Target is the engine default (7.5h).
-export function sleepRecoveryFromProgress(progress) {
+//
+// ⚠ THE WINDOW IS 7 CALENDAR DAYS, NOT 7 OBSERVATIONS. /api/client/progress returns
+// up to 400 chronological snapshots with NO recency filter, so the old bare
+// `.slice(-7)` let readings from MONTHS ago keep feeding avg7 — and let the newest
+// observation be presented as `lastNight` however old it was. This is the identical
+// staleness fixed in vitalsFromProgress; it was registered rather than fixed at the
+// time because it changes shipped sleep_low firing behaviour.
+// ⚠ AND THAT BEHAVIOUR CHANGE CAN GO EITHER WAY — it is not purely a reduction.
+// Narrowing to recent data can RAISE avg7 (dropping old bad nights) or LOWER it
+// (dropping old good ones), so sleep_low may newly fire where it did not. Every fire
+// is now based on data from the week it claims to describe, which is the point.
+export function sleepRecoveryFromProgress(progress, opts = {}) {
   const pts = (progress && progress.series && Array.isArray(progress.series.sleep)) ? progress.series.sleep : [];
-  const vals = pts.map((p) => Number(p && p.value)).filter((v) => Number.isFinite(v) && v > 0);
+  const w = recentWindow(opts.now);
+  // Order is the route's (chronological), the same assumption vitalsFromProgress
+  // makes with its own trailing slice.
+  const vals = pts
+    .filter((p) => inWindow(p, w))
+    .map((p) => Number(p && p.value))
+    .filter((v) => Number.isFinite(v) && v > 0);
   if (!vals.length) return null;
   const lastNight = vals[vals.length - 1];
+  // Still cap at 7 — one row per date is the norm, but a duplicated date must not let
+  // an 8th reading widen the "7-day" average it claims to be.
   const last7 = vals.slice(-7);
   const avg7 = last7.reduce((a, b) => a + b, 0) / last7.length;
   return { sleepHours: { avg7, lastNight, target: 7.5 } };
@@ -152,13 +198,15 @@ export function vitalsFromProgress(progress, opts = {}) {
   // snapshot_date is written from the member's local day (_localDate()).
   // A point with no usable date is DROPPED — recency it cannot prove is
   // absence, which is the safe direction (under-firing, never over-firing).
-  const now = opts.now instanceof Date ? opts.now : new Date();
-  const cut = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-  const cutoff = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, '0')}-${String(cut.getDate()).padStart(2, '0')}`;
+  // ⚠ NOW SHARES recentWindow WITH THE SLEEP LEG, which also adds the CEILING this
+  // had been missing: the cutoff alone is a floor, so a future-dated row (writable,
+  // because /api/client/checkin takes the day from the REQUEST) passed it and, being
+  // newest, survived every trailing slice below.
+  const w = recentWindow(opts.now);
   const leg = (key) => {
     const pts = Array.isArray(series[key]) ? series[key] : [];
     const vals = pts
-      .filter((p) => p && typeof p.date === 'string' && p.date >= cutoff)
+      .filter((p) => inWindow(p, w))
       .map((p) => num(p && p.value))
       .filter((v) => v != null && v > 0);
     if (!vals.length) return null;

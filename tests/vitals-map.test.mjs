@@ -120,6 +120,27 @@ test('stale readings never contaminate a fresh average', () => {
   assert.ok(Math.abs(v.energy.avg7 - 4) < 1e-9);
 });
 
+test('a FUTURE-dated row is excluded — the window had a floor but no ceiling', () => {
+  // ⚠ THE REGISTERED DEFECT. /api/client/checkin takes the day from the REQUEST, so
+  // 2099-01-01 is writable; `date >= cutoff` admitted it, and being newest it survived
+  // every trailing slice — becoming this member's RESTED rating and a readiness input
+  // permanently. The ceiling shipped on the coach chokepoint; the member path is here.
+  const far = [{ date: '2099-01-01', value: 10 }];
+  assert.equal(vitals(series({ energy: far })), null, 'a lone future row is not a leg');
+
+  // And it cannot contaminate a real average either.
+  const v = vitals(series({ energy: [...pts(4, 4, 4), ...far] }));
+  assert.equal(v.energy.n, 3);
+  assert.ok(Math.abs(v.energy.avg7 - 4) < 1e-9);
+});
+
+test('TOMORROW is allowed, the day after is not', () => {
+  // snapshot_date is the member's LOCAL day, so a member ahead of this clock
+  // legitimately writes one — the same one-day tolerance the coach chokepoint carries.
+  assert.ok(vitals(series({ energy: [{ date: daysAgo(-1), value: 5 }] })), 'tomorrow is in');
+  assert.equal(vitals(series({ energy: [{ date: daysAgo(-2), value: 5 }] })), null, 'the day after is out');
+});
+
 test('a point with no usable date is DROPPED — recency it cannot prove is absence', () => {
   const v = vitals(series({ energy: [{ value: 2 }, { date: null, value: 2 }, { date: 12345, value: 2 }] }));
   assert.equal(v, null);
