@@ -348,7 +348,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-28 — One recency window for both member-engine legs, with the ceiling it lacked
+### 2026-08-28 — One recency window for both member-engine legs, with the ceiling it lacked (#1940 → 80d807469)
 
 - **Two registered defects, same class and same module, fixed together** because the fix
   is one shared window rather than two — `signalsMap.mjs` now derives `{cutoff, ceiling}`
