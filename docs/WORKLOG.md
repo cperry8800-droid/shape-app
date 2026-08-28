@@ -407,6 +407,25 @@ changelog whenever something ships.
   deleted as dead. **The step is unreachable from `setVisible`** (its body is fully
   try/caught, so it never rejects today), so the guard drives `_settingsSerial`
   **directly**: the invariant belongs at the lane, where the next caller inherits it.
+- ⚠ **AND THE SELF-REVIEW OF THAT LANE FOUND THE SAME CLASS ONE SEAM OVER — A STALE READ
+  OVERWRITING A FRESH INTENT.** `setVisible` calls `startWebPresence` whenever no channel
+  exists yet, and that is **ordinary rather than exotic**: the module-load call races auth
+  hydration and returns early with no uid on a cold load. Toggling ON in that state fired
+  a hydrate read that still saw the **stored `Off`** — our write is queued behind the lane
+  — and silently flipped the member back to invisible: **stored On against a runtime
+  false**, the rail showing them offline while storage says visible. `_wp.touched` marks an
+  explicit in-session choice the hydrate may no longer override. The hydrate only ever sets
+  `false`, so an OFF choice was never at risk; this closes the ON direction, which is the
+  one that silently undoes the member. The guard drives **both** real functions —
+  `startWebPresence` is extracted alongside `setVisible` and injected as the real callee,
+  because the defect is an INTERACTION and stubbing either half would test the stub.
+- ⚠ **AND `git checkout --` DESTROYED THE UNCOMMITTED FIX MID-MUTATION, ON A RULE THIS FILE
+  ALREADY CARRIES.** The restore between two mutations reverted the not-yet-committed
+  hydrate guard, so the following case ran against a tree with no fix at all and its
+  "kill" proved nothing about the line it was aimed at. **The sanity case at the END is
+  what caught it** — it failed on a supposedly-restored tree. Re-applied, committed FIRST,
+  then re-run with `cp` backups: both mutations killed, both sanity runs green, and
+  `git diff` empty at the end. Commit before mutation-testing; back up with `cp`, never git.
 - **The guard drives the SHIPPED serializer, not a re-typed one** — `_settingsSerial` and
   its seed line are extracted from the real file alongside `setVisible`, and one built
   instance shares one lane, which is the real shape (one `setVisible`, two taps).
@@ -417,13 +436,13 @@ changelog whenever something ships.
   `/supabase.js` has never carried a query on any of its **57** references — adding one
   would be a 57-file sweep for nothing. **CRLF preserved** on `clientMeSettings.jsx`, the
   repo's one CRLF-tracked file.
-- Verified: **2313/2313** (+11) · `tsc` 0 · both files parse · **10 mutations across the
+- Verified: **2314/2314** (+12) · `tsc` 0 · both files parse · **12 mutations across the
   wave** (restore the `d || {}` data-loss shape · fire-and-forget the save again · say
   "Saved." unconditionally · roll the row back on failure · collapse both failure messages
   · drop the signed-out early return · remove the lane · stop it chaining · move the flip
-  inside it · drop both failure handlers) — **all caught**, plus the two documented
-  equivalents above, each covered by its redundant partner. Unmutated sanity green at both
-  ends of every batch.
+  inside it · drop both failure handlers · ignore the in-session choice on hydrate · never
+  stamp it) — **all caught**, plus the two documented equivalents above, each covered by
+  its redundant partner. Unmutated sanity green at both ends of every batch.
 
 ### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable (#1936 → 17f71d966)
 
