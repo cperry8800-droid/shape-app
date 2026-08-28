@@ -348,6 +348,49 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-28 — The online-visibility toggle stops announcing a save it never checked
+
+- **Registered by #1929 and deliberately left there; read against the code, it was worse
+  than registered on BOTH halves.** The web Settings row **"Show when I'm online"**
+  reported success unconditionally, and the write behind it could destroy the document it
+  was editing.
+- ⚠ **THE CALLER COULD NOT HAVE CHECKED.** `ShapeWebPresence.setVisible` was
+  **synchronous** with a floating persistence promise whose result was discarded — so
+  `await setVisible(next)` resolved *before the write had even started* — and the row then
+  said **"Saved."** unconditionally, through a bare `catch` that swallowed throws too. A
+  landed save, a refused save and a thrown one were indistinguishable on screen. The
+  registered note called this "an error-only check"; there was no check, and nothing to
+  check against.
+- ⚠ **AND THE WRITE COULD WIPE EVERY OTHER PREFERENCE.** `getUserGoals` returns **null**
+  for BOTH *not signed in* and *the read failed*, `saveUserGoals` **REPLACES** the whole
+  `client_settings` jsonb, and the persist read `Object.assign({}, d || {}, …)`. So one
+  blipped read while a member toggled this row would blind-upsert a **ONE-KEY document**
+  over their units, privacy, meal times, program phases, check-in and online-rail
+  preferences. Same conflation #1933 round 1 hit on mobile, same remedy: **an unreadable
+  doc is declined, never published over.**
+- **`setVisible` is now async and returns `{ok}` / `{ok:false, reason}`.** The **runtime**
+  half — the local flag, the presence event, track/untrack on the channel — still flips
+  immediately, because that is what the member asked for and it cannot meaningfully fail;
+  only the **durable** half reports.
+- ⚠ **A FAILED SAVE DOES NOT ROLL THE ROW BACK, deliberately.** The runtime flip already
+  took effect, so restoring the old value would assert the OPPOSITE of what the session is
+  doing — and reverting an **OFF** is the bad direction: it would put a member back on the
+  rail after they asked to leave it. The line says the **save** failed, which is the thing
+  that failed. (Same reasoning as the age toggle's `unconfirmed` branch.)
+- **The guard drives the REAL shipped source, not a copy of it.** Both surfaces are classic
+  browser scripts that cannot be imported — `public/supabase.js` is an IIFE,
+  `clientMeSettings.jsx` is a babel component — so `tests/online-visible-pref.test.mjs`
+  extracts each function from the live file by **brace-matching** and evaluates it against
+  stubs. A text guard would pin a spelling, which is exactly what #1936 paid for.
+- **No `?v=` bump**: newdesign is content-hashed by the deploy precompile, and
+  `/supabase.js` has never carried a query on any of its **57** references — adding one
+  would be a 57-file sweep for nothing. **CRLF preserved** on `clientMeSettings.jsx`, the
+  repo's one CRLF-tracked file.
+- Verified: **2310/2310** (+8) · `tsc` 0 · both files parse · **6 mutations, all caught**
+  (restore the `d || {}` data-loss shape · fire-and-forget the save again · say "Saved."
+  unconditionally · roll the row back on failure · collapse both failure messages ·
+  drop the signed-out early return), unmutated sanity green at both ends.
+
 ### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable (#1936 → 17f71d966)
 
 - **Owner call: the signed-out preview now shows the inline HIDE ×.** #1933 gated it
