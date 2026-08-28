@@ -382,6 +382,17 @@ changelog whenever something ships.
   `readState === 'complete'` — `bsReadState` is the single source of that vocabulary and `complete`
   is its one proving value, so a failure state added there is covered here for free, in the safe
   direction. Pinned across all five existing states plus an invented future one.
+- ⚠ **AND `complete` IS THE STRONGEST CLAIM THIS READ CAN MAKE, NOT AN ABSOLUTE PROOF** — the
+  comment says so rather than implying otherwise. The offset-paged read can still miss a row
+  backfilled behind its cursor with an old `ts`, and that row was never counted either, so
+  `rows === matched` agrees while a row is gone. That is the keyset residual left open below;
+  `complete` rules out the failure this guard is about — a read that demonstrably stopped early.
+- ⚠ **IT IS THE STATE THAT IS PASSED, NOT THE ROUTE'S `truncated` BOOLEAN, and they disagree on a
+  real case.** With no usable exact count and the budget unspent, `truncated` is **false** while the
+  state is `count_unknown` — so gating on the boolean would have treated that run as proven and let
+  it close an episode. The route already alerts on `truncated || matched === null`, so the state is
+  what matches the route's own reading of its own read. Caught in the self-review after the first
+  push, not by a reviewer.
 - **Nothing is duplicated into the verdict itself, deliberately.** The route already persists
   `_read` (state included) in the same row, so the history already says WHY an `ok` could not close
   an episode; stamping every verdict with the same fact would be a second copy to keep in step.

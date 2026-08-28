@@ -157,6 +157,22 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO, re
   // tests for the proving value rather than listing the failures (a new failure
   // state added there is then covered here for free, in the safe direction).
   //
+  // ⚠ `'complete'` IS THE STRONGEST CLAIM THIS READ STRATEGY CAN MAKE, NOT AN
+  // ABSOLUTE PROOF, and this comment must not be read as promising one. The
+  // route's point 4 spells out why: an offset-paged read whose cursor has moved
+  // past a region can miss a row backfilled into it with an old `ts`, and that
+  // row was never counted either, so `rows === matched` agrees while a row is
+  // gone. That residual is keyset-vs-offset and is open on the board. What
+  // `'complete'` rules out is the failure this guard is about — a read that
+  // demonstrably stopped early.
+  //
+  // ⚠ AND IT IS THE STATE, NOT THE ROUTE'S `truncated` BOOLEAN, THAT IS PASSED.
+  // They disagree on one real case: with no usable exact count and the budget
+  // unspent, `truncated` is FALSE while the state is `count_unknown`. Gating on
+  // the boolean would treat that run as proven and let it close an episode; the
+  // route already alerts on `truncated || matched === null`, so the state is
+  // what matches the route's own reading of its read.
+  //
   // ⚠ AN ABSENT `readState` READS AS UNPROVEN, NOT AS PROVEN. A caller that does
   // not describe its read has not told us the read was complete, and treating
   // silence as proof is the same fabrication this module has already paid for
