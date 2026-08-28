@@ -348,7 +348,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-28 — The legal-claim sweep stops scanning the build output
+### 2026-08-28 — The legal-claim sweep stops scanning the build output (#1939 → c445ef85f)
 
 - **Half (b) of the item #1929 registered**, and the same class as half (a) inverted:
   that guard skipped directories by **NAME** and reported clean about files it never
