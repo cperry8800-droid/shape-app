@@ -348,6 +348,67 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-28 — An unproven read may no longer close an open alert episode
+
+- **Registered since the Layer 2 review rounds and left there as "none load-bearing"; it is
+  load-bearing.** Every guardrail-health check except `rpe_dropped` is computed on the 7d
+  evaluation read, and a read cut short at its 5000-row ceiling still produced a plain **`ok`**.
+  `ok` is the ONLY status allowed to clear an alert stamp — so a fault that was still running had
+  its episode **closed by a run that had not seen the whole window**, and the next COMPLETE run
+  announced the same fault as **brand new**. That is exactly the flapping `shouldNotify` exists to
+  prevent, arriving through the READ instead of through the SAMPLE.
+- ⚠ **THE FIX IS THIS MODULE'S OWN DOCTRINE, ONE CASE WIDER — not a new rule.** `rate()` already
+  carried the stamp through `insufficient_sample`, with the reason written at the site: *"could not
+  check" is not the same claim as "checked, and fine"*. An `ok` over a truncated read is the same
+  claim, and `bsReadStateNote` already says that sentence to the human — *"none in what we saw, not
+  proof of absence"*. So it carries the stamp too. It never notifies and never re-arms: **a
+  transition in neither direction**. Only a PROVEN `ok` closes an episode.
+- ⚠ **AN ABSENT `readState` READS AS UNPROVEN, and that default is the whole design.** A caller
+  that does not describe its read has not told us the read was complete, and treating silence as
+  proof is the fabrication class this module has **already paid for once** (`Number(null)` is a
+  finite 0 — the `count_shifted` comment). Unproven fails toward keeping an episode OPEN, which
+  over-reports; proven-by-default fails toward silently closing one that may still be running,
+  which is the defect itself. **Over-reporting is recoverable; a silently-closed episode is not.**
+  A guard asserts the REAL call site passes it, because every unit test supplies its own and an
+  unwired route would look perfectly plausible (the `candidatesFor`/`now` lesson from #1917).
+- ⚠ **`rpe_dropped` IS EXEMPT, AND THAT IS THE OVER-CORRECTION THIS AVOIDS.** Its count comes from
+  its own `head:true` exact query — the route's own comment says *"nothing here can truncate"* — so
+  its `ok` really does mean checked-and-fine even on a run whose evaluation read was cut short.
+  Gating it would suppress a genuine recovery on complete data, and **a monitor that cannot record
+  a recovery is as useless as one that cannot record a fault.** `fromEvaluationRead` defaults to
+  **true** so a check added later inherits the protection and only a demonstrably-independent one
+  opts out.
+- ⚠ **THE TEST FOR THE PROVING VALUE, NOT A LIST OF FAILURES.** `readProved` is
+  `readState === 'complete'` — `bsReadState` is the single source of that vocabulary and `complete`
+  is its one proving value, so a failure state added there is covered here for free, in the safe
+  direction. Pinned across all five existing states plus an invented future one.
+- ⚠ **AND `complete` IS THE STRONGEST CLAIM THIS READ CAN MAKE, NOT AN ABSOLUTE PROOF** — the
+  comment says so rather than implying otherwise. The offset-paged read can still miss a row
+  backfilled behind its cursor with an old `ts`, and that row was never counted either, so
+  `rows === matched` agrees while a row is gone. That is the keyset residual left open below;
+  `complete` rules out the failure this guard is about — a read that demonstrably stopped early.
+- ⚠ **IT IS THE STATE THAT IS PASSED, NOT THE ROUTE'S `truncated` BOOLEAN, and they disagree on a
+  real case.** With no usable exact count and the budget unspent, `truncated` is **false** while the
+  state is `count_unknown` — so gating on the boolean would have treated that run as proven and let
+  it close an episode. The route already alerts on `truncated || matched === null`, so the state is
+  what matches the route's own reading of its own read. Caught in the self-review after the first
+  push, not by a reviewer.
+- **Nothing is duplicated into the verdict itself, deliberately.** The route already persists
+  `_read` (state included) in the same row, so the history already says WHY an `ok` could not close
+  an episode; stamping every verdict with the same fact would be a second copy to keep in step.
+- **The 46 existing vectors describe a COMPLETE read and now say so once**, through a local helper;
+  the new block drives the raw function directly, since the default is half of what it pins.
+- ⚠ **PARTIALLY closes the registered item — the other two residuals are NOT fixed and the board
+  says so.** Still open: the **offset-vs-keyset** residual (a row backfilled into an already-paged
+  region is missed while the counts still agree — which is precisely why `rows.length === matched`
+  is not treated as proof), and a backwards clock correction re-announcing an open episode once
+  (accepted: the alternative is permanent silence). Flipping the whole item to done would have been
+  the false record this wave keeps fixing.
+- Verified: **2335/2335** (+9) · `tsc` 0 · **7 mutations, all caught** (revert the carry · absent
+  `readState` reads as proven · gate `rpe_dropped` too · unwire the route · suppress alerts on an
+  unproven read · unprotect the rate checks alone · carry ALWAYS so a proven `ok` can never close),
+  unmutated sanity green at both ends and the tree restored clean after each.
+
 ### 2026-08-28 — One recency window for both member-engine legs, with the ceiling it lacked (#1940 → 80d807469)
 
 - **Two registered defects, same class and same module, fixed together** because the fix

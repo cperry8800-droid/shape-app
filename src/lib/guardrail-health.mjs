@@ -140,23 +140,83 @@ function shouldNotify(previousEntry, nowISO) {
 }
 
 /**
- * @param {{rpeDropped:number|null, evaluations:Array, previous:object|null, nowISO:string}} input
+ * @param {{rpeDropped:number|null, evaluations:Array, previous:object|null, nowISO:string,
+ *          readState:string|undefined}} input
  * @returns {{verdicts:Record<string,object>, alerts:Array<{check,severity,message}>}}
  */
-export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) {
+export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO, readState }) {
   const prev = previous && typeof previous === 'object' ? previous : {};
   const rows = (Array.isArray(evaluations) ? evaluations : [])
     .map(readEvaluation)
     .filter(Boolean);
   const sample = rows.length;
 
+  // ⚠ DID THE READ PROVE IT COVERED THE WINDOW? `bsReadState` is the single
+  // source of that vocabulary and `'complete'` is its ONE proving value — every
+  // other value is a different way of failing to prove it, which is why this
+  // tests for the proving value rather than listing the failures (a new failure
+  // state added there is then covered here for free, in the safe direction).
+  //
+  // ⚠ `'complete'` IS THE STRONGEST CLAIM THIS READ STRATEGY CAN MAKE, NOT AN
+  // ABSOLUTE PROOF, and this comment must not be read as promising one. The
+  // route's point 4 spells out why: an offset-paged read whose cursor has moved
+  // past a region can miss a row backfilled into it with an old `ts`, and that
+  // row was never counted either, so `rows === matched` agrees while a row is
+  // gone. That residual is keyset-vs-offset and is open on the board. What
+  // `'complete'` rules out is the failure this guard is about — a read that
+  // demonstrably stopped early.
+  //
+  // ⚠ AND IT IS THE STATE, NOT THE ROUTE'S `truncated` BOOLEAN, THAT IS PASSED.
+  // They disagree on one real case: with no usable exact count and the budget
+  // unspent, `truncated` is FALSE while the state is `count_unknown`. Gating on
+  // the boolean would treat that run as proven and let it close an episode; the
+  // route already alerts on `truncated || matched === null`, so the state is
+  // what matches the route's own reading of its read.
+  //
+  // ⚠ AN ABSENT `readState` READS AS UNPROVEN, NOT AS PROVEN. A caller that does
+  // not describe its read has not told us the read was complete, and treating
+  // silence as proof is the same fabrication this module has already paid for
+  // once (`Number(null)` is a finite 0 — see `count_shifted` in
+  // `bsReadStateNote`). Unproven fails toward keeping an episode OPEN, which
+  // over-reports; proven-by-default fails toward closing an episode that may
+  // still be running, which is the defect below. Over-reporting is recoverable;
+  // a silently-closed episode is not.
+  const readProved = readState === 'complete';
+
   const verdicts = {};
   const alerts = [];
 
-  /** Register a verdict, and an alert if it is bad and due to be announced. */
-  const record = (check, status, value, sampleN, severity, message) => {
+  /**
+   * Register a verdict, and an alert if it is bad and due to be announced.
+   *
+   * ⚠ `fromEvaluationRead` DEFAULTS TO TRUE ON PURPOSE. A check added later is
+   * far more likely to read the 7d evaluations than to carry its own independent
+   * exact count, so the protection is inherited by default and only a check that
+   * can DEMONSTRATE its data is complete opts out.
+   */
+  const record = (check, status, value, sampleN, severity, message, fromEvaluationRead = true) => {
     if (status !== 'alert') {
-      verdicts[check] = verdict(status, value, sampleN);
+      // ⚠ CARRY THE STAMP WHEN THE READ COULD NOT PROVE IT COVERED THE WINDOW.
+      // This is the SAME rule `rate()` already applies to `insufficient_sample`,
+      // widened to the case that shares its logic: an `ok` computed on a
+      // truncated read means "none in what we saw", not "checked, and fine" —
+      // `bsReadStateNote` says exactly that sentence to the human — so it must
+      // not erase the memory of an alert that is still open. It used to, which
+      // meant a fault that stayed open across a truncated run was announced
+      // AGAIN as brand new by the next complete run: the flapping this control
+      // exists to prevent, arriving through the read rather than the sample.
+      //
+      // Only a PROVEN `ok` clears a stamp. This never notifies and never
+      // re-arms — a transition in neither direction, exactly like
+      // `insufficient_sample`.
+      //
+      // ⚠ NOTHING IS DUPLICATED INTO THE VERDICT ITSELF, deliberately. The route
+      // persists `_read` (state included) beside these verdicts in the same row,
+      // so a human reading the history already sees WHY an `ok` could not close
+      // an episode; stamping every verdict with the same fact would be a second
+      // copy to keep in step with the first.
+      const carried = fromEvaluationRead && !readProved ? stampOf(prev[check]) : null;
+      verdicts[check] = verdict(status, value, sampleN, carried);
       return;
     }
     const { notify, alertedAt } = shouldNotify(prev[check], nowISO);
@@ -175,6 +235,14 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
     'error',
     `${dropped} session RPE rating(s) were given but not stored in the last 25h. `
     + 'A member rated a session and the write was rejected.',
+    // ⚠ NOT FROM THE EVALUATION READ — the ONE check that opts out. This count
+    // comes from its own `head:true` exact-count query over `analytics_events`
+    // (see the route: "nothing here can truncate"), so its `ok` really does mean
+    // "checked, and fine" even on a run whose 7d evaluation read was cut short.
+    // Gating it on the read would suppress a genuine recovery on complete data —
+    // the over-correction, and a monitor that cannot record a recovery is as
+    // useless as one that cannot record a fault.
+    false,
   );
 
   // ── 2. malformed, ANY occurrence, no floor. Malformed is reserved for shapes

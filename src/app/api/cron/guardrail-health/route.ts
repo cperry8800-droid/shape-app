@@ -383,8 +383,17 @@ export async function GET(request: Request) {
     else if (prevRow) previous = prevRow.verdicts as Record<string, unknown>;
 
     // ── 4. The verdict.
+    // ⚠ `readState` IS NOT OPTIONAL IN PRACTICE. Every verdict below except
+    // rpe_dropped is computed on `evaluations`, i.e. on THIS read — so the
+    // evaluator has to know whether the read proved it covered the window before
+    // it is allowed to let an `ok` close an open alert episode. Omitting it does
+    // not fail loudly; it makes the evaluator treat the read as unproven, which
+    // over-reports rather than regressing to the silent false recovery. A guard
+    // in tests/guardrail-health.test.mjs asserts this call site passes it,
+    // because every unit test supplies its own and an unwired caller would
+    // otherwise look perfectly plausible.
     const { verdicts, alerts } = bsEvaluateHealth({
-      rpeDropped: rpeDropped ?? 0, evaluations, previous, nowISO,
+      rpeDropped: rpeDropped ?? 0, evaluations, previous, nowISO, readState: state,
     });
 
     reportAlerts(alerts);

@@ -35,6 +35,18 @@ const NOW = '2026-08-01T07:00:00.000Z';
 const evals = (n, state, unknownReason = null) =>
   Array.from({ length: n }, () => ({ state, unknownReason }));
 
+/**
+ * The vectors below all describe a read that PROVED it covered the window, so
+ * they say so once here instead of repeating `readState` 46 times.
+ *
+ * ⚠ THIS HELPER MUST NOT BE READ AS THE DEFAULT. `bsEvaluateHealth` treats an
+ * ABSENT `readState` as UNPROVEN, and the dedicated block near the end of this
+ * file drives the raw function to pin both that default and the unproven
+ * behaviour — so a mutation that flips the default to "proven" is caught there
+ * even though every vector above supplies its own value.
+ */
+const evaluate = (input) => bsEvaluateHealth({ readState: 'complete', ...input });
+
 test('the floor is 20 and both malformed reasons are covered', () => {
   assert.equal(BS_SAMPLE_FLOOR, 20);
   assert.deepEqual([...BS_MALFORMED_REASONS].sort(), ['malformed_history', 'malformed_week']);
@@ -111,7 +123,7 @@ test('the rate matchers are wired to the named constants, not to re-typed litera
 });
 
 test('rpe_dropped alerts on any count above zero', () => {
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 3, evaluations: [], previous: null, nowISO: NOW,
   });
   assert.equal(verdicts.rpe_dropped.status, 'alert');
@@ -120,14 +132,14 @@ test('rpe_dropped alerts on any count above zero', () => {
 });
 
 test('rpe_dropped is ok at zero', () => {
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0, evaluations: [], previous: null, nowISO: NOW,
   });
   assert.equal(verdicts.rpe_dropped.status, 'ok');
 });
 
 test('malformed alerts on a single occurrence, with no floor', () => {
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 0,
     evaluations: [{ state: 'unknown', unknownReason: 'malformed_history' }],
     previous: null,
@@ -139,7 +151,7 @@ test('malformed alerts on a single occurrence, with no floor', () => {
 });
 
 test('malformed counts malformed_week too, not just malformed_history', () => {
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [
       { state: 'unknown', unknownReason: 'malformed_week' },
@@ -152,7 +164,7 @@ test('malformed counts malformed_week too, not just malformed_history', () => {
 });
 
 test('other unknown reasons are NOT malformed', () => {
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [
       { state: 'unknown', unknownReason: 'incomplete_week' },
@@ -166,7 +178,7 @@ test('other unknown reasons are NOT malformed', () => {
 });
 
 test('rate checks report insufficient_sample below the floor and never a number', () => {
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 0,
     evaluations: evals(19, 'red'),
     previous: null,
@@ -181,7 +193,7 @@ test('rate checks report insufficient_sample below the floor and never a number'
 
 test('red_rate alerts above 5% once the floor is cleared', () => {
   // 2 red of 20 = 10%
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [...evals(2, 'red'), ...evals(18, 'green')],
     previous: null,
@@ -194,7 +206,7 @@ test('red_rate alerts above 5% once the floor is cleared', () => {
 
 test('red_rate is ok exactly at the 5% threshold (strictly greater alerts)', () => {
   // 1 red of 20 = 5%, not > 5%
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [...evals(1, 'red'), ...evals(19, 'green')],
     previous: null,
@@ -205,7 +217,7 @@ test('red_rate is ok exactly at the 5% threshold (strictly greater alerts)', () 
 
 test('unknown_rate alerts above 10%, and malformed is a subset of it', () => {
   // 3 unknown of 20 = 15%; one of them malformed
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [
       { state: 'unknown', unknownReason: 'malformed_week' },
@@ -222,12 +234,12 @@ test('unknown_rate alerts above 10%, and malformed is a subset of it', () => {
 });
 
 test('an already-alerting check does not re-alert the next day', () => {
-  const first = bsEvaluateHealth({
+  const first = evaluate({
     rpeDropped: 1, evaluations: [], previous: null, nowISO: '2026-08-01T07:00:00.000Z',
   });
   assert.equal(first.alerts.length, 1);
 
-  const second = bsEvaluateHealth({
+  const second = evaluate({
     rpeDropped: 1, evaluations: [], previous: first.verdicts, nowISO: '2026-08-02T07:00:00.000Z',
   });
   assert.equal(second.alerts.length, 0, 'still bad, but not a new transition');
@@ -235,26 +247,26 @@ test('an already-alerting check does not re-alert the next day', () => {
 });
 
 test('a persisting alert re-fires after seven days', () => {
-  const first = bsEvaluateHealth({
+  const first = evaluate({
     rpeDropped: 1, evaluations: [], previous: null, nowISO: '2026-08-01T07:00:00.000Z',
   });
-  const later = bsEvaluateHealth({
+  const later = evaluate({
     rpeDropped: 1, evaluations: [], previous: first.verdicts, nowISO: '2026-08-08T07:00:01.000Z',
   });
   assert.equal(later.alerts.length, 1, 'weekly reminder while unresolved');
 });
 
 test('recovering then failing again alerts once more', () => {
-  const bad = bsEvaluateHealth({
+  const bad = evaluate({
     rpeDropped: 1, evaluations: [], previous: null, nowISO: '2026-08-01T07:00:00.000Z',
   });
-  const good = bsEvaluateHealth({
+  const good = evaluate({
     rpeDropped: 0, evaluations: [], previous: bad.verdicts, nowISO: '2026-08-02T07:00:00.000Z',
   });
   assert.equal(good.alerts.length, 0);
   assert.equal(good.verdicts.rpe_dropped.status, 'ok');
 
-  const badAgain = bsEvaluateHealth({
+  const badAgain = evaluate({
     rpeDropped: 1, evaluations: [], previous: good.verdicts, nowISO: '2026-08-03T07:00:00.000Z',
   });
   assert.equal(badAgain.alerts.length, 1);
@@ -269,13 +281,13 @@ test('a fault that dips below the floor and comes back does NOT re-notify', () =
   const failing = [...evals(3, 'red'), ...evals(17, 'green')];   // 15% of 20
   const thin = [...evals(3, 'red'), ...evals(15, 'green')];      // 18 < floor
 
-  const day1 = bsEvaluateHealth({
+  const day1 = evaluate({
     rpeDropped: 0, evaluations: failing, previous: null, nowISO: '2026-08-01T07:00:00.000Z',
   });
   assert.equal(day1.verdicts.red_rate.status, 'alert');
   assert.equal(day1.alerts.filter((a) => a.check === 'red_rate').length, 1);
 
-  const day2 = bsEvaluateHealth({
+  const day2 = evaluate({
     rpeDropped: 0, evaluations: thin, previous: day1.verdicts, nowISO: '2026-08-02T07:00:00.000Z',
   });
   assert.equal(day2.verdicts.red_rate.status, 'insufficient_sample');
@@ -285,7 +297,7 @@ test('a fault that dips below the floor and comes back does NOT re-notify', () =
     'the open episode keeps its stamp across the gap',
   );
 
-  const day3 = bsEvaluateHealth({
+  const day3 = evaluate({
     rpeDropped: 0, evaluations: failing, previous: day2.verdicts, nowISO: '2026-08-03T07:00:00.000Z',
   });
   assert.equal(day3.verdicts.red_rate.status, 'alert');
@@ -301,13 +313,13 @@ test('the weekly reminder still lands across an insufficient_sample gap', () => 
   const failing = [...evals(3, 'red'), ...evals(17, 'green')];
   const thin = [...evals(3, 'red'), ...evals(15, 'green')];
 
-  const day1 = bsEvaluateHealth({
+  const day1 = evaluate({
     rpeDropped: 0, evaluations: failing, previous: null, nowISO: '2026-08-01T07:00:00.000Z',
   });
-  const mid = bsEvaluateHealth({
+  const mid = evaluate({
     rpeDropped: 0, evaluations: thin, previous: day1.verdicts, nowISO: '2026-08-04T07:00:00.000Z',
   });
-  const later = bsEvaluateHealth({
+  const later = evaluate({
     rpeDropped: 0, evaluations: failing, previous: mid.verdicts, nowISO: '2026-08-08T07:00:01.000Z',
   });
   assert.equal(later.alerts.filter((a) => a.check === 'red_rate').length, 1);
@@ -319,26 +331,26 @@ test('a real recovery still clears the stamp, so a relapse notifies', () => {
   const failing = [...evals(3, 'red'), ...evals(17, 'green')];
   const clean = evals(20, 'green');
 
-  const bad = bsEvaluateHealth({
+  const bad = evaluate({
     rpeDropped: 0, evaluations: failing, previous: null, nowISO: '2026-08-01T07:00:00.000Z',
   });
-  const good = bsEvaluateHealth({
+  const good = evaluate({
     rpeDropped: 0, evaluations: clean, previous: bad.verdicts, nowISO: '2026-08-02T07:00:00.000Z',
   });
   assert.equal(good.verdicts.red_rate.status, 'ok');
   assert.equal(good.verdicts.red_rate.alertedAt, null, 'ok clears the episode');
 
-  const badAgain = bsEvaluateHealth({
+  const badAgain = evaluate({
     rpeDropped: 0, evaluations: failing, previous: good.verdicts, nowISO: '2026-08-03T07:00:00.000Z',
   });
   assert.equal(badAgain.alerts.filter((a) => a.check === 'red_rate').length, 1);
 });
 
 test('crossing the floor from insufficient_sample into ok is not an alert', () => {
-  const thin = bsEvaluateHealth({
+  const thin = evaluate({
     rpeDropped: 0, evaluations: evals(5, 'green'), previous: null, nowISO: NOW,
   });
-  const fat = bsEvaluateHealth({
+  const fat = evaluate({
     rpeDropped: 0, evaluations: evals(30, 'green'), previous: thin.verdicts, nowISO: NOW,
   });
   assert.equal(fat.alerts.length, 0);
@@ -347,7 +359,7 @@ test('crossing the floor from insufficient_sample into ok is not an alert', () =
 
 test('malformed evaluations missing a state still count as malformed', () => {
   // Defensive: the reason is what identifies malformed, not the state string.
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [{ state: null, unknownReason: 'malformed_history' }],
     previous: null,
@@ -366,7 +378,7 @@ test('NON-OBJECT garbage never throws, never inflates a rate, and is NOT malform
   // There is no telemetry row behind it to investigate, so counting it malformed
   // would file a caller bug as a producer bug — the exact mis-filing that
   // switches this monitor off. Excluded, counted nowhere.
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [null, undefined, 42, 'nope', ...evals(20, 'green')],
     previous: null,
@@ -384,7 +396,7 @@ test('a row with NEITHER state nor unknownReason counts as malformed and alerts'
   // writes a computed state on every path, so such a row is a shape no legitimate
   // writer can emit. It used to be dropped silently, which is how a systematic
   // telemetry-mapper regression could report `malformed: ok/0`.
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 0,
     evaluations: [{}],
     previous: null,
@@ -405,7 +417,7 @@ test('a stateless row is excluded from the rate denominators', () => {
   // neither 'red' nor 'unknown', so leaving it in dilutes BOTH rates downward —
   // a monitor reading better exactly as it goes blind. 19 recognized + 1 stateless
   // must fall below the floor rather than divide by 20.
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [...evals(19, 'green'), {}],
     previous: null,
@@ -422,7 +434,7 @@ test('the systematic-regression case: every row stateless still raises malformed
   // Codex's scenario. A regression in the telemetry mapper writes 40 rows with no
   // state. Before the fix: malformed read ok/0 and the rate checks merely fell to
   // insufficient_sample, so NOTHING alerted.
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 0,
     evaluations: Array.from({ length: 40 }, () => ({})),
     previous: null,
@@ -437,14 +449,14 @@ test('the systematic-regression case: every row stateless still raises malformed
 test('a row satisfying two malformed predicates is counted ONCE', () => {
   // An unrecognized state AND a malformed reason on the same row is one bad row,
   // not two. Summing the per-contributor counts would say two.
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [{ state: 'archived', unknownReason: 'malformed_week' }],
     previous: null,
     nowISO: NOW,
   });
   assert.equal(verdicts.malformed.value, 1, 'one row, one count');
-  const { alerts } = bsEvaluateHealth({
+  const { alerts } = evaluate({
     rpeDropped: 0,
     evaluations: [{ state: 'archived', unknownReason: 'malformed_week' }],
     previous: null,
@@ -456,7 +468,7 @@ test('a row satisfying two malformed predicates is counted ONCE', () => {
 });
 
 test('a missing rpeDropped count is treated as zero rather than throwing', () => {
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: null, evaluations: [], previous: null, nowISO: NOW,
   });
   assert.equal(verdicts.rpe_dropped.status, 'ok');
@@ -464,7 +476,7 @@ test('a missing rpeDropped count is treated as zero rather than throwing', () =>
 });
 
 test('every alert carries a check name, severity and a human message', () => {
-  const { alerts } = bsEvaluateHealth({
+  const { alerts } = evaluate({
     rpeDropped: 2,
     evaluations: [{ state: 'unknown', unknownReason: 'malformed_week' }],
     previous: null,
@@ -481,7 +493,7 @@ test('every alert carries a check name, severity and a human message', () => {
 test('a corrupt alertedAt re-notifies rather than going silent forever', () => {
   // An unreadable stamp must not be treated as "recently alerted". Over-notifying
   // is the safe direction; a corrupt stamp that disables an alert permanently is not.
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 1,
     evaluations: [],
     previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: 'not-a-date' } },
@@ -498,7 +510,7 @@ test('a FUTURE alertedAt re-notifies and resets rather than silencing forever', 
   // seven-day re-alert test can never fire, and the same future stamp is written
   // back on every run. For a far-future value the check is silenced permanently.
   const FUTURE = '2126-01-01T00:00:00.000Z';
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 1,
     evaluations: [],
     previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: FUTURE } },
@@ -515,7 +527,7 @@ test('a FUTURE alertedAt re-notifies and resets rather than silencing forever', 
 test('alertedAt exactly equal to now still suppresses (only strictly future is invalid)', () => {
   // Two runs inside the same millisecond is an ordinary repeat, not a corrupt
   // stamp — the boundary the future-stamp guard must not swallow.
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 1,
     evaluations: [],
     previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: NOW } },
@@ -530,7 +542,7 @@ test('an unparseable nowISO skips one run without losing the last stamp', () => 
   // One run is skipped rather than notified, but the last valid stamp survives, so
   // the seven-day reminder still lands on schedule once the clock reads properly again.
   const STAMPED = '2026-07-30T07:00:00.000Z';
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 1,
     evaluations: [],
     previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: STAMPED } },
@@ -543,7 +555,7 @@ test('an unparseable nowISO skips one run without losing the last stamp', () => 
 
 test('unknown_rate is ok exactly at the 10% threshold (strictly greater alerts)', () => {
   // 2 unknown of 20 = 10%, not > 10%
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [...evals(2, 'unknown'), ...evals(18, 'green')],
     previous: null,
@@ -569,7 +581,7 @@ test('an unrecognized state value is excluded from the rate denominators AND cou
   // in the total readable sample (20), but the rate denominator must drop it —
   // 19 is below the floor, so the rate checks must report insufficient_sample
   // rather than a rate diluted by a row that matches neither 'red' nor 'unknown'.
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [...evals(19, 'green'), { state: 'archived', unknownReason: null }],
     previous: null,
@@ -595,7 +607,7 @@ test('a DROPPED state with a legitimate reason is malformed, not a free pass', (
     { length: 20 },
     () => ({ state: null, unknownReason: 'incomplete_week' }),
   );
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 0, evaluations: dropped, previous: null, nowISO: NOW,
   });
   assert.equal(verdicts.malformed.value, 20, 'every row is malformed');
@@ -622,7 +634,7 @@ test('one dropped-state row still leaves the denominators honest', () => {
   // The boundary version: 19 readable + 1 whose state was dropped but which
   // carries a legitimate reason. The unreadable row must not pad the denominator
   // to 20 and buy a rate the monitor cannot actually compute.
-  const { verdicts } = bsEvaluateHealth({
+  const { verdicts } = evaluate({
     rpeDropped: 0,
     evaluations: [...evals(19, 'green'), { state: null, unknownReason: 'unscoreable' }],
     previous: null,
@@ -638,7 +650,7 @@ test('a row that is BOTH state-unreadable and reason-malformed is counted once',
   // The overlap the widened predicate creates. The total is the union, and the
   // message says so rather than leaving a reader to add three numbers that come
   // to more than the total it just quoted.
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 0,
     evaluations: [{ state: null, unknownReason: 'malformed_week' }],
     previous: null,
@@ -735,7 +747,7 @@ test('the read state reaches BOTH the log line and the persisted record', () => 
 });
 
 test('the malformed alert fires on a single unrecognized-state row', () => {
-  const { verdicts, alerts } = bsEvaluateHealth({
+  const { verdicts, alerts } = evaluate({
     rpeDropped: 0,
     evaluations: [{ state: 'archived', unknownReason: null }],
     previous: null,
@@ -746,4 +758,140 @@ test('the malformed alert fires on a single unrecognized-state row', () => {
   assert.equal(alerts.some((a) => a.check === 'malformed'), true);
   const malformedAlert = alerts.find((a) => a.check === 'malformed');
   assert.match(malformedAlert.message, /does not recognise/, 'names the unrecognized-state contributor distinctly');
+});
+
+// ── AN UNPROVEN READ MUST NOT CLOSE AN OPEN EPISODE ─────────────────────────
+// The registered defect: every check but rpe_dropped is computed on the 7d
+// evaluation read, and a read that was cut short at its ceiling still produced a
+// plain `ok`. `ok` is the only status allowed to clear an alert stamp, so a fault
+// that was still running got its episode closed by a run that had not seen the
+// whole window — and the next COMPLETE run announced the same fault as brand new.
+// That is the flapping `shouldNotify` exists to prevent, arriving through the
+// read instead of through the sample.
+//
+// These vectors call `bsEvaluateHealth` DIRECTLY, never the `evaluate` helper,
+// because the helper supplies `readState` and the default is half of what is
+// under test here.
+const STAMP = '2026-07-31T07:00:00.000Z'; // yesterday, well inside the re-alert window
+const openMalformed = { malformed: { status: 'alert', value: 2, sample: 40, alertedAt: STAMP } };
+
+test('an ok on an UNPROVEN read carries the open stamp instead of clearing it', () => {
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: evals(40, 'green'),   // clean rows — malformed computes ok
+    previous: openMalformed,
+    nowISO: NOW,
+    readState: 'ceiling_truncated',
+  });
+  assert.equal(verdicts.malformed.status, 'ok', 'the verdict is still honestly ok for what was seen');
+  assert.equal(verdicts.malformed.alertedAt, STAMP, 'the episode stays OPEN');
+  assert.equal(alerts.length, 0, 'and carrying a stamp never notifies on its own');
+});
+
+test('a PROVEN ok clears the stamp — the recovery a monitor must be able to record', () => {
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: evals(40, 'green'),
+    previous: openMalformed,
+    nowISO: NOW,
+    readState: 'complete',
+  });
+  assert.equal(verdicts.malformed.status, 'ok');
+  assert.equal(verdicts.malformed.alertedAt, null, 'a proven recovery closes the episode');
+});
+
+test('every non-complete read state is unproven — the check is for the ONE proving value', () => {
+  // Deliberately not a list of failures: a new failure state added to bsReadState
+  // is covered here for free, in the safe direction.
+  for (const readState of [
+    'ceiling_exact', 'ceiling_truncated', 'ceiling_count_unknown',
+    'count_shifted', 'count_unknown', 'something_added_later',
+  ]) {
+    const { verdicts } = bsEvaluateHealth({
+      rpeDropped: 0, evaluations: evals(40, 'green'), previous: openMalformed, nowISO: NOW, readState,
+    });
+    assert.equal(verdicts.malformed.alertedAt, STAMP, `readState ${readState} must not close the episode`);
+  }
+});
+
+test('an ABSENT readState reads as UNPROVEN, not as proven', () => {
+  // A caller that does not describe its read has not told us the read was
+  // complete. Treating silence as proof is the regression this whole block pins.
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: evals(40, 'green'), previous: openMalformed, nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.alertedAt, STAMP);
+});
+
+test('an unproven read still ALERTS on a fault it did find', () => {
+  // Under-reading can only hide faults, never invent them — so a malformed row
+  // seen in a partial window is a real malformed row and must be announced.
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [{ state: 'unknown', unknownReason: 'malformed_week' }],
+    previous: null,
+    nowISO: NOW,
+    readState: 'ceiling_truncated',
+  });
+  assert.equal(verdicts.malformed.status, 'alert');
+  assert.equal(alerts.some((a) => a.check === 'malformed'), true);
+});
+
+test('the rate checks get the same protection — an ok rate over a partial window proves nothing', () => {
+  const openRed = { red_rate: { status: 'alert', value: 0.4, sample: 40, alertedAt: STAMP } };
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: evals(40, 'green'),   // 0% red — ok, and well above the floor
+    previous: openRed,
+    nowISO: NOW,
+    readState: 'ceiling_truncated',
+  });
+  assert.equal(verdicts.red_rate.status, 'ok');
+  assert.equal(verdicts.red_rate.value, 0);
+  assert.equal(verdicts.red_rate.alertedAt, STAMP, 'a rate over rows we saw is not a rate over the window');
+});
+
+test('rpe_dropped is EXEMPT — its count cannot truncate, so its ok is a real recovery', () => {
+  // ⚠ THE OVER-CORRECTION THIS PINS: rpe_dropped comes from its own head:true
+  // exact-count query, not from the evaluation read. Gating it would suppress a
+  // genuine recovery on complete data, and a monitor that cannot record a
+  // recovery is as useless as one that cannot record a fault.
+  const openRpe = { rpe_dropped: { status: 'alert', value: 3, sample: null, alertedAt: STAMP } };
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: evals(40, 'green'),
+    previous: openRpe,
+    nowISO: NOW,
+    readState: 'ceiling_truncated',
+  });
+  assert.equal(verdicts.rpe_dropped.status, 'ok');
+  assert.equal(verdicts.rpe_dropped.alertedAt, null, 'its data was complete, so its recovery is provable');
+});
+
+test('carrying a stamp keeps the 7-day re-alert cadence rather than silencing the check', () => {
+  // The episode staying open must not mean it goes quiet forever: once the
+  // re-alert window elapses, a still-failing check announces again.
+  const stale = { malformed: { status: 'alert', value: 2, sample: 40, alertedAt: '2026-07-20T07:00:00.000Z' } };
+  const quiet = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: evals(40, 'green'), previous: stale, nowISO: NOW, readState: 'ceiling_truncated',
+  });
+  assert.equal(quiet.verdicts.malformed.alertedAt, '2026-07-20T07:00:00.000Z', 'the old stamp is carried, not refreshed');
+  const relapse = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [{ state: 'unknown', unknownReason: 'malformed_week' }],
+    previous: quiet.verdicts,
+    nowISO: NOW,
+    readState: 'complete',
+  });
+  assert.equal(relapse.alerts.some((a) => a.check === 'malformed'), true, 're-alerts past the 7d window');
+});
+
+test('THE WIRING: the route hands the evaluator its real read state', () => {
+  // ⚠ EVERY UNIT TEST ABOVE SUPPLIES ITS OWN, so an unwired route would look
+  // perfectly plausible while the evaluator treated every run as unproven and no
+  // episode ever closed. `state` is the value readEvaluations returns, i.e. the
+  // same one persisted in `_read` and reported by bsReadStateNote.
+  const call = ROUTE_SRC.match(/bsEvaluateHealth\(\{[\s\S]*?\}\)/);
+  assert.ok(call, 'bsEvaluateHealth call not found in the route');
+  assert.match(call[0], /readState:\s*state\b/);
 });
