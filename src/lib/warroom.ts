@@ -570,6 +570,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Founder identity on the About page — SHIPPED 2026-08-28 (#1945 → 21e2a9b47; no migration, no route)',
+      items: [
+        { label: 'THE PORTRAIT IS RE-CUT, NOT RE-GRADED. The office background is REMOVED ENTIRELY (the person cut out), the cutout graded down to the dark editorial ground, its edge softened, and the torso faded to transparent at the bottom so the portrait dissolves into the page instead of ending in a frame. Both copies replaced (public/newdesign/founder.webp + mobile-app/public/founder.webp, 640×640 WebP with alpha, 54 KB → 40 KB). ⚠ JUDGE A PORTRAIT TREATMENT COMPOSITED ON THE PAGE\'S OWN GROUND, AT ITS REAL RENDER SIZE — the first attempt (a feather + vignette over the existing image) read fine in isolation and still left a bright office on a near-black page', status: 'done' },
+        { label: 'THE CARD MOVED TO THE PAGE BOTTOM ON BOTH SURFACES — directly under the letter\'s last line, before the CTA — REVERSING the 2026-07-21 moved-up call, and it now IS the sign-off: it carries the signed name, so the separate sign-off block (AboutSignoff on web, the sign-off div on mobile) is DELETED rather than left as a second signature. Website order: Hero → Vision → Letter → Founder → CTA', status: 'done' },
+        { label: '⚠ public/newdesign/about.jsx IS THE REPO\'S CRLF-TRACKED FILE and three guarded patch attempts refused to write before this landed. Two lessons, both cheap next time: LF-literal replacements match NOTHING on it (cat -A shows every line ending ^M$), and a guard asserting count("AboutSignoff") == 0 fails when the REPLACEMENT COMMENT you are writing contains that word. The asserts did their job — the file was never left half-patched', status: 'done' },
+        { label: 'OWNER on-device pass: the About page on a phone across papers — the cut-out portrait against the near-black ground (no residual office edge, the bottom fade reading as a dissolve rather than a crop), the card sitting as the letter\'s sign-off with no second signature above the CTA, and the mobile copy matching the website order', status: 'manual' },
+      ],
+    },
+    {
       section: 'Check-in engine — §A/§B/§D SHIPPED 2026-08-17 (#1893 spec · #1894 · #1895 · #1896 · #1897; NO migration — every field already existed on daily_health_snapshot / user_goals)',
       items: [
         { label: '§A ENGINE VITALS (#1896 → 915c20a0a): the selfRecord record gains a vitals leg (energy/hunger/hydration/rested) from the SAME cached progress response sleep already uses; three ABSENCE-GATED rules ride below sleep_low — energy_low (34) · hunger_high (33) · hydration_low (32), client-only by owner ruling. The roster read widens to energy/hunger/hydration (targetL stays null coach-side) and the notify snapshot carries the leg verbatim so the hourly cron re-evaluates it. ⚠ NO TARGET MEANS THE RULE CAN NEVER FIRE — that is the design, not a gap', status: 'done' },
