@@ -348,7 +348,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-28 — The online-visibility toggle stops announcing a save it never checked
+### 2026-08-28 — The online-visibility toggle stops announcing a save it never checked (#1938 → f6252294f)
 
 - **Registered by #1929 and deliberately left there; read against the code, it was worse
   than registered on BOTH halves.** The web Settings row **"Show when I'm online"**
