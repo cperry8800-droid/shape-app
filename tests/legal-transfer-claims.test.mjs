@@ -74,13 +74,16 @@ const BANNED = [
 // output cannot appear because it is ignored, nothing has to be remembered when the next
 // generated directory lands, and no tracked page can be missed. It REFUSES rather than
 // reporting clean if the index cannot be read.
-function allPages() {
-  const tracked = execFileSync('git', ['ls-files', '-z'], {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
+// `listTracked` is a parameter ONLY so the empty-index refusal below is reachable from a
+// test. Without it that branch is real, correct and unpinnable — a live repo never returns
+// an empty index — and an unpinnable guard is the kind a later reader deletes as dead.
+const gitTracked = () =>
+  execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\0')
     .filter(Boolean);
+
+function allPages(listTracked = gitTracked) {
+  const tracked = listTracked();
   assert.ok(
     tracked.length > 0,
     'git ls-files returned nothing — the sweep cannot enumerate the pages, so it refuses ' +
@@ -119,6 +122,13 @@ test('the claim sweep actually found the known legal surfaces', () => {
     'the sweep found no public/mobile page — the derivation stopped reaching nested ' +
       'directories, so 54 live pages are outside every ban below.'
   );
+});
+
+test('an unreadable index REFUSES rather than reporting every ban as passing', () => {
+  // If the enumeration silently returned nothing, every per-page ban below would vanish
+  // and the suite would go green while scanning no legal surface at all — the loudest
+  // possible false pass. It throws instead.
+  assert.throws(() => allPages(() => []), /refuses/);
 });
 
 test('the sweep enumerates TRACKED pages only — generated build output is excluded', () => {
