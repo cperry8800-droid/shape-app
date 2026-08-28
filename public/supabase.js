@@ -1352,10 +1352,35 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       var ch = _wp.channel;
       if (!ch) { if (v) startWebPresence(); }
       else { try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {} }
+      // ⚠ THE DURABLE WORK IS BOUND TO THE ACCOUNT THAT TAPPED. getUserGoals and
+      // saveUserGoals each resolve getUser() INDEPENDENTLY at their own call time, and
+      // the save then REPLACES that user's whole client_settings document — so if the
+      // session becomes account B while this step is queued, the lane would read A's
+      // document and upsert it into B's row, destroying B's units, privacy, meal times
+      // and every other preference. The lane makes that window LONGER, not shorter, by
+      // design: a stalled predecessor holds this step back. Same remedy the mobile twin
+      // already paid a round for (#1933 Codex P1) — capture the initiating uid, re-resolve
+      // through the SAME getUser() the save uses, and DISCARD on mismatch rather than
+      // write. Checked on both sides of the read: after it alone would still let a switch
+      // to B and back to A write B's document into A's row.
+      // Cost is four auth resolves on a settings toggle, which is not a hot path; a
+      // cheaper local resolver could disagree with the one the save actually uses.
+      var initiator = shapeDb.getUser().then(
+        function (u) { return (u && u.id) || null; },
+        function () { return null; }
+      );
       return _settingsSerial(async function () {
+        var who = await initiator;
+        if (!who) return { ok: false, reason: 'unreadable' };
+        var before = null;
+        try { before = await shapeDb.getUser(); } catch (e) { before = null; }
+        if (!before || before.id !== who) return { ok: false, reason: 'account_changed' };
         var doc = null;
         try { doc = await shapeDb.getUserGoals('client_settings'); } catch (e) { doc = null; }
         if (!doc) return { ok: false, reason: 'unreadable' };
+        var after = null;
+        try { after = await shapeDb.getUser(); } catch (e) { after = null; }
+        if (!after || after.id !== who) return { ok: false, reason: 'account_changed' };
         var res = null;
         try { res = await shapeDb.saveUserGoals('client_settings', Object.assign({}, doc, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) { res = null; }
         if (!res || res.error) return { ok: false, reason: 'save_failed' };

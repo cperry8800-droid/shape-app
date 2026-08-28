@@ -44,7 +44,13 @@ assert.ok(chainSeed, 'the lane seed line is gone — the serializer is not wired
 const buildSetVisible = (shapeDb, _wp) => new Function(
   'shapeDb', '_wp', 'window', 'startWebPresence',
   `${chainSeed[0]}\n${serialSrc}\nreturn (${setVisibleSrc});`,
-)(shapeDb, _wp, { dispatchEvent() {} }, () => {});
+)(
+  // The durable half resolves identity through getUser; a stable one unless overridden.
+  { getUser: async () => ({ id: 'u1' }), ...shapeDb },
+  _wp,
+  { dispatchEvent() {} },
+  () => {},
+);
 
 // The lane on its own, for the invariant setVisible cannot reach: its step body is
 // fully try/caught, so it never rejects today and a wedged lane would be invisible
@@ -192,6 +198,7 @@ test('the startup hydrate never overrides a choice the member just made', async 
   const _wp = { channel: null, ids: {}, visible: false, touched: false };
   const shapeDb = {
     getSession: async () => ({ user: { id: 'u1' } }),
+    getUser: async () => ({ id: 'u1' }),
     getUserGoals: async () => ({ ...store }),
     saveUserGoals: async (kind, data) => {
       await new Promise((r) => setTimeout(r, 20)); // the write lands AFTER the hydrate reads
@@ -211,6 +218,42 @@ test('the startup hydrate never overrides a choice the member just made', async 
   await new Promise((r) => setTimeout(r, 30)); // let the hydrate finish too
   assert.equal(_wp.visible, true, 'an explicit ON must survive the startup hydrate');
   assert.equal(store.onlineVisible, 'On', 'and the write still lands');
+});
+
+test('a durable write is DISCARDED when the account changed while it was queued', async () => {
+  // ⚠ getUserGoals and saveUserGoals each resolve getUser() independently at their own
+  // call time, and the save REPLACES that user's whole client_settings document — so a
+  // session that becomes account B mid-flight would upsert A's document into B's row and
+  // destroy B's units, privacy, meal times and the rest. The lane makes that window
+  // LONGER by design, since a stalled predecessor holds this step back.
+  for (const switchAt of ['before the read', 'before the save']) {
+    const saved = [];
+    let calls = 0;
+    const setVisible = buildSetVisible({
+      // u1 taps; the session becomes u2 at the named point.
+      getUser: async () => {
+        calls += 1;
+        if (switchAt === 'before the read') return calls <= 1 ? { id: 'u1' } : { id: 'u2' };
+        return calls <= 2 ? { id: 'u1' } : { id: 'u2' };
+      },
+      getUserGoals: async () => ({ units: 'imperial', privacy: 'friends' }),
+      saveUserGoals: async (...a) => { saved.push(a); return { ok: true }; },
+    }, { visible: true, channel: null });
+
+    assert.deepEqual(await setVisible(false), { ok: false, reason: 'account_changed' }, switchAt);
+    assert.equal(saved.length, 0, `no whole-doc upsert may run after the account changed (${switchAt})`);
+  }
+});
+
+test('a signed-out initiator declines rather than writing to whoever signs in next', async () => {
+  const saved = [];
+  const setVisible = buildSetVisible({
+    getUser: async () => null,
+    getUserGoals: async () => ({ units: 'metric' }),
+    saveUserGoals: async (...a) => { saved.push(a); return { ok: true }; },
+  }, { visible: true, channel: null });
+  assert.deepEqual(await setVisible(true), { ok: false, reason: 'unreadable' });
+  assert.equal(saved.length, 0);
 });
 
 // ---------- the settings row: what it tells the member --------------------------------
@@ -263,6 +306,14 @@ test('"Saved." is reachable ONLY when the write actually landed', async () => {
     assert.notEqual(bad.toasts[0], 'Saved.', 'a write that did not land must not report success');
     assert.match(bad.toasts[0], /didn't save|couldn't load/);
   }
+});
+
+test('a declined account switch is its own message, not "that didn\'t save"', async () => {
+  const c = toggleCtx({ out: { ok: false, reason: 'account_changed' } });
+  await c.run();
+  assert.equal(c.toasts.length, 1);
+  assert.notEqual(c.toasts[0], 'Saved.');
+  assert.match(c.toasts[0], /signed in as someone else/);
 });
 
 test('an unreadable failure and a save failure say different things', async () => {

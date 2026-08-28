@@ -365,8 +365,16 @@ function ClientMeSettings() {
       }
     } catch (e) { out = null; }
     if (out && out.ok) { showToast("Saved."); return; }
-    showToast(out && out.reason === "unreadable"
+    // ⚠ account_changed is its OWN line, not folded into "that didn't save". The save was
+    // DECLINED on purpose — the session became a different account while it was queued, and
+    // writing then would have replaced that account's whole settings document with this
+    // one's. Telling this member it "didn't save" would be true but would hide that their
+    // preference is still unsaved on an account they are no longer signed in to.
+    const reason = out && out.reason;
+    showToast(reason === "unreadable"
       ? "Applied for now — couldn't load your settings to save it."
+      : reason === "account_changed"
+      ? "Applied for now — you signed in as someone else before it saved."
       : "Applied for now — that didn't save.");
   }
 
