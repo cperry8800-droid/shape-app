@@ -115,8 +115,13 @@ test('the claim sweep actually found the known legal surfaces', () => {
     );
   }
   assert.ok(SURFACES.length >= 150, `expected the full page set, found ${SURFACES.length}`);
-  // Pins the depth itself: a shallow enumeration finds 128 and would pass a >=150 floor
-  // only barely, so the legacy nested surface must be reachable BY NAME.
+  // ⚠ MEASURED, because the comment this replaced was wrong and so was my first rewrite.
+  // Of the 181 tracked pages, 51 sit directly in `public/` and 130 are nested (76
+  // newdesign, 54 mobile) — so a depth-1 or public+newdesign-only set is 51 or 127 and
+  // the >=150 floor above already catches it. Naming the cohort adds DIAGNOSIS, not
+  // detection: the failure then says which 54 pages vanished instead of just a count.
+  // (Footgun met while measuring: `git ls-files 'public/*.html'` returns all 181, because
+  // git's fnmatch lets `*` cross `/`. Do not use a pathspec to test depth.)
   assert.ok(
     files.some((f) => f.startsWith('public/mobile/')),
     'the sweep found no public/mobile page — the derivation stopped reaching nested ' +
