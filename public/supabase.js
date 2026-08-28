@@ -1273,7 +1273,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   // uses, so members see who's genuinely online (pulsing avatar ring). The set
   // only contains people currently broadcasting, so it respects each person's
   // "show when I'm online" choice. setVisible(false) stops broadcasting.
-  var _wp = { channel: null, ids: {}, visible: true };
+  var _wp = { channel: null, ids: {}, visible: true, touched: false };
   async function startWebPresence() {
     try {
       if (_wp.channel || !client) return;
@@ -1281,7 +1281,15 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       var uid = session && session.user && session.user.id;
       if (!uid) return;
       // Respect the shared "show when I'm online" preference (same field mobile uses).
-      try { var st = await shapeDb.getUserGoals('client_settings'); if (st && st.onlineVisible === 'Off') _wp.visible = false; } catch (e) {}
+      // ⚠ THE HYDRATE MUST NOT OVERRIDE AN EXPLICIT IN-SESSION CHOICE. setVisible calls
+      // this when no channel exists yet — which is ordinary, not exotic: the module-load
+      // call races auth hydration and returns early with no uid on a cold load. Without
+      // the touched guard, toggling ON there fires a read that still sees the STORED
+      // 'Off' (our write is queued behind the lane) and silently flips the member back
+      // to invisible, leaving stored On against a runtime false. Same class as the race
+      // the lane fixes, one direction over: a stale READ overwriting a fresh intent.
+      // Note the hydrate only ever sets false, so an OFF choice was never at risk.
+      try { var st = await shapeDb.getUserGoals('client_settings'); if (!_wp.touched && st && st.onlineVisible === 'Off') _wp.visible = false; } catch (e) {}
       try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
       var ch = client.channel('online-users', { config: { presence: { key: uid } } });
       ch.on('presence', { event: 'sync' }, function () {
@@ -1339,6 +1347,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // them broadcasting after they asked to stop. Only the DURABLE half is serialized.
     setVisible: function (v) {
       _wp.visible = !!v;
+      _wp.touched = true; // an explicit choice the startup hydrate may no longer override
       try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
       var ch = _wp.channel;
       if (!ch) { if (v) startWebPresence(); }

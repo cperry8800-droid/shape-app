@@ -53,6 +53,14 @@ const buildSerial = () => new Function(
   `${chainSeed[0]}\n${serialSrc}\nreturn _settingsSerial;`,
 )();
 
+// The startup hydrate, built from source too — the ON-clobber below is an interaction
+// between these two functions, so stubbing either one would test the stub.
+const hydrateSrc = extractFn(SUPABASE, 'async function startWebPresence', 'startWebPresence');
+const buildHydrate = (shapeDb, _wp, client) => new Function(
+  'shapeDb', '_wp', 'client', 'window',
+  `${hydrateSrc}\nreturn startWebPresence;`,
+)(shapeDb, _wp, client, { dispatchEvent() {} });
+
 const buildToggle = (ctx) => new Function(
   'onlineVisible', 'setOnlineVisible', 'signedIn', 'showToast', 'window',
   `return (${toggleSrc});`,
@@ -171,6 +179,38 @@ test('a rejected step does not wedge the lane for everyone behind it', async () 
   await assert.rejects(boom, /offline/, 'the failing caller still sees its own failure');
   assert.equal(await after, 'ok');
   assert.deepEqual(ran, ['after'], 'work queued behind a failure must still run');
+});
+
+test('the startup hydrate never overrides a choice the member just made', async () => {
+  // ⚠ THE SAME CLASS AS THE LANE, ONE DIRECTION OVER — a stale READ overwriting a fresh
+  // intent. setVisible calls startWebPresence whenever no channel exists yet, which is
+  // ordinary: the module-load call races auth hydration and returns early with no uid on
+  // a cold load. Toggling ON there fires a read that still sees the STORED 'Off' — the
+  // write is queued behind the lane — and silently flips the member back to invisible,
+  // leaving stored On against a runtime false.
+  let store = { units: 'metric', onlineVisible: 'Off' };
+  const _wp = { channel: null, ids: {}, visible: false, touched: false };
+  const shapeDb = {
+    getSession: async () => ({ user: { id: 'u1' } }),
+    getUserGoals: async () => ({ ...store }),
+    saveUserGoals: async (kind, data) => {
+      await new Promise((r) => setTimeout(r, 20)); // the write lands AFTER the hydrate reads
+      store = data;
+      return { ok: true };
+    },
+  };
+  const chan = { on() { return chan; }, subscribe() { return chan; }, track() {}, untrack() {} };
+  const hydrate = buildHydrate(shapeDb, _wp, { channel: () => chan });
+
+  const setVisible = new Function(
+    'shapeDb', '_wp', 'window', 'startWebPresence',
+    `${chainSeed[0]}\n${serialSrc}\nreturn (${setVisibleSrc});`,
+  )(shapeDb, _wp, { dispatchEvent() {} }, hydrate);
+
+  assert.deepEqual(await setVisible(true), { ok: true });
+  await new Promise((r) => setTimeout(r, 30)); // let the hydrate finish too
+  assert.equal(_wp.visible, true, 'an explicit ON must survive the startup hydrate');
+  assert.equal(store.onlineVisible, 'On', 'and the write still lands');
 });
 
 // ---------- the settings row: what it tells the member --------------------------------
