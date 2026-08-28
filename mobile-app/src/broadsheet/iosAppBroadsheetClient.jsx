@@ -20550,12 +20550,16 @@ function BSOLCredit({ spine, title, credit, t }) {
   );
 }
 
-// The Contract — the Goals page as ONE continuous ledger (G1). Verdict lead from
-// the ETA engine, a register row, milestones as "the terms", then Training and
-// Nutrition as role-credited stations, week targets, and the why. Heat = the
-// member's tier, line-only. Every data computation is carried from the former
-// three-tab design verbatim (presentation-only).
-function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProgress, onAddGoal, onEditGoal, onEditHeadline, plans: livePlans = null, weekTargets: liveWeekTargets = null, train = null, refs }) {
+// The Contract — the Goals page as a COVER PAGE over full-screen station pages
+// (owner pick 2026-08-28, Concept B off the simplification board: the
+// one-ledger layout had grown to ~31 always-visible rows and read as
+// overwhelming). The COVER holds the page's one job — the verdict lead, the
+// register, the NEXT term, and five station DOORS; each door opens a
+// full-screen sub-page (view: training/nutrition/work/week/terms) carrying
+// that station's FULL former body — targets, lifts, adds, records — verbatim.
+// Heat = the member's tier, line-only. Every data computation is carried from
+// the one-ledger design unchanged (presentation-only).
+function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog, onEditTargets, onOpenProgress, onAddGoal, onEditGoal, onEditHeadline, plans: livePlans = null, weekTargets: liveWeekTargets = null, train = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
@@ -20605,22 +20609,13 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
   const verdict = bsGoalVerdict({ start, now, target, unit, proj: goalProj });
   const toneColor = { good: t.GREEN, warn: t.AMBER, bad: t.RUST, neutral: t.INK }[verdict.tone] || t.INK;
   const [readRef, readSeen] = useBSSdInView();
-  // "One goal, many terms": the station target-lists cap at 3 visible rows with
-  // a show-more expander so the page never reads as a pile of competing goals.
-  const [showAllTargets, setShowAllTargets] = useStateBSC({ training: false, nutrition: false, work: false });
-  const TGT_CAP = 3;
-  // Shared station furniture (Training + Nutrition render the same anatomy).
+  // Shared station furniture (all three station pages render the same anatomy).
   const stationMotto = (meta) => (meta.title || meta.subtitle) ? (
     <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[meta.title, meta.subtitle].filter(Boolean).join(' — ')}”</div>
   ) : null;
   const tgtEyebrow = () => (
     <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
   );
-  const tgtExpander = (kind, goals) => {
-    const hidden = goals.length - TGT_CAP;
-    if (hidden <= 0 || showAllTargets[kind]) return null;
-    return <BSOLRow t={t} text={`${hidden} more target${hidden === 1 ? '' : 's'}`} textColor={t.INK50} meta="Show ＋" metaColor={heat} onPress={() => setShowAllTargets(s => ({ ...s, [kind]: true }))} />;
-  };
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
@@ -20687,10 +20682,120 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
   const breathDot = (
     <span aria-hidden style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 99, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.2)}`, ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2400ms ease-in-out infinite' }) }} />
   );
+  // Cover-door sublines — an honest one-line inventory of what each page holds.
+  const tCount = (n, none = 'No targets yet') => n ? `${n} target${n === 1 ? '' : 's'}` : none;
+  const trainDoorSub = [tCount(trainGoals.length), trainPlan ? trainPlan.t : (signedIn ? 'no plan yet' : null), trainPlan ? trainPlan.sub : null].filter(Boolean).join(' · ');
+  const nutrDoorSub = [tCount(nutrGoals.length), nutrPlan ? nutrPlan.t : (signedIn ? 'no plan yet' : null), nutrPlan ? nutrPlan.sub : null].filter(Boolean).join(' · ');
+  const workDoorSub = tCount(workGoals.length);
+  const weekDoorSub = weekTargets.slice(0, 2).map((w) => `${w.v} ${String(w.l || '').toLowerCase()}`).join(' · ');
+  const termsDoorSub = hasGoal ? `${milestones.filter((m) => m.done).length}/${milestones.length} milestones${overall.why ? ' · your why' : ''}` : 'Set the terms';
+  const nextTerm = milestones.find((m) => m.next) || null;
+  // A station door — 3px role spine, title + inventory subline, heat arrow.
+  const door = (spine, title, sub, key, last = false) => (
+    <button key={key} onClick={() => onOpenView(key)} style={{ display: 'flex', alignItems: 'stretch', gap: 11, width: '100%', boxSizing: 'border-box', textAlign: 'left', background: 'transparent', border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer', padding: '13px 0', minHeight: 56 }}>
+      <span aria-hidden style={{ width: 3, background: spine, flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0, alignSelf: 'center' }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>{title}</span>
+        {sub ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</span> : null}
+      </span>
+      <span aria-hidden style={{ flexShrink: 0, alignSelf: 'center', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: heat }}>→</span>
+    </button>
+  );
+  // Sub-page chrome — mast row + ← Back + the station title (the parent hides
+  // its own header + share strip while a sub-page is open).
+  const pageHead = (label) => (
+    <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+      {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, fontWeight: 800 }}>The contract</span>
+      </div>
+      <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}><span style={{ fontStyle: 'italic', color: heat }}>{label}.</span></h1>
+      <div aria-hidden style={{ marginTop: 12, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 62%, transparent)` }} />
+    </div>
+  );
+  // Full station body — the one-ledger design's station anatomy VERBATIM
+  // (motto, coach credit, targets, lifts, add, record), now on its own page so
+  // every target renders (the 3-row cover cap died with the cover-page pick).
+  const stationBody = (kind) => {
+    const goalsArr = kind === 'training' ? trainGoals : kind === 'nutrition' ? nutrGoals : workGoals;
+    const meta = kind === 'training' ? trainingMeta : kind === 'nutrition' ? nutritionMeta : workMeta;
+    return (
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        {stationMotto(meta)}
+        {kind === 'training' && (trainPlan
+          ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={`TRAINER · ${String(trainPlan.sub || '').toUpperCase()}`} t={t} />
+          : signedIn
+            ? <><BSTRedact INK={t.INK} label="No training plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
+            : <BSOLCredit spine={t.RUST} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />)}
+        {kind === 'nutrition' && (nutrPlan
+          ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={`NUTRITIONIST · ${String(nutrPlan.sub || '').toUpperCase()}`} t={t} />
+          : signedIn
+            ? <><BSTRedact INK={t.INK} label="No nutrition plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
+            : <BSOLCredit spine={'#d8a23a'} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />)}
+        {tgtEyebrow()}
+        {goalsArr.length === 0 && <BSTRedact INK={t.INK} label="No targets yet" />}
+        {goalsArr.map((g, i) => (
+          <BSOLRow key={`${kind}-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal(kind, i)} />
+        ))}
+        {kind === 'training' && liftRows.map((l, i) => (
+          <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
+        ))}
+        <button onClick={() => onAddGoal(kind)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a {kind} target</button>
+        <div style={{ display: 'flex', gap: 22 }}>
+          <BSOLAct heat={heat} label="Edit headline" onClick={() => onEditHeadline(kind)} t={t} />
+        </div>
+        {(kind === 'training' || kind === 'nutrition') && <BSOLRow t={t} text={`The full ${kind} record`} meta="→" metaColor={heat} onPress={onOpenProgress} />}
+      </div>
+    );
+  };
+
+  // ── Sub-pages (view != 'cover') — full-screen, their own ← Back ──
+  if (view !== 'cover') {
+    const labels = { training: 'Training', nutrition: 'Nutrition', work: 'Work', week: 'This week', terms: 'The terms' };
+    return (
+      <>
+        {pageHead(labels[view] || 'The contract')}
+        {view === 'week' && (
+          <div style={{ padding: `10px ${t.padX}px 0` }}>
+            {weekTargets.map((w, i) => <BSOLRow key={i} t={t} text={w.l} sub={w.sub} meta={w.v} metaColor={t.INK} />)}
+          </div>
+        )}
+        {view === 'terms' && (
+          <>
+            <div style={{ padding: `10px ${t.padX}px 0` }}>
+              {!hasGoal ? (
+                <><BSTRedact INK={t.INK} label="No goal set yet" /><BSOLAct heat={heat} label="Set the terms" onClick={onEditTargets} t={t} /></>
+              ) : (
+                <>
+                  {milestones.map((m, i) => (
+                    <BSOLRow key={i} t={t}
+                      glyph={m.done ? '✓' : m.next ? breathDot : '○'}
+                      glyphColor={m.done ? heat : t.INK50}
+                      text={m.t} textColor={m.done ? t.INK50 : t.INK} sub={m.next ? m.sub : null}
+                      meta={m.next ? 'Next' : (m.when || '')} metaColor={m.next ? heat : t.INK50} />
+                  ))}
+                  <BSOLAct heat={heat} label="Edit targets" onClick={onEditTargets} t={t} />
+                </>
+              )}
+            </div>
+            <BSOLHead heat={heat} label="Your why" t={t} />
+            {overall.why
+              ? <div style={{ padding: `6px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div>
+              : <div style={{ padding: `2px ${t.padX}px 0` }}><BSOLAct heat={heat} label="Add your why" onClick={onEditTargets} t={t} /></div>}
+          </>
+        )}
+        {(view === 'training' || view === 'nutrition' || view === 'work') && stationBody(view)}
+        <div style={{ height: 28 }} />
+      </>
+    );
+  }
+
+  // ── The COVER — the one job, then five doors ──
   return (
     <>
       {/* THE READ — the verdict lead + register row */}
-      <div ref={refs.read} style={{ padding: `18px ${t.padX}px 0`, scrollMarginTop: 56 }}>
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
         <div ref={readRef}>
           {/* THE GOAL — there is exactly ONE goal on this page; everything below serves it. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}>
@@ -20724,105 +20829,35 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
         </div>
       </div>
 
-      {/* THE TERMS — milestones */}
-      <BSOLHead heat={heat} label="The terms" t={t} />
+      {/* THE NEXT TERM — one milestone on the cover; the rest live on the terms page */}
+      <BSOLHead heat={heat} label="The terms" t={t} right={hasGoal ? <BSOLAct heat={heat} label="All terms →" onClick={() => onOpenView('terms')} t={t} /> : null} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         {!hasGoal ? (
           <>
             <BSTRedact INK={t.INK} label="No goal set yet" />
             <BSOLAct heat={heat} label="Set the terms" onClick={onEditTargets} t={t} />
           </>
-        ) : milestones.map((m, i) => (
-          <BSOLRow key={i} t={t}
-            glyph={m.done ? '✓' : m.next ? breathDot : '○'}
-            glyphColor={m.done ? heat : t.INK50}
-            text={m.t} textColor={m.done ? t.INK50 : t.INK} sub={m.next ? m.sub : null}
-            meta={m.next ? 'Next' : (m.when || '')} metaColor={m.next ? heat : t.INK50} />
-        ))}
+        ) : nextTerm ? (
+          <BSOLRow t={t} glyph={breathDot} text={nextTerm.t} sub={nextTerm.sub} meta="Next" metaColor={heat} onPress={() => onOpenView('terms')} />
+        ) : (
+          <BSOLRow t={t} glyph="✓" glyphColor={heat} text="Every term met" meta="Done" metaColor={heat} onPress={() => onOpenView('terms')} />
+        )}
       </div>
 
-      {/* TRAINING station */}
-      <div ref={refs.train} style={{ scrollMarginTop: 56 }}>
-        <BSOLHead heat={heat} label="Training" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('training')} t={t} />} />
-        <div style={{ padding: `2px ${t.padX}px 0` }}>
-          {/* Station motto — a byline, not another goal (the one goal lives up top). */}
-          {stationMotto(trainingMeta)}
-          {trainPlan
-            ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={`TRAINER · ${String(trainPlan.sub || '').toUpperCase()}`} t={t} />
-            : signedIn
-              ? <><BSTRedact INK={t.INK} label="No training plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
-              : <BSOLCredit spine={t.RUST} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />}
-          {tgtEyebrow()}
-          {(showAllTargets.training ? trainGoals : trainGoals.slice(0, TGT_CAP)).map((g, i) => (
-            <BSOLRow key={`tg-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('training', i)} />
-          ))}
-          {tgtExpander('training', trainGoals)}
-          {liftRows.map((l, i) => (
-            <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
-          ))}
-          <button onClick={() => onAddGoal('training')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a training target</button>
-          <BSOLRow t={t} text="The full training record" meta="→" metaColor={heat} onPress={onOpenProgress} />
-        </div>
+      {/* THE STATIONS — five doors; each opens its full-screen page */}
+      <div style={{ margin: `20px ${t.padX}px 0`, borderTop: `1px solid ${t.HAIR}` }}>
+        {door(t.RUST, 'Training', trainDoorSub, 'training')}
+        {door('#d8a23a', 'Nutrition', nutrDoorSub, 'nutrition')}
+        {/* Work rides t.BLUE — the token the Home slate already tags Work with.
+            (#7aa7dc is the WEBSITE's slate accent; on mobile it is not a token
+            and would be the one spine on this page that ignores the paper.) */}
+        {door(t.BLUE, 'Work', workDoorSub, 'work')}
+        {door(teal, 'This week', weekDoorSub, 'week')}
+        {door(bsTHexA(t.INK, 0.35), 'The terms & your why', termsDoorSub, 'terms', true)}
       </div>
-
-      {/* NUTRITION station */}
-      <div ref={refs.nutr} style={{ scrollMarginTop: 56 }}>
-        <BSOLHead heat={heat} label="Nutrition" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('nutrition')} t={t} />} />
-        <div style={{ padding: `2px ${t.padX}px 0` }}>
-          {/* Station motto — a byline, not another goal. */}
-          {stationMotto(nutritionMeta)}
-          {nutrPlan
-            ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={`NUTRITIONIST · ${String(nutrPlan.sub || '').toUpperCase()}`} t={t} />
-            : signedIn
-              ? <><BSTRedact INK={t.INK} label="No nutrition plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
-              : <BSOLCredit spine={'#d8a23a'} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />}
-          {tgtEyebrow()}
-          {(showAllTargets.nutrition ? nutrGoals : nutrGoals.slice(0, TGT_CAP)).map((g, i) => (
-            <BSOLRow key={`ng-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('nutrition', i)} />
-          ))}
-          {tgtExpander('nutrition', nutrGoals)}
-          <button onClick={() => onAddGoal('nutrition')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a nutrition target</button>
-          <BSOLRow t={t} text="The full nutrition record" meta="→" metaColor={heat} onPress={onOpenProgress} />
-        </div>
-      </div>
-
-      {/* WORK station — the work/career domain (spec 2026-07-13). Same station
-          anatomy as Training/Nutrition, minus the coach credit (no work-coach
-          concept — the domain is member-self-serve). Its accent is t.BLUE where
-          per-station accents appear (the headline sheet); the station chrome
-          follows the page heat like its siblings. */}
-      <div ref={refs.work} style={{ scrollMarginTop: 56 }}>
-        <BSOLHead heat={heat} label="Work" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('work')} t={t} />} />
-        <div style={{ padding: `2px ${t.padX}px 0` }}>
-          {/* Station motto — a byline, not another goal. */}
-          {stationMotto(workMeta)}
-          {tgtEyebrow()}
-          {workGoals.length === 0 && <BSTRedact INK={t.INK} label="No work targets yet" />}
-          {(showAllTargets.work ? workGoals : workGoals.slice(0, TGT_CAP)).map((g, i) => (
-            <BSOLRow key={`wg-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('work', i)} />
-          ))}
-          {tgtExpander('work', workGoals)}
-          <button onClick={() => onAddGoal('work')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a work target</button>
-        </div>
-      </div>
-
-      {/* THIS WEEK */}
-      <div ref={refs.week} style={{ scrollMarginTop: 56 }}>
-        <BSOLHead heat={heat} label="This week" t={t} />
-        <div style={{ padding: `4px ${t.padX}px 0` }}>
-          {weekTargets.map((w, i) => <BSOLRow key={i} t={t} text={w.l} sub={w.sub} meta={w.v} metaColor={t.INK} />)}
-        </div>
-      </div>
-
-      {/* YOUR WHY */}
-      {overall.why
-        ? <><BSOLHead heat={heat} label="Your why" t={t} />
-            <div style={{ padding: `6px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div></>
-        : <div style={{ padding: `10px ${t.padX}px 0` }}><BSOLAct heat={heat} label="Add your why" onClick={onEditTargets} t={t} /></div>}
     </>
   );
 }
-
 
 // Edit sheet for the Overall headline goal (title / target date / start-now-target / why).
 function BSOverallEditSheet({ overall, onClose, onSave }) {
@@ -22841,9 +22876,34 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const [editHeadline, setEditHeadline] = useStateBSC(null); // 'training' | 'nutrition' | null
   const [editPrimary, setEditPrimary] = useStateBSC(false); // in-place primary-goal chips
   const [logWeigh, setLogWeigh] = useStateBSC(false);
-  // Anchor refs — the index scrolls to each station (no tab views).
-  const refRead = React.useRef(null), refTrain = React.useRef(null), refNutr = React.useRef(null), refWork = React.useRef(null), refWeek = React.useRef(null);
-  const jump = (r) => { try { r.current?.scrollIntoView({ behavior: bsSdReduced() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {} };
+  // Cover-page routing (owner pick 2026-08-28, Concept B): 'cover' plus one
+  // full-screen page per station. The old five-item anchor index existed only
+  // because the one-ledger page was long — the cover's doors replace it.
+  const [goalView, setGoalView] = useStateBSC('cover');
+  const openGoalView = (v) => { setGoalView(v); try { const el = document.querySelector('.bs-scroll'); if (el) el.scrollTop = 0; } catch (e) {} };
+  // ⚠ The open station is deliberately NOT announced to the nav stack, and the
+  // BSClientEat/BSSettings pattern does NOT transfer here — this page cannot
+  // announce for itself. Two reasons, both measured:
+  //   (1) INERT from Home. This page is BSClientHome's `goalsPage` overlay, and
+  //       the shell does not model Home's overlays: navLoc() returns a bare
+  //       { tab:'home' } and navResolve() has branches for store/market/chat/
+  //       eat/me but NONE for home. bsNavCompose would produce
+  //       { tab:'home', sub:'training' } and the replay drops `sub` on the floor.
+  //   (2) HARMFUL from Settings. BSClientGoals has a SECOND call site inside
+  //       BSSettings (showGoals), which IS modelled and announces its own sub —
+  //       and bsNavAnnounce writes ONE module-level slot, last write wins. An
+  //       announce here therefore overwrites the parent's. Reproduced against
+  //       the real register: with Settings deep-linked at 'edit-profile' and the
+  //       member walked back to its root (navSub ''), opening this page's cover
+  //       announced null, so bsNavCompose fell back to the shell's stale
+  //       open-time settingsStart and composed sub:'edit-profile' — a value the
+  //       member had already left. Opening a station composed sub:'training',
+  //       which matches no Settings pane at all.
+  // Making it real requires the PARENT to own the announcement (a one-slot
+  // register cannot host a child rendered under two parents), i.e. teaching
+  // navLoc/navResolve about Home's overlays and giving BSClientHome the
+  // initialPage/onStartConsumed pair BSClientEat and BSClientMe already have.
+  // That is its own change — registered on the War Room, not half-built here.
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
   // Live "Your plans" + "This week targets" for the Contract (null →
   // BSGoalsContract keeps its demo content). Built from the assigned plan + the
@@ -22963,8 +23023,9 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const hHead = hWords.join(' ');
   return (
     <BSPage>
-      {/* Header — eyebrow + EDIT, serif goal title (tier-heat last word) */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+      {/* Header — eyebrow + EDIT, serif goal title (tier-heat last word). Cover
+          only: a station page carries its own mast + ← Back + station title. */}
+      {goalView === 'cover' && <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
@@ -22976,28 +23037,22 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           </div>
         </div>
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}.</span></h1>
-      </div>
-
-      {/* Anchor index — replaces the tab views; items scroll, nothing is hidden. */}
-      <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', gap: 18, borderBottom: `1px solid ${t.HAIR}` }}>
-        {[['The goal', refRead], ['Training', refTrain], ['Nutrition', refNutr], ['Work', refWork], ['Week', refWeek]].map(([l, r]) => (
-          <button key={l} onClick={() => jump(r)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 12px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{l}</button>
-        ))}
-      </div>
+      </div>}
 
       <BSGoalsContract
         overall={overall} data={data} heat={heat}
+        view={goalView} onOpenView={openGoalView} onBack={() => openGoalView('cover')}
         onLog={() => setLogWeigh(true)}
         onEditTargets={() => setEditOverall(true)}
         onOpenProgress={onOpenProgress}
         onAddGoal={(tab) => { setListTab(tab); setEditing('new'); }}
         onEditGoal={(tab, i) => { setListTab(tab); setEditing(i); }}
         onEditHeadline={(tab) => setEditHeadline(tab)}
-        plans={livePlans} weekTargets={liveWeek} train={liveTrain}
-        refs={{ read: refRead, train: refTrain, nutr: refNutr, work: refWork, week: refWeek }} />
+        plans={livePlans} weekTargets={liveWeek} train={liveTrain} />
 
-      {/* Share with coaches — applies to the whole ledger */}
-      <div style={{ margin: `24px ${t.padX}px 0`, padding: '16px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      {/* Share with coaches — applies to the whole ledger, so it lives on the
+          COVER (a station page is one station's detail, not the whole record). */}
+      {goalView === 'cover' && <div style={{ margin: `24px ${t.padX}px 0`, padding: '16px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Share with your coaches</div>
           <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{data.share ? 'Your coaches can see your goals' : 'Private — coaches can’t see your goals'}</div>
@@ -23005,7 +23060,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         <button onClick={() => persist({ ...data, share: !data.share })} aria-label="Toggle coach visibility" style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? heat : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
           <span style={{ width: 22, height: 22, borderRadius: 999, background: '#fff', display: 'block' }} />
         </button>
-      </div>
+      </div>}
       <div style={{ height: 28 }} />
       {/* Primary-goal editor — edits IN PLACE (no Settings takeover, so back
           always returns here). Saves to client_goals.primaryGoal and mirrors

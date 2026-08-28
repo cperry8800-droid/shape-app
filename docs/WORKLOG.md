@@ -348,7 +348,68 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-28 — A member can finally SEE the gauges they log every day (#1946)
+### 2026-08-28 — The Contract becomes a cover page over full-screen stations
+
+- **Owner, on density:** *"we also need to update design of the goals page, or just
+  simplify it. There is a ton of information and seems very overwhelming"* — then, off
+  a three-concept board, **"i like concept B"**. The complaint is measurable: the
+  one-ledger layout rendered **27 always-visible blocks** (verdict · register · five
+  milestones · three full stations with motto + coach credit + targets + key lifts +
+  add + record link each · four week rows · the why), plus a five-item anchor index
+  that existed **only** because the page was long. The cover renders **12** sites,
+  several of them mutually exclusive branches.
+- **The cover holds the page's one job and nothing else** — the verdict lead, the
+  register (Log weigh-in / Edit targets), the **next term only**, and five station
+  **doors**. Each door carries an honest one-line inventory built from real data
+  (target counts, the coach plan, this week's first two figures, the milestone tally),
+  so the cover says what is inside **without opening it**. Each door opens a
+  full-screen page carrying that station's former body **verbatim**; the 3-row target
+  cap and its *"N more targets · Show ＋"* expander die with the pick, because a
+  station page has room for all of them. The header and the share-with-coaches strip
+  render on the **cover only** — a station page is one station's detail, not the whole
+  record. Presentation + routing only; every computation, handler, sheet and
+  honest-empty state carries over unchanged.
+- ⚠ **THE WORK DOOR'S SPINE WAS A HARDCODED NON-TOKEN.** `#7aa7dc` appeared **exactly
+  once** in the whole mobile broadsheet — that new line. It is the **website's** slate
+  accent (`dashProgress.jsx`), not a mobile token, so it would have been the one spine
+  on the page that ignores the paper across all 14. Mobile tags Work with **`t.BLUE`**
+  everywhere else — the Home slate's Work tag, and **this file's own headline sheet**,
+  which already reads `editHeadline === 'work' ? t.BLUE : '#d8a23a'`. Now `t.BLUE`,
+  which makes the door row match the pairing the file used one screen over. **A color
+  that appears once in a 30k-line file is a drift, not a decision.**
+- ⚠ **THE NAV ANNOUNCE WAS INERT ON HOME AND HARMFUL UNDER SETTINGS — deleted, along
+  with the claim it made.** The first cut announced the open station to the nav stack
+  and said that made a jump-out-and-back land on the same page. It did not.
+  **(1) Inert:** this page is `BSClientHome`'s `goalsPage` overlay, and the shell does
+  not model Home's overlays — `navLoc()` returns a bare `{tab:'home'}` and
+  `navResolve()` has branches for store/market/chat/eat/me but **none for home** — so
+  `bsNavCompose` produced `{tab:'home', sub:'training'}` and the replay dropped `sub`
+  on the floor. It could not have worked even in principle: the shell renders the tab
+  body under **`<div key={tab}>`**, so a tab jump **remounts `BSClientHome` fresh** and
+  `goalsPage` resets to `false` — the member lands on plain Home with the Goals page
+  closed, never mind the station. **(2) Harmful:** `BSClientGoals` has a **second** call site inside
+  **`BSSettings`**, which *is* modelled and announces its own sub, and `bsNavAnnounce`
+  writes **one module-level slot**, last write wins.
+- ⚠ **AND THE HARM WAS REPRODUCED AGAINST THE REAL REGISTER, not reasoned.** Driving
+  `navHistory.mjs` directly with Settings deep-linked at `edit-profile` and the member
+  walked back to its root (`navSub` `''`): **before**, the composed descriptor read
+  `sub:''` — correct. **With** the announce, opening the Goals **cover** announced
+  `null`, so `bsNavCompose` fell back to the shell's stale open-time `settingsStart`
+  and composed **`sub:'edit-profile'`** — a pane the member had already left. Opening a
+  station composed `sub:'training'`, which matches **no** Settings pane at all.
+- ⚠ **REGISTERED, NOT BUILT — the parent must own the announcement.** A one-slot
+  register cannot host a child overlay rendered under **two** parents, so no child can
+  announce for itself. Making it real means teaching `navLoc`/`navResolve` about Home's
+  overlays (goals · progress · habits · today · check-in) and giving `BSClientHome` the
+  `initialPage`/`onStartConsumed` pair `BSClientEat` and `BSClientMe` already have,
+  plus an `initialView` on `BSClientGoals`. **Pre-existing** — Home's overlays have
+  never been replayable; this wave neither fixed nor worsened it, and half-building it
+  behind a false comment would have been worse than leaving it named.
+- Verified: parse 0 · mobile build 0 with the cover doors confirmed in the **emitted
+  bundle** (`"No targets yet"` 0 → 2 against main) · `public/m` re-synced · `tsc` 0 ·
+  `npm test` **2336/2336**.
+
+### 2026-08-28 — A member can finally SEE the gauges they log every day (#1946 → 3f27a8276)
 
 - **Energy · Hunger · Rested join the Progress trend tabs, both surfaces.** The daily
   check-in has asked for all three (1–10) since the check-in engine wave, and
