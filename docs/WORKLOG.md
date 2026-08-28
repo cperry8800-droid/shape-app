@@ -363,9 +363,10 @@ changelog whenever something ships.
   **doors**. Each door carries an honest one-line inventory built from real data
   (target counts, the coach plan, this week's first two figures, the milestone tally),
   so the cover says what is inside **without opening it**. Each door opens a
-  full-screen page carrying that station's former body **verbatim**; the 3-row target
-  cap and its *"N more targets · Show ＋"* expander die with the pick, because a
-  station page has room for all of them. The header and the share-with-coaches strip
+  full-screen page carrying that station's former body with **one** deliberate
+  subtraction — the 3-row target cap and its *"N more targets · Show ＋"* expander die
+  with the pick, because a station page has room for all of them, so **every** target
+  now renders. The header and the share-with-coaches strip
   render on the **cover only** — a station page is one station's detail, not the whole
   record. Presentation + routing only; every computation, handler, sheet and
   honest-empty state carries over unchanged.
@@ -431,6 +432,29 @@ changelog whenever something ships.
   the page's own subtree via a ref + `closest('.bs-scroll')`, in a **layout effect**
   rather than a line in the handler: a reset issued in the same tick as `setGoalView`
   runs against the *outgoing* view's height.
+- **And the switch carries FOCUS and the reading position, not just the scroll.**
+  Opening a station moves focus to its heading (`tabIndex -1`, out of the tab order) —
+  the door that was pressed unmounts with the cover, so a keyboard/screen-reader user
+  was landing on `document.body` with no announcement that the page changed. ← Back
+  restores the cover offset they were reading at and returns focus to **the door they
+  opened** (the standard return-focus pattern), both with `preventScroll` so the focus
+  call cannot undo the restore. ⚠ The offset is captured in the **handler**, not the
+  layout effect: by then the scroller already holds the station's content and the
+  browser has clamped `scrollTop` to the shorter page, so the position would be gone
+  before it could be saved.
+- ⚠ **REFUTED WITH THE SOURCE — "the week page renders blank when `weekTargets` is
+  empty".** It cannot be empty: the derivation uses `liveWeekTargets` **only** when it
+  is a non-empty array and otherwise supplies four rows either way — signed-in gets the
+  honest zeroed set (`Sessions 0/—`, `Protein days 0/7`, `Steps —`, `Sleep —`),
+  signed-out the demo four. The proposed `length === 0` guard is unreachable, and the
+  door's subline is non-empty for the same reason — dead code in a page whose whole
+  point was removing surplus.
+- ⚠ **REFUTED WITH THE REPO — "re-sync the tracked `public/m` bundle".** `public/m` has
+  been **gitignored and deploy-built since #1470** (`.gitignore:26`; `git ls-files
+  public/m` returns **zero**), so there is no tracked artifact to sync and none can
+  appear in a diff. The review's own script printed *"no public/m changes in this PR"*
+  and then reported that absence as the defect. CI still guards the real invariant —
+  the Mobile job rebuilds and diffs against `public/m`.
 - ⚠ **REFUTED — "a station is a full-screen route with no nav-stack entry".** True
   that `openGoalView` never calls `navPush()`, but **no nested view in this shell
   does**: `navPush` is a shell-level concern (`goSettings`/`goMarket`/`goRadio`/…),
@@ -446,6 +470,22 @@ changelog whenever something ships.
   plus an `initialView` on `BSClientGoals`. **Pre-existing** — Home's overlays have
   never been replayable; this wave neither fixed nor worsened it, and half-building it
   behind a false comment would have been worse than leaving it named.
+- ⚠ **AND IT IS THE SAME GAP THAT KEEPS NATIVE BACK FROM STEPPING THROUGH A STATION** —
+  raised as its own finding, verified as one item. The shell's `onNavGesture('back')`
+  tries `navBack()` then falls through to closing `showSearch`/`showSettings`/
+  `showCalendar`/`showCycle`; there is **no `goalsPage` branch, and main's copy is
+  byte-identical** — an edge swipe has never respected the Goals overlay at *any*
+  depth. From Home the overlay is never pushed, so a swipe finds an empty stack,
+  matches no takeover and does nothing (the on-screen ← Back works at both depths);
+  from Settings it pops the Settings entry and exits everything — true of the cover
+  before this change, and now of a station too. A Goals-local interception cannot fix
+  it honestly: **both listeners receive the same window event with no "handled"
+  protocol**, so from Settings the station would return to the cover *and* the shell
+  would pop Settings in one gesture. Adding that protocol changes the shared gesture
+  contract in `bsNavShell.js` and all three shells, and would still leave cover→out
+  broken in both parents. Once Goals-from-Home is a modelled location with a `sub`,
+  `navBack()` steps station → cover → out for free — which is why this is the **same**
+  follow-up, not a second one.
 - Verified: parse 0 · mobile build 0 with the cover doors confirmed in the **emitted
   bundle** (`"No targets yet"` 0 → 2 against main) · `public/m` re-synced · `tsc` 0 ·
   `npm test` **2336/2336**.

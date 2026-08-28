@@ -20704,7 +20704,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const nextTerm = milestones.find((m) => m.next) || null;
   // A station door — 3px role spine, title + inventory subline, heat arrow.
   const door = (spine, title, sub, key, last = false) => (
-    <button key={key} onClick={() => onOpenView(key)} style={{ display: 'flex', alignItems: 'stretch', gap: 11, width: '100%', boxSizing: 'border-box', textAlign: 'left', background: 'transparent', border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer', padding: '13px 0', minHeight: 56 }}>
+    <button key={key} data-goal-door={key} onClick={() => onOpenView(key)} style={{ display: 'flex', alignItems: 'stretch', gap: 11, width: '100%', boxSizing: 'border-box', textAlign: 'left', background: 'transparent', border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer', padding: '13px 0', minHeight: 56 }}>
       <span aria-hidden style={{ width: 3, background: spine, flexShrink: 0 }} />
       <span style={{ flex: 1, minWidth: 0, alignSelf: 'center' }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>{title}</span>
@@ -20722,7 +20722,11 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
         <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, fontWeight: 800 }}>The contract</span>
       </div>
-      <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}><span style={{ fontStyle: 'italic', color: heat }}>{label}.</span></h1>
+      {/* tabIndex -1 so the parent can move focus here when a station opens: the
+          door that was pressed unmounts with the cover, and without this a
+          keyboard/screen-reader user is dropped on document.body with no
+          announcement that the page changed. Not in the tab order. */}
+      <h1 data-goal-heading tabIndex={-1} style={{ outline: 'none', margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}><span style={{ fontStyle: 'italic', color: heat }}>{label}.</span></h1>
       <div aria-hidden style={{ marginTop: 12, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 62%, transparent)` }} />
     </div>
   );
@@ -22892,19 +22896,52 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   // full-screen page per station. The old five-item anchor index existed only
   // because the one-ledger page was long — the cover's doors replace it.
   const [goalView, setGoalView] = useStateBSC('cover');
-  const openGoalView = (v) => setGoalView(v);
-  // Open each view at the top. ⚠ Resolve the scroller from OUR OWN subtree, not
-  // `document.querySelector('.bs-scroll')` — that returns the FIRST match in
-  // document order, and this page has a second mount inside BSSettings (see
-  // showGoals) where the shell renders `screens[tab]` BEFORE the settings
-  // overlay. From there the first match is the hidden tab page's scroller, so a
-  // document query would scroll a screen nobody is looking at and leave the
-  // station opening at the cover's old offset. ⚠ And it is a LAYOUT effect, not
-  // a line in the handler: a reset issued in the same tick as setGoalView runs
-  // against the OUTGOING view's height.
+  // ⚠ Resolve the scroller and the focus targets from OUR OWN subtree, never
+  // `document.querySelector` — that returns the FIRST match in document order,
+  // and this page has a second mount inside BSSettings (see showGoals) where
+  // the shell renders `screens[tab]` BEFORE the settings overlay. From there
+  // the first match belongs to the hidden tab page, so a document query would
+  // scroll a screen nobody is looking at and leave the station opening at the
+  // cover's old offset. `goalScrollRef` is an anchor span rendered as a sibling
+  // of BSGoalsContract, so its parent holds both the cover's doors and the
+  // station's heading.
   const goalScrollRef = React.useRef(null);
+  const goalScroller = () => { try { return goalScrollRef.current?.closest?.('.bs-scroll') || null; } catch (e) { return null; } };
+  const coverScrollRef = React.useRef(0);
+  const prevGoalViewRef = React.useRef('cover');
+  const openGoalView = (v) => {
+    // ⚠ Capture the cover's offset HERE, not in the effect below: by the time a
+    // layout effect runs the scroller already holds the station's content, and
+    // the browser will have clamped scrollTop to the shorter page — so the
+    // reading position would be lost before we could save it.
+    if (goalView === 'cover') { const el = goalScroller(); if (el) coverScrollRef.current = el.scrollTop; }
+    setGoalView(v);
+  };
+  // ⚠ A LAYOUT effect, not a line in the handler: a scroll or focus call issued
+  // in the same tick as setGoalView runs against the OUTGOING view's height.
   React.useLayoutEffect(() => {
-    try { const el = goalScrollRef.current?.closest?.('.bs-scroll'); if (el) el.scrollTop = 0; } catch (e) {}
+    const from = prevGoalViewRef.current;
+    prevGoalViewRef.current = goalView;
+    if (from === goalView) return;              // mount — never steal focus
+    const el = goalScroller();
+    const root = goalScrollRef.current && goalScrollRef.current.parentNode;
+    try {
+      if (goalView === 'cover') {
+        // Back to the cover: return the member to where they were reading, and
+        // move focus to the door they opened (the standard return-focus pattern
+        // — the ← Back button unmounts with the station). preventScroll, or the
+        // browser would scroll the door into view and undo the restore.
+        if (el) el.scrollTop = coverScrollRef.current || 0;
+        const door = root && root.querySelector(`[data-goal-door="${from}"]`);
+        if (door && door.focus) door.focus({ preventScroll: true });
+      } else {
+        // Into a station: open at the top and announce the new page by moving
+        // focus to its heading.
+        if (el) el.scrollTop = 0;
+        const head = root && root.querySelector('[data-goal-heading]');
+        if (head && head.focus) head.focus({ preventScroll: true });
+      }
+    } catch (e) {}
   }, [goalView]);
   // ⚠ The open station is deliberately NOT announced to the nav stack, and the
   // BSClientEat/BSSettings pattern does NOT transfer here — this page cannot
