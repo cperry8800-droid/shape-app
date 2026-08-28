@@ -46,6 +46,13 @@ const buildSetVisible = (shapeDb, _wp) => new Function(
   `${chainSeed[0]}\n${serialSrc}\nreturn (${setVisibleSrc});`,
 )(shapeDb, _wp, { dispatchEvent() {} }, () => {});
 
+// The lane on its own, for the invariant setVisible cannot reach: its step body is
+// fully try/caught, so it never rejects today and a wedged lane would be invisible
+// through it. The guard belongs at the lane, where the NEXT caller inherits it.
+const buildSerial = () => new Function(
+  `${chainSeed[0]}\n${serialSrc}\nreturn _settingsSerial;`,
+)();
+
 const buildToggle = (ctx) => new Function(
   'onlineVisible', 'setOnlineVisible', 'signedIn', 'showToast', 'window',
   `return (${toggleSrc});`,
@@ -151,6 +158,19 @@ test('overlapping taps land in the order they were made, and the later one reads
   assert.deepEqual(order, ['Off', 'On'], 'writes must land in tap order, not in save-latency order');
   assert.equal(store.onlineVisible, 'On', 'the last tap decides the stored value');
   assert.equal(store.units, 'imperial', 'siblings survive a merge over a freshly-written doc');
+});
+
+test('a rejected step does not wedge the lane for everyone behind it', async () => {
+  const serial = buildSerial();
+  const ran = [];
+  const boom = serial(async () => { throw new Error('offline'); });
+  const after = serial(async () => { ran.push('after'); return 'ok'; });
+  // ⚠ This pins the INVARIANT, not a spelling: the lane carries two redundant failure
+  // handlers and either one alone satisfies this test — only removing BOTH wedges it.
+  // Pinning one of them individually would be guarding how the code is written.
+  await assert.rejects(boom, /offline/, 'the failing caller still sees its own failure');
+  assert.equal(await after, 'ok');
+  assert.deepEqual(ran, ['after'], 'work queued behind a failure must still run');
 });
 
 // ---------- the settings row: what it tells the member --------------------------------

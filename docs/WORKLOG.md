@@ -382,14 +382,48 @@ changelog whenever something ships.
   `clientMeSettings.jsx` is a babel component — so `tests/online-visible-pref.test.mjs`
   extracts each function from the live file by **brace-matching** and evaluates it against
   stubs. A text guard would pin a spelling, which is exactly what #1936 paid for.
+- ⚠ **AND THE WRITE IS SERIALIZED, BECAUSE ORDERING IT BY LATENCY IS NOT ORDERING IT BY
+  INTENT** (CodeRabbit round 1, verified before acting). Each tap ran its own
+  read-merge-write with nothing between them, so toggling Off then On fast enough could
+  land the slow Off *after* the fast On — stored `Off`, runtime `On`, and **both calls
+  honestly returning ok while the row said "Saved." twice**. Narrower than reported and
+  worth recording: on the **web** this document has exactly **ONE** writer (every other
+  `saveUserGoals` call writes a different kind), so the only value a race can lose is
+  `onlineVisible` itself — this is not the cross-writer clobber mobile hit. The remedy is
+  the same either way and is the **house pattern, not a new invention**: mirror
+  `bsSettingsWriteChain`, the `client_settings` serial lane #1933 already paid a round to
+  learn. Queued behind, the second tap's READ sees the first tap's write, so its merge is
+  over a current document.
+- ⚠ **THE TWO HALVES ARE SCOPED DIFFERENTLY ON PURPOSE.** The runtime flip stays OUTSIDE
+  the lane — it is what the member just asked for, it cannot meaningfully fail, and
+  queueing it behind a stalled network write would leave them **broadcasting after they
+  asked to stop**. Only the durable half is serialized. The guard now checks that flip
+  **synchronously**, before the await: the old assertion sat after it and passed either way.
+- ⚠ **THE LANE'S TWO FAILURE HANDLERS ARE A REDUNDANT PAIR — MEASURED, NOT ASSUMED.**
+  Dropping the second `step` passes (the swallowing tail covers it); dropping the tail's
+  swallow passes (the second `step` covers it); dropping **both** wedges the lane for
+  everyone behind a rejected step. So the invariant is *a failure never wedges the lane*,
+  not either spelling of it — which is what the test pins, and why neither half may be
+  deleted as dead. **The step is unreachable from `setVisible`** (its body is fully
+  try/caught, so it never rejects today), so the guard drives `_settingsSerial`
+  **directly**: the invariant belongs at the lane, where the next caller inherits it.
+- **The guard drives the SHIPPED serializer, not a re-typed one** — `_settingsSerial` and
+  its seed line are extracted from the real file alongside `setVisible`, and one built
+  instance shares one lane, which is the real shape (one `setVisible`, two taps).
+  `extractFn` now also **refuses an ambiguous marker**: a marker that stopped being unique
+  would silently extract the wrong function while every assertion went on passing about
+  someone else's code.
 - **No `?v=` bump**: newdesign is content-hashed by the deploy precompile, and
   `/supabase.js` has never carried a query on any of its **57** references — adding one
   would be a 57-file sweep for nothing. **CRLF preserved** on `clientMeSettings.jsx`, the
   repo's one CRLF-tracked file.
-- Verified: **2310/2310** (+8) · `tsc` 0 · both files parse · **6 mutations, all caught**
-  (restore the `d || {}` data-loss shape · fire-and-forget the save again · say "Saved."
-  unconditionally · roll the row back on failure · collapse both failure messages ·
-  drop the signed-out early return), unmutated sanity green at both ends.
+- Verified: **2313/2313** (+11) · `tsc` 0 · both files parse · **10 mutations across the
+  wave** (restore the `d || {}` data-loss shape · fire-and-forget the save again · say
+  "Saved." unconditionally · roll the row back on failure · collapse both failure messages
+  · drop the signed-out early return · remove the lane · stop it chaining · move the flip
+  inside it · drop both failure handlers) — **all caught**, plus the two documented
+  equivalents above, each covered by its redundant partner. Unmutated sanity green at both
+  ends of every batch.
 
 ### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable (#1936 → 17f71d966)
 

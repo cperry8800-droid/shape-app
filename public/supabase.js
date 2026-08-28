@@ -1305,8 +1305,13 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   // lane can order two browsers, and that is every whole-doc writer's shape.
   var _settingsChain = Promise.resolve();
   function _settingsSerial(step) {
+    // ⚠ THESE TWO FAILURE HANDLERS ARE A REDUNDANT PAIR — DO NOT DELETE EITHER AS DEAD.
+    // Measured: removing the second `step` passes (the tail swallows), removing the
+    // tail's swallow passes (the second `step` catches), removing BOTH wedges the lane
+    // for everyone behind a rejected step. So the invariant is "a failure never wedges
+    // the lane", not either particular spelling of it, and that is what the guard pins.
     var run = _settingsChain.then(step, step);
-    _settingsChain = run.then(function () {}, function () {}); // a failure never wedges the lane
+    _settingsChain = run.then(function () {}, function () {});
     return run;
   }
   window.ShapeWebPresence = {
