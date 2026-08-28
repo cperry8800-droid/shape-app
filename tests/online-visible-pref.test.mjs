@@ -109,9 +109,21 @@ test('the RUNTIME flip happens even when the durable write declines', async () =
     getUserGoals: async () => null,
     saveUserGoals: async () => ({ ok: true }),
   }, _wp);
-  await setVisible(false);
-  // A member who asks to leave the rail leaves it NOW, whatever the storage says.
+  const pending = setVisible(false);
+  // ⚠ SYNCHRONOUSLY, before the durable half is even queued. A member who asks to
+  // leave the rail leaves it NOW — moving the flip inside the serial lane would
+  // make it wait on a stalled network write, i.e. keep broadcasting them after
+  // they asked to stop.
   assert.equal(_wp.visible, false);
+  await pending;
+  assert.equal(_wp.visible, false, 'and it is not undone by the durable half');
+});
+
+test('extractFn refuses an ambiguous marker instead of guarding the wrong function', () => {
+  assert.throws(
+    () => extractFn('function a() {}\nfunction a() {}', 'function a', 'dupe'),
+    /ambiguous/,
+  );
 });
 
 test('overlapping taps land in the order they were made, and the later one reads the earlier one', async () => {
