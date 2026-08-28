@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────
 // Codex rounds 17, 18 and 19 were all the same defect: a legal surface telling
@@ -60,16 +61,38 @@ const BANNED = [
 //
 // ⚠ AND NO DIRECTORY LIST (round 21). The hand-written ['public','public/newdesign']
 // was the same defect one level up — it omitted the 54 live pages in `public/mobile`.
-// A typed list goes blind the moment a page lands outside it, so the walk recurses.
-function allPages(dir = 'public', out = []) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) allPages(path, out);
-    else if (entry.name.endsWith('.html')) out.push(path);
-  }
+// A typed list goes blind the moment a page lands outside it, so the walk recursed.
+//
+// ⚠ BUT A RECURSIVE WALK WITH NO SKIP-LIST IS THE SAME CLASS INVERTED, and this file
+// was carrying it: it read the FILESYSTEM, so once a build had run it also scanned
+// generated output — `public/m` (the mobile bundle) and `public/newdesign/nd` (the
+// precompile), both gitignored. Reproduced rather than assumed: dropping a single
+// generated `public/m/index.html` carrying "bound by contract" turned the suite red on
+// a file that is not source, does not appear in `git status`, and no one edited.
+// The set is now derived from `git ls-files`, the same technique as
+// tests/provider-apply-dob.test.mjs and tests/source-no-control-bytes.test.mjs: build
+// output cannot appear because it is ignored, nothing has to be remembered when the next
+// generated directory lands, and no tracked page can be missed. It REFUSES rather than
+// reporting clean if the index cannot be read.
+// `listTracked` is a parameter ONLY so the empty-index refusal below is reachable from a
+// test. Without it that branch is real, correct and unpinnable — a live repo never returns
+// an empty index — and an unpinnable guard is the kind a later reader deletes as dead.
+const gitTracked = () =>
+  execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    .split('\0')
+    .filter(Boolean);
+
+function allPages(listTracked = gitTracked) {
+  const tracked = listTracked();
+  assert.ok(
+    tracked.length > 0,
+    'git ls-files returned nothing — the sweep cannot enumerate the pages, so it refuses ' +
+      'rather than report every ban below as passing.'
+  );
+  const pages = tracked.filter((f) => f.startsWith('public/') && f.endsWith('.html'));
   // The in-app legal pages live in one JSX module, not discoverable by the HTML sweep.
-  if (dir === 'public') out.push('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  return out;
+  pages.push('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  return pages;
 }
 
 const SURFACES = allPages().map((file) => ({ file, src: readFileSync(file, 'utf8') }));
@@ -92,13 +115,46 @@ test('the claim sweep actually found the known legal surfaces', () => {
     );
   }
   assert.ok(SURFACES.length >= 150, `expected the full page set, found ${SURFACES.length}`);
-  // Pins the recursion itself: a non-recursive walk finds 128 and would pass a >=50
-  // floor. The legacy mobile surface must be reachable, by name.
+  // ⚠ MEASURED, because the comment this replaced was wrong and so was my first rewrite.
+  // Of the 181 tracked pages, 51 sit directly in `public/` and 130 are nested (76
+  // newdesign, 54 mobile) — so a depth-1 or public+newdesign-only set is 51 or 127 and
+  // the >=150 floor above already catches it. Naming the cohort adds DIAGNOSIS, not
+  // detection: the failure then says which 54 pages vanished instead of just a count.
+  // (Footgun met while measuring: `git ls-files 'public/*.html'` returns all 181, because
+  // git's fnmatch lets `*` cross `/`. Do not use a pathspec to test depth.)
   assert.ok(
     files.some((f) => f.startsWith('public/mobile/')),
-    'the sweep found no public/mobile page — the walk stopped recursing, so 54 live ' +
-      'pages are outside every ban below.'
+    'the sweep found no public/mobile page — the derivation stopped reaching nested ' +
+      'directories, so 54 live pages are outside every ban below.'
   );
+});
+
+test('an unreadable index REFUSES rather than reporting every ban as passing', () => {
+  // If the enumeration silently returned nothing, every per-page ban below would vanish
+  // and the suite would go green while scanning no legal surface at all — the loudest
+  // possible false pass. It throws instead.
+  assert.throws(() => allPages(() => []), /refuses/);
+});
+
+test('the sweep enumerates TRACKED pages only — generated build output is excluded', () => {
+  // ⚠ THE DEFECT THIS FILE USED TO CARRY, pinned. The previous version read the
+  // FILESYSTEM, so once a build had run it also scanned `public/m` and
+  // `public/newdesign/nd` — gitignored output that is not source, does not show in
+  // `git status`, and that nobody edited. Reproduced at the time by dropping one
+  // generated page carrying "bound by contract": the suite went red on it.
+  // A probe file is genuinely created here rather than asserted about, because the
+  // question is what the DERIVATION does with a real untracked page on disk.
+  const probe = 'public/__generated-output-probe.html';
+  try {
+    writeFileSync(probe, '<html><body>All subprocessors are bound by contract.</body></html>');
+    assert.ok(
+      !allPages().includes(probe),
+      'an untracked page on disk was enumerated — the sweep is reading the filesystem ' +
+        'again, so a build turns this suite red on generated output.'
+    );
+  } finally {
+    rmSync(probe, { force: true });
+  }
 });
 
 for (const { file, src } of SURFACES) {
