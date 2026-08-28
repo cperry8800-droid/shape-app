@@ -30,7 +30,12 @@ const DPR_DAY = 86400000;
 function dprIso(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
-function dprAgo(days) { return dprIso(new Date(Date.now() - days * DPR_DAY)); }
+// N calendar days back in the viewer's LOCAL zone. Noon-anchored + setDate()
+// rather than fixed-24h ms: across a DST shift, subtracting 86400000 twice from
+// a local wall clock can land two consecutive points on the SAME calendar date.
+// Invisible while every demo series was weekly/biweekly; reachable now that the
+// check-in gauges are daily.
+function dprAgo(days) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - days); return dprIso(d); }
 function dprDate(v) {
   if (!v) return "";
   try { return new Date(String(v).length === 10 ? v + "T00:00:00" : v).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; }
@@ -703,7 +708,14 @@ function ClientProgressPage() {
   })();
 
   // ── Below-the-fold data ──
-  const series = live && progress && progress.series ? progress.series : DPR_DEMO.series;
+  // A signed-in member NEVER reads the demo series. `live` is true when EITHER
+  // the progress or the dashboard fetch landed, so a failed progress read used
+  // to fall through to DPR_DEMO while the demo band stayed hidden — presenting
+  // fabricated figures as the member's own readings. Worst for the check-in
+  // gauges: Energy/Hunger/Rested are self-reported health data, not estimates.
+  // Empty is the honest answer — the chart then says "Log more … to draw this
+  // trend." Matches the sibling `prs`/`lifts` lines directly below.
+  const series = live ? ((progress && progress.series) || {}) : DPR_DEMO.series;
   const prs = live ? ((progress && progress.prs) || []) : DPR_DEMO.prs;
   const lifts = live ? ((strength && strength.lifts) || []) : DPR_DEMO.lifts;
   const availableTabs = DPR_TREND_TABS.filter((t) => (series[t.k] || []).length >= 2);
