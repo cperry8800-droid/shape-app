@@ -20660,18 +20660,30 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
       { l: 'Steps', v: '7.2k', sub: 'avg · goal 8k' },
       { l: 'Sleep', v: '6.8h', sub: 'avg · goal 7h' },
     ]);
-  // Key lifts — live PRs (ShapeProgress.train) when present, [] when signed-in
-  // with no data, demo signed-out. Carried verbatim from the old Training tab.
+  // Key lifts — live PRs when present, [] when signed-in with no data, demo
+  // signed-out. That is what the old Training tab's comment claimed; it is what
+  // the code does as of this change.
   const livePrs = (train && Array.isArray(train.prs) && train.prs.length) ? train.prs : null;
-  const trainEmpty = signedIn && !train;
-  const liftRows = trainEmpty ? [] : (livePrs
+  // ⚠ A SIGNED-IN MEMBER NEVER READS THE DEMO LIFTS. The old gate was
+  // `trainEmpty = signedIn && !train`, which goes false the moment the train
+  // rollup resolves — and it always resolves — so the ternary fell to the
+  // hardcoded array below and showed every signed-in member a 90 kg bench and a
+  // 150 kg deadlift as their OWN PRs. `livePrs` could never rescue it either:
+  // it needs `train.prs`, and /api/client/train returns exactly
+  // { ok, assignedWorkouts, stats, recentSessions } — PRs are served by
+  // /api/client/progress, a different route — so that branch is dead for
+  // everyone. Signed in with no live PRs is now [] and the station simply omits
+  // the lift rows, which is the honest answer; the demo set is signed-out only.
+  // (Pointing livePrs at the route that actually serves PRs is registered.)
+  const prRows = livePrs
     ? livePrs.slice(0, 4).map((p) => ({ t: p.lift, w: `${p.value} ${p.unit}`, d: p.deltaPct != null ? `+${Number(p.deltaPct).toFixed(1)}%` : 'held' }))
-    : [
-      { t: 'Bench Press', w: '90 kg', d: '+5.0' },
-      { t: 'Back Squat', w: '120 kg', d: '+5.0' },
-      { t: 'Barbell Row', w: '75 kg', d: '+2.5' },
-      { t: 'Deadlift', w: '150 kg', d: 'held' },
-    ]);
+    : null;
+  const liftRows = prRows || (signedIn ? [] : [
+    { t: 'Bench Press', w: '90 kg', d: '+5.0' },
+    { t: 'Back Squat', w: '120 kg', d: '+5.0' },
+    { t: 'Barbell Row', w: '75 kg', d: '+2.5' },
+    { t: 'Deadlift', w: '150 kg', d: 'held' },
+  ]);
   const trainGoals = Array.isArray(data.training) ? data.training : [];
   const nutrGoals = Array.isArray(data.nutrition) ? data.nutrition : [];
   const workGoals = Array.isArray(data.work) ? data.work : [];
@@ -22880,7 +22892,20 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   // full-screen page per station. The old five-item anchor index existed only
   // because the one-ledger page was long — the cover's doors replace it.
   const [goalView, setGoalView] = useStateBSC('cover');
-  const openGoalView = (v) => { setGoalView(v); try { const el = document.querySelector('.bs-scroll'); if (el) el.scrollTop = 0; } catch (e) {} };
+  const openGoalView = (v) => setGoalView(v);
+  // Open each view at the top. ⚠ Resolve the scroller from OUR OWN subtree, not
+  // `document.querySelector('.bs-scroll')` — that returns the FIRST match in
+  // document order, and this page has a second mount inside BSSettings (see
+  // showGoals) where the shell renders `screens[tab]` BEFORE the settings
+  // overlay. From there the first match is the hidden tab page's scroller, so a
+  // document query would scroll a screen nobody is looking at and leave the
+  // station opening at the cover's old offset. ⚠ And it is a LAYOUT effect, not
+  // a line in the handler: a reset issued in the same tick as setGoalView runs
+  // against the OUTGOING view's height.
+  const goalScrollRef = React.useRef(null);
+  React.useLayoutEffect(() => {
+    try { const el = goalScrollRef.current?.closest?.('.bs-scroll'); if (el) el.scrollTop = 0; } catch (e) {}
+  }, [goalView]);
   // ⚠ The open station is deliberately NOT announced to the nav stack, and the
   // BSClientEat/BSSettings pattern does NOT transfer here — this page cannot
   // announce for itself. Two reasons, both measured:
@@ -22930,10 +22955,32 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       const sessTarget = (det.training && det.training.sessions) || (plan && plan.training && Array.isArray(plan.training.workouts) ? plan.training.workouts.length : 4) || 4;
       const kcal = (det.nutrition && det.nutrition.calories) || (nutr && nutr.today && nutr.today.calorieTarget) || null;
       const mealTitle = (plan && plan.meals && plan.meals.title) || null;
+      // ⚠ A plan row is a CLAIM THAT A COACH AUTHORED SOMETHING — it renders as a
+      // role-spined "TRAINER · …" / "NUTRITIONIST · …" credit, and (since the
+      // cover-page rebuild) as the door's inventory subline. So it may only exist
+      // on real evidence: an assigned plan from /api/client/plan, or a coach
+      // adjustment in client_programs.detail. Every field below has a literal
+      // fallback (`|| 'Build'`, `|| 'Cut'`, `|| 4`, `${nphase} plan`), so an
+      // ungated push synthesised a full plan + coach credit for a member with NO
+      // COACH AT ALL — and, because `plans` then never took its `signedIn ? []`
+      // branch, it made both honest branches below (the "No training plan yet"
+      // redaction and its "Find a coach →" action) permanently dead code.
+      // ⚠ TRAINING NEEDS A COACH SIGNAL, NOT MERELY A PLAN — since the self-serve
+      // wave a member can author their own week (client_workouts with a NULL
+      // trainer_id), and `hasPlan` is true for those too, so gating on it would
+      // credit a TRAINER for a plan the member wrote themselves. /api/client/plan
+      // hands us both signals: `training.coach` (resolved from the first row with
+      // a real trainer_id) and per-workout `selfAuthored`. Nutrition has no
+      // self-serve authoring path — a client_meal_plans row always carries a
+      // nutritionist — so a menu is evidence enough there.
+      const coachTrain = !!(plan && plan.training && (plan.training.coach
+        || (Array.isArray(plan.training.workouts) && plan.training.workouts.some((w) => w && w.selfAuthored === false))));
+      const hasTrainPlan = !!(coachTrain || det.training);
+      const hasNutrPlan = !!((plan && plan.meals && (plan.meals.hasPlan || plan.meals.title || plan.meals.coach)) || det.nutrition);
       setLivePlans([
-        { role: 'Training', t: `${tphase} block`, sub: `${sessTarget}×/wk${plan && plan.training && plan.training.hasPlan ? ' · assigned' : ''}` },
-        { role: 'Nutrition', t: mealTitle || `${nphase} plan`, sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : `${nphase} targets` },
-      ]);
+        hasTrainPlan ? { role: 'Training', t: `${tphase} block`, sub: `${sessTarget}×/wk${plan && plan.training && plan.training.hasPlan ? ' · assigned' : ''}` } : null,
+        hasNutrPlan ? { role: 'Nutrition', t: mealTitle || `${nphase} plan`, sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : `${nphase} targets` } : null,
+      ].filter(Boolean));
       // This week — real targets that move the goal.
       const thisWk = (train && train.stats && Number(train.stats.thisWeekCount)) || 0;
       const adher = (nutr && Number(nutr.adherentDays7)) || 0;
@@ -23038,6 +23085,10 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         </div>
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}.</span></h1>
       </div>}
+
+      {/* Scroll-reset anchor — see goalScrollRef. Must render in EVERY view, so
+          it sits above the contract rather than inside a cover-only block. */}
+      <span ref={goalScrollRef} aria-hidden style={{ display: 'block', height: 0 }} />
 
       <BSGoalsContract
         overall={overall} data={data} heat={heat}

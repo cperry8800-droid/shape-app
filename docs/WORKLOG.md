@@ -397,6 +397,47 @@ changelog whenever something ships.
   `null`, so `bsNavCompose` fell back to the shell's stale open-time `settingsStart`
   and composed **`sub:'edit-profile'`** — a pane the member had already left. Opening a
   station composed `sub:'training'`, which matches **no** Settings pane at all.
+- ⚠ **AND THE ADVERSARIAL PASS FOUND TWO LIVE HONESTY VIOLATIONS THIS PAGE HAS BEEN
+  SHIPPING — both pre-existing, both fixed here because the cover-page rebuild puts
+  them where a member sees them FIRST.** (1) **Fabricated PRs.** `liftRows` gated on
+  `trainEmpty = signedIn && !train`, which goes false the moment the train rollup
+  resolves — and it always resolves — so the ternary fell to a hardcoded array and
+  showed **every signed-in member** a 90 kg bench and a 150 kg deadlift as their own
+  PRs. `livePrs` could never rescue it: it needs `train.prs`, and
+  `/api/client/train` returns exactly `{ok, assignedWorkouts, stats, recentSessions}`
+  — **PRs are served by `/api/client/progress`, a different route** — so that branch
+  is dead for everyone. (2) **A fabricated coach.** `setLivePlans([...])` fired
+  unconditionally for any signed-in member (all four legs `.catch(() => null)`, so it
+  always resolves), and every field has a literal fallback — `|| 'Build'`,
+  `|| 'Cut'`, `|| 4`, `` `${nphase} plan` ``. So a member with **no coach at all**
+  read a role-spined **"TRAINER · 4×/WK"** credit under a "Build block", and both
+  honest branches beneath it — the `No training plan yet` redaction and its
+  `Find a coach →` action — were **permanently dead code**. A plan row now requires
+  real evidence a coach authored something. ⚠ **And for TRAINING that is not merely
+  "a plan exists"** — since the self-serve wave a member can author their own week
+  (`client_workouts` with a NULL `trainer_id`), and `hasPlan` is true for those too,
+  so gating on it would credit a **TRAINER for a plan the member wrote themselves**.
+  `/api/client/plan` hands over both signals — `training.coach` (resolved from the
+  first row with a real `trainer_id`) and per-workout `selfAuthored` — and the gate
+  uses them. **Nutrition has no self-serve authoring path** (a `client_meal_plans`
+  row always carries a nutritionist), so a menu is evidence enough there. **The
+  rebuild is what made these matter** — a fabricated plan title is now the door's
+  inventory subline, the first line on the page.
+- ⚠ **AND THE COVER'S SCROLL RESET WAS AIMING AT THE WRONG SCROLLER.**
+  `document.querySelector('.bs-scroll')` returns the FIRST match in document order,
+  and this page has a **second mount inside `BSSettings`** where the shell renders
+  `screens[tab]` *before* the settings overlay — so from there it scrolled a hidden
+  tab page and left the station opening at the cover's old offset. Now resolved from
+  the page's own subtree via a ref + `closest('.bs-scroll')`, in a **layout effect**
+  rather than a line in the handler: a reset issued in the same tick as `setGoalView`
+  runs against the *outgoing* view's height.
+- ⚠ **REFUTED — "a station is a full-screen route with no nav-stack entry".** True
+  that `openGoalView` never calls `navPush()`, but **no nested view in this shell
+  does**: `navPush` is a shell-level concern (`goSettings`/`goMarket`/`goRadio`/…),
+  and `BSClientEat`'s grocery/library views, `BSSettings`' panes and `BSClientMe`'s
+  score/store all switch without one. Adding a push for Goals stations alone would
+  make this page inconsistent with every sibling **and** would need `navResolve` to
+  reopen the station — which is the registered gap below, not a separate defect.
 - ⚠ **REGISTERED, NOT BUILT — the parent must own the announcement.** A one-slot
   register cannot host a child overlay rendered under **two** parents, so no child can
   announce for itself. Making it real means teaching `navLoc`/`navResolve` about Home's
