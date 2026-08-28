@@ -1297,14 +1297,34 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     start: startWebPresence,
     visible: function () { return _wp.visible; },
     isOnline: function (uid) { return !!(uid && _wp.ids && Object.prototype.hasOwnProperty.call(_wp.ids, String(uid))); },
-    setVisible: function (v) {
+    // ⚠ RETURNS AN OUTCOME, AND THE CALLER MUST READ IT. Two halves with different
+    // failure modes: the RUNTIME flip (the local flag, the presence event, track /
+    // untrack on the channel) takes effect immediately and cannot fail meaningfully,
+    // while the DURABLE write can. This used to be a synchronous function whose
+    // persistence was a floating promise with its result discarded, so `await
+    // setVisible(x)` resolved before the write had even started and the caller had
+    // nothing to check - which is how the settings row came to announce "Saved." over
+    // a save that never landed.
+    // ⚠ AND IT DECLINES THE WRITE ON AN UNREADABLE DOC RATHER THAN PUBLISHING OVER IT.
+    // getUserGoals returns null for BOTH "not signed in" and "the read failed", and
+    // saveUserGoals REPLACES the whole client_settings jsonb - so the old `d || {}`
+    // would blind-upsert a ONE-KEY document over the member's units, privacy, meal
+    // times, program phases, check-in and online-rail preferences the first time a
+    // read blipped. A preference we could not read is not a document we may overwrite.
+    // Same rule the mobile pane settled on in #1933: decline, do not publish defaults.
+    setVisible: async function (v) {
       _wp.visible = !!v;
-      // Persist to the shared client_settings.onlineVisible so mobile + web agree.
-      try { shapeDb.getUserGoals('client_settings').then(function (d) { try { shapeDb.saveUserGoals('client_settings', Object.assign({}, d || {}, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) {} }); } catch (e) {}
       try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
       var ch = _wp.channel;
-      if (!ch) { if (v) startWebPresence(); return; }
-      try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {}
+      if (!ch) { if (v) startWebPresence(); }
+      else { try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {} }
+      var doc = null;
+      try { doc = await shapeDb.getUserGoals('client_settings'); } catch (e) { doc = null; }
+      if (!doc) return { ok: false, reason: 'unreadable' };
+      var res = null;
+      try { res = await shapeDb.saveUserGoals('client_settings', Object.assign({}, doc, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) { res = null; }
+      if (!res || res.error) return { ok: false, reason: 'save_failed' };
+      return { ok: true };
     },
   };
   try { startWebPresence(); } catch (e) {}
