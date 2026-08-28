@@ -245,6 +245,26 @@ test('a durable write is DISCARDED when the account changed while it was queued'
   }
 });
 
+test('a switch AWAY and BACK still declines — the read belongs to the other account', async () => {
+  // ⚠ THE CASE ONLY THE PRE-READ CHECK CATCHES. Checking identity after the read alone
+  // would pass here (u1 tapped, u1 is current at save time) while `doc` is the document
+  // that was read as u2 — so u2's settings would be written into u1's row. Contrived, but
+  // it is the difference between the two checks, and the harm is the same destruction.
+  const saved = [];
+  const docs = { u1: { units: 'imperial', privacy: 'friends' }, u2: { units: 'metric' } };
+  const seq = ['u1', 'u2', 'u1']; // initiator · before the read · before the save
+  let calls = 0;
+  let current = 'u1';
+  const setVisible = buildSetVisible({
+    getUser: async () => { current = seq[Math.min(calls, seq.length - 1)]; calls += 1; return { id: current }; },
+    getUserGoals: async () => ({ ...docs[current] }),
+    saveUserGoals: async (...a) => { saved.push(a); return { ok: true }; },
+  }, { visible: true, channel: null });
+
+  assert.deepEqual(await setVisible(false), { ok: false, reason: 'account_changed' });
+  assert.equal(saved.length, 0, "another account's document must never be written back");
+});
+
 test('a signed-out initiator declines rather than writing to whoever signs in next', async () => {
   const saved = [];
   const setVisible = buildSetVisible({
