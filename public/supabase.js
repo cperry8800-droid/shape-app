@@ -1293,6 +1293,22 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       _wp.channel = ch;
     } catch (e) {}
   }
+  // One-at-a-time lane for this tab's client_settings traffic. saveUserGoals is a
+  // blind whole-document upsert, so two in-flight read-merge-writes each land a
+  // snapshot that predates the other and the LAST WRITE TO ARRIVE wins by timing,
+  // not by intent: tapping Off then On fast enough could leave the stored value
+  // Off while the runtime flag says On, with BOTH calls honestly reporting ok.
+  // Queued behind, the second tap's READ sees the first tap's write, so the merge
+  // is over a current document and the final stored value is the last thing the
+  // member asked for. Mirrors the mobile bsSettingsWriteChain (#1933), which took
+  // a review round to learn. ⚠ Cross-DEVICE races are untouched — no client-side
+  // lane can order two browsers, and that is every whole-doc writer's shape.
+  var _settingsChain = Promise.resolve();
+  function _settingsSerial(step) {
+    var run = _settingsChain.then(step, step);
+    _settingsChain = run.then(function () {}, function () {}); // a failure never wedges the lane
+    return run;
+  }
   window.ShapeWebPresence = {
     start: startWebPresence,
     visible: function () { return _wp.visible; },
@@ -1312,19 +1328,25 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // times, program phases, check-in and online-rail preferences the first time a
     // read blipped. A preference we could not read is not a document we may overwrite.
     // Same rule the mobile pane settled on in #1933: decline, do not publish defaults.
-    setVisible: async function (v) {
+    // ⚠ THE TWO HALVES ARE DELIBERATELY SCOPED DIFFERENTLY. The runtime flip runs
+    // IMMEDIATELY, outside the lane: it is what the member just asked for, it cannot
+    // meaningfully fail, and queueing it behind a stalled network write would leave
+    // them broadcasting after they asked to stop. Only the DURABLE half is serialized.
+    setVisible: function (v) {
       _wp.visible = !!v;
       try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
       var ch = _wp.channel;
       if (!ch) { if (v) startWebPresence(); }
       else { try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {} }
-      var doc = null;
-      try { doc = await shapeDb.getUserGoals('client_settings'); } catch (e) { doc = null; }
-      if (!doc) return { ok: false, reason: 'unreadable' };
-      var res = null;
-      try { res = await shapeDb.saveUserGoals('client_settings', Object.assign({}, doc, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) { res = null; }
-      if (!res || res.error) return { ok: false, reason: 'save_failed' };
-      return { ok: true };
+      return _settingsSerial(async function () {
+        var doc = null;
+        try { doc = await shapeDb.getUserGoals('client_settings'); } catch (e) { doc = null; }
+        if (!doc) return { ok: false, reason: 'unreadable' };
+        var res = null;
+        try { res = await shapeDb.saveUserGoals('client_settings', Object.assign({}, doc, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) { res = null; }
+        if (!res || res.error) return { ok: false, reason: 'save_failed' };
+        return { ok: true };
+      });
     },
   };
   try { startWebPresence(); } catch (e) {}

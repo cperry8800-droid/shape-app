@@ -14,6 +14,9 @@ import fs from 'node:fs';
 function extractFn(src, marker, label) {
   const i = src.indexOf(marker);
   assert.ok(i >= 0, `${label}: marker not found — ${marker}`);
+  // ⚠ A marker that stops being unique would silently start extracting the WRONG
+  // function and every assertion below would go on passing about someone else's code.
+  assert.equal(src.indexOf(marker, i + 1), -1, `${label}: marker is ambiguous — ${marker}`);
   const open = src.indexOf('{', i + marker.length - 1);
   assert.ok(open > 0, `${label}: no body`);
   let depth = 0;
@@ -27,12 +30,20 @@ function extractFn(src, marker, label) {
 const SUPABASE = fs.readFileSync('public/supabase.js', 'utf8');
 const SETTINGS = fs.readFileSync('public/newdesign/clientMeSettings.jsx', 'utf8');
 
-const setVisibleSrc = extractFn(SUPABASE, 'async function (v)', 'setVisible');
+const setVisibleSrc = extractFn(SUPABASE, 'function (v)', 'setVisible');
 const toggleSrc = extractFn(SETTINGS, 'async function toggleOnlineVisible', 'toggleOnlineVisible');
 
+// The lane is extracted too, so the overlapping-toggle test drives the SHIPPED
+// serializer rather than a re-typed one that could quietly diverge from it.
+const serialSrc = extractFn(SUPABASE, 'function _settingsSerial', '_settingsSerial');
+const chainSeed = SUPABASE.match(/var _settingsChain = [^;]+;/);
+assert.ok(chainSeed, 'the lane seed line is gone — the serializer is not wired');
+
+// ONE built instance = one lane, which is the real shape: a single
+// window.ShapeWebPresence.setVisible that a member can tap twice.
 const buildSetVisible = (shapeDb, _wp) => new Function(
   'shapeDb', '_wp', 'window', 'startWebPresence',
-  `return (${setVisibleSrc});`,
+  `${chainSeed[0]}\n${serialSrc}\nreturn (${setVisibleSrc});`,
 )(shapeDb, _wp, { dispatchEvent() {} }, () => {});
 
 const buildToggle = (ctx) => new Function(
@@ -101,6 +112,33 @@ test('the RUNTIME flip happens even when the durable write declines', async () =
   await setVisible(false);
   // A member who asks to leave the rail leaves it NOW, whatever the storage says.
   assert.equal(_wp.visible, false);
+});
+
+test('overlapping taps land in the order they were made, and the later one reads the earlier one', async () => {
+  // ⚠ WITHOUT THE LANE THIS IS A LOST UPDATE THAT REPORTS SUCCESS TWICE. Each tap ran
+  // its own read-merge-write, so a slow Off could arrive after a fast On and the stored
+  // value would be decided by network timing rather than by what the member last asked
+  // for — with both calls honestly returning ok and the row saying "Saved." for each.
+  let store = { units: 'imperial', onlineVisible: 'On' };
+  const order = [];
+  const delays = [20, 0]; // the FIRST tap's save is the slow one — the losing race
+  const setVisible = buildSetVisible({
+    getUserGoals: async () => ({ ...store }),
+    saveUserGoals: async (kind, data) => {
+      const wait = delays.length > 1 ? delays.shift() : delays[0];
+      await new Promise((r) => setTimeout(r, wait));
+      store = data;
+      order.push(data.onlineVisible);
+      return { ok: true };
+    },
+  }, { visible: true, channel: null });
+
+  const [a, b] = await Promise.all([setVisible(false), setVisible(true)]);
+  assert.deepEqual(a, { ok: true });
+  assert.deepEqual(b, { ok: true });
+  assert.deepEqual(order, ['Off', 'On'], 'writes must land in tap order, not in save-latency order');
+  assert.equal(store.onlineVisible, 'On', 'the last tap decides the stored value');
+  assert.equal(store.units, 'imperial', 'siblings survive a merge over a freshly-written doc');
 });
 
 // ---------- the settings row: what it tells the member --------------------------------
