@@ -28,11 +28,13 @@ function AboutHero() {
   );
 }
 
-// The founder card — the face behind the letter, right under the hero (owner
-// call 2026-07-21: moved up from the page-bottom sign-off, larger).
+// The founder card — the face behind the letter. Owner call 2026-08-28: back at
+// the PAGE BOTTOM (directly under the letter, before the CTA), reversing the
+// 2026-07-21 moved-up call; it now IS the sign-off — the card carries the
+// signed name, so the separate sign-off block is gone.
 function AboutFounder() {
   return (
-    <section style={{ padding: "0 24px 10px", textAlign: "center" }}>
+    <section style={{ padding: "10px 24px 8px", textAlign: "center" }}>
       {/* The portrait's edges are feathered to transparent (baked into the WebP),
           so it dissolves into the page rather than sitting in a hard frame; a soft
           radial glow behind it pools the page's own cream/teal light around it. */}
@@ -45,7 +47,7 @@ function AboutFounder() {
           style={{ position: "relative", width: 196, height: 196, objectFit: "contain", display: "block" }}
         />
       </div>
-      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 23, color: "rgba(242,237,228,0.94)", lineHeight: 1.2 }}>Chris Perry</div>
+      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 23, color: "rgba(242,237,228,0.94)", lineHeight: 1.2 }}>— Chris Perry</div>
       <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 8 }}>Founder · Shape</div>
       <p style={{ fontFamily: serif, fontSize: 16.5, fontStyle: "italic", fontWeight: 300, color: "rgba(242,237,228,0.78)", lineHeight: 1.6, maxWidth: 560, margin: "14px auto 0" }}>
         Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
@@ -129,18 +131,6 @@ function AboutLetter() {
           Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.
         </p>
       </div>
-    </section>
-  );
-}
-
-// The letter's signature — sits DIRECTLY under the letter's last line (owner
-// call 2026-07-21: letter → signature → CTA-as-closer). Quiet and small: the
-// founder card up top carries the face + bio; this is just the signed hand.
-function AboutSignoff() {
-  return (
-    <section style={{ padding: "0 24px 8px", textAlign: "center" }}>
-      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 17, color: "rgba(242,237,228,0.88)", lineHeight: 1.2 }}>— Chris Perry</div>
-      <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 7 }}>Founder · Shape</div>
     </section>
   );
 }
@@ -327,10 +317,9 @@ function AboutPage() {
 @media (max-width: 900px) { .about-pull-r { margin-right: 0 !important; } .about-pull-l { margin-left: 0 !important; } }`}</style>
         <Header active="About" />
         <AboutHero />
-        <AboutFounder />
         <AboutVision />
         <AboutLetter />
-        <AboutSignoff />
+        <AboutFounder />
         <AboutCTA />
         <Footer />
       </div>

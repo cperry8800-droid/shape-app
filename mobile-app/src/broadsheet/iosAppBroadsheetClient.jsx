@@ -30724,28 +30724,6 @@ function BSAboutPage({ onBack }) {
         </p>
       </div>
 
-      {/* FOUNDER card — the face behind the letter, right under the hero (owner
-          call 2026-07-21: moved up from the page-bottom sign-off, larger). */}
-      <div style={{ padding: `4px ${px}px 18px`, textAlign: 'center' }}>
-        {/* Feathered-to-transparent portrait (baked into the WebP) so it blends
-            into any paper; a soft theme-toned glow pools light behind it. */}
-        <div style={{ position: 'relative', width: 150, height: 150, margin: '0 auto 8px' }}>
-          <div aria-hidden style={{ position: 'absolute', inset: -12, borderRadius: '50%', background: `radial-gradient(circle at 50% 44%, ${bsTHexA(t.INK, 0.1)} 0%, ${bsTHexA(tealB, 0.07)} 42%, transparent 72%)`, pointerEvents: 'none' }} />
-          <img
-            src={`${import.meta.env.BASE_URL}founder.webp`}
-            alt="Chris Perry, founder of Shape"
-            width="150" height="150"
-            style={{ position: 'relative', width: 150, height: 150, objectFit: 'contain', display: 'block' }}
-          />
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>Chris Perry</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · Shape</div>
-        {/* Owner-approved bio (mirrors about.jsx). */}
-        <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
-          Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
-        </p>
-      </div>
-
       {/* THE IDEA — coach platform + social network (leads, right after the hero) */}
       <div style={{ padding: `8px ${px}px 8px` }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
@@ -30792,12 +30770,28 @@ function BSAboutPage({ onBack }) {
         <p style={{ ...para, marginBottom: 0 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
       </div>
 
-      {/* sign-off — DIRECTLY under the letter's last line (owner call
-          2026-07-21: letter → signature → CTA-as-closer). Quiet: the founder
-          card up top carries the face + bio; this is just the signed hand. */}
-      <div style={{ padding: `4px ${px}px 0`, textAlign: 'center' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 15, color: t.INK }}>— Chris Perry</div>
+      {/* FOUNDER card — the face behind the letter. Owner call 2026-08-28: back
+          at the PAGE BOTTOM (directly under the letter, before the CTA),
+          reversing the 2026-07-21 moved-up call; it now IS the sign-off — the
+          card carries the signed name, so the separate sign-off block is gone. */}
+      <div style={{ padding: `10px ${px}px 0`, textAlign: 'center' }}>
+        {/* Feathered-to-transparent portrait (baked into the WebP) so it blends
+            into any paper; a soft theme-toned glow pools light behind it. */}
+        <div style={{ position: 'relative', width: 150, height: 150, margin: '0 auto 8px' }}>
+          <div aria-hidden style={{ position: 'absolute', inset: -12, borderRadius: '50%', background: `radial-gradient(circle at 50% 44%, ${bsTHexA(t.INK, 0.1)} 0%, ${bsTHexA(tealB, 0.07)} 42%, transparent 72%)`, pointerEvents: 'none' }} />
+          <img
+            src={`${import.meta.env.BASE_URL}founder.webp`}
+            alt="Chris Perry, founder of Shape"
+            width="150" height="150"
+            style={{ position: 'relative', width: 150, height: 150, objectFit: 'contain', display: 'block' }}
+          />
+        </div>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>— Chris Perry</div>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · Shape</div>
+        {/* Owner-approved bio (mirrors about.jsx). */}
+        <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
+          Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
+        </p>
       </div>
 
       {/* CTA — the page's true closer, and a real door: tapping it opens the
