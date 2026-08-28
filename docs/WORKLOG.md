@@ -348,7 +348,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable
+### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable (#1936 → 17f71d966)
 
 - **Owner call: the signed-out preview now shows the inline HIDE ×.** #1933 gated it
   `{loggedIn && …}` so the demo cast's rail stayed byte-identical — and the consequence,
