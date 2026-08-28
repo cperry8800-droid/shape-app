@@ -74,6 +74,9 @@ const DPR_DEMO = (() => {
       bodyFat: [26.4, 25.8, 25.3, 24.8, 24.4, 23.8, 23.3, 22.8, 22.4, 22.1].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
       strength: [205, 215, 225, 230, 235, 245, 250, 255, 260, 265].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
       sleep: [6.4, 6.8, 7.0, 7.2, 7.1, 7.3, 7.4, 7.2, 7.4, 7.5].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
+      energy: [5, 6, 6, 7, 6, 7, 7, 8, 7, 8].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
+      hunger: [7, 7, 6, 6, 5, 6, 5, 5, 4, 5].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
+      sleepQuality: [5, 6, 6, 7, 7, 7, 8, 7, 8, 8].map((v, i, a) => ({ date: dprAgo(14 * (a.length - 1 - i)), value: v })),
     },
     prs: [
       { move: "Back squat", best: 265, bestReps: 5, unit: "lb", bestAt: dprAgo(12) },
@@ -103,6 +106,12 @@ const DPR_TREND_TABS = [
   { k: "strength", label: "Strength", unit: "lb", color: "#e8b14a", fmt: (v) => Math.round(v) },
   { k: "restingHr", label: "Resting HR", unit: "bpm", color: "#d2693f", fmt: (v) => Math.round(v) },
   { k: "sleep", label: "Sleep", unit: "h", color: "#a86bc4", fmt: (v) => v.toFixed(1) },
+  // The daily check-in gauges (1–10 self-ratings; series served by
+  // /api/client/progress). availableTabs already hides any tab with <2 points,
+  // so members who don't check in never see these.
+  { k: "energy", label: "Energy", unit: "/10", color: "#ffd166", fmt: (v) => v.toFixed(1) },
+  { k: "hunger", label: "Hunger", unit: "/10", color: "#f08a6b", fmt: (v) => v.toFixed(1) },
+  { k: "sleepQuality", label: "Rested", unit: "/10", color: "#b8a1e8", fmt: (v) => v.toFixed(1) },
   { k: "hrv", label: "HRV", unit: "ms", color: "#9be3a8", fmt: (v) => Math.round(v) },
   { k: "volume", label: "Volume", unit: "min/d", color: "#f5a0c8", fmt: (v) => Math.round(v) },
   { k: "protein", label: "Protein", unit: "g", color: "#ffb46b", fmt: (v) => Math.round(v) },
