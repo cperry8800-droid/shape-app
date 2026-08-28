@@ -348,6 +348,40 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-28 — One recency window for both member-engine legs, with the ceiling it lacked
+
+- **Two registered defects, same class and same module, fixed together** because the fix
+  is one shared window rather than two — `signalsMap.mjs` now derives `{cutoff, ceiling}`
+  once and both legs read it, so they cannot disagree about what "this week" means.
+- ⚠ **`.slice(-7)` TOOK THE LAST 7 OBSERVATIONS, NOT THE LAST 7 DAYS.**
+  `/api/client/progress` returns up to **400** chronological snapshots with no recency
+  filter, so `sleepRecoveryFromProgress` let readings from **months** ago feed `avg7` —
+  and presented the newest observation as **`lastNight`** however old it was. The
+  identical staleness was fixed in `vitalsFromProgress` during the check-in wave and
+  registered here rather than fixed, because it changes shipped `sleep_low` firing.
+- ⚠ **AND THAT BEHAVIOUR CHANGE CAN GO EITHER WAY — claiming it only under-fires would
+  be wrong.** Narrowing to recent data can **raise** `avg7` (dropping old bad nights) or
+  **lower** it (dropping old good ones), so `sleep_low` may newly fire where it did not.
+  What is true, and all that is claimed: every fire is now based on data from the week it
+  claims to describe.
+- ⚠ **THE FUTURE-DATE CEILING WAS COACH-ONLY.** `/api/client/checkin` takes the day from
+  the **REQUEST**, so `2099-01-01` is writable; `vitalsFromProgress` compared
+  `date >= cutoff` with **no upper bound**, so such a row passed and — being newest —
+  survived every trailing slice, becoming the member's RESTED rating and a readiness
+  input **permanently**. The ceiling shipped on the coach chokepoint (#1897); this is the
+  member path it was registered as missing.
+- ⚠ **THE CEILING IS TOMORROW, NOT TODAY.** `snapshot_date` is the member's **LOCAL** day,
+  so a member ahead of the clock this code runs on legitimately writes one — the same
+  one-day tolerance `bsVitalsLeg` already carries. Beyond that is not a timezone artifact.
+- **The sleep fixtures had to be rewritten around an injected clock**, and that is
+  evidence rather than churn: they carried hardcoded 2026-06 dates and **non-date strings**
+  (`'a'`, `'d0'`) *precisely because the function ignored dates*. The old "last 7 of a
+  longer series" test is now a **duplicated-date** test, which is what that cap actually
+  exists for once the window bounds the days.
+- Verified: **2326/2326** (+6) · `tsc` 0 · **5 mutations, all caught** (drop the ceiling ·
+  drop the cutoff · skip the window on the sleep leg · make the ceiling today · drop the
+  duplicated-date cap), unmutated sanity green at both ends.
+
 ### 2026-08-28 — The legal-claim sweep stops scanning the build output (#1939 → c445ef85f)
 
 - **Half (b) of the item #1929 registered**, and the same class as half (a) inverted:
