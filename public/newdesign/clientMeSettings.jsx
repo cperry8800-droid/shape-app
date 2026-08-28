@@ -343,15 +343,39 @@ function ClientMeSettings() {
     }
   }
 
+  // ⚠ THIS ROW READS THE WRITE'S OUTCOME INSTEAD OF ANNOUNCING ONE. It used to flip the
+  // value, swallow every failure in a bare catch, and say "Saved." unconditionally — so a
+  // landed save, a refused save and a thrown one were indistinguishable on screen. Worse,
+  // setVisible was synchronous with a floating persistence promise, so there was nothing
+  // to check even if it had looked. It now reports whether the preference actually landed.
+  //
+  // ⚠ AND A FAILED SAVE DOES NOT ROLL THE ROW BACK. The runtime flip already took effect —
+  // the member is broadcasting, or not, exactly as they just asked — so restoring the old
+  // value would assert the OPPOSITE of what this session is doing. It is the SAVE that
+  // failed, so that is what the line says. Reverting is worse in the direction that
+  // matters: it would put a member back on the rail after they asked to leave it.
   async function toggleOnlineVisible() {
     const next = !onlineVisible;
     setOnlineVisible(next);
+    if (!signedIn) { showToast("Sample view — sign in to save."); return; }
+    let out = null;
     try {
       if (window.ShapeWebPresence && window.ShapeWebPresence.setVisible) {
-        await window.ShapeWebPresence.setVisible(next);
+        out = await window.ShapeWebPresence.setVisible(next);
       }
-    } catch (e) {}
-    showToast(signedIn ? "Saved." : "Sample view — sign in to save.");
+    } catch (e) { out = null; }
+    if (out && out.ok) { showToast("Saved."); return; }
+    // ⚠ account_changed is its OWN line, not folded into "that didn't save". The save was
+    // DECLINED on purpose — the session became a different account while it was queued, and
+    // writing then would have replaced that account's whole settings document with this
+    // one's. Telling this member it "didn't save" would be true but would hide that their
+    // preference is still unsaved on an account they are no longer signed in to.
+    const reason = out && out.reason;
+    showToast(reason === "unreadable"
+      ? "Applied for now — couldn't load your settings to save it."
+      : reason === "account_changed"
+      ? "Applied for now — you signed in as someone else before it saved."
+      : "Applied for now — that didn't save.");
   }
 
   // Mirror the display name to profiles.full_name so a rename round-trips to

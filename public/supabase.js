@@ -1273,7 +1273,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   // uses, so members see who's genuinely online (pulsing avatar ring). The set
   // only contains people currently broadcasting, so it respects each person's
   // "show when I'm online" choice. setVisible(false) stops broadcasting.
-  var _wp = { channel: null, ids: {}, visible: true };
+  var _wp = { channel: null, ids: {}, visible: true, touched: false };
   async function startWebPresence() {
     try {
       if (_wp.channel || !client) return;
@@ -1281,7 +1281,15 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       var uid = session && session.user && session.user.id;
       if (!uid) return;
       // Respect the shared "show when I'm online" preference (same field mobile uses).
-      try { var st = await shapeDb.getUserGoals('client_settings'); if (st && st.onlineVisible === 'Off') _wp.visible = false; } catch (e) {}
+      // ⚠ THE HYDRATE MUST NOT OVERRIDE AN EXPLICIT IN-SESSION CHOICE. setVisible calls
+      // this when no channel exists yet — which is ordinary, not exotic: the module-load
+      // call races auth hydration and returns early with no uid on a cold load. Without
+      // the touched guard, toggling ON there fires a read that still sees the STORED
+      // 'Off' (our write is queued behind the lane) and silently flips the member back
+      // to invisible, leaving stored On against a runtime false. Same class as the race
+      // the lane fixes, one direction over: a stale READ overwriting a fresh intent.
+      // Note the hydrate only ever sets false, so an OFF choice was never at risk.
+      try { var st = await shapeDb.getUserGoals('client_settings'); if (!_wp.touched && st && st.onlineVisible === 'Off') _wp.visible = false; } catch (e) {}
       try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
       var ch = client.channel('online-users', { config: { presence: { key: uid } } });
       ch.on('presence', { event: 'sync' }, function () {
@@ -1293,18 +1301,91 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       _wp.channel = ch;
     } catch (e) {}
   }
+  // One-at-a-time lane for this tab's client_settings traffic. saveUserGoals is a
+  // blind whole-document upsert, so two in-flight read-merge-writes each land a
+  // snapshot that predates the other and the LAST WRITE TO ARRIVE wins by timing,
+  // not by intent: tapping Off then On fast enough could leave the stored value
+  // Off while the runtime flag says On, with BOTH calls honestly reporting ok.
+  // Queued behind, the second tap's READ sees the first tap's write, so the merge
+  // is over a current document and the final stored value is the last thing the
+  // member asked for. Mirrors the mobile bsSettingsWriteChain (#1933), which took
+  // a review round to learn. ⚠ Cross-DEVICE races are untouched — no client-side
+  // lane can order two browsers, and that is every whole-doc writer's shape.
+  var _settingsChain = Promise.resolve();
+  function _settingsSerial(step) {
+    // ⚠ THESE TWO FAILURE HANDLERS ARE A REDUNDANT PAIR — DO NOT DELETE EITHER AS DEAD.
+    // Measured: removing the second `step` passes (the tail swallows), removing the
+    // tail's swallow passes (the second `step` catches), removing BOTH wedges the lane
+    // for everyone behind a rejected step. So the invariant is "a failure never wedges
+    // the lane", not either particular spelling of it, and that is what the guard pins.
+    var run = _settingsChain.then(step, step);
+    _settingsChain = run.then(function () {}, function () {});
+    return run;
+  }
   window.ShapeWebPresence = {
     start: startWebPresence,
     visible: function () { return _wp.visible; },
     isOnline: function (uid) { return !!(uid && _wp.ids && Object.prototype.hasOwnProperty.call(_wp.ids, String(uid))); },
+    // ⚠ RETURNS AN OUTCOME, AND THE CALLER MUST READ IT. Two halves with different
+    // failure modes: the RUNTIME flip (the local flag, the presence event, track /
+    // untrack on the channel) takes effect immediately and cannot fail meaningfully,
+    // while the DURABLE write can. This used to be a synchronous function whose
+    // persistence was a floating promise with its result discarded, so `await
+    // setVisible(x)` resolved before the write had even started and the caller had
+    // nothing to check - which is how the settings row came to announce "Saved." over
+    // a save that never landed.
+    // ⚠ AND IT DECLINES THE WRITE ON AN UNREADABLE DOC RATHER THAN PUBLISHING OVER IT.
+    // getUserGoals returns null for BOTH "not signed in" and "the read failed", and
+    // saveUserGoals REPLACES the whole client_settings jsonb - so the old `d || {}`
+    // would blind-upsert a ONE-KEY document over the member's units, privacy, meal
+    // times, program phases, check-in and online-rail preferences the first time a
+    // read blipped. A preference we could not read is not a document we may overwrite.
+    // Same rule the mobile pane settled on in #1933: decline, do not publish defaults.
+    // ⚠ THE TWO HALVES ARE DELIBERATELY SCOPED DIFFERENTLY. The runtime flip runs
+    // IMMEDIATELY, outside the lane: it is what the member just asked for, it cannot
+    // meaningfully fail, and queueing it behind a stalled network write would leave
+    // them broadcasting after they asked to stop. Only the DURABLE half is serialized.
     setVisible: function (v) {
       _wp.visible = !!v;
-      // Persist to the shared client_settings.onlineVisible so mobile + web agree.
-      try { shapeDb.getUserGoals('client_settings').then(function (d) { try { shapeDb.saveUserGoals('client_settings', Object.assign({}, d || {}, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) {} }); } catch (e) {}
+      _wp.touched = true; // an explicit choice the startup hydrate may no longer override
       try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
       var ch = _wp.channel;
-      if (!ch) { if (v) startWebPresence(); return; }
-      try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {}
+      if (!ch) { if (v) startWebPresence(); }
+      else { try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {} }
+      // ⚠ THE DURABLE WORK IS BOUND TO THE ACCOUNT THAT TAPPED. getUserGoals and
+      // saveUserGoals each resolve getUser() INDEPENDENTLY at their own call time, and
+      // the save then REPLACES that user's whole client_settings document — so if the
+      // session becomes account B while this step is queued, the lane would read A's
+      // document and upsert it into B's row, destroying B's units, privacy, meal times
+      // and every other preference. The lane makes that window LONGER, not shorter, by
+      // design: a stalled predecessor holds this step back. Same remedy the mobile twin
+      // already paid a round for (#1933 Codex P1) — capture the initiating uid, re-resolve
+      // through the SAME getUser() the save uses, and DISCARD on mismatch rather than
+      // write. Checked on both sides of the read: after it alone would still let a switch
+      // to B and back to A write B's document into A's row.
+      // Cost is four auth resolves on a settings toggle, which is not a hot path; a
+      // cheaper local resolver could disagree with the one the save actually uses.
+      var initiator = shapeDb.getUser().then(
+        function (u) { return (u && u.id) || null; },
+        function () { return null; }
+      );
+      return _settingsSerial(async function () {
+        var who = await initiator;
+        if (!who) return { ok: false, reason: 'unreadable' };
+        var before = null;
+        try { before = await shapeDb.getUser(); } catch (e) { before = null; }
+        if (!before || before.id !== who) return { ok: false, reason: 'account_changed' };
+        var doc = null;
+        try { doc = await shapeDb.getUserGoals('client_settings'); } catch (e) { doc = null; }
+        if (!doc) return { ok: false, reason: 'unreadable' };
+        var after = null;
+        try { after = await shapeDb.getUser(); } catch (e) { after = null; }
+        if (!after || after.id !== who) return { ok: false, reason: 'account_changed' };
+        var res = null;
+        try { res = await shapeDb.saveUserGoals('client_settings', Object.assign({}, doc, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) { res = null; }
+        if (!res || res.error) return { ok: false, reason: 'save_failed' };
+        return { ok: true };
+      });
     },
   };
   try { startWebPresence(); } catch (e) {}

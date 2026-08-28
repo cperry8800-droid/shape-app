@@ -348,6 +348,122 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-28 — The online-visibility toggle stops announcing a save it never checked
+
+- **Registered by #1929 and deliberately left there; read against the code, it was worse
+  than registered on BOTH halves.** The web Settings row **"Show when I'm online"**
+  reported success unconditionally, and the write behind it could destroy the document it
+  was editing.
+- ⚠ **THE CALLER COULD NOT HAVE CHECKED.** `ShapeWebPresence.setVisible` was
+  **synchronous** with a floating persistence promise whose result was discarded — so
+  `await setVisible(next)` resolved *before the write had even started* — and the row then
+  said **"Saved."** unconditionally, through a bare `catch` that swallowed throws too. A
+  landed save, a refused save and a thrown one were indistinguishable on screen. The
+  registered note called this "an error-only check"; there was no check, and nothing to
+  check against.
+- ⚠ **AND THE WRITE COULD WIPE EVERY OTHER PREFERENCE.** `getUserGoals` returns **null**
+  for BOTH *not signed in* and *the read failed*, `saveUserGoals` **REPLACES** the whole
+  `client_settings` jsonb, and the persist read `Object.assign({}, d || {}, …)`. So one
+  blipped read while a member toggled this row would blind-upsert a **ONE-KEY document**
+  over their units, privacy, meal times, program phases, check-in and online-rail
+  preferences. Same conflation #1933 round 1 hit on mobile, same remedy: **an unreadable
+  doc is declined, never published over.**
+- **`setVisible` is now async and returns `{ok}` / `{ok:false, reason}`.** The **runtime**
+  half — the local flag, the presence event, track/untrack on the channel — still flips
+  immediately, because that is what the member asked for and it cannot meaningfully fail;
+  only the **durable** half reports.
+- ⚠ **A FAILED SAVE DOES NOT ROLL THE ROW BACK, deliberately.** The runtime flip already
+  took effect, so restoring the old value would assert the OPPOSITE of what the session is
+  doing — and reverting an **OFF** is the bad direction: it would put a member back on the
+  rail after they asked to leave it. The line says the **save** failed, which is the thing
+  that failed. (Same reasoning as the age toggle's `unconfirmed` branch.)
+- **The guard drives the REAL shipped source, not a copy of it.** Both surfaces are classic
+  browser scripts that cannot be imported — `public/supabase.js` is an IIFE,
+  `clientMeSettings.jsx` is a babel component — so `tests/online-visible-pref.test.mjs`
+  extracts each function from the live file by **brace-matching** and evaluates it against
+  stubs. A text guard would pin a spelling, which is exactly what #1936 paid for.
+- ⚠ **AND THE WRITE IS SERIALIZED, BECAUSE ORDERING IT BY LATENCY IS NOT ORDERING IT BY
+  INTENT** (CodeRabbit round 1, verified before acting). Each tap ran its own
+  read-merge-write with nothing between them, so toggling Off then On fast enough could
+  land the slow Off *after* the fast On — stored `Off`, runtime `On`, and **both calls
+  honestly returning ok while the row said "Saved." twice**. Narrower than reported and
+  worth recording: on the **web** this document has exactly **ONE** writer (every other
+  `saveUserGoals` call writes a different kind), so the only value a race can lose is
+  `onlineVisible` itself — this is not the cross-writer clobber mobile hit. The remedy is
+  the same either way and is the **house pattern, not a new invention**: mirror
+  `bsSettingsWriteChain`, the `client_settings` serial lane #1933 already paid a round to
+  learn. Queued behind, the second tap's READ sees the first tap's write, so its merge is
+  over a current document.
+- ⚠ **THE TWO HALVES ARE SCOPED DIFFERENTLY ON PURPOSE.** The runtime flip stays OUTSIDE
+  the lane — it is what the member just asked for, it cannot meaningfully fail, and
+  queueing it behind a stalled network write would leave them **broadcasting after they
+  asked to stop**. Only the durable half is serialized. The guard now checks that flip
+  **synchronously**, before the await: the old assertion sat after it and passed either way.
+- ⚠ **THE LANE'S TWO FAILURE HANDLERS ARE A REDUNDANT PAIR — MEASURED, NOT ASSUMED.**
+  Dropping the second `step` passes (the swallowing tail covers it); dropping the tail's
+  swallow passes (the second `step` covers it); dropping **both** wedges the lane for
+  everyone behind a rejected step. So the invariant is *a failure never wedges the lane*,
+  not either spelling of it — which is what the test pins, and why neither half may be
+  deleted as dead. **The step is unreachable from `setVisible`** (its body is fully
+  try/caught, so it never rejects today), so the guard drives `_settingsSerial`
+  **directly**: the invariant belongs at the lane, where the next caller inherits it.
+- ⚠ **AND THE QUEUED WRITE IS BOUND TO THE ACCOUNT THAT TAPPED** (CodeRabbit round 2, and
+  the one place the lane made something *worse*). `getUserGoals` and `saveUserGoals` each
+  resolve `getUser()` **independently at their own call time**, and the save REPLACES that
+  user's whole document — so a session that becomes account B while the step is queued
+  would read A's document and upsert it into **B's row**, destroying B's units, privacy,
+  meal times and the rest. The lane lengthens that window by design, since a stalled
+  predecessor holds the step back. Remedy is the one the mobile twin already paid a round
+  for in **#1933** — capture the initiating uid, re-resolve through the **same `getUser()`
+  the save uses**, discard on mismatch — checked on **both sides of the read**, because
+  checking only after it still lets a switch to B **and back to A** write B's document into
+  A's row. The row names that case distinctly rather than folding it into "that didn't
+  save": the write was refused on purpose, and the preference is still unsaved on an
+  account they are no longer signed in to.
+- ⚠ **A MUTATION SURVIVED AND THE FIXTURE WAS WHY, NOT THE CODE.** Dropping the **pre-read**
+  identity check passed, because a one-way switch is caught by the post-read check too —
+  the two differ only on a switch **away and back**. That case is now a vector rather than
+  an assumption, and it kills the mutation. **When two guards look redundant, find the
+  input that separates them before deleting either.**
+- ⚠ **AND THE SELF-REVIEW OF THAT LANE FOUND THE SAME CLASS ONE SEAM OVER — A STALE READ
+  OVERWRITING A FRESH INTENT.** `setVisible` calls `startWebPresence` whenever no channel
+  exists yet, and that is **ordinary rather than exotic**: the module-load call races auth
+  hydration and returns early with no uid on a cold load. Toggling ON in that state fired
+  a hydrate read that still saw the **stored `Off`** — our write is queued behind the lane
+  — and silently flipped the member back to invisible: **stored On against a runtime
+  false**, the rail showing them offline while storage says visible. `_wp.touched` marks an
+  explicit in-session choice the hydrate may no longer override. The hydrate only ever sets
+  `false`, so an OFF choice was never at risk; this closes the ON direction, which is the
+  one that silently undoes the member. The guard drives **both** real functions —
+  `startWebPresence` is extracted alongside `setVisible` and injected as the real callee,
+  because the defect is an INTERACTION and stubbing either half would test the stub.
+- ⚠ **AND `git checkout --` DESTROYED THE UNCOMMITTED FIX MID-MUTATION, ON A RULE THIS FILE
+  ALREADY CARRIES.** The restore between two mutations reverted the not-yet-committed
+  hydrate guard, so the following case ran against a tree with no fix at all and its
+  "kill" proved nothing about the line it was aimed at. **The sanity case at the END is
+  what caught it** — it failed on a supposedly-restored tree. Re-applied, committed FIRST,
+  then re-run with `cp` backups: both mutations killed, both sanity runs green, and
+  `git diff` empty at the end. Commit before mutation-testing; back up with `cp`, never git.
+- **The guard drives the SHIPPED serializer, not a re-typed one** — `_settingsSerial` and
+  its seed line are extracted from the real file alongside `setVisible`, and one built
+  instance shares one lane, which is the real shape (one `setVisible`, two taps).
+  `extractFn` now also **refuses an ambiguous marker**: a marker that stopped being unique
+  would silently extract the wrong function while every assertion went on passing about
+  someone else's code.
+- **No `?v=` bump**: newdesign is content-hashed by the deploy precompile, and
+  `/supabase.js` has never carried a query on any of its **57** references — adding one
+  would be a 57-file sweep for nothing. **CRLF preserved** on `clientMeSettings.jsx`, the
+  repo's one CRLF-tracked file.
+- Verified: **2318/2318** (+16) · `tsc` 0 · both files parse · **16 mutations across the
+  wave** (restore the `d || {}` data-loss shape · fire-and-forget the save again · say
+  "Saved." unconditionally · roll the row back on failure · collapse both failure messages
+  · drop the signed-out early return · remove the lane · stop it chaining · move the flip
+  inside it · drop both failure handlers · ignore the in-session choice on hydrate · never
+  stamp it · drop either identity check · let a signed-out initiator through · fold the
+  declined message into the generic one) — **all caught**, plus the two documented
+  equivalents above, each covered by its redundant partner. Unmutated sanity green at both
+  ends of every batch.
+
 ### 2026-08-27 — The rail's HIDE × reaches the preview, where it is the only place it is reachable (#1936 → 17f71d966)
 
 - **Owner call: the signed-out preview now shows the inline HIDE ×.** #1933 gated it
