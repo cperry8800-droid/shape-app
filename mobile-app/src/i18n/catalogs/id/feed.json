@@ -119,7 +119,6 @@
   "rail.hide": "Sembunyikan",
   "rail.hideAria": "Sembunyikan baris anggota yang online",
   "rail.onlineNow": "{count, number} online sekarang",
-  "rail.restoreNote": "Pulihkan kapan saja di Pengaturan → Preferensi",
   "reaction.remove": "Hapus reaksi",
   "role.coach": "Pelatih",
   "role.nutritionist": "Ahli gizi",
@@ -179,5 +178,7 @@
   "type.runs": "Lari",
   "type.workouts": "Latihan",
   "boost.liveSet": "set {done, number} dari {total, number}",
-  "boost.liveSets": "{done, number}/{total, number} set"
+  "boost.liveSets": "{done, number}/{total, number} set",
+  "rail.show": "Tampilkan",
+  "rail.showAria": "Tampilkan deretan anggota yang online"
 }

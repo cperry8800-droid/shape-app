@@ -17864,7 +17864,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   };
 
   const Pill = ({ on, onClick, children, badge = 0 }) => (
-    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 4px', minHeight: 26, borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
       {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 3, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
     </button>
@@ -17877,19 +17877,27 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [realActive, setRealActive] = useStateBSC([]);
   const [boostFor, setBoostFor] = useStateBSC(null);   // rail person mid-activity → live-boost sheet
   // Settings → Preferences → "Online members" (default ON), plus the rail's own
-  // inline HIDE ×. The one-shot note after a hide points at the way back; its
-  // timer lives in a ref so the unmount cleanup can clear it (the cleanup only
-  // touches the ref, so the empty-dep first-render closure is safe here).
+  // inline HIDE ×. The way back lives IN PLACE now (owner ask 2026-08-28): once
+  // hidden, a slim SHOW row stands where the rail was — which retired the old
+  // one-shot "Restore in Settings" note and its timer, since a persistent
+  // affordance supersedes a 3-second pointer at another screen.
   const railOn = useBSOnlineRailPref();
-  const [railHideNote, setRailHideNote] = useStateBSC(false);
-  const railNoteTimer = React.useRef(null);
-  React.useEffect(() => () => { try { clearTimeout(railNoteTimer.current); } catch (e) {} }, []);
   const hideRail = () => {
     try { bsOnlineRailApply(false); } catch (e) {}   // mirror + live re-render (this render included)
     try { bsOnlineRailPersist(false); } catch (e) {} // cloud, with the pane's decline rule
-    setRailHideNote(true);
-    try { clearTimeout(railNoteTimer.current); } catch (e) {}
-    railNoteTimer.current = setTimeout(() => setRailHideNote(false), 3200);
+  };
+  const showRail = () => {
+    // Apply-then-persist — the ×'s own order, so the rail is back on THIS
+    // render whatever the network does. Applying also REMOVES the per-uid
+    // mirror record, which cancels any pending re-issued hide at the source.
+    // ⚠ The ON persist has NO pending retry, on purpose (bsOnlineRailPersist's
+    // markPending is hide-only): a pending-On record re-issued by the hydrate
+    // could resurrect an older intent over a doc that says 'Off' — the exact
+    // cross-device resurrection shape round 2 of #1933 refuted for the other
+    // direction. A failed On save stays device-local until the next hydrate
+    // reverts it; the SHOW row then reappears and one more tap retries.
+    try { bsOnlineRailApply(true); } catch (e) {}
+    try { bsOnlineRailPersist(true); } catch (e) {}
   };
   React.useEffect(() => {
     if (!window.ShapePresence?.activeNow) return undefined;
@@ -18057,11 +18065,22 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
       </div>
       )}
-      {/* One-shot after the inline ×: where to bring the rail back. Timed out
-          by hideRail's ref timer; never rendered for a Settings-made change. */}
-      {!railOn && railHideNote && (
-        <div style={{ padding: `6px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-          {tr('feed:rail.restoreNote', { defaultValue: 'Restore any time in Settings → Preferences' })}
+      {/* The way BACK, in place (owner ask 2026-08-28): once the rail is
+          hidden — by the inline × above or from Settings — a slim SHOW row
+          stands where it was. Same reachability rule as the × (owner call
+          2026-08-27): NO loggedIn gate, because the preview is where the rail
+          is reachable at all, and a demo tap writes the demo mirror key only
+          (bsOnlineRailPersist still declines without a real uid). Gated on
+          railPeople like the rail itself, so it can never offer to show a rail
+          that would render nothing. */}
+      {!railOn && railPeople.length > 0 && (
+        <div style={{ padding: `4px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: muted }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
+          <button onClick={showRail} aria-label={tr('feed:rail.showAria', { defaultValue: 'Show the online members rail' })}
+            style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>
+            {tr('feed:rail.show', { defaultValue: 'Show' })} <span aria-hidden>＋</span>
+          </button>
         </div>
       )}
 
@@ -18071,7 +18090,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       )}
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
-      <div ref={bsSubAnchorRef} style={{ padding: `6px ${t.padX}px 0` }}>
+      <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
           {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
