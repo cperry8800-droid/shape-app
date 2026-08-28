@@ -119,7 +119,6 @@
   "rail.hide": "Сховати",
   "rail.hideAria": "Сховати ряд учасників онлайн",
   "rail.onlineNow": "{count, number} зараз онлайн",
-  "rail.restoreNote": "Поверніть будь-коли: Налаштування → Уподобання",
   "reaction.remove": "Прибрати реакцію",
   "role.coach": "Тренер",
   "role.nutritionist": "Нутриціолог",
@@ -179,5 +178,7 @@
   "type.runs": "Пробіжки",
   "type.workouts": "Тренування",
   "boost.liveSet": "підхід {done, number} з {total, number}",
-  "boost.liveSets": "{done, number}/{total, number} підходів"
+  "boost.liveSets": "{done, number}/{total, number} підходів",
+  "rail.show": "Показати",
+  "rail.showAria": "Показати стрічку учасників онлайн"
 }

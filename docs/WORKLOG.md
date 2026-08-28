@@ -348,6 +348,42 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-28 — The hidden rail gets its way back in place, and the chat header gets air
+
+- **Owner asks, same message thread:** (1) once the online rail is hidden, a **SHOW button**
+  appears on the chat page itself; (2) more spacing between the Community headline and the tab
+  strip; (3) the tabs a little smaller.
+- **The SHOW row** stands exactly where the rail was: the muted `{count} online now` eyebrow +
+  a teal **SHOW ＋** text-action (monochrome-glyph rule). It renders on
+  `!railOn && railPeople.length > 0` — the rail's own gate inverted, so it can never offer to
+  show a rail that would render nothing. **It retires the one-shot "Restore in Settings" note**
+  (state, timer, and the `rail.restoreNote` key ×13 all removed): a persistent affordance in
+  place supersedes a 3-second pointer at another screen.
+- ⚠ **SAME REACHABILITY RULE AS THE × (owner call 2026-08-27): no `loggedIn` gate.** The preview
+  is where the rail is reachable at all, so a rail hidden in preview must be restorable in
+  preview — a demo tap writes the demo mirror key only, and `bsOnlineRailPersist` still declines
+  without a real uid. Pinned the same way the ×'s gate is pinned: the identifier searched in the
+  window before the button, never a spelling regex (the #1936 lesson).
+- ⚠ **`showRail` IS APPLY-THEN-PERSIST — the ×'s own order** — so the rail is back on THIS render
+  whatever the network does, and applying removes the per-uid mirror record, which **cancels a
+  pending re-issued hide at the source**. ⚠ **The ON persist deliberately has NO pending retry**
+  (`markPending` stays hide-only): a pending-On re-issued by the hydrate could resurrect an older
+  intent over a doc that says `Off` — the exact cross-device resurrection shape round 2 of #1933
+  refuted for the hide direction. The doc wins; a failed On save stays device-local until the
+  next hydrate reverts it, the SHOW row reappears, and one more tap retries.
+- **Header air + smaller tabs:** the tab strip's top padding goes 6 → 14px under the Community
+  title row, and the tab pills go `8px/9pt → 6px/8.5pt` with an explicit `minHeight: 26` so the
+  shrink can never fall through the 24px tap floor the house already holds (2026-06-26).
+- **i18n:** `rail.show` + `rail.showAria` ×13; `rail.restoreNote` removed ×13 (its only consumer
+  died with the note — parity holds by removing everywhere, not by leaving a dead key).
+- New source guards in `tests/broadsheet-online-rail-pref.test.mjs`: the gate, the button, the
+  no-sign-in window check, apply-before-persist, markPending hide-only, and the retired note
+  staying retired (state, timer AND key). **5 mutations, all caught** (gate SHOW on sign-in ·
+  persist before apply · drop the railPeople gate · markPending fires for On · revive the note
+  state), unmutated sanity green at both ends, tree restored clean.
+- Verified: hook-run mobile build clean with the SHOW markup **confirmed in the emitted bundle**
+  · full suite green · catalog parity 3/3 · JSX parse.
+
 ### 2026-08-28 — An unproven read may no longer close an open alert episode (#1942 → 03514b24c)
 
 - **Registered since the Layer 2 review rounds and left there as "none load-bearing"; it is

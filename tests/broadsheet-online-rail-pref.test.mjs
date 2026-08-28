@@ -468,3 +468,39 @@ test('the feed consumes the pref, the pane owns the row, both writers apply it',
   assert.match(src, /const read = bsSettingsWriteSerial\(\(\) => window\.shapeDb\.getUserGoals\('client_settings'\)\)\.catch\(\(\) => null\);/,
     'the pane hydrate must read THROUGH the lane — read-your-own-writes after the ×');
 });
+
+// ── The SHOW row: the way back, in place (owner ask 2026-08-28) ─────────────
+test('once hidden, a SHOW row stands where the rail was — and obeys the rail rules', () => {
+  const src = readFileSync(SRC, 'utf8');
+  // Rendered exactly when the rail would render if un-hidden: !railOn AND
+  // people to show. A Show button over an empty roster would "restore" nothing.
+  assert.match(src, /\{!railOn && railPeople\.length > 0 && \(/,
+    'the SHOW row must gate on !railOn AND a non-empty rail');
+  assert.match(src, /<button onClick=\{showRail\}/, 'the SHOW button must exist');
+  // Same reachability rule as the × (owner call 2026-08-27), asserted the same
+  // way the × is — the identifier in the window before the button, so every
+  // spelling of a sign-in gate fails, not just the one a regex happens to pin.
+  const showBtn = src.indexOf('<button onClick={showRail}');
+  assert.ok(showBtn > 0, 'the SHOW button must exist');
+  assert.ok(!/loggedIn/.test(src.slice(showBtn - 500, showBtn)),
+    'SHOW must NOT be gated on sign-in — hidden-in-preview must be restorable in preview');
+  // showRail is apply-then-persist, the ×'s own order: the rail is back on THIS
+  // render whatever the network does, and applying removes the per-uid mirror
+  // record — which cancels a pending re-issued hide at the source.
+  const showFn = src.slice(src.indexOf('const showRail = ()'), src.indexOf('const showRail = ()') + 900);
+  const applyAt = showFn.indexOf('bsOnlineRailApply(true)');
+  const persistAt = showFn.indexOf('bsOnlineRailPersist(true)');
+  assert.ok(applyAt > 0 && persistAt > 0, 'showRail must apply AND persist ON');
+  assert.ok(applyAt < persistAt, 'apply must come BEFORE persist');
+  // ⚠ The ON persist must NOT grow a pending retry: markPending is hide-only,
+  // because a pending-On re-issued by the hydrate could resurrect an older
+  // intent over a doc that says Off — the cross-device resurrection shape
+  // round 2 of #1933 refuted for the hide direction. The doc wins.
+  assert.match(src, /if \(on\) return; \/\/ the × only hides; an On persist is the pane's, with its own retry/,
+    'markPending must stay hide-only');
+  // The one-shot Settings-pointer note died WITH its state — a persistent
+  // affordance supersedes a 3-second pointer at another screen. Nothing may
+  // half-revive it and strand a timer.
+  assert.ok(!/railHideNote|railNoteTimer|rail\.restoreNote/.test(src),
+    'the retired one-shot note must stay retired (state, timer and key)');
+});
