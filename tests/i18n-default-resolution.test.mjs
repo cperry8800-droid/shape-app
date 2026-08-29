@@ -18,6 +18,16 @@
 // The second is what keeps a mechanically-derived catalog derived: cut 3 built
 // en/nutrition.json from the source's own defaults, and nothing but this stops a
 // later edit to one of them from silently forking the two.
+//
+// ⚠ ONE-WAY BY DESIGN, AND THE OTHER DIRECTION IS NOT FREE. Asserting that every
+// `en` key is ASKED FOR would catch a dead key — translator work paid for in
+// thirteen files and rendered nowhere. Measured 2026-08-29 it flags 345, almost
+// all reached by COMPUTED keys a literal walk cannot see (score alone is 160:
+// tr('score:tab.' + k) and friends). So a naive reverse check is noise, and the
+// pattern that works is per-family and already shipped:
+// tests/score-i18n-contract.test.mjs reads the key families OUT OF THE SOURCE and
+// asserts every key the code can CONSTRUCT exists. Copy that for a new dynamic
+// family; do not widen this file into a 345-entry allowlist.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

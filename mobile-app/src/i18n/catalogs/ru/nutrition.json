@@ -1,6 +1,5 @@
 {
   "log.mealFallback": "Приём пищи",
-  "log.oneServing": "1 порция",
   "log.errTranscribe": "Не удалось расшифровать",
   "log.toastAddedToNote": "Добавлено в вашу заметку",
   "log.errNoCatch": "Не расслышала — попробуйте ещё раз",

@@ -2140,7 +2140,14 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     // signed-in account with no macro breakdown, start empty (add what you ate)
     // — never the demo plate. The demo ingredients are the signed-out preview.
     if (meal && Number.isFinite(Number(meal.kcal))) {
-      return [{ id: bsIngId(), name: meal.title || tr('nutrition:log.mealFallback', { defaultValue: 'Meal' }), qty: tr('nutrition:log.oneServing', { defaultValue: '1 serving' }), kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
+      // ⚠ `qty` STAYS ENGLISH ON PURPOSE — it is DATA in a column whose other values
+      // are never localized: the food provider fills it with '100 g' / '250 g' / its
+      // own '1 serving' (foodSearch.mjs, a pure module with no translator), so
+      // translating only our fallback makes ONE data column bilingual — the split
+      // this cut refused for the P/C/F macro letters. The NAME fallback does
+      // translate, because it stands in for the same missing meal.title the band
+      // heading shows, and the two must not disagree on one screen.
+      return [{ id: bsIngId(), name: meal.title || tr('nutrition:log.mealFallback', { defaultValue: 'Meal' }), qty: '1 serving', kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
     }
     if (signedIn) return [];
     return [
@@ -2373,7 +2380,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     const name = String(editIng.name || '').trim();
     if (!name) { window.__bsToast?.(tr('nutrition:log.toastAddName', { defaultValue: 'Add a name' }), 'err'); return; }
     const item = {
-      name, qty: String(editIng.qty || '').trim() || tr('nutrition:log.oneServing', { defaultValue: '1 serving' }),
+      name, qty: String(editIng.qty || '').trim() || '1 serving',
       kcal: Math.max(0, Math.round(Number(editIng.kcal) || 0)), p: Math.max(0, Math.round(Number(editIng.p) || 0)),
       c: Math.max(0, Math.round(Number(editIng.c) || 0)), f: Math.max(0, Math.round(Number(editIng.f) || 0)),
     };
@@ -2865,7 +2872,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         // can be adjusted before it lands. Adds persist to real recents
         // (best-effort — a failed write never blocks the add).
         const addLiveFood = (f) => {
-          setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty || tr('nutrition:log.oneServing', { defaultValue: '1 serving' }), kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0), on: true }]);
+          setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0), on: true }]);
           window.__bsToast?.(tr('nutrition:log.toastAdded', { defaultValue: 'Added {name}', name: f.name }), 'ok');
           setShowAddFood(false);
           rememberFood(f);

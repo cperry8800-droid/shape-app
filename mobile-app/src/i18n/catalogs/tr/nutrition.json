@@ -1,6 +1,5 @@
 {
   "log.mealFallback": "Öğün",
-  "log.oneServing": "1 porsiyon",
   "log.errTranscribe": "Yazıya dökülemedi",
   "log.toastAddedToNote": "Notuna eklendi",
   "log.errNoCatch": "Anlayamadım — tekrar dene",

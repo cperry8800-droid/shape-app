@@ -1,6 +1,5 @@
 {
   "log.mealFallback": "Bữa ăn",
-  "log.oneServing": "1 phần",
   "log.errTranscribe": "Không chuyển được thành văn bản",
   "log.toastAddedToNote": "Đã thêm vào ghi chú của bạn",
   "log.errNoCatch": "Chưa nghe rõ — thử lại",

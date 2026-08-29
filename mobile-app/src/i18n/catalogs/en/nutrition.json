@@ -1,6 +1,5 @@
 {
   "log.mealFallback": "Meal",
-  "log.oneServing": "1 serving",
   "log.errTranscribe": "Could not transcribe",
   "log.toastAddedToNote": "Added to your note",
   "log.errNoCatch": "Didn’t catch that — try again",

@@ -1,6 +1,5 @@
 {
   "log.mealFallback": "Mahlzeit",
-  "log.oneServing": "1 Portion",
   "log.errTranscribe": "Konnte nicht transkribiert werden",
   "log.toastAddedToNote": "Zu deiner Notiz hinzugefügt",
   "log.errNoCatch": "Nicht verstanden — versuch es nochmal",
