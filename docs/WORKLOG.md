@@ -378,7 +378,105 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-29 — The readout's evidence layer stops ignoring what members actually log
+### 2026-08-29 — The weekly readout gets a claim: one model call per member per week (#1951)
+
+- **Step 2 of §C.** #1950 made the readout's *evidence* honest; this makes its *cost*
+  bounded, the way §C requires — *"one model call per member per week, enforced
+  SERVER-SIDE under an atomic per-member claim — never in the UI."* The route is still
+  unreachable from any surface; that is step 3 (the mobile Progress-hub entry point +
+  i18n ×13), and a route that regenerates on every open is not something to point a UI at.
+- **⚠ OWNER MIGRATION — `2026-08-29-ai-weekly-readouts.sql`.** `ai_weekly_readouts`
+  (RLS on, **SELECT-only policies** — every write goes through the SECURITY DEFINER RPCs,
+  so a caller cannot forge a `ready` row or hand itself a claim it did not win) plus
+  `claim_weekly_readout` / `finalize_weekly_readout` / `release_weekly_readout`, all
+  **anon-revoked by name** (`revoke … from public` does NOT remove Supabase's explicit
+  anon grant — the `2026-06-30-rpc-authz-hardening.sql` bug class).
+- **The claim.** An atomic `insert … on conflict do nothing returning claim_token`;
+  finalize and release are guarded on that token, which **rotates on every claim AND every
+  reclaim**, so a claimer whose lease was taken writes nothing and its older readout is
+  discarded. The reclaim is a guarded `UPDATE … where claimed_at < now() - lease` reporting
+  `FOUND` — of any number of concurrent reclaimers exactly one wins.
+- ⚠ **A STALE CLAIM IS RECLAIMED HERE, AND IS DELIBERATELY NOT RECLAIMED BY
+  `claim_ai_action_undo`, WHICH THIS OTHERWISE MIRRORS.** That one refuses, because its two
+  crash windows are indistinguishable server-side and re-running would **double-apply a data
+  reversal**. Copying the rule would have been the copied-guard-loses-its-rationale trap: the
+  work between claim and finalize here is a model call and a write of TEXT — a generator that
+  died before its call did nothing, one that died after it spent money and mutated nothing —
+  so re-running is harmless in **both** windows, while refusing would strand the member on
+  the deterministic path for the **rest of the week** with no way back. **The reason it is
+  safe here is exactly the reason it was unsafe there**, and both are written at the site.
+- **Only a real model readout is stored; everything else releases the claim.** The
+  deterministic fallback recomputes from live correlations for free, so caching it would buy
+  nothing and would spend the member's whole week on one transient OpenAI blip — they would
+  be told "no AI readout this week" because of a hiccup. The row means exactly *"the AI
+  readout for this week"*, which is the thing the bound exists to conserve.
+- **Honest stamping.** The stored correlations travel with the readout (every insight names
+  a `correlation_key` the UI plots; serving a cached readout beside correlations recomputed
+  from today's rows would leave it citing evidence the response no longer contains), and a
+  cache hit reports the **window and sample size the readout actually saw**, never the ones
+  this request asked for. An uncomputable week reports `null`, not `''`.
+- ⚠ **`body.user_id` STOPS BEING AN UNCHECKED DEFAULT — a claim-consumption denial the
+  RLS-scoped read did not close.** It read `body.user_id || user.id` with no check of its
+  own. The snapshot read is RLS-scoped, so a stranger passing another member's id already got
+  an empty readout rather than a leak — but they **also** got that member's weekly claim:
+  generate over zero rows, and the member's own request is served that empty result for the
+  rest of the week. A denial of the feature dressed as an answer. The RPC's self-or-coach
+  check raises and the route answers **403** rather than falling through.
+- **The week key is the Monday date (UTC), not `YYYY-Www`.** `bsWeekStartOf` already answers
+  "which week is this" in this repo, with a round-trip calendar guard (`Date.UTC` rolls Feb 30
+  into March 2 rather than failing). A week-numbering string needs the ISO week-**year**, where
+  Jan 1 can belong to week 52 of the previous year — a second implementation of the same
+  question and a class of off-by-one this store has no reason to own. ⚠ **UTC on purpose, and
+  narrower than it sounds:** the key only bounds how often the readout REGENERATES, and a
+  per-member zone resolves one instant to two different weeks for a member who travels,
+  re-issuing a readout they already read (the same reasoning the notification dedup recorded
+  for its own UTC week, 2026-08-21). Where a member's own day gates what they **earn**, the
+  per-member zone is required and is used; caching is not that.
+- ⚠ **MY OWN TEST CAUGHT A `Number(null)` IN THE WEEK KEY.** It read `Number(nowMs)` and
+  checked the result was finite — but `Number(null)` is a finite **0**, so a null instant
+  produced `1969-12-29`, the Monday of the Unix epoch's week, and every week would have
+  collapsed into one cached row that never regenerates. Latent, because the route passes
+  `Date.now()` — a property of today's one caller, not of the function. Same coercion class
+  this repo has paid for twice (a `Number(null)` fabricating an observation in the cycle read;
+  a `value: null` nutrient fabricating a 0-kcal food row).
+- ⚠ **AND THE SAME SPLIT-PREDICATE DEFECT AS #1950, IN THE SAME FEATURE, ONE PR LATER —
+  found by tracing my own fix through its caller, not by a test.** Requiring a stored row to
+  carry BOTH a readout and the correlations its insights cite is correct: a null readout under
+  `cached: true` is at least conspicuous, while a readout served beside an EMPTY correlation
+  list renders fine and is a lie. But tightening it inside `buildReadoutResponse` **alone**
+  left the route deciding its cache branch on a looser condition of its own — so a half-row
+  passed the route's check, skipped the snapshot read, then failed the assembler's, which
+  rendered its placeholder `live` values: **an empty readout over a sample size of zero.**
+  Worse than the state it replaced. **Sharing a threshold is not sharing a predicate**, and
+  two readers of one fact must read one function; extracted as `isCachedReadout`, with a guard
+  that fails if either site re-derives it.
+- **Degradation is the rule, with one exception.** Every claim failure falls back to the
+  pre-migration behaviour — an absent RPC computes and generates exactly as this route did
+  before, and a failed *store* is not a failed readout. The **permission refusal is the
+  exception**: falling through would answer a request the database just refused.
+- ⚠ **The migration was validated as an ARTIFACT, not as pieces** — the #1853 lesson, where
+  a migration that could not compile reached review because only its parts had been checked.
+  The whole file applied inside a transaction against production and **rolled back**, its own
+  structural guard passing; table and functions confirmed absent afterwards. The claim state
+  machine was additionally driven end to end on temp constructs: fresh claim wins · a live
+  lease refuses · a stale lease reclaims **exactly once** · a superseded claimer's finalize
+  returns **false** so its older readout is discarded · the winner's returns **true** · the
+  token rotated.
+  ⚠ **A probe artifact worth remembering:** `now()` is TRANSACTION time, so a lease test run
+  inside one statement can never see it expire — the reclaim reads as broken when it is the
+  probe that is. Backdate `claimed_at` explicitly instead of waiting.
+- Verified: **2391/2391** · `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` ·
+  **21 mutations, all caught** (generate without the claim · store the fallback · swallow the
+  403 · restore the unchecked `body.user_id` · decide the hit after the snapshot read · stamp
+  the requested window · fresh correlations beside a stored readout · a readout-less `ready`
+  row as a hit · revert the `Number(null)` · report `''` for an uncomputable week · add a
+  write policy · drop finalize's token guard · drop the reclaim's lease predicate · leave
+  anon's grant · unpin `search_path` · drop the claim RPC's coach gate · either site
+  re-deriving the cache predicate · truthiness instead of a non-empty array · a drifted
+  `.d.ts`), with unmutated sanity runs green at both ends of every batch and a clean
+  `git status` after each restore (`cp` backups, never `git checkout --`).
+
+### 2026-08-29 — The readout's evidence layer stops ignoring what members actually log (#1950 → `1a35c830b`)
 
 - **Step 1 of §C (the client weekly readout).** `POST /api/ai/weekly-readout` is still
   orphaned — this wave does not wire an entry point — but its **evidence** was wrong in
