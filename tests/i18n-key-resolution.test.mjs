@@ -159,6 +159,108 @@ test('the paywall feature family is fully authored, not partially', () => {
   assert.deepEqual(absent, [], `paywall.feat.* missing from en: ${absent.join(', ')}`);
 });
 
+// ── The same rule, one surface over: the live session player ─────────────────
+//
+// ⚠ WHY A SECOND WALK RATHER THAN ANOTHER ENTRY IN `FILES`. The launch shell
+// binds `useTr('onboarding')`, so its bare keys carry an implicit namespace;
+// `iosAppBroadsheetClient.jsx` binds `useShapeTr()` and every one of its ~1,380
+// keys is fully qualified. Folding the two into one list would make DEFAULT_NS
+// mean two different things and quietly mis-resolve whichever surface lost.
+//
+// ⚠ AND THE ASSERTION IS SCOPED TO THE FATAL CLASS, NOT TO EVERY CALL. A call
+// that passes a `defaultValue` degrades to English on a miss — visible to nobody,
+// recoverable, and 1,300 of this file's keys are that shape. A call with NO
+// defaultValue renders the RAW KEY, mid-session, on a screen a member is holding
+// while they lift. Measured at the time of writing, the no-defaultValue set is
+// exactly the session player's 79 keys and it resolves completely; the
+// defaultValue-bearing set carries six pre-existing `home:*` misses that fall
+// back to their English argument. Those are registered, not gated here — pulling
+// them into this assertion would make a guard about raw-key rendering fail for
+// strings that render perfectly.
+const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+
+function bareKeys(node, out) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { for (const n of node) bareKeys(n, out); return; }
+  if (node.type === 'CallExpression' && node.callee && node.callee.type === 'Identifier'
+      && node.callee.name === 'tr' && node.arguments.length) {
+    const opts = node.arguments[1];
+    const carriesDefault = opts && opts.type === 'ObjectExpression'
+      && opts.properties.some((p) => p.key && (p.key.name === 'defaultValue' || p.key.value === 'defaultValue'));
+    if (!carriesDefault) {
+      // ternaries are the real shape here (`tr(running ? 'a' : 'b')`)
+      const lits = (function ends(a) {
+        if (!a) return [];
+        if (a.type === 'StringLiteral') return [a.value];
+        if (a.type === 'ConditionalExpression') return [...ends(a.consequent), ...ends(a.alternate)];
+        return [];
+      })(node.arguments[0]);
+      for (const k of lits) out.add(k);
+    }
+  }
+  for (const k of Object.keys(node)) {
+    if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments') continue;
+    bareKeys(node[k], out);
+  }
+}
+
+test('every no-defaultValue key in the client module resolves in en', () => {
+  const out = new Set();
+  bareKeys(parse(CLIENT), out);
+
+  const missing = [];
+  for (const key of [...out].sort()) {
+    const i = key.indexOf(':');
+    if (i < 0) { missing.push(`${key}  (unqualified — useShapeTr needs ns:key)`); continue; }
+    const cat = catalog(key.slice(0, i));
+    if (!cat) { missing.push(`${key}  (no en/${key.slice(0, i)}.json)`); continue; }
+    if (!(key.slice(i + 1) in cat)) missing.push(key);
+  }
+  assert.deepEqual(missing, [],
+    `keys with no defaultValue absent from en — these render the RAW KEY: ${missing.join(', ')}`);
+
+  // Guard the guard: a walk that stopped matching would report clean over nothing.
+  assert.ok(out.size >= 70, `resolved only ${out.size} bare keys — the walk stopped seeing call sites`);
+});
+
+test('the session player authors no key it does not read', () => {
+  // The other direction. A `player.*` key nothing asks for is thirteen strings of
+  // translation work for a line no member can reach — exactly what cut 1 deleted
+  // from BSSplash. Computed families are pinned by their literal prefix.
+  const out = new Set();
+  bareKeys(parse(CLIENT), out);
+  const src = fs.readFileSync(CLIENT, 'utf8');
+  const prefixes = [...src.matchAll(/tr\('session:(player\.[a-zA-Z.]*)' \+/g)].map((m) => m[1]);
+  assert.ok(prefixes.length >= 1, 'the computed vibe family stopped being seen');
+
+  const asked = new Set([...out].filter((k) => k.startsWith('session:player.')).map((k) => k.slice('session:'.length)));
+  const cat = catalog('session');
+  const orphans = Object.keys(cat)
+    .filter((k) => k.startsWith('player.'))
+    .filter((k) => !asked.has(k) && !prefixes.some((p) => k.startsWith(p)));
+  assert.deepEqual(orphans, [], `authored but never read: ${orphans.join(', ')}`);
+});
+
+test('the session vibe family is fully authored, not partially', () => {
+  // ⚠ THE ORPHAN TEST ABOVE CANNOT SEE THIS, AND MUTATION-TESTING IS WHAT SAID SO.
+  // `tr('session:player.vibe.' + key)` maps a literal array, so the family is
+  // pinned by its PREFIX in both directions — deleting `player.vibe.ok` leaves the
+  // prefix satisfied by its two siblings and every assertion green, while the
+  // middle button renders the raw key. Same shape, same fix, as the paywall
+  // feature list one surface over: read the ids out of the array itself.
+  const src = fs.readFileSync(CLIENT, 'utf8');
+  const m = src.match(/\{\[(\[[^\]]*\](?:,\s*\[[^\]]*\])*)\]\.map\(\(\[key, c\]\) => \{\s*const label = tr\('session:player\.vibe\.' \+ key\)/);
+  assert.ok(m, 'the vibe list stopped being a mapped literal array of ids');
+  // every quoted member, then drop the colour literals — a `[^'#]` first-char
+  // class does NOT work here: it rejects '#4fd18b' at its opening quote and the
+  // engine then pairs that quote with the next one, capturing the `], [` between.
+  const ids = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]).filter((x) => !x.startsWith('#'));
+  assert.ok(ids.length >= 3, `expected the full vibe list, saw ${ids.length}`);
+  const cat = catalog('session');
+  const absent = ids.filter((s) => !(`player.vibe.${s}` in cat));
+  assert.deepEqual(absent, [], `player.vibe.* missing from en: ${absent.join(', ')}`);
+});
+
 // ── The keys must resolve at RUNTIME, not merely exist in a JSON file ─────────
 //
 // ⚠ THIS CUT NEWLY DEPENDS ON THE `ns:key` FORM. The launch shell reads three

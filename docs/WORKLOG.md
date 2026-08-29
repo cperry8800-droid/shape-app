@@ -378,6 +378,159 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — i18n cut 2: the live session player
+
+- **The screen a member holds while they lift is no longer English-only.**
+  `BSSession` — the workout player and its completion step — carried **zero
+  `tr()` calls**; it now carries **79 keys ×13**. Cut 2 of the wave the
+  2026-08-29 inventory scoped. **No migration, no route change.**
+- ⚠ **FOUR HONESTY DEFECTS WERE RENDERING UNCONDITIONALLY, AND THEY HAD TO GO
+  FIRST — localizing them would have translated fabrications into thirteen
+  languages.** None was reported; all four came out of reading the file to
+  extract its strings.
+  1. **The form cue was position-indexed off a hardcoded PULL-UP list.**
+     `CUES[moveIdx]` meant move #1 always read *"Dead hang every rep. Chest to
+     bar or it doesn't count."* — on a leg press. A form instruction for the
+     wrong exercise, shown mid-set, is worse than none. Every move already
+     carries its real one (`bsClientWeekDemo.js` maps `cue: m.cue || ''` onto
+     all of them); an unauthored move now renders **nothing** rather than the
+     old *"Move with intent."* filler.
+  2. **A fabricated live-coach press credit**, rust role-spined, reading
+     *"Jordan · live · coaching · 2 min"* under the current move — with no
+     signed-in gate and no coach check. ⚠ **It could not be fixed in place:**
+     `BSSession` receives only `{ moves, onBack, title }`, so there was never a
+     path to a real name. A member with no coach read a named trainer coaching
+     them live two minutes ago; a member WITH one read the wrong name — while
+     the quoted line was not a message at all but the move's authored form cue,
+     which the ledger above already shows in its proper place. Per this repo's
+     own #1947 rule (a role-spined credit IS the claim "a coach authored this")
+     it is **deleted rather than gated** — restoring it means passing a real
+     coach into the player first.
+  3. **The queue appended a rest interval nobody wrote.** It re-derived
+     `{sets} × {reps} · 90s rest` from the parsed numbers, so a move authored
+     *"3 × 10 · 3 min rest"* read **90s** one screen from the coach's own words.
+     `mv.s` IS the authored line; the parsed pair is the fallback for
+     outline-delivered days that ship no scheme.
+  4. The `title` prop defaulted to the literal `'Live session'`, which is now a
+     key — an English default would have shipped past every locale.
+- ⚠ **THIRTEEN STRINGS WERE INVISIBLE TO THE RATCHET, AND THEY ARE THE ONES A
+  MEMBER READS WHEN SOMETHING GOES WRONG.** The inventory walks JSX; these live
+  in plain JS — three HR toasts, three `bsAskConfirm` fields (the *"Remove this
+  set?"* dialog), three save toasts — plus the three **vibe labels**, which sit
+  in a data table rendered by reference (`[['loved','Loved it',…]].map`), the
+  detector's own stated limit. So the surface's real count was **~87**, not the
+  **74** the ratchet moved by. The vibe labels are now keyed off their **stable
+  id**, never the English word.
+- ⚠ **THREE LOCALES INDEPENDENTLY OVERRODE THE SAME RULE IN MY BRIEF, AND ALL
+  THREE WERE RIGHT.** It listed `min` among the must-stay-literal tokens beside
+  RPE/bpm/lb. **vi**, **tr** and **ru** each pushed back with their own shipped
+  catalogs as evidence — `coach.schedule.minUnit` is already `"{n} phút"`,
+  `calendar.unit.min` is `"{min} DK"` and `"{min} МИН"`, 19 occurrences in ru
+  alone. `min` is an English **abbreviation of a translatable word**, not a
+  symbol; keeping it would have made one screen call the same unit two names,
+  since `player.minutes` must render the full word anyway. This is the **DOB
+  case from cut 1, exactly**: a rule of mine, wrong for the same reason, caught
+  by the translators. The applier's literal set is narrowed to `lb`/`bpm` — the
+  symbols actually rendered — and the reason is written at the constant. The
+  `{min}` **placeholder** is still pinned by name.
+- ⚠ **AND MY BRIEF'S REGISTER PREMISE WAS WRONG FOR ru AND uk — refuted with
+  counts, by two agents who never saw each other's work.** I told them the deep
+  in-app surfaces are informal. Measured: `ru/home.json` **12 formal / 0
+  informal**, `ru/feed.json` 12/0, `settings` 25/0; `uk/home.json` 12/0,
+  `uk/feed.json` 12/0. The real split in both is narrower than I stated — the
+  **Score page and the first-run tour** are the informal islands, everything
+  else is formal — which is also what cut 1 ratified. Both chose formal and
+  showed their work. **A premise stated in a brief is a claim, and a translator
+  with the catalog open is better placed to check it than I am.**
+- ⚠ **THE SET TABLE WAS SIZED TO ENGLISH — THE SAME MAGIC NUMBER AS THE WIRE
+  FORM'S 84px LABEL COLUMN, ONE CUT LATER.** `gridTemplateColumns: '26px 1fr
+  1fr 1fr 30px'` at mono 9px with 0.16em tracking costs ~**6.84px/char**, so the
+  first column held **3.8** characters and the last **4.4**. English never
+  revealed it (`Set` 3, `Done` 4). Translated it breaks at once: ru/uk
+  «Подход»/«Підхід» are 6 (41.0px) and id `Selesai` is 7 (47.9px). Widened to
+  **48px / 56px** — the measured longest plus one character of slack — with the
+  metric written at the site so the next reader recomputes rather than guesses;
+  the three `1fr` columns give up the difference and still hold the widest
+  header (ha `Maimaici`, 54.7px) at every density.
+- ⚠ **AND THE SAME GRID ALREADY SHIPS ON THE COACH SIDE, WHERE IT HAS BEEN
+  CLIPPING IN SIX LOCALES.** `iosAppBroadsheetPros.jsx` renders the live-watch
+  console through a **byte-identical** `26px 1fr 1fr 1fr 30px` off the same
+  `coach:live.col*` values — which is where eleven of the twelve translators
+  sourced their words, so the client and the coach read the same row in the same
+  language. Found because **fr said so in its return and I checked it against
+  the file** rather than taking it. Widened there too — first column only; its
+  last column is an empty spacer.
+- **The translators reused rather than reinvented, and that is the wave's real
+  find.** Every locale independently identified `coach.json`'s `live.*` block as
+  the coach-side mirror of this exact screen and copied its column headers
+  verbatim. So a member and the coach watching them now read **one word per
+  concept**, not two. **de** caught a false friend nobody briefed: English
+  *Last · {load}* means *previously*, German *Last* means *load*, and
+  `profile.json` already uses "Die Last" for weight — a literal rendering would
+  have read *"Load · 80 lb"*. It ships as **"Zuletzt"**.
+- ⚠ **THE MOUNT HARNESS NOW RUNS A REAL TRANSLATOR, AND THAT IS A STRENGTHENING
+  RATHER THAN A REPAIR.** `tests/broadsheet-session-render.test.mjs` drives 21
+  behavioural cases through the shipping component (the finish CTA opens the
+  completion step, the save runs at most once across every exit path, skip-rate
+  telemetry fires exactly once) and every one asserted on **English literals**.
+  With `useShapeTr` falling back to `opts.defaultValue ?? key` and these 79 call
+  sites passing no defaultValue, they all rendered the raw key. Re-pointing 22
+  assertions at key strings would have been the easy fix and the wrong one — the
+  tests exist to prove what a MEMBER sees. The harness now resolves against the
+  real `en` catalogs, so the assertions keep reading like the product **and each
+  one became a live check that its key resolves**: a typo now fails on the screen
+  it would break.
+- ⚠ **THE KEY-RESOLUTION GUARD DID NOT COVER THIS FILE AT ALL, so its green run
+  said nothing about the cut.** Extended to `iosAppBroadsheetClient.jsx` as its
+  own walk — folding it into the launch flow's `FILES` would make `DEFAULT_NS`
+  mean two things at once, since the shell binds `useTr('onboarding')` while this
+  file binds `useShapeTr()` and qualifies every key. **Scoped to the fatal
+  class**: measured, the file carries **1,300** keys that pass a `defaultValue`
+  (a miss degrades to English, invisible and recoverable) and **79** that pass
+  none (a miss renders the RAW KEY, mid-session) — and the 79 are exactly this
+  cut's. Six pre-existing `home:*` misses in the defaultValue-bearing set are
+  **registered, not gated**: pulling them in would make a guard about raw-key
+  rendering fail for strings that render perfectly.
+- ⚠ **AND THE COMPUTED VIBE FAMILY NEEDED ITS OWN GUARD — mutation-testing said
+  so, reading it did not.** `tr('session:player.vibe.' + key)` is pinned by its
+  **prefix** in both directions, so deleting `player.vibe.ok` leaves the prefix
+  satisfied by its two siblings and every assertion green while the middle button
+  renders the raw key. Same shape as the paywall feature list one surface over,
+  same fix: read the ids out of the array itself. ⚠ Its own first cut then passed
+  for the wrong reason — a `[^'#]` first-character class **rejects** `'#4fd18b'`
+  at its opening quote, and the engine pairs that quote with the next one,
+  capturing the `], [` between two entries as an id.
+- **The ratchet moved.** **1,244 → 1,170 strings** and **117 → 116 uncovered
+  components**; fully covered **91 → 92**; `partStrings` 193 and `part.length`
+  31 **unchanged**, which is the assertion that certifies the cut is finished
+  rather than half-done.
+- **Both validators were mutation-tested against the REAL returns, not a
+  synthetic echo** — the cut-1 lesson, where the harness built its locale out of
+  the English values and so tested the check against itself. **8/8 refused** (a
+  renamed placeholder · a dropped glyph · a dropped `lb` · a straight apostrophe
+  beside a brace · a deleted key · an unknown key · an empty value · an added
+  glyph) with the clean set proven to write a pure append; **7/7 killed** on the
+  guards (a typo'd key in the JSX · an `en` key deleted · an orphan authored · the
+  walk stopped matching · a family member deleted · the vibe array truncated · the
+  family prefix renamed), unmutated sanity green at both ends of every batch.
+- **Registered, NOT built.** (1) The **six `home:*` keys** absent from `en` that
+  fall back to their `defaultValue` — real, invisible, and outside a guard about
+  raw-key rendering. (2) **`pcm` carries 26 values identical to English**, every
+  one cited to shipped `pcm` precedent (`cook.json` `"back": "← Back"`,
+  `"plated.done": "Done"`, `common.upNext`); the prose is real Naija grammar
+  (*"Di timer no run for dis one."*), which is the legitimate pattern this file
+  already records — but it goes to the standing human review with the enumerated
+  list, not with my assurance. (3) **`it` flagged `player.now` as "ADESSO"** (6 to
+  English's 3) in an inline badge, following `cook:prep.now` rather than the
+  shorter "ORA" — a house-consistency call worth an owner's eye if it reads long.
+  (4) The band eyebrows run 4–8 characters longer in de/id/it/ru/tr/uk; they sit
+  beside an ellipsis-truncating title with `minWidth: 0`, so the counter wins and
+  the title shortens — graceful, but device-only to confirm.
+- Verified: `npm test` **2461/2461** · `tsc` 0 · both broadsheet files parse ·
+  mobile build 0 with all twelve locales' strings **and both widened grids
+  confirmed in the emitted bundle** · catalog parity 3/3 ×13 · a pure append
+  (80 insertions / 1 deletion per file, 13 files) · LF, zero CR, zero NUL.
+
 ### 2026-08-29 — i18n cut 1: the launch flow stops being English-only
 
 - **The wave's first cut, and the measurement's own headline case.** The 2026-08-29

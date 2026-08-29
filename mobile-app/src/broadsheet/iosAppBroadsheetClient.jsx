@@ -26170,8 +26170,14 @@ function bsPlates(total) {
   return out;
 }
 
-function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
+function BSSession({ moves: movesProp, onBack, title = '' }) {
   const t = useBS();
+  // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter in
+  // this component may be named `tr` either: the shadow class this repo has
+  // already paid for (getTracks().forEach(tr => tr.stop())) turns every tr()
+  // inside the callback into a TypeError that parse, tsc, the suite AND the
+  // build all pass on. Verified clear at wiring time.
+  const tr = useShapeTr();
   _bsScrollTopOnMount();
   // Open session (log as you go): no moves were handed in → seed one blank move
   // and let the athlete name it + add more with ＋ Add move.
@@ -26299,9 +26305,9 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     return () => window.removeEventListener('shape:hrm', onHr);
   }, []);
   const connectHrm = async () => {
-    if (!window.ShapeHRM?.available?.()) { window.__bsToast?.('No Bluetooth heart-rate monitor available on this device.', 'info'); return; }
-    try { await window.ShapeHRM.connect(); setHrmOn(true); window.__bsToast?.('Heart-rate monitor connected', 'ok'); }
-    catch (err) { window.__bsToast?.('Could not connect the monitor.', 'warn'); }
+    if (!window.ShapeHRM?.available?.()) { window.__bsToast?.(tr('session:player.hrUnavailable'), 'info'); return; }
+    try { await window.ShapeHRM.connect(); setHrmOn(true); window.__bsToast?.(tr('session:player.hrConnected'), 'ok'); }
+    catch (err) { window.__bsToast?.(tr('session:player.hrFailed'), 'warn'); }
   };
   const [now, setNow] = useStateBSC(Date.now());
   const [elapsedStart] = useStateBSC(Date.now());
@@ -26577,7 +26583,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     const k = `${moveIdx}-${setIdx}`;
     if (completed[k]) {
       const ok = window.bsAskConfirm
-        ? await window.bsAskConfirm({ title: 'Remove this set?', message: `Set ${setIdx + 1} is already logged — removing it deletes its reps/load from this session.`, confirmLabel: 'Remove set' })
+        ? await window.bsAskConfirm({ title: tr('session:player.removeSetConfirm'), message: tr('session:player.removeSetConfirmBody', { n: setIdx + 1 }), confirmLabel: tr('session:player.removeSetCta') })
         : true;
       if (!ok) return;
     }
@@ -26728,9 +26734,9 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         // (public / followers / private-if-Off). Unchecked → force private.
         privacy: shareToFeed ? null : 'private',
       });
-      window.__bsToast?.(shareToFeed ? 'Workout logged — shared per your privacy settings' : 'Private sensor workout log saved for coach review', 'ok');
+      window.__bsToast?.(shareToFeed ? tr('session:player.toastShared') : tr('session:player.toastPrivate'), 'ok');
     } catch (error) {
-      window.__bsToast?.(error?.message || 'Workout log saved locally only', 'warn');
+      window.__bsToast?.(error?.message || tr('session:player.toastLocal'), 'warn');
     }
     bsSetMyActivity(null);
     try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
@@ -26749,8 +26755,15 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const pct = totalSets ? doneSets / totalSets : 0;
   const minLeft = Math.max(0, Math.round((totalSets - doneSets) * 1.6));
-  const CUES = ['Dead hang every rep. Chest to bar or it doesn’t count.', 'Drive elbows behind ribs. Pause at sternum, two count.', 'Squeeze the cuffs. Feel the mid-trap, not the bicep.', 'Pull to forehead, not chest. Thumbs back.', 'Supinate hard at the top. Don’t cheat the negative.', 'Tall posture. Carry like you mean it.'];
-  const cue = CUES[moveIdx] || 'Move with intent.';
+  // ⚠ THE MOVE'S OWN AUTHORED CUE, NOT A POSITION-INDEXED DEMO ARRAY. This read
+  // `CUES[moveIdx]` off a hardcoded six-item list of PULL-UP cues, so move #1
+  // always said "Dead hang every rep. Chest to bar or it doesn't count." — even
+  // when move #1 was a leg press. A form instruction for the wrong exercise,
+  // shown mid-set, is worse than no instruction. Every move already carries its
+  // real one (bsClientWeekDemo.js maps `cue: m.cue || ''` onto all of them), and
+  // an unauthored move now renders NOTHING rather than the old "Move with
+  // intent." filler — absence is honest, invented coaching is not.
+  const cue = (move && move.cue) || '';
   const activeIdx = (() => { for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
   const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
   const activeRunning = !!(activeKey && activeSetKey === activeKey);
@@ -26784,15 +26797,16 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             <button
               onClick={() => finishAndExit({ answered: false })}
               style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}
-            >← Back</button>
-            <span style={{ ...bandEyebrow, color: BAND.dim35 }}>Session · Complete</span>
+            >{tr('session:player.back')}</button>
+            <span style={{ ...bandEyebrow, color: BAND.dim35 }}>{tr('session:player.completeEyebrow')}</span>
           </div>
 
           <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05 }}>
-            {title || 'Session done'}
+            {title || tr('session:player.sessionDone')}
           </div>
           <div style={{ marginTop: 7, ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>
-            {doneSets} of {totalSets} sets · {fmt(elapsedSec)} on the clock
+            {/* ⚠ ONE SENTENCE, NOT FOUR JSX CHILDREN — word order moves. */}
+            {tr('session:player.completeMeta', { done: doneSets, total: totalSets, clock: fmt(elapsedSec) })}
           </div>
 
           {/* THE EFFORT — the primary action. One tap, and skippable: a skipped
@@ -26800,8 +26814,8 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
               load maths rather than being scored as easy. */}
           <div style={{ marginTop: 30 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-              <div style={sectionHead}>How hard was that?</div>
-              <div style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>1 easy · 10 all-out</div>
+              <div style={sectionHead}>{tr('session:player.effortQ')}</div>
+              <div style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>{tr('session:player.effortScale')}</div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
@@ -26826,7 +26840,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
               never shown on a normal-length session. */}
           {askDuration && (
             <div style={{ marginTop: 26 }}>
-              <div style={{ ...sectionHead, marginBottom: 9 }}>{timerImplausible ? 'How long, really?' : 'How long?'}</div>
+              <div style={{ ...sectionHead, marginBottom: 9 }}>{tr(timerImplausible ? 'session:player.howLongReally' : 'session:player.howLong')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <input
                   type="number"
@@ -26835,34 +26849,40 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
                   max={SESSION_MINUTES_MAX}
                   value={shownMinutes}
                   onChange={(e) => setManualMinutes(e.target.value)}
-                  aria-label="Session length in minutes"
+                  aria-label={tr('session:player.durationAria')}
                   placeholder="—"
                   style={{ width: 104, borderRadius: 5, border: `1px solid ${BAND.hair}`, background: 'rgba(244,237,224,0.05)', color: BAND.cream, padding: '13px 11px', fontFamily: t.MONO, fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
                 />
-                <span style={{ ...bandEyebrow, fontSize: 9, color: BAND.dim }}>minutes</span>
+                <span style={{ ...bandEyebrow, fontSize: 9, color: BAND.dim }}>{tr('session:player.minutes')}</span>
               </div>
               <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: BAND.dim35 }}>
                 {!timerImplausible
-                  ? 'The timer didn’t run for this one.'
+                  ? tr('session:player.timerDidntRun')
                   : prefillOffered
-                    ? `The timer ran ${timerMinutes} min — fix it if you finished earlier.`
-                    : `The timer ran ${timerMinutes} min, which is longer than a session can be — how long did you actually train?`}
+                    ? tr('session:player.timerRan', { min: timerMinutes })
+                    : tr('session:player.timerImplausible', { min: timerMinutes })}
               </div>
               {/* Honest about the consequence rather than silently dropping the
                   session from the maths. Only for the over-ceiling case: that is
                   the one the core actually excludes without a confirmation. */}
               {timerImplausible && !durationAnswered && (
                 <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: '#e8a33c' }}>
-                  Left blank, this one is logged but won’t count toward your limits.
+                  {tr('session:player.blankExcluded')}
                 </div>
               )}
             </div>
           )}
 
           <div style={{ marginTop: 26 }}>
-            <div style={{ ...sectionHead, marginBottom: 9 }}>The vibe</div>
+            <div style={{ ...sectionHead, marginBottom: 9 }}>{tr('session:player.vibe')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              {[['loved', 'Loved it', '#4fd18b'], ['ok', 'It was OK', '#e8a33c'], ['nope', 'Not for me', '#e8674c']].map(([key, label, c]) => {
+              {/* ⚠ THESE THREE LABELS ARE INVISIBLE TO THE RATCHET. Copy declared in a
+                  data table and rendered by reference is not attributed to the
+                  component — the inventory's own stated limit — so they never
+                  appeared in its count of this surface. Keyed off the stable id,
+                  never the English word. */}
+              {[['loved', '#4fd18b'], ['ok', '#e8a33c'], ['nope', '#e8674c']].map(([key, c]) => {
+                const label = tr('session:player.vibe.' + key);
                 const on = reviewFeel === key;
                 return (
                   <button
@@ -26885,8 +26905,8 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 5, border: `1px solid ${shareToFeed ? bandHeat : BAND.hair}`, borderLeft: shareToFeed ? `3px solid ${bandHeat}` : `1px solid ${BAND.hair}`, background: shareToFeed ? bsTHexA(bandHeat, 0.1) : 'transparent', cursor: 'pointer', textAlign: 'left', minHeight: 44 }}
             >
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: BAND.cream }}>Share to the community</span>
-                <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: BAND.dim35 }}>Posts your sets + breakdown to the feed</span>
+                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: BAND.cream }}>{tr('session:player.shareToggle')}</span>
+                <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: BAND.dim35 }}>{tr('session:player.shareSub')}</span>
               </span>
               <span aria-hidden style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: shareToFeed ? bandHeat : BAND.hair, position: 'relative', transition: 'background 0.15s' }}>
                 <span style={{ position: 'absolute', top: 3, left: shareToFeed ? 21 : 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.15s' }} />
@@ -26898,7 +26918,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             <button
               onClick={() => finishAndExit({ answered: durationAnswered })}
               style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: bandHeat, color: '#04211c', cursor: 'pointer', padding: '17px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 }}
-            >Save &amp; finish ✓</button>
+            >{tr('session:player.saveFinish')}</button>
           </div>
         </div>
       </BSPage>
@@ -26913,16 +26933,16 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
         {/* End · overall workout time (owner add — wall clock since start) */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>✕ End</button>
+          <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>{tr('session:player.end')}</button>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: bandHeat, ...heatTrans }}>
             <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: bandHeat, display: 'inline-block', ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(bandHeat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
-            Elapsed · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
+            {tr('session:player.elapsed')} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
           </span>
         </div>
         {/* Session line — real figures only */}
         <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || 'Live session'}</span>
-          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>Ex {moveIdx + 1}/{moves.length} · Sets {doneSets}/{totalSets}</span>
+          <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || tr('session:player.liveSession')}</span>
+          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>{tr('session:player.bandCounts', { ex: moveIdx + 1, exTotal: moves.length, done: doneSets, total: totalSets })}</span>
         </div>
         {/* Segment strip — one per exercise; lit = done, outlined = now */}
         <div aria-hidden style={{ position: 'relative', marginTop: 9, display: 'flex', gap: 4 }}>
@@ -26930,22 +26950,22 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: moveAllDone(i) ? bandHeat : BAND.hair, boxShadow: moveAllDone(i) ? `0 0 8px ${bsTHexA(bandHeat, 0.55)}` : 'none', outline: i === moveIdx ? `1px solid ${bsTHexA(bandHeat, 0.7)}` : 'none', outlineOffset: 1, ...heatTrans }} />
           ))}
         </div>
-        <div style={{ position: 'relative', marginTop: 6, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{Math.round(pct * 100)}% · ~{minLeft} min left</div>
+        <div style={{ position: 'relative', marginTop: 6, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{tr('session:player.progressLeft', { pct: Math.round(pct * 100), min: minLeft })}</div>
         {/* Exercise title (+ open-session rename) + the trainer form clip */}
         <div style={{ position: 'relative', marginTop: 14 }}>
           {openMode ? (
-            <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder="Name this move…" style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05, background: 'transparent', border: 0, borderBottom: `1px solid ${BAND.hair}`, outline: 'none', padding: '2px 0 8px' }} />
+            <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder={tr('session:player.namePlaceholder')} style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05, background: 'transparent', border: 0, borderBottom: `1px solid ${BAND.hair}`, outline: 'none', padding: '2px 0 8px' }} />
           ) : (
             <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05 }}>{move.m}</div>
           )}
           {clip && (
-            <button onClick={() => setClipOpen(true)} style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${bsTHexA(bandHeat, 0.4)}`, borderRadius: 5, padding: '8px 11px', cursor: 'pointer', ...bandEyebrow, fontSize: 8, color: bandHeat, ...heatTrans }}>▶ How-to · form clip</button>
+            <button onClick={() => setClipOpen(true)} style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${bsTHexA(bandHeat, 0.4)}`, borderRadius: 5, padding: '8px 11px', cursor: 'pointer', ...bandEyebrow, fontSize: 8, color: bandHeat, ...heatTrans }}>▶ {tr('session:player.formClip')}</button>
           )}
         </div>
         {/* Current-set readout — the big figures ARE the inputs */}
         {activeIdx != null ? (
           <div style={{ position: 'relative', marginTop: 14 }}>
-            <div style={{ ...bandEyebrow, color: bandHeat, ...heatTrans }}>Set {String(activeIdx + 1).padStart(2, '0')}{activeRunning ? ' · Live' : ' · Up'}</div>
+            <div style={{ ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr(activeRunning ? 'session:player.setLive' : 'session:player.setUp', { n: String(activeIdx + 1).padStart(2, '0') })}</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 8 }}>
               {/* Load values can carry their unit ("165 lb" — the athlete's own
                   text), so the label reads LOAD (not LB) and the size leaves
@@ -26957,26 +26977,26 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
                   <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{lab}</div>
                 </div>
               ))}
-              <button onClick={() => logSet(activeIdx)} aria-label={activeRunning ? `Log set ${activeIdx + 1}` : `Start set ${activeIdx + 1}`} style={{ flexShrink: 0, width: 34, height: 34, marginBottom: 14, padding: 0, borderRadius: 6, border: `1.5px solid ${bandHeat}`, background: activeRunning ? bandHeat : 'transparent', color: activeRunning ? '#04211c' : bandHeat, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, cursor: 'pointer', ...heatTrans }}>✓</button>
+              <button onClick={() => logSet(activeIdx)} aria-label={tr(activeRunning ? 'session:player.logSetAria' : 'session:player.startSetAria', { n: activeIdx + 1 })} style={{ flexShrink: 0, width: 34, height: 34, marginBottom: 14, padding: 0, borderRadius: 6, border: `1.5px solid ${bandHeat}`, background: activeRunning ? bandHeat : 'transparent', color: activeRunning ? '#04211c' : bandHeat, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, cursor: 'pointer', ...heatTrans }}>✓</button>
             </div>
           </div>
         ) : (
-          <div style={{ position: 'relative', marginTop: 14, ...bandEyebrow, color: bandHeat, ...heatTrans }}>All sets logged ✓</div>
+          <div style={{ position: 'relative', marginTop: 14, ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr('session:player.allSetsLogged')}</div>
         )}
         {/* Rest — countdown + a bar that FILLS as the rest runs (owner add) */}
         {restEnd && restLeft > 0 && (
           <div style={{ position: 'relative', marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ ...bandEyebrow, color: BAND.dim }}>Rest · set {restAfterSet} done</span>
+              <span style={{ ...bandEyebrow, color: BAND.dim }}>{tr('session:player.restAfter', { n: restAfterSet })}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 24, fontWeight: 800, color: bandHeat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, lineHeight: 1, ...heatTrans }}>{fmt(restLeft)}<span style={{ fontSize: 9, color: BAND.dim35, textShadow: 'none' }}> / {fmt(restTotal)}</span></span>
             </div>
             <div aria-hidden style={{ marginTop: 9, height: 4, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
               <div style={{ height: '100%', borderRadius: 2, background: bandHeat, boxShadow: `0 0 10px ${bsTHexA(bandHeat, 0.6)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - restLeft / restTotal)) * 100)}%`, transition: bsSdReduced() ? 'none' : 'width 1s linear, background-color 1.2s ease' }} />
             </div>
             <div style={{ marginTop: 4, display: 'flex', gap: 16, alignItems: 'center' }}>
-              <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>+30 sec</button>
-              {hrmOn && hrNow ? <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>{hrNow} bpm · come down</span> : null}
-              <button onClick={() => setRestEnd(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: bandHeat, ...heatTrans }}>Skip rest →</button>
+              <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>{tr('session:player.plus30')}</button>
+              {hrmOn && hrNow ? <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>{tr('session:player.hrComeDown', { bpm: hrNow })}</span> : null}
+              <button onClick={() => setRestEnd(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: bandHeat, ...heatTrans }}>{tr('session:player.skipRest')}</button>
             </div>
           </div>
         )}
@@ -26988,14 +27008,14 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             </div>
             <div style={{ marginTop: 5, display: 'flex', justifyContent: 'space-between', ...bandEyebrow, fontSize: 8 }}>
               <span style={{ color: BAND.dim35 }}>Z1</span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: bandHeat, ...heatTrans }}>{bsFeedIcon('heart', 10, true)} {hrNow} bpm · {effort?.label || 'Z1'} effort</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: bandHeat, ...heatTrans }}>{bsFeedIcon('heart', 10, true)} {tr('session:player.hrEffort', { bpm: hrNow, zone: effort?.label || 'Z1' })}</span>
               <span style={{ color: BAND.dim35 }}>Z5</span>
             </div>
           </div>
         ) : (
           <div style={{ position: 'relative', marginTop: 13, display: 'flex' }}>
             <button onClick={connectHrm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: `1px solid ${BAND.hair}`, borderRadius: 999, padding: '5px 12px', cursor: 'pointer', ...bandEyebrow, fontSize: 8.5, color: BAND.dim }}>
-              {bsFeedIcon('heart', 11)} Connect HR monitor
+              {bsFeedIcon('heart', 11)} {tr('session:player.connectHr')}
             </button>
           </div>
         )}
@@ -27005,8 +27025,8 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
       {/* ═══ THE LEDGER (paper) — cue · last · suggestion · plates · sets */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
-        {!openMode && <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
-        {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
+        {!openMode && !!cue && <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
+        {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('session:player.last', { load: move.l })}</div>}
       </div>
 
       {/* Suggested next load (e1RM progression nudge) — dot-leader row */}
@@ -27015,10 +27035,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           <button onClick={_bsFillSuggestion} aria-label={`Use suggested load ${_bsSug.load} ${_bsSug.unit}`}
             style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
             <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>Suggested</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{tr('session:player.suggested')}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{_bsSug.load} {_bsSug.unit}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>Use →</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>{tr('session:player.use')}</span>
             </span>
             <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{_bsSug.rationale}</span>
           </button>
@@ -27028,17 +27048,30 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       {/* Plate math — unboxed line (gym plate colors are semantic, kept) */}
       {perSide && (
         <div style={{ padding: `8px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Per side ({activeLoad} lb) · bar +</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:player.perSide', { load: activeLoad })}</span>
           {plates.length ? plates.map((p, i) => (
             <span key={i} style={{ padding: '3px 8px', borderRadius: 3, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10, fontWeight: 800 }}>{p}</span>
-          )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>bar only</span>}
+          )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{tr('session:player.barOnly')}</span>}
         </div>
       )}
 
       {/* Set table */}
       <div style={{ padding: `18px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          <span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span style={{ textAlign: 'right' }}>Done</span>
+        {/* ⚠ THE SET-TABLE COLUMNS WERE SIZED TO ENGLISH — the same magic number the
+            wire form's 84px label column was, measured the same way. JetBrains Mono
+            advances 0.6em, so at 9px with 0.16em tracking a character costs ~6.84px:
+            the old `26px` first column held 3.8 characters and the `30px` last held
+            4.4. English never revealed it (`Set` 3, `Done` 4). Translated it breaks
+            immediately — ru/uk «Подход»/«Підхід» are 6 (41.0px) and id "Selesai" is 7
+            (47.9px), all from the coach console's own shipped headers. Widened to
+            48px (~7 chars) and 56px (~8) — the measured longest plus a character of
+            slack. The three `1fr` input columns give up the difference and still hold
+            the widest header (ha "Maimaici", 8 ch / 54.7px) at every density.
+            ⚠ The coach live-watch console renders the IDENTICAL grid off the same
+            `coach:live.col*` values, so it carried this overflow already; widened
+            there too, first column only — its last column is an empty spacer. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+          <span>{tr('session:player.colSet')}</span><span>{tr('session:player.colWeight')}</span><span>{tr('session:player.colReps')}</span><span>RPE</span><span style={{ textAlign: 'right' }}>{tr('session:player.colDone')}</span>
         </div>
         {Array.from({ length: move.sets }).map((_, i) => {
           const k = `${moveIdx}-${i}`;
@@ -27057,7 +27090,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
               style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px solid ${t.HAIR}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
           );
           return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0', borderLeft: isActive ? `3px solid ${heat}` : '3px solid transparent', marginLeft: -9, paddingLeft: 6, ...heatTrans }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, alignItems: 'center', padding: '5px 0', borderLeft: isActive ? `3px solid ${heat}` : '3px solid transparent', marginLeft: -9, paddingLeft: 6, ...heatTrans }}>
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? heat : t.INK50, fontVariantNumeric: 'tabular-nums', ...heatTrans }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
               {cell('load', 'lb')}
               {cell('reps', '—')}
@@ -27067,12 +27100,12 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           );
         })}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+          <button onClick={addSet} aria-label={tr('session:player.addSetAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.addSet')}</button>
           {/* Remove targets the current pending set (else the last set, confirm-
               gated when logged) — spec's full-set-editing contract; hidden at
               one set (an exercise never drops to zero). */}
-          {move.sets > 1 && <button onClick={() => removeSet(activeIdx != null ? activeIdx : move.sets - 1)} aria-label="Remove a set from this exercise" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>× Remove set</button>}
-          {openMode && <button onClick={addMove} aria-label="Add another move" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add move</button>}
+          {move.sets > 1 && <button onClick={() => removeSet(activeIdx != null ? activeIdx : move.sets - 1)} aria-label={tr('session:player.removeSetAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.removeSet')}</button>}
+          {openMode && <button onClick={addMove} aria-label={tr('session:player.addMoveAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.addMove')}</button>}
         </div>
         {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
       </div>
@@ -27082,25 +27115,29 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         {activeIdx != null ? (
           <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {activeRunning ? `Log set ${activeIdx + 1}${move.reps ? ` · ${move.reps} reps` : ''}` : `Start set ${activeIdx + 1}`}
+            {activeRunning
+              ? (move.reps
+                  ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: move.reps })
+                  : tr('session:player.logSetCta', { n: activeIdx + 1 }))
+              : tr('session:player.startSetCta', { n: activeIdx + 1 })}
           </button>
         ) : (
           <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else openCompletion(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {moveIdx < moves.length - 1 ? 'Next exercise →' : 'Finish workout ✓'}
+            {tr(moveIdx < moves.length - 1 ? 'session:player.nextExercise' : 'session:player.finishWorkout')}
           </button>
         )}
       </div>
 
       {/* Prev / next — text-actions (the bordered boxes died with the spec) */}
       <div style={{ padding: `6px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>← Previous</button>
-        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, minWidth: 0, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: moveIdx >= moves.length - 1 ? t.INK50 : teal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? <span style={{ borderBottom: `2px solid ${bsTHexA(teal, 0.4)}`, paddingBottom: 2 }}>Next: {moves[moveIdx + 1].m} →</span> : 'Last exercise'}</button>
+        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{tr('session:player.previous')}</button>
+        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, minWidth: 0, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: moveIdx >= moves.length - 1 ? t.INK50 : teal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? <span style={{ borderBottom: `2px solid ${bsTHexA(teal, 0.4)}`, paddingBottom: 2 }}>{tr('session:player.nextNamed', { move: moves[moveIdx + 1].m })}</span> : tr('session:player.lastExercise')}</button>
       </div>
 
       {/* Queue */}
       <div style={{ padding: `26px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>Up next</BSEyebrow>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Queue</div>
+        <BSEyebrow color={teal}>{tr('session:player.upNext')}</BSEyebrow>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('session:player.queue')}</div>
       </div>
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         {moves.map((mv, i) => {
@@ -27110,8 +27147,14 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             <button key={i} onClick={() => setMoveIdx(i)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${heat}` : '3px solid transparent', display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'baseline', padding: '13px 0 13px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1, ...heatTrans }}>
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? heat : t.INK50, ...heatTrans }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{mv.m}{isCurrent && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: heat, marginLeft: 8, ...heatTrans }}>NOW</span>}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{mv.sets} × {mv.reps} · 90s rest</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{mv.m}{isCurrent && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: heat, marginLeft: 8, ...heatTrans }}>{tr('session:player.now')}</span>}</div>
+                {/* ⚠ THE AUTHORED SCHEME, NOT A FABRICATED REST. This rendered
+                    `{sets} × {reps} · 90s rest` — re-deriving from the parsed
+                    numbers and then appending a rest interval nobody wrote, so a
+                    move authored "3 × 10 · 3 min rest" read 90s in the queue.
+                    `mv.s` IS the coach's line; the parsed pair is the fallback
+                    for outline-delivered days that ship no scheme at all. */}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{mv.s && mv.s !== '—' ? mv.s : `${mv.sets} × ${mv.reps}`}</div>
               </div>
               {mv.l && <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}>{mv.l}</span>}
             </button>
@@ -27119,18 +27162,25 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         })}
       </div>
 
-      {/* Live coach message — Wire press credit (rust is the trainer ROLE color) */}
-      <div style={{ padding: `18px ${t.padX}px 0` }}>
-        <div style={{ borderLeft: `3px solid ${t.RUST}`, padding: '3px 0 3px 11px' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{'“' + cue + '”'}</div>
-          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Jordan · live · coaching · 2 min</div>
-        </div>
-      </div>
+      {/* ⚠ THE FABRICATED LIVE-COACH CREDIT IS GONE, AND IT COULD NOT BE FIXED IN
+          PLACE. This rendered a rust role-spined press credit reading
+          "Jordan · live · coaching · 2 min" under the current move's cue —
+          UNCONDITIONALLY, with no signed-in gate and no coach check. BSSession
+          receives only { moves, onBack, title }: there is no coach prop, so
+          there was never a path to a real name. A member with no coach at all
+          read a named trainer coaching them live two minutes ago, and a member
+          WITH a coach read the wrong name — while the quoted line was not a live
+          message but the move's authored form cue, which the ledger above
+          already shows in its proper place.
+          This repo's own rule (#1947): a role-spined credit IS the claim "a
+          coach authored this", so it may only exist on real evidence. There is
+          none here, so the block is deleted rather than gated — restoring it
+          means passing a real coach into the player first. */}
 
       {/* End workout early — routes to the SAME completion step, so finishing
           early is still asked for an effort rating rather than saving blind. */}
       <div style={{ padding: `18px ${t.padX}px 90px` }}>
-        <button onClick={() => openCompletion()} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
+        <button onClick={() => openCompletion()} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{tr('session:player.endEarly')}</button>
       </div>
 
       {/* Trainer form-clip player — a dark portal sheet over the session (the
@@ -27141,11 +27191,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={`Trainer form clip for ${move.m}`} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ How-to · {move.m}</span>
-                <button onClick={() => setClipOpen(false)} aria-label="Close the form clip" style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>× Close</button>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
+                <button onClick={() => setClipOpen(false)} aria-label={tr('session:player.closeClipAria')} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('session:player.closeClip')}</button>
               </div>
               <video src={clip.url} controls playsInline autoPlay style={{ width: '100%', maxHeight: '55vh', display: 'block', background: '#000', borderRadius: 6 }} />
-              <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Open externally ↗</button>
+              <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('session:player.openExternally')}</button>
             </div>
           </div>
         );

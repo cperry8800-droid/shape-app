@@ -259,7 +259,7 @@ const UNCOVERED = new Set([
   'Client::BSProfileCustomizer', 'Client::BSProfileIdentityHead', 'Client::BSProgChart',
   'Client::BSRecipeBox', 'Client::BSRecipePreview', 'Client::BSReconcile',
   'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
-  'Client::BSScoreCardDark', 'Client::BSSdTrace', 'Client::BSSearchCorner', 'Client::BSSession',
+  'Client::BSScoreCardDark', 'Client::BSSdTrace', 'Client::BSSearchCorner',
   'Client::BSSessionsScreen', 'Client::BSSleepHistory', 'Client::BSStepGoalSheet',
   'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
@@ -329,9 +329,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the record with it) or a regression, and both must be a deliberate edit.
   // Printed above first, so the failure message is never the only place to read them.
   assert.equal(partStrings, 193, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1244, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1170, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 117, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 116, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
@@ -340,7 +340,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // honest alongside the deletion that caused it; it must never be lowered to
   // make a failing run pass.
   assert.ok(rows.length >= 357, `components rendering JSX fell to ${rows.length} — expected at least 357`);
-  assert.ok(full.length >= 91, `fully-localized components fell to ${full.length} — expected at least 91`);
+  assert.ok(full.length >= 92, `fully-localized components fell to ${full.length} — expected at least 92`);
 });
 
 // ── The ratchet ─────────────────────────────────────────────────────────────
