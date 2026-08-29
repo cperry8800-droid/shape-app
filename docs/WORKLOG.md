@@ -378,6 +378,71 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — The i18n "COMPLETE" claim finally gets a measurement
+
+- **The claim has been corrected FOUR times, and every correction was a
+  per-omission repair.** Shape Score, then "The Record", then the whole Progress
+  hub, then the readout wave finding the section still declaring itself complete —
+  each found by a **reader**, never by a gate. The reason is structural and this file already named it: the 2026-07-16
+  rollout shipped per **NAMED surface**, and **nothing ever audited what was
+  absent from the list**, so *"every surface"* was never a measured claim. The
+  registered next step was to *enumerate the surfaces and check them*; this is
+  that, and it is deliberately the enumeration rather than a sixth repair.
+- ⚠ **MEASURED, AND IT IS NOT CLOSE.** `tests/i18n-surface-inventory.test.mjs`
+  walks `mobile-app/src/broadsheet/*.jsx` with the AST: **358** components render
+  JSX — **88 fully localized · 27 partial** (167 strings still hardcoded) ·
+  **120 with NO translator in scope at all** (1,106 strings) · 123 render no user
+  copy. Of the **235** that render copy, **38% are localized.**
+- ⚠ **AND THE UNCOVERED SET IS NOT THE TAIL — IT IS THE PRODUCT.** The **live
+  session player** (`BSSession`, 59 strings), the **meal logger**
+  (`BSLogMealFlow`, 52), the **profile customizer** (61), the **workout builder**
+  (36), the **auth + splash shell** (`BSLogin` 30, `BSSplash` 36 — literally the
+  first screen after a member picks their language) and the **coach application**
+  (55) all carry **zero `tr()`**. A member can pick Spanish on the language
+  screen and hit English one tap later, in the middle of a set.
+- ⚠ **COVERAGE IS A PROPERTY OF A COMPONENT, NOT A FILE — the same mistake #1953
+  had just been rewritten to stop making, applied here up front.**
+  `iosAppBroadsheetClient.jsx` carries **~1,600 `tr()` calls** *and* four of those
+  six surfaces; a per-file count reads the file as covered and hides every one of
+  them. That is exactly how three of the five corrections got missed.
+- ⚠ **THE WORST NUMBER IS A PARTIAL, NOT A ZERO.** `BSClientEat` — a **primary
+  tab** — has **3 `tr()` calls against 73 hardcoded strings**. A per-file count
+  can't see it; a per-component *zero* check can't either. It is only visible
+  because the walk reports partials as their own class.
+- **The guard is a two-way ratchet, not a target list.** A **new** uncovered
+  surface fails; a baseline entry that is **now covered, or no longer exists**,
+  also fails — so the set can never silently vouch for code that moved on.
+  Localizing a surface means **deleting its line**, which is how progress gets
+  recorded instead of asserted. Partials are pinned both ways too, so a localized
+  surface that starts hardcoding copy again fails on the way back down.
+- ⚠ **THE DETECTOR HAD TO KNOW ABOUT `coachTr`, OR IT WOULD HAVE INVENTED A GAP.**
+  The translator is reached two ways in this tree — the `useShapeTr()` hook's `tr`
+  and the pros module's **module-scope non-hook `coachTr`** (the roster helpers
+  cannot hold a hook, #1746). Matching only `tr` reports every coachTr surface as
+  uncovered; a mutation dropping the widening is caught, so the fact is pinned.
+- ⚠ **AND MY OWN WALKER SHIPPED BROKEN — CAUGHT BY ITS OWN GUARD-THE-GUARD.** The
+  first cut walked the `Program` root with a range test, and the root's own
+  `start` is **0**, so `n.start < component.start` pruned the entire tree and the
+  inventory came back **empty** — every ratchet assertion would have passed
+  vacuously, forever, on a file that reported nothing. The *only* reason it
+  surfaced is the assertion that the walk must resolve >300 components and >80
+  covered ones. **An inventory guard needs a floor, or its silence is
+  indistinguishable from a clean tree.**
+- **Brand nouns and terms of art are excluded** (Shape · Shape Score · Nora ·
+  Spotify · `Vol. 1 · No. 1` · RPE · e1RM · kcal · HRV …) — the house rule the
+  13-locale translator brief already follows. Counting them would inflate the gap
+  with strings no locale should change; the 1,106 figure is net of them.
+- **Registered, NOT built — and deliberately not started here.** Localizing 120
+  components is a multi-PR wave (≈1,106 strings × 13 locales), and the highest-
+  value first cuts are the ones a member hits in a session: **`BSSession`**, the
+  **meal logger**, the **auth/splash shell**, and the **`BSClientEat` partial**.
+  Firing that unattended would be the opposite of what the measurement is for.
+- **6 mutations, all caught** (plant a new uncovered component · a baseline entry
+  that gained a translator · a baseline entry that vanished · a covered component
+  that regresses to hardcoded copy · the walker returning nothing · dropping the
+  `coachTr` widening), unmutated sanity green at both ends and the tree restored
+  clean after each. Verified: `npm test` · all broadsheet files parse.
+
 ### 2026-08-29 — Search gets a ceiling, and stops fabricating answers when it cannot give one
 
 - **The two universal-search RPCs have never been rate-limited**, and the proxy could
@@ -3834,9 +3899,18 @@ oats, soy sauce, broth/stock/bouillon, margarine.
 > intro**. Closed in **#1757** (tour/intro) + the Score page. ⚠ **That correction
 > was ITSELF incomplete** — it left **"The Record"** (a Score sub-page, reached
 > from the very leader it localized) at **zero `tr()` calls**; closed in the
-> (night, last mile) entry. **NOW** the claim holds: every mobile
-> surface is localized across all 13 active
-> locales (`en es pt-BR fr de it id vi tr ha pcm ru uk`). The resumption
+> (night, last mile) entry. ⚠ **AND "NOW THE CLAIM HOLDS" WAS WRONG AGAIN (the
+> Progress hub) — AND MEASURED 2026-08-29 IT IS WRONG BY TWO ORDERS OF
+> MAGNITUDE.** `tests/i18n-surface-inventory.test.mjs` walks the tree:
+> of **358** components that render JSX, **88** are fully localized, **27** are
+> partial (167 strings left) and **120 carry NO translator in scope at all**
+> (1,106 hardcoded strings) — among them the **live session player**, the **meal
+> logger**, the **workout builder**, the **profile customizer**, the **auth /
+> splash shell** and the **coach application**. So of the 235 components that
+> render user copy, **38% are localized.** The rollout below covered the ten
+> NAMED surfaces across all 13 locales (`en es pt-BR fr de it id vi tr ha pcm ru
+> uk`) — that part is true; *"every surface"* never was, and nothing measured it
+> until now. **Do not restate the claim — read the guard's MEASUREMENT output.** The resumption
 > shipped one PR per surface: **Profile #1732 · Session-details #1733 · nav
 > chrome #1734 · Feed #1735** (reaction verbs deferred — shared
 > `reactionVerbs.mjs` the website imports too) **· Marketplace #1736 · Radio
@@ -9752,8 +9826,15 @@ findings, two fixed, one withdrawn by CodeRabbit, one deferred by agreement.
   render (index + a legal page + the React nav; mobile hide; 0px overflow).
   Handoff: **[`docs/HANDOFF-2026-07-16.md`](HANDOFF-2026-07-16.md)**.
 
-### 2026-07-16 — i18n rollout COMPLETE: the coach app is the tenth + final surface (#1746, `b94a0d5b`)
-- **The whole mobile app + coach app is now localized across all 13 active
+### 2026-07-16 — i18n rollout: the coach app is the tenth NAMED surface (#1746, `b94a0d5b`)
+- ⚠ **THIS HEADING READ "i18n rollout COMPLETE … the tenth + final surface", AND
+  THAT IS THE CLAIM THAT HAS NOW BEEN CORRECTED FOUR TIMES AND MEASURED ONCE.** Corrected in place
+  rather than rewritten, because the entry is accurate about what it shipped —
+  ten named surfaces, 835 coach keys, 13 locales — and wrong only in calling that
+  set the whole app. Measured 2026-08-29: **120 of 358 components carry no
+  translator at all.** A *heading* is what a skim and a grep land on, so it has to
+  carry its own expiry. See the 2026-08-29 inventory entry.
+- **The ten named surfaces + the coach app are localized across all 13 active
   locales.** The coach app (`iosAppBroadsheetPros.jsx`, trainer +
   nutritionist) was the last surface — it started with **zero** i18n calls
   and needed its own bridge. Wired **835 `coach:` strings** through
