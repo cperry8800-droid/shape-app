@@ -589,12 +589,21 @@ changelog whenever something ships.
 - ⚠ **THE MIGRATION FILE MERGED ONE PR EARLY, AND THE ORDERING IS THE WHOLE POINT.** It
   was swept into **#1952** (the readout surface) by an over-broad `git add` — a PR whose
   body never mentioned it — so it reached `main` **ahead of its own callers**. Harmless
-  only because the owner runs migrations and **has not applied it**: verified against
-  production, `check_rate_limit_self` and `_rate_limit_bump` do not exist and both
-  search functions are still `sql`/`STABLE`. Had it been applied in that window, every
+  only because it sat **unapplied** through that window; had it been applied there, every
   refusal would have rendered as *"this person is not on Shape."* **Stage the paths you
   mean, not the tree** — and when a change is split across a migration and its callers,
   the migration is the half that must never lead.
+  ✅ **THE ORDERING HELD, AND THE MIGRATION IS APPLIED + VERIFIED LIVE 2026-08-29** (owner
+  ran it, callers deployed first). Structure: `_rate_limit_bump` + `check_rate_limit_self`
+  exist, SECURITY DEFINER with `search_path` pinned and revoked from **anon AND
+  authenticated** (service_role only), so no client role can write the `self:` namespace;
+  `check_rate_limit` stays anon+authenticated for the Edge proxy; both searches are now
+  **`plpgsql`/VOLATILE** — the change that lets a counter write and a refusal RAISE at all
+  — still anon-revoked, authenticated-granted. **Behaviour probed on production inside a
+  transaction the probe rolled back by raising**: a `self:search:<uuid>` key **REFUSED
+  42501**, an ordinary key still allowed and counting, and `check_rate_limit_self`
+  **DENIED** to `authenticated`. Security advisors after: **0 ERROR**, neither helper in
+  any WARN.
 - ⚠ **AND THE CEILING FORCED A LOOK AT WHAT THE CALLERS ACTUALLY EMIT — WHICH FOUND THE
   ONE THAT WOULD HAVE BEEN REFUSED FIRST.** Four of the five debounce (220–250ms); the
   **post tag picker fired one RPC per keystroke**, deps `[tagOpen, tagQuery]` and no
@@ -918,10 +927,12 @@ changelog whenever something ships.
   is a whole-surface PR, registered.
 - ⚠ **AND THE BOARD WAS CLAIMING TWO THINGS THAT ARE NOT TRUE — both CodeRabbit's,
   both taken.** The §C row read **COMPLETE** while its own headline claim (step 2's
-  once-a-week bound) is **not running in production**: the migration is unapplied, so
-  the route still computes and generates on every request. It is back to `pending`
+  once-a-week bound) was **not running in production**: the migration was unapplied, so
+  the route still computed and generated on every request. It went back to `pending`
   with that stated, because a board reading COMPLETE over an enforcement that is not
-  live is exactly the stale-record class this file keeps paying for. And the whole
+  live is exactly the stale-record class this file keeps paying for. ✅ **The owner
+  applied it on 2026-08-29 and it is verified live** (see the migration entry below),
+  so §C is `done` now — on the enforcement running, not on the code existing. And the whole
   **i18n section still declared itself "COMPLETE (2026-07-16)"** with a line saying
   *"the claim holds NOW"* — for the **fourth** time it does not. The section heading
   and that line are corrected, and the fix is no longer another per-omission repair:
@@ -950,6 +961,19 @@ changelog whenever something ships.
   `claim_weekly_readout` / `finalize_weekly_readout` / `release_weekly_readout`, all
   **anon-revoked by name** (`revoke … from public` does NOT remove Supabase's explicit
   anon grant — the `2026-06-30-rpc-authz-hardening.sql` bug class).
+  ✅ **APPLIED + VERIFIED LIVE 2026-08-29** (owner ran it): table present, RLS on, exactly
+  two policies and **both SELECT** (`own weekly readouts`, `coach reads client weekly
+  readouts`); `claim_weekly_readout` anon=f/authd=**t**/svc=t while `finalize_` and
+  `release_` are anon=f/authd=**f**/svc=t — the split that stops a member, or a coach on a
+  linked member, planting arbitrary text under `p_source: 'openai'`; all three SECURITY
+  DEFINER with `search_path = public, pg_temp`. Security advisors: **0 ERROR**. ⚠ The one
+  WARN naming these objects is `claim_weekly_readout` being authenticated-executable as
+  SECURITY DEFINER, which is **by design** — the self-or-coach decision belongs in the
+  database under the caller's own identity rather than a TypeScript re-implementation of
+  `is_coach_on_client`, and its token is only spendable by a `finalize` the caller cannot
+  reach, so the worst a member can do is hold their OWN week for one lease. **So step 2's
+  headline claim — one model call per member per week — is enforced in production now;
+  before this it computed and generated on every request.**
 - **The claim.** An atomic `insert … on conflict do nothing returning claim_token`;
   finalize and release are guarded on that token, which **rotates on every claim AND every
   reclaim**, so a claimer whose lease was taken writes nothing and its older readout is
