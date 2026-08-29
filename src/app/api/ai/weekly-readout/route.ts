@@ -5,6 +5,20 @@
 // reference one of the correlations (so it can be plotted) — the schema
 // gates that. If OpenAI is missing or fails, we fall back to a deterministic
 // readout that picks the strongest correlations and writes their statements.
+//
+// ONE MODEL CALL PER MEMBER PER WEEK, ENFORCED HERE. §C says the bound is
+// server-side and "never in the UI", so it is a claim on the database rather
+// than a check a client could skip: claim_weekly_readout hands exactly one
+// concurrent caller the right to spend the call, finalize stores what it
+// produced, release hands the claim back when it produced nothing. See
+// supabase-migrations/2026-08-29-ai-weekly-readouts.sql for why a stale claim
+// is reclaimed here and is deliberately NOT reclaimed by the undo claim it
+// otherwise mirrors.
+//
+// ⚠ EVERY CLAIM PATH DEGRADES TO THE PRE-MIGRATION BEHAVIOUR. Until the owner
+// applies the migration the RPCs do not exist, and a readout is worth more to a
+// member than a cache is: an absent RPC computes and generates exactly as this
+// route did before, it does not fail the request.
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -17,6 +31,7 @@ import {
   type CorrelationResult,
   type SnapshotPoint,
 } from '@/lib/correlations';
+import { weeklyReadoutWeekStart, buildReadoutResponse } from '@/lib/weekly-readout.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,13 +51,42 @@ type Readout = {
 
 type ReadoutResponse = {
   source: 'openai' | 'fallback';
+  /** True when this is the week's stored readout rather than one just generated. */
+  cached: boolean;
   user_id: string;
-  window_days: number;
-  sample_size: number;
-  generated_at: string;
+  /** Monday (UTC) of the week this readout belongs to. */
+  week_start: string;
+  /**
+   * The window and sample the READOUT was computed from — not the window this
+   * request asked for. On a cache hit they differ, and reporting the request's
+   * would be a claim about days the readout never saw.
+   */
+  window_days: number | null;
+  sample_size: number | null;
+  generated_at: string | null;
   correlations: CorrelationResult[];
   readout: Readout;
 };
+
+/**
+ * How long a claim is honoured before another request may take it.
+ *
+ * Long enough that a slow model call is not stolen mid-flight, short enough
+ * that a crashed generator does not cost the member their week. The value is
+ * clamped server-side too (the RPC refuses anything under 30s), so a caller
+ * cannot hand itself a zero-length lease and make every request a reclaimer.
+ */
+const CLAIM_LEASE_SECONDS = 300;
+
+/** PostgREST's codes for "that function is not deployed". */
+function isMissingRpc(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === 'PGRST202' ||
+    error.code === '42883' ||
+    /could not find the function|does not exist/i.test(error.message ?? '')
+  );
+}
 
 function clampWindow(value: unknown, fallback = 28): number {
   const n = Number(value);
@@ -294,41 +338,178 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const userId = body.user_id || user.id;
+  // ⚠ A CALLER-SUPPLIED id IS A REQUEST TO READ SOMEONE ELSE, NOT A DEFAULT.
+  // This read `body.user_id || user.id` with no check of its own, and the
+  // snapshot read below is RLS-scoped, so a stranger passing another member's
+  // id already got an empty readout rather than a leak. What they ALSO got was
+  // that member's weekly claim: the claim RPC would hand it to them, they would
+  // generate a readout over zero rows, and the member's own request would then
+  // be served that empty result for the rest of the week — a denial of the
+  // feature dressed as an answer. So the id is only honoured for a caller the
+  // RPC's own self-or-coach check admits, and it raises rather than returning
+  // a row when it does not.
+  const subjectId = typeof body.user_id === 'string' && body.user_id ? body.user_id : user.id;
   const windowDays = clampWindow(body.window_days, 28);
   const since = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+  const weekStart = weeklyReadoutWeekStart(Date.now());
+
+  // A week key we cannot compute is a cache we must not use — generate live
+  // rather than claim under a key that would collide with another week.
+  let claim: {
+    outcome: 'ready' | 'claimed' | 'generating';
+    claim_token: string | null;
+    readout: Readout | null;
+    correlations: CorrelationResult[] | null;
+    source: 'openai' | 'fallback' | null;
+    window_days: number | null;
+    sample_size: number | null;
+    generated_at: string | null;
+  } | null = null;
+
+  if (weekStart) {
+    const { data: claimRows, error: claimError } = await supabase.rpc('claim_weekly_readout', {
+      p_user_id: subjectId,
+      p_week_start: weekStart,
+      p_lease_seconds: CLAIM_LEASE_SECONDS,
+    });
+    if (claimError) {
+      // The permission refusal is the one claim failure that must NOT degrade
+      // into serving the readout anyway: the RPC raises for a caller who is
+      // neither the member nor their coach, and falling through would answer a
+      // request the database just refused.
+      if (/not permitted/i.test(claimError.message ?? '')) {
+        return NextResponse.json({ error: 'Not permitted to read this readout.' }, { status: 403 });
+      }
+      if (!isMissingRpc(claimError)) {
+        console.warn('[shape-app] weekly readout claim failed:', claimError.message);
+      }
+    } else {
+      claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) ?? null;
+    }
+  }
+
+  // A finished readout answers without touching the snapshot table at all —
+  // the whole point of the claim. Its stored correlations travel with it so the
+  // insight keys the UI plots still resolve.
+  if (claim?.outcome === 'ready' && claim.readout) {
+    return NextResponse.json(
+      buildReadoutResponse({
+        subjectId,
+        weekStart: weekStart as string,
+        stored: {
+          readout: claim.readout,
+          correlations: claim.correlations ?? [],
+          source: claim.source ?? 'fallback',
+          window_days: claim.window_days,
+          sample_size: claim.sample_size,
+          generated_at: claim.generated_at,
+        },
+        live: {
+          readout: { summary: '', insights: [] },
+          correlations: [],
+          source: 'fallback',
+          window_days: windowDays,
+          sample_size: 0,
+          generated_at: new Date().toISOString(),
+        },
+      }) as ReadoutResponse,
+    );
+  }
 
   const { data, error } = await supabase
     .from('daily_health_snapshot')
     .select(SNAPSHOT_SELECT)
-    .eq('user_id', userId)
+    .eq('user_id', subjectId)
     .gte('snapshot_date', since)
     .order('snapshot_date', { ascending: true })
     .returns<SnapshotPoint[]>();
 
   if (error) {
+    // The claim is held by this request; hand it back before failing, or the
+    // member waits out the lease before anyone can try again.
+    if (claim?.outcome === 'claimed' && claim.claim_token && weekStart) {
+      // The builder is thenable but not a Promise, so `.catch` is not on it —
+      // await and discard, since a failed release must not mask the read error
+      // that is the actual answer to this request.
+      const { error: releaseError } = await supabase.rpc('release_weekly_readout', {
+        p_user_id: subjectId,
+        p_week_start: weekStart,
+        p_claim_token: claim.claim_token,
+      });
+      if (releaseError && !isMissingRpc(releaseError)) {
+        console.warn('[shape-app] weekly readout release failed:', releaseError.message);
+      }
+    }
     return dbError(error, 'weekly readout', 500);
   }
 
   const rows = data ?? [];
   const correlations = computeCorrelations(rows);
 
-  const generated = await generateReadout(correlations, windowDays, rows.length).catch((err) => {
-    console.warn('[shape-app] weekly readout generation error:', err);
-    return null;
-  });
+  // ⚠ THE MODEL IS ONLY CALLED BY THE CALLER HOLDING THE CLAIM. `generating`
+  // means another request is mid-flight: this one serves the deterministic
+  // readout for THIS response and stores nothing, which is honest (the fallback
+  // is real evidence, just not the AI rendering of it) and costs no call. A
+  // missing claim — the pre-migration path, or a week key we could not compute
+  // — generates as this route always did.
+  const mayGenerate = !claim || claim.outcome === 'claimed';
+
+  const generated = mayGenerate
+    ? await generateReadout(correlations, windowDays, rows.length).catch((err) => {
+        console.warn('[shape-app] weekly readout generation error:', err);
+        return null;
+      })
+    : null;
 
   const readout = generated ?? fallbackReadout(correlations);
+  const source: 'openai' | 'fallback' = generated ? 'openai' : 'fallback';
 
-  const result: ReadoutResponse = {
-    source: generated ? 'openai' : 'fallback',
-    user_id: userId,
-    window_days: windowDays,
-    sample_size: rows.length,
-    generated_at: new Date().toISOString(),
-    correlations,
-    readout,
-  };
+  // ⚠ ONLY A REAL MODEL READOUT IS STORED; EVERYTHING ELSE RELEASES THE CLAIM.
+  // The deterministic fallback is recomputed from live correlations for free,
+  // so caching it would buy nothing and would spend the member's whole week on
+  // one transient OpenAI outage — they would be told "no AI readout this week"
+  // because of a blip. Storing only the generated readout makes the row mean
+  // exactly "the AI readout for this week", which is the thing the
+  // one-call-per-week rule exists to conserve.
+  if (claim?.outcome === 'claimed' && claim.claim_token && weekStart) {
+    const rpc = generated ? 'finalize_weekly_readout' : 'release_weekly_readout';
+    const args = generated
+      ? {
+          p_user_id: subjectId,
+          p_week_start: weekStart,
+          p_claim_token: claim.claim_token,
+          p_readout: readout,
+          p_correlations: correlations,
+          p_source: source,
+          p_window_days: windowDays,
+          p_sample_size: rows.length,
+        }
+      : {
+          p_user_id: subjectId,
+          p_week_start: weekStart,
+          p_claim_token: claim.claim_token,
+        };
+    const { error: writeError } = await supabase.rpc(rpc, args);
+    // A failed store is not a failed readout — the member still gets this
+    // response; the week simply regenerates next request.
+    if (writeError && !isMissingRpc(writeError)) {
+      console.warn(`[shape-app] weekly readout ${rpc} failed:`, writeError.message);
+    }
+  }
+
+  const result = buildReadoutResponse({
+    subjectId,
+    weekStart: weekStart ?? '',
+    stored: null,
+    live: {
+      readout,
+      correlations,
+      source,
+      window_days: windowDays,
+      sample_size: rows.length,
+      generated_at: new Date().toISOString(),
+    },
+  }) as ReadoutResponse;
 
   return NextResponse.json(result);
 }

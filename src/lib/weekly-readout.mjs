@@ -1,0 +1,75 @@
+// The weekly readout's week key and its response assembly.
+//
+// Both are pure so `node --test` can drive them: the week key decides how often
+// a member's readout regenerates, and the response assembly decides what a
+// member is told the readout COVERS. The second is the one that can lie — a
+// stored readout rendered under this request's window would be a claim about
+// days it never saw — so it is a function with vectors rather than a few
+// ternaries inside the route.
+
+import { bsWeekStartOf } from './week-merge.mjs';
+
+/**
+ * The Monday (UTC) of the week containing `nowMs`, as `YYYY-MM-DD`.
+ *
+ * ⚠ NOT AN ISO 'YYYY-Www' KEY, DELIBERATELY. `bsWeekStartOf` already answers
+ * "which week is this" in this repo, with a round-trip calendar guard because
+ * Date.UTC rolls Feb 30 into March 2 rather than failing. A week-numbering
+ * string would need the ISO week-YEAR — where Jan 1 can belong to week 52 of
+ * the previous year — which is a second implementation of the same question and
+ * a class of off-by-one this store has no reason to own.
+ *
+ * ⚠ UTC, and that is narrower than it sounds. The key only bounds how often the
+ * readout REGENERATES; a per-member zone resolves one instant to two different
+ * weeks for a member who travels and would re-issue a readout they already
+ * read — the same reasoning the notification dedup recorded for its own UTC
+ * week. Where a member's own day gates what they EARN, the per-member zone is
+ * required and is used; caching is not that.
+ */
+export function weeklyReadoutWeekStart(nowMs) {
+  // ⚠ `typeof` IS LOAD-BEARING, AND MY OWN TEST IS WHAT CAUGHT IT. This read
+  // `Number(nowMs)` and checked the result was finite — but `Number(null)` is a
+  // finite **0**, so a null instant produced `1969-12-29`: the Monday of the
+  // Unix epoch's week. Every week would then collapse into one cached row and
+  // the readout would never regenerate. It is the same coercion class this repo
+  // has already paid for twice (a `Number(null)` fabricating an observation in
+  // the cycle read; a `value: null` nutrient fabricating a 0-kcal food row), and
+  // the route calling this with `Date.now()` is what makes it latent rather than
+  // shipped — a property of today's one caller, not of the function.
+  if (typeof nowMs !== 'number' || !Number.isFinite(nowMs)) return null;
+  const d = new Date(nowMs);
+  if (Number.isNaN(d.getTime())) return null;
+  return bsWeekStartOf(d.toISOString().slice(0, 10));
+}
+
+/**
+ * Assemble the response, stamped with what the readout actually covers.
+ *
+ * `stored` is the row the claim returned when a finished readout already
+ * existed; `live` is what this request computed. A cache hit reports the
+ * STORED window, sample size, source and correlations — never the requested
+ * window, and never freshly-computed correlations beside a stored readout,
+ * because every insight names a correlation_key the UI plots and a key that
+ * has since moved would leave the readout citing evidence the response no
+ * longer contains.
+ *
+ * ⚠ A 'ready' ROW WITHOUT A READOUT IS NOT A CACHE HIT. The finalize RPC only
+ * ever writes the two together, so this cannot happen through the app — but
+ * treating it as a hit would serve `readout: null` under `cached: true`, which
+ * is the shape a consumer is least equipped to notice. Falling back to the live
+ * readout costs one recomputation and cannot render a lie.
+ */
+export function buildReadoutResponse({ subjectId, weekStart, stored, live }) {
+  const hit = !!(stored && stored.readout);
+  return {
+    source: hit ? stored.source : live.source,
+    cached: hit,
+    user_id: subjectId,
+    week_start: weekStart,
+    window_days: hit ? stored.window_days : live.window_days,
+    sample_size: hit ? stored.sample_size : live.sample_size,
+    generated_at: hit ? stored.generated_at : live.generated_at,
+    correlations: hit ? stored.correlations : live.correlations,
+    readout: hit ? stored.readout : live.readout,
+  };
+}
