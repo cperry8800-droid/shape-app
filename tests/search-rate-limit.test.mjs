@@ -584,17 +584,22 @@ test('no search surface can act on the previous query’s rows', () => {
       // the live half of the effect — past the close branch's `return undefined;`
       (src) => { const o = src.indexOf('function useBSMemberPicker'); return src.slice(src.indexOf('return undefined;', o), src.indexOf('\nfunction ', o + 10)); },
       [/setRows\(\(prev\) => \(prev\.length \? \[\] : prev\)\)/, /setState\('pending'\)/]],
+    // ⚠ SLICE PAST THE MARKER, NOT FROM IT. Both of these effects open with an
+    // early return that ALREADY contains `setRows(null)` — for the empty query.
+    // Starting the region at that line put the needle inside its own marker, so
+    // the assertion passed with the real clear deleted: the marker-selects-
+    // someone-else's-code trap, this time inside the guard written to catch it.
     ['the app typeahead', stripComments(CLIENT),
-      (src) => { const o = src.indexOf("if (!query) { setRows(null); setBusy(false); setState('ok'); return; }"); return src.slice(o, src.indexOf('window.ShapeSearch.people(query)', o)); },
+      (src) => { const m = "if (!query) { setRows(null); setBusy(false); setState('ok'); return; }"; const o = src.indexOf(m); return o < 0 ? '' : src.slice(o + m.length, src.indexOf('window.ShapeSearch.people(query)', o)); },
       [/setRows\(null\);/]],
     ['the site header search', stripComments(SHELL),
-      (src) => { const o = src.indexOf('if (!open || !query) { setRows(null); setState("ok"); return undefined; }'); return src.slice(o, src.indexOf('sb.rpc("search_shape_people"', o)); },
+      (src) => { const m = 'if (!open || !query) { setRows(null); setState("ok"); return undefined; }'; const o = src.indexOf(m); return o < 0 ? '' : src.slice(o + m.length, src.indexOf('sb.rpc("search_shape_people"', o)); },
       [/setRows\(null\);/]],
     ['the DM send picker', stripComments(COMMUNITY),
-      (src) => { const o = src.indexOf('setPeople((prev) => (prev.length ? [] : prev))'); return src.slice(o, src.indexOf('sb.rpc("search_members"', o)); },
+      (src) => { const o = src.indexOf('setPeople((prev) => (prev.length ? [] : prev))'); return o < 0 ? '' : src.slice(o, src.indexOf('sb.rpc("search_members"', o)); },
       [/setState\("pending"\)/]],
     ['the post tag picker', stripComments(COMMUNITY),
-      (src) => { const o = src.indexOf('setTagResults((prev) => (prev.length ? [] : prev))'); return src.slice(o, src.indexOf('cl.rpc("search_members"', o)); },
+      (src) => { const o = src.indexOf('setTagResults((prev) => (prev.length ? [] : prev))'); return o < 0 ? '' : src.slice(o, src.indexOf('cl.rpc("search_members"', o)); },
       [/setTagState\("pending"\)/]],
   ];
   for (const [what, src, slice, needles] of before) {
@@ -623,6 +628,13 @@ test('no search surface can act on the previous query’s rows', () => {
   assert.ok(searching > 0 && debounce > 0, 'the standalone-page search markers are gone');
   assert.ok(searching < debounce,
     'the standalone-page search no longer overwrites its list before the debounce');
+
+  // (b2) and the shared notice must say NOTHING while a search is pending — it is
+  // not a refusal and not a failure, so "couldn't search just now" there would be
+  // this file's fabrication class in the other direction: reporting a fault that
+  // has not happened. Three pickers render through this one component.
+  assert.match(stripComments(CLIENT), /if \(state === 'ok' \|\| state === 'pending'\) return null;/,
+    'BSPickerNotice renders its refusal copy while a search is still pending');
 
   // (c) and no surface may render its empty copy while a search is in flight
   const settled = [
