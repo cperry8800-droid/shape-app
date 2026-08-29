@@ -450,7 +450,7 @@ changelog whenever something ships.
   call** — so it is not a leak and not a cost, but it is looser than it needs to be, and
   the entry-point PR should bind it.
 - Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present ·
-  `npm test` **2359/2359** (+14).
+  `npm test` **2361/2361** (+16).
 
 ### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous (#1949 → `d80e49680`)
 

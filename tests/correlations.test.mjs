@@ -232,3 +232,30 @@ test('absent and unparseable values are dropped, never coerced to zero', () => {
     assert.equal(hit.r, 1, `${String(junk)} distorted the relationship`);
   }
 });
+
+// ⚠ THE KEY IS AN IDENTITY, AND TWO CONSUMERS DEPEND ON IT BEING UNIQUE. The
+// readout builds `${x}->${y}@lag${lag}` and (a) filters the model's insights
+// against a Set of those keys and (b) hands the key to the UI so it can plot
+// the right chart. Two pairs sharing a key would let an insight about one
+// finding be plotted against another's data — a wrong chart under a real
+// headline, which is worse than no chart. Nothing else enforces it, so a pair
+// added later with a duplicate (x, y, lag) fails here.
+test('no two pairs share a correlation key', () => {
+  const seen = new Map();
+  for (const p of CORRELATION_PAIRS) {
+    const key = `${p.x}->${p.y}@lag${p.lagDays}`;
+    assert.ok(!seen.has(key), `duplicate key ${key}: "${seen.get(key)}" and "${p.label}"`);
+    seen.set(key, p.label);
+  }
+  assert.equal(seen.size, CORRELATION_PAIRS.length);
+});
+
+// A pair correlating a metric with itself is always r = 1 at lag 0 and would
+// present a tautology as a finding.
+test('no pair correlates a metric with itself at the same lag', () => {
+  for (const p of CORRELATION_PAIRS) {
+    if (p.lagDays === 0) {
+      assert.notEqual(p.x, p.y, `"${p.label}" correlates ${p.x} with itself`);
+    }
+  }
+});
