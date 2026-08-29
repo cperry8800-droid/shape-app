@@ -378,6 +378,72 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous
+
+- **Closes the Layer-1 follow-up registered on 2026-08-01**: *"user context is attached
+  on `/m/` ONLY … once a DSN exists, dashboard errors on both web surfaces arrive with
+  no id, no roles and no `is_coach`."* Both surfaces now attach it. `src/lib/
+  sentry-context.mjs` remains the single definition of what may ever be said about a
+  person — id · roles · is_coach, never email/name/phone/date_of_birth/location/
+  stripe_customer_id, all of which #1851 restricted **at the database** precisely
+  because they were over-readable; shipping them to a third party would undo that at a
+  different layer.
+- ⚠ **THE TWO SURFACES ARE NOT SYMMETRIC, and treating them alike would have produced a
+  dead feature on the bigger one.** The **Next** app resolves its user **server-side** on
+  every signed-in route, so identity is passed **down** — no round-trip, and it cannot
+  disagree with the gate that let the page render. The **static site** has no bundler and
+  no server component, so it reads the **cookie session** through one `/api/me` fetch.
+- ⚠ **AND `window.shapeDb` WOULD HAVE BEEN DEAD CODE ON MOST OF THE STATIC SITE** — only
+  **21 of 76** newdesign pages load `/supabase.js`. That is a lesson this repo has already
+  paid for once, on the DOB gate, which is why `dobGate.js` is dependency-free and reads
+  the cookie. This follows it exactly: `/api/me` is not behind the membership gate and
+  answers `{user:null}` signed out, so one same-origin fetch works on all 76.
+- ⚠ **THE STATIC SITE CARRIES A MIRROR OF THE DERIVATION, UNDER A DRIFT TEST** — the
+  shape this repo already uses for exactly this problem (`public/age-derive.js` ⇄
+  `src/lib/age-derive.mjs`). `tests/sentry-user-mirror.test.mjs` evaluates the **real
+  shipped `sentryInit.js`** in a `vm` and runs both implementations over a vector table
+  plus a **4,000-case seeded fuzz sweep**, failing on the first disagreement. The file's
+  own comment had named this option and called it out of scope for *that* task's two-file
+  limit — not permanently.
+- ⚠ **THE GUARD IS BEHAVIOURAL, NOT TEXTUAL, and that is not a preference.** The previous
+  guard for the age rule asserted a **regex over source text**, which passed on a file that
+  merely contained the expression elsewhere and — worse — **pinned every surface to the
+  spelling the canonical rule had already been rewritten to abandon**. Assert what the code
+  ANSWERS. **4 mutations, all caught** (drop the `.sort()` so a dual-role account's string
+  becomes order-dependent · drop the legacy singular `role` fallback · drop `dietitian`
+  from the coach set · return a partial object instead of `null` when there is no id),
+  unmutated sanity green at both ends and the file restored after each.
+- ⚠ **A CROSS-REALM TRAP THE FIRST RUN HIT, worth recording because the failure reads as a
+  real defect.** `assert/strict`'s `deepEqual` compares **prototypes**, and the mirror's
+  result is built inside the `vm` context — so two **structurally identical** objects
+  failed. Normalised by spreading into a host literal, which changes the prototype and
+  **nothing else**; a JSON round-trip would have been the tempting fix and would silently
+  drop an `undefined` value, hiding a genuine difference.
+- **Roles are honestly absent where they are not known.** `/dashboard` has the full
+  profile row, so it passes the `roles` **array** (`role` is only the legacy singular
+  fallback — a dual-role account is real and must not collapse to one value). `/console`
+  and `/warroom` resolve through `requireAdminUser()`, which returns `{id, email}` and no
+  profile, so they pass the id alone and the context reads `roles: ''` — the canonical
+  module's own behaviour for an unresolved profile, not a shortcut invented here.
+- ⚠ **THE CHEAP OPTIMISATION WAS REJECTED ON PURPOSE, and the reason is in the code so it
+  is not "fixed" later.** Skipping the `/api/me` request when `localStorage['shape.auth']`
+  is absent would spare anonymous marketing traffic a round-trip — but that key is written
+  by `public/supabase.js`'s client while the **Next `/login` server action sets the cookie
+  server-side**. A member who arrived that way is signed in with **no such key**, so the
+  guard would report their errors anonymously: a false negative in exactly the case this
+  change exists to fix, and the same "keyed on a client-side signal that is not universally
+  present" mistake as the 21-of-76 trap.
+- **Both sides clear on sign-out** rather than leaving the previous account's tags standing
+  — the cross-account leak class this repo fixed once already (the mobile `_followCache`).
+  Static-site sign-out ends in a hard reload, so the next load lands on the `{user:null}`
+  branch; the Next component clears on unmount.
+- ⚠ **STILL INERT UNTIL A DSN EXISTS, and the build says so in its own words** —
+  *"SHAPE_SITE_SENTRY_DSN unset — no DSN injected, static-site error tracking inert on all
+  76 pages"*. `sentryInit.js` returns before registering or fetching anything, so with no
+  DSN this change makes **zero** additional requests. Do not read "wired" as "live".
+- Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present · `node --check`
+  on the classic script · newdesign precompile `--check` 0 · `npm test` **2340/2340** (+4).
+
 ### 2026-08-28 — The Contract becomes a cover page over full-screen stations (#1947 → `b2b9476e6`)
 
 - **Owner, on density:** *"we also need to update design of the goals page, or just

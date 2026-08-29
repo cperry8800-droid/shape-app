@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUserAndProfile } from '@/lib/queries';
 import SignOutButton from '@/components/SignOutButton';
+import SentryUser from '@/components/SentryUser';
 import { getAdminEmails } from '@/lib/admin-access';
 import { createClient } from '@/lib/supabase/server';
 
@@ -21,6 +22,12 @@ export default async function DashboardLayout({
 
   const { profile, email, userId } = ctx;
   const role = profile?.role ?? 'client';
+  // ⚠ `roles` is the ARRAY and `role` the legacy singular fallback — a dual-role
+  // account is real, so this must not collapse to one value. The derivation
+  // itself lives in bsSentryUser; this only hands it the inputs.
+  const sentryRoles = Array.isArray((profile as { roles?: unknown } | null)?.roles)
+    ? ((profile as unknown as { roles: string[] }).roles)
+    : (profile?.role ? [profile.role] : null);
   const isAdmin = Boolean(email && getAdminEmails().includes(email.toLowerCase()));
 
   // App-wide member gate (same rule as the mobile app): approved coaches and
@@ -50,6 +57,7 @@ export default async function DashboardLayout({
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-10">
+      <SentryUser id={userId} roles={sentryRoles} />
       <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
         <div>
           <div className="text-xs uppercase tracking-[0.12em] text-teal-400 mb-1">Dashboard</div>
