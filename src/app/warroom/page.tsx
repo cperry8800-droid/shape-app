@@ -6,6 +6,7 @@
 
 import { redirect } from 'next/navigation';
 import { requireAdminUser } from '@/lib/admin-access';
+import SentryUser from '@/components/SentryUser';
 import { buildWarRoomSnapshot } from '@/lib/warroom';
 import WarRoomClient from './WarRoomClient';
 
@@ -18,12 +19,20 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function WarRoomPage() {
+  let adminId = '';
   try {
-    await requireAdminUser();
+    adminId = (await requireAdminUser()).id;
   } catch {
     redirect('/login?next=/warroom');
   }
 
   const snapshot = await buildWarRoomSnapshot();
-  return <WarRoomClient initial={snapshot} />;
+  // ⚠ ID ONLY — see the same note on the console page: requireAdminUser returns
+  // no profile, so roles are honestly absent rather than guessed.
+  return (
+    <>
+      <SentryUser id={adminId} />
+      <WarRoomClient initial={snapshot} />
+    </>
+  );
 }

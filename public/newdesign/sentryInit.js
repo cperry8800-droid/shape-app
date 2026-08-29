@@ -82,6 +82,187 @@
     }
   }
 
+  // ── User context ──────────────────────────────────────────────────────
+  // A MIRROR of src/lib/sentry-context.mjs. Two implementations of one rule
+  // is a drift hazard, so tests/sentry-user-mirror.test.mjs evaluates THIS
+  // file and runs both over a shared vector table plus a deterministic fuzz
+  // sweep, failing on the first disagreement.
+  //
+  // ⚠ NO PII, and that is not a style preference — it is the same rule the
+  // canonical module states: #1851 restricted profiles.email / phone /
+  // date_of_birth / location / stripe_customer_id AT THE DATABASE because any
+  // signed-in member could read them. Shipping those to a third party would
+  // undo that at a different layer. Only id, roles and is_coach may ever
+  // reach Sentry from this platform.
+
+  var SHAPE_COACH_ROLES = ["trainer", "nutritionist", "dietitian"]; // = COACH_ROLES
+
+  // ⚠ `roles` is an ARRAY and `role` is the legacy singular fallback. A
+  // dual-role account is real, so this must not collapse to one value.
+  function shapeRolesOf(profile) {
+    var arr = Array.isArray(profile.roles) ? profile.roles : null;
+    var list = (arr && arr.length) ? arr : (profile.role ? [profile.role] : []);
+    return list.filter(function (r) { return typeof r === "string" && r; }).sort();
+  }
+
+  // ⚠ NEVER THROWS. This runs while Sentry is building a report for a
+  // DIFFERENT crash — a throw here would replace that original error with a
+  // stack pointing at this file, the exact failure the tracking layer exists
+  // to avoid. Returns null rather than a partial object when there is no id:
+  // a user context without an identifier groups unrelated people together,
+  // which is worse than none.
+  function shapeSentryUser(profile, fallbackId) {
+    try {
+      var p = (profile && typeof profile === "object" && !Array.isArray(profile)) ? profile : null;
+      var id = (p && typeof p.id === "string" && p.id ? p.id : null)
+        || (typeof fallbackId === "string" && fallbackId ? fallbackId : null);
+      if (!id) return null;
+      var roles = p ? shapeRolesOf(p) : [];
+      return {
+        id: id,
+        roles: roles.join(","),
+        is_coach: roles.some(function (r) { return SHAPE_COACH_ROLES.indexOf(String(r)) !== -1; })
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Exposed so the drift test can drive the real shipped derivation rather
+  // than a re-typed copy of it — the same reason public/age-derive.js
+  // registers window.ShapeAgeDerive.
+  window.ShapeSentryUser = { bsSentryUser: shapeSentryUser };
+
+  // Resolve the signed-in member and set (or CLEAR) the context.
+  //
+  // ⚠ VIA THE COOKIE SESSION, NOT window.shapeDb. Only 21 of 76 newdesign
+  // pages load /supabase.js, so anything keyed on that global is dead code
+  // across most of this surface — a lesson this repo has already paid for
+  // once, on the DOB gate. /api/me reads the same cookie the Next pages use,
+  // is not behind the membership gate, and answers { user: null } when
+  // signed out, so one same-origin fetch works on all 76.
+  //
+  // ⚠ ONLY id/roles/role CROSS THE BOUNDARY. /api/me also returns email,
+  // fullName, firstName and avatarUrl. shapeSentryUser hand-builds its
+  // result and never spreads, so passing the whole object would already be
+  // safe — but the PII is not copied into a local at all, so it cannot leak
+  // through a future edit to the derivation either.
+  //
+  // ⚠ SIGNED OUT CLEARS. Leaving the previous account's tags standing is the
+  // cross-account leak class this repo fixed once already (_followCache).
+  // (Sign-out on this surface ends in a hard reload, so the next load re-runs
+  // this and lands on the { user: null } branch.)
+  //
+  // ⚠ THE FETCH IS UNCONDITIONAL, AND THE CHEAP GUARD WAS REJECTED ON PURPOSE.
+  // Skipping the request when localStorage['shape.auth'] is absent would spare
+  // anonymous marketing traffic a round-trip — but that key is written by
+  // public/supabase.js's client, while the Next /login server action sets the
+  // COOKIE server-side. A member who arrived that way is signed in with no
+  // such key, so the guard would report their errors anonymously: a false
+  // negative in exactly the case this whole change exists to fix, and the same
+  // "keyed on a client-side signal that is not universally present" mistake as
+  // the 21-of-76 window.shapeDb trap. The cost is one request per page load
+  // ONLY once a DSN exists (this file returns early without one), alongside the
+  // dobGate's existing unconditional fetch on 73 of these pages.
+  // How long an error event may WAIT for the identity before going out
+  // anonymous. Bounded on purpose: an unresolved beforeSend holds its event,
+  // and an event still held when the tab closes is an event LOST — which is
+  // strictly worse than an anonymous one. 3s comfortably covers a same-origin
+  // fetch while leaving an unload with nothing queued.
+  var SHAPE_USER_WAIT_MS = 3000;
+
+  // Resolves to the user context, or null. NEVER rejects and never throws, so
+  // both consumers below can attach without a rejection handler.
+  function fetchShapeUser() {
+    try {
+      if (typeof window.fetch !== "function" || typeof Promise !== "function") return null;
+      return new Promise(function (resolve) {
+        window.fetch("/api/me", { credentials: "same-origin", cache: "no-store" })
+          .then(function (res) { return res && res.ok ? res.json() : null; })
+          .then(function (data) {
+            var u = data && data.user;
+            // Signed out, or a shape we do not recognise. Either way there is
+            // no identity to assert.
+            if (!u || typeof u !== "object") { resolve(null); return; }
+            resolve(shapeSentryUser({ id: u.id, roles: u.roles, role: u.role }, u.id));
+          })
+          .catch(function () {
+            // A failed read is not evidence of anything — no network, a 5xx, an
+            // HTML error page from a proxy. Stay anonymous; never guess, and
+            // never let this reject unhandled on a page it does not own.
+            resolve(null);
+          });
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ⚠ THE RACE THIS CLOSES IS THE MOST VALUABLE ERROR THIS SURFACE REPORTS.
+  // The identity read is async, but the deferred nd/*.js bundles that BOOT the
+  // app execute immediately after this file — so on a cold load, a crash during
+  // startup happens while the fetch is still in flight and would go out with no
+  // user at all. That is the same ordering failure this file has already been
+  // fixed for once: the Sentry CDN tag used to be appendChild'd (async by
+  // default) and raced the very scripts it existed to watch, until it was made
+  // a real deferred tag ahead of them.
+  //
+  // So beforeSend AWAITS the identity (bounded) and stamps the event, rather
+  // than the scope being the only carrier. Two consumers, deliberately with
+  // different bounds:
+  //   • setUser — UNBOUNDED. Whenever the answer lands it goes on the scope, so
+  //     every later event carries it with no promise at all.
+  //   • beforeSend — BOUNDED by SHAPE_USER_WAIT_MS, because holding an event
+  //     forever loses it.
+  function stampShapeUser(event) {
+    try {
+      if (!shapeUserBounded) return event;
+      // Already identified (setUser landed first, or a future caller set one) —
+      // never overwrite; the scope's value is at least as good as ours.
+      if (event && event.user && event.user.id) return event;
+      return shapeUserBounded.then(function (ctx) {
+        try { if (ctx && event) event.user = ctx; } catch (e) {}
+        return event;
+      }, function () { return event; });
+    } catch (e) {
+      // A throw here would drop the error being reported, which is the one
+      // outcome worse than reporting it anonymously.
+      return event;
+    }
+  }
+
+  // Started BEFORE init so beforeSend has something to await on the very first
+  // event, and so the request overlaps the SDK's own setup instead of following it.
+  var shapeUserReal = null;
+  var shapeUserBounded = null;
+  // ⚠ TOTAL, like every other block in this file. This runs at module scope,
+  // OUTSIDE the init try/catch below, so an exotic environment missing any of
+  // fetch / Promise / setTimeout must degrade to "no identity" rather than
+  // throwing at load and taking the host page down with it. On that path
+  // shapeUserBounded stays null, stampShapeUser returns the event untouched,
+  // and the surface behaves exactly as it did before this change.
+  try {
+    shapeUserReal = fetchShapeUser();
+    if (shapeUserReal && typeof window.setTimeout === "function") {
+      shapeUserReal.then(function (ctx) {
+        // Clear rather than leave a stale identity when the answer is "nobody".
+        try { window.Sentry.setUser(ctx || null); } catch (e) {}
+      });
+      shapeUserBounded = Promise.race([
+        shapeUserReal,
+        new Promise(function (resolve) { window.setTimeout(function () { resolve(null); }, SHAPE_USER_WAIT_MS); })
+      ]);
+    } else if (shapeUserReal) {
+      // No timer to bound with: still put the answer on the scope when it
+      // lands, but never make an event WAIT on something nothing can cut short.
+      shapeUserReal.then(function (ctx) {
+        try { window.Sentry.setUser(ctx || null); } catch (e) {}
+      });
+    }
+  } catch (e) {
+    shapeUserBounded = null;
+  }
+
   try {
     // release: only ever a real, non-empty string, never the literal word
     // "undefined" — a fabricated or missing release silently merges every
@@ -111,23 +292,31 @@
       // every init, matches sentry.server.config.ts, instrumentation-client.ts
       // and mobile-app/src/sentry.mjs. Never flip this to true.
       sendDefaultPii: false,
+      // Stamps the identity onto an event that was created before the async
+      // read landed — see stampShapeUser. Returns the event unchanged (never
+      // null) on every path, so it can only ADD context, never drop a report.
+      beforeSend: stampShapeUser,
       initialScope: {
         tags: { shape_surface: shapeSurfaceTag() }
       }
     });
 
-    // No user context is attached on this surface, deliberately. The
-    // shared, PII-free derivation the rest of this repo uses for that
-    // (src/lib/sentry-context.mjs — id/roles/is_coach only, never
-    // email/name/phone/stripe_customer_id) is a Node ESM module meant to
-    // be imported by a bundler (Next.js, Vite); this no-bundler,
-    // in-browser-Babel surface has no way to reach it at runtime without
-    // either copying its rules into a third file or wiring a runtime
-    // module import — both out of scope for the two-file limit on this
-    // task. The shape_surface tag above is NOT a substitute for that — it
-    // is derived purely from the URL, carries no identity, and is safe to
-    // set unconditionally. Skipping real user context here is the
-    // documented fallback, not an oversight.
+    // User context. This block used to say none was attached, because
+    // src/lib/sentry-context.mjs is a Node ESM module and this no-bundler
+    // surface cannot import it — so the only options were "copy its rules
+    // into a third file" or "wire a runtime module import", both out of
+    // scope for that task's two-file limit. The first option is taken now,
+    // as a MIRROR under a drift test, which is the shape this repo already
+    // uses for exactly this problem: public/age-derive.js mirrors
+    // src/lib/age-derive.mjs, and tests/age-derive-mirror.test.mjs runs BOTH
+    // over a vector table plus a fuzz sweep and fails on the first
+    // disagreement. tests/sentry-user-mirror.test.mjs does the same here.
+    //
+    // ⚠ MOST OF THIS SURFACE IS THE SIGNED-IN DASHBOARD, which is why the
+    // omission mattered: pageShell.jsx's consumers are ClientApp /
+    // TrainerApp / NutritionistApp and their sub-pages, so "no user context"
+    // meant every dashboard error on the website arrived anonymous.
+    // (the read is started above, before init)
   } catch (e) {
     // A Sentry init failure must never surface as a page-breaking error —
     // that would make the error-tracking layer itself a source of errors.

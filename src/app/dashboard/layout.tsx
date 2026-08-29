@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUserAndProfile } from '@/lib/queries';
 import SignOutButton from '@/components/SignOutButton';
+import SentryUser from '@/components/SentryUser';
 import { getAdminEmails } from '@/lib/admin-access';
 import { createClient } from '@/lib/supabase/server';
 
@@ -50,6 +51,12 @@ export default async function DashboardLayout({
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-10">
+      {/* ⚠ BOTH fields, unpicked. `roles` is the ARRAY and `role` the legacy
+          singular fallback, and choosing between them is bsSentryUser's job, not
+          this file's — `profiles.roles` defaults to an EMPTY array, so a layout
+          that pre-picked the array would hand the derivation nothing to fall
+          back to and report a real coach as roleless. */}
+      <SentryUser id={userId} roles={profile?.roles ?? null} role={profile?.role ?? null} />
       <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
         <div>
           <div className="text-xs uppercase tracking-[0.12em] text-teal-400 mb-1">Dashboard</div>

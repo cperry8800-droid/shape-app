@@ -7,6 +7,7 @@
 
 import { redirect } from 'next/navigation';
 import { requireAdminUser } from '@/lib/admin-access';
+import SentryUser from '@/components/SentryUser';
 import { buildWarRoomSnapshot } from '@/lib/warroom';
 import ConsoleClient from './ConsoleClient';
 
@@ -19,12 +20,23 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function ConsolePage() {
+  let adminId = '';
   try {
-    await requireAdminUser();
+    adminId = (await requireAdminUser()).id;
   } catch {
     redirect('/login?next=/console');
   }
 
   const snapshot = await buildWarRoomSnapshot();
-  return <ConsoleClient initial={snapshot} />;
+  // ⚠ ID ONLY, and honestly so. requireAdminUser returns { id, email } — no
+  // profile — so roles are absent rather than guessed, which is the canonical
+  // module's own behaviour for an unresolved profile. Reading the profile row
+  // just to enrich a crash report would add a query to every load of an
+  // admin-only board.
+  return (
+    <>
+      <SentryUser id={adminId} />
+      <ConsoleClient initial={snapshot} />
+    </>
+  );
 }
