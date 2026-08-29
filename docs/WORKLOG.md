@@ -378,7 +378,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-29 — The weekly readout gets a claim: one model call per member per week (#1951)
+### 2026-08-29 — The weekly readout gets a claim: one model call per member per week (#1951 → `9463713e7`)
 
 - **Step 2 of §C.** #1950 made the readout's *evidence* honest; this makes its *cost*
   bounded, the way §C requires — *"one model call per member per week, enforced
