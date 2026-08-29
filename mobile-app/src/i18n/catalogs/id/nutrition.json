@@ -167,5 +167,6 @@
   "eat.quick.q5": "Keranjang cadangan",
   "eat.save": "Simpan →",
   "eat.footerPage": "Hal. 3 dari 5",
-  "eat.swapMessage": "Ditukar {from} → {to} · {day}"
+  "eat.swapMessage": "Ditukar {from} → {to} · {day}",
+  "eat.swapDayToday": "hari ini"
 }

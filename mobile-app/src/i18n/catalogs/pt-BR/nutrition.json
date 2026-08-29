@@ -167,5 +167,6 @@
   "eat.quick.q5": "Carrinho reserva",
   "eat.save": "Salvar →",
   "eat.footerPage": "Pág. 3 de 5",
-  "eat.swapMessage": "Trocada {from} → {to} · {day}"
+  "eat.swapMessage": "Trocada {from} → {to} · {day}",
+  "eat.swapDayToday": "hoje"
 }

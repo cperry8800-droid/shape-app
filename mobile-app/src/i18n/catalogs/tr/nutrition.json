@@ -167,5 +167,6 @@
   "eat.quick.q5": "Yedek sepet",
   "eat.save": "Kaydet →",
   "eat.footerPage": "Sf. 3 / 5",
-  "eat.swapMessage": "Değiştirildi {from} → {to} · {day}"
+  "eat.swapMessage": "Değiştirildi {from} → {to} · {day}",
+  "eat.swapDayToday": "bugün"
 }

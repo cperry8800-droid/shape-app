@@ -167,5 +167,6 @@
   "eat.quick.q5": "Reservekorb",
   "eat.save": "Speichern →",
   "eat.footerPage": "S. 3 von 5",
-  "eat.swapMessage": "Getauscht {from} → {to} · {day}"
+  "eat.swapMessage": "Getauscht {from} → {to} · {day}",
+  "eat.swapDayToday": "heute"
 }

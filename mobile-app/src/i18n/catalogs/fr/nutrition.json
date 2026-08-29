@@ -167,5 +167,6 @@
   "eat.quick.q5": "Panier de secours",
   "eat.save": "Enregistrer →",
   "eat.footerPage": "P. 3 sur 5",
-  "eat.swapMessage": "Remplacé {from} → {to} · {day}"
+  "eat.swapMessage": "Remplacé {from} → {to} · {day}",
+  "eat.swapDayToday": "aujourd’hui"
 }

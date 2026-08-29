@@ -167,5 +167,6 @@
   "eat.quick.q5": "Carrello di riserva",
   "eat.save": "Salva →",
   "eat.footerPage": "Pag. 3 di 5",
-  "eat.swapMessage": "Sostituito {from} → {to} · {day}"
+  "eat.swapMessage": "Sostituito {from} → {to} · {day}",
+  "eat.swapDayToday": "oggi"
 }

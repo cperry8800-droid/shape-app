@@ -381,7 +381,7 @@ changelog whenever something ships.
 ### 2026-08-29 — i18n cut 4: the Eat tab, and the strings the measurement could not see
 
 - **The primary Eat tab is localized.** `BSClientEat` carried **2 `tr()` calls**; it
-  now carries **76**, against **57 new `nutrition:eat.*` keys ×13** plus one new
+  now carries **76**, against **58 new `nutrition:eat.*` keys ×13** plus one new
   shared `common:` key and **12 keys reused, not minted**. The day menu, the macro
   register, the swap flow, the grocery door, the prep stamp, the coach byline and
   every empty state now speak the member's language. **No migration, no route change.**
@@ -471,8 +471,21 @@ changelog whenever something ships.
   closing it means injecting a translator into its caller — its own change, not a
   drive-by on this diff. BSClientEat's copy of that literal is fixed; **the assertion
   that found it matched BOTH sites**, which is the only reason the twin surfaced at all.
+- ⚠ **AND THE PRE-MERGE DIFF REVIEW CAUGHT A LOCALE-INSENSITIVE CASE TRANSFORM IN MY
+  OWN PORT.** The outbound swap note's day token read
+  `tr('home:when.today').toLowerCase()` — because the original English literal was a
+  bare lowercase `'today'` sitting beside a **capitalized** weekday array, an
+  inconsistency I faithfully carried into thirteen locales. `toLowerCase()` is
+  **locale-insensitive** — the Turkish dotted-i class this file already records for
+  `toUpperCase()` — and it was safe across the current thirteen values **only by
+  luck**: none of them happens to contain a capital `I`. **A wrong rule that produces
+  the right answer on today's data is not evidence it is right.** The token is its own
+  key now (`eat.swapDayToday`), so **no case transform runs over translated text at
+  all** and how the word sits beside a weekday name is the catalog's call — es `hoy`
+  and de `heute` are lowercase because that is correct in those languages, not because
+  a transform lowered them.
 - **Verified:** `npm test` **2465/2465** · `tsc --noEmit` 0 · JSX parse · mobile build 0
-  with **53 literal `nutrition:eat.*` keys** (57 authored − 5 computed `quick.q*` + the
+  with **54 literal `nutrition:eat.*` keys** (58 authored − 5 computed `quick.q*` + the
   `nutrition:eat.quick.` prefix), `common:unit.weekN`, and sample translations
   (`Comidas del` · `Воскресный набор` · `{c}K · {f}Y` · `Б · `) all confirmed **in the
   emitted bundle** · **no weekday array left in source or bundle** · catalog parity ×13

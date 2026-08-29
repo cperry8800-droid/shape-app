@@ -10262,8 +10262,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
               // name in the thread — so it speaks the member's language, not the
               // app's default. (A coach who does not share it reads this the same
               // way they read that member's every other message.) The weekday is
-              // formatted, never picked from a hardcoded English list.
-              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel'), provider_role: 'nutritionist' }, text: tr('nutrition:eat.swapMessage', { defaultValue: 'Swapped {from} → {to} · {day}', from: base.title, to: o._alt.title, day: day === bsWeekdayIdx() ? tr('home:when.today', { defaultValue: 'Today' }).toLowerCase() : bsWeekdayName(day) }) }).catch(() => {}); } catch (e) {}
+              // formatted, never picked from a hardcoded English list — and the
+              // "today" token is its OWN key rather than the shared one lowercased:
+              // toLowerCase() is locale-insensitive (the Turkish dotted-i class this
+              // file already records for toUpperCase), it is safe on today's thirteen
+              // values only by luck, and how the word sits beside a weekday name is
+              // the catalog's call, not a transform's.
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel'), provider_role: 'nutritionist' }, text: tr('nutrition:eat.swapMessage', { defaultValue: 'Swapped {from} → {to} · {day}', from: base.title, to: o._alt.title, day: day === bsWeekdayIdx() ? tr('nutrition:eat.swapDayToday', { defaultValue: 'today' }) : bsWeekdayName(day) }) }).catch(() => {}); } catch (e) {}
             }
             setSwapMealId(null);
           }} />;

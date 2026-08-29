@@ -167,5 +167,6 @@
   "eat.quick.q5": "Запасная корзина",
   "eat.save": "Сохранить →",
   "eat.footerPage": "Стр. 3 из 5",
-  "eat.swapMessage": "Заменено {from} → {to} · {day}"
+  "eat.swapMessage": "Заменено {from} → {to} · {day}",
+  "eat.swapDayToday": "сегодня"
 }

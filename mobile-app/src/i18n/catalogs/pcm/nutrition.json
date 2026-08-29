@@ -167,5 +167,6 @@
   "eat.quick.q5": "Backup cart",
   "eat.save": "Save →",
   "eat.footerPage": "Pg 3 of 5",
-  "eat.swapMessage": "I change {from} → {to} · {day}"
+  "eat.swapMessage": "I change {from} → {to} · {day}",
+  "eat.swapDayToday": "today"
 }

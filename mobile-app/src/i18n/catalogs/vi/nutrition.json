@@ -167,5 +167,6 @@
   "eat.quick.q5": "Giỏ dự phòng",
   "eat.save": "Lưu →",
   "eat.footerPage": "Tr. 3/5",
-  "eat.swapMessage": "Đã đổi {from} → {to} · {day}"
+  "eat.swapMessage": "Đã đổi {from} → {to} · {day}",
+  "eat.swapDayToday": "hôm nay"
 }

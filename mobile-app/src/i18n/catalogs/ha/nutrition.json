@@ -167,5 +167,6 @@
   "eat.quick.q5": "Kwandon ajiya",
   "eat.save": "Ajiye →",
   "eat.footerPage": "Sh. 3 na 5",
-  "eat.swapMessage": "An canja {from} → {to} · {day}"
+  "eat.swapMessage": "An canja {from} → {to} · {day}",
+  "eat.swapDayToday": "yau"
 }
