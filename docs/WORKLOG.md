@@ -378,6 +378,115 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — i18n cut 3: the meal logger, and the silent half of a defaultValue
+
+- **The one screen that files what a member ate stops being English-only.**
+  `BSLogMealFlow` carried **66 hardcoded strings and no translator**; it now
+  carries **113 keys ×13** in a new **`nutrition`** namespace — the confirmation,
+  the one-tap plate, the live tally, CORRECT THE RECORD, DISPATCH TO your coach
+  (photo + voice), the sticky ledger bar, the add-food sheet, the barcode flow,
+  the ingredient editor, and all ten toasts. **No migration, no route change.**
+- **The namespace is NEW rather than `session:log.*` or `cook:log.*`**, chosen on
+  what a translator reads in the file name and on where cut 4 lands: `BSClientEat`
+  is unambiguously nutrition and appends to the same namespace, so the key prefix
+  is `log.*` and `eat.*` is left free.
+- **The CTA label takes an INJECTED translator, so the pure module stays pure.**
+  `bsMealCtaLabel(state, { tr })` — optional, with the shipped English carried as
+  the fallback, so its **six existing vectors pass with no second argument**.
+  `T()` returns the **pre-interpolated English** when no translator is supplied,
+  so no ICU is ever evaluated on the fallback path, and it try/catches: a broken
+  catalog degrades to English rather than blanking the one control that files the
+  meal. Same shape as cut 1's `bsWireLines`.
+- ⚠ **SIX KEYS ARE REUSED RATHER THAN MINTED — and the sweep is the reason.**
+  All 113 derived keys were checked against every shipped `en` catalog: **21
+  exact-value matches**, of which only the six where the two uses are the SAME UI
+  concept are shared (`common:action.back`, `cook:plated.{kcal,protein,carbs,fat}`,
+  `feed:thread.yourCoach`) — a change to one of those *should* change the other.
+  The other fifteen stay local, because the house already carries Cancel / Save /
+  Edit / Remove per surface and collapsing them would couple screens that have no
+  reason to move together. Cut 1 paid for this lesson in the other direction
+  (`login.dobAria` was a byte-for-byte copy of a shipped key).
+- **The `en` catalog is DERIVED from the source's own `defaultValue`s**, so
+  catalog and code cannot drift at authoring time. Nothing kept that true
+  afterwards — which is what the guard below is for.
+- ⚠ **AND THE `defaultValue` THAT MAKES THIS CUT SAFE IS WHAT MAKES IT SILENT.**
+  Cut 2 passes **no** defaultValue, so a key `en` lacks renders the **raw key** and
+  the mount test sees it. Every call site here passes one — the better render
+  (English, not `nutrition:log.cta`) and the **worse failure**: the key is absent
+  from `en`, so the **parity gate, which only compares the twelve locales AGAINST
+  `en`, stays green while the string is English in all thirteen.** That is exactly
+  how three `home:lead.*` families shipped unauthored, recorded one entry above.
+- **`tests/i18n-default-resolution.test.mjs` closes both directions of that seam**
+  across the broadsheet **and** the services wrappers: every literal key resolves
+  in `en`, and every literal English fallback still **equals** the catalog value —
+  because the catalog is what renders, so a forked call site is the **stale copy**,
+  not the source of truth.
+- ⚠ **IT FOUND THE CLASS ALREADY LIVE IN THREE PLACES, NONE OF THEM THIS CUT'S.**
+  - **Six unauthored `home:` keys** — `slate.now`, `slate.habitsHead`, `tag.work`,
+    `lead.railHeader`, `aria.selected`, `aria.today` — English on the **HOME
+    screen**, the app's landing surface, in all thirteen locales. (`tag.work` was
+    even *recorded* as a known gap on 2026-07-13 and never closed.) **Authored here
+    ×13 rather than exempted**: a guard whose first act is a six-entry allowlist
+    documents a gap instead of closing one. `slate.now` reuses cut 2's
+    `session:player.now` words and `slate.habitsHead` the shipped
+    `onboarding:tour.habits.title` term, so one concept cannot say two things.
+  - **Two drifted fallbacks** — a straight-vs-curly apostrophe in
+    `coach:listing.loadError`, and *"it"* vs *"the date"* in `dob.body` (the 18+
+    gate). Both fixed **at the source**: twelve locales translated the catalog
+    value, so the catalog is canonical and the call site had forked from it.
+  - **A fifteen-key `marketplace:preview.*` family**, recorded as a **ratchet**
+    rather than translated in the wrong cut — asserted exactly both ways, so a
+    sixteenth unauthored key fails the day it lands and authoring the fifteen fails
+    until the line is deleted. **The gap is now measured instead of unknown.**
+- ⚠ **AND THE GUARD PASSED ITS FIRST MUTATION FOR THE WRONG REASON.** Deleting
+  `nutrition:log.ctaAsPlanned` from `en` changed nothing, because that key's only
+  caller is **`mealLoggerState.mjs`** and the walk read only `broadsheet/*.jsx` —
+  and the pure modules are exactly where the injected-translator wrappers live (the
+  wire's telegram body, the logger's CTA). Widened to `services/*.mjs`, handling
+  both wrapper shapes **by position** (the key is the first string literal, the
+  English is whatever follows it) so `T('ns:key', 'en')` and the
+  translator-injected `T(tr, 'ns:key', 'en')` read identically. **5/5 mutations
+  killed** afterwards, with unmutated sanity green at both ends. *Check the check
+  before believing it — including when the check is yours.*
+- ⚠ **THE PARAMETER-SHADOW PRUNE HAD STOPPED TESTING ITSELF, and re-pointing the
+  ratchet is what surfaced it.** It was pinned through the two real shadows — a
+  MediaStreamTrack and a playlist track — and **both were renamed while localizing
+  these two surfaces**, so `tr === 0` on those components now holds because they
+  hold no translator at all, and would hold with the prune deleted. Re-pinned on a
+  **fixture with a positive control** (a sibling component that genuinely binds the
+  hook, so `tr` reaches the detector's name set at all — without it both rows read
+  0 for the uninteresting reason), and `componentsOfSource` is split out of the
+  file read to make that possible. **Both mutations killed** (drop the prune; break
+  the control). **A rule only tested while the tree happens to contain a violation
+  is a rule that retires itself the moment someone fixes the violation.**
+- **The ratchet moved, and the unchanged numbers are the assertion that matters.**
+  **1,170 → 1,104 strings** and **116 → 115** uncovered components; fully covered
+  **92 → 93**. **`partStrings` 193 and `part.length` 31 are UNCHANGED** — the
+  assertion that certifies the cut is *finished* rather than half-done.
+- ⚠ **REGISTERED, NOT DONE — three residuals, each named rather than smoothed.**
+  (1) The **demo food names stay English** — they stand in for real
+  member-authored ingredient names, which are never translated, so localizing the
+  placeholders would make the demo read *less* like the live screen.
+  (2) The **`{p}P · {c}C · {f}F` macro letters stay Latin** — a width-critical mono
+  row, and every other macro row in the app is still English, so translating here
+  alone would split one data row into two conventions. **An owner call for cut 4**,
+  where `BSClientEat` carries the same row.
+  (3) The **fifteen `marketplace:preview.*` keys** above.
+- ⚠ **AND ONE FINDING THIS CUT SURFACED THAT IS BIGGER THAN IT:
+  `window.__bsToast` IS A PERMANENT NO-OP** (`iosAppBroadsheet.jsx:1364`), so the
+  **275 toast call sites across the app report into a void** (counted 2026-08-29:
+  197 client · 28 pros · 16 calendar · 10 main · 8 chrome · 6 habits · 6
+  marketplace · 4 data layer) — including the ten this cut just translated into
+  thirteen languages. Translating them was still correct
+  (they are the copy that ships the day the sink is wired), but nothing a member
+  is told through a toast reaches them today. **Registered on the War Room, not
+  fixed here**: reviving the sink is a product decision about 263 call sites, not
+  a line in an i18n cut.
+- Verified: `npm test` **2465/2465** · `tsc --noEmit` 0 · mobile build 0 with all
+  **113 nutrition keys and the six new home keys confirmed in the emitted bundle**
+  (plus spot-checked translations: `ru` habits head, `tr` work tag, `vi` now) ·
+  catalog parity **3/3** ×13 · every touched source file parses.
+
 ### 2026-08-29 — i18n cut 2: the live session player
 
 - **The screen a member holds while they lift is no longer English-only.**
@@ -886,11 +995,15 @@ changelog whenever something ships.
   JSX — **84 fully localized · 31 partial** (193 strings still hardcoded) ·
   **125 with NO translator in scope at all** (1,355 strings) · 118 render no user
   copy. Of the **240** that render copy, **35% are localized.**
-  ⚠ **SUPERSEDED BY CUT 1 (same day, entry above) — these are the figures as
+  ⚠ **SUPERSEDED BY CUTS 1–3 (same day, entries above) — these are the figures as
   first measured, kept because the entry is dated.** After the launch/auth shell:
   **357** render JSX (BSCosmicWordmark, an orphan, was deleted) — **91 fully
   localized · 31 partial** (193, unchanged) · **117 with no translator** (1,244) ·
-  118 no copy. **Read the guard's MEASUREMENT output, never a figure on this page.**
+  118 no copy. After the live session player (cut 2): **92 · 116 (1,170)**. After
+  the meal logger (cut 3): **93 · 115 (1,104)** — `partStrings` 193 and
+  `part.length` 31 unchanged throughout, which is what certifies each cut is
+  finished rather than half-done. **Read the guard's MEASUREMENT output, never a
+  figure on this page** — including this one.
 - ⚠ **AND THE UNCOVERED SET IS NOT THE TAIL — IT IS THE PRODUCT.** The **profile
   customizer** (76 strings), the **live session player** (`BSSession`, 74), the
   **coach application** (67), the **meal logger** (`BSLogMealFlow`, 66), the
