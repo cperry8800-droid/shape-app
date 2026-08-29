@@ -65,7 +65,10 @@ export function buildReadoutResponse({ subjectId, weekStart, stored, live }) {
     source: hit ? stored.source : live.source,
     cached: hit,
     user_id: subjectId,
-    week_start: weekStart,
+    // Null, never '', when the week could not be computed. An empty string
+    // reads as a week whose name we lost; null says we never had one — and the
+    // response is then honestly uncacheable rather than quietly keyed on ''.
+    week_start: weekStart || null,
     window_days: hit ? stored.window_days : live.window_days,
     sample_size: hit ? stored.sample_size : live.sample_size,
     generated_at: hit ? stored.generated_at : live.generated_at,

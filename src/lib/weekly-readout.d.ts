@@ -28,14 +28,14 @@ export type LiveReadout = {
 
 export function buildReadoutResponse(input: {
   subjectId: string;
-  weekStart: string;
+  weekStart: string | null;
   stored: StoredReadout | null | undefined;
   live: LiveReadout;
 }): {
   source: 'openai' | 'fallback';
   cached: boolean;
   user_id: string;
-  week_start: string;
+  week_start: string | null;
   window_days: number | null;
   sample_size: number | null;
   generated_at: string | null;

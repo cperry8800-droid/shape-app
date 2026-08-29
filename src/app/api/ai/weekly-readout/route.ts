@@ -54,8 +54,8 @@ type ReadoutResponse = {
   /** True when this is the week's stored readout rather than one just generated. */
   cached: boolean;
   user_id: string;
-  /** Monday (UTC) of the week this readout belongs to. */
-  week_start: string;
+  /** Monday (UTC) of the week this readout belongs to; null if it could not be computed. */
+  week_start: string | null;
   /**
    * The window and sample the READOUT was computed from — not the window this
    * request asked for. On a cache hit they differ, and reporting the request's
@@ -395,7 +395,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       buildReadoutResponse({
         subjectId,
-        weekStart: weekStart as string,
+        weekStart,
         stored: {
           readout: claim.readout,
           correlations: claim.correlations ?? [],
@@ -499,7 +499,7 @@ export async function POST(request: Request) {
 
   const result = buildReadoutResponse({
     subjectId,
-    weekStart: weekStart ?? '',
+    weekStart,
     stored: null,
     live: {
       readout,

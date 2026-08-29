@@ -271,3 +271,15 @@ test('every RPC pins its search_path and checks the caller', () => {
     assert.match(body, /is_coach_on_client/, `${fn} does not gate a non-self subject`);
   }
 });
+
+test('an uncomputable week is reported as null, not an empty string', () => {
+  // '' reads as a week whose name we lost; null says we never had one — and a
+  // consumer that keys a cache on the value cannot key it on ''.
+  const res = buildReadoutResponse({
+    subjectId: 'u1',
+    weekStart: null,
+    stored: null,
+    live: LIVE,
+  });
+  assert.equal(res.week_start, null);
+});
