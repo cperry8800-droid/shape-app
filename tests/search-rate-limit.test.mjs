@@ -191,18 +191,29 @@ test('every browser-side search caller debounces its keystrokes', () => {
     const open = src.lastIndexOf('setTimeout(', call);
     assert.ok(open > 0, `${what} fires a search with no timer ahead of it`);
 
-    // Brace-match the setTimeout's argument list to find where its callback ends.
-    let depth = 0, i = src.indexOf('(', open), close = -1;
+    // ⚠ THE CALLBACK BODY, NOT THE ARGUMENT LIST — and the difference is not
+    // pedantic. Brace-matching the setTimeout's own parens proves only that the
+    // marker sits somewhere among its ARGUMENTS, which
+    // `setTimeout(cb, directSearch(), 250)` satisfies while searching on every
+    // keystroke. So: parse the callback head (`() =>`, `async () =>`, or
+    // `function () `), take the `{` that opens ITS body, brace-match that, and
+    // require the call to fall inside.
+    const head = src.slice(open + 'setTimeout('.length).match(/^\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{|^\s*(?:async\s*)?function\s*[A-Za-z_$]*\s*\([^)]*\)\s*\{/);
+    assert.ok(head, `${what}: the timer's first argument is not an inline callback`);
+    const bodyOpen = open + 'setTimeout('.length + head[0].length - 1;
+    let depth = 0, i = bodyOpen, bodyClose = -1;
     for (; i < src.length; i++) {
       const ch = src[i];
-      if (ch === '(') depth++;
-      else if (ch === ')') { depth--; if (depth === 0) { close = i; break; } }
+      if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) { bodyClose = i; break; } }
     }
-    assert.ok(close > call, `${what}: the search call is not inside the timer callback`);
+    assert.ok(bodyClose > 0, `${what}: could not find the end of the timer callback`);
+    assert.ok(call > bodyOpen && call < bodyClose,
+      `${what}: the search call is inside the setTimeout ARGUMENT LIST but not inside its callback body — it fires on every keystroke`);
 
-    // …and the delay is the last argument of that call.
-    const args = src.slice(open, close);
-    const delay = args.match(/,\s*(\d+)\s*$/);
+    // …and the delay is the last argument of that same call, read AFTER the body.
+    const tail = src.slice(bodyClose, src.indexOf(')', bodyClose) + 1);
+    const delay = tail.match(/,\s*(\d+)\s*\)\s*$/);
     assert.ok(delay, `${what}: the timer has no literal delay`);
     assert.ok(Number(delay[1]) >= 220, `${what} debounces for ${delay[1]}ms, under the 220ms floor`);
   }

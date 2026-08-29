@@ -539,6 +539,15 @@ changelog whenever something ships.
   guard this time.** Anchoring on `.catch(` found `siteSearch.js`'s **Supabase bundle
   loader**, several hundred lines above the search, so the assertion passed while
   saying nothing about the code it named. Anchored on the RPC instead.
+- ⚠ **AND THE DEBOUNCE GUARD PROVED THE ARGUMENT LIST, NOT THE CALLBACK.** The
+  round-4 version brace-matched the `setTimeout(…)` **parens**, so `close > call`
+  established only that the marker sat somewhere among its **arguments** —
+  `setTimeout(cb, directSearch(), 250)` satisfies that while searching on every
+  keystroke, which is the precise regression the guard exists to catch. It now
+  parses the callback **head** (`() =>` · `async () =>` · `function () `), brace-
+  matches the `{` that opens ITS body, and requires the call inside; the delay is
+  read after the body closes, so a literal elsewhere in the file can't stand in.
+  Mutation-checked with the reviewer's own counterexample.
 - ⚠ **THE CALLER LIST WAS WRONG, AND THAT IS THE FINDING — NOT THE TWO SURFACES IT
   MISSED.** This entry said *"all five callers"*. There are **six**. The **coach
   roster** search (`iosAppBroadsheetPros.jsx`) swallowed every error into `[]` and
@@ -566,7 +575,7 @@ changelog whenever something ships.
   *"No members match"*.
 - Verified: **2439/2439** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
   with the two new coach keys confirmed in the emitted bundle · both mobile + newdesign
-  parse · catalog parity ×13 · **35 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+  parse · catalog parity ×13 · **36 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
   re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
@@ -583,7 +592,8 @@ changelog whenever something ships.
   refusal notice behind the empty state · restore the suggestion rail's demo fallback ·
   drop `signedIn` from the suggestion effect's deps · drop a real caller from the
   inventory's covered set · leave a stale entry in it · break the call pattern so it
-  matches nothing), unmutated sanity green at both ends and the tree restored clean
+  matches nothing · move a search call out of its timer callback into the timer's
+  argument list), unmutated sanity green at both ends and the tree restored clean
   after each. The inventory guard was additionally driven by **planting a genuinely new
   uncovered caller** in the walked tree — the question it exists to answer is what it
   does with a real file, not what a comment claims about it, and it failed on the plant.
