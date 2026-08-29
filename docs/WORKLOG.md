@@ -378,6 +378,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — Session handoff: `docs/HANDOFF-2026-08-29.md`
+
+- **The session's six PRs** — #1949 Sentry user context on both web surfaces · #1950/#1951/#1952
+  the §C weekly readout (evidence layer → server-side weekly claim → the member-facing station)
+  · #1953 the search ceiling + the honesty pass that had to come first · #1954 the i18n surface
+  measurement · #1955 both migrations verified live. `main` at **`decbf53ca`**, suite
+  **2449/2449**, `tsc` clean, **no migration owed**, nothing in flight.
+- **Handoff: [`docs/HANDOFF-2026-08-29.md`](HANDOFF-2026-08-29.md)** — the newest handoff on disk
+  was 2026-08-19, so this closes a ten-day gap. It carries the state snapshot, the four scoped
+  i18n cuts (launch shell · `BSSession` · the meal logger · the `BSClientEat` partial) with their
+  measured string counts and file/line anchors, the second search window, the outstanding owner
+  rulings, and the working notes that cost time this session.
+- ⚠ **The one mechanic a diff cannot show you:** the ratchet in
+  `tests/i18n-surface-inventory.test.mjs` **fails on progress by design**. Localizing a surface
+  means deleting its baseline line AND lowering the exact asserted totals in the same PR — a
+  green suite after localizing a component means the job is half done. `BSLogMealFlow` also
+  carries a guard-the-guard pinned at `tr === 0` that must be re-pointed, not deleted.
+
 ### 2026-08-29 — The i18n "COMPLETE" claim finally gets a measurement
 
 - **The claim has been corrected FOUR times, and every correction was a
