@@ -326,6 +326,64 @@ test('the p-value is a real Student-t tail, not a normal approximation', () => {
   }
 });
 
+// ⚠ AN INDEPENDENT ORACLE, NOT A PINNED OUTPUT. The critical-value test above
+// checks three points against published tables; this checks the whole curve
+// against CLOSED FORMS that share not one line with the implementation. The
+// Student-t survival function is elementary at df 1, 2 and 4:
+//     df=2: 1 - t/sqrt(2 + t^2)
+//     df=4: 1 - x*(1.5 - 0.5x^2),  x = t/sqrt(4 + t^2)
+// df 2 and 4 are n = 4 and 6 — n = 4 is MIN_DAYS, the floor of what this module
+// will compute at all, so df=2 is the lowest reachable through the public API
+// and exactly where the old normal tail was worst and where a continued
+// fraction is most likely to misbehave. A test that pinned the implementation's
+// own numbers would have passed just as happily on the normal approximation.
+test('the p-value matches closed-form Student-t at the smallest samples', () => {
+  const series = (xs, ys) =>
+    xs.map((x, i) => ({
+      snapshot_date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+      protein_g: x,
+      weight_lb: ys[i],
+    }));
+  // Build a series with exactly the requested r on an orthonormal basis.
+  const pAt = (r, n) => {
+    const xs = [];
+    const zs = [];
+    for (let i = 0; i < n; i += 1) {
+      const th = (2 * Math.PI * i) / n;
+      xs.push(Math.cos(th));
+      zs.push(Math.sin(th));
+    }
+    const ys = xs.map((x, i) => r * x + Math.sqrt(1 - r * r) * zs[i]);
+    const hit = computeCorrelations(series(xs, ys)).find(
+      (c) => c.x === 'protein_g' && c.y === 'weight_lb'
+    );
+    assert.ok(hit, `no pair computed at n=${n}`);
+    return hit.pValue;
+  };
+  const tOf = (r, n) => (r * Math.sqrt(n - 2)) / Math.sqrt(1 - r * r);
+  const oracles = [
+    [4, (t) => 1 - t / Math.sqrt(2 + t * t)],
+    [
+      6,
+      (t) => {
+        const x = t / Math.sqrt(4 + t * t);
+        return 1 - x * (1.5 - 0.5 * x * x);
+      },
+    ],
+  ];
+  for (const [n, oracle] of oracles) {
+    for (const r of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+      const want = oracle(tOf(r, n));
+      const got = pAt(r, n);
+      // pValue is reported to 4dp, so that is the achievable tolerance.
+      assert.ok(
+        Math.abs(got - want) < 1e-4,
+        `n=${n}, r=${r}: implementation ${got}, closed form ${want.toFixed(6)}`
+      );
+    }
+  }
+});
+
 // ⚠ THE LAGS BELOW REST ON A FACT ABOUT ANOTHER FILE, so that fact is what this
 // asserts. A sleep column on day D is the night that ENDED on the morning of D,
 // which is only true because `/api/client/checkin` writes sleepHours,

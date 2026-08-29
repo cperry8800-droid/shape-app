@@ -458,9 +458,18 @@ changelog whenever something ships.
   threshold**, so the FDR gate shipped in this same wave was gating on values that were
   not the p-values they claimed to be — and the *"|r| = 0.3 at 28 days ≈ p = 0.12"*
   arithmetic this entry's own rationale rests on is a number the old code **could not
-  produce** (it would have said ~0.10). The exact tail returns **0.121**. Pinned against
-  published critical values rather than against the implementation's own output, because a
-  table generated from the code only ever pins the code.
+  produce** (it would have said ~0.10). The exact tail returns **0.121**.
+  ⚠ **Pinned two ways, NEITHER against the implementation's own output** — a table
+  generated from the code only pins the code, and would have passed just as happily on the
+  normal approximation it replaced. (a) The **published** α = .05 critical correlations at
+  df 6/8/14. (b) An **independent oracle**: the elementary closed forms of the t survival
+  function at df 2 and 4 — `1 − t/√(2+t²)` and `1 − x(1.5 − 0.5x²)` — which share not one
+  line with the implementation and sit at n = 4 and 6, i.e. from `MIN_DAYS` up, the exact
+  region where the normal tail was worst and a continued fraction is likeliest to
+  misbehave. Agreement is exact to the 4dp the field is reported at. A sweep over 398
+  sample sizes × 1001 correlations separately confirms the result is finite, in [0, 1],
+  monotone in |r| and symmetric — the continued fraction never diverges or hits its
+  iteration cap anywhere on the real domain.
 - ⚠ **A SLEEP COLUMN ON DAY D IS THE NIGHT THAT *ENDED* ON THE MORNING OF D — and five
   pairs had it backwards, two of them added by this wave** (review, and correct).
   Established by reading the writers rather than reasoning from the metric names:
@@ -499,14 +508,14 @@ changelog whenever something ships.
   across a gap in the window), zero-variance yielding nothing rather than `r = 0`, and
   that the module produces every field the `.d.ts` promises — a shape the declaration
   claims but the module omits is an `any` at the call site, not a compile error.
-- **16 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
+- **18 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
   naming an unselected column · lag collapsing to same-day · `q` losing monotonicity ·
   reject numeric strings, i.e. the shipped bug · naive `Number()` coercion · empty string
   becoming 0 · NaN/Infinity admitted · **restore the normal tail** · flip `rested → energy`
   back to lag 1 · flip `stress → sleep` back to lag 0 · split the check-in's sleep onto a
   second local day · delete a pinned sleep pair · add an **unpinned** sleep pair · the
-  model catalog stops gating on q · a literal q threshold back at a call site), sanity
-  green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
+  model catalog stops gating on q · a literal q threshold back at a call site · **df off
+  by one** · the incomplete-beta arguments swapped), sanity green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
   annotator assigns every index and its only early return is the empty case, so nothing
   can observe the seed. **Kept and labelled rather than deleted**, so the next reader
   neither removes it as dead nor spends a round writing the test that cannot exist.
@@ -516,9 +525,8 @@ changelog whenever something ships.
   call** — so it is not a leak and not a cost, but it is looser than it needs to be, and
   the entry-point PR should bind it.
 - Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present ·
-  `npm test` **2365/2365** (+20) · the p-value checked against published α = .05 critical
-  correlations at df 6/8/14 and the df = 2 closed form · the `numeric` column list read
-  from `information_schema` on the live database.
+  `npm test` **2366/2366** (+21) · the `numeric` column list read from
+  `information_schema` on the live database.
 
 ### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous (#1949 → `d80e49680`)
 
