@@ -549,7 +549,11 @@ changelog whenever something ships.
   read after the body closes, so a literal elsewhere in the file can't stand in.
   Mutation-checked with the reviewer's own counterexample.
 - ⚠ **THE CALLER LIST WAS WRONG, AND THAT IS THE FINDING — NOT THE TWO SURFACES IT
-  MISSED.** This entry said *"all five callers"*. There are **six**. The **coach
+  MISSED.** This entry said *"all five callers"*. ⚠ **AND THE CORRECTION BELOW SAID
+  SIX, WHICH IS ALSO WRONG — see the next round: four mobile member pickers reach the
+  same RPC through a second wrapper. The number has been restated three times and been
+  wrong three times, which is the whole reason this record now points at a derived
+  guard instead of a count.** The **coach
   roster** search (`iosAppBroadsheetPros.jsx`) swallowed every error into `[]` and
   rendered *"No members match — share your listing link instead."* to a coach whose
   search was **refused or failed** — the exact claim this whole change exists to stop
@@ -564,17 +568,44 @@ changelog whenever something ships.
   THAT GENERALISES.** Every surface table here was populated by enumerating the
   callers I remembered — which is precisely why a suite of sixteen assertions passed,
   twice, over a caller that was never in it. **A list of callers cannot prove it is
-  the list of callers.** A new test WALKS THE TREE for anything reaching either RPC or
-  the `ShapeSearch.people` wrapper and fails on a file that searches without being
+  the list of callers.** A new test WALKS THE TREE and fails on a call site that
+  searches without being
   covered — and fails the other way too, if a listed file stops searching, so the set
   cannot silently vouch for behaviour that has moved. The next caller is caught at the
   gate instead of by the next reviewer.
-- ⚠ **A ROLLOUT NOTE THIS CHANGED:** the pre-apply check is now **six** bundles, not
-  five. The coach app ships in the same `public/m` build, so a stale deploy is the
-  realistic way to apply the ceiling over a roster that still reads a refusal as
-  *"No members match"*.
-- Verified: **2439/2439** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
-  with the two new coach keys confirmed in the emitted bundle · both mobile + newdesign
+- ⚠ **AND THAT GUARD WAS STILL WRONG TWICE, BOTH FOUND ON THE NEXT HEAD — the count
+  was never the finding.** It was **per-FILE**, so `iosAppBroadsheetClient.jsx` counted
+  as covered for its `ShapeSearch.people` use while **four other call sites in that same
+  file** searched uncovered: **coverage is a property of a CALL SITE, not a filename.**
+  And it knew only the wrapper I remembered — the four **member pickers** (send-a-post ·
+  new message · add-to-channel · tag-in-a-post) reach `search_members` through a
+  **SECOND data-layer wrapper**, `ShapeChannels.searchMembers`, which no list had ever
+  mentioned. Every one collapsed a refusal into an empty list and **three had no
+  debounce at all** — so the pickers were simultaneously the least protected callers and
+  a way to spend the allowance a keystroke at a time.
+- ⚠ **AND THE MOBILE TAG PICKER WAS THE SAME DEFECT I HAD ALREADY FIXED ON THE WEBSITE,
+  STILL LIVE.** A refusal left the previous query's people on screen under the new query,
+  and that row **tags a named person on a public post** — an empty list says *nobody*,
+  stale rows say *this person*. All four now share **one hook**: debounced, rows cleared
+  on refusal, on failure **and on close** (so reopening cannot paint the previous
+  session's people), with the notice **gated ahead of** the empty branch rather than
+  merely placed before it — a gate survives a JSX reorder, an ordering does not.
+- ⚠ **THE GUARD IS NOW AST-BASED, PER-CALL-SITE, AND DERIVES THE WRAPPERS.** It reads
+  the data layer for the functions whose bodies call a search RPC, then for the public
+  aliases those are exported under — so a third wrapper is picked up with nobody
+  remembering to. It also accepts **`OptionalCallExpression`**: the coach roster uses
+  `?.()`, and a `CallExpression`-only walk had been stepping straight past it. Proven by
+  planting an optional-form uncovered caller — **caught with the widening, invisible
+  without it**.
+- ⚠ **A ROLLOUT NOTE THIS CHANGED, AND THEN CHANGED AGAIN — WHICH IS WHY IT NO LONGER
+  CARRIES A NUMBER.** The pre-apply check said five bundles, then six, and was wrong both
+  times; the four mobile pickers made it wrong a third. It now names the **surfaces** and
+  points at the derived guard as the authority. The migration header stopped listing
+  callers for the same reason. The coach app and the pickers all ship in the same
+  deploy-built `public/m`, so a stale deploy is the realistic way to apply the ceiling
+  over surfaces that still read a refusal as *"No members match"*.
+- Verified: **2441/2441** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
+  with the two new coach keys and the picker refusal copy confirmed in the emitted bundle · both mobile + newdesign
   parse · catalog parity ×13 · **36 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
