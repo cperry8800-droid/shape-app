@@ -12,7 +12,7 @@
 // No source file is written, copied, or stubbed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -52,6 +52,39 @@ const THEME = new Proxy(THEME_KNOWN, {
 globalThis.window = globalThis;
 globalThis.__VITE_IMPORTMETA__ = { env: { BASE_URL: '/m/' } };
 globalThis.useBS = () => THEME;
+// ⚠ A REAL TRANSLATOR, NOT A PASS-THROUGH STUB. `useShapeTr()` falls back to
+// `opts.defaultValue ?? key`, and BSSession's ~79 call sites pass NO defaultValue
+// — so a stub would render the raw key and every assertion below would have to be
+// re-pointed at key strings, which is the opposite of what these tests are for:
+// they exist to prove the member-facing behaviour, and the member sees English.
+// Backing it with the real `en` catalogs also makes each assertion a live check
+// that the key resolves — a typo now fails HERE, on the screen it would break.
+const CAT = new Map();
+const catalog = (ns) => {
+  if (!CAT.has(ns)) {
+    const p = join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', `${ns}.json`);
+    CAT.set(ns, existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null);
+  }
+  return CAT.get(ns);
+};
+globalThis.ShapeI18n = {
+  t(key, opts) {
+    const i = String(key).indexOf(':');
+    if (i < 0) return undefined;
+    const cat = catalog(key.slice(0, i));
+    const raw = cat && cat[key.slice(i + 1)];
+    if (raw == null) return undefined;
+    // Enough ICU for these strings: simple substitution of {arg} AND the
+    // formatted {arg, number} form. The narrow bare-only version was a trap —
+    // it renders a `{n, number}` key as its RAW text, so an assertion that
+    // selects a control by its label fails with "no button with aria-label
+    // ..." and reads like a broken component rather than a harness gap. It
+    // fails loudly rather than silently passing, but it costs a debugging
+    // round; both forms are handled so the next cut doesn't pay it.
+    return String(raw).replace(/\{\s*([A-Za-z_][\w-]*)\s*(?:,[^{}]*)?\}/g,
+      (m, n) => (opts && n in opts ? String(opts[n]) : m));
+  },
+};
 // Driving (below) swaps React for a shim, and `useStateBSC` must follow it or
 // the component would mix two hook implementations mid-render.
 let ACTIVE_REACT = React;

@@ -669,8 +669,14 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
         {cur.cue && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK50 }}>“{cur.cue}”</div>}
       </div>}
 
+      {/* ⚠ FIRST COLUMN WIDENED 26px → 48px, SIZED TO THE REAL TRANSLATIONS. Mono 9px
+          at 0.16em tracking costs ~6.84px/char, so 26px held 3.8 characters — enough
+          for "Set" and nothing else. `live.colSet` already ships «Подход»/«Підхід» (6
+          ch, 41.0px) and "Série"/"Serie" (5, 34.2), so this row has been clipping in
+          six locales. The last column is an empty spacer and stays 30px; the client's
+          twin of this grid widens it instead, because there it carries a header. */}
       {cur && <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
           <span>{tr('coach:live.colSet', { defaultValue: 'Set' })}</span><span>{tr('coach:live.colWeight', { defaultValue: 'Weight' })}</span><span>{tr('coach:live.colReps', { defaultValue: 'Reps' })}</span><span>{tr('coach:common.rpe', { defaultValue: 'RPE' })}</span><span />
         </div>
         {/* Read-only set ledger — this is a MIRROR of the client's live inputs, so no
@@ -680,7 +686,7 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
           const active = i === cur.done;
           const cell = (val) => <div style={{ color: val === '—' ? t.INK50 : t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderBottom: `2px solid ${active ? teal : 'transparent'}`, opacity: done ? 0.6 : 1 }}>{val}</div>;
           return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '3px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '3px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || active) ? teal : t.INK50 }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
               {/* Real figures when the COACH payload drives; '—' per set when a
                   field wasn't entered, and '—' throughout on the public payload.
