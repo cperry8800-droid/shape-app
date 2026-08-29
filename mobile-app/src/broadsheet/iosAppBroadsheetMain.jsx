@@ -966,7 +966,17 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const shortRole = signupRole === 'dietitian' ? tr('coach:role.dietitian') : roleLabel;
   const stepped = isCreate && !isPhone; // the email create dispatch runs the 2-step split
   // The wire-form grammar: mono label column + a dot-leader entry line per field.
-  const rowLabel = { flex: '0 0 84px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C50 };
+  // ⚠ THE LABEL COLUMN WAS SIZED TO ENGLISH, which is the i18n anti-pattern in one
+  // magic number. JetBrains Mono advances 0.6em, so at 8.5px + 0.18em tracking a
+  // character costs ~6.63px — the old 84px fit 12.6 of them, and English never
+  // needed more than 9 ('DOB · 18+'), so nothing here ever revealed the ceiling.
+  // Translated it does: the birth-date label runs to 15 characters in fr/id/vi
+  // ('Naissance · 18+'), which WRAPS the label to two lines against a one-line
+  // input and breaks the dotted-underline alignment the wire grammar depends on.
+  // 112px fits ~16.9, sized to the longest real translation with a character of
+  // slack; the input is flex:1 1 auto with min-width:0, so it simply gives up the
+  // 28px. Recompute this if the font, size or tracking changes — do not guess.
+  const rowLabel = { flex: '0 0 112px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C50 };
   const rowInput = { fontFamily: t.DISPLAY, fontSize: 14, color: CREAM, padding: '1px 0' };
   const subNote = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4 };
   const stepLine = { fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C50 };

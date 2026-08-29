@@ -532,6 +532,39 @@ changelog whenever something ships.
   that explains why the screen just changed. It now optional-chains to an English
   literal matching the catalog value, the same shape the bundle-error line already
   used. **Degrading to English beats degrading to silence.**
+- ⚠ **AND THE WIRE FORM'S LABEL COLUMN WAS SIZED TO ENGLISH — the i18n anti-pattern
+  in one magic number.** `rowLabel` was a fixed `84px`, and JetBrains Mono advances
+  0.6em, so at 8.5px with 0.18em tracking a character costs ~6.63px: the column fits
+  **12.6 of them**. English never needed more than **9** (`DOB · 18+`), so nothing in
+  the shipped form ever revealed the ceiling. Translated it does immediately — the
+  birth-date label runs to **15 characters in fr, id and vi**, which wraps the label
+  to two lines against a one-line input and breaks the dotted-underline alignment the
+  whole wire grammar rests on. Widened to **112px** (~16.9 characters), sized to the
+  longest real translation with a character of slack, with the metric written at the
+  constant so the next person recomputes rather than guesses; the input is
+  `flex:1 1 auto; min-width:0` so it simply gives up the 28px.
+  ⚠ **This is what a per-locale render bound looks like when it is real rather than
+  stylistic**, and it is why the brief's "keep DOB literal" rule was wrong twice over:
+  `DOB` is an English abbreviation rather than a term of art like kcal/RPE/HRV, the
+  repo already translates the concept in all thirteen — and the constraint that
+  actually bites is **pixels**, which the rule never mentioned. Measured, 7 of the
+  first 8 locales translated it and only `es` kept the literal; the applier now bounds
+  that one key on length instead of on literalness.
+- ⚠ **AND THE APPLIER ITSELF SHIPPED A BUG THAT ONLY REAL DATA REVEALS — the 8/8
+  mutation run could not have caught it.** Its placeholder check matched a bare
+  `{ident`, which also matches the **literal text inside an ICU plural sub-message**:
+  `one {STREAK # DAY}` yields `STREAK`. That text is translated, so comparing English
+  against a locale reported a placeholder mismatch on **every plural key** and would
+  have refused the entire apply. It survived the harness because the harness built its
+  synthetic locale out of the **English values**, so both sides carried the same
+  sub-messages and matched by construction — *the check was tested against an echo of
+  itself*. Corrected to require the `,` or `}` delimiter, which is the exact form
+  `tests/i18n-catalog-complete.test.mjs` had already proved out and which I should have
+  reused rather than re-derived. Re-run against the **real** returns: the unmutated set
+  writes, and 5/5 real-data mutations are refused (a renamed placeholder · a renamed
+  **plural argument** · a dropped brand noun · a `login.fieldDob` that overflows the
+  column · a key missing from one locale). **A validator exercised only against data it
+  generated itself has been tested for self-consistency, not for correctness.**
 - **The ratchet moved, in the direction it is supposed to move.**
   **1,355 → 1,244 strings** and **125 → 117 uncovered components**; fully covered
   **84 → 91**; **`partStrings` 193 and `part.length` 31 are UNCHANGED**, which is the
