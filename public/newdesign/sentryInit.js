@@ -164,30 +164,103 @@
   // the 21-of-76 window.shapeDb trap. The cost is one request per page load
   // ONLY once a DSN exists (this file returns early without one), alongside the
   // dobGate's existing unconditional fetch on 73 of these pages.
-  function attachShapeUser() {
+  // How long an error event may WAIT for the identity before going out
+  // anonymous. Bounded on purpose: an unresolved beforeSend holds its event,
+  // and an event still held when the tab closes is an event LOST — which is
+  // strictly worse than an anonymous one. 3s comfortably covers a same-origin
+  // fetch while leaving an unload with nothing queued.
+  var SHAPE_USER_WAIT_MS = 3000;
+
+  // Resolves to the user context, or null. NEVER rejects and never throws, so
+  // both consumers below can attach without a rejection handler.
+  function fetchShapeUser() {
     try {
-      if (typeof window.fetch !== "function") return;
-      window.fetch("/api/me", { credentials: "same-origin", cache: "no-store" })
-        .then(function (res) { return res && res.ok ? res.json() : null; })
-        .then(function (data) {
-          var u = data && data.user;
-          if (!u || typeof u !== "object") {
-            // Signed out, or a shape we do not recognise. Either way we have
-            // no identity to assert, so clear rather than leave a stale one.
-            try { window.Sentry.setUser(null); } catch (e) {}
-            return;
-          }
-          var ctx = shapeSentryUser({ id: u.id, roles: u.roles, role: u.role }, u.id);
-          try { window.Sentry.setUser(ctx); } catch (e) {}
-        })
-        .catch(function () {
-          // A failed read is not evidence of anything — no network, a 5xx, an
-          // HTML error page from a proxy. Stay anonymous; never guess, and
-          // never let this reject unhandled on a page it does not own.
-        });
+      if (typeof window.fetch !== "function" || typeof Promise !== "function") return null;
+      return new Promise(function (resolve) {
+        window.fetch("/api/me", { credentials: "same-origin", cache: "no-store" })
+          .then(function (res) { return res && res.ok ? res.json() : null; })
+          .then(function (data) {
+            var u = data && data.user;
+            // Signed out, or a shape we do not recognise. Either way there is
+            // no identity to assert.
+            if (!u || typeof u !== "object") { resolve(null); return; }
+            resolve(shapeSentryUser({ id: u.id, roles: u.roles, role: u.role }, u.id));
+          })
+          .catch(function () {
+            // A failed read is not evidence of anything — no network, a 5xx, an
+            // HTML error page from a proxy. Stay anonymous; never guess, and
+            // never let this reject unhandled on a page it does not own.
+            resolve(null);
+          });
+      });
     } catch (e) {
-      // Total, same reasoning as shapeSentryUser above.
+      return null;
     }
+  }
+
+  // ⚠ THE RACE THIS CLOSES IS THE MOST VALUABLE ERROR THIS SURFACE REPORTS.
+  // The identity read is async, but the deferred nd/*.js bundles that BOOT the
+  // app execute immediately after this file — so on a cold load, a crash during
+  // startup happens while the fetch is still in flight and would go out with no
+  // user at all. That is the same ordering failure this file has already been
+  // fixed for once: the Sentry CDN tag used to be appendChild'd (async by
+  // default) and raced the very scripts it existed to watch, until it was made
+  // a real deferred tag ahead of them.
+  //
+  // So beforeSend AWAITS the identity (bounded) and stamps the event, rather
+  // than the scope being the only carrier. Two consumers, deliberately with
+  // different bounds:
+  //   • setUser — UNBOUNDED. Whenever the answer lands it goes on the scope, so
+  //     every later event carries it with no promise at all.
+  //   • beforeSend — BOUNDED by SHAPE_USER_WAIT_MS, because holding an event
+  //     forever loses it.
+  function stampShapeUser(event) {
+    try {
+      if (!shapeUserBounded) return event;
+      // Already identified (setUser landed first, or a future caller set one) —
+      // never overwrite; the scope's value is at least as good as ours.
+      if (event && event.user && event.user.id) return event;
+      return shapeUserBounded.then(function (ctx) {
+        try { if (ctx && event) event.user = ctx; } catch (e) {}
+        return event;
+      }, function () { return event; });
+    } catch (e) {
+      // A throw here would drop the error being reported, which is the one
+      // outcome worse than reporting it anonymously.
+      return event;
+    }
+  }
+
+  // Started BEFORE init so beforeSend has something to await on the very first
+  // event, and so the request overlaps the SDK's own setup instead of following it.
+  var shapeUserReal = null;
+  var shapeUserBounded = null;
+  // ⚠ TOTAL, like every other block in this file. This runs at module scope,
+  // OUTSIDE the init try/catch below, so an exotic environment missing any of
+  // fetch / Promise / setTimeout must degrade to "no identity" rather than
+  // throwing at load and taking the host page down with it. On that path
+  // shapeUserBounded stays null, stampShapeUser returns the event untouched,
+  // and the surface behaves exactly as it did before this change.
+  try {
+    shapeUserReal = fetchShapeUser();
+    if (shapeUserReal && typeof window.setTimeout === "function") {
+      shapeUserReal.then(function (ctx) {
+        // Clear rather than leave a stale identity when the answer is "nobody".
+        try { window.Sentry.setUser(ctx || null); } catch (e) {}
+      });
+      shapeUserBounded = Promise.race([
+        shapeUserReal,
+        new Promise(function (resolve) { window.setTimeout(function () { resolve(null); }, SHAPE_USER_WAIT_MS); })
+      ]);
+    } else if (shapeUserReal) {
+      // No timer to bound with: still put the answer on the scope when it
+      // lands, but never make an event WAIT on something nothing can cut short.
+      shapeUserReal.then(function (ctx) {
+        try { window.Sentry.setUser(ctx || null); } catch (e) {}
+      });
+    }
+  } catch (e) {
+    shapeUserBounded = null;
   }
 
   try {
@@ -219,6 +292,10 @@
       // every init, matches sentry.server.config.ts, instrumentation-client.ts
       // and mobile-app/src/sentry.mjs. Never flip this to true.
       sendDefaultPii: false,
+      // Stamps the identity onto an event that was created before the async
+      // read landed — see stampShapeUser. Returns the event unchanged (never
+      // null) on every path, so it can only ADD context, never drop a report.
+      beforeSend: stampShapeUser,
       initialScope: {
         tags: { shape_surface: shapeSurfaceTag() }
       }
@@ -239,7 +316,7 @@
     // omission mattered: pageShell.jsx's consumers are ClientApp /
     // TrainerApp / NutritionistApp and their sub-pages, so "no user context"
     // meant every dashboard error on the website arrived anonymous.
-    attachShapeUser();
+    // (the read is started above, before init)
   } catch (e) {
     // A Sentry init failure must never surface as a page-breaking error —
     // that would make the error-tracking layer itself a source of errors.

@@ -50,7 +50,36 @@ export default function SentryUser({
   roles?: string[] | null;
   role?: string | null;
 }) {
+  // ⚠ SET DURING RENDER, NOT ONLY IN THE EFFECT — an effect runs after COMMIT, so
+  // a sibling that throws during the initial render or hydration is caught by
+  // `error.tsx` before this component has ever run, and reports anonymously. An
+  // initial-render crash is the most valuable error this surface can report, and
+  // this repo has already paid for that exact ordering once: the static site's
+  // Sentry loader was `appendChild`'d (async by default) and so lost every
+  // page-startup crash until it was made a real deferred tag ahead of the app.
+  // React renders depth-first in order, so running here — before the siblings
+  // below this element in the tree — closes the window.
+  //
+  // ⚠ WINDOW-GUARDED, AND THAT GUARD IS LOAD-BEARING. A client component's body
+  // also executes during SSR, where the Sentry scope is a SERVER global shared
+  // across concurrent requests — setting a user there would attribute one
+  // member's errors to another. This is the cross-account leak class this repo
+  // has fixed before (the mobile `_followCache`), and the guard is the only
+  // thing standing between this component and it.
+  //
+  // Safe to repeat: `setUser` is idempotent with the same value, so a render
+  // React discards (StrictMode's double-invoke, a Suspense retry) costs nothing.
+  if (typeof window !== 'undefined') {
+    try {
+      Sentry.setUser(bsSentryUser({ id, roles, role }, id));
+    } catch {
+      /* inert without a DSN, and never the cause of a page failure */
+    }
+  }
+
   useEffect(() => {
+    // Re-applied on commit so a genuine identity CHANGE lands even when the
+    // render-phase call above already ran for the previous value.
     // Never throw: this runs inside a render tree whose errors the boundary
     // reports to Sentry, so a throw here would turn the reporting layer into a
     // source of the very crashes it exists to record.

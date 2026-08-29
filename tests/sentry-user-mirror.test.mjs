@@ -201,3 +201,69 @@ test('an empty roles array with a legacy singular role still resolves the coach'
   const mirrored = MIRROR.bsSentryUser({ id: 'u1', roles: [], role: 'trainer' }, 'u1');
   assert.deepEqual({ ...mirrored }, ctx);
 });
+
+// ⚠ THE STARTUP RACE, driven rather than reasoned about. The identity read is
+// async while the deferred nd/*.js bundles that BOOT the app run immediately
+// after this file — so a cold-load crash happens with the fetch still in
+// flight. beforeSend must therefore WAIT for the identity and stamp the event,
+// not rely on the scope alone. This builds the real file in a vm with a
+// deliberately SLOW /api/me and asserts the event that was created first still
+// comes out identified.
+//
+// It also pins the two properties that make the wait safe: beforeSend must
+// never return null (that would DROP the very error being reported, the one
+// outcome worse than reporting it anonymously), and it must never overwrite a
+// user the scope already carries.
+function buildInit({ meDelayMs = 0, meUser = { id: 'u9', roles: ['trainer'], role: 'trainer' }, ok = true } = {}) {
+  const src = readFileSync(new URL('../public/newdesign/sentryInit.js', import.meta.url), 'utf8');
+  const captured = { options: null, users: [] };
+  const sandbox = {
+    console: { warn() {}, error() {} },
+    setTimeout, clearTimeout, Promise,
+    window: {
+      SHAPE_SENTRY_DSN: 'https://examplePublicKey@o0.ingest.sentry.io/0',
+      location: { pathname: '/newdesign/ClientApp.html' },
+      setTimeout, clearTimeout,
+      Sentry: {
+        init(o) { captured.options = o; },
+        setUser(u) { captured.users.push(u); },
+      },
+      fetch: () => new Promise((resolve) => setTimeout(
+        () => resolve({ ok, json: () => Promise.resolve({ user: meUser }) }), meDelayMs)),
+    },
+  };
+  sandbox.window.window = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox, { filename: 'public/newdesign/sentryInit.js' });
+  return captured;
+}
+
+test('an event raised before the identity lands is still stamped with it', async () => {
+  const cap = buildInit({ meDelayMs: 40 });
+  assert.equal(typeof cap.options?.beforeSend, 'function', 'init did not register a beforeSend');
+  // Created immediately — the cold-load startup crash, fetch still in flight.
+  const event = { message: 'boot crash' };
+  const out = await cap.options.beforeSend(event);
+  assert.ok(out, 'beforeSend must never drop the event');
+  assert.equal(out.user?.id, 'u9');
+  assert.equal(out.user?.is_coach, true);
+});
+
+test('beforeSend never drops an event and never overwrites an existing user', async () => {
+  const cap = buildInit({ meDelayMs: 5 });
+  // Signed-out / unreadable identity must still yield the event, unstamped.
+  const anon = await buildInit({ ok: false }).options.beforeSend({ message: 'x' });
+  assert.ok(anon, 'beforeSend must never drop the event');
+  assert.equal(anon.user, undefined);
+  // An already-identified event is left exactly as it is.
+  const kept = await cap.options.beforeSend({ message: 'y', user: { id: 'already' } });
+  assert.equal(kept.user.id, 'already');
+});
+
+test('the identity still reaches the scope, so later events need no wait', async () => {
+  const cap = buildInit({ meDelayMs: 5 });
+  await new Promise((r) => setTimeout(r, 60));
+  const last = cap.users[cap.users.length - 1];
+  assert.equal(last?.id, 'u9');
+  assert.equal(last?.roles, 'trainer');
+});

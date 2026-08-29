@@ -451,6 +451,49 @@ changelog whenever something ships.
   and `/warroom` resolve through `requireAdminUser()`, which returns `{id, email}` and no
   profile, so they pass the id alone and the context reads `roles: ''` — the canonical
   module's own behaviour for an unresolved profile, not a shortcut invented here.
+- ⚠ **REVIEW ROUND — THE STARTUP RACE, and it undercut the stated goal.** The identity
+  read is async while the deferred `nd/*.js` bundles that **boot the app** execute
+  immediately after this file — so on a cold load a startup crash happens with the fetch
+  still in flight and went out **anonymous**, which is precisely the class this change
+  exists to fix. **The same ordering failure this file has already been fixed for once:**
+  the Sentry CDN tag used to be `appendChild`'d (async by default) and raced the very
+  scripts it existed to watch, until it was made a real deferred tag ahead of them —
+  *"the most valuable error this surface can report was the one it was least likely to
+  catch."* Closed with a **`beforeSend` that awaits the identity and stamps the event**,
+  so the scope is no longer the only carrier. **Two consumers, deliberately different
+  bounds:** `setUser` is **unbounded** (whenever the answer lands, every later event gets
+  it with no promise at all), `beforeSend` is bounded at **3s** — because an event still
+  held when the tab closes is an event **LOST**, which is worse than an anonymous one.
+  It returns the event on **every** path and never `null`: dropping the error being
+  reported is the one outcome worse than reporting it without a name.
+- ⚠ **AND THE NEXT SIDE HAD THE MIRROR OF IT — an effect runs after COMMIT.** A sibling
+  that throws during the initial render or hydration is caught by `error.tsx` **before**
+  the component has ever run, so initial-render crashes stayed anonymous. `setUser` now
+  runs **during render** as well (React renders depth-first in order, so it lands before
+  the siblings below it), with the effect kept for genuine identity changes and unmount
+  cleanup. ⚠ **The `typeof window !== 'undefined'` guard on that line is load-bearing,
+  not ceremony:** a client component's body also executes during **SSR**, where the
+  Sentry scope is a **server global shared across concurrent requests** — setting a user
+  there would attribute one member's errors to another. That is the cross-account leak
+  class this repo has fixed before (the mobile `_followCache`), and the guard is the only
+  thing standing between this component and it.
+- **The module-scope block is total, like every other block in the file.** It runs
+  *outside* the init `try/catch`, so an environment missing `fetch`/`Promise`/`setTimeout`
+  degrades to "no identity" instead of throwing at load and taking the host page down —
+  a gap the vm harness surfaced by not stubbing `setTimeout`. On that path `beforeSend`
+  returns the event untouched and the surface behaves exactly as it did before.
+- **4 further mutations, all caught** (drop the `beforeSend` wiring, restoring the
+  original race · drop an unidentified event instead of sending it · overwrite a user the
+  scope already carries · never put the identity on the scope), sanity green at both ends
+  and the file restored **byte-identically** after each.
+- ⚠ **AND THE WAR ROOM LABEL LED WITH ITS OWN SUPERSEDED HEADLINE** — `status: 'done'`
+  while the text opened *"⚠ REGISTERED, NOT BUILT … Only /m/ attaches it"*, so an
+  operator skimming the board read the opposite of the truth. That is the failure this
+  file records twice under its own reviewer post-mortems: **a heading is what a skim and
+  a grep land on, so it has to carry its own expiry.** Restructured to lead with the
+  built state; the old text is kept, marked as history, because its two constraints
+  (the Next browser init runs before hydration, the static site has no bundler) still
+  bind anyone touching this.
 - ⚠ **THE CHEAP OPTIMISATION WAS REJECTED ON PURPOSE, and the reason is in the code so it
   is not "fixed" later.** Skipping the `/api/me` request when `localStorage['shape.auth']`
   is absent would spare anonymous marketing traffic a round-trip — but that key is written
@@ -468,7 +511,7 @@ changelog whenever something ships.
   76 pages"*. `sentryInit.js` returns before registering or fetching anything, so with no
   DSN this change makes **zero** additional requests. Do not read "wired" as "live".
 - Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present · `node --check`
-  on the classic script · newdesign precompile `--check` 0 · `npm test` **2342/2342** (+6).
+  on the classic script · newdesign precompile `--check` 0 · `npm test` **2345/2345** (+9).
 
 ### 2026-08-28 — The Contract becomes a cover page over full-screen stations (#1947 → `b2b9476e6`)
 
