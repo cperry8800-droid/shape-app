@@ -11949,18 +11949,33 @@ function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
 // parameter is invisible to the guard that pins the floor.
 function useBSMemberPicker(open, query) {
   const [rows, setRows] = React.useState([]);
-  const [state, setState] = React.useState('ok'); // 'ok' | 'limited' | 'failed'
+  // ⚠ FOUR OUTCOMES, NOT THREE. `pending` is the one this file kept paying for:
+  // a settled ANSWER, a refusal and a failure were modelled, and the gap between
+  // a new query and its answer was not — so it wore the previous answer's state.
+  const [state, setState] = React.useState('pending'); // 'pending' | 'ok' | 'limited' | 'failed'
   React.useEffect(() => {
     if (!open || !window.ShapeChannels?.searchMembers) {
       // ⚠ CLOSING CLEARS. A picker reopened later must not paint the PREVIOUS
       // session's people under a fresh query — the same stale-rows trap as a
       // refusal, just reached by closing the sheet instead of failing a search.
       // Idempotent by construction (identical value ⇒ React bails), so this
-      // cannot loop.
+      // cannot loop. Closed resets to `pending`, never `ok`: `ok` asserts a
+      // settled successful search, and over zero rows that renders "No matches."
+      // — a claim about who exists, made before anything was asked.
       setRows((prev) => (prev.length ? [] : prev));
-      setState((prev) => (prev === 'ok' ? prev : 'ok'));
+      setState((prev) => (prev === 'pending' ? prev : 'pending'));
       return undefined;
     }
+    // ⚠ CLEAR BEFORE THE DEBOUNCE, NOT INSIDE IT. The rows on screen must always
+    // be an answer to the query on screen; the moment the query changes the old
+    // answer stops being evidence about it. Clearing inside the timer would leave
+    // the previous query's people ACTIONABLE for the whole 220ms + round trip —
+    // and a picker row does not merely display a person, it sends to, tags, or
+    // adds THAT person. Typing "Alex" → "Alicia" and tapping tags Alex.
+    // This is the refusal rule one step wider: refused, failed, closed, or simply
+    // superseded by a newer query, the rows are not an answer to what is on screen.
+    setRows((prev) => (prev.length ? [] : prev));
+    setState('pending');
     let dead = false;
     const id = setTimeout(() => {
       window.ShapeChannels.searchMembers(query)
@@ -11979,12 +11994,25 @@ function useBSMemberPicker(open, query) {
 }
 // One notice for every picker, so the four surfaces cannot word a refusal
 // differently — or, worse, one of them forget to.
-function BSPickerNotice({ state }) {
+// ⚠ `big` + `ink` exist so the SEND SHEET can use this component rather than
+// re-typing the two strings inline — which it did, and which is exactly the
+// drift this component's own comment says it prevents. Presentation varies
+// (it replaces the whole list area there, sits above the list elsewhere); the
+// WORDS have one source.
+function BSPickerNotice({ state, big, ink }) {
   const t = useBS();
   const tr = useShapeTr();
-  if (state === 'ok') return null;
+  // ⚠ `pending` RENDERS NOTHING. It is not a refusal and not a failure — nothing
+  // has been asked yet, so there is nothing honest to say about it. Saying
+  // "couldn't search" mid-debounce would be this file's fabrication class in the
+  // other direction: reporting a fault that has not happened.
+  if (state === 'ok' || state === 'pending') return null;
+  const c = ink ? bsTHexA(ink, 0.5) : t.INK50;
+  const st = big
+    ? { fontFamily: t.DISPLAY, fontSize: 14, color: c, padding: '14px 2px' }
+    : { fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: c, padding: '8px 2px' };
   return (
-    <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>
+    <div style={st}>
       {state === 'limited'
         ? tr('feed:common.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
         : tr('feed:common.searchFailed', { defaultValue: 'Couldn\u2019t search just now — try again.' })}
@@ -12032,9 +12060,12 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('feed:common.searchMembers', { defaultValue: 'Search members…' })} autoFocus
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
-        {peopleState !== 'ok' ? (
-          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{peopleState === 'limited' ? tr('feed:common.searchLimited', { defaultValue: 'Searching a little fast \u2014 give it a moment.' }) : tr('feed:common.searchFailed', { defaultValue: 'Couldn\u2019t search just now \u2014 try again.' })}</div>
-        ) : people.length === 0 ? (
+        {/* Three VALUE gates, not three positions. Each branch names the state it
+            answers for, so a reorder cannot make one state wear another's copy —
+            and `pending` falls through to the (empty) row list, i.e. nothing. */}
+        {peopleState === 'limited' || peopleState === 'failed' ? (
+          <BSPickerNotice state={peopleState} big ink={ink} />
+        ) : peopleState === 'ok' && people.length === 0 ? (
           <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{q ? tr('feed:send.noneFound', { defaultValue: 'No one found.' }) : tr('feed:send.empty', { defaultValue: 'Search for someone to send this to.' })}</div>
         ) : people.map((m, i) => (
           <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0, padding: '10px 2px', display: 'flex', alignItems: 'center', gap: 11, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
@@ -15346,6 +15377,13 @@ function BSUniversalSearch({ onClose }) {
   React.useEffect(() => {
     const query = q.trim();
     if (!query) { setRows(null); setBusy(false); setState('ok'); return; }
+    // ⚠ CLEAR THE PREVIOUS ANSWER. This surface HAS a pending render
+    // (`busy && !rows` → "Searching…"), and it never re-entered it after the
+    // first search, because `busy` flipped true while `rows` still held the last
+    // query's people — so "Alex" stayed on screen under "Alicia" for the whole
+    // debounce. The pending state existed; the clear that reaches it did not.
+    setRows(null);
+    setState('ok');
     setBusy(true);
     let dead = false;
     const id = setTimeout(() => {
@@ -15512,7 +15550,7 @@ function BSUniversalSearch({ onClose }) {
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{state === 'limited' ? 'Searching a little fast — give it a moment and try again.' : "Couldn't search just now — check your connection and try again."}</div>
             </div>
-          ) : (list.length === 0 && moreHits === 0 && !noraHit) ? (
+          ) : (rows !== null && list.length === 0 && moreHits === 0 && !noraHit) ? (
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Nothing on Shape matches “{q.trim()}”.</div>
               <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Browse coaches on the marketplace →</button>

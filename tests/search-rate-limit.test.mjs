@@ -343,6 +343,15 @@ test('every font token a search surface renders resolves in its own page scope',
 // an empty list says "nobody", stale rows say "THIS person", and in the tag picker
 // that credits the WRONG account on a public post. Pinned two ways, because either
 // alone leaves the other as a trap.
+// ⚠ ASSERT WHAT A BRANCH ANSWERS FOR, NOT HOW IT IS SPELLED. These guards used
+// to pin `state !== "ok" ?`, which was true of the code and false of the rule —
+// a negation admits EVERY non-ok state into the refusal branch, including the
+// `pending` one added when a query changes. So the shape they pinned is exactly
+// the shape that prints "couldn't search just now" in the middle of a debounce.
+// A branch is correct when it NAMES the states it answers for.
+const refusalGate = (v) => new RegExp(`${v} === ["']limited["'] \\|\\| ${v} === ["']failed["']`);
+const settledGate = (v) => new RegExp(`${v} === ["']ok["'] &&`);
+
 test('a refused picker search clears its results and shows the refusal', () => {
   const src = stripComments(COMMUNITY);
 
@@ -356,10 +365,12 @@ test('a refused picker search clears its results and shows the refusal', () => {
   // (b) the render cannot hide the notice behind a non-empty list
   assert.doesNotMatch(src, /tagResults\.length === 0 &&[^]{0,200}?tagState/,
     'the tag notice is gated behind an empty result list — stale rows hide it');
-  assert.match(src, /\{\s*tagState !== "ok"\s*\?/, 'the tag notice is not its own render branch');
+  assert.match(src, refusalGate('tagState'), 'the tag notice is not gated on the states it answers for');
+  assert.match(src, settledGate('tagState'), 'the tag empty state does not require a settled successful search');
 
   // the send picker already had the right shape; keep it that way
-  assert.match(src, /\{state !== "ok" \? \(/, 'the send picker notice is no longer a top-level branch');
+  assert.match(src, refusalGate('state'), 'the send picker notice is not gated on the states it answers for');
+  assert.match(src, settledGate('state'), 'the send picker empty state does not require a settled successful search');
 });
 
 // ⚠ ENUMERATED, NOT PATCHED WHERE IT WAS REPORTED. The tag picker's refusal was
@@ -371,8 +382,8 @@ test('every refusal branch renders ahead of its own empty state', () => {
   const surfaces = [
     ['the app typeahead', stripComments(CLIENT), /state !== 'ok' \?/, /Nothing on Shape matches/],
     ['the site header search', stripComments(SHELL), /state !== "ok" \?/, /Nothing on Shape matches/],
-    ['the DM send picker', stripComments(COMMUNITY), /\{state !== "ok" \? \(/, /people\.length === 0 \?/],
-    ['the post tag picker', stripComments(COMMUNITY), /\{\s*tagState !== "ok"\s*\?/, /tagResults\.length === 0 \?/],
+    ['the DM send picker', stripComments(COMMUNITY), refusalGate('state'), /people\.length === 0 \?/],
+    ['the post tag picker', stripComments(COMMUNITY), refusalGate('tagState'), /tagResults\.length === 0 \?/],
     ['the coach roster search', stripComments(PROS), /searchState !== 'ok' &&/, /coach:addClient\.noMembers/],
   ];
   for (const [what, src, refusal, empty] of surfaces) {
@@ -525,10 +536,12 @@ test('no member picker can render "no matches" over a refused or failed search',
   const sendOpen = src.indexOf('function BSPostSendSheet');
   assert.ok(sendOpen > 0, 'the send picker component is gone');
   const send = src.slice(sendOpen, src.indexOf('\nfunction ', sendOpen + 10));
-  const notice = send.indexOf("peopleState !== 'ok'");
+  const notice = send.search(refusalGate('peopleState'));
   const empty = send.indexOf('people.length === 0');
   assert.ok(notice > 0, 'the send picker has no refusal branch');
   assert.ok(empty > notice, 'the send picker tests its empty state before its refusal state');
+  assert.match(send, settledGate('peopleState'),
+    'the send picker renders its empty state without requiring a settled successful search');
 });
 
 test('a member picker clears its rows on every path that is not a fresh answer', () => {
@@ -544,6 +557,83 @@ test('a member picker clears its rows on every path that is not a fresh answer',
     'the hook does not clear its rows when the search is refused or fails');
   assert.match(body, /if\s*\(!open[^]*?setRows\(\(prev\)\s*=>\s*\(prev\.length\s*\?\s*\[\]\s*:\s*prev\)\)/,
     'the hook does not clear on close — reopening would paint the previous session’s people');
+});
+
+// ⚠ FOUR OUTCOMES, NOT THREE — AND THE FOURTH IS THE ONE THIS WAVE KEPT MISSING.
+// A refusal, a failure and a settled empty answer were all modelled. The GAP
+// between a new query and its answer was not, so it wore the PREVIOUS answer's
+// state: rows on screen that were not an answer to the query on screen. And a
+// picker row does not display a person — it SENDS to, TAGS, or ADDS that person.
+// Typing "Alex" → "Alicia" and tapping tagged Alex, on a public post.
+//
+// This is the refusal rule one step wider. Refused, failed, closed, or simply
+// SUPERSEDED BY A NEWER QUERY — in every case the rows have stopped being an
+// answer, and in every case they must go BEFORE the next search starts, not
+// after it returns. Clearing inside the debounce leaves them actionable for the
+// whole 220ms + round trip, which is the entire window a member types in.
+//
+// ⚠ TWO SURFACES ALREADY HAD THIS RIGHT, by two different mechanisms, and both
+// are pinned here as the reference rather than rewritten: the coach roster gates
+// every row on `!searching`, and the standalone-page search overwrites its list
+// with "Searching…" markup synchronously. Five did not. The mechanism is free to
+// differ per surface; the property is not.
+test('no search surface can act on the previous query’s rows', () => {
+  // (a) the clear happens BEFORE the debounce timer, not inside it
+  const before = [
+    ['the shared member-picker hook', stripComments(CLIENT),
+      // the live half of the effect — past the close branch's `return undefined;`
+      (src) => { const o = src.indexOf('function useBSMemberPicker'); return src.slice(src.indexOf('return undefined;', o), src.indexOf('\nfunction ', o + 10)); },
+      [/setRows\(\(prev\) => \(prev\.length \? \[\] : prev\)\)/, /setState\('pending'\)/]],
+    ['the app typeahead', stripComments(CLIENT),
+      (src) => { const o = src.indexOf("if (!query) { setRows(null); setBusy(false); setState('ok'); return; }"); return src.slice(o, src.indexOf('window.ShapeSearch.people(query)', o)); },
+      [/setRows\(null\);/]],
+    ['the site header search', stripComments(SHELL),
+      (src) => { const o = src.indexOf('if (!open || !query) { setRows(null); setState("ok"); return undefined; }'); return src.slice(o, src.indexOf('sb.rpc("search_shape_people"', o)); },
+      [/setRows\(null\);/]],
+    ['the DM send picker', stripComments(COMMUNITY),
+      (src) => { const o = src.indexOf('setPeople((prev) => (prev.length ? [] : prev))'); return src.slice(o, src.indexOf('sb.rpc("search_members"', o)); },
+      [/setState\("pending"\)/]],
+    ['the post tag picker', stripComments(COMMUNITY),
+      (src) => { const o = src.indexOf('setTagResults((prev) => (prev.length ? [] : prev))'); return src.slice(o, src.indexOf('cl.rpc("search_members"', o)); },
+      [/setTagState\("pending"\)/]],
+  ];
+  for (const [what, src, slice, needles] of before) {
+    const region = slice(src);
+    assert.ok(region && region.length > 0 && region.length < 2000,
+      `${what}: the effect region could not be located — the markers have moved`);
+    assert.ok(region.includes('setTimeout'),
+      `${what}: no debounce timer between the clear and the search — the region is not what it claims to be`);
+    const timer = region.indexOf('setTimeout');
+    for (const n of needles) {
+      const at = region.search(n);
+      assert.ok(at >= 0, `${what}: the previous query’s rows are never cleared`);
+      assert.ok(at < timer,
+        `${what}: the clear runs INSIDE the debounce, so the previous query’s rows stay actionable ` +
+        'for the whole debounce + round trip');
+    }
+  }
+
+  // (b) the two references, pinned so a "cleanup" cannot quietly remove them
+  assert.match(stripComments(PROS), /\{!searching && \(results \|\| \[\]\)\.map\(/,
+    'the coach roster no longer gates its rows on `!searching` — a superseded query’s clients ' +
+    'become invitable again');
+  const site = stripComments(SITE);
+  const searching = site.indexOf('Searching…');
+  const debounce = site.indexOf('debounceId = setTimeout');
+  assert.ok(searching > 0 && debounce > 0, 'the standalone-page search markers are gone');
+  assert.ok(searching < debounce,
+    'the standalone-page search no longer overwrites its list before the debounce');
+
+  // (c) and no surface may render its empty copy while a search is in flight
+  const settled = [
+    ['the app typeahead', stripComments(CLIENT), /rows !== null && list\.length === 0/],
+    ['the site header search', stripComments(SHELL), /rows !== null && rows\.length === 0/],
+  ];
+  for (const [what, src, gate] of settled) {
+    assert.match(src, gate,
+      `${what}: its empty state is reachable while a search is pending — only branch ORDER ` +
+      'stands between a member and "nothing matches" over a search that has not run');
+  }
 });
 
 test('every SEARCH CALL SITE is covered — inventory derived, not remembered', () => {

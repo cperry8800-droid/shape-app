@@ -206,6 +206,12 @@ function SiteSearch({ signedIn = false }) {
   React.useEffect(() => {
     const query = q.trim().replace(/^@/, "");
     if (!open || !query) { setRows(null); setState("ok"); return undefined; }
+    // ⚠ CLEAR THE PREVIOUS ANSWER, SYNCHRONOUSLY. `rows === null` is this
+    // surface's pending render ("Searching…") and it only ever fired on the
+    // FIRST search: a changed query left the last query's people on screen for
+    // 250ms + a round trip. The rows on screen must answer the query on screen.
+    setRows(null);
+    setState("ok");
     let dead = false;
     const id = setTimeout(() => {
       ssEnsureDb().then(db => {
@@ -263,7 +269,7 @@ function SiteSearch({ signedIn = false }) {
                   <div style={{ padding: "12px 12px 8px", fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Searching…</div>
                 ) : state !== "ok" ? (
                   <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
-                ) : rows.length === 0 && !noraHit ? (
+                ) : rows !== null && rows.length === 0 && !noraHit ? (
                   <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>
                     {signedIn ? <>Nothing on Shape matches “{q.trim()}”. <a href="/newdesign/Marketplace.html" style={{ color: TEAL, textDecoration: "none" }}>Browse coaches →</a></> : <>Sign in to search every member & coach on Shape. <a href="/newdesign/Login.html" style={{ color: TEAL, textDecoration: "none" }}>Log in →</a></>}
                   </div>

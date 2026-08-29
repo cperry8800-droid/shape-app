@@ -751,9 +751,17 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     // "ok" | "limited" | "failed" — a refusal, a failure and an empty answer are
     // three different things; collapsing the last two tells the sender a real
     // person is not on Shape on evidence we never had.
-    const [state, setState] = React.useState("ok");
+    // ⚠ AND "pending" IS THE FOURTH. The gap between a new query and its answer
+    // was unmodelled, so it wore the PREVIOUS answer's state — rows on screen
+    // that were not an answer to the query on screen, and every one of them
+    // sends a DM to that person.
+    const [state, setState] = React.useState("pending");
     const [busy, setBusy] = React.useState("");
     React.useEffect(() => {
+      // ⚠ CLEAR BEFORE THE DEBOUNCE, NOT INSIDE IT. Clearing inside the timer
+      // leaves the last query's people ACTIONABLE for 220ms + a round trip.
+      setPeople((prev) => (prev.length ? [] : prev));
+      setState("pending");
       let dead = false;
       const id = setTimeout(() => {
         const sb = window.shapeDb && window.shapeDb.client;
@@ -795,9 +803,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
             style={{ width: "100%", boxSizing: "border-box", padding: "10px 2px", border: 0, borderBottom: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontSize: 14.5, outline: "none" }} />
           <div style={{ maxHeight: 300, overflowY: "auto", marginTop: 6 }}>
-            {state !== "ok" ? (
+            {/* Value gates, not positions: each branch names the state it answers
+                for, so a reorder cannot make one state wear another's copy, and
+                "pending" falls through to the (empty) row list — i.e. nothing. */}
+            {state === "limited" || state === "failed" ? (
               <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
-            ) : people.length === 0 ? (
+            ) : state === "ok" && people.length === 0 ? (
               <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{q ? "No one found." : "Search for someone to send this to."}</div>
             ) : people.map((m, i) => (
               <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: "100%", textAlign: "left", cursor: "pointer", background: "transparent", border: 0, borderTop: i ? "1px solid rgba(242,237,228,0.07)" : 0, padding: "10px 2px", display: "flex", alignItems: "center", gap: 10, color: INK, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
@@ -1396,13 +1407,20 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
   const [tagged, setTagged] = React.useState(ed && Array.isArray(ed.mentions) ? ed.mentions : []); // [{ userId, name }]
   const [tagQuery, setTagQuery] = React.useState("");
   const [tagResults, setTagResults] = React.useState([]);
-  const [tagState, setTagState] = React.useState("ok"); // "ok" | "limited" | "failed"
+  const [tagState, setTagState] = React.useState("pending"); // "pending" | "ok" | "limited" | "failed"
   const [tagOpen, setTagOpen] = React.useState(false);
   React.useEffect(() => {
     if (!tagOpen) return;
     const cl = window.shapeDb && window.shapeDb.client;
     if (!cl || !cl.rpc) { setTagState("failed"); setTagResults([]); return; }
     let on = true;
+    // ⚠ CLEAR BEFORE THE DEBOUNCE. This picker already clears on a refusal, for
+    // the reason written below — and a query change is the same fact reached by
+    // typing rather than by being refused: the rows stop being an answer to
+    // what is on screen. Leaving them for 220ms + a round trip credits the
+    // wrong account on a PUBLIC post.
+    setTagResults((prev) => (prev.length ? [] : prev));
+    setTagState("pending");
     // ⚠ SAME RULE HERE. A refusal must not read as "nobody by that name" — the
     // tag picker is how a member credits a training partner, so an empty list
     // silently drops a real person out of the post.
@@ -1624,9 +1642,9 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
                   picker above. Hanging it off `tagResults.length === 0` meant any state
                   that left rows behind could hide it; belt and braces, since the wrong
                   answer here is a wrongly-tagged member. */}
-              {tagState !== "ok" ? (
+              {tagState === "limited" || tagState === "failed" ? (
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagState === "limited" ? "Searching a little fast — give it a moment." : "Couldn’t search just now — try again."}</div>
-              ) : tagResults.length === 0 ? (
+              ) : tagState === "ok" && tagResults.length === 0 ? (
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagQuery.trim() ? "No matches." : "Type a name to find someone."}</div>
               ) : null}
             </div>
