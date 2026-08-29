@@ -397,7 +397,10 @@ test('the shipped tree answers the way the derivation claims', () => {
   assert.ok(byKey.get('Client::BSGrocery').tr > 0, 'BSGrocery holds a translator (trG) and must not read as uncovered');
   // The two marketplace cards never CALL tr — they inject it into a module-scope
   // helper that cannot hold a hook. A call-only count read them as uncovered.
-  assert.ok(byKey.get('Marketplace::MktCoachCard').tr > 0, 'an injected translator still counts');
+  // Exactly one: the `tr` handed to bsmRoleWord. The BINDING (`const tr = …`) and
+  // the HOOK NAME are not references to a translator — a spelling-matcher counts
+  // both and reads 2, which is how a wrong rule hides inside a right answer.
+  assert.equal(byKey.get('Marketplace::MktCoachCard').tr, 1, 'an injected translator counts once — the binding and the hook do not');
   // ...and the documented parameter shadows are NOT translators: `tr` here is a
   // MediaStreamTrack / a playlist track. Both components genuinely have none.
   assert.equal(byKey.get('Client::BSLogMealFlow').tr, 0, 'forEach(tr => tr.stop()) is a MediaStreamTrack, not the translator');

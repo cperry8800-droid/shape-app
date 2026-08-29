@@ -387,11 +387,11 @@ changelog whenever something ships.
   rollout shipped per **NAMED surface**, and **nothing ever audited what was
   absent from the list**, so *"every surface"* was never a measured claim. The
   registered next step was to *enumerate the surfaces and check them*; this is
-  that, and it is deliberately the enumeration rather than a sixth repair.
+  that, and it is deliberately the enumeration rather than a **fifth** repair.
 - ⚠ **MEASURED, AND IT IS NOT CLOSE.** `tests/i18n-surface-inventory.test.mjs`
   walks `mobile-app/src/broadsheet/*.jsx` with the AST: **358** components render
-  JSX — **83 fully localized · 32 partial** (196 strings still hardcoded) ·
-  **125 with NO translator in scope at all** (1,360 strings) · 118 render no user
+  JSX — **84 fully localized · 31 partial** (193 strings still hardcoded) ·
+  **125 with NO translator in scope at all** (1,355 strings) · 118 render no user
   copy. Of the **240** that render copy, **35% are localized.**
 - ⚠ **AND THE UNCOVERED SET IS NOT THE TAIL — IT IS THE PRODUCT.** The **profile
   customizer** (76 strings), the **live session player** (`BSSession`, 74), the
@@ -410,7 +410,7 @@ changelog whenever something ships.
   had just been rewritten to stop making, applied here up front.**
   `iosAppBroadsheetClient.jsx` carries **~1,600 `tr()` calls** *and* four of those
   six surfaces; a per-file count reads the file as covered and hides every one of
-  them. That is exactly how three of the five corrections got missed.
+  them. That is exactly how three of the four corrections got missed.
 - ⚠ **THE WORST NUMBER IS A PARTIAL, NOT A ZERO.** `BSClientEat` — a **primary
   tab** — has **3 `tr()` calls against 62 hardcoded strings**. A per-file count
   can't see it; a per-component *zero* check can't either. It is only visible
@@ -453,11 +453,39 @@ changelog whenever something ships.
   Localizing a surface means **deleting its line**, which is how progress gets
   recorded instead of asserted. Partials are pinned both ways too, so a localized
   surface that starts hardcoding copy again fails on the way back down.
-- ⚠ **THE DETECTOR HAD TO KNOW ABOUT `coachTr`, OR IT WOULD HAVE INVENTED A GAP.**
-  The translator is reached two ways in this tree — the `useShapeTr()` hook's `tr`
-  and the pros module's **module-scope non-hook `coachTr`** (the roster helpers
-  cannot hold a hook, #1746). Matching only `tr` reports every coachTr surface as
-  uncovered; a mutation dropping the widening is caught, so the fact is pinned.
+- ⚠ **AND THE DETECTOR ASKED HOW A TRANSLATOR IS *SPELLED*, NOT WHAT IT IS *BOUND
+  TO*** (CodeRabbit on #1954). It matched `/^(tr|[a-z]\w*Tr)$/` — a guess at a
+  naming convention wearing a pattern — and `BSGrocery` binds `const trG =
+  useShapeTr()`, which the regex misses. Reading the **bindings** instead
+  (`useShapeTr()` / `useTr()` results, plus the pros module's module-scope
+  non-hook **`coachTr`** — the roster helpers cannot hold a hook, #1746) surfaced
+  **three more defects in the same line of code**, each one the regex was hiding:
+  the **hook call itself** matched, so a component that took `useShapeTr()` and
+  never used it read as covered; counting only **calls** read the two marketplace
+  cards as having no translator (they *inject* `tr` into a module-scope helper —
+  the sanctioned pattern here — so they route copy through it without ever calling
+  it); and counting **references** then caught the **parameter shadows this file
+  has already recorded once** — `getTracks().forEach(tr => tr.stop())` is a
+  MediaStreamTrack, `list.map((tr, i) => …)` in `BSPlaylistCard` a playlist track,
+  and both live in components with **no translator at all**, so the shadow read
+  them as covered.
+- ⚠ **THE FINDING WAS REAL ABOUT THE RULE AND INVISIBLE IN THE NUMBERS — which is
+  the part worth keeping.** `BSGrocery`'s classification was right *by accident*:
+  the regex wrongly matched the **hook name** in exactly the component whose
+  **binding** it wrongly missed, and the two errors cancelled. Only tightening the
+  test to an exact count (`MktCoachCard` must read **1** reference, not 2 — the
+  binding and the hook are not uses) makes the wrong rule fail. **A rule can be
+  wrong and still produce the right answer on today's tree; that is not evidence
+  it is right, and it is exactly how a detector rots silently.**
+- ⚠ **UNITS ARE NOT COPY, AND THE FIRST CUT OF THAT EXCLUSION LIED.** `lb`, `min`,
+  `kg`, `ms` clear the two-letter test and land in running text, so they read as
+  untranslated strings on every stat surface. But case-folding `hr` collided with
+  **`HR`** (heart rate) and silently dropped the only string `BSSplitsPage`
+  hardcodes. Heart rate is a term of art and now sits in the brand set beside
+  RPE/HRV/BPM; the rule is written at the set: **a token is excluded only when it
+  cannot also be an English word in running copy** — so `in`, `am` and `pm` are
+  deliberately *not* excluded, because a false exclusion hides real copy, which is
+  the direction that makes the guard lie.
 - ⚠ **AND MY OWN WALKER SHIPPED BROKEN — CAUGHT BY ITS OWN GUARD-THE-GUARD.** The
   first cut walked the `Program` root with a range test, and the root's own
   `start` is **0**, so `n.start < component.start` pruned the entire tree and the
@@ -469,19 +497,34 @@ changelog whenever something ships.
 - **Brand nouns and terms of art are excluded** (Shape · Shape Score · Nora ·
   Spotify · `Vol. 1 · No. 1` · RPE · e1RM · kcal · HRV …) — the house rule the
   13-locale translator brief already follows. Counting them would inflate the gap
-  with strings no locale should change; the 1,106 figure is net of them.
-- **Registered, NOT built — and deliberately not started here.** Localizing 120
-  components is a multi-PR wave (≈1,106 strings × 13 locales), and the highest-
+  with strings no locale should change; the 1,548 figure is net of them.
+- **Registered, NOT built — and deliberately not started here.** Localizing 125
+  components is a multi-PR wave (≈1,355 strings × 13 locales), and the highest-
   value first cuts are the ones a member hits in a session: **`BSSession`**, the
   **meal logger**, the **auth/splash shell**, and the **`BSClientEat` partial**.
   Firing that unattended would be the opposite of what the measurement is for.
-- **11 mutations, all caught** — the ratchet (a new uncovered component · a
-  component whose copy is ONLY in a conditional · a baseline entry that gained a
-  translator · a stale baseline entry · a covered component regressing to
-  hardcoded copy) and the detector (revert to immediate-parent-only · count
-  `<style>` children · count comparison operands · `walk()` ignoring the prune
-  signal · the walker returning nothing · dropping the `coachTr` widening) —
+- ⚠ **THE MEASUREMENT TEST NOW ASSERTS ITS TOTALS, because the ratchet cannot see
+  them.** Membership is pinned both ways — but a partial surface that hardcodes
+  ten MORE strings keeps its membership and passes. The string volumes are
+  asserted exactly, so a change there is either progress (lower the number and the
+  record with it) or a regression, and both have to be a deliberate edit. The
+  component counts that move on unrelated additions stay floors, and say so.
+- ⚠ **AND A BASELINE ENTRY THAT STOPS RENDERING COPY IS AS STALE AS ONE THAT GAINS
+  A TRANSLATOR.** Without that branch an entry whose strings all moved out keeps
+  asserting a gap that no longer exists — the ratchet vouching for code that moved,
+  which is the class this whole file exists to end.
+- **17 mutations, all caught, and one documented equivalent** — the ratchet (a new
+  uncovered component · copy ONLY in a conditional · a baseline entry that gained a
+  translator · a stale entry · a no-copy entry parked in the baseline · a covered
+  component regressing) and the detector (revert to the spelling regex · drop the
+  parameter-shadow prune · count calls instead of references · drop the `coachTr`
+  widening · drop the destructured `useTr()` binding · immediate-parent-only ·
+  `<style>` children · comparison operands · `walk()` ignoring the prune signal ·
+  the walker returning nothing · empty the unit set · un-except `HR`) —
   unmutated sanity green at both ends and the tree restored clean after each.
+  ⚠ The equivalent is *swapping the derived binding set back for the old regex on
+  the reference count alone*: on today's tree its two errors cancel (above), so it
+  is killed only by the exact-count assertion, not by the classification.
   Verified: `npm test` · `tsc` 0 · all broadsheet files parse.
 
 ### 2026-08-29 — Search gets a ceiling, and stops fabricating answers when it cannot give one
@@ -3943,12 +3986,12 @@ oats, soy sauce, broth/stock/bouillon, margarine.
 > (night, last mile) entry. ⚠ **AND "NOW THE CLAIM HOLDS" WAS WRONG AGAIN (the
 > Progress hub) — AND MEASURED 2026-08-29 IT IS WRONG BY TWO ORDERS OF
 > MAGNITUDE.** `tests/i18n-surface-inventory.test.mjs` walks the tree:
-> of **358** components that render JSX, **88** are fully localized, **27** are
-> partial (167 strings left) and **120 carry NO translator in scope at all**
-> (1,106 hardcoded strings) — among them the **live session player**, the **meal
+> of **358** components that render JSX, **84** are fully localized, **31** are
+> partial (193 strings left) and **125 carry NO translator in scope at all**
+> (1,355 hardcoded strings) — among them the **live session player**, the **meal
 > logger**, the **workout builder**, the **profile customizer**, the **auth /
-> splash shell** and the **coach application**. So of the 235 components that
-> render user copy, **38% are localized.** The rollout below covered the ten
+> splash shell** and the **coach application**. So of the 240 components that
+> render user copy, **35% are localized.** The rollout below covered the ten
 > NAMED surfaces across all 13 locales (`en es pt-BR fr de it id vi tr ha pcm ru
 > uk`) — that part is true; *"every surface"* never was, and nothing measured it
 > until now. **Do not restate the claim — read the guard's MEASUREMENT output.** The resumption
@@ -9868,11 +9911,12 @@ findings, two fixed, one withdrawn by CodeRabbit, one deferred by agreement.
   Handoff: **[`docs/HANDOFF-2026-07-16.md`](HANDOFF-2026-07-16.md)**.
 
 ### 2026-07-16 — i18n rollout: the coach app is the tenth NAMED surface (#1746, `b94a0d5b`)
+
 - ⚠ **THIS HEADING READ "i18n rollout COMPLETE … the tenth + final surface", AND
   THAT IS THE CLAIM THAT HAS NOW BEEN CORRECTED FOUR TIMES AND MEASURED ONCE.** Corrected in place
   rather than rewritten, because the entry is accurate about what it shipped —
   ten named surfaces, 835 coach keys, 13 locales — and wrong only in calling that
-  set the whole app. Measured 2026-08-29: **120 of 358 components carry no
+  set the whole app. Measured 2026-08-29: **125 of 358 components carry no
   translator at all.** A *heading* is what a skim and a grep land on, so it has to
   carry its own expiry. See the 2026-08-29 inventory entry.
 - **The ten named surfaces + the coach app are localized across all 13 active
