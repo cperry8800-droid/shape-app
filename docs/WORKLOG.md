@@ -378,6 +378,276 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — i18n cut 1: the launch flow stops being English-only
+
+- **The wave's first cut, and the measurement's own headline case.** The 2026-08-29
+  inventory found the **language picker was the ONLY localized screen in the entire
+  launch flow** — a member picks Spanish and the very next screen, and every screen
+  until the app itself, is English. That flow is now localized end to end: the wire
+  beat, the **Shape Daily telegram**, the invite edition, the members wall, the
+  preview banner, the app shell, and the whole **sign-in / create-account** form.
+  **No migration, no route change.**
+- ⚠ **THE CUT AS SCOPED WAS WRONG IN BOTH DIRECTIONS, AND THAT IS THE ENTRY.** The
+  handoff scoped it as *"~107 strings all in `iosAppBroadsheetMain.jsx`"*. Measured
+  against the code: **~26 of those 107 were unreachable dead code**, while the
+  launch's **most-read screen was not in the file at all**.
+- ⚠ **DEAD BRANCHES COUNTED AS WORK.** `BSSplash` carried **seven** style branches
+  and exactly **two** are reachable — both call sites hardcode `style` (`wire-beat`
+  at the beat, `classified` at the telegram), and `tweaks.splashStyle` is read only
+  by the Tweaks panel's own button state and **never passed to the component**. So
+  `cosmos · masthead · dropcap · frontpage · vault · ticker` (~23 strings) were
+  translation work for screens nobody can reach. **`BSCosmicWordmark` was worse** —
+  no render site, not window-exported, fully orphaned: **3 of the published "1,355
+  uncovered strings" were in a component nothing mounts.** All deleted, with the
+  inert Tweaks *Splash* section (its `splashStyle`/`splashBg`/`splashBgColor` tweaks
+  reached nothing) and three dead `bsDigest*` helpers. **229 lines.**
+- ⚠ **AND THE LAUNCH'S MOST-READ SCREEN IS OUTSIDE THE WALKED DIRECTORY.** The
+  telegram BODY — the member's actual day — is assembled in
+  `mobile-app/src/services/dailyWire.mjs`, which the inventory does not walk. So
+  **localizing `BSSplash` alone takes it to `hard === 0` while the member still
+  reads their day in English**: the measurement would have certified a screen that
+  is still English. It is in this cut for that reason.
+- **The telegram takes an INJECTED translator, so the module stays pure.**
+  `bsWireLines(digest, directive, { tr, locale })` — both optional, with the shipped
+  English carried as the fallback, so the module remains dependency-free and its 21
+  existing vectors pass **unchanged**. `T(key, en, vars)` returns the pre-interpolated
+  English when no translator is supplied, so **no ICU is ever evaluated on the
+  fallback path**, and it try/catches, so a broken catalog degrades to English
+  rather than blanking the screen.
+- ⚠ **THE DIRECTIVE LINE READS THE SAME CATALOG KEY HOME LEADS WITH.**
+  `BS_LEVER_HEADS` already existed so the splash and the Home lead could not say a
+  different move — but only in **English**: Home reads `home:lead.<lever>.head` with
+  those strings as `tr()` defaults, and the telegram read the raw constant. The wire
+  now reads the same key, so the two surfaces cannot diverge in **any** locale.
+- ⚠ **AND THREE OF THOSE KEYS HAD NO CATALOG ENTRY IN ANY LOCALE — INCLUDING `en`.**
+  `lead.{energy,hunger,hydration}.head` and their `.cta` siblings (the check-in
+  vitals levers) were never authored, so they fell through to the English
+  `defaultValue` on every surface in every language. **Missing from `en` too, which
+  is why the parity gate was satisfied while the string was English everywhere** —
+  a gap only a key-family audit can see. Authored ×13.
+- ⚠ **THE CLOCK WAS TWO SEPARATE LOCALE BUGS.** The telegram's editorial date used
+  `toLocaleDateString([], …)` — the **device** locale, not the selected UI language,
+  so Spanish-in-Shape on an English phone read `Thu · May 21`. And the session time
+  was hand-built with a baked `'AM'`/`'PM'`, which is not merely untranslated but
+  **the wrong convention**: de/fr/ru read 17:45, never 5:45 PM. Both now follow the
+  selected language (`Intl` decides the convention); with no locale supplied the
+  original ASCII formatter is preserved byte-for-byte, so the unit vectors still pin.
+- ⚠ **`toUpperCase()` IS LOCALE-INSENSITIVE AND IT RUNS OVER MEMBER DATA.** The wire
+  upper-cases session titles and coach names; Turkish dotted/dotless i is the classic
+  break. Now `toLocaleUpperCase(locale)` when a locale is present, and byte-identical
+  to the previous behaviour when it is not.
+- ⚠ **THE PRICE IS INTERPOLATED, NOT BAKED.** `Join · $5/mo →` became
+  `Join · {price}/mo →` off ONE `BS_PRICE` constant. Two surfaces quoted the same
+  price with **opposite instructions** in the plan (one said keep it inside the
+  value, the other said interpolate it *because* baking it in invites a translator
+  writing `5 €` — a false statement about what the member is charged). Interpolation
+  wins: Shape charges USD, and a reprice is now a single edit.
+- ⚠ **THREE PROPOSED KEYS WOULD HAVE BEEN THE SEVENTH COPY OF A SHIPPED STRING.**
+  The plan minted `paywall.signOut` and `login.role.{client,trainer,nutritionist}` —
+  but `settings:action.signOut` and `coach:role.*` are already translated in 13
+  locales (and the role names exist in **six** namespaces). They are reused. The
+  `roleLabel` map also stopped deriving its short form by **stripping a translated
+  suffix** (`.replace(' (RD/RDN)', '')` only ever worked in English) — it branches on
+  the key now.
+  ⚠ **A FOURTH duplicate got past the first pass and was caught by the translators.**
+  `login.dobAria` was a byte-for-byte copy of the shipped `dob.label` — the DOB gate's
+  own label, already translated in all 13 — so the login form's aria now reads that
+  key and the duplicate is deleted. The same review surfaced a rule of mine that was
+  simply **wrong**: the brief listed `DOB` as a must-stay-literal token beside
+  kcal/RPE/HRV/RD-RDN, and **two locales independently flagged it and then answered
+  DIFFERENTLY** (one kept `DOB`, one wrote `Nasc.`) — which is the drift a shared
+  catalog exists to prevent. `DOB` is an English **abbreviation**, not a term of art,
+  and this repo had already ruled the concept translates. ⚠ **But the abbreviation
+  constraint is real and is not style**: the label sits in a **fixed 84px mono
+  column**, so the full noun ("Fecha de nacimiento · 18+") overflows — the rule is
+  *short enough for 84px*, per locale, not *literal*.
+- ⚠ **THE CATALOGS ARE FEATURE-GROUPED IN INSERTION ORDER, NOT SORTED — and I sorted
+  them.** Every catalog is a sequence of runs, one per shipped wave (`lang` 2 · `tour`
+  37 · `score` 25 · `dob` 15); a wave appends its own run at the end. Sorting `en` on
+  write turned a 6-key addition into **88 changed lines** in `home.json` and reshuffled
+  nearly all of `onboarding.json` — and it would have done the same to all **24** locale
+  files, for nothing, while leaving `en` structurally unlike every other locale. Order
+  restored, the wave appended as its own run, and the writer now **preserves order by
+  construction** with the reason at the function. Same class as the 69-file `?v` sweep
+  this file already records: **churn a reviewer has to read past is a cost, not a
+  neutral.**
+- **Both validators were mutation-tested before the translations existed.** The applier
+  refuses on a missing key, an unknown key, an empty value, a dropped placeholder, a
+  **renamed** placeholder, a straight apostrophe adjacent to a brace, a dropped brand
+  noun, and a changed arrow count — **8/8 refused**, with the clean set proven to write
+  a pure append into a scratch tree. ⚠ The first run of that harness **found nothing
+  because it aimed at a string the block does not contain** (`Shape Score`; the only
+  brand noun here is `Shape Wire`) — *check the check before believing it*, which this
+  file has now paid for twice.
+- **Guards, because the seam is invisible to the inventory.** Every `bsWireLines`
+  test supplies its own translator, so they all pass with the **real call site
+  unwired** — the "an unwired caller looks perfectly plausible" trap this file keeps
+  paying for. Four new behavioural tests drive the translated path (every line routes
+  through the catalog · the directive reads Home's key · a throwing or empty-returning
+  translator falls back to English · the clock follows the locale), plus a **source**
+  guard that `BSSplash` actually passes `{ tr, locale }` and that `useTr` is genuinely
+  **imported** — a bare `useTr` reads as a global to a static walk and throws
+  `ReferenceError` on the first frame of the cold open, which parse, `tsc`, the suite
+  and the build all pass on.
+- ⚠ **AND NOTHING CHECKED THAT A REQUESTED KEY EXISTS.** These call sites pass no
+  `defaultValue` — the ESM modules import `useTr` and call `tr('login.fieldName')`
+  bare — so a typo does not fall back to English, it renders the **raw key**, on the
+  cold open, on the sign-up form. `tsc` sees a string; the parse-check sees a string;
+  and the **catalog parity gate only compares the twelve locales AGAINST `en`**, so a
+  key absent from `en` is absent everywhere and parity is satisfied — which is exactly
+  how the three `home:lead.*` families shipped unauthored in all thirteen.
+  `tests/i18n-key-resolution.test.mjs` closes it with an **AST walk**, because the real
+  call sites are a ternary (`tr(isCreate ? 'login.eyebrowJoin' : …)`) and two computed
+  families (`tr('paywall.feat.' + k)`, `T('home:lead.' + lever + '.head')`) that a text
+  scan reads as unresolvable. A computed key is pinned by its **literal ends** — the
+  `lead.` + X + `.head` family must match a real key, not merely something starting
+  with `lead.` — and any shape the walk genuinely cannot resolve is **counted and
+  asserted at zero**, so it can never pass by seeing nothing.
+  ⚠ **A `+` chain nests to the LEFT**, so reading `a.left` alone sees another
+  `BinaryExpression` and resolves nothing — the first cut did exactly that and left the
+  telegram's directive key unpinned. **6/6 mutations killed** (a typo'd key · a typo
+  inside a ternary branch · an `en` key deleted · the paywall family truncated · the
+  prefix+suffix family broken · every call site renamed so the walk sees nothing), with
+  unmutated sanity green at both ends and all three files restored byte-identically.
+- ⚠ **AND A KEY THAT EXISTS IS NOT A KEY THAT RESOLVES.** This cut newly leans on the
+  **`ns:key` form** nineteen times — three shipped keys read out of other namespaces
+  instead of minting a seventh copy, and all sixteen of the wire's own — and that form
+  works only because `nsSeparator` is left at its i18next default of `':'`. Set it to
+  `false` and every one of those nineteen calls renders the **raw key** on the cold
+  open, with the catalogs still perfectly valid, the parity gate still green, the
+  key-resolution walk still green (it reads the catalog, not the runtime) and `tsc`,
+  the parse-check and the build all clean. So the guard also **drives the real
+  i18next + ICU runtime** with the app's own options: the cross-namespace forms
+  resolve, interpolation runs, `wire.streak` genuinely selects a plural branch, and an
+  unknown key MUST come back raw — or "not raw" proves nothing. A companion assertion
+  pins the init block to the option values the harness mirrors, so the two cannot
+  drift apart silently. **2/2 mutations killed** (`nsSeparator: false` introduced ·
+  `returnEmptyString` flipped), with `index.js` restored byte-identically.
+- ⚠ **TWO SITES USE THE WINDOW BRIDGE, NOT `tr` — and one of them degraded to
+  SILENCE.** `window.bsRequireAccount` and the bundle-error setter are installed in
+  `[]`-dep effects, so a captured `tr` would be pinned to whatever language was
+  active at mount; both read `window.ShapeI18n.t` instead. But the whole toast call
+  sits in a `try/catch`, and a bare `ShapeI18n.t` on a surface where the bridge has
+  not landed yet **throws and swallows the toast entirely** — dropping the one line
+  that explains why the screen just changed. It now optional-chains to an English
+  literal matching the catalog value, the same shape the bundle-error line already
+  used. **Degrading to English beats degrading to silence.**
+- ⚠ **AND THE WIRE FORM'S LABEL COLUMN WAS SIZED TO ENGLISH — the i18n anti-pattern
+  in one magic number.** `rowLabel` was a fixed `84px`, and JetBrains Mono advances
+  0.6em, so at 8.5px with 0.18em tracking a character costs ~6.63px: the column fits
+  **12.6 of them**. English never needed more than **9** (`DOB · 18+`), so nothing in
+  the shipped form ever revealed the ceiling. Translated it does immediately — the
+  birth-date label runs to **15 characters in fr, id and vi**, which wraps the label
+  to two lines against a one-line input and breaks the dotted-underline alignment the
+  whole wire grammar rests on. Widened to **112px** (~16.9 characters), sized to the
+  longest real translation with a character of slack, with the metric written at the
+  constant so the next person recomputes rather than guesses; the input is
+  `flex:1 1 auto; min-width:0` so it simply gives up the 28px.
+  ⚠ **This is what a per-locale render bound looks like when it is real rather than
+  stylistic**, and it is why the brief's "keep DOB literal" rule was wrong twice over:
+  `DOB` is an English abbreviation rather than a term of art like kcal/RPE/HRV, the
+  repo already translates the concept in all thirteen — and the constraint that
+  actually bites is **pixels**, which the rule never mentioned. Measured, 7 of the
+  first 8 locales translated it and only `es` kept the literal; the applier now bounds
+  that one key on length instead of on literalness.
+- ⚠ **AND THE APPLIER ITSELF SHIPPED A BUG THAT ONLY REAL DATA REVEALS — the 8/8
+  mutation run could not have caught it.** Its placeholder check matched a bare
+  `{ident`, which also matches the **literal text inside an ICU plural sub-message**:
+  `one {STREAK # DAY}` yields `STREAK`. That text is translated, so comparing English
+  against a locale reported a placeholder mismatch on **every plural key** and would
+  have refused the entire apply. It survived the harness because the harness built its
+  synthetic locale out of the **English values**, so both sides carried the same
+  sub-messages and matched by construction — *the check was tested against an echo of
+  itself*. Corrected to require the `,` or `}` delimiter, which is the exact form
+  `tests/i18n-catalog-complete.test.mjs` had already proved out and which I should have
+  reused rather than re-derived. Re-run against the **real** returns: the unmutated set
+  writes, and 5/5 real-data mutations are refused (a renamed placeholder · a renamed
+  **plural argument** · a dropped brand noun · a `login.fieldDob` that overflows the
+  column · a key missing from one locale). **A validator exercised only against data it
+  generated itself has been tested for self-consistency, not for correctness.**
+- ⚠ **MY OWN BRIEF CARRIED A WRONG RULE, AND NINE OF TWELVE TRANSLATORS CAUGHT IT
+  INDEPENDENTLY.** It listed **DOB** among the must-stay-literal tokens beside
+  kcal/RPE/HRV — but DOB is an **English abbreviation, not a term of art**, and the
+  brief's own first rule says reuse the locale's shipped term, which for this concept
+  is already `dob.label` in all 13 (`Fecha de nacimiento` · `Дата народження` ·
+  `Ranar haihuwa`). Nine returns flagged the rule-1-vs-rule-2 tension by name; ten
+  resolved it toward the reader and translated. **`es` obeyed the rule against its own
+  recommendation** — it shipped the literal and wrote *"Spanish readers do NOT parse
+  'DOB' … I recommend the reviewer change it to Nacimiento · 18+. Please rule on this
+  one."* Taken verbatim: that is **following the translator, not overriding one**, and
+  the defect was mine. `ha` kept the literal with no shorter honest form offered
+  (`Ranar haihuwa · 18+` is 19 chars against a ~17-char column) — **left as-is and
+  registered rather than papered over with an invented Hausa abbreviation**; `pcm`
+  keeps it legitimately (English-lexifier creole).
+- ⚠ **THE COLUMN WIDENING WAS MEASURED AGAINST THE WRONG WORST CASE AND STILL HELD.**
+  It was sized to fr/id/vi at 15 characters; the returns landed **uk `Ім'я користувача`
+  and ru/es at 16** — 106px against the 112px column, six pixels of slack. Verified
+  across all 8 field labels × 13 locales: **zero overflow**. A label column sized to
+  English is the i18n anti-pattern in one magic number, and the honest form of the fix
+  is a measured bound with the metric written at the site, not a bigger guess.
+- ⚠ **`pcm` IS REGISTERED WITH ITS EXACT LIST RATHER THAN CERTIFIED BY ME.** 49 of 139
+  values are byte-identical to English — **13 with shipped `pcm` precedent** (`Member`
+  ← `coach:addClient.member`, `Password` ← `settings:account.password`, …) and **35
+  without**. This file's own precedent says plain everyday lexicon in an
+  English-lexifier creole is genuinely correct and only formal English **register**
+  (the #1757 defect — *"redemption value"*, *"priority booking"*) is a fault; measured
+  against that test the residue is field labels, format examples (`+1 555 123 4567`),
+  pure placeholder templates (`{who}: {text}`) and UI chrome, while the **prose is real
+  Naija Pidgin** (*"Di Shape Wire dey land every morning"* · *"Take am easy today."*).
+  That reads as the legitimate pattern — but **I do not speak Naija Pidgin**, so it
+  goes to the standing human review with the enumerated list, not with my assurance.
+- ⚠ **AND MY OWN QUALITY DETECTOR WAS THE BROKEN INSTRUMENT ON `ha`.** A crude
+  ASCII-match sweep flagged **65** Hausa values as possible untranslated English —
+  Hausa is **Latin-script**, so the sweep was measuring the alphabet. The exact-equality
+  count is **5**, matching that agent's own self-report line for line, and every one is
+  legitimate (the DOB literal · a phone format example · the brand noun `Radio` · two
+  pure-placeholder wire templates). *Check the check before believing the finding* —
+  a detector that cannot distinguish a language from an encoding reports the encoding.
+- ⚠ **THE INDONESIAN REGISTER SPLIT IS NARROWER AND WORSE THAN RECORDED.** This file
+  already carries it as a cross-**namespace** owner call (`onboarding`/`settings` formal
+  `Anda`, nine others informal `kamu`). Measured here it is **inside one namespace and
+  one flow**: the shipped `dob.*` block uses `kamu`, these launch/auth keys use `Anda`,
+  and the stage machine puts them **one screen apart** (`beat → lang → gate → daily`).
+  So a member reads `Anda` on the wire and `kamu` on the age gate seconds later. The cut
+  did not create the split; it made it visible in a single sitting. Still an owner ruling.
+- **ru and uk both chose FORMAL, and both showed their work** — each measured its own
+  catalog (`ru` settings 22 formal / 0 informal, coach 70/3) and noted that
+  `onboarding` is internally split, with the informal half being the in-app `tour.*`
+  and the formal half being `lang.*`/`dob.*` — *the launch flow's own neighbours*. Two
+  independent agents reaching the same register by the same evidence is the strongest
+  signal in the round, and it keeps the whole chain paywall → picker → sign-in → gate →
+  home in one voice.
+- **The ratchet moved, in the direction it is supposed to move.**
+  **1,355 → 1,244 strings** and **125 → 117 uncovered components**; fully covered
+  **84 → 91**; **`partStrings` 193 and `part.length` 31 are UNCHANGED**, which is the
+  assertion that certifies the cut is *finished* rather than half-done — `noneStrings`
+  falls either way, because a component's whole hard count migrates the instant
+  `tr > 0`.
+  ⚠ **The JSX floor dropped 358 → 357 and that is the deletion, not a loosened gate**
+  — `BSCosmicWordmark` no longer exists. **A floor is only ever lowered alongside the
+  deletion that caused it**, never to make a failing run pass; the reason is written
+  at the assertion.
+- ⚠ **`'Shape Wire'` joined BRAND; `'The Shape Community'` did NOT.** The first is the
+  daily dispatch's product **name**, a sibling of Shape Radio / Store / Kitchen /
+  Steps already in the set. The second is a descriptive phrase, and `feed:chip.community`
+  translates *Community* in every locale — so leaving it literal would have been drift
+  dressed as brand. Resolving a stubborn string by widening BRAND is the
+  dishonest-recording move, and the two cases are distinguished on that test.
+- **Registered, NOT built — three items this cut surfaced and deliberately left.**
+  (1) **Two detector blind spots**: `ExportDefaultDeclaration` is never unwrapped, so
+  `BSDobGate.jsx` and `BSLanguagePicker.jsx` appear in **none** of the 357 rows; and
+  `ClassDeclaration` is never collected, so `BSErrorBoundary`'s 7 live strings are
+  invisible. Widening the walk **adds** components and strings to the measurement, so
+  it is its own PR — doing it here would have muddied every number above.
+  (2) **`BSErrorBoundary` is still English** — a class component outside the provider,
+  so it needs the provider-free `window.ShapeI18n.t` path.
+  (3) **Dead code this deletion orphaned but did not remove**: `BSNightSky` (its only
+  consumer was the cosmos branch; still window-exported, zero readers) and four CSS
+  class families in the shared chrome (`.bs-splash-title/-the/-shape/-daily`,
+  `.bs-splash-zoom/-burst/-beam`, `.bs-sky-tw/.bs-aurora/.bs-shoot`). None carries
+  copy, so none of it is an i18n concern — and touching the shared chrome to sweep it
+  would widen this diff for nothing.
+
 ### 2026-08-29 — Session handoff: `docs/HANDOFF-2026-08-29.md`
 
 - **The session's seven PRs** — #1949 Sentry user context on both web surfaces · #1950/#1951/#1952
@@ -411,6 +681,11 @@ changelog whenever something ships.
   JSX — **84 fully localized · 31 partial** (193 strings still hardcoded) ·
   **125 with NO translator in scope at all** (1,355 strings) · 118 render no user
   copy. Of the **240** that render copy, **35% are localized.**
+  ⚠ **SUPERSEDED BY CUT 1 (same day, entry above) — these are the figures as
+  first measured, kept because the entry is dated.** After the launch/auth shell:
+  **357** render JSX (BSCosmicWordmark, an orphan, was deleted) — **91 fully
+  localized · 31 partial** (193, unchanged) · **117 with no translator** (1,244) ·
+  118 no copy. **Read the guard's MEASUREMENT output, never a figure on this page.**
 - ⚠ **AND THE UNCOVERED SET IS NOT THE TAIL — IT IS THE PRODUCT.** The **profile
   customizer** (76 strings), the **live session player** (`BSSession`, 74), the
   **coach application** (67), the **meal logger** (`BSLogMealFlow`, 66), the
@@ -520,6 +795,8 @@ changelog whenever something ships.
   components is a multi-PR wave (≈1,355 strings × 13 locales), and the highest-
   value first cuts are the ones a member hits in a session: **`BSSession`**, the
   **meal logger**, the **auth/splash shell**, and the **`BSClientEat` partial**.
+  ⚠ **The auth/splash shell SHIPPED as cut 1** (entry above); `BSSession`, the meal
+  logger and the `BSClientEat` partial are still open, in that order.
   Firing that unattended would be the opposite of what the measurement is for.
 - ⚠ **THE MEASUREMENT TEST NOW ASSERTS ITS TOTALS, because the ratchet cannot see
   them.** Membership is pinned both ways — but a partial surface that hardcodes

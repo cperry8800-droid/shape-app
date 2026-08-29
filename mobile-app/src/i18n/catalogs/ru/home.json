@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Саундтрек",
   "workoutPreview.preWorkout": "Перед тренировкой",
   "workoutPreview.begin": "Начать тренировку →",
-  "lever.recoverySub": "Сегодня лучше зайдёт нагрузка полегче."
+  "lever.recoverySub": "Сегодня лучше зайдёт нагрузка полегче.",
+  "lead.energy.cta": "Возьму полегче →",
+  "lead.energy.head": "Сегодня возьмите полегче.",
+  "lead.hunger.cta": "Поем как следует →",
+  "lead.hunger.head": "Поешьте сегодня как следует.",
+  "lead.hydration.cta": "Запишу воду →",
+  "lead.hydration.head": "Пейте сегодня больше воды."
 }

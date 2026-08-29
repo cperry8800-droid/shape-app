@@ -34,6 +34,11 @@ const LETTERS = /[A-Za-z]{2}/;
 // untranslated copy would inflate the gap with strings no locale should change.
 const BRAND = new Set([
   'Shape', 'Shape Score', 'Shape Kitchen', 'Shape Radio', 'Shape Store', 'Shape Steps',
+  // 'Shape Wire' is the daily dispatch's product NAME (the masthead on the
+  // telegram + the DOB gate), a sibling of Shape Radio/Store/Kitchen above — not
+  // the descriptive 'The Shape Community', which IS localized (feed:chip.community
+  // translates 'Community' in every locale, so leaving it literal would be drift).
+  'Shape Wire',
   'Vol. 1 · No. 1', 'Nora', 'Spotify', 'Apple Music', 'Instacart', 'Strava', 'Whoop',
   'Oura', 'Garmin', 'RPE', 'e1RM', 'kcal', 'KCAL', 'BPM', 'HR', 'HRV', 'GPS', 'PR', 'PRS',
   'Aa', 'KB', 'MB', 'GB',
@@ -260,9 +265,13 @@ const UNCOVERED = new Set([
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
   'Client::BSUniversalSearch', 'Client::BSVideoCall', 'Client::BSWeekendsCard',
   'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet',
-  'Client::BSWorkoutBuilder', 'Client::BSWorkoutPreview', 'Main::BSAppShell',
-  'Main::BSCosmicWordmark', 'Main::BSLogin', 'Main::BSPaywall', 'Main::BSPreviewBanner',
-  'Main::BSSplash', 'Main::BSTweaksPanel', 'Main::BSWireHold', 'Main::BSWireLoading',
+  'Client::BSWorkoutBuilder', 'Client::BSWorkoutPreview',
+  // The launch/auth shell (BSSplash · BSWireLoading · BSWireHold · BSLogin ·
+  // BSPaywall · BSPreviewBanner · BSAppShell) is localized; BSCosmicWordmark was
+  // deleted (orphaned — no render site, no window export). BSTweaksPanel is the
+  // developer Tweaks overlay, never shown to a member, so it stays uncovered
+  // deliberately rather than shipping 15 dev-only strings to 13 locales.
+  'Main::BSTweaksPanel',
   'Pros::BSCoachGoalPlanPage', 'Pros::BSCoachPlaylistStudio', 'Pros::BSGoalEditSheet',
   'Pros::BSProMonthlyOfferSheet', 'Pros::BSProNotificationsPage', 'Pros::BSProPublicProfilePage',
   'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetPicker',
@@ -320,13 +329,18 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the record with it) or a regression, and both must be a deliberate edit.
   // Printed above first, so the failure message is never the only place to read them.
   assert.equal(partStrings, 193, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1355, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1244, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 125, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 117, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
-  assert.ok(rows.length >= 358, `components rendering JSX fell to ${rows.length} — expected at least 358`);
-  assert.ok(full.length >= 84, `fully-localized components fell to ${full.length} — expected at least 84`);
+  // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
+  // wordmark with no render site and no window export — was deleted with the
+  // five unreachable BSSplash style branches. Lowering a floor is only ever
+  // honest alongside the deletion that caused it; it must never be lowered to
+  // make a failing run pass.
+  assert.ok(rows.length >= 357, `components rendering JSX fell to ${rows.length} — expected at least 357`);
+  assert.ok(full.length >= 91, `fully-localized components fell to ${full.length} — expected at least 91`);
 });
 
 // ── The ratchet ─────────────────────────────────────────────────────────────

@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Waƙa",
   "workoutPreview.preWorkout": "Kafin motsa jiki",
   "workoutPreview.begin": "Fara zama →",
-  "lever.recoverySub": "Yau ɗan ƙaramin nauyi zai fi dacewa."
+  "lever.recoverySub": "Yau ɗan ƙaramin nauyi zai fi dacewa.",
+  "lead.energy.cta": "Zan rage nauyi →",
+  "lead.energy.head": "Rage nauyi yau.",
+  "lead.hunger.cta": "Zan ci yadda ya kamata →",
+  "lead.hunger.head": "Ci abinci na gaske yau.",
+  "lead.hydration.cta": "Zan rubuta ruwa →",
+  "lead.hydration.head": "Ƙara shan ruwa yau."
 }
