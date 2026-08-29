@@ -14,6 +14,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
+import * as babelParser from '@babel/parser';
 
 const SQL = fs.readFileSync('supabase-migrations/2026-08-29-search-rate-limit.sql', 'utf8');
 const BACKEND = fs.readFileSync('mobile-app/src/services/shapeBackend.js', 'utf8');
@@ -494,15 +495,84 @@ test('the suggestion loader restarts when the session resolves, and clears what 
 // prove it is the list of callers. This one reads the tree and fails on a file
 // that searches without being covered, so the NEXT caller is caught at the gate
 // rather than by the next reviewer.
-test('every file that performs a search is covered by the guards above', () => {
-  const GUARDED = new Set([
-    'mobile-app/src/services/shapeBackend.js',            // the data layer itself
-    'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
-    'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx',
-    'public/newdesign/pageShell.jsx',
-    'public/newdesign/siteSearch.js',
-    'public/newdesign/dashboardCommunity.jsx',
-  ]);
+test('every SEARCH CALL SITE is covered — inventory derived, not remembered', () => {
+  // ⚠ THIS GUARD REPLACED A PER-FILE ONE, AND THE UPGRADE IS THE WHOLE POINT.
+  // The per-file version listed `iosAppBroadsheetClient.jsx` as covered because
+  // it reaches `ShapeSearch.people` — while FOUR other call sites in that same
+  // file searched through a SECOND wrapper (`ShapeChannels.searchMembers`) with
+  // no refusal handling and, in three cases, no debounce. A file-level set
+  // cannot see that: coverage is a property of a CALL SITE, not of a filename.
+  //
+  // ⚠ AND THE WRAPPER LIST IS DERIVED, NOT TYPED HERE. The reason the second
+  // wrapper was invisible is that the old pattern knew only the one I
+  // remembered. So: read the data layer, find every function whose body calls a
+  // search RPC, then find the public names those functions are exported under.
+  // A third wrapper added later is picked up with nobody remembering to.
+  const parse = (src, file) => {
+    try {
+      return babelParser.parse(src, {
+        sourceType: 'unambiguous',
+        errorRecovery: false,
+        plugins: ['jsx', 'typescript', 'classProperties', 'optionalChaining', 'nullishCoalescingOperator'],
+      });
+    } catch (e) {
+      assert.fail(`could not parse ${file} — the guard must never silently skip a file: ${e.message}`);
+    }
+  };
+  // A tiny walker: no @babel/traverse dependency, and it visits only real AST
+  // nodes, so a match can never come from a comment or a string.
+  const walkAst = (node, fn, parents = []) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) walkAst(n, fn, parents); return; }
+    if (typeof node.type !== 'string') return;
+    fn(node, parents);
+    const next = parents.concat(node);
+    for (const k of Object.keys(node)) {
+      if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments' || k === 'innerComments') continue;
+      walkAst(node[k], fn, next);
+    }
+  };
+
+  const RPCS = new Set(['search_shape_people', 'search_members']);
+  // ⚠ BOTH CALL NODE TYPES. `a.b()` is a CallExpression but `a?.b?.()` is an
+  // OptionalCallExpression, and the coach roster uses the optional form — a
+  // CallExpression-only check walked straight past it. A guard blind to a
+  // spelling the codebase actually uses is the hole it exists to close.
+  const isCall = (n) => n.type === 'CallExpression' || n.type === 'OptionalCallExpression';
+  const isMember = (n) => n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression';
+  const isRpcCall = (n) =>
+    isCall(n) &&
+    isMember(n.callee) &&
+    ((n.callee.property.type === 'Identifier' && n.callee.property.name === 'rpc') ||
+     (n.callee.property.type === 'StringLiteral' && n.callee.property.value === 'rpc')) &&
+    n.arguments[0] && n.arguments[0].type === 'StringLiteral' && RPCS.has(n.arguments[0].value);
+
+  // --- derive the wrapper method names from the data layer itself ---
+  const DATA_LAYER = 'mobile-app/src/services/shapeBackend.js';
+  const dlAst = parse(fs.readFileSync(DATA_LAYER, 'utf8'), DATA_LAYER);
+  const rpcFnNames = new Set();
+  walkAst(dlAst, (n) => {
+    if (n.type !== 'FunctionDeclaration' || !n.id) return;
+    let hit = false;
+    walkAst(n.body, (m) => { if (isRpcCall(m)) hit = true; });
+    if (hit) rpcFnNames.add(n.id.name);
+  });
+  assert.ok(rpcFnNames.size >= 2,
+    `expected at least two search wrappers in the data layer, derived ${[...rpcFnNames].join(', ') || 'none'} — ` +
+    'if the wrappers moved, this derivation (not the list) is what needs updating');
+
+  const publicNames = new Set();
+  walkAst(dlAst, (n) => {
+    if (n.type !== 'ObjectProperty' || n.computed) return;
+    if (n.value.type === 'Identifier' && rpcFnNames.has(n.value.name)) {
+      publicNames.add(n.key.type === 'Identifier' ? n.key.name : n.key.value);
+    }
+  });
+  assert.ok(publicNames.size >= 2,
+    `derived wrapper functions ${[...rpcFnNames].join(', ')} but found no public aliases for them — ` +
+    'the walk would then miss every consumer that calls through a window global');
+
+  // --- walk the tree and check EVERY call site ---
   const roots = ['mobile-app/src', 'public/newdesign', 'src'];
   const files = [];
   const walk = (dir) => {
@@ -515,19 +585,48 @@ test('every file that performs a search is covered by the guards above', () => {
   for (const r of roots) if (fs.existsSync(r)) walk(r);
   assert.ok(files.length > 50, 'the tree walk found almost nothing — the guard would pass vacuously');
 
-  // A "search caller" is anything that reaches either search RPC, by either door:
-  // the RPC name directly, or the data layer's ShapeSearch.people wrapper.
-  const CALLS = /(rpc\(\s*['"]search_(shape_people|members)['"]|ShapeSearch\s*\??\.\s*people\s*\??\.?\s*\()/;
-  const found = files.filter((f) => CALLS.test(stripComments(fs.readFileSync(f, 'utf8'))));
-  assert.ok(found.length > 0, 'no search callers found at all — the pattern no longer matches the code');
+  const isWrapperCall = (n) =>
+    isCall(n) &&
+    isMember(n.callee) &&
+    !n.callee.computed &&
+    n.callee.property.type === 'Identifier' &&
+    publicNames.has(n.callee.property.name);
 
-  const unguarded = found.filter((f) => !GUARDED.has(f));
-  assert.deepEqual(unguarded, [],
-    `these files search but are not covered by the refusal/failure guards above: ${unguarded.join(', ')}. ` +
-    'Add the surface to the tables above (and to GUARDED), or it will render a refused search as "nobody matched".');
+  // Evidence that a call site models a REFUSAL as distinct from an empty answer.
+  // Two spellings, and the asymmetry is real rather than sloppy: the app asks
+  // the data layer's predicate, while the three browser bundles are classic
+  // scripts that cannot import it and so carry the SQLSTATE literal.
+  const REFUSAL = /isRateLimited|PT429/;
+  const offenders = [];
+  const sites = [];
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    if (!/search_shape_people|search_members|[.?]\s*(?:people|searchMembers)\s*[(?]/.test(src)) continue; // cheap pre-filter only
+    const ast = parse(src, f);
+    walkAst(ast, (n, parents) => {
+      if (!isRpcCall(n) && !isWrapperCall(n)) return;
+      sites.push(f);
+      // The data layer PROPAGATES rather than renders — it has no notice to
+      // show and must not swallow. Its own behaviour is pinned by the fallback
+      // and predicate tests above.
+      if (f === DATA_LAYER) return;
+      const fnAncestors = parents.filter((p) =>
+        p.type === 'FunctionDeclaration' || p.type === 'FunctionExpression' || p.type === 'ArrowFunctionExpression');
+      const enclosing = fnAncestors.length ? fnAncestors : [ast.program];
+      const covered = enclosing.some((fn) => {
+        let hit = false;
+        walkAst(fn, (m) => {
+          if (m.type === 'Identifier' && REFUSAL.test(m.name)) hit = true;
+          if (m.type === 'StringLiteral' && REFUSAL.test(m.value)) hit = true;
+        });
+        return hit;
+      });
+      if (!covered) offenders.push(`${f}:${n.loc ? n.loc.start.line : '?'}`);
+    });
+  }
 
-  // …and the inverse: an entry that stops searching must be removed, or the set
-  // silently vouches for a file that no longer has the behaviour it names.
-  const stale = [...GUARDED].filter((f) => !found.includes(f));
-  assert.deepEqual(stale, [], `these files are listed as search callers but no longer search: ${stale.join(', ')}`);
+  assert.ok(sites.length > 0, 'no search call sites found at all — the derivation no longer matches the code');
+  assert.deepEqual(offenders, [],
+    `these search CALL SITES cannot tell a refusal from an empty answer: ${offenders.join(', ')}. ` +
+    'A refused or failed search must not render "nobody matched" — that tells a member a real person is not on Shape.');
 });

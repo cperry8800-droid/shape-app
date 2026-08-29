@@ -81,6 +81,8 @@
   "comments.post": "Kirim",
   "comments.title": "Komentar",
   "common.noMatches": "Tidak ada hasil.",
+  "common.searchFailed": "Tidak bisa mencari sekarang — coba lagi.",
+  "common.searchLimited": "Kamu mencari terlalu cepat — tunggu sebentar.",
   "common.searchMembers": "Cari anggota…",
   "common.typeName": "Ketik nama untuk menemukan seseorang.",
   "composer.message": "Pesan…",

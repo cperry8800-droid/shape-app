@@ -11923,28 +11923,83 @@ function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
     </BSPostSheetShell>
   );
 }
+// ⚠ EVERY MEMBER PICKER IN THIS FILE SEARCHES, and each one reaches the
+// rate-limited `search_members` RPC through `window.ShapeChannels.searchMembers`
+// — a SECOND wrapper, distinct from `ShapeSearch.people`. Four pickers rode it
+// (send-a-post, new message, add-to-channel, tag-in-a-post) and every one of
+// them collapsed a refusal into an empty list, three of them without a debounce.
+//
+// THREE OUTCOMES, NOT TWO. A refusal (`PT429`), a FAILURE, and a genuinely
+// EMPTY answer are different claims, and only the last is evidence about who is
+// on Shape. The notice must render AHEAD of the empty branch or a refusal is
+// invisible behind "No matches."
+//
+// ⚠ AND THE ROWS CLEAR ON BOTH FAILING PATHS. On a picker the row ACTS on — it
+// sends to, adds, or TAGS a named person — leaving the previous query's people
+// on screen under a new query is worse than showing none: an empty list says
+// *nobody*, stale rows say *this person*, and the member acts on the wrong
+// account. Same defect, same remedy as the website tag picker.
+//
+// ⚠ THE DEBOUNCE IS LOAD-BEARING, not polish: the 60/min ceiling is only far
+// above human use BECAUSE every surface waits for the typing to settle. A
+// picker added without one silently re-tunes the ceiling for everybody.
+function useBSMemberPicker(open, query, delay = 220) {
+  const [rows, setRows] = React.useState([]);
+  const [state, setState] = React.useState('ok'); // 'ok' | 'limited' | 'failed'
+  React.useEffect(() => {
+    if (!open || !window.ShapeChannels?.searchMembers) {
+      // ⚠ CLOSING CLEARS. A picker reopened later must not paint the PREVIOUS
+      // session's people under a fresh query — the same stale-rows trap as a
+      // refusal, just reached by closing the sheet instead of failing a search.
+      // Idempotent by construction (identical value ⇒ React bails), so this
+      // cannot loop.
+      setRows((prev) => (prev.length ? [] : prev));
+      setState((prev) => (prev === 'ok' ? prev : 'ok'));
+      return undefined;
+    }
+    let dead = false;
+    const id = setTimeout(() => {
+      window.ShapeChannels.searchMembers(query)
+        .then((r) => { if (dead) return; setState('ok'); setRows((r && r.data) || []); })
+        .catch((e) => {
+          if (dead) return;
+          // The predicate lives once, in the data layer; the UI asks it rather
+          // than re-typing `PT429` (the #1936 spelling-pin lesson).
+          setState(window.ShapeSearch?.isRateLimited?.(e) === true ? 'limited' : 'failed');
+          setRows([]);
+        });
+    }, delay);
+    return () => { dead = true; clearTimeout(id); };
+  }, [open, query]);
+  return [rows, state];
+}
+// One notice for every picker, so the four surfaces cannot word a refusal
+// differently — or, worse, one of them forget to.
+function BSPickerNotice({ state }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  if (state === 'ok') return null;
+  return (
+    <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>
+      {state === 'limited'
+        ? tr('feed:common.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
+        : tr('feed:common.searchFailed', { defaultValue: 'Couldn\u2019t search just now — try again.' })}
+    </div>
+  );
+}
 function BSPostSendSheet({ post, onClose, c, INK, BG }) {
   const t = useBS();
   const tr = useShapeTr();
   const ink = INK || t.INK;
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const [q, setQ] = React.useState('');
-  const [people, setPeople] = React.useState([]);
   const [busy, setBusy] = React.useState('');
+  const [people, peopleState] = useBSMemberPicker(true, q);
   // Single sign-in gate for every ✉ entry point (posts, activities, channels).
   React.useEffect(() => {
     const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
     if (!signedIn) { window.__bsToast?.(tr('feed:send.signIn', { defaultValue: 'Sign in to send messages.' }), 'info'); onClose(); }
   }, []);
-  React.useEffect(() => {
-    let dead = false;
-    const id = setTimeout(() => {
-      const s = window.ShapeChannels?.searchMembers;
-      if (!s) { setPeople([]); return; }
-      s(q).then(r => { if (!dead) setPeople((r && r.data) || []); }).catch(() => { if (!dead) setPeople([]); });
-    }, 220);
-    return () => { dead = true; clearTimeout(id); };
-  }, [q]);
   const sendTo = async (m) => {
     if (busy) return;
     setBusy(m.id);
@@ -11973,7 +12028,9 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('feed:common.searchMembers', { defaultValue: 'Search members…' })} autoFocus
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
-        {people.length === 0 ? (
+        {peopleState !== 'ok' ? (
+          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{peopleState === 'limited' ? tr('feed:common.searchLimited', { defaultValue: 'Searching a little fast \u2014 give it a moment.' }) : tr('feed:common.searchFailed', { defaultValue: 'Couldn\u2019t search just now \u2014 try again.' })}</div>
+        ) : people.length === 0 ? (
           <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{q ? tr('feed:send.noneFound', { defaultValue: 'No one found.' }) : tr('feed:send.empty', { defaultValue: 'Search for someone to send this to.' })}</div>
         ) : people.map((m, i) => (
           <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0, padding: '10px 2px', display: 'flex', alignItems: 'center', gap: 11, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
@@ -17319,18 +17376,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [pinOverride, setPinOverride] = useStateBSC({}); // id -> bool, so pin reorders demo + live alike
   const [addMemberFor, setAddMemberFor] = useStateBSC(null);  // channel being added-to
   const [memberQuery, setMemberQuery] = useStateBSC('');
-  const [memberResults, setMemberResults] = useStateBSC([]);
+  const [memberResults, memberState] = useBSMemberPicker(addMemberFor != null, memberQuery);
   // "New message" people picker (the + New action on the thread lists).
   const [newDmOpen, setNewDmOpen] = useStateBSC(false);
   const [showNora, setShowNora] = useStateBSC(false); // Nora's staff profile (from the Support thread)
   const [dmQuery, setDmQuery] = useStateBSC('');
-  const [dmResults, setDmResults] = useStateBSC([]);
-  React.useEffect(() => {
-    if (!newDmOpen || !window.ShapeChannels?.searchMembers) return undefined;
-    let active = true;
-    window.ShapeChannels.searchMembers(dmQuery).then(r => { if (active) setDmResults(r?.data || []); }).catch(() => {});
-    return () => { active = false; };
-  }, [newDmOpen, dmQuery]);
+  const [dmResults, dmState] = useBSMemberPicker(newDmOpen, dmQuery);
   // Member directory of my existing 1:1 DM threads (real, persisted).
   const [memberThreads, setMemberThreads] = useStateBSC(null);
   const loadMemberThreads = React.useCallback(() => {
@@ -17364,7 +17415,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const startDm = async (m) => {
     const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
     const nm = m.name || m.full_name || 'Member';
-    setNewDmOpen(false); setDmQuery(''); setDmResults([]);
+    setNewDmOpen(false); setDmQuery('');
     let convId = m.conversation_id || null;
     try {
       const res = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: m.id });
@@ -17419,12 +17470,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
   };
-  React.useEffect(() => {
-    if (addMemberFor == null || !window.ShapeChannels?.searchMembers) return undefined;
-    let active = true;
-    window.ShapeChannels.searchMembers(memberQuery).then(r => { if (active) setMemberResults(r?.data || []); }).catch(() => {});
-    return () => { active = false; };
-  }, [addMemberFor, memberQuery]);
   const addMemberNow = (m) => {
     window.__bsToast?.(tr('feed:channels.addedToast', { defaultValue: 'Added {name}', name: m.name }), 'ok');
     const p = window.ShapeChannels?.addMember?.({ channelId: addMemberFor.id, userId: m.id });
@@ -17654,13 +17699,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [tagged, setTagged] = useStateBSC([]); // [{ id, name }]
   const [tagOpen, setTagOpen] = useStateBSC(false);
   const [tagQuery, setTagQuery] = useStateBSC('');
-  const [tagResults, setTagResults] = useStateBSC([]);
-  React.useEffect(() => {
-    if (!tagOpen || !window.ShapeChannels?.searchMembers) return undefined;
-    let active = true;
-    window.ShapeChannels.searchMembers(tagQuery).then(r => { if (active) setTagResults(r?.data || []); }).catch(() => {});
-    return () => { active = false; };
-  }, [tagOpen, tagQuery]);
+  const [tagResults, tagState] = useBSMemberPicker(tagOpen, tagQuery);
   const toggleTagged = (m) => {
     const id = m.id || m.user_id || m.name; const nm = m.name || m.full_name || 'Member';
     setTagged(prev => prev.some(x => (x.id || x.name) === id) ? prev.filter(x => (x.id || x.name) !== id) : [...prev, { id: m.id || m.user_id || null, name: nm }]);
@@ -18181,7 +18220,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</span>
                   <span style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
                     <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: teal, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
-                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); setDmResults([]); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
+                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
                   </span>
                 </div>
                 <div aria-hidden style={{ marginTop: 8, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
@@ -18266,7 +18305,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   </div>
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label={tr('feed:channels.addMember', { defaultValue: 'Add member' })} title={tr('feed:channels.addMember', { defaultValue: 'Add member' })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
+                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); }} aria-label={tr('feed:channels.addMember', { defaultValue: 'Add member' })} title={tr('feed:channels.addMember', { defaultValue: 'Add member' })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
                   <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} title={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
                   {ch.joined
                     ? <button onClick={openOrJoin} aria-label={tr('feed:channels.openChannel', { defaultValue: 'Open #{name}', name: ch.name })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
@@ -18558,7 +18597,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: on ? TEALB : t.INK50 }}>{on ? tr('feed:tag.tagged', { defaultValue: 'TAGGED ✓' }) : tr('feed:tag.tag', { defaultValue: 'TAG' })}</span>
               </button>
             ); })}
-            {tagResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tagQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
+            <BSPickerNotice state={tagState} />
+            {tagState === 'ok' && tagResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tagQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
             <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 8, padding: '13px', borderRadius: 12, border: 0, background: t.ACCENT, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:action.done', { defaultValue: 'Done' })}</button>
           </div>
         </div>,
@@ -18623,7 +18663,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 </button>
               );
             })}
-            {dmResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{dmQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
+            <BSPickerNotice state={dmState} />
+            {dmState === 'ok' && dmResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{dmQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -18641,7 +18682,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>{tr('feed:addMember.add', { defaultValue: '+ ADD' })}</span>
               </button>
             ))}
-            {memberResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tr('feed:addMember.noMatches', { defaultValue: 'No matches yet — type a name.' })}</div>}
+            <BSPickerNotice state={memberState} />
+            {memberState === 'ok' && memberResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tr('feed:addMember.noMatches', { defaultValue: 'No matches yet — type a name.' })}</div>}
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body

@@ -81,6 +81,8 @@
   "comments.post": "Post",
   "comments.title": "Comments",
   "common.noMatches": "No matches.",
+  "common.searchFailed": "Couldn’t search just now — try again.",
+  "common.searchLimited": "Searching a little fast — give it a moment.",
   "common.searchMembers": "Search members…",
   "common.typeName": "Type a name to find someone.",
   "composer.message": "Message…",

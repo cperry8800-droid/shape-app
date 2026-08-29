@@ -81,6 +81,8 @@
   "comments.post": "Posten",
   "comments.title": "Kommentare",
   "common.noMatches": "Keine Treffer.",
+  "common.searchFailed": "Suche gerade nicht möglich — versuch es noch mal.",
+  "common.searchLimited": "Du suchst etwas zu schnell — warte einen Moment.",
   "common.searchMembers": "Mitglieder suchen…",
   "common.typeName": "Gib einen Namen ein, um jemanden zu finden.",
   "composer.message": "Nachricht…",
