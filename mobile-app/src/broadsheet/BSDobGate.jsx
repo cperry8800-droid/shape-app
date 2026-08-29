@@ -125,7 +125,7 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
       <form onSubmit={submit} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
         <h1 style={{ fontFamily: serif, fontSize: 27, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '14px 0 0' }}>{tr('dob.title', { defaultValue: 'Confirm your date of birth.' })}</h1>
         <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50, marginTop: 8 }}>{tr('dob.subtitle', { defaultValue: 'Adults 18 and over' })}</div>
-        <div style={{ fontFamily: serif, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 14 }}>{tr('dob.body', { defaultValue: 'Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — it can’t be changed afterwards, so check it before you save.' })}</div>
+        <div style={{ fontFamily: serif, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 14 }}>{tr('dob.body', { defaultValue: 'Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — the date can’t be changed afterwards, so check it before you save.' })}</div>
 
         <label htmlFor="bs-dob" style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: INKF50, marginTop: 20, display: 'block' }}>{tr('dob.label', { defaultValue: 'Date of birth' })}</label>
         <input

@@ -12,6 +12,8 @@
   "aria.notLogged": "chưa ghi",
   "aria.open": "đang mở",
   "aria.training": "tập luyện",
+  "aria.selected": "đã chọn",
+  "aria.today": "hôm nay",
   "bulletin.checkin": "Cần check-in",
   "bulletin.checkinDetail": "Năng lượng · giấc ngủ · 30 giây",
   "bulletin.weeklyCheckin": "Cần check-in tuần",
@@ -106,6 +108,8 @@
   "slate.lead": "CHÍNH",
   "slate.moreHabits": "{count, plural, other {+# thói quen nữa}}",
   "slate.restDayMeta": "Ngày nghỉ · đi bộ + vận động",
+  "slate.now": "Hiện tại",
+  "slate.habitsHead": "Thói quen mỗi ngày",
   "slot.breakfast": "Bữa sáng",
   "slot.lunch": "Bữa trưa",
   "slot.snack": "Ăn nhẹ",
@@ -119,6 +123,7 @@
   "tag.coach": "HLV",
   "tag.do": "Nên làm",
   "tag.avoid": "Tránh",
+  "tag.work": "Công việc",
   "ticker.onPace": "ĐÚNG NHỊP",
   "ticker.buildUp": "TĂNG THÊM",
   "ticker.good": "TỐT",
@@ -181,5 +186,6 @@
   "lead.hunger.cta": "Tôi sẽ ăn đàng hoàng →",
   "lead.hunger.head": "Ăn một bữa tử tế hôm nay.",
   "lead.hydration.cta": "Tôi sẽ ghi nước uống →",
-  "lead.hydration.head": "Uống nhiều nước hơn hôm nay."
+  "lead.hydration.head": "Uống nhiều nước hơn hôm nay.",
+  "lead.railHeader": "Nước đi của bạn"
 }

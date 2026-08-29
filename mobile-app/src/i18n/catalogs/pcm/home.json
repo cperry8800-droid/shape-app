@@ -12,6 +12,8 @@
   "aria.notLogged": "never log",
   "aria.open": "still open",
   "aria.training": "training",
+  "aria.selected": "selected",
+  "aria.today": "today",
   "bulletin.checkin": "Check-in dey wait",
   "bulletin.checkinDetail": "Energy · sleep · 30 sec",
   "bulletin.weeklyCheckin": "Weekly check-in dey wait",
@@ -106,6 +108,8 @@
   "slate.lead": "LEAD",
   "slate.moreHabits": "{count, plural, other {+# more habits}}",
   "slate.restDayMeta": "Rest day · waka + mobility",
+  "slate.now": "Now",
+  "slate.habitsHead": "Habits for everyday",
   "slot.breakfast": "Breakfast",
   "slot.lunch": "Lunch",
   "slot.snack": "Snack",
@@ -119,6 +123,7 @@
   "tag.coach": "Coach",
   "tag.do": "Do",
   "tag.avoid": "Avoid",
+  "tag.work": "Work",
   "ticker.onPace": "ON POINT",
   "ticker.buildUp": "ADD MORE",
   "ticker.good": "GOOD",
@@ -181,5 +186,6 @@
   "lead.hunger.cta": "I go chop well →",
   "lead.hunger.head": "Chop correct food today.",
   "lead.hydration.cta": "I go log water →",
-  "lead.hydration.head": "Drink more water today."
+  "lead.hydration.head": "Drink more water today.",
+  "lead.railHeader": "Your move"
 }

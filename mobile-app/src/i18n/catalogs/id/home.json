@@ -12,6 +12,8 @@
   "aria.notLogged": "belum tercatat",
   "aria.open": "terbuka",
   "aria.training": "latihan",
+  "aria.selected": "dipilih",
+  "aria.today": "hari ini",
   "bulletin.checkin": "Check-in tertunda",
   "bulletin.checkinDetail": "Energi · tidur · 30 dtk",
   "bulletin.weeklyCheckin": "Check-in mingguan tertunda",
@@ -106,6 +108,8 @@
   "slate.lead": "UTAMA",
   "slate.moreHabits": "{count, plural, one {+# kebiasaan lagi} other {+# kebiasaan lagi}}",
   "slate.restDayMeta": "Hari istirahat · jalan + mobilitas",
+  "slate.now": "Sekarang",
+  "slate.habitsHead": "Kebiasaan harian",
   "slot.breakfast": "Sarapan",
   "slot.lunch": "Makan siang",
   "slot.snack": "Camilan",
@@ -119,6 +123,7 @@
   "tag.coach": "Coach",
   "tag.do": "Lakukan",
   "tag.avoid": "Hindari",
+  "tag.work": "Kerja",
   "ticker.onPace": "SESUAI",
   "ticker.buildUp": "TAMBAH",
   "ticker.good": "BAGUS",
@@ -181,5 +186,6 @@
   "lead.hunger.cta": "Aku akan makan dengan benar →",
   "lead.hunger.head": "Makan yang benar hari ini.",
   "lead.hydration.cta": "Aku akan catat air →",
-  "lead.hydration.head": "Minum lebih banyak air hari ini."
+  "lead.hydration.head": "Minum lebih banyak air hari ini.",
+  "lead.railHeader": "Langkahmu"
 }

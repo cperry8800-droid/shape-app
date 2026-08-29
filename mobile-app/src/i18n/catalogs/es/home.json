@@ -12,6 +12,8 @@
   "aria.notLogged": "sin registrar",
   "aria.open": "abierto",
   "aria.training": "entrenamiento",
+  "aria.selected": "seleccionado",
+  "aria.today": "hoy",
   "bulletin.checkin": "Check-in pendiente",
   "bulletin.checkinDetail": "Energía · sueño · 30 seg",
   "bulletin.weeklyCheckin": "Check-in semanal pendiente",
@@ -106,6 +108,8 @@
   "slate.lead": "PRINCIPAL",
   "slate.moreHabits": "{count, plural, one {+# hábito más} other {+# hábitos más}}",
   "slate.restDayMeta": "Día de descanso · caminar + movilidad",
+  "slate.now": "Ahora",
+  "slate.habitsHead": "Hábitos diarios",
   "slot.breakfast": "Desayuno",
   "slot.lunch": "Almuerzo",
   "slot.snack": "Snack",
@@ -119,6 +123,7 @@
   "tag.coach": "Coach",
   "tag.do": "Hacer",
   "tag.avoid": "Evitar",
+  "tag.work": "Trabajo",
   "ticker.onPace": "EN META",
   "ticker.buildUp": "SUBIR",
   "ticker.good": "BIEN",
@@ -181,5 +186,6 @@
   "lead.hunger.cta": "Comeré bien →",
   "lead.hunger.head": "Haz una comida de verdad hoy.",
   "lead.hydration.cta": "Registraré el agua →",
-  "lead.hydration.head": "Bebe más agua hoy."
+  "lead.hydration.head": "Bebe más agua hoy.",
+  "lead.railHeader": "Tu jugada"
 }
