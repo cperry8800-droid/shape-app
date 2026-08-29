@@ -15388,11 +15388,30 @@ function BSUniversalSearch({ onClose }) {
     let dead = false;
     const id = setTimeout(() => {
       const needle = query.replace(/^@/, '').toLowerCase();
-      if (signedIn && window.ShapeSearch) {
+      // ⚠ `!signedIn` DECIDES THE DEMO CAST, AND NOTHING ELSE DOES. This was one
+      // condition — `signedIn && window.ShapeSearch` — whose else arm therefore
+      // covered TWO cases: signed out (demo, correct) and signed in with the data
+      // layer missing (demo, a fabrication). It is the fourth door onto the same
+      // defect, and the least visible: a member searching for a real friend is
+      // shown fictional accounts with `userId: null` and stock faces.
+      //
+      // Not hypothetical. `window.ShapeAuth` is assigned at shapeBackend.js:3929
+      // and `window.ShapeSearch` at :6233 — 2,300 lines apart in ONE module — so
+      // anything that throws between them leaves a cached session readable and no
+      // search wrapper, permanently. The `?.` already on the catch's
+      // `isRateLimited` says the author of that line expected exactly this.
+      //
+      // ⚠ AND A MISSING DATA LAYER IS A FAILURE, NOT AN ANSWER. It is not a
+      // refusal and not an empty result — we could not ask, so we say so.
+      if (!signedIn) {
+        setRows(demoPeople.filter(p => p.name.toLowerCase().includes(needle))); setBusy(false); setState('ok');
+      } else if (!window.ShapeSearch?.people) {
+        setRows([]); setBusy(false); setState('failed');
+      } else {
         window.ShapeSearch.people(query)
           .then(r => { if (dead) return; setState('ok'); setRows(Array.isArray(r) ? r : []); setBusy(false); })
           .catch(e => { if (dead) return; setState(window.ShapeSearch?.isRateLimited?.(e) === true ? 'limited' : 'failed'); setRows([]); setBusy(false); });
-      } else { setRows(demoPeople.filter(p => p.name.toLowerCase().includes(needle))); setBusy(false); setState('ok'); }
+      }
     }, 250);
     return () => { dead = true; clearTimeout(id); };
     // ⚠ `signedIn` IS A DEPENDENCY. It is read fresh on every render from the auth

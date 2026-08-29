@@ -157,6 +157,29 @@ test('the app search never substitutes demo people for a signed-in member', () =
   const around = src.slice(at, at + 700);
   assert.doesNotMatch(around, /\?\s*r\s*:\s*local|r\.length\s*\?/, 'a signed-in search still falls back to the demo cast');
   assert.match(around, /setRows\(\s*Array\.isArray\(r\)\s*\?\s*r\s*:\s*\[\]\s*\)/, 'the signed-in path no longer renders exactly what it got');
+
+  // ⚠ AND THE FOURTH DOOR: a MISSING DATA LAYER, not a signed-out member.
+  // The branch was one condition — `signedIn && window.ShapeSearch` — so its else
+  // arm covered two cases at once, and the second one hands a signed-in member the
+  // demo cast. `window.ShapeAuth` is assigned at shapeBackend.js:3929 and
+  // `window.ShapeSearch` at :6233, 2,300 lines apart in ONE module, so anything
+  // throwing between them leaves a readable session and no search wrapper —
+  // permanently. Only `!signedIn` may reach the demo cast; an absent wrapper is a
+  // FAILURE (we could not ask), never an answer about who exists.
+  const demo = src.match(/setRows\(\s*demoPeople\.filter[^;]*;/);
+  assert.ok(demo, 'the typeahead no longer has a demo branch to guard');
+  const gate = src.slice(Math.max(0, src.indexOf(demo[0]) - 220), src.indexOf(demo[0]));
+  assert.match(gate, /if \(!signedIn\) \{\s*$/,
+    'the typeahead reaches its demo cast through something other than `!signedIn` alone — ' +
+    'a signed-in member with no data layer is shown fictional accounts');
+  // ⚠ NOT `around`: that region starts AT the RPC call, and the missing-wrapper
+  // arm sits BEFORE it. Anchoring there would have asserted over code that cannot
+  // contain the branch — passing only because the regex never had a chance to run
+  // against the right lines.
+  const branch = src.slice(src.indexOf('if (!signedIn) {'), at + 700);
+  assert.match(branch, /!window\.ShapeSearch\?\.people[^]{0,200}?setState\('failed'\)/,
+    'a signed-in member with no search wrapper does not read as a failure — ' +
+    'it is not a refusal and not an empty result, because we never asked');
 });
 
 test('the honest empty state the demo substitution was hiding is still there', () => {

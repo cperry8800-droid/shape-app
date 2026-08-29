@@ -555,6 +555,18 @@ changelog whenever something ships.
   comment even called it *"the honest floor"* while doing it. There are **three**
   outcomes, not two — **refused · failed · genuinely empty** — and only the last is
   evidence about who exists. Every caller now says which.
+- ⚠ **AND A FOURTH DOOR ONTO THE DEMO CAST — A MISSING DATA LAYER, NOT A SIGNED-OUT
+  MEMBER.** The typeahead branched on ONE condition, `signedIn && window.ShapeSearch`,
+  so its `else` covered **two cases**: signed out (demo, correct) and **signed in with
+  the wrapper absent** (demo, a fabrication). Not hypothetical —
+  **`window.ShapeAuth` is assigned at `shapeBackend.js:3929` and `window.ShapeSearch`
+  at `:6233`, 2,300 lines apart in ONE module**, so anything throwing between them
+  leaves a readable cached session and no search wrapper, permanently; the `?.`
+  already on that catch's `isRateLimited` says the author expected exactly this.
+  **Only `!signedIn` reaches the demo cast now**, and an absent wrapper is a
+  **FAILURE** — not a refusal and not an empty result, because we never asked. ⚠ The
+  **suggestion rail one function above was already right** (`if (!dead && !signedIn)`),
+  which is what made the typeahead's shape visible as the outlier.
 - ⚠ **THE DEMO CAST HAD A SECOND DOOR, THROUGH A STALE CLOSURE.** `signedIn` is
   recomputed from the auth cache on every render, but the typeahead effect depended
   on `[q]` alone — so a timer scheduled **before a session resolved** fired with the
