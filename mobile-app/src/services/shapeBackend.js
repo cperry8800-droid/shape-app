@@ -6193,22 +6193,30 @@ window.ShapeChannels = {
 // SECOND one, so the limiter would double the load it exists to halve; and the
 // member would be told "no results" for a person who exists. The fallback now
 // fires only on the codes that actually mean "that function is not deployed".
-const SEARCH_MISSING_FN = new Set(['PGRST202', '42883']);
 // PostgREST's HTTP-status convention: the RPC raises `PT429` past the ceiling.
 // Matched on the CODE, never the message — a sentence is a spelling to pin.
 const SEARCH_RATE_LIMITED = 'PT429';
 function searchIsRateLimited(err) {
   return !!(err && err.code === SEARCH_RATE_LIMITED);
 }
-// The message check is a safety net for a deployment that returns neither code.
-// ⚠ It requires the word "function": a bare /does not exist/ also matches
-// `relation "x" does not exist` (42P01) and every other undefined-object error,
-// so a permission or schema fault would have fallen through to the legacy RPC and
-// spent a SECOND allowance — the exact thing the fallback narrowing prevents.
-function searchFnMissing(err) {
+// ⚠ THE FALLBACK IS FOR *THIS* FUNCTION BEING ABSENT, NOT FOR ANY MISSING
+// FUNCTION. `42883` is Postgres saying SOME function does not exist — which
+// includes a helper called from inside `search_shape_people` — so treating it
+// alone as "not deployed" lets a genuine execution fault masquerade as a stale
+// schema and quietly return names-only results while hiding the real error.
+// PGRST202 is safe on its own: PostgREST raises it about the RPC you called.
+// Everything else must NAME the function.
+//
+// The message check also requires the word "function": a bare /does not exist/
+// matches `relation "x" does not exist` (42P01) and every other undefined-object
+// error, so a schema or permission fault would have spent a SECOND allowance.
+function searchFnMissing(err, fnName) {
   if (!err) return false;
-  if (SEARCH_MISSING_FN.has(err.code)) return true;
   const msg = err.message || '';
+  const namesFn = !fnName || msg.includes(fnName);
+  if (err.code === 'PGRST202') return true;
+  if (err.code === '42883') return namesFn || !msg;
+  if (!namesFn) return false;
   return /could not find the function/i.test(msg) || /function\b[^]*\bdoes not exist/i.test(msg);
 }
 async function searchShapePeople(q = '', limit = 20) {
@@ -6217,7 +6225,7 @@ async function searchShapePeople(q = '', limit = 20) {
   if (!error) {
     return (data || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: p.role || 'client', avatar: p.avatar || null, points: p.points != null ? Number(p.points) : null }));
   }
-  if (!searchFnMissing(error)) throw error;
+  if (!searchFnMissing(error, 'search_shape_people')) throw error;
   const { data: legacy, error: legacyErr } = await supabase.rpc('search_members', { p_q: q || '' });
   if (legacyErr) throw legacyErr;
   return (legacy || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: 'client', avatar: null, points: null }));

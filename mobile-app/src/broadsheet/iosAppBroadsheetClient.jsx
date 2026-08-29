@@ -15262,26 +15262,32 @@ function BSUniversalSearch({ onClose }) {
   // them opened a derived profile. The honest empty state below ("Nothing on
   // Shape matches …" plus the marketplace door) was already written; the
   // substitution is the only reason it could never render.
-  const [limited, setLimited] = useStateBSC(false);
+  // 'ok' | 'limited' | 'failed' — a REFUSAL, a FAILURE and an EMPTY ANSWER are three
+  // different things and the surface says which. Collapsing the last two was the
+  // same fabrication as the demo cast, one step quieter: rendering "Nothing on
+  // Shape matches" after a network error tells a member a real person is not on
+  // Shape, on evidence we never had.
+  const [state, setState] = useStateBSC('ok');
   React.useEffect(() => {
     const query = q.trim();
-    if (!query) { setRows(null); setBusy(false); setLimited(false); return; }
+    if (!query) { setRows(null); setBusy(false); setState('ok'); return; }
     setBusy(true);
     let dead = false;
     const id = setTimeout(() => {
       const needle = query.replace(/^@/, '').toLowerCase();
       if (signedIn && window.ShapeSearch) {
         window.ShapeSearch.people(query)
-          .then(r => { if (dead) return; setLimited(false); setRows(Array.isArray(r) ? r : []); setBusy(false); })
-          // ⚠ A REFUSAL IS NOT AN EMPTY RESULT. Past the per-member ceiling the RPC
-          // raises PT429; rendering that as "nothing matches" would tell a member a
-          // real person does not exist. Any other failure reads as empty, which is
-          // the honest floor — we know we could not answer, not that nobody matched.
-          .catch(e => { if (dead) return; setLimited(window.ShapeSearch?.isRateLimited?.(e) === true); setRows([]); setBusy(false); });
-      } else { setRows(demoPeople.filter(p => p.name.toLowerCase().includes(needle))); setBusy(false); setLimited(false); }
+          .then(r => { if (dead) return; setState('ok'); setRows(Array.isArray(r) ? r : []); setBusy(false); })
+          .catch(e => { if (dead) return; setState(window.ShapeSearch?.isRateLimited?.(e) === true ? 'limited' : 'failed'); setRows([]); setBusy(false); });
+      } else { setRows(demoPeople.filter(p => p.name.toLowerCase().includes(needle))); setBusy(false); setState('ok'); }
     }, 250);
     return () => { dead = true; clearTimeout(id); };
-  }, [q]);
+    // ⚠ `signedIn` IS A DEPENDENCY. It is read fresh on every render from the auth
+    // cache, so it flips the moment a session resolves — but with `[q]` alone the
+    // effect never re-ran, and a timer scheduled before auth landed fired with the
+    // stale `false` and rendered the DEMO CAST to a signed-in member. That is this
+    // file's own fabrication reached through a different door.
+  }, [q, signedIn]);
 
   // Beyond people — channels, Shape Kitchen recipes, workouts, and coach plans
   // also match the query (sections under the people results on the All filter).
@@ -15427,9 +15433,9 @@ function BSUniversalSearch({ onClose }) {
         ) : q.trim() ? (
           busy && !rows ? (
             <div style={{ padding: '18px 0', ...eyebrow }}>Searching…</div>
-          ) : limited ? (
+          ) : state !== 'ok' ? (
             <div style={{ padding: '18px 0' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Searching a little fast — give it a moment and try again.</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{state === 'limited' ? 'Searching a little fast — give it a moment and try again.' : "Couldn't search just now — check your connection and try again."}</div>
             </div>
           ) : (list.length === 0 && moreHits === 0 && !noraHit) ? (
             <div style={{ padding: '18px 0' }}>

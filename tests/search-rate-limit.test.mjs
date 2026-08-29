@@ -113,8 +113,7 @@ test('the app falls back to the legacy RPC only when the function is missing', (
   const fn = src.slice(src.indexOf('async function searchShapePeople'));
   const body = fn.slice(0, fn.indexOf('\nwindow.ShapeSearch'));
   assert.doesNotMatch(body, /catch\s*\(/, 'searchShapePeople still swallows every error');
-  assert.match(body, /if \(!searchFnMissing\(error\)\) throw error;/, 'a non-missing-function error is not propagated');
-  assert.match(src, /SEARCH_MISSING_FN = new Set\(\['PGRST202', '42883'\]\)/, 'the missing-function codes are gone');
+  assert.match(body, /if \(!searchFnMissing\(error, 'search_shape_people'\)\) throw error;/, 'a non-missing-function error is not propagated');
 });
 
 // ⚠ MATCHED ON THE CODE, NEVER THE MESSAGE. A refusal sentence is a spelling to
@@ -171,6 +170,11 @@ test('the honest empty state the demo substitution was hiding is still there', (
 // refused first, on entirely legitimate use. A caller added later without a
 // debounce silently re-tunes the ceiling for everybody.
 test('every browser-side search caller debounces its keystrokes', () => {
+  // ⚠ THE CALL MUST BE INSIDE THE TIMER, NOT MERELY NEAR ONE. Asserting "a
+  // setTimeout appears within N characters" passes on a direct per-keystroke call
+  // that happens to sit beside an unrelated timer — the exact regression this
+  // guard exists to catch. So: find the setTimeout, brace-match ITS callback, and
+  // require the search call to live in that body and the delay to clear the floor.
   const callers = [
     ['the app typeahead', stripComments(CLIENT), 'window.ShapeSearch.people(query)'],
     ['the site header search', stripComments(SHELL), 'search_shape_people'],
@@ -178,22 +182,41 @@ test('every browser-side search caller debounces its keystrokes', () => {
     ['the post tag picker', stripComments(COMMUNITY), 'cl.rpc("search_members"'],
   ];
   for (const [what, src, marker] of callers) {
-    const at = src.indexOf(marker);
-    assert.ok(at > 0, `${what}: call site not found`);
-    // The debounce has to WRAP the call, so look back from it for the timer and
-    // forward for the delay — a setTimeout anywhere else in the file proves nothing.
-    const before = src.slice(Math.max(0, at - 500), at);
-    assert.match(before, /setTimeout\(/, `${what} fires a search without waiting for the typing to settle`);
-    const after = src.slice(at, at + 900);
-    assert.match(after, /\}\s*,\s*(2[2-9][0-9]|[3-9][0-9][0-9])\s*\)/, `${what} debounces for under 220ms`);
-  }
-});
+    const call = src.indexOf(marker);
+    assert.ok(call > 0, `${what}: call site not found`);
 
-// siteSearch.js is a classic script with its own debounce; kept separate because it
-// is a plain module-scope timer rather than an effect-scoped one.
-test('the standalone-page search debounces too', () => {
-  assert.match(stripComments(SITE), /debounceId\s*=\s*setTimeout\([\s\S]{0,160}?,\s*(2[2-9][0-9]|[3-9][0-9][0-9])\s*\)/,
-    'siteSearch.js searches on every keystroke');
+    // The nearest setTimeout that OPENS before the call.
+    const open = src.lastIndexOf('setTimeout(', call);
+    assert.ok(open > 0, `${what} fires a search with no timer ahead of it`);
+
+    // Brace-match the setTimeout's argument list to find where its callback ends.
+    let depth = 0, i = src.indexOf('(', open), close = -1;
+    for (; i < src.length; i++) {
+      const ch = src[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') { depth--; if (depth === 0) { close = i; break; } }
+    }
+    assert.ok(close > call, `${what}: the search call is not inside the timer callback`);
+
+    // …and the delay is the last argument of that call.
+    const args = src.slice(open, close);
+    const delay = args.match(/,\s*(\d+)\s*$/);
+    assert.ok(delay, `${what}: the timer has no literal delay`);
+    assert.ok(Number(delay[1]) >= 220, `${what} debounces for ${delay[1]}ms, under the 220ms floor`);
+  }
+
+  // ⚠ siteSearch.js debounces through ONE HOP — the timer calls `run(query)` and
+  // `run` holds the RPC — so the guard follows the hop rather than pretending the
+  // call is inline. Both halves are required: a timer that calls something else,
+  // or a `run` that no longer searches, each breaks the debounce.
+  const site = stripComments(SITE);
+  const timer = site.match(/debounceId\s*=\s*setTimeout\(\s*function\s*\(\)\s*\{([^]*?)\}\s*,\s*(\d+)\s*\)/);
+  assert.ok(timer, 'the standalone-page search has no debounce timer');
+  assert.match(timer[1], /\brun\s*\(/, 'the standalone-page debounce timer does not invoke the search runner');
+  assert.ok(Number(timer[2]) >= 220, `the standalone-page search debounces for ${timer[2]}ms, under the 220ms floor`);
+  const run = site.slice(site.indexOf('function run('));
+  assert.match(run.slice(0, run.indexOf('\n  function ')), /rpc\('search_shape_people'/,
+    'the standalone-page search runner no longer performs the search — the debounce guards nothing');
 });
 
 // ⚠ THE MESSAGE SAFETY NET MUST NOT MATCH EVERY UNDEFINED-OBJECT ERROR. A bare
@@ -207,19 +230,23 @@ test('the missing-function fallback fires on missing functions and nothing else'
   const at = src.indexOf('function searchFnMissing');
   assert.ok(at > 0, 'the predicate is gone');
   const body = src.slice(at, src.indexOf('async function searchShapePeople', at));
-  const SEARCH_MISSING_FN = new Set(['PGRST202', '42883']);
   // eslint-disable-next-line no-eval
   const searchFnMissing = eval(`(${body.slice(body.indexOf('function searchFnMissing'))})`);
+  const FN = 'search_shape_people';
 
   const fires = [
-    { code: 'PGRST202' },
+    { code: 'PGRST202' }, // PostgREST raises this about the RPC you called
+    { code: '42883', message: 'function public.search_shape_people(text, integer) does not exist' },
     { code: '42883' },
     { message: 'Could not find the function public.search_shape_people(p_limit, p_q) in the schema cache' },
-    { message: 'function public.search_shape_people(text, integer) does not exist' },
   ];
-  for (const err of fires) assert.equal(searchFnMissing(err), true, `should fall back: ${JSON.stringify(err)}`);
+  for (const err of fires) assert.equal(searchFnMissing(err, FN), true, `should fall back: ${JSON.stringify(err)}`);
 
   const doesNot = [
+    // ⚠ 42883 for a HELPER called from inside the search function. Treating any
+    // missing function as "the search RPC is not deployed" lets a real execution
+    // fault masquerade as a stale schema and silently return names-only results.
+    { code: '42883', message: 'function public.check_rate_limit_self(text, integer, integer) does not exist' },
     { code: '42P01', message: 'relation "rate_limits" does not exist' },
     { code: '42703', message: 'column "foo" does not exist' },
     { code: '42501', message: 'permission denied for function check_rate_limit_self' },
@@ -227,7 +254,12 @@ test('the missing-function fallback fires on missing functions and nothing else'
     null,
     undefined,
   ];
-  for (const err of doesNot) assert.equal(searchFnMissing(err), false, `must NOT fall back: ${JSON.stringify(err)}`);
+  for (const err of doesNot) assert.equal(searchFnMissing(err, FN), false, `must NOT fall back: ${JSON.stringify(err)}`);
+
+  // and the caller actually passes the function name — a defaulted parameter makes
+  // an unwired call site look perfectly plausible.
+  assert.match(src, /searchFnMissing\(\s*error\s*,\s*'search_shape_people'\s*\)/,
+    'the fallback no longer tells the predicate which RPC it called');
 });
 
 // ⚠ A REFUSAL BRANCH THAT THROWS IS WORSE THAN NO BRANCH AT ALL. The site header
@@ -304,12 +336,12 @@ test('a refused picker search clears its results and shows the refusal', () => {
   assert.equal(clears.length, 2, 'the tag picker must clear its rows on BOTH the error and the throw path');
 
   // (b) the render cannot hide the notice behind a non-empty list
-  assert.doesNotMatch(src, /tagResults\.length === 0 &&[^]{0,200}?tagLimited/,
-    'the tag refusal notice is gated behind an empty result list — stale rows hide it');
-  assert.match(src, /\{\s*tagLimited\s*\?/, 'the tag refusal is not its own render branch');
+  assert.doesNotMatch(src, /tagResults\.length === 0 &&[^]{0,200}?tagState/,
+    'the tag notice is gated behind an empty result list — stale rows hide it');
+  assert.match(src, /\{\s*tagState !== "ok"\s*\?/, 'the tag notice is not its own render branch');
 
   // the send picker already had the right shape; keep it that way
-  assert.match(src, /\{limited \? \(/, 'the send picker refusal is no longer a top-level branch');
+  assert.match(src, /\{state !== "ok" \? \(/, 'the send picker notice is no longer a top-level branch');
 });
 
 // ⚠ ENUMERATED, NOT PATCHED WHERE IT WAS REPORTED. The tag picker's refusal was
@@ -319,10 +351,10 @@ test('a refused picker search clears its results and shows the refusal', () => {
 // cannot come back on a surface nobody was looking at.
 test('every refusal branch renders ahead of its own empty state', () => {
   const surfaces = [
-    ['the app typeahead', stripComments(CLIENT), /limited \?/, /Nothing on Shape matches/],
-    ['the site header search', stripComments(SHELL), /limited \?/, /Nothing on Shape matches/],
-    ['the DM send picker', stripComments(COMMUNITY), /\{limited \? \(/, /people\.length === 0 \?/],
-    ['the post tag picker', stripComments(COMMUNITY), /\{\s*tagLimited\s*\?/, /tagResults\.length === 0 \?/],
+    ['the app typeahead', stripComments(CLIENT), /state !== 'ok' \?/, /Nothing on Shape matches/],
+    ['the site header search', stripComments(SHELL), /state !== "ok" \?/, /Nothing on Shape matches/],
+    ['the DM send picker', stripComments(COMMUNITY), /\{state !== "ok" \? \(/, /people\.length === 0 \?/],
+    ['the post tag picker', stripComments(COMMUNITY), /\{\s*tagState !== "ok"\s*\?/, /tagResults\.length === 0 \?/],
   ];
   for (const [what, src, refusal, empty] of surfaces) {
     const r = src.search(refusal);
@@ -341,4 +373,59 @@ test('the standalone-page search puts its notice ahead of the empty state', () =
   const empty = src.indexOf('rows.length === 0 && !nh');
   assert.ok(notice > 0 && empty > 0, 'the render branches are gone');
   assert.ok(notice < empty, 'a refusal falls through to the "nothing matches" copy');
+});
+
+// ⚠ THREE OUTCOMES, NOT TWO. A refusal, a failure and an empty answer are
+// different claims, and only the last one is evidence that nobody matched.
+// Collapsing a failure into the empty state is the same fabrication as the demo
+// cast, one step quieter: "Nothing on Shape matches" after a network error tells a
+// member a real person is not on Shape, on evidence we never had.
+test('a failed search never renders as "nobody matched"', () => {
+  const surfaces = [
+    ['the app typeahead', stripComments(CLIENT), /setState\(\s*window\.ShapeSearch\?\.isRateLimited\?\.\(e\) === true \? 'limited' : 'failed'\s*\)/],
+    ['the site header search', stripComments(SHELL), /setState\(e && e\.code === "PT429" \? "limited" : "failed"\)/],
+    ['the DM send picker', stripComments(COMMUNITY), /setState\(e && e\.code === "PT429" \? "limited" : "failed"\)/],
+    ['the post tag picker', stripComments(COMMUNITY), /setTagState\(e && e\.code === "PT429" \? "limited" : "failed"\)/],
+  ];
+  for (const [what, src, shape] of surfaces) {
+    assert.match(src, shape, `${what} does not separate a failure from a refusal`);
+  }
+  // and each surface renders something for the failure case, not the empty state
+  assert.match(stripComments(CLIENT), /Couldn't search just now/, 'the app has no failure copy');
+  assert.match(stripComments(SHELL), /Couldn’t search just now/, 'the site header search has no failure copy');
+  assert.match(stripComments(COMMUNITY), /Couldn’t search just now/, 'the send picker has no failure copy');
+  assert.match(stripComments(COMMUNITY), /Couldn’t search just now — try again/, 'the tag picker has no failure copy');
+  // siteSearch routes both through one honest could-not-answer renderer
+  const site = stripComments(SITE);
+  assert.match(site, /function renderProblem\(nh, isLimited\)/, 'siteSearch has no could-not-answer renderer');
+  // The catch must route to renderProblem, never to the ordinary empty render.
+  // ⚠ ANCHORED ON THE RPC, not on `.catch(` — the file has an earlier, unrelated
+  // catch on the Supabase bundle loader, and a bare marker silently selects it
+  // while every assertion goes on passing about someone else's code.
+  const rpcAt = site.indexOf("rpc('search_shape_people'");
+  assert.ok(rpcAt > 0, 'siteSearch no longer calls the search RPC');
+  const cat = site.indexOf('.catch(', rpcAt);
+  assert.ok(cat > rpcAt, 'siteSearch has no catch on its search');
+  const catchBody = site.slice(cat, site.indexOf('});', cat));
+  assert.doesNotMatch(catchBody, /render\(\[\], nh, query\)/,
+    'siteSearch still renders a thrown search as an empty result');
+  assert.match(catchBody, /renderProblem\(/, 'siteSearch does not route a thrown search to the could-not-answer state');
+});
+
+// ⚠ A SOURCE GUARD, DELIBERATELY — and the reason is a property of the harness,
+// not a shortcut. `signedIn` is recomputed from the auth cache on every render, so
+// with `[q]` alone the effect never re-ran when a session resolved and a timer
+// scheduled before auth landed fired with the stale `false`, rendering the DEMO
+// CAST to a signed-in member. The mount harness ignores dependency arrays
+// (tests/helpers/broadsheet-mount.mjs), so no behavioural test can reach this;
+// asserting the dependency is the only instrument that pins it, and saying so
+// keeps the next reader from mistaking a source check for laziness.
+test('the typeahead effect restarts when the session resolves', () => {
+  const src = stripComments(CLIENT);
+  const at = src.indexOf('window.ShapeSearch.people(query)');
+  assert.ok(at > 0, 'the typeahead is gone');
+  const deps = src.slice(at, at + 1400).match(/\},\s*\[([^\]]*)\]\s*\)/);
+  assert.ok(deps, "the typeahead effect's dependency array is gone");
+  assert.match(deps[1], /\bsignedIn\b/,
+    'signedIn is not a dependency — a timer scheduled before auth resolved fires with the stale value and renders the demo cast to a signed-in member');
 });

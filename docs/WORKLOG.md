@@ -505,8 +505,42 @@ changelog whenever something ships.
   resolves each surface against the **union of the top-level declarations of every
   bundle its pages co-load**, counting column-0 declarations only — and refuses to
   pass vacuously if it resolves no tokens at all.
-- Verified: **2435/2435** · `tsc` 0 · newdesign precompile `--check` 0 · both mobile
-  + newdesign parse · **19 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+- ⚠ **AND THE REVIEW'S SHARPEST FINDING WAS THAT MY OWN HONESTY RULE STOPPED ONE
+  STEP SHORT.** Every surface turned a **non-refusal failure** — a dropped
+  connection, an RLS fault — into an **empty list**, which renders *"Nothing on
+  Shape matches."* That is the same fabrication as the demo cast, one step quieter:
+  telling a member a real person is not on Shape on evidence we never had. My own
+  comment even called it *"the honest floor"* while doing it. There are **three**
+  outcomes, not two — **refused · failed · genuinely empty** — and only the last is
+  evidence about who exists. All five callers now say which.
+- ⚠ **THE DEMO CAST HAD A SECOND DOOR, THROUGH A STALE CLOSURE.** `signedIn` is
+  recomputed from the auth cache on every render, but the typeahead effect depended
+  on `[q]` alone — so a timer scheduled **before a session resolved** fired with the
+  stale `false` and rendered the **demo people to a signed-in member**, which is the
+  precise fabrication this change set out to delete. `signedIn` is now a dependency.
+  ⚠ **Pinned by a SOURCE guard, and the reason is a property of the harness, not a
+  shortcut:** the mount harness ignores dependency arrays, so no behavioural test can
+  reach it — the guard says so, to keep the next reader from mistaking it for laziness.
+- ⚠ **AND THE FALLBACK STILL FIRED ON THE WRONG MISSING FUNCTION.** `42883` is
+  Postgres saying **some** function does not exist — including a **helper called from
+  inside `search_shape_people`** — so a genuine execution fault could masquerade as a
+  stale schema and quietly return names-only results while hiding the real error. It
+  now keys on the RPC actually called: `PGRST202` stands alone (PostgREST raises it
+  about the function you called), everything else must **name** it.
+- ⚠ **TWO RECORDS CORRECTIONS THE REVIEW WAS RIGHT ABOUT.** The ceiling is **60 per
+  FIXED window**, not "per rolling minute" — a fixed window admits 60 at the end of
+  one and 60 at the start of the next, a 120 burst across the boundary, and calling
+  that rolling promises a guarantee the counter does not make. And the *"a session is
+  ~5–10 requests"* figure **did not follow from the debounce**: a debounce bounds
+  requests **per pause**, not per session. Both corrected; the rate is now recorded as
+  a headroom judgement, with a measured per-caller request trace named as the honest
+  way to tighten it.
+- ⚠ **A MARKER THAT SELECTED SOMEONE ELSE'S CODE — the `extractFn` trap again, in a
+  guard this time.** Anchoring on `.catch(` found `siteSearch.js`'s **Supabase bundle
+  loader**, several hundred lines above the search, so the assertion passed while
+  saying nothing about the code it named. Anchored on the RPC instead.
+- Verified: **2436/2436** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
+  · both mobile + newdesign parse · **27 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
   re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
@@ -515,7 +549,11 @@ changelog whenever something ships.
   drop the code set and match on the message alone · reintroduce the exact `SANS`
   reference · stop clearing the tag rows on a refusal · re-gate the refusal notice
   behind an empty list · swap a surface's branch order so the empty state is tested
-  first · delete a surface's refusal branch outright), unmutated sanity green at both ends and the tree restored
+  first · delete a surface's refusal branch outright · collapse a failure into the
+  empty state on three separate surfaces · drop `signedIn` from the effect deps ·
+  widen the fallback back to any missing function · unwire the function name at the
+  call site · render a thrown search as an empty result again · un-debounce the tag
+  picker after the refactor), unmutated sanity green at both ends and the tree restored
   clean after each.
 
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)

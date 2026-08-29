@@ -748,20 +748,23 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   function SendPostModal({ post, onClose }) {
     const [q, setQ] = React.useState("");
     const [people, setPeople] = React.useState([]);
-    const [limited, setLimited] = React.useState(false); // the per-member search ceiling refused this one
+    // "ok" | "limited" | "failed" — a refusal, a failure and an empty answer are
+    // three different things; collapsing the last two tells the sender a real
+    // person is not on Shape on evidence we never had.
+    const [state, setState] = React.useState("ok");
     const [busy, setBusy] = React.useState("");
     React.useEffect(() => {
       let dead = false;
       const id = setTimeout(() => {
         const sb = window.shapeDb && window.shapeDb.client;
-        if (!sb) { setPeople([]); return; }
+        if (!sb) { setState("failed"); setPeople([]); return; }
         // ⚠ A REFUSAL IS NOT AN EMPTY RESULT. Past the per-member ceiling the RPC
         // raises PT429 (2026-08-29-search-rate-limit.sql); an empty list would
         // tell the sender that nobody by that name is on Shape. Matched on the
         // CODE, never the message.
         sb.rpc("search_members", { p_q: q || "" })
-          .then(r => { if (dead) return; setLimited(!!(r.error && r.error.code === "PT429")); setPeople(Array.isArray(r.data) ? r.data : []); })
-          .catch(e => { if (dead) return; setLimited(!!(e && e.code === "PT429")); setPeople([]); });
+          .then(r => { if (dead) return; setState(r.error ? (r.error.code === "PT429" ? "limited" : "failed") : "ok"); setPeople(Array.isArray(r.data) ? r.data : []); })
+          .catch(e => { if (dead) return; setState(e && e.code === "PT429" ? "limited" : "failed"); setPeople([]); });
       }, 220);
       return () => { dead = true; clearTimeout(id); };
     }, [q]);
@@ -792,8 +795,8 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
             style={{ width: "100%", boxSizing: "border-box", padding: "10px 2px", border: 0, borderBottom: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontSize: 14.5, outline: "none" }} />
           <div style={{ maxHeight: 300, overflowY: "auto", marginTop: 6 }}>
-            {limited ? (
-              <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>Searching a little fast — give it a moment and try again.</div>
+            {state !== "ok" ? (
+              <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
             ) : people.length === 0 ? (
               <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{q ? "No one found." : "Search for someone to send this to."}</div>
             ) : people.map((m, i) => (
@@ -1393,12 +1396,12 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
   const [tagged, setTagged] = React.useState(ed && Array.isArray(ed.mentions) ? ed.mentions : []); // [{ userId, name }]
   const [tagQuery, setTagQuery] = React.useState("");
   const [tagResults, setTagResults] = React.useState([]);
-  const [tagLimited, setTagLimited] = React.useState(false);
+  const [tagState, setTagState] = React.useState("ok"); // "ok" | "limited" | "failed"
   const [tagOpen, setTagOpen] = React.useState(false);
   React.useEffect(() => {
     if (!tagOpen) return;
     const cl = window.shapeDb && window.shapeDb.client;
-    if (!cl || !cl.rpc) return;
+    if (!cl || !cl.rpc) { setTagState("failed"); setTagResults([]); return; }
     let on = true;
     // ⚠ SAME RULE HERE. A refusal must not read as "nobody by that name" — the
     // tag picker is how a member credits a training partner, so an empty list
@@ -1414,10 +1417,10 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
         // place under the NEW query text is worse than the empty list this change
         // set out to fix: an empty list says "nobody", stale rows say "THIS person"
         // — and tagging one credits the wrong account on a public post.
-        if (r.error) { setTagLimited(r.error.code === "PT429"); setTagResults([]); return; }
-        setTagLimited(false);
+        if (r.error) { setTagState(r.error.code === "PT429" ? "limited" : "failed"); setTagResults([]); return; }
+        setTagState("ok");
         setTagResults((r.data || []).map((m) => ({ userId: m.id, name: m.full_name || "Member" })));
-      }).catch((e) => { if (on) { setTagLimited(!!(e && e.code === "PT429")); setTagResults([]); } });
+      }).catch((e) => { if (on) { setTagState(e && e.code === "PT429" ? "limited" : "failed"); setTagResults([]); } });
     }, 220);
     return () => { on = false; clearTimeout(id); };
   }, [tagOpen, tagQuery]);
@@ -1621,8 +1624,8 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
                   picker above. Hanging it off `tagResults.length === 0` meant any state
                   that left rows behind could hide it; belt and braces, since the wrong
                   answer here is a wrongly-tagged member. */}
-              {tagLimited ? (
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>Searching a little fast — give it a moment.</div>
+              {tagState !== "ok" ? (
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagState === "limited" ? "Searching a little fast — give it a moment." : "Couldn’t search just now — try again."}</div>
               ) : tagResults.length === 0 ? (
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagQuery.trim() ? "No matches." : "Type a name to find someone."}</div>
               ) : null}
