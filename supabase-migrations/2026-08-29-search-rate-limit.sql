@@ -2,14 +2,22 @@
 --
 -- WHY THIS IS A DATABASE CHANGE AND NOT A ROUTE CHANGE. `search_shape_people`
 -- and `search_members` are SECURITY DEFINER functions granted to `authenticated`,
--- and every one of their five callers reaches them DIRECTLY from the browser with
--- the publishable key — the app's universal search, the site header search, the
--- standalone-page search, the DM send picker and the post tag picker. None of them
--- passes through /api/*, so the proxy's limiter (2026-06-15-rate-limits.sql) has
+-- and every caller reaches them DIRECTLY from the browser with the publishable
+-- key. None of them passes through /api/*, so the proxy's limiter (2026-06-15-rate-limits.sql) has
 -- never covered them. The 2026-07-30 hardening pass escaped the LIKE wildcards and
 -- clamped the term to 80 characters, which removed the pathological backtracking;
 -- what it explicitly did NOT close is the volume, and its own note says so: "the
 -- real fix is having them call the existing HMAC bucket RPC". This is that fix.
+--
+-- ⚠ THIS COMMENT DELIBERATELY DOES NOT LIST THE CALLERS, because every version
+-- of that list has been wrong. It said five; the coach roster made it six, and
+-- then four member pickers turned up reaching `search_members` through a SECOND
+-- data-layer wrapper (`ShapeChannels.searchMembers`, distinct from
+-- `ShapeSearch.people`) that no list had ever mentioned. A list of callers
+-- cannot prove it is the list of callers. `tests/search-rate-limit.test.mjs`
+-- DERIVES the inventory — it reads the wrapper names out of the data layer and
+-- walks the tree for every call site — and that guard, not this paragraph, is
+-- the authority on who searches.
 --
 -- ⚠ BOTH FUNCTIONS BECOME plpgsql AND VOLATILE, AND THEY HAVE TO. A rate-limit
 -- counter is a WRITE, and Postgres refuses one inside a non-volatile function
@@ -144,15 +152,21 @@ revoke all on function public.check_rate_limit_self(text, integer, integer) from
 grant execute on function public.check_rate_limit_self(text, integer, integer) to service_role;
 
 -- ── the two search RPCs ──────────────────────────────────────────────────────
--- 60 searches per rolling minute, per member.
+-- 60 searches per member per FIXED window of 60 seconds.
 --
--- ⚠ THE CEILING IS SET BY WHAT A DEBOUNCED TYPEAHEAD ACTUALLY EMITS, not by a
--- round number. Every caller debounces (220ms on the post tag picker, 250ms in
--- the site header, 350ms in the app), and a debounce fires only after the typing
--- STOPS — so a continuous typist sends ONE request per search and a hunt-and-peck
--- typist sends roughly one per character. A search session is therefore ~5-10
--- requests, and 60/min leaves room for six to twelve genuine searches a minute:
--- far past any human browsing rate, and a hard ceiling on an automated one.
+-- ⚠ FIXED, NOT ROLLING, and the comment says so rather than implying a guarantee
+-- the counter does not make. _rate_limit_bump is fixed-window arithmetic: the
+-- count resets on a boundary, so a caller can legitimately spend 60 at the end of
+-- one window and 60 at the start of the next — a 120-request burst across the
+-- seam. That is the accepted shape of the limiter this reuses, not a defect being
+-- papered over, but calling it "rolling" would promise smoothing that is absent.
+--
+-- ⚠ AND THE RATE IS NOT DERIVED FROM THE DEBOUNCE INTERVAL. A debounce bounds
+-- requests per PAUSE, not per session, so no session request-count follows from
+-- it — an earlier draft of this comment reasoned from the debounce to a "~5-10
+-- requests per search session" figure that nothing measured. The 60 is a headroom
+-- judgement over observed typeahead behaviour; the honest way to tighten it is a
+-- measured request trace per caller, which has not been run.
 --
 -- ⚠ ONE WINDOW, DELIBERATELY. A second, wider window (say 600/hour) would bound a
 -- slow grind as well as a burst, but it doubles the counter write on the hot path

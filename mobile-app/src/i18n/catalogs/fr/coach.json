@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Rejoignez-moi sur Shape",
   "addClient.publishFirst": "Publiez d'abord votre annonce sur la place de marché — l'invitation la porte.",
   "addClient.retryTag": "Réessayer le tag 0 %",
+  "addClient.searchFailed": "Recherche impossible pour le moment — vérifie ta connexion et réessaie.",
+  "addClient.searchLimited": "Tu cherches un peu trop vite — laisse-lui un instant.",
   "addClient.searchPlaceholder": "Rechercher des membres par nom…",
   "addClient.sendLabel": "Envoyez votre lien",
   "addClient.shareCopy": "Partager / copier",

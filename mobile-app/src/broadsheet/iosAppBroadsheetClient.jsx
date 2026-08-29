@@ -11923,28 +11923,115 @@ function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
     </BSPostSheetShell>
   );
 }
+// ⚠ EVERY MEMBER PICKER IN THIS FILE SEARCHES, and each one reaches the
+// rate-limited `search_members` RPC through `window.ShapeChannels.searchMembers`
+// — a SECOND wrapper, distinct from `ShapeSearch.people`. Four pickers rode it
+// (send-a-post, new message, add-to-channel, tag-in-a-post) and every one of
+// them collapsed a refusal into an empty list, three of them without a debounce.
+//
+// THREE OUTCOMES, NOT TWO. A refusal (`PT429`), a FAILURE, and a genuinely
+// EMPTY answer are different claims, and only the last is evidence about who is
+// on Shape. The notice must render AHEAD of the empty branch or a refusal is
+// invisible behind "No matches."
+//
+// ⚠ AND THE ROWS CLEAR ON BOTH FAILING PATHS. On a picker the row ACTS on — it
+// sends to, adds, or TAGS a named person — leaving the previous query's people
+// on screen under a new query is worse than showing none: an empty list says
+// *nobody*, stale rows say *this person*, and the member acts on the wrong
+// account. Same defect, same remedy as the website tag picker.
+//
+// ⚠ THE DEBOUNCE IS LOAD-BEARING, not polish: the 60/min ceiling is only far
+// above human use BECAUSE every surface waits for the typing to settle. A
+// picker added without one silently re-tunes the ceiling for everybody.
+// ⚠ THE 220 IS A LITERAL ON PURPOSE. It was a `delay = 220` parameter, and no
+// caller ever passed anything else — but a per-picker delay is precisely the
+// silent re-tuning of the shared ceiling this comment warns about, and a default
+// parameter is invisible to the guard that pins the floor.
+function useBSMemberPicker(open, query) {
+  const [rows, setRows] = React.useState([]);
+  // ⚠ FOUR OUTCOMES, NOT THREE. `pending` is the one this file kept paying for:
+  // a settled ANSWER, a refusal and a failure were modelled, and the gap between
+  // a new query and its answer was not — so it wore the previous answer's state.
+  const [state, setState] = React.useState('pending'); // 'pending' | 'ok' | 'limited' | 'failed'
+  React.useEffect(() => {
+    if (!open || !window.ShapeChannels?.searchMembers) {
+      // ⚠ CLOSING CLEARS. A picker reopened later must not paint the PREVIOUS
+      // session's people under a fresh query — the same stale-rows trap as a
+      // refusal, just reached by closing the sheet instead of failing a search.
+      // Idempotent by construction (identical value ⇒ React bails), so this
+      // cannot loop. Closed resets to `pending`, never `ok`: `ok` asserts a
+      // settled successful search, and over zero rows that renders "No matches."
+      // — a claim about who exists, made before anything was asked.
+      setRows((prev) => (prev.length ? [] : prev));
+      setState((prev) => (prev === 'pending' ? prev : 'pending'));
+      return undefined;
+    }
+    // ⚠ CLEAR BEFORE THE DEBOUNCE, NOT INSIDE IT. The rows on screen must always
+    // be an answer to the query on screen; the moment the query changes the old
+    // answer stops being evidence about it. Clearing inside the timer would leave
+    // the previous query's people ACTIONABLE for the whole 220ms + round trip —
+    // and a picker row does not merely display a person, it sends to, tags, or
+    // adds THAT person. Typing "Alex" → "Alicia" and tapping tags Alex.
+    // This is the refusal rule one step wider: refused, failed, closed, or simply
+    // superseded by a newer query, the rows are not an answer to what is on screen.
+    setRows((prev) => (prev.length ? [] : prev));
+    setState('pending');
+    let dead = false;
+    const id = setTimeout(() => {
+      window.ShapeChannels.searchMembers(query)
+        .then((r) => { if (dead) return; setState('ok'); setRows((r && r.data) || []); })
+        .catch((e) => {
+          if (dead) return;
+          // The predicate lives once, in the data layer; the UI asks it rather
+          // than re-typing `PT429` (the #1936 spelling-pin lesson).
+          setState(window.ShapeSearch?.isRateLimited?.(e) === true ? 'limited' : 'failed');
+          setRows([]);
+        });
+    }, 220);
+    return () => { dead = true; clearTimeout(id); };
+  }, [open, query]);
+  return [rows, state];
+}
+// One notice for every picker, so the four surfaces cannot word a refusal
+// differently — or, worse, one of them forget to.
+// ⚠ `big` + `ink` exist so the SEND SHEET can use this component rather than
+// re-typing the two strings inline — which it did, and which is exactly the
+// drift this component's own comment says it prevents. Presentation varies
+// (it replaces the whole list area there, sits above the list elsewhere); the
+// WORDS have one source.
+function BSPickerNotice({ state, big, ink }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  // ⚠ `pending` RENDERS NOTHING. It is not a refusal and not a failure — nothing
+  // has been asked yet, so there is nothing honest to say about it. Saying
+  // "couldn't search" mid-debounce would be this file's fabrication class in the
+  // other direction: reporting a fault that has not happened.
+  if (state === 'ok' || state === 'pending') return null;
+  const c = ink ? bsTHexA(ink, 0.5) : t.INK50;
+  const st = big
+    ? { fontFamily: t.DISPLAY, fontSize: 14, color: c, padding: '14px 2px' }
+    : { fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: c, padding: '8px 2px' };
+  return (
+    <div style={st}>
+      {state === 'limited'
+        ? tr('feed:common.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
+        : tr('feed:common.searchFailed', { defaultValue: 'Couldn\u2019t search just now — try again.' })}
+    </div>
+  );
+}
 function BSPostSendSheet({ post, onClose, c, INK, BG }) {
   const t = useBS();
   const tr = useShapeTr();
   const ink = INK || t.INK;
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const [q, setQ] = React.useState('');
-  const [people, setPeople] = React.useState([]);
   const [busy, setBusy] = React.useState('');
+  const [people, peopleState] = useBSMemberPicker(true, q);
   // Single sign-in gate for every ✉ entry point (posts, activities, channels).
   React.useEffect(() => {
     const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
     if (!signedIn) { window.__bsToast?.(tr('feed:send.signIn', { defaultValue: 'Sign in to send messages.' }), 'info'); onClose(); }
   }, []);
-  React.useEffect(() => {
-    let dead = false;
-    const id = setTimeout(() => {
-      const s = window.ShapeChannels?.searchMembers;
-      if (!s) { setPeople([]); return; }
-      s(q).then(r => { if (!dead) setPeople((r && r.data) || []); }).catch(() => { if (!dead) setPeople([]); });
-    }, 220);
-    return () => { dead = true; clearTimeout(id); };
-  }, [q]);
   const sendTo = async (m) => {
     if (busy) return;
     setBusy(m.id);
@@ -11973,7 +12060,12 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('feed:common.searchMembers', { defaultValue: 'Search members…' })} autoFocus
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
-        {people.length === 0 ? (
+        {/* Three VALUE gates, not three positions. Each branch names the state it
+            answers for, so a reorder cannot make one state wear another's copy —
+            and `pending` falls through to the (empty) row list, i.e. nothing. */}
+        {peopleState === 'limited' || peopleState === 'failed' ? (
+          <BSPickerNotice state={peopleState} big ink={ink} />
+        ) : peopleState === 'ok' && people.length === 0 ? (
           <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{q ? tr('feed:send.noneFound', { defaultValue: 'No one found.' }) : tr('feed:send.empty', { defaultValue: 'Search for someone to send this to.' })}</div>
         ) : people.map((m, i) => (
           <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0, padding: '10px 2px', display: 'flex', alignItems: 'center', gap: 11, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
@@ -15232,6 +15324,11 @@ function BSUniversalSearch({ onClose }) {
   const [suggestKind, setSuggestKind] = useStateBSC('on'); // 'know' | 'on'
   React.useEffect(() => {
     let dead = false;
+    // A mount that happened BEFORE auth resolved took the signed-out branch and
+    // wrote the demo cast; the flip only re-runs this effect, it does not un-set
+    // what that run already left on screen. Clear it first so fictional people
+    // can never survive into a signed-in render.
+    if (signedIn) setSuggested([]);
     (async () => {
       if (signedIn && window.ShapeFollows?.suggestions) {
         try {
@@ -15247,27 +15344,82 @@ function BSUniversalSearch({ onClose }) {
       if (signedIn && window.ShapeSearch) {
         try { const r = await window.ShapeSearch.people('', 8); if (!dead && Array.isArray(r) && r.length) { setSuggested(r); setSuggestKind('on'); return; } } catch (e) {}
       }
-      if (!dead) { setSuggested(demoPeople.slice(0, 8)); setSuggestKind('on'); }
+      // ⚠ SIGNED-OUT ONLY. Three different things reach here for a signed-in
+      // member — nobody to suggest, a REFUSED read (PT429), and a FAILED one —
+      // and substituting the demo cast for any of them puts fictional accounts in
+      // front of a real member: the same fabrication the typeahead below stopped,
+      // one surface over. The suggestion block renders nothing at all when the
+      // list is empty, so leaving it empty claims nothing about who is on Shape.
+      if (!dead && !signedIn) { setSuggested(demoPeople.slice(0, 8)); setSuggestKind('on'); }
     })();
     return () => { dead = true; };
-  }, []);
+    // ⚠ `signedIn` IS A DEPENDENCY, for the reason the typeahead's is: it is read
+    // fresh every render from the auth cache, so a `[]`-dep effect ran once with the
+    // pre-auth `false` and handed a signed-in member the demo cast.
+  }, [signedIn, demoPeople]);
 
-  // Live typeahead — debounced 250ms; demo cast is the signed-out / error fallback.
+  // Live typeahead — debounced 250ms. The demo cast is the SIGNED-OUT preview.
+  //
+  // ⚠ A SIGNED-IN MEMBER IS NEVER SHOWN THE DEMO CAST. This used to read
+  // `r.length ? r : local`, so a real search that matched nobody — or that failed
+  // — substituted the fictional people (userId: null, stock faces, no marker on
+  // the row telling them apart from real accounts). A member searching for
+  // someone who is not on Shape was shown someone who does not exist, and tapping
+  // them opened a derived profile. The honest empty state below ("Nothing on
+  // Shape matches …" plus the marketplace door) was already written; the
+  // substitution is the only reason it could never render.
+  // 'ok' | 'limited' | 'failed' — a REFUSAL, a FAILURE and an EMPTY ANSWER are three
+  // different things and the surface says which. Collapsing the last two was the
+  // same fabrication as the demo cast, one step quieter: rendering "Nothing on
+  // Shape matches" after a network error tells a member a real person is not on
+  // Shape, on evidence we never had.
+  const [state, setState] = useStateBSC('ok');
   React.useEffect(() => {
     const query = q.trim();
-    if (!query) { setRows(null); setBusy(false); return; }
+    if (!query) { setRows(null); setBusy(false); setState('ok'); return; }
+    // ⚠ CLEAR THE PREVIOUS ANSWER. This surface HAS a pending render
+    // (`busy && !rows` → "Searching…"), and it never re-entered it after the
+    // first search, because `busy` flipped true while `rows` still held the last
+    // query's people — so "Alex" stayed on screen under "Alicia" for the whole
+    // debounce. The pending state existed; the clear that reaches it did not.
+    setRows(null);
+    setState('ok');
     setBusy(true);
     let dead = false;
     const id = setTimeout(() => {
       const needle = query.replace(/^@/, '').toLowerCase();
-      const local = demoPeople.filter(p => p.name.toLowerCase().includes(needle));
-      if (signedIn && window.ShapeSearch) {
-        window.ShapeSearch.people(query).then(r => { if (dead) return; setRows(Array.isArray(r) && r.length ? r : local); setBusy(false); })
-          .catch(() => { if (!dead) { setRows(local); setBusy(false); } });
-      } else { setRows(local); setBusy(false); }
+      // ⚠ `!signedIn` DECIDES THE DEMO CAST, AND NOTHING ELSE DOES. This was one
+      // condition — `signedIn && window.ShapeSearch` — whose else arm therefore
+      // covered TWO cases: signed out (demo, correct) and signed in with the data
+      // layer missing (demo, a fabrication). It is the fourth door onto the same
+      // defect, and the least visible: a member searching for a real friend is
+      // shown fictional accounts with `userId: null` and stock faces.
+      //
+      // Not hypothetical. `window.ShapeAuth` is assigned at shapeBackend.js:3929
+      // and `window.ShapeSearch` at :6233 — 2,300 lines apart in ONE module — so
+      // anything that throws between them leaves a cached session readable and no
+      // search wrapper, permanently. The `?.` already on the catch's
+      // `isRateLimited` says the author of that line expected exactly this.
+      //
+      // ⚠ AND A MISSING DATA LAYER IS A FAILURE, NOT AN ANSWER. It is not a
+      // refusal and not an empty result — we could not ask, so we say so.
+      if (!signedIn) {
+        setRows(demoPeople.filter(p => p.name.toLowerCase().includes(needle))); setBusy(false); setState('ok');
+      } else if (!window.ShapeSearch?.people) {
+        setRows([]); setBusy(false); setState('failed');
+      } else {
+        window.ShapeSearch.people(query)
+          .then(r => { if (dead) return; setState('ok'); setRows(Array.isArray(r) ? r : []); setBusy(false); })
+          .catch(e => { if (dead) return; setState(window.ShapeSearch?.isRateLimited?.(e) === true ? 'limited' : 'failed'); setRows([]); setBusy(false); });
+      }
     }, 250);
     return () => { dead = true; clearTimeout(id); };
-  }, [q]);
+    // ⚠ `signedIn` IS A DEPENDENCY. It is read fresh on every render from the auth
+    // cache, so it flips the moment a session resolves — but with `[q]` alone the
+    // effect never re-ran, and a timer scheduled before auth landed fired with the
+    // stale `false` and rendered the DEMO CAST to a signed-in member. That is this
+    // file's own fabrication reached through a different door.
+  }, [q, signedIn]);
 
   // Beyond people — channels, Shape Kitchen recipes, workouts, and coach plans
   // also match the query (sections under the people results on the All filter).
@@ -15413,7 +15565,11 @@ function BSUniversalSearch({ onClose }) {
         ) : q.trim() ? (
           busy && !rows ? (
             <div style={{ padding: '18px 0', ...eyebrow }}>Searching…</div>
-          ) : (list.length === 0 && moreHits === 0 && !noraHit) ? (
+          ) : state !== 'ok' ? (
+            <div style={{ padding: '18px 0' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{state === 'limited' ? 'Searching a little fast — give it a moment and try again.' : "Couldn't search just now — check your connection and try again."}</div>
+            </div>
+          ) : (rows !== null && list.length === 0 && moreHits === 0 && !noraHit) ? (
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Nothing on Shape matches “{q.trim()}”.</div>
               <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Browse coaches on the marketplace →</button>
@@ -17281,18 +17437,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [pinOverride, setPinOverride] = useStateBSC({}); // id -> bool, so pin reorders demo + live alike
   const [addMemberFor, setAddMemberFor] = useStateBSC(null);  // channel being added-to
   const [memberQuery, setMemberQuery] = useStateBSC('');
-  const [memberResults, setMemberResults] = useStateBSC([]);
+  const [memberResults, memberState] = useBSMemberPicker(addMemberFor != null, memberQuery);
   // "New message" people picker (the + New action on the thread lists).
   const [newDmOpen, setNewDmOpen] = useStateBSC(false);
   const [showNora, setShowNora] = useStateBSC(false); // Nora's staff profile (from the Support thread)
   const [dmQuery, setDmQuery] = useStateBSC('');
-  const [dmResults, setDmResults] = useStateBSC([]);
-  React.useEffect(() => {
-    if (!newDmOpen || !window.ShapeChannels?.searchMembers) return undefined;
-    let active = true;
-    window.ShapeChannels.searchMembers(dmQuery).then(r => { if (active) setDmResults(r?.data || []); }).catch(() => {});
-    return () => { active = false; };
-  }, [newDmOpen, dmQuery]);
+  const [dmResults, dmState] = useBSMemberPicker(newDmOpen, dmQuery);
   // Member directory of my existing 1:1 DM threads (real, persisted).
   const [memberThreads, setMemberThreads] = useStateBSC(null);
   const loadMemberThreads = React.useCallback(() => {
@@ -17326,7 +17476,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const startDm = async (m) => {
     const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
     const nm = m.name || m.full_name || 'Member';
-    setNewDmOpen(false); setDmQuery(''); setDmResults([]);
+    setNewDmOpen(false); setDmQuery('');
     let convId = m.conversation_id || null;
     try {
       const res = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: m.id });
@@ -17381,12 +17531,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
   };
-  React.useEffect(() => {
-    if (addMemberFor == null || !window.ShapeChannels?.searchMembers) return undefined;
-    let active = true;
-    window.ShapeChannels.searchMembers(memberQuery).then(r => { if (active) setMemberResults(r?.data || []); }).catch(() => {});
-    return () => { active = false; };
-  }, [addMemberFor, memberQuery]);
   const addMemberNow = (m) => {
     window.__bsToast?.(tr('feed:channels.addedToast', { defaultValue: 'Added {name}', name: m.name }), 'ok');
     const p = window.ShapeChannels?.addMember?.({ channelId: addMemberFor.id, userId: m.id });
@@ -17616,13 +17760,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [tagged, setTagged] = useStateBSC([]); // [{ id, name }]
   const [tagOpen, setTagOpen] = useStateBSC(false);
   const [tagQuery, setTagQuery] = useStateBSC('');
-  const [tagResults, setTagResults] = useStateBSC([]);
-  React.useEffect(() => {
-    if (!tagOpen || !window.ShapeChannels?.searchMembers) return undefined;
-    let active = true;
-    window.ShapeChannels.searchMembers(tagQuery).then(r => { if (active) setTagResults(r?.data || []); }).catch(() => {});
-    return () => { active = false; };
-  }, [tagOpen, tagQuery]);
+  const [tagResults, tagState] = useBSMemberPicker(tagOpen, tagQuery);
   const toggleTagged = (m) => {
     const id = m.id || m.user_id || m.name; const nm = m.name || m.full_name || 'Member';
     setTagged(prev => prev.some(x => (x.id || x.name) === id) ? prev.filter(x => (x.id || x.name) !== id) : [...prev, { id: m.id || m.user_id || null, name: nm }]);
@@ -18143,7 +18281,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</span>
                   <span style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
                     <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: teal, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
-                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); setDmResults([]); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
+                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
                   </span>
                 </div>
                 <div aria-hidden style={{ marginTop: 8, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
@@ -18228,7 +18366,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   </div>
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label={tr('feed:channels.addMember', { defaultValue: 'Add member' })} title={tr('feed:channels.addMember', { defaultValue: 'Add member' })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
+                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); }} aria-label={tr('feed:channels.addMember', { defaultValue: 'Add member' })} title={tr('feed:channels.addMember', { defaultValue: 'Add member' })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
                   <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} title={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
                   {ch.joined
                     ? <button onClick={openOrJoin} aria-label={tr('feed:channels.openChannel', { defaultValue: 'Open #{name}', name: ch.name })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
@@ -18520,7 +18658,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: on ? TEALB : t.INK50 }}>{on ? tr('feed:tag.tagged', { defaultValue: 'TAGGED ✓' }) : tr('feed:tag.tag', { defaultValue: 'TAG' })}</span>
               </button>
             ); })}
-            {tagResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tagQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
+            <BSPickerNotice state={tagState} />
+            {tagState === 'ok' && tagResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tagQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
             <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 8, padding: '13px', borderRadius: 12, border: 0, background: t.ACCENT, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:action.done', { defaultValue: 'Done' })}</button>
           </div>
         </div>,
@@ -18585,7 +18724,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 </button>
               );
             })}
-            {dmResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{dmQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
+            <BSPickerNotice state={dmState} />
+            {dmState === 'ok' && dmResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{dmQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -18603,7 +18743,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>{tr('feed:addMember.add', { defaultValue: '+ ADD' })}</span>
               </button>
             ))}
-            {memberResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tr('feed:addMember.noMatches', { defaultValue: 'No matches yet — type a name.' })}</div>}
+            <BSPickerNotice state={memberState} />
+            {memberState === 'ok' && memberResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tr('feed:addMember.noMatches', { defaultValue: 'No matches yet — type a name.' })}</div>}
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body

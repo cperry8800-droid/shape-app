@@ -378,6 +378,317 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — Search gets a ceiling, and stops fabricating answers when it cannot give one
+
+- **The two universal-search RPCs have never been rate-limited**, and the proxy could
+  never have covered them: all **five** callers reach `search_shape_people` /
+  `search_members` **directly from the browser with the publishable key** — the app's
+  universal search, the site header search, the standalone-page search, the DM send
+  picker and the post tag picker — so nothing passes through `/api/*`. The 2026-07-30
+  hardening pass escaped the LIKE wildcards and clamped the term, and its own note
+  named what it left open: *"the real fix is having them call the existing HMAC bucket
+  RPC."* This is that fix, plus the half of it that turned out to matter more.
+- ⚠ **THE LIMITER ALONE WOULD HAVE BEEN WORSE THAN THE PROBLEM.** Every caller turned
+  an RPC error into an **empty result list**, so a refusal would have told a member
+  that a real person **is not on Shape** — a lie the surface had no way to distinguish
+  from an honest miss. And the app's legacy fallback sat under a **bare catch**, so a
+  refused search immediately fired a **second RPC**: the limiter would have *doubled*
+  the load it exists to halve. So the callers come first — the fallback now fires only
+  on the codes that mean *that function is not deployed*, and every surface tells a
+  refusal apart from an empty answer in its own words.
+- ⚠ **MATCHED ON THE SQLSTATE, NEVER THE MESSAGE.** `PT429` is the PostgREST
+  convention that yields a real 429 where honoured and always surfaces as
+  `code: 'PT429'`; a sentence is a **spelling to pin**, which is exactly what #1936
+  cost. The app does not re-type the code at all — the predicate
+  (`ShapeSearch.isRateLimited`) lives once in the data layer and the UI asks it. The
+  three web bundles carry the literal because they are classic scripts that cannot
+  import it, and a guard pins **that asymmetry** rather than the string.
+- ⚠ **AND A LIVE FABRICATION, FOUND IN THE SAME SURFACE.** The app typeahead read
+  `r.length ? r : local`, so a signed-in member whose search matched nobody — or whose
+  search **failed** — was shown the **DEMO CAST**: fictional people with `userId` null,
+  stock faces, and nothing on the row telling them apart from real accounts; tapping
+  one opened a derived profile. The honest empty state (*"Nothing on Shape matches…"*
+  plus the marketplace door) **was already written in all three surfaces** — the
+  substitution is the only reason it could never render for a signed-in member.
+- **THE MIGRATION — and why it has to touch `check_rate_limit`.** Both search functions
+  become **plpgsql and VOLATILE**, and they must: a counter is a write, Postgres
+  refuses one inside a non-volatile function (*"INSERT is not allowed in a
+  non-volatile function"*), and `LANGUAGE sql` **cannot RAISE a refusal at all**. Each
+  SELECT is carried over **verbatim** — ranking, escaping, clamp, visibility rules and
+  limits unchanged.
+  ⚠ **The bucket name has to be unforgeable.** `check_rate_limit` is granted to `anon`
+  **and** `authenticated` by design (the Edge proxy's anon client must reach it), so
+  any signed-in caller can bump any bucket it can **NAME** — and `self:search:<uuid>`
+  is trivially guessable. A limiter keyed on the caller's uid would otherwise have
+  handed every member a way to **lock a chosen victim out of search**. So the `self:`
+  namespace is **reserved**, the public entry point refuses it (`42501`), and only
+  `check_rate_limit_self` can write there — it takes a **SCOPE, never an identity**,
+  and derives the key from `auth.uid()`. Both writers are revoked from every client
+  role, and the fixed-window arithmetic moves into **one** private helper both entry
+  points call, so it exists once.
+- ⚠ **BOTH SEARCHES SHARE ONE BUCKET, ON PURPOSE** — so a refused search cannot spend a
+  second allowance through the legacy fallback.
+- **VALIDATED AS AN ARTIFACT, NOT AS PIECES** (the #1853 lesson — a migration that
+  compiles in parts can still fail to apply as a whole). The complete file was applied
+  **inside a transaction against production and rolled back**, its own structural guard
+  passing, with **seven behavioural checks in the same transaction**: the `self:`
+  namespace refused `42501`, an ordinary api key still allowed, the self limiter
+  counting and refusing past its max, both searches returning unchanged rows, the
+  wildcard escaping intact, and — past the ceiling — **both** functions raising `PT429`
+  from the one shared bucket. The rollback mechanism itself was verified first, and the
+  rollback re-verified after (helpers absent, `search_shape_people` back to `s`/STABLE).
+- ⚠ **THE MIGRATION FILE MERGED ONE PR EARLY, AND THE ORDERING IS THE WHOLE POINT.** It
+  was swept into **#1952** (the readout surface) by an over-broad `git add` — a PR whose
+  body never mentioned it — so it reached `main` **ahead of its own callers**. Harmless
+  only because the owner runs migrations and **has not applied it**: verified against
+  production, `check_rate_limit_self` and `_rate_limit_bump` do not exist and both
+  search functions are still `sql`/`STABLE`. Had it been applied in that window, every
+  refusal would have rendered as *"this person is not on Shape."* **Stage the paths you
+  mean, not the tree** — and when a change is split across a migration and its callers,
+  the migration is the half that must never lead.
+- ⚠ **AND THE CEILING FORCED A LOOK AT WHAT THE CALLERS ACTUALLY EMIT — WHICH FOUND THE
+  ONE THAT WOULD HAVE BEEN REFUSED FIRST.** Four of the five debounce (220–250ms); the
+  **post tag picker fired one RPC per keystroke**, deps `[tagOpen, tagQuery]` and no
+  timer at all — a dozen requests to type one name, four names to a post. So the caller
+  generating the most search load was the only one spending it a character at a time,
+  and a per-member ceiling would have refused a member **tagging their training
+  partners**, which is entirely legitimate use. Debounced to **220ms, matching its own
+  sibling in the same file** (`SendPostModal`) — the inconsistency was internal to one
+  component family. This **reduces the load the limiter exists to bound**, which is the
+  right order: fix the source, then cap it.
+- ⚠ **THAT IS ALSO WHY 60/min IS SAFE, AND THE GUARD SAYS SO.** The rate is only far
+  above human use *because* every surface waits for the typing to settle, so a caller
+  added later without a debounce silently re-tunes the ceiling for everybody. A test
+  pins the debounce **at each call site** — looking backwards from the RPC for the timer
+  and forwards for the delay, since a `setTimeout` elsewhere in the file proves nothing.
+- ⚠ **ONE WINDOW ONLY, AND THE SECOND IS REGISTERED RATHER THAN GUESSED.** A longer
+  window (e.g. 600/hour) would bound a patient scraper that the per-minute ceiling lets
+  through; it needs its own measurement, so it is on the board, not in this file.
+- ⚠ **AND MY OWN NARROWED FALLBACK STILL MATCHED TOO MUCH — found by re-reading the
+  diff, not by a gate.** The missing-function safety net kept a bare
+  `/does not exist/i` beside the codes, and Postgres words **every** undefined object
+  that way: `relation "x" does not exist` (42P01), a missing column (42703). So a
+  schema or permission fault would have fallen through to the legacy RPC and spent a
+  **second allowance** — precisely the failure the narrowing exists to prevent. The
+  message check now requires the word **function**, and the guard **drives the real
+  predicate** over eight error shapes (the two codes, both real missing-function
+  messages, and the four that must not fall through, the refusal among them) rather
+  than pinning its spelling.
+- ⚠ **AND THE REVIEW FOUND TWO MORE IN MY OWN REFUSAL BRANCHES — BOTH REAL, BOTH
+  VERIFIED AGAINST THE CODE BEFORE ACTING.** (1) The site header search shipped
+  `fontFamily: SANS` where **nothing in scope defines it**, so the branch threw a
+  ReferenceError and **blanked the whole search overlay exactly when a member was
+  rate-limited** — the one state it exists to render. Valid syntax, so the
+  parse-check passed and `tsc` does not cover these browser-babel files.
+  (2) The tag picker's refusal set the flag but **left the previous query's people
+  on screen**, and the notice was gated behind `tagResults.length === 0` — so stale
+  rows rendered under the new query text and the member **tags the wrong account on
+  a public post**. That is worse than the empty list this change set out to fix: an
+  empty list says *nobody*, stale rows say *this person*. Fixed at the **state and
+  the render**, since either alone leaves the other as a trap.
+- ⚠ **AND THE SECOND ONE WAS ENUMERATED, NOT PATCHED WHERE IT WAS REPORTED.** The
+  tag picker's refusal was invisible because the notice sat **behind** the
+  empty-state test — the same ordering mistake on any other surface hides a refusal
+  the same way. Swept every caller: the app typeahead, the site header search
+  and `pageShell` all clear their rows and test the refusal **first**;
+  `siteSearch.js` rebuilds its markup each render so it has no stale state at all.
+  **Only the tag picker had it.** The ordering is now pinned on every surface, so it
+  cannot return on one nobody was looking at.
+- ⚠ **AND THAT SWEEP WAS OF THE WRONG PROPERTY — ONE STEP TOO NARROW, FOUND ON THE
+  NEXT HEAD.** It swept for *a refusal rendering as an empty list* and pinned the
+  ordering everywhere. But a refusal is only one of the ways rows stop being an
+  answer: **a NEW QUERY is another**, and no surface was clearing for it. Typing
+  `Alex` → `Alicia` left Alex on screen — and **actionable** — for the whole
+  debounce plus the round trip, on pickers whose row does not display a person but
+  **sends to, tags, or adds** that person. On the tag picker that is the exact
+  tag-the-wrong-account defect fixed one round earlier, reached by typing instead
+  of by being refused.
+- ⚠ **SO THE RULE IS WIDER THAN THE ONE THIS ENTRY SHIPPED: the rows on screen must
+  always be an answer to the query on screen.** Refused, failed, closed, or simply
+  **superseded by a newer query** — in every case they must go **before the next
+  search starts**, not after it returns; clearing inside the debounce leaves them
+  live for exactly the window a member types in. That needs a **fourth** outcome
+  beside refused · failed · empty: **pending**, the gap between a query and its
+  answer, which was unmodelled and therefore wore the previous answer's state.
+  Only a **settled successful** search may say nobody matched.
+- ⚠ **TWO SURFACES ALREADY HAD IT, BY TWO DIFFERENT MECHANISMS, AND ARE NOW THE
+  REFERENCE RATHER THAN REWRITTEN** — the coach roster gates every row on
+  `!searching`, and `siteSearch.js` overwrites its list with *Searching…* markup
+  synchronously (which is what "rebuilds its markup each render" above is actually
+  describing). Five did not. **And two of the five already HAD a pending render
+  that could never re-fire**: the app typeahead's `busy && !rows` and the header
+  search's `rows === null` only ever ran on the FIRST search, because `busy`
+  flipped while `rows` still held the last answer. **The pending state existed;
+  the clear that reaches it did not.**
+- ⚠ **THE SEND SHEET WAS RE-TYPING THE REFUSAL COPY INLINE** — the drift the shared
+  notice component's own comment says it prevents — and with a pending state its
+  `!== 'ok'` branch would have printed *"couldn't search just now"* mid-debounce,
+  i.e. this file's fabrication class in the other direction: reporting a fault that
+  has not happened. Folded onto the component. Every branch is now a **value gate
+  naming the states it answers for**, so a reorder cannot make one state wear
+  another's copy, and the two empty states held back only by branch order require a
+  settled search explicitly.
+- ⚠ **AND THREE GUARDS PINNED `state !== 'ok'`, WHICH WAS TRUE OF THE CODE AND FALSE
+  OF THE RULE.** A negation admits *every* non-ok state into the refusal branch — so
+  the shape they pinned is precisely the shape that lies during a debounce. They
+  assert the states a branch answers for now. ⚠ **And the first cut of the new guard
+  carried the trap it was written to catch**: two of its five regions began at an
+  early return that already contains `setRows(null)` (for the empty query), so the
+  needle matched inside its own marker and the assertion passed with the real clear
+  deleted — caught by mutation-testing, not by reading it.
+- ⚠ **SCOPE HERE IS CROSS-BUNDLE, AND CHECKING THAT IS WHAT SEPARATED THE BUG FROM A
+  FALSE ALARM.** The first guard I wrote flagged `dashboardCommunity`'s
+  `fontFamily: serif` too — but babel-standalone evaluates these scripts through
+  **global eval**, so a **top-level** `const` in one bundle is visible to every
+  other bundle on the same page, and `serif` is declared at column 0 in
+  `pageShell.jsx`, which co-loads on every consuming page. Correct, not a bug. The
+  same mechanism is why `SANS` genuinely was one: `siteSearch.js` declares it
+  **inside an IIFE**, and a declaration in a closure never escapes. So the guard
+  resolves each surface against the **union of the top-level declarations of every
+  bundle its pages co-load**, counting column-0 declarations only — and refuses to
+  pass vacuously if it resolves no tokens at all.
+- ⚠ **AND THE REVIEW'S SHARPEST FINDING WAS THAT MY OWN HONESTY RULE STOPPED ONE
+  STEP SHORT.** Every surface turned a **non-refusal failure** — a dropped
+  connection, an RLS fault — into an **empty list**, which renders *"Nothing on
+  Shape matches."* That is the same fabrication as the demo cast, one step quieter:
+  telling a member a real person is not on Shape on evidence we never had. My own
+  comment even called it *"the honest floor"* while doing it. There are **three**
+  outcomes, not two — **refused · failed · genuinely empty** — and only the last is
+  evidence about who exists. Every caller now says which.
+- ⚠ **AND A FOURTH DOOR ONTO THE DEMO CAST — A MISSING DATA LAYER, NOT A SIGNED-OUT
+  MEMBER.** The typeahead branched on ONE condition, `signedIn && window.ShapeSearch`,
+  so its `else` covered **two cases**: signed out (demo, correct) and **signed in with
+  the wrapper absent** (demo, a fabrication). Not hypothetical —
+  **`window.ShapeAuth` is assigned at `shapeBackend.js:3929` and `window.ShapeSearch`
+  at `:6233`, 2,300 lines apart in ONE module**, so anything throwing between them
+  leaves a readable cached session and no search wrapper, permanently; the `?.`
+  already on that catch's `isRateLimited` says the author expected exactly this.
+  **Only `!signedIn` reaches the demo cast now**, and an absent wrapper is a
+  **FAILURE** — not a refusal and not an empty result, because we never asked. ⚠ The
+  **suggestion rail one function above was already right** (`if (!dead && !signedIn)`),
+  which is what made the typeahead's shape visible as the outlier.
+- ⚠ **THE DEMO CAST HAD A SECOND DOOR, THROUGH A STALE CLOSURE.** `signedIn` is
+  recomputed from the auth cache on every render, but the typeahead effect depended
+  on `[q]` alone — so a timer scheduled **before a session resolved** fired with the
+  stale `false` and rendered the **demo people to a signed-in member**, which is the
+  precise fabrication this change set out to delete. `signedIn` is now a dependency.
+  ⚠ **Pinned by a SOURCE guard, and the reason is a property of the harness, not a
+  shortcut:** the mount harness ignores dependency arrays, so no behavioural test can
+  reach it — the guard says so, to keep the next reader from mistaking it for laziness.
+- ⚠ **AND THE FALLBACK STILL FIRED ON THE WRONG MISSING FUNCTION.** `42883` is
+  Postgres saying **some** function does not exist — including a **helper called from
+  inside `search_shape_people`** — so a genuine execution fault could masquerade as a
+  stale schema and quietly return names-only results while hiding the real error. It
+  now keys on the RPC actually called: `PGRST202` stands alone (PostgREST raises it
+  about the function you called), everything else must **name** it.
+- ⚠ **TWO RECORDS CORRECTIONS THE REVIEW WAS RIGHT ABOUT.** The ceiling is **60 per
+  FIXED window**, not "per rolling minute" — a fixed window admits 60 at the end of
+  one and 60 at the start of the next, a 120 burst across the boundary, and calling
+  that rolling promises a guarantee the counter does not make. And the *"a session is
+  ~5–10 requests"* figure **did not follow from the debounce**: a debounce bounds
+  requests **per pause**, not per session. Both corrected; the rate is now recorded as
+  a headroom judgement, with a measured per-caller request trace named as the honest
+  way to tighten it.
+- ⚠ **A MARKER THAT SELECTED SOMEONE ELSE'S CODE — the `extractFn` trap again, in a
+  guard this time.** Anchoring on `.catch(` found `siteSearch.js`'s **Supabase bundle
+  loader**, several hundred lines above the search, so the assertion passed while
+  saying nothing about the code it named. Anchored on the RPC instead.
+- ⚠ **AND THE DEBOUNCE GUARD PROVED THE ARGUMENT LIST, NOT THE CALLBACK.** The
+  round-4 version brace-matched the `setTimeout(…)` **parens**, so `close > call`
+  established only that the marker sat somewhere among its **arguments** —
+  `setTimeout(cb, directSearch(), 250)` satisfies that while searching on every
+  keystroke, which is the precise regression the guard exists to catch. It now
+  parses the callback **head** (`() =>` · `async () =>` · `function () `), brace-
+  matches the `{` that opens ITS body, and requires the call inside; the delay is
+  read after the body closes, so a literal elsewhere in the file can't stand in.
+  Mutation-checked with the reviewer's own counterexample.
+- ⚠ **THE CALLER LIST WAS WRONG, AND THAT IS THE FINDING — NOT THE TWO SURFACES IT
+  MISSED.** This entry said *"all five callers"*. ⚠ **AND THE CORRECTION BELOW SAID
+  SIX, WHICH IS ALSO WRONG — see the next round: four mobile member pickers reach the
+  same RPC through a second wrapper. The number has been restated three times and been
+  wrong three times, which is the whole reason this record now points at a derived
+  guard instead of a count.** The **coach
+  roster** search (`iosAppBroadsheetPros.jsx`) swallowed every error into `[]` and
+  rendered *"No members match — share your listing link instead."* to a coach whose
+  search was **refused or failed** — the exact claim this whole change exists to stop
+  making, on the one surface where the row's action **invites a named person**, so a
+  stale match invites the wrong account. And the app's **suggestion rail** — three
+  lines above the typeahead I had just fixed — fell through to the **demo cast** for a
+  signed-in member on **all three** of empty, refused and failed, with the same
+  `[]`-dep stale-closure trap underneath it (a mount before auth resolved wrote
+  fictional accounts, and the flip could not un-write them, so the re-run now clears
+  first).
+- ⚠ **AND THE GUARD NO LONGER TAKES MY WORD FOR THE INVENTORY, WHICH IS THE ONLY PART
+  THAT GENERALISES.** Every surface table here was populated by enumerating the
+  callers I remembered — which is precisely why a suite of sixteen assertions passed,
+  twice, over a caller that was never in it. **A list of callers cannot prove it is
+  the list of callers.** A new test WALKS THE TREE and fails on a call site that
+  searches without being
+  covered — and fails the other way too, if a listed file stops searching, so the set
+  cannot silently vouch for behaviour that has moved. The next caller is caught at the
+  gate instead of by the next reviewer.
+- ⚠ **AND THAT GUARD WAS STILL WRONG TWICE, BOTH FOUND ON THE NEXT HEAD — the count
+  was never the finding.** It was **per-FILE**, so `iosAppBroadsheetClient.jsx` counted
+  as covered for its `ShapeSearch.people` use while **four other call sites in that same
+  file** searched uncovered: **coverage is a property of a CALL SITE, not a filename.**
+  And it knew only the wrapper I remembered — the four **member pickers** (send-a-post ·
+  new message · add-to-channel · tag-in-a-post) reach `search_members` through a
+  **SECOND data-layer wrapper**, `ShapeChannels.searchMembers`, which no list had ever
+  mentioned. Every one collapsed a refusal into an empty list and **three had no
+  debounce at all** — so the pickers were simultaneously the least protected callers and
+  a way to spend the allowance a keystroke at a time.
+- ⚠ **AND THE MOBILE TAG PICKER WAS THE SAME DEFECT I HAD ALREADY FIXED ON THE WEBSITE,
+  STILL LIVE.** A refusal left the previous query's people on screen under the new query,
+  and that row **tags a named person on a public post** — an empty list says *nobody*,
+  stale rows say *this person*. All four now share **one hook**: debounced, rows cleared
+  on refusal, on failure **and on close** (so reopening cannot paint the previous
+  session's people), with the notice **gated ahead of** the empty branch rather than
+  merely placed before it — a gate survives a JSX reorder, an ordering does not.
+- ⚠ **THE GUARD IS NOW AST-BASED, PER-CALL-SITE, AND DERIVES THE WRAPPERS.** It reads
+  the data layer for the functions whose bodies call a search RPC, then for the public
+  aliases those are exported under — so a third wrapper is picked up with nobody
+  remembering to. It also accepts **`OptionalCallExpression`**: the coach roster uses
+  `?.()`, and a `CallExpression`-only walk had been stepping straight past it. Proven by
+  planting an optional-form uncovered caller — **caught with the widening, invisible
+  without it**.
+- ⚠ **A ROLLOUT NOTE THIS CHANGED, AND THEN CHANGED AGAIN — WHICH IS WHY IT NO LONGER
+  CARRIES A NUMBER.** The pre-apply check said five bundles, then six, and was wrong both
+  times; the four mobile pickers made it wrong a third. It now names the **surfaces** and
+  points at the derived guard as the authority. The migration header stopped listing
+  callers for the same reason. The coach app and the pickers all ship in the same
+  deploy-built `public/m`, so a stale deploy is the realistic way to apply the ceiling
+  over surfaces that still read a refusal as *"No members match"*.
+- Verified: **2441/2441** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
+  with the two new coach keys and the picker refusal copy confirmed in the emitted bundle · both mobile + newdesign
+  parse · catalog parity ×13 · **36 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+  un-reserve the `self:` namespace · grant the private limiter to a client role ·
+  restore the bare-catch fallback · match the refusal message instead of the code ·
+  re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
+  notice · un-debounce the tag picker · loosen a debounce under the floor · un-debounce
+  the standalone-page search · widen the fallback back to a bare `does not exist` ·
+  drop the code set and match on the message alone · reintroduce the exact `SANS`
+  reference · stop clearing the tag rows on a refusal · re-gate the refusal notice
+  behind an empty list · swap a surface's branch order so the empty state is tested
+  first · delete a surface's refusal branch outright · collapse a failure into the
+  empty state on three separate surfaces · drop `signedIn` from the effect deps ·
+  widen the fallback back to any missing function · unwire the function name at the
+  call site · render a thrown search as an empty result again · un-debounce the tag
+  picker after the refactor · restore the coach roster's swallow-into-empty · put its
+  refusal notice behind the empty state · restore the suggestion rail's demo fallback ·
+  drop `signedIn` from the suggestion effect's deps · drop a real caller from the
+  inventory's covered set · leave a stale entry in it · break the call pattern so it
+  matches nothing · move a search call out of its timer callback into the timer's
+  argument list), unmutated sanity green at both ends and the tree restored clean
+  after each. The inventory guard was additionally driven by **planting a genuinely new
+  uncovered caller** in the walked tree — the question it exists to answer is what it
+  does with a real file, not what a comment claims about it, and it failed on the plant.
+- ⚠ **AND ONE OF THOSE MUTATIONS "SURVIVED" UNTIL THE MEASUREMENT WAS CHECKED.** The
+  break-the-pattern case reported a pass — because the `sed` anchor was `rpc(` while the
+  source reads `rpc\(`, so nothing was edited and the run measured an **unmutated tree**.
+  Re-applied with the edit verified present, it was caught. *Check the check before
+  believing the finding* — a mutation that reports a survivor is a broken instrument
+  until the mutation is proven to have landed.
+
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)
 
 - **A route with no reader is a route nobody has.** Steps 1 (#1950) and 2 (#1951)

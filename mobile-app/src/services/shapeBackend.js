@@ -6183,18 +6183,54 @@ window.ShapeChannels = {
 // `search_shape_people` returns role + profile photo + all-time points in one
 // call; falls back to the older `search_members` RPC (names only) when the
 // migration hasn't been applied yet.
+//
+// ⚠ THE FALLBACK IS FOR A MISSING FUNCTION, NOT FOR EVERY ERROR. It used to sit
+// under a bare `catch`, so ANY failure — a network blip, an RLS change, a
+// timeout, a refusal — silently re-ran the search through the names-only RPC and
+// returned whatever came back, with the caller unable to tell a degraded result
+// from a real one. Two consequences once the search RPCs carry a ceiling
+// (2026-08-29-search-rate-limit.sql): a refused call would immediately spend a
+// SECOND one, so the limiter would double the load it exists to halve; and the
+// member would be told "no results" for a person who exists. The fallback now
+// fires only on the codes that actually mean "that function is not deployed".
+// PostgREST's HTTP-status convention: the RPC raises `PT429` past the ceiling.
+// Matched on the CODE, never the message — a sentence is a spelling to pin.
+const SEARCH_RATE_LIMITED = 'PT429';
+function searchIsRateLimited(err) {
+  return !!(err && err.code === SEARCH_RATE_LIMITED);
+}
+// ⚠ THE FALLBACK IS FOR *THIS* FUNCTION BEING ABSENT, NOT FOR ANY MISSING
+// FUNCTION. `42883` is Postgres saying SOME function does not exist — which
+// includes a helper called from inside `search_shape_people` — so treating it
+// alone as "not deployed" lets a genuine execution fault masquerade as a stale
+// schema and quietly return names-only results while hiding the real error.
+// PGRST202 is safe on its own: PostgREST raises it about the RPC you called.
+// Everything else must NAME the function.
+//
+// The message check also requires the word "function": a bare /does not exist/
+// matches `relation "x" does not exist` (42P01) and every other undefined-object
+// error, so a schema or permission fault would have spent a SECOND allowance.
+function searchFnMissing(err, fnName) {
+  if (!err) return false;
+  const msg = err.message || '';
+  const namesFn = !fnName || msg.includes(fnName);
+  if (err.code === 'PGRST202') return true;
+  if (err.code === '42883') return namesFn || !msg;
+  if (!namesFn) return false;
+  return /could not find the function/i.test(msg) || /function\b[^]*\bdoes not exist/i.test(msg);
+}
 async function searchShapePeople(q = '', limit = 20) {
   if (!supabase || !state.user?.id) return [];
-  try {
-    const { data, error } = await supabase.rpc('search_shape_people', { p_q: q || '', p_limit: limit });
-    if (error) throw error;
+  const { data, error } = await supabase.rpc('search_shape_people', { p_q: q || '', p_limit: limit });
+  if (!error) {
     return (data || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: p.role || 'client', avatar: p.avatar || null, points: p.points != null ? Number(p.points) : null }));
-  } catch (e) {
-    const { data } = await supabase.rpc('search_members', { p_q: q || '' });
-    return (data || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: 'client', avatar: null, points: null }));
   }
+  if (!searchFnMissing(error, 'search_shape_people')) throw error;
+  const { data: legacy, error: legacyErr } = await supabase.rpc('search_members', { p_q: q || '' });
+  if (legacyErr) throw legacyErr;
+  return (legacy || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: 'client', avatar: null, points: null }));
 }
-window.ShapeSearch = { people: searchShapePeople };
+window.ShapeSearch = { people: searchShapePeople, isRateLimited: searchIsRateLimited };
 
 // Resolve a provider row (trainers/nutritionists) to its owner auth user — lets
 // "Coached by" chips link to the coach's live public profile.

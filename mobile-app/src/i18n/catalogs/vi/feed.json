@@ -81,6 +81,8 @@
   "comments.post": "Đăng",
   "comments.title": "Bình luận",
   "common.noMatches": "Không có kết quả.",
+  "common.searchFailed": "Không tìm được lúc này — thử lại nhé.",
+  "common.searchLimited": "Bạn đang tìm hơi nhanh — chờ một chút.",
   "common.searchMembers": "Tìm thành viên…",
   "common.typeName": "Nhập tên để tìm ai đó.",
   "composer.message": "Tin nhắn…",

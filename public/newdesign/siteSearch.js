@@ -144,18 +144,37 @@
     ensureDb().then(function (db) {
       if (mine !== seq) return; // a newer query (or close) superseded this one
       var c = db && db.client;
-      if (!c || !c.rpc) { render([], nh, query); return; }
+      if (!c || !c.rpc) { renderProblem(nh, false); return; }
       c.rpc('search_shape_people', { p_q: query, p_limit: 12 })
         .then(function (r) {
           if (mine !== seq) return;
           if (!r.error) signedIn = true; // a successful RPC means we're authenticated — keep the empty state honest
+          // ⚠ A REFUSAL IS NOT AN EMPTY RESULT, AND IT IS NOT A SIGN-OUT EITHER.
+          // Past the per-member ceiling the RPC raises PT429 (see
+          // 2026-08-29-search-rate-limit.sql). Rendering that as the empty state
+          // tells a member a real person does not exist; leaving `signedIn` false
+          // — which is what an error used to do here — tells a member who IS
+          // signed in to sign in. Matched on the CODE, never the message.
+          if (r.error) { renderProblem(nh, r.error.code === 'PT429'); return; }
           render(Array.isArray(r.data) ? r.data : [], nh, query);
         })
-        .catch(function () { if (mine === seq) render([], nh, query); });
+        .catch(function (e) {
+          if (mine !== seq) return;
+          renderProblem(nh, !!(e && e.code === 'PT429'));
+        });
     });
   }
 
-  function render(rows, nh, query) {
+  // The honest could-not-answer states. A refusal and a failure are different, and
+  // BOTH differ from "nobody matched" — rendering either as the empty state tells a
+  // member a real person is not on Shape, on evidence we never had.
+  function renderProblem(nh, isLimited) {
+    render([], nh, '', isLimited
+      ? 'Searching a little fast — give it a moment and try again.'
+      : 'Couldn\u2019t search just now — check your connection and try again.');
+  }
+
+  function render(rows, nh, query, notice) {
     var html = '';
     if (nh) {
       html +=
@@ -168,7 +187,9 @@
           '<span style="font-family:' + MONO + ';font-size:12px;color:rgba(242,237,228,0.4)">›</span>' +
         '</button>';
     }
-    if (rows.length === 0 && !nh) {
+    if (notice) {
+      html += '<div style="padding:12px 12px 8px;font-family:' + SANS + ';font-size:13.5px;color:rgba(242,237,228,0.55)">' + esc(notice) + '</div>';
+    } else if (rows.length === 0 && !nh) {
       html += '<div style="padding:12px 12px 8px;font-family:' + SANS + ';font-size:13.5px;color:rgba(242,237,228,0.55)">' +
         (signedIn
           ? 'Nothing on Shape matches “' + esc(query) + '”. <a href="/newdesign/Marketplace.html" style="color:' + TEAL + ';text-decoration:none">Browse coaches →</a>'

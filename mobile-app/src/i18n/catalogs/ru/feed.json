@@ -81,6 +81,8 @@
   "comments.post": "Опубликовать",
   "comments.title": "Комментарии",
   "common.noMatches": "Нет совпадений.",
+  "common.searchFailed": "Сейчас не удалось найти — попробуйте ещё раз.",
+  "common.searchLimited": "Вы ищете слишком часто — подождите немного.",
   "common.searchMembers": "Поиск участников…",
   "common.typeName": "Введите имя, чтобы найти кого-то.",
   "composer.message": "Сообщение…",

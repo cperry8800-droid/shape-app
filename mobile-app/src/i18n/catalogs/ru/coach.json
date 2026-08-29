@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Присоединяйся ко мне в Shape",
   "addClient.publishFirst": "Сначала опубликуйте карточку на маркетплейсе — приглашение несёт её.",
   "addClient.retryTag": "Повторить метку 0%",
+  "addClient.searchFailed": "Сейчас не удалось найти — проверь соединение и попробуй ещё раз.",
+  "addClient.searchLimited": "Ты ищешь слишком часто — подожди немного.",
   "addClient.searchPlaceholder": "Поиск участников по имени…",
   "addClient.sendLabel": "Отправьте свою ссылку",
   "addClient.shareCopy": "Поделиться / копировать",

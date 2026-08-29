@@ -81,6 +81,8 @@
   "comments.post": "Опублікувати",
   "comments.title": "Коментарі",
   "common.noMatches": "Немає збігів.",
+  "common.searchFailed": "Зараз не вдалося знайти — спробуйте ще раз.",
+  "common.searchLimited": "Ви шукаєте занадто часто — зачекайте трохи.",
   "common.searchMembers": "Пошук учасників…",
   "common.typeName": "Введіть ім’я, щоб когось знайти.",
   "composer.message": "Повідомлення…",

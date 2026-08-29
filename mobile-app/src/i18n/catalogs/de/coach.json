@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Komm zu mir auf Shape",
   "addClient.publishFirst": "Veröffentliche zuerst deinen Marktplatz-Eintrag — die Einladung enthält ihn.",
   "addClient.retryTag": "0%-Tag erneut versuchen",
+  "addClient.searchFailed": "Suche gerade nicht möglich — prüfe deine Verbindung und versuch es erneut.",
+  "addClient.searchLimited": "Du suchst etwas zu schnell — gib ihr einen Moment.",
   "addClient.searchPlaceholder": "Mitglieder nach Namen suchen…",
   "addClient.sendLabel": "Schick deinen Link",
   "addClient.shareCopy": "Teilen / kopieren",

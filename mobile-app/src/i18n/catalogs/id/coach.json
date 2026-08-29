@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Gabung bersamaku di Shape",
   "addClient.publishFirst": "Terbitkan dulu iklan pasarmu — undangan membawanya.",
   "addClient.retryTag": "Coba lagi tanda 0%",
+  "addClient.searchFailed": "Gagal mencari sekarang — cek koneksimu lalu coba lagi.",
+  "addClient.searchLimited": "Kamu mencari terlalu cepat — tunggu sebentar.",
   "addClient.searchPlaceholder": "Cari anggota berdasarkan nama…",
   "addClient.sendLabel": "Kirim tautanmu",
   "addClient.shareCopy": "Bagikan / salin",

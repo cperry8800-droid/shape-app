@@ -2437,6 +2437,12 @@ function BSProAddClientSheet({ role, onClose }) {
   const [resolvedRole, setResolvedRole] = useStateBSP(null);
   const [q, setQ] = useStateBSP('');
   const [results, setResults] = useStateBSP(null); // null = idle · [] = no matches
+  // 'ok' | 'limited' | 'failed' — a REFUSAL (the search ceiling), a FAILURE and a
+  // genuinely EMPTY answer are three different claims, and only the last is
+  // evidence about who is on Shape. This used to swallow every error into `[]`,
+  // so a rate-limited or offline coach read "No members match — share your listing
+  // link instead." about members who are right there.
+  const [searchState, setSearchState] = useStateBSP('ok');
   const [searching, setSearching] = useStateBSP(false);
   const [busyId, setBusyId] = useStateBSP(null);
   const [invited, setInvited] = useStateBSP({}); // userId -> true
@@ -2472,13 +2478,23 @@ function BSProAddClientSheet({ role, onClose }) {
   useEffectBSP(() => {
     const query = q.trim();
     const req = ++searchReqRef.current;
-    if (query.length < 2) { setResults(null); setSearching(false); return undefined; }
+    if (query.length < 2) { setResults(null); setSearching(false); setSearchState('ok'); return undefined; }
     setSearching(true);
     const id = setTimeout(async () => {
-      let people = [];
-      try { people = await window.ShapeSearch?.people?.(query, 12); } catch (e) { people = []; }
+      let people = null;
+      let failure = null;
+      try { people = await window.ShapeSearch?.people?.(query, 12); } catch (e) { failure = e; }
       if (searchReqRef.current !== req) return; // a newer query owns the results
-      setResults((Array.isArray(people) ? people : []).filter((p) => p.userId && p.userId !== myUid && p.role === 'client'));
+      if (failure) {
+        // Clear the rows on BOTH refusal paths: stale results under a notice are
+        // worse than none here — the row's action INVITES a named person, so a
+        // coach acting on a leftover match invites the wrong account.
+        setSearchState(window.ShapeSearch?.isRateLimited?.(failure) === true ? 'limited' : 'failed');
+        setResults([]);
+      } else {
+        setSearchState('ok');
+        setResults((Array.isArray(people) ? people : []).filter((p) => p.userId && p.userId !== myUid && p.role === 'client'));
+      }
       setSearching(false);
     }, 300);
     return () => clearTimeout(id);
@@ -2616,7 +2632,17 @@ function BSProAddClientSheet({ role, onClose }) {
             style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
         </label>
         {searching && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.searching', { defaultValue: 'Searching…' })}</div>}
-        {!searching && results && results.length === 0 && (
+        {/* The refusal/failure notice renders AHEAD of the empty state — reversing
+            these two puts "No members match" on screen for a search that never
+            ran, which is the claim this whole change exists to stop making. */}
+        {!searching && searchState !== 'ok' && (
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>
+            {searchState === 'limited'
+              ? tr('coach:addClient.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
+              : tr('coach:addClient.searchFailed', { defaultValue: "Couldn't search just now — check your connection and try again." })}
+          </div>
+        )}
+        {!searching && searchState === 'ok' && results && results.length === 0 && (
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:addClient.noMembers', { defaultValue: 'No members match — share your listing link instead.' })}</div>
         )}
         {!searching && (results || []).map((p) => (

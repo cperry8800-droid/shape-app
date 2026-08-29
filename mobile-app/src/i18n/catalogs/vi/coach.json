@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Tham gia Shape cùng tôi",
   "addClient.publishFirst": "Hãy đăng hồ sơ trên chợ dịch vụ trước — lời mời sẽ mang theo nó.",
   "addClient.retryTag": "Thử lại nhãn 0%",
+  "addClient.searchFailed": "Không tìm được lúc này — kiểm tra kết nối rồi thử lại.",
+  "addClient.searchLimited": "Bạn đang tìm hơi nhanh — chờ một chút.",
   "addClient.searchPlaceholder": "Tìm thành viên theo tên…",
   "addClient.sendLabel": "Gửi liên kết của bạn",
   "addClient.shareCopy": "Chia sẻ / sao chép",

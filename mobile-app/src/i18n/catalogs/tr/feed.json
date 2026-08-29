@@ -81,6 +81,8 @@
   "comments.post": "Gönder",
   "comments.title": "Yorumlar",
   "common.noMatches": "Eşleşme yok.",
+  "common.searchFailed": "Şu anda arama yapılamadı — tekrar dene.",
+  "common.searchLimited": "Biraz hızlı arıyorsun — bir an bekle.",
   "common.searchMembers": "Üye ara…",
   "common.typeName": "Birini bulmak için bir isim yaz.",
   "composer.message": "Mesaj…",

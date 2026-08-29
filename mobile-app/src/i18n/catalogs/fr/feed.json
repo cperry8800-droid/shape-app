@@ -81,6 +81,8 @@
   "comments.post": "Publier",
   "comments.title": "Commentaires",
   "common.noMatches": "Aucun résultat.",
+  "common.searchFailed": "Recherche impossible pour l’instant — réessaie.",
+  "common.searchLimited": "Tu cherches un peu trop vite — patiente un instant.",
   "common.searchMembers": "Rechercher des membres…",
   "common.typeName": "Saisis un nom pour trouver quelqu’un.",
   "composer.message": "Message…",

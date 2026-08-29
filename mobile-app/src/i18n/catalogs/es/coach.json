@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Únete conmigo en Shape",
   "addClient.publishFirst": "Publica primero tu anuncio en el mercado — la invitación lo lleva.",
   "addClient.retryTag": "Reintentar etiqueta 0%",
+  "addClient.searchFailed": "No se pudo buscar ahora mismo — revisa tu conexión e inténtalo de nuevo.",
+  "addClient.searchLimited": "Estás buscando muy rápido — espera un momento.",
   "addClient.searchPlaceholder": "Busca miembros por nombre…",
   "addClient.sendLabel": "Envía tu enlace",
   "addClient.shareCopy": "Compartir / copiar",
