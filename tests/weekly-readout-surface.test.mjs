@@ -48,8 +48,13 @@ const FULL = {
   },
 };
 
+// The card reads its own identity, so a driver has to supply one — a readout is
+// held WITH its subject and a render whose subject no longer matches shows nothing.
+const signInAs = (id) => { globalThis.window.ShapeAuth = { getCachedState: () => ({ user: id ? { id } : null }) }; };
+
 // Render the card with whatever `ShapeReadout.get` resolves, and let the effect settle.
-async function render(props, resolved) {
+async function render(props, resolved, uid = 'member-a') {
+  signInAs(uid);
   globalThis.window.ShapeReadout = { get: async () => resolved };
   const d = drive(BSWeeklyReadoutCard, props);
   await tick();
@@ -92,6 +97,7 @@ test('signed out renders nothing at all — never a demo readout', async () => {
 // reproduces the frame exactly: the effect's setData(null) writes the cell, but this
 // render already read `data` above it.
 test('signing out renders nothing on the very frame before the effect clears it', async () => {
+  signInAs('member-a');
   globalThis.window.ShapeReadout = { get: async () => FULL };
   const props = { isSelf: true };
   const d = drive(BSWeeklyReadoutCard, props);
@@ -101,6 +107,30 @@ test('signing out renders nothing on the very frame before the effect clears it'
   props.isSelf = false;
   d.render();
   assert.equal(d.nodes().length, 0, "the previous member's readout painted into the signed-out preview");
+});
+
+// ⚠ AN ACCOUNT SWITCH IS NOT COVERED BY THE SIGNED-IN BOOLEAN. `isSelf` stays
+// true straight through it, so a card keyed only on that flag keeps painting the
+// previous member's readout until a refetch happens to land — one member's health
+// insights shown under another member's session. The held readout carries its
+// subject and the render filters on it, so the wrong person's is never shown even
+// for the frame before the refetch resolves.
+test('a readout held for one account never renders for the next', async () => {
+  signInAs('member-a');
+  globalThis.window.ShapeReadout = { get: async () => FULL };
+  const props = { isSelf: true };
+  const d = drive(BSWeeklyReadoutCard, props);
+  await tick();
+  d.render();
+  assert.match(d.text, /Your sleep is carrying the week\./, 'setup: the readout never loaded');
+  signInAs('member-b');
+  d.render();
+  assert.equal(d.nodes().length, 0, "member A's readout rendered under member B's session");
+});
+
+test('no resolvable identity renders nothing, even when signed in', async () => {
+  const d = await render({ isSelf: true }, FULL, null);
+  assert.equal(d.nodes().length, 0);
 });
 
 test('a failed fetch renders nothing, not a stale or partial station', async () => {
@@ -159,6 +189,22 @@ test('a malformed insights field degrades to the redaction line rather than thro
   const d = await render({ isSelf: true }, { ...FULL, readout: { summary: 'A summary.', insights: 'nope' } });
   assert.match(d.text, /A summary\./);
   assert.ok(redactedWith(d, 'No pattern on record yet'), 'a malformed insights field is not redacted');
+});
+
+// ⚠ A SOURCE GUARD, BECAUSE THE HARNESS CANNOT REACH THIS ONE. Its `useEffect`
+// runs the callback on every render and ignores the dependency array entirely, so
+// no test written against it can distinguish `[isSelf]` from `[isSelf, uid]` —
+// dropping the uid survives every behavioural assertion above. What the dep list
+// governs is whether an account switch REFETCHES rather than merely blanking, and
+// there is no behavioural surface for that here, which is the honest case for
+// pinning the source rather than a spelling of it.
+test('the fetch re-triggers on an identity change, not only on the signed-in flag', () => {
+  const src = stripComments(fs.readFileSync(SRC, 'utf8'));
+  const body = src.slice(src.indexOf('function BSWeeklyReadoutCard'));
+  const deps = body.slice(0, body.indexOf('\n}')).match(/\}, \[([^\]]*)\]\);/);
+  assert.ok(deps, 'the readout effect no longer declares a dependency array');
+  const listed = deps[1].split(',').map((d) => d.trim()).filter(Boolean);
+  assert.ok(listed.includes('uid'), `an account switch would not refetch — deps are [${listed.join(', ')}]`);
 });
 
 // -- the mount ---------------------------------------------------------------

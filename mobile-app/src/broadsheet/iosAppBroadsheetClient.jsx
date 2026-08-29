@@ -30578,16 +30578,33 @@ function BSCycleTodayChip() {
 // and it renders. A network failure is not an answer.
 function BSWeeklyReadoutCard({ isSelf }) {
   const t = useBS();
-  const [data, setData] = useStateBSC(null);
+  // ⚠ THE READOUT CARRIES ITS SUBJECT, AND THE RENDER FILTERS ON IT. Keying this
+  // card on the signed-in BOOLEAN alone is not enough: `isSelf` stays true across
+  // an account switch, so a session that became someone else would keep painting
+  // the previous member's health insights until a refetch happened to land. That
+  // is the class #1929 fixed on the member-age hook the same way — the value
+  // carries who it is about, and a render whose subject no longer matches shows
+  // nothing rather than the wrong person's. The uid is also an effect dependency,
+  // so the switch triggers a real refetch instead of only a blank.
+  const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const [held, setHeld] = useStateBSC(null);
   React.useEffect(() => {
-    if (!isSelf) { setData(null); return undefined; }
+    if (!isSelf || !uid) { setHeld(null); return undefined; }
     let alive = true;
     window.ShapeReadout?.get?.()
-      .then((d) => { if (alive) setData(d || null); })
-      .catch(() => { if (alive) setData(null); });
+      .then((d) => { if (alive) setHeld(d ? { uid, data: d } : null); })
+      .catch(() => { if (alive) setHeld(null); });
     return () => { alive = false; };
-  }, [isSelf]);
+  }, [isSelf, uid]);
 
+  // ⚠ AND `isSelf` STAYS IN THE RENDER GUARD, for the frame the effect cannot
+  // cover: React runs effects AFTER the commit, so a sign-out leaves exactly one
+  // render where isSelf is already false and the held readout is still the
+  // previous session's.
+  // A vanished identity is covered by the same comparison: the effect only ever
+  // holds a readout under a truthy uid, so `held.uid === null` is never true and
+  // a session that lost its user renders nothing without a separate clause.
+  const data = held && held.uid === uid ? held.data : null;
   if (!isSelf || !data || !data.readout) return null;
   const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
   const insights = Array.isArray(data.readout.insights) ? data.readout.insights : [];
