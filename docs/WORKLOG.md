@@ -378,7 +378,106 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-29 — The weekly readout gets a claim: one model call per member per week (#1951)
+### 2026-08-29 — The weekly readout reaches the member (§C closes)
+
+- **A route with no reader is a route nobody has.** Steps 1 (#1950) and 2 (#1951)
+  built the evidence layer and the claimed, cached server; `/api/ai/weekly-readout`
+  has been correct and **orphaned** since — a member has never seen a word of it.
+  `BSWeeklyReadoutCard` now leads the **Progress hub Overall tab** in that hub's own
+  Field Ledger language (station head on the member's tier heat, serif summary lead,
+  dot-leader insight rows). **No migration, no route change.**
+- ⚠ **THE SIGNED-OUT PREVIEW RENDERS NOTHING, AGAINST THIS HUB'S OWN CONVENTION.**
+  Every other station here shows a demo of a live account when signed out — that is
+  the established pattern and the reason `BSPROG_DEMO` exists. A **readout** is a
+  different kind of object: it is a claim about a specific person's body, in
+  sentences, so a demo one is a **fabricated health insight presented as a finding**.
+  The convention is the wrong one to follow here and the card says so at the gate.
+- ⚠ **AND THE SIGNED-IN BOOLEAN IS NOT AN IDENTITY — CodeRabbit's finding, and it
+  was right.** `isSelf` stays **true straight through an account switch**, so a card
+  keyed on that flag alone keeps painting the previous member's readout until a
+  refetch happens to land: one person's health insights under another person's
+  session. The held readout now **carries its subject** and the render filters on it
+  (the remedy #1929 applied to the member-age hook), with the uid in the effect deps
+  so a switch genuinely refetches rather than merely blanking. A vanished identity
+  falls out of the same comparison — the effect only ever holds a readout under a
+  truthy uid, so `held.uid === null` is never true and no separate clause is needed.
+  ⚠ **The dep list is pinned by a SOURCE guard, and that is the honest instrument
+  here**: the mount harness runs every effect and ignores dependency arrays, so no
+  behavioural test written against it can tell `[isSelf]` from `[isSelf, uid]`.
+- ⚠ **AND THE `isSelf` RENDER GUARD IS *ALSO* FOR THE STALE FRAME, WHICH THE FIRST
+  MUTATION BATCH MISSED.** React runs effects **after** the commit, so a sign-out leaves
+  exactly one render where `isSelf` is already false and `data` still holds the
+  previous session's readout — the same cross-account class as the `_followCache`
+  leak (2026-06-29) and the profile that painted **one frame of B's name beside A's
+  age** (#1929). Dropping the guard **survived** the first pass, because the mount
+  harness runs effects synchronously during render and the clearing effect masked
+  it; the test now **mutates the props object and re-renders**, which reproduces the
+  frame exactly (the effect's `setData(null)` writes the cell, but that render
+  already read `data` above it). **A guard whose failure mode is one frame needs a
+  test that can produce one frame.**
+- ⚠ **THE STAMP IS THE RESPONSE'S, NOT THE REQUEST'S.** On a cache hit the route
+  deliberately reports the window and sample the readout **actually saw**, not the
+  ones this request asked for; rendering a request default here would undo that at
+  the last step. An absent window or sample is **omitted**, never rendered as a zero
+  — the `Number(null)`-is-a-finite-0 class this file keeps paying for.
+- ⚠ **THE DETERMINISTIC READOUT SAYS SO** — the fallback carries **"Computed, not
+  written"**. It is real evidence honestly rendered, but it is not the AI reading of
+  it, and a member who cannot tell the two apart has been told something untrue
+  about where the words came from.
+- **Every degraded shape renders nothing or a redaction line**: a failed fetch, a
+  response with no `readout`, and a malformed `insights` field (an honest
+  `BSTRedact` "No pattern on record yet" — the output of a member below the data
+  floor, not a failure).
+- ⚠ **`window.ShapeReadout.get` IS DELIBERATELY OUTSIDE THE SHARED METRICS CACHE.**
+  That cache exists so several surfaces can share ONE rollup response; this route
+  **mutates** — it claims a lease and may spend a model call — so a cached second
+  reader would be a **second claim**, not a free read. Plain authed POST (native
+  base + Bearer), resolving **null** on every failure, since the card has no error
+  state by design and a rejection would surface as an unhandled promise instead.
+- **The card is DRIVEN, not grepped.** It mounts through the shared broadsheet
+  harness with a react impl whose `useEffect` actually runs, so the
+  fetch → state → render path is production's. The data-layer half cannot be
+  imported (`shapeBackend.js` is a classic browser script), so `getWeeklyReadout` is
+  **brace-matched out of the shipped file** and evaluated against stubs — the
+  technique `tests/online-visible-pref.test.mjs` already uses for `public/supabase.js`.
+  ⚠ **Its `extractFn` needed the FULL signature as the marker**: the body scan starts
+  at the first `{` after the marker, which for a destructured parameter is the
+  **param object**, so a bare-name marker silently extracted `async function
+  getWeeklyReadout({ windowDays }` and every assertion after it would have been about
+  a fragment. ⚠ And the redaction line is asserted on the **node**, not the text —
+  `BSTRedact`'s words ride on a `label` prop and `textOf` walks children only, so a
+  text match would have passed on a station that dropped the component entirely.
+- ⚠ **NO i18n, AND THE GAP IS THE SURFACE'S RATHER THAN THIS CARD'S.**
+  `BSClientProgress` carries **ZERO `tr()` calls** — the Progress hub was never one
+  of the ten surfaces in the 2026-07-16 rollout that this file's own changelog calls
+  **COMPLETE**. That claim has now been corrected **three times** for the same reason
+  (Shape Score, then The Record, now the whole Progress hub): the rollout shipped per
+  **named surface**, and anything absent from the list was never audited, so the
+  completeness claim was never true. Localizing one card on an English page would
+  read as a bug, so the station ships in English **matching its surface**; closing it
+  is a whole-surface PR, registered.
+- ⚠ **AND THE BOARD WAS CLAIMING TWO THINGS THAT ARE NOT TRUE — both CodeRabbit's,
+  both taken.** The §C row read **COMPLETE** while its own headline claim (step 2's
+  once-a-week bound) is **not running in production**: the migration is unapplied, so
+  the route still computes and generates on every request. It is back to `pending`
+  with that stated, because a board reading COMPLETE over an enforcement that is not
+  live is exactly the stale-record class this file keeps paying for. And the whole
+  **i18n section still declared itself "COMPLETE (2026-07-16)"** with a line saying
+  *"the claim holds NOW"* — for the **fourth** time it does not. The section heading
+  and that line are corrected, and the fix is no longer another per-omission repair:
+  the rollout shipped per **named surface** and nothing ever audited what was absent
+  from the list, so *"every surface"* was never a measured claim. It should not be
+  restated as true until something enumerates the surfaces and checks them.
+- Verified: JSX parse · `node --check` · `tsc` 0 · `npm test` **2414** (+19) ·
+  mobile build 0 with the station confirmed in the **emitted bundle** ·
+  **12 mutations, all caught** (drop the `isSelf` render guard · stamp a request
+  default · unlabel the fallback · render an empty insight list · trust a malformed
+  `insights` · resolve a non-ok body · drop the native base + Bearer · throw instead
+  of resolving null · unmount the card · store the readout without its subject · drop
+  the uid from the effect deps · hold a readout with no identity), with unmutated
+  sanity green at both ends and the tree restored clean after each.
+
+### 2026-08-29 — The weekly readout gets a claim: one model call per member per week (#1951 → `9463713e7`)
 
 - **Step 2 of §C.** #1950 made the readout's *evidence* honest; this makes its *cost*
   bounded, the way §C requires — *"one model call per member per week, enforced

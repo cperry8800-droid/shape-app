@@ -4028,6 +4028,38 @@ async function getScoreRecord() {
   return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/score-record`, null);
 }
 window.ShapeScoreRecord = { get: getScoreRecord };
+// The weekly readout — §C. POST, because the route CLAIMS the member's week
+// before it spends a model call; a GET would read as safe/idempotent and it is
+// neither. Native-safe (apiBaseUrl + Bearer via sessionsAuthHeaders); the raw
+// relative fetch would target the WebView origin on the native build.
+//
+// ⚠ RESOLVES null ON EVERY FAILURE, and the surface renders NOTHING for null.
+// A readout is a claim about a member's own body: a station that degrades to
+// stale or invented content is worse than a station that is absent, and the
+// route already has an honest empty readout for the case where there is simply
+// not enough overlap to say anything.
+//
+// ⚠ NO SHARED METRICS CACHE. Those entries are cleared by weigh-ins, check-ins
+// and workout saves — none of which change a readout that is pinned to an ISO
+// week server-side. The route's own claim is the cache; a second one here would
+// only be able to disagree with it.
+async function getWeeklyReadout({ windowDays } = {}) {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/ai/weekly-readout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      body: JSON.stringify(windowDays ? { window_days: windowDays } : {}),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.readout ? data : null;
+  } catch {
+    return null;
+  }
+}
+window.ShapeReadout = { get: getWeeklyReadout };
 // Real food search (meal logger add sheet). Plain authed fetch — NO shared
 // cache (queries are too varied to benefit); THROWS on failure so the sheet
 // can show the honest can't-reach state instead of a silent empty list.

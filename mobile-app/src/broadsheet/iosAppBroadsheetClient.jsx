@@ -30556,6 +30556,115 @@ function BSCycleTodayChip() {
 
 // The `embedded` (Me → Stats) mode died with the Route Card profile — both
 // remaining consumers are full-page. Full chrome only.
+// ===== THE READ · the weekly readout (§C) =====
+//
+// The Progress hub's station for POST /api/ai/weekly-readout. This is the entry
+// point the route has been waiting for since it was written; until now nothing
+// called it.
+//
+// ⚠ THE SIGNED-OUT PREVIEW RENDERS NOTHING, and that is a departure from every
+// other card on this page. The hub's convention is demo-for-signed-out, and it
+// is right for a weight trend or a macro split — a made-up number in a made-up
+// account teaches the layout and misleads nobody. A READOUT is a different kind
+// of object: it is a claim about a specific person's own body, written in the
+// second person, from correlations computed over their own logged days. A demo
+// one would be a fabricated health insight presented as a finding, which is
+// exactly what the evidence layer beneath it spends a false-discovery-rate
+// correction to avoid. So there is no demo readout; there is no readout.
+//
+// ⚠ AND A FAILED FETCH RENDERS NOTHING TOO, rather than a stale or partial
+// station. The route already carries an honest empty readout for the case where
+// there is genuinely not enough overlap to say anything — that is a real answer
+// and it renders. A network failure is not an answer.
+function BSWeeklyReadoutCard({ isSelf }) {
+  const t = useBS();
+  // ⚠ THE READOUT CARRIES ITS SUBJECT, AND THE RENDER FILTERS ON IT. Keying this
+  // card on the signed-in BOOLEAN alone is not enough: `isSelf` stays true across
+  // an account switch, so a session that became someone else would keep painting
+  // the previous member's health insights until a refetch happened to land. That
+  // is the class #1929 fixed on the member-age hook the same way — the value
+  // carries who it is about, and a render whose subject no longer matches shows
+  // nothing rather than the wrong person's. The uid is also an effect dependency,
+  // so the switch triggers a real refetch instead of only a blank.
+  const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const [held, setHeld] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!isSelf || !uid) { setHeld(null); return undefined; }
+    let alive = true;
+    window.ShapeReadout?.get?.()
+      .then((d) => { if (alive) setHeld(d ? { uid, data: d } : null); })
+      .catch(() => { if (alive) setHeld(null); });
+    return () => { alive = false; };
+  }, [isSelf, uid]);
+
+  // ⚠ AND `isSelf` STAYS IN THE RENDER GUARD, for the frame the effect cannot
+  // cover: React runs effects AFTER the commit, so a sign-out leaves exactly one
+  // render where isSelf is already false and the held readout is still the
+  // previous session's.
+  // A vanished identity is covered by the same comparison: the effect only ever
+  // holds a readout under a truthy uid, so `held.uid === null` is never true and
+  // a session that lost its user renders nothing without a separate clause.
+  const data = held && held.uid === uid ? held.data : null;
+  if (!isSelf || !data || !data.readout) return null;
+  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const insights = Array.isArray(data.readout.insights) ? data.readout.insights : [];
+  const hair = bsTHexA(t.INK, 0.09);
+
+  // ⚠ THE STAMP IS THE RESPONSE'S, NOT THE REQUEST'S. On a cache hit the route
+  // reports the window and sample the readout was actually computed from, and
+  // rendering anything else here would undo that at the last step.
+  const stamp = [
+    data.window_days != null ? `${data.window_days}-day window` : null,
+    data.sample_size != null ? `${data.sample_size} days logged` : null,
+    // ⚠ THE DETERMINISTIC READOUT SAYS SO. It is real evidence, honestly
+    // rendered — but it is not the AI reading of it, and a member who cannot
+    // tell the two apart has been told something untrue about where the words
+    // came from.
+    data.source === 'fallback' ? 'Computed, not written' : null,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <BSTStationHead heat={heat} INK={t.INK} label="The read" meta="This week" />
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.35, color: t.INK }}>
+        {data.readout.summary}
+      </div>
+      {insights.length === 0 ? (
+        // Not a failure — the honest output of a member who has not yet logged
+        // enough overlapping days for any pair to clear the gate. The summary
+        // above already says so in the route's own words; this marks it as an
+        // empty state rather than letting it read as a finding.
+        <div style={{ marginTop: 10 }}>
+          <BSTRedact INK={t.INK} label="No pattern on record yet" />
+        </div>
+      ) : (
+        <div style={{ marginTop: 12 }}>
+          {insights.map((ins, i) => (
+            <div key={ins.correlation_key || i} style={{ paddingTop: 10, marginTop: i ? 10 : 0, borderTop: i ? `1px solid ${hair}` : 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>
+                {ins.headline}
+              </div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: bsTHexA(t.INK, 0.72) }}>
+                {ins.detail}
+              </div>
+              {ins.recommendation ? (
+                <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, lineHeight: 1.5, letterSpacing: '0.03em', color: bsTHexA(t.INK, 0.5) }}>
+                  {ins.recommendation}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {stamp ? (
+        <div style={{ marginTop: 11, paddingTop: 9, borderTop: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), fontVariantNumeric: 'tabular-nums' }}>
+          {stamp}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -30659,6 +30768,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const overallView = (
     <div>
       {registers(oRegs, oRegRef, oRegSeen)}
+      <BSWeeklyReadoutCard isSelf={signedIn} />
       <BSWeekendsCard isSelf={signedIn} />
       <BSCrossoverCard isSelf={signedIn} />
       <BSCycleCard isSelf={signedIn} />
