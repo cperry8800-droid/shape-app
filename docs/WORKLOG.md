@@ -419,9 +419,35 @@ changelog whenever something ships.
   failed. Normalised by spreading into a host literal, which changes the prototype and
   **nothing else**; a JSON round-trip would have been the tempting fix and would silently
   drop an `undefined` value, hiding a genuine difference.
+- ⚠ **AND THE FIRST CUT PRE-PICKED THE ARRAY, WHICH IS THE MAJORITY-OF-ROWS CASE TODAY —
+  found in my own self-review, not by a reviewer.** The layout derived
+  `Array.isArray(profile.roles) ? profile.roles : [profile.role]` — **no `.length`
+  check** — and then passed only the array on. Measured against the live database rather
+  than assumed: `profiles.roles` is **`NOT NULL DEFAULT '{}'::text[]`**, so an **empty
+  array is the column's default**, and **2 of the 4 live accounts** sit in exactly that
+  state with a real singular `role`. `rolesOf` falls back on `arr && arr.length` — handed
+  only the empty array it had **nothing to fall back to**, so a trainer in that state
+  would have reported `roles: ''` and **`is_coach: false`: a coach recorded as not a
+  coach**, which is the fabrication class this module exists to prevent.
+  ⚠ **The cause is the one this file keeps recording — I duplicated a derivation the
+  canonical module already owns**, and the comment I wrote directly above the bug stated
+  the correct principle (*"the derivation lives in `bsSentryUser`; this only hands it the
+  inputs"*) while the code collapsed the choice anyway. **The fix is deleting my copy,
+  not patching it**: the component takes both raw fields and the one definition decides.
+  ⚠ **The static site was never affected** — `/api/me` does the `.length` fallback itself
+  and returns **both** fields — so this was a defect in one caller, not in the rule.
+- **A CALL-SITE INVARIANT NOW PINS IT**, and it asserts what the call sites *answer*
+  rather than how anything is spelled: the guard parses the three TSX pages and fails if
+  any `<SentryUser>` passes `roles` **without** `role`. Passing the id alone stays legal
+  and deliberate (an admin board has no profile row); passing a pre-picked array is the
+  shape that silently drops the fallback. **Guard-the-guard included** — renaming the
+  element so the walk matches nothing fails rather than passing vacuously. **2 further
+  mutations, both caught** (reintroduce the exact defect · rename the element), sanity
+  green at both ends.
 - **Roles are honestly absent where they are not known.** `/dashboard` has the full
-  profile row, so it passes the `roles` **array** (`role` is only the legacy singular
-  fallback — a dual-role account is real and must not collapse to one value). `/console`
+  profile row, so it passes the `roles` **array** *and* the legacy singular `role`
+  (a dual-role account is real and must not collapse to one value; choosing between the
+  two is the canonical module's job, not the caller's). `/console`
   and `/warroom` resolve through `requireAdminUser()`, which returns `{id, email}` and no
   profile, so they pass the id alone and the context reads `roles: ''` — the canonical
   module's own behaviour for an unresolved profile, not a shortcut invented here.
@@ -442,7 +468,7 @@ changelog whenever something ships.
   76 pages"*. `sentryInit.js` returns before registering or fetching anything, so with no
   DSN this change makes **zero** additional requests. Do not read "wired" as "live".
 - Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present · `node --check`
-  on the classic script · newdesign precompile `--check` 0 · `npm test` **2340/2340** (+4).
+  on the classic script · newdesign precompile `--check` 0 · `npm test` **2342/2342** (+6).
 
 ### 2026-08-28 — The Contract becomes a cover page over full-screen stations (#1947 → `b2b9476e6`)
 
