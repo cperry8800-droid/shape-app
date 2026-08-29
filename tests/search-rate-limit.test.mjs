@@ -499,6 +499,53 @@ test('the suggestion loader restarts when the session resolves, and clears what 
 // prove it is the list of callers. This one reads the tree and fails on a file
 // that searches without being covered, so the NEXT caller is caught at the gate
 // rather than by the next reviewer.
+test('no member picker can render "no matches" over a refused or failed search', () => {
+  // ⚠ THE EMPTY STATE MUST BE GATED ON A SUCCESSFUL SEARCH, not merely preceded
+  // by a notice. Ordering is what CodeRabbit caught on the website tag picker —
+  // the notice sat BEHIND `length === 0`, so a refusal was invisible — but a
+  // gate is the stronger property: it holds however the JSX is reordered.
+  const src = stripComments(CLIENT);
+  for (const [what, state, rows] of [
+    ['the tag picker', 'tagState', 'tagResults'],
+    ['the new-message picker', 'dmState', 'dmResults'],
+    ['the add-member picker', 'memberState', 'memberResults'],
+  ]) {
+    assert.ok(src.includes(`<BSPickerNotice state={${state}} />`),
+      `${what} renders no refusal notice`);
+    assert.ok(src.includes(`{${state} === 'ok' && ${rows}.length === 0`),
+      `${what} renders its empty state without requiring a successful search — ` +
+      'a refused or failed search would read as "no matches"');
+  }
+  // The send sheet is a ternary rather than a && chain: its refusal branch must
+  // come FIRST, or an empty `people` shadows it.
+  // ⚠ SCOPED TO THE COMPONENT. `people.length === 0` also appears in the
+  // follow-suggestions block far earlier in this file, so a whole-file indexOf
+  // compares two unrelated sites and the assertion says nothing about the
+  // picker — the marker-selects-someone-else's-code trap.
+  const sendOpen = src.indexOf('function BSPostSendSheet');
+  assert.ok(sendOpen > 0, 'the send picker component is gone');
+  const send = src.slice(sendOpen, src.indexOf('\nfunction ', sendOpen + 10));
+  const notice = send.indexOf("peopleState !== 'ok'");
+  const empty = send.indexOf('people.length === 0');
+  assert.ok(notice > 0, 'the send picker has no refusal branch');
+  assert.ok(empty > notice, 'the send picker tests its empty state before its refusal state');
+});
+
+test('a member picker clears its rows on every path that is not a fresh answer', () => {
+  // ⚠ STALE ROWS ARE WORSE THAN NONE on a picker whose row ACTS on the person:
+  // an empty list says *nobody*, stale rows say *this person*, and the member
+  // sends to / adds / tags the wrong account.
+  const src = stripComments(CLIENT);
+  const open = src.indexOf('function useBSMemberPicker');
+  assert.ok(open > 0, 'the shared member-picker hook is gone — the four pickers no longer share a contract');
+  const body = src.slice(open, src.indexOf('\nfunction ', open + 10));
+
+  assert.match(body, /\.catch\(\s*\(\s*e\s*\)\s*=>\s*\{[^]*?setRows\(\[\]\)/,
+    'the hook does not clear its rows when the search is refused or fails');
+  assert.match(body, /if\s*\(!open[^]*?setRows\(\(prev\)\s*=>\s*\(prev\.length\s*\?\s*\[\]\s*:\s*prev\)\)/,
+    'the hook does not clear on close — reopening would paint the previous session’s people');
+});
+
 test('every SEARCH CALL SITE is covered — inventory derived, not remembered', () => {
   // ⚠ THIS GUARD REPLACED A PER-FILE ONE, AND THE UPGRADE IS THE WHOLE POINT.
   // The per-file version listed `iosAppBroadsheetClient.jsx` as covered because
