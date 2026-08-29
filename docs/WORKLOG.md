@@ -566,7 +566,7 @@ changelog whenever something ships.
   *"No members match"*.
 - Verified: **2439/2439** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
   with the two new coach keys confirmed in the emitted bundle · both mobile + newdesign
-  parse · catalog parity ×13 · **31 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+  parse · catalog parity ×13 · **35 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
   re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
@@ -581,8 +581,18 @@ changelog whenever something ships.
   call site · render a thrown search as an empty result again · un-debounce the tag
   picker after the refactor · restore the coach roster's swallow-into-empty · put its
   refusal notice behind the empty state · restore the suggestion rail's demo fallback ·
-  drop `signedIn` from the suggestion effect's deps), unmutated sanity green at both
-  ends and the tree restored clean after each.
+  drop `signedIn` from the suggestion effect's deps · drop a real caller from the
+  inventory's covered set · leave a stale entry in it · break the call pattern so it
+  matches nothing), unmutated sanity green at both ends and the tree restored clean
+  after each. The inventory guard was additionally driven by **planting a genuinely new
+  uncovered caller** in the walked tree — the question it exists to answer is what it
+  does with a real file, not what a comment claims about it, and it failed on the plant.
+- ⚠ **AND ONE OF THOSE MUTATIONS "SURVIVED" UNTIL THE MEASUREMENT WAS CHECKED.** The
+  break-the-pattern case reported a pass — because the `sed` anchor was `rpc(` while the
+  source reads `rpc\(`, so nothing was edited and the run measured an **unmutated tree**.
+  Re-applied with the edit verified present, it was caught. *Check the check before
+  believing the finding* — a mutation that reports a survivor is a broken instrument
+  until the mutation is proven to have landed.
 
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)
 
