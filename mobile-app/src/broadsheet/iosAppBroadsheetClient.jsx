@@ -22989,7 +22989,17 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       const tphase = bsGoalProgram.trainingPhase || 'Build';
       const nphase = bsGoalProgram.nutritionPhase || 'Cut';
       // Your plans — title from phase/assigned plan; sub from coach cadence/kcal.
-      const sessTarget = (det.training && det.training.sessions) || (plan && plan.training && Array.isArray(plan.training.workouts) ? plan.training.workouts.length : 4) || 4;
+      // ⚠ NO LITERAL FALLBACK. A target nobody set is not a target — and this
+      // file already decided that: the honest-empty week set reads `0/—` ·
+      // "set a plan". The old `|| 4` made the LIVE path fabricate exactly what
+      // the EMPTY path refuses, and the cover's "This week" door now quotes the
+      // first two figures as its inventory subline. Worse, it also fed the
+      // TRAINER credit row — which the gate above just restricted to plans a
+      // coach really authored — so a member with a real coach read "4×/wk" as
+      // their coach's prescription. null means unknown; every reader renders —.
+      const sessTarget = (det.training && det.training.sessions)
+        || (plan && plan.training && Array.isArray(plan.training.workouts) && plan.training.workouts.length)
+        || null;
       const kcal = (det.nutrition && det.nutrition.calories) || (nutr && nutr.today && nutr.today.calorieTarget) || null;
       const mealTitle = (plan && plan.meals && plan.meals.title) || null;
       // ⚠ A plan row is a CLAIM THAT A COACH AUTHORED SOMETHING — it renders as a
@@ -23015,18 +23025,20 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       const hasTrainPlan = !!(coachTrain || det.training);
       const hasNutrPlan = !!((plan && plan.meals && (plan.meals.hasPlan || plan.meals.title || plan.meals.coach)) || det.nutrition);
       setLivePlans([
-        hasTrainPlan ? { role: 'Training', t: `${tphase} block`, sub: `${sessTarget}×/wk${plan && plan.training && plan.training.hasPlan ? ' · assigned' : ''}` } : null,
+        hasTrainPlan ? { role: 'Training', t: `${tphase} block`, sub: [sessTarget ? `${sessTarget}×/wk` : null, (plan && plan.training && plan.training.hasPlan) ? 'assigned' : null].filter(Boolean).join(' · ') || 'active' } : null,
         hasNutrPlan ? { role: 'Nutrition', t: mealTitle || `${nphase} plan`, sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : `${nphase} targets` } : null,
       ].filter(Boolean));
       // This week — real targets that move the goal.
       const thisWk = (train && train.stats && Number(train.stats.thisWeekCount)) || 0;
       const adher = (nutr && Number(nutr.adherentDays7)) || 0;
-      const proteinTgt = (det.nutrition && det.nutrition.protein) || 170;
+      const proteinTgt = (det.nutrition && det.nutrition.protein) || null; // same rule as sessTarget — no invented threshold
       const sleep = (prog && prog.kpis && Number(prog.kpis.sleepAvg)) || 0;
       const vol7 = (train && train.stats && Number(train.stats.volume7dLb)) || 0;
       setLiveWeek([
-        { l: 'Sessions', v: `${thisWk}/${sessTarget}`, sub: thisWk >= sessTarget ? 'done' : `${Math.max(0, sessTarget - thisWk)} to go` },
-        { l: 'Protein days', v: `${adher}/7`, sub: `≥${proteinTgt}g hit` },
+        // Unknown target → the same words the honest-empty set above uses, so the
+        // live and empty paths can never disagree about what "no target" looks like.
+        { l: 'Sessions', v: `${thisWk}/${sessTarget || '—'}`, sub: sessTarget ? (thisWk >= sessTarget ? 'done' : `${Math.max(0, sessTarget - thisWk)} to go`) : 'set a plan' },
+        { l: 'Protein days', v: `${adher}/7`, sub: proteinTgt ? `≥${proteinTgt}g hit` : 'days tracked' },
         { l: 'Sleep', v: sleep ? `${sleep}h` : '—', sub: 'avg · goal 7h' },
         { l: '7d volume', v: vol7 ? `${Math.round(vol7 / 1000)}k` : '—', sub: 'load lifted' },
       ]);

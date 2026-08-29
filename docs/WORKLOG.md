@@ -442,6 +442,21 @@ changelog whenever something ships.
   layout effect: by then the scroller already holds the station's content and the
   browser has clamped `scrollTop` to the shorter page, so the position would be gone
   before it could be saved.
+- ⚠ **AND A THIRD FABRICATED FIGURE, ONE LAYER UNDER THE COACH CREDIT — caught by the
+  round after, and sharpened by my own gate.** `sessTarget` ended in `|| 4` and
+  `proteinTgt` in `|| 170`, so the **live** week path invented exactly what its own
+  **honest-empty** path five lines above refuses (`Sessions 0/—` · *"set a plan"*;
+  `Protein days 0/7` · *"days tracked"*). Two consequences, the second worse: the
+  cover's "This week" door quotes the first two figures as its inventory subline, and
+  `sessTarget` also fed the **TRAINER credit row** — which the fix above had just
+  restricted to plans a coach genuinely authored — so a member with a *real* coach read
+  **"4×/wk"** as that coach's prescription. Both derivations now yield **null** when
+  unknown and every reader renders `—` with the empty set's own words. ⚠ **This
+  RESOLVES the item registered one round earlier as needing a product ruling** ("what
+  should a default weekly session/protein target be?"). No ruling is needed: the file
+  had already answered it for the empty case — *don't show a number you don't have* —
+  so the fix was to make the live path obey the rule the empty path already followed,
+  not to choose a default.
 - ⚠ **REFUTED WITH THE SOURCE — "the week page renders blank when `weekTargets` is
   empty".** It cannot be empty: the derivation uses `liveWeekTargets` **only** when it
   is a non-empty array and otherwise supplies four rows either way — signed-in gets the
@@ -453,8 +468,19 @@ changelog whenever something ships.
   been **gitignored and deploy-built since #1470** (`.gitignore:26`; `git ls-files
   public/m` returns **zero**), so there is no tracked artifact to sync and none can
   appear in a diff. The review's own script printed *"no public/m changes in this PR"*
-  and then reported that absence as the defect. CI still guards the real invariant —
-  the Mobile job rebuilds and diffs against `public/m`.
+  and then reported that absence as the defect.
+  ⚠ **BUT MY REFUTATION CARRIED A FALSE SUPPORTING CLAIM, AND THE NEXT ROUND CAUGHT
+  IT.** I wrote that "CI still guards the real invariant — the Mobile job rebuilds and
+  **diffs** against `public/m`". It does not: `ci.yml` says so in its own words —
+  *"public/m itself is generated at deploy time (`scripts/build-m.sh`), not committed,
+  so there's no byte-diff against a committed copy anymore — a failed build fails
+  here."* The job only proves the bundle **builds**; its name (`Mobile (build +
+  public/m sync)`) is a legacy misnomer kept so the branch-protection required check
+  keeps matching, which the file also flags. So the **conclusion** was right and the
+  **reason** was wrong — the exact "a because-clause is a claim" trap this file keeps
+  recording. The local `rm -rf public/m && cp -r` step is likewise vestigial for a PR
+  (git ignores it, CI never reads it, deploy regenerates it), so it has been dropped
+  from the verification list rather than left there implying a check that does not run.
 - ⚠ **REFUTED — "a station is a full-screen route with no nav-stack entry".** True
   that `openGoalView` never calls `navPush()`, but **no nested view in this shell
   does**: `navPush` is a shell-level concern (`goSettings`/`goMarket`/`goRadio`/…),
@@ -487,7 +513,7 @@ changelog whenever something ships.
   `navBack()` steps station → cover → out for free — which is why this is the **same**
   follow-up, not a second one.
 - Verified: parse 0 · mobile build 0 with the cover doors confirmed in the **emitted
-  bundle** (`"No targets yet"` 0 → 2 against main) · `public/m` re-synced · `tsc` 0 ·
+  bundle** (`"No targets yet"` 0 → 2 against main) · `tsc` 0 ·
   `npm test` **2336/2336**.
 
 ### 2026-08-28 — A member can finally SEE the gauges they log every day (#1946 → 3f27a8276)
