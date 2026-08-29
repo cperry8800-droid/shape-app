@@ -2107,6 +2107,7 @@ function BSBarcodeScan({ onHit, onFallback, teal }) {
 // photo, or voice; writes to the day total and shows a logged confirmation.
 function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = null, dayTargets = null, signedIn = false }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   // mode tabs removed — Adjust is the always-visible register; photo/voice are
   // dispatch disclosures; search folds into the ADD sheet.
@@ -2139,7 +2140,14 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     // signed-in account with no macro breakdown, start empty (add what you ate)
     // — never the demo plate. The demo ingredients are the signed-out preview.
     if (meal && Number.isFinite(Number(meal.kcal))) {
-      return [{ id: bsIngId(), name: meal.title || 'Meal', qty: '1 serving', kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
+      // ⚠ `qty` STAYS ENGLISH ON PURPOSE — it is DATA in a column whose other values
+      // are never localized: the food provider fills it with '100 g' / '250 g' / its
+      // own '1 serving' (foodSearch.mjs, a pure module with no translator), so
+      // translating only our fallback makes ONE data column bilingual — the split
+      // this cut refused for the P/C/F macro letters. The NAME fallback does
+      // translate, because it stands in for the same missing meal.title the band
+      // heading shows, and the two must not disagree on one screen.
+      return [{ id: bsIngId(), name: meal.title || tr('nutrition:log.mealFallback', { defaultValue: 'Meal' }), qty: '1 serving', kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
     }
     if (signedIn) return [];
     return [
@@ -2283,7 +2291,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const cleanupVoice = () => {
     const v = voiceRef.current;
     if (v.timer) { clearInterval(v.timer); v.timer = null; }
-    try { v.stream && v.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {}
+    try { v.stream && v.stream.getTracks().forEach((track) => track.stop()); } catch (e) {}
     v.stream = null; v.rec = null; v.chunks = [];
   };
   React.useEffect(() => () => cleanupVoice(), []);
@@ -2295,12 +2303,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       fd.append('audio', blob, 'note.webm');
       const res = await fetch('/api/nutrition/voice', { method: 'POST', body: fd, credentials: 'same-origin' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setVoiceError(data && data.error ? data.error : 'Could not transcribe'); return; }
+      if (!res.ok) { setVoiceError(data && data.error ? data.error : tr('nutrition:log.errTranscribe', { defaultValue: 'Could not transcribe' })); return; }
       const text = String(data.transcript || '').trim();
-      if (text) { setNote(n => (n && n.trim() ? `${n.trim()} ${text}` : text)); window.__bsToast?.('Added to your note', 'ok'); }
-      else setVoiceError('Didn’t catch that — try again');
+      if (text) { setNote(n => (n && n.trim() ? `${n.trim()} ${text}` : text)); window.__bsToast?.(tr('nutrition:log.toastAddedToNote', { defaultValue: 'Added to your note' }), 'ok'); }
+      else setVoiceError(tr('nutrition:log.errNoCatch', { defaultValue: 'Didn’t catch that — try again' }));
     } catch (e) {
-      setVoiceError('Voice notes unavailable');
+      setVoiceError(tr('nutrition:log.errVoiceUnavailable', { defaultValue: 'Voice notes unavailable' }));
     } finally {
       setVoiceState('idle');
     }
@@ -2308,7 +2316,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const startVoice = async () => {
     setVoiceError('');
     if (!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined')) {
-      setVoiceError('Voice input isn’t supported here yet'); return;
+      setVoiceError(tr('nutrition:log.errVoiceUnsupported', { defaultValue: 'Voice input isn’t supported here yet' })); return;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2324,7 +2332,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         if (!(blob.size > 0)) { setVoiceState('idle'); return; }
         if (captureAtStart === 'audio') {
           setVoiceMemo(m => { try { if (m && m.url) URL.revokeObjectURL(m.url); } catch (e) {} return { url: URL.createObjectURL(blob), secs, blob }; });
-          window.__bsToast?.('Voice memo attached', 'ok');
+          window.__bsToast?.(tr('nutrition:log.toastMemoAttached', { defaultValue: 'Voice memo attached' }), 'ok');
           setVoiceState('idle');
         } else {
           dictate(blob);
@@ -2335,7 +2343,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       setVoiceState('recording');
       v.timer = setInterval(() => { v.secs += 1; setVoiceSecs(v.secs); }, 1000);
     } catch (e) {
-      setVoiceError('Microphone access denied'); cleanupVoice(); setVoiceState('idle');
+      setVoiceError(tr('nutrition:log.errMicDenied', { defaultValue: 'Microphone access denied' })); cleanupVoice(); setVoiceState('idle');
     }
   };
   const stopVoice = () => {
@@ -2356,9 +2364,9 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     const file = e.target.files && e.target.files[0];
     e.target.value = ''; // let the user re-pick the same file later
     if (!file) return;
-    if (!/^image\//.test(file.type || '')) { window.__bsToast?.('Pick an image', 'err'); return; }
+    if (!/^image\//.test(file.type || '')) { window.__bsToast?.(tr('nutrition:log.toastPickImage', { defaultValue: 'Pick an image' }), 'err'); return; }
     setPhoto(p => { try { if (p && p.url) URL.revokeObjectURL(p.url); } catch (err) {} return { url: URL.createObjectURL(file), blob: file }; });
-    window.__bsToast?.('Photo attached', 'ok');
+    window.__bsToast?.(tr('nutrition:log.toastPhotoAttached', { defaultValue: 'Photo attached' }), 'ok');
   };
   const removePhoto = () => setPhoto(p => { try { if (p && p.url) URL.revokeObjectURL(p.url); } catch (err) {} return null; });
 
@@ -2370,7 +2378,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const saveEditIng = () => {
     if (!editIng) return;
     const name = String(editIng.name || '').trim();
-    if (!name) { window.__bsToast?.('Add a name', 'err'); return; }
+    if (!name) { window.__bsToast?.(tr('nutrition:log.toastAddName', { defaultValue: 'Add a name' }), 'err'); return; }
     const item = {
       name, qty: String(editIng.qty || '').trim() || '1 serving',
       kcal: Math.max(0, Math.round(Number(editIng.kcal) || 0)), p: Math.max(0, Math.round(Number(editIng.p) || 0)),
@@ -2378,16 +2386,16 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     };
     if (editIng.index == null) {
       setIngs(arr => [...arr, { ...item, id: bsIngId(), on: true }]);
-      window.__bsToast?.(`Added ${name}`, 'ok');
+      window.__bsToast?.(tr('nutrition:log.toastAdded', { defaultValue: 'Added {name}', name }), 'ok');
       // A search result added via the prefilled editor is still an add —
       // recents replay what was added (with any portion edits made here).
       if (editIng.fromSearch && signedIn) rememberFood(item);
     }
-    else { const idx = editIng.index; setIngs(arr => arr.map((x, j) => (j === idx ? { ...x, ...item } : x))); window.__bsToast?.('Ingredient updated', 'ok'); }
+    else { const idx = editIng.index; setIngs(arr => arr.map((x, j) => (j === idx ? { ...x, ...item } : x))); window.__bsToast?.(tr('nutrition:log.toastIngUpdated', { defaultValue: 'Ingredient updated' }), 'ok'); }
     setEditIng(null);
   };
   const deleteEditIng = () => {
-    if (editIng && editIng.index != null) { const idx = editIng.index; setIngs(arr => arr.filter((_, j) => j !== idx)); window.__bsToast?.('Removed', 'ok'); }
+    if (editIng && editIng.index != null) { const idx = editIng.index; setIngs(arr => arr.filter((_, j) => j !== idx)); window.__bsToast?.(tr('nutrition:log.toastRemoved', { defaultValue: 'Removed' }), 'ok'); }
     setEditIng(null);
   };
 
@@ -2403,7 +2411,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
   const hasPlanned = !!(meal && Number.isFinite(Number(meal.kcal)));
   const dirty = bsMealDirty(portion, ings, initialIngsRef.current);
-  const ctaLabel = bsMealCtaLabel({ dirty, portion, kcal, hasPlanned });
+  const ctaLabel = bsMealCtaLabel({ dirty, portion, kcal, hasPlanned }, { tr });
   const resetToPlan = () => { setPortion(1); setIngs(initialIngsRef.current.map((x) => ({ ...x }))); };
   const coachName = coach ? coach.name : (signedIn ? null : 'Dr. Maya');
   const coachAccent = t.isLight ? '#a07a2e' : '#d8b25a';
@@ -2414,12 +2422,18 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const dayBaseP = signedIn ? Math.max(0, Math.round(Number(daySoFar && daySoFar.protein) || 0)) : DAY_BASE_P;
   const dayCal = dayBaseCal + kcal;
   const dayP = dayBaseP + P;
-  const mealTitle = (meal && meal.title) || (signedIn ? 'Meal' : 'Chicken bowl + rice');
+  const mealTitle = (meal && meal.title) || (signedIn ? tr('nutrition:log.mealFallback', { defaultValue: 'Meal' }) : tr('nutrition:log.mealDemoTitle', { defaultValue: 'Chicken bowl + rice' }));
   const logTime = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // The demo line runs through the SAME template as a real planned meal — a
+  // numbers-only key would be a second sentence for a translator to keep in step
+  // with the first, for a preview that is otherwise identical.
+  const plannedTpl = (k, p, c, f) => tr('nutrition:log.planned', { defaultValue: '{kcal} planned · {p}P · {c}C · {f}F', kcal: k, p, c, f });
   const plannedLine = (meal && Number.isFinite(Number(meal.kcal)))
-    ? `${Math.round(Number(meal.kcal))} planned · ${Math.round(Number(meal.p) || 0)}P · ${Math.round(Number(meal.c) || 0)}C · ${Math.round(Number(meal.f) || 0)}F`
-    : (signedIn ? 'Add what you ate to log it' : '620 planned · 48P · 72C · 14F');
-  const mealEyebrow = (meal && meal.tag) ? `${meal.tag} · Planned` : (signedIn ? 'Log a meal' : 'Lunch · Planned');
+    ? plannedTpl(Math.round(Number(meal.kcal)), Math.round(Number(meal.p) || 0), Math.round(Number(meal.c) || 0), Math.round(Number(meal.f) || 0))
+    : (signedIn ? tr('nutrition:log.addWhatYouAte', { defaultValue: 'Add what you ate to log it' }) : plannedTpl(620, 48, 72, 14));
+  const mealEyebrow = (meal && meal.tag)
+    ? tr('nutrition:log.eyebrowPlanned', { defaultValue: '{tag} · Planned', tag: meal.tag })
+    : (signedIn ? tr('nutrition:log.eyebrowFree', { defaultValue: 'Log a meal' }) : tr('nutrition:log.eyebrowDemo', { defaultValue: 'Lunch · Planned' }));
   // On log, deliver the written note + any voice memo to the client's
   // nutritionist (best-effort; the endpoint resolves the coach and no-ops when
   // there's nothing to send or no coach linked).
@@ -2457,7 +2471,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
             // whose executor calls setState, so a throw there would surface as
             // an unhandled rejection from a path whose whole job is to report a
             // failure quietly.
-            Promise.resolve(ask({ notice: true, eyebrow: 'Your coach', title, message, confirmLabel: 'Got it' })).catch(() => {});
+            Promise.resolve(ask({ notice: true, eyebrow: tr('feed:thread.yourCoach', { defaultValue: 'Your coach' }), title, message, confirmLabel: tr('nutrition:log.noticeOk', { defaultValue: 'Got it' }) })).catch(() => {});
             return;
           }
         } catch (e) {}
@@ -2486,8 +2500,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       // accumulators.sql), so copy that nudges a re-log permanently double-counts the
       // day. Report the note; stay silent on what this path cannot observe.
       const noteFailed = () => noteNotice(
-        'We couldn’t reach your coach',
-        'Your note didn’t send. Try again from your chat, or send it to them directly.',
+        tr('nutrition:log.noteFailedTitle', { defaultValue: 'We couldn’t reach your coach' }),
+        tr('nutrition:log.noteFailedBody', { defaultValue: 'Your note didn’t send. Try again from your chat, or send it to them directly.' }),
       );
       fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(r => r.json().catch(() => ({})))
@@ -2507,13 +2521,22 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
             const lostPhoto = hasPhoto && !d.photoAttached;
             const partial = Number(d.failedCount) > 0;
             if (lostMemo || lostPhoto || partial) {
-              const what = lostMemo && lostPhoto ? 'voice memo and photo' : lostMemo ? 'voice memo' : lostPhoto ? 'photo' : '';
-              const bits = [];
-              if (partial) bits.push('it only reached some of your coaches');
-              if (what) bits.push(`the ${what} didn’t upload`);
+              // Each clause is a WHOLE sentence fragment, and the two-slot joiner is
+              // its own key — an English " and " between translated halves would read
+              // as a bug in every locale that joins lists differently.
+              const attach = lostMemo && lostPhoto ? tr('nutrition:log.partialBoth', { defaultValue: 'the voice memo and photo didn’t upload' })
+                : lostMemo ? tr('nutrition:log.partialMemo', { defaultValue: 'the voice memo didn’t upload' })
+                : lostPhoto ? tr('nutrition:log.partialPhoto', { defaultValue: 'the photo didn’t upload' })
+                : '';
+              const some = partial ? tr('nutrition:log.partialSomeCoaches', { defaultValue: 'it only reached some of your coaches' }) : '';
+              const bits = [some, attach].filter(Boolean);
               // Same rule as noteFailed above — the second instance of the claim, which
               // the review did not name. Patching only the other one leaves it standing.
-              noteNotice('Your note sent — partly', `Your note went out, but ${bits.join(' and ')}.`);
+              const what = bits.length > 1 ? tr('nutrition:log.partialAnd', { defaultValue: '{a} and {b}', a: bits[0], b: bits[1] }) : bits[0];
+              noteNotice(
+                tr('nutrition:log.notePartialTitle', { defaultValue: 'Your note sent — partly' }),
+                tr('nutrition:log.notePartialBody', { defaultValue: 'Your note went out, but {what}.', what }),
+              );
               return;
             }
             // Fully delivered stays SILENT. A success popup is exactly the noise
@@ -2569,21 +2592,21 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 18px`, overflow: 'hidden' }}>
           <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <button onClick={onClose} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>Back</button>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Meal · Filed {logTime}</span>
+            <button onClick={onClose} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>{tr('common:action.back', { defaultValue: 'Back' })}</button>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>{tr('nutrition:log.filed', { defaultValue: 'Meal · Filed {time}', time: logTime })}</span>
           </div>
           <div style={{ position: 'relative', textAlign: 'center', marginTop: 30 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{kcal}</div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {P}P · Logged ✓</div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('nutrition:log.kcalLogged', { defaultValue: 'Kcal · {p}P · Logged ✓', p: P })}</div>
             {award && award.awarded && (
               <div style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 5, border: '1px solid rgba(56,224,204,0.5)', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#38e0cc', animation: 'bsAwardIn 180ms ease-out' }}>
-                +{award.points != null ? award.points : 10} · Nutrition · Shape Score
+                {tr('nutrition:log.award', { defaultValue: '+{pts} · Nutrition · Shape Score', pts: award.points != null ? award.points : 10 })}
               </div>
             )}
             <style>{`@keyframes bsAwardIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { [style*="bsAwardIn"] { animation: none !important; } }`}</style>
           </div>
           <div style={{ position: 'relative', marginTop: 24, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 12 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)' }}>Day so far</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)' }}>{tr('nutrition:log.daySoFar', { defaultValue: 'Day so far' })}</div>
             <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(56,224,204,0.35)' }}>{dayCal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {CAL_GOAL != null ? CAL_GOAL : '—'} KCAL</span></span>
               <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#e8a13c', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(232,161,60,0.3)' }}>{dayP}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {P_GOAL != null ? P_GOAL : '—'} P</span></span>
@@ -2600,12 +2623,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         {/* The seam — the ONE band/paper boundary */}
         <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
         <div style={{ padding: `22px ${t.padX}px 8px` }}>
-          <button onClick={onClose} style={{ ...primaryBtn, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>Done →</button>
+          <button onClick={onClose} style={{ ...primaryBtn, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('nutrition:log.done', { defaultValue: 'Done →' })}</button>
         </div>
         {signedIn && typeof window !== 'undefined' && window.ShapeCommunity?.createPost && (
           <div style={{ textAlign: 'center', paddingBottom: 4 }}>
             {sharedPostId ? (
-              <div style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>✓ On the wire · Community</div>
+              <div style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('nutrition:log.onTheWire', { defaultValue: '✓ On the wire · Community' })}</div>
             ) : (
               <button
                 disabled={shareBusy}
@@ -2628,17 +2651,17 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
                     }));
                     if (res && res.stored === 'supabase' && res.data && res.data.id) {
                       setSharedPostId(res.data.id);
-                      window.__bsToast?.('On the wire → Community', 'ok');
+                      window.__bsToast?.(tr('nutrition:log.toastOnWire', { defaultValue: 'On the wire → Community' }), 'ok');
                     } else {
-                      window.__bsToast?.('Could not post — try again.', 'err');
+                      window.__bsToast?.(tr('nutrition:log.toastPostFailed', { defaultValue: 'Could not post — try again.' }), 'err');
                     }
                   } catch (e) {
-                    window.__bsToast?.('Could not post — try again.', 'err');
+                    window.__bsToast?.(tr('nutrition:log.toastPostFailed', { defaultValue: 'Could not post — try again.' }), 'err');
                   }
                   setShareBusy(false);
                 }}
                 style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', minHeight: 44, padding: '0 12px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: shareBusy ? t.INK50 : teal }}
-              >{shareBusy ? 'Posting…' : 'Post to the wire →'}</button>
+              >{shareBusy ? tr('nutrition:log.posting', { defaultValue: 'Posting…' }) : tr('nutrition:log.postToWire', { defaultValue: 'Post to the wire →' })}</button>
             )}
           </div>
         )}
@@ -2655,8 +2678,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 16px`, overflow: 'hidden' }}>
         <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f4ede0' }}>× Cancel</button>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Log meal</span>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('nutrition:log.cancel', { defaultValue: '× Cancel' })}</button>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>{tr('nutrition:log.title', { defaultValue: 'Log meal' })}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(244,237,224,0.55)' }}>{logTime}</span>
         </div>
         <div style={{ position: 'relative', marginTop: 16 }}>
@@ -2669,8 +2692,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         {hasPlanned && !dirty && (
           <button onClick={doLog} style={{ position: 'relative', width: '100%', marginTop: 14, textAlign: 'left', border: '1.5px solid #38e0cc', borderRadius: 8, background: 'rgba(56,224,204,0.08)', boxShadow: '0 0 18px rgba(56,224,204,0.18)', padding: '13px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>One tap</span>
-              <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 15, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#38e0cc', textShadow: '0 0 12px rgba(56,224,204,0.4)' }}>Ate it as planned</span>
+              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('nutrition:log.oneTap', { defaultValue: 'One tap' })}</span>
+              <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 15, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#38e0cc', textShadow: '0 0 12px rgba(56,224,204,0.4)' }}>{tr('nutrition:log.ateAsPlanned', { defaultValue: 'Ate it as planned' })}</span>
             </span>
             <span style={{ fontSize: 18, fontWeight: 800, color: '#38e0cc', flexShrink: 0 }}>✓</span>
           </button>
@@ -2678,25 +2701,25 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         {hasPlanned && dirty && (
           <button onClick={resetToPlan} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginTop: 14, textAlign: 'left', padding: '10px 12px', borderRadius: 5, border: '1px solid rgba(244,237,224,0.25)', background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.7)' }}>
             <span aria-hidden style={{ fontSize: 13, color: '#38e0cc' }}>↺</span>
-            <span>Adjusted — reset to plan</span>
+            <span>{tr('nutrition:log.resetToPlan', { defaultValue: 'Adjusted — reset to plan' })}</span>
           </button>
         )}
         {/* The live tally — THIS MEAL + the day, glowing (updates as the
             record below is corrected) */}
         <div style={{ position: 'relative', marginTop: 16, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 22, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(56,224,204,0.4)' }}>{kcal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> KCAL</span></span>
+          <span style={{ fontFamily: t.MONO, fontSize: 22, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(56,224,204,0.4)' }}>{kcal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> {tr('nutrition:log.kcalUnit', { defaultValue: 'KCAL' })}</span></span>
           <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(244,237,224,0.55)', fontVariantNumeric: 'tabular-nums' }}>{P}P · {C}C · {F}F</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: 'rgba(244,237,224,0.55)', fontVariantNumeric: 'tabular-nums' }}>DAY {dayCal}<span style={{ color: 'rgba(244,237,224,0.35)' }}> / {CAL_GOAL != null ? CAL_GOAL : '—'}</span></span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: 'rgba(244,237,224,0.55)', fontVariantNumeric: 'tabular-nums' }}>{tr('nutrition:log.dayLabel', { defaultValue: 'DAY' })} {dayCal}<span style={{ color: 'rgba(244,237,224,0.35)' }}> / {CAL_GOAL != null ? CAL_GOAL : '—'}</span></span>
         </div>
       </div>
       {/* The seam — the ONE band/paper boundary */}
       <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
 
       {/* REGISTER 1 — Correct the record */}
-      <LedgerHead label="Correct the record" />
+      <LedgerHead label={tr('nutrition:log.correctRecord', { defaultValue: 'Correct the record' })} />
       <div style={{ padding: `12px ${t.padX}px 4px` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Portion</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.portion', { defaultValue: 'Portion' })}</span>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: teal, fontVariantNumeric: 'tabular-nums' }}>{portion.toFixed(2)} <span style={{ fontSize: 13, color: t.INK50 }}>×</span></span>
         </div>
         <input type="range" min={0.25} max={2} step={0.25} value={portion} onChange={(e) => setPortion(parseFloat(e.target.value))} style={{ width: '100%', marginTop: 10, accentColor: teal, cursor: 'pointer' }} />
@@ -2704,31 +2727,31 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           <span>¼</span><span>½</span><span>1×</span><span>1½</span><span>2×</span>
         </div>
 
-        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Ingredients · tap to toggle</div>
+        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.ingredients', { defaultValue: 'Ingredients · tap to toggle' })}</div>
         <div style={{ marginTop: 4 }}>
           {ings.map((x, i) => (
             <div key={x.id || x.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === ings.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-              <button onClick={() => toggle(i)} aria-pressed={x.on} aria-label={`${x.on ? 'Exclude' : 'Include'} ${x.name}`} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1px solid ${x.on ? teal : t.RULE}`, background: x.on ? teal : 'transparent', color: '#04201d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{x.on ? '✓' : ''}</button>
+              <button onClick={() => toggle(i)} aria-pressed={x.on} aria-label={x.on ? tr('nutrition:log.excludeAria', { defaultValue: 'Exclude {name}', name: x.name }) : tr('nutrition:log.includeAria', { defaultValue: 'Include {name}', name: x.name })} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1px solid ${x.on ? teal : t.RULE}`, background: x.on ? teal : 'transparent', color: '#04201d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{x.on ? '✓' : ''}</button>
               <div style={{ flex: 1, minWidth: 0, opacity: x.on ? 1 : 0.4 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.name}</div>
-                <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{x.qty} · {Math.round(x.kcal * portion)} kcal · {Math.round(x.p * portion)}P</div>
+                <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.foodMeta', { defaultValue: '{qty} · {kcal} kcal · {p}P', qty: x.qty, kcal: Math.round(x.kcal * portion), p: Math.round(x.p * portion) })}</div>
               </div>
-              <button onClick={() => openEditIng(i)} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST }}>Edit</button>
+              <button onClick={() => openEditIng(i)} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST }}>{tr('nutrition:log.edit', { defaultValue: 'Edit' })}</button>
             </div>
           ))}
         </div>
-        <button onClick={() => setShowAddFood(true)} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add — search foods or enter manually</button>
+        <button onClick={() => setShowAddFood(true)} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.addFoodCta', { defaultValue: '＋ Add — search foods or enter manually' })}</button>
       </div>
 
       {/* REGISTER 2 — Dispatch to coach (hidden when signed in with no linked coach) */}
       {(coach || !signedIn) && (
         <>
-          <LedgerHead label={`Dispatch to ${coachName}`} accent={coachAccent} extra={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Optional</span>} />
+          <LedgerHead label={tr('nutrition:log.dispatchTo', { defaultValue: 'Dispatch to {coach}', coach: coachName })} accent={coachAccent} extra={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.optional', { defaultValue: 'Optional' })}</span>} />
           <div style={{ padding: `10px ${t.padX}px 4px` }}>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Felt a bit hungry still · swapped rice for sweet potato…" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 0 9px', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, fontStyle: 'italic', outline: 'none', resize: 'vertical' }} />
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={tr('nutrition:log.notePlaceholder', { defaultValue: 'Felt a bit hungry still · swapped rice for sweet potato…' })} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 0 9px', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, fontStyle: 'italic', outline: 'none', resize: 'vertical' }} />
             <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-              {[['photo', '⊡ Photo', photoOpen, () => { setPhotoOpen((v) => !v); setVoiceOpen(false); }, !!photo],
-                ['voice', '● Voice', voiceOpen, () => { setVoiceOpen((v) => !v); setPhotoOpen(false); }, !!voiceMemo]].map(([k, label, open, onTap, attached]) => (
+              {[['photo', tr('nutrition:log.photoTab', { defaultValue: '⊡ Photo' }), photoOpen, () => { setPhotoOpen((v) => !v); setVoiceOpen(false); }, !!photo],
+                ['voice', tr('nutrition:log.voiceTab', { defaultValue: '● Voice' }), voiceOpen, () => { setVoiceOpen((v) => !v); setPhotoOpen(false); }, !!voiceMemo]].map(([k, label, open, onTap, attached]) => (
                 <button key={k} onClick={onTap} aria-pressed={open} style={{ flex: 1, minHeight: 44, padding: '10px 8px', borderRadius: t.RADIUS_SM, cursor: 'pointer', border: `1px solid ${open || attached ? coachAccent : t.RULE}`, background: open ? `${coachAccent}14` : 'transparent', color: open || attached ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
                   {label}{attached ? ' ✓' : ''}
                 </button>
@@ -2741,20 +2764,20 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
                 <input ref={photoLibRef} type="file" accept="image/*" onChange={onPhotoPick} style={{ display: 'none' }} />
                 {photo ? (
                   <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, overflow: 'hidden', position: 'relative' }}>
-                    <img src={photo.url} alt="Your meal" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover' }} />
-                    <button onClick={removePhoto} aria-label="Remove photo" style={{ position: 'absolute', top: 10, right: 10, width: 30, height: 30, borderRadius: 999, border: 0, background: 'rgba(0,0,0,0.55)', color: '#fff', cursor: 'pointer', fontSize: 16, fontWeight: 700, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '14px 12px 8px', background: 'linear-gradient(transparent, rgba(0,0,0,0.62))', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700 }}>Sends to {coachName} when you log</div>
+                    <img src={photo.url} alt={tr('nutrition:log.yourMealAlt', { defaultValue: 'Your meal' })} style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover' }} />
+                    <button onClick={removePhoto} aria-label={tr('nutrition:log.removePhoto', { defaultValue: 'Remove photo' })} style={{ position: 'absolute', top: 10, right: 10, width: 30, height: 30, borderRadius: 999, border: 0, background: 'rgba(0,0,0,0.55)', color: '#fff', cursor: 'pointer', fontSize: 16, fontWeight: 700, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '14px 12px 8px', background: 'linear-gradient(transparent, rgba(0,0,0,0.62))', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700 }}>{tr('nutrition:log.sendsTo', { defaultValue: 'Sends to {coach} when you log', coach: coachName })}</div>
                   </div>
                 ) : (
                   <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '34px 16px', textAlign: 'center' }}>
                     <div style={{ fontSize: 30 }}>⊡</div>
-                    <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Snap or upload</div>
-                    <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{coachName} reviews your plate</div>
+                    <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('nutrition:log.snapOrUpload', { defaultValue: 'Snap or upload' })}</div>
+                    <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('nutrition:log.reviewsPlate', { defaultValue: '{coach} reviews your plate', coach: coachName })}</div>
                   </div>
                 )}
                 <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
-                  <button onClick={() => photoCamRef.current && photoCamRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{photo ? 'Retake' : 'Take photo'}</button>
-                  <button onClick={() => photoLibRef.current && photoLibRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Upload</button>
+                  <button onClick={() => photoCamRef.current && photoCamRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{photo ? tr('nutrition:log.retake', { defaultValue: 'Retake' }) : tr('nutrition:log.takePhoto', { defaultValue: 'Take photo' })}</button>
+                  <button onClick={() => photoLibRef.current && photoLibRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.upload', { defaultValue: 'Upload' })}</button>
                 </div>
               </div>
             )}
@@ -2762,7 +2785,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
             {voiceOpen && (
               <div style={{ marginTop: 10 }}>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                  {[['text', 'Voice to text'], ['audio', 'Voice record']].map(([k, l]) => {
+                  {[['text', tr('nutrition:log.voiceToText', { defaultValue: 'Voice to text' })], ['audio', tr('nutrition:log.voiceRecord', { defaultValue: 'Voice record' })]].map(([k, l]) => {
                     const on = voiceCapture === k;
                     return (
                       <button key={k} onClick={() => { if (voiceState !== 'idle') return; setVoiceCapture(k); setVoiceError(''); }} aria-pressed={on} style={{
@@ -2778,14 +2801,14 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
                     <div>
                       <audio src={voiceMemo.url} controls style={{ width: '100%' }} />
                       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Memo · {fmtSecs(voiceMemo.secs)}</span>
-                        <button onClick={removeMemo} style={{ background: 'transparent', border: 0, color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Remove</button>
+                        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{tr('nutrition:log.memo', { defaultValue: 'Memo · {len}', len: fmtSecs(voiceMemo.secs) })}</span>
+                        <button onClick={removeMemo} style={{ background: 'transparent', border: 0, color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.remove', { defaultValue: 'Remove' })}</button>
                       </div>
-                      <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Sent to your coach with this log</div>
+                      <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.sentWithLog', { defaultValue: 'Sent to your coach with this log' })}</div>
                     </div>
                   ) : (
                     <>
-                      <button onClick={toggleVoice} disabled={voiceState === 'processing'} aria-label={voiceState === 'recording' ? 'Stop recording' : 'Start speaking'} style={{
+                      <button onClick={toggleVoice} disabled={voiceState === 'processing'} aria-label={voiceState === 'recording' ? tr('nutrition:log.stopRecordingAria', { defaultValue: 'Stop recording' }) : tr('nutrition:log.startSpeakingAria', { defaultValue: 'Start speaking' })} style={{
                         width: 96, height: 96, margin: '0 auto', borderRadius: 999, border: 0, padding: 0,
                         cursor: voiceState === 'processing' ? 'default' : 'pointer',
                         opacity: voiceState === 'processing' ? 0.6 : 1,
@@ -2798,10 +2821,10 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
                           : <span style={{ width: 14, height: 14, borderRadius: 999, background: '#04201d', display: 'block' }} />}
                       </button>
                       <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 600, color: t.INK70, minHeight: 21, padding: `0 ${t.padX}px` }}>
-                        {voiceState === 'recording' ? 'Listening…' : voiceState === 'processing' ? 'Transcribing…' : (voiceCapture === 'text' ? 'Speak — it’s added to your note' : 'Record a memo for your coach')}
+                        {voiceState === 'recording' ? tr('nutrition:log.listening', { defaultValue: 'Listening…' }) : voiceState === 'processing' ? tr('nutrition:log.transcribing', { defaultValue: 'Transcribing…' }) : (voiceCapture === 'text' ? tr('nutrition:log.speakHint', { defaultValue: 'Speak — it’s added to your note' }) : tr('nutrition:log.recordHint', { defaultValue: 'Record a memo for your coach' }))}
                       </div>
                       <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: voiceError ? t.RUST : t.INK50, fontWeight: 600 }}>
-                        {voiceError ? voiceError : voiceState === 'recording' ? `Tap to stop · ${fmtSecs(voiceSecs)}` : voiceState === 'processing' ? 'Working…' : 'Tap to speak'}
+                        {voiceError ? voiceError : voiceState === 'recording' ? tr('nutrition:log.tapToStop', { defaultValue: 'Tap to stop · {len}', len: fmtSecs(voiceSecs) }) : voiceState === 'processing' ? tr('nutrition:log.working', { defaultValue: 'Working…' }) : tr('nutrition:log.tapToSpeak', { defaultValue: 'Tap to speak' })}
                       </div>
                     </>
                   )}
@@ -2821,7 +2844,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       {/* Sticky ledger bar — the always-reachable, honest log action. */}
       {createPortal((
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5200, background: t.PAPER2, borderTop: `1px solid ${t.RULE}`, boxShadow: '0 -8px 22px rgba(0,0,0,0.12)', padding: `12px ${t.padX}px calc(14px + env(safe-area-inset-bottom, 0px))`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{kcal} KCAL · {P}P</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{tr('nutrition:log.barMeta', { defaultValue: '{kcal} KCAL · {p}P', kcal, p: P })}</span>
           <button onClick={doLog} disabled={signedIn && kcal <= 0} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 18px', borderRadius: t.RADIUS_SM, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', border: 0, cursor: (signedIn && kcal <= 0) ? 'default' : 'pointer', opacity: (signedIn && kcal <= 0) ? 0.45 : 1, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{ctaLabel}</button>
         </div>
       ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body)}
@@ -2843,14 +2866,14 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         // /api/nutrition/food-search) with real user_goals recents; the demo
         // list (search + recents) is the signed-out preview only.
         const rows = q ? FOODS.filter(f => f.name.toLowerCase().includes(q)) : FOODS.slice(0, 3);
-        const addFood = (f) => { setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty, kcal: f.kcal, p: f.p, c: f.c, f: f.f, on: true }]); window.__bsToast?.(`Added ${f.name}`, 'ok'); setShowAddFood(false); };
+        const addFood = (f) => { setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty, kcal: f.kcal, p: f.p, c: f.c, f: f.f, on: true }]); window.__bsToast?.(tr('nutrition:log.toastAdded', { defaultValue: 'Added {name}', name: f.name }), 'ok'); setShowAddFood(false); };
         // Live handlers — ＋ adds the provider's default serving directly; a tap
         // on the row body opens the ingredient editor prefilled so the portion
         // can be adjusted before it lands. Adds persist to real recents
         // (best-effort — a failed write never blocks the add).
         const addLiveFood = (f) => {
           setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0), on: true }]);
-          window.__bsToast?.(`Added ${f.name}`, 'ok');
+          window.__bsToast?.(tr('nutrition:log.toastAdded', { defaultValue: 'Added {name}', name: f.name }), 'ok');
           setShowAddFood(false);
           rememberFood(f);
         };
@@ -2887,40 +2910,40 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         };
         const searching = foodQuery.trim().length >= 2;
         const liveRows = searching ? (foodResults || []) : (foodRecents || []);
-        const liveStatus = foodStatus === 'searching' ? 'Searching…'
-          : foodStatus === 'error' ? 'Can’t reach the food database — enter manually below'
-          : searching ? `${liveRows.length} result${liveRows.length === 1 ? '' : 's'}`
-          : (foodRecents === null || liveRows.length ? 'Recents' : 'No recents yet — search or enter manually');
+        const liveStatus = foodStatus === 'searching' ? tr('nutrition:log.searching', { defaultValue: 'Searching…' })
+          : foodStatus === 'error' ? tr('nutrition:log.searchError', { defaultValue: 'Can’t reach the food database — enter manually below' })
+          : searching ? tr('nutrition:log.results', { defaultValue: '{n, plural, one {# result} other {# results}}', n: liveRows.length })
+          : (foodRecents === null || liveRows.length ? tr('nutrition:log.recents', { defaultValue: 'Recents' }) : tr('nutrition:log.noRecents', { defaultValue: 'No recents yet — search or enter manually' }));
         return createPortal((
           <div onClick={() => setShowAddFood(false)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', maxHeight: '80%', overflowY: 'auto' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>Add food</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{tr('nutrition:log.addFood', { defaultValue: 'Add food' })}</div>
               {signedIn ? (
                 <>
-                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods & brands…" style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder={tr('nutrition:log.searchPlaceholder', { defaultValue: 'Search foods & brands…' })} style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
                   {/* Barcode (v2) — scan where BarcodeDetector exists (Chrome /
                       Android WebView); the manual digits entry everywhere
                       (iOS WebKit ships no BarcodeDetector). */}
                   <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 18 }}>
                     {bsBarcodeScanSupported() && (
-                      <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'scan' ? null : 'scan'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'scan' ? teal : t.INK50 }}>▥ Scan barcode</button>
+                      <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'scan' ? null : 'scan'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'scan' ? teal : t.INK50 }}>{tr('nutrition:log.scanBarcode', { defaultValue: '▥ Scan barcode' })}</button>
                     )}
-                    <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'enter' ? null : 'enter'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'enter' ? teal : t.INK50 }}># Enter barcode</button>
-                    {barcodeMode && <button onClick={() => { setBarcodeMode(null); setBarcodeStatus('idle'); }} style={{ marginLeft: 'auto', background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>Cancel</button>}
+                    <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'enter' ? null : 'enter'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'enter' ? teal : t.INK50 }}>{tr('nutrition:log.enterBarcode', { defaultValue: '# Enter barcode' })}</button>
+                    {barcodeMode && <button onClick={() => { setBarcodeMode(null); setBarcodeStatus('idle'); }} style={{ marginLeft: 'auto', background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.cancelPlain', { defaultValue: 'Cancel' })}</button>}
                   </div>
                   {barcodeMode === 'scan' && <BSBarcodeScan teal={teal} onHit={(code) => lookupBarcode(code)} onFallback={() => setBarcodeMode('enter')} />}
                   {barcodeMode === 'enter' && (
                     <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                      <input value={barcodeDigits} onChange={(e) => setBarcodeDigits(e.target.value.replace(/[^\d\s-]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(barcodeDigits); }} inputMode="numeric" placeholder="Barcode digits (EAN / UPC)…" aria-label="Barcode digits" style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '11px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 14, outline: 'none' }} />
-                      <button onClick={() => lookupBarcode(barcodeDigits)} disabled={barcodeStatus === 'looking'} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 16px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#08221f', cursor: barcodeStatus === 'looking' ? 'default' : 'pointer', opacity: barcodeStatus === 'looking' ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Look up</button>
+                      <input value={barcodeDigits} onChange={(e) => setBarcodeDigits(e.target.value.replace(/[^\d\s-]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(barcodeDigits); }} inputMode="numeric" placeholder={tr('nutrition:log.barcodePlaceholder', { defaultValue: 'Barcode digits (EAN / UPC)…' })} aria-label={tr('nutrition:log.barcodeAria', { defaultValue: 'Barcode digits' })} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '11px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 14, outline: 'none' }} />
+                      <button onClick={() => lookupBarcode(barcodeDigits)} disabled={barcodeStatus === 'looking'} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 16px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#08221f', cursor: barcodeStatus === 'looking' ? 'default' : 'pointer', opacity: barcodeStatus === 'looking' ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('nutrition:log.lookUp', { defaultValue: 'Look up' })}</button>
                     </div>
                   )}
                   {barcodeStatus !== 'idle' && (
                     <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: barcodeStatus === 'looking' ? t.INK50 : t.RUST }}>
-                      {barcodeStatus === 'looking' ? 'Looking up…'
-                        : barcodeStatus === 'invalid' ? 'That doesn’t read as a barcode — 8–14 digits'
-                        : barcodeStatus === 'notfound' ? 'No match for that barcode — search or enter it manually'
-                        : 'Can’t reach the food database — try again or enter manually'}
+                      {barcodeStatus === 'looking' ? tr('nutrition:log.lookingUp', { defaultValue: 'Looking up…' })
+                        : barcodeStatus === 'invalid' ? tr('nutrition:log.barcodeInvalid', { defaultValue: 'That doesn’t read as a barcode — 8–14 digits' })
+                        : barcodeStatus === 'notfound' ? tr('nutrition:log.barcodeNotFound', { defaultValue: 'No match for that barcode — search or enter it manually' })
+                        : tr('nutrition:log.barcodeError', { defaultValue: 'Can’t reach the food database — try again or enter manually' })}
                     </div>
                   )}
                   <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: foodStatus === 'error' ? t.RUST : t.INK50 }}>{liveStatus}</div>
@@ -2929,33 +2952,33 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
                       <div key={r.id || `${r.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0', borderBottom: i === liveRows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                         <button onClick={() => editLiveFood(r)} style={{ flex: 1, minWidth: 0, minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, padding: '9px 0', cursor: 'pointer' }}>
                           <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
-                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.brand ? `${r.brand} · ` : ''}{r.qty} · {r.kcal} kcal · {r.p}P</div>
+                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.brand ? `${r.brand} · ` : ''}{tr('nutrition:log.foodMeta', { defaultValue: '{qty} · {kcal} kcal · {p}P', qty: r.qty, kcal: r.kcal, p: r.p })}</div>
                         </button>
-                        <button onClick={() => addLiveFood(r)} aria-label={`Add ${r.name}`} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
+                        <button onClick={() => addLiveFood(r)} aria-label={tr('nutrition:log.addAria', { defaultValue: 'Add {name}', name: r.name })} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
                       </div>
                     ))}
-                    {searching && foodStatus === 'done' && liveRows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No matches for “{foodQuery.trim()}”.</div>}
+                    {searching && foodStatus === 'done' && liveRows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>{tr('nutrition:log.noMatches', { defaultValue: 'No matches for “{q}”.', q: foodQuery.trim() })}</div>}
                   </div>
                 </>
               ) : (
                 <>
-                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods, brands, barcodes…" style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
-                  <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{q ? `${rows.length} result${rows.length === 1 ? '' : 's'}` : 'Recents'}</div>
+                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder={tr('nutrition:log.searchPlaceholderDemo', { defaultValue: 'Search foods, brands, barcodes…' })} style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+                  <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{q ? tr('nutrition:log.results', { defaultValue: '{n, plural, one {# result} other {# results}}', n: rows.length }) : tr('nutrition:log.recents', { defaultValue: 'Recents' })}</div>
                   <div style={{ marginTop: 2 }}>
                     {rows.map((r, i) => (
                       <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === rows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
-                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{r.qty} · {r.kcal} kcal · {r.p}P</div>
+                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.foodMeta', { defaultValue: '{qty} · {kcal} kcal · {p}P', qty: r.qty, kcal: r.kcal, p: r.p })}</div>
                         </div>
-                        <button onClick={() => addFood(r)} aria-label={`Add ${r.name}`} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
+                        <button onClick={() => addFood(r)} aria-label={tr('nutrition:log.addAria', { defaultValue: 'Add {name}', name: r.name })} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
                       </div>
                     ))}
-                    {q && rows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No matches for “{foodQuery.trim()}”.</div>}
+                    {q && rows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>{tr('nutrition:log.noMatches', { defaultValue: 'No matches for “{q}”.', q: foodQuery.trim() })}</div>}
                   </div>
                 </>
               )}
-              <button onClick={() => { setShowAddFood(false); openAddIng(); }} style={{ marginTop: 12, width: '100%', padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Enter manually →</button>
+              <button onClick={() => { setShowAddFood(false); openAddIng(); }} style={{ marginTop: 12, width: '100%', padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.enterManually', { defaultValue: 'Enter manually →' })}</button>
             </div>
           </div>
         ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
@@ -2967,11 +2990,11 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         return createPortal((
           <div onClick={() => setEditIng(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{editIng.index == null ? 'Add ingredient' : 'Edit ingredient'}</div>
-              <input autoFocus value={editIng.name} placeholder="Ingredient" onChange={(e) => setEditIngField('name', e.target.value)} style={inputStyle} />
-              <input value={editIng.qty} placeholder="Portion · e.g. 1 cup" onChange={(e) => setEditIngField('qty', e.target.value)} style={{ ...inputStyle, marginTop: 8 }} />
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{editIng.index == null ? tr('nutrition:log.addIngredient', { defaultValue: 'Add ingredient' }) : tr('nutrition:log.editIngredient', { defaultValue: 'Edit ingredient' })}</div>
+              <input autoFocus value={editIng.name} placeholder={tr('nutrition:log.ingredientPlaceholder', { defaultValue: 'Ingredient' })} onChange={(e) => setEditIngField('name', e.target.value)} style={inputStyle} />
+              <input value={editIng.qty} placeholder={tr('nutrition:log.portionPlaceholder', { defaultValue: 'Portion · e.g. 1 cup' })} onChange={(e) => setEditIngField('qty', e.target.value)} style={{ ...inputStyle, marginTop: 8 }} />
               <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-                {[['kcal', 'Kcal'], ['p', 'Protein'], ['c', 'Carbs'], ['f', 'Fat']].map(([k, l]) => (
+                {[['kcal', tr('cook:plated.kcal', { defaultValue: 'Kcal' })], ['p', tr('cook:plated.protein', { defaultValue: 'Protein' })], ['c', tr('cook:plated.carbs', { defaultValue: 'Carbs' })], ['f', tr('cook:plated.fat', { defaultValue: 'Fat' })]].map(([k, l]) => (
                   <label key={k} style={{ display: 'block' }}>
                     <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>{l}</span>
                     <input value={editIng[k]} inputMode="numeric" placeholder="0" onChange={(e) => setEditIngField(k, e.target.value.replace(/[^0-9]/g, ''))} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 6px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 13, fontWeight: 700, outline: 'none', textAlign: 'center' }} />
@@ -2979,9 +3002,9 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                {editIng.index != null && <button onClick={deleteEditIng} style={{ padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RUST}`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Remove</button>}
-                <button onClick={() => setEditIng(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Cancel</button>
-                <button onClick={saveEditIng} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Save</button>
+                {editIng.index != null && <button onClick={deleteEditIng} style={{ padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RUST}`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('nutrition:log.remove', { defaultValue: 'Remove' })}</button>}
+                <button onClick={() => setEditIng(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('nutrition:log.cancelPlain', { defaultValue: 'Cancel' })}</button>
+                <button onClick={saveEditIng} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('nutrition:log.save', { defaultValue: 'Save' })}</button>
               </div>
             </div>
           </div>
@@ -26172,11 +26195,12 @@ function bsPlates(total) {
 
 function BSSession({ moves: movesProp, onBack, title = '' }) {
   const t = useBS();
-  // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter in
-  // this component may be named `tr` either: the shadow class this repo has
-  // already paid for (getTracks().forEach(tr => tr.stop())) turns every tr()
-  // inside the callback into a TypeError that parse, tsc, the suite AND the
-  // build all pass on. Verified clear at wiring time.
+  // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter
+  // anywhere in this file may be named `tr` either: a callback parameter that
+  // shadows the translator turns every tr() inside it into a TypeError that
+  // parse, tsc, the suite AND the build all pass on. The three sites that did
+  // it were MediaStreamTrack callbacks and are renamed to `track`; the class is
+  // pinned by tests/i18n-key-resolution.test.mjs so it cannot come back.
   const tr = useShapeTr();
   _bsScrollTopOnMount();
   // Open session (log as you go): no moves were handed in → seed one blank move
@@ -27520,7 +27544,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   // each into its aisle — no typing item by item.
   const [vState, setVState] = useStateBSC('idle'); // 'idle' | 'rec' | 'busy'
   const vRef = React.useRef({ rec: null, chunks: [], stream: null });
-  React.useEffect(() => () => { try { vRef.current.stream && vRef.current.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {} }, []);
+  React.useEffect(() => () => { try { vRef.current.stream && vRef.current.stream.getTracks().forEach((track) => track.stop()); } catch (e) {} }, []);
   const bsParseSpokenItems = (text) => String(text || '')
     .split(/,| and | plus |\n|;/i)
     .map((s) => s.trim().replace(/^(add|get|buy|grab|some|a|an)\s+/i, '').replace(/[.!?]+$/, ''))
@@ -27553,7 +27577,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
       rec.onstop = async () => {
         const blob = new Blob(v.chunks, { type: rec.mimeType || 'audio/webm' });
-        try { v.stream && v.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {}
+        try { v.stream && v.stream.getTracks().forEach((track) => track.stop()); } catch (e) {}
         v.stream = null; v.rec = null; v.chunks = [];
         if (!(blob.size > 0)) { setVState('idle'); return; }
         setVState('busy');

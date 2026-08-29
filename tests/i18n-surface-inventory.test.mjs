@@ -136,7 +136,14 @@ function usable(v) {
 
 /** Walk one file and return { name, tr, hard } for every component that renders JSX. */
 function componentsOf(file) {
-  const src = fs.readFileSync(path.join(DIR, file), 'utf8');
+  return componentsOfSource(fs.readFileSync(path.join(DIR, file), 'utf8'));
+}
+
+// ⚠ SPLIT FROM THE FILE READ SO THE RULES CAN BE PINNED ON SOURCE THE TREE DOES
+// NOT HAPPEN TO CONTAIN. The parameter-shadow prune below was pinned through the
+// two real instances until both were renamed; a rule that can only be tested
+// while the tree carries an example stops being tested the moment it is fixed.
+function componentsOfSource(src) {
   const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
   const isTr = translatorNames(ast);
   const out = [];
@@ -251,7 +258,7 @@ const UNCOVERED = new Set([
   'Client::BSGroceryLibrary', 'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
   'Client::BSHelpPage', 'Client::BSIntegrationsPage', 'Client::BSIntentStep',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
-  'Client::BSLibraryDetail', 'Client::BSLogActivity', 'Client::BSLogMealFlow',
+  'Client::BSLibraryDetail', 'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile', 'Client::BSNoraProposal',
   'Client::BSNotifications', 'Client::BSNotifyPrefs', 'Client::BSOverallEditSheet',
@@ -329,9 +336,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the record with it) or a regression, and both must be a deliberate edit.
   // Printed above first, so the failure message is never the only place to read them.
   assert.equal(partStrings, 193, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1170, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1104, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 116, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 115, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
@@ -340,7 +347,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // honest alongside the deletion that caused it; it must never be lowered to
   // make a failing run pass.
   assert.ok(rows.length >= 357, `components rendering JSX fell to ${rows.length} — expected at least 357`);
-  assert.ok(full.length >= 92, `fully-localized components fell to ${full.length} — expected at least 92`);
+  assert.ok(full.length >= 93, `fully-localized components fell to ${full.length} — expected at least 93`);
 });
 
 // ── The ratchet ─────────────────────────────────────────────────────────────
@@ -415,8 +422,33 @@ test('the shipped tree answers the way the derivation claims', () => {
   // the HOOK NAME are not references to a translator — a spelling-matcher counts
   // both and reads 2, which is how a wrong rule hides inside a right answer.
   assert.equal(byKey.get('Marketplace::MktCoachCard').tr, 1, 'an injected translator counts once — the binding and the hook do not');
-  // ...and the documented parameter shadows are NOT translators: `tr` here is a
-  // MediaStreamTrack / a playlist track. Both components genuinely have none.
-  assert.equal(byKey.get('Client::BSLogMealFlow').tr, 0, 'forEach(tr => tr.stop()) is a MediaStreamTrack, not the translator');
-  assert.equal(byKey.get('Client::BSPlaylistCard').tr, 0, 'list.map((tr, i) => …) is a track, not the translator');
+});
+
+// ⚠ THE PARAMETER-SHADOW PRUNE IS PINNED ON A FIXTURE, NOT ON THE TREE. It used
+// to be pinned through the two real instances — `getTracks().forEach(tr => tr.stop())`
+// (a MediaStreamTrack) and `list.map((tr, i) => …)` in BSPlaylistCard (a playlist
+// track). Both were renamed to `track` while localizing the session player and the
+// meal logger, so those assertions stopped testing the rule: those components now
+// read 0 because they hold no translator at all, and would read 0 with the prune
+// deleted. A rule only tested while the tree happens to contain a violation is a
+// rule that retires itself the moment someone fixes the violation — which is this
+// file's own 'a wrong rule hiding inside a right answer' trap, one layer up.
+test('a parameter named like a translator is not the translator', () => {
+  const rows = componentsOfSource(`
+    const BSFixtureCovered = () => {
+      const tr = useShapeTr();
+      return <div>{tr('ns:key', { defaultValue: 'Hello there' })}</div>;
+    };
+    const BSFixtureShadow = ({ stream, list }) => {
+      stream.getTracks().forEach((tr) => tr.stop());
+      return <ul>{list.map((tr, i) => <li key={i}>{tr.label}</li>)}</ul>;
+    };
+  `);
+  const byName = new Map(rows.map((r) => [r.name, r]));
+  // The POSITIVE CONTROL is what stops this passing vacuously: `tr` reaches
+  // `isTr` only because something in the source binds it from a use*Tr() hook —
+  // exactly as the real module does. Without it both rows would read 0 for the
+  // uninteresting reason that the detector never considered the name at all.
+  assert.equal(byName.get('BSFixtureCovered').tr, 1, 'the call counts; the binding site does not');
+  assert.equal(byName.get('BSFixtureShadow').tr, 0, 'a function that re-binds the name shadows it — the params and their uses are not the translator');
 });

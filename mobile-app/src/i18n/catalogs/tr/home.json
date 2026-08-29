@@ -12,6 +12,8 @@
   "aria.notLogged": "kaydedilmedi",
   "aria.open": "açık",
   "aria.training": "antrenman",
+  "aria.selected": "seçili",
+  "aria.today": "bugün",
   "bulletin.checkin": "Check-in bekliyor",
   "bulletin.checkinDetail": "Enerji · uyku · 30 sn",
   "bulletin.weeklyCheckin": "Haftalık check-in bekliyor",
@@ -106,6 +108,8 @@
   "slate.lead": "ÖNCELİK",
   "slate.moreHabits": "{count, plural, other {+# alışkanlık daha}}",
   "slate.restDayMeta": "Dinlenme günü · yürüyüş + mobilite",
+  "slate.now": "Şimdi",
+  "slate.habitsHead": "Günlük alışkanlıklar",
   "slot.breakfast": "Kahvaltı",
   "slot.lunch": "Öğle",
   "slot.snack": "Atıştırma",
@@ -119,6 +123,7 @@
   "tag.coach": "Koç",
   "tag.do": "Yap",
   "tag.avoid": "Kaçın",
+  "tag.work": "İş",
   "ticker.onPace": "HEDEFTE",
   "ticker.buildUp": "ARTIR",
   "ticker.good": "İYİ",
@@ -181,5 +186,6 @@
   "lead.hunger.cta": "Düzgün besleneceğim →",
   "lead.hunger.head": "Bugün doğru düzgün bir öğün ye.",
   "lead.hydration.cta": "Su kaydedeceğim →",
-  "lead.hydration.head": "Bugün daha çok su iç."
+  "lead.hydration.head": "Bugün daha çok su iç.",
+  "lead.railHeader": "Hamlen"
 }

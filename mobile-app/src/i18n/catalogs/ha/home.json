@@ -12,6 +12,8 @@
   "aria.notLogged": "ba a rubuta ba",
   "aria.open": "a buɗe",
   "aria.training": "motsa jiki",
+  "aria.selected": "an zaɓa",
+  "aria.today": "yau",
   "bulletin.checkin": "Ana jiran check-in",
   "bulletin.checkinDetail": "Kuzari · barci · 30 sec",
   "bulletin.weeklyCheckin": "Ana jiran check-in na mako",
@@ -106,6 +108,8 @@
   "slate.lead": "NA FARKO",
   "slate.moreHabits": "{count, plural, one {+# al’ada ƙari} other {+# al’adu ƙari}}",
   "slate.restDayMeta": "Ranar hutu · tafiya + motsi",
+  "slate.now": "Yanzu",
+  "slate.habitsHead": "Al’adun yau da kullum",
   "slot.breakfast": "Karin kumallo",
   "slot.lunch": "Abincin rana",
   "slot.snack": "Ƙananan abinci",
@@ -119,6 +123,7 @@
   "tag.coach": "Koci",
   "tag.do": "Yi",
   "tag.avoid": "Guji",
+  "tag.work": "Aiki",
   "ticker.onPace": "KAN HANYA",
   "ticker.buildUp": "KARA",
   "ticker.good": "KYAU",
@@ -181,5 +186,6 @@
   "lead.hunger.cta": "Zan ci yadda ya kamata →",
   "lead.hunger.head": "Ci abinci na gaske yau.",
   "lead.hydration.cta": "Zan rubuta ruwa →",
-  "lead.hydration.head": "Ƙara shan ruwa yau."
+  "lead.hydration.head": "Ƙara shan ruwa yau.",
+  "lead.railHeader": "Matakinka"
 }

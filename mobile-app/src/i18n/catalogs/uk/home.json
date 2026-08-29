@@ -12,6 +12,8 @@
   "aria.notLogged": "не записано",
   "aria.open": "відкрито",
   "aria.training": "тренування",
+  "aria.selected": "вибрано",
+  "aria.today": "сьогодні",
   "bulletin.checkin": "Потрібен чек-ін",
   "bulletin.checkinDetail": "Енергія · сон · 30 с",
   "bulletin.weeklyCheckin": "Потрібен тижневий чек-ін",
@@ -106,6 +108,8 @@
   "slate.lead": "ГОЛОВНЕ",
   "slate.moreHabits": "{count, plural, one {+# звичка} few {+# звички} many {+# звичок} other {+# звички}}",
   "slate.restDayMeta": "День відпочинку · ходьба + мобільність",
+  "slate.now": "Зараз",
+  "slate.habitsHead": "Щоденні звички",
   "slot.breakfast": "Сніданок",
   "slot.lunch": "Обід",
   "slot.snack": "Перекус",
@@ -119,6 +123,7 @@
   "tag.coach": "Тренер",
   "tag.do": "Робити",
   "tag.avoid": "Уникати",
+  "tag.work": "Робота",
   "ticker.onPace": "У НОРМІ",
   "ticker.buildUp": "ДОДАТИ",
   "ticker.good": "ДОБРЕ",
@@ -181,5 +186,6 @@
   "lead.hunger.cta": "Поїм як слід →",
   "lead.hunger.head": "Поїжте сьогодні повноцінно.",
   "lead.hydration.cta": "Запишу воду →",
-  "lead.hydration.head": "Пийте сьогодні більше води."
+  "lead.hydration.head": "Пийте сьогодні більше води.",
+  "lead.railHeader": "Ваш хід"
 }

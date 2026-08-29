@@ -17,11 +17,30 @@ export function bsMealDirty(portion, ings, initialIngs) {
 
 const fmtPortion = (p) => Number(p).toFixed(2).replace(/\.?0+$/, '');
 
+// The translator is INJECTED, never imported — this module is pure and its six
+// shipped vectors call it with no second argument. `T` returns the PRE-INTERPOLATED
+// English when no translator is supplied, so the fallback path never evaluates ICU,
+// and it try/catches so a broken catalog degrades to English rather than blanking the
+// one control that files the meal. (Same shape as bsWireLines in the launch cut.)
+const T = (tr, key, en, vars) => {
+  if (typeof tr === 'function') {
+    try {
+      const out = tr(key, { defaultValue: en, ...(vars || {}) });
+      if (out && out !== key) return out;
+    } catch (e) { /* fall through to English */ }
+  }
+  let s = en;
+  for (const [k, v] of Object.entries(vars || {})) s = s.split(`{${k}}`).join(String(v));
+  return s;
+};
+
 // The one source of truth for the log button's words. Never claims "as planned"
 // over an adjusted meal, and only shows a portion multiplier when it's not 1×.
-export function bsMealCtaLabel({ dirty, portion, kcal, hasPlanned }) {
-  if (!dirty && hasPlanned) return 'Log as planned →';
+export function bsMealCtaLabel({ dirty, portion, kcal, hasPlanned }, { tr } = {}) {
+  if (!dirty && hasPlanned) return T(tr, 'nutrition:log.ctaAsPlanned', 'Log as planned →');
   const k = Math.round(Number(kcal) || 0);
-  const mult = Number(portion) !== 1 ? ` · ${fmtPortion(portion)}×` : '';
-  return `Log · ${k} kcal${mult} →`;
+  if (Number(portion) !== 1) {
+    return T(tr, 'nutrition:log.ctaPortion', 'Log · {kcal} kcal · {mult}× →', { kcal: k, mult: fmtPortion(portion) });
+  }
+  return T(tr, 'nutrition:log.cta', 'Log · {kcal} kcal →', { kcal: k });
 }

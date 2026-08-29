@@ -7903,7 +7903,7 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
           <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.loading', { defaultValue: 'Loading…' })}</div>
         ) : meta.loadError ? (
           <div style={{ padding: '18px 0' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>{tr('coach:listing.loadError', { defaultValue: "Couldn't load your listing photos — your saved photos are untouched. Try again." })}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>{tr('coach:listing.loadError', { defaultValue: 'Couldn’t load your listing photos — your saved photos are untouched. Try again.' })}</div>
             <button onClick={() => setReloadKey((k) => k + 1)} style={{ marginTop: 12, border: `1px solid ${accent}`, background: `${accent}14`, color: accent, borderRadius: 999, padding: '8px 16px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('coach:listing.retry', { defaultValue: 'Retry' })}</button>
           </div>
         ) : !meta.signedIn ? (
