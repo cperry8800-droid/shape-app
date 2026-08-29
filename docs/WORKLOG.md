@@ -396,10 +396,15 @@ changelog whenever something ships.
 - ⚠ **AND THE UNCOVERED SET IS NOT THE TAIL — IT IS THE PRODUCT.** The **live
   session player** (`BSSession`, 59 strings), the **meal logger**
   (`BSLogMealFlow`, 52), the **profile customizer** (61), the **workout builder**
-  (36), the **auth + splash shell** (`BSLogin` 30, `BSSplash` 36 — literally the
-  first screen after a member picks their language) and the **coach application**
-  (55) all carry **zero `tr()`**. A member can pick Spanish on the language
-  screen and hit English one tap later, in the middle of a set.
+  (36) and the **coach application** (55) all carry **zero `tr()`**.
+- ⚠ **AND THE LANGUAGE PICKER IS THE ONLY LOCALIZED SCREEN IN THE ENTIRE LAUNCH
+  FLOW.** `BSLanguagePicker` has 3 `tr()` calls; every screen on either side of it
+  carries none — the wire beat and the "Shape Daily" telegram (both `BSSplash`,
+  36), the paywall (`BSPaywall`, 6), the sign-in / create-account form (`BSLogin`,
+  30), the preview banner (4), `BSWireHold`, `BSWireLoading` and `BSAppShell`.
+  Verified against the stage machine (`beat → lang → gate → … → daily`), not
+  assumed. So a member picks Spanish and the very next screen — and every screen
+  until the app itself — is English.
 - ⚠ **COVERAGE IS A PROPERTY OF A COMPONENT, NOT A FILE — the same mistake #1953
   had just been rewritten to stop making, applied here up front.**
   `iosAppBroadsheetClient.jsx` carries **~1,600 `tr()` calls** *and* four of those
