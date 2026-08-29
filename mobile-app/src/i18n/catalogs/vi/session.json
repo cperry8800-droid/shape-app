@@ -124,5 +124,13 @@
   "player.saveFinish": "Lưu & kết thúc ✓",
   "player.toastShared": "Đã ghi buổi tập — chia sẻ theo cài đặt quyền riêng tư của bạn",
   "player.toastPrivate": "Đã lưu bản ghi buổi tập riêng tư từ cảm biến để huấn luyện viên xem lại",
-  "player.toastLocal": "Chỉ lưu bản ghi buổi tập cục bộ"
+  "player.toastLocal": "Chỉ lưu bản ghi buổi tập cục bộ",
+  "player.fieldLoad": "Mức tạ",
+  "player.effortAria": "Gắng sức {n} trên 10",
+  "player.setFieldAria": "Hiệp {n} {field}",
+  "player.hrStripAria": "{bpm} nhịp mỗi phút, gắng sức vùng {zone}",
+  "player.useSuggestedAria": "Dùng mức tạ gợi ý {load} {unit}",
+  "player.setDoneAria": "Hiệp {n} xong",
+  "player.markSetDoneAria": "Đánh dấu hiệp {n} đã xong",
+  "player.clipAria": "Clip kỹ thuật của huấn luyện viên cho {move}"
 }

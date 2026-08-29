@@ -124,5 +124,13 @@
   "player.saveFinish": "Kaydet ve bitir ✓",
   "player.toastShared": "Antrenman kaydedildi — gizlilik ayarlarına göre paylaşıldı",
   "player.toastPrivate": "Özel sensör antrenman kaydı koç incelemesi için saklandı",
-  "player.toastLocal": "Antrenman kaydı yalnızca cihazda saklandı"
+  "player.toastLocal": "Antrenman kaydı yalnızca cihazda saklandı",
+  "player.fieldLoad": "Yük",
+  "player.effortAria": "10 üzerinden {n} efor",
+  "player.setFieldAria": "{n}. set {field}",
+  "player.hrStripAria": "Dakikada {bpm} atım, {zone}. bölge eforu",
+  "player.useSuggestedAria": "Önerilen {load} {unit} yükü kullan",
+  "player.setDoneAria": "{n}. set tamam",
+  "player.markSetDoneAria": "{n}. seti tamam olarak işaretle",
+  "player.clipAria": "{move} için antrenörün form klibi"
 }

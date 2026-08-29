@@ -124,5 +124,13 @@
   "player.saveFinish": "Salva e concludi ✓",
   "player.toastShared": "Allenamento registrato — condiviso secondo le tue impostazioni di privacy",
   "player.toastPrivate": "Allenamento privato dai sensori salvato per la revisione del coach",
-  "player.toastLocal": "Registro dell’allenamento salvato solo in locale"
+  "player.toastLocal": "Registro dell’allenamento salvato solo in locale",
+  "player.fieldLoad": "Carico",
+  "player.effortAria": "Sforzo {n} su 10",
+  "player.setFieldAria": "Serie {n} {field}",
+  "player.hrStripAria": "{bpm} battiti al minuto, sforzo della zona {zone}",
+  "player.useSuggestedAria": "Usa il carico suggerito di {load} {unit}",
+  "player.setDoneAria": "Serie {n} fatta",
+  "player.markSetDoneAria": "Segna la serie {n} come fatta",
+  "player.clipAria": "Clip tecnica del coach per {move}"
 }

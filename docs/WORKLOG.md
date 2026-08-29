@@ -526,10 +526,62 @@ changelog whenever something ships.
   (4) The band eyebrows run 4–8 characters longer in de/id/it/ru/tr/uk; they sit
   beside an ellipsis-truncating title with `minWidth: 0`, so the counter wins and
   the title shortens — graceful, but device-only to confirm.
+- ⚠ **AND THE DIFF REVIEW FOUND THE CUT HALF-DONE ON ITS OWN TERMS — three gaps,
+  all in code this cut wrote.** The merge gate was green; these came out of the
+  standing pre-merge diff pass, not a reviewer. (1) The band's **visible LOAD /
+  REPS eyebrows render from a data table** (`[['load','load'],…].map`), which is
+  precisely the residual the inventory documents — *copy declared in a data table
+  and rendered by reference is not attributed to the component* — so they were
+  never in its count and stayed English under a `text-transform: uppercase` on
+  an otherwise-Spanish screen. (2) **Seven `aria-label` template literals stayed
+  English**, and the set table's announced **the RAW INTERNAL FIELD KEY**
+  (`Set 3 load` — the code's own identifier read aloud). (3) Worst of the three,
+  **two of those were the same control class as ones this cut DID translate**:
+  the band's ✓ button got `logSetAria`, the table's ✓ button one row down kept
+  `` `Mark set ${i+1} done` ``. That is not a residual, it is an inconsistency
+  introduced in the same diff — arbitrary per-string selection, the exact habit
+  the wave exists to end. **8 more keys ×13**, all three sites now reading ONE
+  `fieldLabel(f)` helper so a field can never be named two ways.
+- ⚠ **AND `reps` READS THE SHIPPED COLUMN KEY RATHER THAN A SECOND KEY HOLDING
+  THE SAME WORD IN ALL 13** — cut 1's duplicate-key trap, avoided this time by
+  checking first. `load` genuinely needs its own: the band deliberately reads
+  **LOAD** where the table header reads **WEIGHT**, because a band value carries
+  its own unit ("165 lb"), and that distinction is per-locale (es *Carga* vs
+  *Peso*, fr *Charge* vs *Poids*, ru *Нагрузка* vs *Вес*).
+- ⚠ **THE NEW KEYS SHIPPED AS `{n, number}` AND THE HOUSE CONVENTION IS BARE
+  `{n}` — MEASURED, NOT ASSUMED.** `session/en` carried **30 bare placeholders
+  and zero `, number`** before these five; `onboarding` and `coach` carry zero
+  across 150 keys. Normalized to the convention. The five were only *noticed*
+  because the render harness interpolates the bare form only and the assertions
+  failed — but the harness is the symptom, not the reason: a namespace where one
+  wave writes `{n}` and the next writes `{n, number}` for the same set index is
+  drift whether or not a test can see it.
+- ⚠ **AND THAT HARNESS GAP IS ITSELF A TRAP FOR THE NEXT CUT, so it is closed
+  rather than worked around.** A `{n, number}` key rendered its RAW text, so the
+  failure read *"no button with aria-label …"* — a broken-component message for
+  a harness limitation. It fails loudly rather than passing silently, which is
+  the safe direction, but it costs a debugging round; the interpolator now
+  handles both forms.
+- **The guards were mutation-checked against the NEW call shapes**, because a
+  ternary-of-two-literals as the key argument is a shape that could pass
+  vacuously: **4/4 killed** (a typo in the ternary's first branch · in its second
+  branch · on a plain bare key · an `en` key deleted), sanity green at both ends
+  and both files restored **byte-identically**. The applier was re-mutated
+  against the **real returns** — **7/7 refused** (renamed placeholder · dropped
+  placeholder · emptied value · unknown key · a key missing from one locale · a
+  straight apostrophe adjacent to a brace · a renamed plural argument). ⚠ Its
+  **glyph-count check is NOT exercised by this batch** — none of the 8 values
+  carries a character from the set — so it is recorded as untested here rather
+  than counted as a pass.
+- **The ratchet did not move, which is the confirmation and not an oversight**:
+  every string in this follow-up is one its walk cannot see (a data table, or a
+  template literal), so `noneStrings` and `partStrings` are unchanged by design.
 - Verified: `npm test` **2461/2461** · `tsc` 0 · both broadsheet files parse ·
-  mobile build 0 with all twelve locales' strings **and both widened grids
-  confirmed in the emitted bundle** · catalog parity 3/3 ×13 · a pure append
-  (80 insertions / 1 deletion per file, 13 files) · LF, zero CR, zero NUL.
+  mobile build 0 with all twelve locales' strings, **both widened grids** and all
+  eight new keys confirmed in the emitted bundle, and **zero English aria
+  template literals left in the component** · catalog parity 3/3 ×13 · a pure
+  append (80 then 9 insertions / 1 deletion per file, 13 files) · LF, zero CR,
+  zero NUL.
 
 ### 2026-08-29 — i18n cut 1: the launch flow stops being English-only
 

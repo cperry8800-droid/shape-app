@@ -26764,6 +26764,16 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   // an unauthored move now renders NOTHING rather than the old "Move with
   // intent." filler — absence is honest, invented coaching is not.
   const cue = (move && move.cue) || '';
+  // ONE translated label per set field, read by all three sites that name a
+  // field: the band's visible eyebrow, the band input's aria, and the table
+  // input's aria. The table's aria used to interpolate the RAW INTERNAL KEY
+  // ('load'/'reps'/'rpe'), so a screen reader announced the code's field name.
+  // RPE stays literal — a term of art, exactly as the table header carries it.
+  // `reps` reads the SHIPPED column key rather than a second key holding the same
+  // word in all 13 — the duplicate-key trap cut 1 already paid for. `load` needs
+  // its own: the band deliberately reads LOAD where the table header reads WEIGHT,
+  // because a band value can carry its unit ("165 lb").
+  const fieldLabel = (f) => (f === 'rpe' ? 'RPE' : tr(f === 'load' ? 'session:player.fieldLoad' : 'session:player.colReps'));
   const activeIdx = (() => { for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
   const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
   const activeRunning = !!(activeKey && activeSetKey === activeKey);
@@ -26825,7 +26835,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
                   <button
                     key={n}
                     onClick={() => setSessionRpe(on ? null : n)}
-                    aria-label={`Effort ${n} of 10`}
+                    aria-label={tr('session:player.effortAria', { n })}
                     aria-pressed={on}
                     style={{ borderRadius: 5, border: `1px solid ${on ? c : BAND.hair}`, borderBottom: on ? `3px solid ${c}` : `1px solid ${BAND.hair}`, background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : BAND.dim, cursor: 'pointer', padding: '15px 0', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums', minHeight: 44 }}
                   >{n}</button>
@@ -26970,11 +26980,11 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
               {/* Load values can carry their unit ("165 lb" — the athlete's own
                   text), so the label reads LOAD (not LB) and the size leaves
                   room for the unit token without clipping. */}
-              {[['load', 'load'], ['reps', 'reps'], ['rpe', 'rpe']].map(([field, lab]) => (
+              {['load', 'reps', 'rpe'].map((field) => (
                 <div key={field} style={{ flex: 1, minWidth: 0 }}>
-                  <input value={(setInputs[activeKey] && setInputs[activeKey][field]) ?? ''} onChange={(e) => updateSetInput(activeIdx, field, e.target.value)} placeholder="—" inputMode="decimal" aria-label={`Set ${activeIdx + 1} ${lab}`}
+                  <input value={(setInputs[activeKey] && setInputs[activeKey][field]) ?? ''} onChange={(e) => updateSetInput(activeIdx, field, e.target.value)} placeholder="—" inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: activeIdx + 1, field: fieldLabel(field) })}
                     style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: `1.5px solid ${bsTHexA(bandHeat, 0.6)}`, background: 'transparent', color: bandHeat, textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, padding: '0 0 6px', fontFamily: t.MONO, fontSize: 21, fontWeight: 800, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderRadius: 0, ...heatTrans }} />
-                  <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{lab}</div>
+                  <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{fieldLabel(field)}</div>
                 </div>
               ))}
               <button onClick={() => logSet(activeIdx)} aria-label={tr(activeRunning ? 'session:player.logSetAria' : 'session:player.startSetAria', { n: activeIdx + 1 })} style={{ flexShrink: 0, width: 34, height: 34, marginBottom: 14, padding: 0, borderRadius: 6, border: `1.5px solid ${bandHeat}`, background: activeRunning ? bandHeat : 'transparent', color: activeRunning ? '#04211c' : bandHeat, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, cursor: 'pointer', ...heatTrans }}>✓</button>
@@ -27002,7 +27012,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
         )}
         {/* HR — zone strip with a live strap; the quiet connect pill without */}
         {hrmOn && hrNow ? (
-          <div style={{ position: 'relative', marginTop: 13 }} aria-label={`${hrNow} beats per minute, zone ${effort?.zone || 1} effort`}>
+          <div style={{ position: 'relative', marginTop: 13 }} aria-label={tr('session:player.hrStripAria', { bpm: hrNow, zone: effort?.zone || 1 })}>
             <div style={{ position: 'relative', height: 3, background: `linear-gradient(90deg, ${BS_EFFORT_RAMP[1]}, ${BS_EFFORT_RAMP[3]}, ${BS_EFFORT_RAMP[4]}, ${BS_EFFORT_RAMP[5]})` }}>
               <span aria-hidden style={{ position: 'absolute', top: -4, width: 2, height: 11, background: BAND.cream, left: `${Math.min(97, Math.max(1, (hrNow / BS_EFFORT_HRMAX) * 100))}%`, transition: 'left 1.2s ease' }} />
             </div>
@@ -27032,7 +27042,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
       {/* Suggested next load (e1RM progression nudge) — dot-leader row */}
       {_bsSug && (
         <div style={{ padding: `10px ${t.padX}px 0` }}>
-          <button onClick={_bsFillSuggestion} aria-label={`Use suggested load ${_bsSug.load} ${_bsSug.unit}`}
+          <button onClick={_bsFillSuggestion} aria-label={tr('session:player.useSuggestedAria', { load: _bsSug.load, unit: _bsSug.unit })}
             style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
             <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{tr('session:player.suggested')}</span>
@@ -27086,7 +27096,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             // Logged sets stay editable in place (a mis-entered load/reps/RPE
             // corrects without delete-and-relog — updateSetInput patches the
             // captured log row); they read dimmed, not locked.
-            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" aria-label={`Set ${i + 1} ${field}`}
+            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: i + 1, field: fieldLabel(field) })}
               style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px solid ${t.HAIR}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
           );
           return (
@@ -27095,7 +27105,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
               {cell('load', 'lb')}
               {cell('reps', '—')}
               {cell('rpe', '—')}
-              <button onClick={() => { if (!done) logSet(i); }} aria-label={done ? `Set ${i + 1} done` : `Mark set ${i + 1} done`} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>✓</button>
+              <button onClick={() => { if (!done) logSet(i); }} aria-label={tr(done ? 'session:player.setDoneAria' : 'session:player.markSetDoneAria', { n: i + 1 })} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>✓</button>
             </div>
           );
         })}
@@ -27188,7 +27198,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
           actually carries a coach clip). */}
       {clipOpen && clip && (() => {
         const sheet = (
-          <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={`Trainer form clip for ${move.m}`} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
+          <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>

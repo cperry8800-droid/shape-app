@@ -124,5 +124,13 @@
   "player.saveFinish": "Enregistrer et terminer ✓",
   "player.toastShared": "Séance enregistrée — partagée selon vos réglages de confidentialité",
   "player.toastPrivate": "Séance privée avec capteurs enregistrée pour la revue de votre coach",
-  "player.toastLocal": "Séance enregistrée localement uniquement"
+  "player.toastLocal": "Séance enregistrée localement uniquement",
+  "player.fieldLoad": "Charge",
+  "player.effortAria": "Effort {n} sur 10",
+  "player.setFieldAria": "Série {n} {field}",
+  "player.hrStripAria": "{bpm} battements par minute, effort de zone {zone}",
+  "player.useSuggestedAria": "Utiliser la charge suggérée de {load} {unit}",
+  "player.setDoneAria": "Série {n} faite",
+  "player.markSetDoneAria": "Marquer la série {n} comme faite",
+  "player.clipAria": "Clip technique du coach pour {move}"
 }

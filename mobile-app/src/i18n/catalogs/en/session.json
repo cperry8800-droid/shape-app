@@ -124,5 +124,13 @@
   "player.saveFinish": "Save & finish ✓",
   "player.toastShared": "Workout logged — shared per your privacy settings",
   "player.toastPrivate": "Private sensor workout log saved for coach review",
-  "player.toastLocal": "Workout log saved locally only"
+  "player.toastLocal": "Workout log saved locally only",
+  "player.fieldLoad": "Load",
+  "player.effortAria": "Effort {n} of 10",
+  "player.setFieldAria": "Set {n} {field}",
+  "player.hrStripAria": "{bpm} beats per minute, zone {zone} effort",
+  "player.useSuggestedAria": "Use suggested load {load} {unit}",
+  "player.setDoneAria": "Set {n} done",
+  "player.markSetDoneAria": "Mark set {n} done",
+  "player.clipAria": "Trainer form clip for {move}"
 }

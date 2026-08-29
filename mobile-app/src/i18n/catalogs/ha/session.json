@@ -124,5 +124,13 @@
   "player.saveFinish": "Ajiye & gama ✓",
   "player.toastShared": "An rubuta motsa jiki — an raba bisa saitunan sirrinka",
   "player.toastPrivate": "An ajiye rikodin motsa jiki na sirri daga na’ura don duban koci",
-  "player.toastLocal": "An ajiye rikodin motsa jiki a na’ura kaɗai"
+  "player.toastLocal": "An ajiye rikodin motsa jiki a na’ura kaɗai",
+  "player.fieldLoad": "Nauyi",
+  "player.effortAria": "Ƙoƙari {n} cikin 10",
+  "player.setFieldAria": "Saiti {n} {field}",
+  "player.hrStripAria": "Bugun zuciya {bpm} a minti, ƙoƙarin yanki {zone}",
+  "player.useSuggestedAria": "Yi amfani da nauyin da aka ba da shawara na {load} {unit}",
+  "player.setDoneAria": "An gama saiti {n}",
+  "player.markSetDoneAria": "Yi alama saiti {n} ya gama",
+  "player.clipAria": "Gutsuren bidiyon koci don {move}"
 }

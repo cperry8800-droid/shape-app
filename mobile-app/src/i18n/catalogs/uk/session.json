@@ -124,5 +124,13 @@
   "player.saveFinish": "Зберегти й завершити ✓",
   "player.toastShared": "Тренування записано — доступ згідно з вашими налаштуваннями приватності",
   "player.toastPrivate": "Приватний запис тренування з датчиків збережено для перегляду тренером",
-  "player.toastLocal": "Запис тренування збережено лише локально"
+  "player.toastLocal": "Запис тренування збережено лише локально",
+  "player.fieldLoad": "Навантаження",
+  "player.effortAria": "Зусилля {n} з 10",
+  "player.setFieldAria": "Підхід {n}, {field}",
+  "player.hrStripAria": "{bpm} ударів за хвилину, зусилля зони {zone}",
+  "player.useSuggestedAria": "Взяти рекомендоване навантаження {load} {unit}",
+  "player.setDoneAria": "Підхід {n} виконано",
+  "player.markSetDoneAria": "Позначити підхід {n} виконаним",
+  "player.clipAria": "Кліп техніки від тренера для {move}"
 }

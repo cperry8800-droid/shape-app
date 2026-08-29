@@ -124,5 +124,13 @@
   "player.saveFinish": "Speichern & fertig ✓",
   "player.toastShared": "Workout erfasst — gemäß deinen Datenschutzeinstellungen geteilt",
   "player.toastPrivate": "Privates Sensor-Protokoll für den Coach gespeichert",
-  "player.toastLocal": "Trainingsprotokoll nur lokal gespeichert"
+  "player.toastLocal": "Trainingsprotokoll nur lokal gespeichert",
+  "player.fieldLoad": "Last",
+  "player.effortAria": "Anstrengung {n} von 10",
+  "player.setFieldAria": "Satz {n} {field}",
+  "player.hrStripAria": "{bpm} Schläge pro Minute, Intensität Zone {zone}",
+  "player.useSuggestedAria": "Vorgeschlagene Last {load} {unit} übernehmen",
+  "player.setDoneAria": "Satz {n} fertig",
+  "player.markSetDoneAria": "Satz {n} als fertig markieren",
+  "player.clipAria": "Technik-Clip des Trainers für {move}"
 }

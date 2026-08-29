@@ -124,5 +124,13 @@
   "player.saveFinish": "Save & finish ✓",
   "player.toastShared": "We don log di workout — we share am according to your privacy settings",
   "player.toastPrivate": "We don save di private sensor workout log make your coach fit check am",
-  "player.toastLocal": "We save di workout log for dis phone alone"
+  "player.toastLocal": "We save di workout log for dis phone alone",
+  "player.fieldLoad": "Load",
+  "player.effortAria": "Effort {n} out of 10",
+  "player.setFieldAria": "Set {n} {field}",
+  "player.hrStripAria": "{bpm} beat for one minute, zone {zone} effort",
+  "player.useSuggestedAria": "Use di load wey we suggest, {load} {unit}",
+  "player.setDoneAria": "Set {n} don finish",
+  "player.markSetDoneAria": "Mark set {n} as don finish",
+  "player.clipAria": "Coach form clip for {move}"
 }

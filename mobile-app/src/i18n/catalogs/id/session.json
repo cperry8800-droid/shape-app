@@ -124,5 +124,13 @@
   "player.saveFinish": "Simpan & selesai ✓",
   "player.toastShared": "Latihan tercatat — dibagikan sesuai pengaturan privasimu",
   "player.toastPrivate": "Catatan latihan sensor privat disimpan untuk tinjauan pelatih",
-  "player.toastLocal": "Catatan latihan hanya disimpan secara lokal"
+  "player.toastLocal": "Catatan latihan hanya disimpan secara lokal",
+  "player.fieldLoad": "Beban",
+  "player.effortAria": "Usaha {n} dari 10",
+  "player.setFieldAria": "Set {n} {field}",
+  "player.hrStripAria": "{bpm} denyut per menit, usaha zona {zone}",
+  "player.useSuggestedAria": "Pakai beban yang disarankan {load} {unit}",
+  "player.setDoneAria": "Set {n} selesai",
+  "player.markSetDoneAria": "Tandai set {n} selesai",
+  "player.clipAria": "Klip teknik dari pelatih untuk {move}"
 }

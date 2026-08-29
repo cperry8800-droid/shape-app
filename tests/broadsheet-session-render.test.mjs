@@ -74,8 +74,14 @@ globalThis.ShapeI18n = {
     const cat = catalog(key.slice(0, i));
     const raw = cat && cat[key.slice(i + 1)];
     if (raw == null) return undefined;
-    // enough ICU for these strings: simple {arg} substitution.
-    return String(raw).replace(/\{\s*([A-Za-z_][\w-]*)\s*\}/g,
+    // Enough ICU for these strings: simple substitution of {arg} AND the
+    // formatted {arg, number} form. The narrow bare-only version was a trap —
+    // it renders a `{n, number}` key as its RAW text, so an assertion that
+    // selects a control by its label fails with "no button with aria-label
+    // ..." and reads like a broken component rather than a harness gap. It
+    // fails loudly rather than silently passing, but it costs a debugging
+    // round; both forms are handled so the next cut doesn't pay it.
+    return String(raw).replace(/\{\s*([A-Za-z_][\w-]*)\s*(?:,[^{}]*)?\}/g,
       (m, n) => (opts && n in opts ? String(opts[n]) : m));
   },
 };
