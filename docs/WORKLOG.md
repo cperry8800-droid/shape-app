@@ -378,7 +378,81 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous
+### 2026-08-29 — The readout's evidence layer stops ignoring what members actually log
+
+- **Step 1 of §C (the client weekly readout).** `POST /api/ai/weekly-readout` is still
+  orphaned — this wave does not wire an entry point — but its **evidence** was wrong in
+  ways that would have made the readout dishonest the moment it had one, so the evidence
+  goes first. The entry point (a per-member-per-ISO-week atomic claim + the mobile
+  surface + i18n ×13) is the next PR.
+- ⚠ **THE GAUGES A MEMBER LOGS EVERY DAY WERE INVISIBLE TO THE ENGINE.** `energy`,
+  `hunger`, `sleep_quality` and `steps` have existed on `daily_health_snapshot` since the
+  check-in wave, and for a member with **no wearable they are the only reliably populated
+  columns on the table** — yet they appeared in neither the `SnapshotPoint` type, nor
+  `CORRELATION_PAIRS`, nor either route's column list. Not one correlation over them
+  could ever be computed. This is the same omission #1946 fixed one layer up ("a member
+  logged them daily and could see none of it"), still standing in the layer underneath.
+- ⚠ **AND THE COLUMN LIST WAS HAND-TYPED TWICE**, which is what let the catalog and the
+  query drift apart silently: a pair naming a column the select never fetched fails
+  **loudly nowhere** — every value reads `undefined`, the pair contributes nothing, and
+  the route returns **200 with one fewer finding than it claims to compute**. The select
+  is now **derived** from a single `SNAPSHOT_METRICS` list (`SNAPSHOT_SELECT`), both
+  routes import it, and a test asserts every pair names a selected column. The class is
+  closed by construction rather than by remembering.
+- ⚠ **HALF THE SHIPPED CATALOG WAS ALREADY DEAD IN PRODUCTION, AND MUTATION-TESTING IS
+  WHAT FOUND IT.** The pairing test was `typeof v === 'number'` — but **PostgREST returns
+  `numeric` columns as STRINGS**, a gap this repo browser-verified once already (#1769,
+  the roster variance band: *"the unit tests only cover the JS-number shape, so this was a
+  real production gap"*). **Fourteen** of these metrics are `numeric` — sleep_hours,
+  strain, recovery_score, hrv_ms, resting_hr, protein_g, carbs_g, fat_g, hydration_l,
+  weight_lb, body_fat_pct — so **8 of the original 10 pairs** silently computed over zero
+  rows on the already-shipped `/api/insights/correlations`. Now coerced to accept both
+  shapes, which is correct whichever way the driver serialises them.
+  ⚠ **And NOT with `Number(v)`**: `Number(null)`, `Number('')` and `Number(false)` are all
+  a finite **0** — the fabrication class this repo has paid for repeatedly (the cycle read
+  invented a "significant" gap out of eight missing rows exactly that way). A missing
+  reading is **absence** and drops the day; it is never a zero on the member's own chart.
+- ⚠ **THE NEW PAIRS CAME WITH THEIR OWN MULTIPLE-COMPARISON CORRECTION, and shipping them
+  without it would have knowingly made the output less honest.** Every pair is a separate
+  test, so a bigger catalog finds more on noise alone: at a 28-day window an |r| of 0.3 —
+  the "moderate" floor — is roughly **p = 0.12**, so a 16-pair catalog expects about **two
+  spurious "moderate" findings per readout**. A readout that always has something to say
+  is a horoscope. `computeCorrelations` now annotates a **Benjamini–Hochberg `qValue`**
+  across the pairs in that response, the readout's fallback gates on **q rather than raw
+  p** (strictly stricter — q is never below p), and the model is given `q_value` too, so
+  it is not asked to judge on evidence we know is incomplete. When nothing survives, the
+  honest empty summary is the correct output, not a failure.
+  ⚠ **The correction was NOT registered for later**, deliberately: this wave enlarged the
+  family, so this wave carries the cost of it. Six pairs were added, each with a
+  physiological story, rather than every pairing the columns allow — the family size is
+  itself a design decision.
+- **`correlations.ts` → `correlations.mjs` + `.d.ts`, and that is why any of this is
+  testable.** As TypeScript it could not be imported by `node --test`, so the entire
+  evidence layer under two routes — the thing that decides which "insights" a member is
+  shown about their own body — **had zero tests** and was gated by a typecheck alone. This
+  is the shape the repo already uses for exactly that reason (`console-triage`, `funnel`,
+  `guardrail-health`, `age-derive`, `sentry-context`). `tests/correlations.test.mjs` pins
+  the lag semantics (a lagged pair reads Y from the *following* date and must not pair
+  across a gap in the window), zero-variance yielding nothing rather than `r = 0`, and
+  that the module produces every field the `.d.ts` promises — a shape the declaration
+  claims but the module omits is an `any` at the call site, not a compile error.
+- **8 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
+  naming an unselected column · lag collapsing to same-day · `q` losing monotonicity ·
+  reject numeric strings, i.e. the shipped bug · naive `Number()` coercion · empty string
+  becoming 0 · NaN/Infinity admitted), sanity green at both ends and the file restored
+  **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
+  annotator assigns every index and its only early return is the empty case, so nothing
+  can observe the seed. **Kept and labelled rather than deleted**, so the next reader
+  neither removes it as dead nor spends a round writing the test that cannot exist.
+- ⚠ **Not fixed, and named rather than left implicit:** `body.user_id` is still accepted
+  by both routes. RLS is what actually authorises the read (a non-permitted id returns
+  zero rows), and a zero-row window produces no correlations and therefore **no model
+  call** — so it is not a leak and not a cost, but it is looser than it needs to be, and
+  the entry-point PR should bind it.
+- Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present ·
+  `npm test` **2359/2359** (+14).
+
+### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous (#1949 → `d80e49680`)
 
 - **Closes the Layer-1 follow-up registered on 2026-08-01**: *"user context is attached
   on `/m/` ONLY … once a DSN exists, dashboard errors on both web surfaces arrive with

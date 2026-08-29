@@ -13,35 +13,13 @@ import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
 import {
   computeCorrelations,
+  SNAPSHOT_SELECT,
   type CorrelationResult,
   type SnapshotPoint,
 } from '@/lib/correlations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const SNAPSHOT_FIELDS = [
-  'snapshot_date',
-  'sleep_hours',
-  'sleep_performance_pct',
-  'recovery_score',
-  'hrv_ms',
-  'resting_hr',
-  'strain',
-  'workout_minutes',
-  'workout_volume_lb',
-  'avg_heart_rate',
-  'calories',
-  'protein_g',
-  'carbs_g',
-  'fat_g',
-  'hydration_l',
-  'weight_lb',
-  'body_fat_pct',
-  'mood',
-  'stress',
-  'soreness',
-].join(',');
 
 type Insight = {
   headline: string;
@@ -77,7 +55,15 @@ function correlationKey(c: CorrelationResult): string {
 }
 
 function fallbackReadout(correlations: CorrelationResult[]): Readout {
-  const significant = correlations.filter((c) => c.strength !== 'weak' && c.pValue < 0.2).slice(0, 4);
+  // ⚠ GATES ON q, NOT p, and that is the point of computing q at all. Each pair
+  // is a separate test, so with a 16-pair catalog and a 28-day window roughly
+  // two "moderate" findings are expected from noise alone — a readout that
+  // always has something to say is a horoscope, not a readout. q is the
+  // Benjamini–Hochberg FDR across the pairs in THIS response, so the threshold
+  // means what a reader assumes it means. It is never below p, so this is
+  // strictly stricter than the raw-p gate it replaces; when nothing survives,
+  // the honest empty summary below is the correct output, not a failure.
+  const significant = correlations.filter((c) => c.strength !== 'weak' && c.qValue < 0.2).slice(0, 4);
   if (significant.length === 0) {
     return {
       summary:
@@ -160,6 +146,11 @@ async function generateReadout(
     r: c.r,
     n: c.n,
     p_value: c.pValue,
+    // The model sees the multiple-comparison-adjusted figure too, so it can
+    // tell a finding that survives the whole batch from one that only looks
+    // good alone. Withholding it would ask it to judge on evidence we know is
+    // incomplete.
+    q_value: c.qValue,
     direction: c.direction,
     strength: c.strength,
   }));
@@ -174,7 +165,9 @@ async function generateReadout(
             'You are given a catalog of correlations already computed from the client\'s real data. ' +
             'Pick the 3-5 most actionable findings, write a short summary, and return one insight per finding. ' +
             'Every insight MUST reference an existing correlation_key from the catalog so the UI can plot it. ' +
-            'Be specific, name the metric pair, cite the r value, and recommend an action. Do not invent numbers.',
+            'Be specific, name the metric pair, cite the r value, and recommend an action. Do not invent numbers. ' +
+            'q_value is the false-discovery rate across the whole catalog: prefer findings with a low q_value, ' +
+            'and do not present a high-q_value finding as established.',
         },
         {
           role: 'user',
@@ -237,7 +230,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from('daily_health_snapshot')
-    .select(SNAPSHOT_FIELDS)
+    .select(SNAPSHOT_SELECT)
     .eq('user_id', userId)
     .gte('snapshot_date', since)
     .order('snapshot_date', { ascending: true })
