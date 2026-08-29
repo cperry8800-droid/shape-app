@@ -382,7 +382,7 @@ changelog whenever something ships.
 
 - **The one screen that files what a member ate stops being English-only.**
   `BSLogMealFlow` carried **66 hardcoded strings and no translator**; it now
-  carries **113 keys ×13** in a new **`nutrition`** namespace — the confirmation,
+  carries **112 keys ×13** in a new **`nutrition`** namespace — the confirmation,
   the one-tap plate, the live tally, CORRECT THE RECORD, DISPATCH TO your coach
   (photo + voice), the sticky ledger bar, the add-food sheet, the barcode flow,
   the ingredient editor, and all ten toasts. **No migration, no route change.**
@@ -467,11 +467,18 @@ changelog whenever something ships.
   (1) The **demo food names stay English** — they stand in for real
   member-authored ingredient names, which are never translated, so localizing the
   placeholders would make the demo read *less* like the live screen.
-  (2) The **`{p}P · {c}C · {f}F` macro letters stay Latin** — a width-critical mono
+  (2) The **ingredient `qty` column stays English** — `100 g` / `250 g` / `1 serving`
+  come from the food provider through a pure module with no translator
+  (`foodSearch.mjs`), so translating only *our* fallback would make ONE data column
+  bilingual. ⚠ **Caught in the pre-merge diff review of this cut, after the key was
+  already authored ×13** — the key is deleted rather than left orphaned, so 113
+  became 112. The NAME fallback DOES translate: it stands in for the same missing
+  `meal.title` the band heading shows, and the two must not disagree on one screen.
+  (3) The **`{p}P · {c}C · {f}F` macro letters stay Latin** — a width-critical mono
   row, and every other macro row in the app is still English, so translating here
   alone would split one data row into two conventions. **An owner call for cut 4**,
   where `BSClientEat` carries the same row.
-  (3) The **fifteen `marketplace:preview.*` keys** above.
+  (4) The **fifteen `marketplace:preview.*` keys** above.
 - ⚠ **AND ONE FINDING THIS CUT SURFACED THAT IS BIGGER THAN IT:
   `window.__bsToast` IS A PERMANENT NO-OP** (`iosAppBroadsheet.jsx:1364`), so the
   **275 toast call sites across the app report into a void** (counted 2026-08-29:
@@ -483,7 +490,7 @@ changelog whenever something ships.
   fixed here**: reviving the sink is a product decision about 263 call sites, not
   a line in an i18n cut.
 - Verified: `npm test` **2465/2465** · `tsc --noEmit` 0 · mobile build 0 with all
-  **113 nutrition keys and the six new home keys confirmed in the emitted bundle**
+  **112 nutrition keys and the six new home keys confirmed in the emitted bundle**
   (plus spot-checked translations: `ru` habits head, `tr` work tag, `vi` now) ·
   catalog parity **3/3** ×13 · every touched source file parses.
 
