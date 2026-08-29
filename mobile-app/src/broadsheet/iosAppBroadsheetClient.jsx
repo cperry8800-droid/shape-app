@@ -11943,7 +11943,11 @@ function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
 // ⚠ THE DEBOUNCE IS LOAD-BEARING, not polish: the 60/min ceiling is only far
 // above human use BECAUSE every surface waits for the typing to settle. A
 // picker added without one silently re-tunes the ceiling for everybody.
-function useBSMemberPicker(open, query, delay = 220) {
+// ⚠ THE 220 IS A LITERAL ON PURPOSE. It was a `delay = 220` parameter, and no
+// caller ever passed anything else — but a per-picker delay is precisely the
+// silent re-tuning of the shared ceiling this comment warns about, and a default
+// parameter is invisible to the guard that pins the floor.
+function useBSMemberPicker(open, query) {
   const [rows, setRows] = React.useState([]);
   const [state, setState] = React.useState('ok'); // 'ok' | 'limited' | 'failed'
   React.useEffect(() => {
@@ -11968,7 +11972,7 @@ function useBSMemberPicker(open, query, delay = 220) {
           setState(window.ShapeSearch?.isRateLimited?.(e) === true ? 'limited' : 'failed');
           setRows([]);
         });
-    }, delay);
+    }, 220);
     return () => { dead = true; clearTimeout(id); };
   }, [open, query]);
   return [rows, state];

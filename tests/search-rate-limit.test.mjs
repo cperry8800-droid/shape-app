@@ -183,6 +183,10 @@ test('every browser-side search caller debounces its keystrokes', () => {
     ['the DM send picker', stripComments(COMMUNITY), 'sb.rpc("search_members"'],
     ['the post tag picker', stripComments(COMMUNITY), 'cl.rpc("search_members"'],
     ['the coach roster search', stripComments(PROS), 'window.ShapeSearch?.people?.(query, 12)'],
+    // One entry covers all FOUR member pickers (send-a-post, new message,
+    // add-to-channel, tag-in-a-post): they route through the shared hook, so
+    // the debounce exists once and cannot drift between them.
+    ['the member pickers', stripComments(CLIENT), 'window.ShapeChannels.searchMembers(query)'],
   ];
   for (const [what, src, marker] of callers) {
     const call = src.indexOf(marker);
