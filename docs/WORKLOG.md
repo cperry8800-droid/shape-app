@@ -378,6 +378,106 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — i18n cut 4: the Eat tab, and the strings the measurement could not see
+
+- **The primary Eat tab is localized.** `BSClientEat` carried **2 `tr()` calls**; it
+  now carries **76**, against **57 new `nutrition:eat.*` keys ×13** plus one new
+  shared `common:` key and **12 keys reused, not minted**. The day menu, the macro
+  register, the swap flow, the grocery door, the prep stamp, the coach byline and
+  every empty state now speak the member's language. **No migration, no route change.**
+- ⚠ **THE HIGHEST-VALUE STRINGS WERE INVISIBLE TO THE GUARD, AND THAT IS THIS CUT'S
+  HEADLINE.** The inventory detector attributes a string to a component only when it
+  is rendered JSX text or a walked expression container — **object-literal
+  properties, template strings and array-literal strings are not attributed**. Every
+  string on `BSClientEat`'s **live** path is built exactly that way (row objects,
+  ``` `${…}` ``` metas, a weekday array), while the **31** strings the ratchet DID
+  count are all signed-out `MOCK_PROGRAM` demo copy. So a member with a real menu read
+  `Open day` · `No menu` · `No meals planned` in English on every locale, and
+  localizing only what the guard could see would have moved the number and left that
+  English on screen. **A measurement's blind spot is where the untranslated product
+  lives** — the same rule this file already records for per-file vs per-component
+  counting, one layer deeper.
+- ⚠ **THREE ENGLISH PLURALS BUILT BY STRING CONCATENATION, ALL ON THE LIVE PATH.**
+  ``meal${n === 1 ? '' : 's'}`` (the day's meal count), ``item${n === 1 ? '' : 's'} to
+  get.`` (the grocery door) and the playlist ``track${…}`` meta. **No language forms a
+  plural that way**, and ru/uk need **four** categories rather than two — so an `s`
+  appended by a ternary is not a translation gap, it is a sentence no locale can
+  repair. All three are ICU `plural` now, and the parity gate's ICU validity check
+  covers them in all 13.
+- ⚠ **AN ENGLISH POSSESSIVE OVER A HARDCODED WEEKDAY ARRAY.** The menu header read
+  ``${['Monday','Tuesday',…][day]}'s meals`` — **not even the device locale, a literal
+  English list**. Home has formatted its weekday through `bsDateLocale()` since the
+  July rollout; this was its unlocalized twin, one tab over. New **`bsWeekdayName(idx)`**
+  formats the weekday in the **selected UI language**.
+  ⚠ **It formats a FIXED REFERENCE MONDAY (2024-01-01), and the reason is written at
+  the function**: the question is what a weekday is **called**, not what date it is, so
+  no real week is needed and the answer cannot drift with the clock; `timeZone: 'UTC'`
+  so the reference day can never shift a slot west of the line.
+  ⚠ **And the possessive is the CATALOG's to form, not a placeholder's** — es reads
+  *"Comidas del lunes"*, de *"Mahlzeiten am Montag"*. A `{day}'s meals` template with
+  the apostrophe baked in would be wrong in most of the thirteen, which is why the
+  whole phrase is one key.
+- ⚠ **TWO UNGATED-DEMO SECTIONS — AND THE SECOND ONE IS WHY THE CLASS GOT SWEPT.**
+  `BS_COACH_PLAYLISTS` is a static constant **nothing writes to**, and the Eat
+  section's header was the literal **"From Maya"** — so a signed-in member with a real
+  nutritionist, **or none at all**, read a section attributed to a coach they do not
+  have, listing a playlist that does not exist. Found on Eat; the **identical defect
+  was live on Train**. Both are gated now (signed-out keeps the demo, signed-in renders
+  **nothing** until a real feed exists). **Patching the instance would have left the
+  twin shipping** — the rule this file keeps paying for, applied on the first pass this
+  time.
+- ⚠ **A FABRICATED COACH NAME ON THE LIVE PATH.** The nutritionist byline fell through
+  to **`'Dr. Maya Patel'`** for every signed-in member whose coach had not resolved —
+  a real member reading a real screen under a fictional person's name. Now
+  `liveMealCoach || (signedIn ? tr('…yourNutritionist') : 'Dr. Maya Patel')`: the demo
+  name is the **signed-out fallback only**, and a signed-in member with no coach reads
+  the honest role noun.
+- **THE P/C/F OWNER CALL IS SETTLED — and the premise cut 3 registered it on was
+  false.** Cut 3 deferred the macro-letter row on the grounds that *"every other macro
+  row is still English."* Measured: **`cook:plated.protein/carbs/fat` are live and
+  translated on member surfaces in all 13**, so translating the letters **closes** a
+  split rather than opening one. The compact row is **ONE key with the letters inside
+  the string** (`{kcal} kcal · {p}P · {c}C · {f}F`), so each locale picks its own
+  initials — ru **`Б · У · Ж`**, tr **`P · K · Y`** — which a `{letter}` placeholder
+  could never express. (`home:card.protein` turned out to be an **orphan** with no call
+  site, which is part of why the earlier reading looked worse than it was.)
+- **12 KEYS REUSED RATHER THAN MINTED**, on the cut-3 rule (share only where the two
+  uses are the same UI concept, such that a rename **should** move both):
+  `coach:adjust.{protein,carbs,fat}` for the full-word macro register,
+  `cook:prep.{door,stamp}`, `home:{phase.cut,role.nutritionist,section.thisWeek,when.today}`,
+  `nutrition:log.{cancelPlain,kcalUnit,mealFallback}`.
+  ⚠ **The macro labels live under `coach:` while the reader is a member surface** — a
+  namespace oddity worth **leaving alone** rather than "fixing" with a seventh copy of
+  PROTEIN/CARBS/FAT: the concept is identical and a rename should move both.
+- **One new shared key — `common:unit.weekN`** (`"Week {n}"` · `"Semana {n}"` ·
+  `"Неделя {n}"` · `"{n}. hafta"`), because the Eat header's week counter is the same
+  object Home already counts. It is `common:` on purpose: the next surface that counts
+  a week inherits it.
+- ⚠ **THE RATCHET MOVED ON ONE AXIS ONLY, AND THAT IS THE HONEST SHAPE — NOT A
+  HALF-FINISHED CUT.** **`partStrings` 193 → 164**; **`part.length` 31, `none.length`
+  115, `noneStrings` 1104 and `full.length` 93 are ALL UNCHANGED**. `BSClientEat` stays
+  **PARTIAL by design**: its signed-out demo menu is authored as JSX fragments the
+  detector counts, and **demo copy is deliberately not translated**. Every one of the
+  **33** strings the detector still sees is demo — **31** from `MOCK_PROGRAM`, plus the
+  signed-out byline and plan label.
+  ⚠ **This is the opposite of what the plan predicted** (*"a PARTIAL moves out of the
+  PARTIAL baseline, so `part.length` moves this time"*). Cuts 1–3 each moved a
+  component out of the **UNCOVERED** baseline; a PARTIAL that legitimately keeps demo
+  copy moves **neither count**, only the string volume. **Predicting a ratchet's shape
+  is not measuring it** — read the guard's output, then write the record.
+- ⚠ **REGISTERED, NOT WIDENED — `bsHomeLiveWeek` fabricates the same `'Meal'`
+  fallback.** `title: meal.title || 'Meal'` at `iosAppBroadsheetClient.jsx:3135` is
+  **Home's live builder**, a module-scope function with **no translator in scope**, so
+  closing it means injecting a translator into its caller — its own change, not a
+  drive-by on this diff. BSClientEat's copy of that literal is fixed; **the assertion
+  that found it matched BOTH sites**, which is the only reason the twin surfaced at all.
+- **Verified:** `npm test` **2465/2465** · `tsc --noEmit` 0 · JSX parse · mobile build 0
+  with **53 literal `nutrition:eat.*` keys** (57 authored − 5 computed `quick.q*` + the
+  `nutrition:eat.quick.` prefix), `common:unit.weekN`, and sample translations
+  (`Comidas del` · `Воскресный набор` · `{c}K · {f}Y` · `Б · `) all confirmed **in the
+  emitted bundle** · **no weekday array left in source or bundle** · catalog parity ×13
+  · both key-resolution guards 13/13 · the ratchet 8/8.
+
 ### 2026-08-29 — i18n cut 3: the meal logger, and the silent half of a defaultValue
 
 - **The one screen that files what a member ate stops being English-only.**
