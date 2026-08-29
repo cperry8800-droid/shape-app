@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Soundtrack",
   "workoutPreview.preWorkout": "Vor dem Training",
   "workoutPreview.begin": "Einheit starten →",
-  "lever.recoverySub": "Heute tut eine leichtere Belastung gut."
+  "lever.recoverySub": "Heute tut eine leichtere Belastung gut.",
+  "lead.energy.cta": "Ich gehe es lockerer an →",
+  "lead.energy.head": "Geh es heute lockerer an.",
+  "lead.hunger.cta": "Ich esse richtig →",
+  "lead.hunger.head": "Iss heute eine richtige Mahlzeit.",
+  "lead.hydration.cta": "Ich erfasse Wasser →",
+  "lead.hydration.head": "Trink heute mehr Wasser."
 }

@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Bande-son",
   "workoutPreview.preWorkout": "Avant la séance",
   "workoutPreview.begin": "Commencer la séance →",
-  "lever.recoverySub": "Une charge plus légère te réussit aujourd’hui."
+  "lever.recoverySub": "Une charge plus légère te réussit aujourd’hui.",
+  "lead.energy.cta": "Je lève le pied →",
+  "lead.energy.head": "Levez le pied aujourd’hui.",
+  "lead.hunger.cta": "Je mange correctement →",
+  "lead.hunger.head": "Prenez un vrai repas aujourd’hui.",
+  "lead.hydration.cta": "J’enregistre l’eau →",
+  "lead.hydration.head": "Buvez plus d’eau aujourd’hui."
 }

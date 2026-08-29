@@ -565,6 +565,58 @@ changelog whenever something ships.
   **plural argument** · a dropped brand noun · a `login.fieldDob` that overflows the
   column · a key missing from one locale). **A validator exercised only against data it
   generated itself has been tested for self-consistency, not for correctness.**
+- ⚠ **MY OWN BRIEF CARRIED A WRONG RULE, AND NINE OF TWELVE TRANSLATORS CAUGHT IT
+  INDEPENDENTLY.** It listed **DOB** among the must-stay-literal tokens beside
+  kcal/RPE/HRV — but DOB is an **English abbreviation, not a term of art**, and the
+  brief's own first rule says reuse the locale's shipped term, which for this concept
+  is already `dob.label` in all 13 (`Fecha de nacimiento` · `Дата народження` ·
+  `Ranar haihuwa`). Nine returns flagged the rule-1-vs-rule-2 tension by name; ten
+  resolved it toward the reader and translated. **`es` obeyed the rule against its own
+  recommendation** — it shipped the literal and wrote *"Spanish readers do NOT parse
+  'DOB' … I recommend the reviewer change it to Nacimiento · 18+. Please rule on this
+  one."* Taken verbatim: that is **following the translator, not overriding one**, and
+  the defect was mine. `ha` kept the literal with no shorter honest form offered
+  (`Ranar haihuwa · 18+` is 19 chars against a ~17-char column) — **left as-is and
+  registered rather than papered over with an invented Hausa abbreviation**; `pcm`
+  keeps it legitimately (English-lexifier creole).
+- ⚠ **THE COLUMN WIDENING WAS MEASURED AGAINST THE WRONG WORST CASE AND STILL HELD.**
+  It was sized to fr/id/vi at 15 characters; the returns landed **uk `Ім'я користувача`
+  and ru/es at 16** — 106px against the 112px column, six pixels of slack. Verified
+  across all 8 field labels × 13 locales: **zero overflow**. A label column sized to
+  English is the i18n anti-pattern in one magic number, and the honest form of the fix
+  is a measured bound with the metric written at the site, not a bigger guess.
+- ⚠ **`pcm` IS REGISTERED WITH ITS EXACT LIST RATHER THAN CERTIFIED BY ME.** 49 of 139
+  values are byte-identical to English — **13 with shipped `pcm` precedent** (`Member`
+  ← `coach:addClient.member`, `Password` ← `settings:account.password`, …) and **35
+  without**. This file's own precedent says plain everyday lexicon in an
+  English-lexifier creole is genuinely correct and only formal English **register**
+  (the #1757 defect — *"redemption value"*, *"priority booking"*) is a fault; measured
+  against that test the residue is field labels, format examples (`+1 555 123 4567`),
+  pure placeholder templates (`{who}: {text}`) and UI chrome, while the **prose is real
+  Naija Pidgin** (*"Di Shape Wire dey land every morning"* · *"Take am easy today."*).
+  That reads as the legitimate pattern — but **I do not speak Naija Pidgin**, so it
+  goes to the standing human review with the enumerated list, not with my assurance.
+- ⚠ **AND MY OWN QUALITY DETECTOR WAS THE BROKEN INSTRUMENT ON `ha`.** A crude
+  ASCII-match sweep flagged **65** Hausa values as possible untranslated English —
+  Hausa is **Latin-script**, so the sweep was measuring the alphabet. The exact-equality
+  count is **5**, matching that agent's own self-report line for line, and every one is
+  legitimate (the DOB literal · a phone format example · the brand noun `Radio` · two
+  pure-placeholder wire templates). *Check the check before believing the finding* —
+  a detector that cannot distinguish a language from an encoding reports the encoding.
+- ⚠ **THE INDONESIAN REGISTER SPLIT IS NARROWER AND WORSE THAN RECORDED.** This file
+  already carries it as a cross-**namespace** owner call (`onboarding`/`settings` formal
+  `Anda`, nine others informal `kamu`). Measured here it is **inside one namespace and
+  one flow**: the shipped `dob.*` block uses `kamu`, these launch/auth keys use `Anda`,
+  and the stage machine puts them **one screen apart** (`beat → lang → gate → daily`).
+  So a member reads `Anda` on the wire and `kamu` on the age gate seconds later. The cut
+  did not create the split; it made it visible in a single sitting. Still an owner ruling.
+- **ru and uk both chose FORMAL, and both showed their work** — each measured its own
+  catalog (`ru` settings 22 formal / 0 informal, coach 70/3) and noted that
+  `onboarding` is internally split, with the informal half being the in-app `tour.*`
+  and the formal half being `lang.*`/`dob.*` — *the launch flow's own neighbours*. Two
+  independent agents reaching the same register by the same evidence is the strongest
+  signal in the round, and it keeps the whole chain paywall → picker → sign-in → gate →
+  home in one voice.
 - **The ratchet moved, in the direction it is supposed to move.**
   **1,355 → 1,244 strings** and **125 → 117 uncovered components**; fully covered
   **84 → 91**; **`partStrings` 193 and `part.length` 31 are UNCHANGED**, which is the

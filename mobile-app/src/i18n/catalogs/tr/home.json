@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Müzik",
   "workoutPreview.preWorkout": "Antrenman öncesi",
   "workoutPreview.begin": "Seansa başla →",
-  "lever.recoverySub": "Bugün daha hafif bir yük iyi gelir."
+  "lever.recoverySub": "Bugün daha hafif bir yük iyi gelir.",
+  "lead.energy.cta": "Daha hafif geçireceğim →",
+  "lead.energy.head": "Bugünü daha hafif geçir.",
+  "lead.hunger.cta": "Düzgün besleneceğim →",
+  "lead.hunger.head": "Bugün doğru düzgün bir öğün ye.",
+  "lead.hydration.cta": "Su kaydedeceğim →",
+  "lead.hydration.head": "Bugün daha çok su iç."
 }

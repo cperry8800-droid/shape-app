@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Soundtrack",
   "workoutPreview.preWorkout": "Pra-latihan",
   "workoutPreview.begin": "Mulai sesi →",
-  "lever.recoverySub": "Hari ini beban yang lebih ringan terasa pas."
+  "lever.recoverySub": "Hari ini beban yang lebih ringan terasa pas.",
+  "lead.energy.cta": "Aku akan jalani lebih ringan →",
+  "lead.energy.head": "Jalani hari ini lebih ringan.",
+  "lead.hunger.cta": "Aku akan makan dengan benar →",
+  "lead.hunger.head": "Makan yang benar hari ini.",
+  "lead.hydration.cta": "Aku akan catat air →",
+  "lead.hydration.head": "Minum lebih banyak air hari ini."
 }

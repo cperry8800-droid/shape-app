@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Banda sonora",
   "workoutPreview.preWorkout": "Pre-entreno",
   "workoutPreview.begin": "Empezar sesión →",
-  "lever.recoverySub": "Hoy sienta bien una carga más ligera."
+  "lever.recoverySub": "Hoy sienta bien una carga más ligera.",
+  "lead.energy.cta": "Bajaré el ritmo →",
+  "lead.energy.head": "Baja el ritmo hoy.",
+  "lead.hunger.cta": "Comeré bien →",
+  "lead.hunger.head": "Haz una comida de verdad hoy.",
+  "lead.hydration.cta": "Registraré el agua →",
+  "lead.hydration.head": "Bebe más agua hoy."
 }

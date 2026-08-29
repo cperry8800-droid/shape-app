@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Nhạc nền",
   "workoutPreview.preWorkout": "Trước buổi tập",
   "workoutPreview.begin": "Bắt đầu buổi tập →",
-  "lever.recoverySub": "Hôm nay khối lượng nhẹ hơn sẽ hợp hơn."
+  "lever.recoverySub": "Hôm nay khối lượng nhẹ hơn sẽ hợp hơn.",
+  "lead.energy.cta": "Tôi sẽ tập nhẹ hơn →",
+  "lead.energy.head": "Hôm nay hãy tập nhẹ hơn.",
+  "lead.hunger.cta": "Tôi sẽ ăn đàng hoàng →",
+  "lead.hunger.head": "Ăn một bữa tử tế hôm nay.",
+  "lead.hydration.cta": "Tôi sẽ ghi nước uống →",
+  "lead.hydration.head": "Uống nhiều nước hơn hôm nay."
 }

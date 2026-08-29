@@ -175,5 +175,11 @@
   "workoutPreview.soundtrack": "Soundtrack",
   "workoutPreview.preWorkout": "Pre-workout",
   "workoutPreview.begin": "Begin session →",
-  "lever.recoverySub": "Today, lighter load go beta."
+  "lever.recoverySub": "Today, lighter load go beta.",
+  "lead.energy.cta": "I go take am easy →",
+  "lead.energy.head": "Take am easy today.",
+  "lead.hunger.cta": "I go chop well →",
+  "lead.hunger.head": "Chop correct food today.",
+  "lead.hydration.cta": "I go log water →",
+  "lead.hydration.head": "Drink more water today."
 }
