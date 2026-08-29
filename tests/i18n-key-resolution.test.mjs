@@ -335,3 +335,75 @@ test('the app init still uses the option values this test mirrors', () => {
   assert.doesNotMatch(src, /nsSeparator/,
     'initI18n now sets nsSeparator — every cross-namespace key in the launch flow depends on the default ":"');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A PARAMETER NAMED `tr` THAT IS NOT THE TRANSLATOR.
+//
+// `getTracks().forEach(tr => tr.stop())` binds `tr` to a MediaStreamTrack, so
+// every tr() inside that callback is a TypeError — and parse, tsc, the suite
+// AND the mobile build all pass on it, because the shadow is only wrong once
+// the enclosing component actually holds a translator. This repo has met the
+// class twice: a playlist `list.map((tr, i) => …)` in 2026-07-16, and three
+// MediaStreamTrack callbacks that had to be renamed before the meal logger
+// could be localized at all.
+//
+// ⚠ THE RULE IS THE POSITION, NOT THE NAME. Injecting the translator as a
+// parameter is the SANCTIONED pattern for module-scope non-hook helpers —
+// `bsCyclePhaseLabel(tr, phase)`, `_bsLedgerLabel(tr, row)`, and the pros
+// module's `coachTr` all do it, because a helper outside a component cannot
+// hold a hook. Banning the name outright would forbid the good pattern.
+//
+// So the guard flags a `tr` parameter only on a function passed AS AN ARGUMENT
+// to a call — `.forEach(tr => …)`, `.map((tr, i) => …)` — which is the trap and
+// nothing else: there `tr` is whatever the caller iterates, never the
+// translator. A helper the file DEFINES keeps its injected `tr` whether it is
+// written as a declaration or an arrow, so the honest pattern cannot be
+// mis-flagged into someone weakening this test.
+test('no callback parameter shadows the translator', () => {
+  const files = [
+    'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
+    'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx',
+    'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx',
+    'mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx',
+    'mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx',
+    'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx',
+    'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx',
+  ];
+  const shadows = [];
+  let callbacks = 0;   // guard-the-guard: this walk must actually visit some
+
+  const hasTrParam = (node) =>
+    (node.params || []).some((p) => p.type === 'Identifier' && p.name === 'tr');
+
+  for (const file of files) {
+    const src = fs.readFileSync(file, 'utf8');
+    const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
+    const seen = new Set();
+    (function walk(n) {
+      if (!n || typeof n !== 'object' || seen.has(n)) return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      if (!n.type) return;
+      seen.add(n);
+      // A function sitting in a call's ARGUMENT list is a callback.
+      if (n.type === 'CallExpression' || n.type === 'OptionalCallExpression') {
+        for (const a of n.arguments || []) {
+          if (a && (a.type === 'ArrowFunctionExpression' || a.type === 'FunctionExpression')) {
+            callbacks += 1;
+            if (hasTrParam(a)) shadows.push(`${file}:${a.loc && a.loc.start.line}`);
+          }
+        }
+      }
+      for (const k of Object.keys(n)) {
+        if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments') continue;
+        walk(n[k]);
+      }
+    })(ast.program);
+  }
+
+  assert.ok(callbacks > 1500,
+    `the walk visited only ${callbacks} callbacks — it is not reaching the tree it claims to audit`);
+  assert.deepEqual(shadows, [],
+    `a callback parameter named "tr" shadows the translator at:\n  ${shadows.join('\n  ')}\n` +
+    'Rename the parameter to what it actually is (track, rung, row). Every tr() inside ' +
+    'such a callback is a TypeError that parse, tsc, the suite and the build all pass on.');
+});

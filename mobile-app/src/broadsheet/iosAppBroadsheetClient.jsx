@@ -2283,7 +2283,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const cleanupVoice = () => {
     const v = voiceRef.current;
     if (v.timer) { clearInterval(v.timer); v.timer = null; }
-    try { v.stream && v.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {}
+    try { v.stream && v.stream.getTracks().forEach((track) => track.stop()); } catch (e) {}
     v.stream = null; v.rec = null; v.chunks = [];
   };
   React.useEffect(() => () => cleanupVoice(), []);
@@ -26172,11 +26172,12 @@ function bsPlates(total) {
 
 function BSSession({ moves: movesProp, onBack, title = '' }) {
   const t = useBS();
-  // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter in
-  // this component may be named `tr` either: the shadow class this repo has
-  // already paid for (getTracks().forEach(tr => tr.stop())) turns every tr()
-  // inside the callback into a TypeError that parse, tsc, the suite AND the
-  // build all pass on. Verified clear at wiring time.
+  // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter
+  // anywhere in this file may be named `tr` either: a callback parameter that
+  // shadows the translator turns every tr() inside it into a TypeError that
+  // parse, tsc, the suite AND the build all pass on. The three sites that did
+  // it were MediaStreamTrack callbacks and are renamed to `track`; the class is
+  // pinned by tests/i18n-key-resolution.test.mjs so it cannot come back.
   const tr = useShapeTr();
   _bsScrollTopOnMount();
   // Open session (log as you go): no moves were handed in → seed one blank move
@@ -27520,7 +27521,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   // each into its aisle — no typing item by item.
   const [vState, setVState] = useStateBSC('idle'); // 'idle' | 'rec' | 'busy'
   const vRef = React.useRef({ rec: null, chunks: [], stream: null });
-  React.useEffect(() => () => { try { vRef.current.stream && vRef.current.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {} }, []);
+  React.useEffect(() => () => { try { vRef.current.stream && vRef.current.stream.getTracks().forEach((track) => track.stop()); } catch (e) {} }, []);
   const bsParseSpokenItems = (text) => String(text || '')
     .split(/,| and | plus |\n|;/i)
     .map((s) => s.trim().replace(/^(add|get|buy|grab|some|a|an)\s+/i, '').replace(/[.!?]+$/, ''))
@@ -27553,7 +27554,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
       rec.onstop = async () => {
         const blob = new Blob(v.chunks, { type: rec.mimeType || 'audio/webm' });
-        try { v.stream && v.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {}
+        try { v.stream && v.stream.getTracks().forEach((track) => track.stop()); } catch (e) {}
         v.stream = null; v.rec = null; v.chunks = [];
         if (!(blob.size > 0)) { setVState('idle'); return; }
         setVState('busy');
