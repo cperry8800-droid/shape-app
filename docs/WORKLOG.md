@@ -474,14 +474,39 @@ changelog whenever something ships.
   predicate** over eight error shapes (the two codes, both real missing-function
   messages, and the four that must not fall through, the refusal among them) rather
   than pinning its spelling.
-- Verified: **2431/2431** · `tsc` 0 · both mobile + newdesign parse · **14 mutations,
-  all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+- ⚠ **AND THE REVIEW FOUND TWO MORE IN MY OWN REFUSAL BRANCHES — BOTH REAL, BOTH
+  VERIFIED AGAINST THE CODE BEFORE ACTING.** (1) The site header search shipped
+  `fontFamily: SANS` where **nothing in scope defines it**, so the branch threw a
+  ReferenceError and **blanked the whole search overlay exactly when a member was
+  rate-limited** — the one state it exists to render. Valid syntax, so the
+  parse-check passed and `tsc` does not cover these browser-babel files.
+  (2) The tag picker's refusal set the flag but **left the previous query's people
+  on screen**, and the notice was gated behind `tagResults.length === 0` — so stale
+  rows rendered under the new query text and the member **tags the wrong account on
+  a public post**. That is worse than the empty list this change set out to fix: an
+  empty list says *nobody*, stale rows say *this person*. Fixed at the **state and
+  the render**, since either alone leaves the other as a trap.
+- ⚠ **SCOPE HERE IS CROSS-BUNDLE, AND CHECKING THAT IS WHAT SEPARATED THE BUG FROM A
+  FALSE ALARM.** The first guard I wrote flagged `dashboardCommunity`'s
+  `fontFamily: serif` too — but babel-standalone evaluates these scripts through
+  **global eval**, so a **top-level** `const` in one bundle is visible to every
+  other bundle on the same page, and `serif` is declared at column 0 in
+  `pageShell.jsx`, which co-loads on every consuming page. Correct, not a bug. The
+  same mechanism is why `SANS` genuinely was one: `siteSearch.js` declares it
+  **inside an IIFE**, and a declaration in a closure never escapes. So the guard
+  resolves each surface against the **union of the top-level declarations of every
+  bundle its pages co-load**, counting column-0 declarations only — and refuses to
+  pass vacuously if it resolves no tokens at all.
+- Verified: **2433/2433** · `tsc` 0 · newdesign precompile `--check` 0 · both mobile
+  + newdesign parse · **17 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
   re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
   notice · un-debounce the tag picker · loosen a debounce under the floor · un-debounce
   the standalone-page search · widen the fallback back to a bare `does not exist` ·
-  drop the code set and match on the message alone), unmutated sanity green at both ends and the tree restored
+  drop the code set and match on the message alone · reintroduce the exact `SANS`
+  reference · stop clearing the tag rows on a refusal · re-gate the refusal notice
+  behind an empty list), unmutated sanity green at both ends and the tree restored
   clean after each.
 
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)

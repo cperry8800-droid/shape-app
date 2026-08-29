@@ -229,3 +229,85 @@ test('the missing-function fallback fires on missing functions and nothing else'
   ];
   for (const err of doesNot) assert.equal(searchFnMissing(err), false, `must NOT fall back: ${JSON.stringify(err)}`);
 });
+
+// ⚠ A REFUSAL BRANCH THAT THROWS IS WORSE THAN NO BRANCH AT ALL. The site header
+// search shipped `fontFamily: SANS` where nothing in scope defines it — valid
+// syntax, so the parse-check passed, and tsc does not cover these browser-babel
+// files. The result: a ReferenceError that blanks the whole search overlay EXACTLY
+// when a member is rate-limited, i.e. the one state the branch exists to render.
+//
+// ⚠ SCOPE IS CROSS-BUNDLE HERE, WHICH IS WHY THE GUARD RESOLVES IT THAT WAY.
+// babel-standalone evaluates these scripts through global eval, so a TOP-LEVEL
+// `const` in one bundle is visible to every other bundle on the same page —
+// `dashboardCommunity.jsx` legitimately renders `fontFamily: serif` declared in
+// `pageShell.jsx`. A declaration INSIDE a closure does not escape, which is
+// exactly why siteSearch.js's own `var SANS` never rescued pageShell. So the
+// guard unions the top-level declarations of every bundle a page co-loads, and
+// counts column-0 declarations only.
+test('every font token a search surface renders resolves in its own page scope', () => {
+  const pages = fs.readdirSync('public/newdesign').filter((f) => f.endsWith('.html'));
+  const cache = new Map();
+  const readBundle = (name) => {
+    if (!cache.has(name)) {
+      try { cache.set(name, fs.readFileSync(`public/newdesign/${name}`, 'utf8')); }
+      catch { cache.set(name, ''); }
+    }
+    return cache.get(name);
+  };
+  // Column-0 declarations only — anything indented sits inside a closure and does
+  // not reach a sibling bundle.
+  const topLevelDecls = (src) => new Set(
+    [...stripComments(src).matchAll(/^(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]),
+  );
+
+  let checked = 0;
+  for (const surface of ['pageShell.jsx', 'dashboardCommunity.jsx', 'siteSearch.js']) {
+    const src = stripComments(readBundle(surface));
+    const used = new Set([...src.matchAll(/fontFamily:\s*([A-Za-z_$][\w$]*)\b/g)].map((m) => m[1]));
+    if (!used.size) continue;
+
+    // Everything this surface can see: its own scope (closures included) plus the
+    // top-level declarations of every bundle it shares a page with.
+    const inScope = new Set(
+      [...src.matchAll(/(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]),
+    );
+    for (const page of pages) {
+      const html = fs.readFileSync(`public/newdesign/${page}`, 'utf8');
+      if (!html.includes(surface)) continue;
+      for (const m of html.matchAll(/\/?([A-Za-z0-9_.-]+\.(?:jsx|js))(?:\?[^"']*)?["']/g)) {
+        if (m[1] === surface) continue;
+        for (const id of topLevelDecls(readBundle(m[1]))) inScope.add(id);
+      }
+    }
+
+    for (const id of used) {
+      checked++;
+      assert.ok(inScope.has(id), `${surface}: fontFamily uses \`${id}\`, which nothing in its page scope declares — that branch throws when it renders`);
+    }
+  }
+  assert.ok(checked > 0, 'the guard resolved no font tokens at all — it is passing vacuously');
+});
+
+// ⚠ A REFUSAL MUST NOT LEAVE THE PREVIOUS QUERY'S PEOPLE ON SCREEN. Stale rows
+// under new query text are worse than the empty list this change set out to fix:
+// an empty list says "nobody", stale rows say "THIS person", and in the tag picker
+// that credits the WRONG account on a public post. Pinned two ways, because either
+// alone leaves the other as a trap.
+test('a refused picker search clears its results and shows the refusal', () => {
+  const src = stripComments(COMMUNITY);
+
+  // (a) the state is honest: both refusal paths in the tag picker clear the rows
+  const at = src.indexOf('cl.rpc("search_members"');
+  assert.ok(at > 0, 'the tag picker no longer calls search_members');
+  const body = src.slice(at, at + 700);
+  const clears = body.match(/setTagResults\(\s*\[\s*\]\s*\)/g) || [];
+  assert.equal(clears.length, 2, 'the tag picker must clear its rows on BOTH the error and the throw path');
+
+  // (b) the render cannot hide the notice behind a non-empty list
+  assert.doesNotMatch(src, /tagResults\.length === 0 &&[^]{0,200}?tagLimited/,
+    'the tag refusal notice is gated behind an empty result list — stale rows hide it');
+  assert.match(src, /\{\s*tagLimited\s*\?/, 'the tag refusal is not its own render branch');
+
+  // the send picker already had the right shape; keep it that way
+  assert.match(src, /\{limited \? \(/, 'the send picker refusal is no longer a top-level branch');
+});

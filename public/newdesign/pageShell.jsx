@@ -259,7 +259,7 @@ function SiteSearch({ signedIn = false }) {
                 rows === null ? (
                   <div style={{ padding: "12px 12px 8px", fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Searching…</div>
                 ) : limited ? (
-                  <div style={{ padding: "12px 12px 8px", fontFamily: SANS, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>Searching a little fast — give it a moment and try again.</div>
+                  <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>Searching a little fast — give it a moment and try again.</div>
                 ) : rows.length === 0 && !noraHit ? (
                   <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>
                     {signedIn ? <>Nothing on Shape matches “{q.trim()}”. <a href="/newdesign/Marketplace.html" style={{ color: TEAL, textDecoration: "none" }}>Browse coaches →</a></> : <>Sign in to search every member & coach on Shape. <a href="/newdesign/Login.html" style={{ color: TEAL, textDecoration: "none" }}>Log in →</a></>}

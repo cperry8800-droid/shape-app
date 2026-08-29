@@ -1410,10 +1410,14 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
     const id = setTimeout(() => {
       cl.rpc("search_members", { p_q: tagQuery || "" }).then((r) => {
         if (!on || !r) return;
-        if (r.error) { setTagLimited(r.error.code === "PT429"); return; }
+        // ⚠ CLEAR THE RESULTS ON A REFUSAL. Leaving the PREVIOUS query's people in
+        // place under the NEW query text is worse than the empty list this change
+        // set out to fix: an empty list says "nobody", stale rows say "THIS person"
+        // — and tagging one credits the wrong account on a public post.
+        if (r.error) { setTagLimited(r.error.code === "PT429"); setTagResults([]); return; }
         setTagLimited(false);
         setTagResults((r.data || []).map((m) => ({ userId: m.id, name: m.full_name || "Member" })));
-      }).catch((e) => { if (on) setTagLimited(!!(e && e.code === "PT429")); });
+      }).catch((e) => { if (on) { setTagLimited(!!(e && e.code === "PT429")); setTagResults([]); } });
     }, 220);
     return () => { on = false; clearTimeout(id); };
   }, [tagOpen, tagQuery]);
@@ -1613,7 +1617,15 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.5)" }}>{on ? "TAGGED ✓" : "TAG"}</span>
                 </button>
               ); })}
-              {tagResults.length === 0 && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagLimited ? "Searching a little fast — give it a moment." : (tagQuery.trim() ? "No matches." : "Type a name to find someone.")}</div>}
+              {/* ⚠ The refusal is its OWN branch, ahead of the list — mirroring the send
+                  picker above. Hanging it off `tagResults.length === 0` meant any state
+                  that left rows behind could hide it; belt and braces, since the wrong
+                  answer here is a wrongly-tagged member. */}
+              {tagLimited ? (
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>Searching a little fast — give it a moment.</div>
+              ) : tagResults.length === 0 ? (
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagQuery.trim() ? "No matches." : "Type a name to find someone."}</div>
+              ) : null}
             </div>
           </div>
         )}
