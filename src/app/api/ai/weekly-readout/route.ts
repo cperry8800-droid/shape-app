@@ -108,21 +108,34 @@ function fallbackReadout(correlations: CorrelationResult[]): Readout {
     };
   }
 
+  const one = significant.length === 1;
   return {
-    summary: `Across the window, ${significant.length} cross-domain pattern${
-      significant.length === 1 ? '' : 's'
-    } stand out. Strongest: ${significant[0].label.toLowerCase()} (r=${significant[0].r.toFixed(2)}).`,
+    summary: `Across the window, ${significant.length} cross-domain pattern${one ? '' : 's'} ${
+      one ? 'stands' : 'stand'
+    } out. Strongest: ${significant[0].label.toLowerCase()} (r=${significant[0].r.toFixed(2)}).`,
     insights: significant.map((c) => {
       const dir = c.direction === 'positive' ? 'tracks together with' : 'moves opposite to';
+      const x = c.x.replaceAll('_', ' ');
+      const y = c.y.replaceAll('_', ' ');
       return {
         headline: c.label,
-        detail: `Across ${c.n} day${c.n === 1 ? '' : 's'}, ${c.x.replaceAll('_', ' ')} ${dir} ${c.y.replaceAll('_', ' ')} (r=${c.r.toFixed(2)}, ${c.strength}).`,
+        detail: `Across ${c.n} day${c.n === 1 ? '' : 's'}, ${x} ${dir} ${y} (r=${c.r.toFixed(2)}, ${c.strength}).`,
         correlation_key: correlationKey(c),
         evidence_chart: c.lagDays === 0 ? 'scatter' : 'line',
+        // ⚠ THIS DESCRIBES, IT DOES NOT PRESCRIBE — the copy used to read
+        // "Protect the {x} input — when it dips, {y} dips with it" and "gains
+        // there COST {y}", which assert a causal lever from an observational
+        // correlation. This module computes a false-discovery rate precisely
+        // because it takes over-claiming seriously; telling a member to pull a
+        // lever it has no evidence is a lever would undo that in the one place
+        // they actually read. It is also unfalsifiable advice: the pair may run
+        // the other way, or both may follow something unmeasured. So the line
+        // reports the association and names it as worth WATCHING, which is a
+        // claim the r supports.
         recommendation:
           c.direction === 'positive'
-            ? `Protect the ${c.x.replaceAll('_', ' ')} input — when it dips, ${c.y.replaceAll('_', ' ')} dips with it.`
-            : `Watch the ${c.x.replaceAll('_', ' ')} side — gains there cost ${c.y.replaceAll('_', ' ')}.`,
+            ? `Worth watching together: on this member's own days, higher ${x} shows up alongside higher ${y}. What drives what is not established here.`
+            : `Worth watching together: on this member's own days, higher ${x} shows up alongside lower ${y}. What drives what is not established here.`,
       };
     }),
   };
@@ -203,12 +216,26 @@ async function generateReadout(
       input: [
         {
           role: 'system',
+          // ⚠ THE PROMPT ASKED FOR THE OVER-CLAIM THE FALLBACK JUST STOPPED
+          // MAKING. It said "pick the most ACTIONABLE findings" and "recommend
+          // an ACTION" — from a catalog of observational correlations, which
+          // invites exactly the causal lever the deterministic path no longer
+          // asserts. The two renderings must not disagree about what the
+          // evidence supports any more than they may disagree about which
+          // evidence qualifies. So the instruction now matches the fallback's
+          // stance: describe the association, say what is worth watching, and
+          // never state direction of cause.
           content:
-            'You are a sports-science coach generating a weekly readout for one client. ' +
-            'You are given a catalog of correlations already computed from the client\'s real data. ' +
-            'Pick the 3-5 most actionable findings, write a short summary, and return one insight per finding. ' +
+            'You are a sports-science coach writing a weekly readout for one client. ' +
+            "You are given a catalog of correlations already computed from the client's own logged data. " +
+            'Pick the 3-5 findings most worth their attention, write a short summary, and return one insight per finding. ' +
             'Every insight MUST reference an existing correlation_key from the catalog so the UI can plot it. ' +
-            'Be specific, name the metric pair, cite the r value, and recommend an action. Do not invent numbers. ' +
+            'Be specific, name the metric pair, cite the r value, and do not invent numbers. ' +
+            'These are OBSERVATIONAL associations from one person, not experiments: describe what moves with what ' +
+            'and what is worth watching, and never claim one metric causes the other or tell them a change to X ' +
+            'will produce a change in Y. Some pairs are two self-reports entered in the same check-in seconds ' +
+            'apart, which can agree for reasons other than the relationship — the explanation field says so where ' +
+            'it applies, and you should carry that caution into the wording. ' +
             'q_value is the false-discovery rate across the whole catalog: prefer findings with a low q_value, ' +
             'and do not present a high-q_value finding as established.',
         },

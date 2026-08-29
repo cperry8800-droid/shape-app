@@ -531,6 +531,25 @@ changelog whenever something ships.
   empty state is the output most members will see first** — it is the one line in this
   module that is definitely member-facing, and it was the one making an unverifiable
   claim.
+- ⚠ **AND BOTH PATHS TURNED A CORRELATION INTO A LEVER — the same self-sweep, and the
+  worst of what it found.** The fallback's recommendation read *"Protect the {x} input —
+  when it dips, {y} dips with it"* and *"gains there **cost** {y}"*, and the system prompt
+  asked the model for the *"most **actionable**"* findings and to *"**recommend an
+  action**"*. Both assert a **causal direction an observational r cannot support**, in a
+  module that computes a false-discovery rate *precisely because* it takes over-claiming
+  seriously — telling a member to pull a lever the evidence never showed is a lever undoes
+  the whole correction in the one place they actually read. It is unfalsifiable advice
+  too: the pair may run the other way, or both may follow something unmeasured. Both now
+  **describe and name what is worth watching**, the prompt forbids causal claims outright
+  and carries the shared-method caution into the wording, and guards pin both — because
+  **the two renderings must not disagree about what the evidence SUPPORTS any more than
+  about which evidence qualifies**. Also: *"1 cross-domain pattern stand out"*, a verb the
+  pluralisation forgot.
+- ⚠ **REGISTERED, NOT FIXED — the fallback prints RAW COLUMN NAMES to the member**
+  (`protein g`, `hydration l`, `sleep performance pct`). Each pair already carries a
+  human `label`; a display-name map belongs with the surface that renders it, and step 2
+  translates that surface into 13 locales — hardcoding English names now is work that
+  round would have to redo.
 - ⚠ **A `.d.ts` IS NOT CHECKED AGAINST ITS `.mjs`, so `MetricKey` could drift in silence**
   (review). It is a hand-typed copy of `SNAPSHOT_METRICS`, and neither `tsc` nor the
   pair-vs-select test can see a divergence — that test compares two things that **both**
@@ -548,7 +567,7 @@ changelog whenever something ships.
   across a gap in the window), zero-variance yielding nothing rather than `r = 0`, and
   that the module produces every field the `.d.ts` promises — a shape the declaration
   claims but the module omits is an `any` at the call site, not a compile error.
-- **23 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
+- **26 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
   naming an unselected column · lag collapsing to same-day · `q` losing monotonicity ·
   reject numeric strings, i.e. the shipped bug · naive `Number()` coercion · empty string
   becoming 0 · NaN/Infinity admitted · **restore the normal tail** · flip `rested → energy`
@@ -557,8 +576,9 @@ changelog whenever something ships.
   model catalog stops gating on q · a literal q threshold back at a call site · **df off
   by one** · the incomplete-beta arguments swapped · either path hand-rolling its
   eligibility filter · a metric added to the `.mjs` only · a name added to the union
-  only · a literal day count back in the member-facing empty state), sanity green at both
-  ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
+  only · a literal day count back in the member-facing empty state · the causal
+  recommendation back in the fallback · the prompt asking for an action again · the
+  no-causation instruction dropped), sanity green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
   annotator assigns every index and its only early return is the empty case, so nothing
   can observe the seed. **Kept and labelled rather than deleted**, so the next reader
   neither removes it as dead nor spends a round writing the test that cannot exist.

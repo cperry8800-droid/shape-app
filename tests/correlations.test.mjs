@@ -524,6 +524,29 @@ test('the readout gates both paths on one shared predicate', async () => {
     /qValue\s*<\s*[0-9.]/,
     'a literal q threshold is how the two paths drift'
   );
+
+  // ⚠ AND NEITHER PATH MAY TURN A CORRELATION INTO A LEVER. The fallback's
+  // recommendation used to read "Protect the {x} input — when it dips, {y} dips
+  // with it", and the system prompt asked for the "most ACTIONABLE" findings
+  // and to "recommend an action". Both assert a causal direction an
+  // observational r cannot support — in a module that computes a
+  // false-discovery rate precisely because it takes over-claiming seriously.
+  // The two renderings must not disagree about what the evidence SUPPORTS any
+  // more than about which evidence qualifies, so this pins both.
+  assert.doesNotMatch(src, /Protect the \$\{/, 'the fallback must not prescribe a lever');
+  assert.doesNotMatch(src, /gains there cost/, 'the fallback must not assert a cost');
+  assert.doesNotMatch(src, /recommend an action/i, 'the prompt must not ask for a causal action');
+  assert.doesNotMatch(src, /most actionable/i, 'the prompt must not frame findings as levers');
+  assert.match(
+    src,
+    /never claim one metric causes the other/i,
+    'the prompt should forbid causal claims outright'
+  );
+  assert.match(
+    src,
+    /Worth watching together/,
+    'the fallback should report the association rather than prescribe'
+  );
 });
 
 // ⚠ A `.d.ts` IS NOT CHECKED AGAINST ITS `.mjs`, so `MetricKey` — a hand-typed
