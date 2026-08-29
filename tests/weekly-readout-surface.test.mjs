@@ -82,6 +82,27 @@ test('signed out renders nothing at all — never a demo readout', async () => {
   assert.equal(d.nodes().length, 0);
 });
 
+// ⚠ THE RENDER GUARD IS FOR THE STALE FRAME, and only this test reaches it.
+// React runs effects AFTER the commit, so when a member signs out there is exactly
+// one render where `isSelf` is already false and `data` still holds the readout the
+// previous session fetched. Dropping `!isSelf` from the render guard paints that
+// member's health insights into the signed-out preview for a frame — the same
+// cross-account class as the _followCache leak and the profile that painted one
+// frame of B's name beside A's age. Mutating the props object and re-rendering
+// reproduces the frame exactly: the effect's setData(null) writes the cell, but this
+// render already read `data` above it.
+test('signing out renders nothing on the very frame before the effect clears it', async () => {
+  globalThis.window.ShapeReadout = { get: async () => FULL };
+  const props = { isSelf: true };
+  const d = drive(BSWeeklyReadoutCard, props);
+  await tick();
+  d.render();
+  assert.match(d.text, /Your sleep is carrying the week\./, 'setup: the readout never loaded');
+  props.isSelf = false;
+  d.render();
+  assert.equal(d.nodes().length, 0, "the previous member's readout painted into the signed-out preview");
+});
+
 test('a failed fetch renders nothing, not a stale or partial station', async () => {
   const d = await render({ isSelf: true }, null);
   assert.equal(d.nodes().length, 0);
