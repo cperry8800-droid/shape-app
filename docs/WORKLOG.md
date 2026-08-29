@@ -494,6 +494,48 @@ changelog whenever something ships.
   `siteSearch.js` rebuilds its markup each render so it has no stale state at all.
   **Only the tag picker had it.** The ordering is now pinned on every surface, so it
   cannot return on one nobody was looking at.
+- ⚠ **AND THAT SWEEP WAS OF THE WRONG PROPERTY — ONE STEP TOO NARROW, FOUND ON THE
+  NEXT HEAD.** It swept for *a refusal rendering as an empty list* and pinned the
+  ordering everywhere. But a refusal is only one of the ways rows stop being an
+  answer: **a NEW QUERY is another**, and no surface was clearing for it. Typing
+  `Alex` → `Alicia` left Alex on screen — and **actionable** — for the whole
+  debounce plus the round trip, on pickers whose row does not display a person but
+  **sends to, tags, or adds** that person. On the tag picker that is the exact
+  tag-the-wrong-account defect fixed one round earlier, reached by typing instead
+  of by being refused.
+- ⚠ **SO THE RULE IS WIDER THAN THE ONE THIS ENTRY SHIPPED: the rows on screen must
+  always be an answer to the query on screen.** Refused, failed, closed, or simply
+  **superseded by a newer query** — in every case they must go **before the next
+  search starts**, not after it returns; clearing inside the debounce leaves them
+  live for exactly the window a member types in. That needs a **fourth** outcome
+  beside refused · failed · empty: **pending**, the gap between a query and its
+  answer, which was unmodelled and therefore wore the previous answer's state.
+  Only a **settled successful** search may say nobody matched.
+- ⚠ **TWO SURFACES ALREADY HAD IT, BY TWO DIFFERENT MECHANISMS, AND ARE NOW THE
+  REFERENCE RATHER THAN REWRITTEN** — the coach roster gates every row on
+  `!searching`, and `siteSearch.js` overwrites its list with *Searching…* markup
+  synchronously (which is what "rebuilds its markup each render" above is actually
+  describing). Five did not. **And two of the five already HAD a pending render
+  that could never re-fire**: the app typeahead's `busy && !rows` and the header
+  search's `rows === null` only ever ran on the FIRST search, because `busy`
+  flipped while `rows` still held the last answer. **The pending state existed;
+  the clear that reaches it did not.**
+- ⚠ **THE SEND SHEET WAS RE-TYPING THE REFUSAL COPY INLINE** — the drift the shared
+  notice component's own comment says it prevents — and with a pending state its
+  `!== 'ok'` branch would have printed *"couldn't search just now"* mid-debounce,
+  i.e. this file's fabrication class in the other direction: reporting a fault that
+  has not happened. Folded onto the component. Every branch is now a **value gate
+  naming the states it answers for**, so a reorder cannot make one state wear
+  another's copy, and the two empty states held back only by branch order require a
+  settled search explicitly.
+- ⚠ **AND THREE GUARDS PINNED `state !== 'ok'`, WHICH WAS TRUE OF THE CODE AND FALSE
+  OF THE RULE.** A negation admits *every* non-ok state into the refusal branch — so
+  the shape they pinned is precisely the shape that lies during a debounce. They
+  assert the states a branch answers for now. ⚠ **And the first cut of the new guard
+  carried the trap it was written to catch**: two of its five regions began at an
+  early return that already contains `setRows(null)` (for the empty query), so the
+  needle matched inside its own marker and the assertion passed with the real clear
+  deleted — caught by mutation-testing, not by reading it.
 - ⚠ **SCOPE HERE IS CROSS-BUNDLE, AND CHECKING THAT IS WHAT SEPARATED THE BUG FROM A
   FALSE ALARM.** The first guard I wrote flagged `dashboardCommunity`'s
   `fontFamily: serif` too — but babel-standalone evaluates these scripts through
