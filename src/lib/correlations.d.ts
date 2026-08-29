@@ -48,6 +48,9 @@ export type SnapshotPoint = { snapshot_date: string } & Partial<
   Record<MetricKey, number | string | null>
 >;
 
+/** The fewest overlapping days a pair may be scored on. */
+export const MIN_DAYS: number;
+
 /** The metric columns, and the single source the select is derived from. */
 export const SNAPSHOT_METRICS: readonly MetricKey[];
 

@@ -138,8 +138,18 @@ function toNumber(v) {
   return null;
 }
 
+/**
+ * The fewest overlapping days a pair may be scored on.
+ *
+ * ⚠ NAMED BECAUSE THREE COMMENTS ALREADY CITED IT AS `MIN_DAYS` WHILE IT WAS A
+ * BARE `4` — a constant that only exists in prose is one nobody can grep for,
+ * and the p-value rationale below turns on this being the floor. Four is two
+ * degrees of freedom, the lowest at which the t tail is defined at all.
+ */
+export const MIN_DAYS = 4;
+
 function pearson(xs, ys) {
-  if (xs.length < 4) return null;
+  if (xs.length < MIN_DAYS) return null;
   const n = xs.length;
   let sumX = 0;
   let sumY = 0;

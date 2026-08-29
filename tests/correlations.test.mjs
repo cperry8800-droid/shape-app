@@ -10,6 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CORRELATION_PAIRS,
+  MIN_DAYS,
   SNAPSHOT_METRICS,
   SNAPSHOT_SELECT,
   computeCorrelations,
@@ -361,8 +362,9 @@ test('the p-value matches closed-form Student-t at the smallest samples', () => 
     return hit.pValue;
   };
   const tOf = (r, n) => (r * Math.sqrt(n - 2)) / Math.sqrt(1 - r * r);
+  assert.equal(MIN_DAYS, 4, 'the oracle sits at the floor; update it if the floor moves');
   const oracles = [
-    [4, (t) => 1 - t / Math.sqrt(2 + t * t)],
+    [MIN_DAYS, (t) => 1 - t / Math.sqrt(2 + t * t)],
     [
       6,
       (t) => {
