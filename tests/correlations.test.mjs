@@ -395,7 +395,10 @@ test('the p-value matches closed-form Student-t at the smallest samples', () => 
 // catch it, because a wrong lag produces a perfectly well-formed correlation.
 test('the check-in still writes sleep and energy onto one snapshot day', async () => {
   const { readFileSync } = await import('node:fs');
-  const src = readFileSync('src/app/api/client/checkin/route.ts', 'utf8');
+  const src = readFileSync(
+    new URL('../src/app/api/client/checkin/route.ts', import.meta.url),
+    'utf8'
+  );
   // One local day resolved once...
   assert.match(
     src,
@@ -469,30 +472,71 @@ test('sleep pairs use the lag their storage day implies', () => {
 // model that the deterministic fallback would have refused. Source-level
 // because the handler pulls in Supabase and the AI client and cannot be driven
 // under `node --test`.
-test('the readout gates both paths on one shared q threshold', async () => {
+test('the readout gates both paths on one shared predicate', async () => {
   const { readFileSync } = await import('node:fs');
-  const raw = readFileSync('src/app/api/ai/weekly-readout/route.ts', 'utf8');
+  const raw = readFileSync(
+    new URL('../src/app/api/ai/weekly-readout/route.ts', import.meta.url),
+    'utf8'
+  );
   // Strip comments first — the rationale prose below quotes these very names,
   // and a guard that fires on its own explanation is no guard.
   const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
-  assert.match(src, /const Q_THRESHOLD\s*=/, 'the shared threshold should be declared once');
+  // ⚠ ONE PREDICATE, NOT ONE THRESHOLD. Sharing only `Q_THRESHOLD` left the two
+  // filters disagreeing on the other two terms — the fallback took any non-weak
+  // pair at any `n`, the model catalog took any `n >= 7` pair at any strength —
+  // so which findings a member saw depended on whether OpenAI was reachable.
+  assert.match(src, /function isReportable\(/, 'the shared predicate should exist');
+  assert.equal(
+    (src.match(/\.filter\(isReportable\)/g) || []).length,
+    2,
+    'both the fallback and the model catalog must select through isReportable'
+  );
+  // Nobody may hand-roll the terms at a call site — that is exactly how the two
+  // paths drifted the first time.
+  const callSiteFilters = src.match(/\.filter\(\(c\)[^)]*\)/g) || [];
+  for (const f of callSiteFilters) {
+    assert.doesNotMatch(f, /qValue|strength|c\.n\s*>=/, `inline eligibility test: ${f}`);
+  }
   assert.equal(
     (src.match(/const Q_THRESHOLD\s*=/g) || []).length,
     1,
     'two threshold declarations would let the paths drift apart again'
   );
-  // Both selections — the deterministic fallback and the catalog handed to the
-  // model — must gate on it.
-  assert.equal(
-    (src.match(/qValue\s*<\s*Q_THRESHOLD/g) || []).length,
-    2,
-    'both the fallback and the model catalog must gate on the shared q threshold'
-  );
-  // And neither may gate on a bare number instead.
   assert.doesNotMatch(
     src,
     /qValue\s*<\s*[0-9.]/,
-    'a literal q threshold at a call site is how the two paths drift'
+    'a literal q threshold is how the two paths drift'
+  );
+});
+
+// ⚠ A `.d.ts` IS NOT CHECKED AGAINST ITS `.mjs`, so `MetricKey` — a hand-typed
+// copy of SNAPSHOT_METRICS — can diverge in silence, and neither `tsc` nor the
+// tests above can see it: the pair-vs-select test compares two things that both
+// come from the module. A metric added to the runtime only is unnameable from
+// TypeScript; a name left in the union only is a type that admits a column that
+// is never fetched. Both directions are asserted here rather than in a
+// type-test file, so the check runs in `npm test` alongside every other guard
+// on this module and needs no new build artifact.
+test('MetricKey and SNAPSHOT_METRICS have not drifted', async () => {
+  const { readFileSync } = await import('node:fs');
+  const dts = readFileSync(new URL('../src/lib/correlations.d.ts', import.meta.url), 'utf8');
+  const block = dts.match(/export type MetricKey =([\s\S]*?);/);
+  assert.ok(block, 'MetricKey union not found — did the declaration move?');
+  const declared = [...block[1].matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
+  assert.ok(declared.length > 0, 'parsed an empty union — the guard would pass vacuously');
+
+  const listed = [...SNAPSHOT_METRICS];
+  const missingFromUnion = listed.filter((m) => !declared.includes(m));
+  const extraInUnion = declared.filter((m) => !listed.includes(m));
+  assert.deepEqual(
+    missingFromUnion,
+    [],
+    'in SNAPSHOT_METRICS but not MetricKey — TypeScript consumers cannot name it'
+  );
+  assert.deepEqual(
+    extraInUnion,
+    [],
+    'in MetricKey but not SNAPSHOT_METRICS — a type admitting a column never fetched'
   );
 });

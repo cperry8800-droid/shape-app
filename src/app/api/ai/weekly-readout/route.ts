@@ -55,10 +55,32 @@ function correlationKey(c: CorrelationResult): string {
 }
 
 // The false-discovery-rate ceiling a correlation must clear to be offered as an
-// insight. ONE constant: the model catalog and the deterministic fallback are
-// two renderings of the same evidence, so a member must never be able to see a
-// finding from one path that the other would have refused.
+// insight.
 const Q_THRESHOLD = 0.2;
+
+// The fewest overlapping days a correlation needs before it may be reported.
+// Above `MIN_DAYS` (which is only the floor at which an r can be computed at
+// all) because a week is the shortest span in which a "cross-domain pattern" is
+// a pattern rather than a coincidence.
+const MIN_REPORTABLE_DAYS = 7;
+
+/**
+ * ONE eligibility predicate, used by BOTH readout paths.
+ *
+ * ⚠ SHARING THE *THRESHOLD* WAS NOT ENOUGH, and that was my own incomplete fix.
+ * After unifying `Q_THRESHOLD` the two filters still disagreed on the other two
+ * terms: the fallback took any non-weak pair regardless of `n`, while the model
+ * catalog took any pair with `n >= 7` regardless of strength. So a strong pair
+ * at n = 5 was reportable by the deterministic path but invisible to the model,
+ * and a weak pair at n = 10 was offered to the model but refused by the
+ * fallback — and which path a member gets is decided by whether OpenAI happens
+ * to be reachable. Two renderings of the same evidence must not disagree about
+ * what the evidence IS; a member switching between them because of an outage
+ * would see a different set of facts about their own body.
+ */
+function isReportable(c: CorrelationResult): boolean {
+  return c.n >= MIN_REPORTABLE_DAYS && c.strength !== 'weak' && c.qValue < Q_THRESHOLD;
+}
 
 function fallbackReadout(correlations: CorrelationResult[]): Readout {
   // ⚠ GATES ON q, NOT p, and that is the point of computing q at all. Each pair
@@ -71,9 +93,7 @@ function fallbackReadout(correlations: CorrelationResult[]): Readout {
   // largest-p finding always takes q = p), so "strictly stricter" would have
   // been a claim the maths does not make. When nothing survives, the honest
   // empty summary below is the correct output, not a failure.
-  const significant = correlations
-    .filter((c) => c.strength !== 'weak' && c.qValue < Q_THRESHOLD)
-    .slice(0, 4);
+  const significant = correlations.filter(isReportable).slice(0, 4);
   if (significant.length === 0) {
     return {
       summary:
@@ -146,17 +166,14 @@ async function generateReadout(
 ): Promise<Readout | null> {
   if (!hasOpenAIKey()) return null;
 
-  // ⚠ THE q GATE IS ENFORCED HERE, NOT LEFT TO THE PROMPT. The catalog handed to
+  // ⚠ THE GATE IS ENFORCED HERE, NOT LEFT TO THE PROMPT. The catalog handed to
   // the model is the ONLY set an insight may reference (post-parse validation
-  // checks membership), so filtering it is what makes the FDR threshold binding
-  // — a prompt line asking the model to "prefer" low q is advisory, and a model
+  // checks membership), so filtering it is what makes the gate binding — a
+  // prompt line asking the model to "prefer" low q is advisory, and a model
   // that ignores it would surface a finding the deterministic fallback would
-  // have refused. Same threshold as fallbackReadout, deliberately: the two
-  // paths must not disagree about what counts as a finding. When nothing
+  // have refused. Same predicate as fallbackReadout, deliberately. When nothing
   // survives, this returns null and the honest empty summary is the output.
-  const significantCorrelations = correlations
-    .filter((c) => c.n >= 7 && c.qValue < Q_THRESHOLD)
-    .slice(0, 6);
+  const significantCorrelations = correlations.filter(isReportable).slice(0, 6);
   if (significantCorrelations.length === 0) return null;
 
   const correlationCatalog = significantCorrelations.map((c) => ({

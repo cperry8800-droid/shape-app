@@ -508,8 +508,25 @@ changelog whenever something ships.
   insight may reference (post-parse validation checks membership), so **filtering it IS the
   gate** — a model that ignored the line could surface a finding the deterministic path
   would have refused, which is the two halves of one feature disagreeing about what counts
-  as evidence. One `Q_THRESHOLD` now feeds both, with a test that fails if either stops
-  reading it **or** a second literal threshold appears at a call site.
+  as evidence.
+  ⚠ **AND SHARING THE *THRESHOLD* WAS NOT ENOUGH — my fix for that finding was itself
+  incomplete, caught on the next round.** With `Q_THRESHOLD` unified the two filters still
+  disagreed on the other two terms: the fallback took any **non-weak** pair at any `n`,
+  the model catalog took any **n ≥ 7** pair at any strength. So a strong pair at n = 5 was
+  reportable by the deterministic path and invisible to the model, a weak pair at n = 10
+  was offered to the model and refused by the fallback — and **which path a member gets is
+  decided by whether OpenAI happens to be reachable.** Two renderings of the same evidence
+  must not disagree about what the evidence *is*; a member switching between them because
+  of an outage would read a different set of facts about their own body. One
+  `isReportable()` predicate now, both paths, with a guard that fails if either
+  hand-rolls the terms at a call site again.
+- ⚠ **A `.d.ts` IS NOT CHECKED AGAINST ITS `.mjs`, so `MetricKey` could drift in silence**
+  (review). It is a hand-typed copy of `SNAPSHOT_METRICS`, and neither `tsc` nor the
+  pair-vs-select test can see a divergence — that test compares two things that **both**
+  come from the module. A metric added to the runtime only is unnameable from TypeScript;
+  a name left in the union only is a type admitting a column the query never fetches, which
+  is the *exact* class this wave's derived select was introduced to close, one layer up.
+  Both directions are now asserted by parsing the union out of the declaration.
 - **`correlations.ts` → `correlations.mjs` + `.d.ts`, and that is why any of this is
   testable.** As TypeScript it could not be imported by `node --test`, so the entire
   evidence layer under two routes — the thing that decides which "insights" a member is
@@ -520,14 +537,16 @@ changelog whenever something ships.
   across a gap in the window), zero-variance yielding nothing rather than `r = 0`, and
   that the module produces every field the `.d.ts` promises — a shape the declaration
   claims but the module omits is an `any` at the call site, not a compile error.
-- **18 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
+- **22 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
   naming an unselected column · lag collapsing to same-day · `q` losing monotonicity ·
   reject numeric strings, i.e. the shipped bug · naive `Number()` coercion · empty string
   becoming 0 · NaN/Infinity admitted · **restore the normal tail** · flip `rested → energy`
   back to lag 1 · flip `stress → sleep` back to lag 0 · split the check-in's sleep onto a
   second local day · delete a pinned sleep pair · add an **unpinned** sleep pair · the
   model catalog stops gating on q · a literal q threshold back at a call site · **df off
-  by one** · the incomplete-beta arguments swapped), sanity green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
+  by one** · the incomplete-beta arguments swapped · either path hand-rolling its
+  eligibility filter · a metric added to the `.mjs` only · a name added to the union
+  only), sanity green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
   annotator assigns every index and its only early return is the empty case, so nothing
   can observe the seed. **Kept and labelled rather than deleted**, so the next reader
   neither removes it as dead nor spends a round writing the test that cannot exist.
@@ -537,7 +556,7 @@ changelog whenever something ships.
   call** — so it is not a leak and not a cost, but it is looser than it needs to be, and
   the entry-point PR should bind it.
 - Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present ·
-  `npm test` **2366/2366** (+21) · the `numeric` column list read from
+  `npm test` **2367/2367** (+22) · the `numeric` column list read from
   `information_schema` on the live database.
 
 ### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous (#1949 → `d80e49680`)
