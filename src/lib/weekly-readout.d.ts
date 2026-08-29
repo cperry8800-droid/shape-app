@@ -48,3 +48,12 @@ export function buildReadoutResponse(input: {
   correlations: unknown;
   readout: unknown;
 };
+
+/** How long a claim is honoured before another request may take it. */
+export const CLAIM_LEASE_SECONDS: number;
+
+/** The bound on one generation attempt; the lease must outlast it. */
+export const GENERATE_TIMEOUT_MS: number;
+
+/** Does the lease still strictly outlast the longest possible generation? */
+export function weeklyReadoutBoundHolds(leaseSeconds?: number, timeoutMs?: number): boolean;

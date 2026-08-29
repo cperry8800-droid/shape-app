@@ -450,6 +450,36 @@ changelog whenever something ships.
   Worse than the state it replaced. **Sharing a threshold is not sharing a predicate**, and
   two readers of one fact must read one function; extracted as `isCachedReadout`, with a guard
   that fails if either site re-derives it.
+- ⚠ **A REVIEW FINDING THAT WAS REAL AND WENT TO THE HEART OF IT: THE INVARIANT WAS
+  FORGEABLE.** The first cut granted all three RPCs to `authenticated` — and a member's
+  browser holds the anon key and their own JWT, so it could call `claim_weekly_readout` for
+  itself, take the `claim_token`, and call `finalize_weekly_readout` with any `p_readout` it
+  liked and `p_source: 'openai'`. The token proves the caller won the claim; it proves
+  **nothing** about a model having produced the JSON. Worse, the same was available to a
+  **COACH for a linked member** — arbitrary content planted in someone else's readout and
+  read there as AI output. So the capability is split by who may hold it: the **claim** stays
+  `authenticated`, because the self-or-coach decision belongs in the database under the
+  caller's own identity rather than in a TypeScript re-implementation of `is_coach_on_client`;
+  **finalize and release are `service_role` only** and go through the admin client. They no
+  longer read `auth.uid()` at all — there is no caller identity under the service role, and a
+  check that always saw null would refuse every legitimate call. ⚠ **`authenticated` is
+  REVOKED by name, not merely ungranted**: `create or replace` preserves the grants an earlier
+  version of the file made, so a database that already ran the first cut would keep the hole.
+  A member calling the claim directly still gains nothing — the token is only spendable by a
+  finalize they cannot reach, so the worst they can do is hold their OWN week for one lease.
+- ⚠ **AND THE OTHER BLOCKING FINDING WAS REFUTED ON THE CODE — BUT ITS PREMISE WAS ONLY
+  ACCIDENTALLY FALSE.** The reading was that the lease permits two paid model calls: A claims,
+  A's call runs past the lease, B reclaims and calls again. That needs a generation still in
+  flight after 300 s, which `callAI` structurally forbids — it aborts at its timeout and the
+  route finalizes or releases within milliseconds. A dead generator is the case the reclaim
+  exists for, and a dead generator has no call in flight to duplicate. **But the safety was
+  resting on two numbers in two files agreeing by accident**, and nothing would have caught a
+  `timeoutMs` raised past the lease. So the lease and the generation timeout now live together
+  in the pure module, the route passes the timeout **explicitly** rather than inheriting the
+  shared default, and `weeklyReadoutBoundHolds()` states the relationship a test pins: the
+  lease must be at least twice the longest attempt. **Refuting a finding is not the same as
+  leaving the code as it was** — the reviewer was wrong about the behaviour and right that
+  nothing defended it.
 - **Degradation is the rule, with one exception.** Every claim failure falls back to the
   pre-migration behaviour — an absent RPC computes and generates exactly as this route did
   before, and a failed *store* is not a failed readout. The **permission refusal is the
@@ -466,15 +496,18 @@ changelog whenever something ships.
   inside one statement can never see it expire — the reclaim reads as broken when it is the
   probe that is. Backdate `claimed_at` explicitly instead of waiting.
 - Verified: **2391/2391** · `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` ·
-  **21 mutations, all caught** (generate without the claim · store the fallback · swallow the
+  **27 mutations, all caught** (generate without the claim · store the fallback · swallow the
   403 · restore the unchecked `body.user_id` · decide the hit after the snapshot read · stamp
   the requested window · fresh correlations beside a stored readout · a readout-less `ready`
   row as a hit · revert the `Number(null)` · report `''` for an uncomputable week · add a
   write policy · drop finalize's token guard · drop the reclaim's lease predicate · leave
   anon's grant · unpin `search_path` · drop the claim RPC's coach gate · either site
   re-deriving the cache predicate · truthiness instead of a non-empty array · a drifted
-  `.d.ts`), with unmutated sanity runs green at both ends of every batch and a clean
-  `git status` after each restore (`cp` backups, never `git checkout --`).
+  `.d.ts` · the write RPCs reachable by `authenticated` · a write taken as the caller ·
+  the model call left on the shared default timeout · a timeout outlasting the lease · the
+  bound predicate stubbed true · finalize reading `auth.uid()` under the service role), with
+  unmutated sanity runs green at both ends of every batch and a clean `git status` after each
+  restore (`cp` backups, never `git checkout --`).
 
 ### 2026-08-29 — The readout's evidence layer stops ignoring what members actually log (#1950 → `1a35c830b`)
 

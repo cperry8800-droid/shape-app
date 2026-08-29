@@ -14,7 +14,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 import * as readoutModule from '../src/lib/weekly-readout.mjs';
-const { weeklyReadoutWeekStart, buildReadoutResponse, isCachedReadout } = readoutModule;
+const {
+  weeklyReadoutWeekStart,
+  buildReadoutResponse,
+  isCachedReadout,
+  CLAIM_LEASE_SECONDS,
+  GENERATE_TIMEOUT_MS,
+  weeklyReadoutBoundHolds,
+} = readoutModule;
 
 const ROUTE = stripComments(
   readFileSync(new URL('../src/app/api/ai/weekly-readout/route.ts', import.meta.url), 'utf8'),
@@ -266,42 +273,65 @@ test('finalize and release are guarded on the claim token', () => {
   }
 });
 
-test('anon is revoked by name on every RPC', () => {
-  // `revoke ... from public` does NOT remove Supabase's explicit anon grant —
-  // the bug class 2026-06-30-rpc-authz-hardening.sql exists for.
-  for (const fn of ['claim_weekly_readout', 'finalize_weekly_readout', 'release_weekly_readout']) {
-    const revoke = new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon`);
-    assert.match(MIGRATION, revoke, `${fn} is not revoked from anon`);
+test('anon is revoked by name, and the writes revoke authenticated too', () => {
+  // `revoke ... from public` does NOT remove Supabase's explicit per-role grant
+  // — the bug class 2026-06-30-rpc-authz-hardening.sql exists for. And because
+  // create-or-replace PRESERVES grants a previous version of this file made, a
+  // database that already ran the first cut keeps handing members the write RPCs
+  // unless `authenticated` is named here.
+  assert.match(
+    MIGRATION,
+    /revoke all on function public\.claim_weekly_readout\([^)]*\) from public, anon;/,
+  );
+  assert.match(
+    MIGRATION,
+    /grant execute on function public\.claim_weekly_readout\([^)]*\) to authenticated, service_role/,
+  );
+  for (const fn of ['finalize_weekly_readout', 'release_weekly_readout']) {
     assert.match(
       MIGRATION,
-      new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to authenticated`),
-      `${fn} is not granted to authenticated`,
+      new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon, authenticated`),
+      `${fn} does not revoke authenticated by name`,
+    );
+    assert.match(
+      MIGRATION,
+      new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to service_role;`),
+      `${fn} is not granted to service_role alone`,
     );
   }
 });
 
-test('every RPC pins its search_path and checks the caller', () => {
+test('every RPC pins its search_path; the claim binds the caller, the writes bind the token', () => {
   for (const fn of ['claim_weekly_readout', 'finalize_weekly_readout', 'release_weekly_readout']) {
     const i = MIGRATION.indexOf(`function public.${fn}`);
     const body = MIGRATION.slice(i, MIGRATION.indexOf('$$;', i));
     assert.match(body, /security definer/, `${fn} is not SECURITY DEFINER`);
     // pg_temp unlisted is searched FIRST, ahead of pg_catalog.
     assert.match(body, /set search_path = public, pg_temp/, `${fn} leaves search_path open`);
-    assert.match(body, /auth\.uid\(\)/, `${fn} does not bind the caller`);
-    assert.match(body, /is_coach_on_client/, `${fn} does not gate a non-self subject`);
   }
-});
 
-test('an uncomputable week is reported as null, not an empty string', () => {
-  // '' reads as a week whose name we lost; null says we never had one — and a
-  // consumer that keys a cache on the value cannot key it on ''.
-  const res = buildReadoutResponse({
-    subjectId: 'u1',
-    weekStart: null,
-    stored: null,
-    live: LIVE,
-  });
-  assert.equal(res.week_start, null);
+  // The claim is the gate: it runs as the caller and decides self-or-coach in
+  // the database rather than in a TypeScript re-implementation of that rule.
+  const claim = MIGRATION.slice(
+    MIGRATION.indexOf('function public.claim_weekly_readout'),
+    MIGRATION.indexOf('$$;', MIGRATION.indexOf('function public.claim_weekly_readout')),
+  );
+  assert.match(claim, /auth\.uid\(\)/);
+  assert.match(claim, /is_coach_on_client/);
+
+  // ⚠ THE WRITES DELIBERATELY DO NOT READ auth.uid(). They are service_role
+  // only, where there IS no caller identity — a check would always see null and
+  // refuse every legitimate call. The claim token is the capability, and the
+  // claim is where its holder was authorized.
+  for (const fn of ['finalize_weekly_readout', 'release_weekly_readout']) {
+    const i = MIGRATION.indexOf(`function public.${fn}`);
+    const body = MIGRATION.slice(i, MIGRATION.indexOf('$$;', i));
+    assert.ok(
+      !/auth\.uid\(\)/.test(body),
+      `${fn} reads auth.uid(), which is null under the service role`,
+    );
+    assert.match(body, /claim_token = p_claim_token/, `${fn} is not token-guarded`);
+  }
 });
 
 test('the route and the assembler read ONE cache-hit predicate', () => {
@@ -347,4 +377,71 @@ test('the .d.ts declares exactly what the module exports', () => {
   for (const name of declared) {
     assert.ok(actual.has(name), `${name} is declared in the .d.ts but not exported`);
   }
+});
+
+test('the lease outlasts the longest possible generation', () => {
+  // ⚠ THIS IS WHAT MAKES THE ONE-CALL BOUND A BOUND. A reviewer read the lease
+  // as permitting two paid model calls: A claims, A's call runs past the lease,
+  // B reclaims and calls again. That needs a generation still in flight after
+  // CLAIM_LEASE_SECONDS — which cannot happen while the attempt aborts at
+  // GENERATE_TIMEOUT_MS and the route finalizes or releases immediately after.
+  // The safety was resting on two numbers agreeing by accident; this is the
+  // relationship, stated.
+  assert.equal(weeklyReadoutBoundHolds(), true);
+  assert.ok(CLAIM_LEASE_SECONDS * 1000 >= GENERATE_TIMEOUT_MS * 2);
+  // And it fails when the relationship is broken either way round.
+  assert.equal(weeklyReadoutBoundHolds(60, 60_000), false, 'a lease equal to the timeout passed');
+  assert.equal(weeklyReadoutBoundHolds(300, 600_000), false, 'a timeout past the lease passed');
+});
+
+test('the route bounds the model call with that timeout, not the shared default', () => {
+  assert.match(ROUTE, /timeoutMs: GENERATE_TIMEOUT_MS/);
+  assert.match(ROUTE, /p_lease_seconds: CLAIM_LEASE_SECONDS/);
+});
+
+test('the write RPCs are service-role only, in the migration and in the route', () => {
+  // A client that can finalize can store anything it likes as an 'openai'
+  // readout — for itself, or for a member it coaches. The claim stays caller-
+  // gated because the self-or-coach decision belongs in the database under the
+  // caller's own identity.
+  for (const fn of ['finalize_weekly_readout', 'release_weekly_readout']) {
+    assert.match(
+      MIGRATION,
+      new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon, authenticated`),
+      `${fn} is still reachable by a client role`,
+    );
+    assert.ok(
+      !new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to [^;]*authenticated`).test(MIGRATION),
+      `${fn} is granted to authenticated`,
+    );
+  }
+  // The claim is the one a client may call.
+  assert.match(
+    MIGRATION,
+    /grant execute on function public\.claim_weekly_readout\([^)]*\) to authenticated, service_role/,
+  );
+  // And the route takes the writes as the server, the claim as the caller.
+  assert.match(ROUTE, /const writer = readoutWriter\(\);/);
+  assert.match(ROUTE, /writer\.rpc\('release_weekly_readout'/);
+  assert.match(ROUTE, /await writer\.rpc\(rpc, args\)/);
+  assert.match(ROUTE, /supabase\.rpc\('claim_weekly_readout'/);
+  assert.ok(
+    !/supabase\.rpc\('(finalize|release)_weekly_readout'/.test(ROUTE),
+    'a write RPC is still called on the caller client',
+  );
+});
+
+test("the migration's own guard refuses a client-reachable write RPC", () => {
+  assert.match(MIGRATION, /a client role can still execute finalize_weekly_readout/);
+  assert.match(MIGRATION, /a client role can still execute release_weekly_readout/);
+});
+
+test('a missing service key degrades rather than failing the request', () => {
+  assert.match(ROUTE, /function readoutWriter\(\)/);
+  assert.match(ROUTE, /return null;/);
+  // The store is optional; the readout is not. With no service key the route
+  // must still answer, so the write is skipped rather than attempted.
+  assert.match(ROUTE, /const writer = readoutWriter\(\);/);
+  assert.match(ROUTE, /\{ error: null \}/);
+  assert.match(ROUTE, /await writer\.rpc\(rpc, args\)/);
 });

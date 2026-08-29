@@ -59,6 +59,27 @@
 -- readout rendered under this request's window would be a claim about days it
 -- never saw.
 --
+-- ===== THE CLAIM IS CALLER-GATED; THE WRITES ARE SERVER-ONLY =====
+-- The first cut granted all three RPCs to `authenticated`, and a reviewer was
+-- right that this made the invariant above FORGEABLE: a member's browser holds
+-- the anon key and their own JWT, so it could call claim_weekly_readout for
+-- itself, receive a claim_token, and then call finalize_weekly_readout with any
+-- p_readout it liked and p_source = 'openai'. The token proves the caller won
+-- the claim; it proves nothing about a model having produced the JSON. Worse,
+-- the same is available to a COACH for a linked member — arbitrary content
+-- planted in someone else's readout and read there as AI output.
+--
+-- So the capability is split by who may hold it:
+--   claim   -> `authenticated`, because the self-or-coach decision belongs to
+--              the DATABASE under the caller's own identity, not to a TypeScript
+--              re-implementation of is_coach_on_client. A member calling it
+--              directly gains nothing: the token it returns is only spendable by
+--              a finalize they cannot reach, so the worst they can do is hold
+--              their OWN week for one lease.
+--   finalize / release -> `service_role` ONLY. They no longer read auth.uid()
+--              at all (it is null under the service role); the CLAIM TOKEN is
+--              the capability, and the claim is where its holder was gated.
+--
 -- Depends on is_coach_on_client(uuid) (2026-05-26-shared-clients.sql).
 -- Idempotent. Safe to re-run.
 
@@ -210,6 +231,13 @@ $$;
 -- Guarded on the claim token as well as the status, so a claimer whose lease
 -- was taken writes NOTHING and its (older) readout is discarded in favour of
 -- the caller that now holds the week.
+--
+-- ⚠ SERVICE_ROLE ONLY, and therefore NO auth.uid() CHECK — there is no caller
+-- identity under the service role, and a check that always saw null would only
+-- refuse every legitimate call. The authorization happened at the claim, under
+-- the caller's own identity; the token this takes is what the claim handed back.
+-- Granting this to `authenticated` is what would let a member (or a coach, for
+-- a linked member) store fabricated JSON as an 'openai' readout.
 create or replace function public.finalize_weekly_readout(
   p_user_id uuid,
   p_week_start date,
@@ -225,15 +253,7 @@ language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
-declare
-  v_me uuid := auth.uid();
 begin
-  if v_me is null then
-    raise exception 'Authentication is required.';
-  end if;
-  if p_user_id <> v_me and not public.is_coach_on_client(p_user_id) then
-    raise exception 'Not permitted to write this member''s readout.';
-  end if;
   if p_source is null or p_source not in ('openai', 'fallback') then
     raise exception 'Unknown readout source.';
   end if;
@@ -261,6 +281,9 @@ $$;
 -- claim carries no readout, so leaving the row would only make the next caller
 -- read an empty 'generating' it then has to reclaim on a lease it need not wait
 -- for. Token-guarded for the same reason finalize is.
+--
+-- ⚠ SERVICE_ROLE ONLY, for the same reason as finalize: the token is the
+-- capability and the claim is where its holder was gated.
 create or replace function public.release_weekly_readout(
   p_user_id uuid,
   p_week_start date,
@@ -271,16 +294,7 @@ language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
-declare
-  v_me uuid := auth.uid();
 begin
-  if v_me is null then
-    raise exception 'Authentication is required.';
-  end if;
-  if p_user_id <> v_me and not public.is_coach_on_client(p_user_id) then
-    raise exception 'Not permitted to write this member''s readout.';
-  end if;
-
   delete from public.ai_weekly_readouts
    where user_id = p_user_id
      and week_start = p_week_start
@@ -295,11 +309,16 @@ $$;
 -- the bug class 2026-06-30-rpc-authz-hardening.sql was written for. Every one
 -- of these gates on auth.uid(), so anon must be revoked by name.
 revoke all on function public.claim_weekly_readout(uuid, date, integer) from public, anon;
-revoke all on function public.finalize_weekly_readout(uuid, date, uuid, jsonb, jsonb, text, integer, integer) from public, anon;
-revoke all on function public.release_weekly_readout(uuid, date, uuid) from public, anon;
 grant execute on function public.claim_weekly_readout(uuid, date, integer) to authenticated, service_role;
-grant execute on function public.finalize_weekly_readout(uuid, date, uuid, jsonb, jsonb, text, integer, integer) to authenticated, service_role;
-grant execute on function public.release_weekly_readout(uuid, date, uuid) to authenticated, service_role;
+
+-- ⚠ `authenticated` IS REVOKED FROM THE WRITES, NOT MERELY UNGRANTED. A
+-- create-or-replace preserves grants a previous version of this file made, so a
+-- database that already ran the first cut would keep handing members the ability
+-- to store fabricated 'openai' readouts unless this names the role.
+revoke all on function public.finalize_weekly_readout(uuid, date, uuid, jsonb, jsonb, text, integer, integer) from public, anon, authenticated;
+revoke all on function public.release_weekly_readout(uuid, date, uuid) from public, anon, authenticated;
+grant execute on function public.finalize_weekly_readout(uuid, date, uuid, jsonb, jsonb, text, integer, integer) to service_role;
+grant execute on function public.release_weekly_readout(uuid, date, uuid) to service_role;
 
 -- ===== structural guard =====
 do $$
@@ -326,6 +345,16 @@ begin
   end if;
   if not has_function_privilege('authenticated', 'public.claim_weekly_readout(uuid, date, integer)', 'execute') then
     raise exception 'authenticated cannot execute claim_weekly_readout';
+  end if;
+  -- The forgery gate: a client that can finalize can store anything it likes as
+  -- an 'openai' readout, for itself or for a member it coaches.
+  if has_function_privilege('authenticated', 'public.finalize_weekly_readout(uuid, date, uuid, jsonb, jsonb, text, integer, integer)', 'execute')
+     or has_function_privilege('anon', 'public.finalize_weekly_readout(uuid, date, uuid, jsonb, jsonb, text, integer, integer)', 'execute') then
+    raise exception 'a client role can still execute finalize_weekly_readout';
+  end if;
+  if has_function_privilege('authenticated', 'public.release_weekly_readout(uuid, date, uuid)', 'execute')
+     or has_function_privilege('anon', 'public.release_weekly_readout(uuid, date, uuid)', 'execute') then
+    raise exception 'a client role can still execute release_weekly_readout';
   end if;
 end;
 $$;

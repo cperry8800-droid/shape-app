@@ -106,3 +106,38 @@ export function buildReadoutResponse({ subjectId, weekStart, stored, live }) {
     readout: hit ? stored.readout : live.readout,
   };
 }
+
+/**
+ * How long a claim is honoured before another request may take it.
+ *
+ * Clamped server-side too (the RPC refuses anything under 30s), so a caller
+ * cannot hand itself a zero-length lease and make every request a reclaimer.
+ */
+export const CLAIM_LEASE_SECONDS = 300;
+
+/**
+ * The bound on one generation attempt.
+ *
+ * ⚠ THIS IS WHAT MAKES THE ONE-CALL BOUND A BOUND, and the relationship is the
+ * whole point of stating both constants here rather than in the route. A
+ * reviewer read the lease as permitting two paid model calls: A claims, A's call
+ * runs past the lease, B reclaims and calls again. That interleaving needs a
+ * generation still in flight after CLAIM_LEASE_SECONDS — which cannot happen,
+ * because the attempt aborts at GENERATE_TIMEOUT_MS and the route finalizes or
+ * releases within milliseconds of that. A dead generator is the case the reclaim
+ * exists for, and a dead generator has no call in flight to duplicate.
+ *
+ * But that safety was resting on two numbers in two files agreeing by accident.
+ * They live together now and `weeklyReadoutBoundHolds()` states the relationship
+ * a test pins: the lease must be at least twice the longest attempt, so the
+ * margin survives clock skew and the round-trips either side of the call.
+ */
+export const GENERATE_TIMEOUT_MS = 60_000;
+
+/** Does the lease still strictly outlast the longest possible generation? */
+export function weeklyReadoutBoundHolds(
+  leaseSeconds = CLAIM_LEASE_SECONDS,
+  timeoutMs = GENERATE_TIMEOUT_MS,
+) {
+  return leaseSeconds * 1000 >= timeoutMs * 2;
+}

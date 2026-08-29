@@ -15,6 +15,14 @@
 // is reclaimed here and is deliberately NOT reclaimed by the undo claim it
 // otherwise mirrors.
 //
+// ⚠ THE CLAIM IS TAKEN AS THE CALLER; THE WRITES ARE TAKEN AS THE SERVER.
+// claim_weekly_readout runs on the caller's client so the self-or-coach decision
+// stays in the database under the caller's own identity. finalize and release
+// are service_role-only and go through the admin client, because a client that
+// can finalize can store anything it likes as an 'openai' readout — for itself
+// or for a member it coaches. The claim token is the capability those two take;
+// the claim is where its holder was authorized.
+//
 // ⚠ EVERY CLAIM PATH DEGRADES TO THE PRE-MIGRATION BEHAVIOUR. Until the owner
 // applies the migration the RPCs do not exist, and a readout is worth more to a
 // member than a cache is: an absent RPC computes and generates exactly as this
@@ -35,7 +43,10 @@ import {
   weeklyReadoutWeekStart,
   buildReadoutResponse,
   isCachedReadout,
+  CLAIM_LEASE_SECONDS,
+  GENERATE_TIMEOUT_MS,
 } from '@/lib/weekly-readout.mjs';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -73,14 +84,18 @@ type ReadoutResponse = {
 };
 
 /**
- * How long a claim is honoured before another request may take it.
- *
- * Long enough that a slow model call is not stolen mid-flight, short enough
- * that a crashed generator does not cost the member their week. The value is
- * clamped server-side too (the RPC refuses anything under 30s), so a caller
- * cannot hand itself a zero-length lease and make every request a reclaimer.
+ * The service-role client used for finalize/release, or null when it cannot be
+ * built. A missing service key must not fail the request: the member still gets
+ * this response, the week simply regenerates next time.
  */
-const CLAIM_LEASE_SECONDS = 300;
+function readoutWriter() {
+  try {
+    return createAdminClient();
+  } catch (err) {
+    console.warn('[shape-app] weekly readout store unavailable:', (err as Error)?.message);
+    return null;
+  }
+}
 
 /** PostgREST's codes for "that function is not deployed". */
 function isMissingRpc(error: { code?: string; message?: string } | null): boolean {
@@ -305,7 +320,11 @@ async function generateReadout(
         },
       },
     },
-    { promptId: 'ai.weekly-readout' },
+    // ⚠ EXPLICIT, NOT THE SHARED DEFAULT. The one-call-per-week bound holds only
+    // while a generation cannot still be running when its claim's lease expires
+    // — see GENERATE_TIMEOUT_MS. Leaving this to callAI's default would make the
+    // bound depend on a number in another file that nothing here reads.
+    { promptId: 'ai.weekly-readout', timeoutMs: GENERATE_TIMEOUT_MS },
   );
 
   if (!result.ok) return null;
@@ -450,13 +469,16 @@ export async function POST(request: Request) {
       // The builder is thenable but not a Promise, so `.catch` is not on it —
       // await and discard, since a failed release must not mask the read error
       // that is the actual answer to this request.
-      const { error: releaseError } = await supabase.rpc('release_weekly_readout', {
-        p_user_id: subjectId,
-        p_week_start: weekStart,
-        p_claim_token: claim.claim_token,
-      });
-      if (releaseError && !isMissingRpc(releaseError)) {
-        console.warn('[shape-app] weekly readout release failed:', releaseError.message);
+      const writer = readoutWriter();
+      if (writer) {
+        const { error: releaseError } = await writer.rpc('release_weekly_readout', {
+          p_user_id: subjectId,
+          p_week_start: weekStart,
+          p_claim_token: claim.claim_token,
+        });
+        if (releaseError && !isMissingRpc(releaseError)) {
+          console.warn('[shape-app] weekly readout release failed:', releaseError.message);
+        }
       }
     }
     return dbError(error, 'weekly readout', 500);
@@ -508,7 +530,10 @@ export async function POST(request: Request) {
           p_week_start: weekStart,
           p_claim_token: claim.claim_token,
         };
-    const { error: writeError } = await supabase.rpc(rpc, args);
+    const writer = readoutWriter();
+    const { error: writeError } = writer
+      ? await writer.rpc(rpc, args)
+      : { error: null };
     // A failed store is not a failed readout — the member still gets this
     // response; the week simply regenerates next request.
     if (writeError && !isMissingRpc(writeError)) {
