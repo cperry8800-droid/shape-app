@@ -378,6 +378,101 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-29 — Search gets a ceiling, and stops fabricating answers when it cannot give one
+
+- **The two universal-search RPCs have never been rate-limited**, and the proxy could
+  never have covered them: all **five** callers reach `search_shape_people` /
+  `search_members` **directly from the browser with the publishable key** — the app's
+  universal search, the site header search, the standalone-page search, the DM send
+  picker and the post tag picker — so nothing passes through `/api/*`. The 2026-07-30
+  hardening pass escaped the LIKE wildcards and clamped the term, and its own note
+  named what it left open: *"the real fix is having them call the existing HMAC bucket
+  RPC."* This is that fix, plus the half of it that turned out to matter more.
+- ⚠ **THE LIMITER ALONE WOULD HAVE BEEN WORSE THAN THE PROBLEM.** Every caller turned
+  an RPC error into an **empty result list**, so a refusal would have told a member
+  that a real person **is not on Shape** — a lie the surface had no way to distinguish
+  from an honest miss. And the app's legacy fallback sat under a **bare catch**, so a
+  refused search immediately fired a **second RPC**: the limiter would have *doubled*
+  the load it exists to halve. So the callers come first — the fallback now fires only
+  on the codes that mean *that function is not deployed*, and every surface tells a
+  refusal apart from an empty answer in its own words.
+- ⚠ **MATCHED ON THE SQLSTATE, NEVER THE MESSAGE.** `PT429` is the PostgREST
+  convention that yields a real 429 where honoured and always surfaces as
+  `code: 'PT429'`; a sentence is a **spelling to pin**, which is exactly what #1936
+  cost. The app does not re-type the code at all — the predicate
+  (`ShapeSearch.isRateLimited`) lives once in the data layer and the UI asks it. The
+  three web bundles carry the literal because they are classic scripts that cannot
+  import it, and a guard pins **that asymmetry** rather than the string.
+- ⚠ **AND A LIVE FABRICATION, FOUND IN THE SAME SURFACE.** The app typeahead read
+  `r.length ? r : local`, so a signed-in member whose search matched nobody — or whose
+  search **failed** — was shown the **DEMO CAST**: fictional people with `userId` null,
+  stock faces, and nothing on the row telling them apart from real accounts; tapping
+  one opened a derived profile. The honest empty state (*"Nothing on Shape matches…"*
+  plus the marketplace door) **was already written in all three surfaces** — the
+  substitution is the only reason it could never render for a signed-in member.
+- **THE MIGRATION — and why it has to touch `check_rate_limit`.** Both search functions
+  become **plpgsql and VOLATILE**, and they must: a counter is a write, Postgres
+  refuses one inside a non-volatile function (*"INSERT is not allowed in a
+  non-volatile function"*), and `LANGUAGE sql` **cannot RAISE a refusal at all**. Each
+  SELECT is carried over **verbatim** — ranking, escaping, clamp, visibility rules and
+  limits unchanged.
+  ⚠ **The bucket name has to be unforgeable.** `check_rate_limit` is granted to `anon`
+  **and** `authenticated` by design (the Edge proxy's anon client must reach it), so
+  any signed-in caller can bump any bucket it can **NAME** — and `self:search:<uuid>`
+  is trivially guessable. A limiter keyed on the caller's uid would otherwise have
+  handed every member a way to **lock a chosen victim out of search**. So the `self:`
+  namespace is **reserved**, the public entry point refuses it (`42501`), and only
+  `check_rate_limit_self` can write there — it takes a **SCOPE, never an identity**,
+  and derives the key from `auth.uid()`. Both writers are revoked from every client
+  role, and the fixed-window arithmetic moves into **one** private helper both entry
+  points call, so it exists once.
+- ⚠ **BOTH SEARCHES SHARE ONE BUCKET, ON PURPOSE** — so a refused search cannot spend a
+  second allowance through the legacy fallback.
+- **VALIDATED AS AN ARTIFACT, NOT AS PIECES** (the #1853 lesson — a migration that
+  compiles in parts can still fail to apply as a whole). The complete file was applied
+  **inside a transaction against production and rolled back**, its own structural guard
+  passing, with **seven behavioural checks in the same transaction**: the `self:`
+  namespace refused `42501`, an ordinary api key still allowed, the self limiter
+  counting and refusing past its max, both searches returning unchanged rows, the
+  wildcard escaping intact, and — past the ceiling — **both** functions raising `PT429`
+  from the one shared bucket. The rollback mechanism itself was verified first, and the
+  rollback re-verified after (helpers absent, `search_shape_people` back to `s`/STABLE).
+- ⚠ **THE MIGRATION FILE MERGED ONE PR EARLY, AND THE ORDERING IS THE WHOLE POINT.** It
+  was swept into **#1952** (the readout surface) by an over-broad `git add` — a PR whose
+  body never mentioned it — so it reached `main` **ahead of its own callers**. Harmless
+  only because the owner runs migrations and **has not applied it**: verified against
+  production, `check_rate_limit_self` and `_rate_limit_bump` do not exist and both
+  search functions are still `sql`/`STABLE`. Had it been applied in that window, every
+  refusal would have rendered as *"this person is not on Shape."* **Stage the paths you
+  mean, not the tree** — and when a change is split across a migration and its callers,
+  the migration is the half that must never lead.
+- ⚠ **AND THE CEILING FORCED A LOOK AT WHAT THE CALLERS ACTUALLY EMIT — WHICH FOUND THE
+  ONE THAT WOULD HAVE BEEN REFUSED FIRST.** Four of the five debounce (220–250ms); the
+  **post tag picker fired one RPC per keystroke**, deps `[tagOpen, tagQuery]` and no
+  timer at all — a dozen requests to type one name, four names to a post. So the caller
+  generating the most search load was the only one spending it a character at a time,
+  and a per-member ceiling would have refused a member **tagging their training
+  partners**, which is entirely legitimate use. Debounced to **220ms, matching its own
+  sibling in the same file** (`SendPostModal`) — the inconsistency was internal to one
+  component family. This **reduces the load the limiter exists to bound**, which is the
+  right order: fix the source, then cap it.
+- ⚠ **THAT IS ALSO WHY 60/min IS SAFE, AND THE GUARD SAYS SO.** The rate is only far
+  above human use *because* every surface waits for the typing to settle, so a caller
+  added later without a debounce silently re-tunes the ceiling for everybody. A test
+  pins the debounce **at each call site** — looking backwards from the RPC for the timer
+  and forwards for the delay, since a `setTimeout` elsewhere in the file proves nothing.
+- ⚠ **ONE WINDOW ONLY, AND THE SECOND IS REGISTERED RATHER THAN GUESSED.** A longer
+  window (e.g. 600/hour) would bound a patient scraper that the per-minute ceiling lets
+  through; it needs its own measurement, so it is on the board, not in this file.
+- Verified: **2430/2430** · `tsc` 0 · both mobile + newdesign parse · **12 mutations,
+  all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+  un-reserve the `self:` namespace · grant the private limiter to a client role ·
+  restore the bare-catch fallback · match the refusal message instead of the code ·
+  re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
+  notice · un-debounce the tag picker · loosen a debounce under the floor · un-debounce
+  the standalone-page search), unmutated sanity green at both ends and the tree restored
+  clean after each.
+
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)
 
 - **A route with no reader is a route nobody has.** Steps 1 (#1950) and 2 (#1951)

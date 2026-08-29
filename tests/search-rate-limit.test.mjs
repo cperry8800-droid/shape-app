@@ -163,3 +163,35 @@ test('the honest empty state the demo substitution was hiding is still there', (
   assert.match(SHELL, /Nothing on Shape matches/);
   assert.match(SITE, /Nothing on Shape matches/);
 });
+
+// ⚠ THE CEILING IS ONLY SAFE IF THE CALLERS ARE DEBOUNCED. 60/min is far above a
+// human search session ONLY because every surface waits for the typing to settle.
+// The tag picker fired one RPC per keystroke — a dozen requests to type one name,
+// four names to a post — so the heaviest caller was the one that would have been
+// refused first, on entirely legitimate use. A caller added later without a
+// debounce silently re-tunes the ceiling for everybody.
+test('every browser-side search caller debounces its keystrokes', () => {
+  const callers = [
+    ['the app typeahead', stripComments(CLIENT), 'window.ShapeSearch.people(query)'],
+    ['the site header search', stripComments(SHELL), 'search_shape_people'],
+    ['the DM send picker', stripComments(COMMUNITY), 'sb.rpc("search_members"'],
+    ['the post tag picker', stripComments(COMMUNITY), 'cl.rpc("search_members"'],
+  ];
+  for (const [what, src, marker] of callers) {
+    const at = src.indexOf(marker);
+    assert.ok(at > 0, `${what}: call site not found`);
+    // The debounce has to WRAP the call, so look back from it for the timer and
+    // forward for the delay — a setTimeout anywhere else in the file proves nothing.
+    const before = src.slice(Math.max(0, at - 500), at);
+    assert.match(before, /setTimeout\(/, `${what} fires a search without waiting for the typing to settle`);
+    const after = src.slice(at, at + 900);
+    assert.match(after, /\}\s*,\s*(2[2-9][0-9]|[3-9][0-9][0-9])\s*\)/, `${what} debounces for under 220ms`);
+  }
+});
+
+// siteSearch.js is a classic script with its own debounce; kept separate because it
+// is a plain module-scope timer rather than an effect-scoped one.
+test('the standalone-page search debounces too', () => {
+  assert.match(stripComments(SITE), /debounceId\s*=\s*setTimeout\([\s\S]{0,160}?,\s*(2[2-9][0-9]|[3-9][0-9][0-9])\s*\)/,
+    'siteSearch.js searches on every keystroke');
+});

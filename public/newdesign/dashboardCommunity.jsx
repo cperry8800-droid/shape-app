@@ -1403,13 +1403,19 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
     // ⚠ SAME RULE HERE. A refusal must not read as "nobody by that name" — the
     // tag picker is how a member credits a training partner, so an empty list
     // silently drops a real person out of the post.
-    cl.rpc("search_members", { p_q: tagQuery || "" }).then((r) => {
-      if (!on || !r) return;
-      if (r.error) { setTagLimited(r.error.code === "PT429"); return; }
-      setTagLimited(false);
-      setTagResults((r.data || []).map((m) => ({ userId: m.id, name: m.full_name || "Member" })));
-    }).catch((e) => { if (on) setTagLimited(!!(e && e.code === "PT429")); });
-    return () => { on = false; };
+    // ⚠ AND IT IS DEBOUNCED LIKE ITS SIBLING (SendPostModal, 220ms). This effect
+    // fired one RPC PER KEYSTROKE, so the caller that generates the most search
+    // load was the only one spending it a character at a time — a dozen requests
+    // to type one name. That is what a per-member ceiling would have refused first.
+    const id = setTimeout(() => {
+      cl.rpc("search_members", { p_q: tagQuery || "" }).then((r) => {
+        if (!on || !r) return;
+        if (r.error) { setTagLimited(r.error.code === "PT429"); return; }
+        setTagLimited(false);
+        setTagResults((r.data || []).map((m) => ({ userId: m.id, name: m.full_name || "Member" })));
+      }).catch((e) => { if (on) setTagLimited(!!(e && e.code === "PT429")); });
+    }, 220);
+    return () => { on = false; clearTimeout(id); };
   }, [tagOpen, tagQuery]);
   const toggleTag = (m) => setTagged((prev) => prev.some((x) => x.userId === m.userId) ? prev.filter((x) => x.userId !== m.userId) : [...prev, m]);
   const canSubmit = (kind === "milestone"
