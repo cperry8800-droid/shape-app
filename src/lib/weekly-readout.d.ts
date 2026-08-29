@@ -26,6 +26,12 @@ export type LiveReadout = {
   generated_at: string;
 };
 
+/**
+ * Is a stored row a usable cache hit? Read by BOTH the route's cache branch and
+ * buildReadoutResponse — two readers of one fact must read one function.
+ */
+export function isCachedReadout(stored: StoredReadout | null | undefined): boolean;
+
 export function buildReadoutResponse(input: {
   subjectId: string;
   weekStart: string | null;

@@ -31,7 +31,11 @@ import {
   type CorrelationResult,
   type SnapshotPoint,
 } from '@/lib/correlations';
-import { weeklyReadoutWeekStart, buildReadoutResponse } from '@/lib/weekly-readout.mjs';
+import {
+  weeklyReadoutWeekStart,
+  buildReadoutResponse,
+  isCachedReadout,
+} from '@/lib/weekly-readout.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -391,19 +395,34 @@ export async function POST(request: Request) {
   // A finished readout answers without touching the snapshot table at all —
   // the whole point of the claim. Its stored correlations travel with it so the
   // insight keys the UI plots still resolve.
-  if (claim?.outcome === 'ready' && claim.readout) {
+  //
+  // ⚠ THE BRANCH AND THE ASSEMBLER READ THE SAME PREDICATE, not two conditions
+  // that happen to agree. Written separately they briefly did not: a half-row
+  // passed a looser check here, skipped the snapshot read, then failed a
+  // stricter one inside buildReadoutResponse — which then rendered its
+  // placeholder `live` values, i.e. an empty readout over a sample of zero.
+  // A row that is not a usable hit must fall through to the real compute path.
+  const storedReadout = claim?.outcome === 'ready'
+    ? {
+        readout: claim.readout,
+        correlations: claim.correlations,
+        source: claim.source ?? 'fallback',
+        window_days: claim.window_days,
+        sample_size: claim.sample_size,
+        generated_at: claim.generated_at,
+      }
+    : null;
+
+  if (isCachedReadout(storedReadout)) {
     return NextResponse.json(
       buildReadoutResponse({
         subjectId,
         weekStart,
-        stored: {
-          readout: claim.readout,
-          correlations: claim.correlations ?? [],
-          source: claim.source ?? 'fallback',
-          window_days: claim.window_days,
-          sample_size: claim.sample_size,
-          generated_at: claim.generated_at,
-        },
+        stored: storedReadout,
+        // Unreachable by construction — isCachedReadout has already said the
+        // stored half is complete — but the assembler is the ONE authority on
+        // stamping, so it is called rather than hand-building a second response
+        // shape here that could drift from it.
         live: {
           readout: { summary: '', insights: [] },
           correlations: [],

@@ -13,7 +13,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
-import { weeklyReadoutWeekStart, buildReadoutResponse } from '../src/lib/weekly-readout.mjs';
+import * as readoutModule from '../src/lib/weekly-readout.mjs';
+const { weeklyReadoutWeekStart, buildReadoutResponse, isCachedReadout } = readoutModule;
 
 const ROUTE = stripComments(
   readFileSync(new URL('../src/app/api/ai/weekly-readout/route.ts', import.meta.url), 'utf8'),
@@ -120,6 +121,25 @@ test('a miss reports the live figures and is not marked cached', () => {
   assert.equal(res.sample_size, 12);
   assert.equal(res.readout.summary, 'live');
   assert.deepEqual(res.correlations, LIVE.correlations);
+});
+
+test('a stored readout with no correlations to cite is not a cache hit', () => {
+  // The quieter of the two half-row failures, and the reason the hit condition
+  // is one test rather than a null-check on the readout alone: a null readout
+  // under `cached: true` is conspicuous, while a readout served beside an empty
+  // correlation list renders fine and is a lie — every insight names a
+  // correlation_key the UI plots and none of them would resolve.
+  for (const empty of [null, undefined, []]) {
+    const res = buildReadoutResponse({
+      subjectId: 'u1',
+      weekStart: '2026-08-24',
+      stored: { ...STORED, correlations: empty },
+      live: LIVE,
+    });
+    assert.equal(res.cached, false, `treated ${JSON.stringify(empty)} correlations as a hit`);
+    assert.equal(res.readout.summary, 'live');
+    assert.deepEqual(res.correlations, LIVE.correlations);
+  }
 });
 
 test('a stored row with no readout is not a cache hit', () => {
@@ -282,4 +302,49 @@ test('an uncomputable week is reported as null, not an empty string', () => {
     live: LIVE,
   });
   assert.equal(res.week_start, null);
+});
+
+test('the route and the assembler read ONE cache-hit predicate', () => {
+  // Written as two conditions they briefly disagreed, and the half-row that
+  // passed the route's looser one skipped the snapshot read and then rendered
+  // the assembler's placeholder: an empty readout over a sample of zero. Same
+  // class as #1950's split reportability predicate, in the same feature.
+  assert.equal(typeof isCachedReadout, 'function');
+  assert.match(ROUTE, /isCachedReadout\(storedReadout\)/);
+  assert.ok(
+    !/claim\?\.outcome === 'ready' && claim\.readout\)/.test(ROUTE),
+    'the route decides the cache hit with its own condition again',
+  );
+  // And the assembler must not re-derive it either.
+  const MODULE = stripComments(
+    readFileSync(new URL('../src/lib/weekly-readout.mjs', import.meta.url), 'utf8'),
+  );
+  assert.match(MODULE, /const hit = isCachedReadout\(stored\);/);
+});
+
+test('isCachedReadout requires both halves', () => {
+  assert.equal(isCachedReadout(STORED), true);
+  assert.equal(isCachedReadout(null), false);
+  assert.equal(isCachedReadout({ ...STORED, readout: null }), false);
+  assert.equal(isCachedReadout({ ...STORED, correlations: [] }), false);
+  assert.equal(isCachedReadout({ ...STORED, correlations: null }), false);
+  // Not an array — jsonb can hold an object, and `.length` on one is undefined,
+  // which a truthiness check would read as "no correlations" only by accident.
+  assert.equal(isCachedReadout({ ...STORED, correlations: { a: 1 } }), false);
+});
+
+test('the .d.ts declares exactly what the module exports', () => {
+  // A .d.ts is NOT checked against its .mjs by the compiler, so a hand-typed
+  // drift surfaces as a wrong `any` at a call site rather than as an error.
+  const DTS = readFileSync(new URL('../src/lib/weekly-readout.d.ts', import.meta.url), 'utf8');
+  const declared = new Set(
+    [...DTS.matchAll(/export (?:function|const) (\w+)/g)].map((m) => m[1]),
+  );
+  const actual = new Set(Object.keys(readoutModule));
+  for (const name of actual) {
+    assert.ok(declared.has(name), `${name} is exported but not declared in the .d.ts`);
+  }
+  for (const name of declared) {
+    assert.ok(actual.has(name), `${name} is declared in the .d.ts but not exported`);
+  }
 });

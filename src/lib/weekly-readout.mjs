@@ -43,6 +43,35 @@ export function weeklyReadoutWeekStart(nowMs) {
 }
 
 /**
+ * Is this stored row a usable cache hit?
+ *
+ * ⚠ EXPORTED BECAUSE THE ROUTE NEEDS THE SAME ANSWER, and tightening it inside
+ * `buildReadoutResponse` alone briefly made things WORSE rather than better —
+ * caught by tracing the change through the caller rather than by a test. The
+ * route decides whether to take its cache branch (and skip the snapshot read)
+ * before it calls the assembler; with the two conditions written separately,
+ * a half-row passed the route's looser check, skipped the read, and then failed
+ * the assembler's stricter one — so it rendered the assembler's placeholder
+ * `live` values: an EMPTY readout over a sample size of zero. That is the same
+ * class as #1950's split reportability predicate, in the same feature, one PR
+ * later: sharing a threshold is not sharing a predicate, and two readers of one
+ * fact must read one function.
+ *
+ * A stored readout always cites at least one correlation — only generated
+ * readouts are stored, and generation requires a pair that cleared the
+ * reportability gate — so requiring both halves costs nothing real and fails
+ * toward recomputation, which cannot render a lie.
+ */
+export function isCachedReadout(stored) {
+  return !!(
+    stored &&
+    stored.readout &&
+    Array.isArray(stored.correlations) &&
+    stored.correlations.length > 0
+  );
+}
+
+/**
  * Assemble the response, stamped with what the readout actually covers.
  *
  * `stored` is the row the claim returned when a finished readout already
@@ -53,14 +82,15 @@ export function weeklyReadoutWeekStart(nowMs) {
  * has since moved would leave the readout citing evidence the response no
  * longer contains.
  *
- * ⚠ A 'ready' ROW WITHOUT A READOUT IS NOT A CACHE HIT. The finalize RPC only
- * ever writes the two together, so this cannot happen through the app — but
- * treating it as a hit would serve `readout: null` under `cached: true`, which
- * is the shape a consumer is least equipped to notice. Falling back to the live
- * readout costs one recomputation and cannot render a lie.
+ * ⚠ A 'ready' ROW IS A HIT ONLY IF IT CARRIES BOTH HALVES — see
+ * `isCachedReadout`. The two failure modes differ in how loud they are, and the
+ * quieter one is why: a null readout under `cached: true` is at least
+ * conspicuous, while a readout served beside an EMPTY correlation list renders
+ * fine and is a lie, because every insight names a correlation_key the UI plots
+ * and none of them would resolve.
  */
 export function buildReadoutResponse({ subjectId, weekStart, stored, live }) {
-  const hit = !!(stored && stored.readout);
+  const hit = isCachedReadout(stored);
   return {
     source: hit ? stored.source : live.source,
     cached: hit,
