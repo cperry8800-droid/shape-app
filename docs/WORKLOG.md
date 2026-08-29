@@ -390,18 +390,19 @@ changelog whenever something ships.
   that, and it is deliberately the enumeration rather than a sixth repair.
 - ⚠ **MEASURED, AND IT IS NOT CLOSE.** `tests/i18n-surface-inventory.test.mjs`
   walks `mobile-app/src/broadsheet/*.jsx` with the AST: **358** components render
-  JSX — **88 fully localized · 27 partial** (167 strings still hardcoded) ·
-  **120 with NO translator in scope at all** (1,106 strings) · 123 render no user
-  copy. Of the **235** that render copy, **38% are localized.**
-- ⚠ **AND THE UNCOVERED SET IS NOT THE TAIL — IT IS THE PRODUCT.** The **live
-  session player** (`BSSession`, 59 strings), the **meal logger**
-  (`BSLogMealFlow`, 52), the **profile customizer** (61), the **workout builder**
-  (36) and the **coach application** (55) all carry **zero `tr()`**.
+  JSX — **83 fully localized · 32 partial** (196 strings still hardcoded) ·
+  **125 with NO translator in scope at all** (1,360 strings) · 118 render no user
+  copy. Of the **240** that render copy, **35% are localized.**
+- ⚠ **AND THE UNCOVERED SET IS NOT THE TAIL — IT IS THE PRODUCT.** The **profile
+  customizer** (76 strings), the **live session player** (`BSSession`, 74), the
+  **coach application** (67), the **meal logger** (`BSLogMealFlow`, 66), the
+  **sign-in / create-account form** (`BSLogin`, 51) and the **workout builder**
+  (44) all carry **zero `tr()`**.
 - ⚠ **AND THE LANGUAGE PICKER IS THE ONLY LOCALIZED SCREEN IN THE ENTIRE LAUNCH
   FLOW.** `BSLanguagePicker` has 3 `tr()` calls; every screen on either side of it
   carries none — the wire beat and the "Shape Daily" telegram (both `BSSplash`,
-  36), the paywall (`BSPaywall`, 6), the sign-in / create-account form (`BSLogin`,
-  30), the preview banner (4), `BSWireHold`, `BSWireLoading` and `BSAppShell`.
+  35), the paywall (`BSPaywall`, 8), the sign-in / create-account form (`BSLogin`,
+  51), the preview banner (4), `BSWireHold`, `BSWireLoading` and `BSAppShell`.
   Verified against the stage machine (`beat → lang → gate → … → daily`), not
   assumed. So a member picks Spanish and the very next screen — and every screen
   until the app itself — is English.
@@ -411,9 +412,41 @@ changelog whenever something ships.
   six surfaces; a per-file count reads the file as covered and hides every one of
   them. That is exactly how three of the five corrections got missed.
 - ⚠ **THE WORST NUMBER IS A PARTIAL, NOT A ZERO.** `BSClientEat` — a **primary
-  tab** — has **3 `tr()` calls against 73 hardcoded strings**. A per-file count
+  tab** — has **3 `tr()` calls against 62 hardcoded strings**. A per-file count
   can't see it; a per-component *zero* check can't either. It is only visible
   because the walk reports partials as their own class.
+- ⚠ **AND THE FIRST PUBLISHED NUMBER WAS WRONG — COPY IS NOT ONLY A DIRECT CHILD
+  OF ITS CONTAINER** (Codex P1 on #1954, verified against the source and taken).
+  The detector counted a string only when its **immediate parent** was a JSX
+  expression container or one of seven attributes — so copy routed through a
+  conditional or a local data object was invisible: `{isAdded ? '✓ ADDED' : '+
+  ADD'}` puts the literals under a `ConditionalExpression`, `{a || 'Untitled'}`
+  under a `LogicalExpression`. **Whole components were classified as rendering no
+  user copy at all** — `BSConfirmSheet` (*"Are you sure?" · "Cancel" · "Confirm"* —
+  the shared confirm dialog), the **Find-a-coach bar**, the **Save button**, the
+  **widget picker**, the GPS preview — so they sat in **neither** baseline, and a
+  new component using that everyday shape would have walked straight past the
+  ratchet. The measurement had the exact blind spot the PR was written about.
+- **A rendered expression container is walked whole now**, stopping at nested JSX
+  (visited on its own terms — descending double-counts), **calls** (a
+  `tr('key', {defaultValue})` argument is a key, not copy), **comparison
+  operands** (`typeof x === 'string'` is a token, and counting them read four
+  animation components plus three shells as carrying untranslated copy) and
+  **`<style>`/`<script>` children** (`@keyframes` is not copy).
+  ⚠ **`walk()`'s return value became load-bearing in the same edit and was being
+  ignored** — the first cut of the container walk pruned nothing, collected every
+  `tr()` defaultValue and style-object literal, and reported **4,094** strings:
+  wrong in the *other* direction, and it would have read as a bigger, scarier gap
+  rather than as a broken instrument.
+- ⚠ **AND ONE TEMPTING WIDENING WAS REJECTED ON ITS NUMBERS.** Attributing
+  copy-keyed object properties (`title`/`label`/`hint`) to their component looked
+  like the natural companion fix — it is how `BSWidgetPicker`'s group titles are
+  declared. Measured, it added **ZERO components** and only inflated the string
+  count with **demo fixtures** (community-feed posts, demo client names, sample
+  meal titles). So it is out, and the residual is stated instead: **copy declared
+  in a data table and rendered by reference (`{W.label}`) is not attributed to the
+  component** — a limit of a lexical walk, which means **the real gap is larger
+  than reported**, never smaller.
 - **The guard is a two-way ratchet, not a target list.** A **new** uncovered
   surface fails; a baseline entry that is **now covered, or no longer exists**,
   also fails — so the set can never silently vouch for code that moved on.
@@ -442,11 +475,14 @@ changelog whenever something ships.
   value first cuts are the ones a member hits in a session: **`BSSession`**, the
   **meal logger**, the **auth/splash shell**, and the **`BSClientEat` partial**.
   Firing that unattended would be the opposite of what the measurement is for.
-- **6 mutations, all caught** (plant a new uncovered component · a baseline entry
-  that gained a translator · a baseline entry that vanished · a covered component
-  that regresses to hardcoded copy · the walker returning nothing · dropping the
-  `coachTr` widening), unmutated sanity green at both ends and the tree restored
-  clean after each. Verified: `npm test` · all broadsheet files parse.
+- **11 mutations, all caught** — the ratchet (a new uncovered component · a
+  component whose copy is ONLY in a conditional · a baseline entry that gained a
+  translator · a stale baseline entry · a covered component regressing to
+  hardcoded copy) and the detector (revert to immediate-parent-only · count
+  `<style>` children · count comparison operands · `walk()` ignoring the prune
+  signal · the walker returning nothing · dropping the `coachTr` widening) —
+  unmutated sanity green at both ends and the tree restored clean after each.
+  Verified: `npm test` · `tsc` 0 · all broadsheet files parse.
 
 ### 2026-08-29 — Search gets a ceiling, and stops fabricating answers when it cannot give one
 
