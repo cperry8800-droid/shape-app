@@ -36,7 +36,13 @@ const BRAND = new Set([
   'Shape', 'Shape Score', 'Shape Kitchen', 'Shape Radio', 'Shape Store', 'Shape Steps',
   'Vol. 1 · No. 1', 'Nora', 'Spotify', 'Apple Music', 'Instacart', 'Strava', 'Whoop',
   'Oura', 'Garmin', 'RPE', 'e1RM', 'kcal', 'KCAL', 'BPM', 'HRV', 'GPS', 'PR', 'PRS', 'Aa',
+  'KB', 'MB', 'GB', 'ms', 'px',
 ]);
+
+// Comparison operands are TOKENS, never rendered: `typeof x === 'string'`,
+// `variant === 'plate'`. Counting them read four animation components and three
+// shells as carrying untranslated copy.
+const COMPARISON = new Set(['===', '!==', '==', '!=']);
 
 // Props whose string value is READ ALOUD or rendered. Everything else a string can
 // land in — styles, classes, keys, colors, ids — is not copy.
@@ -46,6 +52,37 @@ const TEXT_PROPS = new Set(['placeholder', 'title', 'alt', 'aria-label', 'ariaLa
 // and the pros module's module-scope non-hook `coachTr` (the roster helpers cannot
 // hold a hook). Matching only `tr` would read every coachTr surface as uncovered.
 const IS_TR = /^(tr|[a-z]\w*Tr)$/;
+
+// ⚠ COPY IS NOT ONLY A DIRECT CHILD OF ITS CONTAINER — Codex P1 on #1954, and it
+// made the first published number wrong. `{isAdded ? '✓ ADDED' : '+ ADD'}` puts
+// the literals under a ConditionalExpression, `{a || 'Untitled'}` under a
+// LogicalExpression; matching only the IMMEDIATE parent misses both. Whole
+// components were invisible that way — BSConfirmSheet ("Are you sure?" · "Cancel"
+// · "Confirm"), the Find-a-coach bar, the Save button, the widget picker — and a
+// new component using the same everyday shape would have walked past the ratchet.
+// So a RENDERED expression container is walked whole, stopping at:
+//   · nested JSX      — visited on its own terms; descending double-counts
+//   · calls           — tr('key', {defaultValue}) args are keys, not copy
+//   · comparisons     — see COMPARISON above
+//   · <style>/<script>— @keyframes is not copy
+/** Every user-facing string inside one rendered expression container. */
+function containerStrings(container) {
+  const out = [];
+  walk(container, (n) => {
+    if (n !== container && (n.type === 'JSXElement' || n.type === 'JSXFragment'
+      || n.type === 'JSXAttribute' || n.type === 'CallExpression')) return false;
+    if (n.type === 'BinaryExpression' && COMPARISON.has(n.operator)) return false;
+    if (n.type === 'StringLiteral' && usable(n.value)) out.push(n.value);
+    if (n.type === 'TemplateLiteral') for (const q of n.quasis) if (usable(q.value.cooked)) out.push(q.value.cooked.trim());
+    return true;
+  });
+  return out;
+}
+
+/** Two consecutive letters, and not a brand noun the house keeps literal. */
+function usable(v) {
+  return !!v && LETTERS.test(v) && !BRAND.has(v.trim());
+}
 
 /** Walk one file and return { name, tr, hard } for every component that renders JSX. */
 function componentsOf(file) {
@@ -69,7 +106,8 @@ function componentsOf(file) {
   }
 
   for (const d of decls) {
-    let tr = 0, hard = 0, jsx = 0;
+    let tr = 0, jsx = 0;
+    const strings = new Set();
     // ⚠ WALK THE COMPONENT'S OWN NODE, never the Program with a range test. The
     // first version pruned on `n.start < d.start`, which is true of the Program
     // root itself (start 0) — so it skipped the entire tree and reported zero.
@@ -79,22 +117,28 @@ function componentsOf(file) {
       if (n.type === 'JSXElement' || n.type === 'JSXFragment') jsx++;
       if (n.type === 'JSXText') {
         const v = n.value.trim();
-        if (v && LETTERS.test(v) && !BRAND.has(v)) hard++;
+        if (usable(v)) strings.add(v);
       }
-      if (n.type === 'StringLiteral' && LETTERS.test(n.value) && !BRAND.has(n.value.trim())) {
-        if (parent?.type === 'JSXExpressionContainer') hard++;
-        else if (parent?.type === 'JSXAttribute' && TEXT_PROPS.has(parent.name?.name)) hard++;
+      if (n.type === 'StringLiteral' && usable(n.value)
+        && parent?.type === 'JSXAttribute' && TEXT_PROPS.has(parent.name?.name)) strings.add(n.value);
+      if (n.type === 'JSXExpressionContainer' && (parent?.type === 'JSXElement' || parent?.type === 'JSXFragment')) {
+        const tag = parent.openingElement?.name?.name;
+        if (tag !== 'style' && tag !== 'script') for (const v of containerStrings(n)) strings.add(v);
       }
     });
-    if (jsx > 0) out.push({ name: d.name, tr, hard });
+    if (jsx > 0) out.push({ name: d.name, tr, hard: strings.size });
   }
   return out;
 }
 
-/** Depth-first over a Babel AST subtree. */
+/** Depth-first over a Babel AST subtree; `visit` returns false to skip a subtree. */
 function walk(node, visit, parent = null) {
   if (!node || typeof node.type !== 'string') return;
-  visit(node, parent);
+  // ⚠ THE RETURN VALUE IS LOAD-BEARING. containerStrings() prunes nested JSX,
+  // calls and comparisons through it; ignoring it collected tr() defaultValues
+  // and style-object literals as untranslated copy (4,094 strings instead of
+  // 1,412 — a number wrong in the other direction).
+  if (visit(node, parent) === false) return;
   for (const key of Object.keys(node)) {
     if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue;
     const v = node[key];
@@ -125,55 +169,59 @@ function inventory() {
 /** Renders user-facing copy with NO translator in scope at all. */
 const UNCOVERED = new Set([
   'Client::BSAboutPage', 'Client::BSActivityBody', 'Client::BSActivityLogCta',
-  'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan', 'Client::BSBuildDoor',
-  'Client::BSCardSheetHost', 'Client::BSChatThread', 'Client::BSClientGoals',
-  'Client::BSClientLibrary', 'Client::BSClientNextPlate', 'Client::BSClientProgress',
-  'Client::BSClientTrain', 'Client::BSCoachAdjustBanner', 'Client::BSCoachGroceryReview',
-  'Client::BSCodeOfConductPage', 'Client::BSCommitmentCard', 'Client::BSConsumerHealthPage',
-  'Client::BSContactPage', 'Client::BSCrossoverCard', 'Client::BSDataCompliancePage',
-  'Client::BSDayBriefPreview', 'Client::BSFacetAvatar', 'Client::BSFollowListSheet',
-  'Client::BSFollowSuggestions', 'Client::BSGoalEditSheet', 'Client::BSGoalsContract',
-  'Client::BSGroceryBuilder', 'Client::BSGroceryLibrary', 'Client::BSHeadlineEditSheet',
-  'Client::BSHealthIntake', 'Client::BSHelpPage', 'Client::BSIntegrationsPage',
-  'Client::BSIntentStep', 'Client::BSKitchenCard', 'Client::BSLeaderboard',
-  'Client::BSLegalActions', 'Client::BSLibraryDetail', 'Client::BSLogActivity',
-  'Client::BSLogMealFlow', 'Client::BSMealLogged', 'Client::BSMessageComposer',
-  'Client::BSMoodSheet', 'Client::BSNoraMemoryPage', 'Client::BSNoraProfile',
-  'Client::BSNoraProposal', 'Client::BSNotifications', 'Client::BSNotifyPrefs',
-  'Client::BSOverallEditSheet', 'Client::BSPlaylistCard', 'Client::BSPricingPage',
-  'Client::BSPrivacyPage', 'Client::BSProfileCustomizer', 'Client::BSProfileIdentityHead',
-  'Client::BSProgChart', 'Client::BSRecipeBox', 'Client::BSRecipePreview', 'Client::BSReconcile',
-  'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSScoreCardDark',
-  'Client::BSSdTrace', 'Client::BSSearchCorner', 'Client::BSSession', 'Client::BSSessionsScreen',
-  'Client::BSSleepHistory', 'Client::BSStepGoalSheet', 'Client::BSStepsHistory',
-  'Client::BSStrengthCard', 'Client::BSStrengthHistory', 'Client::BSSubprocessorsPage',
-  'Client::BSSwapSheet', 'Client::BSTermsPage', 'Client::BSUniversalSearch',
-  'Client::BSVideoCall', 'Client::BSWeekendsCard', 'Client::BSWeeklyCheckin',
-  'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet', 'Client::BSWorkoutBuilder',
-  'Client::BSWorkoutPreview', 'Main::BSAppShell', 'Main::BSCosmicWordmark', 'Main::BSLogin',
-  'Main::BSPaywall', 'Main::BSPreviewBanner', 'Main::BSSplash', 'Main::BSTweaksPanel',
-  'Main::BSWireHold', 'Main::BSWireLoading', 'Pros::BSCoachGoalPlanPage',
-  'Pros::BSCoachPlaylistStudio', 'Pros::BSGoalEditSheet', 'Pros::BSProMonthlyOfferSheet',
-  'Pros::BSProNotificationsPage', 'Pros::BSProPublicProfilePage',
-  'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetSlot', 'Widgets::WAdherence',
-  'Widgets::WBody', 'Widgets::WCalories', 'Widgets::WFocus', 'Widgets::WHRV', 'Widgets::WLoad',
-  'Widgets::WMacros', 'Widgets::WMeasurements', 'Widgets::WMicros', 'Widgets::WMood',
-  'Widgets::WPR', 'Widgets::WProteinTiming', 'Widgets::WReadiness', 'Widgets::WRestingHR',
-  'Widgets::WSleep', 'Widgets::WSoreness', 'Widgets::WSteps', 'Widgets::WStreak',
-  'Widgets::WVO2', 'Widgets::WWater', 'Widgets::WWeight', 'Widgets::WZones',
+  'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan',
+  'Client::BSBuildDoor', 'Client::BSCardSheetHost', 'Client::BSChatThread',
+  'Client::BSClientGoals', 'Client::BSClientLibrary', 'Client::BSClientNextPlate',
+  'Client::BSClientProgress', 'Client::BSClientTrain', 'Client::BSCoachAdjustBanner',
+  'Client::BSCoachGroceryReview', 'Client::BSCodeOfConductPage', 'Client::BSCommitmentCard',
+  'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
+  'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
+  'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
+  'Client::BSGoalEditSheet', 'Client::BSGoalsContract', 'Client::BSGroceryBuilder',
+  'Client::BSGroceryLibrary', 'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
+  'Client::BSHelpPage', 'Client::BSIntegrationsPage', 'Client::BSIntentStep',
+  'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
+  'Client::BSLibraryDetail', 'Client::BSLogActivity', 'Client::BSLogMealFlow',
+  'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
+  'Client::BSNoraMemoryPage', 'Client::BSNoraProfile', 'Client::BSNoraProposal',
+  'Client::BSNotifications', 'Client::BSNotifyPrefs', 'Client::BSOverallEditSheet',
+  'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
+  'Client::BSProfileCustomizer', 'Client::BSProfileIdentityHead', 'Client::BSProgChart',
+  'Client::BSRecipeBox', 'Client::BSRecipePreview', 'Client::BSReconcile',
+  'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
+  'Client::BSScoreCardDark', 'Client::BSSdTrace', 'Client::BSSearchCorner', 'Client::BSSession',
+  'Client::BSSessionsScreen', 'Client::BSSleepHistory', 'Client::BSStepGoalSheet',
+  'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
+  'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
+  'Client::BSUniversalSearch', 'Client::BSVideoCall', 'Client::BSWeekendsCard',
+  'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet',
+  'Client::BSWorkoutBuilder', 'Client::BSWorkoutPreview', 'Main::BSAppShell',
+  'Main::BSCosmicWordmark', 'Main::BSLogin', 'Main::BSPaywall', 'Main::BSPreviewBanner',
+  'Main::BSSplash', 'Main::BSTweaksPanel', 'Main::BSWireHold', 'Main::BSWireLoading',
+  'Pros::BSCoachGoalPlanPage', 'Pros::BSCoachPlaylistStudio', 'Pros::BSGoalEditSheet',
+  'Pros::BSProMonthlyOfferSheet', 'Pros::BSProNotificationsPage', 'Pros::BSProPublicProfilePage',
+  'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetPicker',
+  'Widgets::BSWidgetSlot', 'Widgets::WAdherence', 'Widgets::WBody', 'Widgets::WCalories',
+  'Widgets::WFocus', 'Widgets::WHRV', 'Widgets::WLoad', 'Widgets::WMacros',
+  'Widgets::WMeasurements', 'Widgets::WMicros', 'Widgets::WMood', 'Widgets::WPR',
+  'Widgets::WProteinTiming', 'Widgets::WReadiness', 'Widgets::WRestingHR', 'Widgets::WSleep',
+  'Widgets::WSoreness', 'Widgets::WSteps', 'Widgets::WStreak', 'Widgets::WVO2',
+  'Widgets::WWater', 'Widgets::WWeight', 'Widgets::WZones', 'index::BSConfirmSheet',
 ]);
 
 /** Has a translator AND still hardcodes copy — a partial rollout, not a missed one. */
 const PARTIAL = new Set([
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
-  'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSGrocery',
+  'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSCookMode', 'Client::BSGrocery',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
-  'Client::BSMealPreview', 'Client::BSPrepSession', 'Client::BSProfileExtras',
-  'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart', 'Client::BSShapeKitchenRecipe',
-  'Client::BSSplitsPage', 'Client::BSTerrainProfile', 'Marketplace::BSCoachDetailPublic',
-  'Marketplace::MktCoachCard', 'Marketplace::MktComboCard', 'Marketplace::MktRow',
-  'Pros::BSProMe', 'Pros::BSProSoundtracks', 'Pros::ProWeekendPlate', 'Radio::BSNowPlayingMuted',
-  'Radio::BSRadioScreen', 'Radio::BSShapeSetsScreen',
+  'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
+  'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
+  'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile', 'Client::BSSplitsPage',
+  'Client::BSTerrainProfile', 'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
+  'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
+  'Pros::BSProMe', 'Pros::BSProSoundtracks', 'Pros::BSWorkoutReviewPage',
+  'Pros::ProWeekendPlate', 'Radio::BSNowPlayingMuted', 'Radio::BSRadioScreen',
+  'Radio::BSShapeSetsScreen',
 ]);
 
 // ── The measurement ─────────────────────────────────────────────────────────
