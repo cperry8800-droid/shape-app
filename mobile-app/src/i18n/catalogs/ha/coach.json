@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Zo mu haɗu a Shape",
   "addClient.publishFirst": "Fara buga talla naka a kasuwa — gayyatar tana ɗauke da shi.",
   "addClient.retryTag": "Sake gwada alamar 0%",
+  "addClient.searchFailed": "An kasa nema yanzu — ka duba haɗin yanar gizonka ka sake gwadawa.",
+  "addClient.searchLimited": "Kana nema da sauri sosai — ka ɗan jira.",
   "addClient.searchPlaceholder": "Nemi mambobi da suna…",
   "addClient.sendLabel": "Aika hanyar haɗinka",
   "addClient.shareCopy": "Raba / kwafi",

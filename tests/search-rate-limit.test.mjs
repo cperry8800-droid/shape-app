@@ -21,6 +21,7 @@ const CLIENT = fs.readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient
 const SITE = fs.readFileSync('public/newdesign/siteSearch.js', 'utf8');
 const SHELL = fs.readFileSync('public/newdesign/pageShell.jsx', 'utf8');
 const COMMUNITY = fs.readFileSync('public/newdesign/dashboardCommunity.jsx', 'utf8');
+const PROS = fs.readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', 'utf8');
 
 // -- the migration -----------------------------------------------------------
 
@@ -180,6 +181,7 @@ test('every browser-side search caller debounces its keystrokes', () => {
     ['the site header search', stripComments(SHELL), 'search_shape_people'],
     ['the DM send picker', stripComments(COMMUNITY), 'sb.rpc("search_members"'],
     ['the post tag picker', stripComments(COMMUNITY), 'cl.rpc("search_members"'],
+    ['the coach roster search', stripComments(PROS), 'window.ShapeSearch?.people?.(query, 12)'],
   ];
   for (const [what, src, marker] of callers) {
     const call = src.indexOf(marker);
@@ -355,6 +357,7 @@ test('every refusal branch renders ahead of its own empty state', () => {
     ['the site header search', stripComments(SHELL), /state !== "ok" \?/, /Nothing on Shape matches/],
     ['the DM send picker', stripComments(COMMUNITY), /\{state !== "ok" \? \(/, /people\.length === 0 \?/],
     ['the post tag picker', stripComments(COMMUNITY), /\{\s*tagState !== "ok"\s*\?/, /tagResults\.length === 0 \?/],
+    ['the coach roster search', stripComments(PROS), /searchState !== 'ok' &&/, /coach:addClient\.noMembers/],
   ];
   for (const [what, src, refusal, empty] of surfaces) {
     const r = src.search(refusal);
@@ -386,6 +389,7 @@ test('a failed search never renders as "nobody matched"', () => {
     ['the site header search', stripComments(SHELL), /setState\(e && e\.code === "PT429" \? "limited" : "failed"\)/],
     ['the DM send picker', stripComments(COMMUNITY), /setState\(e && e\.code === "PT429" \? "limited" : "failed"\)/],
     ['the post tag picker', stripComments(COMMUNITY), /setTagState\(e && e\.code === "PT429" \? "limited" : "failed"\)/],
+    ['the coach roster search', stripComments(PROS), /setSearchState\(\s*window\.ShapeSearch\?\.isRateLimited\?\.\(failure\) === true \? 'limited' : 'failed'\s*\)/],
   ];
   for (const [what, src, shape] of surfaces) {
     assert.match(src, shape, `${what} does not separate a failure from a refusal`);
@@ -395,6 +399,7 @@ test('a failed search never renders as "nobody matched"', () => {
   assert.match(stripComments(SHELL), /Couldn’t search just now/, 'the site header search has no failure copy');
   assert.match(stripComments(COMMUNITY), /Couldn’t search just now/, 'the send picker has no failure copy');
   assert.match(stripComments(COMMUNITY), /Couldn’t search just now — try again/, 'the tag picker has no failure copy');
+  assert.match(stripComments(PROS), /coach:addClient\.searchFailed/, 'the coach roster has no failure copy');
   // siteSearch routes both through one honest could-not-answer renderer
   const site = stripComments(SITE);
   assert.match(site, /function renderProblem\(nh, isLimited\)/, 'siteSearch has no could-not-answer renderer');
@@ -428,4 +433,90 @@ test('the typeahead effect restarts when the session resolves', () => {
   assert.ok(deps, "the typeahead effect's dependency array is gone");
   assert.match(deps[1], /\bsignedIn\b/,
     'signedIn is not a dependency — a timer scheduled before auth resolved fires with the stale value and renders the demo cast to a signed-in member');
+});
+
+// ⚠ THE SUGGESTION RAIL WAS THE SIXTH DOOR INTO THE SAME FABRICATION. The
+// typeahead stopped substituting the demo cast; the "People you may know" loader
+// three lines above it did not. For a signed-in member, THREE different outcomes
+// reached its final fallback — nobody to suggest, a REFUSED read (PT429), and a
+// FAILED one — and every one of them wrote fictional accounts (userId null, stock
+// faces, no marker on the row) into a real member's empty state. The rail renders
+// nothing at all when the list is empty, so leaving it empty claims nothing; the
+// substitution was the only thing making a claim.
+test('the suggestion rail never substitutes demo people for a signed-in member', () => {
+  const src = stripComments(CLIENT);
+  const at = src.indexOf("window.ShapeSearch.people('', 8)");
+  assert.ok(at > 0, 'the suggestion loader no longer calls the search');
+  const tail = src.slice(at, at + 900);
+  const demo = tail.match(/setSuggested\(\s*demoPeople[^)]*\)/);
+  assert.ok(demo, 'the demo fallback is gone — if that is deliberate, retire this guard');
+  const guard = tail.slice(0, demo.index);
+  assert.match(guard.slice(-160), /!\s*signedIn/,
+    'the demo cast is still reachable for a signed-in member — an empty, refused or failed suggestion read hands them fictional accounts');
+});
+
+// Same dependency trap as the typeahead, one effect up: `signedIn` is read fresh
+// every render, so a `[]`-dep loader ran once with the pre-auth `false`, took the
+// signed-out branch, and left the demo cast on screen for a member. The flip has
+// to re-run it — and the re-run has to CLEAR what the first pass wrote, because
+// re-running does not un-set state.
+test('the suggestion loader restarts when the session resolves, and clears what it wrote', () => {
+  const src = stripComments(CLIENT);
+  const at = src.indexOf("window.ShapeFollows.suggestions(8)");
+  assert.ok(at > 0, 'the suggestion loader is gone');
+  const open = src.lastIndexOf('React.useEffect(', at);
+  assert.ok(open > 0 && open < at, 'the suggestion loader is no longer in an effect');
+  const body = src.slice(open, src.indexOf('window.ShapeSearch.people(query)'));
+  const deps = body.match(/\},\s*\[([^\]]*)\]\s*\)/);
+  assert.ok(deps, "the suggestion effect's dependency array is gone");
+  assert.match(deps[1], /\bsignedIn\b/,
+    'signedIn is not a dependency — a loader that ran before auth resolved leaves the demo cast in front of a signed-in member');
+  assert.match(src.slice(open, at), /if \(signedIn\) setSuggested\(\[\]\)/,
+    'the re-run does not clear the demo cast the pre-auth pass wrote');
+});
+
+// ⚠ A DERIVED INVENTORY, NOT A HAND-WRITTEN LIST — and this guard exists because
+// the hand-written one failed exactly once, in review: every surface table above
+// was populated by enumerating the callers I remembered, and the coach roster was
+// not among them, so a rate-limited coach read "No members match" about members
+// who were right there while sixteen assertions passed. A list of callers cannot
+// prove it is the list of callers. This one reads the tree and fails on a file
+// that searches without being covered, so the NEXT caller is caught at the gate
+// rather than by the next reviewer.
+test('every file that performs a search is covered by the guards above', () => {
+  const GUARDED = new Set([
+    'mobile-app/src/services/shapeBackend.js',            // the data layer itself
+    'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
+    'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx',
+    'public/newdesign/pageShell.jsx',
+    'public/newdesign/siteSearch.js',
+    'public/newdesign/dashboardCommunity.jsx',
+  ]);
+  const roots = ['mobile-app/src', 'public/newdesign', 'src'];
+  const files = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p); }
+      else if (/\.(js|jsx|mjs|ts|tsx)$/.test(e.name)) files.push(p);
+    }
+  };
+  for (const r of roots) if (fs.existsSync(r)) walk(r);
+  assert.ok(files.length > 50, 'the tree walk found almost nothing — the guard would pass vacuously');
+
+  // A "search caller" is anything that reaches either search RPC, by either door:
+  // the RPC name directly, or the data layer's ShapeSearch.people wrapper.
+  const CALLS = /(rpc\(\s*['"]search_(shape_people|members)['"]|ShapeSearch\s*\??\.\s*people\s*\??\.?\s*\()/;
+  const found = files.filter((f) => CALLS.test(stripComments(fs.readFileSync(f, 'utf8'))));
+  assert.ok(found.length > 0, 'no search callers found at all — the pattern no longer matches the code');
+
+  const unguarded = found.filter((f) => !GUARDED.has(f));
+  assert.deepEqual(unguarded, [],
+    `these files search but are not covered by the refusal/failure guards above: ${unguarded.join(', ')}. ` +
+    'Add the surface to the tables above (and to GUARDED), or it will render a refused search as "nobody matched".');
+
+  // …and the inverse: an entry that stops searching must be removed, or the set
+  // silently vouches for a file that no longer has the behaviour it names.
+  const stale = [...GUARDED].filter((f) => !found.includes(f));
+  assert.deepEqual(stale, [], `these files are listed as search callers but no longer search: ${stale.join(', ')}`);
 });

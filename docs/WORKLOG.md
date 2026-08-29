@@ -489,7 +489,7 @@ changelog whenever something ships.
 - ⚠ **AND THE SECOND ONE WAS ENUMERATED, NOT PATCHED WHERE IT WAS REPORTED.** The
   tag picker's refusal was invisible because the notice sat **behind** the
   empty-state test — the same ordering mistake on any other surface hides a refusal
-  the same way. Swept all five callers: the app typeahead, the site header search
+  the same way. Swept every caller: the app typeahead, the site header search
   and `pageShell` all clear their rows and test the refusal **first**;
   `siteSearch.js` rebuilds its markup each render so it has no stale state at all.
   **Only the tag picker had it.** The ordering is now pinned on every surface, so it
@@ -512,7 +512,7 @@ changelog whenever something ships.
   telling a member a real person is not on Shape on evidence we never had. My own
   comment even called it *"the honest floor"* while doing it. There are **three**
   outcomes, not two — **refused · failed · genuinely empty** — and only the last is
-  evidence about who exists. All five callers now say which.
+  evidence about who exists. Every caller now says which.
 - ⚠ **THE DEMO CAST HAD A SECOND DOOR, THROUGH A STALE CLOSURE.** `signedIn` is
   recomputed from the auth cache on every render, but the typeahead effect depended
   on `[q]` alone — so a timer scheduled **before a session resolved** fired with the
@@ -539,8 +539,34 @@ changelog whenever something ships.
   guard this time.** Anchoring on `.catch(` found `siteSearch.js`'s **Supabase bundle
   loader**, several hundred lines above the search, so the assertion passed while
   saying nothing about the code it named. Anchored on the RPC instead.
-- Verified: **2436/2436** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
-  · both mobile + newdesign parse · **27 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+- ⚠ **THE CALLER LIST WAS WRONG, AND THAT IS THE FINDING — NOT THE TWO SURFACES IT
+  MISSED.** This entry said *"all five callers"*. There are **six**. The **coach
+  roster** search (`iosAppBroadsheetPros.jsx`) swallowed every error into `[]` and
+  rendered *"No members match — share your listing link instead."* to a coach whose
+  search was **refused or failed** — the exact claim this whole change exists to stop
+  making, on the one surface where the row's action **invites a named person**, so a
+  stale match invites the wrong account. And the app's **suggestion rail** — three
+  lines above the typeahead I had just fixed — fell through to the **demo cast** for a
+  signed-in member on **all three** of empty, refused and failed, with the same
+  `[]`-dep stale-closure trap underneath it (a mount before auth resolved wrote
+  fictional accounts, and the flip could not un-write them, so the re-run now clears
+  first).
+- ⚠ **AND THE GUARD NO LONGER TAKES MY WORD FOR THE INVENTORY, WHICH IS THE ONLY PART
+  THAT GENERALISES.** Every surface table here was populated by enumerating the
+  callers I remembered — which is precisely why a suite of sixteen assertions passed,
+  twice, over a caller that was never in it. **A list of callers cannot prove it is
+  the list of callers.** A new test WALKS THE TREE for anything reaching either RPC or
+  the `ShapeSearch.people` wrapper and fails on a file that searches without being
+  covered — and fails the other way too, if a listed file stops searching, so the set
+  cannot silently vouch for behaviour that has moved. The next caller is caught at the
+  gate instead of by the next reviewer.
+- ⚠ **A ROLLOUT NOTE THIS CHANGED:** the pre-apply check is now **six** bundles, not
+  five. The coach app ships in the same `public/m` build, so a stale deploy is the
+  realistic way to apply the ceiling over a roster that still reads a refusal as
+  *"No members match"*.
+- Verified: **2439/2439** · `tsc` 0 · newdesign precompile `--check` 0 · mobile build 0
+  with the two new coach keys confirmed in the emitted bundle · both mobile + newdesign
+  parse · catalog parity ×13 · **31 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
   re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
@@ -553,8 +579,10 @@ changelog whenever something ships.
   empty state on three separate surfaces · drop `signedIn` from the effect deps ·
   widen the fallback back to any missing function · unwire the function name at the
   call site · render a thrown search as an empty result again · un-debounce the tag
-  picker after the refactor), unmutated sanity green at both ends and the tree restored
-  clean after each.
+  picker after the refactor · restore the coach roster's swallow-into-empty · put its
+  refusal notice behind the empty state · restore the suggestion rail's demo fallback ·
+  drop `signedIn` from the suggestion effect's deps), unmutated sanity green at both
+  ends and the tree restored clean after each.
 
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)
 

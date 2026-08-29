@@ -15232,6 +15232,11 @@ function BSUniversalSearch({ onClose }) {
   const [suggestKind, setSuggestKind] = useStateBSC('on'); // 'know' | 'on'
   React.useEffect(() => {
     let dead = false;
+    // A mount that happened BEFORE auth resolved took the signed-out branch and
+    // wrote the demo cast; the flip only re-runs this effect, it does not un-set
+    // what that run already left on screen. Clear it first so fictional people
+    // can never survive into a signed-in render.
+    if (signedIn) setSuggested([]);
     (async () => {
       if (signedIn && window.ShapeFollows?.suggestions) {
         try {
@@ -15247,10 +15252,19 @@ function BSUniversalSearch({ onClose }) {
       if (signedIn && window.ShapeSearch) {
         try { const r = await window.ShapeSearch.people('', 8); if (!dead && Array.isArray(r) && r.length) { setSuggested(r); setSuggestKind('on'); return; } } catch (e) {}
       }
-      if (!dead) { setSuggested(demoPeople.slice(0, 8)); setSuggestKind('on'); }
+      // ⚠ SIGNED-OUT ONLY. Three different things reach here for a signed-in
+      // member — nobody to suggest, a REFUSED read (PT429), and a FAILED one —
+      // and substituting the demo cast for any of them puts fictional accounts in
+      // front of a real member: the same fabrication the typeahead below stopped,
+      // one surface over. The suggestion block renders nothing at all when the
+      // list is empty, so leaving it empty claims nothing about who is on Shape.
+      if (!dead && !signedIn) { setSuggested(demoPeople.slice(0, 8)); setSuggestKind('on'); }
     })();
     return () => { dead = true; };
-  }, []);
+    // ⚠ `signedIn` IS A DEPENDENCY, for the reason the typeahead's is: it is read
+    // fresh every render from the auth cache, so a `[]`-dep effect ran once with the
+    // pre-auth `false` and handed a signed-in member the demo cast.
+  }, [signedIn, demoPeople]);
 
   // Live typeahead — debounced 250ms. The demo cast is the SIGNED-OUT preview.
   //

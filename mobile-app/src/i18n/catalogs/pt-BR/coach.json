@@ -21,6 +21,8 @@
   "addClient.pitchSubject": "Junte-se a mim na Shape",
   "addClient.publishFirst": "Publique seu anúncio no mercado primeiro — o convite o leva.",
   "addClient.retryTag": "Tentar tag 0% de novo",
+  "addClient.searchFailed": "Não foi possível buscar agora — verifique sua conexão e tente novamente.",
+  "addClient.searchLimited": "Você está buscando rápido demais — espere um instante.",
   "addClient.searchPlaceholder": "Busque membros por nome…",
   "addClient.sendLabel": "Envie seu link",
   "addClient.shareCopy": "Compartilhar / copiar",
