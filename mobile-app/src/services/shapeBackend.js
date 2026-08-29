@@ -6200,8 +6200,16 @@ const SEARCH_RATE_LIMITED = 'PT429';
 function searchIsRateLimited(err) {
   return !!(err && err.code === SEARCH_RATE_LIMITED);
 }
+// The message check is a safety net for a deployment that returns neither code.
+// ⚠ It requires the word "function": a bare /does not exist/ also matches
+// `relation "x" does not exist` (42P01) and every other undefined-object error,
+// so a permission or schema fault would have fallen through to the legacy RPC and
+// spent a SECOND allowance — the exact thing the fallback narrowing prevents.
 function searchFnMissing(err) {
-  return !!(err && (SEARCH_MISSING_FN.has(err.code) || /could not find the function|does not exist/i.test(err.message || '')));
+  if (!err) return false;
+  if (SEARCH_MISSING_FN.has(err.code)) return true;
+  const msg = err.message || '';
+  return /could not find the function/i.test(msg) || /function\b[^]*\bdoes not exist/i.test(msg);
 }
 async function searchShapePeople(q = '', limit = 20) {
   if (!supabase || !state.user?.id) return [];

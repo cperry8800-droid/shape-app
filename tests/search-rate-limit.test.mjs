@@ -195,3 +195,37 @@ test('the standalone-page search debounces too', () => {
   assert.match(stripComments(SITE), /debounceId\s*=\s*setTimeout\([\s\S]{0,160}?,\s*(2[2-9][0-9]|[3-9][0-9][0-9])\s*\)/,
     'siteSearch.js searches on every keystroke');
 });
+
+// ⚠ THE MESSAGE SAFETY NET MUST NOT MATCH EVERY UNDEFINED-OBJECT ERROR. A bare
+// /does not exist/ also matches `relation "x" does not exist` (42P01), a missing
+// column (42703), and anything else Postgres words that way — so a schema or
+// permission fault would have fallen through to the legacy RPC and spent a SECOND
+// allowance, which is the precise failure the narrowed fallback exists to prevent.
+// Driven against the REAL predicate, not its spelling.
+test('the missing-function fallback fires on missing functions and nothing else', async () => {
+  const src = stripComments(BACKEND);
+  const at = src.indexOf('function searchFnMissing');
+  assert.ok(at > 0, 'the predicate is gone');
+  const body = src.slice(at, src.indexOf('async function searchShapePeople', at));
+  const SEARCH_MISSING_FN = new Set(['PGRST202', '42883']);
+  // eslint-disable-next-line no-eval
+  const searchFnMissing = eval(`(${body.slice(body.indexOf('function searchFnMissing'))})`);
+
+  const fires = [
+    { code: 'PGRST202' },
+    { code: '42883' },
+    { message: 'Could not find the function public.search_shape_people(p_limit, p_q) in the schema cache' },
+    { message: 'function public.search_shape_people(text, integer) does not exist' },
+  ];
+  for (const err of fires) assert.equal(searchFnMissing(err), true, `should fall back: ${JSON.stringify(err)}`);
+
+  const doesNot = [
+    { code: '42P01', message: 'relation "rate_limits" does not exist' },
+    { code: '42703', message: 'column "foo" does not exist' },
+    { code: '42501', message: 'permission denied for function check_rate_limit_self' },
+    { code: 'PT429', message: 'too many searches - try again in a moment' },
+    null,
+    undefined,
+  ];
+  for (const err of doesNot) assert.equal(searchFnMissing(err), false, `must NOT fall back: ${JSON.stringify(err)}`);
+});

@@ -464,13 +464,24 @@ changelog whenever something ships.
 - ⚠ **ONE WINDOW ONLY, AND THE SECOND IS REGISTERED RATHER THAN GUESSED.** A longer
   window (e.g. 600/hour) would bound a patient scraper that the per-minute ceiling lets
   through; it needs its own measurement, so it is on the board, not in this file.
-- Verified: **2430/2430** · `tsc` 0 · both mobile + newdesign parse · **12 mutations,
+- ⚠ **AND MY OWN NARROWED FALLBACK STILL MATCHED TOO MUCH — found by re-reading the
+  diff, not by a gate.** The missing-function safety net kept a bare
+  `/does not exist/i` beside the codes, and Postgres words **every** undefined object
+  that way: `relation "x" does not exist` (42P01), a missing column (42703). So a
+  schema or permission fault would have fallen through to the legacy RPC and spent a
+  **second allowance** — precisely the failure the narrowing exists to prevent. The
+  message check now requires the word **function**, and the guard **drives the real
+  predicate** over eight error shapes (the two codes, both real missing-function
+  messages, and the four that must not fall through, the refusal among them) rather
+  than pinning its spelling.
+- Verified: **2431/2431** · `tsc` 0 · both mobile + newdesign parse · **14 mutations,
   all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
   re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
   notice · un-debounce the tag picker · loosen a debounce under the floor · un-debounce
-  the standalone-page search), unmutated sanity green at both ends and the tree restored
+  the standalone-page search · widen the fallback back to a bare `does not exist` ·
+  drop the code set and match on the message alone), unmutated sanity green at both ends and the tree restored
   clean after each.
 
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)
