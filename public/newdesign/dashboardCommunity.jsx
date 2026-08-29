@@ -748,13 +748,20 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   function SendPostModal({ post, onClose }) {
     const [q, setQ] = React.useState("");
     const [people, setPeople] = React.useState([]);
+    const [limited, setLimited] = React.useState(false); // the per-member search ceiling refused this one
     const [busy, setBusy] = React.useState("");
     React.useEffect(() => {
       let dead = false;
       const id = setTimeout(() => {
         const sb = window.shapeDb && window.shapeDb.client;
         if (!sb) { setPeople([]); return; }
-        sb.rpc("search_members", { p_q: q || "" }).then(r => { if (!dead) setPeople(Array.isArray(r.data) ? r.data : []); }).catch(() => { if (!dead) setPeople([]); });
+        // ⚠ A REFUSAL IS NOT AN EMPTY RESULT. Past the per-member ceiling the RPC
+        // raises PT429 (2026-08-29-search-rate-limit.sql); an empty list would
+        // tell the sender that nobody by that name is on Shape. Matched on the
+        // CODE, never the message.
+        sb.rpc("search_members", { p_q: q || "" })
+          .then(r => { if (dead) return; setLimited(!!(r.error && r.error.code === "PT429")); setPeople(Array.isArray(r.data) ? r.data : []); })
+          .catch(e => { if (dead) return; setLimited(!!(e && e.code === "PT429")); setPeople([]); });
       }, 220);
       return () => { dead = true; clearTimeout(id); };
     }, [q]);
@@ -785,7 +792,9 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
             style={{ width: "100%", boxSizing: "border-box", padding: "10px 2px", border: 0, borderBottom: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontSize: 14.5, outline: "none" }} />
           <div style={{ maxHeight: 300, overflowY: "auto", marginTop: 6 }}>
-            {people.length === 0 ? (
+            {limited ? (
+              <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>Searching a little fast — give it a moment and try again.</div>
+            ) : people.length === 0 ? (
               <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{q ? "No one found." : "Search for someone to send this to."}</div>
             ) : people.map((m, i) => (
               <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: "100%", textAlign: "left", cursor: "pointer", background: "transparent", border: 0, borderTop: i ? "1px solid rgba(242,237,228,0.07)" : 0, padding: "10px 2px", display: "flex", alignItems: "center", gap: 10, color: INK, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
@@ -1384,16 +1393,22 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
   const [tagged, setTagged] = React.useState(ed && Array.isArray(ed.mentions) ? ed.mentions : []); // [{ userId, name }]
   const [tagQuery, setTagQuery] = React.useState("");
   const [tagResults, setTagResults] = React.useState([]);
+  const [tagLimited, setTagLimited] = React.useState(false);
   const [tagOpen, setTagOpen] = React.useState(false);
   React.useEffect(() => {
     if (!tagOpen) return;
     const cl = window.shapeDb && window.shapeDb.client;
     if (!cl || !cl.rpc) return;
     let on = true;
+    // ⚠ SAME RULE HERE. A refusal must not read as "nobody by that name" — the
+    // tag picker is how a member credits a training partner, so an empty list
+    // silently drops a real person out of the post.
     cl.rpc("search_members", { p_q: tagQuery || "" }).then((r) => {
-      if (!on || !r || r.error) return;
+      if (!on || !r) return;
+      if (r.error) { setTagLimited(r.error.code === "PT429"); return; }
+      setTagLimited(false);
       setTagResults((r.data || []).map((m) => ({ userId: m.id, name: m.full_name || "Member" })));
-    }).catch(() => {});
+    }).catch((e) => { if (on) setTagLimited(!!(e && e.code === "PT429")); });
     return () => { on = false; };
   }, [tagOpen, tagQuery]);
   const toggleTag = (m) => setTagged((prev) => prev.some((x) => x.userId === m.userId) ? prev.filter((x) => x.userId !== m.userId) : [...prev, m]);
@@ -1592,7 +1607,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.5)" }}>{on ? "TAGGED ✓" : "TAG"}</span>
                 </button>
               ); })}
-              {tagResults.length === 0 && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagQuery.trim() ? "No matches." : "Type a name to find someone."}</div>}
+              {tagResults.length === 0 && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagLimited ? "Searching a little fast — give it a moment." : (tagQuery.trim() ? "No matches." : "Type a name to find someone.")}</div>}
             </div>
           </div>
         )}

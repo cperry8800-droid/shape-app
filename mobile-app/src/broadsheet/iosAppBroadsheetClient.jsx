@@ -15252,19 +15252,33 @@ function BSUniversalSearch({ onClose }) {
     return () => { dead = true; };
   }, []);
 
-  // Live typeahead — debounced 250ms; demo cast is the signed-out / error fallback.
+  // Live typeahead — debounced 250ms. The demo cast is the SIGNED-OUT preview.
+  //
+  // ⚠ A SIGNED-IN MEMBER IS NEVER SHOWN THE DEMO CAST. This used to read
+  // `r.length ? r : local`, so a real search that matched nobody — or that failed
+  // — substituted the fictional people (userId: null, stock faces, no marker on
+  // the row telling them apart from real accounts). A member searching for
+  // someone who is not on Shape was shown someone who does not exist, and tapping
+  // them opened a derived profile. The honest empty state below ("Nothing on
+  // Shape matches …" plus the marketplace door) was already written; the
+  // substitution is the only reason it could never render.
+  const [limited, setLimited] = useStateBSC(false);
   React.useEffect(() => {
     const query = q.trim();
-    if (!query) { setRows(null); setBusy(false); return; }
+    if (!query) { setRows(null); setBusy(false); setLimited(false); return; }
     setBusy(true);
     let dead = false;
     const id = setTimeout(() => {
       const needle = query.replace(/^@/, '').toLowerCase();
-      const local = demoPeople.filter(p => p.name.toLowerCase().includes(needle));
       if (signedIn && window.ShapeSearch) {
-        window.ShapeSearch.people(query).then(r => { if (dead) return; setRows(Array.isArray(r) && r.length ? r : local); setBusy(false); })
-          .catch(() => { if (!dead) { setRows(local); setBusy(false); } });
-      } else { setRows(local); setBusy(false); }
+        window.ShapeSearch.people(query)
+          .then(r => { if (dead) return; setLimited(false); setRows(Array.isArray(r) ? r : []); setBusy(false); })
+          // ⚠ A REFUSAL IS NOT AN EMPTY RESULT. Past the per-member ceiling the RPC
+          // raises PT429; rendering that as "nothing matches" would tell a member a
+          // real person does not exist. Any other failure reads as empty, which is
+          // the honest floor — we know we could not answer, not that nobody matched.
+          .catch(e => { if (dead) return; setLimited(window.ShapeSearch?.isRateLimited?.(e) === true); setRows([]); setBusy(false); });
+      } else { setRows(demoPeople.filter(p => p.name.toLowerCase().includes(needle))); setBusy(false); setLimited(false); }
     }, 250);
     return () => { dead = true; clearTimeout(id); };
   }, [q]);
@@ -15413,6 +15427,10 @@ function BSUniversalSearch({ onClose }) {
         ) : q.trim() ? (
           busy && !rows ? (
             <div style={{ padding: '18px 0', ...eyebrow }}>Searching…</div>
+          ) : limited ? (
+            <div style={{ padding: '18px 0' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Searching a little fast — give it a moment and try again.</div>
+            </div>
           ) : (list.length === 0 && moreHits === 0 && !noraHit) ? (
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Nothing on Shape matches “{q.trim()}”.</div>

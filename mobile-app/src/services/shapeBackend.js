@@ -6183,18 +6183,38 @@ window.ShapeChannels = {
 // `search_shape_people` returns role + profile photo + all-time points in one
 // call; falls back to the older `search_members` RPC (names only) when the
 // migration hasn't been applied yet.
+//
+// ⚠ THE FALLBACK IS FOR A MISSING FUNCTION, NOT FOR EVERY ERROR. It used to sit
+// under a bare `catch`, so ANY failure — a network blip, an RLS change, a
+// timeout, a refusal — silently re-ran the search through the names-only RPC and
+// returned whatever came back, with the caller unable to tell a degraded result
+// from a real one. Two consequences once the search RPCs carry a ceiling
+// (2026-08-29-search-rate-limit.sql): a refused call would immediately spend a
+// SECOND one, so the limiter would double the load it exists to halve; and the
+// member would be told "no results" for a person who exists. The fallback now
+// fires only on the codes that actually mean "that function is not deployed".
+const SEARCH_MISSING_FN = new Set(['PGRST202', '42883']);
+// PostgREST's HTTP-status convention: the RPC raises `PT429` past the ceiling.
+// Matched on the CODE, never the message — a sentence is a spelling to pin.
+const SEARCH_RATE_LIMITED = 'PT429';
+function searchIsRateLimited(err) {
+  return !!(err && err.code === SEARCH_RATE_LIMITED);
+}
+function searchFnMissing(err) {
+  return !!(err && (SEARCH_MISSING_FN.has(err.code) || /could not find the function|does not exist/i.test(err.message || '')));
+}
 async function searchShapePeople(q = '', limit = 20) {
   if (!supabase || !state.user?.id) return [];
-  try {
-    const { data, error } = await supabase.rpc('search_shape_people', { p_q: q || '', p_limit: limit });
-    if (error) throw error;
+  const { data, error } = await supabase.rpc('search_shape_people', { p_q: q || '', p_limit: limit });
+  if (!error) {
     return (data || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: p.role || 'client', avatar: p.avatar || null, points: p.points != null ? Number(p.points) : null }));
-  } catch (e) {
-    const { data } = await supabase.rpc('search_members', { p_q: q || '' });
-    return (data || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: 'client', avatar: null, points: null }));
   }
+  if (!searchFnMissing(error)) throw error;
+  const { data: legacy, error: legacyErr } = await supabase.rpc('search_members', { p_q: q || '' });
+  if (legacyErr) throw legacyErr;
+  return (legacy || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: 'client', avatar: null, points: null }));
 }
-window.ShapeSearch = { people: searchShapePeople };
+window.ShapeSearch = { people: searchShapePeople, isRateLimited: searchIsRateLimited };
 
 // Resolve a provider row (trainers/nutritionists) to its owner auth user — lets
 // "Coached by" chips link to the coach's live public profile.
