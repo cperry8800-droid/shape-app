@@ -1,7 +1,7 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
-import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
+import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import BSDobGate from './BSDobGate.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
@@ -17,6 +17,11 @@ const {
   useBS, BSProvider, BSPhone, BSLogo,
   BSRadioProvider, useBSRadio,
 } = window;
+
+// The membership price, interpolated into every CTA that quotes it. One
+// constant so a reprice is a single edit — and so a translator can never bake
+// a converted figure ('5 €') into a locale string: Shape charges USD.
+const BS_PRICE = '$5';
 
 let _clientBundlePromise = null;
 let _prosBundlePromise = null;
@@ -229,13 +234,14 @@ function BSWireGround({ dim }) {
 // (paced to the beat's ~3.5s dwell; it parks full if the membership check runs
 // long) + a mono LOADING label. Reduced-motion renders the bar full.
 function BSWireLoading({ top = 72 }) {
+  const { tr } = useTr('onboarding');
   ensureWireStyles();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: top }}>
       <div style={{ width: 148, height: 2, background: 'rgba(242,237,228,0.14)', overflow: 'hidden' }} aria-hidden="true">
         <div className="bs-wire-fill" style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
       </div>
-      <div style={{ fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.55)' }}>Loading</div>
+      <div style={{ fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.55)' }}>{tr('launch.loading')}</div>
     </div>
   );
 }
@@ -290,17 +296,6 @@ function BSShapeMark({ size = 104, calm }) {
       <polygon className="bs-mark-edge e1" points="20,40 20,88 56,64" fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinejoin="round" />
       <polygon className="bs-mark-edge e2" points="80,12 80,60 44,36" fill="none" stroke="#0ac5a8" strokeWidth="1.6" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-// The SHAPE Daily. wordmark in light, for use over the night sky.
-function BSCosmicWordmark({ scale = 1 }) {
-  return (
-    <div className="bs-splash-title" style={{ textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap', color: '#f4efe6' }}>
-      <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31 * scale, letterSpacing: '-0.055em' }}>The</span>
-      <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8 * scale, marginRight: 10 * scale, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontSize: 37 * scale, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)', color: '#ffffff' }}>SHAPE</span>
-      <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31 * scale, letterSpacing: '-0.055em' }}>Daily.</span>
-    </div>
   );
 }
 
@@ -431,32 +426,6 @@ function bsDigestFirstName(auth) {
     return first || null;
   } catch (e) { return null; }
 }
-function bsDigestRelTime(iso) {
-  try {
-    if (!iso) return '';
-    const then = new Date(iso).getTime();
-    if (!then) return '';
-    const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
-    if (mins < 1) return 'just now';
-    if (mins < 60) return mins + 'm ago';
-    const hrs = Math.round(mins / 60);
-    if (hrs < 24) return hrs + 'h ago';
-    return Math.round(hrs / 24) + 'd ago';
-  } catch (e) { return ''; }
-}
-function bsDigestTime12(hhmm) {
-  try {
-    const mm = String(hhmm).match(/^(\d{1,2}):(\d{2})$/);
-    if (!mm) return hhmm;
-    let h = parseInt(mm[1], 10); const ap = h >= 12 ? 'PM' : 'AM';
-    h = h % 12; if (h === 0) h = 12;
-    return h + ':' + mm[2] + ' ' + ap;
-  } catch (e) { return hhmm; }
-}
-function bsDigestClamp(s, n) {
-  s = String(s || '');
-  return s.length > n ? s.slice(0, n - 1).trim() + '…' : s;
-}
 async function bsDigestScore(auth) {
   const d = await bsSplashGet('/api/client/score', auth);
   if (!d || typeof d.points_total !== 'number') return null;
@@ -552,8 +521,9 @@ async function bsBuildDailyDigest() {
   return { signedIn: true, name: name, score: r[0], training: r[1], coach: r[2], nutrition: r[3], streak: r[4].streak, challenge: r[4].challenge, directive: r[5] };
 }
 
-function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
+function BSSplash({ onDone, style = 'wire-beat' }) {
   const t = useBS();
+  const { tr, locale } = useTr('onboarding');
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
   // Classified (the telegram/invite) and the wire beat manage their own timing:
   // classified self-advances or waits on a tap; the beat is held by the shell
@@ -604,18 +574,6 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return () => clearTimeout(id);
   }, [bsTeleReady]);
 
-  // ── 0. COSMOS (default): colourful night sky + floating Shape mark ──
-  if (style === 'cosmos' || !style) {
-    return (
-      <div onClick={onDone} style={{ position: 'absolute', inset: 0, color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer' }}>
-        <BSNightSky />
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <BSShapeMark size={132} />
-        </div>
-      </div>
-    );
-  }
-
   // ── WIRE BEAT: the brand overture. The membership check resolves behind it
   // (the shell holds the stage until authReady + membership + min dwell, then
   // routes), so no "Checking membership…" screen ever renders. Composition
@@ -628,7 +586,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
-          <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
+          <span>{tr('launch.masthead')}</span><span>Vol. 1 · No. 1</span>
         </div>
         <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
           <div className="bs-wire-mark-float">
@@ -645,122 +603,16 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     );
   }
 
-  // ── 1. MASTHEAD: rule-bound vol/no, big stacked title, footer
-  if (style === 'masthead') {
-    return (
-      <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '54px 20px 40px' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BSLogo size={22} color={t.INK} /> Vol. 1 · No. 1</span>
-          <span>Thu · May 21 · 2026</span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div className="bs-splash-title" style={{ textAlign: 'center', lineHeight: 1, width: '100%', margin: '0 auto', paddingBottom: 16, borderBottom: `3px solid ${t.INK}` }}>
-            <span style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
-              <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
-              <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
-              <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
-            </span>
-          </div>
-        </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', borderTop: `1px solid ${t.RULE}`, paddingTop: 14 }}>
-          Loading edition…
-        </div>
-      </div>
-    );
-  }
-
-  // ── 2. DROPCAP: massive S, small column type beside it
-  if (style === 'dropcap') {
-    return (
-      <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', padding: '54px 20px 40px' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
-          <span>The Shape Daily</span><span>Edition · 2026</span>
-        </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 320, lineHeight: 0.78, letterSpacing: '-0.07em', color: t.INK }}>S</div>
-          <div style={{ position: 'absolute', right: 16, bottom: 60, textAlign: 'right' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, fontWeight: 700 }}>The Shape</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 28, letterSpacing: '-0.03em', color: t.INK, marginTop: 4 }}>Daily</div>
-          </div>
-        </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, textAlign: 'left', borderTop: `1px solid ${t.RULE}`, paddingTop: 14 }}>
-          Loading · Vol. 1
-        </div>
-      </div>
-    );
-  }
-
-  // ── 3. FRONTPAGE: full mock cover — masthead, halftone block, headline, bylines, ticker
-  if (style === 'frontpage') {
-    return (
-      <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '50px 18px 8px' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${t.RULE}`, paddingBottom: 6 }}>
-            <span>Vol. 1 · No. 1</span><span>May 21 · 2026</span><span>$0 · Daily</span>
-          </div>
-          <div style={{ borderBottom: `3px double ${t.INK}`, padding: '12px 0 14px', display: 'flex', justifyContent: 'center' }}>
-            <BSWordmark size={42} full color={t.INK} />
-          </div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', padding: '4px 0' }}>
-            Train · Eat · Recover · Repeat
-          </div>
-        </div>
-
-        {/* Mini halftone hero */}
-        <div style={{ margin: '4px 18px 0', height: 130, background: t.INK, position: 'relative', overflow: 'hidden' }}>
-          <div style={{
-            position: 'absolute', inset: 0,
-            backgroundImage: `radial-gradient(${t.PAPER} 22%, transparent 23%), radial-gradient(${t.PAPER} 22%, transparent 23%)`,
-            backgroundSize: '7px 7px',
-            backgroundPosition: '0 0, 3.5px 3.5px',
-            opacity: 0.85,
-          }} />
-        </div>
-
-        {/* Headline */}
-        <div style={{ padding: '14px 18px 6px' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ Today's edition</div>
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Pull day. Peak week. Tempo wins.</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 8 }}>By Jordan Chen · Coach</div>
-        </div>
-
-        {/* Footer ticker */}
-        <div style={{ marginTop: 'auto', background: t.INK, color: t.PAPER, padding: '10px 14px', display: 'flex', gap: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-          <span style={{ color: t.AMBER, fontWeight: 700 }}>Loading…</span>
-          <span style={{ opacity: 0.6 }}>CAL 1568/2100</span>
-          <span style={{ opacity: 0.6 }}>SLP 7H24M</span>
-        </div>
-      </div>
-    );
-  }
-
-  // ── 4. VAULT: ink background with hairline frame, monogram
-  if (style === 'vault') {
-    const TEAL = '#0ac5a8';
-    return (
-      <div style={{ position: 'absolute', inset: 0, background: t.INK, color: t.PAPER, padding: 18 }}>
-        <div style={{ position: 'absolute', inset: 18, border: `1px solid ${t.PAPER}`, opacity: 0.35 }} />
-        <div style={{ position: 'absolute', inset: 24, border: `1px solid ${t.PAPER}`, opacity: 0.6 }} />
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-          <BSLogo size={64} color={TEAL} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.32em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, marginTop: 14 }}>The Shape Daily</div>
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 120, lineHeight: 0.86, letterSpacing: '-0.06em', color: t.PAPER, marginTop: 10, marginBottom: 14, textAlign: 'center' }}>
-            SD
-          </div>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.32em', textTransform: 'uppercase', color: t.PAPER, opacity: 0.7 }}>Vol. 1 · No. 1</div>
-          <div style={{ marginTop: 24, width: 90, height: 1, background: t.PAPER, opacity: 0.4 }} />
-          <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.PAPER, opacity: 0.5 }}>Loading edition…</div>
-        </div>
-      </div>
-    );
-  }
-
   // ── 5. THE DAILY: a personalized morning briefing built on real member data ──
   if (style === 'classified') {
     // Today's editorial date (the wire topbar).
     const today = new Date();
-    const wkday = today.toLocaleDateString([], { weekday: 'short' });
-    const month = today.toLocaleDateString([], { month: 'short' });
+    // The editorial date follows the SELECTED UI language, not the device
+    // locale — a member reading Shape in Spanish on an English phone gets
+    // 'jue · may 21', not 'Thu · May 21'.
+    const dtLoc = (typeof window !== 'undefined' && window.ShapeI18n?.intlLocale?.()) || undefined;
+    const wkday = today.toLocaleDateString(dtLoc, { weekday: 'short' });
+    const month = today.toLocaleDateString(dtLoc, { month: 'short' });
     const day   = today.getDate();
     const dateShort = `${wkday} · ${month} ${day}`;
 
@@ -776,12 +628,15 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     // bounded directive). Non-null exactly for a signed-in member; the
     // signed-out invite edition falls through below, verbatim.
     ensureWireStyles();
-    const wireLines = bsWireLines(dg, dg && dg.directive);
+    // The telegram body is the most-read screen of the cold open, so it takes
+    // the translator + locale: the wire's own words, the member's clock
+    // convention, and locale-correct upper-casing of their coach's name.
+    const wireLines = bsWireLines(dg, dg && dg.directive, { tr, locale });
     const reduced = bsPrefersReducedMotion();
     const wireGround = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
     // The full-screen enter control is a real keyboard button (role/tabIndex/
     // focus outline + Enter/Space) — for the telegram AND the invite edition.
-    const kbEnter = { role: 'button', tabIndex: 0, 'aria-label': 'Enter the app', onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDone(); } } };
+    const kbEnter = { role: 'button', tabIndex: 0, 'aria-label': tr('launch.enterAria'), onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDone(); } } };
     const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
 
     // ── THE TELEGRAM (member) ── (owner call: no STOP/END tokens — the line
@@ -794,7 +649,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
             <span>Shape Wire</span>
             <span style={{ color: INKF }}>{dateShort}</span>
           </div>
-          <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>To: {name || 'Member'} · Priority</div>
+          <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>{tr('launch.to', { name: name || tr('launch.member') })}</div>
           {/* the wire */}
           <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
             {wireLines.map((ln, i) => (
@@ -813,8 +668,8 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
               </div>
             )}
             <div style={{ marginTop: 9, display: 'flex', justifyContent: 'space-between', fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>
-              <span>{reduced ? 'Your day' : 'Entering…'}</span>
-              <span style={{ color: ACCF }}>{reduced ? 'Enter →' : 'Tap to skip'}</span>
+              <span>{reduced ? tr('launch.yourDay') : tr('launch.entering')}</span>
+              <span style={{ color: ACCF }}>{reduced ? tr('launch.enter') : tr('launch.tapToSkip')}</span>
             </div>
           </div>
         </div>
@@ -837,20 +692,20 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         </div>
 
         {loading ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: mono, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>Putting today together…</div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: mono, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>{tr('launch.putting')}</div>
         ) : (
           // Signed-out preview only — the invite edition (members render the
           // telegram above): one clean wire dispatch, centered (the owner cut
           // the Inside Shape / In the world catalog columns — the pitch IS the
           // page). Tap-only "Step inside"; never auto-advances.
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
-            <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>To: You · Invitation</div>
+            <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>{tr('launch.toYou')}</div>
             {/* the pitch, on the wire */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[
-                { text: 'The Shape Wire lands every morning' },
-                { text: 'Your training · your nutrition · your numbers · a note from your coach' },
-                { text: 'Step inside to make it yours', hot: true },
+                { text: tr('launch.pitch1') },
+                { text: tr('launch.pitch2') },
+                { text: tr('launch.pitch3'), hot: true },
               ].map((ln, i) => (
                 <div key={i} className="bs-wire-line" style={{ animationDelay: (reduced ? 0 : 0.12 + i * 0.11) + 's', fontFamily: mono, fontSize: 12.5, fontWeight: ln.hot ? 700 : 500, lineHeight: 1.95, letterSpacing: '0.08em', textTransform: 'uppercase', color: ln.hot ? ACCF : INKF, textShadow: ln.hot ? '0 0 10px rgba(46,224,196,0.3)' : 'none' }}>
                   {ln.text}
@@ -863,79 +718,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         {/* CTA — tap to enter the app (the whole screen is also tappable).
             Clipped solid teal: the page's one action, matching the wall's JOIN. */}
         <button onClick={onDone} className="bs-wire-enter" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', margin: '4px auto 0', width: 'fit-content', padding: '12px 30px', background: ACCF, color: '#05080c', border: 0, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-          <span>Step inside</span>
+          <span>{tr('launch.stepInside')}</span>
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
-      </div>
-    );
-  }
-
-  // ── 6. TICKER: market-paper aesthetic, scrolling tape + tabular metrics
-  if (style === 'ticker') {
-    const tape = ['CAL 1568/2100', 'PRO 118G', 'SLP 7H24M', 'HRV 62MS', 'RHR 54', 'WGT 178.2', 'STREAK 14D', 'SCORE 78'];
-    const rows = [
-      { sym: 'TRN', val: '52m',    chg: '+8m',   up: true  },
-      { sym: 'EAT', val: '1568k',  chg: '−25%',  up: true  },
-      { sym: 'SLP', val: '7:24',   chg: '+:28',  up: true  },
-      { sym: 'RHR', val: '54bpm',  chg: '+2',    up: false },
-      { sym: 'WGT', val: '178.2',  chg: '−0.4',  up: true  },
-    ];
-    return (
-      <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
-        {/* Top tape */}
-        <div style={{ background: t.INK, color: t.PAPER, padding: '54px 0 0' }}>
-          <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', padding: '8px 0', borderTop: `1px solid ${t.PAPER}`, borderBottom: `1px solid ${t.PAPER}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-            <div style={{ display: 'inline-block', animation: 'bs-tape 18s linear infinite' }}>
-              {[...tape, ...tape].map((s, i) => (
-                <span key={i} style={{ marginRight: 24 }}>
-                  <span style={{ color: t.AMBER, fontWeight: 700, marginRight: 6 }}>▲</span>{s}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Headline block */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '20px 22px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <BSLogo size={20} color={t.INK} />
-            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK70, fontWeight: 700 }}>Daily Index · 04:21</span>
-          </div>
-          <div style={{ lineHeight: 0.92 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 60, letterSpacing: '-0.035em', display: 'block' }}>The</span>
-            <span style={{
-              fontFamily: `'Italiana', 'DM Serif Display', serif`,
-              fontWeight: 400, fontSize: 100, letterSpacing: '-0.02em',
-              display: 'block', marginTop: 2, marginBottom: 2,
-              lineHeight: 1.0,
-            }}>Shape</span>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 60, letterSpacing: '-0.035em', display: 'block' }}>Daily.</span>
-          </div>
-
-          {/* Tabular metrics */}
-          <div style={{ marginTop: 22, borderTop: `2px solid ${t.INK}` }}>
-            {rows.map((r, i) => (
-              <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '50px 1fr auto',
-                padding: '7px 0', borderBottom: `1px solid ${t.RULE}`,
-                fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.08em',
-              }}>
-                <span style={{ color: t.INK70, fontWeight: 700, letterSpacing: '0.18em' }}>{r.sym}</span>
-                <span style={{ fontVariantNumeric: 'tabular-nums', color: t.INK }}>{r.val}</span>
-                <span style={{ fontVariantNumeric: 'tabular-nums', color: r.up ? t.GREEN : t.RUST, fontWeight: 700 }}>{r.up ? '▲' : '▼'} {r.chg}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bottom strip */}
-        <div style={{ background: t.INK, color: t.PAPER, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase' }}>
-          <span style={{ color: t.AMBER, fontWeight: 700 }}>● Live</span>
-          <span style={{ opacity: 0.6 }}>Loading edition…</span>
-          <span style={{ opacity: 0.6 }}>Vol. 1</span>
-        </div>
-
-        <style>{`@keyframes bs-tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
       </div>
     );
   }
@@ -958,6 +743,7 @@ function _bsNormalizePhone(raw) {
 
 function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMode }) {
   const t = useBS();
+  const { tr } = useTr('onboarding');
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
   const [authMethod, setAuthMethod] = useStateBSM('email'); // 'email' | 'phone'
   // The email create form files in two short steps: 1 identity → 2 credentials.
@@ -1033,21 +819,21 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     const auth = window.ShapeAuth;
     const trimmedEmail = email.trim();
     if (auth?.configured && (!trimmedEmail || !password)) {
-      setAuthError('Enter your email and password.');
+      setAuthError(tr('login.err.credentials'));
       return;
     }
     if (auth?.configured && isCreate && (!username || unameOk === false)) {
       setCreateStep(1); // identity-step problem — surface it on its own step
-      setAuthError(!username ? 'Pick a username — it becomes your Shape handle.' : 'That username is taken or invalid — try another.');
+      setAuthError(tr(username ? 'login.err.usernameTaken' : 'login.err.pickUsername'));
       return;
     }
     // 18+ age gate at account creation.
     if (auth?.configured && isCreate) {
-      if (!dob) { setCreateStep(1); setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
+      if (!dob) { setCreateStep(1); setAuthError(tr('login.err.dobRequired')); return; }
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (isNaN(d.getTime()) || d > eighteen) { setCreateStep(1); setAuthError('You must be 18 or older to use Shape.'); return; }
+      if (isNaN(d.getTime()) || d > eighteen) { setCreateStep(1); setAuthError(tr('login.err.under18')); return; }
     }
-    if (captchaOn && !captchaToken) { setAuthError("Just a moment — confirming you're human…"); return; }
+    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
     setBusy(true);
     try {
       const result = isCreate
@@ -1067,7 +853,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       onLogin(result);
     } catch (error) {
       if (captchaOn) resetCaptcha();
-      setAuthError(error?.message || 'Unable to sign in.');
+      setAuthError(error?.message || tr('login.err.signIn'));
     } finally {
       setBusy(false);
     }
@@ -1079,12 +865,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     const auth = window.ShapeAuth;
     if (auth?.configured) {
       if (!username || unameOk === false) {
-        setAuthError(!username ? 'Pick a username — it becomes your Shape handle.' : 'That username is taken or invalid — try another.');
+        setAuthError(tr(username ? 'login.err.usernameTaken' : 'login.err.pickUsername'));
         return;
       }
-      if (!dob) { setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
+      if (!dob) { setAuthError(tr('login.err.dobRequired')); return; }
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (isNaN(d.getTime()) || d > eighteen) { setAuthError('You must be 18 or older to use Shape.'); return; }
+      if (isNaN(d.getTime()) || d > eighteen) { setAuthError(tr('login.err.under18')); return; }
     }
     setCreateStep(2);
   };
@@ -1092,12 +878,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     // Resend hits Supabase Auth, so it needs its own captcha token once Auth
     // CAPTCHA is on (the signup token is already spent). The verify screen renders
     // its own widget; require + forward that token, then reset it for a re-resend.
-    if (captchaOn && !captchaToken) { window.__bsToast?.("One moment — confirming you're human…", 'err'); return; }
+    if (captchaOn && !captchaToken) { window.__bsToast?.(tr('login.err.captchaToast'), 'err'); return; }
     try {
       await window.ShapeAuth?.resendConfirmation?.(verifyEmail, captchaOn ? captchaToken : undefined);
-      window.__bsToast?.('Verification email re-sent', 'ok');
+      window.__bsToast?.(tr('login.ok.resent'), 'ok');
     } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not resend the email.', 'err');
+      window.__bsToast?.(e?.message || tr('login.err.resend'), 'err');
     } finally {
       if (captchaOn) resetCaptcha();
     }
@@ -1108,17 +894,17 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     const auth = window.ShapeAuth;
     const e164 = _bsNormalizePhone(phone);
     if (!e164 || e164.length < 8) {
-      setAuthError('Enter a valid phone number, e.g. +1 555 123 4567.');
+      setAuthError(tr('login.err.phone'));
       return;
     }
     // 18+ age gate — phone signup creates an account too (shouldCreateUser), so it
     // must enforce the same gate as email signup, not just the email path.
     if (isCreate) {
-      if (!dob) { setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
+      if (!dob) { setAuthError(tr('login.err.dobRequired')); return; }
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (isNaN(d.getTime()) || d > eighteen) { setAuthError('You must be 18 or older to use Shape.'); return; }
+      if (isNaN(d.getTime()) || d > eighteen) { setAuthError(tr('login.err.under18')); return; }
     }
-    if (captchaOn && !captchaToken) { setAuthError("Just a moment — confirming you're human…"); return; }
+    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
     setPhone(e164);
     setBusy(true);
     try {
@@ -1126,7 +912,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       setOtpSent(true);
     } catch (error) {
       if (captchaOn) resetCaptcha();
-      setAuthError(error?.message || 'Could not send the code.');
+      setAuthError(error?.message || tr('login.err.sendCode'));
     } finally {
       setBusy(false);
     }
@@ -1136,7 +922,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setAuthError('');
     const auth = window.ShapeAuth;
     if (!otpCode.trim()) {
-      setAuthError('Enter the code we texted you.');
+      setAuthError(tr('login.err.enterCode'));
       return;
     }
     setBusy(true);
@@ -1146,7 +932,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       if (nextRole && nextRole !== role) setRole(nextRole);
       onLogin(result);
     } catch (error) {
-      setAuthError(error?.message || 'That code did not work. Try again.');
+      setAuthError(error?.message || tr('login.err.badCode'));
     } finally {
       setBusy(false);
     }
@@ -1168,8 +954,16 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const WIRE_BG = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
   const labelStyle = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 4 };
   const linkBtn = { background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' };
-  const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist', dietitian: 'Dietitian (RD/RDN)' }[signupRole] || 'Client';
-  const shortRole = roleLabel.replace(' (RD/RDN)', '');
+  // The role names are already shipped in 13 locales — reuse them rather than
+  // minting a 7th copy. shortRole is derived from the KEY, never by stripping a
+  // translated suffix (' (RD/RDN)' only exists in English).
+  const roleLabel = {
+    client: tr('settings:preview.roleClient'),
+    trainer: tr('coach:role.trainer'),
+    nutritionist: tr('coach:role.nutritionist'),
+    dietitian: tr('login.roleDietitian'),
+  }[signupRole] || tr('settings:preview.roleClient');
+  const shortRole = signupRole === 'dietitian' ? tr('coach:role.dietitian') : roleLabel;
   const stepped = isCreate && !isPhone; // the email create dispatch runs the 2-step split
   // The wire-form grammar: mono label column + a dot-leader entry line per field.
   const rowLabel = { flex: '0 0 84px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C50 };
@@ -1190,11 +984,11 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setAuthError('');
     const auth = window.ShapeAuth;
     const e = email.trim();
-    if (!e) { setAuthError('Enter your email first, then tap forgot password.'); return; }
+    if (!e) { setAuthError(tr('login.err.forgotEmail')); return; }
     try {
       if (auth?.resetPassword) { await auth.resetPassword(e); }
-      window.__bsToast?.('If that account exists, a reset link is on its way.', 'ok');
-    } catch (err) { setAuthError(err?.message || 'Could not send the reset email.'); }
+      window.__bsToast?.(tr('login.ok.resetSent'), 'ok');
+    } catch (err) { setAuthError(err?.message || tr('login.err.forgotFail')); }
   };
   // Continue with Apple — uses the auth layer if wired, else a graceful notice.
   const continueWithApple = async () => {
@@ -1203,8 +997,8 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     try {
       if (auth?.signInWithApple) { const result = await auth.signInWithApple({ role }); onLogin(result); }
       else if (auth?.signInWithOAuth) { await auth.signInWithOAuth('apple', { role }); }
-      else { window.__bsToast?.('Apple sign-in is coming soon.', 'info'); }
-    } catch (err) { setAuthError(err?.message || 'Apple sign-in failed.'); }
+      else { window.__bsToast?.(tr('login.err.appleSoon'), 'info'); }
+    } catch (err) { setAuthError(err?.message || tr('login.err.appleFail')); }
   };
 
   // "Check your email" — shown after a new account needs email verification.
@@ -1214,16 +1008,18 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         <BSWireGround dim />
         <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
           <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 110, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -12 }} />
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>Verify email</div>
-          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 38, lineHeight: 0.95, letterSpacing: '-0.05em', color: CREAM }}>Check your<br/><span style={{ fontStyle: 'italic', color: '#2ee0c4' }}>inbox.</span></div>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>{tr('login.verifyEyebrow')}</div>
+          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 38, lineHeight: 0.95, letterSpacing: '-0.05em', color: CREAM }}>{tr('login.verifyTitlePre')}<br/><span style={{ fontStyle: 'italic', color: '#2ee0c4' }}>{tr('login.verifyTitleAccent')}</span></div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(244,239,230,0.8)' }}>
-            We sent a verification link to <span style={{ color: CREAM, fontWeight: 700 }}>{verifyEmail}</span>. Tap it to finish creating your account, then come back and sign in.
+            {/* One key, email interpolated — the house rule: never split prose
+                AROUND a mid-sentence bold span, because word order moves. */}
+            {tr('login.verifyBody', { email: verifyEmail })}
           </div>
           {captchaOn && (
             <div ref={captchaRef} style={{ minHeight: 65, display: 'flex', justifyContent: 'center' }} />
           )}
-          <button onClick={resendVerify} style={{ width: '100%', minHeight: 44, borderRadius: 0, padding: '12px 16px', background: 'transparent', color: C70, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Resend email</button>
-          <button onClick={() => { setVerifyEmail(''); setMode('signin'); setPassword(''); }} style={{ alignSelf: 'center', background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0' }}>← Back to sign in</button>
+          <button onClick={resendVerify} style={{ width: '100%', minHeight: 44, borderRadius: 0, padding: '12px 16px', background: 'transparent', color: C70, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('login.resend')}</button>
+          <button onClick={() => { setVerifyEmail(''); setMode('signin'); setPassword(''); }} style={{ alignSelf: 'center', background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0' }}>{tr('login.backToSignIn')}</button>
         </div>
       </div>
     );
@@ -1233,7 +1029,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
       <BSWireGround dim />
       {onBack && (
-        <button onClick={onBack} style={{ position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' }}>← Back</button>
+        <button onClick={onBack} style={{ position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' }}>{tr('login.back')}</button>
       )}
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 5 }}>
         {/* Logo lockup — top-left. marginTop:auto (+ the footer's marginBottom:auto)
@@ -1244,13 +1040,13 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         {/* Eyebrow + heading */}
         <div style={{ marginTop: 10 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
-            {isCreate ? 'Join Shape' : 'Sign in'}
+            {tr(isCreate ? 'login.eyebrowJoin' : 'login.eyebrowSignIn')}
           </div>
           <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 37, lineHeight: 0.94, letterSpacing: '-0.045em', color: CREAM, marginTop: 4 }}>
             {isCreate ? (
-              <>Join the<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>community.</span></>
+              <>{tr('login.titleJoinPre')}<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>{tr('login.titleJoinAccent')}</span></>
             ) : (
-              <>Welcome<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>back.</span></>
+              <>{tr('login.titleBackPre')}<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>{tr('login.titleBackAccent')}</span></>
             )}
           </div>
         </div>
@@ -1258,22 +1054,25 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         {/* Step register — the create dispatch files in two short parts */}
         {stepped && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: `2px solid ${LINE2}`, paddingBottom: 6, margin: '12px 0 2px' }}>
-            <span style={stepLine}>Step {createStep} of 2</span>
-            <span style={{ ...stepLine, color: '#2ee0c4' }}>{createStep === 1 ? 'Identity' : 'Credentials'}</span>
+            <span style={stepLine}>{tr('login.step', { n: createStep })}</span>
+            <span style={{ ...stepLine, color: '#2ee0c4' }}>{tr(createStep === 1 ? 'login.stepIdentity' : 'login.stepCredentials')}</span>
           </div>
         )}
 
         {/* Role — sign-in always · create step 1 (identity) */}
         {(!stepped || createStep === 1) && (
         <div style={{ marginBottom: 14 }}>
-          <div style={labelStyle}>I'm a</div>
+          <div style={labelStyle}>{tr('login.imA')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${LINE2}`, borderRadius: 6, padding: 4 }}>
-            {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutritionist']].map(([k, l]) => {
+            {[['client', tr('settings:preview.roleClient')], ['trainer', tr('coach:role.trainer')], ['nutritionist', tr('coach:role.nutritionist')]].map(([k, l]) => {
               const on = role === k;
               return <button key={k} onClick={() => setRole(k)} style={{
                 padding: '7px 4px', borderRadius: 3, border: 0,
                 background: on ? '#34d6c5' : 'transparent', color: on ? '#05080c' : CREAM,
-                fontFamily: t.MONO, fontSize: 9, fontWeight: on ? 800 : 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
+                fontFamily: t.MONO, fontSize: 9, fontWeight: on ? 800 : 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+                // A translated role name runs longer than 'Client'; minWidth:0 lets
+                // the 1fr track shrink instead of overflowing the phone frame.
+                minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{l}</button>;
             })}
           </div>
@@ -1281,8 +1080,8 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           {isCreate && role === 'nutritionist' && (
             <button onClick={() => setIsDietitian(v => !v)} style={{ marginTop: 8, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: 'transparent', border: `1px solid ${LINE2}`, borderRadius: 4, padding: '9px 12px', cursor: 'pointer' }}>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: CREAM }}>I'm a Registered Dietitian (RD/RDN)</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: C50, marginTop: 2 }}>Same nutrition tools · credentialed badge</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: CREAM }}>{tr('login.rdToggle')}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: C50, marginTop: 2 }}>{tr('login.rdNote')}</div>
               </div>
               <span style={{ width: 40, height: 23, borderRadius: 999, border: `1px solid ${isDietitian ? '#0ac5a8' : LINE2}`, background: isDietitian ? '#0ac5a8' : 'transparent', position: 'relative', flexShrink: 0 }}>
                 <span style={{ position: 'absolute', top: 2, left: isDietitian ? 19 : 2, width: 17, height: 17, borderRadius: 999, background: isDietitian ? '#031f1c' : C50 }} />
@@ -1294,49 +1093,49 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
 
         {/* Fields — the dispatch form: mono label column + dot-leader entry lines */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-          {isCreate && (!stepped || createStep === 1) && wireField('Name',
-            <input className="bs-wire-input" placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" style={rowInput} />
+          {isCreate && (!stepped || createStep === 1) && wireField(tr('login.fieldName'),
+            <input className="bs-wire-input" placeholder={tr('login.phName')} value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" style={rowInput} />
           )}
-          {isCreate && (!stepped || createStep === 1) && wireField('DOB · 18+',
-            <input className="bs-wire-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} aria-label="Date of birth" style={rowInput} />
+          {isCreate && (!stepped || createStep === 1) && wireField(tr('login.fieldDob'),
+            <input className="bs-wire-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} aria-label={tr('dob.label')} style={rowInput} />
           )}
-          {stepped && createStep === 1 && wireField('Handle',
-            <input className="bs-wire-input" placeholder="your.handle" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20))} autoComplete="username" autoCapitalize="none" style={rowInput} />,
+          {stepped && createStep === 1 && wireField(tr('login.fieldHandle'),
+            <input className="bs-wire-input" placeholder={tr('login.phHandle')} value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20))} autoComplete="username" autoCapitalize="none" style={rowInput} />,
             <div style={{ ...subNote, color: username ? (unameOk === false ? '#ff9b7a' : unameOk ? '#2ee0c4' : C50) : C50 }}>
-              {!username ? 'Your Shape handle — letters · numbers · . _' : unameOk === false ? 'Taken or invalid — 3–20 chars, starts with a letter or number' : unameOk ? `@${username} is yours` : 'Checking…'}
+              {!username ? tr('login.handleHint') : unameOk === false ? tr('login.handleBad') : unameOk ? tr('login.handleOk', { handle: username }) : tr('login.handleChecking')}
             </div>
           )}
           {stepped && createStep === 2 && (
             <>
-              <button type="button" onClick={() => { setCreateStep(1); setAuthError(''); }} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>← Step 1 · Identity</button>
-              <div style={{ ...subNote, marginTop: 0, color: C50 }}>Filed: {fullName.trim() || '—'} · @{username || '—'}{isDietitian ? ' · RD/RDN' : ''}</div>
-              {wireField('Email',
-                <input className="bs-wire-input" placeholder="you@example.com" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" autoCapitalize="none" style={rowInput} />
+              <button type="button" onClick={() => { setCreateStep(1); setAuthError(''); }} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>{tr('login.backStep1')}</button>
+              <div style={{ ...subNote, marginTop: 0, color: C50 }}>{tr(isDietitian ? 'login.filedRd' : 'login.filed', { name: fullName.trim() || '—', handle: username || '—' })}</div>
+              {wireField(tr('login.fieldEmail'),
+                <input className="bs-wire-input" placeholder={tr('login.phEmail')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" autoCapitalize="none" style={rowInput} />
               )}
-              {wireField('Password',
+              {wireField(tr('login.fieldPassword'),
                 <input className="bs-wire-input" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" style={rowInput} />
               )}
             </>
           )}
           {isPhone ? (
             <>
-              <button type="button" onClick={() => switchMethod('email')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>← Back to email</button>
-              {wireField('Phone',
-                <input className="bs-wire-input" placeholder="+1 555 123 4567" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...rowInput, color: otpSent ? C50 : CREAM }} />
+              <button type="button" onClick={() => switchMethod('email')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>{tr('login.backToEmail')}</button>
+              {wireField(tr('login.fieldPhone'),
+                <input className="bs-wire-input" placeholder={tr('login.phPhone')} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...rowInput, color: otpSent ? C50 : CREAM }} />
               )}
-              {otpSent && wireField('Code',
-                <input className="bs-wire-input" placeholder="6-digit code" type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ ...rowInput, fontSize: 20, letterSpacing: '0.3em' }} />
+              {otpSent && wireField(tr('login.fieldCode'),
+                <input className="bs-wire-input" placeholder={tr('login.phCode')} type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ ...rowInput, fontSize: 20, letterSpacing: '0.3em' }} />
               )}
               {otpSent && (
-                <button onClick={() => { setOtpSent(false); setOtpCode(''); setAuthError(''); }} style={{ alignSelf: 'flex-start', ...linkBtn }}>← Change number</button>
+                <button onClick={() => { setOtpSent(false); setOtpCode(''); setAuthError(''); }} style={{ alignSelf: 'flex-start', ...linkBtn }}>{tr('login.changeNumber')}</button>
               )}
             </>
           ) : (!isCreate && (
             <>
-              {wireField('Account',
-                <input className="bs-wire-input" placeholder="Email or @handle" type="text" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoCapitalize="none" style={rowInput} />
+              {wireField(tr('login.fieldAccount'),
+                <input className="bs-wire-input" placeholder={tr('login.phAccount')} type="text" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoCapitalize="none" style={rowInput} />
               )}
-              {wireField('Password',
+              {wireField(tr('login.fieldPassword'),
                 <input className="bs-wire-input" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" style={rowInput} />
               )}
             </>
@@ -1347,7 +1146,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             </div>
           )}
           {!isCreate && !isPhone && (
-            <button onClick={forgotPassword} style={{ alignSelf: 'flex-end', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' }}>Forgot password →</button>
+            <button onClick={forgotPassword} style={{ alignSelf: 'flex-end', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' }}>{tr('login.forgot')}</button>
           )}
         </div>
 
@@ -1364,12 +1163,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           className="bs-wire-enter"
           style={{ width: '100%', marginTop: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', padding: '13px 14px', background: '#34d6c5', color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
-            ? (isCreate ? 'Transmitting…' : 'Signing in…')
+            ? tr(isCreate ? 'login.transmitting' : 'login.signingIn')
             : isPhone
-              ? (otpSent ? (isCreate ? 'Transmit · Verify & join →' : 'Transmit · Verify & sign in →') : 'Transmit · Text me a code →')
+              ? (otpSent ? tr(isCreate ? 'login.ctaVerifyJoin' : 'login.ctaVerifySignIn') : tr('login.ctaTextCode'))
               : stepped
-                ? (createStep === 1 ? 'Next · Credentials →' : `Transmit · Join as ${shortRole} →`)
-                : `Transmit · Sign in as ${shortRole} →`}
+                ? (createStep === 1 ? tr('login.ctaNext') : tr('login.ctaJoinAs', { role: shortRole }))
+                : tr('login.ctaSignInAs', { role: shortRole })}
         </button>
 
         {/* Create account / apply — role-aware: clients create an account,
@@ -1380,28 +1179,28 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') { if (onApply) onApply(signupRole); else setMode('create'); }
             else { setMode('create'); }
           }} style={{ width: '100%', minHeight: 44, borderRadius: 0, padding: '11px 14px', background: 'transparent', color: C70, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
-            {role === 'client' ? 'Create account →' : `Apply as a ${roleLabel} →`}
+            {role === 'client' ? tr('login.createAccount') : tr('login.applyAs', { role: roleLabel })}
           </button>
         )}
 
         {/* OR */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1, height: 1, background: LINE }} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: C50 }}>or</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: C50 }}>{tr('login.or')}</div>
           <div style={{ flex: 1, height: 1, background: LINE }} />
         </div>
 
         {/* Continue with phone — switches to the SMS one-time-code flow */}
         {!isPhone && (
           <button onClick={() => switchMethod('phone')} style={{ width: '100%', minHeight: 44, borderRadius: 0, padding: '11px 14px', background: 'rgba(255,255,255,0.03)', color: C70, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
-            Continue with phone number
+            {tr('login.continuePhone')}
           </button>
         )}
 
         {/* Secondary links */}
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '24px 18px', marginTop: 40, marginBottom: 'auto' }}>
-          <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
-          {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>Use email instead</button>}
+          <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{tr(isCreate ? 'login.haveAccount' : 'login.newHere')}</button>
+          {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{tr('login.useEmail')}</button>}
         </div>
       </div>
     </div>
@@ -1426,13 +1225,14 @@ async function bsmStartCheckout() {
 // copy (the check rides the launch, never gets its own labelled screen). Used
 // as the stage-'app'/'gate' safety-net loading state.
 function BSWireHold() {
+  const { tr } = useTr('onboarding');
   const holdMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   // Mirrors the beat's composition (plate top · floating haloed mark · loading,
   // clean dark ground) so a beat→hold transition never jumps.
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
-        <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
+        <span>{tr('launch.masthead')}</span><span>Vol. 1 · No. 1</span>
       </div>
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div className="bs-wire-mark-float">
@@ -1456,12 +1256,16 @@ function BSWireHold() {
 // clipped solid-teal JOIN as the one commerce action. Fixed-dark (a launch
 // surface), so it does NOT follow the paper theme — matching the beat/telegram.
 function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
+  const { tr } = useTr('onboarding');
   ensureWireStyles();
   const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.2)', teal = '#34d6c5';
   const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('paywall_viewed'); } catch (e) {} }, []);
   // Owner call: no STOP/END tokens — house middle-dot separators carry the line.
-  const feat = ['Training', 'Nutrition', 'Coaches', 'Radio', 'The Score', 'Or build your own workouts'];
+  // Rendered joined by ' · ', so each feature is its own key — a locale that
+  // needs a different order or a longer word doesn't have to re-punctuate one
+  // baked-in sentence.
+  const feat = ['training', 'nutrition', 'coaches', 'radio', 'score', 'byo'].map((k) => tr('paywall.feat.' + k));
   const cta = { width: '100%', padding: '13px', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
   const ghost = { width: '100%', minHeight: 44, padding: '11px', border: `1px solid ${RULEF}`, background: 'transparent', color: INKF70, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   const textAction = { minHeight: 44, padding: '9px 24px', border: 0, background: 'transparent', color: teal, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
@@ -1471,21 +1275,21 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
         <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 124, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -2, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
-          <h1 style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '4px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
+          <h1 style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '4px 0 0' }}>{tr('paywall.titlePre')} <span style={{ fontStyle: 'italic', color: teal }}>{tr('paywall.titleAccent')}</span></h1>
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>
             {feat.join(' · ')}
           </div>
-          <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? 'Join · $5/mo →' : 'Create account & join · $5/mo →'}</button>
-          <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
+          <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? tr('paywall.join', { price: BS_PRICE }) : tr('paywall.createJoin', { price: BS_PRICE })}</button>
+          <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>{tr('paywall.preview')}</button>
           {signedIn ? (
             <div style={{ marginTop: 26, display: 'flex', justifyContent: 'center' }}>
-              <button onClick={onLogout} style={textAction}>Sign out</button>
+              <button onClick={onLogout} style={textAction}>{tr('settings:action.signOut')}</button>
             </div>
           ) : (
             <div style={{ marginTop: 24, textAlign: 'center' }}>
-              <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50 }}>I already have an account</div>
+              <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50 }}>{tr('paywall.haveAccount')}</div>
               <div style={{ marginTop: 6, display: 'flex', justifyContent: 'center' }}>
-                <button onClick={onSignIn} style={textAction}>Sign in →</button>
+                <button onClick={onSignIn} style={textAction}>{tr('paywall.signIn')}</button>
               </div>
             </div>
           )}
@@ -1498,17 +1302,18 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
 // Persistent "you're previewing" banner shown over the app for non-members who
 // chose to look around — keeps the Join CTA present without blocking the view.
 function BSPreviewBanner({ t, onJoin }) {
+  const { tr } = useTr('onboarding');
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [dismissed, setDismissed] = useStateBSM(false);
   if (dismissed) return null;
   return (
     <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Preview · demo data</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>These numbers are an example of a live account — not real tracking. Switch profile type in Settings.</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('preview.title')}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>{tr('preview.body')}</div>
       </div>
-      <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>$5/mo →</button>
-      <button onClick={() => setDismissed(true)} aria-label="Dismiss" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
+      <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('preview.join', { price: BS_PRICE })}</button>
+      <button onClick={() => setDismissed(true)} aria-label={tr('preview.dismiss')} style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
     </div>
   );
 }
@@ -1524,6 +1329,7 @@ function BSPreviewBannerGated({ t, onJoin }) {
 }
 
 function BSAppShell({ tweaks, setTweak }) {
+  const { tr } = useTr('onboarding');
   const authConfigured = Boolean(window.ShapeAuth?.configured);
   // CROSS-TAB SIGN-OUT. /m/ ships under the website's origin, so a member can
   // have this app open in one tab and the website in another. sessionStorage
@@ -1672,7 +1478,7 @@ function BSAppShell({ tweaks, setTweak }) {
     setBundleLoading(true);
     ensureRoleBundle(role)
       .catch((err) => {
-        if (!cancelled) setBundleError(err?.message || 'Failed loading app module.');
+        if (!cancelled) setBundleError(err?.message || window.ShapeI18n?.t?.('onboarding:shell.bundleError') || 'Failed loading app module.');
       })
       .finally(() => {
         if (!cancelled) setBundleLoading(false);
@@ -1723,7 +1529,17 @@ function BSAppShell({ tweaks, setTweak }) {
     window.bsRequireAccount = (label) => {
       const u = window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user;
       if (u) return true;
-      try { window.__bsToast && window.__bsToast(label ? `Create a free account to ${label}.` : 'Create a free account to continue.', 'info'); } catch (e) {}
+      // The window bridge, not `tr` — this is a global installed in a []-dep effect,
+      // so a captured translator would be pinned to the language at mount. Optional
+      // chaining + an English literal: the whole call is try/caught, so a bare
+      // `ShapeI18n.t` on a surface where the bridge has not landed yet would throw
+      // and swallow the toast ENTIRELY. Degrading to English beats degrading to
+      // silence — this is the message that explains why the screen just changed.
+      const i18 = window.ShapeI18n;
+      const msg = label
+        ? (i18?.t?.('onboarding:shell.requireAccountLabel', { label }) || `Create a free account to ${label}.`)
+        : (i18?.t?.('onboarding:shell.requireAccount') || 'Create a free account to continue.');
+      try { window.__bsToast && window.__bsToast(msg, 'info'); } catch (e) {}
       if (window.__bsGoAuth) window.__bsGoAuth('create');
       return false;
     };
@@ -1994,7 +1810,7 @@ function BSAppShell({ tweaks, setTweak }) {
             />
           )
         )}
-        {stage === 'daily' && <BSSplash style="classified" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => {
+        {stage === 'daily' && <BSSplash style="classified" onDone={() => {
           // A real signed-in member entering their telegram stamps today's
           // seen-marker (warm relaunch skips the rest of the day). The signed-out
           // preview/invite path never stamps.
@@ -2013,7 +1829,7 @@ function BSAppShell({ tweaks, setTweak }) {
         />}
         {stage === 'apply' && (window.BSProviderApplicationScreen
           ? <window.BSProviderApplicationScreen initialRole={applyRole || 'trainer'} onBack={() => setStage('login')} />
-          : <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Loading application…</div>)}
+          : <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('shell.loading')}</div>)}
         {stage === 'app' && (
           // Gate order matters: show the paywall to non-members FIRST (it doesn't
           // need the role bundle), so the membership page lands right after the
@@ -2030,16 +1846,16 @@ function BSAppShell({ tweaks, setTweak }) {
             />
           ) : bundleError ? (
             <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              <div style={{ lineHeight: 1.5 }}>A new version is available. Reload to continue.</div>
+              <div style={{ lineHeight: 1.5 }}>{tr('shell.stale')}</div>
               <button
                 onClick={() => { try { window.sessionStorage.removeItem('bs-chunk-reloaded'); } catch (e) {} window.location.reload(); }}
                 style={{ marginTop: 12, padding: '10px 16px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}
-              >Reload →</button>
+              >{tr('shell.reload')}</button>
               <div style={{ marginTop: 10, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em', textTransform: 'none', wordBreak: 'break-all' }}>{bundleError}</div>
             </div>
           ) : !App ? (
             <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-              Loading app...
+              {tr('shell.loadingApp')}
             </div>
           ) : !memberAllowed ? (
             // Preview mode renders the real app behind a dismissible banner that
@@ -2181,68 +1997,6 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
         )}
       </Section>
 
-      <Section label="Splash">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-          {[['masthead','Masthead'],['dropcap','Dropcap'],['frontpage','Front page'],['vault','Vault'],['classified','Classified'],['ticker','Ticker']].map(([k, l]) =>
-            <Btn key={k} on={tweaks.splashStyle === k} onClick={() => setTweak('splashStyle', k)}>{l}</Btn>
-          )}
-        </div>
-        {tweaks.splashStyle === 'classified' && (
-          <>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase', marginTop: 10, marginBottom: 4 }}>
-              Background
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
-              {[
-                ['plain',     'Plain'],
-                ['newsprint', 'Newsprint'],
-                ['watermark', 'Watermark'],
-                ['engraved',  'Engraved'],
-                ['halftone',  'Halftone'],
-                ['grid',      'Grid'],
-              ].map(([k, l]) =>
-                <Btn key={k} on={(tweaks.splashBg || 'newsprint') === k} onClick={() => setTweak('splashBg', k)}>{l}</Btn>
-              )}
-            </div>
-            <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase', marginBottom: 4 }}>
-              Bg tint
-            </div>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Btn on={(tweaks.splashBgColor || 'auto') === 'auto'} onClick={() => setTweak('splashBgColor', 'auto')}>Auto</Btn>
-              {[
-                ['#0f0e0c','Ink'], ['#b71c1c','Red'], ['#1565c0','Blue'],
-                ['#2e7d32','Green'], ['#e65100','Orange'], ['#6a1b9a','Purple'],
-                ['#00838f','Teal'], ['#bf360c','Rust'], ['#f5f0e6','Cream'],
-              ].map(([hex, label]) => (
-                <button
-                  key={hex}
-                  title={label}
-                  onClick={() => setTweak('splashBgColor', hex)}
-                  style={{
-                    width: 22, height: 22, padding: 0, cursor: 'pointer',
-                    background: hex,
-                    border: tweaks.splashBgColor === hex ? `2px solid ${t.INK}` : `1px solid ${t.RULE}`,
-                    boxShadow: tweaks.splashBgColor === hex ? `0 0 0 1px ${t.PAPER}` : 'none',
-                  }}
-                />
-              ))}
-              <input
-                type="color"
-                value={tweaks.splashBgColor && tweaks.splashBgColor !== 'auto' ? tweaks.splashBgColor : '#0f0e0c'}
-                onChange={e => setTweak('splashBgColor', e.target.value)}
-                title="Custom color"
-                style={{ width: 22, height: 22, padding: 0, border: `1px dashed ${t.INK50}`, background: 'transparent', cursor: 'pointer' }}
-              />
-            </div>
-          </>
-        )}
-        <button onClick={() => window.dispatchEvent(new CustomEvent('bs-replay-splash'))} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%', marginTop: 6, padding: 8,
-          border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>↻ Replay splash</button>
-      </Section>
-
       <Section label="Auto-login on open">
         <div style={{ display: 'flex', gap: 4 }}>
           <Btn on={!tweaks.startLoggedIn} onClick={() => setTweak('startLoggedIn', false)}>Off</Btn>
@@ -2283,7 +2037,7 @@ function BSApp() {
   const [tweaks, setTweaks] = useStateBSM(() => ({
     role: 'client', paperMode: 'dark', accentKey: 'blue',
     weightKey: 'bold', textScaleKey: 'medium', borderKey: 'hairlines', textureKey: 'none', textureColor: 'auto',
-    splashStyle: 'cosmos', splashBg: 'plain', splashBgColor: 'auto',
+
     fxGrain: false, fxHalftone: false, fxSepia: false, fxVignette: false, fxScanlines: false, fxInkBleed: false,
     startLoggedIn: true, ...initial, ...bsReadLocalTweaks(),
   }));
