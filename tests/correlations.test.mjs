@@ -503,6 +503,22 @@ test('the readout gates both paths on one shared predicate', async () => {
     1,
     'two threshold declarations would let the paths drift apart again'
   );
+  // ⚠ AND THE MEMBER-FACING EMPTY STATE MUST QUOTE THE GATE, NOT A GUESS. It
+  // read "~14 days of overlap" while the gate was 7 — a number the code
+  // contradicts, told to the member about their own data. Interpolated from the
+  // constant so the two cannot drift; a hardcoded day count here fails.
+  const emptyLine = src.match(/Not enough signal yet[^`']*/);
+  assert.ok(emptyLine, 'the honest empty summary should still exist');
+  assert.doesNotMatch(
+    emptyLine[0],
+    /\d+\s*day/,
+    'the empty state must interpolate MIN_REPORTABLE_DAYS, not name a literal day count'
+  );
+  assert.match(
+    emptyLine[0],
+    /\$\{MIN_REPORTABLE_DAYS\}/,
+    'the empty state should quote the gate it is describing'
+  );
   assert.doesNotMatch(
     src,
     /qValue\s*<\s*[0-9.]/,

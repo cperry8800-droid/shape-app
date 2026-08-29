@@ -520,6 +520,17 @@ changelog whenever something ships.
   of an outage would read a different set of facts about their own body. One
   `isReportable()` predicate now, both paths, with a guard that fails if either
   hand-rolls the terms at a call site again.
+- ⚠ **AND THE HONEST EMPTY STATE WAS QUOTING A THRESHOLD THE CODE CONTRADICTS** — found
+  by auditing my own diff after two consecutive rounds landed inside my own fixes, which
+  is this file's own signal to stop patching and sweep. The line a member reads when
+  nothing survives said *"unlock the readout once we have ~14 days of overlap"* while the
+  gate is **7**, and it conflated **overlap** with **window length**: what actually counts
+  is days where BOTH sides of a pair carry a value, so a 28-day window with sleep logged
+  and training missing clears nothing. It now interpolates `MIN_REPORTABLE_DAYS` and says
+  *both sides*, with a guard that fails on any hardcoded day count in that string. **The
+  empty state is the output most members will see first** — it is the one line in this
+  module that is definitely member-facing, and it was the one making an unverifiable
+  claim.
 - ⚠ **A `.d.ts` IS NOT CHECKED AGAINST ITS `.mjs`, so `MetricKey` could drift in silence**
   (review). It is a hand-typed copy of `SNAPSHOT_METRICS`, and neither `tsc` nor the
   pair-vs-select test can see a divergence — that test compares two things that **both**
@@ -537,7 +548,7 @@ changelog whenever something ships.
   across a gap in the window), zero-variance yielding nothing rather than `r = 0`, and
   that the module produces every field the `.d.ts` promises — a shape the declaration
   claims but the module omits is an `any` at the call site, not a compile error.
-- **22 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
+- **23 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
   naming an unselected column · lag collapsing to same-day · `q` losing monotonicity ·
   reject numeric strings, i.e. the shipped bug · naive `Number()` coercion · empty string
   becoming 0 · NaN/Infinity admitted · **restore the normal tail** · flip `rested → energy`
@@ -546,7 +557,8 @@ changelog whenever something ships.
   model catalog stops gating on q · a literal q threshold back at a call site · **df off
   by one** · the incomplete-beta arguments swapped · either path hand-rolling its
   eligibility filter · a metric added to the `.mjs` only · a name added to the union
-  only), sanity green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
+  only · a literal day count back in the member-facing empty state), sanity green at both
+  ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
   annotator assigns every index and its only early return is the empty case, so nothing
   can observe the seed. **Kept and labelled rather than deleted**, so the next reader
   neither removes it as dead nor spends a round writing the test that cannot exist.

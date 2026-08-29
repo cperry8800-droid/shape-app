@@ -96,8 +96,14 @@ function fallbackReadout(correlations: CorrelationResult[]): Readout {
   const significant = correlations.filter(isReportable).slice(0, 4);
   if (significant.length === 0) {
     return {
+      // ⚠ THE NUMBER COMES FROM THE GATE, because this line is what a member is
+      // told about their own data and it said "~14 days" while the gate was 7 —
+      // a threshold the code contradicts, which is the same honesty class as
+      // every other defect in this module. It is also OVERLAP, not window
+      // length: what counts is days where BOTH sides of a pair have a value, so
+      // a 28-day window with sleep logged and training missing clears nothing.
       summary:
-        'Not enough signal yet to call out cross-domain patterns. Keep logging — sleep, training, and nutrition data unlock the readout once we have ~14 days of overlap.',
+        `Not enough signal yet to call out cross-domain patterns. Keep logging — a pattern needs at least ${MIN_REPORTABLE_DAYS} days where both sides were recorded, so sleep, training and nutrition logged on the same days are what unlock this.`,
       insights: [],
     };
   }
