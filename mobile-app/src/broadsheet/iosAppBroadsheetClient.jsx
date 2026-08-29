@@ -22986,8 +22986,19 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       if (!on) return;
       setLiveTrain(train || null);
       const det = bsGoalProgram.detail || {};
-      const tphase = bsGoalProgram.trainingPhase || 'Build';
-      const nphase = bsGoalProgram.nutritionPhase || 'Cut';
+      // ⚠ NO LITERAL PHASE EITHER — same rule as sessTarget, one line over, and I
+      // missed it there. These two locals feed NOTHING but the role-spined credit
+      // rows below (grep: their only readers), so `|| 'Build'` / `|| 'Cut'` is not a
+      // display default here — it is a training block attributed to a coach who
+      // never set one, and the cover's Training door quotes that title as its
+      // inventory subline. The app-wide kickers (Home/Train/Eat) keep their
+      // defaults: those name the member's own program context under no byline.
+      // ⚠ And this file had ALREADY drawn the line — BSTerrainProfile gates its
+      // whole coached-by band on `prog.trainingPhase || prog.nutritionPhase` being
+      // real (`hasRealProgram`), i.e. an unset phase is not evidence of a coach's
+      // programming. Unknown → a neutral title, never an invented phase.
+      const tphase = bsGoalProgram.trainingPhase || null;
+      const nphase = bsGoalProgram.nutritionPhase || null;
       // Your plans — title from phase/assigned plan; sub from coach cadence/kcal.
       // ⚠ NO LITERAL FALLBACK. A target nobody set is not a target — and this
       // file already decided that: the honest-empty week set reads `0/—` ·
@@ -23007,9 +23018,9 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       // cover-page rebuild) as the door's inventory subline. So it may only exist
       // on real evidence: an assigned plan from /api/client/plan, or a coach
       // adjustment in client_programs.detail. Every field below has a literal
-      // fallback (`|| 'Build'`, `|| 'Cut'`, `|| 4`, `${nphase} plan`), so an
-      // ungated push synthesised a full plan + coach credit for a member with NO
-      // COACH AT ALL — and, because `plans` then never took its `signedIn ? []`
+      // fallback (`|| 'Build'`, `|| 'Cut'`, `|| 4`, `${nphase} plan`) — all four are
+      // now gone, see the two ⚠ notes above — so an ungated push synthesised a
+      // full plan + coach credit for a member with NO COACH AT ALL — and, because `plans` then never took its `signedIn ? []`
       // branch, it made both honest branches below (the "No training plan yet"
       // redaction and its "Find a coach →" action) permanently dead code.
       // ⚠ TRAINING NEEDS A COACH SIGNAL, NOT MERELY A PLAN — since the self-serve
@@ -23020,13 +23031,17 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       // a real trainer_id) and per-workout `selfAuthored`. Nutrition has no
       // self-serve authoring path — a client_meal_plans row always carries a
       // nutritionist — so a menu is evidence enough there.
+      // ⚠ The gate outlives the fallbacks it was written for. Removing every
+      // literal makes an unauthored row read honestly; it does not make the ROW
+      // honest. A role-spined credit is itself the claim "a coach authored this",
+      // so it still may only exist on real evidence.
       const coachTrain = !!(plan && plan.training && (plan.training.coach
         || (Array.isArray(plan.training.workouts) && plan.training.workouts.some((w) => w && w.selfAuthored === false))));
       const hasTrainPlan = !!(coachTrain || det.training);
       const hasNutrPlan = !!((plan && plan.meals && (plan.meals.hasPlan || plan.meals.title || plan.meals.coach)) || det.nutrition);
       setLivePlans([
-        hasTrainPlan ? { role: 'Training', t: `${tphase} block`, sub: [sessTarget ? `${sessTarget}×/wk` : null, (plan && plan.training && plan.training.hasPlan) ? 'assigned' : null].filter(Boolean).join(' · ') || 'active' } : null,
-        hasNutrPlan ? { role: 'Nutrition', t: mealTitle || `${nphase} plan`, sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : `${nphase} targets` } : null,
+        hasTrainPlan ? { role: 'Training', t: tphase ? `${tphase} block` : 'Training plan', sub: [sessTarget ? `${sessTarget}×/wk` : null, (plan && plan.training && plan.training.hasPlan) ? 'assigned' : null].filter(Boolean).join(' · ') || 'active' } : null,
+        hasNutrPlan ? { role: 'Nutrition', t: mealTitle || (nphase ? `${nphase} plan` : 'Nutrition plan'), sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : (nphase ? `${nphase} targets` : 'active') } : null,
       ].filter(Boolean));
       // This week — real targets that move the goal.
       const thisWk = (train && train.stats && Number(train.stats.thisWeekCount)) || 0;

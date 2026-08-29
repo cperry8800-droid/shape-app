@@ -457,6 +457,29 @@ changelog whenever something ships.
   had already answered it for the empty case — *don't show a number you don't have* —
   so the fix was to make the live path obey the rule the empty path already followed,
   not to choose a default.
+- ⚠ **AND A FOURTH, IN THE SAME TWO ROWS — because I swept the class with the wrong
+  test.** Having fixed `sessTarget`, I swept the live effect for sibling `|| <literal>`
+  fallbacks, found `tphase = …trainingPhase || 'Build'` / `nphase = …|| 'Cut'`, and
+  cleared them on the grounds that they are **app-wide house defaults used at five
+  other sites**. That is true and it is not the test. The other five are **page
+  kickers** (Home/Train/Eat: *"Cut · W35"*) — the member's own program context under
+  **no byline**. These two feed **nothing but the role-spined credit rows** (their only
+  readers), so the same string there is a training block **attributed to a coach who
+  never set one** — and, since the rebuild, the Training door quotes that title as the
+  cover's first line. **The right test was never "is this literal used elsewhere?" but
+  "does this literal appear under a byline?"** — the very distinction that made
+  `sessTarget` a defect one line above, applied by me and then not re-applied.
+- ⚠ **AND THE FILE HAD ALREADY RULED ON IT.** `BSTerrainProfile` gates its whole
+  coached-by band on `prog.trainingPhase || prog.nutritionPhase` being real
+  (`hasRealProgram`) — i.e. this codebase had already decided that **an unset phase is
+  not evidence of a coach's programming**, and hides the band rather than name a phase.
+  Unknown now yields a neutral **"Training plan" / "Nutrition plan"**; the five kickers
+  keep their defaults, deliberately.
+- ⚠ **THE GATE OUTLIVES THE FALLBACKS IT WAS WRITTEN FOR**, and the comment now says
+  so. With every literal gone an unauthored row would read *honestly* — which is not
+  the same as the row being honest. A role-spined credit **is** the claim "a coach
+  authored this", so it still may only exist on real evidence; a later reader must not
+  retire the gate as redundant now that the strings beneath it are clean.
 - ⚠ **REFUTED WITH THE SOURCE — "the week page renders blank when `weekTargets` is
   empty".** It cannot be empty: the derivation uses `liveWeekTargets` **only** when it
   is a non-empty array and otherwise supplies four rows either way — signed-in gets the
