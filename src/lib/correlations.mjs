@@ -58,23 +58,40 @@ export const SNAPSHOT_METRICS = [
 /** The PostgREST select for a correlation read. Derived — never hand-typed. */
 export const SNAPSHOT_SELECT = ['snapshot_date', ...SNAPSHOT_METRICS].join(',');
 
-// Pairs we score. Each pair is (x, y, lagDays). lagDays = 1 means y is on the
-// day AFTER x — e.g. sleep_hours[D-1] vs strain[D]. The label is what the UI
-// surfaces; the explanation makes the AI prompt richer.
+// Pairs we score. Each pair is (x, y, lagDays). lagDays = 1 means y is read on
+// the day AFTER x. The label is what the UI surfaces; the explanation makes the
+// AI prompt richer.
 //
 // ⚠ EVERY PAIR MUST NAME A METRIC IN SNAPSHOT_METRICS, and a test asserts it.
 // A pair naming an unlisted column is not an error anywhere at runtime — the
 // column is simply never fetched, every value reads undefined, and the pair
 // silently produces nothing.
+//
+// ⚠ A SLEEP COLUMN ON DAY D IS THE NIGHT THAT **ENDED** ON THE MORNING OF D —
+// which means the intuitive "sleep → next day" lag is off by one, and five of
+// the pairs below were. Established by reading the writers, not assumed:
+//   • `/api/client/checkin` puts sleepHours, sleepQuality AND energy into the
+//     SAME row keyed on the member's local today (route.ts:52-88), and the
+//     mobile card submits all four in one `doLog()` — the member is logging
+//     last night's sleep beside this morning's energy.
+//   • Device sync agrees: WHOOP sleeps and Oura `daily_sleep` both merge on the
+//     provider's own day field, which is the WAKE day (health-snapshot.ts:220,
+//     :318), and the neighbouring `sleep_hours × recovery_score` pair already
+//     encodes this in its own words — "for the same morning", at lag 0.
+// So the sleep that fuelled day D's training sits on row D, not row D-1, and
+// the night that FOLLOWS a day-D stress rating sits on row D+1. Getting this
+// backwards does not fail loudly; it silently reports a different relationship
+// from the one the member logged, which is the fabrication class this file is
+// most exposed to. Check the writer before choosing a lag.
 export const CORRELATION_PAIRS = [
-  { x: 'sleep_hours', y: 'strain', lagDays: 1, label: 'Sleep → next-day strain capacity', explanation: 'Hours slept the night before vs the workload the body actually held the next day.' },
+  { x: 'sleep_hours', y: 'strain', lagDays: 0, label: 'Sleep ↔ that day’s strain capacity', explanation: 'Hours slept the night before vs the workload the body held that day. Lag 0 because the night ending on the morning of D is stored on row D.' },
   { x: 'sleep_hours', y: 'recovery_score', lagDays: 0, label: 'Sleep ↔ same-day recovery', explanation: 'Hours slept vs WHOOP recovery score for the same morning.' },
-  { x: 'sleep_performance_pct', y: 'workout_minutes', lagDays: 1, label: 'Sleep quality → next-day training volume', explanation: 'How much of training duration the next day tracks with sleep performance.' },
+  { x: 'sleep_performance_pct', y: 'workout_minutes', lagDays: 0, label: 'Sleep quality ↔ that day’s training volume', explanation: 'How much training duration tracks with the sleep performance of the night before it.' },
   { x: 'protein_g', y: 'recovery_score', lagDays: 1, label: 'Protein → next-day recovery', explanation: 'Daily protein intake vs the recovery score the following morning.' },
   { x: 'calories', y: 'workout_minutes', lagDays: 0, label: 'Calories ↔ training duration', explanation: 'Same-day calories vs same-day training minutes; energy availability.' },
   { x: 'carbs_g', y: 'strain', lagDays: 0, label: 'Carbs ↔ training strain', explanation: 'Same-day carbohydrate intake vs strain produced.' },
   { x: 'hydration_l', y: 'recovery_score', lagDays: 1, label: 'Hydration → next-day recovery', explanation: 'Daily hydration vs next-morning recovery.' },
-  { x: 'stress', y: 'sleep_hours', lagDays: 0, label: 'Stress ↔ sleep', explanation: 'Subjective stress score vs hours slept that night.' },
+  { x: 'stress', y: 'sleep_hours', lagDays: 1, label: 'Stress → sleep that night', explanation: 'A day’s stress rating vs the sleep that followed it. Lag 1 because the night AFTER day D is stored on row D+1 — the label always said “that night”; only the lag disagreed.' },
   { x: 'workout_minutes', y: 'soreness', lagDays: 1, label: 'Training volume → next-day soreness', explanation: 'How much soreness shows up the morning after training.' },
   { x: 'protein_g', y: 'weight_lb', lagDays: 0, label: 'Protein ↔ weight', explanation: 'Trends in protein intake vs body weight across the window.' },
 
@@ -82,8 +99,8 @@ export const CORRELATION_PAIRS = [
   // each, not every pairing the columns allow: every pair added enlarges the
   // family this readout tests, and the false-positive cost is real (see the
   // q-value note on computeCorrelations).
-  { x: 'sleep_quality', y: 'energy', lagDays: 1, label: 'Rested rating → next-day energy', explanation: 'How rested they said they felt vs the energy they reported the next day.' },
-  { x: 'sleep_hours', y: 'energy', lagDays: 1, label: 'Sleep → next-day energy', explanation: 'The objective twin of the rested rating: hours slept vs next-day energy.' },
+  { x: 'sleep_quality', y: 'energy', lagDays: 0, label: 'Rested rating ↔ that morning’s energy', explanation: 'How rested they said they felt vs the energy they reported in the same check-in — the two land on one row by construction.' },
+  { x: 'sleep_hours', y: 'energy', lagDays: 0, label: 'Sleep ↔ that morning’s energy', explanation: 'The objective twin of the rested rating: hours slept last night vs the energy reported that morning.' },
   { x: 'energy', y: 'workout_minutes', lagDays: 0, label: 'Energy ↔ same-day training', explanation: 'Whether the days they report more energy are the days they actually train longer.' },
   { x: 'calories', y: 'hunger', lagDays: 1, label: 'Calories → next-day hunger', explanation: 'Whether under-eating one day shows up as hunger the next.' },
   { x: 'protein_g', y: 'hunger', lagDays: 0, label: 'Protein ↔ hunger', explanation: 'Same-day protein vs how hungry they felt; satiety.' },
@@ -148,20 +165,100 @@ function pearson(xs, ys) {
   return num / Math.sqrt(denX * denY);
 }
 
-// Approximate two-sided p-value for Pearson r using the t-distribution
-// approximation. Good enough for "is this significant or noise" — we are
-// not doing inference, just gating which insights surface.
+// ── Student-t two-sided p-value for Pearson r ────────────────────────────────
+//
+// ⚠ THIS COMPUTED A NORMAL TAIL WHILE CALLING ITSELF A t-DISTRIBUTION, and at
+// this module's sample sizes that is not a rounding difference. The t statistic
+// was formed correctly with n-2 degrees of freedom and then fed into
+// Abramowitz & Stegun 26.2.17 — the STANDARD NORMAL survival approximation,
+// which is the df -> infinity limit. Our windows are small by construction
+// (MIN_DAYS is 4, and the readout gates at n >= 7), and that is exactly where
+// the normal tail is far too thin: for n = 4, r = 0.9 the true two-sided p is
+// 0.10 and the old code returned ~0.004. Every p was understated, and since q
+// is a monotone transform of the p ordering and thresholds, every q with it —
+// so the FDR gate added in this same wave was calibrated against numbers that
+// were not the p-values they claimed to be.
+//
+// The exact expression is used instead of an approximation, because it is only
+// a few lines more: for T ~ t(df),
+//     P(|T| >= t) = I_{df/(df + t^2)}(df/2, 1/2)
+// where I is the regularized incomplete beta function. Deterministic, no table,
+// no lookup, and correct at every df rather than only in the large-n limit.
+
+// Lanczos log-gamma (g = 7, n = 9). Standard coefficients.
+const LANCZOS_G = 7;
+const LANCZOS_C = [
+  0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+  771.32342877765313, -176.61502916214059, 12.507343278686905,
+  -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7,
+];
+
+function logGamma(z) {
+  if (z < 0.5) {
+    // Reflection: Gamma(z)Gamma(1-z) = pi / sin(pi z)
+    return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
+  }
+  const x = z - 1;
+  let a = LANCZOS_C[0];
+  const t = x + LANCZOS_G + 0.5;
+  for (let i = 1; i < LANCZOS_C.length; i += 1) a += LANCZOS_C[i] / (x + i);
+  return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+}
+
+// Continued fraction for the incomplete beta (modified Lentz). Converges for
+// x < (a+1)/(a+b+2); the caller flips to the symmetric form otherwise.
+function betaContinuedFraction(a, b, x) {
+  const TINY = 1e-30;
+  const EPS = 3e-12;
+  const qab = a + b;
+  const qap = a + 1;
+  const qam = a - 1;
+  let c = 1;
+  let d = 1 - (qab * x) / qap;
+  if (Math.abs(d) < TINY) d = TINY;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= 300; m += 1) {
+    const m2 = 2 * m;
+    let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < TINY) d = TINY;
+    c = 1 + aa / c;
+    if (Math.abs(c) < TINY) c = TINY;
+    d = 1 / d;
+    h *= d * c;
+    aa = (-(a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < TINY) d = TINY;
+    c = 1 + aa / c;
+    if (Math.abs(c) < TINY) c = TINY;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < EPS) break;
+  }
+  return h;
+}
+
+// Regularized incomplete beta I_x(a, b), in [0, 1].
+function incompleteBeta(a, b, x) {
+  if (!(x > 0)) return 0;
+  if (x >= 1) return 1;
+  const front = Math.exp(
+    logGamma(a + b) - logGamma(a) - logGamma(b) + a * Math.log(x) + b * Math.log(1 - x)
+  );
+  return x < (a + 1) / (a + b + 2)
+    ? (front * betaContinuedFraction(a, b, x)) / a
+    : 1 - (front * betaContinuedFraction(b, a, 1 - x)) / b;
+}
+
 function approxPValue(r, n) {
   if (n <= 2 || Math.abs(r) >= 1) return 0;
-  const t = (r * Math.sqrt(n - 2)) / Math.sqrt(Math.max(1 - r * r, 1e-9));
-  // Two-sided survival approximation via Abramowitz & Stegun 26.7.1.
-  const x = Math.abs(t);
-  const a = 1 / (1 + 0.2316419 * x);
-  const phi =
-    (1 / Math.sqrt(2 * Math.PI)) *
-    Math.exp(-(x * x) / 2) *
-    (a * (0.319381530 + a * (-0.356563782 + a * (1.781477937 + a * (-1.821255978 + a * 1.330274429)))));
-  return Math.min(1, 2 * phi);
+  const df = n - 2;
+  const t = (r * Math.sqrt(df)) / Math.sqrt(Math.max(1 - r * r, 1e-9));
+  if (!Number.isFinite(t)) return 0;
+  const p = incompleteBeta(df / 2, 0.5, df / (df + t * t));
+  return Math.min(1, Math.max(0, p));
 }
 
 function strengthOf(r) {

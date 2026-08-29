@@ -31,8 +31,21 @@ export type MetricKey =
   | 'sleep_quality'
   | 'steps';
 
+/**
+ * One day's snapshot as it arrives from PostgREST.
+ *
+ * ⚠ A METRIC VALUE MAY BE A STRING, and the type has to say so or it lies about
+ * its own input. PostgREST serialises `numeric` columns as JSON STRINGS
+ * (browser-verified in this repo, #1769), and 14 of these metrics are numeric —
+ * which is precisely how the already-shipped /api/insights/correlations came to
+ * compute 8 of its 10 pairs over zero rows. `computeCorrelations` now coerces
+ * numeric strings deliberately (see `toNumber`), so a caller casting a raw
+ * PostgREST row through this type is doing the correct thing; narrowing the
+ * value to `number | null` would make that cast look wrong and invite someone
+ * to "fix" it back into the defect.
+ */
 export type SnapshotPoint = { snapshot_date: string } & Partial<
-  Record<MetricKey, number | null>
+  Record<MetricKey, number | string | null>
 >;
 
 /** The metric columns, and the single source the select is derived from. */

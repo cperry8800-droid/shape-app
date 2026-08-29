@@ -77,15 +77,17 @@ test('a perfect same-day relationship reads r = 1 with the right n', () => {
 // read the Y value from the FOLLOWING date, and must lose exactly one usable
 // day at the end of the window.
 test('a lagged pair reads y from the next day and drops the last day', () => {
-  // energy on day i+1 mirrors sleep_quality on day i, inverted.
-  const rows = daysOf(8, (i) => ({ sleep_quality: i, energy: 10 - i }));
+  // hunger on day i+1 mirrors calories on day i, inverted. `calories → hunger`
+  // is genuinely lagged: intake is logged across day D, and the hunger it
+  // produces is rated in the NEXT morning's check-in.
+  const rows = daysOf(8, (i) => ({ calories: i, hunger: 10 - i }));
   const lagged = computeCorrelations(rows).find(
-    (c) => c.x === 'sleep_quality' && c.y === 'energy' && c.lagDays === 1
+    (c) => c.x === 'calories' && c.y === 'hunger' && c.lagDays === 1
   );
-  assert.ok(lagged, 'the rested → next-day energy pair did not compute');
+  assert.ok(lagged, 'the calories → next-day hunger pair did not compute');
   // 8 days, one lost to the lag.
   assert.equal(lagged.n, 7);
-  // sleep_quality[i] vs energy[i+1] = 10-(i+1) — still perfectly linear, negative.
+  // calories[i] vs hunger[i+1] = 10-(i+1) — still perfectly linear, negative.
   assert.equal(lagged.r, -1);
   assert.equal(lagged.direction, 'negative');
   assert.equal(lagged.series[0].date, '2026-01-01');
@@ -93,17 +95,17 @@ test('a lagged pair reads y from the next day and drops the last day', () => {
 
 test('a gap in the window breaks the lag rather than pairing across it', () => {
   const rows = [
-    { snapshot_date: '2026-01-01', sleep_quality: 1, energy: 1 },
-    { snapshot_date: '2026-01-02', sleep_quality: 2, energy: 2 },
+    { snapshot_date: '2026-01-01', calories: 1, hunger: 1 },
+    { snapshot_date: '2026-01-02', calories: 2, hunger: 2 },
     // 01-03 missing entirely
-    { snapshot_date: '2026-01-04', sleep_quality: 4, energy: 4 },
-    { snapshot_date: '2026-01-05', sleep_quality: 5, energy: 5 },
-    { snapshot_date: '2026-01-06', sleep_quality: 6, energy: 6 },
-    { snapshot_date: '2026-01-07', sleep_quality: 7, energy: 7 },
-    { snapshot_date: '2026-01-08', sleep_quality: 8, energy: 8 },
+    { snapshot_date: '2026-01-04', calories: 4, hunger: 4 },
+    { snapshot_date: '2026-01-05', calories: 5, hunger: 5 },
+    { snapshot_date: '2026-01-06', calories: 6, hunger: 6 },
+    { snapshot_date: '2026-01-07', calories: 7, hunger: 7 },
+    { snapshot_date: '2026-01-08', calories: 8, hunger: 8 },
   ];
   const lagged = computeCorrelations(rows).find(
-    (c) => c.x === 'sleep_quality' && c.y === 'energy' && c.lagDays === 1
+    (c) => c.x === 'calories' && c.y === 'hunger' && c.lagDays === 1
   );
   // 7 rows; 01-02→01-03 and 01-08→01-09 have no y row, so 5 usable pairs.
   assert.ok(lagged);
@@ -257,5 +259,143 @@ test('no pair correlates a metric with itself at the same lag', () => {
     if (p.lagDays === 0) {
       assert.notEqual(p.x, p.y, `"${p.label}" correlates ${p.x} with itself`);
     }
+  }
+});
+
+// ── The p-value, and the sleep-day convention the lags rest on ───────────────
+
+// ⚠ THIS MODULE COMPUTED A NORMAL TAIL WHILE ITS OWN COMMENT SAID
+// "t-distribution". The t statistic was formed correctly with n-2 degrees of
+// freedom and then pushed through Abramowitz & Stegun 26.2.17 — the STANDARD
+// NORMAL survival approximation, i.e. the df -> infinity limit — so every
+// p-value was understated, worst exactly where this module lives: n is 4 at the
+// floor and 7 at the readout gate. A wrong p is not cosmetic here, because the
+// FDR gate added in the same wave is a monotone transform of the p ordering and
+// its threshold: the readout was deciding what to tell a member about their own
+// body using numbers that were not the p-values they claimed to be.
+//
+// Pinned against PUBLISHED critical values rather than against the previous
+// output: at each alpha = 0.05 critical r for that df, p must land on 0.05. A
+// table generated from the implementation would only pin the implementation.
+test('the p-value is a real Student-t tail, not a normal approximation', () => {
+  const series = (xs, ys) =>
+    xs.map((x, i) => ({
+      snapshot_date: `2026-01-${String(i + 1).padStart(2, '0')}`,
+      protein_g: x,
+      weight_lb: ys[i],
+    }));
+  // `protein_g x weight_lb` at lag 0 is a real pair, so this drives the shipped
+  // path rather than a private helper.
+  const pFor = (xs, ys) => {
+    const out = computeCorrelations(series(xs, ys));
+    const hit = out.find((c) => c.x === 'protein_g' && c.y === 'weight_lb');
+    assert.ok(hit, 'the protein x weight pair should compute');
+    return { p: hit.pValue, r: hit.r, n: hit.n };
+  };
+
+  // r = 0: a two-sided p of exactly 1. y is symmetric about the middle of x, so
+  // the covariance numerator cancels exactly.
+  const flat = pFor([1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 4, 3, 2, 1]);
+  assert.equal(flat.r, 0);
+  assert.ok(Math.abs(flat.p - 1) < 1e-9, `r=0 should give p=1, got ${flat.p}`);
+
+  // The published alpha = 0.05 critical correlations. Each must land on 0.05.
+  // The old normal-tail code returned roughly a third of this at n = 8.
+  for (const [n, rCrit] of [
+    [8, 0.7067],
+    [10, 0.6319],
+    [16, 0.4973],
+  ]) {
+    // Build a series with exactly this r: y = r*x + sqrt(1-r^2)*z, on an
+    // orthonormal x/z pair, so the correlation is the coefficient itself.
+    const xs = [];
+    const zs = [];
+    for (let i = 0; i < n; i += 1) {
+      const th = (2 * Math.PI * i) / n;
+      xs.push(Math.cos(th));
+      zs.push(Math.sin(th));
+    }
+    const ys = xs.map((x, i) => rCrit * x + Math.sqrt(1 - rCrit * rCrit) * zs[i]);
+    const got = pFor(xs, ys);
+    // `r` is reported rounded to 3dp; the p-value is computed from the raw one.
+    assert.ok(Math.abs(got.r - rCrit) < 1e-3, `n=${n}: built r=${got.r}, wanted ${rCrit}`);
+    assert.ok(
+      Math.abs(got.p - 0.05) < 0.002,
+      `n=${n}, r=${rCrit} is the published .05 critical value; got p=${got.p}`
+    );
+  }
+});
+
+// ⚠ THE LAGS BELOW REST ON A FACT ABOUT ANOTHER FILE, so that fact is what this
+// asserts. A sleep column on day D is the night that ENDED on the morning of D,
+// which is only true because `/api/client/checkin` writes sleepHours,
+// sleepQuality AND energy into the SAME snapshot row keyed on one local day. If
+// that route ever splits them across days, five pairs here silently start
+// measuring a relationship the member never logged — and nothing else would
+// catch it, because a wrong lag produces a perfectly well-formed correlation.
+test('the check-in still writes sleep and energy onto one snapshot day', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync('src/app/api/client/checkin/route.ts', 'utf8');
+  // One local day resolved once...
+  assert.match(
+    src,
+    /const\s+today\s*=\s*clientLocalDay\(/,
+    'the check-in should resolve ONE local day for the whole write'
+  );
+  // ...and every field, sleep and energy alike, patched onto that one row.
+  for (const field of ['sleep_hours', 'sleep_quality', 'energy']) {
+    assert.match(
+      src,
+      new RegExp(`patch\\.${field}\\s*=`),
+      `${field} should be written into the same patch as the rest of the check-in`
+    );
+  }
+  assert.equal(
+    (src.match(/clientLocalDay\(/g) || []).length,
+    1,
+    'a second day resolution in this route would mean sleep and energy can land on different rows'
+  );
+});
+
+// The consequence of that fact, pinned per pair so a silent flip back to the
+// intuitive-but-wrong "sleep -> next day" fails here with its reason attached.
+test('sleep pairs use the lag their storage day implies', () => {
+  const expected = new Map([
+    // Sleep on row D fuelled day D — the night ended that morning.
+    ['sleep_hours->strain', 0],
+    ['sleep_hours->recovery_score', 0],
+    ['sleep_hours->energy', 0],
+    ['sleep_quality->energy', 0],
+    ['sleep_performance_pct->workout_minutes', 0],
+    // The night that FOLLOWS a day-D rating is stored on row D+1.
+    ['stress->sleep_hours', 1],
+  ]);
+  const SLEEP_COLS = new Set([
+    'sleep_hours',
+    'sleep_quality',
+    'sleep_performance_pct',
+    'sleep_efficiency_pct',
+  ]);
+  const seen = new Set();
+  for (const p of CORRELATION_PAIRS) {
+    if (!SLEEP_COLS.has(p.x) && !SLEEP_COLS.has(p.y)) continue;
+    const key = `${p.x}->${p.y}`;
+    assert.ok(
+      expected.has(key),
+      `"${p.label}" pairs a sleep column but is not in the pinned lag map — ` +
+        'decide the lag from which day the sleep is STORED on, then add it here'
+    );
+    assert.equal(
+      p.lagDays,
+      expected.get(key),
+      `"${p.label}" (${key}) must use lag ${expected.get(key)}: a sleep column on ` +
+        'day D is the night that ended on the morning of D'
+    );
+    seen.add(key);
+  }
+  // Guard the guard: an entry that stops matching any pair would silently
+  // stop asserting anything.
+  for (const key of expected.keys()) {
+    assert.ok(seen.has(key), `pinned pair ${key} no longer exists in CORRELATION_PAIRS`);
   }
 });

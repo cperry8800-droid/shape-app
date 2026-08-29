@@ -54,16 +54,26 @@ function correlationKey(c: CorrelationResult): string {
   return `${c.x}->${c.y}@lag${c.lagDays}`;
 }
 
+// The false-discovery-rate ceiling a correlation must clear to be offered as an
+// insight. ONE constant: the model catalog and the deterministic fallback are
+// two renderings of the same evidence, so a member must never be able to see a
+// finding from one path that the other would have refused.
+const Q_THRESHOLD = 0.2;
+
 function fallbackReadout(correlations: CorrelationResult[]): Readout {
   // ⚠ GATES ON q, NOT p, and that is the point of computing q at all. Each pair
   // is a separate test, so with a 16-pair catalog and a 28-day window roughly
   // two "moderate" findings are expected from noise alone — a readout that
   // always has something to say is a horoscope, not a readout. q is the
   // Benjamini–Hochberg FDR across the pairs in THIS response, so the threshold
-  // means what a reader assumes it means. It is never below p, so this is
-  // strictly stricter than the raw-p gate it replaces; when nothing survives,
-  // the honest empty summary below is the correct output, not a failure.
-  const significant = correlations.filter((c) => c.strength !== 'weak' && c.qValue < 0.2).slice(0, 4);
+  // means what a reader assumes it means. BH guarantees q >= p, so this is at
+  // least as strict as the raw-p gate it replaces — equality is possible (the
+  // largest-p finding always takes q = p), so "strictly stricter" would have
+  // been a claim the maths does not make. When nothing survives, the honest
+  // empty summary below is the correct output, not a failure.
+  const significant = correlations
+    .filter((c) => c.strength !== 'weak' && c.qValue < Q_THRESHOLD)
+    .slice(0, 4);
   if (significant.length === 0) {
     return {
       summary:
@@ -136,7 +146,17 @@ async function generateReadout(
 ): Promise<Readout | null> {
   if (!hasOpenAIKey()) return null;
 
-  const significantCorrelations = correlations.filter((c) => c.n >= 7).slice(0, 6);
+  // ⚠ THE q GATE IS ENFORCED HERE, NOT LEFT TO THE PROMPT. The catalog handed to
+  // the model is the ONLY set an insight may reference (post-parse validation
+  // checks membership), so filtering it is what makes the FDR threshold binding
+  // — a prompt line asking the model to "prefer" low q is advisory, and a model
+  // that ignores it would surface a finding the deterministic fallback would
+  // have refused. Same threshold as fallbackReadout, deliberately: the two
+  // paths must not disagree about what counts as a finding. When nothing
+  // survives, this returns null and the honest empty summary is the output.
+  const significantCorrelations = correlations
+    .filter((c) => c.n >= 7 && c.qValue < Q_THRESHOLD)
+    .slice(0, 6);
   if (significantCorrelations.length === 0) return null;
 
   const correlationCatalog = significantCorrelations.map((c) => ({
