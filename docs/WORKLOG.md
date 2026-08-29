@@ -403,11 +403,22 @@ changelog whenever something ships.
   WHAT FOUND IT.** The pairing test was `typeof v === 'number'` — but **PostgREST returns
   `numeric` columns as STRINGS**, a gap this repo browser-verified once already (#1769,
   the roster variance band: *"the unit tests only cover the JS-number shape, so this was a
-  real production gap"*). **Fourteen** of these metrics are `numeric` — sleep_hours,
-  strain, recovery_score, hrv_ms, resting_hr, protein_g, carbs_g, fat_g, hydration_l,
-  weight_lb, body_fat_pct — so **8 of the original 10 pairs** silently computed over zero
-  rows on the already-shipped `/api/insights/correlations`. Now coerced to accept both
-  shapes, which is correct whichever way the driver serialises them.
+  real production gap"*). **TWELVE** of the 23 metrics are `numeric` —
+  `sleep_hours` · `sleep_performance_pct` · `recovery_score` · `hrv_ms` · `resting_hr` ·
+  `strain` · `protein_g` · `carbs_g` · `fat_g` · `hydration_l` · `weight_lb` ·
+  `body_fat_pct`; the other eleven are `integer` or `smallint` and do arrive as JSON
+  numbers. So **8 of the original 10 pairs** — every one naming a `numeric` column on
+  either side — silently computed over zero rows on the already-shipped
+  `/api/insights/correlations`; only `calories × workout_minutes` and
+  `workout_minutes × soreness` were ever alive.
+  ⚠ **THE COUNT ITSELF WAS WRONG TWICE, WHICH IS THE POINT.** It first read *fourteen*
+  above a list of eleven names; the correction re-counted by hand and produced a
+  different fourteen, wrongly including the two `integer` columns `avg_heart_rate` and
+  `calories` and omitting the `numeric` `resting_hr`. Twelve is what
+  `information_schema.columns` says on the live database. **A figure nobody can audit
+  from the page is a figure that will be wrong** — read the schema, don't recall it.
+  Values are now coerced to accept both shapes, which is correct whichever way the driver
+  serialises them.
   ⚠ **And NOT with `Number(v)`**: `Number(null)`, `Number('')` and `Number(false)` are all
   a finite **0** — the fabrication class this repo has paid for repeatedly (the cycle read
   invented a "significant" gap out of eight missing rows exactly that way). A missing
@@ -418,14 +429,66 @@ changelog whenever something ships.
   the "moderate" floor — is roughly **p = 0.12**, so a 16-pair catalog expects about **two
   spurious "moderate" findings per readout**. A readout that always has something to say
   is a horoscope. `computeCorrelations` now annotates a **Benjamini–Hochberg `qValue`**
-  across the pairs in that response, the readout's fallback gates on **q rather than raw
-  p** (strictly stricter — q is never below p), and the model is given `q_value` too, so
-  it is not asked to judge on evidence we know is incomplete. When nothing survives, the
+  across the pairs in that response, **both** readout paths gate on **q rather than raw
+  p** — at least as strict, not *strictly* stricter: BH guarantees q ≥ p, and the
+  largest-p finding always takes q = p exactly.
+  ⚠ **AND THE GATE IS ENFORCED, NOT ASKED FOR** — the first cut filtered the model's
+  catalog on sample size alone and told the model in the prompt to prefer low q, which is
+  advisory: the catalog is the only set an insight may reference, so **filtering it is the
+  gate**, and a model that ignored the line could have surfaced a finding the
+  deterministic fallback would have refused. One `Q_THRESHOLD` now feeds both paths, and
+  a test fails if either stops reading it or a second literal appears. When nothing survives, the
   honest empty summary is the correct output, not a failure.
   ⚠ **The correction was NOT registered for later**, deliberately: this wave enlarged the
   family, so this wave carries the cost of it. Six pairs were added, each with a
   physiological story, rather than every pairing the columns allow — the family size is
   itself a design decision.
+- ⚠ **AND THE p-VALUE THE WHOLE GATE RESTS ON WAS A NORMAL TAIL WEARING A
+  t-DISTRIBUTION'S COMMENT** (review, on the first head). The `t` statistic was formed
+  correctly with `n-2` degrees of freedom and then pushed through **Abramowitz & Stegun
+  26.2.17 — the standard NORMAL survival approximation**, i.e. the `df → ∞` limit. These
+  windows are small *by construction* (`MIN_DAYS` is 4; the readout gates at n ≥ 7), which
+  is exactly where a normal tail is far too thin: at n = 4, r = 0.9 the true two-sided p
+  is **0.10** and the old code returned **~0.004**. Replaced with the exact expression —
+  `P(|T| ≥ t) = I_{df/(df+t²)}(df/2, ½)` via a Lanczos log-gamma and a Lentz continued
+  fraction — which reproduces **every published α = .05 critical correlation to four
+  decimals**.
+  ⚠ **This is not a precision nicety, because it invalidated the numbers the correction
+  above was calibrated with.** `q` is a monotone transform of the p **ordering and
+  threshold**, so the FDR gate shipped in this same wave was gating on values that were
+  not the p-values they claimed to be — and the *"|r| = 0.3 at 28 days ≈ p = 0.12"*
+  arithmetic this entry's own rationale rests on is a number the old code **could not
+  produce** (it would have said ~0.10). The exact tail returns **0.121**. Pinned against
+  published critical values rather than against the implementation's own output, because a
+  table generated from the code only ever pins the code.
+- ⚠ **A SLEEP COLUMN ON DAY D IS THE NIGHT THAT *ENDED* ON THE MORNING OF D — and five
+  pairs had it backwards, two of them added by this wave** (review, and correct).
+  Established by reading the writers rather than reasoning from the metric names:
+  `/api/client/checkin` puts `sleepHours`, `sleepQuality` **and** `energy` into the **same
+  snapshot row** keyed on one member-local day, and the mobile card submits all four in a
+  single `doLog()`; WHOOP sleeps and Oura `daily_sleep` both merge on the provider's own
+  **wake** day; and the neighbouring `sleep_hours × recovery_score` pair already encoded
+  the convention *in its own words* — *"for the same morning"*, at lag 0. So the sleep that
+  fuelled day D's training sits on row **D**, not D-1: `sleep → strain`,
+  `sleep_performance → workout_minutes` and both new `sleep → energy` pairs move to
+  **lag 0**, while `stress → sleep_hours` moves to **lag 1** — its label always read *"that
+  night"*; only the lag disagreed.
+  ⚠ **A wrong lag fails loudly NOWHERE.** It yields a perfectly well-formed correlation
+  with a real r, a real n and a real q — of a relationship the member never logged. Three
+  of the five were pre-existing, so the fix is the whole class rather than the two this
+  wave introduced, and the convention is now written **at the pair table** with the file
+  and line of each writer that establishes it. Guarded two ways: a **cross-file** test that
+  fails if the check-in ever stops writing sleep and energy onto one day (the fact the lags
+  rest on), and a per-pair lag map with guard-the-guard, so a silent flip back to the
+  intuitive-but-wrong *"sleep → next day"* fails with its reason attached.
+- ⚠ **THE q GATE WAS ENFORCED ON ONE PATH AND *ASKED FOR* ON THE OTHER** (review). The
+  fallback filtered on q; the catalog handed to the model filtered on **sample size alone**
+  and the prompt merely told the model to prefer low q. The catalog is the only set an
+  insight may reference (post-parse validation checks membership), so **filtering it IS the
+  gate** — a model that ignored the line could surface a finding the deterministic path
+  would have refused, which is the two halves of one feature disagreeing about what counts
+  as evidence. One `Q_THRESHOLD` now feeds both, with a test that fails if either stops
+  reading it **or** a second literal threshold appears at a call site.
 - **`correlations.ts` → `correlations.mjs` + `.d.ts`, and that is why any of this is
   testable.** As TypeScript it could not be imported by `node --test`, so the entire
   evidence layer under two routes — the thing that decides which "insights" a member is
@@ -436,11 +499,14 @@ changelog whenever something ships.
   across a gap in the window), zero-variance yielding nothing rather than `r = 0`, and
   that the module produces every field the `.d.ts` promises — a shape the declaration
   claims but the module omits is an `any` at the call site, not a compile error.
-- **8 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
+- **16 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
   naming an unselected column · lag collapsing to same-day · `q` losing monotonicity ·
   reject numeric strings, i.e. the shipped bug · naive `Number()` coercion · empty string
-  becoming 0 · NaN/Infinity admitted), sanity green at both ends and the file restored
-  **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
+  becoming 0 · NaN/Infinity admitted · **restore the normal tail** · flip `rested → energy`
+  back to lag 1 · flip `stress → sleep` back to lag 0 · split the check-in's sleep onto a
+  second local day · delete a pinned sleep pair · add an **unpinned** sleep pair · the
+  model catalog stops gating on q · a literal q threshold back at a call site), sanity
+  green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
   annotator assigns every index and its only early return is the empty case, so nothing
   can observe the seed. **Kept and labelled rather than deleted**, so the next reader
   neither removes it as dead nor spends a round writing the test that cannot exist.
@@ -450,7 +516,9 @@ changelog whenever something ships.
   call** — so it is not a leak and not a cost, but it is looser than it needs to be, and
   the entry-point PR should bind it.
 - Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present ·
-  `npm test` **2361/2361** (+16).
+  `npm test` **2365/2365** (+20) · the p-value checked against published α = .05 critical
+  correlations at df 6/8/14 and the df = 2 closed form · the `numeric` column list read
+  from `information_schema` on the live database.
 
 ### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous (#1949 → `d80e49680`)
 

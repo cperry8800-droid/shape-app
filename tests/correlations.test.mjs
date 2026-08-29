@@ -399,3 +399,40 @@ test('sleep pairs use the lag their storage day implies', () => {
     assert.ok(seen.has(key), `pinned pair ${key} no longer exists in CORRELATION_PAIRS`);
   }
 });
+
+// ⚠ THE ROUTE'S OWN GATE, ASSERTED AT THE ROUTE. `computeCorrelations` is pure
+// and every test above builds its own input, so none of them can see what the
+// weekly-readout handler does with the result — the exact blind spot that let
+// the model path ship filtering on `n` alone while the fallback filtered on q.
+// The invariant is not "there is a threshold" but "the two paths share ONE", so
+// that is what this checks: a member must never be shown a finding from the
+// model that the deterministic fallback would have refused. Source-level
+// because the handler pulls in Supabase and the AI client and cannot be driven
+// under `node --test`.
+test('the readout gates both paths on one shared q threshold', async () => {
+  const { readFileSync } = await import('node:fs');
+  const raw = readFileSync('src/app/api/ai/weekly-readout/route.ts', 'utf8');
+  // Strip comments first — the rationale prose below quotes these very names,
+  // and a guard that fires on its own explanation is no guard.
+  const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+  assert.match(src, /const Q_THRESHOLD\s*=/, 'the shared threshold should be declared once');
+  assert.equal(
+    (src.match(/const Q_THRESHOLD\s*=/g) || []).length,
+    1,
+    'two threshold declarations would let the paths drift apart again'
+  );
+  // Both selections — the deterministic fallback and the catalog handed to the
+  // model — must gate on it.
+  assert.equal(
+    (src.match(/qValue\s*<\s*Q_THRESHOLD/g) || []).length,
+    2,
+    'both the fallback and the model catalog must gate on the shared q threshold'
+  );
+  // And neither may gate on a bare number instead.
+  assert.doesNotMatch(
+    src,
+    /qValue\s*<\s*[0-9.]/,
+    'a literal q threshold at a call site is how the two paths drift'
+  );
+});
