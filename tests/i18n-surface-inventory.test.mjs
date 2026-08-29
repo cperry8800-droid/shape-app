@@ -35,8 +35,8 @@ const LETTERS = /[A-Za-z]{2}/;
 const BRAND = new Set([
   'Shape', 'Shape Score', 'Shape Kitchen', 'Shape Radio', 'Shape Store', 'Shape Steps',
   'Vol. 1 · No. 1', 'Nora', 'Spotify', 'Apple Music', 'Instacart', 'Strava', 'Whoop',
-  'Oura', 'Garmin', 'RPE', 'e1RM', 'kcal', 'KCAL', 'BPM', 'HRV', 'GPS', 'PR', 'PRS', 'Aa',
-  'KB', 'MB', 'GB', 'ms', 'px',
+  'Oura', 'Garmin', 'RPE', 'e1RM', 'kcal', 'KCAL', 'BPM', 'HR', 'HRV', 'GPS', 'PR', 'PRS',
+  'Aa', 'KB', 'MB', 'GB',
 ]);
 
 // Comparison operands are TOKENS, never rendered: `typeof x === 'string'`,
@@ -44,14 +44,57 @@ const BRAND = new Set([
 // shells as carrying untranslated copy.
 const COMPARISON = new Set(['===', '!==', '==', '!=']);
 
+// ⚠ UNITS AND NOTATION ARE NOT COPY. They clear the two-letter test and land in
+// running text ('12 lb', 'in', '45 min'), so without this they read as
+// untranslated strings on every stat surface in the tree. Normalized (trimmed,
+// lowercased) so 'LB' and 'Min' fall out with 'lb' and 'min'.
+// ⚠ A TOKEN IS EXCLUDED ONLY WHEN IT CANNOT ALSO BE AN ENGLISH WORD IN RUNNING
+// COPY. A false exclusion hides real copy, which is the direction that makes this
+// guard LIE; an under-exclusion only leaves a unit in the count, which reads as a
+// slightly larger gap than there is. So 'in', 'am' and 'pm' are deliberately NOT
+// here. Nor is 'hr' — case-folding it collided with 'HR' (heart rate) and silently
+// dropped the only string BSSplitsPage still hardcodes; heart rate is a term of art
+// and belongs in BRAND beside RPE/HRV/BPM, which is where it now sits.
+const NOTATION = new Set(['lb', 'lbs', 'kg', 'ms', 'px', 'ft', 'cm', 'mm', 'oz', 'ml', 'min', 'sec']);
+
 // Props whose string value is READ ALOUD or rendered. Everything else a string can
 // land in — styles, classes, keys, colors, ids — is not copy.
 const TEXT_PROPS = new Set(['placeholder', 'title', 'alt', 'aria-label', 'ariaLabel', 'label', 'aria-valuetext']);
 
-// The translator is reached two ways in this tree: the `useShapeTr()` hook's `tr`,
-// and the pros module's module-scope non-hook `coachTr` (the roster helpers cannot
-// hold a hook). Matching only `tr` would read every coachTr surface as uncovered.
-const IS_TR = /^(tr|[a-z]\w*Tr)$/;
+// ⚠ DERIVE THE TRANSLATOR BINDINGS, DON'T ENUMERATE A NAMING CONVENTION.
+// The first version matched `/^(tr|[a-z]\w*Tr)$/` — a guess at what a translator
+// is called, wearing a pattern. It missed `const trG = useShapeTr()` in BSGrocery
+// (CodeRabbit on #1954), and it counted the hook call `useShapeTr()` itself as a
+// translator call, so a component that took the hook and never used it read as
+// covered. Both are the same defect: asking how a name is SPELLED instead of what
+// it is BOUND TO. So each file's translator names are read off the bindings:
+//   · `const tr = useShapeTr()`        — the 114 ordinary call sites
+//   · `const trG = useShapeTr()`       — BSGrocery, invisible to the regex
+//   · `const { tr } = useTr('ns')`     — BSDobGate / BSLanguagePicker
+// plus the pros module's module-scope non-hook `coachTr` (the roster helpers
+// cannot hold a hook, so it is a plain function, bound to no hook call).
+const USE_TR = /^use\w*Tr$/;
+const FN = new Set(['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration', 'ObjectMethod', 'ClassMethod']);
+const MODULE_SCOPE_TRANSLATORS = ['coachTr'];
+
+/** Every identifier in one file that holds a translator. */
+function translatorNames(ast) {
+  const names = new Set(MODULE_SCOPE_TRANSLATORS);
+  walk(ast.program, (n) => {
+    if (n.type !== 'VariableDeclarator') return true;
+    const init = n.init;
+    if (init?.type !== 'CallExpression' || init.callee?.type !== 'Identifier'
+      || !USE_TR.test(init.callee.name)) return true;
+    if (n.id?.type === 'Identifier') names.add(n.id.name);
+    else if (n.id?.type === 'ObjectPattern') {
+      for (const pr of n.id.properties) {
+        if (pr.type === 'ObjectProperty' && pr.value?.type === 'Identifier') names.add(pr.value.name);
+      }
+    }
+    return true;
+  });
+  return names;
+}
 
 // ⚠ COPY IS NOT ONLY A DIRECT CHILD OF ITS CONTAINER — Codex P1 on #1954, and it
 // made the first published number wrong. `{isAdded ? '✓ ADDED' : '+ ADD'}` puts
@@ -79,15 +122,18 @@ function containerStrings(container) {
   return out;
 }
 
-/** Two consecutive letters, and not a brand noun the house keeps literal. */
+/** Two consecutive letters, and neither a brand noun nor a unit. */
 function usable(v) {
-  return !!v && LETTERS.test(v) && !BRAND.has(v.trim());
+  if (!v || !LETTERS.test(v)) return false;
+  const t = v.trim();
+  return !BRAND.has(t) && !NOTATION.has(t.toLowerCase());
 }
 
 /** Walk one file and return { name, tr, hard } for every component that renders JSX. */
 function componentsOf(file) {
   const src = fs.readFileSync(path.join(DIR, file), 'utf8');
   const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
+  const isTr = translatorNames(ast);
   const out = [];
 
   // Top-level `function Name()` / `const Name = () =>` with a Capitalized name.
@@ -113,7 +159,23 @@ function componentsOf(file) {
     // root itself (start 0) — so it skipped the entire tree and reported zero.
     // The guard-the-guard assertion below is what caught it.
     walk(d.node, (n, parent) => {
-      if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && IS_TR.test(n.callee.name)) tr++;
+      // ⚠ A REFERENCE, NOT ONLY A CALL. `bsmRoleWord(tr, isNutri)` injects the
+      // translator into a module-scope helper that cannot hold a hook — the
+      // sanctioned pattern in this repo — so the component routes its copy
+      // through `tr` while never calling it. Counting calls alone read the two
+      // marketplace cards as having no translator at all. The binding site
+      // itself (`const tr = useShapeTr()`) and property positions don't count.
+      // ⚠ A PARAMETER NAMED `tr` IS NOT THE TRANSLATOR — the shadow class this
+      // repo has already recorded once: `getTracks().forEach(tr => tr.stop())`
+      // (a MediaStreamTrack) and `list.map((tr, i) => …)` in BSPlaylistCard. They
+      // are inert at runtime precisely because those components hold no
+      // translator — so counting the shadow read them as covered. Skip any
+      // function that re-binds the name.
+      if (FN.has(n.type) && (n.params || []).some((pp) => pp.type === 'Identifier' && isTr.has(pp.name))) return false;
+      if (n.type === 'Identifier' && isTr.has(n.name)
+        && !(parent?.type === 'VariableDeclarator' && parent.id === n)
+        && !(parent?.type === 'MemberExpression' && parent.property === n && !parent.computed)
+        && !(parent?.type === 'ObjectProperty' && parent.key === n && !parent.computed)) tr++;
       if (n.type === 'JSXElement' || n.type === 'JSXFragment') jsx++;
       if (n.type === 'JSXText') {
         const v = n.value.trim();
@@ -126,6 +188,9 @@ function componentsOf(file) {
         if (tag !== 'style' && tag !== 'script') for (const v of containerStrings(n)) strings.add(v);
       }
     });
+    // Regenerating a baseline means knowing WHICH strings a surface still
+    // hardcodes: `DUMP=BSGrocery node --test tests/i18n-surface-inventory.test.mjs`.
+    if (process.env.DUMP === d.name) console.log(JSON.stringify({ name: d.name, tr, strings: [...strings] }, null, 1));
     if (jsx > 0) out.push({ name: d.name, tr, hard: strings.size });
   }
   return out;
@@ -216,7 +281,7 @@ const PARTIAL = new Set([
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
-  'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile', 'Client::BSSplitsPage',
+  'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile',
   'Client::BSTerrainProfile', 'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
   'Pros::BSProMe', 'Pros::BSProSoundtracks', 'Pros::BSWorkoutReviewPage',
@@ -240,11 +305,28 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   const full = rows.filter((r) => r.tr > 0 && r.hard === 0);
   const part = rows.filter((r) => r.tr > 0 && r.hard > 0);
   const none = rows.filter((r) => r.tr === 0 && r.hard > 0);
+  const partStrings = part.reduce((s, r) => s + r.hard, 0);
+  const noneStrings = none.reduce((s, r) => s + r.hard, 0);
   console.log(`  rendering JSX ......... ${rows.length}`);
   console.log(`    fully covered ....... ${full.length}`);
-  console.log(`    partial ............. ${part.length}  (${part.reduce((s, r) => s + r.hard, 0)} strings left)`);
-  console.log(`    zero translator ..... ${none.length}  (${none.reduce((s, r) => s + r.hard, 0)} strings)`);
+  console.log(`    partial ............. ${part.length}  (${partStrings} strings left)`);
+  console.log(`    zero translator ..... ${none.length}  (${noneStrings} strings)`);
   console.log(`    no user copy ........ ${rows.length - full.length - part.length - none.length}`);
+
+  // ⚠ THE STRING TOTALS ARE THE ONE THING THE RATCHET CANNOT SEE. Membership is
+  // pinned both ways by UNCOVERED/PARTIAL below — but a partial surface that
+  // hardcodes ten MORE strings keeps its membership and passes. So the volumes
+  // are asserted exactly: a change here is either progress (lower the number and
+  // the record with it) or a regression, and both must be a deliberate edit.
+  // Printed above first, so the failure message is never the only place to read them.
+  assert.equal(partStrings, 193, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1355, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 125, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // Floors, not equalities: a new component with a translator and no copy of its
+  // own moves both of these without changing anything this file is about.
+  assert.ok(rows.length >= 358, `components rendering JSX fell to ${rows.length} — expected at least 358`);
+  assert.ok(full.length >= 84, `fully-localized components fell to ${full.length} — expected at least 84`);
 });
 
 // ── The ratchet ─────────────────────────────────────────────────────────────
@@ -271,6 +353,10 @@ test('a localized surface must be removed from the baseline', () => {
     // "COMPLETE" claim itself was. Deleting the line IS how progress gets recorded.
     if (!r) stale.push(`${key} — no longer exists (renamed or deleted): drop the line`);
     else if (r.tr > 0) stale.push(`${key} — now has a translator: drop the line`);
+    // ⚠ AND A SURFACE THAT STOPPED RENDERING COPY IS JUST AS STALE. Without this
+    // an entry whose strings all moved out (or became brand nouns) keeps asserting
+    // a gap that no longer exists — the ratchet vouching for code that has moved.
+    else if (r.hard === 0) stale.push(`${key} — renders no user copy any more: drop the line`);
   }
   assert.deepEqual(stale, [], 'the uncovered baseline no longer describes the tree');
 });
@@ -285,4 +371,35 @@ test('the partial set is pinned in both directions too', () => {
   // the per-file count could never see.
   assert.deepEqual(added, [], 'a localized surface started hardcoding copy again (or a new partial appeared)');
   assert.deepEqual(gone, [], 'a partial surface finished or vanished — drop it from PARTIAL');
+});
+
+// ── The detector's own regression cases ─────────────────────────────────────
+// ⚠ EVERY ONE OF THESE IS A REAL SHAPE THE FIRST VERSION GOT WRONG, pinned
+// against the SHIPPED files rather than a fixture — the question is what the
+// detector does with this tree, not what a comment claims about it.
+
+test('the translator is found by what it is BOUND TO, not how it is spelled', () => {
+  const names = translatorNames(babelParser.parse(
+    `const tr = useShapeTr();\nconst trG = useShapeTr();\nconst { tr: t2 } = useTr('onboarding');\nconst notTr = somethingElse();`,
+    { sourceType: 'module', plugins: ['jsx'] },
+  ));
+  assert.ok(names.has('tr'), 'the ordinary binding');
+  assert.ok(names.has('trG'), 'BSGrocery names it trG — the regex that guessed at spelling missed it');
+  assert.ok(names.has('t2'), 'destructured from useTr()');
+  assert.ok(names.has('coachTr'), 'the pros module binds no hook — its translator is a plain function');
+  assert.ok(!names.has('notTr'), 'a Tr-suffixed name bound to anything else is not a translator');
+  assert.ok(!names.has('useShapeTr'), 'the HOOK is not the translator — counting it read a component that took it and never used it as covered');
+});
+
+test('the shipped tree answers the way the derivation claims', () => {
+  const byKey = new Map(inventory().map((r) => [r.key, r]));
+  // BSGrocery reaches the translator only as `trG` — the CodeRabbit finding.
+  assert.ok(byKey.get('Client::BSGrocery').tr > 0, 'BSGrocery holds a translator (trG) and must not read as uncovered');
+  // The two marketplace cards never CALL tr — they inject it into a module-scope
+  // helper that cannot hold a hook. A call-only count read them as uncovered.
+  assert.ok(byKey.get('Marketplace::MktCoachCard').tr > 0, 'an injected translator still counts');
+  // ...and the documented parameter shadows are NOT translators: `tr` here is a
+  // MediaStreamTrack / a playlist track. Both components genuinely have none.
+  assert.equal(byKey.get('Client::BSLogMealFlow').tr, 0, 'forEach(tr => tr.stop()) is a MediaStreamTrack, not the translator');
+  assert.equal(byKey.get('Client::BSPlaylistCard').tr, 0, 'list.map((tr, i) => …) is a track, not the translator');
 });
