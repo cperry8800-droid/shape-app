@@ -6,5 +6,6 @@
   "nav.train": "Séance",
   "nav.eat": "Manger",
   "nav.chat": "Chat",
-  "nav.me": "Moi"
+  "nav.me": "Moi",
+  "unit.weekN": "Semaine {n}"
 }
