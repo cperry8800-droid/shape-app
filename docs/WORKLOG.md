@@ -348,7 +348,198 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-28 — A member can finally SEE the gauges they log every day (#1946)
+### 2026-08-28 — The Contract becomes a cover page over full-screen stations
+
+- **Owner, on density:** *"we also need to update design of the goals page, or just
+  simplify it. There is a ton of information and seems very overwhelming"* — then, off
+  a three-concept board, **"i like concept B"**. The complaint is measurable: the
+  one-ledger layout rendered **27 always-visible blocks** (verdict · register · five
+  milestones · three full stations with motto + coach credit + targets + key lifts +
+  add + record link each · four week rows · the why), plus a five-item anchor index
+  that existed **only** because the page was long. The cover renders **12** sites,
+  several of them mutually exclusive branches.
+- **The cover holds the page's one job and nothing else** — the verdict lead, the
+  register (Log weigh-in / Edit targets), the **next term only**, and five station
+  **doors**. Each door carries an honest one-line inventory built from real data
+  (target counts, the coach plan, this week's first two figures, the milestone tally),
+  so the cover says what is inside **without opening it**. Each door opens a
+  full-screen page carrying that station's former body with **one** deliberate
+  subtraction — the 3-row target cap and its *"N more targets · Show ＋"* expander die
+  with the pick, because a station page has room for all of them, so **every** target
+  now renders. The header and the share-with-coaches strip
+  render on the **cover only** — a station page is one station's detail, not the whole
+  record. Presentation + routing only; every computation, handler, sheet and
+  honest-empty state carries over unchanged.
+- ⚠ **THE WORK DOOR'S SPINE WAS A HARDCODED NON-TOKEN.** `#7aa7dc` appeared **exactly
+  once** in the whole mobile broadsheet — that new line. It is the **website's** slate
+  accent (`dashProgress.jsx`), not a mobile token, so it would have been the one spine
+  on the page that ignores the paper across all 14. Mobile tags Work with **`t.BLUE`**
+  everywhere else — the Home slate's Work tag, and **this file's own headline sheet**,
+  which already reads `editHeadline === 'work' ? t.BLUE : '#d8a23a'`. Now `t.BLUE`,
+  which makes the door row match the pairing the file used one screen over. **A color
+  that appears once in a 30k-line file is a drift, not a decision.**
+- ⚠ **THE NAV ANNOUNCE WAS INERT ON HOME AND HARMFUL UNDER SETTINGS — deleted, along
+  with the claim it made.** The first cut announced the open station to the nav stack
+  and said that made a jump-out-and-back land on the same page. It did not.
+  **(1) Inert:** this page is `BSClientHome`'s `goalsPage` overlay, and the shell does
+  not model Home's overlays — `navLoc()` returns a bare `{tab:'home'}` and
+  `navResolve()` has branches for store/market/chat/eat/me but **none for home** — so
+  `bsNavCompose` produced `{tab:'home', sub:'training'}` and the replay dropped `sub`
+  on the floor. It could not have worked even in principle: the shell renders the tab
+  body under **`<div key={tab}>`**, so a tab jump **remounts `BSClientHome` fresh** and
+  `goalsPage` resets to `false` — the member lands on plain Home with the Goals page
+  closed, never mind the station. **(2) Harmful:** `BSClientGoals` has a **second** call site inside
+  **`BSSettings`**, which *is* modelled and announces its own sub, and `bsNavAnnounce`
+  writes **one module-level slot**, last write wins.
+- ⚠ **AND THE HARM WAS REPRODUCED AGAINST THE REAL REGISTER, not reasoned.** Driving
+  `navHistory.mjs` directly with Settings deep-linked at `edit-profile` and the member
+  walked back to its root (`navSub` `''`): **before**, the composed descriptor read
+  `sub:''` — correct. **With** the announce, opening the Goals **cover** announced
+  `null`, so `bsNavCompose` fell back to the shell's stale open-time `settingsStart`
+  and composed **`sub:'edit-profile'`** — a pane the member had already left. Opening a
+  station composed `sub:'training'`, which matches **no** Settings pane at all.
+- ⚠ **AND THE ADVERSARIAL PASS FOUND TWO LIVE HONESTY VIOLATIONS THIS PAGE HAS BEEN
+  SHIPPING — both pre-existing, both fixed here because the cover-page rebuild puts
+  them where a member sees them FIRST.** (1) **Fabricated PRs.** `liftRows` gated on
+  `trainEmpty = signedIn && !train`, which goes false the moment the train rollup
+  resolves — and it always resolves — so the ternary fell to a hardcoded array and
+  showed **every signed-in member** a 90 kg bench and a 150 kg deadlift as their own
+  PRs. `livePrs` could never rescue it: it needs `train.prs`, and
+  `/api/client/train` returns exactly `{ok, assignedWorkouts, stats, recentSessions}`
+  — **PRs are served by `/api/client/progress`, a different route** — so that branch
+  is dead for everyone. (2) **A fabricated coach.** `setLivePlans([...])` fired
+  unconditionally for any signed-in member (all four legs `.catch(() => null)`, so it
+  always resolves), and every field has a literal fallback — `|| 'Build'`,
+  `|| 'Cut'`, `|| 4`, `` `${nphase} plan` ``. So a member with **no coach at all**
+  read a role-spined **"TRAINER · 4×/WK"** credit under a "Build block", and both
+  honest branches beneath it — the `No training plan yet` redaction and its
+  `Find a coach →` action — were **permanently dead code**. A plan row now requires
+  real evidence a coach authored something. ⚠ **And for TRAINING that is not merely
+  "a plan exists"** — since the self-serve wave a member can author their own week
+  (`client_workouts` with a NULL `trainer_id`), and `hasPlan` is true for those too,
+  so gating on it would credit a **TRAINER for a plan the member wrote themselves**.
+  `/api/client/plan` hands over both signals — `training.coach` (resolved from the
+  first row with a real `trainer_id`) and per-workout `selfAuthored` — and the gate
+  uses them. **Nutrition has no self-serve authoring path** (a `client_meal_plans`
+  row always carries a nutritionist), so a menu is evidence enough there. **The
+  rebuild is what made these matter** — a fabricated plan title is now the door's
+  inventory subline, the first line on the page.
+- ⚠ **AND THE COVER'S SCROLL RESET WAS AIMING AT THE WRONG SCROLLER.**
+  `document.querySelector('.bs-scroll')` returns the FIRST match in document order,
+  and this page has a **second mount inside `BSSettings`** where the shell renders
+  `screens[tab]` *before* the settings overlay — so from there it scrolled a hidden
+  tab page and left the station opening at the cover's old offset. Now resolved from
+  the page's own subtree via a ref + `closest('.bs-scroll')`, in a **layout effect**
+  rather than a line in the handler: a reset issued in the same tick as `setGoalView`
+  runs against the *outgoing* view's height.
+- **And the switch carries FOCUS and the reading position, not just the scroll.**
+  Opening a station moves focus to its heading (`tabIndex -1`, out of the tab order) —
+  the door that was pressed unmounts with the cover, so a keyboard/screen-reader user
+  was landing on `document.body` with no announcement that the page changed. ← Back
+  restores the cover offset they were reading at and returns focus to **the door they
+  opened** (the standard return-focus pattern), both with `preventScroll` so the focus
+  call cannot undo the restore. ⚠ The offset is captured in the **handler**, not the
+  layout effect: by then the scroller already holds the station's content and the
+  browser has clamped `scrollTop` to the shorter page, so the position would be gone
+  before it could be saved.
+- ⚠ **AND A THIRD FABRICATED FIGURE, ONE LAYER UNDER THE COACH CREDIT — caught by the
+  round after, and sharpened by my own gate.** `sessTarget` ended in `|| 4` and
+  `proteinTgt` in `|| 170`, so the **live** week path invented exactly what its own
+  **honest-empty** path five lines above refuses (`Sessions 0/—` · *"set a plan"*;
+  `Protein days 0/7` · *"days tracked"*). Two consequences, the second worse: the
+  cover's "This week" door quotes the first two figures as its inventory subline, and
+  `sessTarget` also fed the **TRAINER credit row** — which the fix above had just
+  restricted to plans a coach genuinely authored — so a member with a *real* coach read
+  **"4×/wk"** as that coach's prescription. Both derivations now yield **null** when
+  unknown and every reader renders `—` with the empty set's own words. ⚠ **This
+  RESOLVES the item registered one round earlier as needing a product ruling** ("what
+  should a default weekly session/protein target be?"). No ruling is needed: the file
+  had already answered it for the empty case — *don't show a number you don't have* —
+  so the fix was to make the live path obey the rule the empty path already followed,
+  not to choose a default.
+- ⚠ **AND A FOURTH, IN THE SAME TWO ROWS — because I swept the class with the wrong
+  test.** Having fixed `sessTarget`, I swept the live effect for sibling `|| <literal>`
+  fallbacks, found `tphase = …trainingPhase || 'Build'` / `nphase = …|| 'Cut'`, and
+  cleared them on the grounds that they are **app-wide house defaults used at five
+  other sites**. That is true and it is not the test. The other five are **page
+  kickers** (Home/Train/Eat: *"Cut · W35"*) — the member's own program context under
+  **no byline**. These two feed **nothing but the role-spined credit rows** (their only
+  readers), so the same string there is a training block **attributed to a coach who
+  never set one** — and, since the rebuild, the Training door quotes that title as the
+  cover's first line. **The right test was never "is this literal used elsewhere?" but
+  "does this literal appear under a byline?"** — the very distinction that made
+  `sessTarget` a defect one line above, applied by me and then not re-applied.
+- ⚠ **AND THE FILE HAD ALREADY RULED ON IT.** `BSTerrainProfile` gates its whole
+  coached-by band on `prog.trainingPhase || prog.nutritionPhase` being real
+  (`hasRealProgram`) — i.e. this codebase had already decided that **an unset phase is
+  not evidence of a coach's programming**, and hides the band rather than name a phase.
+  Unknown now yields a neutral **"Training plan" / "Nutrition plan"**; the five kickers
+  keep their defaults, deliberately.
+- ⚠ **THE GATE OUTLIVES THE FALLBACKS IT WAS WRITTEN FOR**, and the comment now says
+  so. With every literal gone an unauthored row would read *honestly* — which is not
+  the same as the row being honest. A role-spined credit **is** the claim "a coach
+  authored this", so it still may only exist on real evidence; a later reader must not
+  retire the gate as redundant now that the strings beneath it are clean.
+- ⚠ **REFUTED WITH THE SOURCE — "the week page renders blank when `weekTargets` is
+  empty".** It cannot be empty: the derivation uses `liveWeekTargets` **only** when it
+  is a non-empty array and otherwise supplies four rows either way — signed-in gets the
+  honest zeroed set (`Sessions 0/—`, `Protein days 0/7`, `Steps —`, `Sleep —`),
+  signed-out the demo four. The proposed `length === 0` guard is unreachable, and the
+  door's subline is non-empty for the same reason — dead code in a page whose whole
+  point was removing surplus.
+- ⚠ **REFUTED WITH THE REPO — "re-sync the tracked `public/m` bundle".** `public/m` has
+  been **gitignored and deploy-built since #1470** (`.gitignore:26`; `git ls-files
+  public/m` returns **zero**), so there is no tracked artifact to sync and none can
+  appear in a diff. The review's own script printed *"no public/m changes in this PR"*
+  and then reported that absence as the defect.
+  ⚠ **BUT MY REFUTATION CARRIED A FALSE SUPPORTING CLAIM, AND THE NEXT ROUND CAUGHT
+  IT.** I wrote that "CI still guards the real invariant — the Mobile job rebuilds and
+  **diffs** against `public/m`". It does not: `ci.yml` says so in its own words —
+  *"public/m itself is generated at deploy time (`scripts/build-m.sh`), not committed,
+  so there's no byte-diff against a committed copy anymore — a failed build fails
+  here."* The job only proves the bundle **builds**; its name (`Mobile (build +
+  public/m sync)`) is a legacy misnomer kept so the branch-protection required check
+  keeps matching, which the file also flags. So the **conclusion** was right and the
+  **reason** was wrong — the exact "a because-clause is a claim" trap this file keeps
+  recording. The local `rm -rf public/m && cp -r` step is likewise vestigial for a PR
+  (git ignores it, CI never reads it, deploy regenerates it), so it has been dropped
+  from the verification list rather than left there implying a check that does not run.
+- ⚠ **REFUTED — "a station is a full-screen route with no nav-stack entry".** True
+  that `openGoalView` never calls `navPush()`, but **no nested view in this shell
+  does**: `navPush` is a shell-level concern (`goSettings`/`goMarket`/`goRadio`/…),
+  and `BSClientEat`'s grocery/library views, `BSSettings`' panes and `BSClientMe`'s
+  score/store all switch without one. Adding a push for Goals stations alone would
+  make this page inconsistent with every sibling **and** would need `navResolve` to
+  reopen the station — which is the registered gap below, not a separate defect.
+- ⚠ **REGISTERED, NOT BUILT — the parent must own the announcement.** A one-slot
+  register cannot host a child overlay rendered under **two** parents, so no child can
+  announce for itself. Making it real means teaching `navLoc`/`navResolve` about Home's
+  overlays (goals · progress · habits · today · check-in) and giving `BSClientHome` the
+  `initialPage`/`onStartConsumed` pair `BSClientEat` and `BSClientMe` already have,
+  plus an `initialView` on `BSClientGoals`. **Pre-existing** — Home's overlays have
+  never been replayable; this wave neither fixed nor worsened it, and half-building it
+  behind a false comment would have been worse than leaving it named.
+- ⚠ **AND IT IS THE SAME GAP THAT KEEPS NATIVE BACK FROM STEPPING THROUGH A STATION** —
+  raised as its own finding, verified as one item. The shell's `onNavGesture('back')`
+  tries `navBack()` then falls through to closing `showSearch`/`showSettings`/
+  `showCalendar`/`showCycle`; there is **no `goalsPage` branch, and main's copy is
+  byte-identical** — an edge swipe has never respected the Goals overlay at *any*
+  depth. From Home the overlay is never pushed, so a swipe finds an empty stack,
+  matches no takeover and does nothing (the on-screen ← Back works at both depths);
+  from Settings it pops the Settings entry and exits everything — true of the cover
+  before this change, and now of a station too. A Goals-local interception cannot fix
+  it honestly: **both listeners receive the same window event with no "handled"
+  protocol**, so from Settings the station would return to the cover *and* the shell
+  would pop Settings in one gesture. Adding that protocol changes the shared gesture
+  contract in `bsNavShell.js` and all three shells, and would still leave cover→out
+  broken in both parents. Once Goals-from-Home is a modelled location with a `sub`,
+  `navBack()` steps station → cover → out for free — which is why this is the **same**
+  follow-up, not a second one.
+- Verified: parse 0 · mobile build 0 with the cover doors confirmed in the **emitted
+  bundle** (`"No targets yet"` 0 → 2 against main) · `tsc` 0 ·
+  `npm test` **2336/2336**.
+
+### 2026-08-28 — A member can finally SEE the gauges they log every day (#1946 → 3f27a8276)
 
 - **Energy · Hunger · Rested join the Progress trend tabs, both surfaces.** The daily
   check-in has asked for all three (1–10) since the check-in engine wave, and
