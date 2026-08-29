@@ -490,6 +490,18 @@ changelog whenever something ships.
   fails if the check-in ever stops writing sleep and energy onto one day (the fact the lags
   rest on), and a per-pair lag map with guard-the-guard, so a silent flip back to the
   intuitive-but-wrong *"sleep → next day"* fails with its reason attached.
+- ⚠ **AND THE CORRECT LAG STILL CARRIES A CONFOUND — found by auditing my own fix, not
+  reported.** Moving the two check-in pairs to lag 0 puts `x` and `y` in the **same tap
+  sequence on the same card, seconds apart** (`sleep_quality × energy` most of all). Not a
+  tautology — they rate different things — and not a reason to drop the pair, since *"the
+  nights you rate as rested are the mornings you have energy"* is a real and usable
+  observation. But it is **shared-method variance**: a member having a good morning rates
+  both high, which inflates r relative to an independent measurement. Said in the pair's
+  own `explanation`, because **the explanations are what the model is handed as evidence**
+  — and a readout reporting a self-report agreeing with itself as a *discovery* is the
+  same over-claim as a wrong lag, just arrived at honestly. The `sleep_hours` twin is the
+  objective check (a duration, device-synced or entered, with no shared method), and its
+  explanation now says to trust it where the two disagree.
 - ⚠ **THE q GATE WAS ENFORCED ON ONE PATH AND *ASKED FOR* ON THE OTHER** (review). The
   fallback filtered on q; the catalog handed to the model filtered on **sample size alone**
   and the prompt merely told the model to prefer low q. The catalog is the only set an

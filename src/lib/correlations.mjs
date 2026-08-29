@@ -83,6 +83,16 @@ export const SNAPSHOT_SELECT = ['snapshot_date', ...SNAPSHOT_METRICS].join(',');
 // backwards does not fail loudly; it silently reports a different relationship
 // from the one the member logged, which is the fabrication class this file is
 // most exposed to. Check the writer before choosing a lag.
+//
+// ⚠ AND THE CORRECT LAG CAN STILL CARRY A CONFOUND. Fixing the lag put two
+// pairs at lag 0 whose x and y a member sets in the SAME tap sequence on the
+// SAME card, seconds apart — `sleep_quality × energy` most of all. That is not
+// a tautology (they rate different things) and not a reason to drop the pair,
+// but it is shared-method variance: someone having a good morning rates both
+// high, which inflates r relative to an independent measurement. The
+// explanations say so, because they are what the model is handed as evidence —
+// and a readout that reports a self-report agreeing with itself as a discovery
+// is the same over-claim as a wrong lag, arrived at honestly.
 export const CORRELATION_PAIRS = [
   { x: 'sleep_hours', y: 'strain', lagDays: 0, label: 'Sleep ↔ that day’s strain capacity', explanation: 'Hours slept the night before vs the workload the body held that day. Lag 0 because the night ending on the morning of D is stored on row D.' },
   { x: 'sleep_hours', y: 'recovery_score', lagDays: 0, label: 'Sleep ↔ same-day recovery', explanation: 'Hours slept vs WHOOP recovery score for the same morning.' },
@@ -99,8 +109,8 @@ export const CORRELATION_PAIRS = [
   // each, not every pairing the columns allow: every pair added enlarges the
   // family this readout tests, and the false-positive cost is real (see the
   // q-value note on computeCorrelations).
-  { x: 'sleep_quality', y: 'energy', lagDays: 0, label: 'Rested rating ↔ that morning’s energy', explanation: 'How rested they said they felt vs the energy they reported in the same check-in — the two land on one row by construction.' },
-  { x: 'sleep_hours', y: 'energy', lagDays: 0, label: 'Sleep ↔ that morning’s energy', explanation: 'The objective twin of the rested rating: hours slept last night vs the energy reported that morning.' },
+  { x: 'sleep_quality', y: 'energy', lagDays: 0, label: 'Rested rating ↔ that morning’s energy', explanation: 'How rested they said they felt vs the energy they reported in the SAME check-in. Both are 1-10 self-reports set seconds apart, so shared-method variance can inflate this one — a member having a good morning rates both high. Descriptive only; the sleep_hours twin is the objective check on it.' },
+  { x: 'sleep_hours', y: 'energy', lagDays: 0, label: 'Sleep ↔ that morning’s energy', explanation: 'The objective twin of the rested rating: hours slept last night (a duration, device-synced or entered) vs the energy reported that morning. Carries no shared-method confound, so where the two disagree, trust this one.' },
   { x: 'energy', y: 'workout_minutes', lagDays: 0, label: 'Energy ↔ same-day training', explanation: 'Whether the days they report more energy are the days they actually train longer.' },
   { x: 'calories', y: 'hunger', lagDays: 1, label: 'Calories → next-day hunger', explanation: 'Whether under-eating one day shows up as hunger the next.' },
   { x: 'protein_g', y: 'hunger', lagDays: 0, label: 'Protein ↔ hunger', explanation: 'Same-day protein vs how hungry they felt; satiety.' },
