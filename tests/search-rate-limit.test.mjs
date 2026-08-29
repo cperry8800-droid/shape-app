@@ -311,3 +311,34 @@ test('a refused picker search clears its results and shows the refusal', () => {
   // the send picker already had the right shape; keep it that way
   assert.match(src, /\{limited \? \(/, 'the send picker refusal is no longer a top-level branch');
 });
+
+// ⚠ ENUMERATED, NOT PATCHED WHERE IT WAS REPORTED. The tag picker's refusal was
+// hidden because the notice sat BEHIND the empty-state test; the same ordering
+// mistake on any other surface hides the refusal the same way. Swept all five
+// callers — only the tag picker had it — and pinned the ordering everywhere so it
+// cannot come back on a surface nobody was looking at.
+test('every refusal branch renders ahead of its own empty state', () => {
+  const surfaces = [
+    ['the app typeahead', stripComments(CLIENT), /limited \?/, /Nothing on Shape matches/],
+    ['the site header search', stripComments(SHELL), /limited \?/, /Nothing on Shape matches/],
+    ['the DM send picker', stripComments(COMMUNITY), /\{limited \? \(/, /people\.length === 0 \?/],
+    ['the post tag picker', stripComments(COMMUNITY), /\{\s*tagLimited\s*\?/, /tagResults\.length === 0 \?/],
+  ];
+  for (const [what, src, refusal, empty] of surfaces) {
+    const r = src.search(refusal);
+    const e = src.search(empty);
+    assert.ok(r > 0, `${what}: no refusal branch found`);
+    assert.ok(e > 0, `${what}: no empty state found`);
+    assert.ok(r < e, `${what}: the empty state is tested before the refusal, so a refusal renders as "nobody matched"`);
+  }
+});
+
+// The standalone-page search builds its markup fresh each render, so there is no
+// stale state to clear — but the same precedence has to hold in the string it emits.
+test('the standalone-page search puts its notice ahead of the empty state', () => {
+  const src = stripComments(SITE);
+  const notice = src.indexOf('if (notice)');
+  const empty = src.indexOf('rows.length === 0 && !nh');
+  assert.ok(notice > 0 && empty > 0, 'the render branches are gone');
+  assert.ok(notice < empty, 'a refusal falls through to the "nothing matches" copy');
+});

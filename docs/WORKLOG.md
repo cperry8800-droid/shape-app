@@ -486,6 +486,14 @@ changelog whenever something ships.
   a public post**. That is worse than the empty list this change set out to fix: an
   empty list says *nobody*, stale rows say *this person*. Fixed at the **state and
   the render**, since either alone leaves the other as a trap.
+- ⚠ **AND THE SECOND ONE WAS ENUMERATED, NOT PATCHED WHERE IT WAS REPORTED.** The
+  tag picker's refusal was invisible because the notice sat **behind** the
+  empty-state test — the same ordering mistake on any other surface hides a refusal
+  the same way. Swept all five callers: the app typeahead, the site header search
+  and `pageShell` all clear their rows and test the refusal **first**;
+  `siteSearch.js` rebuilds its markup each render so it has no stale state at all.
+  **Only the tag picker had it.** The ordering is now pinned on every surface, so it
+  cannot return on one nobody was looking at.
 - ⚠ **SCOPE HERE IS CROSS-BUNDLE, AND CHECKING THAT IS WHAT SEPARATED THE BUG FROM A
   FALSE ALARM.** The first guard I wrote flagged `dashboardCommunity`'s
   `fontFamily: serif` too — but babel-standalone evaluates these scripts through
@@ -497,8 +505,8 @@ changelog whenever something ships.
   resolves each surface against the **union of the top-level declarations of every
   bundle its pages co-load**, counting column-0 declarations only — and refuses to
   pass vacuously if it resolves no tokens at all.
-- Verified: **2433/2433** · `tsc` 0 · newdesign precompile `--check` 0 · both mobile
-  + newdesign parse · **17 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
+- Verified: **2435/2435** · `tsc` 0 · newdesign precompile `--check` 0 · both mobile
+  + newdesign parse · **19 mutations, all caught** (drop the ceiling from either search · make the ceiling non-VOLATILE ·
   un-reserve the `self:` namespace · grant the private limiter to a client role ·
   restore the bare-catch fallback · match the refusal message instead of the code ·
   re-type `PT429` in the app · restore the demo substitution · drop a surface's refusal
@@ -506,7 +514,8 @@ changelog whenever something ships.
   the standalone-page search · widen the fallback back to a bare `does not exist` ·
   drop the code set and match on the message alone · reintroduce the exact `SANS`
   reference · stop clearing the tag rows on a refusal · re-gate the refusal notice
-  behind an empty list), unmutated sanity green at both ends and the tree restored
+  behind an empty list · swap a surface's branch order so the empty state is tested
+  first · delete a surface's refusal branch outright), unmutated sanity green at both ends and the tree restored
   clean after each.
 
 ### 2026-08-29 — The weekly readout reaches the member (§C closes)
