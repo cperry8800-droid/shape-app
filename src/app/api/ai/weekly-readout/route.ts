@@ -13,35 +13,13 @@ import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
 import {
   computeCorrelations,
+  SNAPSHOT_SELECT,
   type CorrelationResult,
   type SnapshotPoint,
 } from '@/lib/correlations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const SNAPSHOT_FIELDS = [
-  'snapshot_date',
-  'sleep_hours',
-  'sleep_performance_pct',
-  'recovery_score',
-  'hrv_ms',
-  'resting_hr',
-  'strain',
-  'workout_minutes',
-  'workout_volume_lb',
-  'avg_heart_rate',
-  'calories',
-  'protein_g',
-  'carbs_g',
-  'fat_g',
-  'hydration_l',
-  'weight_lb',
-  'body_fat_pct',
-  'mood',
-  'stress',
-  'soreness',
-].join(',');
 
 type Insight = {
   headline: string;
@@ -76,31 +54,88 @@ function correlationKey(c: CorrelationResult): string {
   return `${c.x}->${c.y}@lag${c.lagDays}`;
 }
 
+// The false-discovery-rate ceiling a correlation must clear to be offered as an
+// insight.
+const Q_THRESHOLD = 0.2;
+
+// The fewest overlapping days a correlation needs before it may be reported.
+// Above `MIN_DAYS` (which is only the floor at which an r can be computed at
+// all) because a week is the shortest span in which a "cross-domain pattern" is
+// a pattern rather than a coincidence.
+const MIN_REPORTABLE_DAYS = 7;
+
+/**
+ * ONE eligibility predicate, used by BOTH readout paths.
+ *
+ * ⚠ SHARING THE *THRESHOLD* WAS NOT ENOUGH, and that was my own incomplete fix.
+ * After unifying `Q_THRESHOLD` the two filters still disagreed on the other two
+ * terms: the fallback took any non-weak pair regardless of `n`, while the model
+ * catalog took any pair with `n >= 7` regardless of strength. So a strong pair
+ * at n = 5 was reportable by the deterministic path but invisible to the model,
+ * and a weak pair at n = 10 was offered to the model but refused by the
+ * fallback — and which path a member gets is decided by whether OpenAI happens
+ * to be reachable. Two renderings of the same evidence must not disagree about
+ * what the evidence IS; a member switching between them because of an outage
+ * would see a different set of facts about their own body.
+ */
+function isReportable(c: CorrelationResult): boolean {
+  return c.n >= MIN_REPORTABLE_DAYS && c.strength !== 'weak' && c.qValue < Q_THRESHOLD;
+}
+
 function fallbackReadout(correlations: CorrelationResult[]): Readout {
-  const significant = correlations.filter((c) => c.strength !== 'weak' && c.pValue < 0.2).slice(0, 4);
+  // ⚠ GATES ON q, NOT p, and that is the point of computing q at all. Each pair
+  // is a separate test, so with a 16-pair catalog and a 28-day window roughly
+  // two "moderate" findings are expected from noise alone — a readout that
+  // always has something to say is a horoscope, not a readout. q is the
+  // Benjamini–Hochberg FDR across the pairs in THIS response, so the threshold
+  // means what a reader assumes it means. BH guarantees q >= p, so this is at
+  // least as strict as the raw-p gate it replaces — equality is possible (the
+  // largest-p finding always takes q = p), so "strictly stricter" would have
+  // been a claim the maths does not make. When nothing survives, the honest
+  // empty summary below is the correct output, not a failure.
+  const significant = correlations.filter(isReportable).slice(0, 4);
   if (significant.length === 0) {
     return {
+      // ⚠ THE NUMBER COMES FROM THE GATE, because this line is what a member is
+      // told about their own data and it said "~14 days" while the gate was 7 —
+      // a threshold the code contradicts, which is the same honesty class as
+      // every other defect in this module. It is also OVERLAP, not window
+      // length: what counts is days where BOTH sides of a pair have a value, so
+      // a 28-day window with sleep logged and training missing clears nothing.
       summary:
-        'Not enough signal yet to call out cross-domain patterns. Keep logging — sleep, training, and nutrition data unlock the readout once we have ~14 days of overlap.',
+        `Not enough signal yet to call out cross-domain patterns. Keep logging — a pattern needs at least ${MIN_REPORTABLE_DAYS} days where both sides were recorded, so sleep, training and nutrition logged on the same days are what unlock this.`,
       insights: [],
     };
   }
 
+  const one = significant.length === 1;
   return {
-    summary: `Across the window, ${significant.length} cross-domain pattern${
-      significant.length === 1 ? '' : 's'
-    } stand out. Strongest: ${significant[0].label.toLowerCase()} (r=${significant[0].r.toFixed(2)}).`,
+    summary: `Across the window, ${significant.length} cross-domain pattern${one ? '' : 's'} ${
+      one ? 'stands' : 'stand'
+    } out. Strongest: ${significant[0].label.toLowerCase()} (r=${significant[0].r.toFixed(2)}).`,
     insights: significant.map((c) => {
       const dir = c.direction === 'positive' ? 'tracks together with' : 'moves opposite to';
+      const x = c.x.replaceAll('_', ' ');
+      const y = c.y.replaceAll('_', ' ');
       return {
         headline: c.label,
-        detail: `Across ${c.n} day${c.n === 1 ? '' : 's'}, ${c.x.replaceAll('_', ' ')} ${dir} ${c.y.replaceAll('_', ' ')} (r=${c.r.toFixed(2)}, ${c.strength}).`,
+        detail: `Across ${c.n} day${c.n === 1 ? '' : 's'}, ${x} ${dir} ${y} (r=${c.r.toFixed(2)}, ${c.strength}).`,
         correlation_key: correlationKey(c),
         evidence_chart: c.lagDays === 0 ? 'scatter' : 'line',
+        // ⚠ THIS DESCRIBES, IT DOES NOT PRESCRIBE — the copy used to read
+        // "Protect the {x} input — when it dips, {y} dips with it" and "gains
+        // there COST {y}", which assert a causal lever from an observational
+        // correlation. This module computes a false-discovery rate precisely
+        // because it takes over-claiming seriously; telling a member to pull a
+        // lever it has no evidence is a lever would undo that in the one place
+        // they actually read. It is also unfalsifiable advice: the pair may run
+        // the other way, or both may follow something unmeasured. So the line
+        // reports the association and names it as worth WATCHING, which is a
+        // claim the r supports.
         recommendation:
           c.direction === 'positive'
-            ? `Protect the ${c.x.replaceAll('_', ' ')} input — when it dips, ${c.y.replaceAll('_', ' ')} dips with it.`
-            : `Watch the ${c.x.replaceAll('_', ' ')} side — gains there cost ${c.y.replaceAll('_', ' ')}.`,
+            ? `Worth watching together: on this member's own days, higher ${x} shows up alongside higher ${y}. What drives what is not established here.`
+            : `Worth watching together: on this member's own days, higher ${x} shows up alongside lower ${y}. What drives what is not established here.`,
       };
     }),
   };
@@ -150,7 +185,14 @@ async function generateReadout(
 ): Promise<Readout | null> {
   if (!hasOpenAIKey()) return null;
 
-  const significantCorrelations = correlations.filter((c) => c.n >= 7).slice(0, 6);
+  // ⚠ THE GATE IS ENFORCED HERE, NOT LEFT TO THE PROMPT. The catalog handed to
+  // the model is the ONLY set an insight may reference (post-parse validation
+  // checks membership), so filtering it is what makes the gate binding — a
+  // prompt line asking the model to "prefer" low q is advisory, and a model
+  // that ignores it would surface a finding the deterministic fallback would
+  // have refused. Same predicate as fallbackReadout, deliberately. When nothing
+  // survives, this returns null and the honest empty summary is the output.
+  const significantCorrelations = correlations.filter(isReportable).slice(0, 6);
   if (significantCorrelations.length === 0) return null;
 
   const correlationCatalog = significantCorrelations.map((c) => ({
@@ -160,6 +202,11 @@ async function generateReadout(
     r: c.r,
     n: c.n,
     p_value: c.pValue,
+    // The model sees the multiple-comparison-adjusted figure too, so it can
+    // tell a finding that survives the whole batch from one that only looks
+    // good alone. Withholding it would ask it to judge on evidence we know is
+    // incomplete.
+    q_value: c.qValue,
     direction: c.direction,
     strength: c.strength,
   }));
@@ -169,12 +216,28 @@ async function generateReadout(
       input: [
         {
           role: 'system',
+          // ⚠ THE PROMPT ASKED FOR THE OVER-CLAIM THE FALLBACK JUST STOPPED
+          // MAKING. It said "pick the most ACTIONABLE findings" and "recommend
+          // an ACTION" — from a catalog of observational correlations, which
+          // invites exactly the causal lever the deterministic path no longer
+          // asserts. The two renderings must not disagree about what the
+          // evidence supports any more than they may disagree about which
+          // evidence qualifies. So the instruction now matches the fallback's
+          // stance: describe the association, say what is worth watching, and
+          // never state direction of cause.
           content:
-            'You are a sports-science coach generating a weekly readout for one client. ' +
-            'You are given a catalog of correlations already computed from the client\'s real data. ' +
-            'Pick the 3-5 most actionable findings, write a short summary, and return one insight per finding. ' +
+            'You are a sports-science coach writing a weekly readout for one client. ' +
+            "You are given a catalog of correlations already computed from the client's own logged data. " +
+            'Pick the 3-5 findings most worth their attention, write a short summary, and return one insight per finding. ' +
             'Every insight MUST reference an existing correlation_key from the catalog so the UI can plot it. ' +
-            'Be specific, name the metric pair, cite the r value, and recommend an action. Do not invent numbers.',
+            'Be specific, name the metric pair, cite the r value, and do not invent numbers. ' +
+            'These are OBSERVATIONAL associations from one person, not experiments: describe what moves with what ' +
+            'and what is worth watching, and never claim one metric causes the other or tell them a change to X ' +
+            'will produce a change in Y. Some pairs are two self-reports entered in the same check-in seconds ' +
+            'apart, which can agree for reasons other than the relationship — the explanation field says so where ' +
+            'it applies, and you should carry that caution into the wording. ' +
+            'q_value is the false-discovery rate across the whole catalog: prefer findings with a low q_value, ' +
+            'and do not present a high-q_value finding as established.',
         },
         {
           role: 'user',
@@ -237,7 +300,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from('daily_health_snapshot')
-    .select(SNAPSHOT_FIELDS)
+    .select(SNAPSHOT_SELECT)
     .eq('user_id', userId)
     .gte('snapshot_date', since)
     .order('snapshot_date', { ascending: true })

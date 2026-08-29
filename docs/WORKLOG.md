@@ -378,7 +378,220 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous
+### 2026-08-29 — The readout's evidence layer stops ignoring what members actually log
+
+- **Step 1 of §C (the client weekly readout).** `POST /api/ai/weekly-readout` is still
+  orphaned — this wave does not wire an entry point — but its **evidence** was wrong in
+  ways that would have made the readout dishonest the moment it had one, so the evidence
+  goes first. The entry point (a per-member-per-ISO-week atomic claim + the mobile
+  surface + i18n ×13) is the next PR.
+- ⚠ **THE GAUGES A MEMBER LOGS EVERY DAY WERE INVISIBLE TO THE ENGINE.** `energy`,
+  `hunger`, `sleep_quality` and `steps` have existed on `daily_health_snapshot` since the
+  check-in wave, and for a member with **no wearable they are the only reliably populated
+  columns on the table** — yet they appeared in neither the `SnapshotPoint` type, nor
+  `CORRELATION_PAIRS`, nor either route's column list. Not one correlation over them
+  could ever be computed. This is the same omission #1946 fixed one layer up ("a member
+  logged them daily and could see none of it"), still standing in the layer underneath.
+- ⚠ **AND THE COLUMN LIST WAS HAND-TYPED TWICE**, which is what let the catalog and the
+  query drift apart silently: a pair naming a column the select never fetched fails
+  **loudly nowhere** — every value reads `undefined`, the pair contributes nothing, and
+  the route returns **200 with one fewer finding than it claims to compute**. The select
+  is now **derived** from a single `SNAPSHOT_METRICS` list (`SNAPSHOT_SELECT`), both
+  routes import it, and a test asserts every pair names a selected column. The class is
+  closed by construction rather than by remembering.
+- ⚠ **HALF THE SHIPPED CATALOG WAS ALREADY DEAD IN PRODUCTION, AND MUTATION-TESTING IS
+  WHAT FOUND IT.** The pairing test was `typeof v === 'number'` — but **PostgREST returns
+  `numeric` columns as STRINGS**, a gap this repo browser-verified once already (#1769,
+  the roster variance band: *"the unit tests only cover the JS-number shape, so this was a
+  real production gap"*). **TWELVE** of the 23 metrics are `numeric` —
+  `sleep_hours` · `sleep_performance_pct` · `recovery_score` · `hrv_ms` · `resting_hr` ·
+  `strain` · `protein_g` · `carbs_g` · `fat_g` · `hydration_l` · `weight_lb` ·
+  `body_fat_pct`; the other eleven are `integer` or `smallint` and do arrive as JSON
+  numbers. So **8 of the original 10 pairs** — every one naming a `numeric` column on
+  either side — silently computed over zero rows on the already-shipped
+  `/api/insights/correlations`; only `calories × workout_minutes` and
+  `workout_minutes × soreness` were ever alive.
+  ⚠ **THE COUNT ITSELF WAS WRONG TWICE, WHICH IS THE POINT.** It first read *fourteen*
+  above a list of eleven names; the correction re-counted by hand and produced a
+  different fourteen, wrongly including the two `integer` columns `avg_heart_rate` and
+  `calories` and omitting the `numeric` `resting_hr`. Twelve is what
+  `information_schema.columns` says on the live database. **A figure nobody can audit
+  from the page is a figure that will be wrong** — read the schema, don't recall it.
+  Values are now coerced to accept both shapes, which is correct whichever way the driver
+  serialises them.
+  ⚠ **And NOT with `Number(v)`**: `Number(null)`, `Number('')` and `Number(false)` are all
+  a finite **0** — the fabrication class this repo has paid for repeatedly (the cycle read
+  invented a "significant" gap out of eight missing rows exactly that way). A missing
+  reading is **absence** and drops the day; it is never a zero on the member's own chart.
+- ⚠ **THE NEW PAIRS CAME WITH THEIR OWN MULTIPLE-COMPARISON CORRECTION, and shipping them
+  without it would have knowingly made the output less honest.** Every pair is a separate
+  test, so a bigger catalog finds more on noise alone: at a 28-day window an |r| of 0.3 —
+  the "moderate" floor — is roughly **p = 0.12**, so a 16-pair catalog expects about **two
+  spurious "moderate" findings per readout**. A readout that always has something to say
+  is a horoscope. `computeCorrelations` now annotates a **Benjamini–Hochberg `qValue`**
+  across the pairs in that response, **both** readout paths gate on **q rather than raw
+  p** — at least as strict, not *strictly* stricter: BH guarantees q ≥ p, and the
+  largest-p finding always takes q = p exactly.
+  ⚠ **AND THE GATE IS ENFORCED, NOT ASKED FOR** — the first cut filtered the model's
+  catalog on sample size alone and told the model in the prompt to prefer low q, which is
+  advisory: the catalog is the only set an insight may reference, so **filtering it is the
+  gate**, and a model that ignored the line could have surfaced a finding the
+  deterministic fallback would have refused. One `Q_THRESHOLD` now feeds both paths, and
+  a test fails if either stops reading it or a second literal appears. When nothing survives, the
+  honest empty summary is the correct output, not a failure.
+  ⚠ **The correction was NOT registered for later**, deliberately: this wave enlarged the
+  family, so this wave carries the cost of it. Six pairs were added, each with a
+  physiological story, rather than every pairing the columns allow — the family size is
+  itself a design decision.
+- ⚠ **AND THE p-VALUE THE WHOLE GATE RESTS ON WAS A NORMAL TAIL WEARING A
+  t-DISTRIBUTION'S COMMENT** (review, on the first head). The `t` statistic was formed
+  correctly with `n-2` degrees of freedom and then pushed through **Abramowitz & Stegun
+  26.2.17 — the standard NORMAL survival approximation**, i.e. the `df → ∞` limit. These
+  windows are small *by construction* (`MIN_DAYS` is 4; the readout gates at n ≥ 7), which
+  is exactly where a normal tail is far too thin: at n = 4, r = 0.9 the true two-sided p
+  is **0.10** and the old code returned **~0.004**. Replaced with the exact expression —
+  `P(|T| ≥ t) = I_{df/(df+t²)}(df/2, ½)` via a Lanczos log-gamma and a Lentz continued
+  fraction — which reproduces **every published α = .05 critical correlation to four
+  decimals**.
+  ⚠ **This is not a precision nicety, because it invalidated the numbers the correction
+  above was calibrated with.** `q` is a monotone transform of the p **ordering and
+  threshold**, so the FDR gate shipped in this same wave was gating on values that were
+  not the p-values they claimed to be — and the *"|r| = 0.3 at 28 days ≈ p = 0.12"*
+  arithmetic this entry's own rationale rests on is a number the old code **could not
+  produce** (it would have said ~0.10). The exact tail returns **0.121**.
+  ⚠ **Pinned two ways, NEITHER against the implementation's own output** — a table
+  generated from the code only pins the code, and would have passed just as happily on the
+  normal approximation it replaced. (a) The **published** α = .05 critical correlations at
+  df 6/8/14. (b) An **independent oracle**: the elementary closed forms of the t survival
+  function at df 2 and 4 — `1 − t/√(2+t²)` and `1 − x(1.5 − 0.5x²)` — which share not one
+  line with the implementation and sit at n = 4 and 6, i.e. from `MIN_DAYS` up, the exact
+  region where the normal tail was worst and a continued fraction is likeliest to
+  misbehave. Agreement is exact to the 4dp the field is reported at. A sweep over 398
+  sample sizes × 1001 correlations separately confirms the result is finite, in [0, 1],
+  monotone in |r| and symmetric — the continued fraction never diverges or hits its
+  iteration cap anywhere on the real domain.
+- ⚠ **A SLEEP COLUMN ON DAY D IS THE NIGHT THAT *ENDED* ON THE MORNING OF D — and five
+  pairs had it backwards, two of them added by this wave** (review, and correct).
+  Established by reading the writers rather than reasoning from the metric names:
+  `/api/client/checkin` puts `sleepHours`, `sleepQuality` **and** `energy` into the **same
+  snapshot row** keyed on one member-local day, and the mobile card submits all four in a
+  single `doLog()`; WHOOP sleeps and Oura `daily_sleep` both merge on the provider's own
+  **wake** day; and the neighbouring `sleep_hours × recovery_score` pair already encoded
+  the convention *in its own words* — *"for the same morning"*, at lag 0. So the sleep that
+  fuelled day D's training sits on row **D**, not D-1: `sleep → strain`,
+  `sleep_performance → workout_minutes` and both new `sleep → energy` pairs move to
+  **lag 0**, while `stress → sleep_hours` moves to **lag 1** — its label always read *"that
+  night"*; only the lag disagreed.
+  ⚠ **A wrong lag fails loudly NOWHERE.** It yields a perfectly well-formed correlation
+  with a real r, a real n and a real q — of a relationship the member never logged. Three
+  of the five were pre-existing, so the fix is the whole class rather than the two this
+  wave introduced, and the convention is now written **at the pair table** with the file
+  and line of each writer that establishes it. Guarded two ways: a **cross-file** test that
+  fails if the check-in ever stops writing sleep and energy onto one day (the fact the lags
+  rest on), and a per-pair lag map with guard-the-guard, so a silent flip back to the
+  intuitive-but-wrong *"sleep → next day"* fails with its reason attached.
+- ⚠ **AND THE CORRECT LAG STILL CARRIES A CONFOUND — found by auditing my own fix, not
+  reported.** Moving the two check-in pairs to lag 0 puts `x` and `y` in the **same tap
+  sequence on the same card, seconds apart** (`sleep_quality × energy` most of all). Not a
+  tautology — they rate different things — and not a reason to drop the pair, since *"the
+  nights you rate as rested are the mornings you have energy"* is a real and usable
+  observation. But it is **shared-method variance**: a member having a good morning rates
+  both high, which inflates r relative to an independent measurement. Said in the pair's
+  own `explanation`, because **the explanations are what the model is handed as evidence**
+  — and a readout reporting a self-report agreeing with itself as a *discovery* is the
+  same over-claim as a wrong lag, just arrived at honestly. The `sleep_hours` twin is the
+  objective check (a duration, device-synced or entered, with no shared method), and its
+  explanation now says to trust it where the two disagree.
+- ⚠ **THE q GATE WAS ENFORCED ON ONE PATH AND *ASKED FOR* ON THE OTHER** (review). The
+  fallback filtered on q; the catalog handed to the model filtered on **sample size alone**
+  and the prompt merely told the model to prefer low q. The catalog is the only set an
+  insight may reference (post-parse validation checks membership), so **filtering it IS the
+  gate** — a model that ignored the line could surface a finding the deterministic path
+  would have refused, which is the two halves of one feature disagreeing about what counts
+  as evidence.
+  ⚠ **AND SHARING THE *THRESHOLD* WAS NOT ENOUGH — my fix for that finding was itself
+  incomplete, caught on the next round.** With `Q_THRESHOLD` unified the two filters still
+  disagreed on the other two terms: the fallback took any **non-weak** pair at any `n`,
+  the model catalog took any **n ≥ 7** pair at any strength. So a strong pair at n = 5 was
+  reportable by the deterministic path and invisible to the model, a weak pair at n = 10
+  was offered to the model and refused by the fallback — and **which path a member gets is
+  decided by whether OpenAI happens to be reachable.** Two renderings of the same evidence
+  must not disagree about what the evidence *is*; a member switching between them because
+  of an outage would read a different set of facts about their own body. One
+  `isReportable()` predicate now, both paths, with a guard that fails if either
+  hand-rolls the terms at a call site again.
+- ⚠ **AND THE HONEST EMPTY STATE WAS QUOTING A THRESHOLD THE CODE CONTRADICTS** — found
+  by auditing my own diff after two consecutive rounds landed inside my own fixes, which
+  is this file's own signal to stop patching and sweep. The line a member reads when
+  nothing survives said *"unlock the readout once we have ~14 days of overlap"* while the
+  gate is **7**, and it conflated **overlap** with **window length**: what actually counts
+  is days where BOTH sides of a pair carry a value, so a 28-day window with sleep logged
+  and training missing clears nothing. It now interpolates `MIN_REPORTABLE_DAYS` and says
+  *both sides*, with a guard that fails on any hardcoded day count in that string. **The
+  empty state is the output most members will see first** — it is the one line in this
+  module that is definitely member-facing, and it was the one making an unverifiable
+  claim.
+- ⚠ **AND BOTH PATHS TURNED A CORRELATION INTO A LEVER — the same self-sweep, and the
+  worst of what it found.** The fallback's recommendation read *"Protect the {x} input —
+  when it dips, {y} dips with it"* and *"gains there **cost** {y}"*, and the system prompt
+  asked the model for the *"most **actionable**"* findings and to *"**recommend an
+  action**"*. Both assert a **causal direction an observational r cannot support**, in a
+  module that computes a false-discovery rate *precisely because* it takes over-claiming
+  seriously — telling a member to pull a lever the evidence never showed is a lever undoes
+  the whole correction in the one place they actually read. It is unfalsifiable advice
+  too: the pair may run the other way, or both may follow something unmeasured. Both now
+  **describe and name what is worth watching**, the prompt forbids causal claims outright
+  and carries the shared-method caution into the wording, and guards pin both — because
+  **the two renderings must not disagree about what the evidence SUPPORTS any more than
+  about which evidence qualifies**. Also: *"1 cross-domain pattern stand out"*, a verb the
+  pluralisation forgot.
+- ⚠ **REGISTERED, NOT FIXED — the fallback prints RAW COLUMN NAMES to the member**
+  (`protein g`, `hydration l`, `sleep performance pct`). Each pair already carries a
+  human `label`; a display-name map belongs with the surface that renders it, and step 2
+  translates that surface into 13 locales — hardcoding English names now is work that
+  round would have to redo.
+- ⚠ **A `.d.ts` IS NOT CHECKED AGAINST ITS `.mjs`, so `MetricKey` could drift in silence**
+  (review). It is a hand-typed copy of `SNAPSHOT_METRICS`, and neither `tsc` nor the
+  pair-vs-select test can see a divergence — that test compares two things that **both**
+  come from the module. A metric added to the runtime only is unnameable from TypeScript;
+  a name left in the union only is a type admitting a column the query never fetches, which
+  is the *exact* class this wave's derived select was introduced to close, one layer up.
+  Both directions are now asserted by parsing the union out of the declaration.
+- **`correlations.ts` → `correlations.mjs` + `.d.ts`, and that is why any of this is
+  testable.** As TypeScript it could not be imported by `node --test`, so the entire
+  evidence layer under two routes — the thing that decides which "insights" a member is
+  shown about their own body — **had zero tests** and was gated by a typecheck alone. This
+  is the shape the repo already uses for exactly that reason (`console-triage`, `funnel`,
+  `guardrail-health`, `age-derive`, `sentry-context`). `tests/correlations.test.mjs` pins
+  the lag semantics (a lagged pair reads Y from the *following* date and must not pair
+  across a gap in the window), zero-variance yielding nothing rather than `r = 0`, and
+  that the module produces every field the `.d.ts` promises — a shape the declaration
+  claims but the module omits is an `any` at the call site, not a compile error.
+- **26 mutations caught, 1 documented equivalent** (drop a gauge from the select · a pair
+  naming an unselected column · lag collapsing to same-day · `q` losing monotonicity ·
+  reject numeric strings, i.e. the shipped bug · naive `Number()` coercion · empty string
+  becoming 0 · NaN/Infinity admitted · **restore the normal tail** · flip `rested → energy`
+  back to lag 1 · flip `stress → sleep` back to lag 0 · split the check-in's sleep onto a
+  second local day · delete a pinned sleep pair · add an **unpinned** sleep pair · the
+  model catalog stops gating on q · a literal q threshold back at a call site · **df off
+  by one** · the incomplete-beta arguments swapped · either path hand-rolling its
+  eligibility filter · a metric added to the `.mjs` only · a name added to the union
+  only · a literal day count back in the member-facing empty state · the causal
+  recommendation back in the fallback · the prompt asking for an action again · the
+  no-causation instruction dropped), sanity green at both ends and the file restored **byte-identically** after each. ⚠ The equivalent is the `qValue: 1` seed — the
+  annotator assigns every index and its only early return is the empty case, so nothing
+  can observe the seed. **Kept and labelled rather than deleted**, so the next reader
+  neither removes it as dead nor spends a round writing the test that cannot exist.
+- ⚠ **Not fixed, and named rather than left implicit:** `body.user_id` is still accepted
+  by both routes. RLS is what actually authorises the read (a non-permitted id returns
+  zero rows), and a zero-row window produces no correlations and therefore **no model
+  call** — so it is not a leak and not a cost, but it is looser than it needs to be, and
+  the entry-point PR should bind it.
+- Verified: `tsc` 0 · `next build` 0 with `ƒ Proxy (Middleware)` present ·
+  `npm test` **2367/2367** (+22) · the `numeric` column list read from
+  `information_schema` on the live database.
+
+### 2026-08-29 — Website + Next dashboard errors stop arriving anonymous (#1949 → `d80e49680`)
 
 - **Closes the Layer-1 follow-up registered on 2026-08-01**: *"user context is attached
   on `/m/` ONLY … once a DSN exists, dashboard errors on both web surfaces arrive with

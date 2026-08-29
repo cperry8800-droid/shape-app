@@ -1,34 +1,11 @@
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
-import { computeCorrelations, type SnapshotPoint } from '@/lib/correlations';
+import { computeCorrelations, SNAPSHOT_SELECT, type SnapshotPoint } from '@/lib/correlations';
 import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const SNAPSHOT_FIELDS = [
-  'snapshot_date',
-  'sleep_hours',
-  'sleep_performance_pct',
-  'recovery_score',
-  'hrv_ms',
-  'resting_hr',
-  'strain',
-  'workout_minutes',
-  'workout_volume_lb',
-  'avg_heart_rate',
-  'calories',
-  'protein_g',
-  'carbs_g',
-  'fat_g',
-  'hydration_l',
-  'weight_lb',
-  'body_fat_pct',
-  'mood',
-  'stress',
-  'soreness',
-].join(',');
 
 function clampWindow(raw: string | null): number {
   const value = Number(raw);
@@ -58,7 +35,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from('daily_health_snapshot')
-    .select(SNAPSHOT_FIELDS)
+    .select(SNAPSHOT_SELECT)
     .eq('user_id', userId)
     .gte('snapshot_date', since)
     .order('snapshot_date', { ascending: true })
