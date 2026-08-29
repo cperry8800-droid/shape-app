@@ -144,3 +144,60 @@ test('the mirror agrees across a deterministic fuzz sweep', () => {
       `fuzz disagreement at i=${i} on ${JSON.stringify({ profile, fallback })}`);
   }
 });
+
+// ⚠ THE CALL-SITE INVARIANT, and it exists because the first cut of this wave
+// got it wrong. `<SentryUser>` must hand `bsSentryUser` the RAW profile fields —
+// both the `roles` array and the legacy singular `role` — never a pre-picked
+// one. `profiles.roles` is `NOT NULL DEFAULT '{}'::text[]`, so an EMPTY array is
+// the column's default (2 of the 4 live accounts sit there today with a real
+// `role`), and `rolesOf` falls back on `arr && arr.length` — hand it only the
+// empty array and it has nothing to fall back TO, so a trainer reports
+// `roles: ''` / `is_coach: false`: a coach recorded as not a coach.
+//
+// This asserts what the call sites ANSWER — "did you pass both inputs?" — not
+// how any derivation is spelled, which is the distinction the age-guard
+// post-mortem in this file's header is about. A page that passes the id alone
+// is fine and deliberate (an admin board has no profile row); passing `roles`
+// WITHOUT `role` is the shape that silently drops the fallback.
+test('every SentryUser call site that passes roles also passes role', async () => {
+  const { parse } = await import('@babel/parser');
+  const files = ['src/app/dashboard/layout.tsx', 'src/app/console/page.tsx', 'src/app/warroom/page.tsx'];
+  let sites = 0;
+  for (const rel of files) {
+    const src = readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
+    const ast = parse(src, { sourceType: 'module', plugins: ['jsx', 'typescript'] });
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (node.type === 'JSXOpeningElement' && node.name?.name === 'SentryUser') {
+        sites++;
+        const names = node.attributes
+          .filter((a) => a.type === 'JSXAttribute')
+          .map((a) => a.name?.name);
+        assert.ok(names.includes('id'), `${rel}: <SentryUser> without an id`);
+        if (names.includes('roles')) {
+          assert.ok(names.includes('role'),
+            `${rel}: <SentryUser roles=…> must also pass role — a pre-picked empty roles array drops the legacy fallback`);
+        }
+      }
+      for (const k of Object.keys(node)) {
+        if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments') continue;
+        walk(node[k]);
+      }
+    };
+    walk(ast.program.body);
+  }
+  // Guard the guard: if the element is ever renamed, this must fail loudly
+  // rather than pass by finding nothing to check.
+  assert.ok(sites >= 3, `expected at least 3 <SentryUser> call sites, found ${sites}`);
+});
+
+// The exact shape the component builds, driven through the real derivation: the
+// empty-array-plus-legacy-role case must still resolve the coach.
+test('an empty roles array with a legacy singular role still resolves the coach', () => {
+  const ctx = bsSentryUser({ id: 'u1', roles: [], role: 'trainer' }, 'u1');
+  assert.equal(ctx.roles, 'trainer');
+  assert.equal(ctx.is_coach, true);
+  const mirrored = MIRROR.bsSentryUser({ id: 'u1', roles: [], role: 'trainer' }, 'u1');
+  assert.deepEqual({ ...mirrored }, ctx);
+});

@@ -28,20 +28,34 @@ import { bsSentryUser } from '@/lib/sentry-context.mjs';
  * canonical module's own behaviour for an unresolved profile ("roles come from
  * the profile only, so they are honestly absent rather than guessed"), not a
  * shortcut invented here.
+ *
+ * ⚠ BOTH `roles` AND `role` ARE PASSED THROUGH, AND CHOOSING BETWEEN THEM IS NOT
+ * THIS FILE'S JOB — a defect I shipped in the first cut of this component and
+ * caught only in the self-review. It took the array alone, so a caller that
+ * pre-picked one lost the other, and `profiles.roles` is `NOT NULL DEFAULT
+ * '{}'::text[]` — an EMPTY array is the column's default, and 2 of the 4 live
+ * accounts sit in exactly that state with a real singular `role`. `rolesOf`
+ * already falls back on `arr && arr.length`; handing it only the empty array
+ * left it nothing to fall back TO, so a trainer in that state would have
+ * reported `roles: ''` and `is_coach: false` — a coach recorded as not a coach,
+ * which is the fabrication class this module exists to prevent. Pass the raw
+ * fields; let the one definition decide.
  */
 export default function SentryUser({
   id,
   roles,
+  role,
 }: {
   id: string;
   roles?: string[] | null;
+  role?: string | null;
 }) {
   useEffect(() => {
     // Never throw: this runs inside a render tree whose errors the boundary
     // reports to Sentry, so a throw here would turn the reporting layer into a
     // source of the very crashes it exists to record.
     try {
-      Sentry.setUser(bsSentryUser(roles ? { id, roles } : null, id));
+      Sentry.setUser(bsSentryUser({ id, roles, role }, id));
     } catch {
       /* inert without a DSN, and never the cause of a page failure */
     }
@@ -56,8 +70,9 @@ export default function SentryUser({
       }
     };
     // `roles` is an array identity; join it so a re-render with an equal array
-    // does not re-fire, while a genuine role change does.
-  }, [id, roles ? roles.join(',') : '']);
+    // does not re-fire, while a genuine role change does. `role` is a scalar and
+    // compares by value.
+  }, [id, roles ? roles.join(',') : '', role ?? '']);
 
   return null;
 }
