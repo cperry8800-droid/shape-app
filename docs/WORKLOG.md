@@ -380,7 +380,7 @@ changelog whenever something ships.
 
 ### 2026-08-29 — Session handoff: `docs/HANDOFF-2026-08-29.md`
 
-- **The session's six PRs** — #1949 Sentry user context on both web surfaces · #1950/#1951/#1952
+- **The session's seven PRs** — #1949 Sentry user context on both web surfaces · #1950/#1951/#1952
   the §C weekly readout (evidence layer → server-side weekly claim → the member-facing station)
   · #1953 the search ceiling + the honesty pass that had to come first · #1954 the i18n surface
   measurement · #1955 both migrations verified live. `main` at **`decbf53ca`**, suite
