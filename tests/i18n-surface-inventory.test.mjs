@@ -280,9 +280,9 @@ function inventory() {
 const UNCOVERED = new Set([
   'Client::BSAboutPage', 'Client::BSActivityBody', 'Client::BSActivityLogCta',
   'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan',
-  'Client::BSBuildDoor', 'Client::BSCardSheetHost', 'Client::BSChatThread',
+  'Client::BSCardSheetHost', 'Client::BSChatThread',
   'Client::BSClientGoals', 'Client::BSClientLibrary', 'Client::BSClientNextPlate',
-  'Client::BSClientProgress', 'Client::BSClientTrain', 'Client::BSCoachAdjustBanner',
+  'Client::BSClientProgress', 'Client::BSCoachAdjustBanner',
   'Client::BSCoachGroceryReview', 'Client::BSCodeOfConductPage', 'Client::BSCommitmentCard',
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
@@ -305,7 +305,7 @@ const UNCOVERED = new Set([
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
   'Client::BSUniversalSearch', 'Client::BSVideoCall', 'Client::BSWeekendsCard',
   'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet',
-  'Client::BSWorkoutBuilder', 'Client::BSWorkoutPreview',
+  'Client::BSWorkoutBuilder',
   // The launch/auth shell (BSSplash · BSWireLoading · BSWireHold · BSLogin ·
   // BSPaywall · BSPreviewBanner · BSAppShell) is localized; BSCosmicWordmark was
   // deleted (orphaned — no render site, no window export). BSTweaksPanel is the
@@ -326,7 +326,8 @@ const UNCOVERED = new Set([
 /** Has a translator AND still hardcodes copy — a partial rollout, not a missed one. */
 const PARTIAL = new Set([
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
-  'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSCookMode', 'Client::BSGrocery',
+  'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSClientTrain',
+  'Client::BSCookMode', 'Client::BSGrocery',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
@@ -369,10 +370,25 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // are asserted exactly: a change here is either progress (lower the number and
   // the record with it) or a regression, and both must be a deliberate edit.
   // Printed above first, so the failure message is never the only place to read them.
-  assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1104, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 115, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ CUT 5 (the Train path) moved four components, and only three of them are
+  // arithmetic the ratchet can show you. BSBuildDoor and BSWorkoutPreview left
+  // UNCOVERED fully covered; BSClientTrain left it PARTIAL, because the one
+  // string it still hardcodes ("Playlists") is signed-out demo copy the house
+  // deliberately does not translate — the same shape BSClientEat ended in.
+  // So: noneStrings 1104 -> 1061, none.length 115 -> 112, part.length 31 -> 32,
+  // partStrings 164 -> 165.
+  // ⚠ THE FOURTH IS THE ONE WORTH READING. BSWeekStrip moved no-copy -> fully
+  // covered without touching a single string count: its day letters live in an
+  // ARRAY LITERAL, which the walk does not attribute to a component, so it read
+  // `tr: 0, hard: 0` while rendering hardcoded English day letters on two
+  // primary tabs. It was localized in this cut; the measurement can only see
+  // the translator it gained. A component sitting at zero/zero is not evidence
+  // it renders nothing — it is the blind spot cut 4 recorded, showing up in the
+  // covered column this time.
+  assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1061, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 112, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

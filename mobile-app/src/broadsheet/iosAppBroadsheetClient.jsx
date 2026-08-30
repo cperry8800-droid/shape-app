@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution, bsAllergenNoteText } from './shapeKitchenData.js';
-import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
@@ -4395,10 +4395,10 @@ function bsWeekdayIdx(d = new Date()) { return (d.getDay() + 6) % 7; }
 // a weekday is CALLED, not what date it is, so no real week is needed and the
 // answer cannot drift with the clock. Formatted in UTC so the reference day
 // can never shift a slot west of the line.
-function bsWeekdayName(idx) {
+function bsWeekdayName(idx, width = 'long') {
   try {
     const d = new Date(Date.UTC(2024, 0, 1 + (Number(idx) || 0)));
-    return d.toLocaleDateString(bsDateLocale(), { weekday: 'long', timeZone: 'UTC' });
+    return d.toLocaleDateString(bsDateLocale(), { weekday: width, timeZone: 'UTC' });
   } catch (e) { return ''; }
 }
 
@@ -4407,7 +4407,8 @@ function bsWeekdayName(idx) {
 // open weekdays in order so a client with a plan but no dates still sees real
 // data. Days with no workout render as rest. Presentation (titles, accents,
 // tags) is derived here — the API returns only raw plan data.
-function bsBuildTrainProgram(workouts, t) {
+function bsBuildTrainProgram(workouts, t, tr) {
+  const T = bsTrainT(tr);
   const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const ACCENTS = [t.RUST, t.AMBER, t.BLUE];
   const monday = new Date(); monday.setHours(0, 0, 0, 0);
@@ -4452,10 +4453,18 @@ function bsBuildTrainProgram(workouts, t) {
     const label = `${DOW[i]} ${d.getDate()}`;
     if (!w) {
       return {
-        d: label, kicker: 'The Recovery', title: 'Rest\nday.', tag: 'REST',
-        tagColor: t.GREEN, accent: t.GREEN, headline: 'Full rest.',
-        meta: 'No session · 0 min', copy: 'No workout scheduled today. Recover, eat well, sleep.',
-        moves: [], total: '0 sessions', coachLine: 'Recovery is training. Take the day.',
+        d: label,
+        kicker: T('session:train.kicker.recovery', 'The Recovery'),
+        // The line break is layout, not language — every locale gets the same
+        // two-line shape, so the newline lives here and not in the catalog.
+        title: `${T('session:train.restTitleA', 'Rest')}\n${T('session:train.restTitleB', 'day.')}`,
+        tag: 'REST', tagLabel: bsTrainTagLabel('REST', T),
+        tagColor: t.GREEN, accent: t.GREEN,
+        headline: T('session:train.restHeadline', 'Full rest.'),
+        meta: T('session:train.noSessionMeta', 'No session · 0 min'),
+        copy: T('session:train.restCopy', 'No workout scheduled today. Recover, eat well, sleep.'),
+        moves: [], total: '0 sessions',
+        coachLine: T('session:train.restLine', 'Recovery is training. Take the day.'),
       };
     }
     const moves = (w.exercises || []).map((e, j) => {
@@ -4480,23 +4489,34 @@ function bsBuildTrainProgram(workouts, t) {
     })() : '';
     // Honest byline: self days are "Programmed by you" (or the program name · Wn),
     // never a fabricated coach name; coach days keep the coach copy.
-    const selfByline = prog ? `${prog.name || 'Your program'}${prog.week ? ` · Week ${prog.week}` : ''}` : 'Programmed by you';
+    const progName = prog ? (prog.name || T('session:train.yourProgram', 'Your program')) : '';
+    const selfByline = prog
+      ? (prog.week
+        ? T('session:train.programWeek', `${progName} · Week ${prog.week}`, { name: progName, week: prog.week })
+        : progName)
+      : T('session:train.programmedByYou', 'Programmed by you');
+    const nMoves = moves.length;
+    // ⚠ The English fallback is the FINISHED plural, computed here — the catalog
+    // owns the ICU forms, but nothing evaluates ICU when the catalog is absent.
+    const movesLabel = T('session:train.moveCount', `${nMoves} move${nMoves === 1 ? '' : 's'}`, { count: nMoves });
+    const tag = isSelf ? 'YOURS' : (isCustom ? 'CUSTOM' : 'FEATURE');
+    const title = w.title || T('session:train.workoutFallback', 'Workout');
     return {
       d: label,
-      kicker: isSelf ? 'The Training' : 'The Training',
-      title: w.title || 'Workout',
-      tag: isSelf ? 'YOURS' : (isCustom ? 'CUSTOM' : 'FEATURE'),
+      kicker: T('session:train.kicker.training', 'The Training'),
+      title,
+      tag, tagLabel: bsTrainTagLabel(tag, T),
       tagColor: isSelf ? t.ACCENT : (isCustom ? t.BLUE : t.AMBER),
       accent: ACCENTS[i % ACCENTS.length],
       time: w.time || '',
       timeLabel,
       adjustGen: w.adjustGen ?? (w.payload && w.payload.adjustGen) ?? null,
-      headline: w.title || 'Workout',
-      meta: [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
-      copy: w.description || (isSelf ? selfByline : 'Programmed by your coach.'),
+      headline: title,
+      meta: [w.durationMin ? T('session:train.minutes', `${w.durationMin} min`, { min: w.durationMin }) : null, movesLabel].filter(Boolean).join(' · '),
+      copy: w.description || (isSelf ? selfByline : T('session:train.programmedByCoach', 'Programmed by your coach.')),
       moves,
-      total: `${moves.length} move${moves.length === 1 ? '' : 's'}`,
-      coachLine: isSelf ? selfByline : (w.description || 'Move with intent. Quality over load.'),
+      total: movesLabel,
+      coachLine: isSelf ? selfByline : (w.description || T('session:train.coachLineFallback', 'Move with intent. Quality over load.')),
       // Self-authoring metadata the hero + edit affordance read.
       selfAuthored: isSelf,
       program: prog,
@@ -4536,12 +4556,17 @@ function BSFindCoachBar({ role, onOpen }) {
 
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
   const t = useBS();
-  const DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const tr = useShapeTr();
+  // ⚠ WAS a hardcoded English initial row (M T W T F S S) and English day names
+  // in the aria-label — on the two primary tabs (Train + Eat), in all thirteen
+  // locales. Both now come from Intl in the SELECTED UI language, via the same
+  // fixed-reference-Monday helper the Eat header already uses.
+  const DOWL = Array.from({ length: 7 }, (_, i) => bsWeekdayName(i, 'narrow'));
   const _now = new Date();
   const todayIdx = (_now.getDay() + 6) % 7;
   const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
   const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d.getDate(); });
-  const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const names = Array.from({ length: 7 }, (_, i) => bsWeekdayName(i));
   return (
     <div style={{ padding: `12px ${t.padX}px 4px` }}>
       {/* Calendar rule with a heat needle over the active day (Session Meter grammar). */}
@@ -4555,7 +4580,7 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
         {DOWL.map((L, i) => {
           const on = i === activeIdx;
           return (
-            <button type="button" key={i} onClick={() => onSelect(i)} aria-label={`${names[i]} ${dates[i]}${on ? ', selected' : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
+            <button type="button" key={i} onClick={() => onSelect(i)} aria-label={`${names[i]} ${dates[i]}${on ? `, ${tr('home:aria.selected', { defaultValue: 'selected' })}` : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
               <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 14, color: on ? t.INK : t.INK50, letterSpacing: '-0.03em', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
               <span aria-hidden style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : 'transparent' }} />
@@ -5076,36 +5101,37 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
 // building. Template shelves + custom + AI draft + open session.
 function BSBuildDoor({ onBuild, onOpenSession, onStartTemplate, onStartProgram, onDraft }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const head = (txt) => <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '18px 0 9px' }}>{txt}</div>;
   return (
     <div style={{ padding: `2px ${t.padX}px 40px` }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700, marginTop: 10 }}>No plan yet</div>
-      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1.02 }}>Build your <span style={{ fontStyle: 'italic', color: teal }}>week.</span></div>
-      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>Start from a template, build your own, or let Shape draft a plan for your goal — no coach required.</div>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700, marginTop: 10 }}>{tr('session:train.door.eyebrow', { defaultValue: 'No plan yet' })}</div>
+      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1.02 }}>{tr('session:train.door.titlePre', { defaultValue: 'Build your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:train.door.titleAccent', { defaultValue: 'week.' })}</span></div>
+      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('session:train.door.body', { defaultValue: 'Start from a template, build your own, or let Shape draft a plan for your goal — no coach required.' })}</div>
       <div aria-hidden style={{ margin: '14px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 16 }}>
-        <button onClick={onBuild} style={{ width: '100%', minHeight: 48, borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Build your own →</button>
+        <button onClick={onBuild} style={{ width: '100%', minHeight: 48, borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:train.door.build', { defaultValue: 'Build your own →' })}</button>
         <div style={{ display: 'flex', gap: 9 }}>
-          <button onClick={onDraft} style={{ flex: 1, minHeight: 44, borderRadius: 6, border: `1px solid ${teal}`, background: `${teal}12`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>✦ Draft it for me</button>
-          <button onClick={onOpenSession} style={{ flex: 1, minHeight: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Open session</button>
+          <button onClick={onDraft} style={{ flex: 1, minHeight: 44, borderRadius: 6, border: `1px solid ${teal}`, background: `${teal}12`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('session:train.door.draft', { defaultValue: '✦ Draft it for me' })}</button>
+          <button onClick={onOpenSession} style={{ flex: 1, minHeight: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('session:train.openSession', { defaultValue: 'Open session' })}</button>
         </div>
       </div>
 
-      {head('Sessions · one-tap')}
+      {head(tr('session:train.door.sessionsHead', { defaultValue: 'Sessions · one-tap' }))}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
         {BS_STARTER_SESSIONS.map((s) => (
           <button key={s.id} onClick={() => onStartTemplate(s)} style={{ padding: '9px 13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{s.name}</button>
         ))}
       </div>
 
-      {head('Programs · multi-week')}
+      {head(tr('session:train.door.programsHead', { defaultValue: 'Programs · multi-week' }))}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {BS_STARTER_PROGRAMS.map((p, i) => (
           <button key={p.id} onClick={() => onStartProgram(p)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR || t.RULE}`, padding: '12px 0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK }}>{p.name}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em' }}>{p.defaultWeeks} wk · {p.daysPerWeek}/wk →</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em' }}>{tr('session:train.door.programMeta', { defaultValue: '{weeks} wk · {days}/wk →', weeks: p.defaultWeeks, days: p.daysPerWeek })}</span>
           </button>
         ))}
       </div>
@@ -5117,6 +5143,7 @@ function BSBuildDoor({ onBuild, onOpenSession, onStartTemplate, onStartProgram, 
 // ═══════════════════════════════════════════════════════════
 function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {}, autoStart = false, onAutoStartConsumed = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const bsTrainProgram = useBSProgram();
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
   const [session, setSession] = useStateBSC(false);
@@ -5136,6 +5163,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     return () => { cancelled = true; };
   }, []);
   const [liveProgram, setLiveProgram] = useStateBSC(null);
+  const [liveTrainCoach, setLiveTrainCoach] = useStateBSC(null); // real assigning trainer
   const [planLoaded, setPlanLoaded] = useStateBSC(false);
   const [builder, setBuilder] = useStateBSC(null); // { mode, ...seed } | null — the self-serve builder overlay
 
@@ -5146,11 +5174,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     try {
       window.ShapeMetrics?.invalidate?.();
       const p = await window.ShapePlan?.get?.();
-      if (p?.training?.hasPlan) { setLiveProgram(bsBuildTrainProgram(p.training.workouts, t)); setDay(bsWeekdayIdx()); }
-      else setLiveProgram(null);
+      if (p?.training?.hasPlan) { setLiveProgram(bsBuildTrainProgram(p.training.workouts, t, tr)); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
+      else { setLiveProgram(null); setLiveTrainCoach(null); }
     } catch (e) { /* keep demo program */ }
     finally { setPlanLoaded(true); }
-  }, [t]);
+  }, [t, tr]);
   React.useEffect(() => { let cancelled = false; (async () => { if (!cancelled) await loadPlan(); })(); return () => { cancelled = true; }; }, []);
 
   // ── Per-day program (demo fallback, May 8–14, 2026) ──
@@ -5161,14 +5189,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Signed in with no assigned plan → EMPTY week (no coaches yet); the demo
   // program is only the signed-out preview.
   const bsTrainSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const EMPTY_PROGRAM = React.useMemo(() => bsEmptyTrainProgram(t), [t]);
+  const EMPTY_PROGRAM = React.useMemo(() => bsEmptyTrainProgram(t, tr), [t, tr]);
 
   // Apply the coach's "Adjust program" intent (client_programs.detail.training) onto
   // the deck so the per-day workouts reflect what the coach set — intensity scales
   // loads/RPE, the weekly split re-themes days + sets rest days, the note rides along.
   const PROGRAM = React.useMemo(
-    () => bsApplyTrainAdjust(liveProgram || (bsTrainSignedIn ? EMPTY_PROGRAM : MOCK_PROGRAM), bsTrainProgram.detail?.training, t),
-    [liveProgram, MOCK_PROGRAM, EMPTY_PROGRAM, bsTrainSignedIn, bsTrainProgram.detail, t]
+    () => bsApplyTrainAdjust(liveProgram || (bsTrainSignedIn ? EMPTY_PROGRAM : MOCK_PROGRAM), bsTrainProgram.detail?.training, t, tr),
+    [liveProgram, MOCK_PROGRAM, EMPTY_PROGRAM, bsTrainSignedIn, bsTrainProgram.detail, t, tr]
   );
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
@@ -5182,6 +5210,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // (tag REST: no workout scheduled, or coach-set recovery); anything else is a
   // real session, and a moveless one opens as an OPEN session (log as you go).
   const isRestDay = cur.tag === 'REST';
+  // Who, if anyone, may be credited for THIS day. A coach authored it when a live
+  // plan is loaded, the day is not self-programmed, and it is either a real
+  // session (outline days ship moveless, so move count is not the test) or a
+  // coach-SET rest. An unassigned rest day credits nobody.
+  const coachDay = !!liveProgram && !cur.selfAuthored && (!isRestDay || !!cur.coachAdjust);
+  const coachDayName = bsTrainSignedIn
+    ? (coachDay ? (liveTrainCoach || tr('session:train.yourTrainer', { defaultValue: 'Your trainer' })) : '')
+    : 'Jordan Chen';
 
   // Self-serve builder overlay (Build your week / edit a self day). On save it
   // reloads the plan so the new/edited program shows on the deck immediately.
@@ -5197,7 +5233,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     // every move starts at 3 sets. "+ Add set" covers anything beyond.
     return { ...m, sets: mm ? Number(mm[1]) : 3, reps: mm ? mm[2] : '' };
   })} onBack={() => setSession(false)} />;
-  if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
+  if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} coach={coachDayName} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
 
   // Signed-in member with NO plan (assigned or self) → the Build-your-week door
   // instead of the empty rest-week. Signed-out preview keeps the demo deck.
@@ -5207,7 +5243,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     const startProgram = (p) => setBuilder({ mode: 'program', name: p.name, discipline: p.discipline, programId: p.id });
     return (
       <BSPage>
-        <BSPageHeader kicker="Train" title="Your training" trailing={<BSHeaderTools onProfile={onProfile} />} />
+        <BSPageHeader kicker={tr('session:train.kickerTrain', { defaultValue: 'Train' })} title={tr('session:train.yourTraining', { defaultValue: 'Your training' })} trailing={<BSHeaderTools onProfile={onProfile} />} />
         <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
         <BSBuildDoor
           onBuild={() => setBuilder({ mode: 'session' })}
@@ -5223,7 +5259,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   return (
     <BSPage>
       <BSPageHeader
-        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
+        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
         title={cur.title}
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
@@ -5236,8 +5272,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           empty state). Opens the self-serve builder. */}
       {bsTrainSignedIn && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, margin: `8px ${t.padX}px 0` }}>
-          <button onClick={() => setSession(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Open session</button>
-          <button onClick={() => setBuilder({ mode: 'session' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>＋ Build a workout</button>
+          <button onClick={() => setSession(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.openSession', { defaultValue: 'Open session' })}</button>
+          <button onClick={() => setBuilder({ mode: 'session' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.buildWorkout', { defaultValue: '＋ Build a workout' })}</button>
         </div>
       )}
 
@@ -5248,8 +5284,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Today hero — the session at a glance, on the instrument plate. */}
       <div data-tour="hero-train" style={{ margin: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
-          <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
-          <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
+          <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? tr('home:when.today', { defaultValue: 'Today' }) : bsWeekdayName(day, 'short')}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
+          <span style={{ color: t.INK50 }}>{tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })} · {tr('session:train.dayN', { defaultValue: 'D{n}', n: day + 1 })}</span>
         </div>
         {(() => {
           // Render the deck headline only when it differs from the page title —
@@ -5265,7 +5301,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 3, padding: '3px 8px' }}>{cur.coachFocus}</span>}
-            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
+            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>{tr('session:train.coachIntensity', { defaultValue: 'Coach · {label}', label: cur.intensityLabel })}</span>}
           </div>
         )}
         <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
@@ -5275,24 +5311,30 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             // name · Wn), teal spine. No fabricated coach name. A weekly-repeat
             // session is editable in place; a program day is edited by re-drafting.
             <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid ${t.ACCENT}`, padding: '2px 0 2px 10px' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{cur.program && cur.program.name ? cur.program.name : 'Programmed by you'}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{cur.program && cur.program.name ? cur.program.name : tr('session:train.programmedByYou', { defaultValue: 'Programmed by you' })}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{cur.program && cur.program.week ? `Your program · Week ${cur.program.week}` : 'Your workout'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{cur.program && cur.program.week ? tr('session:train.yourProgramWeek', { defaultValue: 'Your program · Week {n}', n: cur.program.week }) : tr('session:train.yourWorkout', { defaultValue: 'Your workout' })}</span>
                 {cur.repeatDow && cur.workoutId && (
-                  <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>Edit · Yours</button>
+                  <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.editYours', { defaultValue: 'Edit · Yours' })}</button>
                 )}
               </div>
             </div>
-          ) : (
+          ) : coachDayName ? (
+            // ⚠ WAS THE HARDCODED "Jordan Chen · Coach · Trainer" — rendered on EVERY
+            // non-self day, so a signed-in member read a fabricated trainer's name
+            // under their own workout, on a rest day, and on the empty week. Same
+            // class as the Eat byline (cut 4). Now: the real assigning trainer,
+            // else the honest role noun when a coach demonstrably authored the day
+            // but the name did not resolve, else the block does not exist.
             <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid #c0533b`, padding: '2px 0 2px 10px' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach · Trainer</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{coachDayName}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</div>
             </div>
-          )}
+          ) : <div style={{ flex: 1 }} />}
           {!isRestDay ? (
-            <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
+            <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label={tr('session:train.startAria', { defaultValue: 'Start session' })} style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
-            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
+            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.restChip', { defaultValue: 'Rest' })}</span>
           )}
         </div>
       </div>
@@ -5300,10 +5342,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
         <>
-          <BSTrackHeader kicker="The program" title={`${effMoves.length} moves`} actionLabel="Swap" onAction={() => setSwapIdx('pick')} />
+          <BSTrackHeader kicker={tr('session:train.programKicker', { defaultValue: 'The program' })} title={tr('session:train.moveCount', { defaultValue: `${effMoves.length} move${effMoves.length === 1 ? '' : 's'}`, count: effMoves.length })} actionLabel={tr('session:train.swap', { defaultValue: 'Swap' })} onAction={() => setSwapIdx('pick')} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
             <div aria-hidden style={{ display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, padding: '0 0 7px', borderBottom: `1.5px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-              <span>N</span><span>Move</span><span>Scheme</span><span style={{ textAlign: 'right' }}>Load</span>
+              <span>{tr('session:train.col.n', { defaultValue: 'N' })}</span><span>{tr('session:train.col.move', { defaultValue: 'Move' })}</span><span>{tr('session:train.col.scheme', { defaultValue: 'Scheme' })}</span><span style={{ textAlign: 'right' }}>{tr('session:train.col.load', { defaultValue: 'Load' })}</span>
             </div>
             {effMoves.map((r, i) => {
               const swapped = !!moveOverrides[`${day}:${i}`];
@@ -5313,7 +5355,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
               return (
                 <button type="button" key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, alignItems: 'baseline', minHeight: 44, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-                  <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</span>
+                  <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>{tr('session:train.swapped', { defaultValue: 'SWAPPED' })}</span>}</span>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{sch}</span>
                   <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.l}</span>
                 </button>
@@ -5326,7 +5368,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Exercise swap sheet — pick which move, then a coach-approved alternate. */}
       {swapIdx != null && (() => {
         if (swapIdx === 'pick') {
-          return <BSSwapSheet title="Swap" subtitle="Swap an exercise" options={effMoves.map((r, i) => ({ label: r.m, sub: r.s, _i: i }))} onPick={(o) => setSwapIdx(o._i)} onClose={() => setSwapIdx(null)} />;
+          return <BSSwapSheet title={tr('session:train.swap', { defaultValue: 'Swap' })} subtitle={tr('session:train.swapPick', { defaultValue: 'Swap an exercise' })} options={effMoves.map((r, i) => ({ label: r.m, sub: r.s, _i: i }))} onPick={(o) => setSwapIdx(o._i)} onClose={() => setSwapIdx(null)} />;
         }
         const orig = effMoves[swapIdx];
         if (!orig) return null;
@@ -5336,7 +5378,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           { label: baseName, sub: (cur.moves[swapIdx] || {}).s, current: true, _keep: true },
           ...alts.filter(a => a.m !== orig.m).map(a => ({ label: a.m, sub: a.s || orig.s, _alt: a })),
         ];
-        return <BSSwapSheet title="Swap exercise" subtitle={orig.m} options={options} onClose={() => setSwapIdx(null)}
+        return <BSSwapSheet title={tr('session:train.swapExercise', { defaultValue: 'Swap exercise' })} subtitle={orig.m} options={options} onClose={() => setSwapIdx(null)}
           onPick={(o) => {
             const key = `${day}:${swapIdx}`;
             const next = { ...moveOverrides };
@@ -5345,8 +5387,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             setMoveOverrides(next);
             try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_train_swaps', next); } catch (e) {}
             if (!o._keep) {
-              window.__bsToast && window.__bsToast('Swapped to ' + o._alt.m, 'ok');
-              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: 'Jordan Chen', provider_role: 'trainer' }, text: `Swapped ${baseName} → ${o._alt.m} · ${cur.d}` }).catch(() => {}); } catch (e) {}
+              window.__bsToast && window.__bsToast(tr('session:train.swapToast', { defaultValue: 'Swapped to {to}', to: o._alt.m }), 'ok');
+              // ⚠ WAS `name: 'Jordan Chen'` — the swap note was addressed to a
+              // fabricated trainer for every member. Same fix as the Eat swap note.
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveTrainCoach || (bsTrainSignedIn ? tr('session:train.yourTrainer', { defaultValue: 'Your trainer' }) : 'Jordan Chen'), provider_role: 'trainer' }, text: tr('session:train.swapMessage', { defaultValue: 'Swapped {from} → {to} · {day}', from: baseName, to: o._alt.m, day: cur.d }) }).catch(() => {}); } catch (e) {}
             }
             setSwapIdx(null);
           }} />;
@@ -5354,14 +5398,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* This week — on deck. Derived from the shared week (PROGRAM): the next few
           days after today, so it matches the calendar + home. Tap to jump there. */}
-      <BSTrackHeader kicker="This week" title="On deck" actionLabel="Plan" onAction={goCalendar} />
+      <BSTrackHeader kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })} actionLabel={tr('session:train.plan', { defaultValue: 'Plan' })} onAction={goCalendar} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {[1, 2, 3].map((off) => {
           const idx = (bsWeekdayIdx() + off) % 7;
           const p = PROGRAM[idx] || {};
           const rest = p.tag === 'REST';
-          const dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx];
-          return { idx, m: rest ? 'Active rest' : (p.headline || p.title || '—'), s: `${dow} · ${rest ? 'walk + mobility' : (p.meta || '')}`, r: '' };
+          const dow = bsWeekdayName(idx, 'short');
+          return { idx, m: rest ? tr('session:train.activeRest', { defaultValue: 'Active rest' }) : (p.headline || p.title || '—'), s: `${dow} · ${rest ? tr('session:train.restSub', { defaultValue: 'walk + mobility' }) : (p.meta || '')}`, r: '' };
         }).map((x, i) => (
           <button key={i} onClick={() => setDay(x.idx)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{String(i + 1).padStart(2, '0')}</span>
@@ -26164,18 +26208,19 @@ const _bsCueLibrary = {
   'Cool-down':       '5 minutes easy · don\'t skip — finish what you started.',
 };
 
-function BSWorkoutPreview({ program, onBack, onStart }) {
+function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
   const t = useBS();
+  const tr = useShapeTr();
   _bsScrollTopOnMount();
   const isRest = program.tag === 'REST';
 
   // Synthesize a quick "block" view: warmup → main → cooldown buckets.
   const blocks = isRest
-    ? [{ name: 'Recovery', moves: program.moves }]
+    ? [{ name: tr('session:train.block.recovery', { defaultValue: 'Recovery' }), moves: program.moves }]
     : [
-        { name: 'Warm-up',  moves: [], note: '5–8 min: light mobility, raise core temp, prime CNS.' },
-        { name: 'Main set', moves: program.moves },
-        { name: 'Cool-down', moves: [], note: '3–5 min: easy walk, breathe through the nose, stretch the worked muscles.' },
+        { name: tr('session:train.block.warmup', { defaultValue: 'Warm-up' }),  moves: [], note: tr('session:train.block.warmupNote', { defaultValue: '5–8 min: light mobility, raise core temp, prime CNS.' }) },
+        { name: tr('session:train.block.main', { defaultValue: 'Main set' }), moves: program.moves },
+        { name: tr('session:train.block.cooldown', { defaultValue: 'Cool-down' }), moves: [], note: tr('session:train.block.cooldownNote', { defaultValue: '3–5 min: easy walk, breathe through the nose, stretch the worked muscles.' }) },
       ];
 
   // Aggregate stats
@@ -26189,18 +26234,18 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Preview · Read-only"
+        eyebrow={tr('session:train.previewEyebrow', { defaultValue: 'Preview · Read-only' })}
         title={program.headline}
       />
 
       {/* Register — the session at a glance (eyebrow-above-figure, no boxes) */}
       <div style={{ padding: `18px ${t.padX}px 0`, display: 'flex' }}>
         {[
-          { l: 'Tag',  v: program.tag },
-          { l: 'Time', v: program.meta.split('·')[0].trim() },
+          { l: tr('session:train.reg.tag', { defaultValue: 'Tag' }),  v: program.tagLabel || program.tag },
+          { l: tr('session:train.reg.time', { defaultValue: 'Time' }), v: program.meta.split('·')[0].trim() },
           ...(isRest ? [] : [
-            { l: 'RPE',  v: (program.meta.split('·')[1] || '').trim() },
-            { l: 'Reps', v: totalReps > 0 ? totalReps.toString() : '—' },
+            { l: tr('session:train.reg.rpe', { defaultValue: 'RPE' }),  v: (program.meta.split('·')[1] || '').trim() },
+            { l: tr('session:train.reg.reps', { defaultValue: 'Reps' }), v: totalReps > 0 ? totalReps.toString() : '—' },
           ]),
         ].map((s, i) => (
           <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i > 0 ? `1px solid ${bsTHexA(t.INK, 0.14)}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
@@ -26221,7 +26266,7 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
       {/* Blocks — move ledger */}
       {blocks.map((bk, bi) => (
         <React.Fragment key={bi}>
-          <BSOLHead heat={t.ACCENT} label={bk.name} t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{bk.moves.length > 0 ? `${bk.moves.length} move${bk.moves.length === 1 ? '' : 's'}` : 'Auxiliary'}</span>} />
+          <BSOLHead heat={t.ACCENT} label={bk.name} t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{bk.moves.length > 0 ? tr('session:train.moveCount', { defaultValue: `${bk.moves.length} move${bk.moves.length === 1 ? '' : 's'}`, count: bk.moves.length }) : tr('session:train.auxiliary', { defaultValue: 'Auxiliary' })}</span>} />
           {bk.note && (
             <div style={{ padding: `6px ${t.padX}px 0` }}>
               <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{bk.note}</div>
@@ -26250,13 +26295,21 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
         </React.Fragment>
       ))}
 
-      {/* Coach note — Wire press credit */}
-      <div style={{ padding: `22px ${t.padX}px 0` }}>
-        <div style={{ borderLeft: `3px solid #c0533b`, padding: '3px 0 3px 11px' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 500, fontSize: 15, lineHeight: 1.4, color: t.INK }}>{program.coachLine}</div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Jordan · Trainer · notes</div>
+      {/* Coach note — Wire press credit. ⚠ The credit line WAS the hardcoded
+          "Jordan · Trainer · notes", so a self-programmed day's own byline
+          ("Programmed by you") was attributed to a trainer who does not exist.
+          The caller passes the day's real credit, or nothing; a note with no
+          one to credit renders as an unattributed line. */}
+      {program.coachLine ? (
+        <div style={{ padding: `22px ${t.padX}px 0` }}>
+          <div style={{ borderLeft: `3px solid ${program.selfAuthored ? t.ACCENT : '#c0533b'}`, padding: '3px 0 3px 11px' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 500, fontSize: 15, lineHeight: 1.4, color: t.INK }}>{program.coachLine}</div>
+            {coach && !program.selfAuthored && (
+              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.noteCredit', { defaultValue: '{who} · Trainer · notes', who: coach })}</div>
+            )}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Sticky-ish CTA */}
       {!isRest && (
@@ -26264,11 +26317,11 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
           <button onClick={onBack} style={{ borderRadius: 5,
             padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-          }}>Close</button>
+          }}>{tr('session:train.close', { defaultValue: 'Close' })}</button>
           <button onClick={onStart} style={{ borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)',
             flex: 1, padding: '14px', border: 0, background: t.INK, color: t.PAPER,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-          }}>Start session →</button>
+          }}>{tr('session:train.startSession', { defaultValue: 'Start session →' })}</button>
         </div>
       )}
 

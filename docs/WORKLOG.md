@@ -378,6 +378,115 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — i18n cut 5: the Train tab, and the string that could not be translated where it stood
+
+- **The Train deck is localized** — the tab a member opens to do the work.
+  `BSClientTrain` carried **42 `tr()` calls where it had 0**; `BSWorkoutPreview` and
+  `BSBuildDoor` went from zero to fully covered. **90 new `session:train.*` keys ×13**,
+  appended as this wave's own run. **No migration, no route change.**
+- ⚠ **THE REGISTERED BLOCKER WAS REAL, AND IT WAS THE WHOLE DESIGN OF THE CUT.** The
+  2026-08-30 entry recorded `bsBuildTrainProgram` as *"registered, not swept"* because
+  its tags **cannot be translated where they are**: `tag` is **both a rendered chip and
+  a live logic token**, and four readers key off the English word — `cur.tag === 'REST'`
+  (the deck's rest state), the week strip's `restFlags` on **two** primary tabs, the
+  on-deck rows, and `BSWorkoutPreview`'s own rest branch. A `tr()` on that value stops
+  the app recognising a rest day **in all twelve non-English locales**, silently, with
+  parse, `tsc`, the build and the whole suite green.
+- **So the fix is a token/label split, not a `tr()` sweep.** `tag` stays the canonical
+  English token; **`tagLabel`** is the string a member reads; **one** function
+  (`bsTrainTagLabel`) maps between them through `BS_TRAIN_TAG_KEY`, and every writer
+  sets both while every reader picks its side deliberately. **This is cut 2's vibe-label
+  lesson** (key off a stable id, never the English word) **at a place where the id and
+  the word were the same string** — which is why it needed a design change rather than
+  a careful hand.
+- ⚠ **THE SPLIT IS GUARDED IN BOTH DIRECTIONS, because half of it passing is the
+  dangerous state.** `tests/train-tag-token.test.mjs` drives the **real builders** under
+  a translator that renames every key, and asserts the token survives while the label
+  moves; then pins the readers — rest detection compares `.tag` and never `tagLabel`,
+  the register renders `tagLabel`, and every Train writer sets both.
+  ⚠ **The writer scan is scoped to the VALUE, not the key, and that correction is the
+  interesting part**: a bare `/tag:/` also matches a `tr()` **vars object**
+  (`tag: meal.tag` on the meal logger) and the **Eat demo week**, which carries
+  `tag: 'COND'` purely to drive its own rest flags and renders it nowhere. The token
+  vocabulary is **shared across two unrelated shapes** — demanding a label there would
+  be demanding a translation for a string no member ever reads.
+  **4/4 mutations killed** (translate the token · rest detection reads the label · the
+  register renders the raw token · a writer drops its label), sanity green at both ends.
+- ⚠ **AND THE GUARD IMMEDIATELY FOUND A THIRD WRITER I HAD MISSED.**
+  `bsBuildDemoTrainProgram` also emits `tag: 'REST'` — the signed-out demo week, which
+  takes **no translator at all**. Exempted rather than "fixed": its whole day shape is
+  demo copy the house deliberately does not translate, so no `tagLabel` and an English
+  fallback is **coherent, not half-applied**. The exemption is pinned to that one
+  function **and asserts it is still the demo path** (`bsBuildDemoTrainProgram(t)`, one
+  argument), so it cannot silently widen over a live writer later.
+- ⚠ **AND THE WEEK STRIP WAS RENDERING HARDCODED ENGLISH DAY LETTERS ON TWO PRIMARY
+  TABS, INVISIBLY.** `BSWeekStrip` built `['M','T','W','T','F','S','S']` and a full
+  weekday name list as **array literals** — which the inventory walk does not attribute
+  to a component — so it read **`tr: 0, hard: 0`**, i.e. *renders no user copy*, while
+  Train **and** Eat drew English initials above every day in all thirteen locales.
+  `bsWeekdayName` was widened to take a width (`narrow`/`short`/`long`) and both lists
+  now format in the **selected UI language**.
+  ⚠ **This is the same blind spot cut 4 recorded, showing up in the COVERED column for
+  the first time**: the component moved no-copy → fully covered with **every string
+  count unchanged**, because the measurement can only see the translator it gained. **A
+  component sitting at zero/zero is not evidence that it renders nothing.**
+- ⚠ **THREE FABRICATED COACH CREDITS ON THE LIVE PATH, ALL CLOSED FIRST** — localizing
+  them would have translated a fabrication into thirteen languages. The deck's coach
+  credit, the workout preview's byline, and the **outbound swap note** all fell through
+  to the literal **`'Jordan Chen'`** for a signed-in member. `/api/client/plan` already
+  returns `training.coach` from the real trainer row, so the fix needed no route change:
+  a live plan credits its real trainer, a signed-in member with no coach reads the
+  honest role noun, and **only the signed-out preview keeps the demo name**. The credit
+  is also gated on `coachDay` — a **self-authored** week is never attributed to a
+  trainer, the same rule #1947 set for role-spined credits.
+- **The builder takes an INJECTED translator, so the pure modules stay pure.**
+  `bsEmptyTrainProgram(t, tr)`, `bsApplyTrainAdjust(program, training, t, tr)` and
+  `bsBuildTrainProgram(workouts, t, tr)` are module-scope functions that **cannot hold a
+  hook**; `bsTrainT(tr)` wraps an optional translator with the shipped English carried at
+  every call site. ⚠ **The fallback is PRE-INTERPOLATED English, never ICU** — cut 1's
+  rule — so plural call sites pass the already-correct English (`3 moves`) and let the
+  catalog own the plural forms; **no ICU is ever evaluated on the path that exists
+  because the catalog failed to load.**
+- ⚠ **FOUR KEYS REUSED RATHER THAN MINTED**, on the cut-3 rule, each verified
+  byte-identical to the `defaultValue` being replaced. And **`common:action.close` does
+  NOT exist** — an assumed reuse the check caught: the house carries **nine** separate
+  per-namespace Close keys, so this one stays local rather than becoming a tenth
+  half-shared one.
+- ⚠ **THE `SAME-AS-EN` FLAGS WERE CHECKED AGAINST THE SHIPPED CATALOGS, NOT WAVED
+  THROUGH.** Nine values match English across es/pt-BR/fr/de/it/id/vi — every one is the
+  locale's own house term, confirmed in the tree: `coach:common.coach` and
+  `home:tag.coach` are already literally `Coach` in five of them, and `home:role.trainer`
+  is `Trainer` in **de** and **it**, which is exactly what `train.coachRole` renders
+  there. Reading the shipped catalog is what separates a loanword from a leftover.
+- **The ratchet moved on three axes, and the fourth is the one worth reading.**
+  Uncovered **115 → 112** (**1,104 → 1,061 strings**); partial **31 → 32**
+  (**164 → 165**); fully covered **96 → 99**. `BSClientTrain` stays **PARTIAL by
+  design** over its one remaining string — `"Playlists"`, a signed-out demo header —
+  the same shape `BSClientEat` ended in. The **fourth** mover is `BSWeekStrip` above,
+  which changed no string count at all. **6/6 mutations killed** across the two guards.
+- ⚠ **AND THE PRE-MERGE DIFF REVIEW CAUGHT AN INCONSISTENCY I HAD INTRODUCED IN THE
+  SAME DIFF.** `bsEmptyTrainProgram` — the **live** signed-in no-coach week — had four
+  of its five strings localized and `kicker: 'No program'` left English, while the *other
+  two* builders had their kicker translated. Measured, no Train surface renders a day's
+  own `kicker` at all (every kicker on the page is a section header this cut localized),
+  so nothing was on screen either way — **which is exactly why it had to be fixed rather
+  than excused**: arbitrary per-string selection is the habit the wave exists to end, and
+  cut 2 already paid for it once. **90 keys**, all three writers now behave alike.
+  ⚠ **`total: '0 sessions'` is the mirror case and STAYS English, with the reason written
+  at the site**: no Train surface renders a day's `total` either (the `.total` reads in
+  the client module are the leaderboard and the score profile), and **a key with no render
+  site is a key nobody can check**. The difference is consistency — `kicker` was already
+  translated in two of three writers; `total` is untranslated in all three.
+- **Verified:** `npm test` **2474/2474** · `tsc --noEmit` 0 · both touched files parse ·
+  catalog parity + ICU + placeholder gates ×13 · a pure append (90 insertions / 1
+  deletion per catalog, 13 files, LF, zero CR/NUL) · mobile build 0 with **all 1,157
+  train values from all thirteen locales confirmed in the emitted bundle** and all ten
+  tag keys surviving minification.
+  ⚠ **Two of my own bundle greps read as zero and both were the instrument**: a guessed
+  Hausa string that is actually `Ranar hutu.`, and a quoted `"session:train.tag.rest"`
+  that minification had already rewritten to an unquoted key. *Check the check before
+  believing the finding* — this file has now paid for that four times.
+
 ### 2026-08-30 — The dead code cut 1 orphaned is swept, and the register of it was wrong twice
 
 - **Cut 1 deleted the cosmos splash branch and left its scenery behind**, registered as
@@ -449,6 +558,11 @@ changelog whenever something ships.
   Train path — `Workout` · `Your program` · `Programmed by you` · `The Training` ·
   `The Recovery` · `Rest\nday.` · and the tags `YOURS` / `CUSTOM` / `FEATURE` /
   `REST`.
+- ⚠ **CLOSED 2026-08-30 by i18n cut 5 (the Train tab, entry above) — the split was
+  done FIRST, exactly as this register demanded, and the guard that pins it then found
+  a THIRD writer this paragraph never named (`bsBuildDemoTrainProgram`). The original
+  register is kept below because its reasoning is the reason the cut had a design phase
+  at all.**
 - ⚠ **IT IS REGISTERED, NOT SWEPT, AND THE REASON IS THE INTERESTING PART: ITS TAGS
   CANNOT BE TRANSLATED WHERE THEY ARE.** `tag` is **both a rendered chip and a live
   logic token** — `iosAppBroadsheetClient.jsx:5177` reads
@@ -458,6 +572,12 @@ changelog whenever something ships.
   id, never the English word), and the fix is a **token/label split** in the builder
   plus every reader: a design change, not a housekeeping line. **Anyone opening a
   Train cut must do the split FIRST** — a naive `tr()` sweep there breaks rest days.
+  ⚠ **AND THE ENUMERATION WAS SHORT, WHICH IS THIS FILE'S OWN RECURRING LESSON.** It
+  named `iosAppBroadsheetClient.jsx:5177` as *the* reader; there are **four** (the deck's
+  rest state, the week strip's `restFlags` on **two** tabs, and `BSWorkoutPreview`'s own
+  rest branch), and **three** writers rather than the one it describes. **An enumeration
+  is not a proof that the enumeration is complete** — recorded here for CSS on the same
+  day, and true again for a logic token.
 - **2/2 mutations killed** (an `en` key deleted · a `de` key dropped), sanity green
   at both ends. Verified: mobile build 0 with all five new keys confirmed in the
   emitted bundle and **zero fallback-to-a-name left in it** · catalog parity ×13 ·
