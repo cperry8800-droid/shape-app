@@ -378,6 +378,94 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — i18n cut 6 step 2: the grocery sweep, and two guards that were wrong about their own subject
+
+- **The 366-string grocery surface cut 4 registered is closed.** Step 1 (#1966) split
+  the aisle taxonomy into a stable token + a translated label — the design phase that
+  register demanded. This is the string sweep on top of it: **93 keys ×13**, and all
+  **four** grocery components land **fully covered**. `BSGroceryLibrary` (21 keys) and
+  `BSCoachGroceryReview` (8) leave UNCOVERED; `BSGroceryBuilder` (18) and `BSGrocery`
+  (~45 sites) leave PARTIAL. **No migration, no route change.**
+- **It also closes the five `nutrition:eat.lib*` keys the record-shape cut deliberately
+  left unauthored** — "they render English today and get authored ×13 by the grocery
+  cut, when a translator is actually in scope." That is exactly what happened; a
+  registered follow-up closed by the cut it was registered against, not by a sweep that
+  forgot it.
+- ⚠ **THE SWEEP FORCED OUT A LOCALE-INSENSITIVE FOLD, AND IT IS THE TURKISH DOTTED-I
+  CLASS AT ITS SHARPEST.** The library search lowercased the query and the haystack with
+  `.toLowerCase()` — correct while the eyebrow was an English literal, **wrong the moment
+  this cut translated it**. `'I'.toLowerCase()` is `'i'` in every locale; Turkish
+  lowercases `I` to `'ı'`. So a Turkish member could type the word they can **see on the
+  row** and match nothing. Both sides now go through one locale-aware `fold()`. **A
+  correct rule can be made wrong by translating the data it runs over** — the transform
+  did not change, its input did.
+- ⚠ **AND THE COACH REVIEW GROUPED ITEMS BY A TRANSLATED AISLE NAME**, so the grouping
+  key moved with the reader's language: two coaches on the same list would bucket it
+  differently, and a coach who switched language mid-review would see the groups
+  re-shuffle. The key is de-translated back to the token and the fallback name is made at
+  render — the token/label split step 1 shipped, applied to the one reader that had
+  quietly picked the wrong side of it.
+- ⚠ **`groceryItem.meta` IS DELIBERATELY LEFT ENGLISH, AND THE REASON IS THE RECORD-SHAPE
+  RULE THIS WAVE ALREADY PAID FOR.** It is **written into** the saved-library record, not
+  rendered from it, so translating at the write freezes one language into the member's own
+  data — the exact fault the grocery-eyebrow cut closed. It is a **library** field with
+  **four writers** (workout · meal · plan · grocery) and **three readers** (the detail
+  render, the search filter, the row), so fixing it at this one writer would split one
+  column into two conventions. Registered as its own cut with the reason at the site.
+- ⚠ **A GUARD WRITTEN IN THIS CUT HAD THE EXACT HOLE ITS OWN COMMENT WARNS ABOUT, ONE
+  LAYER DEEPER.** Step 1's aisle-record ban was scoped by shape to avoid cut 5's
+  vars-object trap — and matched the value with `[^,]+`, **which cannot cross the comma
+  inside `bsAisleLabel(x, TG)`**. So the one mutation it exists to catch made the record
+  **stop matching at all**, and an invisible record is not a caught one. Proven both ways
+  on one real writer: the same mutation **survives** the old matcher and **fails** the
+  widened `[^{}]*?` form, which still refuses a vars object (no `items:` sibling,
+  unreachable across a `}`). **Scoping a ban by shape means the banned edit must not be
+  able to destroy the shape.**
+- ⚠ **AND THE FOLD FIX HAD NO GUARD AT ALL** — reverting it to `.toLowerCase()` passed
+  every test. The new one **drives** it rather than grepping it (a spelling pin survives
+  any equivalent rewrite): the fold is extracted from the shipped file and evaluated under
+  a stubbed locale, and must answer `'I' → 'ı'` under **tr**, `'i'` under **en**, and
+  **degrade rather than throw** on a locale the runtime rejects.
+- **11 mutations — 9 killed, 1 invalid, 1 registered**, sanity green at both ends and the
+  file restored byte-identically.
+  ⚠ **The invalid one is worth more than the nine kills.** The first aisle-record match in
+  the file sits **inside a comment**, which the guard strips before scanning — so the
+  mutation landed in the file and **not in the region under test**. It reported as a
+  survivor and was a **no-op**. This file already records "a mutation that reports a
+  survivor is a broken instrument until the mutation is proven to have landed"; the
+  correction is that landing in the **file** is not landing **where the guard looks**.
+- ⚠ **THE REGISTERED SURVIVOR IS A THIRD FACE OF THE MEASUREMENT'S BLIND SPOT, AND IT IS
+  BIGGER THAN SEVERAL SHIPPED CUTS.** Moving a string from a `tr()` call into
+  `kicker={'…'}` passes the ratchet, because the walk's `TEXT_PROPS` allowlist holds
+  **seven** attribute names (`placeholder · title · alt · aria-label · ariaLabel · label ·
+  aria-valuetext`) and this codebase's own chrome takes copy through **`kicker` ·
+  `eyebrow` · `right` · `left` · `sub`**. Measured: **91 such literals across the
+  broadsheet** — page kickers, footer labels, section eyebrows, all member-facing, all
+  outside the measurement. Cut 4 found copy hidden in an **array literal**; the grocery
+  record-shape cut found it hidden in **stored data**; this is the same absence hidden in
+  a **prop name**. **Registered, not widened** — widening `TEXT_PROPS` adds components and
+  strings tree-wide and moves every total, which is precisely why cut 4's widening was its
+  own PR.
+  ⚠ **And the first attempt to size it read ZERO on all seven arms** — the pattern allowed
+  only single quotes while the tree writes `kicker="…"`. A saturated result across every
+  arm is the instrument, not the finding; the positive control (`title=`, which IS on the
+  allowlist) is what separated the two.
+- **The ratchet moved on all four axes**: partStrings **182 → 134** · part.length
+  **33 → 31** · noneStrings **1045 → 1026** · none.length **111 → 109** · fully covered
+  **99 → 103**.
+  ⚠ **`BSGrocery`'s `tr` count did NOT move — it reads 2 before and after — while its
+  hardcoded count went 31 → 0.** The detector counts references to the translator
+  **binding**, and this sweep calls through the injected wrapper `TG = bsTrainT(trG)`,
+  which is a derived local it does not recognise. `hard` is the honest signal there, not
+  `tr`: **the two numbers answer different questions**, and a flat `tr` is not evidence a
+  component was skipped.
+- **Verified:** `npm test` **2501/2501** · `tsc --noEmit` 0 · JSX parse · mobile build 0
+  with **all 93 keys and all 1,209 translated values confirmed in the emitted bundle** ·
+  catalog parity ×13 (a pure append, LF, zero CR/NUL).
+  ⚠ **The first bundle grep reported all 88 keys missing** — it read the largest chunk
+  rather than the client one. Saturated zero, broken instrument, **for the fourth time in
+  this wave**; the fix each time is a positive control, not a re-read of the source.
+
 ### 2026-08-30 — The grocery aisle becomes a token and a label, because it was already logic
 
 - **`aisle` is not a heading.** It is stored on every item of every saved grocery list,
@@ -475,6 +563,15 @@ changelog whenever something ships.
   breakage risk and deserves its own review; the string sweep is mechanical. It carries the
   five `nutrition:eat.lib*` keys the record-shape cut left deliberately unauthored, because
   a key with no reader is a key nobody can check.
+- ⚠ **SHIPPED 2026-08-30 as step 2 (entry above) — AND THE ~70 ESTIMATE UNDERCOUNTED BY
+  ~30%.** The sweep authored **93 keys** (88 `nutrition:grocery.*` + the five
+  `nutrition:eat.lib*`) against the ~73 this register projected. The category reasoning
+  above held — every residue it named stayed out — but **an enumeration by eye is not a
+  measurement**: the per-component counts missed aria frames, toasts and share-text lines
+  that only surface once you are editing the call site. The direction to take from it is
+  the one this file already applies to caller lists and CSS families: *an enumeration is
+  not a proof that the enumeration is complete*, and it undercounts as readily as it
+  overcounts.
 - ⚠ **AND SCOPING IT CORRECTED THE FIGURE THE RECORD-SHAPE CUT LEFT BEHIND — "366 strings"
   IS A COUNT OF CSS VALUES.** That register read *"the real size is a 366-string cut, not a
   seven-string item (`BSGrocery` 186 · `BSGroceryBuilder` 102 · `BSGroceryLibrary` 78)"*, and
@@ -623,7 +720,8 @@ changelog whenever something ships.
   `bsTrainT`), with the shipped English carried at every call — the cut-1 shape. So the
   five `nutrition:eat.lib*` keys are **deliberately left unauthored**: they render English
   today and get authored ×13 by the grocery cut, when a translator is actually in scope.
-  **A key with no reader is a key nobody can check.**
+  **A key with no reader is a key nobody can check.** ⚠ **AUTHORED ×13 on 2026-08-30 by cut 6
+  step 2, exactly as registered — a follow-up closed by the cut it was registered against.**
 - ⚠ **AND THE REGISTER WAS SHORT — the same failure as the Train-tag register, one entry
   later.** One of its seven strings is **dead** — `note` has had no render site since the
   quote box was removed 2026-06-04. (⚠ **This said TWO, counting `'Items'` as unreachable
