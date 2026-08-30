@@ -283,12 +283,12 @@ const UNCOVERED = new Set([
   'Client::BSCardSheetHost', 'Client::BSChatThread',
   'Client::BSClientGoals', 'Client::BSClientLibrary', 'Client::BSClientNextPlate',
   'Client::BSClientProgress', 'Client::BSCoachAdjustBanner',
-  'Client::BSCoachGroceryReview', 'Client::BSCodeOfConductPage', 'Client::BSCommitmentCard',
+  'Client::BSCodeOfConductPage', 'Client::BSCommitmentCard',
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
   'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
   'Client::BSGoalEditSheet', 'Client::BSGoalsContract',
-  'Client::BSGroceryLibrary', 'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
+  'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
   'Client::BSHelpPage', 'Client::BSIntegrationsPage', 'Client::BSIntentStep',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
   'Client::BSLibraryDetail', 'Client::BSLogActivity',
@@ -327,7 +327,7 @@ const UNCOVERED = new Set([
 const PARTIAL = new Set([
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
   'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSClientTrain',
-  'Client::BSCookMode', 'Client::BSGrocery', 'Client::BSGroceryBuilder',
+  'Client::BSCookMode',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
@@ -407,10 +407,26 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // change rather than a copy change: its aisle headers were never JSX literals,
   // they came out of the list record. The walk could not see them before and
   // cannot see them now — what changed is that they are translatable at all.
-  assert.equal(partStrings, 182, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1045, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 111, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ CUT 6 STEP 2 — THE STRING SWEEP, AND ALL FOUR GROCERY COMPONENTS LAND
+  // FULLY COVERED. BSGroceryLibrary (14) and BSCoachGroceryReview (5) leave
+  // UNCOVERED; BSGrocery (31) and BSGroceryBuilder (17) leave PARTIAL; every one
+  // of them reaches hard === 0. So: partStrings 182 -> 134, part.length 33 -> 31,
+  // noneStrings 1045 -> 1026, none.length 111 -> 109, and full.length 99 -> 103.
+  // ⚠ BSGrocery's `tr` COUNT DID NOT MOVE — it reads 2 before and after, while its
+  // hardcoded count went 31 -> 0. The detector counts references to the translator
+  // BINDING (`trG`), and this sweep calls through the injected wrapper `TG =
+  // bsTrainT(trG)`, which is a derived local it does not recognise. `hard` is the
+  // honest signal here, not `tr`. Worth knowing before reading a flat `tr` as a
+  // component that was skipped: the two numbers answer different questions.
+  // ⚠ AND ONE STRING IS DELIBERATELY LEFT: `groceryItem.meta` stays English,
+  // because it is WRITTEN INTO the saved-library record, not rendered from it —
+  // the record-shape rule this wave already paid for. It sits in a call argument,
+  // so the walk never counted it and these numbers do not move either way; the
+  // reason is written at the site and registered as its own cut.
+  assert.equal(partStrings, 134, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1026, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 109, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
