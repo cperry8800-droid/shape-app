@@ -153,6 +153,13 @@ test('BS_AISLE_KEY covers every aisle token the code can produce', () => {
     for (const q of assigned.matchAll(/'([^']+)'/g)) emitted.add(q[1]);
   }
 
+  // 4. ⚠ THE SITES THAT MINT AN AISLE WITHOUT CLASSIFYING, which is the gap that
+  // let 'Items' through: confirmCreateGroceryList seeds a member-made list, and
+  // addItem falls back to the same shape for a list with no aisles at all. The
+  // three sources above all read a CLASSIFIER, so neither was ever discovered —
+  // the scan knew every aisle the code can *derive* and none it can *assert*.
+  for (const m of stripComments(code).matchAll(/aisle:\s*'([^']+)'\s*,\s*items:\s*\[/g)) emitted.add(m[1]);
+
   // ⚠ THERE IS NO OMISSION HERE, AND THE ONE THIS GUARD SHIPPED WITH IS WHY.
   // It deleted 'Items' on the reasoning that BSGrocery skips an empty aisle, so
   // the seeded placeholder had no reader. True of the EMPTY list and false the
@@ -161,7 +168,7 @@ test('BS_AISLE_KEY covers every aisle token the code can produce', () => {
   // live path this scan exists to find. Every token the source can emit is
   // checked; a token that genuinely cannot be rendered should be deleted from
   // the source, not from the guard.
-  assert.ok(emitted.size >= 10, `only ${emitted.size} aisle tokens discovered — the scan is broken, not the tree`);
+  assert.ok(emitted.size >= 11, `only ${emitted.size} aisle tokens discovered — the scan is broken, not the tree`);
   const missing = [...emitted].filter((a) => !(a in BS_AISLE_KEY));
   assert.deepEqual(missing, [], `aisle tokens with no catalog key — they will render English forever: ${missing.join(', ')}`);
 });
