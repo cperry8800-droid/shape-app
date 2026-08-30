@@ -168,5 +168,20 @@
   "stat.years": "Năm",
   "studio.head": "Studio",
   "studio.photos": "{count, plural, other {# ảnh}}",
-  "thread.bookedIntro": "Đã đặt buổi tư vấn giới thiệu: {title}."
+  "thread.bookedIntro": "Đã đặt buổi tư vấn giới thiệu: {title}.",
+  "preview.eyebrowProgram": "Chương trình",
+  "preview.eyebrowMenu": "Thực đơn",
+  "preview.eyebrowSession": "Buổi lẻ",
+  "preview.weeks": "Tuần",
+  "preview.perWeek": "Ngày / tuần",
+  "preview.meals": "Bữa ăn",
+  "preview.moves": "Mục",
+  "preview.rest": "Nghỉ",
+  "preview.aria": "Bên trong {name}",
+  "preview.outline": "Bố cục",
+  "preview.perDay": "Thực đơn thay đổi theo ngày · bữa mỗi ngày",
+  "preview.locked": "＋{count} nữa · mở khóa khi bạn mua",
+  "preview.noOutline": "Huấn luyện viên này chưa đăng bố cục cho mục này.",
+  "preview.buy": "Mua · {price} →",
+  "preview.action": "Xem bên trong →"
 }

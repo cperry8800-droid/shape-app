@@ -168,5 +168,20 @@
   "stat.years": "Років",
   "studio.head": "Студія",
   "studio.photos": "{count, plural, one {# фото} few {# фото} many {# фото} other {# фото}}",
-  "thread.bookedIntro": "Записано вступну консультацію: {title}."
+  "thread.bookedIntro": "Записано вступну консультацію: {title}.",
+  "preview.eyebrowProgram": "Програма",
+  "preview.eyebrowMenu": "План харчування",
+  "preview.eyebrowSession": "Разове заняття",
+  "preview.weeks": "Тижнів",
+  "preview.perWeek": "Днів / тиж",
+  "preview.meals": "Прийомів їжі",
+  "preview.moves": "Записів",
+  "preview.rest": "Відпочинок",
+  "preview.aria": "Що входить до «{name}»",
+  "preview.outline": "Структура",
+  "preview.perDay": "Меню змінюється щодня · прийомів їжі на день",
+  "preview.locked": "＋{count} · відкриються після покупки",
+  "preview.noOutline": "Цей тренер поки не опублікував структуру для нього.",
+  "preview.buy": "Купити · {price} →",
+  "preview.action": "Що всередині →"
 }

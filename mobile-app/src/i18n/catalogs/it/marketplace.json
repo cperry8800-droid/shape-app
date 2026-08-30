@@ -168,5 +168,20 @@
   "stat.years": "Anni",
   "studio.head": "Lo studio",
   "studio.photos": "{count, plural, one {# foto} other {# foto}}",
-  "thread.bookedIntro": "Consulenza intro prenotata: {title}."
+  "thread.bookedIntro": "Consulenza intro prenotata: {title}.",
+  "preview.eyebrowProgram": "Programma",
+  "preview.eyebrowMenu": "Piano alimentare",
+  "preview.eyebrowSession": "Sessione singola",
+  "preview.weeks": "Settimane",
+  "preview.perWeek": "Giorni / sett",
+  "preview.meals": "Pasti",
+  "preview.moves": "Voci",
+  "preview.rest": "Riposo",
+  "preview.aria": "Cosa contiene {name}",
+  "preview.outline": "La struttura",
+  "preview.perDay": "I menù variano per giorno · pasti al giorno",
+  "preview.locked": "＋{count} in più · sbloccati con l'acquisto",
+  "preview.noOutline": "Questo coach non ha ancora pubblicato una struttura per questo.",
+  "preview.buy": "Acquista · {price} →",
+  "preview.action": "Cosa contiene →"
 }

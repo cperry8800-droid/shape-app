@@ -168,5 +168,20 @@
   "stat.years": "Jahre",
   "studio.head": "Das Studio",
   "studio.photos": "{count, plural, one {# Foto} other {# Fotos}}",
-  "thread.bookedIntro": "Intro-Beratung gebucht: {title}."
+  "thread.bookedIntro": "Intro-Beratung gebucht: {title}.",
+  "preview.eyebrowProgram": "Programm",
+  "preview.eyebrowMenu": "Ernährungsplan",
+  "preview.eyebrowSession": "Einzelne Einheit",
+  "preview.weeks": "Wochen",
+  "preview.perWeek": "Tage / Wo",
+  "preview.meals": "Mahlzeiten",
+  "preview.moves": "Einträge",
+  "preview.rest": "Pause",
+  "preview.aria": "Was in {name} steckt",
+  "preview.outline": "Der Ablauf",
+  "preview.perDay": "Menüs variieren je Tag · Mahlzeiten pro Tag",
+  "preview.locked": "＋{count} weitere · nach dem Kauf freigeschaltet",
+  "preview.noOutline": "Diese:r Coach hat dafür noch keinen Ablauf veröffentlicht.",
+  "preview.buy": "Kaufen · {price} →",
+  "preview.action": "Was drin ist →"
 }

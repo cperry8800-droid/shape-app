@@ -168,5 +168,20 @@
   "stat.years": "Yıl",
   "studio.head": "Stüdyo",
   "studio.photos": "{count, plural, one {# fotoğraf} other {# fotoğraf}}",
-  "thread.bookedIntro": "Tanışma görüşmesi ayarlandı: {title}."
+  "thread.bookedIntro": "Tanışma görüşmesi ayarlandı: {title}.",
+  "preview.eyebrowProgram": "Program",
+  "preview.eyebrowMenu": "Beslenme planı",
+  "preview.eyebrowSession": "Tek seans",
+  "preview.weeks": "Hafta",
+  "preview.perWeek": "Gün / hafta",
+  "preview.meals": "Öğün",
+  "preview.moves": "Kayıt",
+  "preview.rest": "Dinlenme",
+  "preview.aria": "{name} içinde ne var",
+  "preview.outline": "Akış",
+  "preview.perDay": "Menüler güne göre değişir · günlük öğün",
+  "preview.locked": "＋{count} tane daha · satın alınca açılır",
+  "preview.noOutline": "Bu koç bunun için henüz bir akış yayınlamadı.",
+  "preview.buy": "Satın al · {price} →",
+  "preview.action": "İçinde ne var →"
 }

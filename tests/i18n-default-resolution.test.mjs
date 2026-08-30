@@ -48,18 +48,15 @@ const DEFAULT_NS = new Map([
   ['BSLanguagePicker.jsx', 'onboarding'],
 ]);
 
-// ⚠ A RATCHET, NOT AN EXEMPTION. These keys are asked for and `en` does not have
-// them, so they render English in all thirteen locales today. Recorded exactly so
-// the gap is measured instead of unknown: authoring them fails here until the line
-// is deleted, and a SIXTEENTH unauthored key fails here the day it lands.
-const UNAUTHORED = [
-  'marketplace:preview.action', 'marketplace:preview.aria', 'marketplace:preview.buy',
-  'marketplace:preview.eyebrowMenu', 'marketplace:preview.eyebrowProgram',
-  'marketplace:preview.eyebrowSession', 'marketplace:preview.locked',
-  'marketplace:preview.meals', 'marketplace:preview.moves', 'marketplace:preview.noOutline',
-  'marketplace:preview.outline', 'marketplace:preview.perDay', 'marketplace:preview.perWeek',
-  'marketplace:preview.rest', 'marketplace:preview.weeks',
-];
+// ⚠ THE RATCHET IS EMPTY, AND THAT IS THE POINT OF IT HAVING BEEN A RATCHET. The
+// fifteen `marketplace:preview.*` keys it recorded were asked for, absent from
+// `en`, and therefore English in all thirteen locales — invisible to the parity
+// gate, which only compares the twelve locales AGAINST `en`. Authoring them made
+// this list fail until it was deleted, which is exactly the transition it was
+// written to force. Leave the empty array: a new unauthored key fails here the
+// day it lands, and anyone tempted to park one has to add it deliberately and
+// say why.
+const UNAUTHORED = [];
 
 const CATS = new Map();
 function catalog(ns) {

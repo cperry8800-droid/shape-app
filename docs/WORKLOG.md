@@ -378,6 +378,35 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The measured gap closes: 15 marketplace:preview keys, authored
+
+- **The plan-preview sheet — the surface a member reads before they BUY — was
+  English in all 13 locales**, and nothing could see it. All fifteen
+  `marketplace:preview.*` keys were asked for with a `defaultValue` and absent from
+  `en`, which is the **silent** half of that pattern: **the parity gate compares the
+  twelve locales AGAINST `en`, so a key missing from `en` is missing everywhere and
+  parity is satisfied.** Cut 3 recorded them as a ratchet rather than translating
+  them in the wrong cut; this authors them, **15 keys ×13**.
+- **`en` is DERIVED from the source's own `defaultValue`s** (an AST walk, not a
+  hand-copy), so the catalog and the call sites cannot disagree at authoring time.
+- ⚠ **THE RATCHET FIRED ON PROGRESS, EXACTLY AS WRITTEN.** Its comment said
+  *"authoring them fails here until the line is deleted"* — and it did, before the
+  line was touched. The array is **left in place, empty**: a sixteenth unauthored
+  key still fails the day it lands, and anyone tempted to park one has to add it
+  deliberately and say why. **A ratchet that is deleted when it empties stops being
+  a ratchet.**
+- ⚠ **AND THE GLYPH CHECK CAUGHT MY OWN DRIFT.** `preview.locked` is
+  `＋{count} more`, and my first ru/uk values rendered it as «Ещё {count}» / «Ще
+  {count}» — natural Slavic, and **the only two of thirteen without the `＋`**, so
+  that one row would have looked different in exactly those locales. The fullwidth
+  `＋` is UI grammar, not prose: the fix keeps it and drops the redundant word
+  (`＋{count} · откроются после покупки`), because the glyph already carries *more*.
+  Same class as the ICU and placeholder validators — **a per-locale check earns its
+  keep on the author's own output, not on someone else's.**
+- **1/1 mutation killed** (a sixteenth key goes unauthored), sanity green at both
+  ends. Placeholders (`{name}` `{count}` `{price}`) and every `→ · ＋` glyph verified
+  identical to `en` across all 13.
+
 ### 2026-08-30 — The screen a member reads AFTER the app fails now speaks their language
 
 - **`BSErrorBoundary` was English in all 13 locales**, and it is the app's fallback
