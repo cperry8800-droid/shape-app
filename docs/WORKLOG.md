@@ -422,6 +422,19 @@ changelog whenever something ships.
   **fired on its own explanation** until it stripped comments first — the rationale
   above that line names the very thing it bans. This file has recorded that trap
   before and it re-appeared the moment the assertion was written.
+- ⚠ **AND CODEX FOUND A P2 I MERGED PAST — the same defect, wearing my own fix.**
+  `persistGroceryList` is the **UPDATE** path (`BSGrocery`'s `onUpdate` is its only
+  caller), so it cannot know when a record was created — and it stamped
+  `provenance: 'created'` + `Date.now()` anyway. So editing one item on a legacy row,
+  or on a built-in like **"Sunday staples"** (`Custom · Updated last Sun`) or the
+  **"Meal plan · Cutting"** seed, **relabelled it "Custom · Created today"** and synced
+  that fabricated date across devices — a stored sentence turned into a *worse* lie by
+  the change that existed to stop it. An edit now carries provenance through and invents
+  nothing; a record without one keeps its stored eyebrow, which **is** the back-compat
+  path. ⚠ **The process failure is mine, not the reviewer's:** Codex auto-fired on the
+  first commit and its finding was sitting on the PR, unread, while I merged the second.
+  **A reviewer's already-posted record is free to read and this house's own rule says
+  read it** — I checked CI and not the thread.
 - ⚠ **THE `Number(null)` TRAP IS GUARDED AT THE STAMP READ, NOT ASSUMED AWAY.**
   `Number(null)` and `Number('')` are a finite **0**, so a legacy row with no `createdAt`
   would date itself to **1 Jan 1970** — the coercion class this file has now paid for four
@@ -441,7 +454,7 @@ changelog whenever something ships.
   exported into the share text, i.e. the Train token/label split again. Measured, the
   grocery surface is **366 hardcoded strings** (`BSGrocery` 186 · `BSGroceryBuilder` 102 ·
   `BSGroceryLibrary` 78) — a cut of its own, not a line item. Corrected in place above.
-- **10/10 mutations killed**, sanity green at both ends — and **two of them survived their
+- **12/12 mutations killed**, sanity green at both ends — and **two of them survived their
   first assertion**, which is the part worth keeping. (1) A ban on the baked empty state
   used `[^,\n]*`, a character class that **cannot cross the commas in `slice(0, 3)`** — so
   it was structurally incapable of matching the line it banned. (2) A stamp check compared

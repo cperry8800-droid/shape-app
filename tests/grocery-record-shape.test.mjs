@@ -238,6 +238,32 @@ test('no writer bakes a rendered sentence into the record any more', () => {
   assert.ok(seen >= 4, `expected the writers to stamp a provenance, saw ${seen}`);
 });
 
+test('an EDIT never invents provenance — the Codex P2 this merged past', () => {
+  // persistGroceryList is the UPDATE path (BSGrocery's onUpdate is its only
+  // caller), so it cannot know when the record was created. Stamping
+  // `'created'` + Date.now() there re-made the very defect the token shape
+  // closed: editing one item on a legacy row — or on a built-in like
+  // "Sunday staples" (eyebrow "Custom · Updated last Sun") or the
+  // "Meal plan · Cutting" seed — relabelled it "Custom · Created today" and
+  // synced that fabricated date across devices.
+  const fn = src.slice(src.indexOf('const persistGroceryList = (normalized) =>'));
+  const body = fn.slice(0, fn.indexOf('\n  };')).replace(/\/\/[^\n]*/g, '');
+  assert.doesNotMatch(body, /provenance:\s*normalized\.provenance\s*\|\|/, 'an edit must not default a provenance');
+  assert.doesNotMatch(body, /createdAt:[^\n]*Date\.now\(\)/, 'an edit must not invent a creation date');
+  assert.match(body, /normalized\.provenance \? \{ provenance: normalized\.provenance \}/, 'it must carry an existing provenance through');
+
+  // And the render must still fall back to the stored eyebrow for such a row —
+  // that IS the back-compat path, and it is what keeps a built-in honest.
+  assert.equal(
+    G.bsGroceryListEyebrow({ eyebrow: 'Meal plan · Cutting', kind: 'mealplan' }),
+    'Meal plan · Cutting',
+  );
+  assert.equal(
+    G.bsGroceryListEyebrow({ eyebrow: 'Custom · Updated last Sun' }),
+    'Custom · Updated last Sun',
+  );
+});
+
 test('every provenance the writers stamp is one the render knows', () => {
   // A writer stamping a token the table lacks would silently fall through to the
   // legacy branch and print the English eyebrow forever.
