@@ -833,15 +833,33 @@ changelog whenever something ships.
   where `BSClientEat` carries the same row.
   (4) The **fifteen `marketplace:preview.*` keys** above.
 - ⚠ **AND ONE FINDING THIS CUT SURFACED THAT IS BIGGER THAN IT:
-  `window.__bsToast` IS A PERMANENT NO-OP** (`iosAppBroadsheet.jsx:1364`), so the
+  `window.__bsToast` IS A NO-OP** (`iosAppBroadsheet.jsx:1364`), so the
   **275 toast call sites across the app report into a void** (counted 2026-08-29:
   197 client · 28 pros · 16 calendar · 10 main · 8 chrome · 6 habits · 6
   marketplace · 4 data layer) — including the ten this cut just translated into
   thirteen languages. Translating them was still correct
   (they are the copy that ships the day the sink is wired), but nothing a member
   is told through a toast reaches them today. **Registered on the War Room, not
-  fixed here**: reviving the sink is a product decision about 263 call sites, not
+  fixed here**: reviving the sink is a product decision about 275 call sites, not
   a line in an i18n cut.
+  ⚠ **CORRECTED 2026-08-30 — this read "a PERMANENT no-op" and gave the count as
+  "263" in its last sentence, two lines after correctly saying 275.** The count is
+  **275** (re-measured: `window.__bsToast?.(` invocations, matching the per-file
+  breakdown above exactly; 295 raw mentions, the extra 20 being the definition and
+  its comments). And **"permanent" frames a shipped product decision as a defect**:
+  the host's own comment says *"Toast popups are disabled app-wide"*, and the
+  notice-mode comment at `:1413` dates it — *"switched off app-wide on 2026-06-03
+  (#938) … the popup noise #938 deliberately removed"*. Off by decision, not by
+  fault.
+  ⚠ **AND THE RECORD OMITTED THE ONE FACT AN AUTHOR ACTING ON IT NEEDS: A SANCTIONED
+  REPLACEMENT ALREADY EXISTS.** `bsAskConfirm` **notice mode** (`o.notice === true`)
+  was built *because* the toast is a no-op, and its comment carries the rule — use it
+  for **a transient failure the member needs to know about**, never for a success
+  confirmation, which is exactly the noise #938 removed. So the open question is not
+  "revive the sink"; it is **which of the 275 sites carry a failure a member must see,
+  and should those become notices** — a much narrower call, already answerable one
+  site at a time. **A finding that names a gap without naming the existing remedy
+  reads as unactionable when it isn't.**
 - Verified: `npm test` **2465/2465** · `tsc --noEmit` 0 · mobile build 0 with all
   **112 nutrition keys and the six new home keys confirmed in the emitted bundle**
   (plus spot-checked translations: `ru` habits head, `tr` work tag, `vi` now) ·
