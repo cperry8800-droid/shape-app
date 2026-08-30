@@ -168,5 +168,7 @@
   "eat.save": "Simpan →",
   "eat.footerPage": "Hal. 3 dari 5",
   "eat.swapMessage": "Ditukar {from} → {to} · {day}",
-  "eat.swapDayToday": "hari ini"
+  "eat.swapDayToday": "hari ini",
+  "eat.toastRecipeAdded": "Daftar belanja resep ditambahkan",
+  "eat.toastItemAdded": "Ditambahkan ke daftar belanja"
 }

@@ -168,5 +168,7 @@
   "eat.save": "Ajiye →",
   "eat.footerPage": "Sh. 3 na 5",
   "eat.swapMessage": "An canja {from} → {to} · {day}",
-  "eat.swapDayToday": "yau"
+  "eat.swapDayToday": "yau",
+  "eat.toastRecipeAdded": "An ƙara jerin sayayya na girke-girke",
+  "eat.toastItemAdded": "An ƙara cikin jerin sayayya"
 }

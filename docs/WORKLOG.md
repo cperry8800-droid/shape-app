@@ -381,8 +381,8 @@ changelog whenever something ships.
 ### 2026-08-29 — i18n cut 4: the Eat tab, and the strings the measurement could not see
 
 - **The primary Eat tab is localized.** `BSClientEat` carried **2 `tr()` calls**; it
-  now carries **76**, against **58 new `nutrition:eat.*` keys ×13** plus one new
-  shared `common:` key and **12 keys reused, not minted**. The day menu, the macro
+  now carries **79**, against **60 new `nutrition:eat.*` keys ×13** plus one new
+  shared `common:` key and **14 keys reused, not minted**. The day menu, the macro
   register, the swap flow, the grocery door, the prep stamp, the coach byline and
   every empty state now speak the member's language. **No migration, no route change.**
 - ⚠ **THE HIGHEST-VALUE STRINGS WERE INVISIBLE TO THE GUARD, AND THAT IS THIS CUT'S
@@ -441,11 +441,12 @@ changelog whenever something ships.
   initials — ru **`Б · У · Ж`**, tr **`P · K · Y`** — which a `{letter}` placeholder
   could never express. (`home:card.protein` turned out to be an **orphan** with no call
   site, which is part of why the earlier reading looked worse than it was.)
-- **12 KEYS REUSED RATHER THAN MINTED**, on the cut-3 rule (share only where the two
+- **14 KEYS REUSED RATHER THAN MINTED**, on the cut-3 rule (share only where the two
   uses are the same UI concept, such that a rename **should** move both):
   `coach:adjust.{protein,carbs,fat}` for the full-word macro register,
   `cook:prep.{door,stamp}`, `home:{phase.cut,role.nutritionist,section.thisWeek,when.today}`,
-  `nutrition:log.{cancelPlain,kcalUnit,mealFallback}`.
+  `nutrition:log.{cancelPlain,kcalUnit,mealFallback}`, `profile:action.open`,
+  `profile:playlists.playlists`.
   ⚠ **The macro labels live under `coach:` while the reader is a member surface** — a
   namespace oddity worth **leaving alone** rather than "fixing" with a seventh copy of
   PROTEIN/CARBS/FAT: the concept is identical and a rename should move both.
@@ -484,8 +485,31 @@ changelog whenever something ships.
   all** and how the word sits beside a weekday name is the catalog's call — es `hoy`
   and de `heute` are lowercase because that is correct in those languages, not because
   a transform lowered them.
+- ⚠ **AND THE SAME REVIEW FOUND A CLASS THAT CANNOT BE CLOSED WITH A `tr()` AT ALL —
+  registered rather than widened.** Seven strings in the grocery-list library
+  (`Custom · Created today` · `Custom · Saved today` · `Custom · Duplicated` · `You` ·
+  `Empty list` · `Saved list` · `Items`) are **written into the member's saved list
+  record**, not rendered from it. **Translating at the moment of the write freezes one
+  language into their data** — a member who later switches language would read their own
+  saved lists in the language they created them in, forever. Closing it properly means
+  storing a stable **token** and translating at **render**, with a back-compat path for
+  rows already on disk: a data-shape change, not a `tr()` sprinkle. The seeded save name
+  (`Week of {date}`) is deliberately excluded — the member edits it before saving, so it
+  becomes their own text and must never be retranslated afterwards.
+  ⚠ **`bsBuildPlanGrocery` is the `bsHomeLiveWeek` shape again** — a module-scope builder
+  with no translator in scope, whose `author || 'Dr. Maya Patel'` fallback fabricates a
+  coach name for a signed-in member with no plan. Same fix, same reason it is its own
+  change.
+- ⚠ **THREE MORE LIVE-PATH STRINGS WERE FIXED IN THE REVIEW ITSELF**, because `tr` was
+  already in scope and the key already existed: the two grocery toasts, and
+  `'Your nutritionist'` passed to the grocery builder on the **live** branch — two lines
+  from the `eat.yourNutritionist` key minted for exactly that string. ⚠ **And `'Apr plan'`
+  was the coach-name defect wearing a date**: a MOCK_PROGRAM-era demo label that a
+  signed-in member with no plan read as a fabricated month. Live reads *This week*,
+  signed-out keeps the demo, and **no-plan renders nothing** rather than inventing a
+  period.
 - **Verified:** `npm test` **2465/2465** · `tsc --noEmit` 0 · JSX parse · mobile build 0
-  with **54 literal `nutrition:eat.*` keys** (58 authored − 5 computed `quick.q*` + the
+  with **56 literal `nutrition:eat.*` keys** (60 authored − 5 computed `quick.q*` + the
   `nutrition:eat.quick.` prefix), `common:unit.weekN`, and sample translations
   (`Comidas del` · `Воскресный набор` · `{c}K · {f}Y` · `Б · `) all confirmed **in the
   emitted bundle** · **no weekday array left in source or bundle** · catalog parity ×13

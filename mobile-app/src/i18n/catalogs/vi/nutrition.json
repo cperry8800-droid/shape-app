@@ -168,5 +168,7 @@
   "eat.save": "Lưu →",
   "eat.footerPage": "Tr. 3/5",
   "eat.swapMessage": "Đã đổi {from} → {to} · {day}",
-  "eat.swapDayToday": "hôm nay"
+  "eat.swapDayToday": "hôm nay",
+  "eat.toastRecipeAdded": "Đã thêm danh sách mua sắm của công thức",
+  "eat.toastItemAdded": "Đã thêm vào danh sách mua sắm"
 }

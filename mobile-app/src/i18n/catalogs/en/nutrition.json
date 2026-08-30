@@ -168,5 +168,7 @@
   "eat.save": "Save →",
   "eat.footerPage": "Pg 3 of 5",
   "eat.swapMessage": "Swapped {from} → {to} · {day}",
-  "eat.swapDayToday": "today"
+  "eat.swapDayToday": "today",
+  "eat.toastRecipeAdded": "Recipe grocery list added",
+  "eat.toastItemAdded": "Added to grocery list"
 }

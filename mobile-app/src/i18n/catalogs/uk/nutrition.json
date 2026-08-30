@@ -168,5 +168,7 @@
   "eat.save": "Зберегти →",
   "eat.footerPage": "Стор. 3 з 5",
   "eat.swapMessage": "Замінено {from} → {to} · {day}",
-  "eat.swapDayToday": "сьогодні"
+  "eat.swapDayToday": "сьогодні",
+  "eat.toastRecipeAdded": "Список покупок за рецептом додано",
+  "eat.toastItemAdded": "Додано до списку покупок"
 }

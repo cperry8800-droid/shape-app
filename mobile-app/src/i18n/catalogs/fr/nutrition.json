@@ -168,5 +168,7 @@
   "eat.save": "Enregistrer →",
   "eat.footerPage": "P. 3 sur 5",
   "eat.swapMessage": "Remplacé {from} → {to} · {day}",
-  "eat.swapDayToday": "aujourd’hui"
+  "eat.swapDayToday": "aujourd’hui",
+  "eat.toastRecipeAdded": "Liste de courses de la recette ajoutée",
+  "eat.toastItemAdded": "Ajouté à la liste de courses"
 }

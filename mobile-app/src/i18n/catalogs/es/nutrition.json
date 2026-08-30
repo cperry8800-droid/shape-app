@@ -168,5 +168,7 @@
   "eat.save": "Guardar →",
   "eat.footerPage": "Pág. 3 de 5",
   "eat.swapMessage": "Cambiada {from} → {to} · {day}",
-  "eat.swapDayToday": "hoy"
+  "eat.swapDayToday": "hoy",
+  "eat.toastRecipeAdded": "Lista de la compra de la receta añadida",
+  "eat.toastItemAdded": "Añadido a la lista de la compra"
 }

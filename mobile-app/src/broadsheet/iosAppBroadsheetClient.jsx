@@ -9797,7 +9797,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       const without = prev.filter(l => l.id !== list.id);
       return [list, ...without];
     });
-    window.__bsToast?.('Recipe grocery list added', 'ok');
+    window.__bsToast?.(tr('nutrition:eat.toastRecipeAdded', { defaultValue: 'Recipe grocery list added' }), 'ok');
   };
 
   // Itemize a Shape Kitchen recipe (string ingredients) into a saved grocery list.
@@ -9812,7 +9812,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     });
     const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
     setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
-    window.__bsToast?.('Added to grocery list', 'ok');
+    window.__bsToast?.(tr('nutrition:eat.toastItemAdded', { defaultValue: 'Added to grocery list' }), 'ok');
     return list;
   };
   // From the Recipe box: build this recipe's OWN list and open it.
@@ -9862,7 +9862,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   const planGrocery = React.useMemo(
     () => bsBuildPlanGrocery(
       PROGRAM,
-      liveProgram ? (liveMealCoach || 'Your nutritionist') : null,
+      liveProgram ? (liveMealCoach || tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' })) : null,
       liveProgram && liveMealTitle ? liveMealTitle : null,
     ),
     [PROGRAM, liveProgram, liveMealCoach, liveMealTitle],
@@ -10280,9 +10280,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         <div style={{ borderLeft: '3px solid #a07a2e', padding: '2px 0 2px 12px' }}>
           {/* ⚠ WAS `liveMealCoach || 'Dr. Maya Patel'` — a signed-in member whose
                 coach name did not resolve read a nutritionist they do not have.
-                The honest fallback already exists 400 lines up; this is it. */}
+                The honest fallback already exists 400 lines up; this is it.
+                ⚠ AND THE PERIOD BESIDE IT WAS THE SAME CLASS: `'Apr plan'` is a
+                MOCK_PROGRAM-era demo label, so a signed-in member with no plan read
+                a fabricated month. Live reads This week, signed-out keeps the demo,
+                and no-plan renders NOTHING rather than inventing a period. */}
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel')}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{tr('home:role.nutritionist', { defaultValue: 'Nutritionist' })} · {liveProgram ? tr('home:section.thisWeek', { defaultValue: 'This week' }) : 'Apr plan'}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{tr('home:role.nutritionist', { defaultValue: 'Nutritionist' })}{liveProgram ? ` \u00b7 ${tr('home:section.thisWeek', { defaultValue: 'This week' })}` : (bsEatSignedIn ? '' : ' \u00b7 Apr plan')}</div>
           {cur.coachLine ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div> : null}
         </div>
         <button type="button" onClick={() => setView('grocery')} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>

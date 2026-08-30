@@ -168,5 +168,7 @@
   "eat.save": "Kaydet →",
   "eat.footerPage": "Sf. 3 / 5",
   "eat.swapMessage": "Değiştirildi {from} → {to} · {day}",
-  "eat.swapDayToday": "bugün"
+  "eat.swapDayToday": "bugün",
+  "eat.toastRecipeAdded": "Tarifin alışveriş listesi eklendi",
+  "eat.toastItemAdded": "Alışveriş listesine eklendi"
 }
