@@ -221,5 +221,6 @@
   "train.yourProgramWeek": "Programın · {n}. hafta",
   "train.yourTrainer": "Antrenörün",
   "train.yourTraining": "Antrenmanın",
-  "train.yourWorkout": "Antrenmanın"
+  "train.yourWorkout": "Antrenmanın",
+  "train.empty.kicker": "Program yok"
 }

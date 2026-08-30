@@ -221,5 +221,6 @@
   "train.yourProgramWeek": "Chương trình của bạn · Tuần {n}",
   "train.yourTrainer": "Huấn luyện viên của bạn",
   "train.yourTraining": "Việc tập luyện của bạn",
-  "train.yourWorkout": "Buổi tập của bạn"
+  "train.yourWorkout": "Buổi tập của bạn",
+  "train.empty.kicker": "Chưa có chương trình"
 }

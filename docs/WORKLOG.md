@@ -382,7 +382,7 @@ changelog whenever something ships.
 
 - **The Train deck is localized** — the tab a member opens to do the work.
   `BSClientTrain` carried **42 `tr()` calls where it had 0**; `BSWorkoutPreview` and
-  `BSBuildDoor` went from zero to fully covered. **89 new `session:train.*` keys ×13**,
+  `BSBuildDoor` went from zero to fully covered. **90 new `session:train.*` keys ×13**,
   appended as this wave's own run. **No migration, no route change.**
 - ⚠ **THE REGISTERED BLOCKER WAS REAL, AND IT WAS THE WHOLE DESIGN OF THE CUT.** The
   2026-08-30 entry recorded `bsBuildTrainProgram` as *"registered, not swept"* because
@@ -464,6 +464,19 @@ changelog whenever something ships.
   design** over its one remaining string — `"Playlists"`, a signed-out demo header —
   the same shape `BSClientEat` ended in. The **fourth** mover is `BSWeekStrip` above,
   which changed no string count at all. **6/6 mutations killed** across the two guards.
+- ⚠ **AND THE PRE-MERGE DIFF REVIEW CAUGHT AN INCONSISTENCY I HAD INTRODUCED IN THE
+  SAME DIFF.** `bsEmptyTrainProgram` — the **live** signed-in no-coach week — had four
+  of its five strings localized and `kicker: 'No program'` left English, while the *other
+  two* builders had their kicker translated. Measured, no Train surface renders a day's
+  own `kicker` at all (every kicker on the page is a section header this cut localized),
+  so nothing was on screen either way — **which is exactly why it had to be fixed rather
+  than excused**: arbitrary per-string selection is the habit the wave exists to end, and
+  cut 2 already paid for it once. **90 keys**, all three writers now behave alike.
+  ⚠ **`total: '0 sessions'` is the mirror case and STAYS English, with the reason written
+  at the site**: no Train surface renders a day's `total` either (the `.total` reads in
+  the client module are the leaderboard and the score profile), and **a key with no render
+  site is a key nobody can check**. The difference is consistency — `kicker` was already
+  translated in two of three writers; `total` is untranslated in all three.
 - **Verified:** `npm test` **2474/2474** · `tsc --noEmit` 0 · both touched files parse ·
   catalog parity + ICU + placeholder gates ×13 · a pure append (90 insertions / 1
   deletion per catalog, 13 files, LF, zero CR/NUL) · mobile build 0 with **all 1,157

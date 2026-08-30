@@ -221,5 +221,6 @@
   "train.yourProgramWeek": "Programmu · Minggu {n}",
   "train.yourTrainer": "Pelatihmu",
   "train.yourTraining": "Latihanmu",
-  "train.yourWorkout": "Latihanmu"
+  "train.yourWorkout": "Latihanmu",
+  "train.empty.kicker": "Belum ada program"
 }

@@ -221,5 +221,6 @@
   "train.yourProgramWeek": "Your program · Week {n}",
   "train.yourTrainer": "Your trainer",
   "train.yourTraining": "Your training",
-  "train.yourWorkout": "Your workout"
+  "train.yourWorkout": "Your workout",
+  "train.empty.kicker": "No program"
 }

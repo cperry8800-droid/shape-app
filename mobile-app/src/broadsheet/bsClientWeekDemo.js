@@ -233,13 +233,18 @@ export function bsEmptyTrainProgram(t, tr) {
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const dateNum = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d.getDate(); };
   return DOW.map((dl, i) => ({
-    d: `${dl} ${dateNum(i)}`, kicker: 'No program',
+    d: `${dl} ${dateNum(i)}`, kicker: T('session:train.empty.kicker', 'No program'),
     title: T('session:train.empty.title', 'No workout.'),
     tag: 'REST', tagLabel: bsTrainTagLabel('REST', T),
     tagColor: t.INK50, accent: t.INK50,
     headline: T('session:train.empty.headline', 'No workout assigned.'), time: '', timeLabel: '',
     meta: T('session:train.empty.meta', 'No session'),
     copy: T('session:train.empty.copy', 'No training assigned yet — when you’re working with a coach, your week shows up here.'),
+    // ⚠ `total` stays English on purpose: NO Train surface renders a day's own
+    // `total` (the .total reads in the client module are the leaderboard and the
+    // score profile). Translating a field nothing displays is churn, and a key
+    // with no render site is a key nobody can check. Same for the coach-rest
+    // branch in bsApplyTrainAdjust below.
     moves: [], total: '0 sessions', coachLine: '',
   }));
 }
