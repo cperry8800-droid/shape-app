@@ -4817,8 +4817,50 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
 // ═══════════════════════════════════════════════════════════
 // SELF-SERVE TRAINING — build your own week, program & race schedule
 // ═══════════════════════════════════════════════════════════
+// ⚠ THE DISCIPLINE IS A TOKEN, NOT A LABEL — the same split cut 5 made for the
+// Train day tag and cut 6 for the grocery aisle, but for a narrower reason worth
+// stating precisely. It is NOT persisted: bsRepeatSpec and bsMaterializeProgram
+// both destructure `discipline` and never use it, so nothing a member saves
+// carries it. What it DOES do is cross the wire — the builder posts it to
+// /api/ai/draft-program as the model's prompt input, and a starter program sets
+// it from bsStarterProgram()'s English value. So a tr() on the chip's VALUE
+// would send a translated word to the model in twelve locales; the token stays
+// canonical English and bsDisciplineLabel is the only thing a member reads.
 const BS_BUILDER_DISCIPLINES = ['strength', 'run', 'ride', 'swim', 'row', 'conditioning', 'hybrid'];
-const BS_BUILDER_DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// The program tab offers its own set — endurance-led, and the one place
+// `triathlon` appears. Kept separate from the session list on purpose (a
+// triathlon is a program, never a single repeating session).
+const BS_BUILDER_PROG_DISCIPLINES = ['run', 'ride', 'swim', 'triathlon', 'hybrid', 'strength'];
+// Sent to the draft route as `experience`, so the same rule applies.
+const BS_BUILDER_EXPERIENCE = ['beginner', 'intermediate', 'advanced'];
+const BS_BUILDER_DISCIPLINE_KEY = Object.freeze({
+  strength: 'session:build.disc.strength', run: 'session:build.disc.run',
+  ride: 'session:build.disc.ride', swim: 'session:build.disc.swim',
+  row: 'session:build.disc.row', conditioning: 'session:build.disc.conditioning',
+  hybrid: 'session:build.disc.hybrid', triathlon: 'session:build.disc.triathlon',
+});
+const BS_BUILDER_EXPERIENCE_KEY = Object.freeze({
+  beginner: 'session:build.exp.beginner', intermediate: 'session:build.exp.intermediate',
+  advanced: 'session:build.exp.advanced',
+});
+// An unmapped token renders as ITSELF, never a raw key and never blank — a
+// discipline arriving from a drafted program is model output and cannot be
+// enumerated here by construction.
+function bsDisciplineLabel(token, tr) {
+  const k = BS_BUILDER_DISCIPLINE_KEY[String(token || '').toLowerCase()];
+  return k && tr ? tr(k, { defaultValue: String(token || '') }) : String(token || '');
+}
+function bsExperienceLabel(token, tr) {
+  const k = BS_BUILDER_EXPERIENCE_KEY[String(token || '').toLowerCase()];
+  return k && tr ? tr(k, { defaultValue: String(token || '') }) : String(token || '');
+}
+// ⚠ THE DAY LETTERS WERE HARDCODED ENGLISH — cut 5's BSWeekStrip defect at a
+// second site. bsWeekdayName's reference Monday (2024-01-01) makes index 0 =
+// Monday, which is exactly this builder's dow convention, so the seven literals
+// are a REUSE rather than seven new keys: they format in the member's selected
+// UI language for free. Kept as a function, not a module-scope array, because
+// the array would freeze whatever language was active when the module loaded.
+const bsBuilderDow = () => [0, 1, 2, 3, 4, 5, 6].map((i) => bsWeekdayName(i, 'short'));
 // A blank move row for the builder. Lift by default; a per-row toggle flips to segment.
 const bsBlankMove = () => ({ type: 'lift', name: '', sets: '3', reps: '8', load: '', seg: '' });
 // Weeks from today → a race date (at least 1).
@@ -4836,7 +4878,11 @@ function bsWeeksUntil(dateStr) {
 // review), programId? } | null. Quiet Open Ledger form grammar.
 function BSWorkoutBuilder({ seed, onClose, onSaved }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // Keyed on `tr` so a language switch re-derives the day letters; a module-scope
+  // array would freeze whatever language was active when the module loaded.
+  const dowNames = React.useMemo(() => bsBuilderDow(), [tr]);
   _bsScrollTopOnMount();
   const [mode, setMode] = useStateBSC(seed?.mode || 'session');
   const [name, setName] = useStateBSC(seed?.name || '');
@@ -4867,15 +4913,18 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
     setDrafting(true); setDraftErr('');
     try {
       const prog = await window.ShapeTrainingAI?.draft?.({ goal: draft.goal, weeks, daysPerWeek: draft.days, discipline: progDiscipline, experience: draft.exp });
-      if (!prog || !Array.isArray(prog.weeks) || !prog.weeks.length) { setDraftErr('Drafting is unavailable right now — build manually or try again.'); setDrafting(false); return; }
+      if (!prog || !Array.isArray(prog.weeks) || !prog.weeks.length) { setDraftErr(tr('session:build.err.draftUnavailable', { defaultValue: 'Drafting is unavailable right now — build manually or try again.' })); setDrafting(false); return; }
       setStarterId(null);
+      // 'My program' is a record NAME default, not copy — it is written into the
+      // member's own saved program, so translating it at the write would freeze
+      // one language into their data (the grocery record-shape ruling).
       setProgName(prog.name || progName || 'My program');
       if (prog.discipline) setProgDiscipline(prog.discipline);
       setReviewWeeks(prog.weeks);
       setWeeks(prog.weeks.length);
       setOpenWeek(0);
       setDraft(null);
-    } catch (e) { setDraftErr('Drafting is unavailable right now — build manually or try again.'); }
+    } catch (e) { setDraftErr(tr('session:build.err.draftUnavailable', { defaultValue: 'Drafting is unavailable right now — build manually or try again.' })); }
     setDrafting(false);
   };
 
@@ -4925,30 +4974,33 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
   const saveSession = async () => {
     if (status === 'working') return;
     const clean = moves.filter((m) => String(m.name || '').trim());
-    if (!clean.length || !repeatDow.length) { setStatus('Add a move + at least one day.'); return; }
+    if (!clean.length || !repeatDow.length) { setStatus(tr('session:build.err.needMove', { defaultValue: 'Add a move + at least one day.' })); return; }
     setStatus('working');
     try {
       await window.ShapeSelfTraining.saveSession({
+        // A record NAME default — stays English for the same reason as 'My program'.
         name: name.trim() || 'My workout', discipline, time: time || null, repeatDow, editId: seed?.editId || null,
         moves: clean.map((m) => m.type === 'seg' ? { name: m.name.trim(), seg: m.seg.trim() || '—' } : { name: m.name.trim(), sets: m.sets, reps: m.reps, load: m.load }),
       });
-      window.__bsToast && window.__bsToast('Added to your week', 'ok');
+      window.__bsToast && window.__bsToast(tr('session:build.toast.sessionAdded', { defaultValue: 'Added to your week' }), 'ok');
       onSaved && onSaved();
-    } catch (e) { setStatus(String(e?.message || 'Could not save.')); }
+    } catch (e) { setStatus(String(e?.message || tr('session:build.err.saveFailed', { defaultValue: 'Could not save.' }))); }
   };
   const saveProgram = async () => {
     if (status === 'working' || !fits) return;
-    if (!reviewWeeks.length) { setStatus('Pick a starter or draft a program first.'); return; }
+    if (!reviewWeeks.length) { setStatus(tr('session:build.err.needProgram', { defaultValue: 'Pick a starter or draft a program first.' })); return; }
     setStatus('working');
     try {
       const res = await window.ShapeSelfTraining.saveProgram({ name: progName.trim() || 'My program', discipline: progDiscipline, weeks: reviewWeeks, startISO: mondayISO });
-      window.__bsToast && window.__bsToast(`${res.count}-session program added`, 'ok');
+      // Restructured from `${count}-session program added`: the count and the noun
+      // it counts were two fragments no locale could reorder.
+      window.__bsToast && window.__bsToast(tr('session:build.toast.programAdded', { defaultValue: 'Program added · {count, plural, one {# session} other {# sessions}}', count: res.count }), 'ok');
       onSaved && onSaved();
-    } catch (e) { setStatus(String(e?.message || 'Could not save.')); }
+    } catch (e) { setStatus(String(e?.message || tr('session:build.err.saveFailed', { defaultValue: 'Could not save.' }))); }
   };
 
-  const chip = (active, label, onClick) => (
-    <button key={label} onClick={onClick} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${active ? teal : t.RULE}`, background: active ? `${teal}1c` : 'transparent', color: active ? teal : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}</button>
+  const chip = (active, label, onClick, k) => (
+    <button key={k || label} onClick={onClick} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${active ? teal : t.RULE}`, background: active ? `${teal}1c` : 'transparent', color: active ? teal : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}</button>
   );
   const modeTab = (m, label) => (
     <button onClick={() => setMode(m)} style={{ background: 'transparent', border: 0, padding: '4px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === m ? t.INK : t.INK50, borderBottom: mode === m ? `2px solid ${teal}` : '2px solid transparent' }}>{label}</button>
@@ -4962,66 +5014,68 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label={tr('session:build.close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Build · Training</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>training.</span></h1>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('session:build.eyebrow', { defaultValue: 'Build · Training' })}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{tr('session:build.titlePre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:build.titleAccent', { defaultValue: 'training.' })}</span></h1>
         <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
-        <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>{modeTab('session', 'Session')}{modeTab('program', 'Program')}</div>
+        <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>{modeTab('session', tr('session:build.tab.session', { defaultValue: 'Session' }))}{modeTab('program', tr('session:build.tab.program', { defaultValue: 'Program' }))}</div>
       </div>
 
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
         {mode === 'session' ? (
           <>
-            <label style={{ display: 'block' }}><span style={lbl}>Name</span><input className="bs-uline" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Push day" style={field} /></label>
-            <div><div style={lbl}>Discipline</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{BS_BUILDER_DISCIPLINES.map((d) => chip(discipline === d, d, () => setDiscipline(d)))}</div></div>
-            <div><div style={lbl}>Repeat on</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{BS_BUILDER_DOW.map((d, i) => chip(repeatDow.includes(i), d, () => toggleDow(i)))}</div></div>
-            <label style={{ display: 'block' }}><span style={lbl}>Time (optional)</span><input className="bs-uline" type="time" value={time} onChange={(e) => setTime(e.target.value)} style={field} /></label>
+            <label style={{ display: 'block' }}><span style={lbl}>{tr('session:build.name', { defaultValue: 'Name' })}</span><input className="bs-uline" value={name} onChange={(e) => setName(e.target.value)} placeholder={tr('session:build.namePlaceholder', { defaultValue: 'e.g. Push day' })} style={field} /></label>
+            <div><div style={lbl}>{tr('session:build.discipline', { defaultValue: 'Discipline' })}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{BS_BUILDER_DISCIPLINES.map((d) => chip(discipline === d, bsDisciplineLabel(d, tr), () => setDiscipline(d), d))}</div></div>
+            <div><div style={lbl}>{tr('session:build.repeatOn', { defaultValue: 'Repeat on' })}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{dowNames.map((d, i) => chip(repeatDow.includes(i), d, () => toggleDow(i), 'dow' + i))}</div></div>
+            <label style={{ display: 'block' }}><span style={lbl}>{tr('session:build.time', { defaultValue: 'Time (optional)' })}</span><input className="bs-uline" type="time" value={time} onChange={(e) => setTime(e.target.value)} style={field} /></label>
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}><span style={lbl}>Moves</span><span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{moves.length}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}><span style={lbl}>{tr('session:build.moves', { defaultValue: 'Moves' })}</span><span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{moves.length}</span></div>
               <datalist id="bs-move-names">{moveNames.map((n) => <option key={n} value={n} />)}</datalist>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {moves.map((m, i) => (
                   <div key={i} style={{ borderLeft: `2px solid ${t.RULE}`, paddingLeft: 11 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
-                      <button onClick={() => setMove(i, { type: m.type === 'lift' ? 'seg' : 'lift' })} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 8px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.type === 'lift' ? 'Lift' : 'Segment'} ⇄</button>
-                      <button onClick={() => rmMove(i)} aria-label="Remove move" style={{ marginLeft: 'auto', background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, padding: 2 }}>✕</button>
+                      <button onClick={() => setMove(i, { type: m.type === 'lift' ? 'seg' : 'lift' })} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 8px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.type === 'lift' ? tr('session:build.lift', { defaultValue: 'Lift' }) : tr('session:build.segment', { defaultValue: 'Segment' })} ⇄</button>
+                      <button onClick={() => rmMove(i)} aria-label={tr('session:build.removeMove', { defaultValue: 'Remove move' })} style={{ marginLeft: 'auto', background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, padding: 2 }}>✕</button>
                     </div>
-                    <input className="bs-uline" list="bs-move-names" value={m.name} onChange={(e) => setMove(i, { name: e.target.value })} placeholder={m.type === 'lift' ? 'Exercise' : 'Segment (e.g. Run)'} style={{ ...field, fontSize: 15 }} />
+                    <input className="bs-uline" list="bs-move-names" value={m.name} onChange={(e) => setMove(i, { name: e.target.value })} placeholder={m.type === 'lift' ? tr('session:build.exercisePlaceholder', { defaultValue: 'Exercise' }) : tr('session:build.segmentPlaceholder', { defaultValue: 'Segment (e.g. Run)' })} style={{ ...field, fontSize: 15 }} />
                     {m.type === 'lift' ? (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 12, marginTop: 8 }}>
-                        <label><span style={lbl}>Sets</span><input className="bs-uline bs-no-spin" type="number" inputMode="numeric" value={m.sets} onChange={(e) => setMove(i, { sets: e.target.value })} style={{ ...field, fontSize: 14 }} /></label>
-                        <label><span style={lbl}>Reps</span><input className="bs-uline" value={m.reps} onChange={(e) => setMove(i, { reps: e.target.value })} placeholder="8-12" style={{ ...field, fontSize: 14 }} /></label>
-                        <label><span style={lbl}>Load</span><input className="bs-uline" value={m.load} onChange={(e) => setMove(i, { load: e.target.value })} placeholder="optional" style={{ ...field, fontSize: 14 }} /></label>
+                        <label><span style={lbl}>{tr('session:build.sets', { defaultValue: 'Sets' })}</span><input className="bs-uline bs-no-spin" type="number" inputMode="numeric" value={m.sets} onChange={(e) => setMove(i, { sets: e.target.value })} style={{ ...field, fontSize: 14 }} /></label>
+                        <label><span style={lbl}>{tr('session:build.reps', { defaultValue: 'Reps' })}</span><input className="bs-uline" value={m.reps} onChange={(e) => setMove(i, { reps: e.target.value })} placeholder="8-12" style={{ ...field, fontSize: 14 }} /></label>
+                        <label><span style={lbl}>{tr('session:build.load', { defaultValue: 'Load' })}</span><input className="bs-uline" value={m.load} onChange={(e) => setMove(i, { load: e.target.value })} placeholder={tr('session:build.loadPlaceholder', { defaultValue: 'optional' })} style={{ ...field, fontSize: 14 }} /></label>
                       </div>
                     ) : (
-                      <label style={{ display: 'block', marginTop: 8 }}><span style={lbl}>Distance / duration · zone</span><input className="bs-uline" value={m.seg} onChange={(e) => setMove(i, { seg: e.target.value })} placeholder="10 mi · Z2" style={{ ...field, fontSize: 14 }} /></label>
+                      <label style={{ display: 'block', marginTop: 8 }}><span style={lbl}>{tr('session:build.segLabel', { defaultValue: 'Distance / duration · zone' })}</span><input className="bs-uline" value={m.seg} onChange={(e) => setMove(i, { seg: e.target.value })} placeholder={tr('session:build.segPlaceholder', { defaultValue: '10 {unit} · Z2', unit: t.isMetric ? 'km' : 'mi' })} style={{ ...field, fontSize: 14 }} /></label>
                     )}
                   </div>
                 ))}
               </div>
-              <button onClick={addMove} style={{ marginTop: 12, width: '100%', minHeight: 42, border: `1px dashed ${t.RULE}`, borderRadius: 6, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>＋ Add move</button>
+              <button onClick={addMove} style={{ marginTop: 12, width: '100%', minHeight: 42, border: `1px dashed ${t.RULE}`, borderRadius: 6, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('session:build.addMove', { defaultValue: '＋ Add move' })}</button>
             </div>
           </>
         ) : (
           <>
-            <label style={{ display: 'block' }}><span style={lbl}>Name</span><input className="bs-uline" value={progName} onChange={(e) => setProgName(e.target.value)} placeholder="e.g. Marathon block" style={field} /></label>
-            <div><div style={lbl}>Discipline</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{['run', 'ride', 'swim', 'triathlon', 'hybrid', 'strength'].map((d) => chip(progDiscipline === d, d, () => setProgDiscipline(d)))}</div></div>
-            <button onClick={() => setDraft({ goal: draft?.goal || '', days: daysPerWeek || 4, exp: draft?.exp || 'intermediate' })} style={{ width: '100%', minHeight: 44, border: `1px solid ${teal}`, borderRadius: 6, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>✦ Draft it for me</button>
+            <label style={{ display: 'block' }}><span style={lbl}>{tr('session:build.name', { defaultValue: 'Name' })}</span><input className="bs-uline" value={progName} onChange={(e) => setProgName(e.target.value)} placeholder={tr('session:build.progNamePlaceholder', { defaultValue: 'e.g. Marathon block' })} style={field} /></label>
+            <div><div style={lbl}>{tr('session:build.discipline', { defaultValue: 'Discipline' })}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{BS_BUILDER_PROG_DISCIPLINES.map((d) => chip(progDiscipline === d, bsDisciplineLabel(d, tr), () => setProgDiscipline(d), d))}</div></div>
+            <button onClick={() => setDraft({ goal: draft?.goal || '', days: daysPerWeek || 4, exp: draft?.exp || 'intermediate' })} style={{ width: '100%', minHeight: 44, border: `1px solid ${teal}`, borderRadius: 6, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('session:train.door.draft', { defaultValue: '✦ Draft it for me' })}</button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'end' }}>
-              <div><div style={lbl}>Weeks</div>
+              <div><div style={lbl}>{tr('session:build.weeks', { defaultValue: 'Weeks' })}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <button onClick={() => applyLength(weeks - 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 15 }}>−</button>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', minWidth: 24, textAlign: 'center' }}>{weeks}</span>
                   <button onClick={() => applyLength(weeks + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 15 }}>＋</button>
                 </div>
               </div>
-              <label style={{ display: 'block' }}><span style={lbl}>Race date (optional)</span><input className="bs-uline" type="date" value={raceDate} onChange={(e) => applyRaceDate(e.target.value)} style={field} /></label>
+              <label style={{ display: 'block' }}><span style={lbl}>{tr('session:build.raceDate', { defaultValue: 'Race date (optional)' })}</span><input className="bs-uline" type="date" value={raceDate} onChange={(e) => applyRaceDate(e.target.value)} style={field} /></label>
             </div>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: fits ? t.INK50 : '#c0533b', letterSpacing: '0.04em' }}>
-              {reviewWeeks.length ? `${rowCount} session${rowCount === 1 ? '' : 's'} · ${daysPerWeek}/wk` : 'Pick a starter program or ✦ draft one to fill the weeks.'}
-              {!fits && ` — over ${BS_BUILDER_CAP}; trim the length or days.`}
+              {reviewWeeks.length
+                ? tr('session:build.summary', { defaultValue: '{count, plural, one {# session} other {# sessions}} · {days}/wk', count: rowCount, days: daysPerWeek })
+                : tr('session:build.pickStarter', { defaultValue: 'Pick a starter program or ✦ draft one to fill the weeks.' })}
+              {!fits && ' ' + tr('session:build.overCap', { defaultValue: '— over {cap}; trim the length or days.', cap: BS_BUILDER_CAP })}
             </div>
             {/* Week-by-week review */}
             {reviewWeeks.length > 0 && (
@@ -5029,15 +5083,15 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
                 {reviewWeeks.map((wk, wi) => (
                   <div key={wi} style={{ borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
                     <button onClick={() => setOpenWeek(openWeek === wi ? -1 : wi)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '10px 0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>Week {wk.week}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{(wk.days || []).length} day{(wk.days || []).length === 1 ? '' : 's'} {openWeek === wi ? '▾' : '▸'}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>{tr('common:unit.weekN', { defaultValue: 'Week {n}', n: wk.week })}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{tr('session:build.dayCount', { defaultValue: '{count, plural, one {# day} other {# days}}', count: (wk.days || []).length })} {openWeek === wi ? '▾' : '▸'}</span>
                     </button>
                     {openWeek === wi && (
                       <div style={{ padding: '0 0 12px' }}>
                         {(wk.days || []).map((d, di) => (
                           <div key={di} style={{ padding: '6px 0', borderTop: di === 0 ? 0 : `1px solid ${t.HAIR || t.RULE}` }}>
-                            <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>{BS_BUILDER_DOW[d.dow]} · {d.title}</div>
-                            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2 }}>{(d.moves || []).map((m) => m.seg || `${m.name} ${m.sets || ''}×${m.reps || ''}`).join(' · ') || 'Rest'}</div>
+                            <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>{dowNames[d.dow]} · {d.title}</div>
+                            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2 }}>{(d.moves || []).map((m) => m.seg || `${m.name} ${m.sets || ''}×${m.reps || ''}`).join(' · ') || tr('session:train.restChip', { defaultValue: 'Rest' })}</div>
                           </div>
                         ))}
                       </div>
@@ -5050,7 +5104,7 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
             {!reviewWeeks.length && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                 {BS_STARTER_PROGRAMS.map((p) => (
-                  <button key={p.id} onClick={() => { setStarterId(p.id); setProgName(progName || p.name); const sched = bsStarterProgram(p.id, p.defaultWeeks); setProgDiscipline(sched.discipline); setWeeks(p.defaultWeeks); setReviewWeeks(sched.weeks); }} style={{ padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer' }}>{p.name} · {p.defaultWeeks}wk</button>
+                  <button key={p.id} onClick={() => { setStarterId(p.id); setProgName(progName || p.name); const sched = bsStarterProgram(p.id, p.defaultWeeks); setProgDiscipline(sched.discipline); setWeeks(p.defaultWeeks); setReviewWeeks(sched.weeks); }} style={{ padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer' }}>{tr('session:build.starterMeta', { defaultValue: '{name} · {weeks}wk', name: p.name, weeks: p.defaultWeeks })}</button>
                 ))}
               </div>
             )}
@@ -5060,8 +5114,8 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
       </div>
 
       <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
-        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
-        <button onClick={mode === 'session' ? saveSession : saveProgram} disabled={status === 'working' || (mode === 'program' && !fits)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: (mode === 'program' && !fits) ? bsTHexA(teal, 0.4) : teal, color: t.isLight ? '#fff' : '#04201d', cursor: (status === 'working' || (mode === 'program' && !fits)) ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{status === 'working' ? 'Saving…' : mode === 'session' ? 'Add to my week →' : 'Add program →'}</button>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('session:build.cancel', { defaultValue: 'Cancel' })}</span></button>
+        <button onClick={mode === 'session' ? saveSession : saveProgram} disabled={status === 'working' || (mode === 'program' && !fits)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: (mode === 'program' && !fits) ? bsTHexA(teal, 0.4) : teal, color: t.isLight ? '#fff' : '#04201d', cursor: (status === 'working' || (mode === 'program' && !fits)) ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{status === 'working' ? tr('session:build.saving', { defaultValue: 'Saving…' }) : mode === 'session' ? tr('session:build.addSession', { defaultValue: 'Add to my week →' }) : tr('session:build.addProgram', { defaultValue: 'Add program →' })}</button>
       </div>
 
       {/* ✦ Draft it for me — a goal prompt → a structured draft into the review.
@@ -5069,24 +5123,24 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
       {draft && (
         <div onClick={() => !drafting && setDraft(null)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>✦ Draft it for me</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
-            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>Shape drafts a {weeks}-week plan you can edit before saving.</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>{tr('session:train.door.draft', { defaultValue: '✦ Draft it for me' })}</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('session:build.goalPre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:build.goalAccent', { defaultValue: 'goal.' })}</span></div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>{tr('session:build.draftBody', { defaultValue: 'Shape drafts a {weeks}-week plan you can edit before saving.', weeks })}</div>
             <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
-            <textarea value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} rows={3} placeholder="e.g. first marathon on Oct 12, I run 3 days a week now" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 6, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5 }} />
+            <textarea value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} rows={3} placeholder={tr('session:build.goalPlaceholder', { defaultValue: 'e.g. first marathon on Oct 12, I run 3 days a week now' })} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 6, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5 }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Days/wk</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:build.daysPerWeek', { defaultValue: 'Days/wk' })}</span>
               <button onClick={() => setDraft({ ...draft, days: Math.max(1, draft.days - 1) })} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>−</button>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, minWidth: 18, textAlign: 'center' }}>{draft.days}</span>
               <button onClick={() => setDraft({ ...draft, days: Math.min(7, draft.days + 1) })} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>＋</button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
-              {['beginner', 'intermediate', 'advanced'].map((x) => chip(draft.exp === x, x, () => setDraft({ ...draft, exp: x })))}
+              {BS_BUILDER_EXPERIENCE.map((x) => chip(draft.exp === x, bsExperienceLabel(x, tr), () => setDraft({ ...draft, exp: x }), x))}
             </div>
             {draftErr && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: '#c0533b' }}>{draftErr}</div>}
             <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
-              <button onClick={() => !drafting && setDraft(null)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
-              <button onClick={runDraft} disabled={drafting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: drafting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{drafting ? 'Drafting…' : '✦ Draft my plan'}</button>
+              <button onClick={() => !drafting && setDraft(null)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('session:build.cancel', { defaultValue: 'Cancel' })}</span></button>
+              <button onClick={runDraft} disabled={drafting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: drafting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{drafting ? tr('session:build.drafting', { defaultValue: 'Drafting…' }) : tr('session:build.draftGo', { defaultValue: '✦ Draft my plan' })}</button>
             </div>
           </div>
         </div>
