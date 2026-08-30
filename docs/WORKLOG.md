@@ -378,6 +378,52 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The measurement stops walking past three components
+
+- **A component the walk never sees is outside the measurement, not miscounted** —
+  and that is the one failure a two-way ratchet structurally cannot report. Absent
+  from BOTH baselines, such a component can be neither *new* (nothing to flag) nor
+  *stale* (nothing to expire), so it is not a wrong number: it is no number at all.
+  `tests/i18n-surface-inventory.test.mjs` collected `FunctionDeclaration` and
+  `VariableDeclaration` off `ast.program.body` and matched on the BODY node's type,
+  so **an `export` wrapper was a hiding place** and **a class was not a component**.
+- **Three components became visible. NOTHING WAS BUILT** — all three have rendered
+  JSX the whole time:
+  - **`BSDobGate`** (`export default function`) — fully localized already.
+  - **`BSLanguagePicker`** (`export default function`) — genuinely **PARTIAL**: it
+    holds a translator and still hardcodes one string, on the screen that **asks a
+    member which language they want**.
+  - **`BSErrorBoundary`** (`ClassDeclaration`) — **5 strings, no translator**, in
+    all 13 locales. It sits OUTSIDE the i18n provider by construction (a boundary
+    mounted inside the tree it catches could not render when that tree throws), so
+    it needs the provider-free `window.ShapeI18n.t` bridge rather than
+    `useShapeTr()` — **its own PR**. It is exactly the component whose copy a member
+    reads when the app has already failed them.
+- **The totals moved by the widening alone**, which is why this is not folded into a
+  localization cut: **357 → 360** rendering JSX · **93 → 94** fully covered ·
+  **31 → 32** partial (**164 → 165** strings) · **115 → 116** with no translator
+  (**1,104 → 1,109** strings) · 118 no user copy, unchanged.
+- ⚠ **THE FLOOR ROSE 357 → 360, and that is the mirror of this file's own rule about
+  lowering one.** A floor is honest only alongside the change that caused it — the
+  reason is written at the assertion, so the next reader can tell a widening from a
+  number nobody re-measured.
+- ⚠ **THE RULE IS PINNED ON A FIXTURE, NOT ON THE TREE — the same lesson as the
+  parameter-shadow prune, applied before it could bite.** The tree carries exactly
+  three of these shapes, so pinning through them would retire the rule the moment
+  someone rewrote one. The fixture covers the shapes the tree does **not** contain
+  (`export function`, `export const`, `export default class`) plus the case that
+  must stay uncollectable: **`export default () => …` carries no name**, so there is
+  nothing to attribute copy to and nothing a baseline could pin. A component that
+  wants to be measured has to be nameable.
+  ⚠ Its first cut put three `export default`s in one fixture string and died on a
+  **parse error** — which at least failed loudly rather than passing over source
+  that is not JavaScript.
+- **5/5 mutations killed** (drop the export unwrap · drop the ClassDeclaration
+  branch · collect anonymous defaults · raise the floor past the truth · leave
+  BSErrorBoundary out of the baseline), unmutated sanity green at both ends and the
+  file restored byte-identically after each.
+- Verified: `npm test` **2465/2465** · `tsc --noEmit` 0 · the ratchet **9/9**.
+
 ### 2026-08-29 — i18n cut 4: the Eat tab, and the strings the measurement could not see
 
 - **The primary Eat tab is localized.** `BSClientEat` carried **2 `tr()` calls**; it

@@ -148,10 +148,27 @@ function componentsOfSource(src) {
   const isTr = translatorNames(ast);
   const out = [];
 
-  // Top-level `function Name()` / `const Name = () =>` with a Capitalized name.
+  // Top-level `function Name()` / `const Name = () =>` / `class Name` with a
+  // Capitalized name — reached THROUGH an `export` wrapper when there is one.
+  // ⚠ AN EXPORT WRAPPER USED TO HIDE A WHOLE FILE. `export default function
+  // BSDobGate()` parses as an ExportDefaultDeclaration whose `declaration` is
+  // the FunctionDeclaration, and the old loop matched on the BODY node's type —
+  // so BSDobGate.jsx and BSLanguagePicker.jsx, both single-component files whose
+  // only component is exported that way, appeared in NEITHER baseline. Not a
+  // miscount: they were absent from the measurement entirely, which is the one
+  // failure a ratchet cannot report, because a component it never sees can
+  // neither be new nor stale.
+  // ⚠ AND A CLASS COMPONENT WAS INVISIBLE FOR THE SAME REASON, one node type
+  // over: BSErrorBoundary is a ClassDeclaration, so its live copy was never
+  // attributed to anything. It is exactly the component whose strings a member
+  // reads when the app has already failed them.
   const decls = [];
-  for (const node of ast.program.body) {
+  const collect = (node) => {
     if (node.type === 'FunctionDeclaration' && node.id && /^[A-Z_]/.test(node.id.name)) {
+      decls.push({ name: node.id.name, node });
+    } else if (node.type === 'ClassDeclaration' && node.id && /^[A-Z_]/.test(node.id.name)) {
+      // The class node itself, so the walk reaches render()'s JSX. FN already
+      // covers ClassMethod, so the parameter-shadow prune still applies.
       decls.push({ name: node.id.name, node });
     } else if (node.type === 'VariableDeclaration') {
       for (const d of node.declarations) {
@@ -161,6 +178,14 @@ function componentsOfSource(src) {
         }
       }
     }
+  };
+  for (const node of ast.program.body) {
+    // `export default X` and `export X` both wrap the declaration one level
+    // deeper. An anonymous `export default () => {}` carries no name and stays
+    // uncollectable by construction — nothing to attribute strings to.
+    if (node.type === 'ExportDefaultDeclaration' || node.type === 'ExportNamedDeclaration') {
+      if (node.declaration) collect(node.declaration);
+    } else collect(node);
   }
 
   for (const d of decls) {
@@ -278,7 +303,13 @@ const UNCOVERED = new Set([
   // deleted (orphaned — no render site, no window export). BSTweaksPanel is the
   // developer Tweaks overlay, never shown to a member, so it stays uncovered
   // deliberately rather than shipping 15 dev-only strings to 13 locales.
-  'Main::BSTweaksPanel',
+  // ⚠ NEWLY VISIBLE, NOT NEWLY BROKEN. BSErrorBoundary is a ClassDeclaration, a
+  // node type this walk never collected, so its five live strings were
+  // attributed to nothing at all. It sits OUTSIDE the i18n provider by
+  // construction — a boundary that mounted inside the tree it catches could not
+  // render when that tree throws — so it needs the provider-free
+  // window.ShapeI18n.t bridge rather than useShapeTr(). Its own PR.
+  'Main::BSErrorBoundary', 'Main::BSTweaksPanel',
   'Pros::BSCoachGoalPlanPage', 'Pros::BSCoachPlaylistStudio', 'Pros::BSGoalEditSheet',
   'Pros::BSProMonthlyOfferSheet', 'Pros::BSProNotificationsPage', 'Pros::BSProPublicProfilePage',
   'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetPicker',
@@ -298,7 +329,13 @@ const PARTIAL = new Set([
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
   'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile',
-  'Client::BSTerrainProfile', 'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
+  'Client::BSTerrainProfile',
+  // ⚠ ALSO NEWLY VISIBLE: `export default function BSLanguagePicker()` wraps the
+  // declaration in an ExportDefaultDeclaration, which the collector walked past.
+  // It is genuinely PARTIAL — it holds a translator and still hardcodes one
+  // string — and it is the screen that ASKS a member which language they want.
+  'BSLanguagePicker::BSLanguagePicker',
+  'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
   'Pros::BSProMe', 'Pros::BSProSoundtracks', 'Pros::BSWorkoutReviewPage',
   'Pros::ProWeekendPlate', 'Radio::BSNowPlayingMuted', 'Radio::BSRadioScreen',
@@ -335,10 +372,10 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // are asserted exactly: a change here is either progress (lower the number and
   // the record with it) or a regression, and both must be a deliberate edit.
   // Printed above first, so the failure message is never the only place to read them.
-  assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1104, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 115, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1109, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 116, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
@@ -346,8 +383,14 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // five unreachable BSSplash style branches. Lowering a floor is only ever
   // honest alongside the deletion that caused it; it must never be lowered to
   // make a failing run pass.
-  assert.ok(rows.length >= 357, `components rendering JSX fell to ${rows.length} — expected at least 357`);
-  assert.ok(full.length >= 93, `fully-localized components fell to ${full.length} — expected at least 93`);
+  // ⚠ The floor rose 357 → 360 when the collector learned to unwrap `export`
+  // wrappers and to collect ClassDeclaration. NOTHING WAS BUILT — BSDobGate,
+  // BSLanguagePicker and BSErrorBoundary have rendered JSX the whole time; the
+  // walk simply never saw them. A floor RISING alongside a widening is the
+  // mirror of the rule above: it is honest only next to the change that caused
+  // it, and it may never be raised to make a stale number look better.
+  assert.ok(rows.length >= 360, `components rendering JSX fell to ${rows.length} — expected at least 360`);
+  assert.ok(full.length >= 94, `fully-localized components fell to ${full.length} — expected at least 94`);
 });
 
 // ── The ratchet ─────────────────────────────────────────────────────────────
@@ -410,6 +453,50 @@ test('the translator is found by what it is BOUND TO, not how it is spelled', ()
   assert.ok(names.has('coachTr'), 'the pros module binds no hook — its translator is a plain function');
   assert.ok(!names.has('notTr'), 'a Tr-suffixed name bound to anything else is not a translator');
   assert.ok(!names.has('useShapeTr'), 'the HOOK is not the translator — counting it read a component that took it and never used it as covered');
+});
+
+// ⚠ AN EXPORT WRAPPER AND A CLASS ARE PINNED ON A FIXTURE, FOR THE REASON THE
+// PRUNE BELOW SPELLS OUT. The tree today carries exactly three of these — two
+// `export default function` files and one class — so pinning the rule through
+// them would retire it the moment someone rewrites one. The fixture also covers
+// the two shapes the tree does NOT contain (`export function`, `export const`,
+// `export default class`), which is the whole point of collecting through the
+// wrapper rather than listing the wrappers that happen to exist.
+test('an export wrapper does not hide a component, and a class is a component', () => {
+  // ⚠ ONE DEFAULT EXPORT PER MODULE, so each default shape gets its own fixture
+  // — the first cut of this guard put three in one string and died on a parse
+  // error, which at least failed loudly rather than passing over source that is
+  // not JavaScript.
+  const named = new Map(componentsOfSource(`
+    export function ExportedNamed() { return <div>Named copy</div>; }
+    export const ExportedConst = () => <div>Const copy</div>;
+    class PlainClass extends React.Component {
+      render() { return <div>Plain class copy</div>; }
+    }
+  `).map((r) => [r.name, r]));
+  for (const n of ['ExportedNamed', 'ExportedConst', 'PlainClass']) {
+    assert.ok(named.has(n), `${n} must be collected — an export wrapper is not a hiding place`);
+  }
+  assert.equal(named.get('PlainClass').hard, 1, "a class component's copy lives in render() — it must be counted, not skipped");
+
+  const [fn] = componentsOfSource('export default function ExportedDefault() { return <div>Default copy</div>; }');
+  assert.equal(fn?.name, 'ExportedDefault', 'export default function — the shape that hid BSDobGate and BSLanguagePicker');
+  assert.equal(fn.hard, 1, 'and its copy is attributed, not merely its name');
+
+  const [cls] = componentsOfSource(`
+    export default class ExportedClass extends React.Component {
+      render() { return <div>Class copy</div>; }
+    }
+  `);
+  assert.equal(cls?.name, 'ExportedClass', 'export default class — both wrappers at once');
+  assert.equal(cls.hard, 1);
+
+  // ⚠ ANONYMOUS STAYS UNCOLLECTABLE, and that is a property of the source rather
+  // than a hole in the walk: `export default () => …` carries no name, so there
+  // is nothing to attribute the string to and nothing a baseline could pin. A
+  // component that wants to be measured has to be nameable.
+  assert.deepEqual(componentsOfSource('export default () => <div>Anonymous copy</div>;'), [],
+    'an anonymous default export has no name to attribute copy to');
 });
 
 test('the shipped tree answers the way the derivation claims', () => {
