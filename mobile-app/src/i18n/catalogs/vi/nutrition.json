@@ -175,5 +175,15 @@
   "eat.groceryPlanName": "Kế hoạch tuần này",
   "eat.groceryEyebrow": "Tự động dựng từ các bữa ăn của bạn",
   "eat.groceryNote": "\"Mọi thứ ở đây đều lấy thẳng từ các bữa ăn tuần này — không thừa, không thiếu.\"",
-  "eat.fromYourList": "Danh sách của bạn · tuần này"
+  "eat.fromYourList": "Danh sách của bạn · tuần này",
+  "aisle.produce": "Rau củ quả",
+  "aisle.protein": "Đạm",
+  "aisle.dairy": "Sữa & đồ lạnh",
+  "aisle.pantry": "Đồ khô",
+  "aisle.other": "Khác",
+  "aisle.frozen": "Đông lạnh",
+  "aisle.bakery": "Bánh mì",
+  "aisle.household": "Gia dụng",
+  "aisle.recipeIngredients": "Nguyên liệu công thức",
+  "aisle.libraryItems": "Từ thư viện của bạn"
 }

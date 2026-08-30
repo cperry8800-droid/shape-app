@@ -287,7 +287,7 @@ const UNCOVERED = new Set([
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
   'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
-  'Client::BSGoalEditSheet', 'Client::BSGoalsContract', 'Client::BSGroceryBuilder',
+  'Client::BSGoalEditSheet', 'Client::BSGoalsContract',
   'Client::BSGroceryLibrary', 'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
   'Client::BSHelpPage', 'Client::BSIntegrationsPage', 'Client::BSIntentStep',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
@@ -327,7 +327,7 @@ const UNCOVERED = new Set([
 const PARTIAL = new Set([
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
   'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSClientTrain',
-  'Client::BSCookMode', 'Client::BSGrocery',
+  'Client::BSCookMode', 'Client::BSGrocery', 'Client::BSGroceryBuilder',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
@@ -395,10 +395,22 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // This is the BSWeekStrip blind spot in reverse: there a string was invisible
   // because it sat in an array literal; here because it sat in stored data.
   // ⚠ A number that goes UP is only honest beside the change that raised it.
-  assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1062, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 112, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ CUT 6 STEP 1 — THE AISLE TOKEN/LABEL SPLIT, AND THE MOVE IS ONE COMPONENT
+  // WIDE ON PURPOSE. `aisle` is stored on every saved item, used as the grouping
+  // key, matched against a freshly-classified aisle on every add, AND rendered as
+  // a header — so it got cut 5's token/label treatment rather than a tr() sweep.
+  // Only BSGroceryBuilder gained a translator by it (the pills and the per-item
+  // line are the two places IT renders an aisle), so it moves UNCOVERED -> PARTIAL
+  // carrying its own 17 hardcoded strings with it: noneStrings 1062 -> 1045,
+  // none.length 112 -> 111, part.length 32 -> 33, partStrings 165 -> 182.
+  // ⚠ BSGrocery's count does NOT move, and that is the tell that this is a data
+  // change rather than a copy change: its aisle headers were never JSX literals,
+  // they came out of the list record. The walk could not see them before and
+  // cannot see them now — what changed is that they are translatable at all.
+  assert.equal(partStrings, 182, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1045, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 111, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

@@ -175,5 +175,15 @@
   "eat.groceryPlanName": "Dis week plan",
   "eat.groceryEyebrow": "We build am from your meals",
   "eat.groceryNote": "\"Everything wey dey here come straight from dis week meals — nothing extra, nothing miss.\"",
-  "eat.fromYourList": "Your list · dis week"
+  "eat.fromYourList": "Your list · dis week",
+  "aisle.produce": "Vegetable & fruit",
+  "aisle.protein": "Protein",
+  "aisle.dairy": "Milk & cold things",
+  "aisle.pantry": "Store",
+  "aisle.other": "Oda things",
+  "aisle.frozen": "Frozen",
+  "aisle.bakery": "Bread",
+  "aisle.household": "House things",
+  "aisle.recipeIngredients": "Wetin di recipe need",
+  "aisle.libraryItems": "From your library"
 }

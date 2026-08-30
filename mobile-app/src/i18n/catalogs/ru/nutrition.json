@@ -175,5 +175,15 @@
   "eat.groceryPlanName": "План на эту неделю",
   "eat.groceryEyebrow": "Собран автоматически из ваших приёмов пищи",
   "eat.groceryNote": "«Всё здесь взято прямо из блюд этой недели — ничего лишнего, ничего не забыто.»",
-  "eat.fromYourList": "Ваш список · на этой неделе"
+  "eat.fromYourList": "Ваш список · на этой неделе",
+  "aisle.produce": "Овощи и фрукты",
+  "aisle.protein": "Белки",
+  "aisle.dairy": "Молочное и охлаждённое",
+  "aisle.pantry": "Бакалея",
+  "aisle.other": "Другое",
+  "aisle.frozen": "Заморозка",
+  "aisle.bakery": "Выпечка",
+  "aisle.household": "Для дома",
+  "aisle.recipeIngredients": "Ингредиенты рецепта",
+  "aisle.libraryItems": "Из твоей библиотеки"
 }

@@ -378,6 +378,74 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The grocery aisle becomes a token and a label, because it was already logic
+
+- **`aisle` is not a heading.** It is stored on every item of every saved grocery list,
+  it is the grouping key, **and** it is compared against a freshly-classified aisle on
+  every add — `aisles.findIndex(a => a.aisle === bsGroceryAisleFor(name))`. So a `tr()`
+  on the classifier's output does not rename a header: **a list saved in English and
+  reopened in Spanish stops matching its own groups, and every added item forks a
+  duplicate aisle** — silently, in twelve locales, with parse, `tsc`, the suite and the
+  build all green. This is **cut 5's Train-tag lesson at a second place where the id and
+  the word were the same string**, and it needed the same answer: the token stays
+  canonical English, **`bsAisleLabel(aisle, T)`** is the only thing a member reads.
+  **10 `nutrition:aisle.*` keys ×13.** No migration — every stored token is unchanged.
+- **Routed at the four READ sites and at none of the others.** The checklist header + its
+  `aria-label`, the builder's aisle pills, the builder's per-item line, and the Eat tab's
+  shop-list door meta. The comparisons, the `openAisles` set, `filledAisleNames`, the
+  grouping filters and `bsNormalizeGroceryList`'s store all keep the raw token — pinned
+  in both directions, because half of this passing is the dangerous state.
+- ⚠ **THE COVERAGE CHECK IS DERIVED FROM THE SOURCE, NEVER HAND-LISTED.**
+  `tests/grocery-aisle-token.test.mjs` reads the two classifier tables, the classifier's
+  own `return` statements, the builder's pill list and the normalizer, and fails if any
+  token it finds has no catalog key. **An enumeration is not a proof that the enumeration
+  is complete** — this file has now recorded that for CSS, for a logic token, and for a
+  stored record; deriving it is the only version that survives the next aisle.
+- ⚠ **AND IT HAD TO LEARN TO IGNORE A DISCRIMINANT.** The normalizer picks its aisle with
+  a ternary — `list.kind === 'recipe' ? 'Recipe ingredients' : 'Library items'` — so
+  collecting every quoted string on that line demanded a catalog key for **`recipe`** and
+  **failed on a correct tree**. A false alarm is the safe direction for a scan like this,
+  but it is still wrong: what separates a discriminant from a value is the comparison, so
+  the scan strips the right-hand side of `===`/`!==` first and keeps what is assigned.
+- ⚠ **TWO CASE TRANSFORMS NOW RUN OVER TRANSLATED TEXT, AND BOTH WERE CORRECTED IN THE
+  SAME EDIT.** `toUpperCase()`/`toLowerCase()` are **locale-insensitive** — the Turkish
+  dotted/dotless-i class this file already records twice — and these were the only two
+  places a case transform ever touched an aisle name, which is exactly why they were
+  harmless until the name became translatable. The share text upper-cases through
+  `toLocaleUpperCase(bsDateLocale())`; the Eat door **dropped its `.toLowerCase()`
+  entirely**, because how an aisle name sits in a meta line is the catalog's call rather
+  than a transform's — the ruling cut 4 made for the swap-day token. Both bans are pinned.
+- ⚠ **THE RATCHET MOVED BY EXACTLY ONE COMPONENT, AND THAT IS THE TELL THAT THIS IS A DATA
+  CHANGE RATHER THAN A COPY CHANGE.** `BSGroceryBuilder` gained a translator and moves
+  **UNCOVERED → PARTIAL** carrying its own 17 hardcoded strings (`noneStrings`
+  **1062 → 1045**, `none.length` **112 → 111**, `part.length` **32 → 33**, `partStrings`
+  **165 → 182**). **`BSGrocery`'s count does NOT move** — its aisle headers were never JSX
+  literals, they came out of the list record, so the walk could not see them before and
+  cannot see them now. What changed is that they are translatable at all.
+- ⚠ **AN UNKNOWN TOKEN RENDERS AS ITSELF — never a raw key, never blank.** A
+  nutritionist's hand-authored aisle arrives as free text, and the dead `'Items'`
+  placeholder (unreachable behind `BSGrocery`'s empty-aisle early return) would otherwise
+  demand a translation for a string no member ever reads.
+- ⚠ **THE ARIA-LABEL IS HALF-TRANSLATED ON PURPOSE, FOR ONE PR.** The checklist header's
+  announced sentence is still `"{aisle}, N of M got"` — the aisle name is translated, the
+  frame is not. The alternative was leaving the **token** in the sentence, so a screen-
+  reader user would hear the English id while a sighted member read the translated label,
+  which is worse. The frame is part of the ~356-string component sweep.
+- **The sweep is the NEXT PR, deliberately.** The split is a design change with real
+  breakage risk and deserves its own review; the string sweep is mechanical. Measured, the
+  grocery surface is **366 hardcoded strings** (`BSGrocery` 186 · `BSGroceryBuilder` 102 ·
+  `BSGroceryLibrary` 78) — and it carries the five `nutrition:eat.lib*` keys the
+  record-shape cut left deliberately unauthored, because a key with no reader is a key
+  nobody can check.
+- **7/7 mutations killed** (translate the comparison · a header renders the raw token ·
+  a new aisle token with no catalog key · the bare `toUpperCase()` returns · the door
+  lower-cases again · a locale loses one of the ten keys · a saved record stores the
+  label), sanity green at both ends and the tree restored clean after each.
+- Verified: `npm test` **2500/2500** · `tsc --noEmit` 0 · JSX parse · catalog parity ×13
+  (a pure append, 10 keys each, LF, zero CR/NUL) · mobile build 0 with **all 10 keys, five
+  locales' values and both `findAisle` comparisons still reading the raw token confirmed
+  in the emitted bundle** (`findIndex(e=>e.aisle===n)` ×2, zero labels in a comparison).
+
 ### 2026-08-30 — The live Train week and Eat menu stop freezing the language they were built in
 
 - **A member who switches language in-app kept reading the old one on both primary

@@ -175,5 +175,15 @@
   "eat.groceryPlanName": "Der Plan dieser Woche",
   "eat.groceryEyebrow": "Automatisch aus deinen Mahlzeiten erstellt",
   "eat.groceryNote": "\"Alles hier kommt direkt aus den Mahlzeiten dieser Woche — nichts zu viel, nichts zu wenig.\"",
-  "eat.fromYourList": "Deine Liste · diese Woche"
+  "eat.fromYourList": "Deine Liste · diese Woche",
+  "aisle.produce": "Obst & Gemüse",
+  "aisle.protein": "Protein",
+  "aisle.dairy": "Milchprodukte & Kühlware",
+  "aisle.pantry": "Vorrat",
+  "aisle.other": "Sonstiges",
+  "aisle.frozen": "Tiefkühl",
+  "aisle.bakery": "Backwaren",
+  "aisle.household": "Haushalt",
+  "aisle.recipeIngredients": "Rezeptzutaten",
+  "aisle.libraryItems": "Aus deiner Bibliothek"
 }

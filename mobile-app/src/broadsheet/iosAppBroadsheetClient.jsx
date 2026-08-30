@@ -8772,6 +8772,43 @@ function bsBuilderAisleFor(name) {
   return a === 'Other' ? 'Pantry' : a;
 }
 
+// ── An aisle is a TOKEN and a LABEL, and they must not be the same string ────
+// ⚠ `aisle` IS LIVE LOGIC, NOT JUST A HEADING. It is stored on every saved list,
+// used as the grouping key, and — the part that bites — matched against a
+// freshly-classified aisle whenever an item is added:
+//
+//     aisles.findIndex(a => a.aisle === bsGroceryAisleFor(name))
+//
+// So translating the classifier's output does not merely rename a header: a list
+// saved in English and then opened in Spanish stops matching its own groups, and
+// every added item forks a duplicate aisle. Silently, in twelve locales, with
+// parse, tsc, the suite and the build all green.
+//
+// The token therefore stays canonical English; `bsAisleLabel` is the only thing
+// a member ever reads. Same split as the Train day tag (cut 5), at another place
+// where the id and the word had been one string.
+const BS_AISLE_KEY = {
+  'Produce': 'nutrition:aisle.produce',
+  'Protein': 'nutrition:aisle.protein',
+  'Dairy & cold': 'nutrition:aisle.dairy',
+  'Pantry': 'nutrition:aisle.pantry',
+  'Other': 'nutrition:aisle.other',
+  'Frozen': 'nutrition:aisle.frozen',
+  'Bakery': 'nutrition:aisle.bakery',
+  'Household': 'nutrition:aisle.household',
+  'Recipe ingredients': 'nutrition:aisle.recipeIngredients',
+  'Library items': 'nutrition:aisle.libraryItems',
+};
+// ⚠ AN UNKNOWN TOKEN RENDERS AS ITSELF, never a raw key and never blank. A
+// nutritionist's hand-authored aisle arrives as free text, and the dead 'Items'
+// placeholder (BSGrocery skips any empty aisle, so nobody reads it) would
+// otherwise need a translation for a string no member sees.
+function bsAisleLabel(aisle, T) {
+  const raw = String(aisle || '');
+  const key = BS_AISLE_KEY[raw];
+  return key ? T(key, raw) : raw;
+}
+
 // ── A saved list stores TOKENS; the render makes the sentence ────────────────
 // ⚠ A LIST RECORD MUST NOT CARRY A RENDERED SENTENCE. The eyebrow a member reads
 // is derived HERE, at render, from `provenance` + `createdAt` — writing the
@@ -10487,7 +10524,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         const total = activeGroceryCount;
         const have = aisles.reduce((s, a) => s + a.items.filter(it => it.have).length, 0);
         const left = Math.max(0, total - have);
-        const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => a.aisle).slice(0, 3).join(', ').toLowerCase();
+        // ⚠ NO CASE TRANSFORM RUNS OVER TRANSLATED TEXT. This read
+        // `.join(', ').toLowerCase()` while the aisles were English literals;
+        // toLowerCase() is locale-insensitive (the Turkish dotted-i class), and
+        // how an aisle name sits in a meta line is the catalog's call, not a
+        // transform's — the same ruling cut 4 made for the swap-day token.
+        const TA = bsTrainT(tr);
+        const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => bsAisleLabel(a.aisle, TA)).slice(0, 3).join(', ');
         // ⚠ `.split(' ')[0]` IS A FIRST-NAME EXTRACTOR, so it may only ever run
         // over a real person's name. Fed the role noun it produced "From Your ·
         // this week" — reachable for any signed-in member with no resolved coach,
@@ -27544,6 +27587,8 @@ const BS_GROCERY_DEFAULT = {
 // "Build a list." — name a custom grocery list, add items by aisle, then create.
 function BSGroceryBuilder({ onCancel, onCreate }) {
   const t = useBS();
+  const trB = useShapeTr();
+  const TB = bsTrainT(trB);
   _bsScrollTopOnMount();
   const rust = t.RUST;
   const AISLES = ['Produce', 'Protein', 'Pantry', 'Dairy & cold', 'Frozen', 'Bakery', 'Household'];
@@ -27593,7 +27638,7 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
             <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: aisleTouched ? t.INK50 : rust }}>{iName.trim() ? (aisleTouched ? '· custom' : '· auto-sorted — tap to change') : ''}</span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {AISLES.map(al => { const on = iAisle === al; return <button key={al} onClick={() => { setIAisle(al); setAisleTouched(true); }} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{al}</button>; })}
+            {AISLES.map(al => { const on = iAisle === al; return <button key={al} onClick={() => { setIAisle(al); setAisleTouched(true); }} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsAisleLabel(al, TB)}</button>; })}
           </div>
           <button onClick={addItem} disabled={!iName.trim()} style={{ width: '100%', marginTop: 16, borderRadius: 12, border: `1px solid ${rust}`, background: iName.trim() ? `${rust}1c` : 'transparent', color: rust, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: iName.trim() ? 'pointer' : 'default', opacity: iName.trim() ? 1 : 0.55 }}>+ Add to list</button>
         </div>
@@ -27607,7 +27652,7 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
               <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'center', padding: '12px 0', borderTop: idx ? `1px solid ${t.HAIR}` : 0 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{it.n}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{it.aisle}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{bsAisleLabel(it.aisle, TB)}</div>
                 </div>
                 <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
                 <button onClick={() => removeItem(idx)} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>
@@ -27726,7 +27771,8 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
 const bsGroceryHues = (t) => ({ teal: t.isLight ? '#0a8f87' : '#34d6c5', gold: t.isLight ? '#a07a2e' : '#d8b25a' });
 function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {}, onPrep = null }) {
   const t = useBS();
-  const trG = useShapeTr();   // cook:prep.door only — the page's own copy predates i18n
+  const trG = useShapeTr();
+  const TG = bsTrainT(trG);
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
   const [pickerOpen, setPickerOpen] = useStateBSC(false);
@@ -27786,7 +27832,9 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
   const saveToLib = () => { if (onSaveToLibrary) onSaveToLibrary(list); else bsLibToggle(groceryItem); };
   const shareList = async () => {
-    const lines = list.aisles.map(a => `${a.aisle.toUpperCase()}\n${a.items.map(it => `  • ${it.q ? it.q + ' ' : ''}${it.n}`).join('\n')}`).join('\n\n');
+    // ⚠ toUpperCase() IS LOCALE-INSENSITIVE and this now runs over translated
+    // text — the Turkish dotted/dotless i class this repo has already paid for.
+    const lines = list.aisles.map(a => `${bsAisleLabel(a.aisle, TG).toLocaleUpperCase(bsDateLocale())}\n${a.items.map(it => `  • ${it.q ? it.q + ' ' : ''}${it.n}`).join('\n')}`).join('\n\n');
     const body = `${list.name} — Shop list\n\n${lines}`;
     // Native share sheet (Messages / Mail / etc.) when available, else clipboard.
     try {
@@ -27971,10 +28019,10 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
           const open = openAisles.has(aisle.aisle);
           return (
             <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: filledAisleNames.length > 1 ? 12 : 18 }}>
-              <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={`${aisle.aisle}, ${adone} of ${aisle.items.length} got`} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0 10px', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+              <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={`${bsAisleLabel(aisle.aisle, TG)}, ${adone} of ${aisle.items.length} got`} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0 10px', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                   <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, color: afull ? accent : t.INK50, flexShrink: 0, width: 10 }}>{open ? '▾' : '▸'}</span>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{bsAisleLabel(aisle.aisle, TG)}</span>
                 </span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: afull ? accent : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
               </button>

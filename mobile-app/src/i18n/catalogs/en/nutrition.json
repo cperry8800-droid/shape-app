@@ -175,5 +175,15 @@
   "eat.groceryPlanName": "This week's plan",
   "eat.groceryEyebrow": "Auto-built from your meals",
   "eat.groceryNote": "\"Every item here comes straight from this week's meals — nothing extra, nothing missing.\"",
-  "eat.fromYourList": "Your list · this week"
+  "eat.fromYourList": "Your list · this week",
+  "aisle.produce": "Produce",
+  "aisle.protein": "Protein",
+  "aisle.dairy": "Dairy & cold",
+  "aisle.pantry": "Pantry",
+  "aisle.other": "Other",
+  "aisle.frozen": "Frozen",
+  "aisle.bakery": "Bakery",
+  "aisle.household": "Household",
+  "aisle.recipeIngredients": "Recipe ingredients",
+  "aisle.libraryItems": "Library items"
 }
