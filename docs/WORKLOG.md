@@ -508,6 +508,22 @@ changelog whenever something ships.
   signed-in member with no plan read as a fabricated month. Live reads *This week*,
   signed-out keeps the demo, and **no-plan renders nothing** rather than inventing a
   period.
+- ⚠ **AND THE TRANSLATION REVIEW FOUND THE SLAVIC ANALOGUE OF THE TURKISH-SUFFIX
+  RULE — six values across ru and uk.** This repo's translator brief already forbids
+  gluing a Turkish case suffix onto a `{placeholder}`, because the placeholder's runtime
+  value decides vowel harmony. **The same argument forbids putting a case-governing
+  PREPOSITION in front of one**: `Intl` hands back a weekday in the **nominative**, so
+  ru `Питание на {day}` renders *"Питание на **среда**"* (accusative `среду` is
+  required) and is wrong on **three of seven days**; uk `Харчування на {day}` is wrong
+  on **four of seven**. The same defect sat on the coach-name placeholder — ru
+  `От {who}` and uk `Від {who}` govern the genitive over a name arriving in the
+  nominative. All six rephrased to constructions that keep the placeholder in the
+  nominative (`Питание: {day}` · `{who} · на этой неделе` · `Автор: {who}`).
+  ⚠ **Turkish had already solved both by instinct** — `{day} öğünleri` puts the suffix
+  on *öğün*, and `{who} listeleri` drops the preposition entirely — which is what made
+  the Slavic pair visible by contrast. **The general rule, worth carrying into the
+  brief: a `{placeholder}` filled by a proper noun arrives in ONE case, so no
+  surrounding word may govern another.**
 - **Verified:** `npm test` **2465/2465** · `tsc --noEmit` 0 · JSX parse · mobile build 0
   with **56 literal `nutrition:eat.*` keys** (60 authored − 5 computed `quick.q*` + the
   `nutrition:eat.quick.` prefix), `common:unit.weekN`, and sample translations
