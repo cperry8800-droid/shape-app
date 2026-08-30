@@ -378,6 +378,138 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The grocery aisle becomes a token and a label, because it was already logic
+
+- **`aisle` is not a heading.** It is stored on every item of every saved grocery list,
+  it is the grouping key, **and** it is compared against a freshly-classified aisle on
+  every add — `aisles.findIndex(a => a.aisle === bsGroceryAisleFor(name))`. So a `tr()`
+  on the classifier's output does not rename a header: **a list saved in English and
+  reopened in Spanish stops matching its own groups, and every added item forks a
+  duplicate aisle** — silently, in twelve locales, with parse, `tsc`, the suite and the
+  build all green. This is **cut 5's Train-tag lesson at a second place where the id and
+  the word were the same string**, and it needed the same answer: the token stays
+  canonical English, **`bsAisleLabel(aisle, T)`** is the only thing a member reads.
+  **11 `nutrition:aisle.*` keys ×13.** No migration — every stored token is unchanged.
+  ⚠ **It shipped as TEN and the eleventh is the Codex bullet below** — `'Items'`, the one
+  token this file said was unreachable. The figure is corrected here rather than left to be
+  reconciled four bullets down, because a summary line is what a skim takes away.
+- **Routed at the four READ sites and at none of the others.** The checklist header + its
+  `aria-label`, the builder's aisle pills, the builder's per-item line, and the Eat tab's
+  shop-list door meta. The comparisons, the `openAisles` set, `filledAisleNames`, the
+  grouping filters and `bsNormalizeGroceryList`'s store all keep the raw token — pinned
+  in both directions, because half of this passing is the dangerous state.
+- ⚠ **THE COVERAGE CHECK IS DERIVED FROM THE SOURCE, NEVER HAND-LISTED.**
+  `tests/grocery-aisle-token.test.mjs` reads the two classifier tables, the classifier's
+  own `return` statements, the builder's pill list and the normalizer, and fails if any
+  token it finds has no catalog key. **An enumeration is not a proof that the enumeration
+  is complete** — this file has now recorded that for CSS, for a logic token, and for a
+  stored record; deriving it is the only version that survives the next aisle.
+- ⚠ **AND IT HAD TO LEARN TO IGNORE A DISCRIMINANT.** The normalizer picks its aisle with
+  a ternary — `list.kind === 'recipe' ? 'Recipe ingredients' : 'Library items'` — so
+  collecting every quoted string on that line demanded a catalog key for **`recipe`** and
+  **failed on a correct tree**. A false alarm is the safe direction for a scan like this,
+  but it is still wrong: what separates a discriminant from a value is the comparison, so
+  the scan strips the right-hand side of `===`/`!==` first and keeps what is assigned.
+- ⚠ **TWO CASE TRANSFORMS NOW RUN OVER TRANSLATED TEXT, AND BOTH WERE CORRECTED IN THE
+  SAME EDIT.** `toUpperCase()`/`toLowerCase()` are **locale-insensitive** — the Turkish
+  dotted/dotless-i class this file already records twice — and these were the only two
+  places a case transform ever touched an aisle name, which is exactly why they were
+  harmless until the name became translatable. The share text upper-cases through
+  `toLocaleUpperCase(bsDateLocale())`; the Eat door **dropped its `.toLowerCase()`
+  entirely**, because how an aisle name sits in a meta line is the catalog's call rather
+  than a transform's — the ruling cut 4 made for the swap-day token. Both bans are pinned.
+- ⚠ **THE RATCHET MOVED BY EXACTLY ONE COMPONENT, AND THAT IS THE TELL THAT THIS IS A DATA
+  CHANGE RATHER THAN A COPY CHANGE.** `BSGroceryBuilder` gained a translator and moves
+  **UNCOVERED → PARTIAL** carrying its own 17 hardcoded strings (`noneStrings`
+  **1062 → 1045**, `none.length` **112 → 111**, `part.length` **32 → 33**, `partStrings`
+  **165 → 182**). **`BSGrocery`'s count does NOT move** — its aisle headers were never JSX
+  literals, they came out of the list record, so the walk could not see them before and
+  cannot see them now. What changed is that they are translatable at all.
+- ⚠ **AN UNKNOWN TOKEN RENDERS AS ITSELF — never a raw key, never blank.** A
+  nutritionist's hand-authored aisle arrives as free text and has no key by construction.
+- ⚠ **AND CODEX FOUND THE ONE TOKEN I HAD EXCLUDED, WHICH IS THE ONLY ONE THAT WAS LIVE.**
+  I left `'Items'` unkeyed AND deleted it from the coverage guard's own set, on this file's
+  standing claim that it is *"unreachable behind `BSGrocery`'s empty-aisle early return"*.
+  That is true of an EMPTY list and false the moment a member types into one: **two facts
+  meet, and neither is visible from the other's site** — `confirmCreateGroceryList` seeds a
+  member-made list with `aisles: [{ aisle: 'Items', items: [] }]`, and `BSGrocery`'s
+  `addItem` **does not classify** — it pushes into `aisles[0]`. So the first item typed into
+  your own list lands in `'Items'`, the aisle stops being empty, its header renders, and
+  twelve locales read English. **The exclusion hid the one live path the scan exists to
+  find.** Keyed ×13 (11 keys now), the exclusion deleted, and a regression test pins BOTH
+  facts so a change to either says which one moved. **A token that genuinely cannot render
+  should be deleted from the SOURCE, never from the guard.**
+- ⚠ **AND THE ADD PATH ITSELF IS INCONSISTENT — REGISTERED, NOT WIDENED.** `addItem` files
+  into `aisles[0]` whatever the item is, while the **voice** path one function down calls
+  `bsGroceryAisleFor` and `BSGroceryBuilder`'s own add auto-sorts. So on any multi-aisle
+  list, typing *chicken breast* files it under whatever aisle happens to be first. That is
+  a product defect, it predates this cut, and fixing it would move where members' typed
+  items land — its own change, not a drive-by at merge time. It does **not** retire the key:
+  lists already saved with items under `'Items'` still render it.
+- ⚠ **THE ARIA-LABEL IS HALF-TRANSLATED ON PURPOSE, FOR ONE PR.** The checklist header's
+  announced sentence is still `"{aisle}, N of M got"` — the aisle name is translated, the
+  frame is not. The alternative was leaving the **token** in the sentence, so a screen-
+  reader user would hear the English id while a sighted member read the translated label,
+  which is worse. The frame is part of the component sweep below.
+- ⚠ **AND THE STALE COMMENT SURVIVED INTO MY OWN DIFF — the pre-merge review caught it.**
+  `bsAisleLabel`'s comment argued the fallback's case using `'Items'` as *"a string no
+  member sees"*, **two lines under the map that now keys it**. The map was corrected; the
+  because-clause under it was not. That is worse in a comment than in prose: the next
+  reader is deciding whether a new aisle belongs in the map or can be left to the fallback,
+  and the comment was arguing for the fallback **with the one example that had just been
+  proven reachable**. The fallback's real job is the case it cannot enumerate — a
+  nutritionist's hand-authored aisle; every aisle our own code emits belongs in the map,
+  and the guard derives that set so a new one fails there.
+- ⚠ **AND SCOPING THE SWEEP MEASURED IT — ~70 KEYS, NOT ~356.** Enumerated per component
+  (JSX text, template strings, `aria-label`/`placeholder`, single-quoted literals, minus
+  style values): **BSGroceryBuilder ~13 · BSCoachGroceryReview ~7 · BSGrocery ~35 ·
+  BSGroceryLibrary ~13**, plus the five `nutrition:eat.lib*` keys. **The gap between 356
+  and 70 is not error, it is category:** the residue is ingredient names and quantities
+  (the cut-3 ruling — one data column must not go bilingual), the built-in list NAMES
+  (`Sunday staples` · `Travel week` · `7-day Mediterranean` · `High-protein cut` ·
+  `Plant-forward build`), and the `'New list'` default a member edits — all of which the
+  house has already ruled stay. **Five sites are concatenated English plurals** and become
+  ICU: `{n} items`, `{n} items · {n} aisles`, `Added {n} item(s) from voice`, `{n} lists`,
+  and the aria frame above.
+- **The sweep is the NEXT PR, deliberately.** The split is a design change with real
+  breakage risk and deserves its own review; the string sweep is mechanical. It carries the
+  five `nutrition:eat.lib*` keys the record-shape cut left deliberately unauthored, because
+  a key with no reader is a key nobody can check.
+- ⚠ **AND SCOPING IT CORRECTED THE FIGURE THE RECORD-SHAPE CUT LEFT BEHIND — "366 strings"
+  IS A COUNT OF CSS VALUES.** That register read *"the real size is a 366-string cut, not a
+  seven-string item (`BSGrocery` 186 · `BSGroceryBuilder` 102 · `BSGroceryLibrary` 78)"*, and
+  the direction was right — seven was far too small — but the magnitude is a count of
+  **literals**, not of user copy. Counted with the method stated so the next reader can
+  re-derive it (region = each function's body from its `function X(` line to the next
+  column-0 `function`; pattern = a single-quoted `'…'`): the three components hold **684**
+  literals, **284** of them style values, units, colors or empty strings. `BSGrocery` alone
+  is **427 / 168**, and its most frequent literals of any kind are `'flex'` ×15,
+  `'uppercase'` ×15, `'pointer'` ×14, `'center'` ×14, with the state tokens `'rec'` ×12 and
+  `'busy'` ×7 close behind. No locale changes any of them. **The ratchet's own walk is the
+  honest instrument** — `BSGrocery` **31** · `BSGroceryBuilder` **17** ·
+  `BSGroceryLibrary` **14** · `BSCoachGroceryReview` **5** = **67** attributed strings.
+- ⚠ **AND MY OWN FIRST CORRECTION CARRIED A NUMBER I COULD NOT RE-DERIVE AN HOUR LATER.**
+  It read *"276 such literals, of which at least 112 match a narrow CSS/logic allowlist"* —
+  figures that reproduce under no region boundary or pattern I tried (the stated method gives
+  427/168; 222 is the unique-literal count). **That is the same failure this entry is about,
+  committed inside the correction**: a number quoted without the method that produced it.
+  Neither is 366 reproducible, so the claim here is about KIND, not provenance — the register
+  counted literals rather than copy. Every figure above now names how to get it back.
+- ⚠ **AND THE HONEST NUMBER IS A FLOOR, NOT A CEILING — cut 4's headline, which is why 67 is
+  not simply "the answer" either.** The walk does not attribute object-literal properties,
+  template strings or array literals, and `BSGrocery` renders most of its copy from the list
+  record and from `${…}` metas. So the sweep is scoped by READING the render path, with 67 as
+  the part a guard can see. **A figure that inflates the work fivefold and a figure that
+  undercounts it are the same failure** — a number nobody re-derived, quoted forward.
+- **7/7 mutations killed** (translate the comparison · a header renders the raw token ·
+  a new aisle token with no catalog key · the bare `toUpperCase()` returns · the door
+  lower-cases again · a locale loses one of the ten keys · a saved record stores the
+  label), sanity green at both ends and the tree restored clean after each.
+- Verified: `npm test` **2500/2500** · `tsc --noEmit` 0 · JSX parse · catalog parity ×13
+  (a pure append, 10 keys each, LF, zero CR/NUL) · mobile build 0 with **all 10 keys, five
+  locales' values and both `findAisle` comparisons still reading the raw token confirmed
+  in the emitted bundle** (`findIndex(e=>e.aisle===n)` ×2, zero labels in a comparison).
+
 ### 2026-08-30 — The live Train week and Eat menu stop freezing the language they were built in
 
 - **A member who switches language in-app kept reading the old one on both primary
@@ -493,13 +625,23 @@ changelog whenever something ships.
   today and get authored ×13 by the grocery cut, when a translator is actually in scope.
   **A key with no reader is a key nobody can check.**
 - ⚠ **AND THE REGISTER WAS SHORT — the same failure as the Train-tag register, one entry
-  later.** Two of its seven strings are **dead** (`'Items'` is unreachable behind an
-  empty-aisle early return; `note` has had no render site since the quote box was removed
-  2026-06-04), and it omitted the `(copy)` suffix and **the whole aisle taxonomy** — ten
+  later.** One of its seven strings is **dead** — `note` has had no render site since the
+  quote box was removed 2026-06-04. (⚠ **This said TWO, counting `'Items'` as unreachable
+  behind an empty-aisle early return. Codex refuted that on 2026-08-30: a member's first
+  typed item lands there, because `addItem` files into `aisles[0]` and a new custom list is
+  seeded with exactly one — `'Items'`. Corrected at the cut-6 entry above.**), and it omitted the `(copy)` suffix and **the whole aisle taxonomy** — ten
   strings that are stored on every item, used as grouping keys, rendered as headers **and**
-  exported into the share text, i.e. the Train token/label split again. Measured, the
-  grocery surface is **366 hardcoded strings** (`BSGrocery` 186 · `BSGroceryBuilder` 102 ·
-  `BSGroceryLibrary` 78) — a cut of its own, not a line item. Corrected in place above.
+  exported into the share text, i.e. the Train token/label split again. It is a
+  cut of its own, not a line item. Corrected in place above. ⚠ **CORRECTED 2026-08-30 — THAT FIGURE IS A COUNT OF CSS VALUES.** It is a raw
+  LITERAL count, not user copy: under a stated method (each function's body to the next
+  column-0 `function`; pattern `'…'`) the three components hold **684** literals, **284** of
+  them style values, units, colors or empty strings — `BSGrocery` alone 427/168, its most
+  frequent being `'flex'` ×15, `'uppercase'` ×15, `'pointer'` ×14. The ratchet's own
+  walk attributes **67** strings across the four grocery components (`BSGrocery` 31 ·
+  `BSGroceryBuilder` 17 · `BSGroceryLibrary` 14 · `BSCoachGroceryReview` 5) — **and that
+  is a FLOOR**, because it cannot see the record-driven and template-string copy
+  `BSGrocery` mostly renders. A figure that inflates the work fivefold and one that
+  undercounts it are the same failure: a number nobody re-derived, quoted forward.
 - **12/12 mutations killed**, sanity green at both ends — and **two of them survived their
   first assertion**, which is the part worth keeping. (1) A ban on the baked empty state
   used `[^,\n]*`, a character class that **cannot cross the commas in `slice(0, 3)`** — so
@@ -956,17 +1098,27 @@ changelog whenever something ships.
   becomes their own text and must never be retranslated afterwards.
   ⚠ **THE DATA-SHAPE HALF IS CLOSED 2026-08-30 (entry above) — and the register was
   SHORT, in the same way the Train-tag register was.** Of its seven named strings,
-  **`'Items'` is never rendered** (`BSGrocery` returns null for an empty aisle, so the
-  fallback is unreachable) and **`note` is written but rendered nowhere** (the note quote
-  box was removed 2026-06-04) — so two of seven were dead. It also omitted the `(copy)`
+  **`note` is written but rendered nowhere** (the note quote box was removed 2026-06-04)
+  — so ONE of seven was dead. (⚠ **This claimed `'Items'` was dead too, on the empty-aisle
+  early return. REFUTED 2026-08-30 — `addItem` files into `aisles[0]`, and a member-created
+  list is seeded with `'Items'` as its only aisle, so the first typed item makes it render.
+  It is keyed now; see the cut-6 entry above.**) It also omitted the `(copy)`
   name suffix and the **entire aisle taxonomy** (`Produce` · `Protein` · `Dairy & cold` ·
   `Pantry` · `Other` · `Frozen` · `Bakery` · `Household` · `Recipe ingredients` ·
   `Library items`), which is the same token/label shape as the Train tags: stored on
   every item, used as a grouping key, rendered as a header, AND exported into the share
   text. **An enumeration is not a proof that the enumeration is complete** — recorded here
-  for a logic token, for CSS, and now for a stored record. And the real size is a **366-string
-  cut**, not a seven-string item: `BSGrocery` 186 · `BSGroceryBuilder` 102 ·
-  `BSGroceryLibrary` 78. `'Saved list'` stays open with it — it is a NAME, and deriving it
+  for a logic token, for CSS, and now for a stored record. And the real size is much larger than a
+  seven-string item. ⚠ **CORRECTED 2026-08-30 — THAT FIGURE IS A COUNT OF CSS VALUES.** It is a raw
+  LITERAL count, not user copy: under a stated method (each function's body to the next
+  column-0 `function`; pattern `'…'`) the three components hold **684** literals, **284** of
+  them style values, units, colors or empty strings — `BSGrocery` alone 427/168, its most
+  frequent being `'flex'` ×15, `'uppercase'` ×15, `'pointer'` ×14. The ratchet's own
+  walk attributes **67** strings across the four grocery components (`BSGrocery` 31 ·
+  `BSGroceryBuilder` 17 · `BSGroceryLibrary` 14 · `BSCoachGroceryReview` 5) — **and that
+  is a FLOOR**, because it cannot see the record-driven and template-string copy
+  `BSGrocery` mostly renders. A figure that inflates the work fivefold and one that
+  undercounts it are the same failure: a number nobody re-derived, quoted forward. `'Saved list'` stays open with it — it is a NAME, and deriving it
   at render threads an empty `name` through the share text, the library title and three
   toasts.
   ⚠ **`bsBuildPlanGrocery` is the `bsHomeLiveWeek` shape again** — a module-scope builder

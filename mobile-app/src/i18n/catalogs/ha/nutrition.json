@@ -175,5 +175,16 @@
   "eat.groceryPlanName": "Shirin wannan makon",
   "eat.groceryEyebrow": "An gina ta kai tsaye daga abincinka",
   "eat.groceryNote": "\"Duk abin da ke nan ya fito kai tsaye daga abincin wannan makon — babu ƙari, babu ƙasa.\"",
-  "eat.fromYourList": "Jerinka · wannan makon"
+  "eat.fromYourList": "Jerinka · wannan makon",
+  "aisle.produce": "'Ya'yan itace da ganye",
+  "aisle.protein": "Furotin",
+  "aisle.dairy": "Kayan madara da sanyi",
+  "aisle.pantry": "Ma'ajiya",
+  "aisle.other": "Sauran",
+  "aisle.frozen": "Daskararre",
+  "aisle.bakery": "Gurasa",
+  "aisle.household": "Kayan gida",
+  "aisle.recipeIngredients": "Kayan girkin girke-girke",
+  "aisle.libraryItems": "Daga ɗakin karatunka",
+  "aisle.items": "Kayayyaki"
 }

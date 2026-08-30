@@ -175,5 +175,16 @@
   "eat.groceryPlanName": "Rencana minggu ini",
   "eat.groceryEyebrow": "Dibuat otomatis dari makananmu",
   "eat.groceryNote": "\"Semua yang ada di sini datang langsung dari makanan minggu ini — tidak ada tambahan, tidak ada yang kurang.\"",
-  "eat.fromYourList": "Daftarmu · minggu ini"
+  "eat.fromYourList": "Daftarmu · minggu ini",
+  "aisle.produce": "Buah & sayur",
+  "aisle.protein": "Protein",
+  "aisle.dairy": "Susu & produk dingin",
+  "aisle.pantry": "Bahan pokok",
+  "aisle.other": "Lainnya",
+  "aisle.frozen": "Beku",
+  "aisle.bakery": "Roti",
+  "aisle.household": "Rumah tangga",
+  "aisle.recipeIngredients": "Bahan resep",
+  "aisle.libraryItems": "Dari pustakamu",
+  "aisle.items": "Barang"
 }

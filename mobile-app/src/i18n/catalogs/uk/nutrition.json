@@ -175,5 +175,16 @@
   "eat.groceryPlanName": "План на цей тиждень",
   "eat.groceryEyebrow": "Зібрано автоматично з ваших прийомів їжі",
   "eat.groceryNote": "«Усе тут узято прямо зі страв цього тижня — нічого зайвого, нічого не забуто.»",
-  "eat.fromYourList": "Ваш список · цього тижня"
+  "eat.fromYourList": "Ваш список · цього тижня",
+  "aisle.produce": "Овочі та фрукти",
+  "aisle.protein": "Білки",
+  "aisle.dairy": "Молочне й охолоджене",
+  "aisle.pantry": "Бакалія",
+  "aisle.other": "Інше",
+  "aisle.frozen": "Заморожене",
+  "aisle.bakery": "Випічка",
+  "aisle.household": "Для дому",
+  "aisle.recipeIngredients": "Інгредієнти рецепта",
+  "aisle.libraryItems": "З твоєї бібліотеки",
+  "aisle.items": "Товари"
 }

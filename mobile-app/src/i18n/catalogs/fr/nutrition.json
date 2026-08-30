@@ -175,5 +175,16 @@
   "eat.groceryPlanName": "Le plan de cette semaine",
   "eat.groceryEyebrow": "Constituée automatiquement à partir de tes repas",
   "eat.groceryNote": "\"Tout ce qui est ici vient directement des repas de la semaine — rien en trop, rien en moins.\"",
-  "eat.fromYourList": "Votre liste · cette semaine"
+  "eat.fromYourList": "Votre liste · cette semaine",
+  "aisle.produce": "Fruits et légumes",
+  "aisle.protein": "Protéines",
+  "aisle.dairy": "Produits laitiers et frais",
+  "aisle.pantry": "Épicerie",
+  "aisle.other": "Autre",
+  "aisle.frozen": "Surgelés",
+  "aisle.bakery": "Boulangerie",
+  "aisle.household": "Maison",
+  "aisle.recipeIngredients": "Ingrédients de la recette",
+  "aisle.libraryItems": "De votre bibliothèque",
+  "aisle.items": "Articles"
 }

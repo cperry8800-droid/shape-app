@@ -175,5 +175,16 @@
   "eat.groceryPlanName": "Bu haftanın planı",
   "eat.groceryEyebrow": "Öğünlerinden otomatik oluşturuldu",
   "eat.groceryNote": "\"Buradaki her şey doğrudan bu haftanın öğünlerinden geliyor — fazlası yok, eksiği yok.\"",
-  "eat.fromYourList": "Listen · bu hafta"
+  "eat.fromYourList": "Listen · bu hafta",
+  "aisle.produce": "Meyve & sebze",
+  "aisle.protein": "Protein",
+  "aisle.dairy": "Süt & soğuk reyon",
+  "aisle.pantry": "Kiler",
+  "aisle.other": "Diğer",
+  "aisle.frozen": "Dondurulmuş",
+  "aisle.bakery": "Fırın",
+  "aisle.household": "Ev",
+  "aisle.recipeIngredients": "Tarif malzemeleri",
+  "aisle.libraryItems": "Kitaplığından",
+  "aisle.items": "Ürünler"
 }
