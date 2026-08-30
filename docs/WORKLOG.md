@@ -739,6 +739,15 @@ changelog whenever something ships.
   both versions over the four reachable states — the two broken ones now read *"From
   your plan · this week"*, and the real-name and signed-out demo paths are
   byte-identical.
+- ⚠ **AND THE WIDENING IMMEDIATELY EARNED ITS KEEP — the newly visible
+  `BSLanguagePicker` was PARTIAL, and its one hardcoded string was `Language`, the
+  topbar label on THE SCREEN THAT ASKS A MEMBER WHICH LANGUAGE THEY READ.** Four
+  `tr()` calls around it and that one word English in all thirteen. `lang.topbar`
+  ×13 closes it; the picker moves PARTIAL → fully covered, so **`part.length`
+  32 → 31, `partStrings` 165 → 164, `full.length` 95 → 96** in the same change.
+  **A measurement that surfaces a one-key fix and then registers it instead of
+  making it has not been used** — that is the register-don't-fix habit applied
+  where it is not warranted.
 - **Verified:** `npm test` **2465/2465** · `tsc --noEmit` 0 · JSX parse · mobile build 0
   with **56 literal `nutrition:eat.*` keys** (60 authored − 5 computed `quick.q*` + the
   `nutrition:eat.quick.` prefix), `common:unit.weekN`, and sample translations
