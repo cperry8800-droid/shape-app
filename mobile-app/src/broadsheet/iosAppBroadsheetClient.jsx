@@ -10069,8 +10069,17 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       kind: normalized.kind || 'custom',
       editable: true,
       eyebrow: normalized.eyebrow || 'Custom · Created today',
-      provenance: normalized.provenance || 'created',
-      createdAt: typeof normalized.createdAt === 'number' ? normalized.createdAt : Date.now(),
+      // ⚠ AN EDIT NEVER INVENTS PROVENANCE. This is the UPDATE path — the only
+      // caller is BSGrocery's onUpdate — so the record already exists and this
+      // function has no idea when it was created. Stamping `'created'` + now()
+      // here re-made the exact defect the token shape closed: editing one item
+      // on a legacy row, or on a built-in like "Sunday staples" / the
+      // "Meal plan · Cutting" seed, would relabel it "Custom · Created today"
+      // and sync that fabricated date across devices. A record with no
+      // provenance keeps its stored eyebrow — that IS the back-compat path.
+      ...(normalized.provenance ? { provenance: normalized.provenance } : null),
+      ...(typeof normalized.createdAt === 'number' && Number.isFinite(normalized.createdAt)
+        ? { createdAt: normalized.createdAt } : null),
       author: normalized.author || 'You',
       authorSelf: bsGroceryIsSelfAuthored(normalized) || !normalized.author,
       note: normalized.note,
