@@ -226,16 +226,20 @@ export function bsBuildDemoTrainProgram(t) {
 // no coaches on Shape yet, so a real user sees "no workout assigned" days — NOT
 // the demo program (that's only the signed-out preview). Same shape the Train
 // deck/hero render, with moves:[] so the hero shows its Rest/empty state.
-export function bsEmptyTrainProgram(t) {
+export function bsEmptyTrainProgram(t, tr) {
+  const T = bsTrainT(tr);
   const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const monday = new Date(); monday.setHours(0, 0, 0, 0);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const dateNum = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d.getDate(); };
   return DOW.map((dl, i) => ({
-    d: `${dl} ${dateNum(i)}`, kicker: 'No program', title: 'No workout.', tag: 'REST',
-    tagColor: t.INK50, accent: t.INK50, headline: 'No workout assigned.', time: '', timeLabel: '',
-    meta: 'No session',
-    copy: 'No training assigned yet — when you’re working with a coach, your week shows up here.',
+    d: `${dl} ${dateNum(i)}`, kicker: 'No program',
+    title: T('session:train.empty.title', 'No workout.'),
+    tag: 'REST', tagLabel: bsTrainTagLabel('REST', T),
+    tagColor: t.INK50, accent: t.INK50,
+    headline: T('session:train.empty.headline', 'No workout assigned.'), time: '', timeLabel: '',
+    meta: T('session:train.empty.meta', 'No session'),
+    copy: T('session:train.empty.copy', 'No training assigned yet — when you’re working with a coach, your week shows up here.'),
     moves: [], total: '0 sessions', coachLine: '',
   }));
 }
@@ -250,6 +254,57 @@ function bsAdjustRpeMeta(meta, adj) {
 
 const BS_SPLIT_TAG = { 'Push day': 'PUSH', 'Pull day': 'PULL', 'Legs day': 'LEGS', 'Upper day': 'UPPER', 'Lower day': 'LOWER', 'Conditioning': 'COND' };
 
+// ⚠ A DAY'S `tag` IS A LOGIC TOKEN, NOT A LABEL — and that is why the Train cut
+// needed a design change before a single tr() could land. Three call sites read
+// it as a value the app must recognise (`tag === 'REST'` → the deck's rest state,
+// the week strip's rest flags, the on-deck rows), so translating it in place
+// would have stopped the app recognising a rest day in all twelve non-English
+// locales — silently, with every gate green.
+//
+// So the token STAYS English and canonical; `tagLabel` is the string a member
+// reads. Every writer sets both through this one function, and every reader
+// picks its side deliberately: logic reads `tag`, render reads `tagLabel`.
+export const BS_TRAIN_TAG_KEY = {
+  REST: 'session:train.tag.rest',
+  YOURS: 'session:train.tag.yours',
+  CUSTOM: 'session:train.tag.custom',
+  FEATURE: 'session:train.tag.feature',
+  PUSH: 'session:train.tag.push',
+  PULL: 'session:train.tag.pull',
+  LEGS: 'session:train.tag.legs',
+  UPPER: 'session:train.tag.upper',
+  LOWER: 'session:train.tag.lower',
+  COND: 'session:train.tag.cond',
+};
+
+// Translate a tag token for display. `T` is the injected translator built by
+// bsTrainT (below); an unknown token falls through to itself, so a tag added
+// later still renders rather than blanking.
+export function bsTrainTagLabel(tag, T) {
+  const key = BS_TRAIN_TAG_KEY[tag];
+  return key ? T(key, tag) : tag;
+}
+
+// The injected-translator shape these module-scope builders use (they cannot
+// hold a hook). `tr` is optional and the shipped English rides at every call
+// site as the defaultValue, so a caller that passes nothing — and a catalog
+// that fails to load — both degrade to exactly the English that shipped.
+// ⚠ The fallback is PRE-INTERPOLATED English, never an ICU string — the same
+// rule cut 1 set for the telegram: no ICU is ever evaluated on the path that
+// exists because the catalog is unavailable. Plural call sites therefore pass
+// the already-correct English ("3 moves") as `en` and let the catalog own the
+// plural forms.
+export function bsTrainT(tr) {
+  return (key, en, vars) => {
+    try {
+      if (tr) return tr(key, { defaultValue: en, ...(vars || {}) });
+    } catch (e) { /* fall through to the English below */ }
+    let out = String(en);
+    if (vars) for (const k of Object.keys(vars)) out = out.split(`{${k}}`).join(String(vars[k]));
+    return out;
+  };
+}
+
 // Apply a coach's "Adjust program" intent (client_programs.detail.training) onto a
 // built Train deck so the client's per-day workouts actually reflect what the coach
 // set — not just the banner. Honest transform (no fabricated exercises):
@@ -259,12 +314,17 @@ const BS_SPLIT_TAG = { 'Push day': 'PUSH', 'Pull day': 'PULL', 'Legs day': 'LEGS
 //     label re-themes the day's eyebrow + tag (keeps the programmed moves),
 //   • the coach's note rides onto each adjusted day's coach line.
 // Returns the program unchanged when there's no applied adjustment.
-export function bsApplyTrainAdjust(program, training, t) {
+export function bsApplyTrainAdjust(program, training, t, tr) {
   if (!Array.isArray(program) || !training || !training.updatedAt) return program;
+  const T = bsTrainT(tr);
   const intensity = training.intensity || 'maintain';
   const scale = BS_ADJUST_SCALE[intensity] ?? 1;
   const rpeAdj = intensity === 'deload' ? -1 : 0;
-  const intensityLabel = intensity === 'deload' ? 'Deload · lighter' : intensity === 'progress' ? 'Progress · nudge up' : 'Maintain';
+  const intensityLabel = intensity === 'deload'
+    ? T('session:train.intensity.deload', 'Deload · lighter')
+    : intensity === 'progress'
+      ? T('session:train.intensity.progress', 'Progress · nudge up')
+      : T('session:train.intensity.maintain', 'Maintain');
   const days = Array.isArray(training.days) ? training.days : null;
   const note = training.note || '';
   return program.map((day, i) => {
@@ -272,7 +332,19 @@ export function bsApplyTrainAdjust(program, training, t) {
     const hasMoves = Array.isArray(day.moves) && day.moves.length > 0;
     // Coach scheduled REST here → override a training day to recovery.
     if (cd === 'Rest' && hasMoves) {
-      return { ...day, tag: 'REST', tagColor: t.GREEN, accent: t.GREEN, kicker: 'The Recovery', title: 'Rest day.', headline: 'Coach-set rest.', meta: 'No session · 0 min', moves: [], total: '0 sessions', copy: 'Your coach scheduled recovery today — walk, mobility, sleep.', coachLine: note || 'Recovery is part of the plan.', coachAdjust: true, intensityLabel: null };
+      return {
+        ...day,
+        tag: 'REST', tagLabel: bsTrainTagLabel('REST', T),
+        tagColor: t.GREEN, accent: t.GREEN,
+        kicker: T('session:train.kicker.recovery', 'The Recovery'),
+        title: T('session:train.restTitleFlat', 'Rest day.'),
+        headline: T('session:train.coachRestHeadline', 'Coach-set rest.'),
+        meta: T('session:train.noSessionMeta', 'No session · 0 min'),
+        moves: [], total: '0 sessions',
+        copy: T('session:train.coachRestCopy', 'Your coach scheduled recovery today — walk, mobility, sleep.'),
+        coachLine: note || T('session:train.coachRestLine', 'Recovery is part of the plan.'),
+        coachAdjust: true, intensityLabel: null,
+      };
     }
     if (!hasMoves) return day;
     // A row the regeneration already rewrote (spec #1707) carries a matching
@@ -287,6 +359,7 @@ export function bsApplyTrainAdjust(program, training, t) {
     if (cd && cd !== 'Rest' && day.tag !== 'COND' && BS_SPLIT_TAG[cd]) {
       next.coachFocus = cd.replace(/\s*day$/i, '');
       next.tag = BS_SPLIT_TAG[cd];
+      next.tagLabel = bsTrainTagLabel(next.tag, T);
     }
     return next;
   });
