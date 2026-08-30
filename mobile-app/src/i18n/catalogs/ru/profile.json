@@ -240,5 +240,7 @@
   "biz.hours": "Часы",
   "biz.find": "Найти меня",
   "wins.head": "Стена побед",
-  "wins.pinned": "Настоящий отзыв · Закреплено"
+  "wins.pinned": "Настоящий отзыв · Закреплено",
+  "follow.followShort": "Подписаться",
+  "role.member": "Участник"
 }

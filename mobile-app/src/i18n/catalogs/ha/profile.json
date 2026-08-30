@@ -240,5 +240,7 @@
   "biz.hours": "Lokuta",
   "biz.find": "Nemo ni",
   "wins.head": "Bangon nasara",
-  "wins.pinned": "Bita ta gaskiya · An kafa"
+  "wins.pinned": "Bita ta gaskiya · An kafa",
+  "follow.followShort": "Bi",
+  "role.member": "Memba"
 }

@@ -240,5 +240,7 @@
   "biz.hours": "Horario",
   "biz.find": "Encuéntrame",
   "wins.head": "Muro de logros",
-  "wins.pinned": "Reseña real · Fijada"
+  "wins.pinned": "Reseña real · Fijada",
+  "follow.followShort": "Seguir",
+  "role.member": "Miembro"
 }

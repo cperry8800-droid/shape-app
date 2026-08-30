@@ -240,5 +240,7 @@
   "biz.hours": "Time",
   "biz.find": "Find me",
   "wins.head": "Wins wall",
-  "wins.pinned": "Real review · Pinned"
+  "wins.pinned": "Real review · Pinned",
+  "follow.followShort": "Follow",
+  "role.member": "Member"
 }
