@@ -27728,6 +27728,13 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
   const [groups, setGroups] = useStateBSC(null);
   const [swapKey, setSwapKey] = useStateBSC(null); // `${gi}-${ii}`
   const [added, setAdded] = useStateBSC({});
+  // ⚠ THE RECORD TOKEN AND THE HEADING LABEL ARE TWO DIFFERENT STRINGS ON PURPOSE.
+  // An unnamed group keys on '' (see below) — but `onAdd` writes the group's source
+  // onto every added grocery item as its provenance subtitle, and that is a RECORD
+  // value, not copy: translating it would freeze one language into the member's own
+  // list (the record-shape rule this wave already paid for). So the record carries
+  // the canonical English token while the heading renders the translated label.
+  const SOURCE_UNNAMED = 'Coach list';
   React.useEffect(() => {
     let on = true;
     if (!window.ShapeClientGrocery?.list) { setGroups([]); return () => { on = false; }; }
@@ -27740,7 +27747,7 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
       // key itself locale-dependent — the same shape as the aisle token, one
       // component over. An unnamed group keys on '' and is named below.
       items.forEach(it => { const g = String(it.mealName || '').trim(); (by[g] = by[g] || []).push({ item: it.item, qty: it.qty || '', id: it.id }); });
-      setGroups(Object.keys(by).map(name => ({ name, items: by[name] })));
+      setGroups(Object.keys(by).map(name => ({ name, source: name || SOURCE_UNNAMED, items: by[name] })));
     }).catch(() => { if (on) setGroups([]); });
     return () => { on = false; };
   }, []);
@@ -28017,7 +28024,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       <BSCoachGroceryReview t={t} teal={teal} onAdd={(g) => {
         const aisles = (list.aisles && list.aisles.length) ? list.aisles.map(a => ({ ...a, items: [...a.items] })) : [];
         const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
-        (g.items || []).forEach((it, n) => { const ai = findAisle(it.item); aisles[ai].items.push({ id: `coach-${Date.now()}-${n}`, n: it.item, q: it.qty || '1', meals: g.name, have: false }); });
+        (g.items || []).forEach((it, n) => { const ai = findAisle(it.item); aisles[ai].items.push({ id: `coach-${Date.now()}-${n}`, n: it.item, q: it.qty || '1', meals: g.source, have: false }); });
         onUpdate({ ...list, aisles });
       }} />
 

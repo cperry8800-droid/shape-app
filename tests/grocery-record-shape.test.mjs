@@ -299,3 +299,43 @@ test('the library search folds case in the LOCALE, not with a bare toLowerCase',
   // And it must survive a locale the runtime rejects rather than throwing mid-search.
   assert.equal(make('not-a-locale!!')('ABC'), 'abc', 'the fold throws on a bad locale instead of degrading');
 });
+
+test('an unnamed coach group carries a canonical source token into the record', () => {
+  // ⚠ THIS IS A REGRESSION GUARD FOR A DEFECT THIS CUT INTRODUCED. Step 2 of the
+  // grocery cut de-translated the coach-review GROUPING KEY (it used to be the
+  // literal 'Coach list', which would have made the key locale-dependent) and named
+  // the group at render instead. That was right for the heading and wrong for the
+  // ADD PATH: `onAdd` writes the group onto every added grocery item as its
+  // provenance subtitle, so an unnamed group started stamping '' and the added
+  // items silently lost the source line they had before.
+  //
+  // The fix is the token/label split, one component over from where it was first
+  // applied: the record keeps the canonical ENGLISH token, the heading renders the
+  // translated label. Both halves are pinned here, because half of it passing is
+  // the dangerous state — a heading that reads right over items that lost their
+  // provenance is exactly the shape that shipped.
+  const mapLine = src.split('\n').find((l) => l.includes('setGroups(Object.keys(by)'));
+  assert.ok(mapLine, 'the coach-review group map vanished — re-point this guard');
+  const tokLine = src.split('\n').find((l) => l.includes('const SOURCE_UNNAMED ='));
+  assert.ok(tokLine, 'the canonical source token vanished — re-point this guard');
+
+  // Drive the real mapping line over a real grouping map.
+  const build = new Function(
+    'by',
+    `${tokLine.trim()} let out = null; const setGroups = (v) => { out = v }; ${mapLine.trim()} return out;`,
+  );
+  const groups = build({ '': [{ item: 'Eggs' }], 'Tue dinner': [{ item: 'Cod' }] });
+
+  const unnamed = groups.find((g) => g.name === '');
+  assert.ok(unnamed, 'the unnamed group stopped keying on the raw empty string');
+  assert.ok(unnamed.source, 'an unnamed group carries no source token — added items lose their provenance');
+  assert.equal(unnamed.source, 'Coach list', 'the unnamed source token drifted off the canonical English');
+
+  const named = groups.find((g) => g.name === 'Tue dinner');
+  assert.equal(named.source, 'Tue dinner', 'a named group must carry its own authored name, not the fallback');
+
+  // ...and the add path must write the TOKEN, never the raw key.
+  const addLine = src.split('\n').find((l) => l.includes('id: `coach-${Date.now()}'));
+  assert.ok(addLine, 'the coach add path vanished — re-point this guard');
+  assert.match(addLine, /meals:\s*g\.source/, 'the coach add path writes the raw group key again');
+});
