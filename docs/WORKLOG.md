@@ -432,11 +432,35 @@ changelog whenever something ships.
   reader user would hear the English id while a sighted member read the translated label,
   which is worse. The frame is part of the ~356-string component sweep.
 - **The sweep is the NEXT PR, deliberately.** The split is a design change with real
-  breakage risk and deserves its own review; the string sweep is mechanical. Measured, the
-  grocery surface is **366 hardcoded strings** (`BSGrocery` 186 · `BSGroceryBuilder` 102 ·
-  `BSGroceryLibrary` 78) — and it carries the five `nutrition:eat.lib*` keys the
-  record-shape cut left deliberately unauthored, because a key with no reader is a key
-  nobody can check.
+  breakage risk and deserves its own review; the string sweep is mechanical. It carries the
+  five `nutrition:eat.lib*` keys the record-shape cut left deliberately unauthored, because
+  a key with no reader is a key nobody can check.
+- ⚠ **AND SCOPING IT CORRECTED THE FIGURE THE RECORD-SHAPE CUT LEFT BEHIND — "366 strings"
+  IS A COUNT OF CSS VALUES.** That register read *"the real size is a 366-string cut, not a
+  seven-string item (`BSGrocery` 186 · `BSGroceryBuilder` 102 · `BSGroceryLibrary` 78)"*, and
+  the direction was right — seven was far too small — but the magnitude is a count of
+  **literals**, not of user copy. Counted with the method stated so the next reader can
+  re-derive it (region = each function's body from its `function X(` line to the next
+  column-0 `function`; pattern = a single-quoted `'…'`): the three components hold **684**
+  literals, **284** of them style values, units, colors or empty strings. `BSGrocery` alone
+  is **427 / 168**, and its most frequent literals of any kind are `'flex'` ×15,
+  `'uppercase'` ×15, `'pointer'` ×14, `'center'` ×14, with the state tokens `'rec'` ×12 and
+  `'busy'` ×7 close behind. No locale changes any of them. **The ratchet's own walk is the
+  honest instrument** — `BSGrocery` **31** · `BSGroceryBuilder` **17** ·
+  `BSGroceryLibrary` **14** · `BSCoachGroceryReview` **5** = **67** attributed strings.
+- ⚠ **AND MY OWN FIRST CORRECTION CARRIED A NUMBER I COULD NOT RE-DERIVE AN HOUR LATER.**
+  It read *"276 such literals, of which at least 112 match a narrow CSS/logic allowlist"* —
+  figures that reproduce under no region boundary or pattern I tried (the stated method gives
+  427/168; 222 is the unique-literal count). **That is the same failure this entry is about,
+  committed inside the correction**: a number quoted without the method that produced it.
+  Neither is 366 reproducible, so the claim here is about KIND, not provenance — the register
+  counted literals rather than copy. Every figure above now names how to get it back.
+- ⚠ **AND THE HONEST NUMBER IS A FLOOR, NOT A CEILING — cut 4's headline, which is why 67 is
+  not simply "the answer" either.** The walk does not attribute object-literal properties,
+  template strings or array literals, and `BSGrocery` renders most of its copy from the list
+  record and from `${…}` metas. So the sweep is scoped by READING the render path, with 67 as
+  the part a guard can see. **A figure that inflates the work fivefold and a figure that
+  undercounts it are the same failure** — a number nobody re-derived, quoted forward.
 - **7/7 mutations killed** (translate the comparison · a header renders the raw token ·
   a new aisle token with no catalog key · the bare `toUpperCase()` returns · the door
   lower-cases again · a locale loses one of the ten keys · a saved record stores the
@@ -565,9 +589,17 @@ changelog whenever something ships.
   empty-aisle early return; `note` has had no render site since the quote box was removed
   2026-06-04), and it omitted the `(copy)` suffix and **the whole aisle taxonomy** — ten
   strings that are stored on every item, used as grouping keys, rendered as headers **and**
-  exported into the share text, i.e. the Train token/label split again. Measured, the
-  grocery surface is **366 hardcoded strings** (`BSGrocery` 186 · `BSGroceryBuilder` 102 ·
-  `BSGroceryLibrary` 78) — a cut of its own, not a line item. Corrected in place above.
+  exported into the share text, i.e. the Train token/label split again. It is a
+  cut of its own, not a line item. Corrected in place above. ⚠ **CORRECTED 2026-08-30 — THAT FIGURE IS A COUNT OF CSS VALUES.** It is a raw
+  LITERAL count, not user copy: under a stated method (each function's body to the next
+  column-0 `function`; pattern `'…'`) the three components hold **684** literals, **284** of
+  them style values, units, colors or empty strings — `BSGrocery` alone 427/168, its most
+  frequent being `'flex'` ×15, `'uppercase'` ×15, `'pointer'` ×14. The ratchet's own
+  walk attributes **67** strings across the four grocery components (`BSGrocery` 31 ·
+  `BSGroceryBuilder` 17 · `BSGroceryLibrary` 14 · `BSCoachGroceryReview` 5) — **and that
+  is a FLOOR**, because it cannot see the record-driven and template-string copy
+  `BSGrocery` mostly renders. A figure that inflates the work fivefold and one that
+  undercounts it are the same failure: a number nobody re-derived, quoted forward.
 - **12/12 mutations killed**, sanity green at both ends — and **two of them survived their
   first assertion**, which is the part worth keeping. (1) A ban on the baked empty state
   used `[^,\n]*`, a character class that **cannot cross the commas in `slice(0, 3)`** — so
@@ -1032,9 +1064,17 @@ changelog whenever something ships.
   `Library items`), which is the same token/label shape as the Train tags: stored on
   every item, used as a grouping key, rendered as a header, AND exported into the share
   text. **An enumeration is not a proof that the enumeration is complete** — recorded here
-  for a logic token, for CSS, and now for a stored record. And the real size is a **366-string
-  cut**, not a seven-string item: `BSGrocery` 186 · `BSGroceryBuilder` 102 ·
-  `BSGroceryLibrary` 78. `'Saved list'` stays open with it — it is a NAME, and deriving it
+  for a logic token, for CSS, and now for a stored record. And the real size is much larger than a
+  seven-string item. ⚠ **CORRECTED 2026-08-30 — THAT FIGURE IS A COUNT OF CSS VALUES.** It is a raw
+  LITERAL count, not user copy: under a stated method (each function's body to the next
+  column-0 `function`; pattern `'…'`) the three components hold **684** literals, **284** of
+  them style values, units, colors or empty strings — `BSGrocery` alone 427/168, its most
+  frequent being `'flex'` ×15, `'uppercase'` ×15, `'pointer'` ×14. The ratchet's own
+  walk attributes **67** strings across the four grocery components (`BSGrocery` 31 ·
+  `BSGroceryBuilder` 17 · `BSGroceryLibrary` 14 · `BSCoachGroceryReview` 5) — **and that
+  is a FLOOR**, because it cannot see the record-driven and template-string copy
+  `BSGrocery` mostly renders. A figure that inflates the work fivefold and one that
+  undercounts it are the same failure: a number nobody re-derived, quoted forward. `'Saved list'` stays open with it — it is a NAME, and deriving it
   at render threads an empty `name` through the share text, the library title and three
   toasts.
   ⚠ **`bsBuildPlanGrocery` is the `bsHomeLiveWeek` shape again** — a module-scope builder

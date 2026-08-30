@@ -8828,8 +8828,17 @@ function bsAisleLabel(aisle, T) {
 //
 // ⚠ THE TRANSLATOR IS INJECTED because this is module scope and cannot hold a
 // hook, and because BSGroceryLibrary does not hold one yet: grocery is a cut of
-// its own (measured — BSGrocery 186 hardcoded strings · BSGroceryBuilder 102 ·
-// BSGroceryLibrary 78). Passing `tr` here is the only thing that cut has to add.
+// its own. Passing `tr` here is the only thing that cut has to add.
+// ⚠ THIS COMMENT USED TO SIZE THAT CUT AS "BSGrocery 186 hardcoded strings ·
+// BSGroceryBuilder 102 · BSGroceryLibrary 78", AND THAT COUNTS CSS VALUES.
+// Counted with the method stated, so it can be re-derived (region = each function
+// body to the next column-0 `function`; pattern = a single-quoted '…'): the three
+// components hold 684 literals, 284 of them style values, units, colors or empty
+// strings — BSGrocery alone 427/168, its most frequent of any kind being 'flex'
+// ×15, 'uppercase' ×15, 'pointer' ×14, 'center' ×14. The inventory walk attributes
+// 67 across the four grocery components (31 · 17 · 14 · 5), and that is a FLOOR:
+// it cannot see the record-driven and template-string copy this surface mostly
+// renders. Read the render path; do not size a cut from a literal count.
 //
 // ⚠ AND THE KEYS BELOW ARE DELIBERATELY UNAUTHORED UNTIL THEN. Nothing requests
 // them at runtime yet, so authoring them ×13 now would mint thirteen values a
