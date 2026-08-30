@@ -378,6 +378,52 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The live Train week and Eat menu stop freezing the language they were built in
+
+- **A member who switches language in-app kept reading the old one on both primary
+  tabs.** `bsBuildTrainProgram` and `buildMealProgram` bake `tr()` output — kicker,
+  titles, tags, headline, meta, the rest-day copy — into every day of the week they
+  return, and **both loaders run ONCE in a `[]`-dep effect**, so holding the built
+  week in React state pinned it to whatever language was active at mount. State now
+  keeps the **RAW** plan data (`p.training.workouts` / `p.meals.days`) and the week is
+  derived in a `useMemo` keyed on `[…, t, tr]`.
+- ⚠ **THIS IS THE RECORD-SHAPE DEFECT ONE LAYER IN, AND IT SHIPPED IN THE SAME WAVE
+  AS THE FIX FOR IT.** A saved grocery list that stores a rendered sentence freezes a
+  language into the member's own data (entry above); a built week held in state freezes
+  one into the session. Same rule either way — **keep the raw data, make the sentence at
+  render** — and the state case is exactly as invisible, because nothing in the app
+  re-renders wrong: it renders *stale*.
+- ⚠ **TRAIN WAS THE LOUDER HALF, AND THE REASON IS THE INTERESTING PART: HALF OF IT
+  ALREADY WORKED.** `bsApplyTrainAdjust` **does** re-run on `[t, tr]`, so after a
+  language switch the coach-adjust copy moved to the new language **over a frozen
+  English week** — a half-translated screen rather than an honestly stale one. A
+  partially-correct dependency graph reads as a rendering bug, not a data-shape one.
+- ⚠ **AND THE EAT TWIN WAS FOUND BY LOOKING, NOT BY BEING TOLD.** Codex flagged the
+  Train site on #1962; the identical defect sat one tab over at the meal loader, which
+  it never saw because it reviewed the Train PR. **One instance reported is a class to
+  sweep** — this file's own recurring lesson, and the second time in two days that
+  fixing where a finding was reported would have left the twin shipping.
+- ⚠ **THE TRAIN LOADER'S OWN DEPS WERE CORRECTED WITH IT.** `loadPlan` was a
+  `useCallback` on `[t, tr]` **because it used to translate**; it stores raw data now,
+  so those deps are a stale signal that it still does — the exact thing the next reader
+  checks. It declares `[]`, which is also what it actually has.
+- **`tests/live-plan-locale.test.mjs`** pins both sites in both directions: the loader
+  stores raw data and **must not** wrap the builder in the setter, and the memo's real
+  dependency array is **read and asserted to contain `tr`** (a memo keyed on the raw
+  data alone would freeze exactly as badly). ⚠ Guard-the-guard first — it asserts **two**
+  derived memos exist, so a rename cannot make every later assertion pass vacuously.
+  ⚠ And it **strips comments before asserting**, because the rationale written at each
+  site quotes the very calls it bans; this repo has now paid for that trap twice in one
+  wave.
+- **4/4 mutations killed** (store the built week on Train · store the built menu on Eat ·
+  key a memo on the raw data alone · restore the loader's stale `[t, tr]`), sanity green
+  at both ends and the file restored byte-identically after each.
+- **Verified in the EMITTED BUNDLE, not the source** — Train
+  `K.useMemo(()=>y?Ta(y,o,s):null,[y,o,s])` and Eat
+  `K.useMemo(()=>R?ae(R):null,[R,a,s])`, both loaders storing the raw property
+  (`b(e.training.workouts)` · `z(t.meals.days)`) with no builder call inside the setter.
+- Verified: `npm test` **2490/2490** · `tsc --noEmit` 0 · JSX parse · mobile build 0.
+
 ### 2026-08-30 — A saved grocery list stops storing an English sentence (the record-shape change cut 4 registered)
 
 - **Cut 4 registered seven grocery strings as a class `tr()` cannot close**, because they
