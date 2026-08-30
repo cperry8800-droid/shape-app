@@ -5162,7 +5162,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
-  const [liveProgram, setLiveProgram] = useStateBSC(null);
+  const [liveWorkouts, setLiveWorkouts] = useStateBSC(null);
   const [liveTrainCoach, setLiveTrainCoach] = useStateBSC(null); // real assigning trainer
   const [planLoaded, setPlanLoaded] = useStateBSC(false);
   const [builder, setBuilder] = useStateBSC(null); // { mode, ...seed } | null — the self-serve builder overlay
@@ -5174,12 +5174,26 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     try {
       window.ShapeMetrics?.invalidate?.();
       const p = await window.ShapePlan?.get?.();
-      if (p?.training?.hasPlan) { setLiveProgram(bsBuildTrainProgram(p.training.workouts, t, tr)); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
-      else { setLiveProgram(null); setLiveTrainCoach(null); }
+      if (p?.training?.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
+      else { setLiveWorkouts(null); setLiveTrainCoach(null); }
     } catch (e) { /* keep demo program */ }
     finally { setPlanLoaded(true); }
-  }, [t, tr]);
+  }, []);
   React.useEffect(() => { let cancelled = false; (async () => { if (!cancelled) await loadPlan(); })(); return () => { cancelled = true; }; }, []);
+
+  // ⚠ THE BUILT WEEK IS DERIVED, NEVER STORED. bsBuildTrainProgram bakes tr()
+  // output (kicker, titles, tags, the rest-day copy) into every day, and the
+  // loader above runs ONCE in a []-dep effect — so holding its result in state
+  // pins the deck to whatever language was active at mount. The adjust layer
+  // below DOES re-run on [t, tr], so a member switching language in-app got a
+  // half-translated screen: adjusted copy in the new language over a frozen
+  // English week. This is the record-shape defect one layer in — a translated
+  // string held past the moment it was made. State keeps the RAW workouts; the
+  // sentence is made here, on every language change.
+  const liveProgram = React.useMemo(
+    () => (liveWorkouts ? bsBuildTrainProgram(liveWorkouts, t, tr) : null),
+    [liveWorkouts, t, tr]
+  );
 
   // ── Per-day program (demo fallback, May 8–14, 2026) ──
   // Demo fallback program (Mon..Sun) — built from the SHARED client week so the
@@ -8916,7 +8930,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   const [saveTarget, setSaveTarget] = useStateBSC(null); // grocery list pending "save to library"
   const [saveName, setSaveName] = useStateBSC('');
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
-  const [liveProgram, setLiveProgram] = useStateBSC(null);
+  const [liveMealDays, setLiveMealDays] = useStateBSC(null);
   const [liveMealCoach, setLiveMealCoach] = useStateBSC(null); // real assigning nutritionist
   const [liveMealTitle, setLiveMealTitle] = useStateBSC(null); // real plan title
   // Goal label for the "Your plan" header, read from the client's nutrition prefs.
@@ -9036,7 +9050,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       try {
         const p = await window.ShapePlan?.get?.();
         if (cancelled || !p?.meals?.hasPlan) return;
-        setLiveProgram(buildMealProgram(p.meals.days));
+        setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
         setLiveMealTitle(p.meals.title || null);
         setDay(bsWeekdayIdx());
@@ -9044,6 +9058,19 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // ⚠ THE BUILT MENU IS DERIVED, NEVER STORED — the Train twin of this defect,
+  // one tab over. buildMealProgram bakes tr() output (kicker, title, headline,
+  // meta, copy) into every day, and the loader above runs ONCE in a []-dep
+  // effect, so holding its result in state pins the menu to the language at
+  // mount. State keeps the RAW days; the sentence is made here, on every
+  // language change.
+  const liveProgram = React.useMemo(
+    () => (liveMealDays ? buildMealProgram(liveMealDays) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- buildMealProgram is
+    // re-created every render; t/tr are what it actually closes over.
+    [liveMealDays, t, tr]
+  );
 
   // ── 7-day menu program (demo fallback, May 8–14, 2026 — same week as Train)
   const MOCK_PROGRAM = React.useMemo(() => [
