@@ -405,14 +405,41 @@ changelog whenever something ships.
   The other six keys are shared with a live site and are fine. **Registered, not swept** —
   deleting a key is a catalog change across 13 files and belongs in its own cut; and the
   no-op is a shipped product decision, not a defect.
-- **The ratchet rose, and a rise is only honest beside the change that caused it.**
-  `partStrings` **134 → 138**, `noneStrings` **1026 → 1109**; `part.length` **31** and
-  `none.length` **109** are **UNCHANGED** — the widening moved no component between
-  buckets, it only made strings already in those components visible. The delta was
-  attributed by measuring all four combinations of old/new test × old/new source:
-  **+4** from the prop rename below, **+83** from the widening (**+4** partial, **+79**
-  uncovered). **A floor rose for the same reason the 2026-08-30 detector widening's did:
-  the measurement got bigger, not the gap.**
+- ⚠ **AND THE FIRST CUT OF THE WIDENING WAS BLIND TO ITS OWN HEADLINE MUTATION — Codex
+  caught it on the PR, and it was right.** The allowlist only fired when the literal's
+  **immediate parent** was the `JSXAttribute` — true of `kicker="…"`, which is how the tree
+  writes it, and **false of `kicker={'…'}`**, where the parent is the expression container.
+  So the exact edit the widening exists to catch **still passed the ratchet**, along with
+  every ternary and template value (`meta={live ? 'a' : 'b'}` and `` eyebrow={`Week of
+  ${n}`} `` are ordinary shapes here). **Reproduced on a fixture before fixing: 1 of 5
+  shapes counted.** My own mutation M1 had only proven the double-quoted form — *a mutation
+  that passes is only evidence about the shape you mutated.*
+- **The fix reuses `containerStrings()` rather than re-deriving the pruning**, because its
+  rules are already right for an attribute value: it steps over nested JSX and over
+  **`CallExpression`**, so a `kicker={tr('k', { defaultValue: 'v' })}` value stays
+  **coverage** and is never counted as a hardcoded string.
+- **The ratchet rose in TWO legs, and the second one is worth more than its numbers.**
+  `partStrings` **134 → 138 → 164** · `noneStrings` **1026 → 1109 → 1181**. **Leg 1** (the
+  allowlist) moved **no component between buckets** — +83 from the props (+4 partial, +79
+  uncovered) plus +4 from the rename below; what was wrong was the volume, attributed by
+  measuring all four combinations of old/new test × old/new source. **Leg 2** (walking
+  attribute expressions) added 26 partial / 72 uncovered **and moved two surfaces**, so
+  `part.length` **31 → 32**, `none.length` **109 → 110**, fully covered **103 → 102** and
+  no-copy **116 → 115**. **A total that rises is only honest beside the change that raised
+  it** — the mirror of this file's own rule about never lowering one to make a red run pass.
+- ⚠ **THE TWO SURFACES LEG 2 MOVED ARE OPPOSITE CASES, AND BOTH ARE REGISTERED WITH THEIR
+  REASON RATHER THAN SMOOTHED.** **`BSSettings`** fell fully-covered → **PARTIAL** on
+  **388 `tr()` calls and one string** — `placeholder={bsInitials(draft.name) || 'AB'}`, the
+  two-letter stand-in on the avatar-initials field. No locale changes it, for the same
+  reason none changes the shipped `+1 555 123 4567` phone example; it is recorded in the
+  baseline rather than special-cased inside `usable()`, because **excluding a single
+  spelling is the pin this file keeps paying for, and a false exclusion HIDES real copy.**
+  **`BSSearchMsgBtn`** rose from *no user copy* → **UNCOVERED** on `` aria-label={`Message
+  ${name}`} `` — a real gap (a Spanish screen-reader user hears the English verb) that was
+  invisible while the walk read direct attribute literals only. **Registered, not patched:**
+  the honest fix is an ICU key carrying the name (`Message {name}`) authored ×13, which is a
+  translation cut — and concatenating a reused verb onto a name is the construction this
+  repo already refused for ru/uk, so it is not the cheap fix it looks like.
 - ⚠ **AND THE WIDENING IMMEDIATELY COLLIDED WITH A ONE-LETTER PROP NAME.** `BSNotifyPrefs`
   declared a local row component as `({ l, sub, right })` — so `sub` was now a copy prop on
   a component whose sibling `l` carried the actual label. Renamed `l` → `label` at the
@@ -420,9 +447,12 @@ changelog whenever something ships.
   limit*), which is why the rename contributes its own +4. **The alternative — adding a
   single letter to a tree-wide copy allowlist — would have made every `l=` in the codebase
   a candidate string.**
-- **3/3 mutations killed** (drop the eight new props · re-admit `left`/`right`, which fails
-  two assertions · leave the row component on `l`), sanity green at both ends and both files
-  restored byte-identically.
+- **7/7 mutations killed across the two legs** — leg 1: drop the eight new props · re-admit
+  `left`/`right` (fails two assertions) · leave the row component on `l`; leg 2: drop the
+  container branch · restrict it to a braced literal so ternaries and templates escape ·
+  stop pruning `CallExpression` so `tr()` defaultValues count as hardcoded · quietly drop
+  the two new baseline entries. Sanity green at both ends of each batch, files restored
+  byte-identically.
 - Verified: `npm test` **2503/2503** · `tsc --noEmit` 0 · the ratchet 9/9 · JSX parse.
 
 ### 2026-08-30 — i18n cut 6 step 2: the grocery sweep, and two guards that were wrong about their own subject
