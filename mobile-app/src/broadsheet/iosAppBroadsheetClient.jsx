@@ -8808,9 +8808,14 @@ const BS_AISLE_KEY = {
   'Items': 'nutrition:aisle.items',
 };
 // ⚠ AN UNKNOWN TOKEN RENDERS AS ITSELF, never a raw key and never blank. A
-// nutritionist's hand-authored aisle arrives as free text, and the dead 'Items'
-// placeholder (BSGrocery skips any empty aisle, so nobody reads it) would
-// otherwise need a translation for a string no member sees.
+// nutritionist's hand-authored aisle arrives as free text, so the fallback has to
+// be the token; the map above is what makes ours translated.
+// ⚠ AND THE FALLBACK IS NOT A PLACE TO PARK A KNOWN AISLE. This comment cited
+// 'Items' as a string no member sees, two lines under the map that now keys it —
+// a because-clause outliving the fact it rested on, which is the class this wave
+// keeps paying for. Every aisle OUR OWN code can emit belongs in the map;
+// tests/grocery-aisle-token.test.mjs derives that set from the classifiers AND
+// from the sites that assert an aisle outright, so a new one fails there.
 function bsAisleLabel(aisle, T) {
   const raw = String(aisle || '');
   const key = BS_AISLE_KEY[raw];
