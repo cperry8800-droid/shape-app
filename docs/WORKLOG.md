@@ -405,6 +405,20 @@ changelog whenever something ships.
   re-shuffle. The key is de-translated back to the token and the fallback name is made at
   render — the token/label split step 1 shipped, applied to the one reader that had
   quietly picked the wrong side of it.
+- ⚠ **AND I APPLIED THAT SPLIT TO ONLY ONE OF ITS TWO HALVES — Codex caught it on the
+  PR.** De-translating the grouping key was right; what it missed is that `onAdd` writes
+  the group onto every added grocery item as its **provenance subtitle**, so an unnamed
+  coach list went from stamping `'Coach list'` to stamping `''` and those items silently
+  lost the source line they carried before the cut. **The heading still read correctly,
+  which is exactly what made it invisible**: a right heading over provenance-less items
+  looks finished. The record now keeps the canonical **English token** while the heading
+  renders the **translated label** — and writing the translated label into the record
+  instead would have been the record-shape fault two bullets down, so there was no
+  one-sided fix here. Both halves are pinned, because half of it passing is the dangerous
+  state: the real mapping line is **driven** over a real grouping map, and the add path is
+  asserted to write the token. **3/3 mutations killed** (revert the add path to the raw
+  key · drop the `|| SOURCE_UNNAMED` fallback · translate the record token), sanity green
+  at both ends and the file restored byte-identically.
 - ⚠ **`groceryItem.meta` IS DELIBERATELY LEFT ENGLISH, AND THE REASON IS THE RECORD-SHAPE
   RULE THIS WAVE ALREADY PAID FOR.** It is **written into** the saved-library record, not
   rendered from it, so translating at the write freezes one language into the member's own
@@ -459,7 +473,7 @@ changelog whenever something ships.
   which is a derived local it does not recognise. `hard` is the honest signal there, not
   `tr`: **the two numbers answer different questions**, and a flat `tr` is not evidence a
   component was skipped.
-- **Verified:** `npm test` **2501/2501** · `tsc --noEmit` 0 · JSX parse · mobile build 0
+- **Verified:** `npm test` **2503/2503** · `tsc --noEmit` 0 · JSX parse · mobile build 0
   with **all 93 keys and all 1,209 translated values confirmed in the emitted bundle** ·
   catalog parity ×13 (a pure append, LF, zero CR/NUL).
   ⚠ **The first bundle grep reported all 88 keys missing** — it read the largest chunk
