@@ -174,5 +174,6 @@
   "eat.toastItemAdded": "Đã thêm vào danh sách mua sắm",
   "eat.groceryPlanName": "Kế hoạch tuần này",
   "eat.groceryEyebrow": "Tự động dựng từ các bữa ăn của bạn",
-  "eat.groceryNote": "\"Mọi thứ ở đây đều lấy thẳng từ các bữa ăn tuần này — không thừa, không thiếu.\""
+  "eat.groceryNote": "\"Mọi thứ ở đây đều lấy thẳng từ các bữa ăn tuần này — không thừa, không thiếu.\"",
+  "eat.fromYourList": "Danh sách của bạn · tuần này"
 }

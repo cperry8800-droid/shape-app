@@ -378,6 +378,75 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — A saved grocery list stops storing an English sentence (the record-shape change cut 4 registered)
+
+- **Cut 4 registered seven grocery strings as a class `tr()` cannot close**, because they
+  are **written into the member's saved list record**, not rendered from it: translating at
+  the moment of the write freezes one language into their own data forever. This is that
+  change — the **data shape**, not the sweep. A record now stores a **token**
+  (`provenance` + `createdAt`); **the render makes the sentence.** No migration; the stored
+  string is the back-compat path.
+- ⚠ **AND THE FROZEN LANGUAGE WAS THE SMALLER HALF — THE STORED SENTENCE WAS ALSO A LIE
+  IN ENGLISH.** The eyebrow was persisted as the literal `'Custom · Created today'`, so a
+  list created in June still read **"Created today"** in August, on every open, forever.
+  Nothing could correct it: the word `today` was in the member's data. It now renders
+  `Created today` only when `createdAt` **is** today and dates itself otherwise
+  (`Custom · Created 14 Jul`), in the member's **selected UI language** via `bsDateLocale()`
+  — not the device's. **A record that stores a rendered sentence cannot stay true**, and the
+  i18n argument found it only because it forced someone to read where the string came from.
+- ⚠ **`'You'` IS NOT A NAME EITHER, AND THAT ONE WAS ON SCREEN.** The custom-list store
+  writes `author: 'You'`, and the Eat-tab byline runs its author through a **first-name
+  extractor** (`.replace(/^Dr\.?\s+/i,'').split(' ')[0]`) — so a member opening their own
+  saved list read **"From You · this week"**, and in the other twelve locales an
+  untranslated English pronoun sitting inside a translated sentence (*"De You · esta
+  semana"*). **This is the exact defect cut 4 closed for the role noun**, still live one
+  store over: *a value that feeds a name-parser may only ever be a name*. A member's own
+  list is now credited to **nobody** — `nutrition:eat.fromYourList` ×13 — and
+  `bsGroceryIsSelfAuthored` gates the extractor at the one call site.
+- ⚠ **THE EMPTY STATE MOVED OUT OF THE RECORD AND INTO THE RENDER, WHICH RAISED THE
+  RATCHET.** `'Empty list'` was baked into `preview` by four writers — and a fifth wrote
+  **`'Empty'`**, a different word for the same state, which is precisely what a single
+  render site prevents. Moving it makes it **visible to the inventory walk for the first
+  time**: `noneStrings` **1061 → 1062**. **This is the `BSWeekStrip` blind spot in
+  reverse** — that component read `tr: 0, hard: 0` while drawing English on two primary
+  tabs; here a string was invisible because it lived in a member's record rather than in
+  JSX. **A number that goes UP is only honest beside the change that raised it**, and the
+  reason is written at the assertion.
+- ⚠ **THE `Number(null)` TRAP IS GUARDED AT THE STAMP READ, NOT ASSUMED AWAY.**
+  `Number(null)` and `Number('')` are a finite **0**, so a legacy row with no `createdAt`
+  would date itself to **1 Jan 1970** — the coercion class this file has now paid for four
+  times. The read is type-strict (`typeof === 'number' && Number.isFinite`), and the test
+  drives all six shapes (`undefined · null · '' · 'today' · NaN · {}`) through the **real**
+  function.
+- **The translator is INJECTED and optional** (`bsGroceryListEyebrow(list, tr)` over
+  `bsTrainT`), with the shipped English carried at every call — the cut-1 shape. So the
+  five `nutrition:eat.lib*` keys are **deliberately left unauthored**: they render English
+  today and get authored ×13 by the grocery cut, when a translator is actually in scope.
+  **A key with no reader is a key nobody can check.**
+- ⚠ **AND THE REGISTER WAS SHORT — the same failure as the Train-tag register, one entry
+  later.** Two of its seven strings are **dead** (`'Items'` is unreachable behind an
+  empty-aisle early return; `note` has had no render site since the quote box was removed
+  2026-06-04), and it omitted the `(copy)` suffix and **the whole aisle taxonomy** — ten
+  strings that are stored on every item, used as grouping keys, rendered as headers **and**
+  exported into the share text, i.e. the Train token/label split again. Measured, the
+  grocery surface is **366 hardcoded strings** (`BSGrocery` 186 · `BSGroceryBuilder` 102 ·
+  `BSGroceryLibrary` 78) — a cut of its own, not a line item. Corrected in place above.
+- **8/8 mutations killed**, sanity green at both ends — and **two of them survived their
+  first assertion**, which is the part worth keeping. (1) A ban on the baked empty state
+  used `[^,\n]*`, a character class that **cannot cross the commas in `slice(0, 3)`** — so
+  it was structurally incapable of matching the line it banned. (2) A stamp check compared
+  **counts** (`stamps.length >= provs.length`), which is satisfiable by a stamp on a
+  *different* writer: dropping one left `6 >= 6` and passed. It walks the enclosing object
+  per match now, with a guard-the-guard floor. *Check the check before believing it.*
+- ⚠ **AND A BUNDLE GREP READ ZERO FOR THE THIRD TIME IN THIS WAVE, FOR A THIRD REASON.**
+  `trim()==="You"` is absent from the emitted bundle because **minification rewrites string
+  literals to backticks** — the real form is `` String(e.author||``).trim()===`You` ``. A
+  saturated zero is the instrument until proven otherwise.
+- Verified: `npm test` **2483/2483** · `tsc --noEmit` 0 · JSX parse · mobile build 0 with
+  all 13 new values, all five English fallbacks and the full byline chain confirmed **in the
+  emitted bundle** · catalog parity + ICU + placeholder gates ×13 (a pure append, 1 key each,
+  LF, zero CR/NUL) · the ratchet 9/9 · the new guard 9/9.
+
 ### 2026-08-30 — i18n cut 5: the Train tab, and the string that could not be translated where it stood
 
 - **The Train deck is localized** — the tab a member opens to do the work.
@@ -816,6 +885,21 @@ changelog whenever something ships.
   rows already on disk: a data-shape change, not a `tr()` sprinkle. The seeded save name
   (`Week of {date}`) is deliberately excluded — the member edits it before saving, so it
   becomes their own text and must never be retranslated afterwards.
+  ⚠ **THE DATA-SHAPE HALF IS CLOSED 2026-08-30 (entry above) — and the register was
+  SHORT, in the same way the Train-tag register was.** Of its seven named strings,
+  **`'Items'` is never rendered** (`BSGrocery` returns null for an empty aisle, so the
+  fallback is unreachable) and **`note` is written but rendered nowhere** (the note quote
+  box was removed 2026-06-04) — so two of seven were dead. It also omitted the `(copy)`
+  name suffix and the **entire aisle taxonomy** (`Produce` · `Protein` · `Dairy & cold` ·
+  `Pantry` · `Other` · `Frozen` · `Bakery` · `Household` · `Recipe ingredients` ·
+  `Library items`), which is the same token/label shape as the Train tags: stored on
+  every item, used as a grouping key, rendered as a header, AND exported into the share
+  text. **An enumeration is not a proof that the enumeration is complete** — recorded here
+  for a logic token, for CSS, and now for a stored record. And the real size is a **366-string
+  cut**, not a seven-string item: `BSGrocery` 186 · `BSGroceryBuilder` 102 ·
+  `BSGroceryLibrary` 78. `'Saved list'` stays open with it — it is a NAME, and deriving it
+  at render threads an empty `name` through the share text, the library title and three
+  toasts.
   ⚠ **`bsBuildPlanGrocery` is the `bsHomeLiveWeek` shape again** — a module-scope builder
   with no translator in scope, whose `author || 'Dr. Maya Patel'` fallback fabricates a
   coach name for a signed-in member with no plan. Same fix, same reason it is its own

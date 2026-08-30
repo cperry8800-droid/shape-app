@@ -8758,6 +8758,70 @@ function bsBuilderAisleFor(name) {
   return a === 'Other' ? 'Pantry' : a;
 }
 
+// ── A saved list stores TOKENS; the render makes the sentence ────────────────
+// ⚠ A LIST RECORD MUST NOT CARRY A RENDERED SENTENCE. The eyebrow a member reads
+// is derived HERE, at render, from `provenance` + `createdAt` — writing the
+// sentence at save time freezes ONE language into their own data, so a member
+// who later switched language would read their own saved lists in the language
+// they created them in, forever.
+//
+// ⚠ IT ALSO CLOSES A LIVE LIE THE REGISTER NEVER NOTICED. The eyebrow used to be
+// stored as the literal 'Custom · Created today', so a list made last month
+// still read "today" on every open. The date now comes off the stamp.
+//
+// ⚠ BACK-COMPAT IS THE STORED STRING, and the writers keep emitting it. A row
+// written before this shape carries no `provenance` and falls through to its own
+// `eyebrow` — exactly what it renders today, never worse. That branch also
+// covers the BS_GROCERY_LIBRARY seeds, whose eyebrows are demo copy the house
+// deliberately does not translate.
+//
+// ⚠ THE TRANSLATOR IS INJECTED because this is module scope and cannot hold a
+// hook, and because BSGroceryLibrary does not hold one yet: grocery is a cut of
+// its own (measured — BSGrocery 186 hardcoded strings · BSGroceryBuilder 102 ·
+// BSGroceryLibrary 78). Passing `tr` here is the only thing that cut has to add.
+//
+// ⚠ AND THE KEYS BELOW ARE DELIBERATELY UNAUTHORED UNTIL THEN. Nothing requests
+// them at runtime yet, so authoring them ×13 now would mint thirteen values a
+// translator cannot see on a screen — the rule this file already carries for
+// `total: '0 sessions'`. The shipped English is carried at every call site, so
+// the render is correct today and the cut that passes `tr` authors them against
+// a live render site. They are a COMPUTED family (the key comes off this table,
+// never a literal argument), so the key-resolution walk cannot see them either —
+// pin them the way BS_TRAIN_TAG_KEY is pinned, from the table itself.
+const BS_GROCERY_PROV = {
+  created:    { key: 'nutrition:eat.libCreatedToday', en: 'Custom · Created today', datedKey: 'nutrition:eat.libCreatedOn', datedEn: 'Custom · Created {date}' },
+  saved:      { key: 'nutrition:eat.libSavedToday',   en: 'Custom · Saved today',   datedKey: 'nutrition:eat.libSavedOn',   datedEn: 'Custom · Saved {date}' },
+  duplicated: { key: 'nutrition:eat.libDuplicated',   en: 'Custom · Duplicated' },
+};
+function bsGroceryIsToday(ms) {
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+function bsGroceryListEyebrow(list, tr) {
+  const prov = list && BS_GROCERY_PROV[list.provenance];
+  if (!prov) return (list && list.eyebrow) || '';
+  const T = bsTrainT(tr);
+  // ⚠ TYPE-STRICT, NOT Number(): `Number(null)` and `Number('')` are a finite 0,
+  // so a stamp-less row would date itself to 1 Jan 1970 — the coercion class this
+  // repo has paid for repeatedly. An unusable stamp reads as "no date", which
+  // falls back to the undated wording rather than inventing one.
+  const ms = (typeof list.createdAt === 'number' && Number.isFinite(list.createdAt)) ? list.createdAt : NaN;
+  if (!prov.datedKey || !Number.isFinite(ms) || bsGroceryIsToday(ms)) return T(prov.key, prov.en);
+  let date = '';
+  try { date = new Date(ms).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }); } catch (e) { date = ''; }
+  if (!date) return T(prov.key, prov.en);
+  return T(prov.datedKey, prov.datedEn.replace('{date}', date), { date });
+}
+// A member's own list is never credited to a person. `authorSelf` is the marker
+// the writers set; the 'You' literal is the back-compat read of rows this app
+// already wrote. See the byline in BSClientEat for why this matters.
+function bsGroceryIsSelfAuthored(list) {
+  if (!list) return false;
+  return list.authorSelf === true || String(list.author || '').trim() === 'You';
+}
+
 // Roll the whole week's meal ingredients into one aisle-grouped grocery list,
 // deduped by ingredient name. This makes the shop list literally the meals'
 // ingredients, so the two always match up (no separate hardcoded list to drift).
@@ -9968,10 +10032,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       ...list, id, editable: true,
       name: `${list.name} (copy)`,
       eyebrow: 'Custom · Duplicated',
+      provenance: 'duplicated',
+      createdAt: Date.now(),
       kind: 'custom',
       usedCount: 0,
       count: items.length,
-      preview: items.slice(0, 3).map(it => it.n).join(' · ') || 'Empty list',
+      // ⚠ THE EMPTY STATE IS THE RENDER'S, NOT THE RECORD'S — a baked 'Empty
+      // list' is a sentence frozen into their data. An empty preview is '' here.
+      preview: items.slice(0, 3).map(it => it.n).join(' · '),
       items,
     };
     setRecipeLists(prev => [copy, ...prev]);
@@ -10001,10 +10069,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       kind: normalized.kind || 'custom',
       editable: true,
       eyebrow: normalized.eyebrow || 'Custom · Created today',
+      provenance: normalized.provenance || 'created',
+      createdAt: typeof normalized.createdAt === 'number' ? normalized.createdAt : Date.now(),
       author: normalized.author || 'You',
+      authorSelf: bsGroceryIsSelfAuthored(normalized) || !normalized.author,
       note: normalized.note,
       usedCount: normalized.usedCount || 0,
-      preview: items.slice(0, 3).map(it => it.n).join(' · ') || 'Empty list',
+      preview: items.slice(0, 3).map(it => it.n).join(' · '),
       count: items.length,
       items: items.map((it, idx) => ({ id: it.id || `${normalized.id}-${idx}`, n: it.n, q: it.q, meals: it.meals || normalized.name })),
     };
@@ -10019,9 +10090,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   const createListFromBuilder = ({ name, items, aisles }) => {
     const id = 'custom-' + Math.random().toString(36).slice(2, 9);
     const note = `"${name}" — your custom grocery list.`;
-    setSelectedGroceryList({ id, name, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', author: 'You', note, usedCount: 0, aisles });
+    const createdAt = Date.now();
+    setSelectedGroceryList({ id, name, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', provenance: 'created', createdAt, author: 'You', authorSelf: true, note, usedCount: 0, aisles });
     setRecipeLists(prev => [
-      { id, name, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', author: 'You', note, usedCount: 0, preview: items.slice(0, 3).map(i => i.n).join(' · ') || 'Empty list', count: items.length, items },
+      { id, name, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', provenance: 'created', createdAt, author: 'You', authorSelf: true, note, usedCount: 0, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items },
       ...prev,
     ]);
     setView('grocery');
@@ -10039,7 +10111,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     const flatItems = (list.aisles || []).flatMap(a => (a.items || []).map(it => ({ id: it.id, n: it.n, q: it.q, meals: it.meals })));
     const id = 'saved-' + Math.random().toString(36).slice(2, 9);
     setRecipeLists(prev => [
-      { id, name: nm, kind: 'custom', editable: false, eyebrow: 'Custom · Saved today', author: 'You', usedCount: 0, preview: flatItems.slice(0, 3).map(i => i.n).join(' · ') || 'Empty', count: flatItems.length, items: flatItems },
+      { id, name: nm, kind: 'custom', editable: false, eyebrow: 'Custom · Saved today', provenance: 'saved', createdAt: Date.now(), author: 'You', authorSelf: true, usedCount: 0, preview: flatItems.slice(0, 3).map(i => i.n).join(' · '), count: flatItems.length, items: flatItems },
       ...prev,
     ]);
     setSaveTarget(null);
@@ -10049,15 +10121,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     const clean = (newListName || '').trim().slice(0, 60);
     if (!clean) return;
     const id = 'custom-' + Math.random().toString(36).slice(2, 9);
+    const newListAt = Date.now();
     const note = `"${clean}" — your custom grocery list.`;
     // In-view copy carries aisles; library/localStorage copy stays flat.
     setSelectedGroceryList({
       id, name: clean, kind: 'custom', editable: true,
-      eyebrow: 'Custom · Created today', author: 'You', note,
+      eyebrow: 'Custom · Created today', provenance: 'created', createdAt: newListAt, author: 'You', authorSelf: true, note,
       usedCount: 0, aisles: [{ aisle: 'Items', items: [] }],
     });
     setRecipeLists(prev => [
-      { id, name: clean, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', author: 'You', note, usedCount: 0, preview: 'Empty list', count: 0, items: [] },
+      { id, name: clean, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', provenance: 'created', createdAt: newListAt, author: 'You', authorSelf: true, note, usedCount: 0, preview: '', count: 0, items: [] },
       ...prev,
     ]);
     setNewListName(null);
@@ -10383,7 +10456,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         // over a real person's name. Fed the role noun it produced "From Your ·
         // this week" — reachable for any signed-in member with no resolved coach,
         // which is exactly who the builder used to hand a fabricated one.
-        const rawWho = String(activeGroceryList.author || '').trim();
+        // ⚠ AND 'You' IS NOT A NAME EITHER — the same defect cut 4 closed for the
+        // role noun, still live for the literal custom lists store. `author: 'You'`
+        // reached the extractor above, so a member opening their OWN saved list
+        // read "From You · this week" — and in every other locale an untranslated
+        // English pronoun inside a translated sentence ("De You · esta semana").
+        // A member's own list is credited to nobody; it is theirs.
+        const selfList = bsGroceryIsSelfAuthored(activeGroceryList);
+        const rawWho = selfList ? '' : String(activeGroceryList.author || '').trim();
         const who = rawWho ? rawWho.replace(/^Dr\.?\s+/i, '').split(' ')[0] : '';
         // ⚠ ANOTHER ENGLISH PLURAL BY CONCATENATION (`item${n===1?'':'s'}`).
         const title = left > 0
@@ -10396,7 +10476,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
               <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' })}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{selfList ? tr('nutrition:eat.fromYourList', { defaultValue: 'Your list · this week' }) : who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' })}</div>
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>{title}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{tr('nutrition:eat.gotLeft', { defaultValue: '{got} got · {left} left', got: have, left })}{cats ? ` · ${cats}` : ''}</div>
                 </div>
@@ -28065,14 +28145,18 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
               <span aria-hidden style={{ position: 'absolute', left: 0, top: idx ? 16 : 8, bottom: 16, width: 3, background: color }} />
               <div onClick={() => setOpenList(open ? null : l.id)} style={{ cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5, gap: 10 }}>
-                  <BSEyebrow color={color}>{l.eyebrow}</BSEyebrow>
+                  <BSEyebrow color={color}>{bsGroceryListEyebrow(l)}</BSEyebrow>
                   <BSEyebrow>{l.usedCount} uses</BSEyebrow>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{l.name}</div>
                   <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, color: t.INK50, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
                 </div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{l.count} items · {l.preview}</div>
+                {/* ⚠ THE EMPTY STATE LIVES HERE NOW, not in the record. Moving it
+                    makes it visible to the inventory walk for the first time — a
+                    string written into a saved list is a string the measurement
+                    cannot see, which is the BSWeekStrip blind spot in reverse. */}
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{l.count} items · {l.preview || 'Empty list'}</div>
               </div>
               {open && previewItems && previewItems.length > 0 && (
                 <div style={{ margin: '12px 0 2px' }}>

@@ -174,5 +174,6 @@
   "eat.toastItemAdded": "Aggiunto alla lista della spesa",
   "eat.groceryPlanName": "Il piano di questa settimana",
   "eat.groceryEyebrow": "Creata automaticamente dai tuoi pasti",
-  "eat.groceryNote": "\"Tutto quello che c'è qui viene dai pasti di questa settimana: niente in più, niente in meno.\""
+  "eat.groceryNote": "\"Tutto quello che c'è qui viene dai pasti di questa settimana: niente in più, niente in meno.\"",
+  "eat.fromYourList": "La tua lista · questa settimana"
 }

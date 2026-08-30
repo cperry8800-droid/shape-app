@@ -174,5 +174,6 @@
   "eat.toastItemAdded": "Ditambahkan ke daftar belanja",
   "eat.groceryPlanName": "Rencana minggu ini",
   "eat.groceryEyebrow": "Dibuat otomatis dari makananmu",
-  "eat.groceryNote": "\"Semua yang ada di sini datang langsung dari makanan minggu ini — tidak ada tambahan, tidak ada yang kurang.\""
+  "eat.groceryNote": "\"Semua yang ada di sini datang langsung dari makanan minggu ini — tidak ada tambahan, tidak ada yang kurang.\"",
+  "eat.fromYourList": "Daftarmu · minggu ini"
 }
