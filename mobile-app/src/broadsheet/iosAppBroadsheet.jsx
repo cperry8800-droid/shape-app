@@ -1504,28 +1504,6 @@ function BSPhone({ children }) {
       [data-bs-weight="regular"] [style*="fontWeight: 500"] { font-weight: 300 !important; }
       [data-bs-weight="regular"] [style*="font-weight: 400"],
       [data-bs-weight="regular"] [style*="fontWeight: 400"] { font-weight: 300 !important; }
-      [data-bs-weight="regular"] .bs-splash-title,
-      [data-bs-weight="regular"] .bs-splash-title *,
-      [data-bs-weight="regular"] .bs-daily-title,
-      [data-bs-weight="regular"] .bs-daily-title * {
-        font-family: 'Newsreader', Georgia, serif !important;
-      }
-      [data-bs-weight="regular"] .bs-splash-title .bs-splash-the,
-      [data-bs-weight="regular"] .bs-daily-title .bs-daily-the {
-        font-weight: 700 !important;
-      }
-      [data-bs-weight="regular"] .bs-splash-title .bs-splash-shape,
-      [data-bs-weight="regular"] .bs-daily-title .bs-daily-shape {
-        font-family: 'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif !important;
-        font-style: normal !important;
-        font-weight: 300 !important;
-        letter-spacing: 0.18em !important;
-        text-transform: uppercase !important;
-      }
-      [data-bs-weight="regular"] .bs-splash-title .bs-splash-daily,
-      [data-bs-weight="regular"] .bs-daily-title .bs-daily-daily {
-        font-weight: 700 !important;
-      }
     `;
     document.head.appendChild(s);
   }, []);

@@ -391,7 +391,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // walk simply never saw them. A floor RISING alongside a widening is the
   // mirror of the rule above: it is honest only next to the change that caused
   // it, and it may never be raised to make a stale number look better.
-  assert.ok(rows.length >= 360, `components rendering JSX fell to ${rows.length} — expected at least 360`);
+  // ⚠ And it fell 360 → 359 when BSNightSky was deleted — the cosmos-splash
+  // background cut 1 orphaned, unreachable since that branch died. It rendered
+  // only aria-hidden decoration, so it sat in the no-copy bucket: every string
+  // count, the covered count and both baselines are unchanged by its removal.
+  assert.ok(rows.length >= 359, `components rendering JSX fell to ${rows.length} — expected at least 359`);
   assert.ok(full.length >= 95, `fully-localized components fell to ${full.length} — expected at least 95`);
 });
 

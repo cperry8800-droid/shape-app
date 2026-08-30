@@ -378,6 +378,54 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The dead code cut 1 orphaned is swept, and the register of it was wrong twice
+
+- **Cut 1 deleted the cosmos splash branch and left its scenery behind**, registered as
+  a follow-up rather than swept because touching the shared chrome would have widened a
+  localization diff. That reason expired with the diff; this is the sweep. **7.2k chars
+  of CSS and one component**, no behaviour change.
+- ⚠ **THE REGISTER WAS WRONG IN TWO WAYS, AND BOTH WOULD HAVE MISLED THE SWEEP.**
+  (1) It said the four CSS families live in **the SHARED chrome**. Only **one** did —
+  `.bs-splash-title` in `iosAppBroadsheet.jsx`; the other three sat in
+  `iosAppBroadsheetMain.jsx` beside the component that used them. A sweep trusting the
+  register would have opened the wrong file and found three families missing.
+  (2) It called `.bs-sky-tw/.bs-aurora/.bs-shoot` unreferenced — but **`BSNightSky`
+  itself rendered all three** (`iosAppBroadsheetMain.jsx:273-285`). They were dead only
+  **once it went**, not before. Deleting them first would have stripped the styling off
+  a component still in the tree.
+- ⚠ **AND IT MISSED A FIFTH FAMILY.** `.bs-daily-title/-the/-shape/-daily` is the
+  **paired** display-weight override sitting in the same rule blocks as
+  `.bs-splash-title` — the old "Shape Daily" telegram title, equally orphaned since cut 1
+  re-set that surface. It was invisible to a register that enumerated the splash half
+  and stopped. **An enumeration is not a proof that the enumeration is complete** — the
+  rule this file already records for caller lists, applied to CSS.
+- ⚠ **AND ONE PATTERN THAT LOOKS DEAD IS LIVE.** `bs-aurora` matches
+  **`bs-aurora-drift`**, a keyframes name in `iosAppBroadsheetRadio.jsx` that has nothing
+  to do with the deleted `.bs-aurora` class. A substring sweep would have taken the radio
+  screen's drift animation with it. Verified by matching `bs-aurora[a-z-]*` and reading
+  what came back, not by trusting the shorter pattern.
+- **What went:** `BSNightSky` + its `window` export · the sky/aurora/shooting-star CSS ·
+  the splash zoom/burst/beam CSS (the cosmos splash's fire-into-login transition, zero
+  className consumers) · both title families. The reduced-motion rule keeps only the
+  selectors that still exist. Three comments naming a background this file no longer has
+  were corrected in place — including one on the **live** wire beat still describing "a
+  hardcoded dark cosmos gradient", which is the stale-prose class this file keeps paying
+  for.
+- ⚠ **THE FLOOR FELL 360 → 359, AND THAT IS THE ONLY HONEST WAY TO LOWER ONE.**
+  BSNightSky rendered `aria-hidden` decoration only, so it sat in the **no-copy** bucket
+  (118 → 117): `partStrings` 165, `noneStrings` 1104, `part.length` 32, `none.length` 115
+  and `full.length` 95 are **all unchanged**. The reason is written at the assertion, next
+  to the deletion that caused it — a floor is never lowered to make a failing run pass.
+- **Verified against the EMITTED BUNDLE, not the source**: all twelve dead patterns absent,
+  all six live ones (`bs-shape-mark` 6 · `bs-mark-edge` 5 · `bsMarkPulse` 3 ·
+  `bs-hide-scroll` 42 · `bs-uline` 45 · `prefers-reduced-motion` 14) intact.
+  ⚠ **The first run of that check reported ZERO on BOTH arms** — a `cd` had failed and it
+  was grepping a directory with no `.js` in it. A saturated result across both arms of a
+  check is a broken instrument until proven otherwise; this file has now paid for that
+  lesson three times.
+- Verified: `npm test` **2466/2466** · `tsc --noEmit` 0 · both broadsheet files parse ·
+  mobile build 0 · the inventory 9/9.
+
 ### 2026-08-30 — Two module-scope builders stop fabricating, and the third turns out to need a data change
 
 - **The two fabrications cut 4 registered are closed**, both in module-scope
