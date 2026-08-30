@@ -80,7 +80,15 @@ const TEXT_PROPS = new Set(['placeholder', 'title', 'alt', 'aria-label', 'ariaLa
 // cannot hold a hook, so it is a plain function, bound to no hook call).
 const USE_TR = /^use\w*Tr$/;
 const FN = new Set(['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration', 'ObjectMethod', 'ClassMethod']);
-const MODULE_SCOPE_TRANSLATORS = ['coachTr'];
+// ⚠ TWO MODULE-SCOPE TRANSLATORS, BOTH FOR THE SAME REASON: their callers cannot
+// hold a hook. `coachTr` serves the pros module's roster helpers (plain functions,
+// #1746); `bsBoundaryT` serves BSErrorBoundary, a CLASS mounted outside
+// I18nextProvider. Without these names a component that routes every string
+// through one reads as having no translator at all — and if the string count then
+// falls to zero it reads as rendering no copy, which is the worse of the two
+// wrong answers: it drops out of the baseline entirely instead of merely sitting
+// in it.
+const MODULE_SCOPE_TRANSLATORS = ['coachTr', 'bsBoundaryT'];
 
 /** Every identifier in one file that holds a translator. */
 function translatorNames(ast) {
@@ -303,13 +311,7 @@ const UNCOVERED = new Set([
   // deleted (orphaned — no render site, no window export). BSTweaksPanel is the
   // developer Tweaks overlay, never shown to a member, so it stays uncovered
   // deliberately rather than shipping 15 dev-only strings to 13 locales.
-  // ⚠ NEWLY VISIBLE, NOT NEWLY BROKEN. BSErrorBoundary is a ClassDeclaration, a
-  // node type this walk never collected, so its five live strings were
-  // attributed to nothing at all. It sits OUTSIDE the i18n provider by
-  // construction — a boundary that mounted inside the tree it catches could not
-  // render when that tree throws — so it needs the provider-free
-  // window.ShapeI18n.t bridge rather than useShapeTr(). Its own PR.
-  'Main::BSErrorBoundary', 'Main::BSTweaksPanel',
+  'Main::BSTweaksPanel',
   'Pros::BSCoachGoalPlanPage', 'Pros::BSCoachPlaylistStudio', 'Pros::BSGoalEditSheet',
   'Pros::BSProMonthlyOfferSheet', 'Pros::BSProNotificationsPage', 'Pros::BSProPublicProfilePage',
   'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetPicker',
@@ -373,9 +375,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the record with it) or a regression, and both must be a deliberate edit.
   // Printed above first, so the failure message is never the only place to read them.
   assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1109, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1104, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 116, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 115, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
@@ -390,7 +392,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // mirror of the rule above: it is honest only next to the change that caused
   // it, and it may never be raised to make a stale number look better.
   assert.ok(rows.length >= 360, `components rendering JSX fell to ${rows.length} — expected at least 360`);
-  assert.ok(full.length >= 94, `fully-localized components fell to ${full.length} — expected at least 94`);
+  assert.ok(full.length >= 95, `fully-localized components fell to ${full.length} — expected at least 95`);
 });
 
 // ── The ratchet ─────────────────────────────────────────────────────────────

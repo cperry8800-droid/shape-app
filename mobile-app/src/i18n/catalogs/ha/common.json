@@ -7,5 +7,11 @@
   "nav.eat": "Ci",
   "nav.chat": "Hira",
   "nav.me": "Ni",
-  "unit.weekN": "Mako {n}"
+  "unit.weekN": "Mako {n}",
+  "error.title": "Wani abu ya samu matsala",
+  "error.body": "App ɗin ya samu kuskure sannan ya warke. Bayanan suna ƙasa — danna Kwafi ka aiko mana.",
+  "error.copy": "Kwafi",
+  "error.reload": "Sake lodawa",
+  "error.restart": "Sake buɗe app ɗin",
+  "error.copied": "An kwafi kuskuren"
 }

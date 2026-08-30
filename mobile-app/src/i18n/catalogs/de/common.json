@@ -7,5 +7,11 @@
   "nav.eat": "Essen",
   "nav.chat": "Chat",
   "nav.me": "Ich",
-  "unit.weekN": "Woche {n}"
+  "unit.weekN": "Woche {n}",
+  "error.title": "Etwas ist schiefgelaufen",
+  "error.body": "Die App hatte einen Fehler und hat sich erholt. Die Details stehen unten — tippe auf Kopieren und schick sie uns.",
+  "error.copy": "Kopieren",
+  "error.reload": "Neu laden",
+  "error.restart": "App neu starten",
+  "error.copied": "Fehler kopiert"
 }

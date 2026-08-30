@@ -7,5 +7,11 @@
   "nav.eat": "Eat",
   "nav.chat": "Chat",
   "nav.me": "Me",
-  "unit.weekN": "Week {n}"
+  "unit.weekN": "Week {n}",
+  "error.title": "Something went wrong",
+  "error.body": "The app hit an error and recovered. Details below — tap Copy and send them over.",
+  "error.copy": "Copy",
+  "error.reload": "Reload",
+  "error.restart": "Restart app",
+  "error.copied": "Error copied"
 }

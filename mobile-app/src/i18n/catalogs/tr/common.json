@@ -7,5 +7,11 @@
   "nav.eat": "Yemek",
   "nav.chat": "Sohbet",
   "nav.me": "Ben",
-  "unit.weekN": "{n}. hafta"
+  "unit.weekN": "{n}. hafta",
+  "error.title": "Bir şeyler ters gitti",
+  "error.body": "Uygulama bir hatayla karşılaştı ve kendini toparladı. Ayrıntılar aşağıda — Kopyala'ya dokunup bize gönder.",
+  "error.copy": "Kopyala",
+  "error.reload": "Yeniden yükle",
+  "error.restart": "Uygulamayı yeniden başlat",
+  "error.copied": "Hata kopyalandı"
 }

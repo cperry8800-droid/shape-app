@@ -7,5 +7,11 @@
   "nav.eat": "Mangia",
   "nav.chat": "Chat",
   "nav.me": "Io",
-  "unit.weekN": "Settimana {n}"
+  "unit.weekN": "Settimana {n}",
+  "error.title": "Qualcosa è andato storto",
+  "error.body": "L'app ha avuto un errore e si è ripresa. I dettagli sono qui sotto: tocca Copia e inviaceli.",
+  "error.copy": "Copia",
+  "error.reload": "Ricarica",
+  "error.restart": "Riavvia l'app",
+  "error.copied": "Errore copiato"
 }

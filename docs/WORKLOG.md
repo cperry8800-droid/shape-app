@@ -378,6 +378,45 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The screen a member reads AFTER the app fails now speaks their language
+
+- **`BSErrorBoundary` was English in all 13 locales**, and it is the app's fallback
+  of last resort: a member whose app has just crashed read *"Something went wrong ·
+  The app hit an error and recovered · Copy · Reload · Restart app"* in a language
+  they may not have. **6 keys ×13** in `common:error.*` (5 rendered + the copy
+  toast). Invisible until the day before — the detector never collected
+  `ClassDeclaration` (entry above).
+- ⚠ **IT CANNOT HOLD A HOOK, AND IT MUST NOT DEPEND ON ONE.** The boundary is
+  mounted OUTSIDE `I18nextProvider` by construction — one rendered inside the tree
+  it catches could not render when that tree throws — so `useShapeTr()` is
+  unavailable. It reads the **window bridge, optional-chained, with the English
+  literal carried at every call**: if the i18n bundle is exactly what failed to
+  load, the member still gets a readable screen rather than a blank one or a second
+  throw. Same shape as the `requireAccount` toast; **the reason is stronger here**,
+  because nothing catches a boundary that throws.
+- ⚠ **THE DIAGNOSTIC PAYLOAD STAYS ENGLISH ON PURPOSE.** The `<pre>` block is copied
+  and sent to us — its reader is whoever triages the report, not the member.
+  Translating `Component stack:` or the unknown-error fallback would make a pasted
+  report harder to search against the source, and it is the one string here no
+  locale improves. The **chrome around it** — what happened, what to do — is
+  translated. The line is drawn at *who reads it*, not at *where it renders*.
+- ⚠ **TEACHING THE DETECTOR WAS PART OF THE FIX, NOT A CONVENIENCE.** With the
+  strings routed through a module-scope helper the walk did not know, the component
+  read `tr: 0` **and** `hard: 0` → "renders no user copy", so it fell out of the
+  baseline entirely. **That is the worse of the two wrong answers**: a component
+  sitting in the baseline is at least measured, while one that renders no copy is
+  outside the ratchet again — the exact failure the widening had just closed.
+  `bsBoundaryT` joins `coachTr` in `MODULE_SCOPE_TRANSLATORS`, both there for one
+  reason: their callers cannot hold a hook.
+- **The ratchet:** fully covered **94 → 95**; uncovered back to **115 (1,104)** —
+  where it stood before the widening, because the component the widening surfaced
+  is the one this closes. `partStrings` 165 and `part.length` 32 unchanged.
+- **3/3 mutations killed** (the detector forgets `bsBoundaryT` · the title
+  un-localized · a `ru` key dropped), sanity green at both ends.
+- Verified: `npm test` · `tsc` 0 · JSX parse · mobile build 0 with **all six
+  `common:error.*` keys and the ru copy confirmed in the emitted bundle** · catalog
+  parity ×13 · the ratchet 9/9.
+
 ### 2026-08-30 — The measurement stops walking past three components
 
 - **A component the walk never sees is outside the measurement, not miscounted** —

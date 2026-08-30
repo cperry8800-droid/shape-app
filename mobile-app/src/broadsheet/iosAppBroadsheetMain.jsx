@@ -2203,6 +2203,19 @@ function BSCrashProbe() {
   throw new Error('Deliberate crash test (mobile boundary)');
 }
 
+// ⚠ THE BOUNDARY CANNOT HOLD A HOOK, AND IT MUST NOT DEPEND ON ONE. It is
+// mounted OUTSIDE I18nextProvider by construction — a boundary rendered inside
+// the tree it catches could not render when that tree throws — so useShapeTr()
+// is unavailable to it, and this is the app's only surface that renders AFTER a
+// failure. So it reads the window bridge, optional-chained, with the English
+// literal carried at every call: if the i18n bundle is exactly what failed to
+// load, the member still gets a readable screen instead of a blank one or a
+// second throw. Same shape as the requireAccount toast above; the reason is
+// stronger here, because this is the fallback of last resort.
+function bsBoundaryT(key, fallback) {
+  try { return window.ShapeI18n?.t?.(key) || fallback; } catch (e) { return fallback; }
+}
+
 class BSErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
@@ -2213,6 +2226,12 @@ class BSErrorBoundary extends React.Component {
     const info = this.state.info;
     // Surface the actual error so it can be read/copied off-device (no console
     // needed). message + first stack frames + the React component stack.
+    // ⚠ THIS BLOCK STAYS ENGLISH ON PURPOSE. It is a diagnostic payload the
+    // member copies and sends to us — its reader is whoever triages the report,
+    // not the member. Translating 'Component stack:' or the unknown-error
+    // fallback would make a pasted report harder to search and match against
+    // the source, and it is the one string here that no locale improves. The
+    // CHROME around it — what happened, what to do — is translated.
     const detail = [
       (err && (err.message || String(err))) || 'Unknown error',
       err && err.stack ? '\n' + String(err.stack).split('\n').slice(0, 6).join('\n') : '',
@@ -2220,14 +2239,14 @@ class BSErrorBoundary extends React.Component {
     ].join('');
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0b0c0c', color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center', fontFamily: "'Saira', 'Helvetica Neue', sans-serif" }}>
-        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>Something went wrong</div>
-        <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>The app hit an error and recovered. Details below — tap Copy and send them over.</div>
+        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>{bsBoundaryT('common:error.title', 'Something went wrong')}</div>
+        <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>{bsBoundaryT('common:error.body', 'The app hit an error and recovered. Details below — tap Copy and send them over.')}</div>
         <pre style={{ width: '100%', maxWidth: 360, maxHeight: 200, overflow: 'auto', textAlign: 'left', background: '#15110d', border: '1px solid rgba(244,239,230,0.15)', borderRadius: 8, padding: 12, fontSize: 11, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#ff8a7a', fontFamily: "ui-monospace, Menlo, monospace" }}>{detail}</pre>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button onClick={() => { try { navigator.clipboard.writeText(detail); window.__bsToast?.('Error copied', 'ok'); } catch (e) {} }} style={{ padding: '11px 20px', borderRadius: 10, background: 'transparent', color: '#f4efe6', border: '1px solid rgba(244,239,230,0.3)', fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Copy</button>
-          <button onClick={() => { this.setState({ err: null, info: null }); }} style={{ padding: '11px 22px', borderRadius: 10, background: '#0ac5a8', color: '#031f1c', border: 0, fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Reload</button>
+          <button onClick={() => { try { navigator.clipboard.writeText(detail); window.__bsToast?.(bsBoundaryT('common:error.copied', 'Error copied'), 'ok'); } catch (e) {} }} style={{ padding: '11px 20px', borderRadius: 10, background: 'transparent', color: '#f4efe6', border: '1px solid rgba(244,239,230,0.3)', fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{bsBoundaryT('common:error.copy', 'Copy')}</button>
+          <button onClick={() => { this.setState({ err: null, info: null }); }} style={{ padding: '11px 22px', borderRadius: 10, background: '#0ac5a8', color: '#031f1c', border: 0, fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{bsBoundaryT('common:error.reload', 'Reload')}</button>
         </div>
-        <button onClick={() => { try { window.location.reload(); } catch (e) {} }} style={{ background: 'transparent', border: 0, color: 'rgba(244,239,230,0.5)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Restart app</button>
+        <button onClick={() => { try { window.location.reload(); } catch (e) {} }} style={{ background: 'transparent', border: 0, color: 'rgba(244,239,230,0.5)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{bsBoundaryT('common:error.restart', 'Restart app')}</button>
       </div>
     );
   }

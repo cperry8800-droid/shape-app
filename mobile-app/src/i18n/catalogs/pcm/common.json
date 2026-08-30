@@ -7,5 +7,11 @@
   "nav.eat": "Chop",
   "nav.chat": "Chat",
   "nav.me": "Me",
-  "unit.weekN": "Week {n}"
+  "unit.weekN": "Week {n}",
+  "error.title": "Something no work well",
+  "error.body": "Di app catch error but e don recover. Di details dey below — tap Copy make you send am give us.",
+  "error.copy": "Copy",
+  "error.reload": "Load am again",
+  "error.restart": "Start di app again",
+  "error.copied": "We don copy di error"
 }
