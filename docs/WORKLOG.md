@@ -427,6 +427,19 @@ changelog whenever something ships.
   `part.length` **31 → 32**, `none.length` **109 → 110**, fully covered **103 → 102** and
   no-copy **116 → 115**. **A total that rises is only honest beside the change that raised
   it** — the mirror of this file's own rule about never lowering one to make a red run pass.
+- ⚠ **AND MEASURING LEG 2 PROPERLY REFRAMED THE WHOLE PR: THE CONTAINER GAP PREDATES IT.**
+  It is tempting to read leg 2 as *my widening had a bug*. Measured against the eight props
+  held out — the container branch applied to the **ORIGINAL SEVEN** names alone — it is
+  **+18 partial / +50 uncovered, and BOTH bucket moves**. So `title`, `label`,
+  `placeholder`, `alt` and `aria-label` have been blind to their own braced, ternary and
+  template values **since the allowlist was written**, and both surfaces that changed class
+  did so on original-seven props (`placeholder={… || 'AB'}` and `` aria-label={`Message
+  ${name}`} ``) — nothing to do with `kicker` or `eyebrow`. Four states, each measured
+  directly rather than inferred: original-7/no-container **134 · 1030**, 15-props/
+  no-container **138 · 1109**, original-7/container **152 · 1080**, shipped **164 · 1181**.
+  ⚠ The four are **not additive** — props and container interact — which is why each is
+  measured rather than subtracted, the same discipline this file demanded of the +4/+83
+  split in leg 1.
 - ⚠ **THE TWO SURFACES LEG 2 MOVED ARE OPPOSITE CASES, AND BOTH ARE REGISTERED WITH THEIR
   REASON RATHER THAN SMOOTHED.** **`BSSettings`** fell fully-covered → **PARTIAL** on
   **388 `tr()` calls and one string** — `placeholder={bsInitials(draft.name) || 'AB'}`, the
