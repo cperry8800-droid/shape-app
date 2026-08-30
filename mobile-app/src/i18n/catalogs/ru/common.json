@@ -13,5 +13,7 @@
   "error.copy": "Копировать",
   "error.reload": "Перезагрузить",
   "error.restart": "Перезапустить приложение",
-  "error.copied": "Ошибка скопирована"
+  "error.copied": "Ошибка скопирована",
+  "fallback.workout": "Тренировка",
+  "fallback.meal": "Приём пищи"
 }

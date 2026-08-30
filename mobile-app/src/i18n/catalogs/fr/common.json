@@ -13,5 +13,7 @@
   "error.copy": "Copier",
   "error.reload": "Recharger",
   "error.restart": "Redémarrer l'app",
-  "error.copied": "Erreur copiée"
+  "error.copied": "Erreur copiée",
+  "fallback.workout": "Séance",
+  "fallback.meal": "Repas"
 }

@@ -13,5 +13,7 @@
   "error.copy": "Sao chép",
   "error.reload": "Tải lại",
   "error.restart": "Khởi động lại ứng dụng",
-  "error.copied": "Đã sao chép lỗi"
+  "error.copied": "Đã sao chép lỗi",
+  "fallback.workout": "Buổi tập",
+  "fallback.meal": "Bữa ăn"
 }

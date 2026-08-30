@@ -170,5 +170,8 @@
   "eat.swapMessage": "Getauscht {from} → {to} · {day}",
   "eat.swapDayToday": "heute",
   "eat.toastRecipeAdded": "Einkaufsliste des Rezepts hinzugefügt",
-  "eat.toastItemAdded": "Zur Einkaufsliste hinzugefügt"
+  "eat.toastItemAdded": "Zur Einkaufsliste hinzugefügt",
+  "eat.groceryPlanName": "Der Plan dieser Woche",
+  "eat.groceryEyebrow": "Automatisch aus deinen Mahlzeiten erstellt",
+  "eat.groceryNote": "\"Alles hier kommt direkt aus den Mahlzeiten dieser Woche — nichts zu viel, nichts zu wenig.\""
 }

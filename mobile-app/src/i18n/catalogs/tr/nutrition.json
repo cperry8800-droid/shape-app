@@ -170,5 +170,8 @@
   "eat.swapMessage": "Değiştirildi {from} → {to} · {day}",
   "eat.swapDayToday": "bugün",
   "eat.toastRecipeAdded": "Tarifin alışveriş listesi eklendi",
-  "eat.toastItemAdded": "Alışveriş listesine eklendi"
+  "eat.toastItemAdded": "Alışveriş listesine eklendi",
+  "eat.groceryPlanName": "Bu haftanın planı",
+  "eat.groceryEyebrow": "Öğünlerinden otomatik oluşturuldu",
+  "eat.groceryNote": "\"Buradaki her şey doğrudan bu haftanın öğünlerinden geliyor — fazlası yok, eksiği yok.\""
 }

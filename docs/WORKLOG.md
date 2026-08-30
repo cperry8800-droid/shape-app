@@ -378,6 +378,44 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — Two module-scope builders stop fabricating, and the third turns out to need a data change
+
+- **The two fabrications cut 4 registered are closed**, both in module-scope
+  builders that **cannot hold a hook** — so the translator is injected, optional,
+  and every call carries the English as its `defaultValue`.
+- **`bsHomeLiveWeek`** — `title: w.title || 'Workout'` and `meal.title || 'Meal'`
+  (×2) are on the **live** path: a signed-in member whose assigned session or meal
+  carried no title read an English word **on their own Home screen**, in every
+  locale. Now `common:fallback.{workout,meal}` ×13.
+- **`bsBuildPlanGrocery` no longer falls back to a NAME.** It read
+  `author || 'Dr. Maya Patel'`, and the caller passes **null for author in exactly
+  the signed-in-with-no-plan case** — so that member read a shopping list credited
+  to a nutritionist they do not have. **The caller now resolves the credit**,
+  because only it knows whether this is a real account: a live plan credits its real
+  nutritionist (or the honest role noun), a signed-in member with no plan gets the
+  role noun, and **only the signed-out preview keeps the demo name**. Its own chrome
+  — list name, eyebrow, note — was English in all 13 and is authored too.
+- ⚠ **AND A THIRD BUILDER OF THE SAME CLASS TURNED UP, WHICH IS WHY THE CLASS WAS
+  SWEPT RATHER THAN THE TWO INSTANCES PATCHED.** `bsBuildTrainProgram`
+  (`iosAppBroadsheetClient.jsx:4403`) hardcodes **nine** English strings on the live
+  Train path — `Workout` · `Your program` · `Programmed by you` · `The Training` ·
+  `The Recovery` · `Rest\nday.` · and the tags `YOURS` / `CUSTOM` / `FEATURE` /
+  `REST`.
+- ⚠ **IT IS REGISTERED, NOT SWEPT, AND THE REASON IS THE INTERESTING PART: ITS TAGS
+  CANNOT BE TRANSLATED WHERE THEY ARE.** `tag` is **both a rendered chip and a live
+  logic token** — `iosAppBroadsheetClient.jsx:5177` reads
+  `const isRestDay = cur.tag === 'REST'` — so a `tr()` on that value would stop the
+  app recognising a rest day **in all twelve non-English locales**, silently, with
+  every gate green. This is **cut 2's vibe-label lesson exactly** (key off a stable
+  id, never the English word), and the fix is a **token/label split** in the builder
+  plus every reader: a design change, not a housekeeping line. **Anyone opening a
+  Train cut must do the split FIRST** — a naive `tr()` sweep there breaks rest days.
+- **2/2 mutations killed** (an `en` key deleted · a `de` key dropped), sanity green
+  at both ends. Verified: mobile build 0 with all five new keys confirmed in the
+  emitted bundle and **zero fallback-to-a-name left in it** · catalog parity ×13 ·
+  all four i18n guards 22/22 · the ratchet unchanged (these are module-scope
+  functions, not components — by design the walk does not attribute them).
+
 ### 2026-08-30 — The measured gap closes: 15 marketplace:preview keys, authored
 
 - **The plan-preview sheet — the surface a member reads before they BUY — was

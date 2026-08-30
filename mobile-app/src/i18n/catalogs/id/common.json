@@ -13,5 +13,7 @@
   "error.copy": "Salin",
   "error.reload": "Muat ulang",
   "error.restart": "Mulai ulang aplikasi",
-  "error.copied": "Error disalin"
+  "error.copied": "Error disalin",
+  "fallback.workout": "Latihan",
+  "fallback.meal": "Makanan"
 }

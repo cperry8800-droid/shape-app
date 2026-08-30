@@ -170,5 +170,8 @@
   "eat.swapMessage": "Đã đổi {from} → {to} · {day}",
   "eat.swapDayToday": "hôm nay",
   "eat.toastRecipeAdded": "Đã thêm danh sách mua sắm của công thức",
-  "eat.toastItemAdded": "Đã thêm vào danh sách mua sắm"
+  "eat.toastItemAdded": "Đã thêm vào danh sách mua sắm",
+  "eat.groceryPlanName": "Kế hoạch tuần này",
+  "eat.groceryEyebrow": "Tự động dựng từ các bữa ăn của bạn",
+  "eat.groceryNote": "\"Mọi thứ ở đây đều lấy thẳng từ các bữa ăn tuần này — không thừa, không thiếu.\""
 }

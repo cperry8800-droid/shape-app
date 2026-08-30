@@ -170,5 +170,8 @@
   "eat.swapMessage": "Замінено {from} → {to} · {day}",
   "eat.swapDayToday": "сьогодні",
   "eat.toastRecipeAdded": "Список покупок за рецептом додано",
-  "eat.toastItemAdded": "Додано до списку покупок"
+  "eat.toastItemAdded": "Додано до списку покупок",
+  "eat.groceryPlanName": "План на цей тиждень",
+  "eat.groceryEyebrow": "Зібрано автоматично з ваших прийомів їжі",
+  "eat.groceryNote": "«Усе тут узято прямо зі страв цього тижня — нічого зайвого, нічого не забуто.»"
 }

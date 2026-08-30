@@ -13,5 +13,7 @@
   "error.copy": "Копіювати",
   "error.reload": "Перезавантажити",
   "error.restart": "Перезапустити застосунок",
-  "error.copied": "Помилку скопійовано"
+  "error.copied": "Помилку скопійовано",
+  "fallback.workout": "Тренування",
+  "fallback.meal": "Прийом їжі"
 }

@@ -170,5 +170,8 @@
   "eat.swapMessage": "Ditukar {from} → {to} · {day}",
   "eat.swapDayToday": "hari ini",
   "eat.toastRecipeAdded": "Daftar belanja resep ditambahkan",
-  "eat.toastItemAdded": "Ditambahkan ke daftar belanja"
+  "eat.toastItemAdded": "Ditambahkan ke daftar belanja",
+  "eat.groceryPlanName": "Rencana minggu ini",
+  "eat.groceryEyebrow": "Dibuat otomatis dari makananmu",
+  "eat.groceryNote": "\"Semua yang ada di sini datang langsung dari makanan minggu ini — tidak ada tambahan, tidak ada yang kurang.\""
 }

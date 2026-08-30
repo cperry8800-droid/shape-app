@@ -13,5 +13,7 @@
   "error.copy": "Kwafi",
   "error.reload": "Sake lodawa",
   "error.restart": "Sake buɗe app ɗin",
-  "error.copied": "An kwafi kuskuren"
+  "error.copied": "An kwafi kuskuren",
+  "fallback.workout": "Motsa jiki",
+  "fallback.meal": "Abinci"
 }

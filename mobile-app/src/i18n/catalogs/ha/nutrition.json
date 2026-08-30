@@ -170,5 +170,8 @@
   "eat.swapMessage": "An canja {from} → {to} · {day}",
   "eat.swapDayToday": "yau",
   "eat.toastRecipeAdded": "An ƙara jerin sayayya na girke-girke",
-  "eat.toastItemAdded": "An ƙara cikin jerin sayayya"
+  "eat.toastItemAdded": "An ƙara cikin jerin sayayya",
+  "eat.groceryPlanName": "Shirin wannan makon",
+  "eat.groceryEyebrow": "An gina ta kai tsaye daga abincinka",
+  "eat.groceryNote": "\"Duk abin da ke nan ya fito kai tsaye daga abincin wannan makon — babu ƙari, babu ƙasa.\""
 }
