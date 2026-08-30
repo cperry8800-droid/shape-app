@@ -378,6 +378,53 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The inventory walk stops missing this codebase's own chrome props
+
+- **The blind spot cut 6 registered is closed.** `TEXT_PROPS` — the walk's JSX-attribute
+  allowlist — held **seven** names (`placeholder · title · alt · aria-label · ariaLabel ·
+  label · aria-valuetext`), all of them generic HTML/ARIA. This codebase's own chrome takes
+  copy through props that were on none of them, so a string moved out of a `tr()` call and
+  into `kicker={'…'}` passed the ratchet. Widened to **fifteen**, adding the eight this
+  tree actually routes member-facing copy through: `kicker · eyebrow · meta · sub · note ·
+  credit · helper · action`.
+- ⚠ **EVERY ADDITION WAS VERIFIED AT ITS RECEIVING COMPONENT, NOT GUESSED FROM ITS NAME.**
+  A prop earns a place only when the component renders it as text — so `kind · variant ·
+  active · style · tone · role · pattern · idKey` stay out (they are tokens, and counting
+  them would demand a translation for a string no member reads, which is the fabrication
+  direction).
+- ⚠ **AND `left`/`right` ARE EXCLUDED FOR A REASON WORTH MORE THAN THE EXCLUSION.** All
+  **37** of their string literals go to **`<BSFooter>`** — and `BSFooter`'s entire body is
+  `return null`. The page footnote was removed from every page and the component was kept
+  as a no-op so its call sites still compile; its own comment says so. Admitting those props
+  would have added 37 phantom untranslated strings for copy that cannot render.
+- ⚠ **WHICH SURFACED A REAL COST: 364 AUTHORED TRANSLATION VALUES THAT RENDER NOWHERE.**
+  Measured, not estimated: **64** `<BSFooter>` render sites, **zero** of them bare — every
+  one passes props, and **39** of those props are `tr()` calls across **34 distinct keys**,
+  of which **28 are footer-ONLY** (their every `tr()` call sits on a footer line). 28 × 13
+  locales = **364 values** authored, reviewed and shipped for a component that returns null.
+  The other six keys are shared with a live site and are fine. **Registered, not swept** —
+  deleting a key is a catalog change across 13 files and belongs in its own cut; and the
+  no-op is a shipped product decision, not a defect.
+- **The ratchet rose, and a rise is only honest beside the change that caused it.**
+  `partStrings` **134 → 138**, `noneStrings` **1026 → 1109**; `part.length` **31** and
+  `none.length` **109** are **UNCHANGED** — the widening moved no component between
+  buckets, it only made strings already in those components visible. The delta was
+  attributed by measuring all four combinations of old/new test × old/new source:
+  **+4** from the prop rename below, **+83** from the widening (**+4** partial, **+79**
+  uncovered). **A floor rose for the same reason the 2026-08-30 detector widening's did:
+  the measurement got bigger, not the gap.**
+- ⚠ **AND THE WIDENING IMMEDIATELY COLLIDED WITH A ONE-LETTER PROP NAME.** `BSNotifyPrefs`
+  declared a local row component as `({ l, sub, right })` — so `sub` was now a copy prop on
+  a component whose sibling `l` carried the actual label. Renamed `l` → `label` at the
+  declaration, the render and all four call sites (*Mute everything · From · To · Daily
+  limit*), which is why the rename contributes its own +4. **The alternative — adding a
+  single letter to a tree-wide copy allowlist — would have made every `l=` in the codebase
+  a candidate string.**
+- **3/3 mutations killed** (drop the eight new props · re-admit `left`/`right`, which fails
+  two assertions · leave the row component on `l`), sanity green at both ends and both files
+  restored byte-identically.
+- Verified: `npm test` **2503/2503** · `tsc --noEmit` 0 · the ratchet 9/9 · JSX parse.
+
 ### 2026-08-30 — i18n cut 6 step 2: the grocery sweep, and two guards that were wrong about their own subject
 
 - **The 366-string grocery surface cut 4 registered is closed.** Step 1 (#1966) split
@@ -460,6 +507,14 @@ changelog whenever something ships.
   a **prop name**. **Registered, not widened** — widening `TEXT_PROPS` adds components and
   strings tree-wide and moves every total, which is precisely why cut 4's widening was its
   own PR.
+  ⚠ **SHIPPED 2026-08-30 (entry above) — AND THE REGISTER WAS WRONG ABOUT TWO OF THE FIVE
+  PROPS IT NAMED.** `right` and `left` are **not** member-facing: all 37 of their string
+  literals go to `<BSFooter>`, whose body is `return null`. So the honest gap was **83**
+  strings across eight props, not 91 across five — and the two the register got wrong were
+  the ones it described as *"footer labels"*, which was the clue. The correction cost
+  nothing (they were excluded) and bought a bigger finding: **28 footer-only i18n keys ×
+  13 locales = 364 authored values that render nowhere.** **A prop earns a place on a copy
+  allowlist at its receiving component, never from its name.**
   ⚠ **And the first attempt to size it read ZERO on all seven arms** — the pattern allowed
   only single quotes while the tree writes `kicker="…"`. A saturated result across every
   arm is the instrument, not the finding; the positive control (`title=`, which IS on the
