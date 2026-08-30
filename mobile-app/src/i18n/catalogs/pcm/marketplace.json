@@ -168,5 +168,20 @@
   "stat.years": "Years",
   "studio.head": "The studio",
   "studio.photos": "{count, plural, one {# foto} other {# fotos}}",
-  "thread.bookedIntro": "Intro consultation booked: {title}."
+  "thread.bookedIntro": "Intro consultation booked: {title}.",
+  "preview.eyebrowProgram": "Program",
+  "preview.eyebrowMenu": "Meal plan",
+  "preview.eyebrowSession": "One session",
+  "preview.weeks": "Weeks",
+  "preview.perWeek": "Days / wk",
+  "preview.meals": "Meals",
+  "preview.moves": "Entries",
+  "preview.rest": "Rest",
+  "preview.aria": "Wetin dey inside {name}",
+  "preview.outline": "Di outline",
+  "preview.perDay": "Di menu dey change every day · meals for one day",
+  "preview.locked": "＋{count} more · e go open when you buy",
+  "preview.noOutline": "Dis coach never publish outline for dis one yet.",
+  "preview.buy": "Buy · {price} →",
+  "preview.action": "Wetin dey inside →"
 }

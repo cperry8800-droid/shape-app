@@ -168,5 +168,20 @@
   "stat.years": "Tahun",
   "studio.head": "Studio",
   "studio.photos": "{count, plural, other {# foto}}",
-  "thread.bookedIntro": "Konsultasi intro dipesan: {title}."
+  "thread.bookedIntro": "Konsultasi intro dipesan: {title}.",
+  "preview.eyebrowProgram": "Program",
+  "preview.eyebrowMenu": "Rencana makan",
+  "preview.eyebrowSession": "Sesi satuan",
+  "preview.weeks": "Minggu",
+  "preview.perWeek": "Hari / mgg",
+  "preview.meals": "Makanan",
+  "preview.moves": "Item",
+  "preview.rest": "Istirahat",
+  "preview.aria": "Isi dari {name}",
+  "preview.outline": "Rangkaiannya",
+  "preview.perDay": "Menu berbeda tiap hari · makanan per hari",
+  "preview.locked": "＋{count} lagi · terbuka setelah kamu beli",
+  "preview.noOutline": "Coach ini belum menerbitkan rangkaian untuk yang ini.",
+  "preview.buy": "Beli · {price} →",
+  "preview.action": "Lihat isinya →"
 }

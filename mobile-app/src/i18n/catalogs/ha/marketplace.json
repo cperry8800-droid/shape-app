@@ -168,5 +168,20 @@
   "stat.years": "Shekaru",
   "studio.head": "Studio",
   "studio.photos": "{count, plural, one {hoto #} other {hotuna #}}",
-  "thread.bookedIntro": "An ajiye tuntuɓar gabatarwa: {title}."
+  "thread.bookedIntro": "An ajiye tuntuɓar gabatarwa: {title}.",
+  "preview.eyebrowProgram": "Shiri",
+  "preview.eyebrowMenu": "Tsarin abinci",
+  "preview.eyebrowSession": "Zama guda",
+  "preview.weeks": "Makonni",
+  "preview.perWeek": "Kwana / mako",
+  "preview.meals": "Abinci",
+  "preview.moves": "Shigarwa",
+  "preview.rest": "Hutu",
+  "preview.aria": "Abin da ke cikin {name}",
+  "preview.outline": "Tsarin",
+  "preview.perDay": "Menu na canzawa kowace rana · abinci kowace rana",
+  "preview.locked": "＋{count} ƙari · za a buɗe idan ka saya",
+  "preview.noOutline": "Wannan kocin bai riga ya buga tsari don wannan ba.",
+  "preview.buy": "Saya · {price} →",
+  "preview.action": "Abin da ke ciki →"
 }

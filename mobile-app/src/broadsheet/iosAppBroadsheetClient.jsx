@@ -3084,7 +3084,14 @@ function bsOnShareSettingChanged(prevPrefs, nextPrefs) {
 // member with an assigned program sees their actual week on home. Returns null
 // shape pieces per day where nothing is assigned; callers fall back to the
 // shared demo week only when NO plan exists at all.
-function bsHomeLiveWeek(plan, t) {
+// ⚠ THE TRANSLATOR IS INJECTED, because this is a module-scope builder that
+// cannot hold a hook. Its three fallbacks — 'Workout', 'Meal', 'Meal.' — are on
+// the LIVE path: a signed-in member whose assigned session or meal carries no
+// title read an English word on their own Home screen, in every locale. `tr` is
+// optional and every call carries the English as its defaultValue, so the
+// behaviour is unchanged when it is absent.
+function bsHomeLiveWeek(plan, t, tr) {
+  const T = (k, en) => { try { return tr ? tr(k, { defaultValue: en }) : en; } catch (e) { return en; } };
   const monday = new Date(); monday.setHours(0, 0, 0, 0);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   // Slot assigned workouts onto the week (same rules as the Train deck).
@@ -3120,7 +3127,7 @@ function bsHomeLiveWeek(plan, t) {
         load: e.load || '',
       }));
       const meta = [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
-      wk = { time: w.time || '—', kind: 'TRN', title: w.title || 'Workout', sub: meta, detail: { moves, meta, note: w.description || '' } };
+      wk = { time: w.time || '—', kind: 'TRN', title: w.title || T('common:fallback.workout', 'Workout'), sub: meta, detail: { moves, meta, note: w.description || '' } };
     }
     workoutByIdx.push(wk);
     const md = mSlots[i];
@@ -3132,9 +3139,9 @@ function bsHomeLiveWeek(plan, t) {
         const sub = [meal.kcal ? `${meal.kcal} kcal` : null, meal.p ? `${meal.p}P` : null].filter(Boolean).join(' · ');
         recs.push({
           id: `home-live-${i}-${j}`, time, tag: slot.slice(0, 5), tagColor: t.AMBER,
-          title: meal.title || 'Meal', sub: sub || '', kcal: meal.kcal || 0, p: meal.p || 0, c: meal.c || 0, f: meal.f || 0,
+          title: meal.title || T('common:fallback.meal', 'Meal'), sub: sub || '', kcal: meal.kcal || 0, p: meal.p || 0, c: meal.c || 0, f: meal.f || 0,
           prep: meal.prep || '—', portion: meal.portion || '1 plate', score: meal.score || '—',
-          hero: meal.hero || meal.brief || `${meal.title || 'Meal'}.`, brief: meal.brief || '',
+          hero: meal.hero || meal.brief || `${meal.title || T('common:fallback.meal', 'Meal')}.`, brief: meal.brief || '',
           ingredients: (meal.ingredients || []).map((ing) => ({ n: ing.qty || '', m: ing.name || '', k: ing.kcal != null ? `${ing.kcal} kcal` : '' })),
           steps: meal.steps || [], coachNote: meal.coachNote || '',
           // The plan's OWN assigning nutritionist — the meal share's honest
@@ -3222,10 +3229,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // real (empty) plan; the demo week is only the signed-out preview.
   const bsHomeSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const liveWeek = React.useMemo(() => {
-    if (livePlan) return bsHomeLiveWeek(livePlan, t);
-    if (bsHomeSignedIn) return bsHomeLiveWeek({ training: { hasPlan: false, workouts: [] }, meals: { hasPlan: false, days: [] } }, t);
+    if (livePlan) return bsHomeLiveWeek(livePlan, t, tr);
+    if (bsHomeSignedIn) return bsHomeLiveWeek({ training: { hasPlan: false, workouts: [] }, meals: { hasPlan: false, days: [] } }, t, tr);
     return null;
-  }, [livePlan, bsHomeSignedIn, t]);
+  }, [livePlan, bsHomeSignedIn, t, tr]);
 
   const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
   // "Up next" follows the day you tap in the week strip (not just today).
@@ -8710,7 +8717,16 @@ function bsBuilderAisleFor(name) {
 // Roll the whole week's meal ingredients into one aisle-grouped grocery list,
 // deduped by ingredient name. This makes the shop list literally the meals'
 // ingredients, so the two always match up (no separate hardcoded list to drift).
-function bsBuildPlanGrocery(program, author, name) {
+// ⚠ INJECTED TRANSLATOR, SAME REASON AS bsHomeLiveWeek: a module-scope builder
+// cannot hold a hook, and its own chrome (the list name, the eyebrow, the note)
+// shipped English in all thirteen locales. ⚠ AND `author` NO LONGER FALLS BACK TO
+// A NAME. It used to read `author || 'Dr. Maya Patel'`, so a SIGNED-IN member with
+// no plan — the caller passes null for author in exactly that case — read a
+// shopping list credited to a nutritionist they do not have. The caller knows
+// whether it is signed in; it now resolves the credit and this function renders
+// what it is handed.
+function bsBuildPlanGrocery(program, author, name, tr) {
+  const T = (k, en) => { try { return tr ? tr(k, { defaultValue: en }) : en; } catch (e) { return en; } };
   const byName = new Map();
   (program || []).forEach(dy => (dy.meals || []).forEach(meal => (meal.ingredients || []).forEach(ing => {
     const name = String(ing.m || '').trim();
@@ -8744,10 +8760,10 @@ function bsBuildPlanGrocery(program, author, name) {
     .map(a => ({ aisle: a, items: buckets.get(a).sort((x, y) => x.n.localeCompare(y.n)) }));
   return {
     id: 'plan-week',
-    name: name || "This week's plan",
-    eyebrow: 'Auto-built from your meals',
-    author: author || 'Dr. Maya Patel',
-    note: '"Every item here comes straight from this week\'s meals — nothing extra, nothing missing."',
+    name: name || T('nutrition:eat.groceryPlanName', "This week's plan"),
+    eyebrow: T('nutrition:eat.groceryEyebrow', 'Auto-built from your meals'),
+    author: author || '',
+    note: T('nutrition:eat.groceryNote', '"Every item here comes straight from this week\'s meals — nothing extra, nothing missing."'),
     aisles,
   };
 }
@@ -9862,10 +9878,19 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   const planGrocery = React.useMemo(
     () => bsBuildPlanGrocery(
       PROGRAM,
-      liveProgram ? (liveMealCoach || tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' })) : null,
+      // ⚠ THE CREDIT IS RESOLVED HERE, because only the caller knows whether this
+      // is a real account. A live plan credits its real nutritionist (or the
+      // honest role noun); a SIGNED-IN member with no plan gets the role noun too;
+      // ONLY the signed-out preview keeps the demo name.
+      // ⚠ A REAL NAME OR NOTHING — never the role noun. The byline below runs a
+      // FIRST-NAME extractor over this value, so "Your nutritionist" would render
+      // as "From Your · this week". Empty means "no coach resolved", and the
+      // byline has its own honest phrasing for that.
+      liveProgram ? (liveMealCoach || '') : (bsEatSignedIn ? '' : 'Dr. Maya Patel'),
       liveProgram && liveMealTitle ? liveMealTitle : null,
+      tr,
     ),
-    [PROGRAM, liveProgram, liveMealCoach, liveMealTitle],
+    [PROGRAM, liveProgram, liveMealCoach, liveMealTitle, bsEatSignedIn, tr],
   );
   const activeGroceryList = selectedGroceryList || planGrocery;
   const activeGroceryCount = activeGroceryList.aisles
@@ -10310,7 +10335,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         const have = aisles.reduce((s, a) => s + a.items.filter(it => it.have).length, 0);
         const left = Math.max(0, total - have);
         const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => a.aisle).slice(0, 3).join(', ').toLowerCase();
-        const who = String(activeGroceryList.author || tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' })).replace(/^Dr\.?\s+/i, '').split(' ')[0];
+        // ⚠ `.split(' ')[0]` IS A FIRST-NAME EXTRACTOR, so it may only ever run
+        // over a real person's name. Fed the role noun it produced "From Your ·
+        // this week" — reachable for any signed-in member with no resolved coach,
+        // which is exactly who the builder used to hand a fabricated one.
+        const rawWho = String(activeGroceryList.author || '').trim();
+        const who = rawWho ? rawWho.replace(/^Dr\.?\s+/i, '').split(' ')[0] : '';
         // ⚠ ANOTHER ENGLISH PLURAL BY CONCATENATION (`item${n===1?'':'s'}`).
         const title = left > 0
           ? tr('nutrition:eat.itemsToGet', { defaultValue: '{n, plural, one {# item to get.} other {# items to get.}}', n: left })
@@ -10322,7 +10352,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
               <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who })}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' })}</div>
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>{title}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{tr('nutrition:eat.gotLeft', { defaultValue: '{got} got · {left} left', got: have, left })}{cats ? ` · ${cats}` : ''}</div>
                 </div>

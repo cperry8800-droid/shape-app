@@ -28,7 +28,7 @@ export default function BSLanguagePicker({ onDone }) {
       {/* topbar */}
       <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
         <span>Shape Wire</span>
-        <span style={{ color: INKF }}>Language</span>
+        <span style={{ color: INKF }}>{tr('lang.topbar')}</span>
       </div>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
         <h1 style={{ fontFamily: serif, fontSize: 27, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '14px 0 0' }}>{tr('lang.title')}</h1>

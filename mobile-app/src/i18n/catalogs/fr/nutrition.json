@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {# article à acheter.} other {# articles à acheter.}}",
   "eat.allSet": "Tout est prêt pour la semaine.",
   "eat.fromWho": "De {who} · cette semaine",
+  "eat.fromYourPlan": "De votre plan · cette semaine",
   "eat.gotLeft": "{got} pris · {left} restants",
   "eat.playlistsFrom": "De {who}",
   "eat.playlistBy": "{who} · Votre nutritionniste",
@@ -170,5 +171,8 @@
   "eat.swapMessage": "Remplacé {from} → {to} · {day}",
   "eat.swapDayToday": "aujourd’hui",
   "eat.toastRecipeAdded": "Liste de courses de la recette ajoutée",
-  "eat.toastItemAdded": "Ajouté à la liste de courses"
+  "eat.toastItemAdded": "Ajouté à la liste de courses",
+  "eat.groceryPlanName": "Le plan de cette semaine",
+  "eat.groceryEyebrow": "Constituée automatiquement à partir de tes repas",
+  "eat.groceryNote": "\"Tout ce qui est ici vient directement des repas de la semaine — rien en trop, rien en moins.\""
 }

@@ -101,45 +101,20 @@ function _hexToRGBmain(h) {
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 }
 
-// ── Cosmic intro background + floating Shape mark (mirrors the marketing
-// index page, dialed up with more color). Shared by the splash + login. ──
+// ── Launch-surface styles: the floating Shape mark, plus the shared form
+// utilities (hidden scrollbars, accent focus rings, underline fields). ──
 let _bsSkyStyled = false;
 function ensureSkyStyles() {
   if (_bsSkyStyled || typeof document === 'undefined') return;
   _bsSkyStyled = true;
   const css = `
-  @keyframes bsSkyTwinkle { 0%,100%{opacity:0.2} 50%{opacity:1} }
-  .bs-sky-tw { animation: bsSkyTwinkle var(--tw,3s) ease-in-out infinite; }
-  @keyframes bsAuroraA { 0%,100%{ transform:translate(-6%,-4%) scale(1); } 50%{ transform:translate(8%,6%) scale(1.18); } }
-  @keyframes bsAuroraB { 0%,100%{ transform:translate(6%,4%) scale(1.1); } 50%{ transform:translate(-8%,-6%) scale(1); } }
-  @keyframes bsAuroraC { 0%,100%{ transform:translate(0,0) scale(1); } 50%{ transform:translate(-6%,8%) scale(1.2); } }
-  .bs-aurora { position:absolute; border-radius:50%; filter:blur(46px); opacity:0.55; will-change:transform; }
-  @keyframes bsShoot1 { 0%{transform:translate(0,0) rotate(18deg);opacity:0} 6%{opacity:1} 28%{opacity:0} 100%{transform:translate(380px,124px) rotate(18deg);opacity:0} }
-  @keyframes bsShoot2 { 0%{transform:translate(0,0) rotate(9deg);opacity:0} 6%{opacity:1} 28%{opacity:0} 100%{transform:translate(420px,66px) rotate(9deg);opacity:0} }
-  @keyframes bsShoot3 { 0%{transform:translate(0,0) rotate(24deg);opacity:0} 6%{opacity:1} 28%{opacity:0} 100%{transform:translate(340px,150px) rotate(24deg);opacity:0} }
-  .bs-shoot { position:absolute; width:150px; height:1.4px; border-radius:999px; transform-origin:left center;
-    background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.9)); }
-  .bs-shoot.s1 { top:14%; left:-160px; animation: bsShoot1 9s linear infinite; }
-  .bs-shoot.s2 { top:40%; left:-160px; animation: bsShoot2 12s linear infinite 3.5s; }
-  .bs-shoot.s3 { top:9%;  left:-160px; animation: bsShoot3 11s linear infinite 6.5s; }
   @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); } 50%{ transform:translateY(-10px) scale(1.085); } }
   .bs-shape-mark { animation: bsMarkPulse 2.1s ease-in-out infinite; filter:drop-shadow(0 0 32px rgba(10,197,168,0.85)) drop-shadow(0 0 14px rgba(46,224,196,0.8)); will-change: transform; }
   .bs-shape-mark-calm { animation: bsMarkPulse 2.6s ease-in-out infinite; filter:drop-shadow(0 0 16px rgba(10,197,168,0.4)) drop-shadow(0 0 7px rgba(46,224,196,0.35)); will-change: transform; }
-  .bs-splash-zoom { transition: transform 0.7s cubic-bezier(0.5,0,0.7,0.25); transform-origin: center center; will-change: transform; }
-  .bs-splash-zoom.zooming { transform: scale(7); }
-  .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 36px rgba(10,197,168,0.98)) drop-shadow(0 0 16px rgba(46,224,196,0.95)); }
-  /* The mark charges, then FIRES from its centre: a radial burst pops at the
-     triangle and a bright beam shoots out of it, expanding to fill (→ login). */
-  .bs-splash-burst { position:absolute; left:50%; top:50%; width:170px; height:170px; transform:translate(-50%,-50%) scale(0); border-radius:50%; opacity:0; pointer-events:none; z-index:4; background:radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(46,224,196,0.9) 26%, rgba(10,197,168,0) 70%); }
-  .bs-splash-burst.fire { animation: bsSplashBurst 0.55s ease-out 0.26s forwards; }
-  @keyframes bsSplashBurst { 0%{ transform:translate(-50%,-50%) scale(0); opacity:0.95; } 100%{ transform:translate(-50%,-50%) scale(3.6); opacity:0; } }
-  .bs-splash-beam { position:absolute; left:0; right:0; top:50%; height:5px; transform:translateY(-50%) scaleX(0) scaleY(1); transform-origin:center center; opacity:0; pointer-events:none; z-index:5; background:linear-gradient(90deg, transparent 0%, #0ac5a8 28%, #ffffff 50%, #0ac5a8 72%, transparent 100%); box-shadow:0 0 26px 6px rgba(46,224,196,0.85), 0 0 80px 26px rgba(10,197,168,0.55); }
-  .bs-splash-beam.fire { animation: bsSplashBeam 0.78s cubic-bezier(0.72,0,0.84,0) 0.3s forwards; }
-  @keyframes bsSplashBeam { 0%{ transform:translateY(-50%) scaleX(0) scaleY(1); opacity:0; } 18%{ opacity:1; } 38%{ transform:translateY(-50%) scaleX(1) scaleY(1); opacity:1; } 56%{ transform:translateY(-50%) scaleX(1) scaleY(1.4); opacity:1; } 100%{ transform:translateY(-50%) scaleX(1) scaleY(260); opacity:1; } }
   .bs-mark-edge { stroke-dasharray:38 97; animation: bsMarkEdge 3.2s linear infinite; }
   .bs-mark-edge.e2 { animation-delay:-1.6s; }
   @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
-  @media (prefers-reduced-motion: reduce) { .bs-sky-tw,.bs-aurora,.bs-shoot,.bs-shape-mark,.bs-shape-mark-calm,.bs-mark-edge{ animation:none!important; } }
+  @media (prefers-reduced-motion: reduce) { .bs-shape-mark,.bs-shape-mark-calm,.bs-mark-edge{ animation:none!important; } }
   .bs-hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
   .bs-hide-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
   .bs-no-spin::-webkit-inner-spin-button, .bs-no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -246,47 +221,6 @@ function BSWireLoading({ top = 72 }) {
   );
 }
 
-function BSNightSky() {
-  ensureSkyStyles();
-  const stars = React.useMemo(() => {
-    const rand = (s) => { const x = Math.sin(s) * 10000; return x - Math.floor(x); };
-    const arr = [];
-    for (let i = 0; i < 170; i++) {
-      arr.push({
-        cx: (rand(i * 1.3) * 100).toFixed(2),
-        cy: (rand(i * 2.7 + 1) * 100).toFixed(2),
-        r: (rand(i * 3.1 + 2) * 0.7 + 0.3).toFixed(2),
-        o: (0.3 + rand(i * 4.1) * 0.4).toFixed(2),
-        bright: i % 6 === 0,
-        tw: i % 7 === 0,
-        dur: (2.4 + rand(i * 17) * 2.6).toFixed(2),
-      });
-    }
-    return arr;
-  }, []);
-  return (
-    <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', background: '#02030a' }}>
-      {/* base sky + moon glow */}
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 130% 95% at 50% 0%, #1a2747 0%, #0b1226 38%, #060a16 70%, #02030a 100%)' }} />
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle 360px at 76% 12%, rgba(232,238,255,0.20) 0%, rgba(232,238,255,0.08) 32%, transparent 70%)' }} />
-      {/* colourful drifting aurora blobs */}
-      <span className="bs-aurora" style={{ width: 360, height: 360, top: '44%', left: '-14%', background: 'radial-gradient(circle, rgba(10,197,168,0.55), transparent 70%)', animation: 'bsAuroraA 22s ease-in-out infinite' }} />
-      <span className="bs-aurora" style={{ width: 400, height: 400, top: '52%', right: '-18%', background: 'radial-gradient(circle, rgba(138,92,246,0.5), transparent 70%)', animation: 'bsAuroraB 27s ease-in-out infinite' }} />
-      <span className="bs-aurora" style={{ width: 300, height: 300, top: '-8%', left: '40%', background: 'radial-gradient(circle, rgba(236,72,153,0.4), transparent 70%)', animation: 'bsAuroraC 31s ease-in-out infinite' }} />
-      <span className="bs-aurora" style={{ width: 280, height: 280, bottom: '-12%', left: '18%', background: 'radial-gradient(circle, rgba(245,158,11,0.32), transparent 70%)', animation: 'bsAuroraA 35s ease-in-out infinite' }} />
-      {/* stars */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden>
-        {stars.map((s, i) => (
-          <circle key={i} cx={s.cx + '%'} cy={s.cy + '%'} r={s.r} fill={s.bright ? '#ffffff' : '#e8eeff'} opacity={s.o}
-            className={s.tw ? 'bs-sky-tw' : undefined} style={s.tw ? { '--tw': s.dur + 's' } : undefined} />
-        ))}
-      </svg>
-      {/* shooting stars */}
-      <span className="bs-shoot s1" /><span className="bs-shoot s2" /><span className="bs-shoot s3" />
-    </div>
-  );
-}
-
 function BSShapeMark({ size = 104, calm }) {
   ensureSkyStyles();
   return (
@@ -299,10 +233,9 @@ function BSShapeMark({ size = 104, calm }) {
   );
 }
 
-// Share the cosmic background + mark with the role bundles (home, radio) and
-// the wire ground with the provider-application screen (same launch grammar).
+// Share the mark with the role bundles (home, radio) and the wire ground with
+// the provider-application screen (same launch grammar).
 if (typeof window !== 'undefined') {
-  window.BSNightSky = BSNightSky;
   window.BSShapeMark = BSShapeMark;
   window.BSWireGround = BSWireGround;
 }
@@ -616,8 +549,8 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
     const day   = today.getDate();
     const dateShort = `${wkday} · ${month} ${day}`;
 
-    // FIXED night-sky palette — the background is a hardcoded dark cosmos
-    // gradient, so the ink must NOT follow the paper theme.
+    // FIXED dark palette — the launch surfaces sit on the wire ground, not
+    // the member's paper, so the ink must NOT follow the paper theme.
     const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', ACCF = '#34d6c5';
 
     const dg = bsDigest;                 // null while loading
@@ -2203,6 +2136,19 @@ function BSCrashProbe() {
   throw new Error('Deliberate crash test (mobile boundary)');
 }
 
+// ⚠ THE BOUNDARY CANNOT HOLD A HOOK, AND IT MUST NOT DEPEND ON ONE. It is
+// mounted OUTSIDE I18nextProvider by construction — a boundary rendered inside
+// the tree it catches could not render when that tree throws — so useShapeTr()
+// is unavailable to it, and this is the app's only surface that renders AFTER a
+// failure. So it reads the window bridge, optional-chained, with the English
+// literal carried at every call: if the i18n bundle is exactly what failed to
+// load, the member still gets a readable screen instead of a blank one or a
+// second throw. Same shape as the requireAccount toast above; the reason is
+// stronger here, because this is the fallback of last resort.
+function bsBoundaryT(key, fallback) {
+  try { return window.ShapeI18n?.t?.(key) || fallback; } catch (e) { return fallback; }
+}
+
 class BSErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
@@ -2213,6 +2159,12 @@ class BSErrorBoundary extends React.Component {
     const info = this.state.info;
     // Surface the actual error so it can be read/copied off-device (no console
     // needed). message + first stack frames + the React component stack.
+    // ⚠ THIS BLOCK STAYS ENGLISH ON PURPOSE. It is a diagnostic payload the
+    // member copies and sends to us — its reader is whoever triages the report,
+    // not the member. Translating 'Component stack:' or the unknown-error
+    // fallback would make a pasted report harder to search and match against
+    // the source, and it is the one string here that no locale improves. The
+    // CHROME around it — what happened, what to do — is translated.
     const detail = [
       (err && (err.message || String(err))) || 'Unknown error',
       err && err.stack ? '\n' + String(err.stack).split('\n').slice(0, 6).join('\n') : '',
@@ -2220,14 +2172,14 @@ class BSErrorBoundary extends React.Component {
     ].join('');
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0b0c0c', color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center', fontFamily: "'Saira', 'Helvetica Neue', sans-serif" }}>
-        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>Something went wrong</div>
-        <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>The app hit an error and recovered. Details below — tap Copy and send them over.</div>
+        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>{bsBoundaryT('common:error.title', 'Something went wrong')}</div>
+        <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>{bsBoundaryT('common:error.body', 'The app hit an error and recovered. Details below — tap Copy and send them over.')}</div>
         <pre style={{ width: '100%', maxWidth: 360, maxHeight: 200, overflow: 'auto', textAlign: 'left', background: '#15110d', border: '1px solid rgba(244,239,230,0.15)', borderRadius: 8, padding: 12, fontSize: 11, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#ff8a7a', fontFamily: "ui-monospace, Menlo, monospace" }}>{detail}</pre>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button onClick={() => { try { navigator.clipboard.writeText(detail); window.__bsToast?.('Error copied', 'ok'); } catch (e) {} }} style={{ padding: '11px 20px', borderRadius: 10, background: 'transparent', color: '#f4efe6', border: '1px solid rgba(244,239,230,0.3)', fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Copy</button>
-          <button onClick={() => { this.setState({ err: null, info: null }); }} style={{ padding: '11px 22px', borderRadius: 10, background: '#0ac5a8', color: '#031f1c', border: 0, fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Reload</button>
+          <button onClick={() => { try { navigator.clipboard.writeText(detail); window.__bsToast?.(bsBoundaryT('common:error.copied', 'Error copied'), 'ok'); } catch (e) {} }} style={{ padding: '11px 20px', borderRadius: 10, background: 'transparent', color: '#f4efe6', border: '1px solid rgba(244,239,230,0.3)', fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{bsBoundaryT('common:error.copy', 'Copy')}</button>
+          <button onClick={() => { this.setState({ err: null, info: null }); }} style={{ padding: '11px 22px', borderRadius: 10, background: '#0ac5a8', color: '#031f1c', border: 0, fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{bsBoundaryT('common:error.reload', 'Reload')}</button>
         </div>
-        <button onClick={() => { try { window.location.reload(); } catch (e) {} }} style={{ background: 'transparent', border: 0, color: 'rgba(244,239,230,0.5)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Restart app</button>
+        <button onClick={() => { try { window.location.reload(); } catch (e) {} }} style={{ background: 'transparent', border: 0, color: 'rgba(244,239,230,0.5)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{bsBoundaryT('common:error.restart', 'Restart app')}</button>
       </div>
     );
   }

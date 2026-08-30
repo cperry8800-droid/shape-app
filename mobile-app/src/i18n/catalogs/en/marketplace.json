@@ -168,5 +168,20 @@
   "stat.years": "Years",
   "studio.head": "The studio",
   "studio.photos": "{count, plural, one {# photo} other {# photos}}",
-  "thread.bookedIntro": "Booked intro consultation: {title}."
+  "thread.bookedIntro": "Booked intro consultation: {title}.",
+  "preview.eyebrowProgram": "Program",
+  "preview.eyebrowMenu": "Meal plan",
+  "preview.eyebrowSession": "Single session",
+  "preview.weeks": "Weeks",
+  "preview.perWeek": "Days / wk",
+  "preview.meals": "Meals",
+  "preview.moves": "Entries",
+  "preview.rest": "Rest",
+  "preview.aria": "What's inside {name}",
+  "preview.outline": "The outline",
+  "preview.perDay": "Menus vary by day · meals per day",
+  "preview.locked": "＋{count} more · unlocked when you buy",
+  "preview.noOutline": "This coach hasn't published an outline for this one yet.",
+  "preview.buy": "Buy · {price} →",
+  "preview.action": "What's inside →"
 }

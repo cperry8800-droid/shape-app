@@ -7,5 +7,13 @@
   "nav.eat": "Manger",
   "nav.chat": "Chat",
   "nav.me": "Moi",
-  "unit.weekN": "Semaine {n}"
+  "unit.weekN": "Semaine {n}",
+  "error.title": "Une erreur est survenue",
+  "error.body": "L'application a rencontré une erreur et s'est rétablie. Les détails sont ci-dessous : appuyez sur Copier et envoyez-les-nous.",
+  "error.copy": "Copier",
+  "error.reload": "Recharger",
+  "error.restart": "Redémarrer l'app",
+  "error.copied": "Erreur copiée",
+  "fallback.workout": "Séance",
+  "fallback.meal": "Repas"
 }

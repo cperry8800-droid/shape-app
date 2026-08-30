@@ -168,5 +168,20 @@
   "stat.years": "Лет",
   "studio.head": "Студия",
   "studio.photos": "{count, plural, one {# фото} few {# фото} many {# фото} other {# фото}}",
-  "thread.bookedIntro": "Записана вводная консультация: {title}."
+  "thread.bookedIntro": "Записана вводная консультация: {title}.",
+  "preview.eyebrowProgram": "Программа",
+  "preview.eyebrowMenu": "План питания",
+  "preview.eyebrowSession": "Разовое занятие",
+  "preview.weeks": "Недель",
+  "preview.perWeek": "Дней / нед",
+  "preview.meals": "Приёмов пищи",
+  "preview.moves": "Записей",
+  "preview.rest": "Отдых",
+  "preview.aria": "Что входит в «{name}»",
+  "preview.outline": "Структура",
+  "preview.perDay": "Меню меняется по дням · приёмов пищи в день",
+  "preview.locked": "＋{count} · откроются после покупки",
+  "preview.noOutline": "Этот тренер пока не опубликовал структуру для него.",
+  "preview.buy": "Купить · {price} →",
+  "preview.action": "Что внутри →"
 }

@@ -7,5 +7,13 @@
   "nav.eat": "Ăn",
   "nav.chat": "Chat",
   "nav.me": "Tôi",
-  "unit.weekN": "Tuần {n}"
+  "unit.weekN": "Tuần {n}",
+  "error.title": "Đã xảy ra lỗi",
+  "error.body": "Ứng dụng gặp lỗi và đã khôi phục. Chi tiết ở bên dưới — chạm Sao chép rồi gửi cho chúng tôi.",
+  "error.copy": "Sao chép",
+  "error.reload": "Tải lại",
+  "error.restart": "Khởi động lại ứng dụng",
+  "error.copied": "Đã sao chép lỗi",
+  "fallback.workout": "Buổi tập",
+  "fallback.meal": "Bữa ăn"
 }

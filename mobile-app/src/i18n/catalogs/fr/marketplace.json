@@ -168,5 +168,20 @@
   "stat.years": "Années",
   "studio.head": "Le studio",
   "studio.photos": "{count, plural, one {# photo} other {# photos}}",
-  "thread.bookedIntro": "Consultation intro réservée : {title}."
+  "thread.bookedIntro": "Consultation intro réservée : {title}.",
+  "preview.eyebrowProgram": "Programme",
+  "preview.eyebrowMenu": "Plan de repas",
+  "preview.eyebrowSession": "Séance à l'unité",
+  "preview.weeks": "Semaines",
+  "preview.perWeek": "Jours / sem",
+  "preview.meals": "Repas",
+  "preview.moves": "Éléments",
+  "preview.rest": "Repos",
+  "preview.aria": "Contenu de {name}",
+  "preview.outline": "Le déroulé",
+  "preview.perDay": "Les menus varient selon le jour · repas par jour",
+  "preview.locked": "＋{count} de plus · débloqués à l'achat",
+  "preview.noOutline": "Ce coach n'a pas encore publié de déroulé pour celui-ci.",
+  "preview.buy": "Acheter · {price} →",
+  "preview.action": "Voir le contenu →"
 }

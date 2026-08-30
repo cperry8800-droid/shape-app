@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {# thing remain to buy.} other {# things remain to buy.}}",
   "eat.allSet": "Everything don ready for di week.",
   "eat.fromWho": "From {who} · dis week",
+  "eat.fromYourPlan": "From your plan · dis week",
   "eat.gotLeft": "{got} don enter · {left} remain",
   "eat.playlistsFrom": "From {who}",
   "eat.playlistBy": "{who} · Your nutritionist",
@@ -170,5 +171,8 @@
   "eat.swapMessage": "I change {from} → {to} · {day}",
   "eat.swapDayToday": "today",
   "eat.toastRecipeAdded": "Recipe shopping list don enter",
-  "eat.toastItemAdded": "E don enter di shopping list"
+  "eat.toastItemAdded": "E don enter di shopping list",
+  "eat.groceryPlanName": "Dis week plan",
+  "eat.groceryEyebrow": "We build am from your meals",
+  "eat.groceryNote": "\"Everything wey dey here come straight from dis week meals — nothing extra, nothing miss.\""
 }

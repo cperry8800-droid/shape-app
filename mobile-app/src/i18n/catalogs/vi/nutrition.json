@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Còn # món cần mua.} other {Còn # món cần mua.}}",
   "eat.allSet": "Đã sẵn sàng cho cả tuần.",
   "eat.fromWho": "Từ {who} · tuần này",
+  "eat.fromYourPlan": "Từ kế hoạch của bạn · tuần này",
   "eat.gotLeft": "{got} đã lấy · còn {left}",
   "eat.playlistsFrom": "Từ {who}",
   "eat.playlistBy": "{who} · Chuyên gia dinh dưỡng của bạn",
@@ -170,5 +171,8 @@
   "eat.swapMessage": "Đã đổi {from} → {to} · {day}",
   "eat.swapDayToday": "hôm nay",
   "eat.toastRecipeAdded": "Đã thêm danh sách mua sắm của công thức",
-  "eat.toastItemAdded": "Đã thêm vào danh sách mua sắm"
+  "eat.toastItemAdded": "Đã thêm vào danh sách mua sắm",
+  "eat.groceryPlanName": "Kế hoạch tuần này",
+  "eat.groceryEyebrow": "Tự động dựng từ các bữa ăn của bạn",
+  "eat.groceryNote": "\"Mọi thứ ở đây đều lấy thẳng từ các bữa ăn tuần này — không thừa, không thiếu.\""
 }

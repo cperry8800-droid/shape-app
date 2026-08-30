@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {# item to get.} other {# items to get.}}",
   "eat.allSet": "All set for the week.",
   "eat.fromWho": "From {who} · this week",
+  "eat.fromYourPlan": "From your plan · this week",
   "eat.gotLeft": "{got} got · {left} left",
   "eat.playlistsFrom": "From {who}",
   "eat.playlistBy": "{who} · Your nutritionist",
@@ -170,5 +171,8 @@
   "eat.swapMessage": "Swapped {from} → {to} · {day}",
   "eat.swapDayToday": "today",
   "eat.toastRecipeAdded": "Recipe grocery list added",
-  "eat.toastItemAdded": "Added to grocery list"
+  "eat.toastItemAdded": "Added to grocery list",
+  "eat.groceryPlanName": "This week's plan",
+  "eat.groceryEyebrow": "Auto-built from your meals",
+  "eat.groceryNote": "\"Every item here comes straight from this week's meals — nothing extra, nothing missing.\""
 }

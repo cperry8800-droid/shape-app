@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Sauran kaya #.} other {Sauran kaya #.}}",
   "eat.allSet": "Komai a shirye yake na makon.",
   "eat.fromWho": "Daga {who} · wannan mako",
+  "eat.fromYourPlan": "Daga shirinka · wannan makon",
   "eat.gotLeft": "{got} an ɗauka · {left} saura",
   "eat.playlistsFrom": "Daga {who}",
   "eat.playlistBy": "{who} · Masanin abincinka",
@@ -170,5 +171,8 @@
   "eat.swapMessage": "An canja {from} → {to} · {day}",
   "eat.swapDayToday": "yau",
   "eat.toastRecipeAdded": "An ƙara jerin sayayya na girke-girke",
-  "eat.toastItemAdded": "An ƙara cikin jerin sayayya"
+  "eat.toastItemAdded": "An ƙara cikin jerin sayayya",
+  "eat.groceryPlanName": "Shirin wannan makon",
+  "eat.groceryEyebrow": "An gina ta kai tsaye daga abincinka",
+  "eat.groceryNote": "\"Duk abin da ke nan ya fito kai tsaye daga abincin wannan makon — babu ƙari, babu ƙasa.\""
 }

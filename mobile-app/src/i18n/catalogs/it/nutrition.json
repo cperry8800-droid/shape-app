@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Manca # articolo.} other {Mancano # articoli.}}",
   "eat.allSet": "Tutto pronto per la settimana.",
   "eat.fromWho": "Da {who} · questa settimana",
+  "eat.fromYourPlan": "Dal tuo piano · questa settimana",
   "eat.gotLeft": "{got} presi · {left} mancanti",
   "eat.playlistsFrom": "Da {who}",
   "eat.playlistBy": "{who} · La tua nutrizionista",
@@ -170,5 +171,8 @@
   "eat.swapMessage": "Sostituito {from} → {to} · {day}",
   "eat.swapDayToday": "oggi",
   "eat.toastRecipeAdded": "Lista della spesa della ricetta aggiunta",
-  "eat.toastItemAdded": "Aggiunto alla lista della spesa"
+  "eat.toastItemAdded": "Aggiunto alla lista della spesa",
+  "eat.groceryPlanName": "Il piano di questa settimana",
+  "eat.groceryEyebrow": "Creata automaticamente dai tuoi pasti",
+  "eat.groceryNote": "\"Tutto quello che c'è qui viene dai pasti di questa settimana: niente in più, niente in meno.\""
 }

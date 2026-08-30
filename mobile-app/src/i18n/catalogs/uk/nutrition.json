@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Залишився # товар.} few {Залишилось # товари.} many {Залишилось # товарів.} other {Залишилось # товару.}}",
   "eat.allSet": "Усе готово до тижня.",
   "eat.fromWho": "{who} · цього тижня",
+  "eat.fromYourPlan": "З вашого плану · цього тижня",
   "eat.gotLeft": "{got} у кошику · залишилось {left}",
   "eat.playlistsFrom": "Автор: {who}",
   "eat.playlistBy": "{who} · Ваш нутриціолог",
@@ -170,5 +171,8 @@
   "eat.swapMessage": "Замінено {from} → {to} · {day}",
   "eat.swapDayToday": "сьогодні",
   "eat.toastRecipeAdded": "Список покупок за рецептом додано",
-  "eat.toastItemAdded": "Додано до списку покупок"
+  "eat.toastItemAdded": "Додано до списку покупок",
+  "eat.groceryPlanName": "План на цей тиждень",
+  "eat.groceryEyebrow": "Зібрано автоматично з ваших прийомів їжі",
+  "eat.groceryNote": "«Усе тут узято прямо зі страв цього тижня — нічого зайвого, нічого не забуто.»"
 }

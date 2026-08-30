@@ -7,5 +7,13 @@
   "nav.eat": "Makan",
   "nav.chat": "Chat",
   "nav.me": "Saya",
-  "unit.weekN": "Minggu {n}"
+  "unit.weekN": "Minggu {n}",
+  "error.title": "Ada yang tidak beres",
+  "error.body": "Aplikasi mengalami error dan sudah pulih. Detailnya ada di bawah — ketuk Salin dan kirimkan ke kami.",
+  "error.copy": "Salin",
+  "error.reload": "Muat ulang",
+  "error.restart": "Mulai ulang aplikasi",
+  "error.copied": "Error disalin",
+  "fallback.workout": "Latihan",
+  "fallback.meal": "Makanan"
 }

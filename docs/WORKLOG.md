@@ -378,6 +378,206 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-30 — The dead code cut 1 orphaned is swept, and the register of it was wrong twice
+
+- **Cut 1 deleted the cosmos splash branch and left its scenery behind**, registered as
+  a follow-up rather than swept because touching the shared chrome would have widened a
+  localization diff. That reason expired with the diff; this is the sweep. **7.2k chars
+  of CSS and one component**, no behaviour change.
+- ⚠ **THE REGISTER WAS WRONG IN TWO WAYS, AND BOTH WOULD HAVE MISLED THE SWEEP.**
+  (1) It said the four CSS families live in **the SHARED chrome**. Only **one** did —
+  `.bs-splash-title` in `iosAppBroadsheet.jsx`; the other three sat in
+  `iosAppBroadsheetMain.jsx` beside the component that used them. A sweep trusting the
+  register would have opened the wrong file and found three families missing.
+  (2) It called `.bs-sky-tw/.bs-aurora/.bs-shoot` unreferenced — but **`BSNightSky`
+  itself rendered all three** (`iosAppBroadsheetMain.jsx:273-285`). They were dead only
+  **once it went**, not before. Deleting them first would have stripped the styling off
+  a component still in the tree.
+- ⚠ **AND IT MISSED A FIFTH FAMILY.** `.bs-daily-title/-the/-shape/-daily` is the
+  **paired** display-weight override sitting in the same rule blocks as
+  `.bs-splash-title` — the old "Shape Daily" telegram title, equally orphaned since cut 1
+  re-set that surface. It was invisible to a register that enumerated the splash half
+  and stopped. **An enumeration is not a proof that the enumeration is complete** — the
+  rule this file already records for caller lists, applied to CSS.
+- ⚠ **AND ONE PATTERN THAT LOOKS DEAD IS LIVE.** `bs-aurora` matches
+  **`bs-aurora-drift`**, a keyframes name in `iosAppBroadsheetRadio.jsx` that has nothing
+  to do with the deleted `.bs-aurora` class. A substring sweep would have taken the radio
+  screen's drift animation with it. Verified by matching `bs-aurora[a-z-]*` and reading
+  what came back, not by trusting the shorter pattern.
+- **What went:** `BSNightSky` + its `window` export · the sky/aurora/shooting-star CSS ·
+  the splash zoom/burst/beam CSS (the cosmos splash's fire-into-login transition, zero
+  className consumers) · both title families. The reduced-motion rule keeps only the
+  selectors that still exist. Three comments naming a background this file no longer has
+  were corrected in place — including one on the **live** wire beat still describing "a
+  hardcoded dark cosmos gradient", which is the stale-prose class this file keeps paying
+  for.
+- ⚠ **THE FLOOR FELL 360 → 359, AND THAT IS THE ONLY HONEST WAY TO LOWER ONE.**
+  BSNightSky rendered `aria-hidden` decoration only, so it sat in the **no-copy** bucket
+  (118 → 117): `partStrings` 165, `noneStrings` 1104, `part.length` 32, `none.length` 115
+  and `full.length` 95 are **all unchanged**. The reason is written at the assertion, next
+  to the deletion that caused it — a floor is never lowered to make a failing run pass.
+- **Verified against the EMITTED BUNDLE, not the source**: all twelve dead patterns absent,
+  all six live ones (`bs-shape-mark` 6 · `bs-mark-edge` 5 · `bsMarkPulse` 3 ·
+  `bs-hide-scroll` 42 · `bs-uline` 45 · `prefers-reduced-motion` 14) intact.
+  ⚠ **The first run of that check reported ZERO on BOTH arms** — a `cd` had failed and it
+  was grepping a directory with no `.js` in it. A saturated result across both arms of a
+  check is a broken instrument until proven otherwise; this file has now paid for that
+  lesson three times.
+- Verified: `npm test` **2466/2466** · `tsc --noEmit` 0 · both broadsheet files parse ·
+  mobile build 0 · the inventory 9/9.
+
+### 2026-08-30 — Two module-scope builders stop fabricating, and the third turns out to need a data change
+
+- **The two fabrications cut 4 registered are closed**, both in module-scope
+  builders that **cannot hold a hook** — so the translator is injected, optional,
+  and every call carries the English as its `defaultValue`.
+- **`bsHomeLiveWeek`** — `title: w.title || 'Workout'` and `meal.title || 'Meal'`
+  (×2) are on the **live** path: a signed-in member whose assigned session or meal
+  carried no title read an English word **on their own Home screen**, in every
+  locale. Now `common:fallback.{workout,meal}` ×13.
+- **`bsBuildPlanGrocery` no longer falls back to a NAME.** It read
+  `author || 'Dr. Maya Patel'`, and the caller passes **null for author in exactly
+  the signed-in-with-no-plan case** — so that member read a shopping list credited
+  to a nutritionist they do not have. **The caller now resolves the credit**,
+  because only it knows whether this is a real account: a live plan credits its real
+  nutritionist (or the honest role noun), a signed-in member with no plan gets the
+  role noun, and **only the signed-out preview keeps the demo name**. Its own chrome
+  — list name, eyebrow, note — was English in all 13 and is authored too.
+- ⚠ **AND A THIRD BUILDER OF THE SAME CLASS TURNED UP, WHICH IS WHY THE CLASS WAS
+  SWEPT RATHER THAN THE TWO INSTANCES PATCHED.** `bsBuildTrainProgram`
+  (`iosAppBroadsheetClient.jsx:4403`) hardcodes **nine** English strings on the live
+  Train path — `Workout` · `Your program` · `Programmed by you` · `The Training` ·
+  `The Recovery` · `Rest\nday.` · and the tags `YOURS` / `CUSTOM` / `FEATURE` /
+  `REST`.
+- ⚠ **IT IS REGISTERED, NOT SWEPT, AND THE REASON IS THE INTERESTING PART: ITS TAGS
+  CANNOT BE TRANSLATED WHERE THEY ARE.** `tag` is **both a rendered chip and a live
+  logic token** — `iosAppBroadsheetClient.jsx:5177` reads
+  `const isRestDay = cur.tag === 'REST'` — so a `tr()` on that value would stop the
+  app recognising a rest day **in all twelve non-English locales**, silently, with
+  every gate green. This is **cut 2's vibe-label lesson exactly** (key off a stable
+  id, never the English word), and the fix is a **token/label split** in the builder
+  plus every reader: a design change, not a housekeeping line. **Anyone opening a
+  Train cut must do the split FIRST** — a naive `tr()` sweep there breaks rest days.
+- **2/2 mutations killed** (an `en` key deleted · a `de` key dropped), sanity green
+  at both ends. Verified: mobile build 0 with all five new keys confirmed in the
+  emitted bundle and **zero fallback-to-a-name left in it** · catalog parity ×13 ·
+  all four i18n guards 22/22 · the ratchet unchanged (these are module-scope
+  functions, not components — by design the walk does not attribute them).
+
+### 2026-08-30 — The measured gap closes: 15 marketplace:preview keys, authored
+
+- **The plan-preview sheet — the surface a member reads before they BUY — was
+  English in all 13 locales**, and nothing could see it. All fifteen
+  `marketplace:preview.*` keys were asked for with a `defaultValue` and absent from
+  `en`, which is the **silent** half of that pattern: **the parity gate compares the
+  twelve locales AGAINST `en`, so a key missing from `en` is missing everywhere and
+  parity is satisfied.** Cut 3 recorded them as a ratchet rather than translating
+  them in the wrong cut; this authors them, **15 keys ×13**.
+- **`en` is DERIVED from the source's own `defaultValue`s** (an AST walk, not a
+  hand-copy), so the catalog and the call sites cannot disagree at authoring time.
+- ⚠ **THE RATCHET FIRED ON PROGRESS, EXACTLY AS WRITTEN.** Its comment said
+  *"authoring them fails here until the line is deleted"* — and it did, before the
+  line was touched. The array is **left in place, empty**: a sixteenth unauthored
+  key still fails the day it lands, and anyone tempted to park one has to add it
+  deliberately and say why. **A ratchet that is deleted when it empties stops being
+  a ratchet.**
+- ⚠ **AND THE GLYPH CHECK CAUGHT MY OWN DRIFT.** `preview.locked` is
+  `＋{count} more`, and my first ru/uk values rendered it as «Ещё {count}» / «Ще
+  {count}» — natural Slavic, and **the only two of thirteen without the `＋`**, so
+  that one row would have looked different in exactly those locales. The fullwidth
+  `＋` is UI grammar, not prose: the fix keeps it and drops the redundant word
+  (`＋{count} · откроются после покупки`), because the glyph already carries *more*.
+  Same class as the ICU and placeholder validators — **a per-locale check earns its
+  keep on the author's own output, not on someone else's.**
+- **1/1 mutation killed** (a sixteenth key goes unauthored), sanity green at both
+  ends. Placeholders (`{name}` `{count}` `{price}`) and every `→ · ＋` glyph verified
+  identical to `en` across all 13.
+
+### 2026-08-30 — The screen a member reads AFTER the app fails now speaks their language
+
+- **`BSErrorBoundary` was English in all 13 locales**, and it is the app's fallback
+  of last resort: a member whose app has just crashed read *"Something went wrong ·
+  The app hit an error and recovered · Copy · Reload · Restart app"* in a language
+  they may not have. **6 keys ×13** in `common:error.*` (5 rendered + the copy
+  toast). Invisible until the day before — the detector never collected
+  `ClassDeclaration` (entry above).
+- ⚠ **IT CANNOT HOLD A HOOK, AND IT MUST NOT DEPEND ON ONE.** The boundary is
+  mounted OUTSIDE `I18nextProvider` by construction — one rendered inside the tree
+  it catches could not render when that tree throws — so `useShapeTr()` is
+  unavailable. It reads the **window bridge, optional-chained, with the English
+  literal carried at every call**: if the i18n bundle is exactly what failed to
+  load, the member still gets a readable screen rather than a blank one or a second
+  throw. Same shape as the `requireAccount` toast; **the reason is stronger here**,
+  because nothing catches a boundary that throws.
+- ⚠ **THE DIAGNOSTIC PAYLOAD STAYS ENGLISH ON PURPOSE.** The `<pre>` block is copied
+  and sent to us — its reader is whoever triages the report, not the member.
+  Translating `Component stack:` or the unknown-error fallback would make a pasted
+  report harder to search against the source, and it is the one string here no
+  locale improves. The **chrome around it** — what happened, what to do — is
+  translated. The line is drawn at *who reads it*, not at *where it renders*.
+- ⚠ **TEACHING THE DETECTOR WAS PART OF THE FIX, NOT A CONVENIENCE.** With the
+  strings routed through a module-scope helper the walk did not know, the component
+  read `tr: 0` **and** `hard: 0` → "renders no user copy", so it fell out of the
+  baseline entirely. **That is the worse of the two wrong answers**: a component
+  sitting in the baseline is at least measured, while one that renders no copy is
+  outside the ratchet again — the exact failure the widening had just closed.
+  `bsBoundaryT` joins `coachTr` in `MODULE_SCOPE_TRANSLATORS`, both there for one
+  reason: their callers cannot hold a hook.
+- **The ratchet:** fully covered **94 → 95**; uncovered back to **115 (1,104)** —
+  where it stood before the widening, because the component the widening surfaced
+  is the one this closes. `partStrings` 165 and `part.length` 32 unchanged.
+- **3/3 mutations killed** (the detector forgets `bsBoundaryT` · the title
+  un-localized · a `ru` key dropped), sanity green at both ends.
+- Verified: `npm test` · `tsc` 0 · JSX parse · mobile build 0 with **all six
+  `common:error.*` keys and the ru copy confirmed in the emitted bundle** · catalog
+  parity ×13 · the ratchet 9/9.
+
+### 2026-08-30 — The measurement stops walking past three components
+
+- **A component the walk never sees is outside the measurement, not miscounted** —
+  and that is the one failure a two-way ratchet structurally cannot report. Absent
+  from BOTH baselines, such a component can be neither *new* (nothing to flag) nor
+  *stale* (nothing to expire), so it is not a wrong number: it is no number at all.
+  `tests/i18n-surface-inventory.test.mjs` collected `FunctionDeclaration` and
+  `VariableDeclaration` off `ast.program.body` and matched on the BODY node's type,
+  so **an `export` wrapper was a hiding place** and **a class was not a component**.
+- **Three components became visible. NOTHING WAS BUILT** — all three have rendered
+  JSX the whole time:
+  - **`BSDobGate`** (`export default function`) — fully localized already.
+  - **`BSLanguagePicker`** (`export default function`) — genuinely **PARTIAL**: it
+    holds a translator and still hardcodes one string, on the screen that **asks a
+    member which language they want**.
+  - **`BSErrorBoundary`** (`ClassDeclaration`) — **5 strings, no translator**, in
+    all 13 locales. It sits OUTSIDE the i18n provider by construction (a boundary
+    mounted inside the tree it catches could not render when that tree throws), so
+    it needs the provider-free `window.ShapeI18n.t` bridge rather than
+    `useShapeTr()` — **its own PR**. It is exactly the component whose copy a member
+    reads when the app has already failed them.
+- **The totals moved by the widening alone**, which is why this is not folded into a
+  localization cut: **357 → 360** rendering JSX · **93 → 94** fully covered ·
+  **31 → 32** partial (**164 → 165** strings) · **115 → 116** with no translator
+  (**1,104 → 1,109** strings) · 118 no user copy, unchanged.
+- ⚠ **THE FLOOR ROSE 357 → 360, and that is the mirror of this file's own rule about
+  lowering one.** A floor is honest only alongside the change that caused it — the
+  reason is written at the assertion, so the next reader can tell a widening from a
+  number nobody re-measured.
+- ⚠ **THE RULE IS PINNED ON A FIXTURE, NOT ON THE TREE — the same lesson as the
+  parameter-shadow prune, applied before it could bite.** The tree carries exactly
+  three of these shapes, so pinning through them would retire the rule the moment
+  someone rewrote one. The fixture covers the shapes the tree does **not** contain
+  (`export function`, `export const`, `export default class`) plus the case that
+  must stay uncollectable: **`export default () => …` carries no name**, so there is
+  nothing to attribute copy to and nothing a baseline could pin. A component that
+  wants to be measured has to be nameable.
+  ⚠ Its first cut put three `export default`s in one fixture string and died on a
+  **parse error** — which at least failed loudly rather than passing over source
+  that is not JavaScript.
+- **5/5 mutations killed** (drop the export unwrap · drop the ClassDeclaration
+  branch · collect anonymous defaults · raise the floor past the truth · leave
+  BSErrorBoundary out of the baseline), unmutated sanity green at both ends and the
+  file restored byte-identically after each.
+- Verified: `npm test` **2465/2465** · `tsc --noEmit` 0 · the ratchet **9/9**.
+
 ### 2026-08-29 — i18n cut 4: the Eat tab, and the strings the measurement could not see
 
 - **The primary Eat tab is localized.** `BSClientEat` carried **2 `tr()` calls**; it
@@ -524,6 +724,30 @@ changelog whenever something ships.
   the Slavic pair visible by contrast. **The general rule, worth carrying into the
   brief: a `{placeholder}` filled by a proper noun arrives in ONE case, so no
   surrounding word may govern another.**
+- ⚠ **AND THE PRE-MERGE DIFF REVIEW CAUGHT MY OWN FIX TRADING A FABRICATION FOR
+  BROKEN ENGLISH.** The grocery byline runs a **first-name extractor** over the
+  author — `.replace(/^Dr\.?\s+/i,'').split(' ')[0]`, so *"Dr. Maya Patel"* renders
+  *"From Maya · this week"*. Removing the fabricated name routed a signed-in member
+  with no coach into that extractor holding the **role noun**, which renders
+  **"FROM YOUR · THIS WEEK"**. The block is **ungated**, so it is on screen for any
+  such member.
+  ⚠ **It was already broken on an adjacent path** — a live plan whose coach had not
+  resolved hit the same line and read the same thing, shipped in cut 4. So the fix
+  closes two paths, not one. **A value that feeds a name-parser may only ever be a
+  name**: the caller now passes a real coach or **nothing**, and the byline has its
+  own phrasing (`eat.fromYourPlan`, ×13) for the no-name case. Proven by replaying
+  both versions over the four reachable states — the two broken ones now read *"From
+  your plan · this week"*, and the real-name and signed-out demo paths are
+  byte-identical.
+- ⚠ **AND THE WIDENING IMMEDIATELY EARNED ITS KEEP — the newly visible
+  `BSLanguagePicker` was PARTIAL, and its one hardcoded string was `Language`, the
+  topbar label on THE SCREEN THAT ASKS A MEMBER WHICH LANGUAGE THEY READ.** Four
+  `tr()` calls around it and that one word English in all thirteen. `lang.topbar`
+  ×13 closes it; the picker moves PARTIAL → fully covered, so **`part.length`
+  32 → 31, `partStrings` 165 → 164, `full.length` 95 → 96** in the same change.
+  **A measurement that surfaces a one-key fix and then registers it instead of
+  making it has not been used** — that is the register-don't-fix habit applied
+  where it is not warranted.
 - **Verified:** `npm test` **2465/2465** · `tsc --noEmit` 0 · JSX parse · mobile build 0
   with **56 literal `nutrition:eat.*` keys** (60 authored − 5 computed `quick.q*` + the
   `nutrition:eat.quick.` prefix), `common:unit.weekN`, and sample translations
@@ -633,15 +857,33 @@ changelog whenever something ships.
   where `BSClientEat` carries the same row.
   (4) The **fifteen `marketplace:preview.*` keys** above.
 - ⚠ **AND ONE FINDING THIS CUT SURFACED THAT IS BIGGER THAN IT:
-  `window.__bsToast` IS A PERMANENT NO-OP** (`iosAppBroadsheet.jsx:1364`), so the
+  `window.__bsToast` IS A NO-OP** (`iosAppBroadsheet.jsx:1364`), so the
   **275 toast call sites across the app report into a void** (counted 2026-08-29:
   197 client · 28 pros · 16 calendar · 10 main · 8 chrome · 6 habits · 6
   marketplace · 4 data layer) — including the ten this cut just translated into
   thirteen languages. Translating them was still correct
   (they are the copy that ships the day the sink is wired), but nothing a member
   is told through a toast reaches them today. **Registered on the War Room, not
-  fixed here**: reviving the sink is a product decision about 263 call sites, not
+  fixed here**: reviving the sink is a product decision about 275 call sites, not
   a line in an i18n cut.
+  ⚠ **CORRECTED 2026-08-30 — this read "a PERMANENT no-op" and gave the count as
+  "263" in its last sentence, two lines after correctly saying 275.** The count is
+  **275** (re-measured: `window.__bsToast?.(` invocations, matching the per-file
+  breakdown above exactly; 295 raw mentions, the extra 20 being the definition and
+  its comments). And **"permanent" frames a shipped product decision as a defect**:
+  the host's own comment says *"Toast popups are disabled app-wide"*, and the
+  notice-mode comment at `:1413` dates it — *"switched off app-wide on 2026-06-03
+  (#938) … the popup noise #938 deliberately removed"*. Off by decision, not by
+  fault.
+  ⚠ **AND THE RECORD OMITTED THE ONE FACT AN AUTHOR ACTING ON IT NEEDS: A SANCTIONED
+  REPLACEMENT ALREADY EXISTS.** `bsAskConfirm` **notice mode** (`o.notice === true`)
+  was built *because* the toast is a no-op, and its comment carries the rule — use it
+  for **a transient failure the member needs to know about**, never for a success
+  confirmation, which is exactly the noise #938 removed. So the open question is not
+  "revive the sink"; it is **which of the 275 sites carry a failure a member must see,
+  and should those become notices** — a much narrower call, already answerable one
+  site at a time. **A finding that names a gap without naming the existing remedy
+  reads as unactionable when it isn't.**
 - Verified: `npm test` **2465/2465** · `tsc --noEmit` 0 · mobile build 0 with all
   **112 nutrition keys and the six new home keys confirmed in the emitted bundle**
   (plus spot-checked translations: `ru` habits head, `tr` work tag, `vi` now) ·
