@@ -389,7 +389,10 @@ changelog whenever something ships.
   build all green. This is **cut 5's Train-tag lesson at a second place where the id and
   the word were the same string**, and it needed the same answer: the token stays
   canonical English, **`bsAisleLabel(aisle, T)`** is the only thing a member reads.
-  **10 `nutrition:aisle.*` keys ×13.** No migration — every stored token is unchanged.
+  **11 `nutrition:aisle.*` keys ×13.** No migration — every stored token is unchanged.
+  ⚠ **It shipped as TEN and the eleventh is the Codex bullet below** — `'Items'`, the one
+  token this file said was unreachable. The figure is corrected here rather than left to be
+  reconciled four bullets down, because a summary line is what a skim takes away.
 - **Routed at the four READ sites and at none of the others.** The checklist header + its
   `aria-label`, the builder's aisle pills, the builder's per-item line, and the Eat tab's
   shop-list door meta. The comparisons, the `openAisles` set, `filledAisleNames`, the
@@ -447,7 +450,27 @@ changelog whenever something ships.
   announced sentence is still `"{aisle}, N of M got"` — the aisle name is translated, the
   frame is not. The alternative was leaving the **token** in the sentence, so a screen-
   reader user would hear the English id while a sighted member read the translated label,
-  which is worse. The frame is part of the ~356-string component sweep.
+  which is worse. The frame is part of the component sweep below.
+- ⚠ **AND THE STALE COMMENT SURVIVED INTO MY OWN DIFF — the pre-merge review caught it.**
+  `bsAisleLabel`'s comment argued the fallback's case using `'Items'` as *"a string no
+  member sees"*, **two lines under the map that now keys it**. The map was corrected; the
+  because-clause under it was not. That is worse in a comment than in prose: the next
+  reader is deciding whether a new aisle belongs in the map or can be left to the fallback,
+  and the comment was arguing for the fallback **with the one example that had just been
+  proven reachable**. The fallback's real job is the case it cannot enumerate — a
+  nutritionist's hand-authored aisle; every aisle our own code emits belongs in the map,
+  and the guard derives that set so a new one fails there.
+- ⚠ **AND SCOPING THE SWEEP MEASURED IT — ~70 KEYS, NOT ~356.** Enumerated per component
+  (JSX text, template strings, `aria-label`/`placeholder`, single-quoted literals, minus
+  style values): **BSGroceryBuilder ~13 · BSCoachGroceryReview ~7 · BSGrocery ~35 ·
+  BSGroceryLibrary ~13**, plus the five `nutrition:eat.lib*` keys. **The gap between 356
+  and 70 is not error, it is category:** the residue is ingredient names and quantities
+  (the cut-3 ruling — one data column must not go bilingual), the built-in list NAMES
+  (`Sunday staples` · `Travel week` · `7-day Mediterranean` · `High-protein cut` ·
+  `Plant-forward build`), and the `'New list'` default a member edits — all of which the
+  house has already ruled stay. **Five sites are concatenated English plurals** and become
+  ICU: `{n} items`, `{n} items · {n} aisles`, `Added {n} item(s) from voice`, `{n} lists`,
+  and the aria frame above.
 - **The sweep is the NEXT PR, deliberately.** The split is a design change with real
   breakage risk and deserves its own review; the string sweep is mechanical. It carries the
   five `nutrition:eat.lib*` keys the record-shape cut left deliberately unauthored, because
