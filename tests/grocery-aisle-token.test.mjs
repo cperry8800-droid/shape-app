@@ -99,12 +99,10 @@ test('the token survives translation; only the label moves', () => {
 });
 
 test('an unknown aisle renders as itself — never a raw key, never blank', () => {
-  // A nutritionist's hand-authored aisle arrives as free text, and the dead
-  // 'Items' placeholder would otherwise need a translation for a string no
-  // member ever reads (BSGrocery skips any empty aisle).
+  // A nutritionist's hand-authored aisle arrives as free text. It has no key by
+  // construction, so it must render as itself — never a raw key, never blank.
   const T = bsTrainT(shouty);
   assert.equal(bsAisleLabel('Sundries', T), 'Sundries');
-  assert.equal(bsAisleLabel('Items', T), 'Items');
   assert.equal(bsAisleLabel('', T), '');
   assert.equal(bsAisleLabel(null, T), '');
 });
@@ -155,10 +153,15 @@ test('BS_AISLE_KEY covers every aisle token the code can produce', () => {
     for (const q of assigned.matchAll(/'([^']+)'/g)) emitted.add(q[1]);
   }
 
-  // 'Items' is the one deliberate omission: BSGrocery returns null for an empty
-  // aisle, so that fallback is unreachable and has no reader to translate for.
-  emitted.delete('Items');
-  assert.ok(emitted.size >= 9, `only ${emitted.size} aisle tokens discovered — the scan is broken, not the tree`);
+  // ⚠ THERE IS NO OMISSION HERE, AND THE ONE THIS GUARD SHIPPED WITH IS WHY.
+  // It deleted 'Items' on the reasoning that BSGrocery skips an empty aisle, so
+  // the seeded placeholder had no reader. True of the EMPTY list and false the
+  // moment a member types into it — addItem pushes into aisles[0], which for a
+  // list from confirmCreateGroceryList IS 'Items'. So the exclusion hid the one
+  // live path this scan exists to find. Every token the source can emit is
+  // checked; a token that genuinely cannot be rendered should be deleted from
+  // the source, not from the guard.
+  assert.ok(emitted.size >= 10, `only ${emitted.size} aisle tokens discovered — the scan is broken, not the tree`);
   const missing = [...emitted].filter((a) => !(a in BS_AISLE_KEY));
   assert.deepEqual(missing, [], `aisle tokens with no catalog key — they will render English forever: ${missing.join(', ')}`);
 });
@@ -227,4 +230,31 @@ test('the share text upper-cases with a locale, and the door does not lower-case
   assert.ok(door, "the Eat door's aisle meta line is gone — re-point this guard");
   assert.doesNotMatch(door, /toLowerCase|toLocaleLowerCase/,
     'the shop-list door lower-cases translated aisle names — how a name sits in a meta line is the catalog’s call, not a transform’s');
+});
+
+test("a member-created list's first typed item lands in a KEYED aisle", () => {
+  // ⚠ THE PATH CODEX FOUND, PINNED SO IT CANNOT GO QUIET AGAIN. Two facts have
+  // to hold together for a new custom list to render an English header in
+  // twelve locales, and neither is obvious from the other's site:
+  //   1. confirmCreateGroceryList seeds  aisles: [{ aisle: 'Items', items: [] }]
+  //   2. BSGrocery's addItem does NOT classify — it pushes into aisles[0]
+  // So the first item a member types into their own list lands in 'Items', the
+  // aisle stops being empty, and BSGrocery renders its header. This asserts the
+  // two facts AND that the token they land on is keyed — so if either changes,
+  // the assertion that no longer holds says which one moved.
+  const seed = src.match(/aisles:\s*\[\{\s*aisle:\s*'([^']+)'\s*,\s*items:\s*\[\]\s*\}\]/);
+  assert.ok(seed, 'confirmCreateGroceryList no longer seeds a single empty aisle — re-point this guard');
+  const seeded = seed[1];
+
+  // ⚠ BSGroceryBuilder has an addItem too, and it DOES classify (its own aisle
+  // picker, auto-sorted by bsBuilderAisleFor). So the marker carries the line
+  // ABOVE to name BSGrocery's — the one that does not — while still ending at
+  // the opening brace extractFn matches from.
+  const add = extractFn("  const [newQty, setNewQty] = useStateBSC('');\n  const addItem = () => {");
+  assert.match(add, /aisles\[0\]/, 'addItem no longer files into aisles[0] — re-check whether the seeded aisle is still reachable');
+  assert.doesNotMatch(stripComments(add), /bsGroceryAisleFor/,
+    'addItem now classifies: good, and this guard should be re-pointed at where the seeded aisle can still surface');
+
+  assert.ok(seeded in BS_AISLE_KEY,
+    `the seeded aisle '${seeded}' has no catalog key, and a member's first typed item makes it visible`);
 });

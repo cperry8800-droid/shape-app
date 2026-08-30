@@ -185,5 +185,6 @@
   "aisle.bakery": "Bread",
   "aisle.household": "House things",
   "aisle.recipeIngredients": "Wetin di recipe need",
-  "aisle.libraryItems": "From your library"
+  "aisle.libraryItems": "From your library",
+  "aisle.items": "Things"
 }

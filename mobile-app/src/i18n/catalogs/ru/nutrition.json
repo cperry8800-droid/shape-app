@@ -185,5 +185,6 @@
   "aisle.bakery": "Выпечка",
   "aisle.household": "Для дома",
   "aisle.recipeIngredients": "Ингредиенты рецепта",
-  "aisle.libraryItems": "Из твоей библиотеки"
+  "aisle.libraryItems": "Из твоей библиотеки",
+  "aisle.items": "Товары"
 }

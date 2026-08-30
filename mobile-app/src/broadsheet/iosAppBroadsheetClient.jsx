@@ -8798,6 +8798,14 @@ const BS_AISLE_KEY = {
   'Household': 'nutrition:aisle.household',
   'Recipe ingredients': 'nutrition:aisle.recipeIngredients',
   'Library items': 'nutrition:aisle.libraryItems',
+  // ⚠ 'Items' IS REACHABLE, WHICH THIS FILE ONCE RECORDED THE OTHER WAY.
+  // confirmCreateGroceryList seeds a member-made list with aisles:
+  // [{ aisle: 'Items', items: [] }], and BSGrocery's addItem does not
+  // classify — it pushes into aisles[0]. So the first item a member types
+  // into their own list lands here, the aisle stops being empty, and its
+  // header renders. The register that called it dead was reasoning about
+  // the EMPTY list only.
+  'Items': 'nutrition:aisle.items',
 };
 // ⚠ AN UNKNOWN TOKEN RENDERS AS ITSELF, never a raw key and never blank. A
 // nutritionist's hand-authored aisle arrives as free text, and the dead 'Items'

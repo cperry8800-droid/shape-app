@@ -185,5 +185,6 @@
   "aisle.bakery": "Boulangerie",
   "aisle.household": "Maison",
   "aisle.recipeIngredients": "Ingrédients de la recette",
-  "aisle.libraryItems": "De votre bibliothèque"
+  "aisle.libraryItems": "De votre bibliothèque",
+  "aisle.items": "Articles"
 }

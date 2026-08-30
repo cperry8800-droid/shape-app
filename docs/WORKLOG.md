@@ -423,9 +423,26 @@ changelog whenever something ships.
   literals, they came out of the list record, so the walk could not see them before and
   cannot see them now. What changed is that they are translatable at all.
 - ⚠ **AN UNKNOWN TOKEN RENDERS AS ITSELF — never a raw key, never blank.** A
-  nutritionist's hand-authored aisle arrives as free text, and the dead `'Items'`
-  placeholder (unreachable behind `BSGrocery`'s empty-aisle early return) would otherwise
-  demand a translation for a string no member ever reads.
+  nutritionist's hand-authored aisle arrives as free text and has no key by construction.
+- ⚠ **AND CODEX FOUND THE ONE TOKEN I HAD EXCLUDED, WHICH IS THE ONLY ONE THAT WAS LIVE.**
+  I left `'Items'` unkeyed AND deleted it from the coverage guard's own set, on this file's
+  standing claim that it is *"unreachable behind `BSGrocery`'s empty-aisle early return"*.
+  That is true of an EMPTY list and false the moment a member types into one: **two facts
+  meet, and neither is visible from the other's site** — `confirmCreateGroceryList` seeds a
+  member-made list with `aisles: [{ aisle: 'Items', items: [] }]`, and `BSGrocery`'s
+  `addItem` **does not classify** — it pushes into `aisles[0]`. So the first item typed into
+  your own list lands in `'Items'`, the aisle stops being empty, its header renders, and
+  twelve locales read English. **The exclusion hid the one live path the scan exists to
+  find.** Keyed ×13 (11 keys now), the exclusion deleted, and a regression test pins BOTH
+  facts so a change to either says which one moved. **A token that genuinely cannot render
+  should be deleted from the SOURCE, never from the guard.**
+- ⚠ **AND THE ADD PATH ITSELF IS INCONSISTENT — REGISTERED, NOT WIDENED.** `addItem` files
+  into `aisles[0]` whatever the item is, while the **voice** path one function down calls
+  `bsGroceryAisleFor` and `BSGroceryBuilder`'s own add auto-sorts. So on any multi-aisle
+  list, typing *chicken breast* files it under whatever aisle happens to be first. That is
+  a product defect, it predates this cut, and fixing it would move where members' typed
+  items land — its own change, not a drive-by at merge time. It does **not** retire the key:
+  lists already saved with items under `'Items'` still render it.
 - ⚠ **THE ARIA-LABEL IS HALF-TRANSLATED ON PURPOSE, FOR ONE PR.** The checklist header's
   announced sentence is still `"{aisle}, N of M got"` — the aisle name is translated, the
   frame is not. The alternative was leaving the **token** in the sentence, so a screen-
@@ -585,9 +602,11 @@ changelog whenever something ships.
   today and get authored ×13 by the grocery cut, when a translator is actually in scope.
   **A key with no reader is a key nobody can check.**
 - ⚠ **AND THE REGISTER WAS SHORT — the same failure as the Train-tag register, one entry
-  later.** Two of its seven strings are **dead** (`'Items'` is unreachable behind an
-  empty-aisle early return; `note` has had no render site since the quote box was removed
-  2026-06-04), and it omitted the `(copy)` suffix and **the whole aisle taxonomy** — ten
+  later.** One of its seven strings is **dead** — `note` has had no render site since the
+  quote box was removed 2026-06-04. (⚠ **This said TWO, counting `'Items'` as unreachable
+  behind an empty-aisle early return. Codex refuted that on 2026-08-30: a member's first
+  typed item lands there, because `addItem` files into `aisles[0]` and a new custom list is
+  seeded with exactly one — `'Items'`. Corrected at the cut-6 entry above.**), and it omitted the `(copy)` suffix and **the whole aisle taxonomy** — ten
   strings that are stored on every item, used as grouping keys, rendered as headers **and**
   exported into the share text, i.e. the Train token/label split again. It is a
   cut of its own, not a line item. Corrected in place above. ⚠ **CORRECTED 2026-08-30 — THAT FIGURE IS A COUNT OF CSS VALUES.** It is a raw
@@ -1056,9 +1075,11 @@ changelog whenever something ships.
   becomes their own text and must never be retranslated afterwards.
   ⚠ **THE DATA-SHAPE HALF IS CLOSED 2026-08-30 (entry above) — and the register was
   SHORT, in the same way the Train-tag register was.** Of its seven named strings,
-  **`'Items'` is never rendered** (`BSGrocery` returns null for an empty aisle, so the
-  fallback is unreachable) and **`note` is written but rendered nowhere** (the note quote
-  box was removed 2026-06-04) — so two of seven were dead. It also omitted the `(copy)`
+  **`note` is written but rendered nowhere** (the note quote box was removed 2026-06-04)
+  — so ONE of seven was dead. (⚠ **This claimed `'Items'` was dead too, on the empty-aisle
+  early return. REFUTED 2026-08-30 — `addItem` files into `aisles[0]`, and a member-created
+  list is seeded with `'Items'` as its only aisle, so the first typed item makes it render.
+  It is keyed now; see the cut-6 entry above.**) It also omitted the `(copy)`
   name suffix and the **entire aisle taxonomy** (`Produce` · `Protein` · `Dairy & cold` ·
   `Pantry` · `Other` · `Frozen` · `Bakery` · `Household` · `Recipe ingredients` ·
   `Library items`), which is the same token/label shape as the Train tags: stored on
