@@ -468,6 +468,102 @@ changelog whenever something ships.
   byte-identically.
 - Verified: `npm test` **2503/2503** · `tsc --noEmit` 0 · the ratchet 9/9 · JSX parse.
 
+### 2026-08-30 — i18n cut 7: the universal search surface, and the three shapes one screen hid at once
+
+- **Search Shape is localized** — the screen every header's ⌕ opens, on **all three role
+  apps** (`BSUniversalSearch` is window-exposed and both coach shells render it). It carried
+  **31 hardcoded strings**; `BSSearchMsgBtn` carried 1; `BSSearchFollowBtn` carried, by the
+  walk's reckoning, **none**. **30 new keys ×13** (28 `common:search.*` + two that complete
+  existing `profile:` families), **11 reused**. No migration, no route change.
+- ⚠ **ALL THREE SHAPES THE WALK CANNOT SEE LANDED ON ONE SCREEN, WHICH IS WHY THIS CUT IS
+  WORTH MORE THAN ITS NUMBERS.** The inventory reads JSX text and an attribute allowlist, so
+  it is blind to copy in **an ARRAY LITERAL** (`[['all','All'], ['members','Members'], …].map`
+  — the four filter chips), **a LOCAL ARROW FUNCTION's return**
+  (`const roleLabel = (r) => … 'Trainer' … 'Nutritionist' … 'Member'`), and **a LOCAL CONST
+  TERNARY rendered as `{label}`** (`st.following ? 'Following' : … : 'Follow'`). **Ten
+  member-facing words, invisible.** Cut 4 found copy hidden in an array literal, the
+  record-shape cut found it in stored data, cut 6 found it behind a prop name; this is the
+  first screen to carry three at once.
+- ⚠ **`BSSearchFollowBtn` READ `tr: 0, hard: 0` — "renders no user copy" — WHILE SHOWING AN
+  ENGLISH VERB IN THIRTEEN LOCALES.** Localizing it moves **no string count at all**; it only
+  leaves the no-copy bucket. That is cut 5's `BSWeekStrip` lesson at a third site: **a
+  component sitting at zero/zero is not evidence that it renders nothing.**
+- ⚠ **SO THE RATCHET DEFENDS NONE OF IT, AND THAT WAS MEASURED RATHER THAN ASSUMED.** With
+  the Follow verb reverted to a hardcoded English literal: the **ratchet 9/9 green**, the
+  **catalog parity gate 3/3 green**, the **key-resolution gate 8/8 green**, **`tsc` 0
+  errors** — and only the new guard red. A revert of any of the three shapes ships silently.
+- **`tests/broadsheet-search-render.test.mjs` closes that, and it DRIVES rather than greps.**
+  It mounts the real surface under **a translator that renames every key** and asserts the
+  markup carries the renamed keys and **not** the English words — so an equivalent rewrite
+  passes and a hardcoded literal fails, which a spelling pin could not distinguish (the
+  #1936 lesson). A second render against the **real `en` catalogs** proves the member still
+  reads English, making every assertion a live check that its key resolves.
+  ⚠ **Guard-the-guard first**: the seeded people rows are asserted present, because with no
+  rows on screen seven of the nine assertions pass vacuously — proven by emptying the seed
+  and watching them all fail.
+- ⚠ **`${n} mutual` NEVER PLURALISED, EVEN IN ENGLISH** — and no language forms a plural by
+  appending a letter; ru/uk need **four** categories. Now ICU, with the four-category forms
+  pinned in the guard.
+- ⚠ **AND THE POSSESSIVE WAS TWO STRINGS FOR ONE SENTENCE.** `Open ${p.name}'s profile` came
+  out of the dump as **"Open"** and **"'s profile"**, because a template literal splits at its
+  placeholder — so the walk's count is not a count of sentences either. One ICU key now, so
+  each locale moves the words: de `Profil von {name} öffnen`, tr `{name} kişisinin profilini
+  aç` (the suffix rides the Turkish noun, never the placeholder), **ru `Открыть профиль:
+  {name}` / uk `Відкрити профіль: {name}` — a colon, because a name arrives in exactly ONE
+  case and a governing preposition would demand another.** The same rule the Slavic
+  weekday/coach-name pair cost cut 4 a round to learn.
+- ⚠ **ELEVEN OF THE 41 CALL SITES REUSE A SHIPPED KEY RATHER THAN MINTING ONE**, each checked
+  byte-identical to the value it replaces (**0 drift**). Five were found by sweeping the new
+  values against every shipped `en` value rather than by memory: `feed:channels.count`,
+  `feed:thread.memberCount`, `feed:channels.noneMatch` (the channels list already owns that
+  exact sentence — the call site took its `{q}` and dropped a period to match),
+  `coach:addClient.searchFailed`, and `session:splits.sessionFallback`. The sweep also
+  **refused** five near-matches on the cut-3 test — *a rename should move both*: the house
+  carries four separate `All` keys and two `Searching…` keys by design, and renaming the
+  feed's filter chip must not rename search's.
+- **The two minted `profile:` keys complete families rather than starting one.**
+  `role.member` joins `role.trainer`/`role.nutritionist` (a rename of what Shape calls a
+  trainer has to move every surface at once); `follow.followShort` exists because
+  `follow.follow` carries a fullwidth ＋ this pill does not — **derived per locale by
+  stripping that glyph from each catalog's own value**, so it can never drift from the verb
+  it shortens.
+- ⚠ **THE `noChannelsYet` SENTENCE NAMES TWO REAL TABS, SO THE WORDS COME FROM THE SHIPPED TAB
+  CATALOGS AT AUTHORING TIME** — `common:nav.chat` + `feed:tab.channels` — rather than being
+  retyped. tr reads *Sohbet → Kanallar*, ha *Hira → Tashoshi*, ru *Чат → Каналы*. A sentence
+  that points at a label the tab does not carry is a small lie the parity gate cannot see.
+- ⚠ **TWO SAME-AS-ENGLISH SETS, BOTH VERIFIED AGAINST THE SHIPPED CATALOGS RATHER THAN WAVED
+  THROUGH.** de `Coaches` and `Workouts` are the house German loanwords — confirmed in the
+  tree (`de/feed.json` `team.coaches` = `Coaches`, `de/profile.json` `coach.cat.workouts` =
+  `Workouts`). pcm matches English on 12 single nouns and field labels, which is the
+  legitimate creole pattern this file already records; its **prose** is real Naija Pidgin
+  (*"You dey search too fast — wait small, den try again."*, *"People wey you fit know"*,
+  *"Nothing for Shape match “{query}”."*). **Reading the shipped catalog is what separates a
+  loanword from a leftover.**
+- **The ratchet moved on two axes, and the two that did NOT move are the certification.**
+  noneStrings **1181 → 1149** · none.length **110 → 108** · fully covered **102 → 105** ·
+  no-copy **115 → 114**. **`partStrings` 164 and `part.length` 32 are UNCHANGED** — the
+  assertion that says the cut is finished rather than half-done. The 32-string delta is a
+  **floor**: ten of the words this cut localized were never in it.
+- **10/10 mutations killed** (each of the three invisible shapes reverted to a hardcoded
+  literal · the message verb concatenated onto the name · the possessive back as a template
+  literal · the mutual count back to a ternary-appended `s` · a stale baseline entry kept ·
+  the totals left un-repointed · a locale losing one of the new keys · the guard's own row
+  seed emptied), sanity green at both ends of every batch and the tree restored clean.
+- **Verified:** `npm test` **2503/2503** · `tsc --noEmit` 0 · JSX parse · tr-shadow clean on
+  **both** grep forms · catalog parity + ICU ×13 (a pure append — 29/1 per `common.json`,
+  3/1 per `profile.json` — LF, zero CR/NUL) · mobile build 0 with **all 30 keys and all 390
+  translated values confirmed in the emitted bundle**.
+  ⚠ **The first bundle grep read 30/30 missing** — a failed `cd` left it grepping a directory
+  with no `.js` in it. **Saturated zero, broken instrument, for the fifth time in this wave**;
+  the re-run carries a **positive control** (`profile:role.trainer`, a key that certainly
+  ships) so an empty haystack cannot read as an empty result.
+- ⚠ **REGISTERED, NOT WIDENED — the walk still cannot see those three shapes anywhere else.**
+  Teaching it array literals, local arrow functions and local const ternaries would surface
+  strings tree-wide and move every total, which is precisely why cut 4's widening and #1968's
+  were each their own PR. Until then the honest reading of any component's `hard` count is
+  **a floor**, and a `tr: 0, hard: 0` row means *the walk found nothing*, not *there is
+  nothing*.
+
 ### 2026-08-30 — i18n cut 6 step 2: the grocery sweep, and two guards that were wrong about their own subject
 
 - **The 366-string grocery surface cut 4 registered is closed.** Step 1 (#1966) split
