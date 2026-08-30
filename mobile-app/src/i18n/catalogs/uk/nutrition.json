@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Залишився # товар.} few {Залишилось # товари.} many {Залишилось # товарів.} other {Залишилось # товару.}}",
   "eat.allSet": "Усе готово до тижня.",
   "eat.fromWho": "{who} · цього тижня",
+  "eat.fromYourPlan": "З вашого плану · цього тижня",
   "eat.gotLeft": "{got} у кошику · залишилось {left}",
   "eat.playlistsFrom": "Автор: {who}",
   "eat.playlistBy": "{who} · Ваш нутриціолог",

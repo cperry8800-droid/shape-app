@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Sauran kaya #.} other {Sauran kaya #.}}",
   "eat.allSet": "Komai a shirye yake na makon.",
   "eat.fromWho": "Daga {who} · wannan mako",
+  "eat.fromYourPlan": "Daga shirinka · wannan makon",
   "eat.gotLeft": "{got} an ɗauka · {left} saura",
   "eat.playlistsFrom": "Daga {who}",
   "eat.playlistBy": "{who} · Masanin abincinka",

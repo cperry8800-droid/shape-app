@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Còn # món cần mua.} other {Còn # món cần mua.}}",
   "eat.allSet": "Đã sẵn sàng cho cả tuần.",
   "eat.fromWho": "Từ {who} · tuần này",
+  "eat.fromYourPlan": "Từ kế hoạch của bạn · tuần này",
   "eat.gotLeft": "{got} đã lấy · còn {left}",
   "eat.playlistsFrom": "Từ {who}",
   "eat.playlistBy": "{who} · Chuyên gia dinh dưỡng của bạn",

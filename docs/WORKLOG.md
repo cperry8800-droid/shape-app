@@ -724,6 +724,21 @@ changelog whenever something ships.
   the Slavic pair visible by contrast. **The general rule, worth carrying into the
   brief: a `{placeholder}` filled by a proper noun arrives in ONE case, so no
   surrounding word may govern another.**
+- ⚠ **AND THE PRE-MERGE DIFF REVIEW CAUGHT MY OWN FIX TRADING A FABRICATION FOR
+  BROKEN ENGLISH.** The grocery byline runs a **first-name extractor** over the
+  author — `.replace(/^Dr\.?\s+/i,'').split(' ')[0]`, so *"Dr. Maya Patel"* renders
+  *"From Maya · this week"*. Removing the fabricated name routed a signed-in member
+  with no coach into that extractor holding the **role noun**, which renders
+  **"FROM YOUR · THIS WEEK"**. The block is **ungated**, so it is on screen for any
+  such member.
+  ⚠ **It was already broken on an adjacent path** — a live plan whose coach had not
+  resolved hit the same line and read the same thing, shipped in cut 4. So the fix
+  closes two paths, not one. **A value that feeds a name-parser may only ever be a
+  name**: the caller now passes a real coach or **nothing**, and the byline has its
+  own phrasing (`eat.fromYourPlan`, ×13) for the no-name case. Proven by replaying
+  both versions over the four reachable states — the two broken ones now read *"From
+  your plan · this week"*, and the real-name and signed-out demo paths are
+  byte-identical.
 - **Verified:** `npm test` **2465/2465** · `tsc --noEmit` 0 · JSX parse · mobile build 0
   with **56 literal `nutrition:eat.*` keys** (60 authored − 5 computed `quick.q*` + the
   `nutrition:eat.quick.` prefix), `common:unit.weekN`, and sample translations

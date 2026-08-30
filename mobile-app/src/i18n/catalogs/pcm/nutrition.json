@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {# thing remain to buy.} other {# things remain to buy.}}",
   "eat.allSet": "Everything don ready for di week.",
   "eat.fromWho": "From {who} · dis week",
+  "eat.fromYourPlan": "From your plan · dis week",
   "eat.gotLeft": "{got} don enter · {left} remain",
   "eat.playlistsFrom": "From {who}",
   "eat.playlistBy": "{who} · Your nutritionist",

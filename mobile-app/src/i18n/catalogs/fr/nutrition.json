@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {# article à acheter.} other {# articles à acheter.}}",
   "eat.allSet": "Tout est prêt pour la semaine.",
   "eat.fromWho": "De {who} · cette semaine",
+  "eat.fromYourPlan": "De votre plan · cette semaine",
   "eat.gotLeft": "{got} pris · {left} restants",
   "eat.playlistsFrom": "De {who}",
   "eat.playlistBy": "{who} · Votre nutritionniste",

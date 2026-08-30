@@ -9882,9 +9882,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       // is a real account. A live plan credits its real nutritionist (or the
       // honest role noun); a SIGNED-IN member with no plan gets the role noun too;
       // ONLY the signed-out preview keeps the demo name.
-      liveProgram
-        ? (liveMealCoach || tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }))
-        : (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel'),
+      // ⚠ A REAL NAME OR NOTHING — never the role noun. The byline below runs a
+      // FIRST-NAME extractor over this value, so "Your nutritionist" would render
+      // as "From Your · this week". Empty means "no coach resolved", and the
+      // byline has its own honest phrasing for that.
+      liveProgram ? (liveMealCoach || '') : (bsEatSignedIn ? '' : 'Dr. Maya Patel'),
       liveProgram && liveMealTitle ? liveMealTitle : null,
       tr,
     ),
@@ -10333,7 +10335,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         const have = aisles.reduce((s, a) => s + a.items.filter(it => it.have).length, 0);
         const left = Math.max(0, total - have);
         const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => a.aisle).slice(0, 3).join(', ').toLowerCase();
-        const who = String(activeGroceryList.author || tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' })).replace(/^Dr\.?\s+/i, '').split(' ')[0];
+        // ⚠ `.split(' ')[0]` IS A FIRST-NAME EXTRACTOR, so it may only ever run
+        // over a real person's name. Fed the role noun it produced "From Your ·
+        // this week" — reachable for any signed-in member with no resolved coach,
+        // which is exactly who the builder used to hand a fabricated one.
+        const rawWho = String(activeGroceryList.author || '').trim();
+        const who = rawWho ? rawWho.replace(/^Dr\.?\s+/i, '').split(' ')[0] : '';
         // ⚠ ANOTHER ENGLISH PLURAL BY CONCATENATION (`item${n===1?'':'s'}`).
         const title = left > 0
           ? tr('nutrition:eat.itemsToGet', { defaultValue: '{n, plural, one {# item to get.} other {# items to get.}}', n: left })
@@ -10345,7 +10352,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
               <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who })}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' })}</div>
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>{title}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{tr('nutrition:eat.gotLeft', { defaultValue: '{got} got · {left} left', got: have, left })}{cats ? ` · ${cats}` : ''}</div>
                 </div>

@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {# ürün kaldı.} other {# ürün kaldı.}}",
   "eat.allSet": "Hafta için her şey hazır.",
   "eat.fromWho": "{who} · bu hafta",
+  "eat.fromYourPlan": "Planından · bu hafta",
   "eat.gotLeft": "{got} alındı · {left} kaldı",
   "eat.playlistsFrom": "{who} listeleri",
   "eat.playlistBy": "{who} · Beslenme uzmanın",

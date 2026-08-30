@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {Manca # articolo.} other {Mancano # articoli.}}",
   "eat.allSet": "Tutto pronto per la settimana.",
   "eat.fromWho": "Da {who} · questa settimana",
+  "eat.fromYourPlan": "Dal tuo piano · questa settimana",
   "eat.gotLeft": "{got} presi · {left} mancanti",
   "eat.playlistsFrom": "Da {who}",
   "eat.playlistBy": "{who} · La tua nutrizionista",

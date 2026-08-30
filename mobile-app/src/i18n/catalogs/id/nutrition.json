@@ -146,6 +146,7 @@
   "eat.itemsToGet": "{n, plural, one {# barang lagi.} other {# barang lagi.}}",
   "eat.allSet": "Semua siap untuk minggu ini.",
   "eat.fromWho": "Dari {who} · minggu ini",
+  "eat.fromYourPlan": "Dari rencanamu · minggu ini",
   "eat.gotLeft": "{got} sudah · {left} lagi",
   "eat.playlistsFrom": "Dari {who}",
   "eat.playlistBy": "{who} · Ahli gizi kamu",
