@@ -385,8 +385,18 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the translator it gained. A component sitting at zero/zero is not evidence
   // it renders nothing — it is the blind spot cut 4 recorded, showing up in the
   // covered column this time.
+  //
+  // ⚠ noneStrings 1061 -> 1062 AND THE NUMBER WENT UP ON PURPOSE. The grocery
+  // record-shape change moved 'Empty list' OUT of the saved list record and INTO
+  // BSGroceryLibrary's render. Written into a member's record it was invisible to
+  // this walk — and untranslatable, because a sentence saved at write time
+  // freezes one language into their data. At the render the walk can finally see
+  // it, so the count rises by exactly one while the product gets strictly better.
+  // This is the BSWeekStrip blind spot in reverse: there a string was invisible
+  // because it sat in an array literal; here because it sat in stored data.
+  // ⚠ A number that goes UP is only honest beside the change that raised it.
   assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1061, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1062, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 112, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its

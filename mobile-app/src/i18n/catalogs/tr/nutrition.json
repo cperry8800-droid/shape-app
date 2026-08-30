@@ -174,5 +174,6 @@
   "eat.toastItemAdded": "Alışveriş listesine eklendi",
   "eat.groceryPlanName": "Bu haftanın planı",
   "eat.groceryEyebrow": "Öğünlerinden otomatik oluşturuldu",
-  "eat.groceryNote": "\"Buradaki her şey doğrudan bu haftanın öğünlerinden geliyor — fazlası yok, eksiği yok.\""
+  "eat.groceryNote": "\"Buradaki her şey doğrudan bu haftanın öğünlerinden geliyor — fazlası yok, eksiği yok.\"",
+  "eat.fromYourList": "Listen · bu hafta"
 }

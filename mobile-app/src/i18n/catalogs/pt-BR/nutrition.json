@@ -174,5 +174,6 @@
   "eat.toastItemAdded": "Adicionado à lista de compras",
   "eat.groceryPlanName": "O plano desta semana",
   "eat.groceryEyebrow": "Montada automaticamente a partir das suas refeições",
-  "eat.groceryNote": "\"Tudo aqui vem direto das refeições desta semana — nada a mais, nada a menos.\""
+  "eat.groceryNote": "\"Tudo aqui vem direto das refeições desta semana — nada a mais, nada a menos.\"",
+  "eat.fromYourList": "Sua lista · esta semana"
 }

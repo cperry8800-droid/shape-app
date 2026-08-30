@@ -174,5 +174,6 @@
   "eat.toastItemAdded": "Added to grocery list",
   "eat.groceryPlanName": "This week's plan",
   "eat.groceryEyebrow": "Auto-built from your meals",
-  "eat.groceryNote": "\"Every item here comes straight from this week's meals — nothing extra, nothing missing.\""
+  "eat.groceryNote": "\"Every item here comes straight from this week's meals — nothing extra, nothing missing.\"",
+  "eat.fromYourList": "Your list · this week"
 }

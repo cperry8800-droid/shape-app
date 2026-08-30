@@ -174,5 +174,6 @@
   "eat.toastItemAdded": "Zur Einkaufsliste hinzugefügt",
   "eat.groceryPlanName": "Der Plan dieser Woche",
   "eat.groceryEyebrow": "Automatisch aus deinen Mahlzeiten erstellt",
-  "eat.groceryNote": "\"Alles hier kommt direkt aus den Mahlzeiten dieser Woche — nichts zu viel, nichts zu wenig.\""
+  "eat.groceryNote": "\"Alles hier kommt direkt aus den Mahlzeiten dieser Woche — nichts zu viel, nichts zu wenig.\"",
+  "eat.fromYourList": "Deine Liste · diese Woche"
 }
