@@ -251,6 +251,20 @@ function componentsOfSource(src) {
       }
       if (n.type === 'StringLiteral' && usable(n.value)
         && parent?.type === 'JSXAttribute' && TEXT_PROPS.has(parent.name?.name)) strings.add(n.value);
+      // ⚠ AN ALLOWLISTED PROP IS ALSO COPY WHEN ITS VALUE IS AN EXPRESSION, AND
+      // MISSING THAT MADE THE ALLOWLIST BLIND TO ITS OWN HEADLINE MUTATION.
+      // The branch above only fires when the literal's IMMEDIATE parent is the
+      // JSXAttribute — true of `kicker="…"`, false of `kicker={'…'}`, where the
+      // parent is this container. So the exact edit the allowlist exists to catch
+      // (move a string out of a tr() call and into a braced prop) still passed,
+      // as did every ternary and template value: `meta={live ? 'a' : 'b'}` and
+      // ``eyebrow={`Week of ${n}`}`` are ordinary shapes in this tree.
+      // containerStrings() is reused rather than re-derived because its pruning is
+      // already right here: it steps over nested JSX and over CallExpression, so a
+      // `kicker={tr('k', { defaultValue: 'v' })}` value stays COVERAGE and is never
+      // counted as a hardcoded string.
+      if (n.type === 'JSXExpressionContainer' && parent?.type === 'JSXAttribute'
+        && TEXT_PROPS.has(parent.name?.name)) for (const v of containerStrings(n)) strings.add(v);
       if (n.type === 'JSXExpressionContainer' && (parent?.type === 'JSXElement' || parent?.type === 'JSXFragment')) {
         const tag = parent.openingElement?.name?.name;
         if (tag !== 'style' && tag !== 'script') for (const v of containerStrings(n)) strings.add(v);
@@ -329,6 +343,15 @@ const UNCOVERED = new Set([
   'Client::BSUniversalSearch', 'Client::BSVideoCall', 'Client::BSWeekendsCard',
   'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet',
   'Client::BSWorkoutBuilder',
+  // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
+  // LABEL: BSSearchMsgBtn renders `aria-label={`Message ${name}`}` — invisible
+  // while the walk only read direct attribute literals, so a screen-reader user
+  // in Spanish hears the English verb. Registered rather than patched because
+  // the honest fix is an ICU key carrying the name (`Message {name}`) authored
+  // ×13 — a translation cut. Concatenating a reused verb onto the name is the
+  // construction this repo already refused for ru/uk, so it is not the cheap fix
+  // it looks like.
+  'Client::BSSearchMsgBtn',
   // The launch/auth shell (BSSplash · BSWireLoading · BSWireHold · BSLogin ·
   // BSPaywall · BSPreviewBanner · BSAppShell) is localized; BSCosmicWordmark was
   // deleted (orphaned — no render site, no window export). BSTweaksPanel is the
@@ -355,6 +378,14 @@ const PARTIAL = new Set([
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
   'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile',
+  // ⚠ BSSettings IS PARTIAL OVER A FORMAT EXAMPLE, NOT OVER COPY — 388 tr() calls
+  // and exactly one hardcoded string: `placeholder={bsInitials(draft.name) || 'AB'}`,
+  // the two-letter stand-in on the avatar-initials field. No locale changes it, for
+  // the same reason none changes the shipped `+1 555 123 4567` phone example. It is
+  // recorded here rather than special-cased in usable(), because excluding a single
+  // spelling is the pin this file keeps paying for — and a false exclusion HIDES real
+  // copy, which is the direction that makes the guard lie.
+  'Client::BSSettings',
   'Client::BSTerrainProfile',
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
@@ -446,24 +477,27 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the record-shape rule this wave already paid for. It sits in a call argument,
   // so the walk never counted it and these numbers do not move either way; the
   // reason is written at the site and registered as its own cut.
-  // ⚠ THE TEXT_PROPS WIDENING RAISED BOTH STRING TOTALS AND MOVED NO COMPONENT,
-  // WHICH IS THE HONEST SHAPE OF A MEASUREMENT FIX. Adding this codebase's own
-  // chrome props (see TEXT_PROPS) surfaced 83 strings the walk could not see —
-  // partStrings 134 -> 138, noneStrings 1026 -> 1109 — while part.length,
-  // none.length, full.length and the no-copy count ALL stayed put, because every
-  // prop-carried string landed in a component that was already in a baseline.
-  // Nothing became newly visible as a SURFACE; what was wrong was the volume.
-  // A further 4 came from renaming one local `Row`'s single-letter `l` prop to
-  // `label`: those four notification-settings labels were always rendered copy,
+  // ⚠ THE TEXT_PROPS WIDENING RAISED BOTH STRING TOTALS, AND A TOTAL THAT RISES IS
+  // ONLY HONEST BESIDE THE CHANGE THAT RAISED IT — the mirror of this file's own
+  // rule about never LOWERING one to make a red run pass. It landed in two legs:
+  //   partStrings 134 -> 138 -> 164 · noneStrings 1026 -> 1109 -> 1181.
+  // Leg 1, the allowlist itself: adding this codebase's own chrome props (see
+  // TEXT_PROPS) surfaced 83 strings the walk could not see (+4 partial, +79
+  // uncovered), plus 4 from renaming one local `Row`'s single-letter `l` prop to
+  // `label` — those four notification-settings labels were always rendered copy,
   // and a one-letter name is not something to add to a shared copy allowlist.
-  // ⚠ A TOTAL THAT RISES IS ONLY HONEST BESIDE THE CHANGE THAT RAISED IT — the
-  // mirror of this file's own rule about never lowering one to make a red run
-  // pass. Attributed by measuring the two changes independently: rename alone
-  // +4 (all uncovered), props alone +4 partial / +79 uncovered.
-  assert.equal(partStrings, 138, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1109, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 109, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // No component changed bucket in leg 1: what was wrong was the volume.
+  // Leg 2, walking allowlisted attributes whose value is an EXPRESSION, surfaced
+  // a further 26 partial / 72 uncovered — and this one DID move surfaces, which
+  // is why it is worth more than its numbers. BSSettings fell fully-covered ->
+  // PARTIAL over a single initials placeholder, and BSSearchMsgBtn rose from
+  // "no user copy" to UNCOVERED over an aria-label nobody could see; both are
+  // registered in the baselines above with their reasons. full.length 103 -> 102
+  // and the no-copy count 116 -> 115 follow from exactly those two moves.
+  assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1181, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 110, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
