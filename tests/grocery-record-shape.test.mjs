@@ -162,6 +162,24 @@ test('the byline gate is wired at the real call site', () => {
     /<BSEyebrow color=\{color\}>\{bsGroceryListEyebrow\(l\)\}<\/BSEyebrow>/,
     'the library row must derive its eyebrow, not print the stored string',
   );
+  // ⚠ AND SO MUST THE SEARCH. A record now stores a token, so `l.eyebrow` is the
+  // back-compat string and can differ from what is on screen — searching the
+  // stored copy matches text the member cannot see and misses text they can.
+  assert.match(
+    src,
+    /bsGroceryListEyebrow\(l\)\.toLowerCase\(\)\.includes\(q\)/,
+    'the library search must match the RENDERED eyebrow',
+  );
+  const matcher = src.slice(src.indexOf('const matchesQuery = (l) =>'));
+  // ⚠ STRIP COMMENTS FIRST — the rationale ABOVE that line names the very thing
+  // it bans, so a raw scan fires on its own explanation. This file has recorded
+  // that trap before; it re-appeared the moment the assertion was written.
+  const matcherBody = matcher.slice(0, matcher.indexOf('};')).replace(/\/\/[^\n]*/g, '');
+  assert.doesNotMatch(
+    matcherBody,
+    /l\.eyebrow/,
+    'the search must not fall back to the stored eyebrow',
+  );
 });
 
 test('no writer bakes a rendered sentence into the record any more', () => {

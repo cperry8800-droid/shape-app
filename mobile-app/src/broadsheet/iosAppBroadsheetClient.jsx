@@ -28078,7 +28078,12 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
   const matchesQuery = (l) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    if ((l.name || '').toLowerCase().includes(q) || (l.preview || '').toLowerCase().includes(q) || (l.eyebrow || '').toLowerCase().includes(q)) return true;
+    // ⚠ SEARCH THE RENDERED EYEBROW, NOT THE STORED ONE. Now that a record
+    // carries a token rather than a sentence, `l.eyebrow` is the back-compat
+    // string and can differ from what is on screen (a dated list stores
+    // "Created today" and renders "Created 14 Jul") — searching the stored
+    // copy would match text the member cannot see and miss text they can.
+    if ((l.name || '').toLowerCase().includes(q) || (l.preview || '').toLowerCase().includes(q) || bsGroceryListEyebrow(l).toLowerCase().includes(q)) return true;
     const items = l.items || bsLibraryPreviewItems(l) || [];
     return items.some(it => (it.n || '').toLowerCase().includes(q));
   };

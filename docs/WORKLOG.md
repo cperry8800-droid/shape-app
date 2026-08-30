@@ -412,6 +412,16 @@ changelog whenever something ships.
   tabs; here a string was invisible because it lived in a member's record rather than in
   JSX. **A number that goes UP is only honest beside the change that raised it**, and the
   reason is written at the assertion.
+- ⚠ **AND THE PRE-MERGE DIFF REVIEW FOUND THE ONE PLACE THE TWO COPIES CAN NOW
+  DISAGREE.** The library's search filter matched `l.eyebrow` — the **stored**
+  string — and the moment a record carries a token rather than a sentence those two
+  part company: a dated list stores *"Created today"* and renders *"Created 14 Jul"*,
+  so searching matched text the member **cannot see** and missed text they **can**.
+  It reads `bsGroceryListEyebrow(l)` now, which is the same principle as the change
+  itself: **the render is the truth.** ⚠ And the assertion banning the stored read
+  **fired on its own explanation** until it stripped comments first — the rationale
+  above that line names the very thing it bans. This file has recorded that trap
+  before and it re-appeared the moment the assertion was written.
 - ⚠ **THE `Number(null)` TRAP IS GUARDED AT THE STAMP READ, NOT ASSUMED AWAY.**
   `Number(null)` and `Number('')` are a finite **0**, so a legacy row with no `createdAt`
   would date itself to **1 Jan 1970** — the coercion class this file has now paid for four
@@ -431,7 +441,7 @@ changelog whenever something ships.
   exported into the share text, i.e. the Train token/label split again. Measured, the
   grocery surface is **366 hardcoded strings** (`BSGrocery` 186 · `BSGroceryBuilder` 102 ·
   `BSGroceryLibrary` 78) — a cut of its own, not a line item. Corrected in place above.
-- **8/8 mutations killed**, sanity green at both ends — and **two of them survived their
+- **10/10 mutations killed**, sanity green at both ends — and **two of them survived their
   first assertion**, which is the part worth keeping. (1) A ban on the baked empty state
   used `[^,\n]*`, a character class that **cannot cross the commas in `slice(0, 3)`** — so
   it was structurally incapable of matching the line it banned. (2) A stamp check compared
