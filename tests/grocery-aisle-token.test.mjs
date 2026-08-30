@@ -198,9 +198,20 @@ test('the add-item lookup compares the TOKEN, never the label', () => {
 });
 
 test('nothing that STORES or KEYS an aisle stores a label', () => {
-  // The record, the grouping keys and the open/closed set must all hold tokens.
+  // ⚠ THE RECORD BAN IS SCOPED TO THE RECORD, NOT TO ANY `aisle:` KEY — cut 5's
+  // trap, one cut later and in the same file. A bare /aisle:\s*bsAisleLabel/ also
+  // matches a translator's own VARS OBJECT (`{ aisle: bsAisleLabel(…), done, total }`
+  // on the checklist aria-label), which stores nothing. So this enumerates the
+  // real writers by their shape — an aisle record always pairs `aisle:` with an
+  // `items:` sibling; a vars object never does — and asserts each holds a token.
+  // A floor keeps it from passing vacuously if the writers are ever renamed.
+  const recs = [...code.matchAll(/\{\s*aisle:\s*([^,]+),\s*items:/g)].map((m) => m[1].trim());
+  assert.ok(recs.length >= 3, 'the aisle-record writers vanished — re-point this guard');
+  for (const v of recs) {
+    assert.doesNotMatch(v, /bsAisleLabel/, 'a saved aisle record stores the translated label instead of the token');
+  }
+  // The grouping keys and the open/closed set have no such ambiguity.
   const banned = [
-    [/aisle:\s*bsAisleLabel/, 'a saved item stores the translated label instead of the token'],
     [/openAisles\.(has|add|delete)\(bsAisleLabel/, 'the open/closed set is keyed on a translated label'],
     [/toggleAisle\(bsAisleLabel/, 'the collapse toggle is keyed on a translated label'],
     [/filledAisleNames[^\n]*bsAisleLabel/, 'the aisle-name list holds labels rather than tokens'],
@@ -212,7 +223,7 @@ test('every place a member READS an aisle routes through bsAisleLabel', () => {
   // The four render sites: the checklist header + its aria-label, the builder's
   // pills and its per-item line, and the Eat door's meta line.
   const sites = [
-    [/aria-label=\{`\$\{bsAisleLabel\(aisle\.aisle, TG\)\}/, 'the checklist header aria-label'],
+    [/aisleAria'[^\n]*bsAisleLabel\(aisle\.aisle, TG\)/, 'the checklist header aria-label'],
     [/>\{bsAisleLabel\(aisle\.aisle, TG\)\}</, 'the checklist aisle header'],
     [/>\{bsAisleLabel\(al, TB\)\}</, "the builder's aisle pills"],
     [/>\{bsAisleLabel\(it\.aisle, TB\)\}</, "the builder's per-item aisle line"],

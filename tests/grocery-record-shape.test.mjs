@@ -159,15 +159,20 @@ test('the byline gate is wired at the real call site', () => {
   assert.match(src, /nutrition:eat\.fromYourList/, 'the self case needs its own copy, not a credit');
   assert.match(
     src,
-    /<BSEyebrow color=\{color\}>\{bsGroceryListEyebrow\(l\)\}<\/BSEyebrow>/,
+    /<BSEyebrow color=\{color\}>\{bsGroceryListEyebrow\(l, tr\)\}<\/BSEyebrow>/,
     'the library row must derive its eyebrow, not print the stored string',
   );
   // ⚠ AND SO MUST THE SEARCH. A record now stores a token, so `l.eyebrow` is the
   // back-compat string and can differ from what is on screen — searching the
   // stored copy matches text the member cannot see and misses text they can.
+  // ⚠ AND THE FOLD IS LOCALE-AWARE, which is why this no longer pins
+  // `.toLowerCase()`. The eyebrow is translated now, so a bare toLowerCase over
+  // it is the Turkish dotted-i class; both sides of the comparison go through
+  // one `fold()`. The rule the assertion protects is unchanged — search the
+  // RENDERED eyebrow, never the stored string.
   assert.match(
     src,
-    /bsGroceryListEyebrow\(l\)\.toLowerCase\(\)\.includes\(q\)/,
+    /fold\(bsGroceryListEyebrow\(l, tr\)\)\.includes\(q\)/,
     'the library search must match the RENDERED eyebrow',
   );
   const matcher = src.slice(src.indexOf('const matchesQuery = (l) =>'));
