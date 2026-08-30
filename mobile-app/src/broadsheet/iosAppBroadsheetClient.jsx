@@ -4383,6 +4383,17 @@ function _bsEncodeWidgets(list) {
 
 // Index of today within a Mon–Sun week (0 = Mon … 6 = Sun).
 function bsWeekdayIdx(d = new Date()) { return (d.getDay() + 6) % 7; }
+// The weekday NAME for a Monday-based index, in the SELECTED UI language.
+// A fixed reference Monday (2024-01-01 was one) is deliberate: this asks what
+// a weekday is CALLED, not what date it is, so no real week is needed and the
+// answer cannot drift with the clock. Formatted in UTC so the reference day
+// can never shift a slot west of the line.
+function bsWeekdayName(idx) {
+  try {
+    const d = new Date(Date.UTC(2024, 0, 1 + (Number(idx) || 0)));
+    return d.toLocaleDateString(bsDateLocale(), { weekday: 'long', timeZone: 'UTC' });
+  } catch (e) { return ''; }
+}
 
 // Build the 7-day Train PROGRAM from live assigned workouts. Workouts with a
 // scheduled_date land on that weekday; any unscheduled ones are laid onto the
@@ -5359,6 +5370,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* From Jordan — coach playlists (sourced from the Radio coach-playlist feed) */}
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
+        // ⚠ SAME UNGATED DEMO AS THE EAT TAB (fixed in the same PR): the
+        // header was the literal "From Jordan" over a static demo constant,
+        // so a signed-in member read a section attributed to a coach they may
+        // not have. Signed-out keeps the demo; signed-in renders nothing.
+        if (bsTrainSignedIn) return null;
         const lists = all.filter(p => p.role === 'Coach');
         const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
@@ -8791,7 +8807,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
-  const planGoalLabel = planGoal === 'cut' ? 'Cutting' : planGoal === 'build' ? 'Building' : 'Maintaining';
+  const planGoalLabel = planGoal === 'cut' ? tr('nutrition:eat.goalCut', { defaultValue: 'Cutting' })
+    : planGoal === 'build' ? tr('nutrition:eat.goalBuild', { defaultValue: 'Building' })
+    : tr('nutrition:eat.goalMaintain', { defaultValue: 'Maintaining' });
   const [swapMealId, setSwapMealId] = useStateBSC(null);     // meal id being swapped, or null
   const [mealOverrides, setMealOverrides] = useStateBSC({}); // meal id → { title, kcal, p, c, f }
   React.useEffect(() => {
@@ -8834,9 +8852,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       const label = `${DOW[i]} ${date.getDate()}`;
       if (!dy) {
         return {
-          d: label, kicker: 'Section · Nutrition', title: 'Open day', tag: 'OPEN',
-          tagColor: t.GREEN, accent: t.GREEN, headline: 'No menu',
-          meta: 'No meals planned', copy: 'No meals planned for today.', coachLine: '',
+          d: label, kicker: tr('nutrition:eat.kicker', { defaultValue: 'Section · Nutrition' }), title: tr('nutrition:eat.openDay', { defaultValue: 'Open day' }), tag: 'OPEN',
+          tagColor: t.GREEN, accent: t.GREEN, headline: tr('nutrition:eat.noMenu', { defaultValue: 'No menu' }),
+          meta: tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' }), copy: tr('nutrition:eat.noMealsToday', { defaultValue: 'No meals planned for today.' }), coachLine: '',
           totals: { cal: '', p: '', c: '', f: '', target: { cal: '', p: '', c: '', f: '' } },
           meals: [],
         };
@@ -8849,7 +8867,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           time: meal.time || '',
           tag: slot.slice(0, 5),
           tagColor: SLOT_COLOR[slot] || t.AMBER,
-          title: meal.title || 'Meal',
+          title: meal.title || tr('nutrition:log.mealFallback', { defaultValue: 'Meal' }),
           kcal: meal.kcal || 0, p: meal.p || 0, c: meal.c || 0, f: meal.f || 0,
           state: meal.state, last: j === dm.length - 1,
           hero: meal.hero || '', brief: meal.brief || '',
@@ -8863,13 +8881,19 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       const str = (v) => (v != null ? String(v) : '');
       return {
         d: label,
-        kicker: 'Section · Nutrition',
-        title: dy.title || 'Today',
+        kicker: tr('nutrition:eat.kicker', { defaultValue: 'Section · Nutrition' }),
+        title: dy.title || tr('home:when.today', { defaultValue: 'Today' }),
         tag: String(dy.tag || 'PLAN').toUpperCase(),
         tagColor: t.AMBER,
         accent: ACCENTS[i % ACCENTS.length],
-        headline: dy.title || 'Today',
-        meta: `${meals.length} meal${meals.length === 1 ? '' : 's'}${tot.cal != null ? ` · ${tot.cal} kcal` : ''}`,
+        headline: dy.title || tr('home:when.today', { defaultValue: 'Today' }),
+        meta: (() => {
+          // ⚠ WAS AN ENGLISH PLURAL BUILT BY CONCATENATION (`meal${n===1?'':'s'}`),
+          // on the LIVE path — no language forms a plural that way, and Russian
+          // and Ukrainian need four categories, not two. ICU decides now.
+          const n = tr('nutrition:eat.mealCount', { defaultValue: '{n, plural, one {# meal} other {# meals}}', n: meals.length });
+          return tot.cal != null ? tr('nutrition:eat.metaWithKcal', { defaultValue: '{meals} · {kcal} kcal', meals: n, kcal: tot.cal }) : n;
+        })(),
         copy: dy.copy || '',
         coachLine: dy.coachLine || '',
         totals: {
@@ -9773,7 +9797,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       const without = prev.filter(l => l.id !== list.id);
       return [list, ...without];
     });
-    window.__bsToast?.('Recipe grocery list added', 'ok');
+    window.__bsToast?.(tr('nutrition:eat.toastRecipeAdded', { defaultValue: 'Recipe grocery list added' }), 'ok');
   };
 
   // Itemize a Shape Kitchen recipe (string ingredients) into a saved grocery list.
@@ -9788,7 +9812,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     });
     const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
     setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
-    window.__bsToast?.('Added to grocery list', 'ok');
+    window.__bsToast?.(tr('nutrition:eat.toastItemAdded', { defaultValue: 'Added to grocery list' }), 'ok');
     return list;
   };
   // From the Recipe box: build this recipe's OWN list and open it.
@@ -9838,7 +9862,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   const planGrocery = React.useMemo(
     () => bsBuildPlanGrocery(
       PROGRAM,
-      liveProgram ? (liveMealCoach || 'Your nutritionist') : null,
+      liveProgram ? (liveMealCoach || tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' })) : null,
       liveProgram && liveMealTitle ? liveMealTitle : null,
     ),
     [PROGRAM, liveProgram, liveMealCoach, liveMealTitle],
@@ -9999,15 +10023,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
           <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em', marginBottom: 4 }}>New grocery list</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 14 }}>Name it to get started</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em', marginBottom: 4 }}>{tr('nutrition:eat.newListTitle', { defaultValue: 'New grocery list' })}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 14 }}>{tr('nutrition:eat.newListSub', { defaultValue: 'Name it to get started' })}</div>
         <input autoFocus value={newListName} onChange={(e) => setNewListName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') confirmCreateGroceryList(); }}
-          placeholder="e.g. Sunday shop"
+          placeholder={tr('nutrition:eat.newListPlaceholder', { defaultValue: 'e.g. Sunday shop' })}
           style={{ width: '100%', height: 48, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }} />
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => setNewListName(null)} style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 999, background: 'transparent', color: t.INK50, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={confirmCreateGroceryList} disabled={!(newListName || '').trim()} style={{ flex: 1, padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: (newListName || '').trim() ? 'pointer' : 'default', opacity: (newListName || '').trim() ? 1 : 0.5 }}>Create →</button>
+          <button onClick={() => setNewListName(null)} style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 999, background: 'transparent', color: t.INK50, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('nutrition:log.cancelPlain', { defaultValue: 'Cancel' })}</button>
+          <button onClick={confirmCreateGroceryList} disabled={!(newListName || '').trim()} style={{ flex: 1, padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: (newListName || '').trim() ? 'pointer' : 'default', opacity: (newListName || '').trim() ? 1 : 0.5 }}>{tr('nutrition:eat.create', { defaultValue: 'Create →' })}</button>
         </div>
       </div>
     </div>
@@ -10018,20 +10042,23 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     <div onClick={() => setSaveTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 14px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.RUST }}>SAVE TO LIBRARY</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em' }}>Name this <span style={{ fontStyle: 'italic', color: t.RUST }}>list.</span></div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>Saves the current items (without checkboxes) so you can reload them anytime.</div>
-        <input autoFocus value={saveName} onChange={(e) => setSaveName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') confirmSaveToLibrary(); }} placeholder="e.g. Week of Jun 4"
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.RUST }}>{tr('nutrition:eat.saveLibraryEyebrow', { defaultValue: 'SAVE TO LIBRARY' })}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('nutrition:eat.saveTitlePre', { defaultValue: 'Name this' })} <span style={{ fontStyle: 'italic', color: t.RUST }}>{tr('nutrition:eat.saveTitleAccent', { defaultValue: 'list.' })}</span></div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>{tr('nutrition:eat.saveBody', { defaultValue: 'Saves the current items (without checkboxes) so you can reload them anytime.' })}</div>
+        <input autoFocus value={saveName} onChange={(e) => setSaveName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') confirmSaveToLibrary(); }} placeholder={tr('nutrition:eat.savePlaceholder', { defaultValue: 'e.g. Week of Jun 4' })}
           style={{ width: '100%', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 2px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box', marginTop: 16 }} />
-        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>QUICK NAMES</div>
+        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>{tr('nutrition:eat.quickNames', { defaultValue: 'QUICK NAMES' })}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {['Sunday staples', 'Travel week', 'Meal prep', 'Lean week', 'Backup cart'].map(q => (
+          {/* Quick-name chips: an array literal, so the surface inventory never
+              saw these five — they are chrome, not the member's own list names. */}
+          {[['q1', 'Sunday staples'], ['q2', 'Travel week'], ['q3', 'Meal prep'], ['q4', 'Lean week'], ['q5', 'Backup cart']]
+            .map(([qk, qd]) => tr('nutrition:eat.quick.' + qk, { defaultValue: qd })).map(q => (
             <button key={q} onClick={() => setSaveName(q)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{q}</button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button onClick={() => setSaveTarget(null)} style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 999, background: 'transparent', color: t.INK50, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={confirmSaveToLibrary} disabled={!(saveName || '').trim()} style={{ flex: 1, padding: '14px 0', borderRadius: 999, background: t.RUST, color: '#fff', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: (saveName || '').trim() ? 'pointer' : 'default', opacity: (saveName || '').trim() ? 1 : 0.5 }}>Save →</button>
+          <button onClick={() => setSaveTarget(null)} style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 999, background: 'transparent', color: t.INK50, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('nutrition:log.cancelPlain', { defaultValue: 'Cancel' })}</button>
+          <button onClick={confirmSaveToLibrary} disabled={!(saveName || '').trim()} style={{ flex: 1, padding: '14px 0', borderRadius: 999, background: t.RUST, color: '#fff', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: (saveName || '').trim() ? 'pointer' : 'default', opacity: (saveName || '').trim() ? 1 : 0.5 }}>{tr('nutrition:eat.save', { defaultValue: 'Save →' })}</button>
         </div>
       </div>
     </div>
@@ -10105,9 +10132,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   const bsEatCalLeft = Math.max(0, bsEatCalTgt - bsEatCalNow);
   const bsEatCalPct = bsEatCalTgt ? Math.min(100, Math.round((bsEatCalNow / bsEatCalTgt) * 100)) : 0;
   const bsEatMacros = [
-    { l: 'PROTEIN', v: bsEatNum(cur.totals.p), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
-    { l: 'CARBS', v: bsEatNum(cur.totals.c), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
-    { l: 'FAT', v: bsEatNum(cur.totals.f), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
+    { k: 'p', l: tr('coach:adjust.protein', { defaultValue: 'PROTEIN' }), v: bsEatNum(cur.totals.p), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
+    { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatNum(cur.totals.c), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
+    { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatNum(cur.totals.f), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
   ];
   // "Next" = explicit state, else the first un-done meal — today only.
   const bsEatNextMeal = day === bsWeekdayIdx() ? (effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done') || null) : null;
@@ -10115,7 +10142,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   return (
     <BSPage>
       <BSPageHeader
-        kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
+        kicker={`${bsEatProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
         title={cur.title}
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
@@ -10135,16 +10162,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 33, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsEatCalNow.toLocaleString()}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50 }}>/ {bsEatCalTgt.toLocaleString()} KCAL</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50 }}>/ {bsEatCalTgt.toLocaleString()} {tr('nutrition:log.kcalUnit', { defaultValue: 'KCAL' })}</span>
           <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{bsEatCalPct}%</span>
         </div>
         <div aria-hidden style={{ marginTop: 7, height: 3, background: t.HAIR }}>
           <div style={{ width: `${bsEatCalPct}%`, height: '100%', background: t.ACCENT }} />
         </div>
-        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.ACCENT }}>{bsEatCalLeft.toLocaleString()} kcal left</div>
+        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.ACCENT }}>{tr('nutrition:eat.kcalLeft', { defaultValue: '{kcal} kcal left', kcal: bsEatCalLeft.toLocaleString() })}</div>
         <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
           {bsEatMacros.map((m, i) => (
-            <React.Fragment key={m.l}>
+            <React.Fragment key={m.k}>
               {i > 0 && <span style={{ color: t.INK50 }}> · </span>}
               <span style={{ color: m.c, fontWeight: 700 }}>{m.l}</span> {m.v}/{m.g}
             </React.Fragment>
@@ -10154,7 +10181,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
 
       {/* The menu — courses by time. The next course carries the page's one
           breathing dot + LOG IT; tapping any course opens the meal preview. */}
-      <BSTrackHeader kicker="The menu" title={day === bsWeekdayIdx() ? "Today's meals" : `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}'s meals`} actionLabel="Swap meal" onAction={() => setSwapMealId('pick')} />
+      {/* ⚠ THE TITLE WAS AN ENGLISH POSSESSIVE OVER A HARDCODED WEEKDAY ARRAY
+          (`${['Monday', ...][day]}'s meals`) — not even the device locale, a
+          literal list. Home already formats its weekday through bsDateLocale();
+          this was its unlocalized twin. The possessive is the catalog's to form:
+          es reads 'Comidas del lunes', de 'Mahlzeiten am Montag'. */}
+      <BSTrackHeader kicker={tr('nutrition:eat.menuKicker', { defaultValue: 'The menu' })}
+        title={day === bsWeekdayIdx()
+          ? tr('nutrition:eat.mealsToday', { defaultValue: "Today's meals" })
+          : tr('nutrition:eat.mealsOnDay', { defaultValue: "{day}'s meals", day: bsWeekdayName(day) })}
+        actionLabel={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} onAction={() => setSwapMealId('pick')} />
       <div data-tour="hero-eat" style={{ padding: `10px ${t.padX}px 0` }}>
         {effMeals.map((m, i) => {
           const logged = m.state === 'done';
@@ -10174,13 +10210,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
                 ) : isNext ? (
                   <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: t.ACCENT }}>
                     <span aria-hidden style={{ display: 'inline-block', width: 5, height: 5, borderRadius: 999, background: t.ACCENT, verticalAlign: 'middle', marginRight: 5, ...(bsSdReduced() ? null : { animation: 'bsPlatePulse 1.8s ease-in-out infinite' }) }} />
-                    NEXT
+                    {tr('nutrition:eat.next', { defaultValue: 'NEXT' })}
                   </span>
                 ) : null}
               </div>
-              <button type="button" onClick={() => setPreviewMealId(m.id)} aria-label={`${timeLabel} · ${m.title}${logged ? ' · logged' : isNext ? ' · next' : ''}`} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 2px' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: isNext ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F{isNext ? ` · ${bsEatCalLeft.toLocaleString()} KCAL LEFT` : ''}</div>
+              <button type="button" onClick={() => setPreviewMealId(m.id)} aria-label={`${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 2px' }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>{tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' })}</span>}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: isNext ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{tr('nutrition:eat.macroRow', { defaultValue: '{kcal} kcal · {p}P · {c}C · {f}F', kcal: m.kcal, p: m.p, c: m.c, f: m.f })}{isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}</div>
                 {prepped && (
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : t.ACCENT, marginTop: 3 }}>
                     {tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' })}
@@ -10188,7 +10224,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
                 )}
               </button>
               {isNext && (
-                <button type="button" onClick={() => setPreviewMealId(m.id)} style={{ marginTop: 2, minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Log it →</button>
+                <button type="button" onClick={() => setPreviewMealId(m.id)} style={{ marginTop: 2, minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('nutrition:eat.logIt', { defaultValue: 'Log it →' })}</button>
               )}
             </div>
           );
@@ -10198,43 +10234,63 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       {/* Meal swap sheet — pick which meal, then a coach-approved alternate. */}
       {swapMealId != null && (() => {
         if (swapMealId === 'pick') {
-          return <BSSwapSheet title="Swap" subtitle="Which meal?"
-            options={effMeals.map(m => ({ label: m.title, sub: `${bsMealSchedLabel(m)} · ${m.kcal} kcal${mealOverrides[m._baseTitle] ? ' · swapped' : ''}`, _id: m.id }))}
+          return <BSSwapSheet title={tr('nutrition:eat.swapTitle', { defaultValue: 'Swap' })} subtitle={tr('nutrition:eat.swapWhich', { defaultValue: 'Which meal?' })}
+            options={effMeals.map(m => ({ label: m.title, sub: tr('nutrition:eat.swapPickSub', { defaultValue: '{time} · {kcal} kcal', time: bsMealSchedLabel(m), kcal: m.kcal }) + (mealOverrides[m._baseTitle] ? ` · ${tr('nutrition:eat.swappedLower', { defaultValue: 'swapped' })}` : ''), _id: m.id }))}
             onPick={(o) => setSwapMealId(o._id)} onClose={() => setSwapMealId(null)} />;
         }
+        // One macro pattern for the row AND both swap subs — three copies of
+        // `{kcal} kcal · {p}P ...` is three chances to disagree.
+        const macroSub = (x) => tr('nutrition:eat.macroRow', { defaultValue: '{kcal} kcal · {p}P · {c}C · {f}F', kcal: x.kcal, p: x.p, c: x.c, f: x.f });
         const orig = effMeals.find(m => m.id === swapMealId);
         if (!orig) return null;
         const base = cur.meals.find(m => m.id === swapMealId) || orig;
         const options = [
-          { label: base.title, sub: `${base.kcal} kcal · ${base.p}P · ${base.c}C · ${base.f}F`, current: true, _keep: true },
-          ...BS_MEAL_SWAPS.filter(a => a.title !== orig.title).map(a => ({ label: a.title, sub: `${a.kcal} kcal · ${a.p}P · ${a.c}C · ${a.f}F`, _alt: a })),
+          { label: base.title, sub: macroSub(base), current: true, _keep: true },
+          ...BS_MEAL_SWAPS.filter(a => a.title !== orig.title).map(a => ({ label: a.title, sub: macroSub(a), _alt: a })),
         ];
-        return <BSSwapSheet title="Swap meal" subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
+        return <BSSwapSheet title={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
           onPick={(o) => {
             const key = base.title;
             const next = { ...mealOverrides };
             if (o._keep) delete next[key];
-            else next[key] = { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f, sub: `${o._alt.kcal} kcal · ${o._alt.p}P · ${o._alt.c}C · ${o._alt.f}F` };
+            else next[key] = { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f, sub: macroSub(o._alt) };
             setMealOverrides(next);
             try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_meal_swaps', next); } catch (e) {}
             if (!o._keep) {
-              window.__bsToast && window.__bsToast('Swapped to ' + o._alt.title, 'ok');
-              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveMealCoach || 'Dr. Maya Patel', provider_role: 'nutritionist' }, text: `Swapped ${base.title} → ${o._alt.title} · ${day === bsWeekdayIdx() ? 'today' : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}` }).catch(() => {}); } catch (e) {}
+              window.__bsToast && window.__bsToast(tr('nutrition:eat.toastSwapped', { defaultValue: 'Swapped to {title}', title: o._alt.title }), 'ok');
+              // The note is the MEMBER'S OWN outgoing message — it appears under their
+              // name in the thread — so it speaks the member's language, not the
+              // app's default. (A coach who does not share it reads this the same
+              // way they read that member's every other message.) The weekday is
+              // formatted, never picked from a hardcoded English list — and the
+              // "today" token is its OWN key rather than the shared one lowercased:
+              // toLowerCase() is locale-insensitive (the Turkish dotted-i class this
+              // file already records for toUpperCase), it is safe on today's thirteen
+              // values only by luck, and how the word sits beside a weekday name is
+              // the catalog's call, not a transform's.
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel'), provider_role: 'nutritionist' }, text: tr('nutrition:eat.swapMessage', { defaultValue: 'Swapped {from} → {to} · {day}', from: base.title, to: o._alt.title, day: day === bsWeekdayIdx() ? tr('nutrition:eat.swapDayToday', { defaultValue: 'today' }) : bsWeekdayName(day) }) }).catch(() => {}); } catch (e) {}
             }
             setSwapMealId(null);
           }} />;
       })()}
 
       {/* Your plan — nutritionist card */}
-      <BSTrackHeader kicker="The plan" title={`${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} />
+      <BSTrackHeader kicker={tr('nutrition:eat.planKicker', { defaultValue: 'The plan' })} title={`${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderLeft: '3px solid #a07a2e', padding: '2px 0 2px 12px' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || 'Dr. Maya Patel'}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Nutritionist · {liveProgram ? 'This week' : 'Apr plan'}</div>
+          {/* ⚠ WAS `liveMealCoach || 'Dr. Maya Patel'` — a signed-in member whose
+                coach name did not resolve read a nutritionist they do not have.
+                The honest fallback already exists 400 lines up; this is it.
+                ⚠ AND THE PERIOD BESIDE IT WAS THE SAME CLASS: `'Apr plan'` is a
+                MOCK_PROGRAM-era demo label, so a signed-in member with no plan read
+                a fabricated month. Live reads This week, signed-out keeps the demo,
+                and no-plan renders NOTHING rather than inventing a period. */}
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel')}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{tr('home:role.nutritionist', { defaultValue: 'Nutritionist' })}{liveProgram ? ` \u00b7 ${tr('home:section.thisWeek', { defaultValue: 'This week' })}` : (bsEatSignedIn ? '' : ' \u00b7 Apr plan')}</div>
           {cur.coachLine ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div> : null}
         </div>
         <button type="button" onClick={() => setView('grocery')} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>The shop list</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })}</span>
           <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
           <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
         </button>
@@ -10254,18 +10310,21 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         const have = aisles.reduce((s, a) => s + a.items.filter(it => it.have).length, 0);
         const left = Math.max(0, total - have);
         const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => a.aisle).slice(0, 3).join(', ').toLowerCase();
-        const who = String(activeGroceryList.author || 'Your nutritionist').replace(/^Dr\.?\s+/i, '').split(' ')[0];
-        const title = left > 0 ? `${left} item${left === 1 ? '' : 's'} to get.` : 'All set for the week.';
+        const who = String(activeGroceryList.author || tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' })).replace(/^Dr\.?\s+/i, '').split(' ')[0];
+        // ⚠ ANOTHER ENGLISH PLURAL BY CONCATENATION (`item${n===1?'':'s'}`).
+        const title = left > 0
+          ? tr('nutrition:eat.itemsToGet', { defaultValue: '{n, plural, one {# item to get.} other {# items to get.}}', n: left })
+          : tr('nutrition:eat.allSet', { defaultValue: 'All set for the week.' });
         return (
           <>
-            <BSTrackHeader kicker="For the week" title="Grocery list" actionLabel="Open" onAction={() => setView('grocery')} />
+            <BSTrackHeader kicker={tr('nutrition:eat.forTheWeek', { defaultValue: 'For the week' })} title={tr('nutrition:eat.groceryList', { defaultValue: 'Grocery list' })} actionLabel={tr('profile:action.open', { defaultValue: 'Open' })} onAction={() => setView('grocery')} />
             <div style={{ padding: `12px ${t.padX}px 0` }}>
               <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>From {who} · this week</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who })}</div>
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>{title}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{have} got · {left} left{cats ? ` · ${cats}` : ''}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{tr('nutrition:eat.gotLeft', { defaultValue: '{got} got · {left} left', got: have, left })}{cats ? ` · ${cats}` : ''}</div>
                 </div>
                 <span style={{ color: t.INK50, fontSize: 16 }}>→</span>
               </button>
@@ -10278,11 +10337,19 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
+        // ⚠ THIS SECTION WAS UNGATED DEMO. BS_COACH_PLAYLISTS is a static
+        // constant nothing writes to, and the header was the literal
+        // "From Maya" — so a signed-in member with a real nutritionist (or
+        // none at all) read a section attributed to a coach they do not have,
+        // listing a playlist that does not exist. Signed-out keeps the demo;
+        // signed-in renders NOTHING until a real feed exists.
+        if (bsEatSignedIn) return null;
+        const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
+        const who = lists.length ? String(lists[0].by || '').replace(/^Dr\.?\s+/i, '').split(' ')[0] : 'Maya';
         return (
           <>
-            <BSTrackHeader kicker="From Maya" title="Playlists" />
+            <BSTrackHeader kicker={tr('nutrition:eat.playlistsFrom', { defaultValue: 'From {who}', who })} title={tr('profile:playlists.playlists', { defaultValue: 'Playlists' })} />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
                 <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
@@ -10292,7 +10359,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         );
       })()}
 
-      <BSFooter right="Pg 3 of 5" />
+      <BSFooter right={tr('nutrition:eat.footerPage', { defaultValue: 'Pg 3 of 5' })} />
     </BSPage>
   );
 }

@@ -335,7 +335,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // are asserted exactly: a change here is either progress (lower the number and
   // the record with it) or a regression, and both must be a deliberate edit.
   // Printed above first, so the failure message is never the only place to read them.
-  assert.equal(partStrings, 193, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(noneStrings, 1104, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 115, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
