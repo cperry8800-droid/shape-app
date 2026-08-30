@@ -205,7 +205,14 @@ test('nothing that STORES or KEYS an aisle stores a label', () => {
   // real writers by their shape — an aisle record always pairs `aisle:` with an
   // `items:` sibling; a vars object never does — and asserts each holds a token.
   // A floor keeps it from passing vacuously if the writers are ever renamed.
-  const recs = [...code.matchAll(/\{\s*aisle:\s*([^,]+),\s*items:/g)].map((m) => m[1].trim());
+  // ⚠ AND THE VALUE IS MATCHED WITH `[^{}]`, NOT `[^,]` — the first cut of this
+  // guard used `[^,]+`, which CANNOT CROSS THE COMMA INSIDE `bsAisleLabel(x, TG)`.
+  // So the exact mutation it exists to catch didn't fail it: wrapping the token in
+  // a two-argument call made the record stop matching at all, and an invisible
+  // record is not a caught one. Excluding braces instead still refuses a vars
+  // object (which has no `items:` sibling and cannot be reached across a `}`)
+  // while admitting any call shape a writer might wrap the token in.
+  const recs = [...code.matchAll(/\{\s*aisle:\s*([^{}]*?),\s*items:/g)].map((m) => m[1].trim());
   assert.ok(recs.length >= 3, 'the aisle-record writers vanished — re-point this guard');
   for (const v of recs) {
     assert.doesNotMatch(v, /bsAisleLabel/, 'a saved aisle record stores the translated label instead of the token');

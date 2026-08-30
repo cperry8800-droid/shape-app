@@ -278,3 +278,24 @@ test('every provenance the writers stamp is one the render knows', () => {
     assert.ok(G.BS_GROCERY_PROV[p], `writers stamp '${p}' but BS_GROCERY_PROV has no entry for it`);
   }
 });
+
+test('the library search folds case in the LOCALE, not with a bare toLowerCase', () => {
+  // ⚠ THIS IS DRIVEN, NOT GREPPED, because the rule is a BEHAVIOUR and a spelling
+  // pin would survive any equivalent rewrite. Once the eyebrow is translated, a
+  // bare `.toLowerCase()` on both sides of the search comparison is the Turkish
+  // dotted/dotless-i class: `'I'.toLowerCase()` is `'i'` everywhere, but Turkish
+  // lowercases `I` to `'ı'`. So a member searching a Turkish list can type the
+  // word they can see and match nothing. The fold is extracted from the shipped
+  // file and evaluated under a stubbed locale — a revert to `.toLowerCase()`
+  // returns `'i'` and fails here.
+  const line = src.split('\n').find((l) => l.includes('const fold = '));
+  assert.ok(line, 'the library search fold vanished — re-point this guard');
+  const make = (locale) =>
+    // eslint-disable-next-line no-new-func
+    new Function('bsDateLocale', `${line.trim().replace(/^const /, 'const ')} return fold;`)(() => locale);
+
+  assert.equal(make('tr')('I'), 'ı', 'the fold ignores the locale — a bare toLowerCase is back');
+  assert.equal(make('en')('I'), 'i', 'the fold stopped folding case at all');
+  // And it must survive a locale the runtime rejects rather than throwing mid-search.
+  assert.equal(make('not-a-locale!!')('ABC'), 'abc', 'the fold throws on a bad locale instead of degrading');
+});
