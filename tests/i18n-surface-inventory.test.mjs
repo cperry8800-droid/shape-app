@@ -340,7 +340,7 @@ const UNCOVERED = new Set([
   'Client::BSSessionsScreen', 'Client::BSSleepHistory', 'Client::BSStepGoalSheet',
   'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
-  'Client::BSUniversalSearch', 'Client::BSVideoCall', 'Client::BSWeekendsCard',
+  'Client::BSVideoCall', 'Client::BSWeekendsCard',
   'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet',
   'Client::BSWorkoutBuilder',
   // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
@@ -351,7 +351,6 @@ const UNCOVERED = new Set([
   // ×13 — a translation cut. Concatenating a reused verb onto the name is the
   // construction this repo already refused for ru/uk, so it is not the cheap fix
   // it looks like.
-  'Client::BSSearchMsgBtn',
   // The launch/auth shell (BSSplash · BSWireLoading · BSWireHold · BSLogin ·
   // BSPaywall · BSPreviewBanner · BSAppShell) is localized; BSCosmicWordmark was
   // deleted (orphaned — no render site, no window export). BSTweaksPanel is the
@@ -494,10 +493,32 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // "no user copy" to UNCOVERED over an aria-label nobody could see; both are
   // registered in the baselines above with their reasons. full.length 103 -> 102
   // and the no-copy count 116 -> 115 follow from exactly those two moves.
+  // ⚠ CUT 7 — THE UNIVERSAL SEARCH SURFACE, AND THE RATCHET MOVES BY LESS THAN THE
+  // WORK. BSUniversalSearch (31) and BSSearchMsgBtn (1) leave UNCOVERED and
+  // BSSearchFollowBtn joins them fully covered, so noneStrings 1181 -> 1149,
+  // none.length 110 -> 108, full.length 102 -> 105 and the no-copy count 115 ->
+  // 114. partStrings 164 and part.length 32 are UNCHANGED — the assertion that
+  // certifies the cut is finished rather than half-done.
+  // ⚠ BUT 32 IS A FLOOR, NOT THE WORK, AND ONE SCREEN CARRIED ALL THREE SHAPES
+  // THE WALK CANNOT SEE AT ONCE: four filter labels in an ARRAY LITERAL
+  // (`[['all','All'], …].map`), three role nouns in a LOCAL ARROW FUNCTION
+  // (`const roleLabel = (r) => …`), and three follow-state words in a LOCAL
+  // CONST TERNARY rendered as `{label}`. Ten member-facing words, invisible.
+  // BSSearchFollowBtn is the sharpest case: it read `tr: 0, hard: 0` — the
+  // detector's way of saying "renders no user copy" — while showing an English
+  // Follow / Following / Requested in thirteen locales. Its localization moves
+  // no string count at all; it only moves out of the no-copy bucket. This is
+  // cut 5's BSWeekStrip lesson at a third site: a component sitting at zero/zero
+  // is not evidence that it renders nothing.
+  // ⚠ AND THE COUNT IS NOT A COUNT OF SENTENCES EITHER. The possessive aria-label
+  // `Open ${p.name}'s profile` was two entries in the dump — "Open" and
+  // "'s profile" — because a template literal splits at its placeholder. One
+  // sentence, two strings; it is now one ICU key so each locale can move the
+  // words (de "Profil von {name} öffnen", ru "Открыть профиль: {name}").
   assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1181, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1149, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 110, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 108, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

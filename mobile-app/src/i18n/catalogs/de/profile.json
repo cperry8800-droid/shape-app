@@ -240,5 +240,7 @@
   "biz.hours": "Zeiten",
   "biz.find": "Finden",
   "wins.head": "Erfolge-Wand",
-  "wins.pinned": "Echte Bewertung · Angepinnt"
+  "wins.pinned": "Echte Bewertung · Angepinnt",
+  "follow.followShort": "Folgen",
+  "role.member": "Mitglied"
 }

@@ -240,5 +240,7 @@
   "biz.hours": "Horaires",
   "biz.find": "Me trouver",
   "wins.head": "Mur des réussites",
-  "wins.pinned": "Avis réel · Épinglé"
+  "wins.pinned": "Avis réel · Épinglé",
+  "follow.followShort": "Suivre",
+  "role.member": "Membre"
 }

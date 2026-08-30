@@ -240,5 +240,7 @@
   "biz.hours": "Jam",
   "biz.find": "Cari saya",
   "wins.head": "Dinding pencapaian",
-  "wins.pinned": "Ulasan asli · Disematkan"
+  "wins.pinned": "Ulasan asli · Disematkan",
+  "follow.followShort": "Ikuti",
+  "role.member": "Anggota"
 }

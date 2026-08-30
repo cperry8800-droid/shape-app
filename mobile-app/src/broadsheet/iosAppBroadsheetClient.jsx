@@ -15610,6 +15610,7 @@ function bsRecentSearchPush(p) {
 // without opening their profile first. Real accounts only (demo cast hides them).
 function BSSearchFollowBtn({ uid, teal }) {
   const t = useBS();
+  const tr = useShapeTr();
   const cached = (typeof window !== 'undefined' && window.ShapeFollows?.getCached && window.ShapeFollows.getCached(uid)) || null;
   const [st, setSt] = React.useState(cached ? { following: !!cached.is_following, pending: !!cached.is_pending } : null);
   const [busy, setBusy] = React.useState(false);
@@ -15619,7 +15620,17 @@ function BSSearchFollowBtn({ uid, teal }) {
     return () => { dead = true; };
   }, [uid]);
   const on = !!(st && (st.following || st.pending));
-  const label = st && st.following ? 'Following' : st && st.pending ? 'Requested' : 'Follow';
+  // ⚠ THESE THREE WORDS WERE INVISIBLE TO THE INVENTORY WALK, WHICH IS WHY THIS
+  // COMPONENT READ AS "renders no user copy" WHILE SHOWING ENGLISH IN THIRTEEN
+  // LOCALES. They are assigned to a local const and rendered as `{label}`, so the
+  // walk sees an Identifier in the container and nothing to collect — the same
+  // absence cut 4 found in an array literal and the record-shape cut found in
+  // stored data, here hidden in a local variable.
+  // Following/Requested reuse the follow-state family; the bare verb needs its own
+  // key because `profile:follow.follow` carries the fullwidth ＋ this pill does not.
+  const label = st && st.following ? tr('profile:follow.following', { defaultValue: 'Following' })
+    : st && st.pending ? tr('profile:follow.requested', { defaultValue: 'Requested' })
+    : tr('profile:follow.followShort', { defaultValue: 'Follow' });
   return (
     <button disabled={busy} onClick={async () => { if (busy) return; setBusy(true); try { const r = await window.ShapeFollows.toggle(uid); if (r) setSt({ following: !!r.is_following, pending: !!r.is_pending }); } catch (e) {} setBusy(false); }}
       style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? t.RULE : teal}`, background: on ? 'transparent' : (t.isLight ? `${teal}14` : `${teal}22`), color: on ? t.INK50 : teal, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busy ? 0.6 : 1 }}>{label}</button>
@@ -15627,15 +15638,23 @@ function BSSearchFollowBtn({ uid, teal }) {
 }
 function BSSearchMsgBtn({ uid, name }) {
   const t = useBS();
+  const tr = useShapeTr();
   const [busy, setBusy] = React.useState(false);
   return (
-    <button disabled={busy} aria-label={`Message ${name}`} onClick={async () => {
+    // ⚠ ONE KEY CARRYING THE NAME, NOT A VERB CONCATENATED ONTO IT. `Message ${name}`
+    // fixes English word order into thirteen languages — tr puts the name first
+    // (`{name} kişisine mesaj`), de and fr need a preposition (`Nachricht an {name}`,
+    // `Message à {name}`). This is the construction this repo already refused for
+    // ru/uk, where a governing preposition would demand a case `Intl` never supplies.
+    // Reused rather than minted: `profile:terrain.messageName` is the same act on the
+    // same object, so a rewording should move both.
+    <button disabled={busy} aria-label={tr('profile:terrain.messageName', { name, defaultValue: 'Message {name}' })} onClick={async () => {
       if (busy) return; setBusy(true);
       try {
         const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
         const cid = (r && r.data) || null;
         if (cid) { try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name } })); } catch (e) {} }
-      } catch (e2) { try { window.__bsToast && window.__bsToast('Could not open the conversation — try again.', 'error'); } catch (e3) {} }
+      } catch (e2) { try { window.__bsToast && window.__bsToast(tr('common:search.msgFailed', { defaultValue: 'Could not open the conversation — try again.' }), 'error'); } catch (e3) {} }
       setBusy(false);
     }}
       style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, opacity: busy ? 0.6 : 1 }}>
@@ -15646,6 +15665,7 @@ function BSSearchMsgBtn({ uid, name }) {
 
 function BSUniversalSearch({ onClose }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [q, setQ] = useStateBSC('');
   const [filter, setFilter] = useStateBSC('all'); // all | members | coaches
@@ -15835,13 +15855,21 @@ function BSUniversalSearch({ onClose }) {
     </div>
   );
 
-  const roleLabel = (r) => r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Member';
+  // ⚠ A SECOND SHAPE THE WALK CANNOT SEE: three role nouns in a local arrow
+  // function. Reused from the role family rather than minted — a rename of what
+  // Shape calls a trainer must move every surface at once.
+  const roleLabel = (r) => r === 'trainer' ? tr('profile:role.trainer', { defaultValue: 'Trainer' })
+    : r === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' })
+    : tr('profile:role.member', { defaultValue: 'Member' });
   const roleColor = (r) => r === 'trainer' ? '#c0533b' : r === 'nutritionist' ? '#a07a2e' : teal;
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 };
   const meId = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const Row = (p, i) => {
     const actionable = signedIn && p.userId && p.userId !== meId;
-    const sub = p.mutuals > 0 ? `${p.mutuals} mutual` : (p.followsMe ? 'Follows you' : null);
+    // ⚠ `${n} mutual` NEVER PLURALISED EVEN IN ENGLISH, and no language forms one
+    // by appending a letter — ru/uk need four categories. ICU owns it now.
+    const sub = p.mutuals > 0 ? tr('common:search.mutuals', { count: p.mutuals, defaultValue: '{count, plural, one {# mutual} other {# mutuals}}' })
+      : (p.followsMe ? tr('common:search.followsYou', { defaultValue: 'Follows you' }) : null);
     return (
       <div key={(p.userId || p.name) + ':' + i} style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
         <button onClick={() => open(p)} style={{ flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -15853,7 +15881,7 @@ function BSUniversalSearch({ onClose }) {
         </button>
         {actionable ? <BSSearchFollowBtn uid={p.userId} teal={teal} /> : null}
         {actionable ? <BSSearchMsgBtn uid={p.userId} name={p.name} /> : null}
-        {!actionable ? <button onClick={() => open(p)} aria-label={`Open ${p.name}'s profile`} style={{ background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</button> : null}
+        {!actionable ? <button onClick={() => open(p)} aria-label={tr('common:search.openProfileAria', { name: p.name, defaultValue: "Open {name}'s profile" })} style={{ background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</button> : null}
       </div>
     );
   };
@@ -15886,13 +15914,20 @@ function BSUniversalSearch({ onClose }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <button onClick={onClose} aria-label="Close search" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label={tr('common:search.closeAria', { defaultValue: 'Close search' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Search Shape<span style={{ color: teal }}>.</span></div>
-        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
+        <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('common:search.title', { defaultValue: 'Search Shape' })}<span style={{ color: teal }}>.</span></div>
+        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('common:search.placeholder', { defaultValue: 'Search names, @handles, goals…' })}
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
         <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, padding: '12px 0 10px', overflowX: 'auto' }}>
-          {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches'], ['channels', 'Channels']].map(([k, label]) => (
+          {/* ⚠ THE THIRD INVISIBLE SHAPE ON THIS ONE SCREEN — copy declared in an
+              array literal and rendered by reference, the residual cut 4 documented.
+              Channels reuses the feed's tab noun: it names the same product object,
+              so a rename must move both. */}
+          {[['all', tr('common:search.filterAll', { defaultValue: 'All' })],
+            ['members', tr('common:search.filterMembers', { defaultValue: 'Members' })],
+            ['coaches', tr('common:search.filterCoaches', { defaultValue: 'Coaches' })],
+            ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' })]].map(([k, label]) => (
             <button key={k} onClick={() => setFilter(k)} aria-pressed={filter === k} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
           ))}
         </div>
@@ -15901,33 +15936,36 @@ function BSUniversalSearch({ onClose }) {
         {filter === 'channels' ? (
           chHits.length ? (
             <>
-              <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{chHits.length} {chHits.length === 1 ? 'channel' : 'channels'}</div>
-              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${c.memberCount || 0} member${c.memberCount === 1 ? '' : 's'}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+              <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('feed:channels.count', { count: chHits.length, defaultValue: '{count, plural, one {# channel} other {# channels}}' })}</div>
+              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
             </>
           ) : (
-            <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? `No channels match “${q.trim()}”.` : (signedIn ? 'No channels yet — start one from Chat → Channels.' : 'Sign in to browse the community channels.')}</div>
+            <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? tr('feed:channels.noneMatch', { q: q.trim(), defaultValue: 'No channels match “{q}”' })
+                : (signedIn ? tr('common:search.noChannelsYet', { defaultValue: 'No channels yet — start one from Chat → Channels.' })
+                  : tr('common:search.channelsSignIn', { defaultValue: 'Sign in to browse the community channels.' }))}</div>
           )
         ) : q.trim() ? (
           busy && !rows ? (
-            <div style={{ padding: '18px 0', ...eyebrow }}>Searching…</div>
+            <div style={{ padding: '18px 0', ...eyebrow }}>{tr('common:search.searching', { defaultValue: 'Searching…' })}</div>
           ) : state !== 'ok' ? (
             <div style={{ padding: '18px 0' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{state === 'limited' ? 'Searching a little fast — give it a moment and try again.' : "Couldn't search just now — check your connection and try again."}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{state === 'limited' ? tr('common:search.rateLimited', { defaultValue: 'Searching a little fast — give it a moment and try again.' })
+                : tr('coach:addClient.searchFailed', { defaultValue: "Couldn't search just now — check your connection and try again." })}</div>
             </div>
           ) : (rows !== null && list.length === 0 && moreHits === 0 && !noraHit) ? (
             <div style={{ padding: '18px 0' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Nothing on Shape matches “{q.trim()}”.</div>
-              <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Browse coaches on the marketplace →</button>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{tr('common:search.noMatch', { query: q.trim(), defaultValue: 'Nothing on Shape matches “{query}”.' })}</div>
+              <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:search.browseCoaches', { defaultValue: 'Browse coaches on the marketplace →' })}</button>
             </div>
           ) : (
             <>
               {noraHit && (
                 <>
-                  <div style={{ ...eyebrow, padding: '8px 0 2px' }}>Shape staff</div>
+                  <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('common:search.staffEyebrow', { defaultValue: 'Shape staff' })}</div>
                   <button onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { support: true, name: 'Nora' } })); } catch (e) {} }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BSFacetAvatar size={38} c={'#2e6fa0'} initial="N" name="Nora" photo={BS_NORA_AVATAR} live showRank={false} />
                     <span style={{ minWidth: 0, flex: 1 }}>
-                      <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Shape's Concierge · always online</span>
+                      <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('common:search.noraEyebrow', { defaultValue: "Shape's Concierge · always online" })}</span>
                       <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Nora</span>
                     </span>
                     <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
@@ -15936,31 +15974,31 @@ function BSUniversalSearch({ onClose }) {
               )}
               {list.length > 0 && (
                 <>
-                  <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{list.length} {list.length === 1 ? 'person' : 'people'}</div>
+                  <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('common:search.countPeople', { count: list.length, defaultValue: '{count, plural, one {# person} other {# people}}' })}</div>
                   {list.map(Row)}
                 </>
               )}
               {filter === 'all' && chHits.length > 0 && (
                 <>
-                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Channels</div>
-                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${c.memberCount || 0} member${c.memberCount === 1 ? '' : 's'}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('feed:tab.channels', { defaultValue: 'Channels' })}</div>
+                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
                 </>
               )}
               {filter === 'all' && recHits.length > 0 && (
                 <>
-                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Recipes · Shape Kitchen</div>
-                  {recHits.map((r, i) => <TileRow key={'rc' + (r.id || r.title)} first={i === 0} glyph="◇" color={teal} title={r.title} sub={`${r.kcal ? r.kcal + ' kcal' : 'Recipe'}${r.macros && r.macros.p ? ' · ' + r.macros.p + 'P' : ''}${r.time ? ' · ' + r.time : ''}`} onClick={() => setViewRecipe(r)} />)}
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('common:search.secRecipes', { defaultValue: 'Recipes · Shape Kitchen' })}</div>
+                  {recHits.map((r, i) => <TileRow key={'rc' + (r.id || r.title)} first={i === 0} glyph="◇" color={teal} title={r.title} sub={`${r.kcal ? r.kcal + ' kcal' : tr('common:search.recipeFallback', { defaultValue: 'Recipe' })}${r.macros && r.macros.p ? ' · ' + r.macros.p + 'P' : ''}${r.time ? ' · ' + r.time : ''}`} onClick={() => setViewRecipe(r)} />)}
                 </>
               )}
               {filter === 'all' && wkHits.length > 0 && (
                 <>
-                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Workouts</div>
-                  {wkHits.map((w, i) => <TileRow key={'wk' + w.title} first={i === 0} glyph="▣" color={t.RUST} title={w.title} sub={(w.detail && w.detail.meta) || 'Session'} onClick={() => setViewWorkout(w)} />)}
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('common:search.secWorkouts', { defaultValue: 'Workouts' })}</div>
+                  {wkHits.map((w, i) => <TileRow key={'wk' + w.title} first={i === 0} glyph="▣" color={t.RUST} title={w.title} sub={(w.detail && w.detail.meta) || tr('session:splits.sessionFallback', { defaultValue: 'Session' })} onClick={() => setViewWorkout(w)} />)}
                 </>
               )}
               {filter === 'all' && planHits.length > 0 && (
                 <>
-                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Coach plans</div>
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('common:search.secPlans', { defaultValue: 'Coach plans' })}</div>
                   {planHits.map((p, i) => <TileRow key={'pl' + p.id} first={i === 0} glyph="✦" color={'#a07a2e'} title={p.name} sub={`${p.coachName}${p.price ? ' · ' + p.price : ''}`} onClick={() => setViewPerson({ who: p.coachName, kind: p.providerRole === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: p.ownerId || undefined, init: bsInitials(p.coachName), public: true })} />)}
                 </>
               )}
@@ -15971,19 +16009,19 @@ function BSUniversalSearch({ onClose }) {
             {recs.length > 0 && (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '8px 0 2px' }}>
-                  <span style={eyebrow}>Recent</span>
-                  <button onClick={() => { try { localStorage.removeItem(BS_RECENT_SEARCH_KEY); } catch (e) {} setRecents([]); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Clear</button>
+                  <span style={eyebrow}>{tr('common:search.recent', { defaultValue: 'Recent' })}</span>
+                  <button onClick={() => { try { localStorage.removeItem(BS_RECENT_SEARCH_KEY); } catch (e) {} setRecents([]); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:search.clear', { defaultValue: 'Clear' })}</button>
                 </div>
                 {recs.map(Row)}
               </>
             )}
             {sugg.length > 0 && (
               <>
-                <div style={{ ...eyebrow, padding: `${recs.length ? 18 : 8}px 0 2px` }}>{suggestKind === 'know' ? 'People you may know' : 'On Shape'}</div>
+                <div style={{ ...eyebrow, padding: `${recs.length ? 18 : 8}px 0 2px` }}>{suggestKind === 'know' ? tr('common:search.peopleYouMayKnow', { defaultValue: 'People you may know' }) : tr('common:search.onShape', { defaultValue: 'On Shape' })}</div>
                 {sugg.map(Row)}
               </>
             )}
-            {!signedIn && <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Preview · sign in to search every real account</div>}
+            {!signedIn && <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('common:search.previewNote', { defaultValue: 'Preview · sign in to search every real account' })}</div>}
           </>
         )}
       </div>

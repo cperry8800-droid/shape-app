@@ -240,5 +240,7 @@
   "biz.hours": "Saatler",
   "biz.find": "Beni bul",
   "wins.head": "Başarı duvarı",
-  "wins.pinned": "Gerçek yorum · Sabitlendi"
+  "wins.pinned": "Gerçek yorum · Sabitlendi",
+  "follow.followShort": "Takip et",
+  "role.member": "Üye"
 }

@@ -240,5 +240,7 @@
   "biz.hours": "Giờ",
   "biz.find": "Tìm tôi",
   "wins.head": "Bảng thành tích",
-  "wins.pinned": "Đánh giá thật · Đã ghim"
+  "wins.pinned": "Đánh giá thật · Đã ghim",
+  "follow.followShort": "Theo dõi",
+  "role.member": "Thành viên"
 }

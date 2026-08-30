@@ -240,5 +240,7 @@
   "biz.hours": "Orari",
   "biz.find": "Trovami",
   "wins.head": "Bacheca dei successi",
-  "wins.pinned": "Recensione vera · In evidenza"
+  "wins.pinned": "Recensione vera · In evidenza",
+  "follow.followShort": "Segui",
+  "role.member": "Membro"
 }

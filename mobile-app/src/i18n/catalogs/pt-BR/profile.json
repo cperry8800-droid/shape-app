@@ -240,5 +240,7 @@
   "biz.hours": "Horário",
   "biz.find": "Onde me achar",
   "wins.head": "Mural de conquistas",
-  "wins.pinned": "Avaliação real · Fixada"
+  "wins.pinned": "Avaliação real · Fixada",
+  "follow.followShort": "Seguir",
+  "role.member": "Membro"
 }
