@@ -64,7 +64,30 @@ const NOTATION = new Set(['lb', 'lbs', 'kg', 'ms', 'px', 'ft', 'cm', 'mm', 'oz',
 
 // Props whose string value is READ ALOUD or rendered. Everything else a string can
 // land in — styles, classes, keys, colors, ids — is not copy.
-const TEXT_PROPS = new Set(['placeholder', 'title', 'alt', 'aria-label', 'ariaLabel', 'label', 'aria-valuetext']);
+//
+// ⚠ THE SECOND ROW IS THIS CODEBASE'S OWN CHROME, AND LEAVING IT OUT WAS THE
+// MEASUREMENT'S LARGEST REMAINING BLIND SPOT. The first row is the platform's
+// vocabulary; but Shape's page furniture takes its copy through `kicker`
+// (BSDetailHeader · BSPageHeader · BSSection · BSTrackHeader · BSPlaylistCard),
+// `eyebrow` (SecHead · DarkSection), `meta` (BSSection · BSOLRow ·
+// BSTStationHead), plus `sub`, `note`, `credit`, `helper` and `action`. Those are
+// page kickers, section eyebrows and station metas — member-facing copy that a
+// string moved out of JSX text and into a prop hid from this walk entirely.
+// Each name was verified against the component that RECEIVES it: destructured and
+// rendered, not held as a token. (`kind`, `variant`, `active`, `style`, `tone`,
+// `role`, `pattern`, `idKey` carry string literals too and are deliberately
+// absent — those ARE tokens.)
+//
+// ⚠ `left` AND `right` ARE DELIBERATELY EXCLUDED, and the reason is which way the
+// error runs. All 37 of their string literals go to <BSFooter>, whose entire body
+// is `return null` — so counting them would add 37 phantom untranslated strings
+// for copy no member can ever see. Everywhere else this file errs toward
+// over-counting, because a false exclusion HIDES real copy; here the inclusion is
+// what would lie, by inflating the gap with dead markup.
+const TEXT_PROPS = new Set([
+  'placeholder', 'title', 'alt', 'aria-label', 'ariaLabel', 'label', 'aria-valuetext',
+  'kicker', 'eyebrow', 'meta', 'sub', 'note', 'credit', 'helper', 'action',
+]);
 
 // ⚠ DERIVE THE TRANSLATOR BINDINGS, DON'T ENUMERATE A NAMING CONVENTION.
 // The first version matched `/^(tr|[a-z]\w*Tr)$/` — a guess at what a translator
@@ -423,8 +446,22 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the record-shape rule this wave already paid for. It sits in a call argument,
   // so the walk never counted it and these numbers do not move either way; the
   // reason is written at the site and registered as its own cut.
-  assert.equal(partStrings, 134, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1026, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ THE TEXT_PROPS WIDENING RAISED BOTH STRING TOTALS AND MOVED NO COMPONENT,
+  // WHICH IS THE HONEST SHAPE OF A MEASUREMENT FIX. Adding this codebase's own
+  // chrome props (see TEXT_PROPS) surfaced 83 strings the walk could not see —
+  // partStrings 134 -> 138, noneStrings 1026 -> 1109 — while part.length,
+  // none.length, full.length and the no-copy count ALL stayed put, because every
+  // prop-carried string landed in a component that was already in a baseline.
+  // Nothing became newly visible as a SURFACE; what was wrong was the volume.
+  // A further 4 came from renaming one local `Row`'s single-letter `l` prop to
+  // `label`: those four notification-settings labels were always rendered copy,
+  // and a one-letter name is not something to add to a shared copy allowlist.
+  // ⚠ A TOTAL THAT RISES IS ONLY HONEST BESIDE THE CHANGE THAT RAISED IT — the
+  // mirror of this file's own rule about never lowering one to make a red run
+  // pass. Attributed by measuring the two changes independently: rename alone
+  // +4 (all uncovered), props alone +4 partial / +79 uncovered.
+  assert.equal(partStrings, 138, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1109, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 109, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its

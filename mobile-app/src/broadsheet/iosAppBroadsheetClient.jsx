@@ -20132,10 +20132,10 @@ function BSNotifyPrefs({ onBack, role }) {
       <span style={{ position: 'absolute', top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? '#fff' : t.INK50 }} />
     </button>
   );
-  const Row = ({ l, sub, right, border = true }) => (
+  const Row = ({ label, sub, right, border = true }) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: border ? `1px solid ${t.HAIR}` : 0 }}>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{l}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{label}</div>
         {sub && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
       </div>
       {right}
@@ -20159,13 +20159,13 @@ function BSNotifyPrefs({ onBack, role }) {
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
       ) : (
         <div style={{ padding: `4px ${t.padX}px 30px` }}>
-          <Row l="Mute everything" sub={settings.muted ? 'All notifications paused' : 'Real events only — never spam'} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
+          <Row label="Mute everything" sub={settings.muted ? 'All notifications paused' : 'Real events only — never spam'} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
           {!settings.muted && (
             <React.Fragment>
               {Head('Quiet hours')}
-              <Row l="From" sub="Held for a daily digest" right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
-              <Row l="To" sub="Uses your device time zone" right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
-              <Row l="Daily limit" sub="Extra items batch into a digest" border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => `${n}/day`} onChange={(v) => saveSettings({ daily_cap: v })} />} />
+              <Row label="From" sub="Held for a daily digest" right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
+              <Row label="To" sub="Uses your device time zone" right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
+              <Row label="Daily limit" sub="Extra items batch into a digest" border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => `${n}/day`} onChange={(v) => saveSettings({ daily_cap: v })} />} />
 
               {Head('What you hear about · per channel')}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, padding: '0 0 6px' }}>
