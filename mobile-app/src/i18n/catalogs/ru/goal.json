@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "сегодня.",
   "weighIn.bodyFat": "Процент жира · необязательно",
   "weighIn.note": "Обновляет вашу динамику и ваш прогресс · старт {start} · цель {target}",
-  "weighIn.save": "Сохранить взвешивание"
+  "weighIn.save": "Сохранить взвешивание",
+  "primary.goal.fat_loss": "Сбросить жир",
+  "primary.goal.muscle": "Набрать мышцы",
+  "primary.goal.recomp": "Рекомп",
+  "primary.goal.maintain": "Поддержание",
+  "primary.goal.strength": "Стать сильнее",
+  "primary.goal.endurance": "Выносливость",
+  "primary.goal.mobility": "Мобильность",
+  "primary.goal.athletic": "Спортивные результаты",
+  "primary.goal.health": "Общее здоровье",
+  "primary.goal.tone": "Подтянуть тело",
+  "primary.goal.race": "Пробежать забег",
+  "primary.goal.postpartum": "После родов"
 }

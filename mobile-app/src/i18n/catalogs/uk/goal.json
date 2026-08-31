@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "сьогодні.",
   "weighIn.bodyFat": "Відсоток жиру · необов'язково",
   "weighIn.note": "Оновлює вашу динаміку та ваш прогрес · старт {start} · ціль {target}",
-  "weighIn.save": "Зберегти зважування"
+  "weighIn.save": "Зберегти зважування",
+  "primary.goal.fat_loss": "Скинути жир",
+  "primary.goal.muscle": "Набрати м'язи",
+  "primary.goal.recomp": "Рекомп",
+  "primary.goal.maintain": "Підтримання",
+  "primary.goal.strength": "Стати сильнішим",
+  "primary.goal.endurance": "Витривалість",
+  "primary.goal.mobility": "Мобільність",
+  "primary.goal.athletic": "Спортивні результати",
+  "primary.goal.health": "Загальне здоров'я",
+  "primary.goal.tone": "Підтягнути тіло",
+  "primary.goal.race": "Пробігти забіг",
+  "primary.goal.postpartum": "Після пологів"
 }

@@ -378,6 +378,83 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The primary-goal split: a token, a label, and a server-side reader that decided the design
+
+- **The primary goal stops being a string that does two jobs.** It is STORED in the member's own
+  goal doc (`client_goals.primaryGoal`), COMPARED against the picker's chip list on every render,
+  rendered as the Goals page H1, **and** keyed into `BSIntentStep`'s `IDENTITY` map. A `tr()` on
+  the chip's VALUE would freeze one language into the member's own record: pick *"Lose fat"* in
+  Spanish and a later English session matches no chip and shows an untranslated H1. That is **cut
+  5's Train tag and cut 6's grocery aisle at a third site**, and it takes the same answer — one
+  module-scope `BS_PRIMARY_GOALS = [{ id, en }]` (12 stable ids), and `bsPrimaryGoalLabel` is the
+  only thing a member ever reads. **12 `goal:primary.goal.*` keys ×13. No migration, no route
+  change, no website change.**
+- ⚠ **BUT THE LABEL DOES NOT GO WHERE THE TOKEN GOES, AND THAT IS WHAT SEPARATES THIS SPLIT FROM
+  THE AISLE'S.** Both writers ALSO mirror the choice to **`client_identity.goal`**, and
+  `get_public_profile` returns **`d->>'goal'` from that document**
+  (`supabase-migrations/2026-06-07-public-profile-avatar-ungated.sql:82`) — so the stored string is
+  served to **OTHER MEMBERS** on the public profile card, **mobile AND the website**. A token
+  written there renders `fat_loss` to every viewer on both surfaces. So `client_goals.primaryGoal`
+  carries the **token** and `client_identity.goal` stays a **DISPLAY MIRROR** carrying the
+  **label** — the author's own words, the same contract the bio already has. **A server-side
+  reader nobody had registered is what decided the design**; had the split been built from the
+  register alone it would have shipped a raw id onto every viewer's screen.
+- **The back-compat read is the load-bearing half, not a nicety.** Every row on disk today stores
+  the English WORD, so a token-only reader would match no chip **for every existing member**.
+  `bsPrimaryGoalToken` maps a legacy English value to its id (case- and whitespace-insensitive),
+  passes an already-stored id through, and passes **anything unrecognised through unchanged** — so
+  a member's own free text survives to their goal page rather than vanishing from it. An
+  unrecognised token renders as **ITSELF**: never a raw key, never blank (the aisle precedent).
+- ⚠ **`BSIntentStep` PASSES `null` FOR THE TRANSLATOR, ON PURPOSE.** That screen holds no `tr()`
+  and sits in the ratchet's UNCOVERED set — it is **100% English today** — so a translated chip
+  beside twelve untranslated sentences would read as a defect, not a feature. It becomes `tr` the
+  day the screen is localized; the helper takes it as one argument. The same reasoning leaves the
+  Settings identity default an English **label**: `client_identity.goal` is the label mirror, so
+  an English default there is correct rather than an oversight.
+- ⚠ **THE RATCHET IS UNMOVED, AND THAT IS THE CERTIFICATION.** `noneStrings` **935**,
+  `none.length` **99**, `partStrings` **169**, `part.length` **34** — all four unchanged, because
+  array literals and `CallExpression` arguments are both invisible to the walk. A data-shape
+  change should move the ratchet by nothing; one that moved it would be a copy change wearing a
+  split's name.
+- **Every per-locale term was READ OUT OF THE SHIPPED CATALOGS rather than invented** — the house
+  words for *endurance* (de `Ausdauer` · ru `Выносливость` · vi `Sức bền` · ha `Juriya`),
+  *mobility*, *strength*, *maintain* and *recomp* all already existed under `adjust.focus*` /
+  `terrain.disc.*`; uk keeps the **straight apostrophe** its own catalogs use (`Загальне здоров'я`).
+  Reading the shipped catalog is what separates a house convention from a guess.
+- **`tests/primary-goal-token.test.mjs` pins BOTH directions, because half of this passing is the
+  dangerous state**: the token survives a renaming translator while the label moves; every writer
+  stores the **id** in `client_goals` and the **label** in `client_identity`; the picker compares
+  `g.id` and renders the helper; the reader normalises; `IDENTITY` is keyed on tokens (keyed on
+  labels it would silently fall through to the generic line for every pick); and a catalog that
+  returns the raw key, an authored empty value, or **throws** still reads English — the
+  `returnEmptyString: false` trap, which would otherwise put `goal:primary.goal.fat_loss` on the
+  member's own headline.
+- ⚠ **AND THE GUARD'S OWN FIRST CUT HAD TWO DEFECTS, BOTH FOUND BY RUNNING IT.** `extractFn`
+  brace-matches from the first `{` it finds, and for `function BSIntentStep({ onDone })` that is
+  the **DESTRUCTURED PARAMETER** — so a bare-name marker extracted a two-word fragment and every
+  assertion after it was about the wrong text (the trap the grocery guard's own comment warns
+  about, paid for anyway). And a file-wide `const label =` scan matched unrelated bindings and
+  **failed on a correct tree** (the radio bar's `` `${show} · ${bpm} BPM` ``); it is scoped to the
+  binding each `client_identity` mirror actually reads. *A guard that fails is evidence about the
+  guard until the code is read.*
+- **9/9 mutations killed** (a writer storing the label in `client_goals` · a `client_identity`
+  mirror storing the token · the picker comparing a label · the reader dropping the back-compat
+  normalise · the H1 rendering the raw token · `IDENTITY` re-keyed on an English word · the label
+  helper returning a raw key on an empty catalog value · the legacy-English fallback removed · a
+  locale losing one of the 12 keys), sanity green at both ends and the tree restored
+  byte-identically.
+- **Verified:** `npm test` **2556/2556** · `tsc --noEmit` 0 · JSX parse · the ratchet 9/9 ·
+  catalog parity + ICU 5/5 ×13 · key resolution 10/10 · tr-shadow clean on **both** grep forms ·
+  a pure append (13 insertions / 1 deletion per catalog, LF, zero CR/NUL) · mobile build 0 with
+  **all 12 keys and all 156 translated values confirmed in the emitted bundle** behind a positive
+  **and** a negative control, and **zero `primaryGoal` writes carrying a label call** in that
+  bundle — the split survives minification.
+- ⚠ **REGISTERED, NOT SWEPT — the 12 IDENTITY sentences are still English.** They render as
+  `BSIntentStep`'s *"You're becoming {identity}."* H1 on a screen that carries no translator at
+  all, so localizing them is the first-run-screen cut, not this one. The **fourth instance of the
+  class** — Settings' 8 `options:` pref rows / 47 raw English strings, one of them regex-matched
+  over lowercased English at three sites incl. a server route — stays its own cut.
+
 ### 2026-08-31 — The primary-goal split, scoped: the register was wrong about it three ways, and it names a FOURTH instance of the class
 
 - **Scoping the registered "primary-goal token/label split" rather than building it**, because the

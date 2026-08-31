@@ -20929,9 +20929,64 @@ const BS_GOAL_TEMPLATES = [
   { cat: 'projects', t: 'Ship the launch',       cur: 0,   tgt: 100,  sub: '% · scoped, built, live',      pct: true,  weeksOut: 10 },
   { cat: 'projects', t: 'Start the side project', cur: 0,  tgt: 100,  sub: '% · to first real user',       pct: true,  weeksOut: 16 },
 ];
+// ⚠ THE PRIMARY GOAL IS A TOKEN, NOT A LABEL — the grocery-aisle / Train-tag class.
+// The value is STORED (client_goals.primaryGoal), COMPARED against the picker's chip
+// list on every render, rendered as the Goals page H1, AND keyed into BSIntentStep's
+// IDENTITY map. A tr() on the chip's VALUE would freeze one language into the member's
+// own record: pick "Lose fat" in Spanish and a later English session matches no chip
+// and shows an untranslated H1. So `id` is canonical and never translated;
+// bsPrimaryGoalLabel is the only thing a member reads.
+//
+// ⚠ THE LABEL DOES NOT GO WHERE THE TOKEN GOES. Both writers ALSO mirror the choice to
+// client_identity.goal, and get_public_profile serves that field (`d->>'goal'`) to OTHER
+// MEMBERS on the public profile card — mobile AND the website. A token written there
+// would render `fat_loss` to every viewer on both surfaces, so client_identity.goal
+// stays a DISPLAY MIRROR carrying the label (the author's own words, the same contract
+// the bio already has) while client_goals.primaryGoal carries the token.
+const BS_PRIMARY_GOALS = [
+  { id: 'fat_loss',   en: 'Lose fat' },
+  { id: 'muscle',     en: 'Build muscle' },
+  { id: 'recomp',     en: 'Recomp' },
+  { id: 'maintain',   en: 'Maintain' },
+  { id: 'strength',   en: 'Get stronger' },
+  { id: 'endurance',  en: 'Endurance' },
+  { id: 'mobility',   en: 'Mobility' },
+  { id: 'athletic',   en: 'Athletic performance' },
+  { id: 'health',     en: 'General health' },
+  { id: 'tone',       en: 'Tone up' },
+  { id: 'race',       en: 'Run a race' },
+  { id: 'postpartum', en: 'Postpartum' },
+];
+// Token -> the words a member reads. An UNRECOGNISED token renders as ITSELF — never a
+// raw key, never blank (the grocery-aisle precedent): a member's own free text passes
+// straight through rather than vanishing from their own goal page.
+function bsPrimaryGoalLabel(id, tr) {
+  const key = String(id == null ? '' : id).trim();
+  if (!key) return '';
+  const row = BS_PRIMARY_GOALS.find((g) => g.id === key);
+  if (!row) return key;
+  if (typeof tr !== 'function') return row.en;
+  try {
+    const v = tr(`goal:primary.goal.${row.id}`, { defaultValue: row.en });
+    return (v == null || v === '' || String(v).indexOf('goal:') === 0) ? row.en : v;
+  } catch (e) { return row.en; }
+}
+// ⚠ THE BACK-COMPAT READ IS THE LOAD-BEARING HALF: every row on disk today stores the
+// English WORD, not an id, so a token-only reader would match no chip for every existing
+// member. Maps a legacy English value to its id and passes anything unrecognised through
+// unchanged. The plain .toLowerCase() is the CORRECT fold here and not the Turkish
+// dotted-i class: the right-hand side is a canonical English constant, so folding by
+// English rules is what makes the two comparable (cut 9's bsmFilterCategory ruling).
+function bsPrimaryGoalToken(stored) {
+  const s = String(stored == null ? '' : stored).trim();
+  if (!s) return '';
+  if (BS_PRIMARY_GOALS.some((g) => g.id === s)) return s;
+  const hit = BS_PRIMARY_GOALS.find((g) => g.en.toLowerCase() === s.toLowerCase());
+  return hit ? hit.id : s;
+}
 const BS_GOALS_DEFAULT = {
   share: true,
-  primaryGoal: 'Lose fat', // synced with the edit-profile "Primary goal" chip
+  primaryGoal: 'fat_loss', // a TOKEN (BS_PRIMARY_GOALS) — mirrored to the profile as a label
 
   // The headline body-comp goal that drives the Overall tab. Editable fields
   // persist; the trend/milestones/week-targets/consistency are illustrative.
@@ -23767,9 +23822,11 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       if (!alive) return;
       setData(prev => {
         const m = { ...prev };
-        // Primary goal — synced with the edit-profile chip (client_goals.primaryGoal
-        // is canonical; fall back to the profile's client_identity.goal).
-        m.primaryGoal = (doc && doc.primaryGoal) || (ident && ident.goal) || prev.primaryGoal || '';
+        // Primary goal — a TOKEN (client_goals.primaryGoal is canonical; fall back to
+        // the profile's client_identity.goal, which carries the LABEL). Every value is
+        // normalised through bsPrimaryGoalToken, so a row written before the split (an
+        // English word) and the identity mirror both resolve to the same id.
+        m.primaryGoal = bsPrimaryGoalToken((doc && doc.primaryGoal) || (ident && ident.goal) || prev.primaryGoal || '');
         if (doc && typeof doc === 'object') {
           m.share = doc.share !== false;
           m.overall = (doc.overall && typeof doc.overall === 'object') ? { ...prev.overall, ...doc.overall } : prev.overall;
@@ -23801,7 +23858,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   // JS fold — the eyebrow below already CSS-uppercases, locale-aware.
   const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }) : '';
   // Header — the member's own primary goal words; italic last word takes tier heat.
-  const hTitle = data.primaryGoal || overall.title || tr('home:goal.eyebrow', { defaultValue: 'Your goal' });
+  const hTitle = bsPrimaryGoalLabel(data.primaryGoal, tr) || overall.title || tr('home:goal.eyebrow', { defaultValue: 'Your goal' });
   const hWords = String(hTitle).trim().split(/\s+/);
   const hLast = hWords.length ? hWords.pop() : '';
   const hHead = hWords.join(' ');
@@ -23872,35 +23929,28 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px` }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 13 }}>{tr('goal:primary.hint', { defaultValue: 'Pick one · syncs with your profile' })}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
-              {/* ⚠ THESE TWELVE STAY ENGLISH, AND THAT IS A RULING, NOT AN
-                  OVERSIGHT. The chip's own STRING is what gets written — to
-                  client_goals.primaryGoal AND mirrored to the profile's
-                  client_identity.goal — and it is then compared back
-                  (`data.primaryGoal === g`, one line down) and rendered as this
-                  page's H1. A tr() here freezes one language into the member's
-                  own record: pick "Lose fat" in Spanish and a later English
-                  session matches no chip and shows an untranslated H1. It is the
-                  grocery-aisle / Train-tag class (a value doing double duty as
-                  copy and as a stored id), and the same vocabulary has a THIRD
-                  writer — BSIntentStep's first-run "What brings you here?" step,
-                  which writes the identical strings plus an IDENTITY map keyed
-                  on them. Closing it needs a token/label split across all three
-                  writers with a back-compat read for rows already on disk: its
-                  own cut, registered, not half-done here. */}
-              {['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'].map((g) => {
-                const on = (data.primaryGoal || '') === g;
+              {/* ⚠ THE CHIP'S VALUE IS A TOKEN AND ITS FACE IS A LABEL — see
+                  BS_PRIMARY_GOALS. `g.id` is what gets written to
+                  client_goals.primaryGoal and what the selected-state test below
+                  compares; `bsPrimaryGoalLabel` is the only thing a member reads.
+                  The profile mirror (client_identity.goal) takes the LABEL, not
+                  the token, because get_public_profile serves that field to other
+                  members on both surfaces. */}
+              {BS_PRIMARY_GOALS.map((g) => {
+                const on = (data.primaryGoal || '') === g.id;
+                const label = bsPrimaryGoalLabel(g.id, tr);
                 return (
-                  <button key={g} onClick={async () => {
-                    persist({ ...data, primaryGoal: g });
+                  <button key={g.id} onClick={async () => {
+                    persist({ ...data, primaryGoal: g.id });
                     try {
                       const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
-                      await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: g });
-                      window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: g };
+                      await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: label });
+                      window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: label };
                       try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
                     } catch (e) {}
                     setEditPrimary(false);
-                    window.__bsToast?.(tr('goal:primary.toast', { defaultValue: 'Goal set · {goal}', goal: g }), 'ok');
-                  }} style={{ padding: '11px 15px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
+                    window.__bsToast?.(tr('goal:primary.toast', { defaultValue: 'Goal set · {goal}', goal: label }), 'ok');
+                  }} style={{ padding: '11px 15px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{label}</button>
                 );
               })}
             </div>
@@ -24188,36 +24238,49 @@ function BSIntentStep({ onDone }) {
   _bsScrollTopOnMount();
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('onboarding_started'); } catch (e) {} }, []);
   const [picked, setPicked] = useStateBSC(null);
-  const GOALS = ['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'];
+  // ⚠ THE PICK IS A TOKEN, NOT A LABEL — and this is the SECOND writer of
+  // client_goals.primaryGoal (BSGoalsContract's picker is the other), so the two
+  // must agree or a goal set at first run matches no chip on the Goals page.
+  // The id goes to client_goals.primaryGoal; the LABEL goes to the
+  // client_identity.goal MIRROR, which get_public_profile serves (`d->>'goal'`)
+  // to other members on the public profile card — mobile AND the website — so a
+  // token written there would render `fat_loss` to every viewer on both.
+  //
+  // ⚠ THE TRANSLATOR IS DELIBERATELY `null` IN bsPrimaryGoalLabel CALLS HERE.
+  // This screen holds no tr() and sits in the ratchet's UNCOVERED set — it is
+  // 100% English today — so a translated chip beside twelve untranslated
+  // sentences would read as a defect, not a feature. It becomes `tr` when the
+  // screen is localized; the label helper takes it as one argument.
   const IDENTITY = {
-    'Lose fat': 'someone who’s getting leaner',
-    'Build muscle': 'someone who builds muscle',
-    'Recomp': 'someone reshaping their body',
-    'Maintain': 'someone who keeps it dialed in',
-    'Get stronger': 'someone who trains for strength',
-    'Endurance': 'an endurance athlete in the making',
-    'Mobility': 'someone who moves well for life',
-    'Athletic performance': 'an athlete leveling up',
-    'General health': 'someone investing in their health',
-    'Tone up': 'someone getting toned and strong',
-    'Run a race': 'a runner with a race on the calendar',
-    'Postpartum': 'someone rebuilding strength, step by step',
+    fat_loss: 'someone who’s getting leaner',
+    muscle: 'someone who builds muscle',
+    recomp: 'someone reshaping their body',
+    maintain: 'someone who keeps it dialed in',
+    strength: 'someone who trains for strength',
+    endurance: 'an endurance athlete in the making',
+    mobility: 'someone who moves well for life',
+    athletic: 'an athlete leveling up',
+    health: 'someone investing in their health',
+    tone: 'someone getting toned and strong',
+    race: 'a runner with a race on the calendar',
+    postpartum: 'someone rebuilding strength, step by step',
   };
-  const persistIntent = async (g) => {
+  const persistIntent = async (id) => {
     try {
-      if (g) {
+      if (id) {
+        const label = bsPrimaryGoalLabel(id, null);
         const goals = (await window.shapeDb?.getUserGoals?.('client_goals')) || {};
-        await window.shapeDb?.saveUserGoals?.('client_goals', { ...goals, primaryGoal: g });
+        await window.shapeDb?.saveUserGoals?.('client_goals', { ...goals, primaryGoal: id });
         const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
-        await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: g });
-        window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: g };
+        await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: label });
+        window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: label };
         try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
       }
       const onb = (await window.shapeDb?.getUserGoals?.('client_onboarding')) || {};
       await window.shapeDb?.saveUserGoals?.('client_onboarding', { ...onb, intentSeen: true });
     } catch (e) {}
   };
-  const pick = (g) => { setPicked(g); persistIntent(g); };
+  const pick = (id) => { setPicked(id); persistIntent(id); };
   const skip = () => { persistIntent(null); onDone(); };
 
   if (picked) {
@@ -24241,8 +24304,8 @@ function BSIntentStep({ onDone }) {
         <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>What brings you here <span style={{ fontStyle: 'italic', color: teal }}>today?</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>Pick the one that fits best — it shapes your plan, your coach match, and what each day leads with. You can change it anytime.</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginTop: 22 }}>
-          {GOALS.map((g) => (
-            <button key={g} onClick={() => pick(g)} style={{ padding: '11px 16px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
+          {BS_PRIMARY_GOALS.map((g) => (
+            <button key={g.id} onClick={() => pick(g.id)} style={{ padding: '11px 16px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{bsPrimaryGoalLabel(g.id, null)}</button>
           ))}
         </div>
         <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>Skip for now →</button>

@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "yau.",
   "weighIn.bodyFat": "Kitsen jiki · na zaɓi",
   "weighIn.note": "Yana sabunta yanayinka da ci gabanka · farko {start} · manufa {target}",
-  "weighIn.save": "Ajiye awo"
+  "weighIn.save": "Ajiye awo",
+  "primary.goal.fat_loss": "Rage kiba",
+  "primary.goal.muscle": "Gina tsoka",
+  "primary.goal.recomp": "Sake gina jiki",
+  "primary.goal.maintain": "Riƙe",
+  "primary.goal.strength": "Ƙara ƙarfi",
+  "primary.goal.endurance": "Juriya",
+  "primary.goal.mobility": "Sassauci",
+  "primary.goal.athletic": "Ƙwarewar wasanni",
+  "primary.goal.health": "Lafiya gaba ɗaya",
+  "primary.goal.tone": "Tsaurara jiki",
+  "primary.goal.race": "Gudun gasa",
+  "primary.goal.postpartum": "Bayan haihuwa"
 }

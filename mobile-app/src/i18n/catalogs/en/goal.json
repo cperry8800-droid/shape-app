@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "weight.",
   "weighIn.bodyFat": "Body fat · optional",
   "weighIn.note": "Updates your trend + progress · start {start} · target {target}",
-  "weighIn.save": "Save weigh-in"
+  "weighIn.save": "Save weigh-in",
+  "primary.goal.fat_loss": "Lose fat",
+  "primary.goal.muscle": "Build muscle",
+  "primary.goal.recomp": "Recomp",
+  "primary.goal.maintain": "Maintain",
+  "primary.goal.strength": "Get stronger",
+  "primary.goal.endurance": "Endurance",
+  "primary.goal.mobility": "Mobility",
+  "primary.goal.athletic": "Athletic performance",
+  "primary.goal.health": "General health",
+  "primary.goal.tone": "Tone up",
+  "primary.goal.race": "Run a race",
+  "primary.goal.postpartum": "Postpartum"
 }

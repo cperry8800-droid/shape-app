@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "kilon.",
   "weighIn.bodyFat": "Vücut yağı · isteğe bağlı",
   "weighIn.note": "Eğilimini ve ilerlemeni günceller · başlangıç {start} · hedef {target}",
-  "weighIn.save": "Tartımı kaydet"
+  "weighIn.save": "Tartımı kaydet",
+  "primary.goal.fat_loss": "Yağ yakmak",
+  "primary.goal.muscle": "Kas yapmak",
+  "primary.goal.recomp": "Rekomp",
+  "primary.goal.maintain": "Koru",
+  "primary.goal.strength": "Daha güçlü olmak",
+  "primary.goal.endurance": "Dayanıklılık",
+  "primary.goal.mobility": "Mobilite",
+  "primary.goal.athletic": "Atletik performans",
+  "primary.goal.health": "Genel sağlık",
+  "primary.goal.tone": "Sıkılaşmak",
+  "primary.goal.race": "Bir yarışa katılmak",
+  "primary.goal.postpartum": "Doğum sonrası"
 }

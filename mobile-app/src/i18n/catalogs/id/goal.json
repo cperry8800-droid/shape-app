@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "hari ini.",
   "weighIn.bodyFat": "Lemak tubuh · opsional",
   "weighIn.note": "Memperbarui tren dan kemajuanmu · awal {start} · target {target}",
-  "weighIn.save": "Simpan penimbangan"
+  "weighIn.save": "Simpan penimbangan",
+  "primary.goal.fat_loss": "Turunkan lemak",
+  "primary.goal.muscle": "Bangun otot",
+  "primary.goal.recomp": "Rekomp",
+  "primary.goal.maintain": "Pertahankan",
+  "primary.goal.strength": "Jadi lebih kuat",
+  "primary.goal.endurance": "Daya tahan",
+  "primary.goal.mobility": "Mobilitas",
+  "primary.goal.athletic": "Performa atletik",
+  "primary.goal.health": "Kesehatan umum",
+  "primary.goal.tone": "Bentuk tubuh",
+  "primary.goal.race": "Ikut lomba lari",
+  "primary.goal.postpartum": "Pascamelahirkan"
 }
