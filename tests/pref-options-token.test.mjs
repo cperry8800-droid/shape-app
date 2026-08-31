@@ -147,18 +147,18 @@ test('the editor stores a token, compares a token, and renders a label', () => {
 
   const chip = /editField\.options\.map\(\(opt\)[\s\S]{0,600}?<\/button>/.exec(clientSrc);
   assert.ok(chip, 'the option chip row');
-  assert.ok(/bsPrefOptionToken\(editField\.key, editField\.value\) === String\(id\)/.test(chip[0]),
+  assert.ok(/bsPrefOptionToken\(editField\.key, editField\.value, tr\) === String\(id\)/.test(chip[0]),
     'selection compares tokens, never the rendered string');
   assert.ok(!/String\(editField\.value\) === String\(opt\)/.test(chip[0]),
     'the old copy-equality comparison is gone');
-  assert.ok(/bsPrefOptionLabel\(editField\.key, id\)/.test(chip[0]), 'the chip renders a label');
+  assert.ok(/bsPrefOptionLabel\(editField\.key, id, tr\)/.test(chip[0]), 'the chip renders a translated label');
 });
 
 test('every surface that shows a stored pref renders the label, not the token', () => {
   for (const m of clientSrc.matchAll(/r: ([^,]*?nutritionPrefs|[^,]*?trainingPrefs)\[row\.k\]/g)) {
     assert.ok(m[0].includes('bsPrefOptionLabel(row.k,'), `row summary renders a label: ${m[0]}`);
   }
-  const rowSummaries = [...clientSrc.matchAll(/r: bsPrefOptionLabel\(row\.k, (nutrition|training)Prefs\[row\.k\]\)/g)];
+  const rowSummaries = [...clientSrc.matchAll(/r: bsPrefOptionLabel\(row\.k, (nutrition|training)Prefs\[row\.k\], tr\)/g)];
   assert.equal(rowSummaries.length, 2, 'both row lists render labels');
 
   for (const key of ['nutritionPrefs.dietary_style', 'trainingPrefs.experience']) {

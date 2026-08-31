@@ -29530,7 +29530,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       // Store the TOKEN. A chip already carries one; a member who typed the
       // option by hand lands on it too; anything else is free text and passes
       // through untouched.
-      persistPref(editField.store, { ...blob, [editField.key]: bsPrefOptionToken(editField.key, v) });
+      persistPref(editField.store, { ...blob, [editField.key]: bsPrefOptionToken(editField.key, v, tr) });
       setEditField(null);
       return;
     }
@@ -29792,7 +29792,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { k: 'supplements', l: tr('settings:nutrition.supplements', { defaultValue: 'Supplements' }), placeholder: tr('settings:nutrition.supplementsPh', { defaultValue: 'Creatine, D, omega-3' }) },
     { k: 'alcohol', l: tr('settings:nutrition.alcohol', { defaultValue: 'Alcohol' }), options: BS_PREF_OPTIONS.alcohol },
     { k: 'hydration_target_l', l: tr('settings:nutrition.hydrationTarget', { defaultValue: 'Hydration target (L/day)' }), type: 'number', placeholder: '3.0' },
-  ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, nutritionPrefs[row.k]) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('nutrition', row.k, row.l, { type: row.type, placeholder: row.placeholder, options: row.options }) }));
+  ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, nutritionPrefs[row.k], tr) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('nutrition', row.k, row.l, { type: row.type, placeholder: row.placeholder, options: row.options }) }));
   const trainingRows = [
     { k: 'primary_goal', l: tr('settings:training.primaryGoal', { defaultValue: 'Primary goal' }), options: BS_PREF_OPTIONS.primary_goal },
     { k: 'experience', l: tr('settings:training.experience', { defaultValue: 'Experience' }), options: BS_PREF_OPTIONS.experience },
@@ -29800,7 +29800,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { k: 'equipment', l: tr('settings:training.equipment', { defaultValue: 'Equipment access' }), options: BS_PREF_OPTIONS.equipment },
     { k: 'injuries', l: tr('settings:training.injuries', { defaultValue: 'Injuries & notes' }), placeholder: tr('settings:training.injuriesPh', { defaultValue: 'Left shoulder, knee tracking…' }) },
     { k: 'preferred_times', l: tr('settings:training.preferredTimes', { defaultValue: 'Preferred times' }), options: BS_PREF_OPTIONS.preferred_times },
-  ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, trainingPrefs[row.k]) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('training', row.k, row.l, { placeholder: row.placeholder, options: row.options }) }));
+  ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, trainingPrefs[row.k], tr) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('training', row.k, row.l, { placeholder: row.placeholder, options: row.options }) }));
   // Coach practice shortcuts (consolidated into Settings). Availability + Soundtracks
   // are hosted by the coach shell (it owns those screens) via window events; Payouts
   // calls Stripe Connect directly; the rest open the coach's own public profile.
@@ -30025,8 +30025,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { icon: 'user',    title: tr('settings:section.account', { defaultValue: 'Account' }),            summary: cardAccountSummary,                                            detail: 'account' },
     { icon: 'sliders', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
     { icon: 'moon',    title: tr('cycle:settings.card', { defaultValue: 'Cycle' }),                     summary: cycle.optIn ? (cycle.share ? tr('cycle:settings.summaryShared', { defaultValue: 'Tracking · shared with your coach' }) : tr('cycle:settings.summaryOn', { defaultValue: 'Tracking · private to you' })) : tr('cycle:settings.summaryOff', { defaultValue: 'Off · phase, patterns & calendar' }), detail: 'cycle' },
-    { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('dietary_style', nutritionPrefs.dietary_style), defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
-    { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('experience', trainingPrefs.experience), defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
+    { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('dietary_style', nutritionPrefs.dietary_style, tr), defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
+    { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('experience', trainingPrefs.experience, tr), defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
     { icon: 'link',    title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
     { icon: 'bell',    title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                            detail: 'notifications' },
     { icon: 'lock',    title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                             detail: 'privacy' },
@@ -30809,8 +30809,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>{tr('settings:editField.editLabel', { label: editField.label, defaultValue: 'Edit {label}' })}</div>
             {editField.options && editField.options.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                {editField.options.map((opt) => { const id = (opt && opt.id != null) ? opt.id : opt; const on = bsPrefOptionToken(editField.key, editField.value) === String(id); return (
-                  <button key={id} onClick={() => setEditField(f => ({ ...f, value: id }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}1c` : 'transparent', color: on ? t.ACCENT : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsPrefOptionLabel(editField.key, id)}</button>
+                {editField.options.map((opt) => { const id = (opt && opt.id != null) ? opt.id : opt; const on = bsPrefOptionToken(editField.key, editField.value, tr) === String(id); return (
+                  <button key={id} onClick={() => setEditField(f => ({ ...f, value: id }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}1c` : 'transparent', color: on ? t.ACCENT : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsPrefOptionLabel(editField.key, id, tr)}</button>
                 ); })}
               </div>
             )}
@@ -30820,7 +30820,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               // Shows the label so a stored token never surfaces as copy; an
               // edit replaces it with whatever was typed, and the save
               // normalises that back to a token when it matches an option.
-              value={bsPrefOptionDisplay(editField.key, editField.value)}
+              value={bsPrefOptionDisplay(editField.key, editField.value, tr)}
               placeholder={editField.placeholder}
               onChange={(e) => setEditField(f => ({ ...f, value: e.target.value }))}
               onKeyDown={(e) => { if (e.key === 'Enter') saveEditField(); }}
