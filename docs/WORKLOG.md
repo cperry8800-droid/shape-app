@@ -378,6 +378,71 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — i18n cut 16: the profile customizer, and two deliberate non-keys
+
+- **The sheet a member edits their own public profile in is localized.** `BSProfileCustomizer`
+  — cover · headline stats · prompts · social links · the wall · the shelf · the pin · the intro
+  film · the business card — carried **zero `tr()` calls**; it now carries **99 translator
+  references** (95 of them direct `tr('profile:…')` calls), against **105 new `profile:` keys
+  ×13**. The stored side already had its split — cut 54 gave the pin kinds and prompts tokens —
+  so this is the string sweep on top of it, plus the two option tables the sweep had to reach.
+  No migration, no route change.
+- ⚠ **TWO TABLES ARE DELIBERATELY NOT FULLY KEYED, AND THAT IS THE CUT'S ONE JUDGEMENT CALL.**
+  `'Shape Score'` in `BS_STAT_OPTIONS` and the five brand nouns in `BS_PROFILE_LINKS`
+  (Instagram · X · TikTok · YouTube · Substack) are **byte-identical in all thirteen**, so keying
+  them would ship thirteen copies of a string a translator must not touch — the same exemption as
+  `BSAboutPage`'s founder signature and `BSSettings`' `AB` initials placeholder. Only **Website**,
+  the one word a locale renames, carries a `tKey`. The guard pins **both directions**: a later
+  sweep that "completes" the tables fails, and so does one that lets the exemption widen into
+  *nothing is keyed*.
+- ⚠ **THE PICKER AND THE PROFILE HERO NOW NAME EACH STAT THROUGH THE SAME KEY, AND THAT IS THE
+  ASSERTION WORTH HAVING.** The hero resolves a stored stat key against **its own `stats` map**,
+  built at two call sites — a pre-existing split this cut did not invent. Had the picker minted
+  its own keys, a member would read one name **choosing** a stat and another **seeing** it, one
+  tap apart. Pinned as an invariant over the shipped source rather than as a spelling.
+- ⚠ **78 IS THIS WALK'S FLOOR, NOT THE SURFACE'S TRUTH — SO THE RATCHET DEFENDS ALMOST NONE OF
+  IT.** **11 toast sentences** are plain JS the walk never enters (cut 2's lesson) and **13 more
+  member-facing labels** sit in the two **module-scope array literals** it cannot attribute (cut
+  8's). All 24 are keyed; **none of them ever counted**. Reverting any one leaves the ratchet, the
+  parity gate and the whole suite green — which is why `tests/profile-editor-i18n.test.mjs`
+  **evaluates the extracted tables and resolver** rather than grepping for spellings.
+- ⚠ **A CUT-54 GUARD PINNED A SPELLING AND THIS CUT BROKE IT — CORRECTLY.** It asserted
+  `bsPinKindLabel(k.id)`, the **one-argument** form, and threading the translator into the picker
+  chips is exactly what makes them translatable. Re-pointed to assert what the code **answers**:
+  the chip renders a **translated** label. Same lesson this file already records for the
+  age-derive mirror — *a guard that pins an expression pins whatever that expression is wrong
+  about.*
+- ⚠ **AND THE NEW GUARD'S OWN FIRST CUT FAILED ON CORRECT CODE, TWICE — both times the guard, not
+  the code.** A `[^\]]*` class **cannot cross the `]` inside `links[l.key]`**, so the save-path
+  matcher missed a line that was right (the cut-6 aisle-ban trap, one file over); and a file-wide
+  `>{x.label}<` ban fired on the **profile HERO**, which legitimately renders a `label` its caller
+  **already translated**. Both were replaced with the key-parity invariant above. *A guard that
+  fails is evidence about the guard until the code is read.*
+- **The comment stripper is IMPORTED, never re-derived** — the canonical
+  `tests/helpers/strip-comments.mjs`, whose own header records that the lazy
+  `/\*[\s\S]*?\*\//` span opens a FALSE block on **`accept="image/*"` in this exact file** and
+  swallowed 567,895 characters of it in an earlier guard.
+- **The ratchet moves on three axes, and the fourth is the certification.** `noneStrings`
+  **924 → 846** · `none.length` **98 → 97** · `part.length` **34 → 35** · `partStrings`
+  **169 → 170** · fully covered **113**. ⚠ **`partStrings` RISING is the honest direction here**:
+  the one literal `https://open.spotify.com/track/…` example was already on screen and already
+  counted — in `noneStrings`, where the whole component sat. 77 became keys and **one changed
+  column**. The component stays **PARTIAL by design** over that address, which no locale changes.
+- **13/13 mutations killed**, sanity green at both ends and the tree restored byte-identically:
+  the brand noun keyed · a real `tKey` dropped · a `tKey` typo'd · a label drifted from its
+  catalog value · the member's record storing the **label** · the picker rendering the raw English
+  label · the literal URL example keyed · the hero naming a stat through a **different** key ·
+  selection comparing the rendered string · the resolver dropping its raw-key guard · dropping its
+  try/catch · the editor unbinding the translator · a local shadowing it. ⚠ One first reported
+  nothing because its anchor never landed (`count=0`) — re-anchored and killed. *A mutation is a
+  broken instrument until it is proven to have landed.*
+- **Verified:** `npm test` **2606/2606** · `tsc --noEmit` 0 · JSX parse · catalog parity ×13 (a
+  pure append — **106 insertions / 1 deletion per file**, 244 → 349 keys, LF, zero CR/NUL, **zero
+  empty values**) · mobile build 0 with **all 105 keys and all 1,365 translated values confirmed
+  in the emitted bundle** behind a **positive control** (`profile:role.trainer`, a key that
+  certainly ships) **and a negative control** (a key that does not exist), and with the minifier's
+  `\xA0` escape normalized first — the cut-10 saturated-miss trap.
+
 ### 2026-08-31 — Three source guards were scanning source that had been deleted, and the fix already existed
 
 - **`tests/helpers/strip-comments.mjs` has said "ONE implementation on purpose" since the day it
