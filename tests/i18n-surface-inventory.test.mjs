@@ -332,7 +332,7 @@ const UNCOVERED = new Set([
   'Client::BSCardSheetHost', 'Client::BSChatThread',
   'Client::BSClientLibrary', 'Client::BSClientNextPlate',
   'Client::BSClientProgress', 'Client::BSCoachAdjustBanner',
-  'Client::BSCodeOfConductPage', 'Client::BSCommitmentCard',
+  'Client::BSCodeOfConductPage',
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
   'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
@@ -681,10 +681,21 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // 77 became keys and ONE — the literal `https://open.spotify.com/track/…` example —
   // changed column into PARTIAL. So noneStrings falls by 78 while partStrings rises by
   // 1: the same string, counted in the other bucket, not new hardcoded copy.
+  // ⚠ CUT 17 MOVED NOTHING BUT noneStrings AND none.length, AND THAT IS THE
+  // CERTIFICATION. BSCommitmentCard — the weekly points STAKE on the Score page —
+  // left UNCOVERED carrying 28 walk-visible strings and lands FULLY COVERED, so
+  // noneStrings 846 -> 818, none.length 97 -> 96 and full.length rises by one while
+  // partStrings 170 and part.length 35 stay put. A cut that landed in PARTIAL would
+  // be half-done.
+  // ⚠ AND 28 IS A FLOOR AGAIN, FOR TWO SHAPES AT ONCE: the sheet's two stepper
+  // labels ('Workouts', 'Habit check-offs') sat in a LOCAL ARRAY LITERAL the walk
+  // never attributes, and the six failure sentences are plain JS that never
+  // reaches JSX (cut 2's lesson). The cut authored 42 keys against a ratchet that
+  // can only move by 28.
   assert.equal(partStrings, 170, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 846, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 818, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 35, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 97, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 96, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

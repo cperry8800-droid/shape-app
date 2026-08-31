@@ -25192,6 +25192,7 @@ function _bsUseLiveScore(profile) {
 // progress + the outcome. Coach proposals need accepting first. Signed-out = a demo.
 function BSCommitmentCard() {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const red = t.isLight ? '#c0392b' : '#e0463c';
   const heat = bsMyTierColor(); // Score page = heat is the viewer's tier
@@ -25214,6 +25215,42 @@ function BSCommitmentCard() {
   };
   React.useEffect(() => { load(); }, [signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ⚠ THE ONLY REPORT THESE TWO WRITES HAD WAS A NO-OP, ON THE ONE SCREEN THAT PUTS
+  // A MEMBER'S POINTS AT RISK. window.__bsToast is a live no-op — toasts were
+  // switched off app-wide by #938 and iosAppBroadsheet.jsx:1364 keeps the global as
+  // `() => {}` so the ~275 imperative callers stay safe — while setCommitment and
+  // acceptCommitment are BOTH fully try/caught in the data layer, so every failure
+  // (no session, RPC error, a pre-migration PGRST202, a thrown fetch) resolves to
+  // {ok:false} / {accepted:false} rather than rejecting. A member staked 5-50 points,
+  // tapped Lock it in, watched the button flip back from "Setting…", and was told
+  // nothing at all; accept() had no failure branch whatsoever.
+  //
+  // Notice mode is the sanctioned replacement and its own comment states the rule:
+  // use it for a transient failure the member needs to know about, NEVER for a
+  // success confirmation — that is precisely the popup noise #938 removed. So the two
+  // successes below stay toasts (the sheet closing and the card re-rendering with the
+  // commitment IS the confirmation) and only the failures become notices.
+  const notice = (title, message) => {
+    try {
+      const ask = window.bsAskConfirm;
+      if (typeof ask === 'function') {
+        // Fire-and-forget, and the catch is not decoration: bsAskConfirm resolves
+        // through a Promise whose executor calls setState, so a throw there would
+        // surface as an unhandled rejection from the one path whose whole job is to
+        // report a failure quietly.
+        Promise.resolve(ask({
+          notice: true,
+          eyebrow: tr('score:commit.noticeEyebrow', { defaultValue: 'Commitment' }),
+          title,
+          message,
+          confirmLabel: tr('score:commit.noticeOk', { defaultValue: 'Got it' }),
+        })).catch(() => {});
+        return;
+      }
+    } catch (e) {}
+    try { window.__bsToast?.(title, 'warn'); } catch (e2) {}
+  };
+
   const save = async () => {
     if (busy || !window.ShapeCommit) return;
     setBusy(true);
@@ -25223,13 +25260,29 @@ function BSCommitmentCard() {
     if (fHabits > 0) targets.habits = fHabits;
     const r = await window.ShapeCommit.set(targets, fStake);
     setBusy(false);
-    if (r && r.ok) { window.__bsToast?.('Commitment set', 'ok'); setSheet(false); load(); }
-    else { window.__bsToast?.(r && r.reason === 'no_targets' ? 'Pick at least one target' : 'Couldn’t set it', 'info'); }
+    if (r && r.ok) { window.__bsToast?.(tr('score:commit.toastSet', { defaultValue: 'Commitment set' }), 'ok'); setSheet(false); load(); }
+    else if (r && r.reason === 'no_targets') {
+      notice(
+        tr('score:commit.errNoTargets', { defaultValue: 'Pick at least one target' }),
+        tr('score:commit.errNoTargetsBody', { defaultValue: 'Choose at least one workout, habit or check-in target before you stake points.' }),
+      );
+    } else {
+      notice(
+        tr('score:commit.errSetFailed', { defaultValue: 'Couldn’t set it' }),
+        tr('score:commit.errSetFailedBody', { defaultValue: 'Your commitment wasn’t saved and no points are staked. Check your connection and try again.' }),
+      );
+    }
   };
   const accept = async () => {
     if (!commit || !commit.id || !window.ShapeCommit) return;
     const r = await window.ShapeCommit.accept(commit.id);
-    if (r && r.accepted) { window.__bsToast?.('Commitment accepted', 'ok'); load(); }
+    if (r && r.accepted) { window.__bsToast?.(tr('score:commit.toastAccepted', { defaultValue: 'Commitment accepted' }), 'ok'); load(); }
+    else {
+      notice(
+        tr('score:commit.errAcceptFailed', { defaultValue: 'Couldn’t accept it' }),
+        tr('score:commit.errAcceptFailedBody', { defaultValue: 'The commitment wasn’t accepted and no points are staked. Check your connection and try again.' }),
+      );
+    }
   };
 
   if (commit === undefined) return null; // loading
@@ -25237,38 +25290,48 @@ function BSCommitmentCard() {
   const tg = (c && c.targets) || {};
   const targetLine = () => {
     const parts = [];
-    if (tg.workouts) parts.push(`${prog.workouts}/${tg.workouts} workouts`);
-    if (tg.checkin) parts.push(`check-in ${prog.checkin ? '✓' : '◦'}`);
-    if (tg.habits) parts.push(`${prog.habits}/${tg.habits} habits`);
+    // ICU on both counts: no language pluralises by appending a letter, and ru/uk
+    // need four categories rather than two. The noun agrees with the TARGET, which
+    // is the figure the sentence is about.
+    if (tg.workouts) parts.push(tr('score:commit.tgWorkouts', { defaultValue: `${prog.workouts}/${tg.workouts} workouts`, done: prog.workouts, target: tg.workouts }));
+    if (tg.checkin) parts.push(tr('score:commit.tgCheckin', { defaultValue: `check-in ${prog.checkin ? '✓' : '◦'}`, mark: prog.checkin ? '✓' : '◦' }));
+    if (tg.habits) parts.push(tr('score:commit.tgHabits', { defaultValue: `${prog.habits}/${tg.habits} habits`, done: prog.habits, target: tg.habits }));
     return parts.join(' · ');
+  };
+  // ⚠ FOUR KEYS, NEVER ONE FRAME WITH {status} INTERPOLATED. c.status is the STORED
+  // token the row is keyed by ('met' | 'missed' | 'proposed' | active) and is compared
+  // with === three lines down; interpolating it renders the raw English id as copy in
+  // twelve locales. Same refusal cut 11 made three times over the goal doc's `kind`.
+  const statusLine = () => {
+    if (c.status === 'met') return tr('score:commit.statusMet', { defaultValue: `✓ Kept · +${c.stake} earned`, n: c.stake });
+    if (c.status === 'missed') return tr('score:commit.statusMissed', { defaultValue: `Missed · −${c.stake}`, n: c.stake });
+    if (c.status === 'proposed') return tr('score:commit.statusProposed', { defaultValue: 'Proposed by your coach' });
+    return tr('score:commit.statusActive', { defaultValue: 'Active · settles at week’s end' });
   };
 
   return (
     <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
         <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>This week&apos;s commitment</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('score:commit.eyebrow', { defaultValue: 'This week’s commitment' })}</span>
         <span aria-hidden style={{ flex: 1, minWidth: 8, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 4px' }} />
-        {c && c.stake ? <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: bsTHexA(t.INK, 0.55) }}>{c.stake} PTS STAKED</span> : null}
+        {c && c.stake ? <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: bsTHexA(t.INK, 0.55) }}>{tr('score:commit.staked', { defaultValue: `${c.stake} PTS STAKED`, n: c.stake })}</span> : null}
       </div>
       {!c ? (
         <React.Fragment>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>Put points on a weekly target — hit it for a bonus, miss it and lose the stake.</div>
-          <button onClick={() => { if (signedIn) setSheet(true); else if (window.bsRequireAccount) window.bsRequireAccount('set a weekly commitment'); }} style={{ marginTop: 10, minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, borderBottom: `2px solid ${heat}`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment →' : 'Sign in to commit →'}</button>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>{tr('score:commit.pitch', { defaultValue: 'Put points on a weekly target — hit it for a bonus, miss it and lose the stake.' })}</div>
+          <button onClick={() => { if (signedIn) setSheet(true); else if (window.bsRequireAccount) window.bsRequireAccount(tr('score:commit.requireReason', { defaultValue: 'set a weekly commitment' })); }} style={{ marginTop: 10, minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, borderBottom: `2px solid ${heat}`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? tr('score:commit.setCta', { defaultValue: 'Set a commitment →' }) : tr('score:commit.signInCta', { defaultValue: 'Sign in to commit →' })}</button>
         </React.Fragment>
       ) : (
         <React.Fragment>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{targetLine() || '—'}</div>
           <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: c.status === 'met' ? heat : c.status === 'missed' ? red : bsTHexA(t.INK, 0.5) }}>
-            {c.status === 'met' ? `✓ Kept · +${c.stake} earned`
-              : c.status === 'missed' ? `Missed · −${c.stake}`
-              : c.status === 'proposed' ? 'Proposed by your coach'
-              : 'Active · settles at week’s end'}
+            {statusLine()}
           </div>
           {c.status === 'proposed' && (
             <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
-              <button onClick={accept} style={{ minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, borderBottom: `2px solid ${heat}`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept →</button>
-              <button onClick={() => setSheet(true)} style={{ minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, color: bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Change</button>
+              <button onClick={accept} style={{ minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, borderBottom: `2px solid ${heat}`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('score:commit.accept', { defaultValue: 'Accept →' })}</button>
+              <button onClick={() => setSheet(true)} style={{ minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, color: bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('score:commit.change', { defaultValue: 'Change' })}</button>
             </div>
           )}
         </React.Fragment>
@@ -25276,29 +25339,38 @@ function BSCommitmentCard() {
       {sheet && signedIn && createPortal(
         <div onClick={() => setSheet(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 90, display: 'flex', alignItems: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: `16px ${t.padX}px 22px`, maxHeight: '82%', overflowY: 'auto' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Set this week&apos;s commitment</div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK }}>What will you <span style={{ fontStyle: 'italic', color: teal }}>hit</span>?</div>
-            {[['Workouts', fWorkouts, setFWorkouts, 0, 14], ['Habit check-offs', fHabits, setFHabits, 0, 21]].map(([label, val, set, lo, hi]) => (
-              <div key={label} style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{label}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button onClick={() => set(Math.max(lo, val - 1))} aria-label={`Decrease ${label}`} style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 18, cursor: 'pointer' }}>−</button>
-                  <span style={{ minWidth: 22, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{val}</span>
-                  <button onClick={() => set(Math.min(hi, val + 1))} aria-label={`Increase ${label}`} style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 18, cursor: 'pointer' }}>+</button>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('score:commit.sheetEyebrow', { defaultValue: 'Set this week’s commitment' })}</div>
+            {/* ⚠ A pre/accent/post TRIPLE, not the house pre+accent pair: the accent word
+                lands mid-sentence in English ("What will you *hit*?"), so the tail has to
+                be a slot a locale can move the words around. No slot is ever authored
+                empty in any of the thirteen — i18n runs with returnEmptyString:false, so
+                an empty value renders the RAW KEY on screen; `post` carries the question
+                mark rather than "". */}
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK }}>{tr('score:commit.sheetTitlePre', { defaultValue: 'What will you' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('score:commit.sheetTitleAccent', { defaultValue: 'hit' })}</span>{tr('score:commit.sheetTitlePost', { defaultValue: '?' })}</div>
+            {[['score:commit.fieldWorkouts', 'Workouts', fWorkouts, setFWorkouts, 0, 14], ['score:commit.fieldHabits', 'Habit check-offs', fHabits, setFHabits, 0, 21]].map(([tKey, en, val, set, lo, hi]) => {
+              const label = tr(tKey, { defaultValue: en });
+              return (
+                <div key={tKey} style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button onClick={() => set(Math.max(lo, val - 1))} aria-label={tr('score:commit.decreaseAria', { defaultValue: `Decrease ${label}`, field: label })} style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 18, cursor: 'pointer' }}>−</button>
+                    <span style={{ minWidth: 22, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{val}</span>
+                    <button onClick={() => set(Math.min(hi, val + 1))} aria-label={tr('score:commit.increaseAria', { defaultValue: `Increase ${label}`, field: label })} style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 18, cursor: 'pointer' }}>+</button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>Weekly check-in</div>
-              <button onClick={() => setFCheckin(!fCheckin)} style={{ padding: '7px 14px', borderRadius: 999, border: `1px solid ${fCheckin ? teal : t.RULE}`, background: fCheckin ? `${teal}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>{fCheckin ? 'Yes' : 'No'}</button>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{tr('score:commit.fieldCheckin', { defaultValue: 'Weekly check-in' })}</div>
+              <button onClick={() => setFCheckin(!fCheckin)} style={{ padding: '7px 14px', borderRadius: 999, border: `1px solid ${fCheckin ? teal : t.RULE}`, background: fCheckin ? `${teal}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>{fCheckin ? tr('score:commit.yes', { defaultValue: 'Yes' }) : tr('score:commit.no', { defaultValue: 'No' })}</button>
             </div>
             <div style={{ marginTop: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700, letterSpacing: '0.06em' }}><span>STAKE</span><span style={{ color: teal }}>{fStake} pts</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700, letterSpacing: '0.06em' }}><span>{tr('score:commit.stakeLabel', { defaultValue: 'STAKE' })}</span><span style={{ color: teal }}>{tr('score:commit.stakePts', { defaultValue: `${fStake} pts`, n: fStake })}</span></div>
               <input type="range" min={5} max={50} step={5} value={fStake} onChange={(e) => setFStake(Number(e.target.value))} style={{ width: '100%', marginTop: 8, accentColor: teal }} />
-              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70 }}>Hit it → +{fStake} · miss → −{fStake} (never below 0).</div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70 }}>{tr('score:commit.stakeExplain', { defaultValue: `Hit it → +${fStake} · miss → −${fStake} (never below 0).`, n: fStake })}</div>
             </div>
-            <button disabled={busy} onClick={save} style={{ marginTop: 18, width: '100%', padding: '12px', borderRadius: 10, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Setting…' : 'Lock it in'}</button>
-            <button onClick={() => setSheet(false)} style={{ marginTop: 8, width: '100%', padding: '10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+            <button disabled={busy} onClick={save} style={{ marginTop: 18, width: '100%', padding: '12px', borderRadius: 10, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? tr('score:commit.saving', { defaultValue: 'Setting…' }) : tr('score:commit.lockIn', { defaultValue: 'Lock it in' })}</button>
+            <button onClick={() => setSheet(false)} style={{ marginTop: 8, width: '100%', padding: '10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('score:commit.cancel', { defaultValue: 'Cancel' })}</button>
           </div>
         </div>,
         document.getElementById('bs-phone-surface') || document.body,

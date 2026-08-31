@@ -378,6 +378,95 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — i18n cut 17: the weekly stake, and a 50-point bet that failed in silence
+
+- **The card a member puts points at risk on is localized.** `BSCommitmentCard` — the Score
+  page's weekly commitment (stake 5–50 points on a target, hit it for a bonus, miss it and
+  lose the stake) — carried **zero `tr()` calls**. **42 new `score:commit.*` keys ×13**
+  (546 values); it leaves UNCOVERED for **fully covered**. No migration, no route change.
+- ⚠ **AND THE CUT'S REAL FINDING IS NOT THE COPY — BOTH WRITES REPORTED FAILURE INTO A
+  VOID.** `window.__bsToast` is a live **no-op** (`iosAppBroadsheet.jsx:1364` keeps the
+  global as `() => {}` so the ~275 imperative callers stay safe — toasts were switched off
+  app-wide by #938), while **`setCommitment` and `acceptCommitment` are BOTH fully
+  try/caught in the data layer**, so every failure — no session, an RPC error, a
+  pre-migration PGRST202, a thrown fetch — resolves to `{ok:false}` / `{accepted:false}`
+  rather than rejecting. So a member staked points, tapped **Lock it in**, watched the
+  button flip back from *Setting…*, and was told **nothing at all**. ⚠ **And `accept()` had
+  no failure branch whatsoever** — the coach-proposed path could not report even if the
+  toast worked. Failures now route through **`bsAskConfirm` notice mode**, the sanctioned
+  replacement built precisely because the sink is dead.
+- ⚠ **THE TWO SUCCESSES DELIBERATELY STAY TOASTS, AND THAT IS THE RULE, NOT A SHORTCUT.**
+  Notice mode's own comment reserves it for *a transient failure the member needs to know
+  about* and forbids it for a **success confirmation** — that is exactly the popup noise
+  #938 removed. The sheet closing and the card re-rendering with the commitment IS the
+  confirmation. Pinned in both directions: the success path must use the toast and must
+  **not** call `notice()`.
+- **This is the toast-sink question answered one site at a time**, which is what the
+  register asked for: not *revive the sink* (a product decision about 275 call sites) but
+  *which of those carry a failure a member must see*. A staking action is the clearest yes
+  in the app.
+- ⚠ **FOUR STATUS KEYS, NEVER ONE FRAME WITH `{status}`.** `c.status` is the **STORED
+  token** the row is keyed by (`met` / `missed` / `proposed` / active) and is compared with
+  `===` three lines down; interpolating it renders the raw English id as copy in twelve
+  locales. **Cut 11 made the same refusal three times** over the goal doc's `kind` — this is
+  the fourth site, and the first where the token also drives the row's colour.
+- ⚠ **AND THE PLURALS FORCED OUT A HAZARD IN THE SHIPPED PARITY GATE ITSELF.** It compares
+  ICU **argument names** via `/\{\s*([A-Za-z_][\w-]*)\s*[,}]/g`, so a plural branch whose
+  whole body is one bare word — `one {workout}` — is **indistinguishable from a
+  placeholder**. It survives pt-BR's `{mais # no plano}` only because that branch leads with
+  a word **followed by more text**; a lone noun has no such tail. Worse, the gate compares
+  the lists **with duplicates**, so ru/uk (four categories) can never balance en (two) once
+  a placeholder repeats inside branches: folding `{done}/` into each branch gave en **2**
+  `done` and ru **4**, and the pair could not be made to agree at all.
+- **The fix is always in the DATA, never in the matcher** — shared prefix stays in the
+  frame, every branch leads with the `#` the rest of the house already uses
+  (`{done}/{target, plural, one {# workout} other {# workouts}}`). Closed forward with a
+  derived guard over every locale × namespace, **measured at ZERO offenders when it
+  landed**, so it starts clean rather than documenting a gap.
+- ⚠ **AND THAT GUARD IS DERIVED FROM THE GATE, NOT RESTATING IT — the second cut, after
+  mutation-testing.** Asking *"does this look like a bare word?"* with its own regex is a
+  second matcher free to drift from the one it protects; the only question that matters is
+  *"would `placeholders()` read it as an argument?"*, so the branch is handed to
+  `placeholders()` wrapped in braces and the answer must be empty. That gets the script
+  boundary right **for free**: the identifier class is ASCII (`\w` is ASCII without the `u`
+  flag), so a Cyrillic `one {привычка}`, a Vietnamese `one {tuần}` or a Hausa
+  `one {ɗabi'a}` **cannot** be misread and are correctly not flagged. Recorded at the site
+  as a **documented equivalent mutant** (the Cyrillic case survives, the Latin one is
+  killed) so the next reader does not "fix" it into a Unicode-aware test that would fail
+  correct catalogs for a gate reason that does not exist.
+- ⚠ **28 IS A FLOOR FOR TWO BLIND SHAPES AT ONCE.** The two stepper labels sit in a **LOCAL
+  array literal** the walk never attributes (cut 9's shape), and the three failure sentences
+  are **plain JS that never reaches JSX** (cut 2's). So the ratchet can only ever move by
+  the strings it can see, and the 42 authored keys are the honest count of the work.
+- **The ratchet moved on the two axes it should and not on the others.** `noneStrings`
+  **846 → 818** · `none.length` **97 → 96** · fully covered **113 → 114** — while
+  **`partStrings` 170 and `part.length` 35 are UNCHANGED**, the assertion that says the cut
+  is finished rather than half-done.
+- **Every per-locale term was READ OUT OF THE SHIPPED CATALOGS rather than invented** —
+  ha `alkawari` (⚠ never `caca`: the literal word for a bet reads as *gambling*, the ruling
+  this file already recorded for the Score page) · `motsa jiki` · `ɗabi'a` · `Na gane`;
+  pcm *"I don hear"*; ru `обязательство` / `ставка`; uk `зобов'язання` with the **straight
+  apostrophe** its own catalogs use; tr `taahhüt` with the **colon construction**
+  (`Azalt: {field}`) so no case suffix is ever glued to a `{placeholder}` — while `0'ın` on
+  a literal numeral stays, because that one is correct Turkish.
+- **14/14 mutations killed** — ⚠ **and 3 of them survived the first pass, all three being
+  the instrument rather than the code.** (1) The no-targets assertion used a lazy
+  `[\s\S]*?` span that **ran on past its own branch** into the `} else {` and matched the
+  GENERIC branch's `notice(` — so it passed with the notice it exists to prove **deleted**;
+  each branch is sliced to its own block now. (2) The bare-word check flagged nothing for
+  the Cyrillic mutant, which turned out to be **correct** (above) and is now recorded rather
+  than "fixed". (3) `noneStrings left at 846` replaced the first literal `818` in the file —
+  **the rationale comment nine lines above the assertion**; it landed in the file and not in
+  the region under test. **Landing in the file is not landing where the guard looks** —
+  this file's own rule, paid for again.
+- **Verified:** `npm test` **2614/2614** · `tsc --noEmit` 0 · JSX parse · the ratchet 9/9 ·
+  catalog parity **6/6** ×13 (a pure append — 42 insertions per file, LF, zero CR/NUL) ·
+  mobile build 0 with **all 42 keys and all 546 translated values confirmed in the emitted
+  bundle** behind a positive **and** a negative control plus an empty-haystack assertion,
+  and `bsAskConfirm` present in that bundle · the ICU plurals driven through the **real
+  i18next + i18next-icu runtime** over 8 locales × 14 cases (ru 25 → `ОЧКОВ` many, uk 25 →
+  `ОЧОК` many, 2/3 → the few forms, ha `3/22 ɗabi'u`) with no leftover braces or `#`.
+
 ### 2026-08-31 — i18n cut 16: the profile customizer, and two deliberate non-keys
 
 - **The sheet a member edits their own public profile in is localized.** `BSProfileCustomizer`
