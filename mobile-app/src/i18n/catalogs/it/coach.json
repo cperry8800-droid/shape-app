@@ -953,5 +953,6 @@
   "review.stActive": "In corso",
   "review.stCompleted": "Completata",
   "review.stAbandoned": "Chiusa prima",
-  "review.stReviewed": "Rivista"
+  "review.stReviewed": "Rivista",
+  "review.noteFailed": "Salvataggio non riuscito: la tua nota è ancora qui. Riprova."
 }

@@ -953,5 +953,6 @@
   "review.stActive": "Идёт",
   "review.stCompleted": "Завершена",
   "review.stAbandoned": "Прервана",
-  "review.stReviewed": "Просмотрена"
+  "review.stReviewed": "Просмотрена",
+  "review.noteFailed": "Не удалось сохранить — ваша заметка на месте. Попробуйте ещё раз."
 }

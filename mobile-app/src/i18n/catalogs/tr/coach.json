@@ -953,5 +953,6 @@
   "review.stActive": "Devam ediyor",
   "review.stCompleted": "Tamamlandı",
   "review.stAbandoned": "Erken bitti",
-  "review.stReviewed": "İncelendi"
+  "review.stReviewed": "İncelendi",
+  "review.noteFailed": "Kaydedilemedi — notun burada duruyor. Tekrar dene."
 }

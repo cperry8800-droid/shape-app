@@ -953,5 +953,6 @@
   "review.stActive": "Đang diễn ra",
   "review.stCompleted": "Hoàn thành",
   "review.stAbandoned": "Kết thúc sớm",
-  "review.stReviewed": "Đã xem"
+  "review.stReviewed": "Đã xem",
+  "review.noteFailed": "Không lưu được — ghi chú của bạn vẫn còn. Thử lại."
 }

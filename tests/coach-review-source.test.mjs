@@ -154,3 +154,59 @@ test('a nutrition day never claims a workout word', () => {
   // is not a finished anything.
   assert.match(line, /dayLabel/, 'a nutrition day with no stored status must state its date');
 });
+
+test('a failed save keeps the draft and appends nothing', () => {
+  const body = reviewPage();
+  const at = body.indexOf('const saveNote');
+  assert.ok(at > 0, 'saveNote not found — re-anchor this guard');
+  // Slice to the END of saveNote's own catch, not a lazy span that runs on into
+  // the next function — a span that overruns passes on the very deletion it
+  // exists to catch.
+  const fn = body.slice(at, body.indexOf('\n  };', at));
+  const catchAt = fn.lastIndexOf('} catch');
+  assert.ok(catchAt > 0, 'saveNote has no catch — re-anchor');
+  const handler = fn.slice(catchAt);
+
+  // THE SHIPPED DEFECT: the catch appended a fabricated note and cleared the
+  // composer, so a live insert that FAILED read as "saved". addCoachReviewNote
+  // returns {stored:'local'} when it genuinely persists, so a throw is the one
+  // shape where the words exist nowhere but the textarea.
+  assert.doesNotMatch(handler, /appendNote\s*\(/, 'the catch is appending a note again — nothing was stored');
+  assert.doesNotMatch(handler, /localNote\s*\(/, 'the catch is fabricating a local note for a write that landed nowhere');
+  assert.doesNotMatch(handler, /setNote\s*\(/, 'the catch is clearing the draft — the coach would lose their words');
+  assert.match(handler, /coach:review\.noteFailed/, 'the catch must report the failure honestly');
+
+  // Both honest local paths survive: the demo row (no live subject) and the
+  // data layer's own saveLocalRecord return.
+  assert.match(fn, /if\s*\(\s*!noteSubject\s*\)/, 'the demo-subject branch must still keep its note locally');
+  assert.match(fn, /stored\s*===\s*'supabase'/, 'the remote/local distinction must survive');
+});
+
+test('every locale authored the failure line', () => {
+  for (const loc of ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'id', 'vi', 'tr', 'ha', 'pcm', 'ru', 'uk']) {
+    const cat = JSON.parse(readFileSync(`mobile-app/src/i18n/catalogs/${loc}/coach.json`, 'utf8'));
+    const v = cat['review.noteFailed'];
+    // An EMPTY value renders the RAW KEY under returnEmptyString:false — on the
+    // one line that tells a coach their words were not saved.
+    assert.ok(v && String(v).trim(), `${loc}/coach.json has no usable review.noteFailed`);
+  }
+});
+
+test('the nutrition-day read narrows BEFORE the limit', () => {
+  const backend = stripComments(readFileSync(BACKEND, 'utf8'));
+  const at = backend.indexOf('async function listClientNutritionDays(');
+  assert.ok(at > 0, 'listClientNutritionDays not found — re-anchor this guard');
+  const fn = backend.slice(at, at + 1400);
+
+  // .limit() is applied SERVER-side, before any JS filter — so a roster of
+  // wearable-only rows fills the window and hides every real nutrition day
+  // behind it. The predicate has to travel with the query.
+  const orAt = fn.indexOf(".or('calories.not.is.null,protein_g.not.is.null')");
+  const limitAt = fn.indexOf('.limit(');
+  assert.ok(orAt > 0, 'the query must narrow to rows carrying a real nutrition log');
+  assert.ok(limitAt > orAt, 'the predicate must be applied before the limit');
+
+  // The strict client predicate stays the authority: `not.is.null` admits ''
+  // and non-finite strings, which would render as a 0-kcal day.
+  assert.match(fn, /num\(r\.calories\) != null \|\| num\(r\.protein_g\) != null/, 'the strict predicate must still gate the rows');
+});

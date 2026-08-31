@@ -308,8 +308,8 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const saveNote = async () => {
     const clean = note.trim();
     if (!selected?.id || !clean) return;
-    // The composer is hidden for these rows; refuse here too, because the
-    // catch below turns a failed insert into a plausible "saved" message.
+    // The composer is hidden for these rows; refuse here too, so a caller that
+    // reaches saveNote another way can never send a row the schema will reject.
     if (selected.notesBlocked) return;
     // A demo day has no live subject — keep it local rather than sending a row
     // the DB's subject CHECK would reject.
@@ -328,9 +328,15 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
       });
       appendNote(result?.data || localNote(clean));
       setStatus(result?.stored === 'supabase' ? tr('coach:review.noteSavedRemote', { defaultValue: 'Review note saved to Supabase' }) : tr('coach:review.noteSavedLocal', { defaultValue: 'Review note saved locally' }));
-    } catch (error) {
-      appendNote(localNote(clean));
-      setStatus(error?.message || tr('coach:review.savedDemo', { defaultValue: 'Saved locally for this demo session' }));
+    } catch {
+      // ⚠ NOTHING WAS STORED — anywhere. addCoachReviewNote returns
+      // {stored:'local'} when it genuinely persists to localStorage, so a THROW
+      // is the one shape where the coach's words exist only in this textarea.
+      // Appending a fabricated row here and clearing the composer is the
+      // "saved locally" lie this whole wave exists to end: the note would
+      // render in the list, vanish on the next load, and the coach would never
+      // know. Keep the draft, append nothing, say so.
+      setStatus(tr('coach:review.noteFailed', { defaultValue: "Couldn't save — your note is still here. Try again." }));
     }
   };
 
