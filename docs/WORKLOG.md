@@ -378,6 +378,60 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — A nutrition day can carry a coach's note (the schema half)
+
+- **The registered follow-up from the review-queue fix, built.** `coach_workout_review_notes`
+  was structurally a WORKOUT path: `session_id` NOT NULL with an FK to `workout_sessions`,
+  and every policy routing through `can_access_workout_session(session_id)`. There was no
+  row shape that says *"this note is about the client's Tuesday"*, so the source fix had to
+  hide the composer and refuse the write — the insert would have failed **23502** and the
+  existing catch would have reported **"saved locally"** for a write that saved nowhere.
+- ⚠ **OWNER MIGRATION — `2026-08-31-nutrition-day-review-notes.sql`.** `session_id` goes
+  nullable (FK kept), the table gains `client_id` + `snapshot_date`, and a CHECK enforces
+  **exactly one subject** — a session or a day, never both, never neither, so no row can be
+  ambiguous about what it is a note on.
+- ⚠ **THE DAY IS KEYED BY `(client_id, snapshot_date)`, NOT BY THE SNAPSHOT ROW'S `id`.**
+  `daily_health_snapshot` is UPSERTED on `(user_id, snapshot_date)` by the member's own
+  logging, so its surrogate id is a ROW identity, not a DAY identity — any writer that ever
+  replaced rather than updated would silently cascade a coach's note away. The natural key
+  is the thing the note is actually about, and it survives a rewrite of the snapshot.
+- ⚠ **THE ACCESS STORY IS THE HALF THAT CANNOT BE COPIED FROM THE SESSION PATH.**
+  `can_access_workout_session` gates on the SESSION's own provider — a session names the
+  coach who owns it. **A day names nobody**, so the day branch gates on the coaching
+  RELATIONSHIP instead: read = the member themself or any active coach on them
+  (`is_coach_on_client`, the predicate the coach-side snapshot reads already run on); write
+  = the reviewer must own the provider row they declare AND that declaration must be a live
+  coaching link of the **same discipline** (`is_discipline_coach_on_client`). So a
+  nutritionist writes as a nutritionist, a trainer as a trainer, and a coach with no active
+  subscription to that client writes nothing at all.
+- **One predicate, not three re-statements.** A policy cannot branch on a nullable FK without
+  re-stating the security rule at every site, and three sites re-stating one rule is how the
+  halves drift apart — `can_access_review_note(session_id, client_id)` is the single answer,
+  and its `else false` fails **closed** if the CHECK were ever removed. The session branch is
+  preserved byte-for-byte; UPDATE/DELETE are deliberately **untouched** (already
+  `reviewer_id = auth.uid()` with no subject dependency, so a day note inherits edit + delete
+  for free, and touching them would be a widening nobody asked for).
+- ⚠ **VALIDATED AS AN ARTIFACT, NOT AS PIECES** (the #1853 lesson): the whole file applied
+  inside a transaction against production and **rolled back**, its own structural guard
+  passing, prod confirmed untouched afterwards. A behavioural probe in the same transaction
+  drove the CHECK over five shapes — subject-less, two-subject and dateless-day all
+  **REJECTED (23514)**; a day note and a session note both insert. ⚠ The first probe was the
+  broken instrument, not the code: `like … including constraints` **without `including
+  defaults`** left `id` null, so a NOT NULL fired before the CHECK it was testing. And the
+  guard's `search_path=public, pg_temp` literal was **read off two live pinned functions**
+  rather than assumed — a wrong literal there fails a CORRECT apply, which is the worst way
+  for a guard to be wrong.
+- **Measured before writing:** `coach_workout_review_notes` **0 rows** (the CHECK validates
+  against nothing; no backfill owed) · `workout_sessions` 0 · `daily_health_snapshot` 1 ·
+  not in the realtime publication.
+- ⚠ **THE APP HALF IS THE NEXT CUT, AND UNTIL IT LANDS THIS CHANGES NOTHING A COACH SEES.**
+  `shapeBackend.js` still stamps `notesBlocked: true` on every nutrition day, the composer is
+  still gated on it and `saveNote` still refuses — which is the safe direction, because a
+  composer that renders before the owner has applied the migration is exactly the
+  "saved locally" lie this closes. The honest wiring is a **feature probe on read** (ask the
+  schema whether the day columns exist, set `notesBlocked` from the answer) so the composer
+  appears exactly when the schema can accept the note, in either deploy order.
+
 ### 2026-08-31 — The nutritionist's review queue was serving the trainer's workouts
 
 - **A live nutritionist's whole "Client review." feature read `workout_sessions`.**
