@@ -24240,6 +24240,7 @@ const BS_CONDITION_TAGS = ['Diabetes', 'High blood pressure', 'Asthma / respirat
 // client_identity.goal). Marks client_onboarding.intentSeen so it shows once.
 function BSIntentStep({ onDone }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('onboarding_started'); } catch (e) {} }, []);
@@ -24252,11 +24253,18 @@ function BSIntentStep({ onDone }) {
   // to other members on the public profile card — mobile AND the website — so a
   // token written there would render `fat_loss` to every viewer on both.
   //
-  // ⚠ THE TRANSLATOR IS DELIBERATELY `null` IN bsPrimaryGoalLabel CALLS HERE.
-  // This screen holds no tr() and sits in the ratchet's UNCOVERED set — it is
-  // 100% English today — so a translated chip beside twelve untranslated
-  // sentences would read as a defect, not a feature. It becomes `tr` when the
-  // screen is localized; the label helper takes it as one argument.
+  // ⚠ THE LABEL CALLS NOW TAKE `tr`, WHICH IS ALSO A CONSISTENCY FIX. This is
+  // the second writer of the client_identity.goal mirror and it wrote ENGLISH
+  // while BSGoalsContract's picker wrote the TRANSLATED label — so the same
+  // member's public profile card read a different language depending on which
+  // screen they set the goal from. Both write the label in the member's own
+  // language now, which is the mirror's stated contract (the author's own
+  // words, like the bio).
+  //
+  // ⚠ IDENTITY IS THE ENGLISH TABLE OF RECORD, KEYED ON THE SAME TOKENS.
+  // It stays keyed on ids (a label-keyed map falls through to the generic line
+  // for every pick), and each value is its key's defaultValue — so the frame
+  // and the phrase can never disagree about which goal they describe.
   const IDENTITY = {
     fat_loss: 'someone who’s getting leaner',
     muscle: 'someone who builds muscle',
@@ -24271,10 +24279,19 @@ function BSIntentStep({ onDone }) {
     race: 'a runner with a race on the calendar',
     postpartum: 'someone rebuilding strength, step by step',
   };
+  // ⚠ AN UNKNOWN ID TAKES THE FALLBACK, NEVER A RAW KEY. The key is built from
+  // the token, so it is invisible to both key-resolution guards — the derived
+  // en-key assertion in tests/intent-step-i18n.test.mjs is what covers it.
+  // ⚠ EACH LOCALE AUTHORS ITS FRAME AND ITS TWELVE PHRASES TOGETHER: Turkish
+  // fronts the phrase and inflects it, so a translator who moves the frame has
+  // to re-read the phrases. They are one sentence, split across 13 keys.
+  const identityOf = (id) => (IDENTITY[id]
+    ? tr(`onboarding:intent.identity.${id}`, { defaultValue: IDENTITY[id] })
+    : tr('onboarding:intent.identityFallback', { defaultValue: 'someone who shows up' }));
   const persistIntent = async (id) => {
     try {
       if (id) {
-        const label = bsPrimaryGoalLabel(id, null);
+        const label = bsPrimaryGoalLabel(id, tr);
         const goals = (await window.shapeDb?.getUserGoals?.('client_goals')) || {};
         await window.shapeDb?.saveUserGoals?.('client_goals', { ...goals, primaryGoal: id });
         const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
@@ -24293,11 +24310,11 @@ function BSIntentStep({ onDone }) {
     return (
       <BSPage>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: `0 ${t.padX}px`, textAlign: 'center' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>You're in</div>
-          <h1 style={{ margin: '14px 0 0', fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.08, color: t.INK }}>You're becoming <span style={{ fontStyle: 'italic', color: teal }}>{IDENTITY[picked] || 'someone who shows up'}.</span></h1>
-          <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5, maxWidth: 320 }}>Every workout, meal, and check-in is a vote for that person. We build the plan — you keep showing up.</div>
-          <button onClick={onDone} style={{ marginTop: 30, padding: '14px 36px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Let's go →</button>
-          <button onClick={() => setPicked(null)} style={{ marginTop: 14, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Change</button>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{tr('onboarding:intent.eyebrowIn', { defaultValue: "You're in" })}</div>
+          <h1 style={{ margin: '14px 0 0', fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.08, color: t.INK }}>{tr('onboarding:intent.becomingPre', { defaultValue: "You're becoming" })} <span style={{ fontStyle: 'italic', color: teal }}>{identityOf(picked)}</span>{tr('onboarding:intent.becomingPost', { defaultValue: '.' })}</h1>
+          <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5, maxWidth: 320 }}>{tr('onboarding:intent.body', { defaultValue: 'Every workout, meal, and check-in is a vote for that person. We build the plan — you keep showing up.' })}</div>
+          <button onClick={onDone} style={{ marginTop: 30, padding: '14px 36px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('onboarding:intent.cta', { defaultValue: "Let's go →" })}</button>
+          <button onClick={() => setPicked(null)} style={{ marginTop: 14, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('onboarding:intent.change', { defaultValue: 'Change' })}</button>
         </div>
       </BSPage>
     );
@@ -24306,15 +24323,15 @@ function BSIntentStep({ onDone }) {
   return (
     <BSPage>
       <div style={{ padding: `72px ${t.padX}px 0` }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Welcome to Shape</span>
-        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>What brings you here <span style={{ fontStyle: 'italic', color: teal }}>today?</span></h1>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>Pick the one that fits best — it shapes your plan, your coach match, and what each day leads with. You can change it anytime.</div>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('onboarding:intent.eyebrowWelcome', { defaultValue: 'Welcome to Shape' })}</span>
+        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{tr('onboarding:intent.titlePre', { defaultValue: 'What brings you here' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('onboarding:intent.titleAccent', { defaultValue: 'today' })}</span>{tr('onboarding:intent.titlePost', { defaultValue: '?' })}</h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('onboarding:intent.pickBody', { defaultValue: 'Pick the one that fits best — it shapes your plan, your coach match, and what each day leads with. You can change it anytime.' })}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginTop: 22 }}>
           {BS_PRIMARY_GOALS.map((g) => (
-            <button key={g.id} onClick={() => pick(g.id)} style={{ padding: '11px 16px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{bsPrimaryGoalLabel(g.id, null)}</button>
+            <button key={g.id} onClick={() => pick(g.id)} style={{ padding: '11px 16px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{bsPrimaryGoalLabel(g.id, tr)}</button>
           ))}
         </div>
-        <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>Skip for now →</button>
+        <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:intent.skip', { defaultValue: 'Skip for now →' })}</button>
       </div>
     </BSPage>
   );
