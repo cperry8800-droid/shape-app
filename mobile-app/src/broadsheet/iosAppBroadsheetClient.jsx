@@ -11705,22 +11705,28 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   //    Join the waiting list · Buy · the category tabs — is a fully rounded
   //    mono pill, solid tier-color for the primary and a hairline INK outline
   //    for the secondary (see the sticky dock at the foot of this page, which
-  //    is the exact pair these now match). Sized to the page too: minHeight 34
-  //    → 44, which is also the platform tap target.
+  //    is the exact pair these now match).
+  //    SIZE (owner call 2026-08-31, second pass): 44 → 38 high, and the type
+  //    and padding come down with it so the pill keeps its proportions rather
+  //    than just getting shorter. 38 clears this repo's documented tap floor —
+  //    WCAG 2.5.8 AA is 24px — with room to spare; it is below Apple's 44pt
+  //    HIG suggestion by choice, matching the other quiet controls on this
+  //    page. Do not read the old "44 = the platform tap target" note as still
+  //    binding: it described the previous size, not a constraint.
   //    KEPT: the press feedback and the Follow chip's breathing glow-until-you-
   //    follow. A box-shadow follows border-radius, so the affordance survives
   //    the shape change untouched. Motion respects prefers-reduced-motion.
   const faBase = {
-    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 44, padding: '13px 18px',
+    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 38, padding: '10px 15px',
     borderRadius: 999,
-    fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+    fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
     transition: 'transform 140ms ease, background 180ms ease, box-shadow 180ms ease',
   };
   if (!isSelf) bsInjectFollowChipCss();
   const actions = !isSelf ? (
     /* One flex item so Follow + Message always share a row — the pair wraps
        together, never apart. */
-    <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 8 }}>
       <button onClick={onToggle} disabled={busy} className={fs === 'follow' ? 'bs-fa-follow' : undefined} style={{
         ...faBase, cursor: busy ? 'default' : 'pointer',
         '--fa-glow': bsTHexA(c, 0.5),
@@ -15378,10 +15384,20 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       <div style={{ flex: 1, padding: `${BS_MAST_TOP_CSS} ${bsGutter(tTheme)}px ${meMode ? 112 : 28}px`, position: 'relative' }}>
+        {/* Cover photo behind the hero. SIZED TO THE SIGIL, NOT TO ITSELF (owner
+            call 2026-08-31): the sigil is 240px tall and starts ~130px down, so
+            it runs to roughly 370. The previous 320px strip with a gradient that
+            reached full BG at its own bottom therefore extinguished ABOVE the
+            hexagon — the photo read as a band floating over the masthead rather
+            than as the hero's ground. 460 carries the image past the sigil's
+            bottom edge, and the stops below are keyed to that geometry: hold it
+            light through the sigil, deepen only once past it, land on BG at the
+            very bottom. If BSSignalSigil's `size` ever changes, re-derive this
+            height and the 76% stop from it — they are not free numbers. */}
         {customEff && customEff.cover && customEff.cover.image && (
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 320, zIndex: -1, pointerEvents: 'none' }}>
-            <img src={customEff.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
-            <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.35)}, ${bsTHexA(BG, 0.55)} 58%, ${BG})` }} />
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 460, zIndex: -1, pointerEvents: 'none' }}>
+            <img src={customEff.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.72 }} />
+            <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.3)}, ${bsTHexA(BG, 0.32)} 40%, ${bsTHexA(BG, 0.7)} 76%, ${BG})` }} />
           </div>
         )}
         {meMode ? (
