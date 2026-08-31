@@ -464,6 +464,83 @@ changelog whenever something ships.
   `BSIntentStep`'s *"You're becoming {identity}."* H1 on a screen that carries no translator at
   all, so localizing them is the first-run-screen cut, not this one.
 
+### 2026-08-31 — i18n cut 15: the first-run intent screen, and the sentence it renders
+
+- **The screen a new member meets BEFORE the app is localized.** `BSIntentStep` — twelve
+  goal chips, then **"You're becoming {identity}."** — carried **zero `tr()` calls** and sat
+  in the ratchet's UNCOVERED set. **25 new `onboarding:intent.*` keys ×13**; the surface
+  leaves UNCOVERED for **fully covered**. No migration, no route change.
+- ⚠ **THE TWO `bsPrimaryGoalLabel` CALLS STOP PASSING `null`, AND THAT HALF IS NOT
+  COSMETIC.** Cut 11 passed `null` here deliberately — a translated chip beside twelve
+  untranslated sentences reads as a defect — and that reason expires the moment the screen
+  is localized. But this is the **SECOND WRITER of the `client_identity.goal` DISPLAY
+  MIRROR**, and it wrote **ENGLISH** while `BSGoalsContract`'s picker wrote the
+  **TRANSLATED** label. `get_public_profile` serves that field to **other members** on the
+  public profile card, mobile **and** website — so the same member's card read a different
+  language depending on which screen they set the goal from. Both writers speak the
+  member's own language now, which is what the mirror is for.
+- ⚠ **THE IDENTITY SENTENCE IS TWELVE KEYS AND A FRAME, AUTHORED TOGETHER PER LOCALE.**
+  `IDENTITY` stays keyed on the twelve stable goal tokens (cut 11's split untouched) and a
+  resolver renders it. **Turkish is verb-final AND governs the dative**, so it fronts the
+  frame and inflects every phrase — *"Sen daha yağsız birine dönüşüyorsun."*; **ru/uk take
+  the instrumental**. A translator who moves the frame has to re-read the phrases, so they
+  ship as **one unit** rather than a frame with twelve interchangeable nouns — and the
+  comment says so at the site, because the next reader will be tempted to treat the twelve
+  as a plain noun list.
+- ⚠ **BOTH SPLIT-ACCENT HEROES BECAME `pre`/`accent`/`post` TRIPLES** — the house pattern
+  since the Score intro. **The period left the italic span and the `?` left the accent
+  word**, so a verb-final locale can put a **VERB** in the post: de reads *"Was bringt dich
+  heute **hierher**?"* with the accent mid-sentence. **NO SLOT IS AUTHORED EMPTY IN ANY OF
+  THE THIRTEEN** — i18n runs `returnEmptyString: false`, so an empty value renders the
+  **RAW KEY** on the screen a member sees *first*; English carries a bare `.` and `?`
+  rather than `""`.
+- ⚠ **AN UNKNOWN PICK TAKES A FALLBACK, NEVER A RAW KEY — AND THAT KEY IS INVISIBLE TO
+  BOTH KEY-RESOLUTION GUARDS.** The identity key is built from the token, so
+  `i18n-default-resolution` (which collects only **StringLiteral** keys) and
+  `i18n-key-resolution` (scoped to calls with **no** defaultValue) can both see nothing.
+  That is exactly how **15 `marketplace:preview.*` keys** once shipped unauthored, so the
+  new guard **DERIVES** the wanted `en` set from the AST and asserts it rather than trusting
+  either existing gate.
+- ⚠ **THE RATCHET MOVES BY 11 AND THE CUT AUTHORED 25 — A TENTH BLIND SHAPE, AND THE WIDEST
+  GAP THIS WAVE HAS RECORDED** between a component's counted strings and its real surface.
+  The twelve IDENTITY sentences live in a **local OBJECT literal rendered by reference**,
+  which the walk never attributes. Cut 7 found copy in an array literal, cut 8 in a
+  module-scope array, cut 9 in a local array, cut 11 inside a state setter, cut 12 as a call
+  argument; this is the same absence in an object. **`noneStrings` 935 → 924 ·
+  `none.length` 99 → 98 · fully covered 112 → 113** — while **`partStrings` 169 and
+  `part.length` 34 are UNCHANGED**, which is the certification that the cut is finished
+  rather than half-done.
+- **Registers measured, not assumed.** `onboarding` is genuinely split, and this screen's
+  neighbour — `tour.*` — is the **informal** half: **ru/uk informal here** while
+  `lang.*`/`dob.*` stay formal; **fr and id formal** throughout; **ha masculine**; **uk the
+  straight apostrophe** (`м'язи`, `здоров'я`); **pcm** real Naija grammar. Every
+  *"Welcome to Shape"* was read out of that locale's own `tour.welcome.title` rather than
+  invented — the rule that separates a house convention from a guess.
+- **9/9 mutations killed** (a label call back to `null` · the translator binding dropped ·
+  the fallback dropped so an unknown pick renders a raw key · `IDENTITY` re-keyed on an
+  English word · a split slot authored empty · a locale losing an identity key · two
+  identity phrases collapsed to one · `en` drifting from the source `defaultValue` · a stale
+  UNCOVERED baseline entry), sanity green at both ends and the tree restored
+  byte-identically.
+  ⚠ **ONE FIRST REPORTED A SURVIVOR IT HAD NEVER LANDED FOR** — the anchor
+  `bsPrimaryGoalLabel(g.id, tr)` matches **TWICE** (this screen and the Goals picker), so
+  the edit threw and the run measured an **unmutated tree**. Re-anchored inside the
+  component's own region, it was killed. *A mutation that reports a survivor is a broken
+  instrument until the mutation is proven to have landed* — this file's own rule, paid for
+  again.
+- **Verified:** `npm test` **2589/2589** · `tsc --noEmit` 0 · `next build` 0 with
+  `ƒ Proxy (Middleware)` · mobile build 0 · JSX parse · catalog parity 5/5 ×13 (a pure
+  append) · key resolution 10/10 · the ratchet 9/9 · tr-shadow clean on **both** grep forms
+  · the emitted bundle carrying **all 25 keys and all 325 translated values** behind a
+  **positive AND a negative control**, the template prefix present at the call site, and
+  **all five call sites of the minified label helper passing a real translator** (zero pass
+  `null`).
+  ⚠ The last of those was a **saturated zero on the first attempt** — grepping the minified
+  chunk for `bsPrimaryGoalLabel(…, null)` could never match, because the helper is minified.
+  It was re-done by locating the helper through its own unique `goal:primary.goal.` prefix
+  and reading every call site's second argument. *A control that cannot be present proves
+  nothing about a miss.*
+
 ### 2026-08-31 — The fourth token/label instance, split — and it was live, not latent
 
 - **The eight Settings pref rows stop storing the copy they render.** `Settings → Nutrition` and
