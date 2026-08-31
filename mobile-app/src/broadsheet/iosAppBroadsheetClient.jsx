@@ -15,6 +15,7 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // asking at one threshold while the guardrail excluded at another, silently.
 import { BS_SESSION_MINUTES_CEILING, BS_SESSION_MINUTES_MAX } from '../../../public/newdesign/progressionGuardrail.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
+import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
@@ -3336,11 +3337,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       window.shapeDb.getUserGoals('client_training_prefs').catch(() => ({})),
     ]).then(([np, tp]) => {
       if (cancelled) return;
-      const raw = `${(np && np.primary_goal) || ''} ${(tp && tp.primary_goal) || (tp && tp.goal) || ''}`.toLowerCase();
-      const goal = /fat ?loss|cut|lean|weight ?loss|shred/.test(raw) ? 'cut'
-        : /hypertroph|build|bulk|mass|muscle|strength|gain/.test(raw) ? 'build'
-        : 'maintain';
-      setEnergyGoal(goal);
+      // ONE classifier, shared with the Eat header and /api/client/analytics.
+      // A stored value is a token now, and `fat_loss` does not match /fat ?loss/.
+      setEnergyGoal(bsGoalKind((np && np.primary_goal) || '', (tp && tp.primary_goal) || (tp && tp.goal) || ''));
     });
     return () => { cancelled = true; };
   }, []);
@@ -9051,10 +9050,17 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
-    window.shapeDb.getUserGoals('client_nutrition_prefs').then((np) => {
+    // ⚠ THIS READ WAS A CONSTANT. It asked `client_nutrition_prefs` for a
+    // `primary_goal` NOTHING WRITES — the picker is a TRAINING row — so the
+    // header read "Maintaining" for every member no matter what they chose.
+    // Reads both blobs through the shared classifier now, as Home and the
+    // analytics route always did.
+    Promise.all([
+      window.shapeDb.getUserGoals('client_nutrition_prefs').catch(() => ({})),
+      window.shapeDb.getUserGoals('client_training_prefs').catch(() => ({})),
+    ]).then(([np, tp]) => {
       if (cancelled) return;
-      const raw = String((np && np.primary_goal) || '').toLowerCase();
-      setPlanGoal(/fat ?loss|cut|lean|weight ?loss|shred|deficit/.test(raw) ? 'cut' : /gain|build|bulk|mass|muscle|surplus/.test(raw) ? 'build' : 'maintain');
+      setPlanGoal(bsGoalKind((np && np.primary_goal) || '', (tp && tp.primary_goal) || (tp && tp.goal) || ''));
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -29521,7 +29527,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const v = String(editField.value || '').trim();
     if (editField.store) {
       const blob = editField.store === 'nutrition' ? nutritionPrefs : trainingPrefs;
-      persistPref(editField.store, { ...blob, [editField.key]: v });
+      // Store the TOKEN. A chip already carries one; a member who typed the
+      // option by hand lands on it too; anything else is free text and passes
+      // through untouched.
+      persistPref(editField.store, { ...blob, [editField.key]: bsPrefOptionToken(editField.key, v) });
       setEditField(null);
       return;
     }
@@ -29774,24 +29783,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
 
   const nutritionRows = [
-    { k: 'dietary_style', l: tr('settings:nutrition.dietaryStyle', { defaultValue: 'Dietary style' }), options: ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian', 'Keto', 'Paleo', 'Mediterranean'] },
+    { k: 'dietary_style', l: tr('settings:nutrition.dietaryStyle', { defaultValue: 'Dietary style' }), options: BS_PREF_OPTIONS.dietary_style },
     { k: 'allergies', l: tr('settings:nutrition.allergies', { defaultValue: 'Allergies' }), placeholder: tr('settings:nutrition.allergiesPh', { defaultValue: 'Shellfish, tree nuts…' }) },
     { k: 'dislikes', l: tr('settings:nutrition.dislikes', { defaultValue: 'Dislikes' }), placeholder: tr('settings:nutrition.dislikesPh', { defaultValue: 'Cilantro, blue cheese…' }) },
     { k: 'protein_target_g', l: tr('settings:nutrition.proteinTarget', { defaultValue: 'Protein target (g/day)' }), type: 'number', placeholder: '168' },
-    { k: 'calorie_range', l: tr('settings:nutrition.calorieRange', { defaultValue: 'Calorie range' }), options: ['By feel', 'Strict', 'Loose tracking', '1600–1800', '1800–2000', '2000–2200', '2200–2400', '2400+'] },
+    { k: 'calorie_range', l: tr('settings:nutrition.calorieRange', { defaultValue: 'Calorie range' }), options: BS_PREF_OPTIONS.calorie_range },
     { k: 'meal_cadence', l: tr('settings:nutrition.mealCadence', { defaultValue: 'Meal cadence' }), placeholder: tr('settings:nutrition.mealCadencePh', { defaultValue: '3 meals + 1 snack' }) },
     { k: 'supplements', l: tr('settings:nutrition.supplements', { defaultValue: 'Supplements' }), placeholder: tr('settings:nutrition.supplementsPh', { defaultValue: 'Creatine, D, omega-3' }) },
-    { k: 'alcohol', l: tr('settings:nutrition.alcohol', { defaultValue: 'Alcohol' }), options: ['None', 'Rare', 'Social', 'Weekly', 'Daily'] },
+    { k: 'alcohol', l: tr('settings:nutrition.alcohol', { defaultValue: 'Alcohol' }), options: BS_PREF_OPTIONS.alcohol },
     { k: 'hydration_target_l', l: tr('settings:nutrition.hydrationTarget', { defaultValue: 'Hydration target (L/day)' }), type: 'number', placeholder: '3.0' },
-  ].map((row) => ({ l: row.l, r: nutritionPrefs[row.k] || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('nutrition', row.k, row.l, { type: row.type, placeholder: row.placeholder, options: row.options }) }));
+  ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, nutritionPrefs[row.k]) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('nutrition', row.k, row.l, { type: row.type, placeholder: row.placeholder, options: row.options }) }));
   const trainingRows = [
-    { k: 'primary_goal', l: tr('settings:training.primaryGoal', { defaultValue: 'Primary goal' }), options: ['Strength', 'Hypertrophy', 'Strength + hypertrophy', 'Endurance', 'Fat loss', 'General health'] },
-    { k: 'experience', l: tr('settings:training.experience', { defaultValue: 'Experience' }), options: ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'] },
-    { k: 'sessions_per_week', l: tr('settings:training.sessionsPerWeek', { defaultValue: 'Sessions / week' }), options: ['2', '3', '4', '5', '6'] },
-    { k: 'equipment', l: tr('settings:training.equipment', { defaultValue: 'Equipment access' }), options: ['Full gym', 'Home gym', 'Bodyweight only', 'Limited (bands + DBs)', 'Full gym + home DBs'] },
+    { k: 'primary_goal', l: tr('settings:training.primaryGoal', { defaultValue: 'Primary goal' }), options: BS_PREF_OPTIONS.primary_goal },
+    { k: 'experience', l: tr('settings:training.experience', { defaultValue: 'Experience' }), options: BS_PREF_OPTIONS.experience },
+    { k: 'sessions_per_week', l: tr('settings:training.sessionsPerWeek', { defaultValue: 'Sessions / week' }), options: BS_PREF_OPTIONS.sessions_per_week },
+    { k: 'equipment', l: tr('settings:training.equipment', { defaultValue: 'Equipment access' }), options: BS_PREF_OPTIONS.equipment },
     { k: 'injuries', l: tr('settings:training.injuries', { defaultValue: 'Injuries & notes' }), placeholder: tr('settings:training.injuriesPh', { defaultValue: 'Left shoulder, knee tracking…' }) },
-    { k: 'preferred_times', l: tr('settings:training.preferredTimes', { defaultValue: 'Preferred times' }), options: ['Early morning', 'Mornings', 'Midday', 'Evenings', 'Late evenings', 'Variable'] },
-  ].map((row) => ({ l: row.l, r: trainingPrefs[row.k] || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('training', row.k, row.l, { placeholder: row.placeholder, options: row.options }) }));
+    { k: 'preferred_times', l: tr('settings:training.preferredTimes', { defaultValue: 'Preferred times' }), options: BS_PREF_OPTIONS.preferred_times },
+  ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, trainingPrefs[row.k]) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('training', row.k, row.l, { placeholder: row.placeholder, options: row.options }) }));
   // Coach practice shortcuts (consolidated into Settings). Availability + Soundtracks
   // are hosted by the coach shell (it owns those screens) via window events; Payouts
   // calls Stripe Connect directly; the rest open the coach's own public profile.
@@ -30016,8 +30025,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { icon: 'user',    title: tr('settings:section.account', { defaultValue: 'Account' }),            summary: cardAccountSummary,                                            detail: 'account' },
     { icon: 'sliders', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
     { icon: 'moon',    title: tr('cycle:settings.card', { defaultValue: 'Cycle' }),                     summary: cycle.optIn ? (cycle.share ? tr('cycle:settings.summaryShared', { defaultValue: 'Tracking · shared with your coach' }) : tr('cycle:settings.summaryOn', { defaultValue: 'Tracking · private to you' })) : tr('cycle:settings.summaryOff', { defaultValue: 'Off · phase, patterns & calendar' }), detail: 'cycle' },
-    { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: nutritionPrefs.dietary_style, defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
-    { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: trainingPrefs.experience, defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
+    { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('dietary_style', nutritionPrefs.dietary_style), defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
+    { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('experience', trainingPrefs.experience), defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
     { icon: 'link',    title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
     { icon: 'bell',    title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                            detail: 'notifications' },
     { icon: 'lock',    title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                             detail: 'privacy' },
@@ -30800,15 +30809,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>{tr('settings:editField.editLabel', { label: editField.label, defaultValue: 'Edit {label}' })}</div>
             {editField.options && editField.options.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                {editField.options.map((opt) => { const on = String(editField.value) === String(opt); return (
-                  <button key={opt} onClick={() => setEditField(f => ({ ...f, value: opt }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}1c` : 'transparent', color: on ? t.ACCENT : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{opt}</button>
+                {editField.options.map((opt) => { const id = (opt && opt.id != null) ? opt.id : opt; const on = bsPrefOptionToken(editField.key, editField.value) === String(id); return (
+                  <button key={id} onClick={() => setEditField(f => ({ ...f, value: id }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}1c` : 'transparent', color: on ? t.ACCENT : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsPrefOptionLabel(editField.key, id)}</button>
                 ); })}
               </div>
             )}
             <input
               autoFocus
               type={editField.type === 'number' ? 'number' : 'text'}
-              value={editField.value}
+              // Shows the label so a stored token never surfaces as copy; an
+              // edit replaces it with whatever was typed, and the save
+              // normalises that back to a token when it matches an option.
+              value={bsPrefOptionDisplay(editField.key, editField.value)}
               placeholder={editField.placeholder}
               onChange={(e) => setEditField(f => ({ ...f, value: e.target.value }))}
               onKeyDown={(e) => { if (e.key === 'Enter') saveEditField(); }}
