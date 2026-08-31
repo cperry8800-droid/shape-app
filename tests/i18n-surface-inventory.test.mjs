@@ -40,6 +40,18 @@ const BRAND = new Set([
   // translates 'Community' in every locale, so leaving it literal would be drift).
   'Shape Wire',
   'Vol. 1 · No. 1', 'Nora', 'Spotify', 'Apple Music', 'Instacart', 'Strava', 'Whoop',
+  // ⚠ 'WHOOP' AND 'Apple Health' ARE THE SAME NOUNS THE SET ALREADY CARRIES,
+  // MISSED ON A CASE AND A SIBLING. BRAND.has() is exact, so the all-caps
+  // spelling the company actually uses never matched 'Whoop', and 'Apple Health'
+  // never matched its sibling 'Apple Music'. That is the hr/HR artifact recorded
+  // at NOTATION below, one set up. Both are provably literal: all twelve
+  // settings:integrations translations authored in cut 9 keep them verbatim.
+  // ⚠ MEASURED BEFORE WIDENING, all four combinations of old/new ratchet ×
+  // old/new source: on the PRE-CUT tree the widening moves 2 strings out of the
+  // uncovered bucket (1103 -> 1101) and NO component; on the post-cut tree it is
+  // what lets BSIntegrationsPage land fully covered instead of PARTIAL over two
+  // nouns nobody translates. Zero blast radius anywhere else.
+  'WHOOP', 'Apple Health',
   'Oura', 'Garmin', 'RPE', 'e1RM', 'kcal', 'KCAL', 'BPM', 'HR', 'HRV', 'GPS', 'PR', 'PRS',
   'Aa', 'KB', 'MB', 'GB',
 ]);
@@ -326,7 +338,7 @@ const UNCOVERED = new Set([
   'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
   'Client::BSGoalEditSheet', 'Client::BSGoalsContract',
   'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
-  'Client::BSHelpPage', 'Client::BSIntegrationsPage', 'Client::BSIntentStep',
+  'Client::BSHelpPage', 'Client::BSIntentStep',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
   'Client::BSLibraryDetail', 'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
@@ -531,10 +543,29 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // token is not persisted anywhere. What it DOES do is cross the wire to
   // /api/ai/draft-program as the model's prompt input, so a tr() on the chip's
   // value would have sent a translated word to the model in twelve locales.
+  // ⚠ CUT 9 — THE INTEGRATIONS PAGE. BSIntegrationsPage (40) leaves UNCOVERED
+  // fully covered, so noneStrings 1103 -> 1063, none.length 107 -> 106 and
+  // full.length 106 -> 107. partStrings 164 and part.length 32 are UNCHANGED for
+  // the third cut running.
+  // ⚠ AND 40 IS THE WORST FLOOR THIS WAVE HAS RECORDED — the real surface is
+  // about SEVENTY-FOUR strings, and the gap is four shapes at once. Seventeen
+  // toast sentences and three confirm/error strings are PLAIN JS the walk never
+  // enters. Eight provider eyebrows rode an `id=` prop that is not on TEXT_PROPS
+  // — and must never be added to it, because `id` is an HTML identifier
+  // tree-wide; the prop was RENAMED to `eyebrow` at its receiving component
+  // instead, which is #1968's `l` -> `label` move at a second site. Three
+  // statCards labels sit in a local array literal. The cut authored 57 keys.
+  // ⚠ THE CUT ALSO CLOSED A TOKEN/LABEL DEFECT OF THE TRAIN-TAG CLASS, AT A
+  // THIRD SITE. runAction() recovered the provider's name by regexing the
+  // English word out of its own toast label — `label.replace(/\bdisconnected\b/i,'')`
+  // — so the confirm dialog's subject was DERIVED FROM COPY. A tr() on that
+  // label stops the regex matching in all twelve non-English locales and the
+  // dialog degrades to "this app", silently, with every gate green. The name is
+  // data now: it comes from the provider row and is passed explicitly.
   assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1103, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1063, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 107, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 106, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
