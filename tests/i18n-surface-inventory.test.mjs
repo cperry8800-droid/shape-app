@@ -337,7 +337,7 @@ const UNCOVERED = new Set([
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
   'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
   'Client::BSHealthIntake',
-  'Client::BSHelpPage', 'Client::BSIntentStep',
+  'Client::BSHelpPage',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
   'Client::BSLibraryDetail', 'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
@@ -633,6 +633,19 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // that moved a surface into PARTIAL would be half-done; four surfaces leaving
   // the untranslated bucket with the partial columns flat is what finished
   // looks like.
+  // ⚠ CUT 15 — BSIntentStep, AND THE TENTH BLIND SHAPE IS THE BIGGEST GAP YET
+  // RELATIVE TO THE SURFACE. It leaves UNCOVERED fully covered, so noneStrings
+  // 935 -> 924, none.length 99 -> 98, full.length 112 -> 113, while partStrings
+  // 169 and part.length 34 are UNCHANGED — finished, not half-done.
+  // ⚠ BUT THE RATCHET CAN ONLY MOVE BY 11 AND THE CUT AUTHORED 25 KEYS. The
+  // twelve IDENTITY sentences — the *"You're becoming {identity}."* H1, the one
+  // line this screen exists to say — live in a LOCAL OBJECT LITERAL rendered by
+  // reference (`IDENTITY[picked]`), which the walk never attributes. So MORE
+  // THAN HALF the member-facing copy on this screen was outside the measurement
+  // while being the whole point of it. Cut 7 found copy in an array literal,
+  // cut 8 in a module-scope array, cut 11 inside a state setter, cut 12 in a
+  // call argument; this is the same absence in an object literal keyed by a
+  // token. The honest reading of any component's count stays a FLOOR.
   // ⚠ AND 49 IS A FLOOR FOR AN EIGHTH SHAPE: copy passed as an ARGUMENT to a
   // local render helper. `containerStrings()` steps over `CallExpression` — the
   // rule that keeps a `tr()` defaultValue from counting as hardcoded copy — so
@@ -650,9 +663,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // member on an English phone no longer reads English grouping inside a
   // Spanish sentence. Same class as cut 1's telegram date.
   assert.equal(partStrings, 169, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 935, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 924, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 99, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 98, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
