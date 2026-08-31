@@ -42,7 +42,19 @@
 create or replace function public.freeze_review_note_subject()
 returns trigger
 language plpgsql
-security definer
+-- SECURITY INVOKER (default) -- LOAD-BEARING, DO NOT ADD `security definer`.
+-- The first cut of this file did, and it made the whole trigger a no-op:
+-- under SECURITY DEFINER PostgreSQL sets current_user to the function OWNER,
+-- so `current_user in (...,'postgres')` below is true for EVERY caller, the
+-- early return fires unconditionally, and a coach can still retarget a note.
+-- Measured on this database rather than argued: one temp function each way,
+-- called after `set local role authenticated` -> definer sees `postgres`,
+-- invoker sees `authenticated`. The function needs no elevated privilege
+-- anyway: it only inspects OLD/NEW and reads a session-scoped GUC, neither of
+-- which the security context affects. This is exactly the note
+-- 2026-08-16-created-at-freeze-and-application-dob.sql already carries on
+-- set_over_18(); the idiom was copied from there and its security context was
+-- not -- a copied guard whose rationale was left behind.
 set search_path = public, pg_temp
 as $$
 declare
@@ -87,6 +99,19 @@ begin
      and not tgisinternal;
   if v <> 1 then
     raise exception 'freeze_review_note_subject trigger is not installed (found %)', v;
+  end if;
+
+  -- ⚠ The security context is the whole guard. Under SECURITY DEFINER,
+  -- current_user is the function OWNER, so the is_privileged early return
+  -- fires for every caller and this trigger silently becomes a no-op --
+  -- installed, green, and enforcing nothing. That is exactly what the first
+  -- cut of this file shipped. Fail the apply rather than let it back in.
+  select count(*) into v
+    from pg_proc
+   where oid = 'public.freeze_review_note_subject()'::regprocedure
+     and prosecdef;
+  if v <> 0 then
+    raise exception 'freeze_review_note_subject is SECURITY DEFINER — the freeze would be a no-op';
   end if;
 
   -- The four columns the trigger names must all still exist; a rename would

@@ -451,6 +451,30 @@ changelog whenever something ships.
   from `2026-08-16-created-at-freeze-and-application-dob.sql`. A structural `DO` guard
   asserts the trigger is installed and all four named columns still exist, so a rename
   cannot silently un-freeze one.
+- ⚠ **AND THE FIRST CUT OF THAT FIX WAS A COMPLETE NO-OP — Codex found a P1 inside my
+  P1, and it was right.** I copied the `is_privileged` idiom from the 08-16 migration and
+  added **`security definer`**, which the original deliberately does not have. Under
+  SECURITY DEFINER PostgreSQL sets `current_user` to the function **OWNER**, so
+  `current_user in (…,'postgres')` is true for **every** caller: the early return fired
+  unconditionally and the trigger enforced nothing while being installed, green, and
+  guard-passing. **Measured, not argued** — one temp function each way called after
+  `set local role authenticated`: **definer sees `postgres`, invoker sees
+  `authenticated`.** The 08-16 file carries a comment saying exactly why it is invoker
+  (*"this only mutates NEW and reads session-scoped request GUCs, which the security
+  context does not affect"*); **I copied the guard and left its rationale behind** — the
+  class this file already names. Fixed by dropping `security definer`, and the structural
+  guard now **fails the apply on `prosecdef`**, so the no-op cannot return silently.
+- ⚠ **AND THE PROBE THAT "PROVED" THE BROKEN VERSION WAS A THIRD INSTRUMENT FAILURE, OF A
+  NEW KIND: it mirrored the function's BODY into a temp function and not its
+  DECLARATION.** The shipped file said `security definer`; the probe's copy did not — so
+  it exercised invoker semantics and reported `BLOCKED` for a function that, as shipped,
+  could not have blocked anything. A body-only mirror is a different function. **Mirror
+  the whole declaration — language, security context, `set` clauses — or the probe is
+  testing something you are not shipping.** Re-run with the full declaration mirrored and
+  the privilege trap removed: `body-edit=ALLOWED · retarget-client=BLOCKED ·
+  retarget-day=BLOCKED · reattribute=BLOCKED · day-to-session=BLOCKED`, plus both
+  privileged paths still open (`ops-repair=ALLOWED · service-jwt=ALLOWED`). Every probe
+  rolled back by raising.
 - ⚠ **VALIDATED BEHAVIOURALLY ON THROWAWAY TEMP CONSTRUCTS — and the first probe was the
   broken instrument, not the code.** Using `set_config('role','authenticated', true)`
   performs a real SET ROLE, which stripped `authenticated`'s privileges on the
