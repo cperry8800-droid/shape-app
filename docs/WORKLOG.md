@@ -424,6 +424,54 @@ changelog whenever something ships.
   re-deriving it.** The other scouted candidates are ordinary cuts and carry no ruling:
   `BSProfileCustomizer` **78** · `BSIntegrationsPage` **40** · `BSAboutPage` **38** ·
   `BSHealthIntake` **31** (all `tr: 0`).
+  ⚠ **CORRECTED THE SAME DAY — `BSHealthIntake` IS NEITHER 31 NOR AN ORDINARY CUT, AND BOTH
+  HALVES WERE WRONG.** Checking my own line rather than shipping it forward: the **7 PAR-Q
+  questions** (`BS_PARQ`) and the **9 condition tags** (`BS_CONDITION_TAGS`) are module-scope
+  **ARRAY LITERALS** mapped to elements — the exact shape cut 7 registered as invisible — so
+  the walk attributes **none** of them and the real member-facing count is **47**, not 31.
+  And they are not house copy: they are near-verbatim the standard **seven-item PAR-Q**, a
+  published clinical screening instrument, asking about a **heart condition**, **chest pain
+  at rest**, and **losing consciousness**. Machine-translating a validated instrument
+  produces an unvalidated one, and a member who misreads a heart-condition question answers
+  it wrongly — so the honest path is to **source the instrument's own published translations
+  where they exist**, never to hand it to a translator with the UI chrome. **An owner /
+  counsel ruling, in the same queue as the provider application.**
+- ⚠ **AND THE TWO CONSENT AFFIRMATIONS TAKE OPPOSITE RULINGS, WHICH IS THE PART THAT
+  GENERALISES.** The health intake carries one too — *"I confirm these answers are accurate,
+  and I understand they're shared with coaches I hire on Shape for my safety."* — and it is
+  **NOT** the provider application's class. That one points at an **EXTERNAL document**
+  (Terms of Service, code of conduct) that exists **only in English**, so translating the
+  sentence would record consent to something the member cannot read. This one points at
+  **the form it sits on**, which the same cut would translate — there is nothing external for
+  the translation to misrepresent. So translating it is not merely safe, it is **required for
+  it to mean anything**: today a Spanish-speaking member attests **in English** that answers
+  they gave on a Spanish-labelled form are accurate, which is the worse state. **The test is
+  not “is it a consent checkbox” — it is WHAT THE AFFIRMATION POINTS AT.**
+- ⚠ **AND `BSProfileCustomizer`'S 78 IS A FLOOR FOR THE SAME REASON — SO THE ONE MEASUREMENT
+  WAS WORTH RUNNING ACROSS THE WHOLE LIST RATHER THAN DISCOVERING IT A CUT AT A TIME.** It
+  renders four more module-scope array literals the walk cannot attribute: **8** member
+  prompt questions (`BS_PROFILE_PROMPTS` — *Never skip · Pre-workout fuel · Currently
+  chasing …*), **6** coach ones (`BS_COACH_PROMPTS`), **5** pin kinds (`BS_PIN_KINDS`) and
+  **7** headline-stat labels (`BS_STAT_OPTIONS`). Real member-facing count ≈ **104**, not 78.
+- ⚠ **AND IT CARRIES A TOKEN/LABEL SPLIT — THE GROCERY-AISLE CLASS, AT A THIRD SITE.**
+  `BS_PIN_KINDS` is **bare strings**, so the token and the label are the same string, and the
+  chosen value is **written into the member's `profile_custom` record and rendered straight
+  back off it** — `{pinned.kind || …}` at two render sites. A `tr()` on the picker would
+  freeze whatever language was active when they pinned it into their own saved profile,
+  exactly as a translated aisle name did. **The split must come first, as it did for the
+  Train tag and the aisle.** The two neighbouring arrays are already `{ key, label }`, so
+  their split exists and only `label` needs authoring — and those labels are **brand nouns**
+  (`Instagram · X · TikTok · YouTube · Substack`) that stay literal in every locale.
+- **The other two figures hold up, and that is stated because it was checked rather than
+  assumed.** `BSIntegrationsPage` **40** and `BSAboutPage` **38** render no module-scope or
+  local array of copy, so those counts are honest and both are genuinely ordinary cuts.
+- ⚠ **AND THE MEASUREMENT THAT FOUND IT WAS ITSELF BROKEN FIRST — THE SIXTH TIME IN THIS
+  WAVE.** The first two `DUMP=BSHealthIntake` runs returned **nothing at all**, which reads
+  exactly like “this component has no strings.” A `cd` into `catalogs/en` for an unrelated
+  reuse sweep had persisted, so the runner could not find the test file. **A saturated-zero
+  result is the instrument until proven otherwise**; the re-run carried a positive control
+  (a component that certainly has strings, which returned 246 lines) so an empty haystack
+  could not read as an empty answer.
 
 ### 2026-08-31 — i18n cut 8: the self-serve builder, and a token that is about the WIRE
 
