@@ -378,6 +378,84 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The profile pin kind + prompt question split, and the first two-writer instance of the class
+
+- **The pin KIND and the prompt QUESTION stop being the copy they render.** Both are STORED in the
+  member's own `profile_custom` doc, COMPARED against the picker's chip/option list on every render,
+  and RENDERED back as copy — the token/label class at a **fourth site**. A `tr()` on either picker
+  would freeze one language into their own saved profile, exactly as a translated aisle name did.
+- ⚠ **AND THE REGISTER WAS WRONG THREE WAYS, ALL FOUND BY READING THE CODE RATHER THAN THE REGISTER.**
+  It reads *"`BS_PIN_KINDS` is bare strings"* — **1 array, 5 strings**. The real surface is **THREE
+  arrays and 19 stored strings**: the 8 member prompt questions and the 6 coach ones are stored on the
+  same record (`prompts: [{q, a}]`, where `q` IS the picked question) and rendered straight back off
+  it, so they are the same class. It names **ONE** writer; there are **TWO live writers of one
+  record** — the mobile customizer and the **website `livingDesktop.jsx` editor** — so a split on one
+  surface alone would have left the other storing English into the same doc. And it never mentions the
+  read path: **`get_public_profile` returns `profile_custom` as a WHOLE-DOC jsonb passthrough**, so
+  unlike the primary-goal split there is **no server-side classifier** and no display mirror is needed.
+- **The ideal home already existed, which is why this cut needed no new module and no new loader tag.**
+  `public/newdesign/profileCustom.mjs` is already the canonical per-key normalizer for this exact doc
+  and is already loaded on **all 7 profile pages** as `window.ShapeProfileLib`; the tables
+  (`BS_PIN_KINDS`, `BS_PROFILE_PROMPTS`, `BS_COACH_PROMPTS`) and the four helpers land there, and the
+  mobile shim re-exports them. The `?v=` on the module tag was bumped by hand on all 7 pages — the
+  precompile rewrites **`text/babel`** tags only, so a `<script type="module" src>`'s hand-written
+  `?v=` IS the live cache key.
+- ⚠ **THE LABEL RESOLVES LEGACY ENGLISH TOO, WHICH IS WHERE THIS DIVERGES FROM CUT 14.** The pref rows
+  had free-text neighbours; here the **only writer is a fixed picker**, so every value on disk is one
+  of the 19 shipped strings — resolving them means every existing doc reads the translated label
+  **without a re-save**. Free text still passes through unchanged, so the demo profiles' own questions
+  (*"Why I train"*, *"The lift I love"*, …) render as **themselves**: never blank, never a raw key.
+- ⚠ **ONE PROMPT LOOKUP SERVES BOTH ROLE LISTS, AND THAT IS PINNED RATHER THAN ASSUMED.** The render
+  does not know whether it is showing a member or a coach profile, so a single `bsPromptLabel` walks
+  the union — which is only safe while the **14 ids are unique across both lists**. A collision would
+  silently resolve a coach question to a member label, so the guard asserts uniqueness directly.
+- ⚠ **ZERO CATALOG KEYS, DELIBERATELY — AND THAT IS THE `BSIntentStep` RULING, NOT AN OVERSIGHT.**
+  `BSProfileCustomizer` holds **no `tr()` calls at all** (the ratchet's UNCOVERED set), so a translated
+  chip beside an untranslated editor would read as a defect. Both helpers take an **optional**
+  translator and fall back to the table's own English; the profile **renders** do pass `tr`, so the cut
+  is a pure data-shape change with no visible difference today. The translator lands with the sweep.
+- **The website carries local `[{id, en}]` fallbacks** for the module's loading race, in its established
+  `(plib && plib.X) || fallback` style — ⚠ **and pinning the TABLES alone would not have been enough**,
+  because the fallback path has its own `fold`/`find`. The guard extracts those three functions from
+  the shipped file and drives **both** implementations over the same vectors, so a divergence fails
+  there rather than in a member's record.
+- ⚠ **A GUARD BUG WORTH MORE THAN THE CUT: THE COPIED COMMENT-STRIPPER SWALLOWED 568k CHARACTERS.**
+  The house `stripComments` runs a non-greedy `/\*[\s\S]*?\*\//g` first — which **opens a false block
+  on the first regex literal containing a slash-star** and eats most of a 2.4 MB file, after which
+  every assertion passes **vacuously over source that is not there**. Caught because the render
+  assertion read `0 !== 2` on code that was demonstrably correct. It strips **LINE comments only** now,
+  which is sufficient (every rationale comment in both files is a `//` line) as well as safe.
+  ⚠ **REGISTERED, NOT SWEPT:** `tests/pref-options-token.test.mjs` carries the same helper, and its
+  `doesNotMatch`-style bans are exactly the shape that can pass vacuously on mangled source — worth a
+  re-check in its own cut rather than a drive-by here.
+- ⚠ **AND A STRAY `tr` REFERENCE TRIPPED TWO INDEPENDENT GUARDS AT ONCE — ONE ROOT CAUSE, BOTH
+  CORRECT.** The first cut passed `tr` into the customizer's two label calls, where **`tr` is not
+  declared**. The **identifier gate** named both lines (a `ReferenceError` the moment that path
+  renders), and the **ratchet** failed three assertions — because the detector counts references to the
+  translator **binding**, so a bare reference moved the component out of the UNCOVERED set. Dropping
+  `tr` fixed all four failures. *A component that renders no translated copy must not even mention the
+  translator.*
+- **14/14 mutations killed**, sanity green at both ends and the tree restored byte-identically: either
+  writer storing the label · either picker comparing the rendered string again · a render leaking the
+  raw token · the seed dropping its normalise (a legacy doc would silently reset the member's pin) ·
+  the website fallback table drifting by one word · its fallback fold dropping the case fold · the
+  legacy-English fallback removed · an empty catalog value reaching the screen · a throwing catalog
+  uncaught · free text swallowed instead of passed through · a prompt id colliding across the lists.
+  ⚠ **Three of them first reported a kill they had not earned** — hand-typed anchors that matched
+  nothing, so the run measured an **unmutated tree**. Re-anchored from the file's own bytes, all three
+  were killed. *A mutation that reports anything is a broken instrument until the edit is proven to
+  have landed*, and the same trap ate the first mobile rewrite attempt (an anchor copied from `grep`
+  output rather than from the file).
+- **Verified:** `npm test` **2598/2598** · `tsc --noEmit` 0 · newdesign precompile `--check` 0 · JSX
+  parse on both surfaces · mobile build 0 with all 14 prompt ids and **both token writers confirmed in
+  the emitted bundle** behind a positive and a negative control (`kind:or(…)` returns `n.id`;
+  `q:cr(e.q)`) · the ratchet **9/9 unchanged**, which is the certification: a data-shape change must
+  move the measurement by **nothing**.
+- ⚠ **REGISTERED, NOT SWEPT — the string sweep is its own cut.** `BSProfileCustomizer` is still **100%
+  English** (~104 member-facing strings against a walk-visible 78 — the four module-scope arrays it
+  renders are invisible to the measurement). This cut unblocks it; the **#1966 → #1967 grocery
+  two-step** applied a fifth time.
+
 ### 2026-08-31 — i18n cut 14: the 42 pref options, and a fold that was wrong in Turkish
 
 - **The eight Settings pref rows now render translated labels.** The token/label split from the
