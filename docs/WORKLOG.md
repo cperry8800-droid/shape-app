@@ -378,6 +378,92 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — i18n cut 14: the 42 pref options, and a fold that was wrong in Turkish
+
+- **The eight Settings pref rows now render translated labels.** The token/label split from the
+  entry below unblocked a straight sweep: **42 keys ×13**, against the shared table in
+  `prefOptions.mjs`. The store, the equality comparison and the classifier all still read **ids**,
+  so **nothing on disk changes** and no migration is owed — this is the second half of the
+  **#1966 → #1967 grocery two-step**, applied a fifth time.
+- ⚠ **THE TRANSLATOR IS INJECTED, NEVER IMPORTED — and that is a property of the module, not a
+  preference.** `prefOptions.mjs` is imported by a **Next server route**
+  (`src/app/api/client/analytics`), so it cannot hold a hook and cannot import the i18n singleton.
+  `tr` is the **last argument** on all three display helpers and falls back to the table's English
+  at every seam: a catalog that **throws**, **returns the key**, is **empty**, is **null**, or
+  returns a **non-string** all read English rather than the `returnEmptyString: false` raw key.
+  Same shape as cut 1's `bsWireLines` and cut 11's `bsGoalVerdict`.
+- ⚠ **THE REVERSE MAP IS THE HALF THAT IS EASY TO MISS, AND WITHOUT IT THE ROUND-TRIP BREAKS IN
+  TWELVE LOCALES.** The pref editor is a **picker AND a text field bound to one value** — it SHOWS
+  the translated label, so a member who retypes what is on screen would store that sentence as
+  **free text** and drop out of every comparison, silently. `bsPrefOptionToken` now maps the
+  **current locale's labels** back to their ids, checked **after** English so a locale can never
+  shadow the legacy path. Driven through the **real** function over all 13 locales — **zero
+  ambiguity**, so no locale's label can resolve to two ids.
+- ⚠ **AND THE FOLD WAS WRONG IN TURKISH, IN MY OWN REVERSE MAP — THE FIFTH RECORDED INSTANCE OF
+  THIS CLASS.** `'Sıkı'.toUpperCase()` is **`SIKI`**, and JS `toLowerCase()` is
+  **locale-INSENSITIVE**, so `siki` never matched `sıkı`: a Turkish member who typed their option
+  in caps fell out of the match and their pick stored as **free text**. Fixed **at the FOLD, not
+  the call site** — one locale-free fold mapping the whole **i-family** (İ ı I i) to a single
+  letter before lowercasing, applied to **both** folds in the token reader **and both** in
+  `bsGoalKind`. Threading a locale through was never available: **the module runs on the server
+  too**. Pinned by a test that asserts the JS behaviour directly (`'Sıkı'.toUpperCase()
+  .toLowerCase() === 'siki'`) and then drives four spellings, so the reason survives the code.
+- ⚠ **THE 5 CALORIE RANGES ARE KEYED; `sessions_per_week` IS NOT — and the DEFAULT is the
+  interesting half.** Four-digit numbers **group differently by locale** (de `1.600`, fr/ru
+  `1 600`), so regrouping is a translator's call; single digits never group and those ids **ARE**
+  their English. A row added later is keyed **by default** (`BS_PREF_UNKEYED_ROWS` is an explicit
+  opt-out), so the guard **fails on a missing key** rather than shipping English in twelve
+  locales — the safe direction.
+- **Every per-locale term was READ OUT OF THE SHIPPED CATALOGS rather than invented** — 11 of the
+  42 already had house terms (*Vegetarian · None · Strength · Hypertrophy · Endurance · General
+  health · Beginner · Intermediate · Advanced*, plus the Weekly/Daily concepts), reused verbatim.
+  ⚠ **Two tempting reuses were REFUSED on the rename test** (*share only where a rename SHOULD
+  move both*): **`score:cap.weekly`/`.daily`** are **cap** labels (ru «В неделю» = *per week*),
+  the wrong register for an alcohol-**frequency** answer; and **`goal:primary.goal.fat_loss`** is
+  the verb phrase *"Lose fat"* where ours is the noun *"Fat loss"*. Gender agreement was checked
+  too — the romance *None* takes `coach:case.none`'s **masculine** forms (*Ninguno · Nenhum ·
+  Aucun · Nessuno*), because the noun it modifies is *alcohol*, not `settings:texture.none`'s
+  feminine ones.
+- **The `experience` row is authored as a legible 5-rung ladder** with genuinely distinct terms
+  per rung rather than four synonyms for *intermediate* (de Anfänger → Geübt → Mittel →
+  Fortgeschritten → Elite; ru Новичок → Любитель → Средний → Продвинутый → Элита; id Pemula →
+  Pemula lanjut → Menengah → Mahir → Elite). Collision-checked per locale **before** anything was
+  written: label vs sibling label, vs English, vs id — **0 collisions across all 13**.
+- **THE RATCHET IS UNMOVED, AND THAT IS THE CERTIFICATION.** This cut adds `tr()` to a **MODULE**,
+  not a component, so a translation cut here must move it by **nothing** — and the options stay
+  invisible to the walk either way (module-scope array literals). The floor the split recorded is
+  unchanged: `BSSettings` still reads **PARTIAL on 388 `tr()` calls and exactly ONE string** while
+  the component carried **42 more** member-facing English strings. **That gap is what this closes**
+  — in the product, not in the measurement.
+- **`tests/pref-options-i18n.test.mjs` is DERIVED from the table + the unkeyed list**, so a new
+  option is covered with nobody remembering: every keyed option authored in `en` **byte-identical
+  to the table**; all 42 present and **non-empty** in all 13 (the raw-key trap); the unkeyed row
+  carrying **no dead catalog entries**; the label moving under a **renaming translator** while the
+  **token does not**; five broken-catalog shapes still reading English; the reverse map
+  round-tripping in every locale **with case and padding**; **no locale making it ambiguous**
+  (driven through the real function, not a duplicated fold — a guard that re-implements the
+  comparison it guards can drift from it); the Turkish fold pinned as load-bearing; `bsGoalKind`
+  proven to take **no** translator; and **every** client call site handing `tr` down (comments
+  stripped first).
+- **10/10 mutations killed**, sanity green at both ends and the tree restored **byte-identically**:
+  the label ignoring the translator · the reverse map dropped · the fold reverted to a plain
+  lowercase · a locale authoring an empty value · a locale dropping one of the 42 · `en` drifting
+  from the table · the unkeyed row keyed · a call site dropping `tr` · `bsGoalKind` taking a
+  translator · a key-echoing catalog rendering the raw key.
+- **Verified:** `npm test` **2580/2580** · `tsc --noEmit` 0 · `next build` 0 with
+  `ƒ Proxy (Middleware)` · mobile build 0 · JSX parse · the ratchet 9/9 · the four i18n gates
+  24/24 · a **pure append** (44 insertions / 1 deletion per catalog, LF, zero CR/NUL, every prior
+  key proven byte-identical by a round-trip parse) · **all 546 translated values confirmed in the
+  emitted bundle**.
+  ⚠ **The bundle check needed its control replaced first.** `goal:primary.goal.fat_loss` reads
+  **absent** because it is **template-built** — only the prefix ships — exactly as the entry below
+  records. A literal key (`settings:section.preferences` + its ru value) is present, the negative
+  control absent, and the builder survives minification as **`settings:pref.${e}.${t}`**.
+  *A control that cannot be present proves nothing about a miss.*
+- ⚠ **REGISTERED, NOT SWEPT — the 12 `IDENTITY` sentences are still English.** They render as
+  `BSIntentStep`'s *"You're becoming {identity}."* H1 on a screen that carries no translator at
+  all, so localizing them is the first-run-screen cut, not this one.
+
 ### 2026-08-31 — The fourth token/label instance, split — and it was live, not latent
 
 - **The eight Settings pref rows stop storing the copy they render.** `Settings → Nutrition` and
