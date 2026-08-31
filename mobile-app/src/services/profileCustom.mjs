@@ -11,4 +11,6 @@ export {
   bsCleanText, bsProfileLine, bsProfileWall, bsProfileShelf,
   bsValidStartDate, bsStartLineState, bsProfileStartLine,
   bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsNormalizeProfileCustom,
+  BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS,
+  bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
 } from '../../../public/newdesign/profileCustom.mjs';

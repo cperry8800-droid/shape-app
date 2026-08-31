@@ -204,3 +204,128 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   }
   return base;
 }
+
+// ── The pin kind + prompt question: a stored TOKEN, a rendered LABEL ─────────
+//
+// ⚠ WHY THIS SPLIT, AND WHY IT LIVES HERE. `pinned.kind` and each prompt's `q`
+// are STORED in this same profile_custom doc, SELECTED by an equality
+// comparison against the picker's own value, and RENDERED straight back off the
+// record on BOTH surfaces. That is the grocery-aisle / primary-goal / Settings-
+// pref class at a fourth site: a tr() on the picker would freeze whichever
+// language was active when the member pinned it into their own saved profile.
+// This module is already the ONE per-key normalizer for this doc, already
+// loaded on all seven website profile pages as window.ShapeProfileLib and
+// already re-exported to mobile — a separate module would need seven new loader
+// tags to say the same thing.
+//
+// ⚠ THE LABEL RESOLVES A LEGACY ENGLISH VALUE TOO, WHICH THE SETTINGS PREF
+// HELPERS DELIBERATELY DO NOT. There the value is bound to a picker AND a free
+// text field at once, so an English-looking string may genuinely be something
+// the member typed. Here the only writer is a fixed picker, so an English match
+// is unambiguous — and resolving it at RENDER means every doc already on disk
+// reads the translated label immediately rather than waiting for a re-save.
+//
+// ⚠ ONE PROMPT LOOKUP ACROSS BOTH ROLE LISTS, ON PURPOSE. The picker is
+// role-specific (a coach is offered coach questions); the RENDER is not, and
+// does not know the role. The fourteen ids are unique across the two lists, so
+// one lookup covers both — and a coach who was once a member still reads their
+// older prompt correctly instead of falling through to raw text.
+//
+// ⚠ ZERO CATALOG KEYS TODAY, AND THAT IS THE CUT. `tr` is injected and optional
+// and every helper falls back to this table's English, so the split is a pure
+// data-shape change with no visible difference on either surface. The keys land
+// with the string sweep, when a translator is actually in scope on this screen.
+export const BS_PIN_KINDS = [
+  { id: 'pr',      en: 'PR' },
+  { id: 'workout', en: 'Workout' },
+  { id: 'meal',    en: 'Meal' },
+  { id: 'post',    en: 'Post' },
+  { id: 'win',     en: 'Win' },
+];
+export const BS_PROFILE_PROMPTS = [
+  { id: 'never_skip',        en: 'Never skip' },
+  { id: 'pre_workout_fuel',  en: 'Pre-workout fuel' },
+  { id: 'currently_chasing', en: 'Currently chasing' },
+  { id: 'form_check',        en: 'Form check I love' },
+  { id: 'non_negotiable',    en: 'My non-negotiable' },
+  { id: 'rest_day',          en: 'Rest day looks like' },
+  { id: 'win_this_month',    en: 'A win this month' },
+  { id: 'training_motto',    en: 'Training motto' },
+];
+// P3 · coach-flavored prompt suggestions (the prompts render already shows on the
+// Signal profile — this only swaps the picker's suggested questions for coaches).
+export const BS_COACH_PROMPTS = [
+  { id: 'philosophy',       en: 'My coaching philosophy' },
+  { id: 'first_session',    en: 'First session with me' },
+  { id: 'who_i_coach_best', en: 'Who I coach best' },
+  { id: 'wont_program',     en: "What I won't program" },
+  { id: 'approach',         en: 'My approach' },
+  { id: 'client_win',       en: 'A client win' },
+];
+
+const BS_PROMPTS_ALL = [...BS_PROFILE_PROMPTS, ...BS_COACH_PROMPTS];
+
+// The plain .toLowerCase() is the CORRECT fold here and not the Turkish
+// dotted-i class: the right-hand side is a canonical English constant, so
+// folding by English rules is what makes the two comparable (cut 9's
+// bsmFilterCategory ruling). Whitespace is collapsed so a hand-edited doc with
+// a double space still lands on its token.
+function bsProfileFold(v) {
+  return String(v).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function bsProfileFind(rows, value) {
+  const v = String(value == null ? '' : value).trim();
+  if (!v) return null;
+  const byId = rows.find((o) => o.id === v);
+  if (byId) return byId;
+  const folded = bsProfileFold(v);
+  return rows.find((o) => bsProfileFold(o.en) === folded) || null;
+}
+
+// A catalog that returns the RAW KEY (the returnEmptyString: false trap), an
+// authored empty value, or one that throws outright all read English rather
+// than putting `profile:pin.kind.pr` on a member's own profile.
+function bsProfileOptLabel(prefix, row, tr) {
+  if (typeof tr !== 'function') return row.en;
+  try {
+    const v = tr(`${prefix}${row.id}`, { defaultValue: row.en });
+    return (v == null || v === '' || String(v).indexOf('profile:') === 0) ? row.en : v;
+  } catch (e) { return row.en; }
+}
+
+/**
+ * The pin kind a member reads. A token or a legacy English value resolves to
+ * the label; anything else renders as ITSELF — never a raw key, never blank
+ * (the grocery-aisle precedent), so a hand-authored kind survives to the card.
+ */
+export function bsPinKindLabel(value, tr) {
+  const v = String(value == null ? '' : value).trim();
+  if (!v) return '';
+  const row = bsProfileFind(BS_PIN_KINDS, v);
+  return row ? bsProfileOptLabel('profile:pin.kind.', row, tr) : v;
+}
+
+/** The pin kind that gets stored: a token stays, legacy English maps, free text passes. */
+export function bsPinKindToken(stored) {
+  const s = String(stored == null ? '' : stored).trim();
+  if (!s) return '';
+  const row = bsProfileFind(BS_PIN_KINDS, s);
+  return row ? row.id : s;
+}
+
+/** The prompt question a member reads. Same contract as the pin kind. */
+export function bsPromptLabel(value, tr) {
+  const v = String(value == null ? '' : value).trim();
+  if (!v) return '';
+  const row = bsProfileFind(BS_PROMPTS_ALL, v);
+  return row ? bsProfileOptLabel('profile:prompt.q.', row, tr) : v;
+}
+
+/** The prompt question that gets stored. */
+export function bsPromptToken(stored) {
+  const s = String(stored == null ? '' : stored).trim();
+  if (!s) return '';
+  const row = bsProfileFind(BS_PROMPTS_ALL, s);
+  return row ? row.id : s;
+}

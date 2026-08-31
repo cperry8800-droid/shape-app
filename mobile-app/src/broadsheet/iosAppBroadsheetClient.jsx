@@ -28,7 +28,7 @@ import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
-import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
+import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
@@ -12032,12 +12032,9 @@ function bsSpotifyEmbed(url) {
   const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/.exec(String(url));
   return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
 }
-const BS_PROFILE_PROMPTS = ['Never skip', 'Pre-workout fuel', 'Currently chasing', 'Form check I love', 'My non-negotiable', 'Rest day looks like', 'A win this month', 'Training motto'];
 // P3 · coach-flavored prompt suggestions (the prompts render already shows on the
 // Signal profile — this only swaps the picker's suggested questions for coaches).
-const BS_COACH_PROMPTS = ['My coaching philosophy', 'First session with me', 'Who I coach best', "What I won't program", 'My approach', 'A client win'];
 const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
-const BS_PIN_KINDS = ['PR', 'Workout', 'Meal', 'Post', 'Win'];
 const BS_STAT_OPTIONS = [{ key: 'score', label: 'Shape Score' }, { key: 'tier', label: 'Tier' }, { key: 'streak', label: 'Day streak' }, { key: 'since', label: 'Member since' }, { key: 'lift', label: 'Top lift' }, { key: 'rating', label: 'Rating' }, { key: 'reviews', label: 'Reviews' }];
 const BS_PROFILE_LINKS = [
   { key: 'instagram', label: 'Instagram', pre: 'instagram.com/' },
@@ -12123,7 +12120,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {pinned && (
           <div style={{ marginBottom: 16, borderLeft: `3px solid ${c}`, paddingLeft: 12 }}>
-            <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {pinned.kind || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</div>
+            <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {bsPinKindLabel(pinned.kind, tr) || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</div>
             <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6, color: INK }}>{pinned.title}</div>
             {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.7), margin: '6px 0 0' }}>{pinned.note}</p>}
             {pinned.metric && <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 8 }}>{pinned.metric}</div>}
@@ -12167,7 +12164,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
           <div style={{ marginBottom: links.length ? 18 : 0 }}>
             {prompts.map((p, i) => (
               <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
-                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{p.q}</div>
+                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{bsPromptLabel(p.q, tr)}</div>
                 <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 6, color: bsTHexA(INK, 0.9) }}>{p.a}</div>
               </div>
             ))}
@@ -12198,7 +12195,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
       {pinned && (
         <div style={{ marginBottom: 16, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.3)}`, borderRadius: 16, padding: bleed ? `15px ${bleed}px` : '15px 17px', ...bxCard }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>★ {tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {pinned.kind || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</span>
+            <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>★ {tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {bsPinKindLabel(pinned.kind, tr) || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</span>
           </div>
           <div style={{ fontFamily: SERIF, fontSize: 21, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{pinned.title}</div>
           {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13.5, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '7px 0 0' }}>{pinned.note}</p>}
@@ -12217,7 +12214,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         <div style={{ marginBottom: links.length ? 18 : 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {prompts.map((p, i) => (
             <div key={i} style={{ background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14, padding: bleed ? `13px ${bleed}px` : '13px 15px', ...bxCard }}>
-              <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{p.q}</div>
+              <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{bsPromptLabel(p.q, tr)}</div>
               <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6 }}>{p.a}</div>
             </div>
           ))}
@@ -13116,14 +13113,19 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const [songUrl, setSongUrl] = useStateBSC((init.song && init.song.url) || '');
   const [songLabel, setSongLabel] = useStateBSC((init.song && init.song.label) || '');
   const [links, setLinks] = useStateBSC({ ...(init.links || {}) });
-  const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0], a: '' }]);
+  const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0].id, a: '' }]);
   const [coverUrl, setCoverUrl] = useStateBSC((init.cover && init.cover.image) || '');
   const [accent, setAccent] = useStateBSC(init.accent || '');
   // climbBg is no longer a customizable surface (the wash was retired with the
   // Route Card redesign); keep the stored value round-tripping so a member who
   // set one before isn't stripped, but there's no picker for it anymore.
   const climbBg = init.climbBg || '';
-  const [pinKind, setPinKind] = useStateBSC((init.pinned && init.pinned.kind) || 'PR');
+  // Normalise on the way IN: a doc stored before the split carries English, and a
+  // picker comparing tokens would match no chip and silently reset the member's pin.
+  // No `tr` below: this editor holds ZERO tr() calls, so a translated chip beside
+  // an untranslated form would read as a defect (the BSIntentStep ruling). The
+  // helpers take an optional translator and fall back to the table's own English.
+  const [pinKind, setPinKind] = useStateBSC(bsPinKindToken((init.pinned && init.pinned.kind) || '') || BS_PIN_KINDS[0].id);
   const [pinTitle, setPinTitle] = useStateBSC((init.pinned && init.pinned.title) || '');
   const [pinNote, setPinNote] = useStateBSC((init.pinned && init.pinned.note) || '');
   const [pinMetric, setPinMetric] = useStateBSC((init.pinned && init.pinned.metric) || '');
@@ -13142,7 +13144,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', borderRadius: 9, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
   const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: c, fontWeight: 700, marginBottom: 9, display: 'block' };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
-  const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length], a: '' }]);
+  const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length].id, a: '' }]);
   const removePrompt = (i) => setPrompts((prev) => prev.filter((_, j) => j !== i));
   // ── Member profile-wave sections (M1–M4). State round-trips init even when the
   //    section isn't shown (coach path is PR D), so the doc never loses a key. ──
@@ -13254,11 +13256,11 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       bio: bio.trim(),
       song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
       links: Object.fromEntries(BS_PROFILE_LINKS.map((l) => [l.key, String(links[l.key] || '').trim()]).filter(([, v]) => v)),
-      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
+      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: bsPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
       climbBg: climbBg || null,
-      pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
+      pinned: pinTitle.trim() ? { kind: bsPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
       // Member profile-wave keys (M1–M4 / shared line). The normalizer below cleans +
       // caps these and DROPS them when empty; every legacy key passes byte-identical.
@@ -13464,7 +13466,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={label}>Pin a highlight</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}>
             {BS_PIN_KINDS.map((k) => (
-              <button key={k} onClick={() => setPinKind(k)} style={{ padding: '6px 12px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${pinKind === k ? bsTHexA(c, 0.5) : bsTHexA(INK, 0.18)}`, borderLeft: pinKind === k ? `3px solid ${c}` : `1px solid ${bsTHexA(INK, 0.18)}`, background: pinKind === k ? bsTHexA(c, 0.14) : 'transparent', color: pinKind === k ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{k}</button>
+              <button key={k.id} onClick={() => setPinKind(k.id)} aria-pressed={bsPinKindToken(pinKind) === k.id} style={{ padding: '6px 12px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${bsPinKindToken(pinKind) === k.id ? bsTHexA(c, 0.5) : bsTHexA(INK, 0.18)}`, borderLeft: bsPinKindToken(pinKind) === k.id ? `3px solid ${c}` : `1px solid ${bsTHexA(INK, 0.18)}`, background: bsPinKindToken(pinKind) === k.id ? bsTHexA(c, 0.14) : 'transparent', color: bsPinKindToken(pinKind) === k.id ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsPinKindLabel(k.id)}</button>
             ))}
           </div>
           <input value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder="Headline — e.g. Pulled 2× bodyweight today" style={field} />
@@ -13487,8 +13489,8 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
               <div key={i} style={{ border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 8, padding: 12, background: bsTHexA(INK, 0.025) }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 9 }}>
                   <div style={{ position: 'relative', flex: 1 }}>
-                    <select value={p.q} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '10px 30px 10px 13px', fontSize: 12.5, fontFamily: MONO, letterSpacing: '0.04em', color: c, fontWeight: 700, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}>
-                      {PROMPT_OPTS.map((q) => <option key={q} value={q} style={{ color: '#111', fontFamily: SANS }}>{q}</option>)}
+                    <select value={bsPromptToken(p.q)} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '10px 30px 10px 13px', fontSize: 12.5, fontFamily: MONO, letterSpacing: '0.04em', color: c, fontWeight: 700, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}>
+                      {PROMPT_OPTS.map((q) => <option key={q.id} value={q.id} style={{ color: '#111', fontFamily: SANS }}>{bsPromptLabel(q.id)}</option>)}
                     </select>
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: c, fontSize: 10 }}>▾</span>
                   </div>

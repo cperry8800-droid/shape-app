@@ -820,12 +820,58 @@ function MusicBlock({ d }) {
 }
 
 // ── Profile customization (song · prompts · links · bio) — desktop ────────────
-const DK_PROMPTS = ["Never skip", "Pre-workout fuel", "Currently chasing", "Form check I love", "My non-negotiable", "Rest day looks like", "A win this month", "Training motto"];
+// ⚠ The pin KIND and the prompt QUESTION are stored in the member's own
+// profile_custom doc, compared against the picker's chip/option list on every
+// render, and rendered back as copy — the token/label class. A tr() on the
+// picker's value would freeze one language into their record and stop it
+// matching. The canonical tables + helpers live in profileCustom.mjs; this file
+// is a browser-babel script that cannot import, so it reads them off
+// window.ShapeProfileLib (loaded by all 7 profile pages) with local fallbacks
+// for the loading race. tests/profile-token-sync.test.mjs pins the two copies
+// byte-identical AND drives both helper paths over the same vectors.
+const DK_PROMPTS = [
+  { id: "never_skip", en: "Never skip" }, { id: "pre_workout_fuel", en: "Pre-workout fuel" },
+  { id: "currently_chasing", en: "Currently chasing" }, { id: "form_check", en: "Form check I love" },
+  { id: "non_negotiable", en: "My non-negotiable" }, { id: "rest_day", en: "Rest day looks like" },
+  { id: "win_this_month", en: "A win this month" }, { id: "training_motto", en: "Training motto" },
+];
 // P3 · coach-flavored prompt suggestions (the prompts render already shows on the
 // Signal profile — this only swaps the picker's suggested questions for coaches).
-const DK_COACH_PROMPTS = ["My coaching philosophy", "First session with me", "Who I coach best", "What I won't program", "My approach", "A client win"];
+const DK_COACH_PROMPTS = [
+  { id: "philosophy", en: "My coaching philosophy" }, { id: "first_session", en: "First session with me" },
+  { id: "who_i_coach_best", en: "Who I coach best" }, { id: "wont_program", en: "What I won't program" },
+  { id: "approach", en: "My approach" }, { id: "client_win", en: "A client win" },
+];
 const DK_ACCENTS = ["#34d6c5", "#5ec8e0", "#7bbf5a", "#d8a23a", "#e0644b", "#e0518a", "#8a5cf6"];
-const DK_PIN_KINDS = ["PR", "Workout", "Meal", "Post", "Win"];
+const DK_PIN_KINDS = [
+  { id: "pr", en: "PR" }, { id: "workout", en: "Workout" }, { id: "meal", en: "Meal" },
+  { id: "post", en: "Post" }, { id: "win", en: "Win" },
+];
+function dkPlib() { return (typeof window !== "undefined" && window.ShapeProfileLib) || null; }
+function dkFold(v) { return String(v).trim().toLowerCase().replace(/\s+/g, " "); }
+function dkLocalLabel(rows, v) {
+  if (v == null || String(v).trim() === "") return "";
+  const raw = String(v), f = dkFold(raw);
+  const hit = rows.find((r) => r.id === raw) || rows.find((r) => dkFold(r.en) === f);
+  return hit ? hit.en : raw;
+}
+function dkLocalToken(rows, v) {
+  if (v == null || String(v).trim() === "") return "";
+  const raw = String(v), f = dkFold(raw);
+  const hit = rows.find((r) => r.id === raw) || rows.find((r) => dkFold(r.en) === f);
+  return hit ? hit.id : raw;
+}
+const DK_PROMPTS_ALL = [...DK_PROMPTS, ...DK_COACH_PROMPTS];
+function dkPinKinds() { const p = dkPlib(); return (p && p.BS_PIN_KINDS) || DK_PIN_KINDS; }
+function dkPromptOpts(coach) {
+  const p = dkPlib();
+  if (coach) return (p && p.BS_COACH_PROMPTS) || DK_COACH_PROMPTS;
+  return (p && p.BS_PROFILE_PROMPTS) || DK_PROMPTS;
+}
+function dkPinKindLabel(v) { const p = dkPlib(); return (p && p.bsPinKindLabel) ? p.bsPinKindLabel(v) : dkLocalLabel(DK_PIN_KINDS, v); }
+function dkPinKindToken(v) { const p = dkPlib(); return (p && p.bsPinKindToken) ? p.bsPinKindToken(v) : dkLocalToken(DK_PIN_KINDS, v); }
+function dkPromptLabel(v) { const p = dkPlib(); return (p && p.bsPromptLabel) ? p.bsPromptLabel(v) : dkLocalLabel(DK_PROMPTS_ALL, v); }
+function dkPromptToken(v) { const p = dkPlib(); return (p && p.bsPromptToken) ? p.bsPromptToken(v) : dkLocalToken(DK_PROMPTS_ALL, v); }
 const DK_STAT_OPTIONS = [{ key: "score", label: "Shape Score" }, { key: "tier", label: "Tier" }, { key: "streak", label: "Day streak" }, { key: "since", label: "Member since" }];
 function dkStatsFor(d) {
   return {
@@ -917,7 +963,7 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave })
       {pinned && (
         <div style={{ marginBottom: 26, position: "relative", paddingLeft: 15 }}>
           <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 2, background: c }} />
-          <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), fontWeight: 700 }}>★ Pinned · {pinned.kind || "Highlight"}</div>
+          <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), fontWeight: 700 }}>★ Pinned · {dkPinKindLabel(pinned.kind) || "Highlight"}</div>
           <div style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 9 }}>{pinned.title}</div>
           {pinned.note && <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.5, color: dHexA(LV_INK, 0.72), margin: "8px 0 0" }}>{pinned.note}</p>}
           {pinned.metric && <div style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: c, marginTop: 11 }}>{pinned.metric}</div>}
@@ -964,7 +1010,7 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave })
               {prompts.map((p, i) => (
                 <div key={p.q || i} style={{ position: "relative", paddingLeft: 13 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 2, background: dHexA(c, 0.5) }} />
-                  <div style={{ fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{p.q}</div>
+                  <div style={{ fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{dkPromptLabel(p.q)}</div>
                   <div style={{ fontFamily: dSerif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.2, marginTop: 7 }}>{p.a}</div>
                 </div>
               ))}
@@ -983,7 +1029,7 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave })
 }
 function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUid = null, ownerName = "" }) {
   const init = initial || {};
-  const PROMPT_OPTS = coach ? DK_COACH_PROMPTS : DK_PROMPTS;
+  const PROMPT_OPTS = dkPromptOpts(coach);
   const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   const WMAX = (plib && plib.BS_WALL_MAX) || 6, SMAX = (plib && plib.BS_SHELF_MAX) || 4;
   const CAPM = (plib && plib.BS_CAPTION_MAX) || 80, STM = (plib && plib.BS_SHELF_TITLE_MAX) || 60, SWM = (plib && plib.BS_SHELF_WHEN_MAX) || 20, LM = (plib && plib.BS_LINE_MAX) || 80, STTM = (plib && plib.BS_START_TITLE_MAX) || 60;
@@ -991,10 +1037,12 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const [songUrl, setSongUrl] = React.useState((init.song && init.song.url) || "");
   const [songLabel, setSongLabel] = React.useState((init.song && init.song.label) || "");
   const [links, setLinks] = React.useState({ ...(init.links || {}) });
-  const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0], a: "" }]);
+  const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0].id, a: "" }]);
   const [coverUrl, setCoverUrl] = React.useState((init.cover && init.cover.image) || "");
   const [accent, setAccent] = React.useState(init.accent || "");
-  const [pinKind, setPinKind] = React.useState((init.pinned && init.pinned.kind) || "PR");
+  // Normalise on the way IN: a doc stored before the split carries English, and a
+  // picker comparing tokens would match no chip and silently reset the member's pin.
+  const [pinKind, setPinKind] = React.useState(dkPinKindToken((init.pinned && init.pinned.kind) || "") || dkPinKinds()[0].id);
   const [pinTitle, setPinTitle] = React.useState((init.pinned && init.pinned.title) || "");
   const [pinNote, setPinNote] = React.useState((init.pinned && init.pinned.note) || "");
   const [pinMetric, setPinMetric] = React.useState((init.pinned && init.pinned.metric) || "");
@@ -1150,11 +1198,11 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       bio: bio.trim(),
       song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
       links: Object.fromEntries(DK_LINKS.map((l) => [l.key, String(links[l.key] || "").trim()]).filter(([, v]) => v)),
-      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
+      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: dkPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
       climbBg: climbBg || null,
-      pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
+      pinned: pinTitle.trim() ? { kind: dkPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
       // Member profile-wave keys (M1–M4). The normalizer below cleans + caps and
       // DROPS them when empty; every legacy key passes byte-identical.
@@ -1342,7 +1390,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Pin a highlight</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 9 }}>
-            {DK_PIN_KINDS.map((k) => <button key={k} onClick={() => setPinKind(k)} style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", border: `1px solid ${pinKind === k ? c : dHexA(LV_INK, 0.18)}`, background: pinKind === k ? dHexA(c, 0.14) : "transparent", color: pinKind === k ? c : dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{k}</button>)}
+            {dkPinKinds().map((k) => <button key={k.id} onClick={() => setPinKind(k.id)} aria-pressed={dkPinKindToken(pinKind) === k.id} style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", border: `1px solid ${dkPinKindToken(pinKind) === k.id ? c : dHexA(LV_INK, 0.18)}`, background: dkPinKindToken(pinKind) === k.id ? dHexA(c, 0.14) : "transparent", color: dkPinKindToken(pinKind) === k.id ? c : dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{dkPinKindLabel(k.id)}</button>)}
           </div>
           <input value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder="Headline — e.g. Pulled 2× bodyweight today" style={field} />
           <input value={pinNote} onChange={(e) => setPinNote(e.target.value)} maxLength={160} placeholder="A line of context (optional)" style={{ ...field, marginTop: 8 }} />
@@ -1361,14 +1409,14 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             {prompts.map((p, i) => (
               <div key={i} style={{ border: `1px solid ${dHexA(LV_INK, 0.12)}`, borderRadius: 11, padding: 11 }}>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  <select value={p.q} onChange={(e) => setPrompt(i, "q", e.target.value)} style={{ ...field, padding: "8px 10px", fontSize: 12.5, flex: 1 }}>{PROMPT_OPTS.map((q) => <option key={q} value={q}>{q}</option>)}</select>
+                  <select value={dkPromptToken(p.q)} onChange={(e) => setPrompt(i, "q", e.target.value)} style={{ ...field, padding: "8px 10px", fontSize: 12.5, flex: 1 }}>{PROMPT_OPTS.map((q) => <option key={q.id} value={q.id}>{dkPromptLabel(q.id)}</option>)}</select>
                   <button onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))} style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 32, cursor: "pointer" }}>×</button>
                 </div>
                 <input value={p.a} onChange={(e) => setPrompt(i, "a", e.target.value)} maxLength={120} placeholder="Your answer…" style={field} />
               </div>
             ))}
           </div>
-          {prompts.length < 4 && <button onClick={() => setPrompts((prev) => [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length], a: "" }])} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: "8px 14px", cursor: "pointer", fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add prompt</button>}
+          {prompts.length < 4 && <button onClick={() => setPrompts((prev) => [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length].id, a: "" }])} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: "8px 14px", cursor: "pointer", fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add prompt</button>}
         </div>
         <div style={{ marginBottom: 22 }}>
           <span style={label}>Social links</span>
