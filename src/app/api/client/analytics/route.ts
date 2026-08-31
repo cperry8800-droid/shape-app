@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
+import { bsGoalKind } from '../../../../../mobile-app/src/services/prefOptions.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -91,11 +92,13 @@ export async function GET(request: Request) {
   // and a body weight to scale protein; fall back to sensible defaults.
   const nutriGoal = ((nutriGoalRes.data as { data?: Record<string, unknown> } | null)?.data) || {};
   const trainGoal = ((trainGoalRes.data as { data?: Record<string, unknown> } | null)?.data) || {};
-  const goalRaw = `${String(nutriGoal.primary_goal || '')} ${String(trainGoal.primary_goal || trainGoal.goal || '')}`.toLowerCase();
-  const goalKind: 'cut' | 'build' | 'maintain' =
-    /fat ?loss|cut|lean|weight ?loss|shred/.test(goalRaw) ? 'cut'
-    : /hypertroph|build|bulk|mass|muscle|strength|gain/.test(goalRaw) ? 'build'
-    : 'maintain';
+  // ONE classifier, shared with the two mobile readers. The picker stores a
+  // TOKEN now, and `fat_loss` does not match /fat ?loss/ — a local regex here
+  // would silently reclassify every member the moment they re-pick a goal.
+  const goalKind: 'cut' | 'build' | 'maintain' = bsGoalKind(
+    String(nutriGoal.primary_goal || ''),
+    String(trainGoal.primary_goal || trainGoal.goal || ''),
+  );
 
   // Build a date-indexed map of the last 14 days.
   const byDate = new Map<string, Snap>();
