@@ -378,6 +378,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — Consumer social brand-awareness plan: run the brand AS the radio station
+
+- **New [`marketing/social-brand-awareness-plan.md`](../marketing/social-brand-awareness-plan.md)** —
+  the first CONSUMER-facing marketing doc (the five existing files in `marketing/` are the
+  coach funnel). TikTok + Instagram, organic-only (the market-research doc's own math forbids
+  paid), with **Shape Radio as the master concept**: don't market the radio feature — run the
+  socials as the station. Segments (Morning Dispatch · Request Line · HR→BPM demo · coach
+  Guest-DJ residencies · Shape Sets countdown · nightly Sign-off), Nora as host, the founder
+  as the human resident, 12 scripted first videos, platform playbooks, flywheels (the shipped
+  share card · the ident as public audio · residencies-as-recruiting), and a 30-day runway.
+- ⚠ **The licensing guardrail is stated up front**: no commercial music baked into brand
+  video, ever — idents + Nora's voice + link-outs, the app's own Peloton-lesson architecture
+  applied to marketing. And **no faked community** — the honest-data doctrine extends to
+  camera.
+- Docs-only; rode the open PR #1988 as a records commit.
+
 ### 2026-08-31 — A nutrition day can carry a coach's note (the app half) — the composer is PROBED, not asserted
 
 - **The registered follow-up, built.** The owner applied
