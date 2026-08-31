@@ -20987,6 +20987,7 @@ function bsGoalNow(overall) { const wi = bsGoalWeighIns(overall); return wi.leng
 // hidden scrollbar, pinned squared footer).
 function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const isNew = !goal;
   const [g, setG] = useStateBSC(goal || { t: '', cur: 0, tgt: 100, sub: '', pct: false, cat: '', date: '' });
@@ -21014,17 +21015,19 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{isNew ? 'New · Target' : 'Edit · Target'}</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>target.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>target.</span></>}</h1>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{isNew ? tr('goal:edit.eyebrowNew', { defaultValue: 'New · Target' }) : tr('goal:edit.eyebrowEdit', { defaultValue: 'Edit · Target' })}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{isNew
+          ? <>{tr('goal:edit.titleNewPre', { defaultValue: 'New' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:edit.titleNewAccent', { defaultValue: 'target.' })}</span></>
+          : <>{tr('goal:edit.titleEditPre', { defaultValue: 'Edit' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:edit.titleEditAccent', { defaultValue: 'target.' })}</span></>}</h1>
         <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
       </div>
       {/* Scrollable form — scrollbar hidden */}
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `16px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {isNew && (
           <div>
-            <button onClick={() => setShowTpl(s => !s)} style={{ background: 'transparent', border: 0, padding: '6px 0', minHeight: 32, color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{showTpl ? '▾ Hide templates' : '▸ Browse goal templates'}</button>
+            <button onClick={() => setShowTpl(s => !s)} style={{ background: 'transparent', border: 0, padding: '6px 0', minHeight: 32, color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{showTpl ? tr('goal:edit.hideTemplates', { defaultValue: '▾ Hide templates' }) : tr('goal:edit.browseTemplates', { defaultValue: '▸ Browse goal templates' })}</button>
             {showTpl && (
               <div style={{ marginTop: 4 }}>
                 {/* Category index — typographic, active = ink + heat underline */}
@@ -21038,7 +21041,7 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
                       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                         <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tpl.t}</span>
                         <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
-                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>~{tpl.weeksOut} wks</span>
+                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:edit.tplWeeks', { defaultValue: '~{weeks, plural, one {# wk} other {# wks}}', weeks: tpl.weeksOut })}</span>
                       </span>
                       <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tpl.sub}</span>
                     </button>
@@ -21048,30 +21051,30 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
             )}
           </div>
         )}
-        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-uline" value={g.t} onChange={(e) => setG({ ...g, t: e.target.value })} placeholder="What are you shaping toward?" style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTitle', { defaultValue: 'Title' })}</span><input className="bs-uline" value={g.t} onChange={(e) => setG({ ...g, t: e.target.value })} placeholder={tr('goal:edit.titlePlaceholder', { defaultValue: 'What are you shaping toward?' })} style={field} /></label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-          {num('cur', 'Current')}
-          {num('tgt', 'Target')}
+          {num('cur', tr('goal:edit.fieldCurrent', { defaultValue: 'Current' }))}
+          {num('tgt', tr('goal:sheet.fieldTarget', { defaultValue: 'Target' }))}
         </div>
-        <label style={{ display: 'block' }}><span style={lbl}>Subtext</span><input className="bs-uline" value={g.sub} onChange={(e) => setG({ ...g, sub: e.target.value })} placeholder="e.g. 40 lb to go · +5 lb / 3 weeks" style={field} /></label>
-        <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-uline" type="date" value={g.date || ''} onChange={(e) => setG({ ...g, date: e.target.value })} style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:edit.fieldSubtext', { defaultValue: 'Subtext' })}</span><input className="bs-uline" value={g.sub} onChange={(e) => setG({ ...g, sub: e.target.value })} placeholder={tr('goal:edit.subtextPlaceholder', { defaultValue: 'e.g. 40 lb to go · +5 lb / 3 weeks' })} style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTargetDate', { defaultValue: 'Target date' })}</span><input className="bs-uline" type="date" value={g.date || ''} onChange={(e) => setG({ ...g, date: e.target.value })} style={field} /></label>
         {g.date && days != null && (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            <span style={{ color: t.INK50 }}>Timeline</span>
+            <span style={{ color: t.INK50 }}>{tr('goal:edit.timeline', { defaultValue: 'Timeline' })}</span>
             <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
-            <span style={{ color: teal }}>{days} days · ~{Math.max(1, Math.round(days / 7))} wks</span>
+            <span style={{ color: teal }}>{tr('goal:edit.timelineValue', { defaultValue: '{days, plural, one {# day} other {# days}} · ~{weeks, plural, one {# wk} other {# wks}}', days, weeks: Math.max(1, Math.round(days / 7)) })}</span>
           </div>
         )}
         <button onClick={() => setG({ ...g, pct: !g.pct })} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, alignSelf: 'flex-start' }}>
           <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${g.pct ? teal : t.RULE}`, background: g.pct ? teal : 'transparent', color: '#04201d', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{g.pct ? '✓' : ''}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>Show values as percent (%)</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{tr('goal:edit.percentToggle', { defaultValue: 'Show values as percent (%)' })}</span>
         </button>
       </div>
       {/* Pinned footer — text-actions + the clipped solid CTA */}
       <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
-        {!isNew && onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}><span style={{ borderBottom: `2px solid ${t.RUST}66`, paddingBottom: 2 }}>Delete</span></button>}
-        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
-        <button onClick={save} disabled={!g.t} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: g.t ? teal : t.RULE, color: g.t ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save target</button>
+        {!isNew && onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}><span style={{ borderBottom: `2px solid ${t.RUST}66`, paddingBottom: 2 }}>{tr('goal:edit.delete', { defaultValue: 'Delete' })}</span></button>}
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</span></button>
+        <button onClick={save} disabled={!g.t} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: g.t ? teal : t.RULE, color: g.t ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:edit.save', { defaultValue: 'Save target' })}</button>
       </div>
     </div>
   );
@@ -21537,6 +21540,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
 // Edit sheet for the Overall headline goal (title / target date / start-now-target / why).
 function BSOverallEditSheet({ overall, onClose, onSave }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC({ ...overall });
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
@@ -21546,7 +21550,7 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   // Keep the raw string while editing (so decimals like 76.8 type cleanly);
   // numeric fields are coerced to Number on save (`saveGoal`).
   const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
-  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>;
+  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? tr('goal:overall.fieldStart', { defaultValue: 'Start' }) : k === 'now' ? tr('goal:overall.fieldNow', { defaultValue: 'Now' }) : tr('goal:sheet.fieldTarget', { defaultValue: 'Target' })}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>;
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
       {/* Title-page header — masthead + hero title (matches the other pages) */}
@@ -21556,26 +21560,26 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Edit · Goal</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></h1>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('goal:overall.eyebrow', { defaultValue: 'Edit · Goal' })}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{tr('goal:overall.titlePre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:overall.titleAccent', { defaultValue: 'goal.' })}</span></h1>
         <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
       </div>
       {/* Scrollable form — scrollbar hidden */}
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-uline" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTitle', { defaultValue: 'Title' })}</span><input className="bs-uline" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder={tr('goal:overall.titlePlaceholder', { defaultValue: 'e.g. Lean by August' })} style={field} /></label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-          <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-uline" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
-          <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input className="bs-uline" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTargetDate', { defaultValue: 'Target date' })}</span><input className="bs-uline" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:overall.fieldUnit', { defaultValue: 'Unit' })}</span><input className="bs-uline" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>{num('start')}{num('now')}{num('target')}</div>
-        <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 2, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:terms.whyHead', { defaultValue: 'Your why' })}</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 2, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
       </div>
       {/* Pinned footer — text-action Cancel + clipped solid CTA */}
       <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
-        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
-        <button onClick={saveGoal} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</span></button>
+        <button onClick={saveGoal} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:overall.save', { defaultValue: 'Save goal' })}</button>
       </div>
     </div>
   );
@@ -21945,6 +21949,7 @@ function BSCycleCalendarPage({ onBack }) {
 // Small headline editor (title + subtitle) for the Training / Nutrition tabs.
 function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   const t = useBS();
+  const tr = useShapeTr();
   const [m, setM] = useStateBSC({ ...meta });
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
   // Zero-box underline fields (accent focus via --bs-accent on the sheet root).
@@ -21952,16 +21957,16 @@ function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': accent }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>Edit · Headline</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: accent }}>headline.</span></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>{tr('goal:headline.eyebrow', { defaultValue: 'Edit · Headline' })}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('goal:headline.titlePre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: accent }}>{tr('goal:headline.titleAccent', { defaultValue: 'headline.' })}</span></div>
         <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent} 72%, transparent)` }} />
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-uline" value={m.title || ''} onChange={(e) => setM({ ...m, title: e.target.value })} style={field} /></label>
-          <label style={{ display: 'block' }}><span style={lbl}>Subtitle</span><input className="bs-uline" value={m.subtitle || ''} onChange={(e) => setM({ ...m, subtitle: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTitle', { defaultValue: 'Title' })}</span><input className="bs-uline" value={m.title || ''} onChange={(e) => setM({ ...m, title: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:headline.fieldSubtitle', { defaultValue: 'Subtitle' })}</span><input className="bs-uline" value={m.subtitle || ''} onChange={(e) => setM({ ...m, subtitle: e.target.value })} style={field} /></label>
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
-          <button onClick={() => onSave(m)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: accent, color: '#fff', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</span></button>
+          <button onClick={() => onSave(m)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: accent, color: '#fff', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:headline.save', { defaultValue: 'Save' })}</button>
         </div>
       </div>
     </div>
@@ -21974,6 +21979,7 @@ function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
 // trend chart across the Overall + Nutrition tabs.
 function BSWeighInSheet({ overall, onClose, onSave }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const unit = overall.unit || 'kg';
   const [kg, setKg] = useStateBSC(String(bsGoalNow(overall) || ''));
@@ -21986,8 +21992,8 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Log · Weigh-in</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Today's <span style={{ fontStyle: 'italic', color: teal }}>weight.</span></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>{tr('goal:weighIn.eyebrow', { defaultValue: 'Log · Weigh-in' })}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('goal:weighIn.titlePre', { defaultValue: "Today's" })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:weighIn.titleAccent', { defaultValue: 'weight.' })}</span></div>
         <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
         {/* Weight register — bare underline figure (Open Ledger form grammar);
             .bs-uline-row lights the shared underline on focus-within. */}
@@ -21997,14 +22003,14 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
         </div>
         {/* Body fat — quiet underline row */}
         <div className="bs-uline bs-uline-row" style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 10, '--bs-uline-ink': bsTHexA(t.INK, 0.12) }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800, flexShrink: 0 }}>Body fat · optional</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800, flexShrink: 0 }}>{tr('goal:weighIn.bodyFat', { defaultValue: 'Body fat · optional' })}</span>
           <input value={bf} onChange={(e) => setBf(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', textAlign: 'right', fontVariantNumeric: 'tabular-nums', padding: '2px 0 8px' }} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50 }}>%</span>
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Updates your trend + progress · start {Number(overall.start).toLocaleString()} · target {Number(overall.target).toLocaleString()}</div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('goal:weighIn.note', { defaultValue: 'Updates your trend + progress · start {start} · target {target}', start: Number(overall.start).toLocaleString(bsDateLocale()), target: Number(overall.target).toLocaleString(bsDateLocale()) })}</div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
-          <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: ok ? teal : t.RULE, color: ok ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save weigh-in</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</span></button>
+          <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: ok ? teal : t.RULE, color: ok ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:weighIn.save', { defaultValue: 'Save weigh-in' })}</button>
         </div>
       </div>
     </div>
@@ -23856,7 +23862,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
                 {BSLogo && <BSLogo size={16} color={t.INK} />}
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
               </div>
-              <button onClick={() => setEditPrimary(false)} aria-label={tr('goal:primary.closeAria', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+              <button onClick={() => setEditPrimary(false)} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
             </div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('goal:primary.eyebrow', { defaultValue: 'Edit · Overall goal' })}</div>
             <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{tr('goal:primary.titlePre', { defaultValue: 'Your primary' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}</span></h1>

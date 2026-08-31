@@ -336,15 +336,13 @@ const UNCOVERED = new Set([
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
   'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
-  'Client::BSGoalEditSheet',
-  'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
+  'Client::BSHealthIntake',
   'Client::BSHelpPage', 'Client::BSIntentStep',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
   'Client::BSLibraryDetail', 'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile', 'Client::BSNoraProposal',
-  'Client::BSNotifications', 'Client::BSNotifyPrefs', 'Client::BSOverallEditSheet',
-  'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
+  'Client::BSNotifications', 'Client::BSNotifyPrefs', 'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProfileCustomizer', 'Client::BSProfileIdentityHead', 'Client::BSProgChart',
   'Client::BSRecipeBox', 'Client::BSRecipePreview', 'Client::BSReconcile',
   'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
@@ -353,8 +351,7 @@ const UNCOVERED = new Set([
   'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
   'Client::BSVideoCall', 'Client::BSWeekendsCard',
-  'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet',
-  // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
+  'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
   // LABEL: BSSearchMsgBtn renders `aria-label={`Message ${name}`}` — invisible
   // while the walk only read direct attribute literals, so a screen-reader user
   // in Spanish hears the English verb. Registered rather than patched because
@@ -619,10 +616,34 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // discipline token ('training' | 'nutrition' | 'work'), so interpolating it
   // would render the raw English id as copy in twelve locales — the exact
   // failure cut 5's Train tag and cut 6's aisle each cost a design phase.
+  // ⚠ CUT 12 — THE FOUR GOAL SHEETS, AND partStrings NOT MOVING IS THE
+  // CERTIFICATION. BSGoalEditSheet, BSOverallEditSheet, BSHeadlineEditSheet and
+  // BSWeighInSheet all leave UNCOVERED for FULLY COVERED — none lands in
+  // PARTIAL — so noneStrings 984 -> 935, none.length 103 -> 99, full.length
+  // 108 -> 112, while partStrings 169 and part.length 34 are UNCHANGED. A cut
+  // that moved a surface into PARTIAL would be half-done; four surfaces leaving
+  // the untranslated bucket with the partial columns flat is what finished
+  // looks like.
+  // ⚠ AND 49 IS A FLOOR FOR AN EIGHTH SHAPE: copy passed as an ARGUMENT to a
+  // local render helper. `containerStrings()` steps over `CallExpression` — the
+  // rule that keeps a `tr()` defaultValue from counting as hardcoded copy — so
+  // `num('cur', 'Current')` and `num('tgt', 'Target')` were invisible to the
+  // walk while being two of the four field labels on the edit sheet. Two more
+  // sat in template literals split at their placeholders (the timeline line and
+  // the weigh-in note), which the walk reads as fragments rather than sentences.
+  // The cut authored 42 keys against a ratchet that can only move by 49 minus
+  // what the walk already counted; the honest reading of any component's count
+  // stays a FLOOR.
+  // ⚠ THE WEIGH-IN NOTE ALSO CARRIED A DEVICE-LOCALE BUG THE SWEEP FORCED OUT:
+  // its two figures were formatted with a bare `toLocaleString()`, i.e. the
+  // DEVICE locale, on a sentence the member reads in their SELECTED UI
+  // language. They now format through `bsDateLocale()`, so a Spanish-in-Shape
+  // member on an English phone no longer reads English grouping inside a
+  // Spanish sentence. Same class as cut 1's telegram date.
   assert.equal(partStrings, 169, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 984, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 935, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 103, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 99, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
