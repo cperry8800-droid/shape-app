@@ -330,13 +330,13 @@ const UNCOVERED = new Set([
   'Client::BSActivityBody', 'Client::BSActivityLogCta',
   'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan',
   'Client::BSCardSheetHost', 'Client::BSChatThread',
-  'Client::BSClientGoals', 'Client::BSClientLibrary', 'Client::BSClientNextPlate',
+  'Client::BSClientLibrary', 'Client::BSClientNextPlate',
   'Client::BSClientProgress', 'Client::BSCoachAdjustBanner',
   'Client::BSCodeOfConductPage', 'Client::BSCommitmentCard',
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
   'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
-  'Client::BSGoalEditSheet', 'Client::BSGoalsContract',
+  'Client::BSGoalEditSheet',
   'Client::BSHeadlineEditSheet', 'Client::BSHealthIntake',
   'Client::BSHelpPage', 'Client::BSIntentStep',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
@@ -405,6 +405,16 @@ const PARTIAL = new Set([
   // special-cased inside usable(), because a false exclusion there hides real copy.
   'Client::BSAboutPage',
   'Client::BSTerrainProfile',
+  // ⚠ BSGoalsContract IS PARTIAL OVER THE SIGNED-OUT DEMO PLAN CARDS, NOT OVER
+  // LIVE COPY — 88 tr() calls and exactly four hardcoded strings, all four in the
+  // `signedIn ? … : <demo>` else-branch: two fabricated coach credits ("TRAINER ·
+  // JORDAN · 4×/WK", "NUTRITIONIST · DR. MAYA · 1,890 KCAL") and the plan titles
+  // they carry. Demo copy is deliberately not translated — the same shape
+  // BSClientEat and BSClientTrain ended in. The SIGNED-IN branches of both those
+  // stations are fully keyed (the redaction line and the find-a-coach action),
+  // and a live plan renders the coach's own authored strings through
+  // station.creditTrainer / station.creditNutritionist.
+  'Client::BSGoalsContract',
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
   'Pros::BSProMe', 'Pros::BSProSoundtracks', 'Pros::BSWorkoutReviewPage',
@@ -580,10 +590,39 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // strings were outside the measurement while being part of the work. The cut
   // authored 44 keys against a ratchet that can only move by 38: the honest
   // reading of any component's count stays a FLOOR.
-  assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1025, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 105, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ CUT 11 — THE GOALS SURFACE, AND IT MOVES TWO COMPONENTS IN OPPOSITE
+  // DIRECTIONS. BSClientGoals (the page shell) leaves UNCOVERED fully covered;
+  // BSGoalsContract leaves it for PARTIAL, keeping the four signed-out demo
+  // plan-card strings the house deliberately does not translate (the reason is
+  // written at its baseline entry). So noneStrings 1025 -> 984, none.length
+  // 105 -> 103, full.length 107 -> 108, part.length 33 -> 34 and partStrings
+  // 165 -> 169.
+  // ⚠ partStrings RISING IS THE HONEST DIRECTION HERE, not a regression: those
+  // four strings were already on screen and already counted — in noneStrings,
+  // where BSGoalsContract sat with all 45 of its walk-visible strings. 41 became
+  // keyed and 4 changed column. A total that rises is only honest beside the
+  // change that raised it, which is the rule this file applies to itself.
+  // ⚠ AND 45 IS A FLOOR AGAIN, FOR A SEVENTH SHAPE. The cut authored 115 keys.
+  // The gap is the plain-JS strings the walk never enters (two award toasts, the
+  // primary-goal toast) plus — the interesting one — copy the walk cannot
+  // attribute because it is BUILT IN A LOCAL BUILDER and rendered by reference:
+  // the live plan rows (`setLivePlans`), the four weekly-target rows
+  // (`setLiveWeek`) and the five milestone objects are all local arrays of
+  // `{ t, sub }` shapes, so their ~30 member-facing strings sat outside the
+  // measurement while being most of the surface. Cut 7 recorded the array
+  // literal, cut 8 the module-scope array, cut 9 the local array in a component;
+  // this is the same absence one level further in, inside a state setter.
+  // ⚠ THE CUT ALSO REFUSED A {kind} PLACEHOLDER THREE TIMES, and that is the
+  // token/label rule arriving as a naming decision rather than a defect. The
+  // station label, the add-a-target action and the record link are each THREE
+  // keys, not one frame with `{kind}` interpolated: `kind` is the STORED
+  // discipline token ('training' | 'nutrition' | 'work'), so interpolating it
+  // would render the raw English id as copy in twelve locales — the exact
+  // failure cut 5's Train tag and cut 6's aisle each cost a design phase.
+  assert.equal(partStrings, 169, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 984, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 103, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

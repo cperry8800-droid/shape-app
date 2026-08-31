@@ -21139,6 +21139,7 @@ function BSOLCredit({ spine, title, credit, t }) {
 // the one-ledger design unchanged (presentation-only).
 function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog, onEditTargets, onOpenProgress, onAddGoal, onEditGoal, onEditHeadline, plans: livePlans = null, weekTargets: liveWeekTargets = null, train = null }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const start = Number(overall.start) || 0, now = bsGoalNow(overall), target = Number(overall.target) || 0;
@@ -21147,7 +21148,12 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const range = +(start - target).toFixed(1);
   const toGo = +(now - target).toFixed(1);
   const byD = overall.by ? new Date(overall.by) : null;
-  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+  // ⚠ THE SELECTED UI LANGUAGE, NOT THE DEVICE — `[]` hands Intl the device
+  // locale, so Spanish-in-Shape on an English phone read "MAY 21" (the cut-1
+  // clock class, at its fifth site). And no `.toUpperCase()`: every render site
+  // for this label already carries CSS `text-transform: uppercase`, which is
+  // locale-aware through <html lang> where the JS fold is not.
+  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }) : '';
   // Weekly pace from the real weigh-in series (per-week change when dated, else
   // per-weigh-in delta).
   const wPace = (() => {
@@ -21175,24 +21181,59 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const slipFlag = !!(goalProj && goalProj.slip != null && isFinite(goalProj.slip) && goalProj.slip >= 7);
   const paceVal = (goalProj && goalProj.ratePerWeek != null) ? goalProj.ratePerWeek : wPace;
   const etaStat = (() => {
-    if (!goalProj) return { c: t.INK50, v: '—', sub: 'log to project' };
+    const unread = { c: t.INK50, v: '—', sub: tr('goal:eta.noneSub', { defaultValue: 'log to project' }) };
+    if (!goalProj) return unread;
     const st = goalProj.state;
-    if (st === 'achieved') return { c: t.GREEN, v: 'Hit', u: ' ✓', sub: 'reached' };
-    if (st === 'on-pace' && goalProj.projectedLabel) return { c: slipFlag ? t.AMBER : t.GREEN, v: goalProj.projectedLabel, sub: slipFlag ? `+${goalProj.slip}d this wk` : 'at this pace' };
-    if (st === 'stalled') return { c: t.RUST, v: 'Stalled', sub: 'pace flat' };
-    if (st === 'far') return { c: t.AMBER, v: '1y+', sub: 'at this pace' };
-    if (st === 'stale') return { c: t.AMBER, v: 'Refresh', sub: 'log to update' };
-    return { c: t.INK50, v: '—', sub: 'log to project' };
+    if (st === 'achieved') return { c: t.GREEN, v: tr('goal:eta.hit', { defaultValue: 'Hit' }), u: ' ✓', sub: tr('goal:eta.hitSub', { defaultValue: 'reached' }) };
+    if (st === 'on-pace' && goalProj.projectedLabel) return { c: slipFlag ? t.AMBER : t.GREEN, v: goalProj.projectedLabel, sub: slipFlag ? tr('goal:eta.slip', { defaultValue: '+{days}d this wk', days: goalProj.slip }) : tr('goal:eta.atPace', { defaultValue: 'at this pace' }) };
+    if (st === 'stalled') return { c: t.RUST, v: tr('goal:eta.stalled', { defaultValue: 'Stalled' }), sub: tr('goal:eta.stalledSub', { defaultValue: 'pace flat' }) };
+    if (st === 'far') return { c: t.AMBER, v: tr('goal:eta.far', { defaultValue: '1y+' }), sub: tr('goal:eta.atPace', { defaultValue: 'at this pace' }) };
+    if (st === 'stale') return { c: t.AMBER, v: tr('goal:eta.refresh', { defaultValue: 'Refresh' }), sub: tr('goal:eta.refreshSub', { defaultValue: 'log to update' }) };
+    return unread;
   })();
-  const verdict = bsGoalVerdict({ start, now, target, unit, proj: goalProj });
+  const verdict = bsGoalVerdict({ start, now, target, unit, proj: goalProj, tr });
   const toneColor = { good: t.GREEN, warn: t.AMBER, bad: t.RUST, neutral: t.INK }[verdict.tone] || t.INK;
+  // The house treatment gives the lead's FINAL STOP the tier heat. The shipped
+  // expression was `verdict.lead.slice(0, -1)` + a hardcoded '.', which is wrong
+  // twice once the lead is translated:
+  //   (1) `slice(0, -1)` walks UTF-16 CODE UNITS, so a lead ending in an astral
+  //       codepoint loses half a surrogate pair and renders U+FFFD (the cut-10
+  //       drop-cap class, at a second site);
+  //   (2) it ASSUMES a trailing '.'. A locale that closes with '。', '!' or no
+  //       terminal mark at all had a real character silently eaten and an
+  //       English period painted in its place.
+  // Split by codepoint, and only peel a mark that IS terminal punctuation —
+  // otherwise render the lead whole and skip the accent. Losing a decoration is
+  // survivable; eating a member-visible character is not.
+  const leadChars = [...String(verdict.lead || '')];
+  const leadLast = leadChars.length ? leadChars[leadChars.length - 1] : '';
+  const leadDot = /[.。．!?！？¡¿]/.test(leadLast) ? leadLast : '';
+  const leadBody = leadDot ? leadChars.slice(0, -1).join('') : leadChars.join('');
   const [readRef, readSeen] = useBSSdInView();
   // Shared station furniture (all three station pages render the same anatomy).
   const stationMotto = (meta) => (meta.title || meta.subtitle) ? (
     <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[meta.title, meta.subtitle].filter(Boolean).join(' — ')}”</div>
   ) : null;
+  // The five station names — ONE map, read by the door titles AND the station
+  // page titles, so a rename can never move one and leave the other.
+  const STATION_LABEL = {
+    training: tr('goal:door.training', { defaultValue: 'Training' }),
+    nutrition: tr('goal:door.nutrition', { defaultValue: 'Nutrition' }),
+    work: tr('goal:door.work', { defaultValue: 'Work' }),
+    week: tr('goal:door.week', { defaultValue: 'This week' }),
+    terms: tr('goal:door.terms', { defaultValue: 'The terms' }),
+  };
+  const ADD_TARGET = {
+    training: tr('goal:station.addTraining', { defaultValue: 'Add a training target' }),
+    nutrition: tr('goal:station.addNutrition', { defaultValue: 'Add a nutrition target' }),
+    work: tr('goal:station.addWork', { defaultValue: 'Add a work target' }),
+  };
+  const RECORD_LINK = {
+    training: tr('goal:station.recordTraining', { defaultValue: 'The full training record' }),
+    nutrition: tr('goal:station.recordNutrition', { defaultValue: 'The full nutrition record' }),
+  };
   const tgtEyebrow = () => (
-    <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
+    <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:station.supportingTargets', { defaultValue: 'Supporting targets · serve the goal' })}</div>
   );
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
   // Milestones from the real goal trajectory (start -> quarter points -> target).
@@ -21201,17 +21242,17 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
     const reached = (w) => range > 0 ? now <= w + 0.05 : now >= w - 0.05;
     const defs = [
-      { w: start, t: 'Baseline set', sub: 'plans live' },
-      { w: start - range * 0.25, t: '25% there', sub: 'habits sticking' },
-      { w: start - range * 0.5, t: 'Halfway', sub: 'on pace' },
-      { w: start - range * 0.75, t: '75% there', sub: 'closing in' },
-      { w: target, t: 'Goal', sub: 'lean & strong' },
+      { w: start, t: tr('goal:terms.mBaseline', { defaultValue: 'Baseline set' }), sub: tr('goal:terms.mBaselineSub', { defaultValue: 'plans live' }) },
+      { w: start - range * 0.25, t: tr('goal:terms.mQuarter', { defaultValue: '25% there' }), sub: tr('goal:terms.mQuarterSub', { defaultValue: 'habits sticking' }) },
+      { w: start - range * 0.5, t: tr('goal:terms.mHalf', { defaultValue: 'Halfway' }), sub: tr('goal:terms.mHalfSub', { defaultValue: 'on pace' }) },
+      { w: start - range * 0.75, t: tr('goal:terms.mThree', { defaultValue: '75% there' }), sub: tr('goal:terms.mThreeSub', { defaultValue: 'closing in' }) },
+      { w: target, t: tr('goal:terms.mGoal', { defaultValue: 'Goal' }), sub: tr('goal:terms.mGoalSub', { defaultValue: 'lean & strong' }) },
     ];
     let nextMarked = false;
     return defs.map((m, i) => {
       const done = reached(m.w);
       const isNext = !done && !nextMarked; if (isNext) nextMarked = true;
-      return { done, next: isNext, n: String(i + 1).padStart(2, '0'), t: `${m.t} · ${fmt(m.w)}`, sub: m.sub, when: i === 0 ? (overall.startMonth || 'Start') : i === defs.length - 1 ? (byLabel || 'Goal') : (isNext ? 'Next' : (done ? 'Done' : '')) };
+      return { done, next: isNext, n: String(i + 1).padStart(2, '0'), t: tr('goal:terms.milestoneRow', { defaultValue: '{name} · {value}', name: m.t, value: fmt(m.w) }), sub: m.sub, when: i === 0 ? (overall.startMonth || tr('goal:terms.whenStart', { defaultValue: 'Start' })) : i === defs.length - 1 ? (byLabel || tr('goal:terms.whenGoal', { defaultValue: 'Goal' })) : (isNext ? tr('goal:terms.next', { defaultValue: 'Next' }) : (done ? tr('goal:terms.doneState', { defaultValue: 'Done' }) : '')) };
     });
   })();
   // Your plans -> station credits. Live (assigned plan + coach cadence/kcal) when
@@ -21227,11 +21268,20 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // This week targets — live ShapeProgress rollups when available, else demo.
   const weekTargets = (Array.isArray(liveWeekTargets) && liveWeekTargets.length)
     ? liveWeekTargets
+    // ⚠ SIGNED-IN EMPTY IS LIVE COPY AND IS TRANSLATED; the signed-out branch
+    // below is DEMO and deliberately is not (the cut-4 rule — localizing demo
+    // fixtures makes the preview read less like the live screen).
+    // ⚠ And the third row now MATCHES the live builder. BSClientGoals' own
+    // comment claims "the same words the honest-empty set above uses, so the
+    // live and empty paths can never disagree" — true of rows 1, 2 and 4 and
+    // false of row 3, which read "Steps · avg · goal 8k" here and "7d volume ·
+    // load lifted" the moment the rollup resolved. A row that renames itself
+    // mid-load is the claim being wrong, not the label; the live wording wins.
     : (signedIn ? [
-      { l: 'Sessions', v: '0/—', sub: 'set a plan' },
-      { l: 'Protein days', v: '0/7', sub: 'days tracked' },
-      { l: 'Steps', v: '—', sub: 'avg · goal 8k' },
-      { l: 'Sleep', v: '—', sub: 'avg · goal 7h' },
+      { l: tr('goal:week.sessions', { defaultValue: 'Sessions' }), v: '0/—', sub: tr('goal:week.setPlan', { defaultValue: 'set a plan' }) },
+      { l: tr('goal:week.protein', { defaultValue: 'Protein days' }), v: '0/7', sub: tr('goal:week.proteinTracked', { defaultValue: 'days tracked' }) },
+      { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: '—', sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }) },
+      { l: tr('goal:week.sleep', { defaultValue: 'Sleep' }), v: '—', sub: tr('goal:week.sleepSub', { defaultValue: 'avg · goal 7h' }) },
     ] : [
       { l: 'Sessions', v: '3/4', sub: 'one to go' },
       { l: 'Protein days', v: '6/7', sub: '≥170g hit' },
@@ -21273,12 +21323,26 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     <span aria-hidden style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 99, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.2)}`, ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2400ms ease-in-out infinite' }) }} />
   );
   // Cover-door sublines — an honest one-line inventory of what each page holds.
-  const tCount = (n, none = 'No targets yet') => n ? `${n} target${n === 1 ? '' : 's'}` : none;
-  const trainDoorSub = [tCount(trainGoals.length), trainPlan ? trainPlan.t : (signedIn ? 'no plan yet' : null), trainPlan ? trainPlan.sub : null].filter(Boolean).join(' · ');
-  const nutrDoorSub = [tCount(nutrGoals.length), nutrPlan ? nutrPlan.t : (signedIn ? 'no plan yet' : null), nutrPlan ? nutrPlan.sub : null].filter(Boolean).join(' · ');
+  // ⚠ ICU, not `target${n === 1 ? '' : 's'}` — no language forms a plural by
+  // appending a letter, and ru/uk need FOUR categories rather than two.
+  const tCount = (n) => n
+    ? tr('goal:door.targets', { defaultValue: '{count, plural, one {# target} other {# targets}}', count: n })
+    : tr('goal:door.noTargets', { defaultValue: 'No targets yet' });
+  const noPlan = tr('goal:door.noPlan', { defaultValue: 'no plan yet' });
+  const trainDoorSub = [tCount(trainGoals.length), trainPlan ? trainPlan.t : (signedIn ? noPlan : null), trainPlan ? trainPlan.sub : null].filter(Boolean).join(' · ');
+  const nutrDoorSub = [tCount(nutrGoals.length), nutrPlan ? nutrPlan.t : (signedIn ? noPlan : null), nutrPlan ? nutrPlan.sub : null].filter(Boolean).join(' · ');
   const workDoorSub = tCount(workGoals.length);
-  const weekDoorSub = weekTargets.slice(0, 2).map((w) => `${w.v} ${String(w.l || '').toLowerCase()}`).join(' · ');
-  const termsDoorSub = hasGoal ? `${milestones.filter((m) => m.done).length}/${milestones.length} milestones${overall.why ? ' · your why' : ''}` : 'Set the terms';
+  // ⚠ NO `.toLowerCase()` ON THE LABEL. It is locale-INSENSITIVE (Turkish folds
+  // I→ı, not i), it now runs over TRANSLATED text — and it was pointless even in
+  // English: the door subline's own style carries CSS `text-transform:
+  // uppercase`, so the JS fold was undone one line later by a transform that IS
+  // locale-aware. How a label sits in a meta line is the catalog's call.
+  const weekDoorSub = weekTargets.slice(0, 2).map((w) => `${w.v} ${String(w.l || '')}`).join(' · ');
+  const termsDoorSub = hasGoal
+    ? (overall.why
+      ? tr('goal:door.milestonesWhy', { defaultValue: '{done}/{total} milestones · your why', done: milestones.filter((m) => m.done).length, total: milestones.length })
+      : tr('goal:door.milestones', { defaultValue: '{done}/{total} milestones', done: milestones.filter((m) => m.done).length, total: milestones.length }))
+    : tr('goal:door.setTerms', { defaultValue: 'Set the terms' });
   const nextTerm = milestones.find((m) => m.next) || null;
   // A station door — 3px role spine, title + inventory subline, heat arrow.
   const door = (spine, title, sub, key, last = false) => (
@@ -21297,8 +21361,8 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
       {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, fontWeight: 800 }}>The contract</span>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, fontWeight: 800 }}>{tr('goal:station.eyebrow', { defaultValue: 'The contract' })}</span>
       </div>
       {/* tabIndex -1 so the parent can move focus here when a station opens: the
           door that was pressed unmounts with the cover, and without this a
@@ -21311,6 +21375,12 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // Full station body — the one-ledger design's station anatomy VERBATIM
   // (motto, coach credit, targets, lifts, add, record), now on its own page so
   // every target renders (the 3-row cover cap died with the cover-page pick).
+  // ⚠ THREE KEYS, NOT ONE WITH A {kind} PLACEHOLDER. `kind` is the STORED
+  // discipline token ('training' | 'nutrition' | 'work') — the same value that
+  // indexes data[kind] — so interpolating it renders the raw English id as copy
+  // in twelve locales (the class cuts 5, 6 and 9 each paid for at a different
+  // site). Lower-casing a translated noun into the frame would be worse: that is
+  // the locale-insensitive fold, one line further on.
   const stationBody = (kind) => {
     const goalsArr = kind === 'training' ? trainGoals : kind === 'nutrition' ? nutrGoals : workGoals;
     const meta = kind === 'training' ? trainingMeta : kind === 'nutrition' ? nutritionMeta : workMeta;
@@ -21318,38 +21388,40 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {stationMotto(meta)}
         {kind === 'training' && (trainPlan
-          ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={`TRAINER · ${String(trainPlan.sub || '').toUpperCase()}`} t={t} />
+          // ⚠ NO `.toUpperCase()` — BSOLCredit's credit line already carries CSS
+          // `text-transform: uppercase` (locale-aware via <html lang>), and the
+          // value is a coach-authored cadence string, not our copy.
+          ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={tr('goal:station.creditTrainer', { defaultValue: 'TRAINER · {detail}', detail: String(trainPlan.sub || '') })} t={t} />
           : signedIn
-            ? <><BSTRedact INK={t.INK} label="No training plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
+            ? <><BSTRedact INK={t.INK} label={tr('goal:station.noTrainingPlan', { defaultValue: 'No training plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
             : <BSOLCredit spine={t.RUST} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />)}
         {kind === 'nutrition' && (nutrPlan
-          ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={`NUTRITIONIST · ${String(nutrPlan.sub || '').toUpperCase()}`} t={t} />
+          ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={tr('goal:station.creditNutritionist', { defaultValue: 'NUTRITIONIST · {detail}', detail: String(nutrPlan.sub || '') })} t={t} />
           : signedIn
-            ? <><BSTRedact INK={t.INK} label="No nutrition plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
+            ? <><BSTRedact INK={t.INK} label={tr('goal:station.noNutritionPlan', { defaultValue: 'No nutrition plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
             : <BSOLCredit spine={'#d8a23a'} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />)}
         {tgtEyebrow()}
-        {goalsArr.length === 0 && <BSTRedact INK={t.INK} label="No targets yet" />}
+        {goalsArr.length === 0 && <BSTRedact INK={t.INK} label={tr('goal:door.noTargets', { defaultValue: 'No targets yet' })} />}
         {goalsArr.map((g, i) => (
-          <BSOLRow key={`${kind}-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal(kind, i)} />
+          <BSOLRow key={`${kind}-${i}`} t={t} text={g.t || tr('goal:station.targetFallback', { defaultValue: 'Target' })} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal(kind, i)} />
         ))}
         {kind === 'training' && liftRows.map((l, i) => (
           <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
         ))}
-        <button onClick={() => onAddGoal(kind)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a {kind} target</button>
+        <button onClick={() => onAddGoal(kind)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> {ADD_TARGET[kind]}</button>
         <div style={{ display: 'flex', gap: 22 }}>
-          <BSOLAct heat={heat} label="Edit headline" onClick={() => onEditHeadline(kind)} t={t} />
+          <BSOLAct heat={heat} label={tr('goal:station.editHeadline', { defaultValue: 'Edit headline' })} onClick={() => onEditHeadline(kind)} t={t} />
         </div>
-        {(kind === 'training' || kind === 'nutrition') && <BSOLRow t={t} text={`The full ${kind} record`} meta="→" metaColor={heat} onPress={onOpenProgress} />}
+        {(kind === 'training' || kind === 'nutrition') && <BSOLRow t={t} text={RECORD_LINK[kind]} meta="→" metaColor={heat} onPress={onOpenProgress} />}
       </div>
     );
   };
 
   // ── Sub-pages (view != 'cover') — full-screen, their own ← Back ──
   if (view !== 'cover') {
-    const labels = { training: 'Training', nutrition: 'Nutrition', work: 'Work', week: 'This week', terms: 'The terms' };
     return (
       <>
-        {pageHead(labels[view] || 'The contract')}
+        {pageHead(STATION_LABEL[view] || tr('goal:station.eyebrow', { defaultValue: 'The contract' }))}
         {view === 'week' && (
           <div style={{ padding: `10px ${t.padX}px 0` }}>
             {weekTargets.map((w, i) => <BSOLRow key={i} t={t} text={w.l} sub={w.sub} meta={w.v} metaColor={t.INK} />)}
@@ -21359,7 +21431,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
           <>
             <div style={{ padding: `10px ${t.padX}px 0` }}>
               {!hasGoal ? (
-                <><BSTRedact INK={t.INK} label="No goal set yet" /><BSOLAct heat={heat} label="Set the terms" onClick={onEditTargets} t={t} /></>
+                <><BSTRedact INK={t.INK} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} /><BSOLAct heat={heat} label={tr('goal:door.setTerms', { defaultValue: 'Set the terms' })} onClick={onEditTargets} t={t} /></>
               ) : (
                 <>
                   {milestones.map((m, i) => (
@@ -21367,16 +21439,16 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
                       glyph={m.done ? '✓' : m.next ? breathDot : '○'}
                       glyphColor={m.done ? heat : t.INK50}
                       text={m.t} textColor={m.done ? t.INK50 : t.INK} sub={m.next ? m.sub : null}
-                      meta={m.next ? 'Next' : (m.when || '')} metaColor={m.next ? heat : t.INK50} />
+                      meta={m.next ? tr('goal:terms.next', { defaultValue: 'Next' }) : (m.when || '')} metaColor={m.next ? heat : t.INK50} />
                   ))}
-                  <BSOLAct heat={heat} label="Edit targets" onClick={onEditTargets} t={t} />
+                  <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
                 </>
               )}
             </div>
-            <BSOLHead heat={heat} label="Your why" t={t} />
+            <BSOLHead heat={heat} label={tr('goal:terms.whyHead', { defaultValue: 'Your why' })} t={t} />
             {overall.why
               ? <div style={{ padding: `6px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div>
-              : <div style={{ padding: `2px ${t.padX}px 0` }}><BSOLAct heat={heat} label="Add your why" onClick={onEditTargets} t={t} /></div>}
+              : <div style={{ padding: `2px ${t.padX}px 0` }}><BSOLAct heat={heat} label={tr('goal:terms.addWhy', { defaultValue: 'Add your why' })} onClick={onEditTargets} t={t} /></div>}
           </>
         )}
         {(view === 'training' || view === 'nutrition' || view === 'work') && stationBody(view)}
@@ -21393,19 +21465,19 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         <div ref={readRef}>
           {/* THE GOAL — there is exactly ONE goal on this page; everything below serves it. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}>
-            <span aria-hidden style={{ width: 10, height: 2, background: heat, display: 'inline-block' }} />The goal{byLabel ? <span style={{ color: t.INK50, fontWeight: 700 }}>&nbsp;· By {byLabel}</span> : null}
+            <span aria-hidden style={{ width: 10, height: 2, background: heat, display: 'inline-block' }} />{tr('goal:cover.eyebrow', { defaultValue: 'The goal' })}{byLabel ? <span style={{ color: t.INK50, fontWeight: 700 }}>&nbsp;{tr('goal:cover.by', { defaultValue: '· By {date}', date: byLabel })}</span> : null}
           </div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.18, color: verdict.tone === 'bad' ? t.RUST : t.INK }}>
-            {verdict.lead.slice(0, -1)}<span style={{ color: heat }}>.</span>
+            {leadBody}{leadDot ? <span style={{ color: heat }}>{leadDot}</span> : null}
           </div>
           <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: verdict.tone === 'neutral' ? t.INK50 : toneColor }}>{verdict.sub}</div>
           <div aria-hidden style={{ marginTop: 13, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 62%, transparent)`, transformOrigin: 'left', transform: (bsSdReduced() || readSeen) ? 'none' : 'scaleX(0)', transition: 'transform .7s cubic-bezier(.2,.7,.2,1)' }} />
           <div style={{ marginTop: 14, display: 'flex' }}>
             {[
-              { l: 'Current', v: now, u: unit, sub: 'latest' },
-              { l: 'To go', v: toGo, u: unit, sub: `of ${range}` },
-              { l: 'Pace', v: paceVal != null ? paceVal : null, u: paceVal != null ? `${unit}/wk` : '', sub: 'per week' },
-              { l: etaStat.v !== undefined ? 'ETA' : 'ETA', raw: `${etaStat.v}${etaStat.u || ''}`, rawColor: etaStat.c, sub: etaStat.sub },
+              { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: now, u: unit, sub: tr('goal:cover.statCurrentSub', { defaultValue: 'latest' }) },
+              { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: toGo, u: unit, sub: tr('goal:cover.statToGoSub', { defaultValue: 'of {range}', range }) },
+              { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? paceVal : null, u: paceVal != null ? `${unit}/wk` : '', sub: tr('goal:cover.statPaceSub', { defaultValue: 'per week' }) },
+              { l: tr('goal:cover.statEta', { defaultValue: 'ETA' }), raw: `${etaStat.v}${etaStat.u || ''}`, rawColor: etaStat.c, sub: etaStat.sub },
             ].map((r, i) => (
               <div key={r.l + i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.14)}` : 0, paddingLeft: i ? 10 : 0 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{r.l}</div>
@@ -21417,37 +21489,37 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
             ))}
           </div>
           <div style={{ display: 'flex', gap: 22 }}>
-            <BSOLAct heat={heat} label="Log weigh-in" onClick={onLog} t={t} />
-            <BSOLAct heat={heat} label="Edit targets" onClick={onEditTargets} t={t} />
+            <BSOLAct heat={heat} label={tr('goal:cover.logWeighIn', { defaultValue: 'Log weigh-in' })} onClick={onLog} t={t} />
+            <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
           </div>
         </div>
       </div>
 
       {/* THE NEXT TERM — one milestone on the cover; the rest live on the terms page */}
-      <BSOLHead heat={heat} label="The terms" t={t} right={hasGoal ? <BSOLAct heat={heat} label="All terms →" onClick={() => onOpenView('terms')} t={t} /> : null} />
+      <BSOLHead heat={heat} label={STATION_LABEL.terms} t={t} right={hasGoal ? <BSOLAct heat={heat} label={tr('goal:terms.all', { defaultValue: 'All terms →' })} onClick={() => onOpenView('terms')} t={t} /> : null} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         {!hasGoal ? (
           <>
-            <BSTRedact INK={t.INK} label="No goal set yet" />
-            <BSOLAct heat={heat} label="Set the terms" onClick={onEditTargets} t={t} />
+            <BSTRedact INK={t.INK} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} />
+            <BSOLAct heat={heat} label={tr('goal:door.setTerms', { defaultValue: 'Set the terms' })} onClick={onEditTargets} t={t} />
           </>
         ) : nextTerm ? (
-          <BSOLRow t={t} glyph={breathDot} text={nextTerm.t} sub={nextTerm.sub} meta="Next" metaColor={heat} onPress={() => onOpenView('terms')} />
+          <BSOLRow t={t} glyph={breathDot} text={nextTerm.t} sub={nextTerm.sub} meta={tr('goal:terms.next', { defaultValue: 'Next' })} metaColor={heat} onPress={() => onOpenView('terms')} />
         ) : (
-          <BSOLRow t={t} glyph="✓" glyphColor={heat} text="Every term met" meta="Done" metaColor={heat} onPress={() => onOpenView('terms')} />
+          <BSOLRow t={t} glyph="✓" glyphColor={heat} text={tr('goal:terms.allMet', { defaultValue: 'Every term met' })} meta={tr('goal:terms.doneState', { defaultValue: 'Done' })} metaColor={heat} onPress={() => onOpenView('terms')} />
         )}
       </div>
 
       {/* THE STATIONS — five doors; each opens its full-screen page */}
       <div style={{ margin: `20px ${t.padX}px 0`, borderTop: `1px solid ${t.HAIR}` }}>
-        {door(t.RUST, 'Training', trainDoorSub, 'training')}
-        {door('#d8a23a', 'Nutrition', nutrDoorSub, 'nutrition')}
+        {door(t.RUST, STATION_LABEL.training, trainDoorSub, 'training')}
+        {door('#d8a23a', STATION_LABEL.nutrition, nutrDoorSub, 'nutrition')}
         {/* Work rides t.BLUE — the token the Home slate already tags Work with.
             (#7aa7dc is the WEBSITE's slate accent; on mobile it is not a token
             and would be the one spine on this page that ignores the paper.) */}
-        {door(t.BLUE, 'Work', workDoorSub, 'work')}
-        {door(teal, 'This week', weekDoorSub, 'week')}
-        {door(bsTHexA(t.INK, 0.35), 'The terms & your why', termsDoorSub, 'terms', true)}
+        {door(t.BLUE, STATION_LABEL.work, workDoorSub, 'work')}
+        {door(teal, STATION_LABEL.week, weekDoorSub, 'week')}
+        {door(bsTHexA(t.INK, 0.35), tr('goal:door.termsWhy', { defaultValue: 'The terms & your why' }), termsDoorSub, 'terms', true)}
       </div>
     </>
   );
@@ -23457,6 +23529,7 @@ function BSStrengthCard({ onOpen }) {
 
 function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
   // Signed in → start EMPTY (no demo "Lean by August"); a real goal loads in. The
@@ -23617,9 +23690,14 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         || (Array.isArray(plan.training.workouts) && plan.training.workouts.some((w) => w && w.selfAuthored === false))));
       const hasTrainPlan = !!(coachTrain || det.training);
       const hasNutrPlan = !!((plan && plan.meals && (plan.meals.hasPlan || plan.meals.title || plan.meals.coach)) || det.nutrition);
+      // ⚠ `role` IS A TOKEN, NOT COPY — BSGoalsContract finds each plan with
+      // `plans.find((p) => p.role === 'Training')`, so it must stay the literal
+      // English discipline id. Only `t` and `sub` are read by a member. The
+      // PHASE inside them (`tphase`/`nphase`) is coach-authored data passing
+      // through, like a plan title — not our copy to translate.
       setLivePlans([
-        hasTrainPlan ? { role: 'Training', t: tphase ? `${tphase} block` : 'Training plan', sub: [sessTarget ? `${sessTarget}×/wk` : null, (plan && plan.training && plan.training.hasPlan) ? 'assigned' : null].filter(Boolean).join(' · ') || 'active' } : null,
-        hasNutrPlan ? { role: 'Nutrition', t: mealTitle || (nphase ? `${nphase} plan` : 'Nutrition plan'), sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : (nphase ? `${nphase} targets` : 'active') } : null,
+        hasTrainPlan ? { role: 'Training', t: tphase ? tr('goal:plan.trainingBlock', { defaultValue: '{phase} block', phase: tphase }) : tr('goal:plan.trainingTitle', { defaultValue: 'Training plan' }), sub: [sessTarget ? tr('goal:plan.cadence', { defaultValue: '{count}×/wk', count: sessTarget }) : null, (plan && plan.training && plan.training.hasPlan) ? tr('goal:plan.assigned', { defaultValue: 'assigned' }) : null].filter(Boolean).join(' · ') || tr('goal:plan.active', { defaultValue: 'active' }) } : null,
+        hasNutrPlan ? { role: 'Nutrition', t: mealTitle || (nphase ? tr('goal:plan.nutritionPhase', { defaultValue: '{phase} plan', phase: nphase }) : tr('goal:plan.nutritionTitle', { defaultValue: 'Nutrition plan' })), sub: kcal ? tr('goal:plan.kcal', { defaultValue: '{kcal} kcal', kcal: Math.round(kcal).toLocaleString(bsDateLocale()) }) : (nphase ? tr('goal:plan.phaseTargets', { defaultValue: '{phase} targets', phase: nphase }) : tr('goal:plan.active', { defaultValue: 'active' })) } : null,
       ].filter(Boolean));
       // This week — real targets that move the goal.
       const thisWk = (train && train.stats && Number(train.stats.thisWeekCount)) || 0;
@@ -23630,10 +23708,10 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       setLiveWeek([
         // Unknown target → the same words the honest-empty set above uses, so the
         // live and empty paths can never disagree about what "no target" looks like.
-        { l: 'Sessions', v: `${thisWk}/${sessTarget || '—'}`, sub: sessTarget ? (thisWk >= sessTarget ? 'done' : `${Math.max(0, sessTarget - thisWk)} to go`) : 'set a plan' },
-        { l: 'Protein days', v: `${adher}/7`, sub: proteinTgt ? `≥${proteinTgt}g hit` : 'days tracked' },
-        { l: 'Sleep', v: sleep ? `${sleep}h` : '—', sub: 'avg · goal 7h' },
-        { l: '7d volume', v: vol7 ? `${Math.round(vol7 / 1000)}k` : '—', sub: 'load lifted' },
+        { l: tr('goal:week.sessions', { defaultValue: 'Sessions' }), v: `${thisWk}/${sessTarget || '—'}`, sub: sessTarget ? (thisWk >= sessTarget ? tr('goal:week.done', { defaultValue: 'done' }) : tr('goal:week.toGo', { defaultValue: '{count} to go', count: Math.max(0, sessTarget - thisWk) })) : tr('goal:week.setPlan', { defaultValue: 'set a plan' }) },
+        { l: tr('goal:week.protein', { defaultValue: 'Protein days' }), v: `${adher}/7`, sub: proteinTgt ? tr('goal:week.proteinHit', { defaultValue: '≥{grams}g hit', grams: proteinTgt }) : tr('goal:week.proteinTracked', { defaultValue: 'days tracked' }) },
+        { l: tr('goal:week.sleep', { defaultValue: 'Sleep' }), v: sleep ? `${sleep}h` : '—', sub: tr('goal:week.sleepSub', { defaultValue: 'avg · goal 7h' }) },
+        { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: vol7 ? `${Math.round(vol7 / 1000)}k` : '—', sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }) },
       ]);
     }).catch(() => {});
     return () => { on = false; };
@@ -23647,7 +23725,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       setData(d => ({ ...d, overall: nextOverall }));          // optimistic; table is the source of truth
       window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg', bodyFat })
         .then(() => window.ShapeGoalAwards?.check?.())         // credit any newly reached milestone
-        .then((awards) => (awards || []).forEach(a => window.__bsToast?.(`+${a.points} pts · ${a.milestone}`, 'ok')))
+        .then((awards) => (awards || []).forEach(a => window.__bsToast?.(tr('goal:award.toast', { defaultValue: '+{points} pts · {milestone}', points: a.points, milestone: a.milestone }), 'ok')))
         .catch(() => {});
     } else {
       persist({ ...data, overall: nextOverall });              // signed out / demo → user_goals JSONB
@@ -23659,7 +23737,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   React.useEffect(() => {
     if (!loggedIn) return undefined;
     let on = true;
-    window.ShapeGoalAwards?.check?.().then((awards) => { if (on) (awards || []).forEach(a => window.__bsToast?.(`+${a.points} pts · ${a.milestone}`, 'ok')); }).catch(() => {});
+    window.ShapeGoalAwards?.check?.().then((awards) => { if (on) (awards || []).forEach(a => window.__bsToast?.(tr('goal:award.toast', { defaultValue: '+{points} pts · {milestone}', points: a.points, milestone: a.milestone }), 'ok')); }).catch(() => {});
     return () => { on = false; };
   }, [loggedIn]);
   // Load the editable goal fields (user_goals) + the live weigh-in series. When
@@ -23704,9 +23782,11 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const saveGoal = (g) => { const arr = goals.slice(); if (editing === 'new') arr.push(g); else arr[editing] = g; persist({ ...data, [listTab]: arr }); setEditing(null); };
   const deleteGoal = () => { const arr = goals.filter((_, i) => i !== editing); persist({ ...data, [listTab]: arr }); setEditing(null); };
   const byD = overall.by ? new Date(overall.by) : null;
-  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+  // Selected UI language, not the device (see the twin in BSGoalsContract); no
+  // JS fold — the eyebrow below already CSS-uppercases, locale-aware.
+  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }) : '';
   // Header — the member's own primary goal words; italic last word takes tier heat.
-  const hTitle = data.primaryGoal || overall.title || 'Your goal';
+  const hTitle = data.primaryGoal || overall.title || tr('home:goal.eyebrow', { defaultValue: 'Your goal' });
   const hWords = String(hTitle).trim().split(/\s+/);
   const hLast = hWords.length ? hWords.pop() : '';
   const hHead = hWords.join(' ');
@@ -23718,11 +23798,11 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: heat, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`Your goal${byLabel ? ` · By ${byLabel}` : ''}`}</span>
-            <button onClick={() => setEditPrimary(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 1 }}>Edit</span></button>
+            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: heat, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}${byLabel ? ` ${tr('goal:cover.by', { defaultValue: '· By {date}', date: byLabel })}` : ''}`}</span>
+            <button onClick={() => setEditPrimary(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 1 }}>{tr('goal:page.edit', { defaultValue: 'Edit' })}</span></button>
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
+            <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
           </div>
         </div>
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}.</span></h1>
@@ -23747,10 +23827,10 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           COVER (a station page is one station's detail, not the whole record). */}
       {goalView === 'cover' && <div style={{ margin: `24px ${t.padX}px 0`, padding: '16px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Share with your coaches</div>
-          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{data.share ? 'Your coaches can see your goals' : 'Private — coaches can’t see your goals'}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{tr('goal:page.shareTitle', { defaultValue: 'Share with your coaches' })}</div>
+          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{data.share ? tr('goal:page.shareOn', { defaultValue: 'Your coaches can see your goals' }) : tr('goal:page.shareOff', { defaultValue: 'Private — coaches can’t see your goals' })}</div>
         </div>
-        <button onClick={() => persist({ ...data, share: !data.share })} aria-label="Toggle coach visibility" style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? heat : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
+        <button onClick={() => persist({ ...data, share: !data.share })} aria-label={tr('goal:page.shareAria', { defaultValue: 'Toggle coach visibility' })} style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? heat : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
           <span style={{ width: 22, height: 22, borderRadius: 999, background: '#fff', display: 'block' }} />
         </button>
       </div>}
@@ -23767,16 +23847,31 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
                 {BSLogo && <BSLogo size={16} color={t.INK} />}
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
               </div>
-              <button onClick={() => setEditPrimary(false)} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+              <button onClick={() => setEditPrimary(false)} aria-label={tr('goal:primary.closeAria', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Edit · Overall goal</div>
-            <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your primary <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></h1>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('goal:primary.eyebrow', { defaultValue: 'Edit · Overall goal' })}</div>
+            <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{tr('goal:primary.titlePre', { defaultValue: 'Your primary' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}</span></h1>
             <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
           </div>
           {/* Scrollable chip body — scrollbar hidden */}
           <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 13 }}>Pick one · syncs with your profile</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 13 }}>{tr('goal:primary.hint', { defaultValue: 'Pick one · syncs with your profile' })}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
+              {/* ⚠ THESE TWELVE STAY ENGLISH, AND THAT IS A RULING, NOT AN
+                  OVERSIGHT. The chip's own STRING is what gets written — to
+                  client_goals.primaryGoal AND mirrored to the profile's
+                  client_identity.goal — and it is then compared back
+                  (`data.primaryGoal === g`, one line down) and rendered as this
+                  page's H1. A tr() here freezes one language into the member's
+                  own record: pick "Lose fat" in Spanish and a later English
+                  session matches no chip and shows an untranslated H1. It is the
+                  grocery-aisle / Train-tag class (a value doing double duty as
+                  copy and as a stored id), and the same vocabulary has a THIRD
+                  writer — BSIntentStep's first-run "What brings you here?" step,
+                  which writes the identical strings plus an IDENTITY map keyed
+                  on them. Closing it needs a token/label split across all three
+                  writers with a back-compat read for rows already on disk: its
+                  own cut, registered, not half-done here. */}
               {['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'].map((g) => {
                 const on = (data.primaryGoal || '') === g;
                 return (
@@ -23789,7 +23884,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
                       try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
                     } catch (e) {}
                     setEditPrimary(false);
-                    window.__bsToast?.(`Goal set · ${g}`, 'ok');
+                    window.__bsToast?.(tr('goal:primary.toast', { defaultValue: 'Goal set · {goal}', goal: g }), 'ok');
                   }} style={{ padding: '11px 15px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
                 );
               })}
@@ -23797,7 +23892,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           </div>
           {/* Pinned footer */}
           <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, background: t.PAPER }}>
-            <button onClick={() => setEditPrimary(false)} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Close</button>
+            <button onClick={() => setEditPrimary(false)} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.close', { defaultValue: 'Close' })}</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body

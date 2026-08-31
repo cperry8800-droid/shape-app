@@ -15,7 +15,7 @@ test('on-pace cut → moved + ETA lead, subline names the cut', () => {
   const v = bsGoalVerdict({ ...base, proj: { state: 'on-pace', projectedLabel: 'Aug 12', slip: null } });
   assert.equal(v.lead, '4.2 kg down. Aug 12 at this pace.');
   assert.equal(v.tone, 'good');
-  assert.equal(v.sub, 'CUT · 86 → 81.8 OF 78 KG · 53% THERE');
+  assert.equal(v.sub, 'CUT · 86 → 81.8 OF 78 kg · 53% THERE');
 });
 
 test('slipping on-pace → amber tone + slip named', () => {
@@ -58,7 +58,7 @@ test('no projection (fresh goal, <2 weigh-ins) → progress-only lead', () => {
 test('build direction reads "up" and BUILD', () => {
   const v = bsGoalVerdict({ start: 70, now: 72.5, target: 76, unit: 'kg', proj: { state: 'on-pace', projectedLabel: 'Sep 3', slip: null } });
   assert.equal(v.lead, '2.5 kg up. Sep 3 at this pace.');
-  assert.match(v.sub, /^BUILD · 70 → 72\.5 OF 76 KG/);
+  assert.match(v.sub, /^BUILD · 70 → 72\.5 OF 76 kg/);
 });
 
 test('zero movement never reads a signed zero', () => {
