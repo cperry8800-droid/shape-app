@@ -482,6 +482,15 @@ changelog whenever something ships.
   while its prose is real Naija grammar (*"Dis go stop di app data from syncing until you
   connect am back"*). Every provider name, `MusicKit`, `Garmin Health API`, `HR` and `HRV`
   stay literal in all thirteen — verified programmatically, not by eye.
+- ⚠ **TWO ASCII HYPHENS BECAME MIDDOTS, AND THAT IS AN ENGLISH COPY CHANGE IN AN i18n PR —
+  SO IT IS RECORDED RATHER THAN SLIPPED IN.** The Strava card's eyebrow read
+  `Runs - rides - routes` and its import summary `private activities - N errors`, while
+  every sibling eyebrow on the same screen already used the house middot
+  (`Recovery · Sleep · Strain` · `Music · Playlists` · `Sleep · Readiness · HR`). Freezing
+  the odd one out into thirteen catalogs would have made the inconsistency permanent, so
+  both were normalized at authoring time. **The rule an i18n cut runs under is still
+  *preserve the copy* — this is the exception it allows for a separator that disagrees
+  with its own row, and the exception is only honest written down.**
 - **Verified:** `npm test` **2525/2525** · `tsc --noEmit` 0 · JSX parse · tr-shadow clean on
   **both** grep forms · catalog parity + ICU ×13 (a pure append — 58 insertions / 1 deletion
   per file, LF, zero CR/NUL) · mobile build 0 with **all 57 keys and all 684 translated values
