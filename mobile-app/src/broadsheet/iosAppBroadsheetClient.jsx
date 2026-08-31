@@ -31747,30 +31747,43 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
 
 function BSAboutPage({ onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const tealB = t.isLight ? '#0a8f87' : '#5fe6d6';
   const px = t.padX;
   // Same letter the website runs — drop-cap intro + two pull-quotes.
   const para = { fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.72, color: t.INK70, margin: '0 0 22px' };
   const pull = { fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 22, lineHeight: 1.18, letterSpacing: '-0.02em', fontWeight: 500, color: t.INK, margin: '30px 0' };
+  // ⚠ THE DROP CAP IS TAKEN CODEPOINT-SAFELY FROM THE TRANSLATED VALUE, not by
+  // slicing a hardcoded English "S" off the front. `charAt(0)` splits a surrogate
+  // pair (an emoji, or any astral letter) into two broken halves; the spread
+  // walks codepoints. A locale whose first letter is multi-byte still renders.
+  const letterP1 = tr('settings:aboutPage.letter.p1', { defaultValue: 'Shape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, how you talk to yourself on hard days, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.' });
+  const p1Chars = [...String(letterP1 || '')];
+  const p1Cap = p1Chars[0] || '';
+  const p1Rest = p1Chars.slice(1).join('');
+  // ⚠ Every split-accent slot below is authored NON-EMPTY in all thirteen —
+  // i18n runs with `returnEmptyString: false`, so an empty catalog value renders
+  // the RAW KEY on screen. A locale with nothing to put in a slot writes
+  // punctuation or a particle (the Score-intro precedent), never "".
   return (
     <BSPage>
       {/* minimal back row (the hero is the title, mirroring the website) */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${px}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>About · Shape</span>
+          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('settings:aboutPage.eyebrow', { defaultValue: 'About · Shape' })}</span>
         </div>
       </div>
 
       {/* HERO — A place / for helping shape a lifestyle (teal-stroke "shape") */}
       <div style={{ padding: `34px ${px}px 26px`, textAlign: 'center' }}>
         <h1 style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 300, letterSpacing: '-0.045em', margin: 0, lineHeight: 0.94, color: t.INK }}>
-          A&nbsp;place<br />for helping <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'transparent', WebkitTextStroke: `1.1px ${teal}` }}>shape</em> a&nbsp;lifestyle
+          {tr('settings:aboutPage.heroPre', { defaultValue: 'A place' })}<br />{tr('settings:aboutPage.heroMid', { defaultValue: 'for helping' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'transparent', WebkitTextStroke: `1.1px ${teal}` }}>{tr('settings:aboutPage.heroAccent', { defaultValue: 'shape' })}</em>{tr('settings:aboutPage.heroPost', { defaultValue: ' a lifestyle' })}
         </h1>
         <p style={{ fontFamily: t.DISPLAY, fontSize: 16, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.005em', color: t.INK70, margin: '28px auto 0', maxWidth: 560, lineHeight: 1.55 }}>
-          Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
+          {tr('settings:aboutPage.heroLead', { defaultValue: "Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point." })}
         </p>
       </div>
 
@@ -31778,46 +31791,46 @@ function BSAboutPage({ onBack }) {
       <div style={{ padding: `8px ${px}px 8px` }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.02em', color: teal, marginBottom: 14, lineHeight: 1.05 }}>The idea.</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.02em', color: teal, marginBottom: 14, lineHeight: 1.05 }}>{tr('settings:aboutPage.idea.kicker', { defaultValue: 'The idea.' })}</div>
           <h3 style={{ fontFamily: t.DISPLAY, fontSize: 26, letterSpacing: '-0.03em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.08, color: t.INK }}>
-            The platform coaches build their <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>business</em> on. The <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>social network</em> for coaching, training and nutrition.
+            {tr('settings:aboutPage.idea.h1Pre', { defaultValue: 'The platform coaches build their' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.idea.h1Accent', { defaultValue: 'business' })}</em>{tr('settings:aboutPage.idea.h1Post', { defaultValue: ' on.' })}{' '}{tr('settings:aboutPage.idea.h2Pre', { defaultValue: 'The' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.idea.h2Accent', { defaultValue: 'social network' })}</em>{tr('settings:aboutPage.idea.h2Post', { defaultValue: ' for coaching, training and nutrition.' })}
           </h3>
         </div>
         {[
-          ['For coaches', 'Your business and your audience — one home.', "Run your whole practice — clients, programs, payments — and build your following on the social platform made for coaching, training, and nutrition. Your content, your clients, your income, in one place: not five apps and the wrong crowd. Here, everyone's already training — so your audience is the right one. This is where a coaching business is built and seen."],
-          ['For members', "A training life that's actually social.", "Real coaches, plans that are yours, and people training alongside you who are mid-loop too. Not a highlight reel — the day-to-day of getting better, shared with the ones in your corner. The coach gets you started; the community keeps you here."],
-        ].map(([ey, h, p], i) => (
-          <div key={i} style={{ borderTop: `2px solid ${teal}`, paddingTop: 18, marginBottom: 24 }}>
+          ['coach', tr('settings:aboutPage.idea.coachEyebrow', { defaultValue: 'For coaches' }), tr('settings:aboutPage.idea.coachHead', { defaultValue: 'Your business and your audience — one home.' }), tr('settings:aboutPage.idea.coachBody', { defaultValue: "Run your whole practice — clients, programs, payments — and build your following on the social platform made for coaching, training, and nutrition. Your content, your clients, your income, in one place: not five apps and the wrong crowd. Here, everyone's already training — so your audience is the right one. This is where a coaching business is built and seen." })],
+          ['member', tr('settings:aboutPage.idea.memberEyebrow', { defaultValue: 'For members' }), tr('settings:aboutPage.idea.memberHead', { defaultValue: "A training life that's actually social." }), tr('settings:aboutPage.idea.memberBody', { defaultValue: "Real coaches, plans that are yours, and people training alongside you who are mid-loop too. Not a highlight reel — the day-to-day of getting better, shared with the ones in your corner. The coach gets you started; the community keeps you here." })],
+        ].map(([key, ey, h, p]) => (
+          <div key={key} style={{ borderTop: `2px solid ${teal}`, paddingTop: 18, marginBottom: 24 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: tealB, marginBottom: 10 }}>{ey}</div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 21, letterSpacing: '-0.015em', fontWeight: 400, fontStyle: 'italic', color: t.INK, lineHeight: 1.18, marginBottom: 10 }}>{h}</div>
             <p style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.58, margin: 0 }}>{p}</p>
           </div>
         ))}
-        <p style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontStyle: 'italic', color: t.INK70, textAlign: 'center', margin: '30px auto 0', lineHeight: 1.55 }}>Coaches bring the people. The people build the place. <em style={{ color: tealB }}>That's the whole idea.</em></p>
+        <p style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontStyle: 'italic', color: t.INK70, textAlign: 'center', margin: '30px auto 0', lineHeight: 1.55 }}>{tr('settings:aboutPage.idea.closerPre', { defaultValue: 'Coaches bring the people. The people build the place.' })}{' '}<em style={{ color: tealB }}>{tr('settings:aboutPage.idea.closerAccent', { defaultValue: "That's the whole idea." })}</em></p>
       </div>
 
       {/* LETTER */}
       <div style={{ padding: `40px ${px}px 24px` }}>
         <h2 style={{ fontFamily: t.DISPLAY, fontSize: 24, letterSpacing: '-0.02em', fontWeight: 400, margin: '0 0 8px', lineHeight: 1.18, color: t.INK, textAlign: 'center', fontStyle: 'italic' }}>
-          <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>Fitness</em> is the entry point. Your <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>lifestyle</em> is the goal.
+          <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.letter.h1Accent', { defaultValue: 'Fitness' })}</em>{tr('settings:aboutPage.letter.h1Post', { defaultValue: ' is the entry point.' })}{' '}{tr('settings:aboutPage.letter.h2Pre', { defaultValue: 'Your' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.letter.h2Accent', { defaultValue: 'lifestyle' })}</em>{tr('settings:aboutPage.letter.h2Post', { defaultValue: ' is the goal.' })}
         </h2>
         <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 34px' }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
 
         <p style={para}>
-          <span style={{ float: 'left', fontFamily: t.DISPLAY, fontSize: 74, lineHeight: 0.82, fontWeight: 400, color: teal, padding: '8px 12px 0 0', marginTop: 4 }}>S</span>hape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, how you talk to yourself on hard days, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.
+          <span style={{ float: 'left', fontFamily: t.DISPLAY, fontSize: 74, lineHeight: 0.82, fontWeight: 400, color: teal, padding: '8px 12px 0 0', marginTop: 4 }}>{p1Cap}</span>{p1Rest}
         </p>
-        <p style={para}>It starts with a coach. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us.</p>
-        <p style={para}>Shape builds the loop around all of it. Your trainer programs your week before you arrive — every set, every tempo, every cue loaded the night before so you're never standing at the rack wondering what's next. Your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from.</p>
-        <p style={para}>As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned.</p>
+        <p style={para}>{tr('settings:aboutPage.letter.p2', { defaultValue: "It starts with a coach. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us." })}</p>
+        <p style={para}>{tr('settings:aboutPage.letter.p3', { defaultValue: "Shape builds the loop around all of it. Your trainer programs your week before you arrive — every set, every tempo, every cue loaded the night before so you're never standing at the rack wondering what's next. Your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from." })}</p>
+        <p style={para}>{tr('settings:aboutPage.letter.p4', { defaultValue: "As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned." })}</p>
 
-        <div style={{ ...pull, textAlign: 'right', paddingRight: 16, borderRight: `3px solid ${teal}` }}>Not a vanity metric. <em style={{ color: tealB }}>A mirror.</em></div>
+        <div style={{ ...pull, textAlign: 'right', paddingRight: 16, borderRight: `3px solid ${teal}` }}>{tr('settings:aboutPage.letter.pull1Pre', { defaultValue: 'Not a vanity metric.' })}{' '}<em style={{ color: tealB }}>{tr('settings:aboutPage.letter.pull1Accent', { defaultValue: 'A mirror.' })}</em></div>
 
-        <p style={para}>There's also a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, a specific body composition goal, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down.</p>
-        <p style={para}>And then there's the part no app gets right: <em style={{ fontStyle: 'italic', color: tealB, fontWeight: 500 }}>the community</em>. You can keep your journey private — or share it. What you cooked, what your nutritionist recommended this week, what you lifted, what your coach said. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.</p>
+        <p style={para}>{tr('settings:aboutPage.letter.p5', { defaultValue: "There's also a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, a specific body composition goal, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down." })}</p>
+        <p style={para}>{tr('settings:aboutPage.letter.p6Pre', { defaultValue: "And then there's the part no app gets right:" })}{' '}<em style={{ fontStyle: 'italic', color: tealB, fontWeight: 500 }}>{tr('settings:aboutPage.letter.p6Accent', { defaultValue: 'the community' })}</em>{tr('settings:aboutPage.letter.p6Post', { defaultValue: '. You can keep your journey private — or share it. What you cooked, what your nutritionist recommended this week, what you lifted, what your coach said. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.' })}</p>
 
-        <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>The community isn't a forum. It's the people in your loop.</div>
+        <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>{tr('settings:aboutPage.letter.pull2', { defaultValue: "The community isn't a forum. It's the people in your loop." })}</div>
 
-        <p style={{ ...para, marginBottom: 0 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
+        <p style={{ ...para, marginBottom: 0 }}>{tr('settings:aboutPage.letter.p7', { defaultValue: 'Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.' })}</p>
       </div>
 
       {/* FOUNDER card — the face behind the letter. Owner call 2026-08-28: back
@@ -31831,16 +31844,23 @@ function BSAboutPage({ onBack }) {
           <div aria-hidden style={{ position: 'absolute', inset: -12, borderRadius: '50%', background: `radial-gradient(circle at 50% 44%, ${bsTHexA(t.INK, 0.1)} 0%, ${bsTHexA(tealB, 0.07)} 42%, transparent 72%)`, pointerEvents: 'none' }} />
           <img
             src={`${import.meta.env.BASE_URL}founder.webp`}
-            alt="Chris Perry, founder of Shape"
+            alt={tr('settings:aboutPage.founderAlt', { defaultValue: 'Chris Perry, founder of Shape' })}
             width="150" height="150"
             style={{ position: 'relative', width: 150, height: 150, objectFit: 'contain', display: 'block' }}
           />
         </div>
+        {/* ⚠ THE SIGNED NAME IS DELIBERATELY NOT KEYED. It is a real person's
+            name, not copy — no locale changes it, for the same reason none
+            changes the shipped `+1 555 123 4567` phone example or the `AB`
+            initials placeholder. Keying it would ship thirteen identical
+            values for a string a translator must not touch. It is recorded in
+            the ratchet's PARTIAL baseline instead of being special-cased
+            inside `usable()` — a false exclusion there hides real copy. */}
         <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>— Chris Perry</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · Shape</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>{tr('settings:aboutPage.founderRole', { defaultValue: 'Founder · Shape' })}</div>
         {/* Owner-approved bio (mirrors about.jsx). */}
         <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
-          Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
+          {tr('settings:aboutPage.founderBio', { defaultValue: 'Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.' })}
         </p>
       </div>
 
@@ -31849,11 +31869,11 @@ function BSAboutPage({ onBack }) {
           shape:openMarket pattern; About is client-only, so the client shell
           is the one host). */}
       <div style={{ padding: `58px ${px}px 40px`, textAlign: 'center' }}>
-        <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
+        <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>{tr('settings:aboutPage.ctaPre', { defaultValue: 'Join the' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>{tr('settings:aboutPage.ctaAccent', { defaultValue: 'community.' })}</em></h3>
         <button
           onClick={() => { try { window.dispatchEvent(new Event('shape:goCommunity')); } catch (e) {} }}
           style={{ marginTop: 16, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}
-        >Open the community →</button>
+        >{tr('settings:aboutPage.ctaAction', { defaultValue: 'Open the community →' })}</button>
       </div>
       <BSFooter right="About" />
     </BSPage>

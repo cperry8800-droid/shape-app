@@ -327,7 +327,7 @@ function inventory() {
 
 /** Renders user-facing copy with NO translator in scope at all. */
 const UNCOVERED = new Set([
-  'Client::BSAboutPage', 'Client::BSActivityBody', 'Client::BSActivityLogCta',
+  'Client::BSActivityBody', 'Client::BSActivityLogCta',
   'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan',
   'Client::BSCardSheetHost', 'Client::BSChatThread',
   'Client::BSClientGoals', 'Client::BSClientLibrary', 'Client::BSClientNextPlate',
@@ -396,6 +396,14 @@ const PARTIAL = new Set([
   // spelling is the pin this file keeps paying for — and a false exclusion HIDES real
   // copy, which is the direction that makes the guard lie.
   'Client::BSSettings',
+  // ⚠ BSAboutPage IS PARTIAL OVER A PROPER NAME, NOT OVER COPY — 45 tr() calls
+  // and exactly one hardcoded string: `— Chris Perry`, the founder's signature
+  // under his own letter. No locale changes a person's name, for the same reason
+  // none changes the shipped `+1 555 123 4567` phone example or BSSettings' `AB`
+  // initials placeholder one line up. Keying it would ship thirteen identical
+  // values for a string a translator must not touch. Recorded here rather than
+  // special-cased inside usable(), because a false exclusion there hides real copy.
+  'Client::BSAboutPage',
   'Client::BSTerrainProfile',
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
@@ -562,10 +570,20 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // label stops the regex matching in all twelve non-English locales and the
   // dialog degrades to "this app", silently, with every gate green. The name is
   // data now: it comes from the provider row and is passed explicitly.
-  assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1063, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 106, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ CUT 10 — THE ABOUT PAGE. BSAboutPage (38 walk-visible strings) leaves
+  // UNCOVERED for PARTIAL, so noneStrings 1063 -> 1025, none.length 106 -> 105,
+  // part.length 32 -> 33 and partStrings 164 -> 165. Its one remaining string is
+  // `— Chris Perry`, a proper name; the reason is written at the baseline entry.
+  // ⚠ AND 38 UNDERSTATES THE CUT BY SIX, WHICH IS A SIXTH BLIND SHAPE. The two
+  // `idea` cards live in an INLINE ANONYMOUS ARRAY LITERAL written straight into
+  // JSX — `{[[…]].map(…)}` — which the walk never enters, so six member-facing
+  // strings were outside the measurement while being part of the work. The cut
+  // authored 44 keys against a ratchet that can only move by 38: the honest
+  // reading of any component's count stays a FLOOR.
+  assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1025, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 105, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
