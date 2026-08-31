@@ -447,6 +447,24 @@ changelog whenever something ships.
   it to mean anything**: today a Spanish-speaking member attests **in English** that answers
   they gave on a Spanish-labelled form are accurate, which is the worse state. **The test is
   not “is it a consent checkbox” — it is WHAT THE AFFIRMATION POINTS AT.**
+- ⚠ **AND `BSProfileCustomizer`'S 78 IS A FLOOR FOR THE SAME REASON — SO THE ONE MEASUREMENT
+  WAS WORTH RUNNING ACROSS THE WHOLE LIST RATHER THAN DISCOVERING IT A CUT AT A TIME.** It
+  renders four more module-scope array literals the walk cannot attribute: **8** member
+  prompt questions (`BS_PROFILE_PROMPTS` — *Never skip · Pre-workout fuel · Currently
+  chasing …*), **6** coach ones (`BS_COACH_PROMPTS`), **5** pin kinds (`BS_PIN_KINDS`) and
+  **7** headline-stat labels (`BS_STAT_OPTIONS`). Real member-facing count ≈ **104**, not 78.
+- ⚠ **AND IT CARRIES A TOKEN/LABEL SPLIT — THE GROCERY-AISLE CLASS, AT A THIRD SITE.**
+  `BS_PIN_KINDS` is **bare strings**, so the token and the label are the same string, and the
+  chosen value is **written into the member's `profile_custom` record and rendered straight
+  back off it** — `{pinned.kind || …}` at two render sites. A `tr()` on the picker would
+  freeze whatever language was active when they pinned it into their own saved profile,
+  exactly as a translated aisle name did. **The split must come first, as it did for the
+  Train tag and the aisle.** The two neighbouring arrays are already `{ key, label }`, so
+  their split exists and only `label` needs authoring — and those labels are **brand nouns**
+  (`Instagram · X · TikTok · YouTube · Substack`) that stay literal in every locale.
+- **The other two figures hold up, and that is stated because it was checked rather than
+  assumed.** `BSIntegrationsPage` **40** and `BSAboutPage` **38** render no module-scope or
+  local array of copy, so those counts are honest and both are genuinely ordinary cuts.
 - ⚠ **AND THE MEASUREMENT THAT FOUND IT WAS ITSELF BROKEN FIRST — THE SIXTH TIME IN THIS
   WAVE.** The first two `DUMP=BSHealthIntake` runs returned **nothing at all**, which reads
   exactly like “this component has no strings.” A `cd` into `catalogs/en` for an unrelated
