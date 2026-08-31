@@ -378,6 +378,64 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The primary-goal split, scoped: the register was wrong about it three ways, and it names a FOURTH instance of the class
+
+- **Scoping the registered "primary-goal token/label split" rather than building it**, because the
+  register's own note at the site says it is *"its own cut, registered, not half-done here"* — and
+  reading it out found the register wrong about the writer count, blind to a server-side reader, and
+  short by three literal sites. Records only; nothing built.
+- ⚠ **TWO LIVE WRITERS, NOT THREE — and the third was never this vocabulary at all.** Both the
+  register and cut 11's changelog line name `shapeBackend.js:899` as the third writer. That line is
+  inside **`clientIntakeToPayload`**, which builds a **`client_intakes`** row from the coach-application
+  intake form — a **different table** whose `primary_goal` is free text — and its only consumer,
+  `saveClientIntake`, is exposed on `window.ShapeIntakes` and **called from nowhere in the tree**
+  (`git grep` over `mobile-app/src`, `src`, `public/newdesign`). The two real writers are
+  `BSGoalsContract`'s picker (`:23894`) and `BSIntentStep`'s first-run step (`:24210`), and **each
+  writes the value TWICE** — `client_goals.primaryGoal` **and** `client_identity.goal`.
+- ⚠ **A FIFTH READER NOBODY REGISTERED, AND IT IS SERVER-SIDE — WHICH DECIDES THE DESIGN.**
+  `get_public_profile` returns **`d->>'goal'` from `client_identity`**
+  (`supabase-migrations/2026-06-07-public-profile-avatar-ungated.sql:82`), so the stored string is
+  served to **other members** on the public profile card — mobile (`:14047`, `:15042`) **and** the
+  website. Write a token there and every viewer on both surfaces reads `fat_loss`. So the token
+  belongs in **`client_goals`**, and **`client_identity.goal` stays a display mirror** — the author's
+  own words, the same contract the bio already has, and no website change needed.
+- ⚠ **FIVE LITERAL SITES, NOT TWO.** `:20934` (the demo default), `:23890` (the picker array),
+  `:24191` (`GOALS`), **`:24193` (the `IDENTITY` map — keyed on the same 12 strings**, so a token
+  split re-keys it too, and its 12 identity sentences are themselves untranslated member-facing copy:
+  they render as `BSIntentStep`'s *"You're becoming {identity}."* H1), and `:29389` (the Settings
+  identity default).
+- **The design, so the next session inherits it rather than re-deriving it.** ONE module-scope
+  `BS_PRIMARY_GOALS = [{ id, en }]` (12 stable ids) · `bsPrimaryGoalLabel(id, tr)` falling back to the
+  **token itself** — never a raw key, never blank (the aisle precedent) · `bsPrimaryGoalToken(stored)`
+  mapping an already-stored English string to its id and **passing anything unrecognised through
+  unchanged** (every row on disk today carries English, so that read is the load-bearing half). Writers
+  store the token in `client_goals` + the translated label in `client_identity`; the equality at
+  `:23891` compares tokens; the H1 at `:23804` and the `IDENTITY` lookup resolve through one. Cost:
+  12 label keys ×13, plus the 12 identity sentences ×13 if that H1 is localized in the same cut.
+- ⚠ **AND THE SCOPING FOUND A FOURTH INSTANCE OF THE CLASS, ONE FIELD OVER, UNREGISTERED — LATENT
+  ONLY BECAUSE NOBODY HAS TRANSLATED IT YET.** Settings → Nutrition/Training carries **8 `options:`
+  pref rows / 47 option strings** that are **raw English array literals**: rendered by the shared
+  pref-edit picker, selected by an **equality comparison** (`String(editField.value) === String(opt)`,
+  `:30740`), and **stored raw** into `client_nutrition_prefs` / `client_training_prefs`. One of them —
+  **`primary_goal`** (`Strength · Hypertrophy · Strength + hypertrophy · Endurance · Fat loss ·
+  General health`) — is then **regex-matched over lowercased English at THREE sites**, one of them a
+  **server route**: `src/app/api/client/analytics/route.ts:94`, plus `:3339` (the energy-goal
+  derivation) and `:9056` (the Eat *"Your plan"* header). Translating that dropdown without splitting
+  it first silently breaks the cut/build/maintain classification in twelve locales, on a member surface
+  and a server route at once — the exact trap the register exists to prevent, in a field the register
+  never mentions.
+- ⚠ **IT IS ALSO THE NINTH BLIND SHAPE, AND THE SHARPEST FLOOR THIS WAVE HAS MEASURED.** Those 47
+  strings are **local const array literals inside a component**, so the walk never attributes them: the
+  ratchet reads **`BSSettings` as PARTIAL on 388 `tr()` calls and exactly ONE string** (the `'AB'`
+  initials placeholder) while the component carries **42 more member-facing English strings** (47 minus
+  the five bare numerals `'2'`–`'6'`, which no locale changes). Every cut since 7 has written *"the
+  honest reading of any component's `hard` count is a FLOOR"*; this is the largest concrete gap yet —
+  a component the records call fully covered apart from one placeholder, off by 42. ⚠ **And it refutes a
+  because-clause the ratchet itself asserts:** the baseline comment reads *"BSSettings IS PARTIAL OVER A
+  FORMAT EXAMPLE, NOT OVER COPY — 388 tr() calls and exactly one hardcoded string"*. The first half is what
+  the walk can see; the second is a claim about the component, and it is wrong by 42. Corrected at the
+  baseline so the next reader is not told the surface is clean.
+
 ### 2026-08-31 — Cut 13's first ruling is SETTLED BY THE CODE: the goal template's text IS stored
 
 - **Cut 11 registered `BS_GOAL_TEMPLATES` (74 strings) as needing TWO rulings before it
