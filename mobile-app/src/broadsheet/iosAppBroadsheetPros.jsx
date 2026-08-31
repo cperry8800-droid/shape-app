@@ -286,32 +286,50 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
     has(selected.hunger) ? `${tr('coach:review.metaHunger', { defaultValue: 'HUNGER' })} ${selected.hunger}/10` : null,
   ].filter(Boolean) : [];
 
+  // The note's SUBJECT. A workout session is addressed by its id; a nutrition
+  // day by (client_id, snapshot_date) — the NATURAL key, because
+  // daily_health_snapshot is UPSERTed on (user_id, snapshot_date), so its row
+  // id is a row identity and the member's own logging can replace it. Demo
+  // rows carry neither, so they resolve to null and never reach the writer.
+  const noteSubject = selected?.nutrition
+    ? (selected.clientId && selected.loggedOn
+      ? { clientId: selected.clientId, snapshotDate: selected.loggedOn }
+      : null)
+    : (selected?.id ? { sessionId: selected.id } : null);
+
+  const appendNote = (saved) => {
+    setSessions((rows) => rows.map((session) => session.id === selected.id
+      ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
+      : session));
+    setNote('');
+  };
+  const localNote = (clean) => ({ id: `local-${Date.now()}`, body: clean, visibility: 'client', created_at: new Date().toISOString() });
+
   const saveNote = async () => {
     const clean = note.trim();
     if (!selected?.id || !clean) return;
     // The composer is hidden for these rows; refuse here too, because the
     // catch below turns a failed insert into a plausible "saved" message.
     if (selected.notesBlocked) return;
+    // A demo day has no live subject — keep it local rather than sending a row
+    // the DB's subject CHECK would reject.
+    if (!noteSubject) {
+      appendNote(localNote(clean));
+      setStatus(tr('coach:review.savedDemo', { defaultValue: 'Saved locally for this demo session' }));
+      return;
+    }
     setStatus(tr('coach:review.savingNote', { defaultValue: 'Saving review note...' }));
     try {
       const result = await window.ShapeWorkoutLogs?.addCoachReviewNote?.({
-        sessionId: selected.id,
+        ...noteSubject,
         providerRole: role,
         body: clean,
         visibility: 'client',
       });
-      const saved = result?.data || { id: `local-${Date.now()}`, body: clean, visibility: 'client', created_at: new Date().toISOString() };
-      setSessions((rows) => rows.map((session) => session.id === selected.id
-        ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
-        : session));
-      setNote('');
+      appendNote(result?.data || localNote(clean));
       setStatus(result?.stored === 'supabase' ? tr('coach:review.noteSavedRemote', { defaultValue: 'Review note saved to Supabase' }) : tr('coach:review.noteSavedLocal', { defaultValue: 'Review note saved locally' }));
     } catch (error) {
-      const saved = { id: `local-${Date.now()}`, body: clean, visibility: 'client', created_at: new Date().toISOString() };
-      setSessions((rows) => rows.map((session) => session.id === selected.id
-        ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
-        : session));
-      setNote('');
+      appendNote(localNote(clean));
       setStatus(error?.message || tr('coach:review.savedDemo', { defaultValue: 'Saved locally for this demo session' }));
     }
   };
@@ -557,11 +575,12 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                   {item.body}
                 </div>
               ))}
-              {/* A live nutrition day cannot carry a note: the notes table's
-                  session_id is NOT NULL with an FK to workout_sessions, so the
-                  insert would fail and the catch below would report "saved
-                  locally" for something that saved nowhere. Say what IS true
-                  instead of offering a control that lies. */}
+              {/* A day note needs the schema half
+                  (2026-08-31-nutrition-day-review-notes.sql). `notesBlocked` is
+                  PROBED on read, so this branch renders exactly while an insert
+                  would fail and the catch above would report "saved locally"
+                  for something that saved nowhere — never as a standing claim
+                  about what the product can do. */}
               {selected.notesBlocked ? (
                 window.BSTRedact
                   ? <window.BSTRedact INK={t.INK} label={tr('coach:review.notesBlocked', { defaultValue: 'NOTES ATTACH TO A WORKOUT SESSION · NOT YET TO A NUTRITION DAY' })} />

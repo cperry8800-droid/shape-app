@@ -64,17 +64,52 @@ test('a nutritionist reads meal-log days; a trainer reads workout sessions', () 
   assert.match(body.slice(Math.max(0, lo - 200), hi), /isNutri/, 'the source must be chosen by role');
 });
 
-test('a nutrition day cannot carry a review note, and says so instead of pretending', () => {
+test('the day composer is PROBED, not asserted — and both halves move together', () => {
   const body = reviewPage();
-  // coach_workout_review_notes.session_id is NOT NULL with an FK to
-  // workout_sessions.id, so the insert would fail and the catch would report
-  // "saved locally" — the silent-failure shape. Both halves must hold: the
-  // composer hidden AND the writer refusing. Half of this passing is the
-  // dangerous state.
+  // The schema half (2026-08-31-nutrition-day-review-notes.sql) can be applied
+  // either side of a deploy, so `notesBlocked` must come from asking the
+  // schema. Both halves must hold: the composer hidden AND the writer
+  // refusing. Half of this passing is the dangerous state — a visible composer
+  // over a refusing writer strands the coach's words, a hidden composer over a
+  // working writer hides a shipped feature.
   assert.match(body, /selected\.notesBlocked\s*\?/, 'the composer must be gated on notesBlocked');
   assert.match(body, /if\s*\(\s*selected\.notesBlocked\s*\)\s*return/, 'saveNote must refuse a blocked row');
+
   const backend = stripComments(readFileSync(BACKEND, 'utf8'));
-  assert.match(backend, /notesBlocked:\s*true/, 'live nutrition rows must declare that notes cannot attach');
+  // The shipped defect this replaces: a hardcoded `true` that outlived the
+  // schema it described, so the composer stayed hidden after the migration ran.
+  assert.doesNotMatch(backend, /notesBlocked:\s*(true|false)\b/, 'notesBlocked is hardcoded again — it must be derived from the schema probe');
+  assert.match(backend, /notesBlocked:\s*!/, 'notesBlocked must be derived from the probe');
+  assert.match(backend, /async function dayNotesSupported\s*\(/, 'the schema probe must exist');
+  // A probe that cached every failure would hide the composer for the rest of
+  // the session on one network blip; only the undefined-column answer settles.
+  assert.match(backend, /42703/, 'the probe must distinguish a missing column from a transient failure');
+});
+
+test('a day note is keyed by (client, day) and never carries a session', () => {
+  const backend = stripComments(readFileSync(BACKEND, 'utf8'));
+  const at = backend.indexOf('async function addCoachWorkoutReviewNote(');
+  assert.ok(at > 0, 'addCoachWorkoutReviewNote not found — re-anchor this guard');
+  const writer = backend.slice(at, at + 2400);
+
+  // The NATURAL key. daily_health_snapshot is UPSERTed on
+  // (user_id, snapshot_date), so its row id is a ROW identity — a note keyed to
+  // it is cascaded away the moment a writer replaces rather than updates.
+  assert.match(writer, /client_id:\s*clientId/, 'a day note must carry client_id');
+  assert.match(writer, /snapshot_date:\s*snapshotDate/, 'a day note must carry snapshot_date');
+  assert.match(writer, /session_id:\s*null/, 'a day note must null its session_id — the DB CHECK allows exactly one subject');
+  // The same XOR the CHECK enforces, refused here so we never send a row it
+  // will reject.
+  assert.match(writer, /!sessionId\s*&&\s*!day/, 'the writer must refuse a subject-less note');
+  assert.match(writer, /sessionId\s*&&\s*day/, 'the writer must refuse a two-subject note');
+
+  // The render must hand over the day, not the snapshot row id.
+  const body = reviewPage();
+  const sub = body.slice(body.indexOf('const noteSubject'));
+  assert.ok(sub.length > 60, 'noteSubject not found — re-anchor');
+  const decl = sub.slice(0, sub.indexOf(';'));
+  assert.match(decl, /snapshotDate:\s*selected\.loggedOn/, 'the day subject must be the calendar day, not the snapshot row id');
+  assert.doesNotMatch(decl, /(clientId|snapshotDate):\s*selected\.id\b/, 'the snapshot row id is being used as a day key');
 });
 
 test('per-meal detail is not persisted, so the day says that rather than rendering nothing', () => {

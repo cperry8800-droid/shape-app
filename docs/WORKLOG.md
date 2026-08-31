@@ -378,6 +378,64 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — A nutrition day can carry a coach's note (the app half) — the composer is PROBED, not asserted
+
+- **The registered follow-up, built.** The owner applied
+  `2026-08-31-nutrition-day-review-notes.sql`, so a nutritionist can now write a review note
+  on a client's nutrition day and read it back: `listClientNutritionDays` attaches that day's
+  existing notes, `addCoachWorkoutReviewNote` gained a **day-subject** path, and the composer
+  is un-gated the moment the schema can take the note. No new route, no new i18n key.
+- ⚠ **`notesBlocked` IS PROBED, NEVER ASSERTED — and that is the whole shape of the cut.**
+  The schema half can be applied either side of a deploy, so the flag comes from **asking the
+  schema** (`select client_id, snapshot_date … limit 1` on the notes table) rather than from a
+  literal that describes whatever was true the day it was typed. It **fails CLOSED**: anything
+  but a clean read hides the composer, because that is the only direction that cannot lie —
+  an insert against missing columns fails, and the caller's catch reports **"saved locally"**
+  for a write that saved nowhere, which is the exact shape this whole wave exists to end.
+- ⚠ **ONLY THE SETTLED ANSWER IS CACHED.** `42703` / `PGRST204` means the migration has not
+  run — a fact, cached for the session. **Anything else is transient and deliberately NOT
+  cached**, so one network blip cannot hide a shipped feature for the rest of the session. A
+  probe that memoised every failure would be a worse defect than the one it replaced.
+- ⚠ **THE NATURAL KEY HOLDS AT THE RENDER TOO, NOT JUST IN THE SCHEMA.** The note is addressed
+  by **(clientId, loggedOn)** — never `selected.id`, the `daily_health_snapshot` row id, which
+  is a ROW identity: that table is UPSERTed on `(user_id, snapshot_date)` by the member's own
+  logging, so a note keyed to the row would be cascaded away by any writer that replaced
+  rather than updated. The day's notes are re-paired from the two `in` filters on that same
+  key. Pinned in both directions — the guard **bans** `selected.id` as a day key.
+- **The XOR is refused client-side as well as CHECK'd server-side**: a note carries a session
+  **or** a client's day, never both, never neither — so the app can never send a row the DB
+  constraint will reject, and no caller can quietly write an ambiguous one.
+- ⚠ **THE DEMO PATH STOPPED FIRING A DOOMED REQUEST.** A demo row carries no live subject, so
+  it used to reach the writer, throw, and land in the catch — which set the **raw error string**
+  as the status line. It now resolves to `null` up front and appends locally with the demo
+  message. Same outcome, stated rather than arrived at by failure.
+- ⚠ **AND THE GUARD THAT PINNED THE OLD TRUTH WENT STALE WITH THE SCHEMA IT DESCRIBED.**
+  `tests/coach-review-source.test.mjs` asserted `notesBlocked: true` — a **limitation** pinned
+  as a fact — so the guard would have kept the composer hidden after the migration made it
+  wrong. It now **bans a hardcoded value in EITHER direction** and requires the derivation +
+  the probe + the `42703` distinction. *A guard that pins a limitation outlives the
+  limitation* — the same class as the cut-54 spelling pin, one layer up.
+- **The notes read is best-effort like names + targets**: a failed lookup degrades to a
+  note-less day, never drops the day itself.
+- ⚠ **THE POSTGREST SCHEMA CACHE IS THE ONE DEPLOY RISK, AND IT WAS CHECKED RATHER THAN
+  ASSUMED.** A stale cache would answer `42703` after a correct apply and settle the probe to
+  `false` for the session. Verified live: **2 `pgrst%` event triggers** (`pgrst_ddl_watch`) are
+  installed, so the cache reloaded with the migration — and both day columns are present with
+  **0 notes rows**, so the feature starts empty rather than mid-state.
+- **The honest redaction line is unchanged and now effectively unreachable in production** —
+  it renders only where the schema lacks the columns, which is exactly the deploy-ahead-of-
+  migration case it was written for. No catalog change, so no parity risk.
+- **6/6 mutations killed**, sanity green at both ends and the tree restored with `cp` backups:
+  `notesBlocked` hardcoded back to `true` · the day payload dropping `session_id: null` · the
+  writer allowing two subjects · the probe renamed away · the day keyed by the snapshot row id
+  · `saveNote` dropping its refusal.
+- **Verified:** `npm test` **2627/2627** · `tsc --noEmit` 0 · JSX parse · `node --check` on the
+  data layer · mobile build 0 with **the probe select, both settled error codes, both XOR
+  refusals, the notes read and `notesBlocked:!s` (derived, not literal) confirmed in the
+  emitted bundle** behind a **positive control** (`coach_workout_review_notes`, present in 2
+  chunks) **and a negative control** (a string that does not exist) — a saturated zero is the
+  instrument until proven otherwise.
+
 ### 2026-08-31 — A nutrition day can carry a coach's note (the schema half)
 
 - **The registered follow-up from the review-queue fix, built.** `coach_workout_review_notes`
@@ -424,7 +482,8 @@ changelog whenever something ships.
 - **Measured before writing:** `coach_workout_review_notes` **0 rows** (the CHECK validates
   against nothing; no backfill owed) · `workout_sessions` 0 · `daily_health_snapshot` 1 ·
   not in the realtime publication.
-- ⚠ **THE APP HALF IS THE NEXT CUT, AND UNTIL IT LANDS THIS CHANGES NOTHING A COACH SEES.**
+- ⚠ **SHIPPED THE SAME DAY — see the entry above; the design named here is what was built.**
+  ⚠ **THE APP HALF IS THE NEXT CUT, AND UNTIL IT LANDS THIS CHANGES NOTHING A COACH SEES.**
   `shapeBackend.js` still stamps `notesBlocked: true` on every nutrition day, the composer is
   still gated on it and `saveNote` still refuses — which is the safe direction, because a
   composer that renders before the owner has applied the migration is exactly the

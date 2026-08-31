@@ -2852,6 +2852,43 @@ async function listWorkoutSessions() {
 //   2. A day counts only when it carries a REAL nutrition log. A snapshot row
 //      can exist for sleep or steps alone; treating one as a nutrition day
 //      renders "0 kcal" and reads as a client who ate nothing.
+// Does the notes table accept a DAY note? The client_id / snapshot_date columns
+// land with 2026-08-31-nutrition-day-review-notes.sql, and a deploy can run
+// either side of it — so ASK the schema instead of assuming, and the composer
+// appears exactly when the schema can take the note in either order.
+//
+// Fails CLOSED: anything other than a clean read reads as unsupported, because
+// hiding the composer is the only direction that cannot lie (an insert against
+// missing columns fails, and the caller's catch reports "saved locally" for a
+// write that saved nowhere — the shape this whole cut exists to end).
+let _dayNotesOk = null;   // null = unknown; true/false = settled
+let _dayNotesProbe = null;
+async function dayNotesSupported() {
+  if (typeof _dayNotesOk === 'boolean') return _dayNotesOk;
+  if (!supabase) return false;
+  if (!_dayNotesProbe) {
+    _dayNotesProbe = (async () => {
+      try {
+        const { error } = await supabase
+          .from('coach_workout_review_notes')
+          .select('client_id, snapshot_date')
+          .limit(1);
+        if (!error) { _dayNotesOk = true; return true; }
+        // 42703 (undefined_column) / PGRST204 is a SETTLED answer: the
+        // migration has not run. Anything else is transient and deliberately
+        // NOT cached, so a network blip cannot hide the composer for the rest
+        // of the session.
+        const code = String(error.code || '');
+        if (code === '42703' || code === 'PGRST204' || /client_id|snapshot_date/i.test(String(error.message || ''))) {
+          _dayNotesOk = false;
+        }
+        return false;
+      } catch { return false; }
+    })().finally(() => { _dayNotesProbe = null; });
+  }
+  return _dayNotesProbe;
+}
+
 //   3. Targets come from the coach's OWN prescription (client_programs
 //      .detail.nutrition) and are null when unset — never a default. The
 //      validation mirrors /api/client/plan's asTarget EXACTLY, so the coach
@@ -2880,10 +2917,12 @@ async function listClientNutritionDays({ limit = 40 } = {}) {
   if (!days.length) return { stored: 'supabase', data: [] };
 
   const clientIds = [...new Set(days.map((r) => r.user_id).filter(Boolean))];
+  const dayNotesOk = await dayNotesSupported();
 
-  // Names + the coach's own targets, both best-effort: a failed lookup must
-  // degrade to an unnamed/target-less day, never drop the day itself.
-  const [names, targets] = await Promise.all([
+  // Names, the coach's own targets, and any notes already written on these
+  // days — all best-effort: a failed lookup must degrade to an unnamed /
+  // target-less / note-less day, never drop the day itself.
+  const [names, targets, notes] = await Promise.all([
     (async () => {
       try {
         const { data } = await supabase.rpc('get_display_names', { p_ids: clientIds });
@@ -2916,6 +2955,27 @@ async function listClientNutritionDays({ limit = 40 } = {}) {
         return map;
       } catch { return new Map(); }
     })(),
+    (async () => {
+      if (!dayNotesOk) return new Map();
+      try {
+        const dates = [...new Set(days.map((r) => r.snapshot_date).filter(Boolean))];
+        const { data } = await supabase
+          .from('coach_workout_review_notes')
+          .select('id, client_id, snapshot_date, body, visibility, created_at')
+          .in('client_id', clientIds)
+          .in('snapshot_date', dates)
+          .order('created_at', { ascending: true });
+        const map = new Map();
+        // Keyed by (client_id, snapshot_date) — the NATURAL key. The two `in`
+        // filters are a cross product, so the pairing happens here.
+        for (const row of data || []) {
+          const key = `${row.client_id}|${row.snapshot_date}`;
+          if (!map.has(key)) map.set(key, []);
+          map.get(key).push(row);
+        }
+        return map;
+      } catch { return new Map(); }
+    })(),
   ]);
 
   const data = days.map((r) => {
@@ -2935,20 +2995,34 @@ async function listClientNutritionDays({ limit = 40 } = {}) {
       hydrationL: num(r.hydration_l),
       energy: num(r.energy),
       hunger: num(r.hunger),
-      // coach_workout_review_notes.session_id is NOT NULL with an FK to
-      // workout_sessions.id, and every policy on it routes through
-      // can_access_workout_session(session_id) — so this id (a
-      // daily_health_snapshot row) cannot carry a note. Stated as a fact on
-      // the row so the composer can be HIDDEN rather than failing its insert
-      // and reporting "saved locally", which is the silent-failure shape.
-      notesBlocked: true,
+      // ⚠ A DAY NOTE IS KEYED BY (client_id, snapshot_date), NOT BY THIS ROW'S
+      // id. daily_health_snapshot is UPSERTed on (user_id, snapshot_date) by
+      // the member's own logging, so `id` is a ROW identity, not a DAY
+      // identity — keying a coach's note to it would let a writer that
+      // replaced rather than updated silently cascade the note away.
+      coach_workout_review_notes: notes.get(`${r.user_id}|${r.snapshot_date}`) || [],
+      // PROBED, never assumed: false once the schema carries the day columns,
+      // true before that — so the composer is hidden exactly while an insert
+      // would fail and the caller's catch would report "saved locally" for a
+      // write that saved nowhere.
+      notesBlocked: !dayNotesOk,
     };
   });
   return { stored: 'supabase', data };
 }
 
+// A review note covers a WORKOUT SESSION or a CLIENT'S DAY — never both, never
+// neither. The DB CHECK (coach_workout_review_notes_subject_check) enforces
+// exactly that; refusing the same shapes here means we never send a row it will
+// reject, and a caller can never quietly write an ambiguous one.
+//
+// The day is addressed by (clientId, snapshotDate) — the NATURAL key — rather
+// than the daily_health_snapshot row's id, which is a row identity and can be
+// replaced by the member's own logging.
 async function addCoachWorkoutReviewNote({
   sessionId,
+  clientId,
+  snapshotDate,
   body,
   providerId,
   providerRole = 'trainer',
@@ -2956,13 +3030,18 @@ async function addCoachWorkoutReviewNote({
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before adding coach review notes.');
   const clean = String(body || '').trim();
-  if (!sessionId || !clean) throw new Error('Session and note are required.');
+  if (!clean) throw new Error('A note is required.');
+  const day = clientId && snapshotDate
+    ? { client_id: clientId, snapshot_date: snapshotDate, session_id: null }
+    : null;
+  if (!sessionId && !day) throw new Error('A session, or a client and a day, is required.');
+  if (sessionId && day) throw new Error('A note covers a session or a day, not both.');
   const normalizedRole = normalizeRole(providerRole);
   const resolvedProviderId = Number.isFinite(Number(providerId))
     ? Number(providerId)
     : await getOwnedProviderId(normalizedRole);
   const payload = {
-    session_id: sessionId,
+    ...(day || { session_id: sessionId }),
     reviewer_id: state.user.id,
     provider_id: resolvedProviderId,
     provider_role: ['trainer', 'nutritionist'].includes(normalizedRole) ? normalizedRole : null,
