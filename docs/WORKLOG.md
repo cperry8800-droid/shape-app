@@ -378,6 +378,34 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The Radio marketing plan gets its shoot script, and the app's own honesty rules bind the camera
+
+- **New [`marketing/shape-radio-video-scripts.md`](../marketing/shape-radio-video-scripts.md)** —
+  the production half of the 08-31 brand plan: a ~$60 kit list, the app-footage capture recipe,
+  four recurring segment templates (Morning Dispatch · Request Line · Sign-off · Guest DJ),
+  **the first 12 videos scripted shot-by-shot** with VO, on-screen text, captions and tags, and
+  a day-by-day 30-day calendar. Docs only.
+- ⚠ **THE CAPTURE RULES ARE READ OUT OF THE SHIPPED CODE, NOT INVENTED** — because the flagship
+  demo has a demo fallback that looks exactly like a live one. `connectMonitor()`
+  (`iosAppBroadsheetRadio.jsx`) sets `hrmConnected: true` and a **114 bpm demo reading** whenever
+  `ShapeHRM.available()` is false or the picker is cancelled, so a phone with no strap films a
+  perfectly convincing "live" HR-sync that is fabricated. **The tell that works is the readout
+  LABEL, not the status chip.** The chip does read `radio:hr.live` ("Live") vs `radio:hr.free`
+  ("Free") on a genuine reading — but only at the `free` stage; once matching starts it reads
+  "Matching…" / "In sync" for demo and live alike, i.e. it goes blind exactly where the money
+  shot lives. The label above the HR number is gated on `liveHr != null` at **every** stage
+  ("You · live" vs bare "You"), so that is what the doc tells the shooter to keep in frame — the honest-data doctrine extended to camera, which is the whole point of the
+  brand plan's no-faked-community line.
+- ⚠ **AND TWO MORE FACTS THE SCRIPT HAD TO NOT OVERSTATE.** The HR target is
+  **`r.LIVE.bpm` — the STATION's nominal BPM**, labelled as such in the app because the
+  now-playing payload carries no per-track tempo; a script saying "the song matches your heart
+  rate" would claim a per-track match the code does not make. And the beat-matching ease is
+  **demo-only** (`if (!matching || liveHr != null) return`), so a real strap always wins — the
+  genuine demo is the better one, which is the happy case.
+- **The station is not broadcasting yet**, so nothing may say "tune in now": `station().configured`
+  is false on the mock provider, which is exactly why the app hides its own LIVE banner. The
+  Shape Sets scripts frame the countdown as *"first broadcast lands when we do."*
+
 ### 2026-08-31 — I merged #1988 without reading its reviews; Codex had found three real defects
 
 - ⚠ **THE PROCESS FAILURE IS THE HEADLINE, NOT THE THREE FIXES.** I squash-merged
