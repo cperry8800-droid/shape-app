@@ -378,6 +378,85 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — i18n cut 10: the About page, and a prefix that was already taken
+
+- **The letter a member reads when they tap Settings → About is localized.** `BSAboutPage`
+  carried **38 walk-visible strings and zero `tr()` calls**; it now carries **45**, against
+  **44 new `settings:aboutPage.*` keys ×13** plus one reuse of `common:action.back`. No
+  migration, no route change.
+- ⚠ **THE OBVIOUS PREFIX WAS ALREADY TAKEN, AND THE ANSWER IS A RENAME RATHER THAN A MERGE.**
+  Deriving the `en` catalog from the source's own `defaultValue`s returned **59**
+  `settings:about.*` keys where 44 were expected — **fifteen already exist** for the Settings
+  About **section rows** (`about.aboutShape` · `about.pricing` · `about.terms` …). Sharing the
+  prefix would have coupled a page's hero to a settings row: the house rule is *share only
+  where a rename SHOULD move both*, and a rename of a Settings row must not move this page's
+  headline. The 44 became **`settings:aboutPage.*`**. **A prefix collision is only visible if
+  the catalog is DERIVED from the source; a hand-copied key list would have overwritten
+  fifteen shipped rows silently.**
+- ⚠ **38 UNDERSTATES THE CUT BY SIX — A SIXTH SHAPE THE WALK CANNOT SEE.** The two `idea`
+  cards live in an **inline anonymous array literal written straight into JSX** —
+  `{[[…]].map(…)}` — which the walk never enters. So six member-facing strings were part of
+  the work and outside the measurement, and the cut authored **44 keys against a ratchet that
+  can only move by 38**. Joins the module-scope array literal, the local arrow function, the
+  local const ternary, the plain-JS string and the un-allowlisted prop: **the honest reading
+  of any component's count is a FLOOR**, six cuts running.
+- ⚠ **THE DROP CAP WAS ONE `charAt(0)` AWAY FROM A BROKEN GLYPH IN TWELVE LOCALES.** The
+  letter opens with a drop cap sliced off the front of its first paragraph. `charAt(0)` returns
+  a UTF-16 code UNIT, so any astral first letter splits into two lone surrogates — invisible
+  while the value is a hardcoded English `S`, a mojibake pair the moment a locale supplies the
+  string. It walks codepoints now (`[...s][0]` / `[...s].slice(1).join('')`) and takes the cap
+  **from the translated value**, never a literal. **Translating a string can make a correct
+  slice wrong — the transform did not change, its input did** (the cut-6 `toLowerCase()`
+  finding at a second site).
+- ⚠ **NO SPLIT-ACCENT SLOT IS AUTHORED EMPTY, IN ANY OF THE THIRTEEN — AND THAT IS A HARD
+  CONSTRAINT, NOT A STYLE.** i18n runs with **`returnEmptyString: false`**, so an empty catalog
+  value renders the **RAW KEY** on screen. Indonesian has no article for `idea.h2Pre`, and
+  tr/ru/uk front their predicates past `letter.h2Post` — those slots carry a real word or a
+  bare period (the Score-intro `titlePost` precedent), never `""`. Pinned across all 44 keys ×
+  13, not just the split ones: a blank anywhere on this page is the same failure.
+- ⚠ **AND THE GUARD'S OWN FIRST CUT ASSERTED A COUPLING THAT IS NOT REAL — the catalogs were
+  right and the test was wrong.** It required the About CTA to equal
+  `onboarding:login.titleJoin*` in every locale, because both read *"Join the community."* in
+  English. It failed on **eight** locales whose translators had independently chosen different
+  natural wording (de *"Komm in die"* vs *"Werde Teil der"*). Reading the call site settles it:
+  the login headline is read by someone **creating an account**; the About closer is read by a
+  member already inside, and its button fires `shape:goCommunity` to **open the feed**. Same
+  words today, two rhetorical moments — so a rename of one must not move the other. The
+  assertion was replaced with one that is true (the hero's two non-breaking pairs, the CTA's
+  arrow, and the brand nouns survive translation) and **the ruling is written where the wrong
+  assertion was**, so the next reader does not re-add it. **A guard that fails is evidence
+  about the guard until the code is read.**
+- ⚠ **THE `— Chris Perry` SIGNATURE IS DELIBERATELY NOT KEYED**, which is why the cut lands
+  PARTIAL rather than fully covered. It is a person's name: no locale changes it, for the same
+  reason none changes the shipped `+1 555 123 4567` phone example or `BSSettings`' `AB` initials
+  placeholder. Keying it would ship **thirteen identical values for a string a translator must
+  not touch**. Recorded in the ratchet's PARTIAL baseline rather than special-cased inside
+  `usable()` — **a false exclusion there hides real copy**, which is the direction that makes
+  the guard lie.
+- **Register measured per locale, never guessed** (occurrence counts in this namespace):
+  **fr · ru · uk formal**, **id formal `Anda`** (the settings half of the house's Indonesian
+  split), es/pt-BR/de/it/vi informal, **tr informal** (7 `sen*` / 2 `siz*`) carrying the
+  apostrophe-before-a-case-suffix form its own catalog already ships (`Shape'in`), **ha
+  masculine** (14 `ka` / 0 `ki` — the house default; the cycle surface is the one deliberate
+  feminine exception and this is not it), **pcm** real Naija grammar (*"Na di whole idea be
+  dat."*) with short nouns matching English as the legitimate creole pattern.
+- **The ratchet moved on all four axes.** `noneStrings` **1063 → 1025** · `none.length`
+  **106 → 105** · `part.length` **32 → 33** · `partStrings` **164 → 165**. Fully covered stays
+  **107** — the cut lands PARTIAL by design, over the one name above.
+- **9/9 mutations killed** (the drop cap back to `charAt(0)` · the cap hardcoded to `'S'` · a
+  locale's split slot emptied · a hero NBSP dropped · the CTA arrow dropped · a brand noun
+  translated · the founder name keyed · the baseline entry left stale in UNCOVERED · a total
+  left un-repointed), sanity green at both ends and the tree restored clean.
+- **Verified:** `npm test` **2530/2530** · `tsc --noEmit` 0 · JSX parse · tr-shadow clean on
+  **both** grep forms · catalog parity + ICU 3/3 ×13 (a pure append — 45 insertions / 1
+  deletion per file, LF, zero CR/NUL) · mobile build 0 with **all 44 keys and all 572
+  translated values confirmed in the emitted bundle** behind a positive control.
+  ⚠ **The first bundle read said 546/572 — and the 26 were the instrument.** The minifier emits
+  **U+00A0 as the escape sequence `\xA0`** inside the string literal, so a literal-codepoint
+  grep cannot match the two hero keys in any locale. Same class as the backtick rewrite this
+  file already records: **a saturated, evenly-distributed miss is the measurement, not the
+  finding.**
+
 ### 2026-08-31 — i18n cut 9: the integrations page, and a third site where copy was doing an identifier's job
 
 - **The screen a member uses to connect their devices is localized.** `BSIntegrationsPage`
