@@ -342,7 +342,8 @@ const UNCOVERED = new Set([
   'Client::BSLibraryDetail', 'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile', 'Client::BSNoraProposal',
-  'Client::BSNotifications', 'Client::BSNotifyPrefs', 'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
+  'Client::BSNotifications', 'Client::BSNotifyPrefs',
+  'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProfileCustomizer', 'Client::BSProfileIdentityHead', 'Client::BSProgChart',
   'Client::BSRecipeBox', 'Client::BSRecipePreview', 'Client::BSReconcile',
   'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
@@ -351,7 +352,8 @@ const UNCOVERED = new Set([
   'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
   'Client::BSVideoCall', 'Client::BSWeekendsCard',
-  'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
+  'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard',
+  // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
   // LABEL: BSSearchMsgBtn renders `aria-label={`Message ${name}`}` — invisible
   // while the walk only read direct attribute literals, so a screen-reader user
   // in Spanish hears the English verb. Registered rather than patched because
