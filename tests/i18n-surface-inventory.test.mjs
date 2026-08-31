@@ -344,7 +344,7 @@ const UNCOVERED = new Set([
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile', 'Client::BSNoraProposal',
   'Client::BSNotifications', 'Client::BSNotifyPrefs',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
-  'Client::BSProfileCustomizer', 'Client::BSProfileIdentityHead', 'Client::BSProgChart',
+  'Client::BSProfileIdentityHead', 'Client::BSProgChart',
   'Client::BSRecipeBox', 'Client::BSRecipePreview', 'Client::BSReconcile',
   'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
   'Client::BSScoreCardDark', 'Client::BSSdTrace', 'Client::BSSearchCorner',
@@ -410,6 +410,20 @@ const PARTIAL = new Set([
   // values for a string a translator must not touch. Recorded here rather than
   // special-cased inside usable(), because a false exclusion there hides real copy.
   'Client::BSAboutPage',
+  // ⚠ BSProfileCustomizer IS PARTIAL OVER A LITERAL ADDRESS, NOT OVER COPY — 99
+  // tr() calls and exactly one hardcoded string: the profile-song field's
+  // `https://open.spotify.com/track/…` placeholder. It is a URL, byte-identical in
+  // every locale, so keying it would ship thirteen copies of one string a translator
+  // must not touch — the same exemption as BSAboutPage's founder signature one line
+  // up and BSSettings' `AB` initials placeholder. The HANDLE and DOMAIN examples in
+  // the same editor ARE keyed: those are the `+1 555 123 4567` class, where a locale's
+  // own form reads better. Recorded here rather than special-cased inside usable(),
+  // because a false exclusion there hides real copy.
+  // ⚠ AND 99/1 IS THIS WALK'S FLOOR, NOT THE SURFACE'S TRUTH: 11 toast sentences are
+  // plain JS the walk never enters, and 13 more member-facing labels sit in the
+  // module-scope BS_STAT_OPTIONS / BS_PROFILE_LINKS array literals it cannot attribute.
+  // All 24 are keyed; none of them ever counted here.
+  'Client::BSProfileCustomizer',
   'Client::BSTerrainProfile',
   // ⚠ BSGoalsContract IS PARTIAL OVER THE SIGNED-OUT DEMO PLAN CARDS, NOT OVER
   // LIVE COPY — 88 tr() calls and exactly four hardcoded strings, all four in the
@@ -662,10 +676,15 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // language. They now format through `bsDateLocale()`, so a Spanish-in-Shape
   // member on an English phone no longer reads English grouping inside a
   // Spanish sentence. Same class as cut 1's telegram date.
-  assert.equal(partStrings, 169, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 924, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 98, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ CUT 16 MOVED partStrings UP BY ONE WHILE CLOSING 78, AND THAT IS THE HONEST
+  // DIRECTION. BSProfileCustomizer left UNCOVERED carrying 78 walk-visible strings;
+  // 77 became keys and ONE — the literal `https://open.spotify.com/track/…` example —
+  // changed column into PARTIAL. So noneStrings falls by 78 while partStrings rises by
+  // 1: the same string, counted in the other bucket, not new hardcoded copy.
+  assert.equal(partStrings, 170, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 846, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 35, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 97, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
