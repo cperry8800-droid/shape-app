@@ -66,16 +66,26 @@ create policy "tier_rewards readable by owner" on public.tier_rewards
 -- 1. The reward definition — ONE source of truth, read by both the granter and
 --    the claim validator so they can never disagree about what a tier unlocks.
 -- ─────────────────────────────────────────────────────────────────────────────
+-- ⚠ THIS DEFINITION IS PRUNED TO MATCH 2026-08-31-store-merch-removal.sql, AND
+-- THE REASON IS REPLAY. `create or replace` means re-running this file
+-- overwrites the live function — proven against production (rolled back,
+-- 2026-08-31): the original body restored `tempo_drinkware`, whose BOTH options
+-- were deleted, and put the tee and crewneck back in `legend_merch` — 4 dead
+-- choices. claim_tier_reward() double-gates a pick on store_catalogue, so a
+-- member would choose a tee, enter a shipping address, and only then get
+-- `bad_choice`. `tempo_drinkware` is dropped, `legend_merch` keeps the caps.
+-- The reward_key CHECK above still ALLOWS 'tempo_drinkware' on purpose: a
+-- historical row (there are none) stays valid, it simply stops being granted.
+-- Guarded forward by tests/store-migration-replay.test.mjs.
 create or replace function public.tier_reward_defs()
 returns table (tier text, reward_key text, fulfil_kind text, item_name text, choices text[])
 language sql immutable set search_path = public as $$
   values
     ('Tempo',  'tempo_cap',        'merch',   'Shape Cap',                   array['merch_cap_black','merch_cap_white']),
-    ('Tempo',  'tempo_drinkware',  'merch',   'Shape drinkware',             array['merch_bottle','merch_canteen']),
     ('Form',   'form_coach_plan',  'service', 'Free coach workout or plan',  array[]::text[]),
     ('Peak',   'peak_coach_month', 'service', 'Free month with a coach',     array[]::text[]),
     ('Legend', 'legend_year',      'service', 'Free year of Shape',          array[]::text[]),
-    ('Legend', 'legend_merch',     'merch',   'Premium Shape merch',         array['merch_training_tee','merch_crewneck','merch_cap_black','merch_cap_white']);
+    ('Legend', 'legend_merch',     'merch',   'Shape Cap',                   array['merch_cap_black','merch_cap_white']);
 $$;
 grant execute on function public.tier_reward_defs() to authenticated, service_role;
 

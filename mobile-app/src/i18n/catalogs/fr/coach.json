@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Pourquoi cette semaine leur convient-elle ?",
   "assign.guardReasonHint": "Enregistré avec la semaine · obligatoire pour publier",
   "assign.guardPublishAnyway": "Publier quand même",
-  "assign.queuedWeeks": "{count, plural, one {# semaine est conservée sur cet appareil} other {# semaines sont conservées sur cet appareil}} — elles seront publiées dès votre retour en ligne, et {name} n'a pas encore été prévenu"
+  "assign.queuedWeeks": "{count, plural, one {# semaine est conservée sur cet appareil} other {# semaines sont conservées sur cet appareil}} — elles seront publiées dès votre retour en ligne, et {name} n'a pas encore été prévenu",
+  "review.statusLiveNutrition": "EN DIRECT · JOURNÉES NUTRITION DES CLIENTS",
+  "review.statusDemoNutrition": "FILE DÉMO · JUSQU'À CE QUE LES CLIENTS ENREGISTRENT LEURS REPAS",
+  "review.unitKcal": "KCAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "DÉTAIL PAR REPAS NON ENREGISTRÉ · TOTAUX DU JOUR UNIQUEMENT",
+  "review.notesBlocked": "LES NOTES S'ATTACHENT À UNE SÉANCE · PAS ENCORE À UNE JOURNÉE NUTRITION",
+  "review.metaHydration": "HYDRATATION",
+  "review.metaEnergy": "ÉNERGIE",
+  "review.metaHunger": "FAIM",
+  "review.stPlanned": "Planifiée",
+  "review.stActive": "En cours",
+  "review.stCompleted": "Terminée",
+  "review.stAbandoned": "Arrêtée plus tôt",
+  "review.stReviewed": "Revue"
 }

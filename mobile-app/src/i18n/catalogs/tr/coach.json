@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Bu hafta ona neden uygun?",
   "assign.guardReasonHint": "Haftayla birlikte kaydedilir · yayımlamak için gerekli",
   "assign.guardPublishAnyway": "Yine de yayımla",
-  "assign.queuedWeeks": "{count, plural, one {# hafta bu cihazda bekliyor} other {# hafta bu cihazda bekliyor}} — tekrar çevrimiçi olunca yayımlanacak ve şu kişiye henüz haber verilmedi: {name}"
+  "assign.queuedWeeks": "{count, plural, one {# hafta bu cihazda bekliyor} other {# hafta bu cihazda bekliyor}} — tekrar çevrimiçi olunca yayımlanacak ve şu kişiye henüz haber verilmedi: {name}",
+  "review.statusLiveNutrition": "CANLI · DANIŞAN BESLENME GÜNLERİ",
+  "review.statusDemoNutrition": "DEMO SIRASI · DANIŞANLAR ÖĞÜN KAYDEDENE KADAR",
+  "review.unitKcal": "KCAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "ÖĞÜN BAZINDA DETAY SAKLANMIYOR · YALNIZCA GÜNLÜK TOPLAMLAR",
+  "review.notesBlocked": "NOTLAR BİR SEANSA EKLENİR · HENÜZ BESLENME GÜNÜNE DEĞİL",
+  "review.metaHydration": "SIVI ALIMI",
+  "review.metaEnergy": "ENERJİ",
+  "review.metaHunger": "AÇLIK",
+  "review.stPlanned": "Planlandı",
+  "review.stActive": "Devam ediyor",
+  "review.stCompleted": "Tamamlandı",
+  "review.stAbandoned": "Erken bitti",
+  "review.stReviewed": "İncelendi"
 }

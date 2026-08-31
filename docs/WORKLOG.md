@@ -378,6 +378,232 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — Consumer social brand-awareness plan: run the brand AS the radio station
+
+- **New [`marketing/social-brand-awareness-plan.md`](../marketing/social-brand-awareness-plan.md)** —
+  the first CONSUMER-facing marketing doc (the five existing files in `marketing/` are the
+  coach funnel). TikTok + Instagram, organic-only (the market-research doc's own math forbids
+  paid), with **Shape Radio as the master concept**: don't market the radio feature — run the
+  socials as the station. Segments (Morning Dispatch · Request Line · HR→BPM demo · coach
+  Guest-DJ residencies · Shape Sets countdown · nightly Sign-off), Nora as host, the founder
+  as the human resident, 12 scripted first videos, platform playbooks, flywheels (the shipped
+  share card · the ident as public audio · residencies-as-recruiting), and a 30-day runway.
+- ⚠ **The licensing guardrail is stated up front**: no commercial music baked into brand
+  video, ever — idents + Nora's voice + link-outs, the app's own Peloton-lesson architecture
+  applied to marketing. And **no faked community** — the honest-data doctrine extends to
+  camera.
+- Docs-only; rode the open PR #1988 as a records commit.
+
+### 2026-08-31 — A nutrition day can carry a coach's note (the app half) — the composer is PROBED, not asserted
+
+- **The registered follow-up, built.** The owner applied
+  `2026-08-31-nutrition-day-review-notes.sql`, so a nutritionist can now write a review note
+  on a client's nutrition day and read it back: `listClientNutritionDays` attaches that day's
+  existing notes, `addCoachWorkoutReviewNote` gained a **day-subject** path, and the composer
+  is un-gated the moment the schema can take the note. No new route, no new i18n key.
+- ⚠ **`notesBlocked` IS PROBED, NEVER ASSERTED — and that is the whole shape of the cut.**
+  The schema half can be applied either side of a deploy, so the flag comes from **asking the
+  schema** (`select client_id, snapshot_date … limit 1` on the notes table) rather than from a
+  literal that describes whatever was true the day it was typed. It **fails CLOSED**: anything
+  but a clean read hides the composer, because that is the only direction that cannot lie —
+  an insert against missing columns fails, and the caller's catch reports **"saved locally"**
+  for a write that saved nowhere, which is the exact shape this whole wave exists to end.
+- ⚠ **ONLY THE SETTLED ANSWER IS CACHED.** `42703` / `PGRST204` means the migration has not
+  run — a fact, cached for the session. **Anything else is transient and deliberately NOT
+  cached**, so one network blip cannot hide a shipped feature for the rest of the session. A
+  probe that memoised every failure would be a worse defect than the one it replaced.
+- ⚠ **THE NATURAL KEY HOLDS AT THE RENDER TOO, NOT JUST IN THE SCHEMA.** The note is addressed
+  by **(clientId, loggedOn)** — never `selected.id`, the `daily_health_snapshot` row id, which
+  is a ROW identity: that table is UPSERTed on `(user_id, snapshot_date)` by the member's own
+  logging, so a note keyed to the row would be cascaded away by any writer that replaced
+  rather than updated. The day's notes are re-paired from the two `in` filters on that same
+  key. Pinned in both directions — the guard **bans** `selected.id` as a day key.
+- **The XOR is refused client-side as well as CHECK'd server-side**: a note carries a session
+  **or** a client's day, never both, never neither — so the app can never send a row the DB
+  constraint will reject, and no caller can quietly write an ambiguous one.
+- ⚠ **THE DEMO PATH STOPPED FIRING A DOOMED REQUEST.** A demo row carries no live subject, so
+  it used to reach the writer, throw, and land in the catch — which set the **raw error string**
+  as the status line. It now resolves to `null` up front and appends locally with the demo
+  message. Same outcome, stated rather than arrived at by failure.
+- ⚠ **AND THE GUARD THAT PINNED THE OLD TRUTH WENT STALE WITH THE SCHEMA IT DESCRIBED.**
+  `tests/coach-review-source.test.mjs` asserted `notesBlocked: true` — a **limitation** pinned
+  as a fact — so the guard would have kept the composer hidden after the migration made it
+  wrong. It now **bans a hardcoded value in EITHER direction** and requires the derivation +
+  the probe + the `42703` distinction. *A guard that pins a limitation outlives the
+  limitation* — the same class as the cut-54 spelling pin, one layer up.
+- **The notes read is best-effort like names + targets**: a failed lookup degrades to a
+  note-less day, never drops the day itself.
+- ⚠ **THE POSTGREST SCHEMA CACHE IS THE ONE DEPLOY RISK, AND IT WAS CHECKED RATHER THAN
+  ASSUMED.** A stale cache would answer `42703` after a correct apply and settle the probe to
+  `false` for the session. Verified live: **2 `pgrst%` event triggers** (`pgrst_ddl_watch`) are
+  installed, so the cache reloaded with the migration — and both day columns are present with
+  **0 notes rows**, so the feature starts empty rather than mid-state.
+- **The honest redaction line is unchanged and now effectively unreachable in production** —
+  it renders only where the schema lacks the columns, which is exactly the deploy-ahead-of-
+  migration case it was written for. No catalog change, so no parity risk.
+- **6/6 mutations killed**, sanity green at both ends and the tree restored with `cp` backups:
+  `notesBlocked` hardcoded back to `true` · the day payload dropping `session_id: null` · the
+  writer allowing two subjects · the probe renamed away · the day keyed by the snapshot row id
+  · `saveNote` dropping its refusal.
+- **Verified:** `npm test` **2627/2627** · `tsc --noEmit` 0 · JSX parse · `node --check` on the
+  data layer · mobile build 0 with **the probe select, both settled error codes, both XOR
+  refusals, the notes read and `notesBlocked:!s` (derived, not literal) confirmed in the
+  emitted bundle** behind a **positive control** (`coach_workout_review_notes`, present in 2
+  chunks) **and a negative control** (a string that does not exist) — a saturated zero is the
+  instrument until proven otherwise.
+
+### 2026-08-31 — A nutrition day can carry a coach's note (the schema half)
+
+- **The registered follow-up from the review-queue fix, built.** `coach_workout_review_notes`
+  was structurally a WORKOUT path: `session_id` NOT NULL with an FK to `workout_sessions`,
+  and every policy routing through `can_access_workout_session(session_id)`. There was no
+  row shape that says *"this note is about the client's Tuesday"*, so the source fix had to
+  hide the composer and refuse the write — the insert would have failed **23502** and the
+  existing catch would have reported **"saved locally"** for a write that saved nowhere.
+- ⚠ **OWNER MIGRATION — `2026-08-31-nutrition-day-review-notes.sql`.** `session_id` goes
+  nullable (FK kept), the table gains `client_id` + `snapshot_date`, and a CHECK enforces
+  **exactly one subject** — a session or a day, never both, never neither, so no row can be
+  ambiguous about what it is a note on.
+- ⚠ **THE DAY IS KEYED BY `(client_id, snapshot_date)`, NOT BY THE SNAPSHOT ROW'S `id`.**
+  `daily_health_snapshot` is UPSERTED on `(user_id, snapshot_date)` by the member's own
+  logging, so its surrogate id is a ROW identity, not a DAY identity — any writer that ever
+  replaced rather than updated would silently cascade a coach's note away. The natural key
+  is the thing the note is actually about, and it survives a rewrite of the snapshot.
+- ⚠ **THE ACCESS STORY IS THE HALF THAT CANNOT BE COPIED FROM THE SESSION PATH.**
+  `can_access_workout_session` gates on the SESSION's own provider — a session names the
+  coach who owns it. **A day names nobody**, so the day branch gates on the coaching
+  RELATIONSHIP instead: read = the member themself or any active coach on them
+  (`is_coach_on_client`, the predicate the coach-side snapshot reads already run on); write
+  = the reviewer must own the provider row they declare AND that declaration must be a live
+  coaching link of the **same discipline** (`is_discipline_coach_on_client`). So a
+  nutritionist writes as a nutritionist, a trainer as a trainer, and a coach with no active
+  subscription to that client writes nothing at all.
+- **One predicate, not three re-statements.** A policy cannot branch on a nullable FK without
+  re-stating the security rule at every site, and three sites re-stating one rule is how the
+  halves drift apart — `can_access_review_note(session_id, client_id)` is the single answer,
+  and its `else false` fails **closed** if the CHECK were ever removed. The session branch is
+  preserved byte-for-byte; UPDATE/DELETE are deliberately **untouched** (already
+  `reviewer_id = auth.uid()` with no subject dependency, so a day note inherits edit + delete
+  for free, and touching them would be a widening nobody asked for).
+- ⚠ **VALIDATED AS AN ARTIFACT, NOT AS PIECES** (the #1853 lesson): the whole file applied
+  inside a transaction against production and **rolled back**, its own structural guard
+  passing, prod confirmed untouched afterwards. A behavioural probe in the same transaction
+  drove the CHECK over five shapes — subject-less, two-subject and dateless-day all
+  **REJECTED (23514)**; a day note and a session note both insert. ⚠ The first probe was the
+  broken instrument, not the code: `like … including constraints` **without `including
+  defaults`** left `id` null, so a NOT NULL fired before the CHECK it was testing. And the
+  guard's `search_path=public, pg_temp` literal was **read off two live pinned functions**
+  rather than assumed — a wrong literal there fails a CORRECT apply, which is the worst way
+  for a guard to be wrong.
+- **Measured before writing:** `coach_workout_review_notes` **0 rows** (the CHECK validates
+  against nothing; no backfill owed) · `workout_sessions` 0 · `daily_health_snapshot` 1 ·
+  not in the realtime publication.
+- ⚠ **SHIPPED THE SAME DAY — see the entry above; the design named here is what was built.**
+  ⚠ **THE APP HALF IS THE NEXT CUT, AND UNTIL IT LANDS THIS CHANGES NOTHING A COACH SEES.**
+  `shapeBackend.js` still stamps `notesBlocked: true` on every nutrition day, the composer is
+  still gated on it and `saveNote` still refuses — which is the safe direction, because a
+  composer that renders before the owner has applied the migration is exactly the
+  "saved locally" lie this closes. The honest wiring is a **feature probe on read** (ask the
+  schema whether the day columns exist, set `notesBlocked` from the answer) so the composer
+  appears exactly when the schema can accept the note, in either deploy order.
+
+### 2026-08-31 — The nutritionist's review queue was serving the trainer's workouts
+
+- **A live nutritionist's whole "Client review." feature read `workout_sessions`.**
+  `BSWorkoutReviewPage` called `window.ShapeWorkoutLogs.listSessions()`
+  **unconditionally**, so the queue a nutritionist opens to review meal logs listed
+  their clients' *sets and rest times* under a nutrition title. Each coach role now
+  reads its own source: a nutritionist reads meal-log days
+  (`ShapeNutritionLogs.listClientDays` → `daily_health_snapshot`), a trainer reads
+  workout sessions. **No migration** — nutritionists can already read their
+  subscribed clients' snapshots (`providers_read_subscriber_snapshots`).
+- ⚠ **THE REASON IT SURVIVED IS THE PART WORTH KEEPING: the demo rows were the only
+  thing that ever looked like nutrition.** `demoWorkoutReviewSessions('nutritionist')`
+  returns kcal/protein/meal rows, so signed out the page reads correctly and every
+  screenshot of it is right. The defect existed **only on a live account**, which is
+  the state nobody demos. A demo that models the shape you WANT hides the fact that
+  the live path never produces it.
+- ⚠ **THREE HONESTY RULES ARE IN THE DATA LAYER, NOT THE RENDER**, because a caller
+  that gets any of them wrong fabricates a client's nutrition. **(1)** Own rows are
+  EXCLUDED — that policy ORs with `user_rw_own_snapshots`, so an unfiltered select
+  hands the coach their own days back as a client. **(2)** A day counts only when it
+  carries a REAL nutrition log (`calories` or `protein_g` present) — a snapshot row
+  can exist for sleep or steps alone, and treating one as a nutrition day renders
+  "0 kcal", which reads as a client who ate nothing. **(3)** Targets come from the
+  coach's OWN prescription (`client_programs.detail.nutrition`) and are **null when
+  unset, never a default** — the validation mirrors `/api/client/plan`'s `asTarget`
+  exactly, so the coach queue and the client's own Eat hero cannot disagree about
+  what the target is.
+- ⚠ **TWO THINGS THE LIVE DAY GENUINELY CANNOT DO ARE STATED, NOT FAKED.**
+  **(a) There is no per-meal detail to show** — meal logging accumulates into day
+  totals through `add_meal_macros` and no per-meal row is kept anywhere
+  (`client_planned_meals` is planned-only, owner-RLS, 0 rows). So the day renders a
+  `BSTRedact` line saying totals-only, and the queue row **leads with kcal** rather
+  than a fabricated `0/0 MEALS`. **(b) A nutrition day cannot carry a review note** —
+  `coach_workout_review_notes.session_id` is NOT NULL with an FK to
+  `workout_sessions.id` and every policy on it routes through
+  `can_access_workout_session(session_id)`, so the insert would fail and the existing
+  catch would report **"saved locally"** for a write that saved nowhere. The composer
+  is hidden with an honest line and `saveNote` refuses; the row declares
+  `notesBlocked` in the data layer so the render never has to infer it.
+- ⚠ **AND THE SWEEP FORCED OUT THE TOKEN/LABEL CLASS AT A SIXTH SITE.** Read from
+  the LIVE catalog rather than a migration file: `workout_sessions.status` is
+  `text NOT NULL DEFAULT 'completed'` with a CHECK pinning it to
+  **planned|active|completed|abandoned|reviewed** — a STORED TOKEN the queue was
+  printing straight to screen, so a Russian trainer read the English word
+  *completed* on their own queue. Worse, **two sites each spelled the fallback
+  themselves** (`selected.status || 'completed'`), which is one fact with two
+  spellings. Both now resolve through one label map; the token is untouched, and an
+  unrecognised value renders as **ITSELF** — never a raw key, never blank (the
+  grocery-aisle precedent), so the demo rows' free-text statuses read as themselves.
+- **A pre-existing unit bug went with it:** the protein target welded a hardcoded
+  Latin **`G`** onto the figure, which is wrong in ru/uk (`г`) — it reads from
+  `coach:review.unitGram` now, like every other unit on the page. The queue row's
+  aria-label also stopped running a locale-insensitive `.toLowerCase()` over
+  translated text (`.toLocaleLowerCase(coachLocale())`).
+- ⚠ **`snapshot_date` IS PARSED PART-BY-PART.** It is the member's OWN `YYYY-MM-DD`,
+  and `new Date('2026-08-31')` is UTC midnight — it renders as the **30th** anywhere
+  west of UTC, so a coach in Los Angeles would read every client's day off by one.
+- **15 new `coach:review.*` keys ×13** (5 status labels + 10 chrome/unit/redaction),
+  every per-locale term read out of that catalog's own shipped vocabulary rather than
+  invented — `id` writes `KKAL`, ru/uk write `ККАЛ` / `Г` / `Л`, ha is genuine Hausa
+  orthography, pcm is real Naija grammar.
+- ⚠ **THE RATCHET DEFENDS ALMOST NONE OF THIS, WHICH IS WHY THE GUARD IS THE REAL
+  DELIVERABLE.** A source swap moves the measurement by **ZERO strings** — reverting
+  the role branch leaves the inventory, `tsc`, the build and all 2,620 other tests
+  **green**. `tests/coach-review-source.test.mjs` pins what the code ANSWERS: each
+  role reaches its own source *as the two arms of one `isNutri` branch*, the note
+  block holds in **both** directions (composer hidden AND writer refusing — half of
+  that passing is the dangerous state), the status token is never rendered raw, and
+  the label set is **DERIVED from the resolver in the shipped source** so a sixth
+  CHECK'd token added later fails here rather than rendering as itself forever.
+- ⚠ **AND MUTATION-TESTING CAUGHT THE GUARD BEING WRONG, NOT THE CODE.** A key match
+  without a closing-quote boundary let a **RENAME** survive — `mealsNotStoredX` still
+  contains `mealsNotStored`. Anchored, then re-run against both a rename **and** a
+  deletion. **8/8 mutations killed** (role branch reverted · `saveNote` guard dropped
+  · composer gate dropped · resolver renamed away · redaction key renamed · redaction
+  deleted · nutrition day claiming 'completed' · an `en` status key deleted), sanity
+  green at both ends and the tree restored with `cp` backups, never `git checkout --`.
+- **The ratchet moved on the partial columns only, and that is the certification.**
+  `BSWorkoutReviewPage` leaves PARTIAL for **fully covered**: `partStrings`
+  **170 → 168** · `part.length` **35 → 34** · fully covered **114 → 115**, while
+  `noneStrings` **818** and `none.length` **96** are UNCHANGED — nothing left the
+  untranslated bucket, because the surface already carried 53 `tr()` calls. It held
+  exactly TWO walk-visible strings and both were leaks rather than prose.
+- **Verified:** `npm test` **2626/2626** · `tsc --noEmit` 0 · JSX parse · `node --check`
+  on the data layer · catalog parity ×13 (a pure append — 940 → 955 per file, identical
+  key order in every locale, LF, zero CR, zero empty values) · mobile build 0 with **all
+  15 keys and both sources confirmed in the emitted bundle** (`ShapeNutritionLogs` +
+  `listClientDays` in the data-layer AND pros chunks, so the branch survives
+  minification) behind a **positive control** (`coach:review.mealLog`, present) **and a
+  negative control** (a key that does not exist, absent) — a saturated zero is the
+  instrument until proven otherwise.
+- ⚠ **REGISTERED, NOT BUILT — a nutrition day still cannot take a coach's note.** The
+  honest line is the stopgap; the fix is an owner migration relaxing
+  `coach_workout_review_notes` off its `workout_sessions` FK (or a parallel
+  nutrition-note path), which is a schema change with its own RLS story and belongs in
+  its own cut rather than bolted onto a source fix.
+
 ### 2026-08-31 — Session handoff: `docs/HANDOFF-2026-08-31.md`
 
 - **Thirty PRs since the last handoff — #1957 → #1986 — had none.** The 08-29 handoff

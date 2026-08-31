@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Why dis week make sense for am?",
   "assign.guardReasonHint": "Dem go save am with di week · you must put am before you fit post",
   "assign.guardPublishAnyway": "Post am anyhow",
-  "assign.queuedWeeks": "{count, plural, one {# week dey wait for dis device} other {# weeks dey wait for dis device}} — dem go post once you come back online, and dem never tell {name}"
+  "assign.queuedWeeks": "{count, plural, one {# week dey wait for dis device} other {# weeks dey wait for dis device}} — dem go post once you come back online, and dem never tell {name}",
+  "review.statusLiveNutrition": "LIVE · CLIENT NUTRITION DAYS",
+  "review.statusDemoNutrition": "DEMO QUEUE · UNTIL CLIENTS LOG DEM FOOD",
+  "review.unitKcal": "KCAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "WE NO DEY KEEP EVERY MEAL ONE BY ONE · NA DAY TOTAL ONLY",
+  "review.notesBlocked": "NOTE DEY ATTACH TO WORKOUT SESSION · E NEVER FIT ATTACH TO NUTRITION DAY",
+  "review.metaHydration": "WATER",
+  "review.metaEnergy": "ENERGY",
+  "review.metaHunger": "HUNGER",
+  "review.stPlanned": "Dem plan am",
+  "review.stActive": "E dey go on",
+  "review.stCompleted": "E don finish",
+  "review.stAbandoned": "E stop early",
+  "review.stReviewed": "Dem don check am"
 }

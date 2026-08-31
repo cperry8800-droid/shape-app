@@ -31,14 +31,22 @@ create table if not exists public.store_catalogue (
 );
 alter table public.store_catalogue enable row level security;
 
+-- ⚠ FIVE ITEMS WERE REMOVED FROM THE SEED BELOW, AND THE REASON IS REPLAY.
+-- This file is idempotent by design, so re-running it re-seeds whatever it
+-- lists. merch_duffel left the store 2026-07-20; merch_training_tee,
+-- merch_crewneck, merch_bottle and merch_towel left 2026-08-31 (owner calls) —
+-- so listing them here would resurrect deleted items into the CHARGING
+-- authority on any replay, at these pre-reprice 20x costs. They are dropped
+-- from the seed rather than left with a warning, because a warning is not a
+-- thing anything checks. tests/store-migration-replay.test.mjs scans EVERY
+-- migration against src/lib/store-catalogue.ts and fails if one comes back.
+--
+-- The 2026-07-20 reprice restates every surviving row's cost, so the values
+-- below are the original 20x figures and are superseded by that file.
+
 insert into public.store_catalogue (id, cost_points, credit_cents, credit_kind, kind, locked) values
-  ('merch_training_tee',    960,  0,    null,        'merch',      false),
-  ('merch_crewneck',        1440, 0,    null,        'merch',      false),
   ('merch_cap_black',       700,  0,    null,        'merch',      false),
   ('merch_cap_white',       700,  0,    null,        'merch',      false),
-  ('merch_bottle',          560,  0,    null,        'merch',      false),
-  ('merch_towel',           440,  0,    null,        'merch',      false),
-  ('merch_duffel',          3300, 0,    null,        'merch',      true),
   ('train_credit_25',       500,  2500, 'session',   'credit',     false),
   ('train_credit_50',       1000, 5000, 'session',   'credit',     false),
   ('train_second_opinion',  1900, 0,    null,        'service',    false),

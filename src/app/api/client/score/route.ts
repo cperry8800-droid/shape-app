@@ -29,10 +29,10 @@ type LedgerRow = {
 // the mobile client and TIERS_CLIENT in public/newdesign/score.jsx.
 const TIERS: Array<[name: string, threshold: number, display: string, benefit: string]> = [
   ['Raw',    0,     '0+',      'Starting level'],
-  ['Tempo',  750,   '750+',    'Free cap + bottle or canteen'],
+  ['Tempo',  750,   '750+',    'Free Shape cap'],
   ['Form',   2000,  '2,000+',  'Free coach workout or plan'],
   ['Peak',   5000,  '5,000+',  'A free month with a coach'],
-  ['Legend', 15000, '15,000+', 'A free year of Shape + merch'],
+  ['Legend', 15000, '15,000+', 'A free year of Shape + a cap'],
 ];
 
 type SnapRow = {

@@ -44,10 +44,10 @@ for (const line of ts.split('\n')) {
 }
 
 test('the TS authority parses and prices credits at 2x base', () => {
-  assert.ok(authority.size >= 15, `expected the full catalogue, parsed ${authority.size}`);
+  assert.ok(authority.size >= 14, `expected the full catalogue, parsed ${authority.size}`);
   assert.equal(RATE_CREDIT, RATE * 2);
   // A spot check that would catch a rate typo the ratio assertion can't.
-  assert.equal(authority.get('merch_training_tee').cost, 48 * RATE);
+  assert.equal(authority.get('merch_cap_black').cost, 35 * RATE);
   assert.equal(authority.get('train_credit_25').cost, 25 * RATE * 2);
 });
 

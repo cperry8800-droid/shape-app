@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Me ya sa wannan makon ya dace da shi?",
   "assign.guardReasonHint": "Ana adana shi tare da makon · ya zama dole don bugawa",
   "assign.guardPublishAnyway": "Buga duk da haka",
-  "assign.queuedWeeks": "{count, plural, one {mako # yana jira a wannan na’urar} other {makonni # suna jira a wannan na’urar}} — za a buga su idan ka dawo kan layi, kuma ba a gaya wa {name} ba tukuna"
+  "assign.queuedWeeks": "{count, plural, one {mako # yana jira a wannan na’urar} other {makonni # suna jira a wannan na’urar}} — za a buga su idan ka dawo kan layi, kuma ba a gaya wa {name} ba tukuna",
+  "review.statusLiveNutrition": "KAI TSAYE · KWANAKIN ABINCI NA ABOKAN CINIKI",
+  "review.statusDemoNutrition": "JERIN GWAJI · HAR SAI ABOKAN CINIKI SUN RUBUTA ABINCI",
+  "review.unitKcal": "KCAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "BAYANIN KOWANE ABINCI BA A AJIYE SHI BA · JIMILLAR YINI KAWAI",
+  "review.notesBlocked": "BAYANAI SUNA HAƊUWA DA ZAMA · BA WA RANAR ABINCI BA TUKUNA",
+  "review.metaHydration": "SHAN RUWA",
+  "review.metaEnergy": "KUZARI",
+  "review.metaHunger": "YUNWA",
+  "review.stPlanned": "An tsara",
+  "review.stActive": "Ana ci gaba",
+  "review.stCompleted": "An kammala",
+  "review.stAbandoned": "An tsayar da wuri",
+  "review.stReviewed": "An duba"
 }

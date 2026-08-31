@@ -146,9 +146,13 @@ function demoWorkoutReviewSessions(role = 'trainer') {
   // Nutritionist review = meal-log days (kcal/protein/meals) — NOT relabeled
   // workout sets. Honest nutrition shape; the detail body branches on
   // `nutrition: true`.
+  // Field names match the LIVE rows from ShapeNutritionLogs.listClientDays so
+  // the render is one path, not two (kcalTarget / proteinG / proteinTargetG).
+  // The demo keeps `logged`/`planned` + `meals` because a demo day is allowed
+  // to show the shape we WANT; a live day has neither (see the redact line).
   if (isNutri) return [
     { id: 'demo-nutritionist-day-1', nutrition: true, title: 'Tue · 4 meals logged', status: 'complete day',
-      kcal: 1980, target: 2100, protein_g: 152, protein_target_g: 170, logged: 4, planned: 4, flag: null,
+      kcal: 1980, kcalTarget: 2100, proteinG: 152, proteinTargetG: 170, logged: 4, planned: 4, flag: null,
       meals: [
         { slot: 'Breakfast', name: 'Greek yogurt bowl', kcal: 420, macros: '32P · 44C · 12F' },
         { slot: 'Lunch', name: 'Chicken + rice plate', kcal: 620, macros: '48P · 62C · 16F' },
@@ -156,7 +160,7 @@ function demoWorkoutReviewSessions(role = 'trainer') {
         { slot: 'Dinner', name: 'Salmon, potatoes, greens', kcal: 630, macros: '42P · 48C · 24F' },
       ], coach_workout_review_notes: [] },
     { id: 'demo-nutritionist-day-2', nutrition: true, title: 'Mon · 3 of 4 meals logged', status: 'gap flagged',
-      kcal: 1210, target: 2100, protein_g: 82, protein_target_g: 170, logged: 3, planned: 4,
+      kcal: 1210, kcalTarget: 2100, proteinG: 82, proteinTargetG: 170, logged: 3, planned: 4,
       flag: 'PROTEIN 88G UNDER · DINNER UNLOGGED',
       meals: [
         { slot: 'Breakfast', name: 'Oats + berries', kcal: 390, macros: '18P · 62C · 9F' },
@@ -223,17 +227,30 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const [note, setNote] = useStateBSP('');
   const [status, setStatus] = useStateBSP(tr('coach:review.statusLoading', { defaultValue: 'LOADING…' }));
 
+  // The queue's SOURCE is role-specific. A nutritionist reads their clients'
+  // meal-log days (daily_health_snapshot); a trainer reads workout sessions.
+  // Serving workout_sessions to both is what made the nutritionist's whole
+  // "Client review." feature show trainer data on a live account — the demo
+  // rows were the only thing that ever looked like nutrition.
   useEffectBSP(() => {
     let cancelled = false;
     async function load() {
       try {
-        const result = await window.ShapeWorkoutLogs?.listSessions?.();
+        const result = isNutri
+          ? await window.ShapeNutritionLogs?.listClientDays?.()
+          : await window.ShapeWorkoutLogs?.listSessions?.();
         const rows = Array.isArray(result?.data) ? result.data : [];
         if (cancelled) return;
         const nextRows = rows.length ? rows : demoWorkoutReviewSessions(role);
         setSessions(nextRows);
         setSelectedId((current) => current || nextRows[0]?.id || null);
-        setStatus(rows.length ? tr('coach:review.statusLiveLogs', { defaultValue: 'LIVE · SUPABASE SESSION LOGS' }) : tr('coach:review.statusDemoQueue', { defaultValue: 'DEMO QUEUE · UNTIL CLIENT SESSIONS APPEAR' }));
+        setStatus(rows.length
+          ? (isNutri
+            ? tr('coach:review.statusLiveNutrition', { defaultValue: 'LIVE · CLIENT NUTRITION DAYS' })
+            : tr('coach:review.statusLiveLogs', { defaultValue: 'LIVE · SUPABASE SESSION LOGS' }))
+          : (isNutri
+            ? tr('coach:review.statusDemoNutrition', { defaultValue: 'DEMO QUEUE · UNTIL CLIENTS LOG MEALS' })
+            : tr('coach:review.statusDemoQueue', { defaultValue: 'DEMO QUEUE · UNTIL CLIENT SESSIONS APPEAR' })));
       } catch (error) {
         if (cancelled) return;
         const fallback = demoWorkoutReviewSessions(role);
@@ -254,30 +271,65 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const avgSet = selected?.summary?.avgSetSeconds || (completedSets ? Math.round(setLogs.reduce((sum, entry) => sum + Number(entry.set_duration_seconds || entry.setDurationSeconds || 0), 0) / completedSets) : 0);
   const restRows = setLogs.filter((entry) => Number.isFinite(Number(entry.rest_before_seconds ?? entry.restBeforeSeconds)));
   const avgRest = selected?.summary?.avgRestSeconds || (restRows.length ? Math.round(restRows.reduce((sum, entry) => sum + Number(entry.rest_before_seconds ?? entry.restBeforeSeconds ?? 0), 0) / restRows.length) : 0);
+  // Per-meal rows exist on the demo day only — a live day is totals-only.
+  const hasMeals = Array.isArray(selected?.meals) && selected.meals.length > 0;
+  // Everything else the day carries, each part dropped when absent so the line
+  // never asserts a reading the client did not take.
+  const has = (v) => v != null && Number.isFinite(Number(v));
+  // Unit abbreviations are per-locale (ru/uk write г / л / ккал) — never a
+  // hardcoded Latin letter inside a Cyrillic line.
+  const G = tr('coach:review.unitGram', { defaultValue: 'G' });
+  const nutriMeta = selected?.nutrition ? [
+    has(selected.fatG) ? `${tr('coach:adjust.fat', { defaultValue: 'FAT' })} ${selected.fatG}${G}` : null,
+    has(selected.hydrationL) ? `${tr('coach:review.metaHydration', { defaultValue: 'HYDRATION' })} ${selected.hydrationL}${tr('coach:review.unitLitre', { defaultValue: 'L' })}` : null,
+    has(selected.energy) ? `${tr('coach:review.metaEnergy', { defaultValue: 'ENERGY' })} ${selected.energy}/10` : null,
+    has(selected.hunger) ? `${tr('coach:review.metaHunger', { defaultValue: 'HUNGER' })} ${selected.hunger}/10` : null,
+  ].filter(Boolean) : [];
+
+  // The note's SUBJECT. A workout session is addressed by its id; a nutrition
+  // day by (client_id, snapshot_date) — the NATURAL key, because
+  // daily_health_snapshot is UPSERTed on (user_id, snapshot_date), so its row
+  // id is a row identity and the member's own logging can replace it. Demo
+  // rows carry neither, so they resolve to null and never reach the writer.
+  const noteSubject = selected?.nutrition
+    ? (selected.clientId && selected.loggedOn
+      ? { clientId: selected.clientId, snapshotDate: selected.loggedOn }
+      : null)
+    : (selected?.id ? { sessionId: selected.id } : null);
+
+  const appendNote = (saved) => {
+    setSessions((rows) => rows.map((session) => session.id === selected.id
+      ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
+      : session));
+    setNote('');
+  };
+  const localNote = (clean) => ({ id: `local-${Date.now()}`, body: clean, visibility: 'client', created_at: new Date().toISOString() });
 
   const saveNote = async () => {
     const clean = note.trim();
     if (!selected?.id || !clean) return;
+    // The composer is hidden for these rows; refuse here too, because the
+    // catch below turns a failed insert into a plausible "saved" message.
+    if (selected.notesBlocked) return;
+    // A demo day has no live subject — keep it local rather than sending a row
+    // the DB's subject CHECK would reject.
+    if (!noteSubject) {
+      appendNote(localNote(clean));
+      setStatus(tr('coach:review.savedDemo', { defaultValue: 'Saved locally for this demo session' }));
+      return;
+    }
     setStatus(tr('coach:review.savingNote', { defaultValue: 'Saving review note...' }));
     try {
       const result = await window.ShapeWorkoutLogs?.addCoachReviewNote?.({
-        sessionId: selected.id,
+        ...noteSubject,
         providerRole: role,
         body: clean,
         visibility: 'client',
       });
-      const saved = result?.data || { id: `local-${Date.now()}`, body: clean, visibility: 'client', created_at: new Date().toISOString() };
-      setSessions((rows) => rows.map((session) => session.id === selected.id
-        ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
-        : session));
-      setNote('');
+      appendNote(result?.data || localNote(clean));
       setStatus(result?.stored === 'supabase' ? tr('coach:review.noteSavedRemote', { defaultValue: 'Review note saved to Supabase' }) : tr('coach:review.noteSavedLocal', { defaultValue: 'Review note saved locally' }));
     } catch (error) {
-      const saved = { id: `local-${Date.now()}`, body: clean, visibility: 'client', created_at: new Date().toISOString() };
-      setSessions((rows) => rows.map((session) => session.id === selected.id
-        ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
-        : session));
-      setNote('');
+      appendNote(localNote(clean));
       setStatus(error?.message || tr('coach:review.savedDemo', { defaultValue: 'Saved locally for this demo session' }));
     }
   };
@@ -290,6 +342,57 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
       <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
     </div>
   );
+
+  // A LIVE nutrition day carries the client + the calendar day it covers; the
+  // demo rows carry an authored title. `snapshot_date` is the member's OWN
+  // 'YYYY-MM-DD', so it is parsed part-by-part — new Date('2026-08-31') is UTC
+  // midnight and renders as the 30th anywhere west of UTC.
+  const dayLabel = (iso) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    if (!m) return '';
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (isNaN(d)) return '';
+    try { return d.toLocaleDateString(coachLocale(), { weekday: 'short', month: 'short', day: 'numeric' }); } catch (e) { return ''; }
+  };
+  const rowTitle = (row) => row.workout_name || row.title
+    || (row.nutrition
+      ? [row.clientName || tr('coach:common.clientFallback', { defaultValue: 'Client' }), dayLabel(row.loggedOn)].filter(Boolean).join(' · ')
+      : tr('coach:review.sessionFallback', { defaultValue: 'Workout session' }));
+  // `workout_sessions.status` is a STORED TOKEN, not copy: the column is text
+  // NOT NULL DEFAULT 'completed' with a CHECK pinning it to exactly
+  // planned|active|completed|abandoned|reviewed. It was rendering RAW at two
+  // sites, so a Russian trainer read the English word 'completed' on their own
+  // queue — the token/label class this repo has now closed at five sites (the
+  // Train tag, the grocery aisle, the primary goal, the pref options, the
+  // profile pin). The token keeps being the token; only the LABEL is
+  // translated, and an unrecognised value renders as ITSELF — never a raw key,
+  // never blank (the aisle precedent). The demo rows' free-text statuses fall
+  // through that passthrough and read as themselves, which is what demo copy
+  // is supposed to do.
+  const REVIEW_STATUS = {
+    planned: ['coach:review.stPlanned', 'Planned'],
+    active: ['coach:review.stActive', 'In progress'],
+    completed: ['coach:review.stCompleted', 'Completed'],
+    abandoned: ['coach:review.stAbandoned', 'Ended early'],
+    reviewed: ['coach:review.stReviewed', 'Reviewed'],
+  };
+  const statusLabel = (raw) => {
+    const s = String(raw == null ? '' : raw);
+    // Exact first; the lowercase retry only ever sees ASCII tokens from our own
+    // CHECK constraint, so it cannot hit the Turkish dotted-i class that bans a
+    // locale-insensitive fold over TRANSLATED text.
+    const hit = REVIEW_STATUS[s] || REVIEW_STATUS[s.toLowerCase()];
+    if (!hit) return s;
+    const v = tr(hit[0], { defaultValue: hit[1] });
+    return (typeof v === 'string' && v && v !== hit[0]) ? v : hit[1];
+  };
+  // Never claim 'completed' for a nutrition day — that is a workout word, and
+  // a logged day is not a finished anything. Absent a stored status the day
+  // states WHEN it is, which is a fact.
+  const rowStatus = (row) => statusLabel(row.status) || (row.nutrition ? dayLabel(row.loggedOn) : statusLabel('completed'));
+  // A number that is not a real number renders as an em dash, never 0 — a
+  // fabricated zero here reads as "this client ate nothing".
+  const fig = (v, suffix = '') => (Number.isFinite(Number(v)) && v != null ? `${v}${suffix}` : '—');
 
   return (
     <BSPage>
@@ -317,16 +420,25 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         {sessions.map((session) => {
           const active = session.id === selected?.id;
           const isNut = session.nutrition === true;
-          const count = isNut ? `${session.logged}/${session.planned}` : (session.summary?.completedSets || (session.workout_set_logs || []).length || 0);
-          const unit = isNut ? tr('coach:review.unitMeals', { defaultValue: 'MEALS' }) : tr('coach:review.unitSets', { defaultValue: 'SETS' });
-          const title = session.workout_name || session.title || tr('coach:review.sessionFallback', { defaultValue: 'Workout session' });
+          // A live day has NO per-meal count (meal logging accumulates day
+          // totals — there is no per-meal row to count), so it leads with the
+          // figure it genuinely has. A fabricated '0/0 MEALS' would read as a
+          // client who logged nothing.
+          const hasMealCount = Number.isFinite(Number(session.logged)) && Number.isFinite(Number(session.planned));
+          const count = isNut
+            ? (hasMealCount ? `${session.logged}/${session.planned}` : fig(session.kcal))
+            : (session.summary?.completedSets || (session.workout_set_logs || []).length || 0);
+          const unit = isNut
+            ? (hasMealCount ? tr('coach:review.unitMeals', { defaultValue: 'MEALS' }) : tr('coach:review.unitKcal', { defaultValue: 'KCAL' }))
+            : tr('coach:review.unitSets', { defaultValue: 'SETS' });
+          const title = rowTitle(session);
           return (
             <button
               key={session.id}
               type="button"
               onClick={() => setSelectedId(session.id)}
               aria-current={active ? 'true' : undefined}
-              aria-label={`${title}, ${count} ${unit.toLowerCase()}, ${session.status || 'completed'}`}
+              aria-label={`${title}, ${count} ${unit.toLocaleLowerCase(coachLocale())}, ${rowStatus(session)}`}
               style={{
                 width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0,
                 borderTop: `1px solid ${t.INK}12`,
@@ -340,7 +452,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                 <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{count} {unit}</span>
               </span>
               <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                {(session.status || 'completed')}{isNut ? '' : ` · ${formatReviewSeconds(session.duration_seconds)}`}
+                {rowStatus(session)}{isNut ? '' : ` · ${formatReviewSeconds(session.duration_seconds)}`}
               </span>
             </button>
           );
@@ -353,22 +465,42 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               workout body (sets + watch samples); COACH NOTES is shared below. */}
           {selected.nutrition ? (
             <div style={{ padding: `22px ${t.padX}px 0` }}>
-              {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.mealLog', { defaultValue: 'MEAL LOG' })} · ${selected.status || 'logged'}`} />}
+              {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.mealLog', { defaultValue: 'MEAL LOG' })} · ${rowStatus(selected)}`} />}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                {stat(tr('coach:review.statKcal', { defaultValue: 'Kcal' }), selected.kcal)}
-                {stat(tr('coach:review.statTarget', { defaultValue: 'Target' }), selected.target)}
+                {stat(tr('coach:review.statKcal', { defaultValue: 'Kcal' }), fig(selected.kcal))}
+                {/* The target is the COACH'S OWN prescription and is null when
+                    they have not set one — an em dash, never a default. */}
+                {stat(tr('coach:review.statTarget', { defaultValue: 'Target' }), fig(selected.kcalTarget))}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{tr('coach:review.statProtein', { defaultValue: 'Protein' })}</div>
                   <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>
-                    {selected.protein_g}<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginLeft: 3 }}>/{selected.protein_target_g}G</span>
+                    {fig(selected.proteinG)}{Number.isFinite(Number(selected.proteinTargetG)) && selected.proteinTargetG != null
+                      ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginLeft: 3 }}>/{selected.proteinTargetG}{G}</span>
+                      : null}
                   </div>
                 </div>
-                {stat(tr('coach:review.statLogged', { defaultValue: 'Logged' }), `${selected.logged}/${selected.planned}`)}
+                {/* Slot 4 is the meal count when there IS one (demo), else the
+                    other macro we actually hold. */}
+                {hasMeals
+                  ? stat(tr('coach:review.statLogged', { defaultValue: 'Logged' }), `${selected.logged}/${selected.planned}`)
+                  : stat(tr('coach:case.macroCarbs', { defaultValue: 'Carbs' }), fig(selected.carbsG, G))}
               </div>
+              {/* The rest of the day, in the coach's own read order — each part
+                  omitted entirely when the client did not log it. */}
+              {nutriMeta.length ? (
+                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{nutriMeta.join(' · ')}</div>
+              ) : null}
               {selected.flag ? (
                 <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>{selected.flag}</div>
               ) : null}
               <div style={{ marginTop: 16 }}>
+                {/* A live day has NO per-meal rows to show: logging accumulates
+                    into the day's totals (add_meal_macros) and no per-meal
+                    record is kept. Say that, rather than rendering an empty
+                    list that reads as "logged nothing". */}
+                {!hasMeals && window.BSTRedact
+                  ? <window.BSTRedact INK={t.INK} label={tr('coach:review.mealsNotStored', { defaultValue: 'PER-MEAL DETAIL NOT STORED · DAY TOTALS ONLY' })} />
+                  : null}
                 {(selected.meals || []).map((meal, index) => (
                   <div key={index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -386,7 +518,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           {/* ── Session detail — station head + bare 4-up registers (eyebrow above
               figure) + dot-leader set rows. The bordered card is gone. ── */}
           <div style={{ padding: `22px ${t.padX}px 0` }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.sessionDetail', { defaultValue: 'SESSION DETAIL' })} · ${selected.status || 'completed'}`} />}
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.sessionDetail', { defaultValue: 'SESSION DETAIL' })} · ${rowStatus(selected)}`} />}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
               {stat(tr('coach:review.statSets', { defaultValue: 'Sets' }), completedSets)}
               {stat(tr('coach:review.statAvgSet', { defaultValue: 'Avg set' }), formatReviewSeconds(avgSet))}
@@ -443,6 +575,17 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                   {item.body}
                 </div>
               ))}
+              {/* A day note needs the schema half
+                  (2026-08-31-nutrition-day-review-notes.sql). `notesBlocked` is
+                  PROBED on read, so this branch renders exactly while an insert
+                  would fail and the catch above would report "saved locally"
+                  for something that saved nowhere — never as a standing claim
+                  about what the product can do. */}
+              {selected.notesBlocked ? (
+                window.BSTRedact
+                  ? <window.BSTRedact INK={t.INK} label={tr('coach:review.notesBlocked', { defaultValue: 'NOTES ATTACH TO A WORKOUT SESSION · NOT YET TO A NUTRITION DAY' })} />
+                  : null
+              ) : (<>
               <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={tr('coach:review.notePlaceholder', { defaultValue: 'Write feedback for the client...' })} style={{
                 width: '100%',
                 minHeight: 94,
@@ -472,6 +615,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               }}>
                 {tr('coach:review.saveNote', { defaultValue: 'Save review note' })}
               </button>
+              </>)}
             </div>
           </div>
         </>
