@@ -131,11 +131,15 @@ test('MOBILE: the record stores tokens, the screen renders labels, the picker co
   assert.ok(pick, 'the pin picker');
   assert.ok(/bsPinKindToken\(pinKind\) === k\.id/.test(pick[0]), 'selection compares tokens');
   assert.ok(!/pinKind === k\b/.test(pick[0]), 'the old copy-equality comparison is gone');
-  assert.ok(/bsPinKindLabel\(k\.id\)/.test(pick[0]), 'the chip renders a label');
+  // ⚠ THIS PINNED `bsPinKindLabel(k.id)` — the one-argument spelling — and cut 16
+  // broke it by passing the TRANSLATOR, which is the whole point of the picker.
+  // A guard that pins an expression pins whatever that expression is wrong about;
+  // assert what the code ANSWERS. The chip must render a TRANSLATED label.
+  assert.ok(/bsPinKindLabel\(k\.id, tr\)/.test(pick[0]), 'the chip renders a translated label');
 
   assert.ok(/<select value=\{bsPromptToken\(p\.q\)\}/.test(mob), 'the select is keyed on the token');
-  assert.ok(/<option key=\{q\.id\} value=\{q\.id\}[^\n]*bsPromptLabel\(q\.id\)/.test(mob),
-    'the options carry ids and render labels');
+  assert.ok(/<option key=\{q\.id\} value=\{q\.id\}[^\n]*bsPromptLabel\(q\.id, tr\)/.test(mob),
+    'the options carry ids and render translated labels');
   assert.ok(/bsPinKindToken\(\(init\.pinned && init\.pinned\.kind\) \|\| ''\)/.test(mob),
     'a legacy English kind is normalised on the way in, so the picker still matches');
 });
