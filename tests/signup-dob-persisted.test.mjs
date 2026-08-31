@@ -26,6 +26,7 @@
 // is a separate gate: tests/age-derive-mirror.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { stripComments } from './helpers/strip-comments.mjs';
 import { readFileSync } from 'node:fs';
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -34,13 +35,15 @@ const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 // surfaces quote the very expression this file bans and name `auth.signUp()`
 // while explaining the ordering, so an assertion over raw text fires on its own
 // explanation — which is exactly what happened when these two tests were first
-// written. (Same lesson as tests/meal-note-copy.test.mjs.) The `:` lookbehind
-// keeps `https://` out of the line-comment rule.
-function stripComments(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-}
+// written. (Same lesson as tests/meal-note-copy.test.mjs.)
+//
+// ⚠ ONE implementation, imported. The local copy this file used to carry ran a
+// lazy /* … */ span, which opens a FALSE block on a slash-star inside a string
+// literal and deletes everything to the next `*/`. Measured on the bodies this
+// file actually asserts over, it silently removed 78 chars of shapeBackend's
+// phone path and 305 of newdesign/signup.jsx — code the ban below then never saw.
+// The shared helper is line-oriented, so a `//` line is a comment and `https://`
+// mid-line is not.
 
 const HELPER = read('../public/supabase.js');
 const LEGACY_PAGE = read('../public/signup-client.html');

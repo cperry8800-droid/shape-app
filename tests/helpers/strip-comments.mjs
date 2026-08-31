@@ -10,6 +10,14 @@
 //
 // ONE implementation on purpose: this stripper shipped a real defect that only
 // mutation-testing caught, and a second copy is a second chance to reintroduce it.
+//
+// ⚠ AND IT DID — TWICE, IN GUARDS WRITTEN AFTER THIS WARNING. Two later source
+// guards kept their own lazy /* … */ span: pref-options-token swallowed 567,895
+// characters of iosAppBroadsheetClient.jsx (7 false blocks, the first opening on
+// `accept="image/*"`), signup-dob-persisted 383 across the bodies it asserts over.
+// Mutation-proven on 2026-08-31: a local `/fat ?loss|cut|lean/` planted inside a
+// swallowed span PASSED the ban with the local stripper and FAILS with this one.
+// All three copies are now deleted — import this, never re-derive it.
 export function stripComments(src) {
   const out = [];
   let inBlock = false;
