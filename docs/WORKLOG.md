@@ -378,6 +378,41 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — Session handoff: `docs/HANDOFF-2026-08-31.md`
+
+- **Thirty PRs since the last handoff — #1957 → #1986 — had none.** The 08-29 handoff
+  (#1956) covered through #1955; everything after it is the **i18n wave** (cuts 1–17),
+  **five token/label splits** (Train tag · grocery aisle · primary goal · Settings pref
+  options · profile pin kinds and prompts), **two widenings of the measurement itself**
+  (`TEXT_PROPS` 7 → 15 plus attribute expressions; `export` unwrapping + `ClassDeclaration`),
+  the comment-stripper consolidation, and a long run of register corrections.
+- **Handoff: [`docs/HANDOFF-2026-08-31.md`](HANDOFF-2026-08-31.md)** — state snapshot, the
+  30-PR table, **the cut machinery** (the eight-step order, the nine blind shapes, the traps
+  now gated), the next work **ranked and measured** rather than recalled, the seven owner
+  rulings outstanding, and every registered-not-built follow-up.
+- **State, all re-measured rather than carried forward:** suite **2614/2614** · `tsc` 0 ·
+  ratchet 9/9 (359 rendering JSX · 114 fully covered · 35 partial / 170 strings · 96
+  uncovered / 818 strings) · **no open PRs** (the authoritative nothing-in-flight proof) ·
+  **no migrations owed** · 13 locales × 18 namespaces × 4,146 `en` keys = **53,898 values**.
+- ⚠ **AND THE HANDOFF'S OWN CITATION FORCED A RECORDS CORRECTION — the toast figure was a
+  MENTION count wearing an invocation count's name, and its own breakdown proved it.** The
+  records carried **275** `window.__bsToast` call sites with the breakdown *"197 client · 28
+  pros · 16 calendar · 10 main · **8 chrome** · 6 habits · 6 marketplace · 4 data layer"* —
+  but the chrome (`iosAppBroadsheet.jsx`) contains **ZERO invocations**: 6 comment lines
+  quoting the call shape, the no-op definition, and the `delete`. The 2026-08-30 correction
+  claimed it re-measured `window.__bsToast?.(` invocations *"matching the per-file breakdown
+  above exactly"* — a method that **cannot** reproduce that breakdown, i.e. a method asserted
+  rather than run. **Re-measured: 266 real call sites** (client 196 · pros 28 · calendar 16 ·
+  main 10 · habits 6 · marketplace 6 · data layer 4), with the method written down so the
+  next reader can re-derive it.
+- ⚠ **AND THE RE-MEASUREMENT FOUND A SECOND CALL IDIOM THE RECORD NEVER MENTIONED.** Eleven
+  sites use the guard form `window.__bsToast && window.__bsToast(…)` rather than the optional
+  chain — so a `?.(`-only sweep **undercounts by 11** while a raw-mention sweep **overcounts
+  by the chrome's 8**, and the old figure happened to land near the truth by cancelling one
+  error against the other. Corrected at all four sites that quote it (the canonical cut-3
+  entry, cut 17's two restatements, and the War Room item). *A figure nobody re-derived,
+  quoted forward* — this file's own recurring lesson, paid for again.
+
 ### 2026-08-31 — i18n cut 17: the weekly stake, and a 50-point bet that failed in silence
 
 - **The card a member puts points at risk on is localized.** `BSCommitmentCard` — the Score
@@ -386,7 +421,7 @@ changelog whenever something ships.
   (546 values); it leaves UNCOVERED for **fully covered**. No migration, no route change.
 - ⚠ **AND THE CUT'S REAL FINDING IS NOT THE COPY — BOTH WRITES REPORTED FAILURE INTO A
   VOID.** `window.__bsToast` is a live **no-op** (`iosAppBroadsheet.jsx:1364` keeps the
-  global as `() => {}` so the ~275 imperative callers stay safe — toasts were switched off
+  global as `() => {}` so the ~266 imperative callers stay safe — toasts were switched off
   app-wide by #938), while **`setCommitment` and `acceptCommitment` are BOTH fully
   try/caught in the data layer**, so every failure — no session, an RPC error, a
   pre-migration PGRST202, a thrown fetch — resolves to `{ok:false}` / `{accepted:false}`
@@ -402,7 +437,7 @@ changelog whenever something ships.
   confirmation. Pinned in both directions: the success path must use the toast and must
   **not** call `notice()`.
 - **This is the toast-sink question answered one site at a time**, which is what the
-  register asked for: not *revive the sink* (a product decision about 275 call sites) but
+  register asked for: not *revive the sink* (a product decision about 266 call sites) but
   *which of those carry a failure a member must see*. A staking action is the clearest yes
   in the app.
 - ⚠ **FOUR STATUS KEYS, NEVER ONE FRAME WITH `{status}`.** `c.status` is the **STORED
@@ -2889,12 +2924,29 @@ changelog whenever something ships.
   notice-mode comment at `:1413` dates it — *"switched off app-wide on 2026-06-03
   (#938) … the popup noise #938 deliberately removed"*. Off by decision, not by
   fault.
+  ⚠ **CORRECTED AGAIN 2026-08-31 — THE 275 IS A MENTION COUNT WEARING AN INVOCATION
+  COUNT'S NAME, AND ITS OWN BREAKDOWN PROVES IT.** The 08-30 correction says it
+  re-measured `window.__bsToast?.(` invocations "matching the per-file breakdown above
+  exactly" — but that breakdown carries **8 chrome**, and the chrome
+  (`iosAppBroadsheet.jsx`) contains **ZERO invocations**: 6 comment lines quoting the
+  call shape, the no-op definition `window.__bsToast = () => {}`, and the `delete`.
+  So the stated method cannot reproduce the stated number; a method was asserted, not
+  run. **Measured 2026-08-31 with the method written down so the next reader can
+  re-derive it rather than trust the page: 266 real call sites** across `mobile-app/src`
+  — client **196** · pros **28** · calendar **16** · main **10** · habits **6** ·
+  marketplace **6** · data layer **4** — counting **BOTH idioms** and excluding comment
+  lines. ⚠ **And the second idiom is the other thing the record never mentioned:**
+  11 sites use the guard form `window.__bsToast && window.__bsToast(…)` rather than the
+  optional chain, so a `?.(`-only sweep undercounts by 11 and a raw-mention sweep
+  overcounts by the chrome's 8. (Client reads 196 rather than 197 because **cut 17
+  converted one** — `setCommitment`'s failure path — to a `bsAskConfirm` notice, which
+  is the register's own answer being applied one site at a time.)
   ⚠ **AND THE RECORD OMITTED THE ONE FACT AN AUTHOR ACTING ON IT NEEDS: A SANCTIONED
   REPLACEMENT ALREADY EXISTS.** `bsAskConfirm` **notice mode** (`o.notice === true`)
   was built *because* the toast is a no-op, and its comment carries the rule — use it
   for **a transient failure the member needs to know about**, never for a success
   confirmation, which is exactly the noise #938 removed. So the open question is not
-  "revive the sink"; it is **which of the 275 sites carry a failure a member must see,
+  "revive the sink"; it is **which of the 266 sites carry a failure a member must see,
   and should those become notices** — a much narrower call, already answerable one
   site at a time. **A finding that names a gap without naming the existing remedy
   reads as unactionable when it isn't.**
