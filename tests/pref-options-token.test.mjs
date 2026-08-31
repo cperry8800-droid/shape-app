@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { stripComments } from './helpers/strip-comments.mjs';
 import {
   BS_PREF_OPTIONS,
   bsPrefOptionLabel,
@@ -21,9 +22,14 @@ const ROUTE = path.join('src', 'app', 'api', 'client', 'analytics', 'route.ts');
 
 // ⚠ Strip comments first. The rationale written at each site quotes the very
 // expressions these assertions ban; this repo has burned that trap more than once.
-function stripComments(s) {
-  return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
-}
+//
+// ⚠ ONE implementation, imported. The local copy this file used to carry was the
+// lazy `/\*[\s\S]*?\*/` span, which opens a FALSE block on `accept="image/*"` — the
+// `/*` inside a MIME-type string literal — and runs to the next `*/` hundreds of
+// lines later. Measured on the shipped client file: 7 such blocks swallowed 567,895
+// characters, so the two file-wide bans below scanned source that was not there.
+// Proven by planting a local `/fat ?loss|cut|lean/` inside a swallowed span: the
+// ban PASSED with the local stripper and FAILS with this one.
 const clientSrc = stripComments(fs.readFileSync(CLIENT, 'utf8'));
 const routeSrc = stripComments(fs.readFileSync(ROUTE, 'utf8'));
 

@@ -378,6 +378,44 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — Three source guards were scanning source that had been deleted, and the fix already existed
+
+- **`tests/helpers/strip-comments.mjs` has said "ONE implementation on purpose" since the day it
+  was written**, because its own lazy `/* … */` predecessor "ran to the next `*/` hundreds of lines
+  later and ate the function the caller asserts about". **Two guards written AFTER that warning kept
+  their own copy of exactly that regex.** All three local copies are deleted; every source guard in
+  the repo (15 files) now imports the one helper.
+- ⚠ **THE BIG ONE WAS LIVE-SIZED AND MUTATION-PROVEN DISABLE-ABLE.** `pref-options-token`'s stripper
+  opened a **FALSE block on `accept="image/*"`** — the `/*` inside a MIME-type string literal — and
+  ran to the next `*/`. Measured on the shipped client file: **7 such blocks, 567,895 of 2,462,234
+  characters swallowed** (the largest 36,221 chars, lines 11959–12467). Its two file-wide bans
+  (*no reader keeps a local cut/build regex*) were therefore scanning a file with a quarter of itself
+  removed. **Proven, not inferred:** a local `/fat ?loss|cut|lean/` planted inside a swallowed span
+  **PASSED 13/13** with the old stripper and **FAILS** with the helper.
+- ⚠ **AND THE GUARD-THE-GUARD IS THE PART WORTH KEEPING.** Reverting the *helper's* body to the lazy
+  span — with the same regex still planted — makes the mutation **survive 13/13** again. So the
+  helper's line-orientation is the load-bearing property, not the import; a future "tidy-up" that
+  re-derives a spanning regex silently re-opens every one of these bans.
+- **The second copy was smaller and in a worse place.** `signup-dob-persisted` guards the **18+
+  signup surfaces**, and its lazy strip removed **78 characters of `shapeBackend`'s phone path and
+  305 of `newdesign/signup.jsx`** from the bodies its *instant-comparison ban* reads — the ban whose
+  own comment calls it "THE ANTI-REGRESSION THAT MATTERS MOST". ⚠ The huge spans in `supabase.js`
+  (34,778) and `shapeBackend.js` (41,818) sit **outside** the sliced bodies, so they never mattered
+  there — **which is why measuring the asserted bodies, not the files, is the honest instrument.**
+  My first measurement compared whole-file slices and reported a marker as MISSING; that was the
+  measurement being wrong, not the guard. *Check the check before believing the finding.*
+- **Two because-clauses went stale in the same edit and were rewritten rather than left.**
+  `profile-token-sync`'s comment still explained a line-only local copy that no longer exists, and
+  `signup-dob-persisted`'s still credited a `:` lookbehind "keeping `https://` out of the
+  line-comment rule" — a mechanism the helper does not have and does not need (a `//` line is a
+  comment; `https://` mid-line is untouched). **A comment that explains a deleted implementation is
+  a false claim about the code under it.**
+- **The helper now records that its own warning came true**, with the measurement, so the next reader
+  meets the evidence rather than the prediction.
+- Verified: `npm test` **2598/2598** · `tsc --noEmit` 0 · the three affected guards 38/38 with
+  **sanity green at both ends of the mutation batch** and the tree restored byte-identically ·
+  tests-only diff (4 files), no product code touched.
+
 ### 2026-08-31 — The profile pin kind + prompt question split, and the first two-writer instance of the class
 
 - **The pin KIND and the prompt QUESTION stop being the copy they render.** Both are STORED in the

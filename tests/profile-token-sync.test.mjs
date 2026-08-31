@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { stripComments } from './helpers/strip-comments.mjs';
 import {
   BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS,
   bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
@@ -18,14 +19,13 @@ const MOBILE = path.join('mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetCli
 const WEB = path.join('public', 'newdesign', 'livingDesktop.jsx');
 
 // ⚠ Strip comments first — the rationale written at each site quotes the very
-// expressions these assertions ban. LINE comments only, deliberately: a
-// non-greedy /* … */ strip opens a false block on the first regex literal that
-// contains a slash-star and swallows 568k characters of this file, so the
-// assertions then pass vacuously over source that isn't there. Every rationale
-// comment in both files is a // line, so this is sufficient as well as safe.
-function stripComments(s) {
-  return s.replace(/^[ \t]*\/\/.*$/gm, '');
-}
+// expressions these assertions ban.
+//
+// ⚠ ONE implementation, imported. A lazy /* … */ span is the wrong tool here: it
+// opens a false block on the first slash-star inside a string literal or regex and
+// runs to the next `*/` hundreds of lines away, so the assertions then pass
+// vacuously over source that is not there. The shared helper is line-oriented for
+// exactly that reason and carries the measurement.
 const mob = stripComments(fs.readFileSync(MOBILE, 'utf8'));
 const web = stripComments(fs.readFileSync(WEB, 'utf8'));
 
