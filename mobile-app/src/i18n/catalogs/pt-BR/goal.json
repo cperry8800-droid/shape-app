@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "hoje.",
   "weighIn.bodyFat": "Gordura corporal · opcional",
   "weighIn.note": "Atualiza sua tendência e seu progresso · início {start} · objetivo {target}",
-  "weighIn.save": "Salvar pesagem"
+  "weighIn.save": "Salvar pesagem",
+  "primary.goal.fat_loss": "Perder gordura",
+  "primary.goal.muscle": "Ganhar músculo",
+  "primary.goal.recomp": "Recomp",
+  "primary.goal.maintain": "Manter",
+  "primary.goal.strength": "Ficar mais forte",
+  "primary.goal.endurance": "Resistência",
+  "primary.goal.mobility": "Mobilidade",
+  "primary.goal.athletic": "Desempenho atlético",
+  "primary.goal.health": "Saúde geral",
+  "primary.goal.tone": "Definir o corpo",
+  "primary.goal.race": "Correr uma prova",
+  "primary.goal.postpartum": "Pós-parto"
 }

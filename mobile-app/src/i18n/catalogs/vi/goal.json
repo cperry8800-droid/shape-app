@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "hôm nay.",
   "weighIn.bodyFat": "Mỡ cơ thể · tuỳ chọn",
   "weighIn.note": "Cập nhật xu hướng và tiến độ của bạn · bắt đầu {start} · chỉ tiêu {target}",
-  "weighIn.save": "Lưu lần cân"
+  "weighIn.save": "Lưu lần cân",
+  "primary.goal.fat_loss": "Giảm mỡ",
+  "primary.goal.muscle": "Tăng cơ",
+  "primary.goal.recomp": "Tái cấu trúc",
+  "primary.goal.maintain": "Duy trì",
+  "primary.goal.strength": "Khỏe hơn",
+  "primary.goal.endurance": "Sức bền",
+  "primary.goal.mobility": "Linh hoạt",
+  "primary.goal.athletic": "Thành tích thể thao",
+  "primary.goal.health": "Sức khỏe tổng thể",
+  "primary.goal.tone": "Săn chắc",
+  "primary.goal.race": "Chạy một giải",
+  "primary.goal.postpartum": "Sau sinh"
 }

@@ -154,5 +154,17 @@
   "weighIn.titleAccent": "heute.",
   "weighIn.bodyFat": "Körperfett · optional",
   "weighIn.note": "Aktualisiert deinen Trend und deinen Fortschritt · Start {start} · Ziel {target}",
-  "weighIn.save": "Wiegen speichern"
+  "weighIn.save": "Wiegen speichern",
+  "primary.goal.fat_loss": "Fett verlieren",
+  "primary.goal.muscle": "Muskeln aufbauen",
+  "primary.goal.recomp": "Recomp",
+  "primary.goal.maintain": "Halten",
+  "primary.goal.strength": "Stärker werden",
+  "primary.goal.endurance": "Ausdauer",
+  "primary.goal.mobility": "Mobilität",
+  "primary.goal.athletic": "Sportliche Leistung",
+  "primary.goal.health": "Allgemeine Gesundheit",
+  "primary.goal.tone": "Straffer werden",
+  "primary.goal.race": "Ein Rennen laufen",
+  "primary.goal.postpartum": "Nach der Geburt"
 }
