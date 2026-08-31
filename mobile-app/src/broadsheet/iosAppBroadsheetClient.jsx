@@ -14516,6 +14516,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // Honor the avatar-source toggle on my own profile (initials mode hides the
   // stored photo here too, not just in the app chrome).
   const avPhoto = (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar));
+  // Full-bleed hero cover: with a cover image set, the photo fills the WHOLE
+  // ascent block and the ridge/avatar/labels/phase line draw over it (scrimmed,
+  // fixed-cream ink). The phase eyebrow rides the cover when both exist, so the
+  // coach band below only renders when it still has content.
+  const heroCover = (customEff && customEff.cover && customEff.cover.image) || null;
+  const phaseLine = showCoachBand && (!signedInSelf || hasRealProgram);
+  const phaseOnCover = !!heroCover && phaseLine;
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
@@ -14608,14 +14615,17 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           const memberFilm = bsProfileFilm(customEff && customEff.filmMember, person.userId, 'member-films');
           return memberFilm ? <BSProfileFilmCard film={memberFilm} INK={INK} c={c} label={tr('profile:film.headMember', { defaultValue: 'Intro film' })} /> : null;
         })()}
-        {/* ASCENT — the self-drawing ridge, inked straight on the paper (no box).
+        {/* ASCENT — the self-drawing ridge. With a cover set it runs FULL-BLEED:
+            the photo fills this whole block and the ridge/avatar/labels/phase
+            line draw OVER it on a fixed-dark scrim. Overlay ink is then FIXED
+            CREAM, never theme INK — light papers have dark ink, unreadable on a
+            photo (the house "dark overlays over cover photos" pattern). With no
+            cover the ridge inks straight on the paper, exactly as before.
             preserveAspectRatio="none" so the %-positioned overlays stay aligned. */}
-        <div style={{ padding: '14px 0 2px' }}>
-          {customEff && customEff.cover && customEff.cover.image && (
-            <div style={{ height: 116, marginBottom: 6, borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}`, overflow: 'hidden' }}>
-              <img src={customEff.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            </div>
-          )}
+        <div style={heroCover ? { position: 'relative', marginTop: 14, overflow: 'hidden', borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` } : { padding: '14px 0 2px' }}>
+          {heroCover && <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+          {heroCover && <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(11,9,8,0.42) 0%, rgba(11,9,8,0.12) 34%, rgba(11,9,8,0.22) 58%, rgba(11,9,8,0.78) 100%)' }} />}
+          <div style={heroCover ? { position: 'relative', paddingTop: 128, paddingBottom: phaseOnCover ? 0 : 6 } : null}>
           {(() => {
             const W = 330, H = 150;
             const base = [12, H - 22], peak = [W - 22, 26];
@@ -14623,29 +14633,32 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             const hp = Math.max(0.06, Math.min(heroPct, 0.66));
             const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
             const reduced = bsSdReduced();
+            // Over a photo the paper's INK is unusable — fixed cream + shadow.
+            const rINK = heroCover ? '#f2ede4' : INK;
+            const overSh = heroCover ? '0 1px 5px rgba(0,0,0,0.7)' : undefined;
             return (
               <div style={{ position: 'relative' }}>
                 <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block' }}>
-                  {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
+                  {!heroCover && [0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
                   {/* base ridge = the whole route, dashed ink */}
-                  <path d={ridge} fill="none" stroke={bsTHexA(INK, 0.3)} strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+                  <path d={ridge} fill="none" stroke={bsTHexA(rINK, heroCover ? 0.5 : 0.3)} strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
                   {/* earned segment = heat, drawing itself to heroPct on mount */}
                   <path d={ridge} fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" pathLength={1}
                     strokeDasharray={`${heroPct} 1`} style={{ strokeDashoffset: heroSeen ? 0 : heroPct, transition: reduced ? 'none' : 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 400ms' }} />
                   {/* summit flag (heat) + hollow ink start square */}
                   <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 18} stroke={c} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
                   <path d={`M ${peak[0]} ${peak[1] - 18} l 13 4 l -13 4 z`} fill={c} />
-                  <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={bsTHexA(INK, 0.55)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                  <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={bsTHexA(rINK, heroCover ? 0.8 : 0.55)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
                 </svg>
                 {/* you-are-here facet (the page's one breathing loop) + 43% readout */}
-                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 30px))`, top: `${(here.y / H) * 100}%`, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 30px))`, top: `${(here.y / H) * 100}%`, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, filter: heroCover ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.5))' : undefined }}>
                   <div style={{ borderRadius: '50%', ...(reduced ? null : { '--sd-glow': bsTHexA(c, 0.45), animation: 'bsSdPop 400ms cubic-bezier(.2,1.1,.3,1) 1150ms both, bsSdPrBreath 3.2s ease-in-out 1750ms infinite' }) }}>
                     <BSFacetAvatar size={60} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
                   </div>
-                  <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{heroPctLabel}%</span>
+                  <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', color: rINK, textShadow: overSh, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{heroPctLabel}%</span>
                 </div>
                 {/* base + summit level labels — bare mono (no pills, no tier text) */}
-                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{curLevel}</span>
+                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{curLevel}</span>
                 {/* The inset must FOLLOW the SVG's percentage geometry, not be a fixed px:
                     preserveAspectRatio="none" stretches x with the width, so the flag's
                     left edge always sits (330−308)/330 = 6.67% from the right. A fixed
@@ -14653,16 +14666,20 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                     in Info.plist, so >510px is reachable); calc(6.67% + 6px) keeps the
                     label left of the flag with a 6px gap at ANY width. At right:12 the
                     label's tail painted over the flag fill and was unreadable. */}
-                <span style={{ position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{nextLevel || curLevel}</span>
+                <span style={{ position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{nextLevel || curLevel}</span>
               </div>
             );
           })()}
+          </div>
+          {phaseOnCover && (
+            <div style={{ position: 'relative', padding: '2px 20px 10px', fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.6)', textShadow: '0 1px 5px rgba(0,0,0,0.7)' }}>{blockEff} · <span style={{ color: 'rgba(242,237,228,0.9)' }}>{programEff}</span></div>
+          )}
         </div>
         {/* coach press credit + Shape Score register — small 8px gutter */}
         <div style={{ padding: '0 8px' }}>
-          {showCoachBand && (
+          {showCoachBand && (showCoachLink || (phaseLine && !phaseOnCover)) && (
             <div style={{ padding: '10px 0 14px', ...(bsSdReduced() ? null : { animation: 'bsSdStamp 460ms cubic-bezier(.2,1.1,.3,1) 1500ms both' }) }}>
-              {(!signedInSelf || hasRealProgram) && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
+              {phaseLine && !phaseOnCover && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
               {showCoachLink && (
                 <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={tr('profile:terrain.viewProfileAria', { name: coachNameEff, defaultValue: "View {name}'s profile" })} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ width: 24, height: 24, borderRadius: 999, flex: 'none', background: bsTHexA(INK, 0.06), color: bsTHexA(INK, 0.7), display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 9, fontWeight: 800 }}>{coachInitEff}</div>
