@@ -66,6 +66,17 @@ test('no plural branch is a single bare word — the parity gate would read it a
   // keep any shared prefix in the frame ("{done}/{target, plural, one {# workout}…}").
   // MEASURED AT ZERO OFFENDERS when this landed, so it starts clean rather than
   // documenting a gap.
+  //
+  // ⚠ THE TEST IS DERIVED FROM THE GATE, NOT RESTATED. Asking "does this branch
+  // body LOOK like a bare word?" invites two different regexes drifting apart; the
+  // question that matters is only ever "would placeholders() read it as an
+  // argument?", so the branch is handed to placeholders() wrapped in braces and the
+  // answer must be empty. That also gets the script boundary right for free:
+  // placeholders' identifier class is ASCII (\w is ASCII without the u flag), so a
+  // Cyrillic "one {привычка}", a Vietnamese "one {tuần}" or a Hausa "one {ɗabi'a}"
+  // cannot be misread and are correctly NOT flagged — mutation-proven as an
+  // equivalent mutant, with the Latin-script case killed. Do not "fix" this into a
+  // Unicode-aware bare-word test: it would fail correct catalogs for no gate reason.
   const BRANCH = /\b(?:zero|one|two|few|many|other)\s*\{([^{}]*)\}/g;
   let checked = 0;
   for (const loc of ACTIVE_LOCALES) {
@@ -74,9 +85,10 @@ test('no plural branch is a single bare word — the parity gate would read it a
         if (typeof v !== 'string' || !v.includes('plural')) continue;
         for (const m of v.matchAll(BRANCH)) {
           checked += 1;
-          assert.ok(
-            !/^\s*[A-Za-z_][\w-]*\s*$/.test(m[1]),
-            `${loc}/${ns}:${k} — plural branch {${m[1]}} is a bare word; the placeholder gate reads it as an argument. Add the # (e.g. "# ${m[1]}").`,
+          assert.deepEqual(
+            placeholders(`{${m[1]}}`),
+            [],
+            `${loc}/${ns}:${k} — plural branch {${m[1]}} is read as an ICU argument by the parity gate. Add the # (e.g. "# ${m[1]}").`,
           );
         }
       }

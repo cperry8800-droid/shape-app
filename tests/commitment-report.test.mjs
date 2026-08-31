@@ -47,9 +47,17 @@ test('guard-the-guard: the slice is the card and only the card', () => {
 test('a failed set is REPORTED — three branches, all through notice()', () => {
   const save = CARD.slice(CARD.indexOf('const save ='), CARD.indexOf('const accept ='));
   assert.ok(save.length > 200, 'save() not isolated');
-  // the two failure branches
-  assert.match(save, /reason === 'no_targets'[\s\S]*?notice\(/, 'the no-targets branch does not report');
-  assert.match(save, /\} else \{[\s\S]*?notice\([\s\S]*?errSetFailed/, 'the generic failure branch does not report');
+  // ⚠ THE TWO FAILURE BRANCHES ARE SLICED, NOT LAZY-SPANNED. The obvious
+  // /reason === 'no_targets'[\s\S]*?notice\(/ passes with the no-targets notice
+  // DELETED: the unbounded span simply runs on into the `} else {` below and finds
+  // the GENERIC branch's notice(. Mutation-proven — that exact mutant survived.
+  // Each branch is bounded to its own block instead.
+  const noTargets = save.slice(save.indexOf("reason === 'no_targets'"), save.indexOf('} else {'));
+  assert.ok(noTargets.length > 40, 'the no-targets branch did not isolate');
+  assert.match(noTargets, /notice\([\s\S]*?errNoTargets/, 'the no-targets branch does not report');
+  const generic = save.slice(save.indexOf('} else {'));
+  assert.ok(generic.length > 40, 'the generic branch did not isolate');
+  assert.match(generic, /notice\([\s\S]*?errSetFailed/, 'the generic failure branch does not report');
   // ...and the success branch must NOT: notice mode is for transient failures,
   // never for success confirmations (that is the popup noise #938 removed).
   const ok = save.slice(save.indexOf('if (r && r.ok)'), save.indexOf('else if'));
