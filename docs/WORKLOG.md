@@ -378,6 +378,150 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — i18n cut 9: the integrations page, and a third site where copy was doing an identifier's job
+
+- **The screen a member uses to connect their devices is localized.** `BSIntegrationsPage`
+  — WHOOP · Strava · Spotify · Apple Music · Instacart · Garmin · Oura · Apple Health —
+  carried **40 walk-visible strings and zero `tr()` calls**; it now carries **62**, against
+  **57 new `settings:integrations.*` keys ×13**, appended to the existing namespace. No
+  migration, no route change.
+- ⚠ **A TOKEN/LABEL DEFECT AT A THIRD SITE, AND THIS ONE HID INSIDE A REGEX.** `runAction()`
+  recovered the provider's **name** by stripping the English word out of its own toast
+  label — `label.replace(/\bdisconnected\b/i, '')` — so the confirm dialog's **subject was
+  derived from rendered copy**. A `tr()` on that label stops the regex matching in all
+  twelve non-English locales and the dialog degrades to **"this app"**, silently, with
+  parse, `tsc`, the suite and the build all green. Same class as cut 5's Train tag and
+  cut 6's grocery aisle — *a value doing double duty as copy AND as an identifier something
+  parses* — but the first where the parser was a **regex over a sentence** rather than a
+  comparison against a stored token. The name is **data** now: it comes from the provider
+  row and is passed explicitly, so no locale can break the dialog.
+- ⚠ **AND THE ENGLISH WAS ALREADY BROKEN BEFORE ANY LOCALE SAW IT.** The failure fallback
+  was `` `${label} failed.` `` over a label that is itself a sentence, so a failed WHOOP
+  sync rendered **"WHOOP synced failed."** It names the provider now. *A string that is
+  wrong in English is not an i18n bug, but localizing it would have translated the mistake
+  thirteen times.*
+- ⚠ **A SECOND HONESTY DEFECT, IN THE SETTINGS DOOR THAT OPENS THIS PAGE.** The
+  Health-integrations section rendered a hardcoded **"2 connected"** meta and a hardcoded
+  status per provider — WHOOP always *Connected*, Garmin/Strava/Spotify always *Connect* —
+  so a member with **nothing connected** read a fabricated count in their own settings. It
+  now reads the same `getStatus()` the Integrations page reads, **derives** its rows from
+  the response (a provider added later appears with nobody remembering to list it), and
+  renders **no meta at all** when the status cannot be read — honest absence, never an
+  invented number.
+- ⚠ **40 IS THE WORST FLOOR THIS WAVE HAS RECORDED: the real surface is ≈74, hidden by FOUR
+  shapes at once.** **17 toast sentences** plus **3 confirm/error strings** are plain JS the
+  walk never enters (cut 2's lesson). **8 provider eyebrows** rode an **`id=` prop that is
+  not on `TEXT_PROPS`**. **3 `statCards` labels** sit in a local array literal (cut 7's first
+  invisible shape). So four of the five known blind spots met on one screen.
+- ⚠ **AND `id` MUST NEVER JOIN `TEXT_PROPS` — the prop was RENAMED INSTEAD.** `id` is an
+  HTML identifier tree-wide; admitting it would demand a translation for every element
+  identifier in the codebase, which is the fabrication direction #1968 already refused for
+  `kind`/`variant`/`role`. `IntegrationCard`'s `id` became **`eyebrow`** at its receiving
+  component — the `l` → `label` move of #1968 at a second site, and the same rule: **a prop
+  earns a place on a copy allowlist at its receiving component, never from its name.**
+- **Seventeen toast sentences collapse to SIX ICU builders** carrying the provider name
+  (`toastSynced` · `toastWorkouts` · `toastRoutes` · `toastConnected` · `toastReconnected` ·
+  `toastDisconnected`); the two import summaries are **nested ICU plurals** over both
+  `{imported}` and `{errors}`. The status vocabulary (`Connected` · `Connect` · `Reconnect` ·
+  `Disconnect` · `Ready` · `Syncing` …) is **resolved once** rather than at each call site —
+  `connectedLabel` also drives the accent colour, so a second copy would silently stop
+  matching.
+- ⚠ **`BRAND` GAINS `WHOOP` AND `Apple Health` — the same nouns the set already carried,
+  missed on a CASE and a SIBLING.** `BRAND.has()` is exact, so the all-caps spelling the
+  company actually uses never matched `Whoop`, and `Apple Health` never matched its sibling
+  `Apple Music`. That is the **`hr`/`HR` artifact** this file records one set up.
+  **Measured before widening, all four combinations of old/new ratchet × old/new source:**
+  on the **pre-cut** tree the widening moves **2 strings and NO component** (noneStrings
+  1103 → 1101); on the post-cut tree it is what lets the cut land **fully covered** instead
+  of PARTIAL over two nouns no locale translates. **Zero blast radius elsewhere** — which is
+  why it ships here rather than as its own PR, and the measurement is written at the set so
+  the next reader can re-derive it instead of trusting the sentence.
+- **The ratchet moved on three axes, and the two that did NOT move are the certification.**
+  noneStrings **1103 → 1063** · none.length **107 → 106** · fully covered **106 → 107**.
+  **`partStrings` 164 and `part.length` 32 are UNCHANGED for the THIRD cut running** — the
+  assertion that says the cut is finished rather than half-done.
+- **`tests/integrations-name-token.test.mjs` pins both defects in both directions**, because
+  half of either passing is the dangerous state: the name must be a **declared parameter**
+  and must not be recovered from `label` by `replace`/`match`/`split`/`slice`; **every one of
+  the 15 call sites** must pass the provider's own label as that name; the settings meta must
+  be **gated on a real read** and fall back to `''` rather than a number; and the provider
+  rows must be **derived** from the response, with WHOOP/Garmin/Strava/Spotify banned as
+  hand-listed literals. ⚠ It **strips comments first** — the rationale written at each site
+  quotes the very expression being banned, and this repo has burned that trap more than once.
+- ⚠ **AND THE GUARD'S OWN FIRST CUT EXTRACTED A TWO-LINE FRAGMENT.** A non-greedy
+  `/window\.bsAskConfirm\(\{[\s\S]*?\}\)/` stops at the **first** `})`, which is the inner
+  `tr()` call's — so the assertion would have been about a fragment that does not contain the
+  line under test. It **brace-matches** now. It failed on correct code rather than passing on
+  broken code, which is the safe direction, but it still proved nothing until fixed.
+- **11/11 mutations killed** (the regex restored on the label · the `name` parameter dropped ·
+  one call site passing a literal instead of the provider's label · the `${label} failed.`
+  sentence restored · the meta inventing a count · the provider rows hand-listed again · an
+  unread status falling back to a number · the door no longer reading the real status · a
+  stale baseline entry · the `BRAND` widening reverted · a locale losing one of the 57 keys),
+  sanity green at both ends of every batch and the tree restored byte-identically.
+  ⚠ **One first reported a survivor it had never landed for** — a hand-written anchor with the
+  wrong leading whitespace, so the edit threw before writing and the run measured an
+  **unmutated tree**. Re-anchored, it was killed. *A mutation that reports a survivor is a
+  broken instrument until the mutation is proven to have landed*, for the third time in this
+  wave.
+- ⚠ **THIS CUT ALSO CORRECTS ITS OWN SCOUTING REPORT.** PR #1972 recorded *"BSIntegrationsPage
+  40 and BSAboutPage 38 hold up — checked, not assumed: neither renders a module-scope or
+  local array of copy."* The **conclusion** stands (both are ordinary cuts, no ruling) and
+  only the **sizes** were wrong — but the scan enumerated module-scope `BS_*` arrays and local
+  `const X = [` and missed two other shapes: an **inline anonymous array literal written
+  straight into JSX** (`{[[…]].map(…)}`, where BSAboutPage hides 6 strings) and a **prop not on
+  `TEXT_PROPS`**. Measured: BSIntegrationsPage ≈**74**, BSAboutPage ≈**44**. Corrected in place
+  on the War Room rather than shipped as a third records-only PR — *the cut itself is the
+  correction, which is real work plus an honest record in one.*
+- **Per-locale calls worth keeping.** The six `{name}` toast keys take the **colon
+  construction** in ru/uk (`Синхронизировано: {name}` · `Підключено: {name}`) — a proper noun
+  arrives in **one** case, so no verb or preposition may govern another; the same rule cut 7
+  paid a round to learn. `id` uses formal **`Anda`** because these keys land in `settings`,
+  which is one of the two namespaces on that side of the house's Indonesian split. `pcm` matches
+  English on the brand-noun eyebrows and short verbs, which is the legitimate creole pattern,
+  while its prose is real Naija grammar (*"Dis go stop di app data from syncing until you
+  connect am back"*). Every provider name, `MusicKit`, `Garmin Health API`, `HR` and `HRV`
+  stay literal in all thirteen — verified programmatically, not by eye.
+- ⚠ **AND SWEEPING THE CLASS FOUND A SECOND FABRICATED META THREE LINES ABOVE THE ONE THIS
+  CUT FIXED.** The **Account** section's meta was a hardcoded **`'Pro · annual'`** — a plan
+  claim shown to every member regardless of their real subscription, and **wrong even for a
+  paying one**: Shape's membership is **$5/MONTH**, so nothing about it is annual. The honest
+  source was already loaded three hundred lines up (`plan`, from `/api/stripe/subscription`,
+  which the *Your plan* card below it renders from correctly). It now reads **Member / Free**
+  from that, and — the same rule as the integrations count — **renders no meta at all while
+  the plan is unread**. Two keys ×13. **Fixing where the defect was reported would have left
+  the sibling shipping**, and this PR's own record claims to have swept the Settings door,
+  so the claim had to be made true rather than narrowed. **3/3 mutations killed** (the
+  fabricated meta restored · an unread plan guessing *Free* · a locale losing one of the two
+  keys), sanity green at both ends, tree restored byte-identically.
+- ⚠ **THE TOKEN/LABEL CLASS ITSELF WAS SWEPT TREE-WIDE, AND CAME BACK CLEAN — WHICH IS THE
+  FINDING, NOT AN ABSENCE OF ONE.** Every `.replace/.match/.split/.includes` on a variable
+  named for copy (`label · title · text · msg · message · heading · caption`) across
+  `mobile-app/src`, `public/newdesign` and `src` was read at its site. The other hits are
+  **not** the class and are correct as they stand: parsing a **URL** for a playlist id;
+  matching a **Postgres/PostgREST error message** for a code (English regardless of UI
+  locale, and paired with a code check anyway); truncating a **member's own note** for
+  display; and `bsmFilterCategory`, which classifies a **coach's own free-text specialty**
+  against English keywords — where the plain `.toLowerCase()` is the *correct* fold precisely
+  because the keyword list is English, and `toLocaleLowerCase` would break it under `tr`.
+  `publicProfile.jsx`'s `title.split(' — ')` is website-only, and the website is English.
+  **So cut 9's site was the only live instance in the localized surface** — the class is
+  closed, not merely patched.
+- ⚠ **TWO ASCII HYPHENS BECAME MIDDOTS, AND THAT IS AN ENGLISH COPY CHANGE IN AN i18n PR —
+  SO IT IS RECORDED RATHER THAN SLIPPED IN.** The Strava card's eyebrow read
+  `Runs - rides - routes` and its import summary `private activities - N errors`, while
+  every sibling eyebrow on the same screen already used the house middot
+  (`Recovery · Sleep · Strain` · `Music · Playlists` · `Sleep · Readiness · HR`). Freezing
+  the odd one out into thirteen catalogs would have made the inconsistency permanent, so
+  both were normalized at authoring time. **The rule an i18n cut runs under is still
+  *preserve the copy* — this is the exception it allows for a separator that disagrees
+  with its own row, and the exception is only honest written down.**
+- **Verified:** `npm test` **2525/2525** · `tsc --noEmit` 0 · JSX parse · tr-shadow clean on
+  **both** grep forms · catalog parity + ICU ×13 (a pure append — 58 insertions / 1 deletion
+  per file, LF, zero CR/NUL) · mobile build 0 with **all 57 keys and all 684 translated values
+  confirmed in the emitted bundle** behind a positive control, and **the banned regex confirmed
+  absent from that bundle** · the ratchet 9/9.
+
 ### 2026-08-31 — The provider application is registered as needing a RULING, not a cut
 
 - **Measured while scoping the next i18n cut, and it is the one surface in the queue that

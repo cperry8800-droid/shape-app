@@ -24429,6 +24429,7 @@ function BSReconcile({ onBack, clientId }) {
 }
 function BSIntegrationsPage({ onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const [providers, setProviders] = useStateBSC([]);
   const [loading, setLoading] = useStateBSC(true);
   const [busy, setBusy] = useStateBSC('');
@@ -24443,7 +24444,7 @@ function BSIntegrationsPage({ onBack }) {
       const result = await window.ShapeIntegrations?.getStatus?.();
       setProviders(Array.isArray(result?.providers) ? result.providers : []);
     } catch (err) {
-      setError(err?.message || 'Unable to load integrations.');
+      setError(err?.message || tr('settings:integrations.loadError', { defaultValue: 'Unable to load integrations.' }));
     } finally {
       setLoading(false);
     }
@@ -24465,17 +24466,39 @@ function BSIntegrationsPage({ onBack }) {
   const oura = providerMap.oura || { id: 'oura', label: 'Oura', connected: false };
   const appleHealth = providerMap.apple_health || { id: 'apple_health', label: 'Apple Health', connected: false };
   const healthKitNative = !!(window.ShapeIntegrations?.appleHealthAvailable?.());
+  // One value per status word — `connectedLabel` also drives the accent colour on
+  // every card, so a second copy would silently stop matching.
+  const connectedLabel = tr('settings:health.connected', { defaultValue: 'Connected' });
+  const connectLabel = tr('settings:health.connect', { defaultValue: 'Connect' });
+  const reconnectLabel = tr('settings:integrations.reconnect', { defaultValue: 'Reconnect' });
+  const disconnectLabel = tr('settings:integrations.disconnect', { defaultValue: 'Disconnect' });
+  const readyLabel = tr('settings:integrations.ready', { defaultValue: 'Ready' });
+  const iosAppLabel = tr('settings:health.iosApp', { defaultValue: 'iOS app' });
+  const syncingLabel = tr('settings:integrations.syncing', { defaultValue: 'Syncing' });
+  const syncLabel = tr('settings:integrations.sync', { defaultValue: 'Sync' });
+  const importingLabel = tr('settings:integrations.importing', { defaultValue: 'Importing' });
+  // Seventeen toast sentences collapse to six ICU keys carrying the provider name.
+  const toastSynced = (name) => tr('settings:integrations.toastSynced', { defaultValue: `${name} synced`, name });
+  const toastWorkouts = (name) => tr('settings:integrations.toastWorkouts', { defaultValue: `${name} workouts imported`, name });
+  const toastRoutes = (name) => tr('settings:integrations.toastRoutes', { defaultValue: `${name} routes imported`, name });
+  const toastConnected = (name) => tr('settings:integrations.toastConnected', { defaultValue: `${name} connected`, name });
+  const toastReconnected = (name) => tr('settings:integrations.toastReconnected', { defaultValue: `${name} reconnected`, name });
+  const toastDisconnected = (name) => tr('settings:integrations.toastDisconnected', { defaultValue: `${name} disconnected`, name });
 
-  const runAction = async (key, label, action) => {
+  // ⚠ THE PROVIDER NAME IS PASSED, NEVER PARSED BACK OUT OF THE TOAST SENTENCE.
+  // This used to read `label.replace(/\bdisconnected\b/i,'')` — the English word
+  // was doing double duty as copy AND as the identifier the confirm dialog names.
+  // A tr() on that label stops the regex matching in all twelve non-English
+  // locales, and the dialog silently degrades to "this app" with every gate green:
+  // the Train-tag and grocery-aisle class at a third site. The name is data, so it
+  // comes from the provider row.
+  const runAction = async (key, name, label, action) => {
     if (String(key).endsWith('-disconnect')) {
-      // Name the integration from its human label ("WHOOP disconnected" -> "WHOOP"),
-      // not the key (which would collapse "apple-health"/"apple-music" to "Apple").
-      const prov = String(label).replace(/\bdisconnected\b/i, '').trim() || 'this app';
       if (!(await window.bsAskConfirm({
-        title: 'Disconnect this app?',
-        name: prov,
-        message: 'This stops syncing its data until you reconnect — you’ll need to re-authorize.',
-        confirmLabel: 'Disconnect',
+        title: tr('settings:integrations.confirmTitle', { defaultValue: 'Disconnect this app?' }),
+        name: name || tr('settings:integrations.thisApp', { defaultValue: 'this app' }),
+        message: tr('settings:integrations.confirmBody', { defaultValue: 'This stops syncing its data until you reconnect — you’ll need to re-authorize.' }),
+        confirmLabel: tr('settings:integrations.disconnect', { defaultValue: 'Disconnect' }),
       }))) return;
     }
     setBusy(key);
@@ -24487,7 +24510,9 @@ function BSIntegrationsPage({ onBack }) {
       window.__bsToast?.(label, 'ok');
       await loadStatus();
     } catch (err) {
-      const message = err?.message || `${label} failed.`;
+      // The old fallback was `${label} failed.` over a label that is already a
+      // sentence — it rendered "WHOOP synced failed." Named explicitly now.
+      const message = err?.message || tr('settings:integrations.toastFailed', { defaultValue: `Something went wrong with ${name}.`, name });
       setError(message);
       window.__bsToast?.(message, 'error');
     } finally {
@@ -24518,7 +24543,7 @@ function BSIntegrationsPage({ onBack }) {
     </button>
   );
 
-  const IntegrationCard = ({ id, name, note, status, children, muted = false }) => (
+  const IntegrationCard = ({ eyebrow, name, note, status, children, muted = false }) => (
     <div style={{
       padding: `16px ${t.padX}px 18px`,
       borderTop: `2px solid ${t.INK}`,
@@ -24527,7 +24552,7 @@ function BSIntegrationsPage({ onBack }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
         <div>
-          <BSEyebrow color={status === 'Connected' ? t.ACCENT : t.INK50}>{id}</BSEyebrow>
+          <BSEyebrow color={status === connectedLabel ? t.ACCENT : t.INK50}>{eyebrow}</BSEyebrow>
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>
             {name}
           </div>
@@ -24538,8 +24563,8 @@ function BSIntegrationsPage({ onBack }) {
         <div style={{
           borderRadius: t.RADIUS_SM,
           padding: '7px 9px',
-          border: `1px solid ${status === 'Connected' ? t.ACCENT : t.RULE}`,
-          color: status === 'Connected' ? t.ACCENT : t.INK50,
+          border: `1px solid ${status === connectedLabel ? t.ACCENT : t.RULE}`,
+          color: status === connectedLabel ? t.ACCENT : t.INK50,
           fontFamily: t.MONO,
           fontSize: 9,
           fontWeight: 800,
@@ -24555,9 +24580,9 @@ function BSIntegrationsPage({ onBack }) {
   );
 
   const statCards = summary?.result?.whoop ? [
-    ['Recovery', `${summary.result.whoop.recoveries?.records?.[0]?.score?.recovery_score ?? '-'}%`],
+    [tr('settings:integrations.statRecovery', { defaultValue: 'Recovery' }), `${summary.result.whoop.recoveries?.records?.[0]?.score?.recovery_score ?? '-'}%`],
     ['RHR', `${summary.result.whoop.recoveries?.records?.[0]?.score?.resting_heart_rate ?? '-'} bpm`],
-    ['Workouts', `${summary.result.whoop.workouts?.records?.length ?? 0}`],
+    [tr('settings:integrations.statWorkouts', { defaultValue: 'Workouts' }), `${summary.result.whoop.workouts?.records?.length ?? 0}`],
   ] : null;
 
   if (showReconcile) return <BSReconcile onBack={() => setShowReconcile(false)} />;
@@ -24566,28 +24591,28 @@ function BSIntegrationsPage({ onBack }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Data"
-        kicker="Settings · Integrations"
-        title={<>Connected<br/>apps.</>}
+        eyebrow={tr('settings:integrations.eyebrow', { defaultValue: 'Data' })}
+        kicker={tr('settings:integrations.kicker', { defaultValue: 'Settings · Integrations' })}
+        title={<>{tr('settings:integrations.titleA', { defaultValue: 'Connected' })}<br/>{tr('settings:integrations.titleB', { defaultValue: 'apps.' })}</>}
         trailing={<div style={{ textAlign: 'right' }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 36, lineHeight: 0.9, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em' }}>
             {providers.filter(p => p.connected).length}
           </div>
-          <BSEyebrow>Live</BSEyebrow>
+          <BSEyebrow>{tr('settings:integrations.live', { defaultValue: 'Live' })}</BSEyebrow>
         </div>}
       />
 
       <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>
-          Connect health, activity, and music platforms. WHOOP imports default to private, then you choose what gets shared with coaches or the community feed.
+          {tr('settings:integrations.intro', { defaultValue: 'Connect health, activity, and music platforms. WHOOP imports default to private, then you choose what gets shared with coaches or the community feed.' })}
         </div>
       </div>
 
       {/* On-demand data-quality check — only surfaces when sources disagree. */}
       <button onClick={() => setShowReconcile(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Reconcile sources</div>
-          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>When two devices disagree — pick which to trust</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('settings:integrations.reconcile', { defaultValue: 'Reconcile sources' })}</div>
+          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:integrations.reconcileMeta', { defaultValue: 'When two devices disagree — pick which to trust' })}</div>
         </div>
         <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.ACCENT }}>→</span>
       </button>
@@ -24598,25 +24623,25 @@ function BSIntegrationsPage({ onBack }) {
         </div>
       )}
 
-      <BSSection title="WHOOP" meta={loading ? 'Checking' : whoop.connected ? 'Connected' : 'Not connected'} />
+      <BSSection title="WHOOP" meta={loading ? tr('settings:integrations.checking', { defaultValue: 'Checking' }) : whoop.connected ? connectedLabel : tr('settings:integrations.notConnected', { defaultValue: 'Not connected' })} />
       <IntegrationCard
-        id="Recovery · Sleep · Strain"
+        eyebrow={tr('settings:integrations.ebWhoop', { defaultValue: 'Recovery · Sleep · Strain' })}
         name="WHOOP"
-        status={whoop.connected ? 'Connected' : 'Connect'}
-        note="Sync recovery, sleep, body measurements, cycles, and workouts. Imported workouts are private until you share them."
+        status={whoop.connected ? connectedLabel : connectLabel}
+        note={tr('settings:integrations.noteWhoop', { defaultValue: 'Sync recovery, sleep, body measurements, cycles, and workouts. Imported workouts are private until you share them.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Button active={!whoop.connected} onClick={() => window.ShapeIntegrations?.connectWhoop?.()}>
-            {whoop.connected ? 'Reconnect' : 'Connect'}
+            {whoop.connected ? reconnectLabel : connectLabel}
           </Button>
-          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-sync', 'WHOOP synced', () => window.ShapeIntegrations.syncWhoop())}>
-            {busy === 'whoop-sync' ? 'Syncing' : 'Sync'}
+          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-sync', whoop.label, toastSynced(whoop.label), () => window.ShapeIntegrations.syncWhoop())}>
+            {busy === 'whoop-sync' ? syncingLabel : syncLabel}
           </Button>
-          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-import', 'WHOOP workouts imported', () => window.ShapeIntegrations.syncWhoop({ importWorkouts: true }))}>
-            {busy === 'whoop-import' ? 'Importing' : 'Import workouts'}
+          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-import', whoop.label, toastWorkouts(whoop.label), () => window.ShapeIntegrations.syncWhoop({ importWorkouts: true }))}>
+            {busy === 'whoop-import' ? importingLabel : tr('settings:integrations.importWorkouts', { defaultValue: 'Import workouts' })}
           </Button>
-          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-disconnect', 'WHOOP disconnected', () => window.ShapeIntegrations.disconnect('whoop'))}>
-            Disconnect
+          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-disconnect', whoop.label, toastDisconnected(whoop.label), () => window.ShapeIntegrations.disconnect('whoop'))}>
+            {disconnectLabel}
           </Button>
         </div>
         {statCards && (
@@ -24631,143 +24656,149 @@ function BSIntegrationsPage({ onBack }) {
         )}
         {summary?.result?.import && (
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
-            Imported {summary.result.import.imported} private workouts · {summary.result.import.errors?.length || 0} errors
+            {tr('settings:integrations.importedWorkouts', {
+              defaultValue: 'Imported {imported, plural, one {# private workout} other {# private workouts}} · {errors, plural, one {# error} other {# errors}}',
+              imported: summary.result.import.imported || 0,
+              errors: summary.result.import.errors?.length || 0,
+            })}
           </div>
         )}
       </IntegrationCard>
 
-      <BSSection title="Strava" meta={strava.connected ? 'Connected' : 'Ready'} />
+      <BSSection title="Strava" meta={strava.connected ? connectedLabel : readyLabel} />
       <IntegrationCard
-        id="Runs - rides - routes"
+        eyebrow={tr('settings:integrations.ebStrava', { defaultValue: 'Runs · rides · routes' })}
         name="Strava"
-        status={strava.connected ? 'Connected' : 'Connect'}
-        note="Connect Strava activities and map data. Route imports will use the same private-first sharing model as WHOOP."
+        status={strava.connected ? connectedLabel : connectLabel}
+        note={tr('settings:integrations.noteStrava', { defaultValue: 'Connect Strava activities and map data. Route imports will use the same private-first sharing model as WHOOP.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Button active={!strava.connected} onClick={() => window.ShapeIntegrations?.connectStrava?.()}>
-            {strava.connected ? 'Reconnect' : 'Connect'}
+            {strava.connected ? reconnectLabel : connectLabel}
           </Button>
-          <Button disabled={!strava.connected} onClick={() => runAction('strava-sync', 'Strava synced', () => window.ShapeIntegrations.syncStrava())}>
-            {busy === 'strava-sync' ? 'Syncing' : 'Sync'}
+          <Button disabled={!strava.connected} onClick={() => runAction('strava-sync', strava.label, toastSynced(strava.label), () => window.ShapeIntegrations.syncStrava())}>
+            {busy === 'strava-sync' ? syncingLabel : syncLabel}
           </Button>
-          <Button disabled={!strava.connected} onClick={() => runAction('strava-import', 'Strava routes imported', () => window.ShapeIntegrations.syncStrava({ importActivities: true }))}>
-            {busy === 'strava-import' ? 'Importing' : 'Import routes'}
+          <Button disabled={!strava.connected} onClick={() => runAction('strava-import', strava.label, toastRoutes(strava.label), () => window.ShapeIntegrations.syncStrava({ importActivities: true }))}>
+            {busy === 'strava-import' ? importingLabel : tr('settings:integrations.importRoutes', { defaultValue: 'Import routes' })}
           </Button>
-          <Button disabled={!strava.connected} onClick={() => runAction('strava-disconnect', 'Strava disconnected', () => window.ShapeIntegrations.disconnect('strava'))}>
-            Disconnect
+          <Button disabled={!strava.connected} onClick={() => runAction('strava-disconnect', strava.label, toastDisconnected(strava.label), () => window.ShapeIntegrations.disconnect('strava'))}>
+            {disconnectLabel}
           </Button>
         </div>
         {summary?.result?.import && (
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
-            Imported {summary.result.import.imported} private activities - {summary.result.import.errors?.length || 0} errors
+            {tr('settings:integrations.importedActivities', {
+              defaultValue: 'Imported {imported, plural, one {# private activity} other {# private activities}} · {errors, plural, one {# error} other {# errors}}',
+              imported: summary.result.import.imported || 0,
+              errors: summary.result.import.errors?.length || 0,
+            })}
           </div>
         )}
       </IntegrationCard>
 
-      <BSSection title="Spotify" meta={spotify.connected ? 'Connected' : 'Ready'} />
+      <BSSection title="Spotify" meta={spotify.connected ? connectedLabel : readyLabel} />
       <IntegrationCard
-        id="Music · Playlists"
+        eyebrow={tr('settings:integrations.ebSpotify', { defaultValue: 'Music · Playlists' })}
         name="Spotify"
-        status={spotify.connected ? 'Connected' : 'Connect'}
-        note="Pick workout playlists from your Spotify library and attach them to programs. Streams in Shape Radio and the workout player."
+        status={spotify.connected ? connectedLabel : connectLabel}
+        note={tr('settings:integrations.noteSpotify', { defaultValue: 'Pick workout playlists from your Spotify library and attach them to programs. Streams in Shape Radio and the workout player.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Button active={!spotify.connected} onClick={() => window.ShapeIntegrations?.connectSpotify?.()}>
-            {spotify.connected ? 'Reconnect' : 'Connect'}
+            {spotify.connected ? reconnectLabel : connectLabel}
           </Button>
-          <Button disabled={!spotify.connected} onClick={() => runAction('spotify-disconnect', 'Spotify disconnected', () => window.ShapeIntegrations.disconnect('spotify'))}>
-            Disconnect
+          <Button disabled={!spotify.connected} onClick={() => runAction('spotify-disconnect', spotify.label, toastDisconnected(spotify.label), () => window.ShapeIntegrations.disconnect('spotify'))}>
+            {disconnectLabel}
           </Button>
         </div>
       </IntegrationCard>
 
-      <BSSection title="Apple Music" meta={appleMusic.connected ? 'Connected' : 'Ready'} />
+      <BSSection title="Apple Music" meta={appleMusic.connected ? connectedLabel : readyLabel} />
       <IntegrationCard
-        id="MusicKit library"
+        eyebrow={tr('settings:integrations.ebAppleMusic', { defaultValue: 'MusicKit library' })}
         name="Apple Music"
-        status={appleMusic.connected ? 'Connected' : 'Connect'}
-        note="Authorize Apple Music with MusicKit to use your library for workout playlists. You grant access right here — no redirect."
+        status={appleMusic.connected ? connectedLabel : connectLabel}
+        note={tr('settings:integrations.noteAppleMusic', { defaultValue: 'Authorize Apple Music with MusicKit to use your library for workout playlists. You grant access right here — no redirect.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Button active={!appleMusic.connected} onClick={() => runAction('apple-connect', appleMusic.connected ? 'Apple Music reconnected' : 'Apple Music connected', () => window.ShapeIntegrations.connectAppleMusic())}>
-            {busy === 'apple-connect' ? 'Authorizing' : (appleMusic.connected ? 'Reconnect' : 'Connect')}
+          <Button active={!appleMusic.connected} onClick={() => runAction('apple-connect', appleMusic.label, appleMusic.connected ? toastReconnected(appleMusic.label) : toastConnected(appleMusic.label), () => window.ShapeIntegrations.connectAppleMusic())}>
+            {busy === 'apple-connect' ? tr('settings:integrations.authorizing', { defaultValue: 'Authorizing' }) : (appleMusic.connected ? reconnectLabel : connectLabel)}
           </Button>
-          <Button disabled={!appleMusic.connected} onClick={() => runAction('apple-disconnect', 'Apple Music disconnected', () => window.ShapeIntegrations.disconnectAppleMusic())}>
-            Disconnect
+          <Button disabled={!appleMusic.connected} onClick={() => runAction('apple-disconnect', appleMusic.label, toastDisconnected(appleMusic.label), () => window.ShapeIntegrations.disconnectAppleMusic())}>
+            {disconnectLabel}
           </Button>
         </div>
       </IntegrationCard>
 
-      <BSSection title="Instacart" meta="Grocery hand-off" />
+      <BSSection title="Instacart" meta={tr('settings:integrations.groceryHandoff', { defaultValue: 'Grocery hand-off' })} />
       <IntegrationCard
-        id="Groceries"
+        eyebrow={tr('settings:integrations.ebInstacart', { defaultValue: 'Groceries' })}
         name="Instacart"
-        status="Ready"
-        note="Send your coach-built grocery list to Instacart and open a pre-filled cart. While Instacart access is pending, the list is copied to your clipboard instead."
+        status={readyLabel}
+        note={tr('settings:integrations.noteInstacart', { defaultValue: 'Send your coach-built grocery list to Instacart and open a pre-filled cart. While Instacart access is pending, the list is copied to your clipboard instead.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-          <Button onClick={async () => { setBusy('instacart-send'); setError(''); try { await window.ShapeIntegrations.sendGroceryToInstacart(); } catch (e) { const m = e?.message || 'Could not build grocery list.'; setError(m); window.__bsToast?.(m, 'error'); } finally { setBusy(''); } }}>
-            {busy === 'instacart-send' ? 'Building list' : 'Send grocery list to Instacart →'}
+          <Button onClick={async () => { setBusy('instacart-send'); setError(''); try { await window.ShapeIntegrations.sendGroceryToInstacart(); } catch (e) { const m = e?.message || tr('settings:integrations.groceryError', { defaultValue: 'Could not build grocery list.' }); setError(m); window.__bsToast?.(m, 'error'); } finally { setBusy(''); } }}>
+            {busy === 'instacart-send' ? tr('settings:integrations.buildingList', { defaultValue: 'Building list' }) : tr('settings:integrations.sendToInstacart', { defaultValue: 'Send grocery list to Instacart →' })}
           </Button>
         </div>
       </IntegrationCard>
 
-      <BSSection title="Garmin" meta={garmin.connected ? 'Connected' : 'Ready'} />
+      <BSSection title="Garmin" meta={garmin.connected ? connectedLabel : readyLabel} />
       <IntegrationCard
-        id="Activities · HR · Sleep"
+        eyebrow={tr('settings:integrations.ebGarmin', { defaultValue: 'Activities · HR · Sleep' })}
         name="Garmin"
-        status={garmin.connected ? 'Connected' : 'Connect'}
-        note="Pull Garmin Connect activities, heart rate, and sleep into your profile. Requires Garmin Health API approval on the developer account."
+        status={garmin.connected ? connectedLabel : connectLabel}
+        note={tr('settings:integrations.noteGarmin', { defaultValue: 'Pull Garmin Connect activities, heart rate, and sleep into your profile. Requires Garmin Health API approval on the developer account.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Button active={!garmin.connected} onClick={() => window.ShapeIntegrations?.connectProvider?.('garmin')}>
-            {garmin.connected ? 'Reconnect' : 'Connect'}
+            {garmin.connected ? reconnectLabel : connectLabel}
           </Button>
-          <Button disabled={!garmin.connected} onClick={() => runAction('garmin-disconnect', 'Garmin disconnected', () => window.ShapeIntegrations.disconnect('garmin'))}>
-            Disconnect
+          <Button disabled={!garmin.connected} onClick={() => runAction('garmin-disconnect', garmin.label, toastDisconnected(garmin.label), () => window.ShapeIntegrations.disconnect('garmin'))}>
+            {disconnectLabel}
           </Button>
         </div>
       </IntegrationCard>
 
-      <BSSection title="Oura" meta={oura.connected ? 'Connected' : 'Ready'} />
+      <BSSection title="Oura" meta={oura.connected ? connectedLabel : readyLabel} />
       <IntegrationCard
-        id="Sleep · Readiness · HR"
+        eyebrow={tr('settings:integrations.ebOura', { defaultValue: 'Sleep · Readiness · HR' })}
         name="Oura"
-        status={oura.connected ? 'Connected' : 'Connect'}
-        note="Sync Oura Ring sleep, readiness, and heart-rate data into your daily health snapshot. Workouts import privately, like WHOOP."
+        status={oura.connected ? connectedLabel : connectLabel}
+        note={tr('settings:integrations.noteOura', { defaultValue: 'Sync Oura Ring sleep, readiness, and heart-rate data into your daily health snapshot. Workouts import privately, like WHOOP.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Button active={!oura.connected} onClick={() => window.ShapeIntegrations?.connectProvider?.('oura')}>
-            {oura.connected ? 'Reconnect' : 'Connect'}
+            {oura.connected ? reconnectLabel : connectLabel}
           </Button>
-          <Button disabled={!oura.connected} onClick={() => runAction('oura-sync', 'Oura synced', () => window.ShapeIntegrations.syncOura())}>
-            {busy === 'oura-sync' ? 'Syncing' : 'Sync'}
+          <Button disabled={!oura.connected} onClick={() => runAction('oura-sync', oura.label, toastSynced(oura.label), () => window.ShapeIntegrations.syncOura())}>
+            {busy === 'oura-sync' ? syncingLabel : syncLabel}
           </Button>
-          <Button disabled={!oura.connected} onClick={() => runAction('oura-import', 'Oura workouts imported', () => window.ShapeIntegrations.syncOura({ importWorkouts: true }))}>
-            {busy === 'oura-import' ? 'Importing' : 'Import workouts'}
+          <Button disabled={!oura.connected} onClick={() => runAction('oura-import', oura.label, toastWorkouts(oura.label), () => window.ShapeIntegrations.syncOura({ importWorkouts: true }))}>
+            {busy === 'oura-import' ? importingLabel : tr('settings:integrations.importWorkouts', { defaultValue: 'Import workouts' })}
           </Button>
-          <Button disabled={!oura.connected} onClick={() => runAction('oura-disconnect', 'Oura disconnected', () => window.ShapeIntegrations.disconnect('oura'))}>
-            Disconnect
+          <Button disabled={!oura.connected} onClick={() => runAction('oura-disconnect', oura.label, toastDisconnected(oura.label), () => window.ShapeIntegrations.disconnect('oura'))}>
+            {disconnectLabel}
           </Button>
         </div>
       </IntegrationCard>
 
-      <BSSection title="Apple Health" meta={appleHealth.connected ? 'Connected' : (healthKitNative ? 'Ready' : 'iOS app')} />
+      <BSSection title="Apple Health" meta={appleHealth.connected ? connectedLabel : (healthKitNative ? readyLabel : iosAppLabel)} />
       <IntegrationCard
-        id="Apple Watch · Health"
+        eyebrow={tr('settings:integrations.ebAppleHealth', { defaultValue: 'Apple Watch · Health' })}
         name="Apple Health"
-        status={appleHealth.connected ? 'Connected' : (healthKitNative ? 'Connect' : 'iOS app')}
-        note={healthKitNative
-          ? 'Read steps, heart rate, HRV, resting HR, sleep, active energy, and workouts from Apple Health (including your Apple Watch) into your daily snapshot.'
-          : 'Apple Health (and Apple Watch) data is only available in the Shape iOS app. Open Shape on your iPhone to connect.'}
+        status={appleHealth.connected ? connectedLabel : (healthKitNative ? connectLabel : iosAppLabel)}
+        note={healthKitNative ? tr('settings:integrations.noteAppleHealthNative', { defaultValue: 'Read steps, heart rate, HRV, resting HR, sleep, active energy, and workouts from Apple Health (including your Apple Watch) into your daily snapshot.' }) : tr('settings:integrations.noteAppleHealthWeb', { defaultValue: 'Apple Health (and Apple Watch) data is only available in the Shape iOS app. Open Shape on your iPhone to connect.' })}
       >
         {healthKitNative ? (
           <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Button active={!appleHealth.connected} onClick={() => runAction('apple-health-connect', appleHealth.connected ? 'Apple Health synced' : 'Apple Health connected', () => window.ShapeIntegrations.syncAppleHealth())}>
-              {busy === 'apple-health-connect' ? 'Authorizing' : (appleHealth.connected ? 'Sync now' : 'Connect')}
+            <Button active={!appleHealth.connected} onClick={() => runAction('apple-health-connect', appleHealth.label, appleHealth.connected ? toastSynced(appleHealth.label) : toastConnected(appleHealth.label), () => window.ShapeIntegrations.syncAppleHealth())}>
+              {busy === 'apple-health-connect' ? tr('settings:integrations.authorizing', { defaultValue: 'Authorizing' }) : (appleHealth.connected ? tr('settings:integrations.syncNow', { defaultValue: 'Sync now' }) : connectLabel)}
             </Button>
-            <Button disabled={!appleHealth.connected} onClick={() => runAction('apple-health-disconnect', 'Apple Health disconnected', () => window.ShapeIntegrations.disconnect('apple_health'))}>
-              Disconnect
+            <Button disabled={!appleHealth.connected} onClick={() => runAction('apple-health-disconnect', appleHealth.label, toastDisconnected(appleHealth.label), () => window.ShapeIntegrations.disconnect('apple_health'))}>
+              {disconnectLabel}
             </Button>
           </div>
         ) : null}
@@ -28573,6 +28604,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifyPrefs, setShowNotifyPrefs] = useStateBSC(false);
   const [showNoraMemory, setShowNoraMemory] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
+  // ⚠ THIS SECTION USED TO FABRICATE ITS OWN STATE. The meta read a hardcoded
+  // '2 connected' and each provider row a hardcoded status — WHOOP always
+  // 'Connected', Garmin/Strava/Spotify always 'Connect' — so a member with
+  // nothing connected read "2 connected · WHOOP · Connected" in their own
+  // settings. Read from the same source the Integrations page reads, and when it
+  // cannot be read render only the door (honest absence, never an invented count).
+  const [integrations, setIntegrations] = useStateBSC(null);
+  React.useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const res = await window.ShapeIntegrations?.getStatus?.();
+        if (live && Array.isArray(res?.providers)) setIntegrations(res.providers);
+      } catch { /* honest absence — the door still opens */ }
+    })();
+    return () => { live = false; };
+  }, []);
   const [showAppearance, setShowAppearance] = useStateBSC(false);
   const [appearTab, setAppearTab] = useStateBSC('paper');
   const [showLightFx, setShowLightFx] = useStateBSC(false);
@@ -29609,7 +29657,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const sections = [
     {
       title: 'Account',
-      meta: 'Pro · annual',
+      // ⚠ THIS READ A HARDCODED 'Pro · annual' — a plan claim shown to every
+      // member regardless of their real subscription, and wrong even for a
+      // paying one (Shape's membership is $5/MONTH; nothing is annual). Same
+      // class as the '2 connected' this cut fixed three sections down, with
+      // the honest source already loaded in scope: `plan` from
+      // /api/stripe/subscription, which the Your-plan card below renders from.
+      // null (not loaded yet) renders no meta at all — absence, never a guess.
+      meta: plan
+        ? (plan.active
+            ? tr('settings:account.metaMember', { defaultValue: 'Member' })
+            : tr('settings:account.metaFree', { defaultValue: 'Free' }))
+        : '',
       rows: [
         { l: tr('settings:account.email', { defaultValue: 'Email' }),           r: account.email, action: () => openAccountEdit('email', tr('settings:account.email', { defaultValue: 'Email' }), { type: 'email' }) },
         { l: tr('settings:account.phone', { defaultValue: 'Phone' }),           r: account.phone, action: () => openAccountEdit('phone', tr('settings:account.phone', { defaultValue: 'Phone' }), { type: 'tel' }) },
@@ -29619,14 +29678,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     },
     {
       title: 'Health integrations',
-      meta: '2 connected',
+      // No count until the real one is known — an unread status is absence.
+      meta: integrations ? tr('settings:health.countConnected', {
+        defaultValue: '{count, plural, one {# connected} other {# connected}}',
+        count: integrations.filter(pv => pv.connected).length,
+      }) : '',
       rows: [
         { l: tr('settings:health.manage', { defaultValue: 'Manage integrations' }), r: tr('settings:health.open', { defaultValue: 'Open' }), action: () => setShowIntegrations(true) },
-        { l: 'Apple Health',    r: tr('settings:health.iosApp', { defaultValue: 'iOS app' }) },
-        { l: 'WHOOP',           r: tr('settings:health.connected', { defaultValue: 'Connected' }) },
-        { l: 'Garmin',          r: tr('settings:health.connect', { defaultValue: 'Connect' }) },
-        { l: 'Strava',          r: tr('settings:health.connect', { defaultValue: 'Connect' }) },
-        { l: 'Spotify',         r: tr('settings:health.connect', { defaultValue: 'Connect' }) },
+        // Derived from the response, so a provider added later appears here with
+        // nobody remembering to list it.
+        ...(integrations || []).map(pv => ({
+          l: pv.label || pv.id,
+          r: pv.connected
+            ? tr('settings:health.connected', { defaultValue: 'Connected' })
+            : tr('settings:integrations.notConnected', { defaultValue: 'Not connected' }),
+          action: () => setShowIntegrations(true),
+        })),
       ],
     },
     {
