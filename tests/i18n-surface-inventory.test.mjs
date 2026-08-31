@@ -387,13 +387,20 @@ const PARTIAL = new Set([
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
   'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile',
-  // ⚠ BSSettings IS PARTIAL OVER A FORMAT EXAMPLE, NOT OVER COPY — 388 tr() calls
-  // and exactly one hardcoded string: `placeholder={bsInitials(draft.name) || 'AB'}`,
+  // ⚠ BSSettings IS PARTIAL, TO THIS WALK, OVER A FORMAT EXAMPLE — 388 tr() calls
+  // and exactly one string IT CAN SEE: `placeholder={bsInitials(draft.name) || 'AB'}`,
   // the two-letter stand-in on the avatar-initials field. No locale changes it, for
   // the same reason none changes the shipped `+1 555 123 4567` phone example. It is
   // recorded here rather than special-cased in usable(), because excluding a single
   // spelling is the pin this file keeps paying for — and a false exclusion HIDES real
   // copy, which is the direction that makes the guard lie.
+  // ⚠ AND THE ORIGINAL FORM OF THIS NOTE CLOSED "NOT OVER COPY", WHICH IS WRONG —
+  // corrected in the two lines above. The component also carries 42 member-facing
+  // English strings in 8 `options:` PREF ROWS (local const array literals inside the
+  // component — cut 9's blind shape), stored RAW and matched by equality at the shared
+  // pref-edit picker; one of them (`primary_goal`) is then regex-parsed over lowercased
+  // English at three sites, one a server route. Its own token/label cut — see the War
+  // Room. The count above is this walk's FLOOR, not the surface's truth.
   'Client::BSSettings',
   // ⚠ BSAboutPage IS PARTIAL OVER A PROPER NAME, NOT OVER COPY — 45 tr() calls
   // and exactly one hardcoded string: `— Chris Perry`, the founder's signature
