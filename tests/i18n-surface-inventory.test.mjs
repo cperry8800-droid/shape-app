@@ -437,7 +437,7 @@ const PARTIAL = new Set([
   'Client::BSGoalsContract',
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
-  'Pros::BSProMe', 'Pros::BSProSoundtracks', 'Pros::BSWorkoutReviewPage',
+  'Pros::BSProMe', 'Pros::BSProSoundtracks',
   'Pros::ProWeekendPlate', 'Radio::BSNowPlayingMuted', 'Radio::BSRadioScreen',
   'Radio::BSShapeSetsScreen',
 ]);
@@ -692,9 +692,29 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // never attributes, and the six failure sentences are plain JS that never
   // reaches JSX (cut 2's lesson). The cut authored 42 keys against a ratchet that
   // can only move by 28.
-  assert.equal(partStrings, 170, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ CUT 18 — THE COACH REVIEW QUEUE, AND THE MOVE IS ENTIRELY IN THE PARTIAL
+  // COLUMNS. BSWorkoutReviewPage leaves PARTIAL for FULLY COVERED, so
+  // partStrings 170 -> 168, part.length 35 -> 34 and full.length 114 -> 115
+  // while noneStrings 818 and none.length 96 are UNCHANGED — nothing left the
+  // untranslated bucket, because the surface already had 53 tr() calls. It was
+  // carrying exactly TWO hardcoded strings and both were unit/token leaks
+  // rather than prose: a Latin 'G' welded onto the protein target (wrong in
+  // ru/uk, which write 'г'), and the raw stored `workout_sessions.status`
+  // token rendered as copy.
+  // ⚠ AND THE SECOND ONE IS THE TOKEN/LABEL CLASS AT A SIXTH SITE. That column
+  // is text NOT NULL DEFAULT 'completed' with a CHECK pinning it to
+  // planned|active|completed|abandoned|reviewed — read from the live catalog,
+  // not from a migration file — so it is a STORED TOKEN the queue was printing
+  // straight to screen at TWO sites that each spelled the fallback themselves.
+  // Both now resolve through one label map; the token is untouched.
+  // ⚠ THE RATCHET DEFENDS ALMOST NONE OF THE CUT, AND THAT IS THE POINT OF
+  // SAYING SO. The role branch this cut exists for — a nutritionist reading
+  // daily_health_snapshot instead of the trainer's workout_sessions — moves the
+  // measurement by ZERO, because a source swap is not a string. Fifteen keys
+  // were authored against a ratchet that can only move by two.
+  assert.equal(partStrings, 168, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(noneStrings, 818, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 35, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 96, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.

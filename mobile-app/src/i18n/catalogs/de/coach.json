@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Warum passt diese Woche zu ihnen?",
   "assign.guardReasonHint": "Wird mit der Woche gespeichert · zum Veröffentlichen erforderlich",
   "assign.guardPublishAnyway": "Trotzdem veröffentlichen",
-  "assign.queuedWeeks": "{count, plural, one {# Woche liegt auf diesem Gerät} other {# Wochen liegen auf diesem Gerät}} — sie werden veröffentlicht, sobald du wieder online bist, und {name} weiß noch nichts davon"
+  "assign.queuedWeeks": "{count, plural, one {# Woche liegt auf diesem Gerät} other {# Wochen liegen auf diesem Gerät}} — sie werden veröffentlicht, sobald du wieder online bist, und {name} weiß noch nichts davon",
+  "review.statusLiveNutrition": "LIVE · ERNÄHRUNGSTAGE DER KLIENTEN",
+  "review.statusDemoNutrition": "DEMO-WARTESCHLANGE · BIS KLIENTEN MAHLZEITEN ERFASSEN",
+  "review.unitKcal": "KCAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "DETAILS JE MAHLZEIT NICHT GESPEICHERT · NUR TAGESSUMMEN",
+  "review.notesBlocked": "NOTIZEN GEHÖREN ZU EINER EINHEIT · NOCH NICHT ZU EINEM ERNÄHRUNGSTAG",
+  "review.metaHydration": "FLÜSSIGKEIT",
+  "review.metaEnergy": "ENERGIE",
+  "review.metaHunger": "HUNGER",
+  "review.stPlanned": "Geplant",
+  "review.stActive": "Läuft",
+  "review.stCompleted": "Abgeschlossen",
+  "review.stAbandoned": "Früher beendet",
+  "review.stReviewed": "Geprüft"
 }

@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Чому цей тиждень йому підходить?",
   "assign.guardReasonHint": "Зберігається разом із тижнем · без цього не опублікувати",
   "assign.guardPublishAnyway": "Усе одно опублікувати",
-  "assign.queuedWeeks": "{count, plural, one {# тиждень чекає на цьому пристрої} few {# тижні чекають на цьому пристрої} many {# тижнів чекають на цьому пристрої} other {# тижня чекають на цьому пристрої}} — вони опублікуються, коли ти знову будеш онлайн, і {name} про це ще не знає"
+  "assign.queuedWeeks": "{count, plural, one {# тиждень чекає на цьому пристрої} few {# тижні чекають на цьому пристрої} many {# тижнів чекають на цьому пристрої} other {# тижня чекають на цьому пристрої}} — вони опублікуються, коли ти знову будеш онлайн, і {name} про це ще не знає",
+  "review.statusLiveNutrition": "В ЕФІРІ · ДНІ ХАРЧУВАННЯ КЛІЄНТІВ",
+  "review.statusDemoNutrition": "ДЕМО-ЧЕРГА · ПОКИ КЛІЄНТИ НЕ ЗАПИШУТЬ ПРИЙОМИ ЇЖІ",
+  "review.unitKcal": "ККАЛ",
+  "review.unitGram": "Г",
+  "review.unitLitre": "Л",
+  "review.mealsNotStored": "ДЕТАЛІ ПО КОЖНОМУ ПРИЙОМУ НЕ ЗБЕРІГАЮТЬСЯ · ЛИШЕ ПІДСУМКИ ЗА ДЕНЬ",
+  "review.notesBlocked": "НОТАТКИ КРІПЛЯТЬСЯ ДО ТРЕНУВАННЯ · ПОКИ НЕ ДО ДНЯ ХАРЧУВАННЯ",
+  "review.metaHydration": "ВОДА",
+  "review.metaEnergy": "ЕНЕРГІЯ",
+  "review.metaHunger": "ГОЛОД",
+  "review.stPlanned": "Запланована",
+  "review.stActive": "Триває",
+  "review.stCompleted": "Завершена",
+  "review.stAbandoned": "Перервана",
+  "review.stReviewed": "Переглянута"
 }

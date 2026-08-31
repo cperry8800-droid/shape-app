@@ -378,6 +378,103 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The nutritionist's review queue was serving the trainer's workouts
+
+- **A live nutritionist's whole "Client review." feature read `workout_sessions`.**
+  `BSWorkoutReviewPage` called `window.ShapeWorkoutLogs.listSessions()`
+  **unconditionally**, so the queue a nutritionist opens to review meal logs listed
+  their clients' *sets and rest times* under a nutrition title. Each coach role now
+  reads its own source: a nutritionist reads meal-log days
+  (`ShapeNutritionLogs.listClientDays` → `daily_health_snapshot`), a trainer reads
+  workout sessions. **No migration** — nutritionists can already read their
+  subscribed clients' snapshots (`providers_read_subscriber_snapshots`).
+- ⚠ **THE REASON IT SURVIVED IS THE PART WORTH KEEPING: the demo rows were the only
+  thing that ever looked like nutrition.** `demoWorkoutReviewSessions('nutritionist')`
+  returns kcal/protein/meal rows, so signed out the page reads correctly and every
+  screenshot of it is right. The defect existed **only on a live account**, which is
+  the state nobody demos. A demo that models the shape you WANT hides the fact that
+  the live path never produces it.
+- ⚠ **THREE HONESTY RULES ARE IN THE DATA LAYER, NOT THE RENDER**, because a caller
+  that gets any of them wrong fabricates a client's nutrition. **(1)** Own rows are
+  EXCLUDED — that policy ORs with `user_rw_own_snapshots`, so an unfiltered select
+  hands the coach their own days back as a client. **(2)** A day counts only when it
+  carries a REAL nutrition log (`calories` or `protein_g` present) — a snapshot row
+  can exist for sleep or steps alone, and treating one as a nutrition day renders
+  "0 kcal", which reads as a client who ate nothing. **(3)** Targets come from the
+  coach's OWN prescription (`client_programs.detail.nutrition`) and are **null when
+  unset, never a default** — the validation mirrors `/api/client/plan`'s `asTarget`
+  exactly, so the coach queue and the client's own Eat hero cannot disagree about
+  what the target is.
+- ⚠ **TWO THINGS THE LIVE DAY GENUINELY CANNOT DO ARE STATED, NOT FAKED.**
+  **(a) There is no per-meal detail to show** — meal logging accumulates into day
+  totals through `add_meal_macros` and no per-meal row is kept anywhere
+  (`client_planned_meals` is planned-only, owner-RLS, 0 rows). So the day renders a
+  `BSTRedact` line saying totals-only, and the queue row **leads with kcal** rather
+  than a fabricated `0/0 MEALS`. **(b) A nutrition day cannot carry a review note** —
+  `coach_workout_review_notes.session_id` is NOT NULL with an FK to
+  `workout_sessions.id` and every policy on it routes through
+  `can_access_workout_session(session_id)`, so the insert would fail and the existing
+  catch would report **"saved locally"** for a write that saved nowhere. The composer
+  is hidden with an honest line and `saveNote` refuses; the row declares
+  `notesBlocked` in the data layer so the render never has to infer it.
+- ⚠ **AND THE SWEEP FORCED OUT THE TOKEN/LABEL CLASS AT A SIXTH SITE.** Read from
+  the LIVE catalog rather than a migration file: `workout_sessions.status` is
+  `text NOT NULL DEFAULT 'completed'` with a CHECK pinning it to
+  **planned|active|completed|abandoned|reviewed** — a STORED TOKEN the queue was
+  printing straight to screen, so a Russian trainer read the English word
+  *completed* on their own queue. Worse, **two sites each spelled the fallback
+  themselves** (`selected.status || 'completed'`), which is one fact with two
+  spellings. Both now resolve through one label map; the token is untouched, and an
+  unrecognised value renders as **ITSELF** — never a raw key, never blank (the
+  grocery-aisle precedent), so the demo rows' free-text statuses read as themselves.
+- **A pre-existing unit bug went with it:** the protein target welded a hardcoded
+  Latin **`G`** onto the figure, which is wrong in ru/uk (`г`) — it reads from
+  `coach:review.unitGram` now, like every other unit on the page. The queue row's
+  aria-label also stopped running a locale-insensitive `.toLowerCase()` over
+  translated text (`.toLocaleLowerCase(coachLocale())`).
+- ⚠ **`snapshot_date` IS PARSED PART-BY-PART.** It is the member's OWN `YYYY-MM-DD`,
+  and `new Date('2026-08-31')` is UTC midnight — it renders as the **30th** anywhere
+  west of UTC, so a coach in Los Angeles would read every client's day off by one.
+- **15 new `coach:review.*` keys ×13** (5 status labels + 10 chrome/unit/redaction),
+  every per-locale term read out of that catalog's own shipped vocabulary rather than
+  invented — `id` writes `KKAL`, ru/uk write `ККАЛ` / `Г` / `Л`, ha is genuine Hausa
+  orthography, pcm is real Naija grammar.
+- ⚠ **THE RATCHET DEFENDS ALMOST NONE OF THIS, WHICH IS WHY THE GUARD IS THE REAL
+  DELIVERABLE.** A source swap moves the measurement by **ZERO strings** — reverting
+  the role branch leaves the inventory, `tsc`, the build and all 2,620 other tests
+  **green**. `tests/coach-review-source.test.mjs` pins what the code ANSWERS: each
+  role reaches its own source *as the two arms of one `isNutri` branch*, the note
+  block holds in **both** directions (composer hidden AND writer refusing — half of
+  that passing is the dangerous state), the status token is never rendered raw, and
+  the label set is **DERIVED from the resolver in the shipped source** so a sixth
+  CHECK'd token added later fails here rather than rendering as itself forever.
+- ⚠ **AND MUTATION-TESTING CAUGHT THE GUARD BEING WRONG, NOT THE CODE.** A key match
+  without a closing-quote boundary let a **RENAME** survive — `mealsNotStoredX` still
+  contains `mealsNotStored`. Anchored, then re-run against both a rename **and** a
+  deletion. **8/8 mutations killed** (role branch reverted · `saveNote` guard dropped
+  · composer gate dropped · resolver renamed away · redaction key renamed · redaction
+  deleted · nutrition day claiming 'completed' · an `en` status key deleted), sanity
+  green at both ends and the tree restored with `cp` backups, never `git checkout --`.
+- **The ratchet moved on the partial columns only, and that is the certification.**
+  `BSWorkoutReviewPage` leaves PARTIAL for **fully covered**: `partStrings`
+  **170 → 168** · `part.length` **35 → 34** · fully covered **114 → 115**, while
+  `noneStrings` **818** and `none.length` **96** are UNCHANGED — nothing left the
+  untranslated bucket, because the surface already carried 53 `tr()` calls. It held
+  exactly TWO walk-visible strings and both were leaks rather than prose.
+- **Verified:** `npm test` **2626/2626** · `tsc --noEmit` 0 · JSX parse · `node --check`
+  on the data layer · catalog parity ×13 (a pure append — 940 → 955 per file, identical
+  key order in every locale, LF, zero CR, zero empty values) · mobile build 0 with **all
+  15 keys and both sources confirmed in the emitted bundle** (`ShapeNutritionLogs` +
+  `listClientDays` in the data-layer AND pros chunks, so the branch survives
+  minification) behind a **positive control** (`coach:review.mealLog`, present) **and a
+  negative control** (a key that does not exist, absent) — a saturated zero is the
+  instrument until proven otherwise.
+- ⚠ **REGISTERED, NOT BUILT — a nutrition day still cannot take a coach's note.** The
+  honest line is the stopgap; the fix is an owner migration relaxing
+  `coach_workout_review_notes` off its `workout_sessions` FK (or a parallel
+  nutrition-note path), which is a schema change with its own RLS story and belongs in
+  its own cut rather than bolted onto a source fix.
+
 ### 2026-08-31 — Session handoff: `docs/HANDOFF-2026-08-31.md`
 
 - **Thirty PRs since the last handoff — #1957 → #1986 — had none.** The 08-29 handoff

@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Kenapa minggu ini cocok untuk dia?",
   "assign.guardReasonHint": "Tercatat bersama minggu ini · wajib untuk menerbitkan",
   "assign.guardPublishAnyway": "Tetap terbitkan",
-  "assign.queuedWeeks": "{count, plural, other {# minggu tersimpan di perangkat ini}} — semuanya terbit begitu kamu online lagi, dan {name} belum diberi tahu"
+  "assign.queuedWeeks": "{count, plural, other {# minggu tersimpan di perangkat ini}} — semuanya terbit begitu kamu online lagi, dan {name} belum diberi tahu",
+  "review.statusLiveNutrition": "LANGSUNG · HARI NUTRISI KLIEN",
+  "review.statusDemoNutrition": "ANTREAN DEMO · SAMPAI KLIEN MENCATAT MAKANAN",
+  "review.unitKcal": "KKAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "RINCIAN PER MAKAN TIDAK DISIMPAN · HANYA TOTAL HARIAN",
+  "review.notesBlocked": "CATATAN MENEMPEL PADA SESI LATIHAN · BELUM PADA HARI NUTRISI",
+  "review.metaHydration": "HIDRASI",
+  "review.metaEnergy": "ENERGI",
+  "review.metaHunger": "RASA LAPAR",
+  "review.stPlanned": "Direncanakan",
+  "review.stActive": "Sedang berjalan",
+  "review.stCompleted": "Selesai",
+  "review.stAbandoned": "Diakhiri lebih awal",
+  "review.stReviewed": "Ditinjau"
 }

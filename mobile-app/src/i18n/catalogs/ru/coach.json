@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Почему эта неделя ему подходит?",
   "assign.guardReasonHint": "Сохраняется вместе с неделей · без этого не опубликовать",
   "assign.guardPublishAnyway": "Всё равно опубликовать",
-  "assign.queuedWeeks": "{count, plural, one {# неделя ждёт на этом устройстве} few {# недели ждут на этом устройстве} many {# недель ждут на этом устройстве} other {# недели ждут на этом устройстве}} — они опубликуются, когда ты снова будешь в сети, и {name} пока об этом не знает"
+  "assign.queuedWeeks": "{count, plural, one {# неделя ждёт на этом устройстве} few {# недели ждут на этом устройстве} many {# недель ждут на этом устройстве} other {# недели ждут на этом устройстве}} — они опубликуются, когда ты снова будешь в сети, и {name} пока об этом не знает",
+  "review.statusLiveNutrition": "В ЭФИРЕ · ДНИ ПИТАНИЯ КЛИЕНТОВ",
+  "review.statusDemoNutrition": "ДЕМО-ОЧЕРЕДЬ · ПОКА КЛИЕНТЫ НЕ ЗАПИШУТ ПРИЁМЫ ПИЩИ",
+  "review.unitKcal": "ККАЛ",
+  "review.unitGram": "Г",
+  "review.unitLitre": "Л",
+  "review.mealsNotStored": "ДЕТАЛИ ПО КАЖДОМУ ПРИЁМУ НЕ СОХРАНЯЮТСЯ · ТОЛЬКО ИТОГИ ЗА ДЕНЬ",
+  "review.notesBlocked": "ЗАМЕТКИ КРЕПЯТСЯ К ТРЕНИРОВКЕ · ПОКА НЕ К ДНЮ ПИТАНИЯ",
+  "review.metaHydration": "ВОДА",
+  "review.metaEnergy": "ЭНЕРГИЯ",
+  "review.metaHunger": "ГОЛОД",
+  "review.stPlanned": "Запланирована",
+  "review.stActive": "Идёт",
+  "review.stCompleted": "Завершена",
+  "review.stAbandoned": "Прервана",
+  "review.stReviewed": "Просмотрена"
 }

@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Por que esta semana faz sentido para ele(a)?",
   "assign.guardReasonHint": "Fica registrado com a semana · obrigatório para publicar",
   "assign.guardPublishAnyway": "Publicar mesmo assim",
-  "assign.queuedWeeks": "{count, plural, one {# semana está guardada neste aparelho} other {# semanas estão guardadas neste aparelho}} — elas são publicadas quando você voltar a ficar online, e {name} ainda não foi avisado"
+  "assign.queuedWeeks": "{count, plural, one {# semana está guardada neste aparelho} other {# semanas estão guardadas neste aparelho}} — elas são publicadas quando você voltar a ficar online, e {name} ainda não foi avisado",
+  "review.statusLiveNutrition": "AO VIVO · DIAS DE NUTRIÇÃO DOS CLIENTES",
+  "review.statusDemoNutrition": "FILA DEMO · ATÉ OS CLIENTES REGISTRAREM REFEIÇÕES",
+  "review.unitKcal": "KCAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "DETALHE POR REFEIÇÃO NÃO SALVO · SOMENTE TOTAIS DO DIA",
+  "review.notesBlocked": "AS NOTAS SE ANEXAM A UMA SESSÃO · AINDA NÃO A UM DIA DE NUTRIÇÃO",
+  "review.metaHydration": "HIDRATAÇÃO",
+  "review.metaEnergy": "ENERGIA",
+  "review.metaHunger": "FOME",
+  "review.stPlanned": "Planejada",
+  "review.stActive": "Em andamento",
+  "review.stCompleted": "Concluída",
+  "review.stAbandoned": "Encerrada antes",
+  "review.stReviewed": "Revisada"
 }

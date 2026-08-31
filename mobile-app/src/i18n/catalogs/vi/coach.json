@@ -938,5 +938,20 @@
   "assign.guardReasonPlaceholder": "Vì sao tuần này phù hợp với họ?",
   "assign.guardReasonHint": "Được lưu cùng tuần này · bắt buộc để đăng",
   "assign.guardPublishAnyway": "Vẫn đăng",
-  "assign.queuedWeeks": "{count, plural, other {# tuần đang giữ trên thiết bị này}} — sẽ đăng khi bạn online lại, và {name} vẫn chưa được báo"
+  "assign.queuedWeeks": "{count, plural, other {# tuần đang giữ trên thiết bị này}} — sẽ đăng khi bạn online lại, và {name} vẫn chưa được báo",
+  "review.statusLiveNutrition": "TRỰC TIẾP · NGÀY DINH DƯỠNG CỦA KHÁCH HÀNG",
+  "review.statusDemoNutrition": "HÀNG CHỜ DEMO · CHO ĐẾN KHI KHÁCH HÀNG GHI BỮA ĂN",
+  "review.unitKcal": "KCAL",
+  "review.unitGram": "G",
+  "review.unitLitre": "L",
+  "review.mealsNotStored": "KHÔNG LƯU CHI TIẾT TỪNG BỮA · CHỈ TỔNG CẢ NGÀY",
+  "review.notesBlocked": "GHI CHÚ GẮN VỚI BUỔI TẬP · CHƯA GẮN ĐƯỢC VỚI NGÀY DINH DƯỠNG",
+  "review.metaHydration": "NƯỚC UỐNG",
+  "review.metaEnergy": "NĂNG LƯỢNG",
+  "review.metaHunger": "CƠN ĐÓI",
+  "review.stPlanned": "Đã lên lịch",
+  "review.stActive": "Đang diễn ra",
+  "review.stCompleted": "Hoàn thành",
+  "review.stAbandoned": "Kết thúc sớm",
+  "review.stReviewed": "Đã xem"
 }

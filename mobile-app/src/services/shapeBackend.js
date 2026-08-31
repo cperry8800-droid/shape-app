@@ -2837,6 +2837,116 @@ async function listWorkoutSessions() {
   return { stored: 'supabase', data: data || [] };
 }
 
+// A NUTRITIONIST'S review queue is meal-log DAYS, not workout sessions. The
+// trainer reads workout_sessions above; feeding the same rows to a
+// nutritionist showed them the trainer's feature wearing a nutrition title.
+//
+// Source is daily_health_snapshot, which nutritionists can already read for
+// their subscribed clients (RLS: providers_read_subscriber_snapshots) — so no
+// migration is needed for the day itself. Three honesty rules are baked in
+// here rather than at the render, because a caller that gets this wrong
+// fabricates a client's nutrition:
+//
+//   1. Own rows are EXCLUDED. That policy ORs with user_rw_own_snapshots, so
+//      an unfiltered select hands the coach their own days back as a client.
+//   2. A day counts only when it carries a REAL nutrition log. A snapshot row
+//      can exist for sleep or steps alone; treating one as a nutrition day
+//      renders "0 kcal" and reads as a client who ate nothing.
+//   3. Targets come from the coach's OWN prescription (client_programs
+//      .detail.nutrition) and are null when unset — never a default. The
+//      validation mirrors /api/client/plan's asTarget EXACTLY, so the coach
+//      queue and the client's own Eat hero can never disagree about what the
+//      target is.
+async function listClientNutritionDays({ limit = 40 } = {}) {
+  const me = state.user?.id;
+  if (!me) throw new Error('Sign in before loading client nutrition days.');
+  if (!supabase) return { stored: 'local', data: [] };
+
+  const { data: rows, error } = await supabase
+    .from('daily_health_snapshot')
+    .select('id, user_id, snapshot_date, calories, protein_g, carbs_g, fat_g, hydration_l, energy, hunger')
+    .neq('user_id', me)                       // rule 1 — never the coach's own days
+    .order('snapshot_date', { ascending: false })
+    .limit(Math.max(1, Math.min(200, Number(limit) || 40)));
+  if (error) throw error;
+
+  // rule 2 — a real nutrition log, not a wearable-only row.
+  const num = (v) => {
+    if (v == null || (typeof v === 'string' && v.trim() === '')) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const days = (rows || []).filter((r) => num(r.calories) != null || num(r.protein_g) != null);
+  if (!days.length) return { stored: 'supabase', data: [] };
+
+  const clientIds = [...new Set(days.map((r) => r.user_id).filter(Boolean))];
+
+  // Names + the coach's own targets, both best-effort: a failed lookup must
+  // degrade to an unnamed/target-less day, never drop the day itself.
+  const [names, targets] = await Promise.all([
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('get_display_names', { p_ids: clientIds });
+        const map = new Map();
+        // get_display_names returns (user_id, full_name, avatar_url).
+        for (const row of data || []) map.set(row.user_id, row.full_name || null);
+        return map;
+      } catch { return new Map(); }
+    })(),
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('client_programs')
+          .select('user_id, detail')
+          .in('user_id', clientIds);
+        const map = new Map();
+        // rule 3 — mirrors asTarget in src/app/api/client/plan/route.ts.
+        const asTarget = (value) => {
+          if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+          const n = Number(value);
+          return Number.isFinite(n) && n >= 0 ? n : null;
+        };
+        for (const row of data || []) {
+          const n = row?.detail?.nutrition;
+          map.set(row.user_id, {
+            kcal: asTarget(n?.calories),
+            protein: asTarget(n?.protein),
+          });
+        }
+        return map;
+      } catch { return new Map(); }
+    })(),
+  ]);
+
+  const data = days.map((r) => {
+    const target = targets.get(r.user_id) || { kcal: null, protein: null };
+    return {
+      id: r.id,
+      nutrition: true,                        // the render discriminator, now TRUE on live rows
+      clientId: r.user_id,
+      clientName: names.get(r.user_id) || null,
+      loggedOn: r.snapshot_date,
+      kcal: num(r.calories),
+      kcalTarget: target.kcal,
+      proteinG: num(r.protein_g),
+      proteinTargetG: target.protein,
+      carbsG: num(r.carbs_g),
+      fatG: num(r.fat_g),
+      hydrationL: num(r.hydration_l),
+      energy: num(r.energy),
+      hunger: num(r.hunger),
+      // coach_workout_review_notes.session_id is NOT NULL with an FK to
+      // workout_sessions.id, and every policy on it routes through
+      // can_access_workout_session(session_id) — so this id (a
+      // daily_health_snapshot row) cannot carry a note. Stated as a fact on
+      // the row so the composer can be HIDDEN rather than failing its insert
+      // and reporting "saved locally", which is the silent-failure shape.
+      notesBlocked: true,
+    };
+  });
+  return { stored: 'supabase', data };
+}
+
 async function addCoachWorkoutReviewNote({
   sessionId,
   body,
@@ -6725,6 +6835,10 @@ window.ShapeLiveProgress = {
       return () => { try { supabase.removeChannel(channel); } catch (e) {} };
     } catch (e) { return () => {}; }
   },
+};
+
+window.ShapeNutritionLogs = {
+  listClientDays: listClientNutritionDays,
 };
 
 window.ShapeWorkoutLogs = {
