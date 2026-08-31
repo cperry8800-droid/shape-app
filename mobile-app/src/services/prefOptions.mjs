@@ -19,15 +19,21 @@
 // classified by the English regexes below; only a value that matches a shipped
 // option becomes a token.
 //
-// ⚠ NO TRANSLATOR YET, DELIBERATELY. `bsPrefOptionLabel` returns the English
-// from this table rather than calling `tr()`, so this cut ships zero catalog
-// keys and the strings on screen are byte-identical. A `tr()` call whose key is
-// absent from `en` renders its defaultValue and is invisible to the parity gate
-// (that gate compares the twelve locales AGAINST `en`) — the exact silent half
-// that let fifteen `marketplace:preview.*` keys ship unauthored. The 42
-// member-facing option strings get authored in ONE translation cut, on top of
-// this split, the way the grocery aisle's token/label split (#1966) preceded
-// its string sweep (#1967).
+// ⚠ THE TRANSLATOR IS INJECTED, NEVER IMPORTED. This module is imported by a
+// Next server route as well as the client bundle, so it cannot hold a hook. Each
+// display helper takes `tr` as its LAST argument and falls back to this table's
+// English when it is absent — so the pure vectors, and the server route, keep
+// working with no translator at all. Same shape as `bsGoalVerdict` and
+// `bsPrimaryGoalLabel`.
+//
+// ⚠ EVERY KEY CARRIES THIS TABLE'S ENGLISH AS ITS defaultValue, AND EVERY KEY IS
+// ALSO AUTHORED IN `en`. Both are needed and they close different holes. The
+// defaultValue is what renders if a catalog fails to load. The authored `en` key
+// is what the parity gate can see: that gate compares the twelve locales AGAINST
+// `en`, so a key absent from `en` is absent everywhere and parity is satisfied —
+// the silent half that let fifteen `marketplace:preview.*` keys ship unauthored.
+// `tests/pref-options-i18n.test.mjs` DERIVES the expected key set from this table
+// and fails if any of them is missing or has drifted from the English here.
 
 /**
  * The eight option rows, as { id, en }. `id` is stored; `en` is displayed.
@@ -103,6 +109,55 @@ export const BS_PREF_OPTIONS = {
   ],
 };
 
+/**
+ * Rows whose options are NOT translated, and why.
+ *
+ * ⚠ `sessions_per_week`'s ids ARE its English ("2".."6"), so a key could only
+ * ever carry the same digit back. Single digits take no thousands separator in
+ * any locale, so there is nothing a translator could change. The calorie RANGES
+ * are keyed for the opposite reason: four-digit numbers DO group differently
+ * (de "1.600", fr/ru "1 600"), so regrouping them is a translator's call even
+ * though the shipped values start identical to English.
+ *
+ * A row added later is keyed by DEFAULT — the guard fails on a missing key
+ * rather than letting an unkeyed row ship English in twelve locales.
+ */
+export const BS_PREF_UNKEYED_ROWS = ['sessions_per_week'];
+
+/** The catalog key for one option, derived — never hand-mapped. */
+export function bsPrefOptionKey(rowKey, id) {
+  return `settings:pref.${rowKey}.${id}`;
+}
+
+function labelOf(rowKey, opt, tr) {
+  if (typeof tr !== 'function' || BS_PREF_UNKEYED_ROWS.includes(rowKey)) return opt.en;
+  try {
+    const out = tr(bsPrefOptionKey(rowKey, opt.id), { defaultValue: opt.en });
+    // A catalog that returns the raw key, an authored empty value, or a
+    // non-string still has to read as English — the `returnEmptyString: false`
+    // trap puts the raw key on screen otherwise.
+    return typeof out === 'string' && out && out !== bsPrefOptionKey(rowKey, opt.id) ? out : opt.en;
+  } catch {
+    return opt.en;
+  }
+}
+
+/**
+ * Case-insensitive comparison that survives Turkish.
+ *
+ * ⚠ `toLowerCase()` IS LOCALE-INSENSITIVE AND TURKISH BREAKS IT. `'Sıkı'`
+ * upper-cases to `SIKI`, which lower-cases back to `siki` — not `sıkı` — so a
+ * Turkish member who typed the option in caps fell out of the match and their
+ * pick was stored as free text. The dotted/dotless-i class this repo has now
+ * paid for five times. Folding the whole i-family (İ ı I i) to one letter fixes
+ * it with no locale to thread through a module the server also imports; a row
+ * whose options differ ONLY by that distinction would collide, and the guard
+ * asserts every option still maps back to its own id in all thirteen locales.
+ */
+function fold(v) {
+  return String(v == null ? '' : v).trim().replace(/[\u0130\u0131\u0049\u0069]/g, 'i').toLowerCase();
+}
+
 function rowsFor(rowKey) {
   const rows = BS_PREF_OPTIONS[String(rowKey == null ? '' : rowKey)];
   return Array.isArray(rows) ? rows : null;
@@ -113,13 +168,13 @@ function rowsFor(rowKey) {
  * — free text, or a value from a row with no options — is returned unchanged.
  * Never a raw token on screen, never a blank for a value that exists.
  */
-export function bsPrefOptionLabel(rowKey, value) {
+export function bsPrefOptionLabel(rowKey, value, tr) {
   const v = String(value == null ? '' : value).trim();
   if (!v) return '';
   const rows = rowsFor(rowKey);
   if (!rows) return v;
   const hit = rows.find((o) => o.id === v);
-  return hit ? hit.en : v;
+  return hit ? labelOf(rowKey, hit, tr) : v;
 }
 
 /**
@@ -128,11 +183,11 @@ export function bsPrefOptionLabel(rowKey, value) {
  * because this runs on each keystroke and `bsPrefOptionLabel`'s trim would eat
  * a space the member is still typing.
  */
-export function bsPrefOptionDisplay(rowKey, value) {
+export function bsPrefOptionDisplay(rowKey, value, tr) {
   const rows = rowsFor(rowKey);
   if (!rows) return value == null ? '' : value;
   const hit = rows.find((o) => o.id === value);
-  return hit ? hit.en : (value == null ? '' : value);
+  return hit ? labelOf(rowKey, hit, tr) : (value == null ? '' : value);
 }
 
 /**
@@ -141,15 +196,25 @@ export function bsPrefOptionDisplay(rowKey, value) {
  * through unchanged. The English match is case- and whitespace-insensitive so
  * a member who types the option by hand still lands on the token.
  */
-export function bsPrefOptionToken(rowKey, stored) {
+export function bsPrefOptionToken(rowKey, stored, tr) {
   const s = String(stored == null ? '' : stored).trim();
   if (!s) return '';
   const rows = rowsFor(rowKey);
   if (!rows) return s;
   if (rows.some((o) => o.id === s)) return s;
-  const lower = s.toLowerCase();
-  const hit = rows.find((o) => o.en.toLowerCase() === lower);
-  return hit ? hit.id : s;
+  const lower = fold(s);
+  const hit = rows.find((o) => fold(o.en) === lower);
+  if (hit) return hit.id;
+  // ⚠ THE CURRENT LOCALE'S LABELS MAP BACK TOO, OR THE ROUND-TRIP BREAKS IN
+  // TWELVE LOCALES. The editor is a picker AND a text field bound to the same
+  // value: it SHOWS the translated label, so a member who retypes what is on
+  // screen would otherwise store that sentence as free text and drop out of
+  // every comparison. Checked after English so a locale can never shadow it.
+  if (typeof tr === 'function') {
+    const back = rows.find((o) => fold(labelOf(rowKey, o, tr)) === lower);
+    if (back) return back.id;
+  }
+  return s;
 }
 
 /**
@@ -186,9 +251,11 @@ export function bsGoalKind(nutritionGoal, trainingGoal) {
     .map((v) => String(v == null ? '' : v).trim())
     .filter(Boolean);
   const kinds = vals.map((v) => {
+    // No translator here, deliberately: a STORED goal is a token or legacy
+    // English, never a translated label, and this runs on the server too.
     const known = GOAL_KIND[bsPrefOptionToken('primary_goal', v)];
     if (known) return known;
-    const s = v.toLowerCase();
+    const s = fold(v);
     if (CUT_RE.test(s)) return 'cut';
     if (BUILD_RE.test(s)) return 'build';
     return 'maintain';
@@ -198,7 +265,7 @@ export function bsGoalKind(nutritionGoal, trainingGoal) {
   // A phrase split across the two fields ("fat" + "loss") matched the old
   // combined-string read and matches nothing per value; keep the combined pass
   // so nothing a member already stored changes meaning.
-  const raw = vals.join(' ').toLowerCase();
+  const raw = fold(vals.join(' '));
   if (CUT_RE.test(raw)) return 'cut';
   if (BUILD_RE.test(raw)) return 'build';
   return 'maintain';
