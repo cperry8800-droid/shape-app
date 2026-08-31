@@ -12,13 +12,8 @@
 -- SYNC with src/lib/store-catalogue.ts.
 
 insert into public.store_catalogue (id, cost_points, credit_cents, credit_kind, kind, locked) values
-  ('merch_training_tee', 7200, 0, null, 'merch', false),
-  ('merch_crewneck', 10800, 0, null, 'merch', false),
   ('merch_cap_black', 5250, 0, null, 'merch', false),
   ('merch_cap_white', 5250, 0, null, 'merch', false),
-  ('merch_bottle', 4200, 0, null, 'merch', false),
-  ('merch_canteen', 6300, 0, null, 'merch', false),
-  ('merch_towel', 3300, 0, null, 'merch', false),
   ('train_credit_25', 7500, 2500, 'session', 'credit', false),
   ('train_credit_50', 15000, 5000, 'session', 'credit', false),
   ('train_second_opinion', 14250, 0, null, 'service', false),
@@ -44,7 +39,12 @@ on conflict (id) do update set
 -- values, so today this changes nothing; it stops a future re-run from
 -- silently reverting an adjustment.
 
--- merch_canteen is NEW (owner add 2026-07-20); merch_duffel leaves the store
+-- ⚠ 2026-08-31: merch_training_tee, merch_crewneck, merch_bottle, merch_canteen
+-- and merch_towel were REMOVED from the seed above (owner call — they left the
+-- store), so a re-run of this file can never resurrect them. Their LIVE rows are
+-- deleted by 2026-08-31-store-merch-removal.sql, which is the file to run.
+
+-- merch_canteen was NEW (owner add 2026-07-20); merch_duffel leaves the store
 -- for now (owner call 2026-07-20) — remove its live row so the charging table
 -- matches the catalogue (it was locked:true, so no redemption ever referenced it).
 delete from public.store_catalogue where id = 'merch_duffel';

@@ -59,20 +59,20 @@ const SC_TC = (typeof window !== "undefined" && window.tierColor) || ((t, c) => 
 });
 const TIERS = [
   { name: "Raw",    min: 0,     color: SC_TC("raw"),                  desc: "Starting level", bonus: 0 },
-  { name: "Tempo",  min: 750,   color: SC_TC("tempo"), current: true, desc: "Free cap + bottle or canteen", bonus: 500 },
+  { name: "Tempo",  min: 750,   color: SC_TC("tempo"), current: true, desc: "Free Shape cap", bonus: 500 },
   { name: "Form",   min: 2000,  color: SC_TC("form"),                 desc: "Free coach workout or plan", bonus: 1000 },
   { name: "Peak",   min: 5000,  color: SC_TC("peak"),                 desc: "A free month with a coach", bonus: 2000 },
-  { name: "Legend", min: 15000, color: SC_TC("legend"),               desc: "A free year of Shape + merch", bonus: 4000 },
+  { name: "Legend", min: 15000, color: SC_TC("legend"),               desc: "A free year of Shape + a cap", bonus: 4000 },
 ];
 
 // Coaches climb the same 5 rungs under their own names (scheme J) with the
 // coach color ramp — teal (the logo color) crowns the ladder at Icon.
 const TIERS_COACH = [
   { name: "Certified", min: 0,     color: SC_TC("certified", true),                  desc: "Verified Shape coach", bonus: 0 },
-  { name: "Pro",       min: 750,   color: SC_TC("pro", true), current: true,         desc: "Free cap + bottle or canteen", bonus: 500 },
+  { name: "Pro",       min: 750,   color: SC_TC("pro", true), current: true,         desc: "Free Shape cap", bonus: 500 },
   { name: "Elite",     min: 2000,  color: SC_TC("elite", true),                      desc: "Free coach workout or plan", bonus: 1000 },
   { name: "Master",    min: 5000,  color: SC_TC("master", true),                     desc: "A free month with a coach", bonus: 2000 },
-  { name: "Icon",      min: 15000, color: SC_TC("icon", true),                       desc: "A free year of Shape + merch", bonus: 4000 },
+  { name: "Icon",      min: 15000, color: SC_TC("icon", true),                       desc: "A free year of Shape + a cap", bonus: 4000 },
 ];
 
 const SC_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;

@@ -4088,6 +4088,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             <span aria-hidden style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${teal}55, transparent)` }} />
           </div>
         ) : null;
+        // The AGENDA is everything before the first habit row; habits now
+        // render as their own section below, so the rail + the "nothing
+        // scheduled" state are scoped to the agenda alone (a day with habits
+        // and no meals/training used to show an empty run-sheet under a head).
+        const preRows = firstHabitIdx === -1 ? sortedRows : sortedRows.slice(0, firstHabitIdx);
+        const hasStandaloneLead = !!(todayDirective && !todayDirective.leadIsWorkout && !todayDirective.heroMealId);
+        const agendaEmpty = preRows.length === 0 && !hasStandaloneLead;
         const renderRow = (r, i) => (r.lead
           ? <React.Fragment key="slate-lead">{_leadBlock(r.time)}</React.Fragment>
           : <BSSlateRow key={r.key} index={i} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />);
@@ -4106,45 +4113,66 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             <div style={{ position: 'relative' }}>
               {/* THE RAIL (concept B): one heat line threading the day — the
                   inline lead + the NOW tick anchor to it. Sits inside the rows'
-                  left gutter (t.padX ≥ 18 at every density), so nothing shifts. */}
-              {sortedRows.length > 0 && (
+                  left gutter (t.padX ≥ 18 at every density), so nothing shifts.
+                  Scoped to the AGENDA: habits are untimed and now render as
+                  their own section below, so the rail stops where the day's
+                  timeline does. */}
+              {!agendaEmpty && (
                 <span aria-hidden style={{ position: 'absolute', left: 8, top: 2, bottom: 6, width: 2, background: `linear-gradient(180deg, ${teal}, ${teal}22)` }} />
               )}
-              {todayDirective && !todayDirective.leadIsWorkout && !todayDirective.heroMealId && _leadBlock(null)}
-              {sortedRows.length === 0 ? (
+              {hasStandaloneLead && _leadBlock(null)}
+              {agendaEmpty ? (
                 <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
-              ) : (() => {
-                const pre = firstHabitIdx === -1 ? sortedRows : sortedRows.slice(0, firstHabitIdx);
-                return (
-                  <>
-                    {pre.map((r, i) => (
-                      <React.Fragment key={`slot-${r.key}`}>
-                        {i === nowIdx && nowMarker}
-                        {renderRow(r, i)}
-                      </React.Fragment>
-                    ))}
-                    {nowIdx === pre.length && nowMarker}
-                  </>
-                );
-              })()}
-              {/* The tour's hero-habits anchor is THIS sub-block — narrowed from
-                  the whole slate (the spotlight used to swallow the meal +
-                  training rows too) to just the habits head, rows, and states. */}
-              <div data-tour="hero-habits">
-              {firstHabitIdx !== -1 && (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: `13px ${t.padX}px 3px` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
-                  <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
-                </div>
+              ) : (
+                <>
+                  {preRows.map((r, i) => (
+                    <React.Fragment key={`slot-${r.key}`}>
+                      {i === nowIdx && nowMarker}
+                      {renderRow(r, i)}
+                    </React.Fragment>
+                  ))}
+                  {nowIdx === preRows.length && nowMarker}
+                </>
               )}
+            </div>
+            {/* DAILY HABITS — ITS OWN SECTION (owner call 2026-08-31). It was a
+                9.5px mono eyebrow inside the run-sheet, which read as a row
+                label rather than a section: the habits sat in the slate's rail,
+                under the slate's head, sharing its ledger rule. It now carries
+                the same section grammar the "Today's slate" head above uses —
+                t.sectGap of air, a DISPLAY head with the section's own glyph,
+                a count, a door, and the 2px ink→ledger rule (green here, the
+                habits color) — so it is unmistakably a peer section.
+                The tour's hero-habits anchor is THIS block — narrowed from the
+                whole slate (the spotlight used to swallow the meal + training
+                rows too) to just the habits head, rows, and states. */}
+            <div data-tour="hero-habits">
+              <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>✓ {tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
+                  {selDayHabits.length > 0 && (
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
+                  )}
+                </span>
+                {/* The section's own door. Before this the ONLY way to the
+                    habits page from the slate was the "+N more" row, which
+                    exists only past three open habits — a member with three or
+                    fewer had no door at all. */}
+                <button onClick={() => setHabitsPage(true)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: t.GREEN, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.viewAll', { defaultValue: 'View all →' })}</button>
+              </div>
+              <div style={{ padding: `0 ${t.padX}px 4px` }}>
+                <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.GREEN} 58%, transparent)`, marginBottom: 4 }} />
+              </div>
               {firstHabitIdx !== -1 && sortedRows.slice(firstHabitIdx).map((r, j) => (
                 <BSSlateRow key={r.key} index={firstHabitIdx + j} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
               ))}
               {openHabits.length > 3 && (
                 <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:slate.moreHabits', { defaultValue: '{count, plural, one {+# more habit} other {+# more habits}}', count: openHabits.length - 3 })}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 800 }}>{tr('home:action.viewAll', { defaultValue: 'View all →' })}</span>
+                  {/* A chevron, not a second "View all →" — the head above now
+                      carries that door, and two identical actions in one
+                      section is noise. */}
+                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 700 }}>›</span>
                 </button>
               )}
               {selDayHabits.length === 0 && (
@@ -4160,7 +4188,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               {habitFlash && (
                 <div style={{ margin: `8px ${t.padX}px 0`, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>{tr('home:slate.habitFlash', { defaultValue: '✓ +{pts} pts → Shape Score', pts: habitFlash.pts })}</div>
               )}
-              </div>
             </div>
             {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines,
                 rendered INSIDE the slate section, after the rows. Fixes the
@@ -11516,9 +11543,9 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
   return surface ? createPortal(sheet, surface) : sheet;
 }
 
-// One-time global CSS for the Follow/Message instrument chips (press feedback +
-// the breathing Follow glow) — injected once, NOT per BSFollowBlock instance
-// (the chips render in lists, so an inline <style> would duplicate per row).
+// One-time global CSS for the Follow/Message pills (press feedback + the
+// breathing Follow glow) — injected once, NOT per BSFollowBlock instance
+// (the block renders in lists, so an inline <style> would duplicate per row).
 let _bsFaCssInjected = false;
 function bsInjectFollowChipCss() {
   if (_bsFaCssInjected || typeof document === 'undefined') return;
@@ -11542,7 +11569,10 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // 'ledger' = the Terrain "Route Card" treatment (zero-box, line-only heat):
   // one mono stat line, Follow as a heat-tint chip / Message as ink+underline.
-  // Default 'chips' keeps the shipped instrument-chip look (coach Signal profile).
+  // Default 'chips' = the Signal coach profile's own pill grammar (rounded mono,
+  // solid tier fill for Follow / hairline INK outline for Message) — the same
+  // pair as that page's sticky dock. ⚠ It was a clipped-notch "instrument chip"
+  // until 2026-08-31; the name is historical, the shape is a pill.
   const ledger = variant === 'ledger';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
@@ -11668,27 +11698,38 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), lineHeight: 1 }}>{label}</span>
     </button>
   );
-  // ── Follow / Message — instrument chips (clipped notch + spine), not static
-  //    pills. The Follow chip "breathes" (a soft accent glow) until you follow;
-  //    both give press feedback. Motion respects prefers-reduced-motion.
+  // ── Follow / Message — THE PAGE'S OWN PILL GRAMMAR (owner call 2026-08-31).
+  //    These were clipped-notch "instrument chips" with a 3px spine, which made
+  //    them the one shape on this page that wasn't a pill: every other action
+  //    on the Signal profile — Work with · Message · Subscribe · Book intro ·
+  //    Join the waiting list · Buy · the category tabs — is a fully rounded
+  //    mono pill, solid tier-color for the primary and a hairline INK outline
+  //    for the secondary (see the sticky dock at the foot of this page, which
+  //    is the exact pair these now match). Sized to the page too: minHeight 34
+  //    → 44, which is also the platform tap target.
+  //    KEPT: the press feedback and the Follow chip's breathing glow-until-you-
+  //    follow. A box-shadow follows border-radius, so the affordance survives
+  //    the shape change untouched. Motion respects prefers-reduced-motion.
   const faBase = {
-    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 34, padding: '11px 17px',
-    clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', borderRadius: 3,
-    fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 44, padding: '13px 18px',
+    borderRadius: 999,
+    fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
     transition: 'transform 140ms ease, background 180ms ease, box-shadow 180ms ease',
   };
   if (!isSelf) bsInjectFollowChipCss();
   const actions = !isSelf ? (
     /* One flex item so Follow + Message always share a row — the pair wraps
        together, never apart. */
-    <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 7 }}>
+    <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 10 }}>
       <button onClick={onToggle} disabled={busy} className={fs === 'follow' ? 'bs-fa-follow' : undefined} style={{
         ...faBase, cursor: busy ? 'default' : 'pointer',
         '--fa-glow': bsTHexA(c, 0.5),
-        background: fs === 'follow' ? c : fs === 'following' ? bsTHexA(c, 0.12) : 'transparent',
-        color: fs === 'follow' ? '#06110e' : fs === 'following' ? c : bsTHexA(INK, 0.6),
-        border: `1px solid ${fs === 'requested' ? bsTHexA(INK, 0.25) : c}`,
-        borderLeft: `3px solid ${fs === 'requested' ? bsTHexA(INK, 0.35) : c}`,
+        /* Not-yet-following is the page's PRIMARY pill (solid tier fill, no
+           border); following/requested drop back to the outline pill, tinted
+           to the tier when it's a state you own and muted when it's pending. */
+        background: fs === 'follow' ? c : 'transparent',
+        color: fs === 'follow' ? '#0c0a08' : fs === 'following' ? c : bsTHexA(INK, 0.6),
+        border: fs === 'follow' ? 0 : `1px solid ${fs === 'following' ? c : bsTHexA(INK, 0.4)}`,
       }}>{fs === 'following' ? '✓ ' + tr('profile:follow.following', { defaultValue: 'Following' }) : fs === 'requested' ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.follow', { defaultValue: '＋ Follow' })}</button>
       {/* Message → the profile host's handler (it dismisses the profile overlay
           BEFORE opening the real 1:1 — same handoff as the profiles' big
@@ -11698,8 +11739,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       {typeof onMessage === 'function' && (
         <button onClick={() => onMessage()} style={{
           ...faBase, cursor: 'pointer',
-          background: bsTHexA(INK, 0.05), color: INK,
-          border: `1px solid ${bsTHexA(INK, 0.28)}`, borderLeft: `3px solid ${bsTHexA(INK, 0.55)}`,
+          /* Byte-identical to the secondary pill in this page's sticky dock. */
+          background: 'transparent', color: INK,
+          border: `1px solid ${bsTHexA(INK, 0.4)}`,
         }}>✉ {tr('profile:action.message', { defaultValue: 'Message' })}</button>
       )}
     </div>
@@ -19908,10 +19950,10 @@ const SHAPE_SCORE_TIERS = [
   // a free intro — and is deliberately gone. Do not add a perk here that nothing
   // grants.
   { name: 'Raw', range: '0+', perk: 'Starting level' },
-  { name: 'Tempo', range: '750+', perk: 'Free cap + bottle or canteen' },
+  { name: 'Tempo', range: '750+', perk: 'Free Shape cap' },
   { name: 'Form', range: '2,000+', perk: 'Free coach workout or plan' },
   { name: 'Peak', range: '5,000+', perk: 'A free month with a coach' },
-  { name: 'Legend', range: '15,000+', perk: 'A free year of Shape + merch' },
+  { name: 'Legend', range: '15,000+', perk: 'A free year of Shape + a cap' },
 ];
 // Coaches climb the same 5 rungs under their own names (scheme J).
 const SHAPE_SCORE_TIERS_COACH = [
@@ -19920,10 +19962,10 @@ const SHAPE_SCORE_TIERS_COACH = [
   // unlocks the same free things. The copy says so rather than naming marketplace
   // mechanics (priority in search, featured placement) that nothing implements.
   { name: 'Certified', range: '0+', perk: 'Starting level' },
-  { name: 'Pro', range: '750+', perk: 'Free cap + bottle or canteen' },
+  { name: 'Pro', range: '750+', perk: 'Free Shape cap' },
   { name: 'Elite', range: '2,000+', perk: 'Free coach workout or plan' },
   { name: 'Master', range: '5,000+', perk: 'A free month with a coach' },
-  { name: 'Icon', range: '15,000+', perk: 'A free year of Shape + merch' },
+  { name: 'Icon', range: '15,000+', perk: 'A free year of Shape + a cap' },
 ];
 
 // Per-tier accent colors — a cool→warm→premium progression. Used wherever a
@@ -25723,7 +25765,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   // Rewards — featured rows from the LIVE store catalogue (same ids the server
   // prices at redemption) + affordability against the live balance. Tapping any
   // row opens the Shape Store, the one real redemption flow.
-  const rewards = ['train_credit_25', 'train_second_opinion', 'nutri_meal_plan_refresh', 'merch_training_tee', 'perk_annual_credit']
+  const rewards = ['train_credit_25', 'train_second_opinion', 'nutri_meal_plan_refresh', 'merch_cap_black', 'perk_annual_credit']
     .map((id) => BS_STORE_PRODUCTS.find((pr) => pr.id === id))
     .filter(Boolean);
   // Tabbed section under Reward tiers: Rewards / Point values / Recent points.
@@ -26010,13 +26052,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 // the Store page read ONE list (ids match src/lib/store-catalogue.ts, which
 // prices redemptions server-side; this list is the display copy).
 const BS_STORE_PRODUCTS = [
-    { id: 'merch_training_tee', cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
-    { id: 'merch_crewneck', cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
     { id: 'merch_cap_black', cat: 'Shape Merch', name: 'Shape Cap · Black', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
     { id: 'merch_cap_white', cat: 'Shape Merch', name: 'Shape Cap · White', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
-    { id: 'merch_bottle', cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
-    { id: 'merch_canteen', cat: 'Shape Merch', name: 'Shape Canteen', brand: 'Shape Merch', cost: 6300, retail: 42, tag: 'New', stock: 'In stock' },
-    { id: 'merch_towel', cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
     { id: 'train_credit_25', cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
     { id: 'train_credit_50', cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
     { id: 'train_second_opinion', cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
@@ -26148,7 +26185,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const unlocked = liveRedemptions && liveRedemptions.length > 0
     ? liveRedemptions.map((r) => [r.code, r.item_name, r.created_at ? new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '', r.cost_points])
     : (liveRedemptions ? [] : [
-        ['SHAPE-TEE-48F2', 'Shape Training Tee', 'Jun 30', 450],
+        ['SHAPE-CAP-48F2', 'Shape Cap · Black', 'Jun 30', 5250],
         ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 21', 420],
       ]);
   const redeemedCount = liveRedemptions ? liveRedemptions.length : profile.redeemedCount;

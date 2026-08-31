@@ -27,15 +27,14 @@ export type StoreItem = {
 
 const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
   // Shape Merch
-  { id: 'merch_training_tee', name: 'Shape Training Tee', cat: 'Shape Merch', retail: 48, kind: 'merch' },
-  { id: 'merch_crewneck', name: 'Shape Crewneck', cat: 'Shape Merch', retail: 72, kind: 'merch' },
   { id: 'merch_cap_black', name: 'Shape Cap · Black', cat: 'Shape Merch', retail: 35, kind: 'merch' },
   { id: 'merch_cap_white', name: 'Shape Cap · White', cat: 'Shape Merch', retail: 35, kind: 'merch' },
-  { id: 'merch_bottle', name: 'Shape Training Bottle', cat: 'Shape Merch', retail: 28, kind: 'merch' },
-  { id: 'merch_canteen', name: 'Shape Canteen', cat: 'Shape Merch', retail: 42, kind: 'merch' },
-  { id: 'merch_towel', name: 'Shape Gym Towel', cat: 'Shape Merch', retail: 22, kind: 'merch' },
   // merch_duffel removed 2026-07-20 (owner call: "remove duffel bag for now") —
   // the reprice migration DELETEs its live store_catalogue row.
+  // merch_training_tee, merch_crewneck, merch_bottle, merch_canteen and
+  // merch_towel removed 2026-08-31 (owner call) — 2026-08-31-store-merch-removal.sql
+  // DELETEs their live store_catalogue rows and prunes the tier rewards that
+  // offered them (see that file). Shape Merch is now the two caps.
 
   // Training
   { id: 'train_credit_25', name: '$25 session credit', cat: 'Training', retail: 25, kind: 'credit' },

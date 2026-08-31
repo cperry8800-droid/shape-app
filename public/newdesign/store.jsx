@@ -9,13 +9,8 @@ const CATEGORIES = ["All", "Shape Merch", "Training", "Nutrition", "Shape Perks"
 
 const PRODUCTS = [
   // Shape Merch
-  { id: 1, cat: "Shape Merch", name: "Shape Training Tee", brand: "Shape Merch", cost: 450, retail: 48, img: "tee · midnight", tag: "New", stock: "In stock" },
-  { id: 2, cat: "Shape Merch", name: "Shape Crewneck", brand: "Shape Merch", cost: 720, retail: 72, img: "crewneck · bone", tag: "Members", stock: "In stock" },
   { id: 17, cat: "Shape Merch", name: "Shape Cap · Black", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · black", tag: "Limited drop", stock: "Limited · 30" },
   { id: 18, cat: "Shape Merch", name: "Shape Cap · White", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · white", tag: "Limited drop", stock: "Limited · 30" },
-  { id: 3, cat: "Shape Merch", name: "Shape Training Bottle", brand: "Shape Merch", cost: 280, retail: 28, img: "bottle · steel", stock: "In stock" },
-  { id: 21, cat: "Shape Merch", name: "Shape Canteen", brand: "Shape Merch", cost: 6300, retail: 42, img: "canteen · steel", tag: "New", stock: "In stock" },
-  { id: 4, cat: "Shape Merch", name: "Shape Gym Towel", brand: "Shape Merch", cost: 220, retail: 22, img: "towel · cream", stock: "In stock" },
 
   // Training
   { id: 6, cat: "Training", name: "$25 session credit", brand: "Any Shape coach", cost: 500, retail: 25, img: "credit · 25", stock: "Unlimited", kind: "credit" },
@@ -47,13 +42,8 @@ const SHAPE_PTS_PER_USD = 150;
 // Stable item ids matching the server catalogue (src/lib/store-catalogue.ts) so
 // the redemption endpoint can charge the authoritative cost by id.
 const STORE_ITEM_IDS = {
-  "Shape Training Tee": "merch_training_tee",
-  "Shape Crewneck": "merch_crewneck",
   "Shape Cap · Black": "merch_cap_black",
   "Shape Cap · White": "merch_cap_white",
-  "Shape Training Bottle": "merch_bottle",
-  "Shape Canteen": "merch_canteen",
-  "Shape Gym Towel": "merch_towel",
   "$25 session credit": "train_credit_25",
   "$50 session credit": "train_credit_50",
   "Coach 2nd-opinion": "train_second_opinion",
@@ -112,7 +102,7 @@ async function redeemLeadBoostRemote({ role, days }) {
 }
 
 const UNLOCKED = [
-  { code: "SHAPE-TEE-48F2", name: "Shape Training Tee", expires: "Jun 30", cost: 450, redeemed: "Apr 12" },
+  { code: "SHAPE-CAP-48F2", name: "Shape Cap · Black", expires: "Jun 30", cost: 5250, redeemed: "Apr 12" },
   { code: "NUTRI-PLAN-04F1", name: "Grocery list buildout", expires: "May 20", cost: 420, redeemed: "Apr 04" },
 ];
 
