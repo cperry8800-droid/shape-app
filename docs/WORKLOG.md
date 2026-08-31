@@ -378,6 +378,95 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — i18n cut 8: the self-serve builder, and a token that is about the WIRE
+
+- **`BSWorkoutBuilder` is localized** — the screen a **coach-less** member uses to author
+  their own training (the self-serve wave's whole point: before it, a member with no coach
+  had no workout to log and no way to write one). It carried **50 hardcoded strings and no
+  translator**; it now carries **62 `tr()` calls and none**, against **60 new
+  `session:build.*` keys ×13**. No migration, no route change.
+- ⚠ **THE DISCIPLINE IS A TOKEN, NOT A LABEL — the same split as cut 5's Train tag and cut
+  6's grocery aisle, for a REASON THAT IS NEITHER OF THEIRS.** Both of those were about a
+  **record**: a translated value written to disk freezes a language into the member's own
+  data. This one is not persisted at all — `bsRepeatSpec` and `bsMaterializeProgram` both
+  destructure `discipline` and never use it. What it does is **cross the wire**: the builder
+  posts it to `/api/ai/draft-program` as the model's prompt input. So a `tr()` on the chip's
+  VALUE would send a **translated word to the model in twelve locales**, and the drafted
+  program would come back shaped by a word the prompt never meant. The token stays canonical
+  English; `bsDisciplineLabel` is the only thing a member reads. **A value can need the split
+  because of where it GOES, not only because of where it is stored.**
+- ⚠ **THE DAY LETTERS WERE HARDCODED ENGLISH — cut 5's `BSWeekStrip` defect at a second
+  site**, and it had been sitting one screen away from the fix. `['M','T','W'…]` is now
+  `bsWeekdayName(i, 'short')`, **memoised on `tr`** so a language switch re-derives them; a
+  module-scope array would freeze whatever language was active when the module loaded (the
+  live-plan lesson from 2026-08-30, applied at authoring time rather than after). It is a
+  **REUSE of a shipped formatter, not seven new keys**.
+- ⚠ **THE RATCHET DEFENDS ALMOST NONE OF THIS, WHICH IS WHY THE GUARD IS THE REAL DELIVERABLE.**
+  The walk counted **46** strings here and cannot see **seventeen more**: the **eleven chip
+  tokens** (module-scope ARRAY LITERALS mapped to elements — cut 7's first invisible shape),
+  the **six plain-JS toast and status strings** (they never appear in JSX — cut 2's lesson),
+  and the weekday letters. Reverting any of them leaves the ratchet, the parity gate, `tsc`,
+  the build and the whole suite **green**. So the honest reading of the 46 is a **floor**, and
+  the 60 authored keys are the honest count of the work.
+- **`tests/broadsheet-builder-render.test.mjs` closes that, and it DRIVES rather than greps.**
+  It mounts the real component under **a translator that renames every key** and asserts the
+  markup carries the renamed keys and **not** the English words — so an equivalent rewrite
+  passes and a hardcoded literal fails, which a spelling pin could not distinguish (the #1936
+  lesson). A second mount against the **real `en` catalogs** proves the member still reads
+  English, making every assertion a live check that its key resolves.
+  ⚠ **Guard-the-guard first**: the mount is asserted to render the form, because on an empty
+  screen most of the assertions pass vacuously.
+- ⚠ **ITS SHARPEST ASSERTION IS NOT ABOUT COPY AT ALL.** The split has to hold in **both
+  directions at once** — the member reads a translated LABEL while the writer receives the
+  canonical English TOKEN — and half of that passing is the dangerous state, so both halves
+  are pinned in **one** test: click the chip **by the word a member can see**, type a move,
+  save, and assert `saveSession` received `discipline: 'run'` **and** that the renamed label
+  was on screen. That is a claim about behaviour, so it is driven by a real jsdom mount, a
+  real click and a real save.
+- ⚠ **AND THE HARNESS ITSELF WAS THE BROKEN INSTRUMENT FIRST — three tests failed for a
+  reason that had nothing to do with the component.** `react-dom` decides **at module init**
+  whether it is in a DOM environment; required **before** the jsdom globals it never attaches
+  its event listeners, so every click and keystroke landed on the DOM and **nothing reached
+  React**. The component rendered, the assertions read a plausible screen, and the whole
+  interactive half of the file tested nothing. Diagnosed with a **two-line probe** — a
+  controlled `<input>` whose `onChange` never fired — rather than by re-reading the component,
+  which is what kept it to one round. *Check the instrument before the finding*; the ordering
+  is now written at the `require` so the next mount test inherits it.
+- ⚠ **AND TWO OF THE EIGHT MUTATIONS FIRST REPORTED SURVIVORS THEY HAD NEVER LANDED FOR.**
+  Both anchors were written from memory with the wrong whitespace (`['strength','run'…]`
+  against the file's `['strength', 'run', …]`), so the edit threw before writing and the run
+  measured an **unmutated tree**. Re-applied with the edit **proven present by a grep** first,
+  both were killed. **A mutation that reports a survivor is a broken instrument until the
+  mutation is proven to have landed** — this file's own rule, paid for again.
+- **Three keys are REUSED rather than minted**, each checked byte-identical to the value it
+  replaces: **`session:train.door.draft`** (the same ✦ CTA the Train door launches this very
+  component with — a rename must move both), **`common:unit.weekN`** (minted as `common:` in
+  cut 4 precisely so the next surface counting a week inherits it), and
+  **`session:train.restChip`**. The short chrome vocabulary is minted locally on cut 5's
+  precedent: the house carries several per-namespace copies of Close/Cancel/Rest **by
+  design**, and collapsing them would couple screens that have no reason to move together.
+- ⚠ **RECORD NAME DEFAULTS STAY ENGLISH, and the comment says why at the site.** `'My
+  workout'` and `'My program'` are written **into** the member's own saved records, so
+  translating them at the write is exactly the fault the grocery record-shape cut closed. The
+  guard pins it: a save with an empty name must reach the writer as `'My workout'`.
+- **The ratchet moved on the axes it should and not on the others.** `noneStrings`
+  **1149 → 1103** · `none.length` **108 → 107** · fully covered **105 → 106**.
+  **`partStrings` 164 and `part.length` 32 are UNCHANGED for the second cut running** — the
+  assertion that says the cut is finished rather than half-done.
+- **8/8 mutations killed** (the session discipline chips hardcoded · the experience chips
+  hardcoded · **a translated token crossing the wire** · the record NAME translated at the
+  write · the save toast back to a literal · the empty-form status back to a literal · the
+  weekday letters back to a hardcoded array · an unkeyed discipline token added), sanity green
+  at both ends and the tree restored clean.
+- **Verified:** `npm test` **2522/2522** · `tsc --noEmit` 0 · JSX parse · tr-shadow clean on
+  **both** grep forms · catalog parity + ICU ×13 (a pure append — 60 keys per `session.json`,
+  224 → 284, LF, zero CR/NUL) · mobile build 0 with **all 60 keys and all 780 translated
+  values confirmed in the emitted bundle**, the weekday derivation surviving minification
+  (`[0,1,2,3,4,5,6].map(e=>wa(e,\`short\`))`, and **no** `"Mon","Tue","Wed"` literal in any
+  chunk), and every `discipline:` in the emitted payload reading a bare identifier — never a
+  label call. The bundle grep carries a **positive control** and an empty-haystack assertion,
+  so a broken `cd` cannot read as a clean result (the trap this wave hit five times).
+
 ### 2026-08-30 — The inventory walk stops missing this codebase's own chrome props
 
 - **The blind spot cut 6 registered is closed.** `TEXT_PROPS` — the walk's JSX-attribute

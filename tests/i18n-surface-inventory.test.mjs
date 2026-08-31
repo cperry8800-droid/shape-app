@@ -342,7 +342,6 @@ const UNCOVERED = new Set([
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
   'Client::BSVideoCall', 'Client::BSWeekendsCard',
   'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard', 'Client::BSWeighInSheet',
-  'Client::BSWorkoutBuilder',
   // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
   // LABEL: BSSearchMsgBtn renders `aria-label={`Message ${name}`}` — invisible
   // while the walk only read direct attribute literals, so a screen-reader user
@@ -515,10 +514,27 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // "'s profile" — because a template literal splits at its placeholder. One
   // sentence, two strings; it is now one ICU key so each locale can move the
   // words (de "Profil von {name} öffnen", ru "Открыть профиль: {name}").
+  // ⚠ CUT 8 — THE SELF-SERVE WORKOUT BUILDER. BSWorkoutBuilder (46) leaves
+  // UNCOVERED fully covered, so noneStrings 1149 -> 1103, none.length 108 -> 107
+  // and full.length 105 -> 106. partStrings 164 and part.length 32 are UNCHANGED
+  // for the second cut running — the assertion that the cut is finished.
+  // ⚠ AND 46 IS AGAIN A FLOOR RATHER THAN THE WORK: the cut authored 60 keys.
+  // Eight are the discipline chips and three the experience chips, both declared
+  // as MODULE-SCOPE ARRAY LITERALS the walk cannot attribute (cut 7's first
+  // invisible shape), and six more are plain-JS toast and status strings the walk
+  // never sees at all (cut 2's lesson). Splitting those chips into a canonical
+  // token + a translated label therefore moves NO string count — the same
+  // no-movement signature BSWeekStrip and BSSearchFollowBtn carry.
+  // ⚠ THE SPLIT IS ABOUT THE WIRE, NOT A RECORD, which is narrower than cuts 5
+  // and 6 and worth stating so nobody widens it by analogy: bsRepeatSpec and
+  // bsMaterializeProgram both destructure `discipline` and never use it, so the
+  // token is not persisted anywhere. What it DOES do is cross the wire to
+  // /api/ai/draft-program as the model's prompt input, so a tr() on the chip's
+  // value would have sent a translated word to the model in twelve locales.
   assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 1149, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 1103, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 108, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 107, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
