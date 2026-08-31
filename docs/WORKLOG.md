@@ -378,6 +378,97 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — i18n cut 12: the four goal sheets, and the walk's eighth blind spot
+
+- **The sheets a member edits their own contract in are localized.**
+  `BSGoalEditSheet`, `BSOverallEditSheet`, `BSHeadlineEditSheet` and
+  `BSWeighInSheet` carried **zero `tr()` calls** between them — the add/edit-target
+  form, the body-comp goal editor, the station-headline editor and the weigh-in
+  logger. **42 new keys ×13**, and all four leave UNCOVERED for **fully covered**.
+  No migration, no route change.
+- ⚠ **FOUR OF THE STRINGS WERE OUTSIDE THE MEASUREMENT, IN AN EIGHTH SHAPE.**
+  `containerStrings()` steps over **`CallExpression`** — the rule that keeps a
+  `tr('k', { defaultValue: 'v' })` argument from being counted as hardcoded copy —
+  so **copy passed as an ARGUMENT to a local render helper is invisible to the
+  walk**: `num('cur', 'Current')` and `num('tgt', 'Target')` are two of the edit
+  sheet's four field labels. Two more sat in **template literals split at their
+  placeholders** (the timeline line, the weigh-in note), which the walk reads as
+  fragments rather than sentences. Cut 7 found copy hidden in an array literal,
+  cut 8 in a module-scope array, cut 9 in a local array, cut 11 inside a state
+  setter; this is the same absence one call frame further in. **The honest reading
+  of any component's `hard` count is a FLOOR.**
+- ⚠ **AND THE SWEEP FORCED OUT A DEVICE-LOCALE BUG.** The weigh-in note's two
+  figures were formatted with a bare **`toLocaleString()` — the DEVICE locale** —
+  inside a sentence the member reads in their **SELECTED UI language**, so
+  Spanish-in-Shape on an English phone read English grouping in a Spanish
+  sentence. Both now format through **`bsDateLocale()`**. Same class as cut 1's
+  telegram date, and it was only visible because localizing the sentence forced
+  someone to read where its numbers came from.
+- ⚠ **TWO INDEPENDENT `pre`/`accent` PAIRS ON THE EDIT SHEET, BECAUSE GERMAN AND
+  TURKISH ARE VERB-FINAL.** The house split-accent hero is `titlePre` + an italic
+  `titleAccent`; the New and Edit variants cannot share one frame with a swapped
+  word — de reads **„Neue *Vorgabe.*"** but **„Vorgabe *bearbeiten.*"**, tr
+  **"Yeni *hedef.*"** but **"Hedefi *düzenle.*"**. Four keys, not two plus a
+  placeholder.
+- **`goal:primary.closeAria` was RENAMED to `goal:sheet.closeAria`** and is now
+  shared by the three sheets that carry a ✕ plus its original call site — *a
+  rename SHOULD move all four*. Four more chrome labels (`cancel`, `fieldTitle`,
+  `fieldTarget`, `fieldTargetDate`) join it under `sheet.*` for the same reason;
+  everything a single sheet owns stays under its own prefix.
+- ⚠ **TWO TEMPLATE LITERALS BECAME ICU PLURALS.** The timeline line and the
+  template-picker chip appended a bare `wks`; **no language forms a plural that
+  way** and ru/uk need four categories. `edit.tplWeeks` is ICU **even though the
+  shipped `BS_GOAL_TEMPLATES` never passes `weeksOut: 1`** — ru/uk inflect
+  differently at 2–4 vs 5+, so the non-plural form was wrong for reasons the
+  English minimum never reveals.
+- **The `en` catalog is DERIVED from the source's own `defaultValue`s** (an AST
+  walk over the four components plus the renamed call site), so the catalog and
+  the call sites cannot disagree at authoring time.
+- ⚠ **EVERY PER-LOCALE TERM WAS READ OUT OF THE SHIPPED CATALOGS RATHER THAN
+  INVENTED** — the house word for *target* (es `Objetivo` · fr `Cible` · de
+  `Vorgabe` · id `Sasaran` · ha `Manufa` · ru `Задача`), for *Close*, for *Your
+  why*. Register was **measured, not assumed**: ru/uk are formal but write the
+  possessive **lowercase mid-sentence** (ru 91 lowercase vs 3 capital; uk 99 vs
+  52), uk uses the **straight apostrophe** (78 vs 27), and fr keeps a **regular
+  space before `?`** (zero narrow-no-break-spaces in the fr catalogs). Reading the
+  shipped catalog is what separates a house convention from a guess.
+- ⚠ **AND MUTATION-TESTING FOUND A REPO-WIDE HOLE IN THE PARITY GATE THAT IS WORTH
+  MORE THAN THE CUT: AN EMPTY CATALOG VALUE PASSED EVERY CHECK.** Under the
+  runtime's deliberate **`returnEmptyString: false`** an empty value renders the
+  **RAW KEY** on screen — `goal:overall.save` on the button the member is trying to
+  press. Key parity cannot see it (a key whose value is `""` **is** present, so the
+  locale reads complete) and ICU validity cannot either (the empty string is a
+  valid ICU message). Closed with a **derived** non-empty assertion over every
+  locale × every namespace — **measured at ZERO offenders when it landed**, so it
+  starts clean rather than documenting a gap. ⚠ **Guard-the-guard:** the `trim()`
+  is mutation-proven load-bearing — a whitespace-only value escapes without it.
+- ⚠ **REGISTERED, NOT SWEPT — THE DEVICE-LOCALE CLASS IS 64 SITES WIDE.** Measured
+  with the method stated so the next reader can re-derive it rather than trust the
+  page: `/toLocale(String|DateString|TimeString)\(\)/` over
+  `mobile-app/src/broadsheet/*.jsx` + `src/services/*.mjs` returns **64 bare calls**
+  (client 55 · pros 6 · widgets 2 · radio 1) against **76 that DO pass a locale** —
+  so the house convention exists and half the tree does not follow it. This cut
+  fixed **2**. A blanket source ban would be a 64-site false-alarm generator, and
+  separating member-facing copy from internal/number formatting is a per-site read,
+  i.e. its own cut.
+- **The ratchet moved on three axes, and the two that did NOT move are the
+  certification.** `noneStrings` **984 → 935** · `none.length` **103 → 99** ·
+  fully covered **108 → 112** — while **`partStrings` 169 and `part.length` 34 are
+  UNCHANGED**. Four surfaces leaving the untranslated bucket with the partial
+  columns flat is what a finished cut looks like; one landing in PARTIAL would be
+  half-done.
+- **8 mutations run, 6 killed on the first pass and BOTH survivors were real
+  findings** (the device-locale revert, which is now the registered 64-site class;
+  and the empty value, which is now a guard) — plus 3 more on the new guard, all
+  killed. Sanity green at both ends of every batch and the tree restored clean.
+- **Verified:** `npm test` **2541/2541** · `tsc --noEmit` 0 · JSX parse · tr-shadow
+  clean on **both** grep forms · catalog parity + ICU ×13 (a pure append — 43
+  insertions / 2 deletions per file, LF, zero CR/NUL) · the ratchet 9/9 · mobile
+  build 0 with **all 42 keys and all 504 translated values confirmed in the emitted
+  bundle** under a **positive control** (`goal:cover.eyebrow`, a key that certainly
+  ships) and a **negative control** (a key that does not exist), because a
+  saturated zero is the instrument until proven otherwise.
+
 ### 2026-08-31 — i18n cut 10: the About page, and a prefix that was already taken
 
 - **The letter a member reads when they tap Settings → About is localized.** `BSAboutPage`
@@ -885,7 +976,7 @@ changelog whenever something ships.
   · the `unit` fold restored · a verdict string un-keyed · ru dropping few/many · a locale
   authoring an empty value · a stale PARTIAL baseline entry · the device locale · a namespace
   unregistered at runtime · one dropped from the gate · the new guard's own matcher broken.
-- **Verified:** `npm test` **2540/2540** · `tsc --noEmit` 0 · JSX parse · catalog parity **4/4**
+- **Verified:** `npm test` **2541/2541** · `tsc --noEmit` 0 · JSX parse · catalog parity **4/4**
   ×13 · the ratchet 9/9 · the new guard 9/9 · mobile build 0 with **all 115 keys and all 1,380
   translated values confirmed in the emitted bundle**, behind a positive control
   (`profile:role.trainer`) so an empty haystack could not read as an empty result.
