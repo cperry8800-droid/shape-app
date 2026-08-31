@@ -378,6 +378,40 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — Cut 13's first ruling is SETTLED BY THE CODE: the goal template's text IS stored
+
+- **Cut 11 registered `BS_GOAL_TEMPLATES` (74 strings) as needing TWO rulings before it
+  can be swept.** One of them — *"is a chosen template's text STORED in the member's goal
+  doc?"* — is not a product question at all; it is a fact the source answers, and it is
+  now answered: **YES.** `pick(tpl)` writes `t: tpl.t` and `sub: tpl.sub` into the edit
+  sheet's draft, `save()` spreads that whole draft into `onSave(...)`, and the goal lands
+  in `user_goals('client_goals')` — where `BSGoalsContract` renders `t`/`sub` straight
+  back off the record. So the register's *"in which case"* is the live case, not a
+  hypothetical, and the remaining question is a real ruling rather than an investigation.
+- ⚠ **BUT IT IS NOT THE GROCERY-AISLE CLASS, AND CONFLATING THE TWO WOULD PICK THE WRONG
+  REMEDY.** The aisle was stored **AND** used as a grouping key compared against a
+  freshly-classified value, so a translated write broke matching — a correctness bug with
+  one answer (token/label split). A goal title is compared against nothing: it is a
+  **prefill for a field the member can immediately type over**, which makes it the
+  **`'My workout'` / `'New list'` class** (cut 8's record-name ruling), where the house
+  already decided the default stays English at the write precisely because translating at
+  the write freezes one language into the member's own data.
+- **So the ruling is a genuine product choice between two defensible answers**, and it is
+  stated here so it can be decided in a line rather than re-derived: **(a)** translate the
+  picker rows and let the member's saved goal carry the language they picked it in —
+  natural to read, and it freezes that language into their record forever, including
+  across a later language switch; or **(b)** keep the written `t`/`sub` canonical English
+  and translate only what the picker DISPLAYS — consistent, and it means a Spanish member's
+  own saved goal reads back in English, which is the worse of the two on screen.
+  ⚠ **There is no third option that avoids the trade**: any scheme that re-translates the
+  record at render has to stop being the member's editable text, and the sheet's Title
+  field is editable by design.
+- **The SECOND ruling is untouched and still needed** — whether an imperial member sees
+  converted targets (`Bench press 225 lbs`, `Bike 100 miles`, `Deadlift 405 lbs` are all
+  authored in imperial with the unit inside the string). Cut 13 stays blocked on it either
+  way, so nothing is unblocked here; what changes is that one of the two blockers is now a
+  decision instead of a question, and the precedent that governs it is named.
+
 ### 2026-08-31 — i18n cut 12: the four goal sheets, and the walk's eighth blind spot
 
 - **The sheets a member edits their own contract in are localized.**
