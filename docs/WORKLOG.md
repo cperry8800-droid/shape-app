@@ -378,6 +378,76 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — Session handoff: `docs/HANDOFF-2026-08-31b.md`
+
+- **Three PRs since the day's first handoff — #1988 → #1990 — and two of them had no
+  changelog entry.** [`HANDOFF-2026-08-31.md`](HANDOFF-2026-08-31.md) (#1987) closed at
+  #1986; this one covers everything after it. Same calendar day, hence the `b` suffix
+  (the `-08-16b` / `-07-10b` / `-07-14b` precedent).
+- **Handoff: [`docs/HANDOFF-2026-08-31b.md`](HANDOFF-2026-08-31b.md)** — state snapshot,
+  the three PRs, the architecture a next session needs (the SECURITY INVOKER freeze · the
+  store's single authority · where the profile hero's numbers are derived from), and the
+  open follow-ups. §4–§6 of the first handoff are unchanged by these three PRs and remain
+  the authority for the ranked next work.
+- **State, all re-measured rather than carried forward:** suite **2630/2630** · `tsc` 0 ·
+  ratchet 9/9 (359 rendering JSX · 115 fully covered · 34 partial / 168 strings · 96
+  uncovered / 818 strings) · **no open PRs** (the authoritative nothing-in-flight proof) ·
+  13 locales × 18 namespaces × 4,162 `en` keys = **54,106 values**.
+- ⚠ **AND MIGRATIONS OWED IS ZERO — PROVEN AGAINST THE LIVE DATABASE, NOT READ OFF THIS
+  PAGE.** All four `2026-08-31-*` files are applied: the review-notes day columns are
+  present; `store_catalogue` is down to 14 rows with merch = exactly the two caps and
+  `tier_reward_defs()` no longer offering a deleted pick; `store_redemptions_cost_points_check`
+  now reads `cost_points >= 0`; and the subject-freeze trigger is installed with
+  **`prosecdef` = false**. That last column is the one to re-check — a freeze whose trigger
+  is installed and whose function is SECURITY DEFINER is *installed, green, and enforcing
+  nothing*, which is exactly what its own first cut shipped.
+- ⚠ **THE RECORDS GAP THIS CLOSES IS THE FINDING, NOT AN ASIDE.** #1988's title names
+  three things — *"Store merch removal, the nutrition review queue, and the full-bleed
+  profile cover"* — and its WORKLOG commit recorded only the middle one. The store work
+  (three migrations, five test files, the charging authority, both website store surfaces)
+  and the full-bleed cover went in with **no entry at all**, and #1990 had none either.
+  Both are written below. **A PR whose title lists three things and whose changelog lists
+  one is the stale-record class this file keeps post-morteming** — and it happened inside
+  the same PR I merged without reading its reviews.
+
+### 2026-08-31 — Profile hero: smaller follow/message pills + a cover photo that reaches the sigil
+
+- Two owner screenshot calls, one file (`iosAppBroadsheetClient.jsx`), presentation only.
+- **The ＋ FOLLOW / ✉ MESSAGE pills came down 44 → 38 high**, with type (10 → 9) and
+  padding reduced *with* the height so the pill keeps its proportions rather than just
+  getting shorter; the gap between them tightens 10 → 8.
+- ⚠ **THE COMMENT ABOVE THEM HAD TO BE REWRITTEN, NOT LEFT.** It asserted *"minHeight 34
+  → 44, which is also the platform tap target"* — a description of the **previous** size
+  that a future reader would take as a constraint forbidding this change. 38 clears this
+  repo's documented floor — **WCAG 2.5.8 AA is 24px**, not Apple's 44pt HIG suggestion —
+  with room to spare, and matches the other quiet controls on the page. *A because-clause
+  is a claim with a shelf life.*
+- **`bsInjectFollowChipCss` was checked BEFORE the size change and is size-agnostic** —
+  the breathing glow is a `box-shadow` (which follows `border-radius`) and the press is a
+  transform, so neither affordance depends on the pill's height. A size change that
+  silently broke the only two affordances on the control would have looked fine in the
+  diff.
+- ⚠ **THE COACH HERO'S COVER PHOTO WAS A GEOMETRY PROBLEM, NOT AN OPACITY ONE.** A 320px
+  strip whose gradient reached full paper at its own bottom edge was **structurally
+  incapable** of appearing behind a sigil that runs to ~370px — raising opacity alone
+  could never have fixed it. Measured rather than guessed: the mast inset (~44) + mast row
+  (~34) + 12 + back row (~24) + 18 puts the sigil top at ~132px and its bottom at ~372px.
+  Height 320 → **460**, opacity 0.5 → **0.72**, and the gradient re-stopped to reach full
+  paper only at **76%** — below the hexagon rather than above it.
+- ⚠ **BOTH NUMBERS ARE DERIVED FROM `BSSignalSigil`'s `size={240}`** and are wrong the
+  moment it changes; the comment at the site says so, so the next reader re-derives instead
+  of nudging the opacity again.
+- **The member (Terrain) profile was checked and deliberately NOT touched** — its cover is
+  a bounded band the ridge draws over at full opacity with its own four-stop scrim, so it
+  never had this failure. The coach Signal hero was the one outlier; sweeping both would
+  have changed a surface nobody complained about.
+- **Verified in the emitted bundle behind positive controls, not just in source** — the new
+  values present AND the superseded values absent, so a saturated-zero grep could not read
+  as success. Suite **2630/2630** · `tsc` 0 · JSX parse · mobile build 0.
+- ⚠ **Reviews were read BEFORE the merge this time** — all three surfaces (`get_reviews`,
+  `get_review_comments`, `get_comments`) — and Codex's completed review named **`e3419fc`,
+  the merged head**. That is the compliant shape, and the direct correction of #1988.
+
 ### 2026-08-31 — The Radio marketing plan gets its shoot script, and the app's own honesty rules bind the camera
 
 - **New [`marketing/shape-radio-video-scripts.md`](../marketing/shape-radio-video-scripts.md)** —
@@ -520,6 +590,84 @@ changelog whenever something ships.
   (`coach:review.mealLog`) **and a negative control** (a key that does not exist), and the
   minified catch confirmed to close immediately after the failure line — no append survives
   minification.
+
+### 2026-08-31 — Five merch items leave the store, and every tier reward was unclaimable
+
+- ⚠ **THIS SHIPPED IN #1988 WITH NO CHANGELOG ENTRY AT ALL** — three migrations, five test
+  files, the charging authority and both website store surfaces, recorded nowhere. Written
+  up here on 2026-08-31 while composing the second handoff. **A PR whose title names three
+  things and whose changelog records one is the stale-record class this file keeps
+  post-morteming**, and it happened inside the same PR that also merged past three unread
+  Codex findings.
+- **The removal (owner call).** Five merch items leave the Shape Store — Training Tee ·
+  Crewneck · Training Bottle · Canteen · Gym Towel. **Shape Merch is now the two caps.**
+- ⚠ **A UI/TS REMOVAL WOULD HAVE BEEN HALF THE CHANGE, BECAUSE THE TABLE DOES TWO JOBS.**
+  `public.store_catalogue` is the **CHARGING AUTHORITY** — the redeem RPCs ignore the
+  client-supplied cost and look the price up — *and separately* it is the set
+  `claim_tier_reward()` validates a free tier pick against. So
+  **`2026-08-31-store-merch-removal.sql`** deletes the live rows **and repairs the two tier
+  rewards that pointed at them**: `tempo_drinkware` is removed outright (BOTH its options
+  were gone, so nothing could fulfil it) and `legend_merch` loses the tee and crewneck,
+  keeps the caps, and is renamed off "Premium Shape merch" — which no longer described what
+  ships. **Deleting the rows without touching the defs would have left a member choosing a
+  tee, entering a shipping address, and only then getting `bad_choice` — a dead choice,
+  which is worse than a missing one.**
+- **Measured read-only against production before writing it**, so nothing below is
+  destructive to existing member data: `store_redemptions` **0 rows** · `tier_rewards`
+  **0** · `score_ledger` **0** · **zero** foreign keys into `store_catalogue`. This is the
+  removal landing before anyone can hit it.
+- ⚠ **AND UNDERNEATH IT, A LIVE P1: EVERY TIER REWARD WAS UNCLAIMABLE.**
+  `claim_tier_reward` writes the member's free unlock as a redemption at **`cost_points =
+  0`**, while `store_redemptions` has carried `check (cost_points > 0)` since
+  `2026-06-08-store-redemptions.sql`. So **merch and voucher alike raised 23514**, which
+  falls past every named branch in `/api/store/tier-rewards` and surfaces as a generic 500
+  **"Claim failed."** — a member who earned a free cap taps claim, types their shipping
+  address, and is told nothing at all about why it failed. The whole
+  ladder-unlocks-real-things feature was dead on arrival.
+- **PROVEN BEHAVIOURALLY AGAINST PRODUCTION, not read off the source.** Impersonating a
+  real member with a seeded `legend_merch` unlock, inside a transaction ended by a
+  deliberate raise so nothing persisted: a **removed tee → refused `22023 bad_choice`**
+  (the merch removal working correctly) and a **surviving cap → `23514
+  store_redemptions_cost_points_check`** (this bug).
+- ⚠ **LATENT, NOT DORMANT BY DESIGN.** `score_ledger` is empty, so no member holds points,
+  so `award_tier_bonuses` has never minted an unlock and `not_unlocked` fires first. It
+  goes live the moment the first member crosses **Tempo (750)** — i.e. the feature would
+  have broken for the first person who ever earned it.
+- **`2026-08-31-tier-reward-claim-cost.sql` is bounded, and BOTH halves of the boundary are
+  pinned** (`tests/store-redemption-zero-cost.test.mjs`): `store_redemptions` must **admit
+  0** — or a free claim cannot be written at all — while `store_catalogue` must stay
+  **> 0**, or a PAID item could price at nothing. Widening only the first half would have
+  traded an unclaimable reward for a free-shop hole.
+- ⚠ **A MIGRATION IS REPLAYABLE, SO THREE OLDER FILES HAD TO BE CORRECTED TOO.**
+  `2026-06-30-store-server-authoritative-pricing.sql`, `2026-07-20-store-reprice-150.sql`
+  and `2026-07-20-tier-rewards.sql` each still seeded a since-deleted item or still offered
+  it as a tier-reward choice. **Proven, not assumed:** replaying the 07-20 function body
+  against production (rolled back) **restored `tempo_drinkware`** — whose both options were
+  deleted — and put the tee and crewneck back into `legend_merch`: **4 dead choices**.
+- **This repo has paid for that exact class once already** — three migrations
+  `create or replace`d `set_over_18()`, so replaying an older one reverted the column
+  freezes (2026-08-16 round 14). The remedy is the same **both halves**: correct the older
+  files **AND** scan the whole directory, because *a rule written down in a comment is not
+  a rule anything checks*. `tests/store-migration-replay.test.mjs` does the scan, and its
+  allowed set is **DERIVED from `src/lib/store-catalogue.ts`** — never hand-listed — so the
+  next removal is covered with nobody remembering the file exists.
+- **The four-layer parity gate still holds** (`tests/store-catalogue-sync.test.mjs`): the
+  TS authority · the migration · the mobile list · the website list must agree on
+  id/retail/cost/credit-rate, so a removal cannot land on three surfaces and miss the
+  fourth.
+- ✅ **BOTH MIGRATIONS APPLIED + VERIFIED LIVE 2026-08-31** (owner ran them; re-verified
+  against production while writing this entry): `store_catalogue` is **14 rows** with merch
+  = exactly `merch_cap_black` + `merch_cap_white`, the five removed ids are **gone**,
+  `tier_reward_defs()` returns no `tempo_drinkware` and `legend_merch` reads "Shape Cap"
+  over the two caps, and `store_redemptions_cost_points_check` now reads
+  **`cost_points >= 0`**.
+- **Also in #1988 and equally unrecorded — the member profile's full-bleed hero cover.**
+  With a cover image set, the Terrain hero's photo now fills the **whole** ascent band and
+  the ridge draws over it in fixed cream under a four-stop scrim (the house
+  dark-overlays-over-cover-photos pattern); the phase eyebrow rides the cover when both
+  exist. **With no cover the ridge inks straight on the paper, exactly as before** — the
+  no-cover path is byte-identical, so nothing changed for the accounts that have not set
+  one.
 
 ### 2026-08-31 — Consumer social brand-awareness plan: run the brand AS the radio station
 
