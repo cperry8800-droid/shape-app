@@ -378,6 +378,149 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The Radio marketing plan gets its shoot script, and the app's own honesty rules bind the camera
+
+- **New [`marketing/shape-radio-video-scripts.md`](../marketing/shape-radio-video-scripts.md)** —
+  the production half of the 08-31 brand plan: a ~$60 kit list, the app-footage capture recipe,
+  four recurring segment templates (Morning Dispatch · Request Line · Sign-off · Guest DJ),
+  **the first 12 videos scripted shot-by-shot** with VO, on-screen text, captions and tags, and
+  a day-by-day 30-day calendar. Docs only.
+- ⚠ **THE CAPTURE RULES ARE READ OUT OF THE SHIPPED CODE, NOT INVENTED** — because the flagship
+  demo has a demo fallback that looks exactly like a live one. `connectMonitor()`
+  (`iosAppBroadsheetRadio.jsx`) sets `hrmConnected: true` and a **114 bpm demo reading** whenever
+  `ShapeHRM.available()` is false or the picker is cancelled, so a phone with no strap films a
+  perfectly convincing "live" HR-sync that is fabricated. **The tell that works is the readout
+  LABEL, not the status chip.** The chip does read `radio:hr.live` ("Live") vs `radio:hr.free`
+  ("Free") on a genuine reading — but only at the `free` stage; once matching starts it reads
+  "Matching…" / "In sync" for demo and live alike, i.e. it goes blind exactly where the money
+  shot lives. The label above the HR number is gated on `liveHr != null` at **every** stage
+  ("You · live" vs bare "You"), so that is what the doc tells the shooter to keep in frame — the honest-data doctrine extended to camera, which is the whole point of the
+  brand plan's no-faked-community line.
+- ⚠ **AND TWO MORE FACTS THE SCRIPT HAD TO NOT OVERSTATE.** The HR target is
+  **`r.LIVE.bpm` — the STATION's nominal BPM**, labelled as such in the app because the
+  now-playing payload carries no per-track tempo; a script saying "the song matches your heart
+  rate" would claim a per-track match the code does not make. And the beat-matching ease is
+  **demo-only** (`if (!matching || liveHr != null) return`), so a real strap always wins — the
+  genuine demo is the better one, which is the happy case.
+- **The station is not broadcasting yet**, so nothing may say "tune in now": `station().configured`
+  is false on the mock provider, which is exactly why the app hides its own LIVE banner. The
+  Shape Sets scripts frame the countdown as *"first broadcast lands when we do."*
+
+### 2026-08-31 — I merged #1988 without reading its reviews; Codex had found three real defects
+
+- ⚠ **THE PROCESS FAILURE IS THE HEADLINE, NOT THE THREE FIXES.** I squash-merged
+  #1988 on the documented gate — CI green on the final head, not a draft — and did **not
+  open the review threads first.** Codex had completed a review carrying **one P1 security
+  finding and two P2s**, all sitting unread. Every one of them is real; I confirmed each
+  against the code rather than taking it on faith. **This file already post-mortems the
+  identical mistake from 2026-08-30** — *"Codex auto-fired on the first commit and its
+  finding was sitting on the PR, unread, while I merged the second … I checked CI and not
+  the thread."* A rule written down after the first occurrence did not survive contact with
+  the second. ⚠ **AND THE REVIEWED HEAD WAS NOT THE MERGED HEAD** — Codex read `9ce34a6`;
+  the branch ended at `c3a180f`, so the marketing plan and the full-bleed cover commits
+  went in reviewed by nobody. *A verdict is only about the head it names* — this file's own
+  doctrine, and it cuts the other way too: **check WHICH head the review you are reading
+  actually judged.** (CodeRabbit did not review at all; it posted its standard
+  fewer-than-10-stars skip notice.)
+- ⚠ **P1 — A COACH COULD REPOINT ANY REVIEW NOTE AT ANY MEMBER, AND MY OWN MIGRATION IS
+  WHAT OPENED IT.** `coach_workout_review_notes`'s UPDATE policy is
+  `using (reviewer_id = auth.uid()) with check (reviewer_id = auth.uid())` — author-only,
+  **no subject predicate**. That was safe while the only subject was `session_id`: NOT NULL,
+  FK'd to `workout_sessions`, an unguessable uuid. **`2026-08-31-nutrition-day-review-notes.sql`
+  added `client_id`** — a uuid pointing straight at `auth.users`, and member uuids are
+  ordinary knowledge (`community_posts.author_id`, `get_public_profile`, a coach's own
+  roster). So any coach could UPDATE their own note's `client_id`/`snapshot_date` to a
+  member they have no relationship with and have it render on that person's day.
+- ⚠ **AND MY OWN COMMENT ARGUED FOR THE HOLE, WITH AN ACCURATE CLAUSE AND A BACKWARDS
+  CONCLUSION.** It read *"UPDATE/DELETE are deliberately untouched (already
+  `reviewer_id = auth.uid()` with no subject dependency, so a day note inherits edit +
+  delete for free)"*. **"No subject dependency" was true and was the DEFECT** — I wrote it
+  as the reason not to look. *A because-clause is a claim*, this file's own recurring
+  lesson, and this one talked me out of the audit it should have triggered.
+- ⚠ **OWNER MIGRATION — `2026-08-31-review-note-subject-freeze.sql`.** A BEFORE UPDATE
+  trigger makes `session_id` · `client_id` · `snapshot_date` · `reviewer_id` **immutable**:
+  editing a note's WORDS stays legitimate, repointing it at a different person never is.
+  **A freeze, not a re-policy** — re-stating the INSERT policy's access checks in the
+  UPDATE policy would put ONE security rule at a **third** site to keep in sync (INSERT
+  policy, `can_access_review_note`, UPDATE policy), which is exactly the drift this
+  migration set already warns about. ⚠ **`is distinct from`, never `<>`:** each subject
+  column is NULL on the other's rows, and `NULL <> NULL` is NULL, which PL/pgSQL's `IF`
+  reads as **false** — a plain `<>` would let a subject swap through the guard entirely.
+  Privileged callers (service_role / supabase_admin / postgres, and a `service_role` JWT)
+  are exempt so an ops repair or a later migration still works — the idiom lifted verbatim
+  from `2026-08-16-created-at-freeze-and-application-dob.sql`. A structural `DO` guard
+  asserts the trigger is installed and all four named columns still exist, so a rename
+  cannot silently un-freeze one.
+- ⚠ **AND THE FIRST CUT OF THAT FIX WAS A COMPLETE NO-OP — Codex found a P1 inside my
+  P1, and it was right.** I copied the `is_privileged` idiom from the 08-16 migration and
+  added **`security definer`**, which the original deliberately does not have. Under
+  SECURITY DEFINER PostgreSQL sets `current_user` to the function **OWNER**, so
+  `current_user in (…,'postgres')` is true for **every** caller: the early return fired
+  unconditionally and the trigger enforced nothing while being installed, green, and
+  guard-passing. **Measured, not argued** — one temp function each way called after
+  `set local role authenticated`: **definer sees `postgres`, invoker sees
+  `authenticated`.** The 08-16 file carries a comment saying exactly why it is invoker
+  (*"this only mutates NEW and reads session-scoped request GUCs, which the security
+  context does not affect"*); **I copied the guard and left its rationale behind** — the
+  class this file already names. Fixed by dropping `security definer`, and the structural
+  guard now **fails the apply on `prosecdef`**, so the no-op cannot return silently.
+- ⚠ **AND THE PROBE THAT "PROVED" THE BROKEN VERSION WAS A THIRD INSTRUMENT FAILURE, OF A
+  NEW KIND: it mirrored the function's BODY into a temp function and not its
+  DECLARATION.** The shipped file said `security definer`; the probe's copy did not — so
+  it exercised invoker semantics and reported `BLOCKED` for a function that, as shipped,
+  could not have blocked anything. A body-only mirror is a different function. **Mirror
+  the whole declaration — language, security context, `set` clauses — or the probe is
+  testing something you are not shipping.** Re-run with the full declaration mirrored and
+  the privilege trap removed: `body-edit=ALLOWED · retarget-client=BLOCKED ·
+  retarget-day=BLOCKED · reattribute=BLOCKED · day-to-session=BLOCKED`, plus both
+  privileged paths still open (`ops-repair=ALLOWED · service-jwt=ALLOWED`). Every probe
+  rolled back by raising.
+- ⚠ **VALIDATED BEHAVIOURALLY ON THROWAWAY TEMP CONSTRUCTS — and the first probe was the
+  broken instrument, not the code.** Using `set_config('role','authenticated', true)`
+  performs a real SET ROLE, which stripped `authenticated`'s privileges on the
+  postgres-owned temp table; every UPDATE failed with a genuine **42501
+  insufficient_privilege** that my `when sqlstate '42501'` handlers mislabelled as the
+  freeze firing — including the legitimate body edit, which must be ALLOWED. **The
+  saturated identical result across all five arms was the tell**, the same rule this file
+  records for a saturated bundle grep. Re-run without the role switch, the trigger's own
+  logic under test: `day-body-edit=ALLOWED · session-body-edit=ALLOWED ·
+  retarget-client=BLOCKED · retarget-day=BLOCKED · day-to-session=BLOCKED ·
+  reattribute=BLOCKED · session-to-day=BLOCKED`. The whole probe rolled back by raising.
+  **Nothing shipped is broken by the freeze**: `addCoachWorkoutReviewNote` is the only
+  writer and it is INSERT-only.
+- ⚠ **P2 — `.limit()` IS APPLIED BEFORE THE CLIENT FILTER, so a wearable-only roster hid
+  every real nutrition day.** `listClientNutritionDays` read 40 rows newest-first and THEN
+  dropped the ones with no `calories`/`protein_g` in JS. PostgREST applies the limit
+  server-side, so a roster whose recent snapshots are sleep/steps rows fills the window and
+  the queue renders **empty** for a nutritionist whose clients genuinely logged meals — the
+  honest-empty state, arrived at dishonestly. The predicate now travels with the query
+  (`.or('calories.not.is.null,protein_g.not.is.null')`, **before** the limit); the strict JS
+  predicate stays the authority, because `not.is.null` admits `''` and non-finite strings
+  and this file has paid for `Number(null)`-class fabrications more than once.
+- ⚠ **P2 — THE CATCH TURNED A FAILED INSERT INTO "SAVED", AND MY OWN COMMENT SAID SO.**
+  `saveNote`'s catch appended a fabricated `localNote` and cleared the composer, so a live
+  insert that **threw** rendered in the list, vanished on the next load, and the coach never
+  knew. The comment three lines above it read *"refuse here too, because the catch below
+  turns a failed insert into a plausible 'saved' message"* — I had **named the defect and
+  then guarded only the `notesBlocked` case instead of fixing the catch.** Now: nothing is
+  appended, the draft stays in the textarea, and the failure is stated
+  (`coach:review.noteFailed` ×13). ⚠ **The two honest local paths are untouched and that
+  distinction is the whole fix** — a demo row (no live subject) and the data layer's own
+  `{stored:'local'}` return both genuinely persist; **a THROW is the one shape where the
+  words exist nowhere but the textarea.**
+- **5/5 mutations killed**, sanity green at both ends and the tree restored with `cp`
+  backups: the catch appending again · the catch clearing the draft · the query predicate
+  dropped · the predicate moved AFTER the limit · a locale authoring a whitespace-only
+  failure line (which renders the **raw key** under `returnEmptyString: false`, on the one
+  line telling a coach their words were not saved).
+- **Verified:** `npm test` **2630/2630** · `tsc --noEmit` 0 · JSX parse · `node --check` on
+  the data layer · catalog parity 6/6 ×13 (a pure append — 2 insertions / 1 deletion per
+  file, LF, zero CR) · mobile build 0 with **the query predicate and both the call site and
+  all 13 translated values confirmed in the emitted bundle** behind a **positive control**
+  (`coach:review.mealLog`) **and a negative control** (a key that does not exist), and the
+  minified catch confirmed to close immediately after the failure line — no append survives
+  minification.
+
 ### 2026-08-31 — Consumer social brand-awareness plan: run the brand AS the radio station
 
 - **New [`marketing/social-brand-awareness-plan.md`](../marketing/social-brand-awareness-plan.md)** —

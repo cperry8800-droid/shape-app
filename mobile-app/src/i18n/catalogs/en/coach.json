@@ -953,5 +953,6 @@
   "review.stActive": "In progress",
   "review.stCompleted": "Completed",
   "review.stAbandoned": "Ended early",
-  "review.stReviewed": "Reviewed"
+  "review.stReviewed": "Reviewed",
+  "review.noteFailed": "Couldn't save — your note is still here. Try again."
 }

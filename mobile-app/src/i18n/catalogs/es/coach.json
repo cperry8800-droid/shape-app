@@ -953,5 +953,6 @@
   "review.stActive": "En curso",
   "review.stCompleted": "Completada",
   "review.stAbandoned": "Terminada antes",
-  "review.stReviewed": "Revisada"
+  "review.stReviewed": "Revisada",
+  "review.noteFailed": "No se pudo guardar: tu nota sigue aquí. Inténtalo de nuevo."
 }

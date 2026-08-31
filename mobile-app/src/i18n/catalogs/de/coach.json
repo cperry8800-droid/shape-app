@@ -953,5 +953,6 @@
   "review.stActive": "Läuft",
   "review.stCompleted": "Abgeschlossen",
   "review.stAbandoned": "Früher beendet",
-  "review.stReviewed": "Geprüft"
+  "review.stReviewed": "Geprüft",
+  "review.noteFailed": "Speichern fehlgeschlagen — die Notiz ist noch da. Bitte erneut versuchen."
 }

@@ -953,5 +953,6 @@
   "review.stActive": "Триває",
   "review.stCompleted": "Завершена",
   "review.stAbandoned": "Перервана",
-  "review.stReviewed": "Переглянута"
+  "review.stReviewed": "Переглянута",
+  "review.noteFailed": "Не вдалося зберегти — ваша нотатка на місці. Спробуйте ще раз."
 }

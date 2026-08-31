@@ -953,5 +953,6 @@
   "review.stActive": "En cours",
   "review.stCompleted": "Terminée",
   "review.stAbandoned": "Arrêtée plus tôt",
-  "review.stReviewed": "Revue"
+  "review.stReviewed": "Revue",
+  "review.noteFailed": "Enregistrement impossible — votre note est toujours là. Réessayez."
 }

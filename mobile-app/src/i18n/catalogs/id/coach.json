@@ -953,5 +953,6 @@
   "review.stActive": "Sedang berjalan",
   "review.stCompleted": "Selesai",
   "review.stAbandoned": "Diakhiri lebih awal",
-  "review.stReviewed": "Ditinjau"
+  "review.stReviewed": "Ditinjau",
+  "review.noteFailed": "Gagal menyimpan — catatanmu masih ada. Coba lagi."
 }

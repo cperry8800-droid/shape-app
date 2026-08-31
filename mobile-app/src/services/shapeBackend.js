@@ -2903,6 +2903,12 @@ async function listClientNutritionDays({ limit = 40 } = {}) {
     .from('daily_health_snapshot')
     .select('id, user_id, snapshot_date, calories, protein_g, carbs_g, fat_g, hydration_l, energy, hunger')
     .neq('user_id', me)                       // rule 1 — never the coach's own days
+    // rule 2, server side — the limit is applied BEFORE any client filter, so a
+    // roster of wearable-only rows would otherwise fill the window and hide
+    // every real nutrition day behind it. This narrows what the limit reads;
+    // the strict predicate below is still the authority (it also rejects '' and
+    // non-finite strings, which `not.is.null` admits).
+    .or('calories.not.is.null,protein_g.not.is.null')
     .order('snapshot_date', { ascending: false })
     .limit(Math.max(1, Math.min(200, Number(limit) || 40)));
   if (error) throw error;

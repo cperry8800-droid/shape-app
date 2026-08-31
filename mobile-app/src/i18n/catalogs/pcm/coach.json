@@ -953,5 +953,6 @@
   "review.stActive": "E dey go on",
   "review.stCompleted": "E don finish",
   "review.stAbandoned": "E stop early",
-  "review.stReviewed": "Dem don check am"
+  "review.stReviewed": "Dem don check am",
+  "review.noteFailed": "E no save — your note still dey. Try am again."
 }
