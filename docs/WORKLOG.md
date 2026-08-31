@@ -378,6 +378,53 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The provider application is registered as needing a RULING, not a cut
+
+- **Measured while scoping the next i18n cut, and it is the one surface in the queue that
+  should not simply be swept.** `BSProviderApplicationScreen` carries **91 hardcoded strings
+  and zero `tr()` calls** — the largest uncovered surface left — and it is the door a coach
+  walks through to join the marketplace. On volume alone it is the obvious next cut. It is
+  registered instead, because **four of those strings are legal consent affirmations**:
+  - *"I agree to the {Trainer|Nutritionist} Agreement and Terms of Service."*
+  - *"I agree to Shape's code of conduct."*
+  - *"I consent to a required background check through Shape's screening partner before my
+    provider profile can go live."*
+  - *"I understand my credentials may be verified by Shape's trust team."*
+- ⚠ **THE PROBLEM IS NOT THE TRANSLATION, IT IS WHAT THE TRANSLATION WOULD RECORD.** A
+  checkbox is not copy — it is the evidence that a specific person agreed to a specific
+  document. **Measured, not assumed:** `public/terms.html` and `public/code-of-conduct.html`
+  are `lang="en"` and **there is exactly one copy of each — no translated version exists**;
+  the in-app summaries are English too (`BSTermsPage` 11 strings / `BSCodeOfConductPage` 8 /
+  `BSPrivacyPage` 10, all `tr: 0`). So translating the affirmation would present a coach with
+  a Spanish sentence saying they agree to a document **that only exists in English** — and
+  file that consent as though they had read it. That is a fabrication of exactly the class
+  this wave keeps closing, one layer up from copy.
+- **The two honest options, and both are the owner's call, not an implementer's.** (a)
+  Localize the whole application **except** the four affirmations, which stay English with a
+  visible note that the linked documents are English-only — ugly, and defensible. (b)
+  Localize nothing until the documents themselves are translated and counsel has ruled on
+  which language governs. **Every legal document in `docs/legal/` is already marked "DRAFT —
+  for privacy counsel"**, so the question is already in that queue rather than a new one.
+- ⚠ **AND THE REST OF THE SURFACE NEEDS A RESTRUCTURE, NOT A SWEEP — so it is not "the easy
+  87 strings" either.** The screen is built from sentence FRAGMENTS that no locale can
+  reorder, and the walk counts each fragment as its own string, which is why 91 overstates
+  the sentences and understates the work: *"I agree to the"* + *"Trainer"* + *"Agreement and
+  Terms of Service."* is one sentence in three pieces; *"Shape requires a minimum of 5 years
+  of professional"* + *"training or coaching"* + *"experience before a provider profile can
+  go live."* is one in four; *"Your"* + *"trainer"* + *"application is ready for review."*
+  and *"Step"* + *"of"* are two more. Each becomes ONE ICU key with the role as a placeholder
+  — the same restructure cut 7 made for the possessive and cut 8 for the session count.
+- **Placeholder examples split two ways, and the house has already ruled on both.** The
+  credential and platform lists (`NASM, ACE, CSCS` · `RD, RDN, CNS` · `Trainerize,
+  MyFitnessPal Pro`) are **terms of art and brand nouns — literal in every locale**, like
+  kcal/RPE/HRV. The format examples (`Brooklyn, NY` · `America/New_York` · `BS Kinesiology`)
+  are the **`+1 555 123 4567` class** — a locale's own city and zone read better than a New
+  York one, and that is a translator's call per locale, not a constant.
+- **Registered with its measurement so the next session inherits the reasoning rather than
+  re-deriving it.** The other scouted candidates are ordinary cuts and carry no ruling:
+  `BSProfileCustomizer` **78** · `BSIntegrationsPage` **40** · `BSAboutPage` **38** ·
+  `BSHealthIntake` **31** (all `tr: 0`).
+
 ### 2026-08-31 — i18n cut 8: the self-serve builder, and a token that is about the WIRE
 
 - **`BSWorkoutBuilder` is localized** — the screen a **coach-less** member uses to author
