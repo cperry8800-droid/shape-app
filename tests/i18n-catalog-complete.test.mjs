@@ -52,6 +52,40 @@ test('every translation preserves the en ICU placeholders exactly', () => {
   }
 });
 
+test('no plural branch is a single bare word — the parity gate would read it as a placeholder', () => {
+  // ⚠ THE GATE ABOVE COMPARES ARGUMENT NAMES, and a branch whose whole body is one
+  // identifier is indistinguishable from `{name}`: `one {workout}` captures
+  // `workout`. The gate survives pt-BR "{mais # no plano}" only because that branch
+  // leads with a word FOLLOWED BY MORE TEXT — a lone noun has no such tail. So the
+  // pair drifts apart the moment a locale pluralises with a different number of
+  // categories (ru/uk have four where en has two) and the placeholder LISTS, which
+  // are compared with duplicates, can never balance.
+  //
+  // The fix is always in the DATA, never in the matcher: give every branch the `#`
+  // the rest of the house already uses ({n, plural, one {# pt} other {# pts}}), and
+  // keep any shared prefix in the frame ("{done}/{target, plural, one {# workout}…}").
+  // MEASURED AT ZERO OFFENDERS when this landed, so it starts clean rather than
+  // documenting a gap.
+  const BRANCH = /\b(?:zero|one|two|few|many|other)\s*\{([^{}]*)\}/g;
+  let checked = 0;
+  for (const loc of ACTIVE_LOCALES) {
+    for (const ns of NS) {
+      for (const [k, v] of Object.entries(load(loc, ns))) {
+        if (typeof v !== 'string' || !v.includes('plural')) continue;
+        for (const m of v.matchAll(BRANCH)) {
+          checked += 1;
+          assert.ok(
+            !/^\s*[A-Za-z_][\w-]*\s*$/.test(m[1]),
+            `${loc}/${ns}:${k} — plural branch {${m[1]}} is a bare word; the placeholder gate reads it as an argument. Add the # (e.g. "# ${m[1]}").`,
+          );
+        }
+      }
+    }
+  }
+  // Guard the guard: a matcher that found no branches would pass vacuously.
+  assert.ok(checked > 40, `only ${checked} plural branches scanned — the matcher is broken, not the catalogs`);
+});
+
 test('every message parses as valid ICU in its locale (all namespaces)', () => {
   for (const loc of ACTIVE_LOCALES) {
     for (const ns of NS) {
