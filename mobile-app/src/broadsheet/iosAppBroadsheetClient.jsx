@@ -21202,9 +21202,18 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   //   (2) it ASSUMES a trailing '.'. A locale that closes with '。', '!' or no
   //       terminal mark at all had a real character silently eaten and an
   //       English period painted in its place.
-  // Split by codepoint, and only peel a mark that IS terminal punctuation —
-  // otherwise render the lead whole and skip the accent. Losing a decoration is
-  // survivable; eating a member-visible character is not.
+  // Only peel a mark that IS terminal punctuation — otherwise render the lead
+  // whole and skip the accent. Losing a decoration is survivable; eating a
+  // member-visible character is not. THAT test is the load-bearing half.
+  // ⚠ THE CODEPOINT SPLIT IS DEFENSIVE HERE, NOT LOAD-BEARING, and saying so is
+  // the point: measured against the naive slice(-1)/slice(0,-1) pair, the two
+  // agree on EVERY input, terminal astral characters included — because the set
+  // above contains no astral mark, so a lone low surrogate can never satisfy
+  // leadDot and the character-eating branch is unreachable. It is kept because
+  // it is the correct idiom and because adding one astral mark to that set
+  // would make it load-bearing overnight — but it is NOT the About page's
+  // drop-cap defect (charAt(0) on a LEADING astral genuinely broke). Do not
+  // "simplify" it, and do not read a kill into it that the tests cannot make.
   const leadChars = [...String(verdict.lead || '')];
   const leadLast = leadChars.length ? leadChars[leadChars.length - 1] : '';
   const leadDot = /[.。．!?！？¡¿]/.test(leadLast) ? leadLast : '';

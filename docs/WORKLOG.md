@@ -785,6 +785,119 @@ changelog whenever something ships.
   label call. The bundle grep carries a **positive control** and an empty-haystack assertion,
   so a broken `cd` cannot read as a clean result (the trap this wave hit five times).
 
+### 2026-08-31 — i18n cut 11: The Contract, and the namespace gate that had been blind
+
+- **The Goals page is localized** — the surface a member opens to read what they committed
+  to. `BSGoalsContract` carried **88 `tr()` calls where it had 0**; `BSClientGoals` (the page
+  shell) went from zero to fully covered. **115 new `goal:` keys ×13**, one key reused
+  cross-namespace. No migration, no route change.
+- ⚠ **THE CUT REFUSED A `{kind}` PLACEHOLDER THREE TIMES, AND THAT IS THE HEADLINE.** The
+  station label, the add-a-target action and the record link are each **three keys**, never
+  one frame with `{kind}` interpolated — because `kind` is the **STORED discipline token**
+  (`'training' | 'nutrition' | 'work'`), the value the goal doc is keyed by and the edit
+  sheet writes back. Interpolating it renders the raw English id as copy in twelve locales.
+  That is **cut 5's Train tag and cut 6's aisle arriving as a naming decision instead of a
+  defect** — the first time in this wave the token/label rule was applied before it cost a
+  round. The plan `role` is the same class and is pinned in both directions: compared with
+  `.find()`, never rendered; the words come from `station.creditTrainer` /
+  `creditNutritionist` while the coach-authored detail rides in as data.
+- ⚠ **AND THE STRONGEST FINDING WAS NOT IN THE CUT — IT WAS THE GATE.** A namespace must be
+  registered in **BOTH** the runtime `NS` array (`mobile-app/src/i18n/index.js`, what the app
+  LOADS) and the parity gate's `NS` array (what gets VALIDATED). This file's own doctrine has
+  said "or it ships ungated" since cut 3, and **nothing enforced it**. Measured, not assumed:
+  with `'goal'` removed from the runtime array the **entire 2,539-test suite stayed green** —
+  the catalogs kept being validated while the app never loaded them, so every `tr('goal:…')`
+  fell back to its English `defaultValue` and **the whole cut silently reverted to English in
+  twelve locales with every gate passing**. That is the worst shape a gate can have: present,
+  green, and blind. Closed by **deriving both lists and asserting they agree in both
+  directions**, plus a third direction nobody had considered — an `en` catalog on disk that
+  neither list registers (authored and unreachable). **A rule written down in a comment is
+  not a rule anything checks.**
+- ⚠ **THE `unit` FOLD IS DELETED RATHER THAN TRANSLATED, and the reason is that `unit` is
+  member-typed free text.** `String(unit).toUpperCase()` ran over a **six-character input**
+  (`BSOverallEditSheet` renders it as a text field, not a two-value picker), and
+  `toUpperCase()` is **locale-INSENSITIVE** — the Turkish dotted-i class this file has now
+  paid for four times. The one render site already carries CSS `text-transform: uppercase`,
+  which **IS** locale-aware through `<html lang>`, so deleting the JS fold **loses nothing on
+  screen and fixes the fold**. Same for `BSOLCredit`'s credit line and the week door's
+  `.toLowerCase()`. The authored words (BUILD/CUT/OF/THERE) keep their shipped casing: those
+  are copy, and an i18n cut preserves copy rather than rewriting it.
+- **The verdict module takes an INJECTED translator**, because it is module-scope and cannot
+  hold a hook: `bsGoalVerdict({ …, tr })` routes all 15 strings through `goal:verdict.*` with
+  the caller's **already-interpolated English** as the fallback, so **no ICU is ever evaluated
+  on the path that exists precisely because the catalog failed to load** — the cut-1
+  `bsWireLines` / cut-5 `bsTrainT` shape. **Two keys for up and down**, not one with `{dir}`:
+  "up"/"down" is the verb of the sentence, and a locale that inflects around it cannot be
+  served by swapping one word into a fixed frame.
+- ⚠ **45 WALK-VISIBLE STRINGS AGAINST 115 AUTHORED, AND THE GAP IS A SEVENTH BLIND SHAPE.**
+  The live plan rows (`setLivePlans`), the four weekly-target rows (`setLiveWeek`) and the
+  five milestone objects are all built **inside local state setters** as arrays of
+  `{ t, sub }`, so their ~30 member-facing strings sat outside the measurement while being
+  most of the surface. Cut 7 recorded the array literal, cut 8 the module-scope array, cut 9
+  the local array in a component; **this is the same absence one level further in.** The
+  honest reading of any component's count stays a **floor**.
+- ⚠ **THE ACCENT SPLIT IS DEFENSIVE, NOT LOAD-BEARING — and the mutation run is what settled
+  it.** Swapping the codepoint pair back for the naive `slice(-1)`/`slice(0,-1)` **SURVIVES**:
+  proven across every input including a terminal astral character, because the punctuation set
+  holds **no astral mark**, so a lone low surrogate can never satisfy `leadDot` and the
+  character-eating branch is unreachable. So this is **NOT** the About page's drop-cap defect
+  (`charAt(0)` on a *leading* astral genuinely broke). Recorded as an equivalent mutant at both
+  the site and the test, so the next reader neither deletes the codepoint form as dead nor
+  spends a round writing the kill that cannot exist. **What the test DOES kill** is the
+  load-bearing half: peeling unconditionally (eats a member-visible final character in every
+  locale that does not end the sentence in a full stop) and dropping the `.join('')`.
+- ⚠ **AND THE GUARD'S FIRST CUT READ THE WRONG 2,300 LINES.** Its slice ended at
+  `function BSClientGoals(` — the page shell, far below — so it swallowed **twenty other
+  components** and "found" three defects belonging to `BSCycleCalendarPage` and friends. All
+  three were the guard, not the code. **Check the check before believing the finding**, for
+  the sixth time in this wave; the end marker is now the next function.
+- **`tests/goal-contract-i18n.test.mjs` DRIVES rather than greps** — a spelling pin survives
+  any equivalent rewrite. It evaluates the three shipped discipline maps under a **renaming
+  translator** and fails if two disciplines resolve to one key; evaluates the four accent lines
+  against an astral final character; runs the **real** `bsGoalVerdict` under a **RECORDING**
+  translator (several strings **nest** — `verdict.onPace` takes the already-translated
+  `verdict.movedUp` as its `{moved}` — so a sentinel that ignores vars swallows the inner key
+  and a naive output check reads it as "never reached the render"; asking-set is the honest
+  instrument) and under **five** broken ones (throws · returns the key · empty · null · not a
+  function); and checks **no locale authored an empty value**, which renders the **RAW KEY**
+  under `returnEmptyString: false` — invisible to the parity gate, which only checks the key
+  exists.
+- ⚠ **THE ru/uk PLURALS ARE PINNED AT FOUR CATEGORIES, because an ICU message with only
+  one/other PARSES FINE** — so the validity gate is happy while 2–4 renders the wrong form.
+- **The ratchet moved in two directions at once**: `noneStrings` **1025 → 984** ·
+  `none.length` **105 → 103** · fully covered **107 → 108** · `part.length` **33 → 34** ·
+  `partStrings` **165 → 169**. ⚠ **`partStrings` RISING IS THE HONEST DIRECTION here, not a
+  regression**: those four strings were already on screen and already counted — in
+  `noneStrings`, where `BSGoalsContract` sat with all 45 of its walk-visible strings. 41 became
+  keyed and 4 changed column. `BSGoalsContract` stays **PARTIAL by design** over the
+  signed-out demo plan cards (two fabricated coach credits and their plan titles) — the same
+  shape `BSClientEat` and `BSClientTrain` ended in; its **signed-in** branches are fully keyed.
+- ⚠ **ONE KEY REUSED CROSS-NAMESPACE, THE REST MINTED, AND THE SWEEP WAS BY MEASUREMENT.**
+  ~20 values matched a shipped `en` string byte-for-byte; each was put to the house test —
+  *share only where a rename SHOULD move both*. Exactly one passed (`home:goal.eyebrow`, the
+  same "Your goal" object Home already labels). The rest stay local on the cut-5 precedent
+  that this house deliberately carries **nine** separate per-namespace `Close` keys, ten
+  `Done` keys and 8–11 `Training`/`Nutrition` keys: collapsing them couples screens that have
+  no reason to move together.
+- **11 mutations — 10 killed, 1 documented equivalent**, sanity green at both ends of every
+  batch and the tree restored clean. Killed: a `{kind}` frame · a door drifting off the shared
+  map · the role compared against translated copy · peel-unconditionally · drop the `.join('')`
+  · the `unit` fold restored · a verdict string un-keyed · ru dropping few/many · a locale
+  authoring an empty value · a stale PARTIAL baseline entry · the device locale · a namespace
+  unregistered at runtime · one dropped from the gate · the new guard's own matcher broken.
+- **Verified:** `npm test` **2540/2540** · `tsc --noEmit` 0 · JSX parse · catalog parity **4/4**
+  ×13 · the ratchet 9/9 · the new guard 9/9 · mobile build 0 with **all 115 keys and all 1,380
+  translated values confirmed in the emitted bundle**, behind a positive control
+  (`profile:role.trainer`) so an empty haystack could not read as an empty result.
+- ⚠ **REGISTERED, NOT BUILT — the four goal SHEETS are still English** (`BSGoalEditSheet` ≈20
+  chrome strings · `BSOverallEditSheet` 14 · `BSHeadlineEditSheet` 7 · `BSWeighInSheet` 8),
+  and so is `BS_GOAL_TEMPLATES` (74) + `BS_GOAL_CATS` (9). The template cut needs **two
+  rulings first**: whether an imperial member sees converted targets, and whether a chosen
+  template's text is **stored** in the member's goal doc (in which case translating at the
+  write freezes one language into their data — the record-shape fault this wave already paid
+  for). The **primary-goal token/label split** is its own item: 12 stored values with **three
+  writers** (`BSClientGoals`, `BSIntentStep`, `shapeBackend.js:899`).
+
 ### 2026-08-30 — The inventory walk stops missing this codebase's own chrome props
 
 - **The blind spot cut 6 registered is closed.** `TEXT_PROPS` — the walk's JSX-attribute

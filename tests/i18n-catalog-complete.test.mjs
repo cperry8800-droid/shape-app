@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { IntlMessageFormat } from 'intl-messageformat';
@@ -61,4 +61,43 @@ test('every message parses as valid ICU in its locale (all namespaces)', () => {
       }
     }
   }
+});
+
+// ⚠ A NAMESPACE MUST BE REGISTERED IN BOTH LISTS OR IT SHIPS UNGATED, AND UNTIL
+// NOW NOTHING ENFORCED THAT. This file's NS array decides what gets VALIDATED;
+// mobile-app/src/i18n/index.js's NS array decides what the app actually LOADS.
+// Measured, not assumed: with 'goal' removed from the runtime array the entire
+// 2539-test suite stayed green — the catalogs kept being checked while the app
+// never loaded them, so every tr('goal:…') fell back to its English
+// defaultValue and the whole cut silently reverted to English in twelve
+// locales, with every gate passing. That is the worst shape a gate can have:
+// present, green, and blind.
+//
+// Both lists are DERIVED here rather than a third copy being typed out — the
+// house rule, and the reason this can never go stale.
+test('the runtime namespace list and this gate agree, in both directions', () => {
+  const runtime = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'mobile-app', 'src', 'i18n', 'index.js'),
+    'utf8',
+  );
+  const m = runtime.match(/const NS\s*=\s*\[([^\]]*)\]/);
+  assert.ok(m, 'could not find the runtime NS array — this guard is about a list that must exist');
+  const wired = m[1].match(/'([^']+)'/g).map((x) => x.slice(1, -1));
+  // Guard the guard: a regex that matched nothing would pass every set
+  // comparison below vacuously.
+  assert.ok(wired.length >= 15, `only ${wired.length} runtime namespaces parsed — the matcher is broken, not the app`);
+
+  const missingFromRuntime = NS.filter((n) => !wired.includes(n));
+  assert.deepEqual(missingFromRuntime, [],
+    'validated here but NEVER LOADED by the app — every key falls back to English');
+  const missingFromGate = wired.filter((n) => !NS.includes(n));
+  assert.deepEqual(missingFromGate, [],
+    'loaded by the app but NOT validated here — a locale can ship a missing or malformed key');
+
+  // And a namespace with catalogs on disk that neither list mentions is the
+  // same omission arriving from the third direction.
+  const onDisk = readdirSync(join(root, 'en')).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5));
+  assert.ok(onDisk.length >= 15, `only ${onDisk.length} en catalogs found — the read is broken`);
+  const orphan = onDisk.filter((n) => !NS.includes(n));
+  assert.deepEqual(orphan, [], 'an en catalog exists that no list registers — authored and unreachable');
 });

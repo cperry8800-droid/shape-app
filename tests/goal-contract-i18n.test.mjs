@@ -100,9 +100,18 @@ test("a plan's discipline is a compared TOKEN, never rendered copy", () => {
   assert.match(src, /goal:station\.creditNutritionist/, 'the nutritionist credit is not keyed')
 })
 
-test('the verdict accent is peeled codepoint-safely, and only when terminal', () => {
-  // Same class as the About page's drop cap: slice(0,-1) splits a surrogate pair
-  // and eats half a character. Drive the shipped expressions, do not grep them.
+test('the verdict accent is peeled only when the final character is terminal', () => {
+  // Drive the shipped expressions, do not grep them.
+  // ⚠ THE LOAD-BEARING HALF IS THE PUNCTUATION TEST, NOT THE CODEPOINT SPLIT,
+  // and the mutation run is what settled that. Swapping the codepoint pair back
+  // for the naive slice(-1)/slice(0,-1) SURVIVES — an equivalent mutant, proven
+  // rather than assumed: the mark set holds no astral character, so a lone low
+  // surrogate never satisfies leadDot and the character-eating branch cannot be
+  // reached. Recorded here so the next reader neither deletes the codepoint form
+  // as dead nor spends a round writing the astral kill that cannot exist. What
+  // this test DOES kill: peeling unconditionally (eats a member-visible final
+  // character in every locale that does not end the sentence in a full stop),
+  // and dropping the .join('') (renders the lead as a comma-separated array).
   const src = contractBody()
   assert.match(src, /const leadChars\s*=/, 'the accent derivation is not in the slice')
   const lines = src.split('\n')
