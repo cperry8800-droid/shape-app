@@ -378,6 +378,76 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-08-31 — The fourth token/label instance, split — and it was live, not latent
+
+- **The eight Settings pref rows stop storing the copy they render.** `Settings → Nutrition` and
+  `Settings → Training` carry **8 `options:` rows / 47 option strings** that were raw English array
+  literals: rendered by the shared pref-edit picker, selected by an **equality comparison over the
+  rendered copy**, and **stored raw** into `client_nutrition_prefs` / `client_training_prefs`. One of
+  them — **`primary_goal`** — was then **regex-matched over lowercased English at THREE sites, one a
+  server route**. This is the split; the 42-string translation sweep it unblocks is its own cut (the
+  **#1966 → #1967 grocery two-step**, applied a fourth time).
+- ⚠ **AND THE REGISTER WAS WRONG ABOUT THE SEVERITY, IN THE MEMBER'S FAVOUR — MEASURED, NOT ASSUMED.**
+  It read *"latent only because nobody has translated it yet"*. **`client_nutrition_prefs.primary_goal`
+  has NO WRITER ANYWHERE**: `persistPref` is the only writer, and the nutrition row list has no
+  `primary_goal` — the picker is a **TRAINING** row. So the Eat **"Your plan"** header read a field
+  nothing writes, and across all six shipped picks it had **exactly ONE distinct output: `maintain`**.
+  **Every member read "Maintaining" whatever they chose.** That reader now reads both blobs, so the
+  header is truthful for the first time. *A register that under-states a defect is as wrong as one
+  that over-states it — the check is what the writers do, not what the readers look like.*
+- **One table, three functions, one classifier.** `mobile-app/src/services/prefOptions.mjs` holds
+  `BS_PREF_OPTIONS` (8 rows / 47 `{id, en}`), plus **`bsPrefOptionLabel`** (token → copy, free text
+  through, `''` for blank), **`bsPrefOptionToken`** (id stays; legacy English maps case- and
+  whitespace-insensitively; free text through — every row on disk today carries English, so that read
+  is the load-bearing half), and **`bsGoalKind`**, imported by **all three** readers including the
+  Next route (`iosAppBroadsheetClient.jsx` already imports ES modules; Next routes already import
+  `mobile-app/src/services/*.mjs` — no new plumbing, no `.d.ts`).
+- ⚠ **THE REGEX FALLBACK CANNOT BE DROPPED AND A TOKEN CANNOT BE FED TO IT.** **`fat_loss` does not
+  match `/fat ?loss/`** — the underscore is not a space — so a reader that kept only the regex would
+  silently reclassify **every** member the moment the picker started storing tokens. Tokens decide
+  first through an explicit map; free text falls through to the English patterns. Pinned as a test
+  that asserts the non-match directly, so the reason survives the code.
+- ⚠ **THE MERGED FALLBACK IS THE UNION OF THE THREE READERS' OWN, AND PARITY WAS MEASURED AGAINST
+  THEIR VERBATIM CLASSIFIERS.** Two tested `hypertroph|strength`; the third tested `deficit|surplus`
+  — merging keeps every phrase any of them ever honoured and loses none. **0 mismatches** across all
+  six legacy English values on both the token and the legacy path. Cut is tested **before** build,
+  per value and then across the pair, because that is the order all three used on their combined
+  string; the **combined pass is kept** so a phrase split across the two fields (`"fat"` + `"loss"`)
+  still reads `cut`, as it always did.
+- ⚠ **A REGRESSION I CAUGHT BEFORE SHIPPING, IN MY OWN FIX.** Binding the editor's `<input>` to
+  `bsPrefOptionLabel` would **trim on every keystroke**, so a member could never type a trailing
+  space. **`bsPrefOptionDisplay`** exists for exactly that seam: exact-id match, otherwise
+  byte-identical passthrough, **no trim, no coercion**. *The editor is a picker AND a text field;
+  a normalizer on the render path is a normalizer on the typing path.*
+- **Swept for render sites rather than patching the ones the register named**, which found **two it
+  never mentioned** — the Settings **hub-card summaries** (`Nutrition` / `Training`), which showed the
+  stored value directly. Every surface that displays a stored pref now renders the label; the store,
+  the equality comparison and the classifier all read ids.
+- **ZERO catalog keys, deliberately.** A computed `tr()` carrying a `defaultValue` with no `en` key is
+  invisible to **both** key-resolution guards (`i18n-default-resolution` collects only
+  **StringLiteral** keys; `i18n-key-resolution` on the client file is scoped to calls with **no**
+  defaultValue) — which is exactly how **15 `marketplace:preview.*` keys** once shipped unauthored.
+  The translator lands with the sweep, when a translator is actually in scope.
+- **The ratchet 9/9 UNCHANGED**, which is the certification: a data-shape change must move it by
+  **nothing**. ⚠ And the options stay invisible to the walk either way — they were **local const
+  arrays inside a component**, they are module-scope arrays now, and the walk attributes neither. The
+  ratchet still reads `BSSettings` as **PARTIAL on 388 `tr()` calls and exactly ONE string** while the
+  component carries **42 more** member-facing English strings. **The floor is unchanged, and the
+  sweep is what closes it.**
+- **11/11 mutations killed across two batches**, sanity green at both ends of each and the tree
+  restored clean: the Eat header back to a constant · the token map dropped (regex only) · the chip
+  comparing the rendered string again · the save storing raw copy · one row back to a literal array ·
+  the display trimming mid-keystroke · the token refusing free text · a reader keeping a local regex ·
+  a hub card rendering the raw value · the combined-raw fallback dropped · the route dropping the
+  shared classifier. ⚠ The source assertions **strip comments first** — the rationale written at each
+  site quotes the very expressions they ban.
+- **Verified:** `npm test` **2569/2569** · `tsc --noEmit` 0 · `next build` 0 with
+  `ƒ Proxy (Middleware)` · mobile build 0 · JSX parse · the ratchet 9/9 · the i18n gates 15/15 ·
+  bundle read behind a **positive control** with **exactly ONE** copy of each classifier regex and
+  **ZERO** copies of both old reader regexes. ⚠ The first bundle check used a bad control
+  (`goal:primary.goal.fat_loss`, a key built by template interpolation — only the prefix ships); a
+  control that cannot be present proves nothing about a miss.
+
 ### 2026-08-31 — The primary-goal split: a token, a label, and a server-side reader that decided the design
 
 - **The primary goal stops being a string that does two jobs.** It is STORED in the member's own
