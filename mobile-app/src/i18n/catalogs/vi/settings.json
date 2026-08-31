@@ -407,5 +407,7 @@
   "integrations.toastReconnected": "{name}: đã kết nối lại",
   "integrations.toastRoutes": "{name}: đã nhập lộ trình",
   "integrations.toastSynced": "{name}: đã đồng bộ",
-  "integrations.toastWorkouts": "{name}: đã nhập buổi tập"
+  "integrations.toastWorkouts": "{name}: đã nhập buổi tập",
+  "account.metaMember": "Thành viên",
+  "account.metaFree": "Miễn phí"
 }

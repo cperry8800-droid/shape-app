@@ -407,5 +407,7 @@
   "integrations.toastReconnected": "An sake haɗa {name}",
   "integrations.toastRoutes": "An shigo da hanyoyin {name}",
   "integrations.toastSynced": "An daidaita {name}",
-  "integrations.toastWorkouts": "An shigo da motsa jikin {name}"
+  "integrations.toastWorkouts": "An shigo da motsa jikin {name}",
+  "account.metaMember": "Memba",
+  "account.metaFree": "Kyauta"
 }

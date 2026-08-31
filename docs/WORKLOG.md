@@ -482,6 +482,31 @@ changelog whenever something ships.
   while its prose is real Naija grammar (*"Dis go stop di app data from syncing until you
   connect am back"*). Every provider name, `MusicKit`, `Garmin Health API`, `HR` and `HRV`
   stay literal in all thirteen — verified programmatically, not by eye.
+- ⚠ **AND SWEEPING THE CLASS FOUND A SECOND FABRICATED META THREE LINES ABOVE THE ONE THIS
+  CUT FIXED.** The **Account** section's meta was a hardcoded **`'Pro · annual'`** — a plan
+  claim shown to every member regardless of their real subscription, and **wrong even for a
+  paying one**: Shape's membership is **$5/MONTH**, so nothing about it is annual. The honest
+  source was already loaded three hundred lines up (`plan`, from `/api/stripe/subscription`,
+  which the *Your plan* card below it renders from correctly). It now reads **Member / Free**
+  from that, and — the same rule as the integrations count — **renders no meta at all while
+  the plan is unread**. Two keys ×13. **Fixing where the defect was reported would have left
+  the sibling shipping**, and this PR's own record claims to have swept the Settings door,
+  so the claim had to be made true rather than narrowed. **3/3 mutations killed** (the
+  fabricated meta restored · an unread plan guessing *Free* · a locale losing one of the two
+  keys), sanity green at both ends, tree restored byte-identically.
+- ⚠ **THE TOKEN/LABEL CLASS ITSELF WAS SWEPT TREE-WIDE, AND CAME BACK CLEAN — WHICH IS THE
+  FINDING, NOT AN ABSENCE OF ONE.** Every `.replace/.match/.split/.includes` on a variable
+  named for copy (`label · title · text · msg · message · heading · caption`) across
+  `mobile-app/src`, `public/newdesign` and `src` was read at its site. The other hits are
+  **not** the class and are correct as they stand: parsing a **URL** for a playlist id;
+  matching a **Postgres/PostgREST error message** for a code (English regardless of UI
+  locale, and paired with a code check anyway); truncating a **member's own note** for
+  display; and `bsmFilterCategory`, which classifies a **coach's own free-text specialty**
+  against English keywords — where the plain `.toLowerCase()` is the *correct* fold precisely
+  because the keyword list is English, and `toLocaleLowerCase` would break it under `tr`.
+  `publicProfile.jsx`'s `title.split(' — ')` is website-only, and the website is English.
+  **So cut 9's site was the only live instance in the localized surface** — the class is
+  closed, not merely patched.
 - ⚠ **TWO ASCII HYPHENS BECAME MIDDOTS, AND THAT IS AN ENGLISH COPY CHANGE IN AN i18n PR —
   SO IT IS RECORDED RATHER THAN SLIPPED IN.** The Strava card's eyebrow read
   `Runs - rides - routes` and its import summary `private activities - N errors`, while

@@ -29657,7 +29657,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const sections = [
     {
       title: 'Account',
-      meta: 'Pro · annual',
+      // ⚠ THIS READ A HARDCODED 'Pro · annual' — a plan claim shown to every
+      // member regardless of their real subscription, and wrong even for a
+      // paying one (Shape's membership is $5/MONTH; nothing is annual). Same
+      // class as the '2 connected' this cut fixed three sections down, with
+      // the honest source already loaded in scope: `plan` from
+      // /api/stripe/subscription, which the Your-plan card below renders from.
+      // null (not loaded yet) renders no meta at all — absence, never a guess.
+      meta: plan
+        ? (plan.active
+            ? tr('settings:account.metaMember', { defaultValue: 'Member' })
+            : tr('settings:account.metaFree', { defaultValue: 'Free' }))
+        : '',
       rows: [
         { l: tr('settings:account.email', { defaultValue: 'Email' }),           r: account.email, action: () => openAccountEdit('email', tr('settings:account.email', { defaultValue: 'Email' }), { type: 'email' }) },
         { l: tr('settings:account.phone', { defaultValue: 'Phone' }),           r: account.phone, action: () => openAccountEdit('phone', tr('settings:account.phone', { defaultValue: 'Phone' }), { type: 'tel' }) },

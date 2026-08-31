@@ -407,5 +407,7 @@
   "integrations.toastReconnected": "{name} reconnected",
   "integrations.toastRoutes": "{name} routes imported",
   "integrations.toastSynced": "{name} synced",
-  "integrations.toastWorkouts": "{name} workouts imported"
+  "integrations.toastWorkouts": "{name} workouts imported",
+  "account.metaMember": "Member",
+  "account.metaFree": "Free"
 }

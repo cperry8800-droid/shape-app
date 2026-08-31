@@ -407,5 +407,7 @@
   "integrations.toastReconnected": "Перепідключено: {name}",
   "integrations.toastRoutes": "Маршрути імпортовано: {name}",
   "integrations.toastSynced": "Синхронізовано: {name}",
-  "integrations.toastWorkouts": "Тренування імпортовано: {name}"
+  "integrations.toastWorkouts": "Тренування імпортовано: {name}",
+  "account.metaMember": "Учасник",
+  "account.metaFree": "Безкоштовно"
 }

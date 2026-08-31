@@ -407,5 +407,7 @@
   "integrations.toastReconnected": "{name}: reconectado",
   "integrations.toastRoutes": "{name}: rotas importadas",
   "integrations.toastSynced": "{name}: sincronizado",
-  "integrations.toastWorkouts": "{name}: treinos importados"
+  "integrations.toastWorkouts": "{name}: treinos importados",
+  "account.metaMember": "Membro",
+  "account.metaFree": "Gratuito"
 }

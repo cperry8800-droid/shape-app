@@ -149,3 +149,30 @@ test('the settings health section reads the real status and never invents a coun
     'the provider rows must be derived from the status response'
   );
 });
+
+test('the settings account section reads the real plan and never invents one', () => {
+  const body = sliceComponent('BSSettings');
+
+  // Guard the guard.
+  assert.match(body, /title: 'Account',/, 'the account section is not in the slice');
+
+  const sec = body.match(/\{\s*title: 'Account',[\s\S]*?\n    \},/);
+  assert.ok(sec, 'could not slice the account section');
+  const s = sec[0];
+
+  // ⚠ This read a hardcoded 'Pro · annual' — a plan claim shown to every member
+  // regardless of their real subscription, and wrong even for a paying one:
+  // Shape's membership is $5/MONTH, so nothing is annual. Same class as the
+  // '2 connected' one section down.
+  assert.doesNotMatch(s, /meta:\s*'[^']*annual/i, "the fabricated 'Pro · annual' plan meta is back");
+  assert.doesNotMatch(s, /meta:\s*'[^']*Pro\b/, 'a hardcoded plan tier is back in the account meta');
+
+  // Derived from the live subscription the Your-plan card already renders from.
+  assert.match(s, /meta: plan\s*$/m, 'the account meta must be gated on the real plan read');
+  assert.match(s, /plan\.active/, 'the meta must branch on the real subscription state');
+  assert.match(s, /settings:account\.metaMember/, 'the member label is not keyed');
+  assert.match(s, /settings:account\.metaFree/, 'the free label is not keyed');
+
+  // Honest absence: an unread plan renders no meta at all, never a guess.
+  assert.match(s, /:\s*'',/, 'an unread plan must render no meta at all');
+});

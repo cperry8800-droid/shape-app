@@ -407,5 +407,7 @@
   "integrations.toastReconnected": "{name}: yeniden bağlandı",
   "integrations.toastRoutes": "{name}: rotalar içe aktarıldı",
   "integrations.toastSynced": "{name}: eşitlendi",
-  "integrations.toastWorkouts": "{name}: antrenmanlar içe aktarıldı"
+  "integrations.toastWorkouts": "{name}: antrenmanlar içe aktarıldı",
+  "account.metaMember": "Üye",
+  "account.metaFree": "Ücretsiz"
 }

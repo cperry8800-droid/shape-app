@@ -407,5 +407,7 @@
   "integrations.toastReconnected": "{name}: terhubung ulang",
   "integrations.toastRoutes": "{name}: rute diimpor",
   "integrations.toastSynced": "{name}: tersinkron",
-  "integrations.toastWorkouts": "{name}: latihan diimpor"
+  "integrations.toastWorkouts": "{name}: latihan diimpor",
+  "account.metaMember": "Anggota",
+  "account.metaFree": "Gratis"
 }
