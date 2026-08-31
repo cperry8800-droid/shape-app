@@ -75,6 +75,31 @@ test('every message parses as valid ICU in its locale (all namespaces)', () => {
 //
 // Both lists are DERIVED here rather than a third copy being typed out — the
 // house rule, and the reason this can never go stale.
+// ⚠ AN EMPTY VALUE RENDERS THE RAW KEY ON SCREEN, and until this test existed
+// nothing said so. The runtime is initialised with `returnEmptyString: false`
+// (mobile-app/src/i18n/index.js), which is deliberate — it is what makes a
+// blank translation fall through rather than paint nothing — but the fall-back
+// it produces is the KEY ITSELF (`goal:overall.save`), i.e. the loudest
+// possible failure, on the one screen the member is trying to act on.
+// Key parity cannot catch it: a key whose value is `""` IS present, so the
+// parity gate reads the locale as complete. ICU validity cannot catch it
+// either: the empty string is a valid ICU message.
+// Found by mutation-testing cut 12 — emptying a single ru value passed every
+// gate in this file. Derived over the whole tree rather than enumerated, so it
+// protects every namespace and every locale added later; measured at zero
+// offenders when it landed, so it starts clean rather than documenting a gap.
+test('no catalog value is empty — an empty value renders the raw key', () => {
+  const offenders = [];
+  for (const loc of ACTIVE_LOCALES) {
+    for (const ns of NS) {
+      for (const [k, v] of Object.entries(load(loc, ns))) {
+        if (typeof v !== 'string' || v.trim() === '') offenders.push(`${loc}/${ns}:${k}`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], `empty catalog values render the raw key on screen: ${offenders.join(', ')}`);
+});
+
 test('the runtime namespace list and this gate agree, in both directions', () => {
   const runtime = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), '..', 'mobile-app', 'src', 'i18n', 'index.js'),
