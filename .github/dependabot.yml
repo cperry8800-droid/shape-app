@@ -1,11 +1,21 @@
-# Dependabot version updates — monthly, grouped, minor/patch only.
+# Dependabot version updates — monthly, grouped; npm minor/patch, actions incl. majors.
 #
 # Goal: the security patch cadence runs itself without PR noise. One grouped
-# PR per ecosystem per month; major upgrades (Next 17, Capacitor 8, …) are
-# deliberate projects, so they're excluded here — Dependabot ALERTS still
-# fire for them. Every PR runs through the CI gate; mobile-dep bumps will
-# fail the public/m sync check until the bundle is republished (correct —
-# handle those in a session, don't auto-merge).
+# PR per ecosystem per month.
+#
+# Majors are excluded for npm ONLY — both npm ecosystems carry the ignore
+# rule, because an npm major (Next 17, Capacitor 8, …) is a deliberate
+# project and can typecheck, build green, and still break at runtime.
+# github-actions deliberately does NOT ignore majors: a workflow bump is
+# self-testing, since the changed file IS what CI executes, so a green run
+# has demonstrated the new action works. Dependabot ALERTS fire either way.
+#
+# Both workflows SHA-pin their actions; Dependabot updates the SHA and its
+# trailing version comment together.
+#
+# Every PR runs through the CI gate; mobile-dep bumps will fail the public/m
+# sync check until the bundle is republished (correct — handle those in a
+# session, don't auto-merge).
 #
 # Note: mobile-app pins a patch-package patch for
 # @capacitor-community/bluetooth-le@7.3.2 — if Dependabot bumps that
