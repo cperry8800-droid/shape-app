@@ -428,13 +428,28 @@ changelog whenever something ships.
 - **`tests/theme-texture-css.test.mjs` EVALUATES the shipped `makeTexture`** (brace-matched
   out of the source — a spelling pin survives any equivalent rewrite) and **derives the
   texture list from the source**, so a texture added later is covered with nobody
-  remembering the file exists. **3/3 mutations killed** — blueprint reverted · concrete
+  remembering the file exists. **4/4 mutations killed** — blueprint reverted · concrete
   reverted · **a NEW texture added with a bare-colour wash**, which is the one that closes
-  the class forward instead of patching the two instances. Sanity green at both ends, tree
-  restored with `cp`.
+  the class forward instead of patching the two instances · and the fourth below. Sanity
+  green at both ends, tree restored with `cp`.
+- ⚠ **AND MY OWN GUARD PINNED ONE SPELLING OF THE RULE, NOT THE RULE — found by the
+  pre-merge adversarial pass, which is the only layer left that reads a diff for intent.**
+  The first predicate asked *"is this layer EXACTLY a colour?"*. Verified in Chromium
+  rather than argued: `rgba(...) 0 0/5px 5px` and `rgba(...) repeat` are **rejected just
+  as hard** as a bare `rgba(...)` — and a **position/size suffix is precisely this file's
+  house pattern** (every one of `concrete`'s image layers carries one), so the likeliest
+  way back into the bug was the exact shape the guard waved through. It now asserts what
+  the browser enforces: **every non-final `background` layer must carry an `<image>`** (or
+  be `none`). Strictly stronger, and it stops depending on enumerating the shapes a colour
+  can wear. *A guard that pins an expression pins whatever that expression is wrong about*
+  — this file's own rule, paid for again, in the guard written to enforce it.
+- **Two claims the records assert were re-derived rather than carried:** `PAPERS` holds
+  exactly **18** keys, and **Steel** — the one paper whose `PAPER_BG` is a gradient stack
+  rather than a flat hex — still ends in `${PAPER}`, so the composed shorthand keeps a
+  colour in its final layer there too.
 - Verified: `npm test` **2643/2643** (2640 + 3) · `tsc --noEmit` 0 · JSX parse · mobile
   build 0 with **both fixed textures confirmed in the emitted bundle** behind a positive
-  control.
+  control · 7 Chromium vectors pinning which layer shapes the parser accepts.
 
 ### 2026-09-01 — Session handoff: `docs/HANDOFF-2026-09-01.md`
 
