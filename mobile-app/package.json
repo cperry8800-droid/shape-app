@@ -24,7 +24,7 @@
     "@capacitor/push-notifications": "^7.0.7",
     "@pixiv/three-vrm": "3.5.5",
     "@sentry/capacitor": "4.3.0",
-    "@sentry/react": "10.69.0",
+    "@sentry/react": "10.72.0",
     "@supabase/supabase-js": "^2.112.4",
     "@vitejs/plugin-react": "^5.1.1",
     "cors": "^2.8.6",
