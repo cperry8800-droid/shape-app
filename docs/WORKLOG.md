@@ -417,6 +417,31 @@ changelog whenever something ships.
   not signed in · query error — it never rejects) and `{}` for a genuinely absent
   row, so a null read keeps the seed and the persist declines rather than
   clobbering.
+- ⚠ **AMENDED SAME DAY (#2005 → `cf9ea534`) — THE HYDRATE CLOSED THE GATE AND LEFT
+  THE PROMPT STANDING.** Found by auditing my own gate for the second-device case,
+  not by a report. The auto-prompt fires on a **600ms timer** while that cloud read
+  is still in flight: inside 600ms the effect's own cleanup clears the timer and
+  nothing paints, but on a second device with a slower round trip the prompt is
+  **already on screen** when `radioAsked` comes back true — and the branch only
+  flipped the flag behind it. A member who had answered on another device was asked
+  again, which is the one promise this whole gate exists to keep. The cloud-true
+  branch now **dismisses the prompt as well as setting the gate**. ⚠ The prompt is
+  deliberately **NOT held** until that read settles: waiting fails toward never
+  asking a genuinely new member on a dead network, which is not recoverable — the
+  same direction as the no-migration call below. Asking twice in a rare slow-read
+  window is, and the dismiss closes it anyway. The guard asserts on the **branch,
+  not the file** — `setShowPrompt(false)` also appears in `answerPrompt` and
+  `setRadioPreference`, so a file-wide match passes with this branch left broken.
+- ⚠ **AND THE SAME AUDIT CAUGHT A SENTENCE OF MINE THAT OVERCLAIMED.** The comment
+  above the hydrate read *"Nothing here can set the gate back to false"* — false as
+  written: `setAsked(seeded)` on the very next line does exactly that when the
+  mirror reads false. That is **deliberate**, because the effect is keyed on
+  identity, so a re-seed means the account changed and B must not inherit A's
+  answer. The true claim is narrower — **no cloud read can lower the gate** — and
+  it is what the sticky-true design actually buys. Corrected in place, with the one
+  residual named: a mirror write that failed after an in-session answer leaves the
+  re-seed reading false, and the dismiss above is what recovers it. *A because-clause
+  is a claim with a shelf life* — this one was wrong the day it was written.
 - ⚠ **NO MIGRATION FROM THE LEGACY DEVICE FLAG, DELIBERATELY.**
   `shape.radio.pref.asked` is not attributable to any account — on a shared device
   it is whoever answered first — so reading it as *this* account's answer is
