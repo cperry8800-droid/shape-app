@@ -39,11 +39,26 @@ changelog whenever something ships.
 - **Session handoffs → `docs/HANDOFF-<YYYY-MM-DD>.md`.** Longer-form end-of-session
   handoffs (state snapshot · what shipped · architecture you'll need · open
   follow-ups) live as their own dated file in `docs/`, separate from this
-  changelog. **At session start, read the newest `docs/HANDOFF-*.md`** (`ls -t
-  docs/HANDOFF-*.md | head -1`) alongside this WORKLOG — standalone docs are NOT
-  auto-loaded into context, so this pointer is how they get found. When you write
-  one, keep the short shipped-summary as a dated entry in this file's changelog too,
-  and name the handoff file so it sorts by date.
+  changelog. **At session start, read the newest `docs/HANDOFF-*.md`**
+  (`ls docs/HANDOFF-*.md | sort -r | head -1`) alongside this WORKLOG — standalone
+  docs are NOT auto-loaded into context, so this pointer is how they get found. When
+  you write one, keep the short shipped-summary as a dated entry in this file's
+  changelog too, and name the handoff file so it sorts by date.
+  ⚠ **CORRECTED 2026-09-01 — this bullet prescribed `ls -t docs/HANDOFF-*.md | head -1`,
+  WHICH NAMES THE WRONG FILE.** `ls -t` sorts by MTIME, and mtime is re-stamped by any
+  checkout, branch switch or edit, so it reorders files whose names say otherwise. It is
+  worst in the **web container**, where the repo is cloned fresh and EVERY file carries an
+  identical checkout mtime — the order is then arbitrary, not merely skewed. Measured this
+  session it returned `HANDOFF-2026-08-29.md`: **three handoffs stale**, i.e. the
+  pre-i18n-wave state. The filenames are zero-padded ISO dates *precisely so* a lexical
+  sort works, which is what the very next clause of this bullet tells you to preserve —
+  the convention was already right, only the command was wrong. **The correction is at
+  the source this time.** `GO-LIVE-CHECKLIST.md` had recorded this defect in full,
+  including the line *"`docs/WORKLOG.md` documents the `ls -t` form and has the same
+  defect"* — and the fix was never carried to the file every session auto-loads. *A fix
+  written only where nobody auto-reads it is not a fix* — the same sentence the stale-base
+  bullet above had to pay for, in the same section, two days later. Spelled identically in
+  both files so a third form cannot drift in.
 - **Older history → `docs/WORKLOG-ARCHIVE-2026-06-cycles-2-5.md`.** The early-June
   root `WORKLOG.md` (Cycles 2–5, PRs #712–#807) is archived there; the root file is
   now just a pointer to THIS file. The archive's conventions (branch names, merge
