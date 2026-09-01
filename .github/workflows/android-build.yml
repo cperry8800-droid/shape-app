@@ -43,7 +43,7 @@ jobs:
       run:
         working-directory: mobile-app
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -152,7 +152,7 @@ jobs:
       run:
         working-directory: mobile-app
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Check for signing secrets
         id: secrets
