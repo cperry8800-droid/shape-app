@@ -7,7 +7,7 @@ repeats those 12** — this is the next batch, plus the Radio-only set.
 
 Two halves:
 
-- **A · Feature videos, scored by Radio** (10). Each markets a *feature*, but the
+- **A · Feature videos, scored by Radio** (12). Each markets a *feature*, but the
   wrapper is a radio segment — ident in, Nora's voice, station grammar on screen.
   That is how music gets into a feature video without a licensing problem.
 - **B · Radio-only spots** (7). Radio is the subject, not the wrapper.
@@ -28,6 +28,8 @@ format for almost everything the app does:
 | Now playing | The share card ("now playing: your Tuesday") |
 | Shortwave / international | 13 languages |
 | The resident's card | The Terrain profile |
+| The programming schedule | Daily habits — To do / To don't |
+| The chart countdown | The Shape Score itself |
 
 Ident in, ident out, Nora reads the link. The feature is the content; the station
 is the channel. Every one of these is postable without a licensed track.
@@ -188,6 +190,46 @@ both. (Register which account it goes on once the account-strategy ruling lands.
 
 ---
 
+### A11 · "Today's programming." · 20s · DAILY HABITS
+**Hook:** *"Not airing tonight: the doom-scroll."*
+```
+[Lamp. Schedule-read cadence — the station announcing its lineup.]
+NORA (VO):   Today's programming on Shape Radio.
+[Home: the habit rows. Check one — the "✓ +3 pts → Shape Score" chip
+flashes and the finished row leaves the card.]
+NORA (VO):   Morning sunlight — aired. Water — airing now.
+             And not airing tonight: the doom-scroll.
+[The habits page: To do / To don't, the "Earned today" card counting up.]
+ON SCREEN:   CHECKED OFF · +3 BANKED
+```
+The **To don't** section is the joke that carries it — avoid-habits read as
+*banned from the airwaves*. Every check banks +3 to the Score, and "All done —
++N pts banked" is the natural closing shot. Distinct from wave 1's #4 ("Streaks
+are a scam" — the momentum philosophy); this is the daily mechanic.
+⚠ Film on your own account with your real habits added (60 seconds of setup) —
+the demo habit set renders signed-out only, and a fresh signed-in account shows
+the honest empty state.
+
+### A12 · "The chart show." · 25s · THE SHAPE SCORE
+**Hook:** *"This week's climber: you. Up forty."*
+```
+[Lamp. Chart-countdown cadence — the top-40 read.]
+NORA (VO):   The Shape chart. One number for everything you did this week.
+[App: the Score page — the standing, then the ledger rows scrolling:
+Workout +10 · Meal logged +10 · Habit +3 · Check-in +15.]
+NORA (VO):   Train, it climbs. Log, it climbs. Show up all week, it compounds.
+[The tier ladder — the you-dot on the line, the tier named in its colour.]
+NORA (VO):   And the rank you reach? You keep it.
+ON SCREEN:   ONE NUMBER · NEVER DEMOTED
+```
+The two honest differentiators, said out loud: **the tier never demotes** (a bad
+week dents the number, not the rank), and **spending points never lowers it**
+(that line already leads A1). Distinct from A1 (the prize board — what points
+*buy*) and from wave 1's #4 (the streak argument) — this one is the score
+itself. The ledger rows are real; scroll your own.
+
+---
+
 # B · Radio-only spots
 
 ### B1 · "The Booth." · 20s · THE FLAGSHIP VISUAL
@@ -277,7 +319,7 @@ and it pre-empts the *"why can't I play music in the app?"* comment permanently.
 
 ---
 
-## Shooting order — one afternoon, ten videos
+## Shooting order — one afternoon, twelve videos
 
 The kit is already spec'd in `shape-radio-video-scripts.md` (~$60). In one
 session, with the lamp set once:
@@ -285,7 +327,9 @@ session, with the lamp set once:
 1. **B1 The Booth** and **B3 Pick your light** — phone screen only, no talking.
 2. **B6 The ident** — 5 seconds, done.
 3. **A3 station-follows-you**, **A5 share card**, **A2 shopping report**,
-   **A8 profile** — all screen-capture with Nora VO added after.
+   **A8 profile**, **A11 today's programming**, **A12 the chart show** — all
+   screen-capture with Nora VO added after (add your real habits first; the
+   demo set is signed-out only).
 4. **A7 languages** — one screen capture, four language flips.
 5. **B4 Meet the host** and **B7 the licensing story** — the two on-camera ones;
    film them back to back while the lamp is lit.
