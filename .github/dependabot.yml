@@ -20,6 +20,14 @@
 # Note: mobile-app pins a patch-package patch for
 # @capacitor-community/bluetooth-le@7.3.2 — if Dependabot bumps that
 # package, the patch file must be regenerated in the same PR.
+#
+# Note: @sentry/react is IGNORED in mobile-app — it is not independently
+# upgradable. @sentry/capacitor peers it at an EXACT version (4.3.0 wants
+# exactly 10.69.0), so raising react alone fails `npm ci` on an eresolve
+# before anything builds. That took down #1995 and again #1999. The pair
+# moves in lockstep: when a capacitor bump goes red on this peer, raise
+# @sentry/react by hand in that same PR to whatever the new capacitor
+# peers. @sentry/vite-plugin is NOT coupled and stays in the group.
 
 version: 2
 updates:
@@ -46,6 +54,8 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # Pinned by @sentry/capacitor's exact peer — see the note above.
+      - dependency-name: "@sentry/react"
 
   - package-ecosystem: github-actions
     directory: "/"
