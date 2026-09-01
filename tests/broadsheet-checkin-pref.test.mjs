@@ -401,12 +401,31 @@ test('every Settings write goes through the deferred, merge-on-a-real-document w
   assert.match(settings, /const persistPrefs = \(key, value\) => \{/, 'the pane declares one cloud writer');
   // It merges the member's edits onto a REAL server document. Since the
   // online-rail round (#1933) the write also rides the client-wide serial lane
-  // and folds in an unedited inline hide (railFold) — edited keys still spread
-  // LAST, so an in-pane edit always wins over the fold.
+  // and folds in state written OUTSIDE the pane — an unedited inline hide
+  // (railFold), the radio ask-gate (askedFold) — because a doc snapshot taken
+  // before one of those landed would otherwise revert it on the member's next
+  // unrelated edit.
+  // ⚠ THE INVARIANT IS THE ORDER, NOT THE LIST. Pinning the exact fold names
+  // makes every future fold a guard failure for no reason (this assertion broke
+  // once already when askedFold was added). What must hold is: the server
+  // document spreads FIRST, edited keys spread LAST so an in-pane edit always
+  // wins, and nothing but a *Fold sits between them.
   assert.match(
     settings,
-    /db\.saveUserGoals\('client_settings', \{ \.\.\.doc, \.\.\.railFold, \.\.\.editedRef\.current \}\)/,
-    'the write merges edited keys (last) onto the server document',
+    /db\.saveUserGoals\('client_settings', \{ \.\.\.doc,(?: \.\.\.\w+Fold,)* \.\.\.editedRef\.current \}\)/,
+    'the write merges edited keys (last) onto the server document, after any folds',
+  );
+  // The ask-gate fold specifically: dropping it silently re-asks the member the
+  // Shape Radio question on their next device, which is the whole thing the
+  // per-account gate exists to stop.
+  // ⚠ ASSERTED ON THE SPREAD, NOT THE DECLARATION. Mutation-checked: deleting
+  // `...askedFold` from the save leaves the `askedFold = {...}` line sitting
+  // right above it, so a guard that matched the declaration passed on a write
+  // that no longer carried the fold at all.
+  assert.match(
+    settings,
+    /db\.saveUserGoals\('client_settings', \{[^}]*\.\.\.askedFold,/,
+    'the radio ask-gate is folded into the write, so a pre-write snapshot cannot drop it',
   );
   // ...and declines to write at all when it cannot obtain one.
   assert.match(
