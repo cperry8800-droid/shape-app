@@ -404,6 +404,44 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-01 — The Radio launch cut is rendered: three Higgsfield scenes, the SHAPE logo pulsing on the beat, an owned track
+
+- **The consumer brand video exists as a cut, not a plan.** Three Higgsfield
+  generations (an athlete in light ribbons → a phone on a dark set → the club wall)
+  crossfaded into one **1440×2560 · 24 fps · 29.6 s** vertical, scored by an
+  **owned** Higgsfield deep-house track, the Radio wordmark rising on the wall at
+  21.7 s. Two versions of the phone screen: **v1** a four-screenshot reel of the
+  real July app, **v2** — the owner's call mid-session (*"this video should have the
+  shape logo on screen pulsing"*) — the SHAPE logo throbbing on every beat with a
+  teal ring rippling out of the mark. Recipe, the permanent source URLs, the
+  measured geometry and the full filtergraph:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md).
+  The review links are 72-hour uploads and are deliberately **not** in the repo.
+- ⚠ **THE TRACK WAS PROMPTED AT 124 BPM AND MEASURED AT 128.** A pulse on the
+  prompted tempo drifts half a beat inside fifteen seconds and reads as random, so
+  the grid was measured — comb-filter search over onset envelopes; the percussion
+  band autocorrelates at 0.4668 s and both halves of the track agree — and the pulse
+  locks to 128.0 / phase 0.055 s. *A number in a prompt is a request, not a
+  measurement.*
+- ⚠ **THE PHONE-SCREEN RECT HAD TO BE RE-DERIVED.** The first detection found only
+  the top of the screen (aspect 0.62 against a 0.46 phone) because the moving beam
+  reflections defeated a per-frame variance test; the temporal MINIMUM over sampled
+  frames erases the glints and gives x 416–1026 · y 592–1926 · r ≈ 100. Everything
+  on the screen is SCREEN-blended rather than overlaid, so those same reflections
+  ride over the logo and it reads as a lit screen, not a sticker.
+- **Honesty held on camera:** owned music only (the licensing guardrail), no "tune
+  in now" (the station is not broadcasting), real app captures in v1.
+- **Verified numerically, not by eye** — the local proxy cannot fetch the render, so
+  the checks are frame statistics on the layer and the output: at a beat the logo
+  bbox grows 456 → 476 px and the lit-pixel count 8.8k → 22k; the audio tail sits at
+  −37 dB against −11 dB mid-track. ⚠ That last figure is only right with an
+  **input-side** `-ss` — an output-side seek runs the whole file through `astats`
+  and read as if the fade were missing, one false alarm.
+- **Records only in the repo** (this entry, the recipe doc, one War Room item). The
+  handoff branch's three commits were rebased onto `main` (#2007) and pushed to the
+  session branch; **no PR, nothing merged** — the owner has reviewed neither the
+  wave-2 scripts nor either cut.
+
 ### 2026-09-01 — Two textures voided the page background; the Settings overlay painted over a live Home
 
 - **Owner screenshot: Settings and Home rendered superimposed.** Picking the
@@ -662,6 +700,7 @@ changelog whenever something ships.
   (`SKIP_VERIFY=1`) also disables `npm test` — trading a one-command fix for a disarmed
   gate. *Resync, don't bypass* — and "environmental, so leave it" is worth one check
   before it becomes the standing advice.
+
 ### 2026-08-31 — The marketing wave reaches the go-live board, and registering it found two gaps
 
 - **The consumer marketing wave was registered NOWHERE.** `marketing/social-brand-awareness-plan.md`
