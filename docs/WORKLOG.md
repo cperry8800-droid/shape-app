@@ -391,16 +391,29 @@ changelog whenever something ships.
 
 ### 2026-09-01 — Session handoff: `docs/HANDOFF-2026-09-01.md`
 
-- **Six PRs since the last handoff — #2001 → #2006.** [`HANDOFF-2026-08-31b.md`](HANDOFF-2026-08-31b.md)
-  closed at #1990; this one covers everything after it: the About signature rename
-  (#2001), the radio ask-gate + Home masthead (#2002), the stale-comment sweep (#2003),
-  the records pass (#2004), the same-day gate amendment (#2005), and the changelog
-  correction that amendment forced (#2006).
+- **Fourteen PRs since the last handoff — #1992 → #2006.**
+  [`HANDOFF-2026-08-31b.md`](HANDOFF-2026-08-31b.md) **shipped as #1991** and closed at
+  #1990, so everything after it belongs to this one: **eight** dependency / CI PRs
+  (#1992 the retired-banner sweep · #1993–#1994 + #1997–#1998 the Actions bumps and
+  SHA-pins · #1995–#1996 the grouped mobile + web dep bumps · #2000 ignoring
+  `@sentry/react`, which `@sentry/capacitor` peers at an EXACT version) and **six**
+  owner-reported product PRs (the About signature rename #2001 · the radio ask-gate +
+  Home masthead #2002 · the stale-comment sweep #2003 · the records pass #2004 · the
+  same-day gate amendment #2005 · the changelog correction that amendment forced #2006).
+- ⚠ **THAT BOUNDARY WAS WRONG IN THE FIRST DRAFT OF BOTH RECORDS, AND THE REVIEWER
+  CAUGHT IT.** The handoff and this entry both claimed *“six PRs — everything after
+  #1990”*, which silently swallows the eight dependency PRs that merged in between. This
+  file is **auto-loaded every session**, so a false range claim is worse here than
+  anywhere else: the next reader believes that work was handed off and never re-derives
+  it. **A range claim is a claim** — derive it from `git log origin/main`, never from the
+  PRs you happen to have worked on. (#1999 is in the numbering and **not** in the range:
+  Dependabot opened it, it was closed unmerged, superseded by #2000.)
 - **Handoff: [`docs/HANDOFF-2026-09-01.md`](HANDOFF-2026-09-01.md)** — state snapshot, the
-  six-PR table, the ask-gate's four decisions (per-account not per-device · signed-out
-  never asked · sticky-true · no migration), the #2005 defect and why the prompt is
-  deliberately not held, the Home masthead's two divergences from the coach markup, the
-  two guards mutation-testing forced, and the open follow-ups.
+  PR tables (§2a the dependency wave · §2b the product work), the ask-gate's four
+  decisions (per-account not per-device · signed-out never asked · sticky-true · no
+  migration), the #2005 defect and why the prompt is deliberately not held, the Home
+  masthead's two divergences from the coach markup, the two guards mutation-testing
+  forced, and the open follow-ups.
 - **State, all re-measured rather than carried forward:** suite **2640/2640** · `tsc` 0
   (genuinely — see the second correction below) · the ratchet **9/9 with every column
   unchanged** — which is the certification, since #2002 swapped one keyed string for
