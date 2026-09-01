@@ -100,7 +100,7 @@ jobs:
           SENTRY_PROJECT_MOBILE: ${{ github.event_name != 'pull_request' && secrets.SENTRY_PROJECT_MOBILE || '' }}
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -193,7 +193,7 @@ jobs:
 
       - name: Set up JDK 21
         if: steps.secrets.outputs.present == 'true'
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
