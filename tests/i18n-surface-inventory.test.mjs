@@ -403,7 +403,7 @@ const PARTIAL = new Set([
   // Room. The count above is this walk's FLOOR, not the surface's truth.
   'Client::BSSettings',
   // ⚠ BSAboutPage IS PARTIAL OVER A PROPER NAME, NOT OVER COPY — 45 tr() calls
-  // and exactly one hardcoded string: `— Chris Perry`, the founder's signature
+  // and exactly one hardcoded string: `— Christopher Perry`, the founder's signature
   // under his own letter. No locale changes a person's name, for the same reason
   // none changes the shipped `+1 555 123 4567` phone example or BSSettings' `AB`
   // initials placeholder one line up. Keying it would ship thirteen identical
@@ -603,7 +603,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // ⚠ CUT 10 — THE ABOUT PAGE. BSAboutPage (38 walk-visible strings) leaves
   // UNCOVERED for PARTIAL, so noneStrings 1063 -> 1025, none.length 106 -> 105,
   // part.length 32 -> 33 and partStrings 164 -> 165. Its one remaining string is
-  // `— Chris Perry`, a proper name; the reason is written at the baseline entry.
+  // `— Christopher Perry`, a proper name; the reason is written at the baseline entry.
   // ⚠ AND 38 UNDERSTATES THE CUT BY SIX, WHICH IS A SIXTH BLIND SHAPE. The two
   // `idea` cards live in an INLINE ANONYMOUS ARRAY LITERAL written straight into
   // JSX — `{[[…]].map(…)}` — which the walk never enters, so six member-facing
