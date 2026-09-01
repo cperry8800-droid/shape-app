@@ -203,13 +203,98 @@ function bsValidFxColor(c) {
   return c === 'cycle' || c === 'accent' || /^#[0-9a-fA-F]{6}$/.test(String(c || ''));
 }
 
+// ---- "Asked once" is a property of the ACCOUNT, not the device --------------
+// The prompt is shown to a member EXACTLY ONCE — on any device, after any
+// reinstall — and never again; Settings → Shape Radio owns every later change.
+// `shape.radio.pref` (below) stays DEVICE-level: it carries the runtime on/off
+// and deliberately survives sign-out. The ask-GATE is per-account — a per-uid
+// localStorage mirror for the first synchronous render, converged from
+// user_goals('client_settings').radioAsked so a fresh device inherits the
+// account's answer instead of re-asking it.
+//
+// ⚠ SIGNED-OUT IS NEVER ASKED, and that is not a style call: playback is gated
+// to a signed-in account (licensing — see the playback effect below), so a
+// preview visitor answering "yes" gets silence. Worse, the old device-level
+// gate let that unanswerable prompt CONSUME the ask, so the real account they
+// went on to create was never asked at all. Signed-out therefore reads
+// "already asked" and the prompt waits for a resolved session.
+//
+// ⚠ THE FLAG IS STICKY-TRUE — nothing ever writes false. So the hydrate ORs the
+// mirror with the cloud instead of converging on it: a stale or absent cloud
+// doc can never re-open a prompt the member already answered, and a mirror that
+// is AHEAD of the cloud re-issues the write (the retry, for free).
+//
+// ⚠ NO MIGRATION FROM THE LEGACY DEVICE FLAG, deliberately. `shape.radio.pref
+// .asked` is not attributable to any account — on a shared device it is
+// whoever answered first — so reading it as this account's answer is the
+// cross-account class the per-uid keys exist to prevent. The cost is one
+// re-ask per account after this ships; the alternative is silently never
+// asking someone, which is not recoverable.
+const BS_RADIO_ASKED_LS = 'shape.radio.asked';
+function bsRadioUid() {
+  try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; }
+}
+function bsRadioAskedKey(uid) { return BS_RADIO_ASKED_LS + '.' + uid; }
+function bsRadioAskedMirrorRead() {
+  try {
+    const uid = bsRadioUid();
+    if (!uid) return true; // signed-out: nothing to ask yet (see above)
+    const raw = window.localStorage && window.localStorage.getItem(bsRadioAskedKey(uid));
+    if (!raw) return false;
+    const rec = JSON.parse(raw);
+    return !!(rec && rec.asked === true && rec.uid === uid);
+  } catch (e) { return true; } // unreadable storage: fail CLOSED — never nag on a guess
+}
+function bsRadioAskedMirrorWrite() {
+  try {
+    const uid = bsRadioUid();
+    if (!uid) return;
+    window.localStorage && window.localStorage.setItem(bsRadioAskedKey(uid), JSON.stringify({ uid, asked: true }));
+  } catch (e) {}
+}
+// Read-only view of the ask-gate for the Settings pane's whole-doc save, which
+// spreads a doc snapshot that may predate this write and would otherwise drop
+// the key (the same shape as its onlineRail fold). Tolerant: the pane treats
+// an absent module as "nothing to fold".
+window.ShapeRadioAsked = { asked: () => bsRadioAskedMirrorRead() };
+
+// Persist the ask-gate to the account. Joins the client module's client_settings
+// write lane when that module is loaded — every local writer replaces the WHOLE
+// doc, and the lane is what stops two in-flight writers landing snapshots that
+// predate each other. Falls back to a direct read-merge-write so the radio
+// module never hard-depends on module load order (it loads BEFORE the role
+// bundle; by the time a member can answer, both are up).
+// ⚠ BOUND TO THE INITIATING ACCOUNT: saveUserGoals resolves the user at SAVE
+// time, so an account switch mid-flight would write A's whole settings blob
+// into B's row. A changed or unresolvable identity discards the write — the
+// mirror still holds, and the next hydrate re-issues it.
+function bsRadioAskedPersist() {
+  const db = window.shapeDb;
+  if (!(db && db.getUserGoals && db.saveUserGoals)) return;
+  const uid0 = bsRadioUid();
+  if (!uid0) return; // signed-out: nothing to bind a save to
+  const step = async () => {
+    const s = await db.getUserGoals('client_settings').catch(() => null);
+    if (!(s && typeof s === 'object')) return; // no real doc — decline, never clobber
+    if (s.radioAsked === true) return;         // already on record
+    const u = db.getUser ? await db.getUser().catch(() => null) : null;
+    const nowUid = u ? u.id : bsRadioUid();
+    if (nowUid !== uid0) return;               // account changed mid-flight — discard
+    try { await db.saveUserGoals('client_settings', { ...s, radioAsked: true }); } catch (e) {}
+  };
+  try {
+    const lane = window.BSSettingsWriteSerial;
+    if (typeof lane === 'function') lane(step); else step();
+  } catch (e) {}
+}
+
 function BSRadioProvider({ children }) {
   // Persisted radio preference (device-level localStorage) so the "Want music
   // while you move?" prompt is asked ONCE — after the user answers it (play or
   // muted), it never auto-shows again on a later launch / re-login. Seed from it.
   const _radioPref = safeReadRadioJSON('shape.radio.pref', null); // { asked, on } | null
   const [radioOn, setRadioOn]       = useStateBR(_radioPref ? !!_radioPref.on : false);
-  const [askedPrompt, setAsked]     = useStateBR(_radioPref ? !!_radioPref.asked : false);
+  const [askedPrompt, setAsked]     = useStateBR(() => bsRadioAskedMirrorRead());
   const [showPrompt, setShowPrompt] = useStateBR(false);
   // Ticks when the signed-in identity changes, so the playback effect below
   // re-evaluates its auth gate. Needed because this provider mounts above the
@@ -270,13 +355,38 @@ function BSRadioProvider({ children }) {
   // otherwise close over the first render's value).
   const currentSongKeyRef = useRefBR(null);
 
-  // Auto-prompt once after first render (post-login simulation)
+  // Auto-prompt once, for a SIGNED-IN member who has never answered. Keyed on
+  // authTick as well as askedPrompt because this provider mounts ABOVE the async
+  // auth gate: on a cold launch there is no uid on the first evaluation, so it
+  // must fail closed and re-run when the session resolves. The 600ms delay lets
+  // the launch splash finish rather than painting over it mid-transition.
   useEffectBR(() => {
-    if (!askedPrompt) {
-      const tm = setTimeout(() => setShowPrompt(true), 600);
-      return () => clearTimeout(tm);
-    }
-  }, [askedPrompt]);
+    if (askedPrompt) return undefined;
+    if (!bsRadioUid()) return undefined; // no resolved account — nothing to ask
+    const tm = setTimeout(() => setShowPrompt(true), 600);
+    return () => clearTimeout(tm);
+  }, [askedPrompt, authTick]);
+
+  // Re-seed the gate from the account's own mirror whenever the identity
+  // changes, then converge it from the cloud so a fresh device inherits the
+  // answer instead of re-asking. Sticky-true in BOTH directions: a null read
+  // (offline · query error — getUserGoals resolves null for every can't-know
+  // case, it never rejects) keeps the seed, a cloud `true` writes the mirror,
+  // and a mirror that is ahead of the cloud RE-ISSUES the write. Nothing here
+  // can set the gate back to false, so no stale read can re-open the prompt.
+  useEffectBR(() => {
+    const seeded = bsRadioAskedMirrorRead();
+    setAsked(seeded);
+    if (!bsRadioUid() || !(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    window.shapeDb.getUserGoals('client_settings').then((s) => {
+      if (!alive) return;
+      if (!s || typeof s !== 'object') return; // null read: keep the seed
+      if (s.radioAsked === true) { bsRadioAskedMirrorWrite(); setAsked(true); return; }
+      if (seeded) bsRadioAskedPersist(); // mirror ahead of the account record — retry the write
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [authTick]);
 
   // Sign-out: drop the in-memory saved-tracks library AND the per-song social
   // state. This provider is deliberately hoisted above the stage switch (it
@@ -345,12 +455,20 @@ function BSRadioProvider({ children }) {
     try { window.localStorage && window.localStorage.setItem('shape.radio.pref', JSON.stringify({ asked: !!asked, on: !!on })); } catch {}
   }
 
+  // Mark the ACCOUNT as asked: the per-uid mirror (instant, survives a reload)
+  // plus the cloud record (survives a reinstall and reaches every other device).
+  function markRadioAsked() {
+    bsRadioAskedMirrorWrite();
+    bsRadioAskedPersist();
+  }
+
   function answerPrompt(yes) {
     setAsked(true);
     setShowPrompt(false);
     setRadioOn(!!yes);
     setPaused(!yes);
-    persistRadioPref(true, !!yes); // answered once → never auto-prompt again
+    persistRadioPref(true, !!yes); // device-level runtime on/off
+    markRadioAsked();              // account-level gate → never auto-prompt again, on any device
   }
 
   function requestRadioPrompt() {
@@ -358,12 +476,15 @@ function BSRadioProvider({ children }) {
     setShowPrompt(true);
   }
 
+  // Settings → Shape Radio. Answering there counts as answering the prompt, so
+  // a member who sets the preference before ever seeing it is not asked later.
   function setRadioPreference(enabled) {
     setAsked(true);
     setShowPrompt(false);
     setRadioOn(!!enabled);
     setPaused(!enabled);
     persistRadioPref(true, !!enabled);
+    markRadioAsked();
   }
 
   // Fetch the shared social for a track key (counts + my vote + recent comments)

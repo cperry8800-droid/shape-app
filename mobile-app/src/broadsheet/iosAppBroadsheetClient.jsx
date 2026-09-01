@@ -3726,14 +3726,36 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     <BSPage>
       <BSMasthead
         compact
+        thinRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        leftKicker={`${_dowShort(_now)} · ${_monShort(_now)} ${_now.getDate()} · ${_now.getFullYear()}`}
-        rightKicker={`${bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} · ${tr('home:dateline.weekAbbr', { defaultValue: 'W' })}${isoWeek}`}
         trailing={<BSHeaderTools onProfile={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
         noTopRule
       />
+
+      {/* DATELINE — the same one-row band both coach Todays carry (BSProToday
+          §A.2): edition label in the accent, then day/date in ink-80, with the
+          live clock right-aligned. Same markup, sizes and rule, so the three
+          home pages read as one masthead treatment.
+          ⚠ Two deliberate differences, neither cosmetic. (1) The day and month
+          come from the LOCALE formatters this page already uses, not the coach
+          module's hardcoded English _BS_DOW/_BS_MON arrays — a header must not
+          print English weekday tokens on a Spanish screen. (2) The clock is
+          derived from bsNowMin, the minute ticker already running for the
+          slate's NOW tick, so it advances while Home stays open instead of
+          freezing at the render that painted it.
+          The program phase + ISO week rode the masthead kickers this replaces;
+          they ride the ink-80 run now so nothing is lost. */}
+      <div style={{ padding: `6px ${t.padX}px 7px`, borderBottom: `1px solid ${t.INK}12`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          <span style={{ color: t.ACCENT }}>{tr('home:dateline.edition', { defaultValue: 'CLIENTS EDITION' })}</span>
+          <span style={{ color: `${t.INK}80` }}> · {_dowShort(_now)} · {_monShort(_now)} {_now.getDate()} · {bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} {tr('home:dateline.weekAbbr', { defaultValue: 'W' })}{isoWeek}</span>
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: `${t.INK}80`, fontVariantNumeric: 'tabular-nums' }}>
+          {String(Math.floor(bsNowMin / 60)).padStart(2, '0')}:{String(bsNowMin % 60).padStart(2, '0')}
+        </span>
+      </div>
 
       <BSTicker items={(() => {
         const tk = ticker || {};
@@ -3780,21 +3802,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         if (bsHomeSignedIn && !(ticker && (ticker.cal != null || ticker.protein_g != null || ticker.weight_lb != null || ticker.sleep_hours != null || ticker.hrv_ms != null || ticker.resting_hr != null)) && !tkHab) return [];
         return out.length ? out : all;
       })()} />
-
-      {/* Edition strip — moved below the ticker (which sits under the date masthead) */}
-      <div style={{
-        padding: `7px ${t.padX}px 10px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.GREEN }}>
-          {tr('home:edition.clients', { defaultValue: 'Clients Edition · No. {n}', n: 14 })}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          {tr('home:edition.vol', { defaultValue: 'Vol. I' })}
-        </span>
-      </div>
 
       {/* NOW PLAYING — Shape Radio (above the week calendar) */}
       <BSNowPlaying onOpen={goRadio} />
@@ -26791,6 +26798,11 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
 
 Object.assign(window, {
   BSClientApp,
+  // The client_settings write lane, exposed so OTHER modules that write that
+  // doc (the radio module's ask-gate) join the same one-at-a-time queue
+  // rather than racing it — every writer replaces the WHOLE doc, so two
+  // in-flight writers can each land a snapshot that predates the other.
+  BSSettingsWriteSerial: bsSettingsWriteSerial,
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
@@ -29238,7 +29250,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       // wins by spread order.
       bsSettingsWriteSerial(() => {
         const railFold = (!('onlineRail' in editedRef.current) && !bsOnlineRailMirrorRead()) ? { onlineRail: 'Off' } : null;
-        try { return db.saveUserGoals('client_settings', { ...doc, ...railFold, ...editedRef.current }); } catch (e) { return null; }
+        // Same fold for the radio ask-gate, written outside this pane by the
+        // prompt (and by the pane's own radio toggle, which goes through the
+        // radio context): a snapshot taken before it landed would drop the key
+        // and re-ask the member on their next device. Sticky-true, so this only
+        // ever adds it back.
+        let askedFold = null;
+        try { if (doc.radioAsked !== true && window.ShapeRadioAsked?.asked?.()) askedFold = { radioAsked: true }; } catch (e) {}
+        try { return db.saveUserGoals('client_settings', { ...doc, ...railFold, ...askedFold, ...editedRef.current }); } catch (e) { return null; }
       });
     };
     if (serverDocRef.current) { write(serverDocRef.current); return; }
