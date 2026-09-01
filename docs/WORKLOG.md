@@ -404,6 +404,38 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-01 — Two textures voided the page background; the Settings overlay painted over a live Home
+
+- **Owner screenshot: Settings and Home rendered superimposed.** Picking the
+  **blueprint** or **concrete** texture made **every page background transparent, on all
+  18 papers**. `BSPage` paints its scroller with `` `${t.TEXTURE}, ${t.PAPER_BG}` ``, and in
+  the CSS `background` shorthand a **colour is legal only in the FINAL layer** — PAPER_BG
+  supplies it, so every layer `makeTexture` returns must be an IMAGE. Both of these opened
+  their layer list with a **bare `rgba()` wash**, putting a colour in layer 1; CSS
+  error-handling then drops the **ENTIRE declaration**, not the offending layer. Fixed by
+  wrapping each wash as `linear-gradient(C, C)` — visually identical, valid anywhere.
+- ⚠ **WHY IT SURVIVED IS THE PART WORTH KEEPING.** On an ordinary page the app root still
+  paints paper underneath, so the defect merely reads as *"the texture didn't apply"* — a
+  cosmetic non-event. It only becomes visible on an **OVERLAY** surface: since 2026-07-07
+  Settings renders at **zIndex 210 over a still-mounted tab tree**, so the transparency
+  reveals the page beneath and the two draw on top of each other. **The same defect is
+  invisible on 30 surfaces and catastrophic on one** — which is why no per-page look ever
+  caught it.
+- **Measured in Chromium's own CSS parser, not reasoned about.** All **18 papers × 25
+  textures** were composed exactly as `BSPage` does and fed to the real parser: **before,
+  36 rejected** (`accepted=false`, computed `background-color: rgba(0,0,0,0)`) — blueprint
+  and concrete on every paper; **after, 450/450 accepted, 0 transparent.**
+- **`tests/theme-texture-css.test.mjs` EVALUATES the shipped `makeTexture`** (brace-matched
+  out of the source — a spelling pin survives any equivalent rewrite) and **derives the
+  texture list from the source**, so a texture added later is covered with nobody
+  remembering the file exists. **3/3 mutations killed** — blueprint reverted · concrete
+  reverted · **a NEW texture added with a bare-colour wash**, which is the one that closes
+  the class forward instead of patching the two instances. Sanity green at both ends, tree
+  restored with `cp`.
+- Verified: `npm test` **2643/2643** (2640 + 3) · `tsc --noEmit` 0 · JSX parse · mobile
+  build 0 with **both fixed textures confirmed in the emitted bundle** behind a positive
+  control.
+
 ### 2026-09-01 — Session handoff: `docs/HANDOFF-2026-09-01.md`
 
 - **Fourteen PRs since the last handoff — #1992 → #2006.**
