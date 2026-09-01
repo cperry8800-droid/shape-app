@@ -133,6 +133,23 @@ test('the auto-prompt requires a resolved account and re-runs when identity land
   assert.match(effect.slice(0, 700), /\}, \[askedPrompt, authTick\]\);/, 'the effect re-runs on identity change');
 });
 
+test('an account that already answered CLOSES a prompt already on screen', () => {
+  // The auto-prompt fires on a 600ms timer while the cloud read is still in
+  // flight. On a second device with a slow round trip the prompt is already
+  // painted by the time the account answers for it, so flipping the gate alone
+  // leaves it standing and asks a member who answered elsewhere — the exact
+  // "asked once" promise this whole gate exists to keep.
+  // ⚠ ASSERTED ON THE BRANCH, NOT THE FILE. `setShowPrompt(false)` appears in
+  // answerPrompt and setRadioPreference too, so a file-wide match passes with
+  // this branch left broken.
+  const body = stripComments(src);
+  const i = body.indexOf('if (s.radioAsked === true)');
+  assert.ok(i > 0, 'the cloud-true branch is in the source');
+  const branch = body.slice(i, body.indexOf('return; }', i) + 9);
+  assert.match(branch, /setAsked\(true\)/, 'the gate is set');
+  assert.match(branch, /setShowPrompt\(false\)/, 'and a prompt already on screen is dismissed');
+});
+
 test('both answer paths mark the account, not just the device', () => {
   const body = stripComments(src);
   for (const fn of ['function answerPrompt(yes) {', 'function setRadioPreference(enabled) {']) {

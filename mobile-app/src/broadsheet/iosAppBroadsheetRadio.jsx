@@ -382,7 +382,17 @@ function BSRadioProvider({ children }) {
     window.shapeDb.getUserGoals('client_settings').then((s) => {
       if (!alive) return;
       if (!s || typeof s !== 'object') return; // null read: keep the seed
-      if (s.radioAsked === true) { bsRadioAskedMirrorWrite(); setAsked(true); return; }
+      // ⚠ CLOSES THE PROMPT, NOT JUST THE GATE. The auto-prompt fires on a 600ms
+      // timer while this read is still in flight, so on a second device with a
+      // slow round trip the prompt is ALREADY on screen by the time the account
+      // answers for it — flipping the gate alone would leave it standing and ask
+      // a member who answered on another device. (Inside 600ms the effect's own
+      // cleanup clears the timer and it never paints.)
+      // The prompt is deliberately NOT held until this read settles: that would
+      // fail toward never asking a genuinely new member when the network is
+      // down, which is not recoverable — the same direction as the no-migration
+      // call above.
+      if (s.radioAsked === true) { bsRadioAskedMirrorWrite(); setAsked(true); setShowPrompt(false); return; }
       if (seeded) bsRadioAskedPersist(); // mirror ahead of the account record — retry the write
     }).catch(() => {});
     return () => { alive = false; };
