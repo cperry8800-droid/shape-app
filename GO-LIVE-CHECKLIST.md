@@ -35,7 +35,14 @@ re-stamped by any checkout, branch switch or edit, so `ls -t` reorders files who
 names say otherwise — in this repo `HANDOFF-2026-08-18.md` currently carries a
 later mtime than `HANDOFF-2026-08-19.md` and sorts above it. The names are
 zero-padded ISO dates, so a lexical sort is both correct and stable.
-⚠ `docs/WORKLOG.md` documents the `ls -t` form and has the same defect.
+⚠ **RESOLVED 2026-09-01 — this read "`docs/WORKLOG.md` documents the `ls -t` form and
+has the same defect", and it no longer does.** That bullet is corrected at the source,
+spelled identically to the row above so the two files cannot drift into a third form.
+Kept because the reason outlives the instance: the defect was recorded HERE for weeks
+while the file every session auto-loads went on prescribing the broken command — *a fix
+written only where nobody auto-reads it is not a fix.* Worst case is the web container,
+where a fresh clone gives every file an identical mtime, so `ls -t` is arbitrary rather
+than merely skewed: it returned a handoff **three** revisions stale.
 
 The War Room is the go-live status board. Every item below that has an open/done
 state lives there as `status: 'manual'` (owner does it) or `status: 'pending'`

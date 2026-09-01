@@ -39,11 +39,26 @@ changelog whenever something ships.
 - **Session handoffs → `docs/HANDOFF-<YYYY-MM-DD>.md`.** Longer-form end-of-session
   handoffs (state snapshot · what shipped · architecture you'll need · open
   follow-ups) live as their own dated file in `docs/`, separate from this
-  changelog. **At session start, read the newest `docs/HANDOFF-*.md`** (`ls -t
-  docs/HANDOFF-*.md | head -1`) alongside this WORKLOG — standalone docs are NOT
-  auto-loaded into context, so this pointer is how they get found. When you write
-  one, keep the short shipped-summary as a dated entry in this file's changelog too,
-  and name the handoff file so it sorts by date.
+  changelog. **At session start, read the newest `docs/HANDOFF-*.md`**
+  (`ls docs/HANDOFF-*.md | sort -r | head -1`) alongside this WORKLOG — standalone
+  docs are NOT auto-loaded into context, so this pointer is how they get found. When
+  you write one, keep the short shipped-summary as a dated entry in this file's
+  changelog too, and name the handoff file so it sorts by date.
+  ⚠ **CORRECTED 2026-09-01 — this bullet prescribed `ls -t docs/HANDOFF-*.md | head -1`,
+  WHICH NAMES THE WRONG FILE.** `ls -t` sorts by MTIME, and mtime is re-stamped by any
+  checkout, branch switch or edit, so it reorders files whose names say otherwise. It is
+  worst in the **web container**, where the repo is cloned fresh and EVERY file carries an
+  identical checkout mtime — the order is then arbitrary, not merely skewed. Measured this
+  session it returned `HANDOFF-2026-08-29.md`: **three handoffs stale**, i.e. the
+  pre-i18n-wave state. The filenames are zero-padded ISO dates *precisely so* a lexical
+  sort works, which is what the very next clause of this bullet tells you to preserve —
+  the convention was already right, only the command was wrong. **The correction is at
+  the source this time.** `GO-LIVE-CHECKLIST.md` had recorded this defect in full,
+  including the line *"`docs/WORKLOG.md` documents the `ls -t` form and has the same
+  defect"* — and the fix was never carried to the file every session auto-loads. *A fix
+  written only where nobody auto-reads it is not a fix* — the same sentence the stale-base
+  bullet above had to pay for, in the same section, two days later. Spelled identically in
+  both files so a third form cannot drift in.
 - **Older history → `docs/WORKLOG-ARCHIVE-2026-06-cycles-2-5.md`.** The early-June
   root `WORKLOG.md` (Cycles 2–5, PRs #712–#807) is archived there; the root file is
   now just a pointer to THIS file. The archive's conventions (branch names, merge
@@ -388,6 +403,53 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-09-01 — Two textures voided the page background; the Settings overlay painted over a live Home
+
+- **Owner screenshot: Settings and Home rendered superimposed.** Picking the
+  **blueprint** or **concrete** texture made **every page background transparent, on all
+  18 papers**. `BSPage` paints its scroller with `` `${t.TEXTURE}, ${t.PAPER_BG}` ``, and in
+  the CSS `background` shorthand a **colour is legal only in the FINAL layer** — PAPER_BG
+  supplies it, so every layer `makeTexture` returns must be an IMAGE. Both of these opened
+  their layer list with a **bare `rgba()` wash**, putting a colour in layer 1; CSS
+  error-handling then drops the **ENTIRE declaration**, not the offending layer. Fixed by
+  wrapping each wash as `linear-gradient(C, C)` — visually identical, valid anywhere.
+- ⚠ **WHY IT SURVIVED IS THE PART WORTH KEEPING.** On an ordinary page the app root still
+  paints paper underneath, so the defect merely reads as *"the texture didn't apply"* — a
+  cosmetic non-event. It only becomes visible on an **OVERLAY** surface: since 2026-07-07
+  Settings renders at **zIndex 210 over a still-mounted tab tree**, so the transparency
+  reveals the page beneath and the two draw on top of each other. **The same defect is
+  invisible on 30 surfaces and catastrophic on one** — which is why no per-page look ever
+  caught it.
+- **Measured in Chromium's own CSS parser, not reasoned about.** All **18 papers × 25
+  textures** were composed exactly as `BSPage` does and fed to the real parser: **before,
+  36 rejected** (`accepted=false`, computed `background-color: rgba(0,0,0,0)`) — blueprint
+  and concrete on every paper; **after, 450/450 accepted, 0 transparent.**
+- **`tests/theme-texture-css.test.mjs` EVALUATES the shipped `makeTexture`** (brace-matched
+  out of the source — a spelling pin survives any equivalent rewrite) and **derives the
+  texture list from the source**, so a texture added later is covered with nobody
+  remembering the file exists. **4/4 mutations killed** — blueprint reverted · concrete
+  reverted · **a NEW texture added with a bare-colour wash**, which is the one that closes
+  the class forward instead of patching the two instances · and the fourth below. Sanity
+  green at both ends, tree restored with `cp`.
+- ⚠ **AND MY OWN GUARD PINNED ONE SPELLING OF THE RULE, NOT THE RULE — found by the
+  pre-merge adversarial pass, which is the only layer left that reads a diff for intent.**
+  The first predicate asked *"is this layer EXACTLY a colour?"*. Verified in Chromium
+  rather than argued: `rgba(...) 0 0/5px 5px` and `rgba(...) repeat` are **rejected just
+  as hard** as a bare `rgba(...)` — and a **position/size suffix is precisely this file's
+  house pattern** (every one of `concrete`'s image layers carries one), so the likeliest
+  way back into the bug was the exact shape the guard waved through. It now asserts what
+  the browser enforces: **every non-final `background` layer must carry an `<image>`** (or
+  be `none`). Strictly stronger, and it stops depending on enumerating the shapes a colour
+  can wear. *A guard that pins an expression pins whatever that expression is wrong about*
+  — this file's own rule, paid for again, in the guard written to enforce it.
+- **Two claims the records assert were re-derived rather than carried:** `PAPERS` holds
+  exactly **18** keys, and **Steel** — the one paper whose `PAPER_BG` is a gradient stack
+  rather than a flat hex — still ends in `${PAPER}`, so the composed shorthand keeps a
+  colour in its final layer there too.
+- Verified: `npm test` **2643/2643** (2640 + 3) · `tsc --noEmit` 0 · JSX parse · mobile
+  build 0 with **both fixed textures confirmed in the emitted bundle** behind a positive
+  control · 7 Chromium vectors pinning which layer shapes the parser accepts.
 
 ### 2026-09-01 — Session handoff: `docs/HANDOFF-2026-09-01.md`
 

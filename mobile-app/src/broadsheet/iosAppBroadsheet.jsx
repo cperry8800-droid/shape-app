@@ -239,7 +239,15 @@ function makeTexture(textureKey = 'none', inkRGB = '15,14,12', isLight = true) {
       // Cyan blueprint: tinted page wash + fine grid
       const cyan = isLight ? 'rgba(40,90,140,0.06)' : 'rgba(120,180,220,0.10)';
       const cyanLine = isLight ? 'rgba(40,90,140,0.18)' : 'rgba(140,200,240,0.22)';
-      return `${cyan},
+      // ⚠ The wash is a FLAT GRADIENT, never the bare colour. In the `background`
+      // shorthand a colour is legal only in the LAST layer, and BSPage composes
+      // `${TEXTURE}, ${PAPER_BG}` — so a bare colour here lands in layer 1, the
+      // whole declaration is dropped as invalid, and the page paints TRANSPARENT.
+      // On an ordinary page that only loses the texture (the app root still shows
+      // paper); on an OVERLAY surface (Settings renders at zIndex 210 over a
+      // still-mounted tab tree) it renders both pages superimposed. See the
+      // paired guard in tests/theme-texture-css.test.mjs.
+      return `linear-gradient(${cyan}, ${cyan}),
               repeating-linear-gradient(0deg,  ${cyanLine} 0 1px, transparent 1px 24px),
               repeating-linear-gradient(90deg, ${cyanLine} 0 1px, transparent 1px 24px)`;
     }
@@ -265,7 +273,8 @@ function makeTexture(textureKey = 'none', inkRGB = '15,14,12', isLight = true) {
     case 'concrete': {
       // Mid-grey concrete wash — stippled stains + fine grain
       const cool = isLight ? 'rgba(60,60,68,0.06)' : 'rgba(180,180,190,0.06)';
-      return `${cool},
+      // ⚠ Flat gradient, not the bare colour — see the blueprint case above.
+      return `linear-gradient(${cool}, ${cool}),
               radial-gradient(${a(isLight ? 0.10 : 0.14)} 0.7px, transparent 1.1px) 0 0/5px 5px,
               radial-gradient(ellipse 140px 100px at 22% 30%, ${a(isLight ? 0.10 : 0.12)}, transparent 70%),
               radial-gradient(ellipse 180px 120px at 78% 72%, ${a(isLight ? 0.08 : 0.10)}, transparent 70%)`;
