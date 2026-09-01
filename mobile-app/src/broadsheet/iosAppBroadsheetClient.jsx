@@ -32222,7 +32222,7 @@ function BSAboutPage({ onBack }) {
           <div aria-hidden style={{ position: 'absolute', inset: -12, borderRadius: '50%', background: `radial-gradient(circle at 50% 44%, ${bsTHexA(t.INK, 0.1)} 0%, ${bsTHexA(tealB, 0.07)} 42%, transparent 72%)`, pointerEvents: 'none' }} />
           <img
             src={`${import.meta.env.BASE_URL}founder.webp`}
-            alt={tr('settings:aboutPage.founderAlt', { defaultValue: 'Chris Perry, founder of Shape' })}
+            alt={tr('settings:aboutPage.founderAlt', { defaultValue: 'Christopher Perry, founder of Shape' })}
             width="150" height="150"
             style={{ position: 'relative', width: 150, height: 150, objectFit: 'contain', display: 'block' }}
           />
@@ -32234,11 +32234,11 @@ function BSAboutPage({ onBack }) {
             values for a string a translator must not touch. It is recorded in
             the ratchet's PARTIAL baseline instead of being special-cased
             inside `usable()` — a false exclusion there hides real copy. */}
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>— Chris Perry</div>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>— Christopher Perry</div>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>{tr('settings:aboutPage.founderRole', { defaultValue: 'Founder · Shape' })}</div>
         {/* Owner-approved bio (mirrors about.jsx). */}
         <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
-          {tr('settings:aboutPage.founderBio', { defaultValue: 'Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.' })}
+          {tr('settings:aboutPage.founderBio', { defaultValue: 'Christopher spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.' })}
         </p>
       </div>
 

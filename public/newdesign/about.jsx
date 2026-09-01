@@ -42,15 +42,15 @@ function AboutFounder() {
         <div aria-hidden style={{ position: "absolute", inset: -14, borderRadius: "50%", background: `radial-gradient(circle at 50% 44%, rgba(242,237,228,0.11) 0%, ${TEAL}22 42%, transparent 72%)`, pointerEvents: "none" }} />
         <img
           src="/newdesign/founder.webp"
-          alt="Chris Perry, founder of Shape"
+          alt="Christopher Perry, founder of Shape"
           width="196" height="196"
           style={{ position: "relative", width: 196, height: 196, objectFit: "contain", display: "block" }}
         />
       </div>
-      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 23, color: "rgba(242,237,228,0.94)", lineHeight: 1.2 }}>— Chris Perry</div>
+      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 23, color: "rgba(242,237,228,0.94)", lineHeight: 1.2 }}>— Christopher Perry</div>
       <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 8 }}>Founder · Shape</div>
       <p style={{ fontFamily: serif, fontSize: 16.5, fontStyle: "italic", fontWeight: 300, color: "rgba(242,237,228,0.78)", lineHeight: 1.6, maxWidth: 560, margin: "14px auto 0" }}>
-        Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
+        Christopher spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
       </p>
     </section>
   );
