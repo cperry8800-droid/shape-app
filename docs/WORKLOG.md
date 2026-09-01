@@ -402,7 +402,7 @@ changelog whenever something ships.
   deliberately not held, the Home masthead's two divergences from the coach markup, the
   two guards mutation-testing forced, and the open follow-ups.
 - **State, all re-measured rather than carried forward:** suite **2640/2640** · `tsc` 0
-  (bar the local stripe artifact · §4) · the ratchet **9/9 with every column
+  (genuinely — see the second correction below) · the ratchet **9/9 with every column
   unchanged** — which is the certification, since #2002 swapped one keyed string for
   another and a presentation change must move the measurement by nothing · **no open
   PRs** · **no migrations owed** (nothing this session wrote one; the gate rides
@@ -417,6 +417,18 @@ changelog whenever something ships.
   command. Corrected **at the source** this time, with the sharper diagnosis those three
   missed: `--short` is the part that breaks, not the pair. *A fix written only where
   nobody auto-reads it is not a fix.*
+- ⚠ **AND IT CORRECTED ITS OWN PREDECESSOR ENTRY, WHICH GAVE UP ONE STEP TOO EARLY.**
+  The entry below recorded the local stripe `apiVersion` `tsc` error as *"deliberately
+  not 'fixed' here — a local environment artifact is not a change to ship"*. The second
+  half is right; the first is not, and the distinction it missed is between the
+  **lockfile** (tracked — changing it WOULD be a change to ship) and **`node_modules`**
+  (untracked, and simply wrong). `npm install stripe@22.6.0 --no-save` clears it with
+  `git status` unchanged and `tsc` exit 0 — which is why the state line above carries no
+  caveat. **Not optional housekeeping either:** the pre-commit hook runs `tsc` on any
+  commit touching a `.ts` file, so a stale install **blocks the commit outright**, and
+  the tempting workaround (`SKIP_VERIFY=1`) also disables `npm test`. *Resync, don't
+  bypass* — and "environmental, so leave it" is worth one check before it hardens into
+  standing advice.
 
 ### 2026-09-01 — The radio prompt asks once per ACCOUNT; the client Home masthead joins the coach dateline; the About signature is Christopher Perry
 
