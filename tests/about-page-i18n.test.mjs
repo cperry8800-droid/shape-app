@@ -125,7 +125,7 @@ test('the About page holds no hardcoded copy but the founder\'s name', () => {
   // The signed name is deliberately unkeyed (a proper name, recorded in the
   // ratchet's PARTIAL baseline). Everything else on the page must route
   // through tr() — including the drop-cap paragraph the letter opens with.
-  assert.match(body, /— Chris Perry/, 'the founder signature is gone')
+  assert.match(body, /— Christopher Perry/, 'the founder signature is gone')
   assert.doesNotMatch(body, /tr\(\s*'settings:aboutPage\.founderName/,
     'the founder name was keyed — thirteen identical values for a proper noun')
   const calls = body.match(/tr\(\s*'settings:aboutPage\./g) || []
