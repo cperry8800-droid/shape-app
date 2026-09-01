@@ -20,8 +20,19 @@ changelog whenever something ships.
   while `origin/main` holds the real latest. Editing on that stale base creates
   duplicate commits, rebase conflicts, and lost work — it has cost real tokens
   multiple times. **Before making ANY edit:** run
-  `git fetch origin main && git rev-parse --short HEAD origin/main` — if HEAD ≠
-  origin/main, run `git reset --hard origin/main` first. `main` and the session's
+  `git fetch origin main && git rev-parse HEAD origin/main` — if HEAD ≠
+  origin/main, run `git reset --hard origin/main` first.
+  ⚠ **CORRECTED 2026-09-01 — this bullet prescribed `rev-parse --short HEAD
+  origin/main`, WHICH FAILS** (`fatal: Needed a single revision`, exit 128): with
+  two revisions `--short` is the part that breaks, not the pair, so dropping it
+  makes the one-liner work (`--short` each ref separately if you want the
+  abbreviation). **The correction is at the source this time.** Three separate
+  handoffs — `HANDOFF-2026-06-16.md`, `-08-29`, `-08-31` — had each independently
+  recorded the failure and told the reader to run the two refs separately, while
+  the file EVERY session auto-loads went on prescribing the broken command. *A fix
+  written only where nobody auto-reads it is not a fix* — and the three of them all
+  diagnosed it as the two-ref form rather than `--short`, so the sharper answer had
+  to be re-derived a fourth time to be found. `main` and the session's
   dev branch (the current `claude/*` working branch — it differs per session) are
   always kept identical (push both to the same commit); treat `origin/main` as the
   single source of truth.
@@ -378,6 +389,60 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-01 — Session handoff: `docs/HANDOFF-2026-09-01.md`
+
+- **Fourteen PRs since the last handoff — #1992 → #2006.**
+  [`HANDOFF-2026-08-31b.md`](HANDOFF-2026-08-31b.md) **shipped as #1991** and closed at
+  #1990, so everything after it belongs to this one: **eight** dependency / CI PRs
+  (#1992 the retired-banner sweep · #1993–#1994 + #1997–#1998 the Actions bumps and
+  SHA-pins · #1995–#1996 the grouped mobile + web dep bumps · #2000 ignoring
+  `@sentry/react`, which `@sentry/capacitor` peers at an EXACT version) and **six**
+  owner-reported product PRs (the About signature rename #2001 · the radio ask-gate +
+  Home masthead #2002 · the stale-comment sweep #2003 · the records pass #2004 · the
+  same-day gate amendment #2005 · the changelog correction that amendment forced #2006).
+- ⚠ **THAT BOUNDARY WAS WRONG IN THE FIRST DRAFT OF BOTH RECORDS, AND THE REVIEWER
+  CAUGHT IT.** The handoff and this entry both claimed *“six PRs — everything after
+  #1990”*, which silently swallows the eight dependency PRs that merged in between. This
+  file is **auto-loaded every session**, so a false range claim is worse here than
+  anywhere else: the next reader believes that work was handed off and never re-derives
+  it. **A range claim is a claim** — derive it from `git log origin/main`, never from the
+  PRs you happen to have worked on. (#1999 is in the numbering and **not** in the range:
+  Dependabot opened it, it was closed unmerged, superseded by #2000.)
+- **Handoff: [`docs/HANDOFF-2026-09-01.md`](HANDOFF-2026-09-01.md)** — state snapshot, the
+  PR tables (§2a the dependency wave · §2b the product work), the ask-gate's four
+  decisions (per-account not per-device · signed-out never asked · sticky-true · no
+  migration), the #2005 defect and why the prompt is deliberately not held, the Home
+  masthead's two divergences from the coach markup, the two guards mutation-testing
+  forced, and the open follow-ups.
+- **State, all re-measured rather than carried forward:** suite **2640/2640** · `tsc` 0
+  (genuinely — see the second correction below) · the ratchet **9/9 with every column
+  unchanged** — which is the certification, since #2002 swapped one keyed string for
+  another and a presentation change must move the measurement by nothing · **no open
+  PRs** · **no migrations owed** (nothing this session wrote one; the gate rides
+  `user_goals('client_settings')`) · 13 locales × 18 namespaces × 4,161 `en` keys =
+  **54,093** values.
+- ⚠ **AND THE RECORDS PASS FIXED A DEFECT IN THE AUTO-LOADED CONVENTIONS THEMSELVES.**
+  The stale-base bullet at the head of this file prescribed
+  `git rev-parse --short HEAD origin/main`, **which fails** (`fatal: Needed a single
+  revision`, exit 128). Three separate handoffs — `-06-16`, `-08-29`, `-08-31` — had
+  each independently recorded the failure and told the reader to run the two refs
+  separately, while the file **every session auto-loads** went on prescribing the broken
+  command. Corrected **at the source** this time, with the sharper diagnosis those three
+  missed: `--short` is the part that breaks, not the pair. *A fix written only where
+  nobody auto-reads it is not a fix.*
+- ⚠ **AND IT CORRECTED ITS OWN PREDECESSOR ENTRY, WHICH GAVE UP ONE STEP TOO EARLY.**
+  The entry below recorded the local stripe `apiVersion` `tsc` error as *"deliberately
+  not 'fixed' here — a local environment artifact is not a change to ship"*. The second
+  half is right; the first is not, and the distinction it missed is between the
+  **lockfile** (tracked — changing it WOULD be a change to ship) and **`node_modules`**
+  (untracked, and simply wrong). `npm install stripe@22.6.0 --no-save` clears it with
+  `git status` unchanged and `tsc` exit 0 — which is why the state line above carries no
+  caveat. **Not optional housekeeping either:** the pre-commit hook runs `tsc` on any
+  commit touching a `.ts` file, so a stale install **blocks the commit outright**, and
+  the tempting workaround (`SKIP_VERIFY=1`) also disables `npm test`. *Resync, don't
+  bypass* — and "environmental, so leave it" is worth one check before it hardens into
+  standing advice.
+
 ### 2026-09-01 — The radio prompt asks once per ACCOUNT; the client Home masthead joins the coach dateline; the About signature is Christopher Perry
 
 - **Three PRs, all owner-reported.** #2001 (`60897c60`) renamed the About page's
@@ -525,6 +590,16 @@ changelog whenever something ships.
   reports **22.3.2**, predating a merged Dependabot bump. CI runs `npm ci` and its
   Web check is green. Deliberately not "fixed" here — a local environment artifact
   is not a change to ship.
+  ⚠ **CORRECTED SAME DAY — the second half of that is right and the first half gave
+  up too early.** The distinction it missed is between the **lockfile** (tracked —
+  changing it WOULD be a change to ship) and **`node_modules`** (untracked, and simply
+  wrong). Resyncing the second alone clears it: **`npm install stripe@22.6.0 --no-save`**
+  — `git status` unchanged afterward, `tsc` exit 0. **And it is not optional
+  housekeeping:** the pre-commit hook runs `tsc` on any commit touching a `.ts` file, so
+  a stale install **blocks the commit outright**, and the tempting workaround
+  (`SKIP_VERIFY=1`) also disables `npm test` — trading a one-command fix for a disarmed
+  gate. *Resync, don't bypass* — and "environmental, so leave it" is worth one check
+  before it becomes the standing advice.
 
 ### 2026-08-31 — Session handoff: `docs/HANDOFF-2026-08-31b.md`
 
