@@ -378,6 +378,129 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-01 — The radio prompt asks once per ACCOUNT; the client Home masthead joins the coach dateline; the About signature is Christopher Perry
+
+- **Three PRs, all owner-reported.** #2001 (`60897c60`) renamed the About page's
+  founder signature to **Christopher Perry** on both surfaces (mobile
+  `BSAboutPage` + website `about.jsx`, alt text included). #2002 (`f72d6490`) is
+  the radio + masthead work below. #2003 swept the two stale ratchet comments the
+  rename left naming the old string.
+- ⚠ **THE RADIO PROMPT WAS ON THE LAUNCH PATH THE WHOLE TIME — WHAT WAS BROKEN
+  WAS "ONCE".** The owner reported not having seen the pre-app *"Want music while
+  you move?"* prompt in a while. `BSRadioPrompt` renders whenever `showPrompt` is
+  set, mounted in the client shell **and both coach shells**, and the Settings →
+  Shape Radio toggle governing it already existed (`iosAppBroadsheetClient.jsx`).
+  The defect was the gate: it lived in ONE device-level localStorage record
+  (`shape.radio.pref.asked`), so a reinstall or a second device re-asked a member
+  who had already answered — and on a shared device whoever answered first
+  answered for everyone. **Verified in the source before building, rather than
+  assuming the prompt had been removed.**
+- **The gate is now a property of the ACCOUNT**: a per-uid localStorage mirror for
+  the first synchronous render, converged from
+  `user_goals('client_settings').radioAsked` so a fresh device inherits the
+  answer. `shape.radio.pref` is untouched and stays **device**-level — it carries
+  the runtime on/off and deliberately survives sign-out; only the ask-gate moved.
+- ⚠ **SIGNED-OUT IS NEVER ASKED, AND THAT IS THE FINDING, NOT A STYLE CALL.**
+  Playback is licensing-gated to a signed-in account (`bsRadioSignedIn`, the
+  non-interactive boundary), so a preview visitor answering "yes" gets silence.
+  Worse, under the old device gate that **unanswerable prompt CONSUMED the ask** —
+  so the real account they went on to create was never asked at all. Signed-out
+  now reads *already asked* and the prompt waits for a resolved session; the
+  effect keys on `authTick` as well as the gate because the radio provider mounts
+  **above** the async auth gate, so on a cold launch there is no uid on the first
+  evaluation and it must fail closed and re-run.
+- ⚠ **THE FLAG IS STICKY-TRUE, SO THE HYDRATE *ORs* RATHER THAN CONVERGES.**
+  Nothing ever writes `false`. A converging hydrate would let a stale or absent
+  cloud doc re-open a prompt the member already answered; ORing means a mirror
+  that is AHEAD of the cloud instead **re-issues the write** — the retry, for
+  free. `getUserGoals` resolves **null** for every can't-know case (no backend ·
+  not signed in · query error — it never rejects) and `{}` for a genuinely absent
+  row, so a null read keeps the seed and the persist declines rather than
+  clobbering.
+- ⚠ **NO MIGRATION FROM THE LEGACY DEVICE FLAG, DELIBERATELY.**
+  `shape.radio.pref.asked` is not attributable to any account — on a shared device
+  it is whoever answered first — so reading it as *this* account's answer is
+  exactly the cross-account class the per-uid keys exist to prevent (the
+  `_followCache` lesson). The cost is **one re-ask per account after ship**; the
+  alternative is silently never asking someone, which is not recoverable.
+- ⚠ **`client_settings` IS A WHOLE-DOC UPSERT, SO THE RADIO MODULE JOINS THE
+  CLIENT MODULE'S WRITE LANE.** `bsSettingsWriteSerial` is now window-exposed and
+  the radio module's persist runs through it (falling back to a direct
+  read-merge-write, since the radio module loads BEFORE the role bundle and must
+  not hard-depend on order). The write is **bound to the initiating uid** —
+  `saveUserGoals` resolves the user at SAVE time, so an account switch mid-flight
+  would write A's whole settings blob into B's row; a changed or unresolvable
+  identity discards it and the next hydrate re-issues. And the Settings pane's own
+  save **folds the gate** exactly as it already folds `onlineRail`: a doc snapshot
+  taken before the prompt's write landed would otherwise drop the key and re-ask
+  on the next device.
+- **The client Home masthead now matches both coach Todays** (owner screenshot).
+  Home carried the wordmark, then a separate `PAPER2` *"Clients Edition · No. 14 /
+  Vol. I"* strip **below the ticker**; `BSProToday` §A.2 carries a single hairline
+  dateline row directly under the wordmark — edition label in the accent, day/date
+  in ink-80, live clock right-aligned. Home carries that row now and the strip is
+  gone; the markup matches the coach's byte-for-byte on padding, border, flex,
+  sizes, weights, tracking, uppercase, colors and `tabular-nums`.
+- ⚠ **TWO DELIBERATE DIVERGENCES FROM THE COACH MARKUP, BOTH STATED IN-CODE.**
+  (1) The day and month come from **this page's locale formatters**
+  (`_dowShort`/`_monShort`), not the coach module's hardcoded English
+  `_BS_DOW`/`_BS_MON` arrays — a masthead must not print English weekday tokens on
+  a Spanish screen. (2) The clock derives from **`bsNowMin`**, the minute ticker
+  already running for the slate's NOW tick, so it advances while Home stays open
+  instead of freezing at the render that painted it. The program phase + ISO week
+  that rode the removed masthead kickers ride the ink-80 run now, so nothing was
+  lost in the swap.
+- **i18n**: one new `home:dateline.edition` ×13, each **authored from that
+  locale's own existing `edition.clients` wording** rather than invented (ru
+  «ВЫПУСК ДЛЯ КЛИЕНТОВ» · tr `DANIŞAN SÜRÜMÜ` · ha `BUGU NA ABOKAN CINIKI`); the
+  two orphaned keys removed. A pure append plus the deletions — **1 insertion / 2
+  deletions per file**, authored key order preserved, and a sweep confirmed zero
+  remaining references to either orphan.
+- ⚠ **TWO GUARD FIXES, BOTH FOUND BY MUTATION-TESTING RATHER THAN BY READING.**
+  (1) The Settings-write guard pinned the **exact literal**
+  `{ ...doc, ...railFold, ...editedRef.current }`, so adding a second fold failed
+  a test about something else entirely — *the second time that assertion has
+  broken for a reason it does not care about*. It pins the **invariant** now: doc
+  spreads first, edited spreads last, only `*Fold` between. (2) **My own new
+  ask-gate assertion was hollow** — it matched the `askedFold = {…}`
+  **DECLARATION**, which still stands when the spread is deleted, so dropping
+  `...askedFold` from the save survived with **zero failures**. Re-anchored on the
+  spread; both mutations then killed. *A guard that reports a pass is a broken
+  instrument until the mutation is proven to have landed* — this file's own rule,
+  paid for again, in the guard written to enforce it.
+- **`tests/radio-ask-gate.test.mjs` DRIVES rather than greps** — it brace-matches
+  the four gate helpers out of the **shipped source** and evaluates them against a
+  stubbed `window` + in-memory localStorage, so an equivalent rewrite passes and a
+  real regression fails (a spelling pin could not tell them apart). Pins: signed-out
+  reads already-asked · per-account isolation on a shared device · a record
+  carrying a different uid is not trusted · unreadable storage fails **closed** ·
+  sticky-true (no `asked:false` / `radioAsked:false` anywhere in the module) · the
+  auto-prompt requires a uid and keys on `[askedPrompt, authTick]` · both answer
+  paths mark the account AND still persist the device pref. **5/5 mutations
+  killed**, sanity green at both ends, tree restored with `cp`.
+- ⚠ **AND #2003 CLOSED THE STALE-COMMENT TAIL THE RENAME LEFT.** Two comments in
+  `tests/i18n-surface-inventory.test.mjs` still named `— Chris Perry` — the PARTIAL
+  baseline entry explaining why `BSAboutPage` carries exactly one unkeyed string,
+  and the cut-10 note restating it. Both are **present-tense claims about the
+  current source**, and both sit exactly where the next reader goes to decide
+  whether that string should be keyed. The REASON is untouched (a proper name; no
+  locale changes it; keying it ships thirteen identical values a translator must
+  not touch) — only the name moved. **The two `docs/WORKLOG.md` references are
+  deliberately left**: those are dated changelog entries, and this file's
+  convention is that a dated entry says what was true on its date.
+- **Verified** (#2002): `npm test` **2639/2639** (2630 + the 9 new) · both JSX
+  files parse · catalog parity 6/6 ×13 · the ratchet **9/9 unchanged**, which is
+  the certification — the dateline swaps one keyed string for another, so a
+  presentation change must move the measurement by **nothing** · mobile build 0 ·
+  CI green on all four required checks.
+- ⚠ **`npx tsc --noEmit` REPORTS A STRIPE `apiVersion` ERROR LOCALLY AND IT IS NOT
+  A REPO DEFECT — CHECKED RATHER THAN ASSUMED.** It reproduces on a clean `main`
+  worktree, and the cause is a stale local install: `package.json` declares
+  `stripe: ^22.6.0` and the lockfile pins 22.6.0 while `node_modules/stripe`
+  reports **22.3.2**, predating a merged Dependabot bump. CI runs `npm ci` and its
+  Web check is green. Deliberately not "fixed" here — a local environment artifact
+  is not a change to ship.
+
 ### 2026-08-31 — Session handoff: `docs/HANDOFF-2026-08-31b.md`
 
 - **Three PRs since the day's first handoff — #1988 → #1990 — and two of them had no
