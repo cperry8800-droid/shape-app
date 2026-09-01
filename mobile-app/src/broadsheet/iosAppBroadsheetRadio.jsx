@@ -372,8 +372,15 @@ function BSRadioProvider({ children }) {
   // answer instead of re-asking. Sticky-true in BOTH directions: a null read
   // (offline · query error — getUserGoals resolves null for every can't-know
   // case, it never rejects) keeps the seed, a cloud `true` writes the mirror,
-  // and a mirror that is ahead of the cloud RE-ISSUES the write. Nothing here
-  // can set the gate back to false, so no stale read can re-open the prompt.
+  // and a mirror that is ahead of the cloud RE-ISSUES the write.
+  // ⚠ NO CLOUD READ CAN LOWER THE GATE — that is the claim, and it is narrower
+  // than "nothing here lowers it". The re-seed on the line below CAN, and does
+  // so deliberately: the identity changed, so the NEW account's own record
+  // decides, and B must not inherit A's answer. What is ruled out is a stale,
+  // empty or failed cloud read re-opening a prompt this account already
+  // answered. The one residual — a mirror write that failed after an in-session
+  // answer, leaving the re-seed to read false — is recovered by the cloud
+  // branch below, which dismisses the prompt as well as setting the gate.
   useEffectBR(() => {
     const seeded = bsRadioAskedMirrorRead();
     setAsked(seeded);
@@ -382,7 +389,17 @@ function BSRadioProvider({ children }) {
     window.shapeDb.getUserGoals('client_settings').then((s) => {
       if (!alive) return;
       if (!s || typeof s !== 'object') return; // null read: keep the seed
-      if (s.radioAsked === true) { bsRadioAskedMirrorWrite(); setAsked(true); return; }
+      // ⚠ CLOSES THE PROMPT, NOT JUST THE GATE. The auto-prompt fires on a 600ms
+      // timer while this read is still in flight, so on a second device with a
+      // slow round trip the prompt is ALREADY on screen by the time the account
+      // answers for it — flipping the gate alone would leave it standing and ask
+      // a member who answered on another device. (Inside 600ms the effect's own
+      // cleanup clears the timer and it never paints.)
+      // The prompt is deliberately NOT held until this read settles: that would
+      // fail toward never asking a genuinely new member when the network is
+      // down, which is not recoverable — the same direction as the no-migration
+      // call above.
+      if (s.radioAsked === true) { bsRadioAskedMirrorWrite(); setAsked(true); setShowPrompt(false); return; }
       if (seeded) bsRadioAskedPersist(); // mirror ahead of the account record — retry the write
     }).catch(() => {});
     return () => { alive = false; };
