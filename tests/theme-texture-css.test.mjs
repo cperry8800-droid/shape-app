@@ -73,9 +73,14 @@ function layersOf(css) {
   return out;
 }
 
-const isBareColour = (layer) =>
-  /^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-z]+)$/i.test(layer)
-  && !/gradient|url\(/i.test(layer);
+// The real CSS rule, not a spelling of one shape of it: in `background`, every
+// layer but the LAST must carry an <image>. Testing "is this layer exactly a
+// colour?" is too narrow — verified in Chromium, `rgba(...) 0 0/5px 5px` and
+// `rgba(...) repeat` are rejected just as hard as a bare `rgba(...)`, and a
+// position/size suffix is precisely this file's house pattern (see `concrete`),
+// so a colour wearing one is the likeliest way back into the bug.
+const IMAGE = /(?:^|[\s,(])(?:repeating-)?(?:linear|radial|conic)-gradient\(|url\(|image-set\(|cross-fade\(|element\(|paint\(/i;
+const lacksImage = (layer) => layer !== 'none' && !IMAGE.test(layer);
 
 test('no texture layer is a bare colour — a colour outside the last layer voids the whole shorthand', () => {
   const offenders = [];
@@ -84,12 +89,12 @@ test('no texture layer is a bare colour — a colour outside the last layer void
       const tex = makeTexture(key, '15,14,12', isLight);
       if (!tex) continue;                       // 'none' → null, BSPage uses PAPER_BG alone
       layersOf(tex).forEach((layer, i) => {
-        if (isBareColour(layer)) offenders.push(`${key} (isLight=${isLight}) layer ${i}: ${layer}`);
+        if (lacksImage(layer)) offenders.push(`${key} (isLight=${isLight}) layer ${i}: ${layer}`);
       });
     }
   }
   assert.deepEqual(offenders, [],
-    `these texture layers are bare colours, so BSPage's \`\${TEXTURE}, \${PAPER_BG}\` is invalid `
+    `these texture layers carry no image, so BSPage's \`\${TEXTURE}, \${PAPER_BG}\` is invalid `
     + `CSS and the page paints TRANSPARENT:\n  ${offenders.join('\n  ')}\n`
     + 'Wrap a flat wash as linear-gradient(C, C) — visually identical, valid in any layer.');
 });
@@ -103,7 +108,7 @@ test('the composed background always ends in the paper colour, and only there', 
     const layers = layersOf(css);
     assert.equal(layers[layers.length - 1], PAPER_BG, `${key}: paper colour must be the final layer`);
     layers.slice(0, -1).forEach((layer, i) => {
-      assert.ok(!isBareColour(layer), `${key}: layer ${i} is a bare colour (${layer})`);
+      assert.ok(!lacksImage(layer), `${key}: layer ${i} carries no image (${layer})`);
     });
   }
 });
