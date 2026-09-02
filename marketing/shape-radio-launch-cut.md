@@ -1511,6 +1511,296 @@ if __name__=='__main__':
 
 ---
 
+
+## The spots, slowed — and the MARKETPLACE spot
+
+**Owner, on the four feature spots: *"also reduce the scrolling times of all the other
+videos. The scrolling is going too fast through the sections. Its hard to see what is
+going on."*** and, separately, *"and need a seperate video for the coaching
+marketplace"*. So the four spots are re-cut at roughly half speed and a fifth joins
+them. The v5 montage launch cut is left as it is; v6 supersedes it.
+
+**The rule that fixes the scroll, and why the old one could not.** `mkspecs.py` allocated
+a fixed number of beats per page and then set `speed` to fit whatever source window a
+RULE produced — so a long window inside a short beat allocation played FAST (up to
+1.75×, 2.0× on the profile), which is exactly the complaint. `mkspecs5.py` inverts it:
+each page gets **about twice the beats**, and the source window is **anchored on that
+page's focus act with a pre-roll**, taking exactly `beats × P` seconds of source. The
+window is clamped to the segment's own length, so the only direction speed can ever move
+is DOWN:
+
+```python
+w  = beats * P                       # the beats decide the duration
+s0 = acts[focus] - pre               # anchored on the act, not on the segment start
+s1 = min(total - 0.05, s0 + w)
+sp = 1.0 if (s1 - s0) >= w else (s1 - s0) / w   # <= 1.0 only — never sped up
+```
+
+Measured on the 26 recaptured segments, **every one of the 26 fits at `spd 1.00`** — no
+clamping anywhere, so nothing in the five spots is sped up at any point. The scrolls
+themselves were also slowed at CAPTURE time (`tour5.js` / `tour5b.js`: the scroll
+durations run 1800–3800 ms against the v5 tour's 900–2000 ms, and every settle is
+2200–3800 ms), so the source is slower before the plan ever touches it.
+
+**Beats per page, before → after.** TRAIN 5/4/6/4/4 → **9/6/9/7/9**; EAT 5/4/5/2+3/4 →
+**8/7/8/2+6/9**; COMMUNITY 5/4/4/5/5 → **8/8/8/8/8**; SCORE 7/5/4/3/4 → **7+5/10/6/6/6**.
+MARKETPLACE is new at **8/8/7/7/5/5**. Each spot runs ~23.1 s (t3 spots, 45 beats of
+page plus a 5-beat close) or ~23.5 s (t1 spots, 45 beats plus 5), against 14.5 s before.
+
+**The track assignment changed, and the gate is why.** A ~23 s spot needs a live kick
+across its whole length or the closing logo throbs to silence. `kick_by_beat` says t1
+carries beats 0–28 and 48–62, t3 carries 16–43 and 48–62, and **t2 carries 16–43 only —
+about 14 s**, too short for a slowed spot with a live close. So **t2 sits this set out**:
+TRAIN, SCORE and MARKETPLACE ride t3 (beats 15→61), EAT and COMMUNITY ride t1 (beats
+6→53). COMMUNITY moved off t2 for exactly this reason. Nothing else about the gate
+changed — `pres = clip((kb − 0.15)/0.30, 0, 1)`, `k = exp(−u/0.20)·pres(n)`.
+
+**MARKETPLACE — the pages.** The directory ("THE CLASSIFIEDS · Find your coach.") →
+Coach of the Week, Leah Kim's Listing → the rate card (01 Single workout $32 · 02 Program
+$160 · 03 Monthly $240) → the WHAT'S INCLUDED sheet → SEE THE FULL CALENDAR → the BOOK
+THE INTRO · $0 sheet. Two capture cautions, both learned the hard way: **never tap HOLD
+NEXT OPEN SLOT** (it navigates to JOIN SHAPE and the boot is lost), and **every calendar
+day is aria-disabled for a demo coach**, so the calendar is shown rather than driven.
+Diego Morales still crashes the preview (the registered defect), so the spot uses Leah
+Kim throughout.
+
+**`pw/tour5.js` and `pw/tour5b.js`** — the recapture, split in two so each stays under
+the sandbox's foreground limit. They share `tour4.js`'s header (its first 18 lines,
+with an `fs.rmSync(dir)` added to `mk()`'s segment setup so a re-run starts clean), and
+each is assembled as header + body:
+
+```bash
+H=$(sed -n '1,18p' /home/user/pw/tour4.js | sed "s#const st={name,dir,n:0#fs.rmSync(dir,{recursive:true,force:true}); fs.mkdirSync(dir,{recursive:true}); const st={name,dir,n:0#")
+printf '%s\n' "$H" > /home/user/pw/tour5.js;  cat /home/user/pw/body5a.js  >> /home/user/pw/tour5.js
+printf '%s\n' "$H" > /home/user/pw/tour5b.js; cat /home/user/pw/body5b.js >> /home/user/pw/tour5b.js
+# the pre-installed browser is chromium-1228; playwright's own revision pin does not match it
+sed -i "s#chromium.launch({args:\['--no-sandbox'\]})#chromium.launch({args:['--no-sandbox'],executablePath:'/ms-playwright/chromium-1228/chrome-linux64/chrome'})#" /home/user/pw/tour5.js /home/user/pw/tour5b.js
+```
+
+**`pw/body5a.js`** — parts A (home · goal · calendar), B (train) and C (eat).
+
+```js
+ // ---- A: home / goal / calendar ----
+ await L.boot('A');
+ await rec('checkin',async()=>{await sleep(500); await act('tap',()=>L.go('^CHECK-IN DUE')); await sleep(3600);}); await back();
+ await rec('goal',async()=>{await sleep(500); await act('tap',()=>L.go('^GOAL')); await sleep(2600); await act('scroll',()=>L.scroll(520,2800)); await sleep(500);}); await back();
+ await rec('calendar',async()=>{await sleep(500); await act('tap',()=>L.go('^MONTH VIEW')); await sleep(2600); await act('day',()=>L.go('^(10|11|12|17|18)$',0)); await sleep(3000);});
+ // ---- B: train ----
+ await L.boot('B');
+ await rec('deck',async()=>{await sleep(400); await act('tab',()=>L.tab('train')); await sleep(2200); await act('scroll',()=>L.scroll(500,3400)); await sleep(1000);});
+ await rec('swap',async()=>{await sleep(500); await act('tap',()=>L.go('^SWAP')); await sleep(3600);}); await back();
+ await rec('session',async()=>{await sleep(500); await act('tap',()=>L.go('^▶',0)); await sleep(3600); await act('scroll',()=>L.scroll(360,3000)); await sleep(900);});
+ await rec('setlog',async()=>{await sleep(600); await act('tap',()=>L.go('Mark set 1|Log set 1|set 1 done|^✓$',0)); await sleep(3800);});
+ // ---- C: eat ----
+ await L.boot('C');
+ await rec('menu',async()=>{await sleep(400); await act('tab',()=>L.tab('eat')); await sleep(2200); await act('scroll',()=>L.scroll(420,3200)); await sleep(900);});
+ await rec('meal',async()=>{await sleep(500); await act('tap',()=>L.go('Yogurt \\+ granola|Tuna, white bean',0)); await sleep(3600); await act('scroll',()=>L.scroll(450,2600)); await sleep(700);}); await back();
+ await rec('grocery',async()=>{await sleep(500); await act('tap',()=>L.go('^GROCERY')); await sleep(2600); await act('produce',()=>L.go('^▸ Produce|^Produce$',0)); await sleep(2500); await act('apple',()=>L.go('^Apple$|^Avocado$',0)); await sleep(2600);});
+ await rec('recipes',async()=>{await sleep(500); await act('tap',()=>L.go('^RECIPES')); await sleep(3200); await act('scroll',()=>L.scroll(300,1800)); await sleep(700);});
+ await rec('recipe',async()=>{await sleep(500); await act('tap',()=>L.go('Greek yogurt power bowl|kcal',0)); await sleep(3600); await act('scroll',()=>L.scroll(520,3000)); await sleep(900);});
+ await rec('cook',async()=>{await sleep(500); await act('tap',()=>L.go('Cook this',0)); await sleep(3600); await act('start',()=>L.go('START COOKING',0)); await sleep(2700); await act('next',()=>L.go('DONE · NEXT|✓ DONE',0)); await sleep(2600);});
+ await b.close(); console.log('TOUR5_DONE');
+})();
+```
+
+**`pw/body5b.js`** — parts D (community + marketplace) and E (profile · score · habits).
+
+```js
+ // ---- D: community + marketplace ----
+ await L.boot('D');
+ await rec('feed',async()=>{await sleep(400); await act('tab',()=>L.tab('chat')); await sleep(2200); await act('scroll',()=>L.scroll(640,3800)); await sleep(900);});
+ await rec('details',async()=>{await sleep(500); await act('tap',()=>L.go('SESSION DETAILS',0)); await sleep(3600); await act('scroll',()=>L.scroll(560,3200)); await sleep(900);}); await back();
+ await rec('channels',async()=>{await sleep(500); await act('tab',()=>clickBtn('^CHANNELS')); await sleep(2600); await act('open',()=>L.go('Shape HQ|^HQ|strength|^#',0)); await sleep(3000);}); await back();
+ await rec('market',async()=>{await sleep(500); await act('open',()=>L.ev('shape:openMarket',{role:'trainer'})); await sleep(2800); await act('scroll',()=>L.scroll(520,3200)); await sleep(1200);});
+ await rec('listing',async()=>{await sleep(500); await act('tap',()=>L.go('Leah Kim',0)); await sleep(3600); await act('scroll',()=>L.scroll(560,3200)); await sleep(1000);});
+ await rec('listing2',async()=>{await sleep(500); await act('scroll',()=>L.scroll(700,3200)); await sleep(1200);});
+ await rec('mkt_offer',async()=>{await sleep(500); await act('tap',()=>L.go("WHAT'S INCLUDED",0)); await sleep(3600);});
+ await L.go('^CLOSE$|^✕$|^×$',0); await sleep(900); await L.dump('n5_afteroffer');
+ await rec('mkt_cal',async()=>{await sleep(500); await act('tap',()=>L.go('SEE THE FULL CALENDAR',0)); await sleep(3400);});
+ await L.go('^← THE LISTING',0); await sleep(900);
+ await rec('mkt_book',async()=>{await sleep(500); await act('tap',()=>L.go('BOOK THE INTRO',0)); await sleep(3600);}); await L.dump('n5_book');
+ // ---- E: profile / score / habits ----
+ await L.boot('E');
+ await rec('profile',async()=>{await sleep(400); await act('tab',()=>L.tab('me')); await sleep(2200); await act('scroll',()=>L.scroll(560,3200)); await sleep(1000);});
+ await rec('climb',async()=>{await sleep(500); await L.scroll(-560,1300); await sleep(600); await act('climb',()=>L.go('^CLIMB$')); await sleep(3200);});
+ await rec('score',async()=>{await sleep(500); await act('tap',()=>L.go('SHAPE SCORE|Shape Score',0)); await sleep(3400); await act('tier',()=>L.go('^THIS TIER$')); await sleep(2200); await act('scroll',()=>L.scroll(520,3000)); await sleep(1100);}); await back();
+ await rec('habits',async()=>{await sleep(500); await act('tab',()=>L.tab('home')); await sleep(1600); await act('tap',()=>L.go('^VIEW ALL')); await sleep(3400); await act('scroll',()=>L.scroll(320,2200)); await sleep(900);});
+ await b.close(); console.log('TOUR5B_DONE');
+})();
+```
+
+**`mkspecs5.py`** — the slowed plans. Replaces `mkspecs.py` for the five spots (the
+launch cuts keep theirs). RULES is the focus act + pre-roll per segment; PLANS is the
+beat allocation per spot; the spec schema is the one `mk_screen5.py` / `spot.py` /
+`verify5.py` already read (`grid{P,t_b0,bidx0,kb}` · `segments[]` · `captions[]` ·
+`track` · `aoff` · `env_out`).
+
+```python
+import json,os,sys
+SEG='/home/user/cap/seg'
+MEAS={'t1':'/home/user/w/meas_t1.json','t2':'/home/user/w/meas_t2.json','t3':'/home/user/w/meas_t3.json'}
+# segment -> (focus act, pre-roll seconds). The window is anchored on the act so the
+# settle + the whole scroll sit inside the beats at 1.00x playback.
+RULES={
+ 'checkin':('tap',0.4),'goal':('scroll',0.8),'calendar':('day',0.8),
+ 'deck':('scroll',0.8),'swap':('tap',0.35),'session':('scroll',0.8),'setlog':('tap',0.4),
+ 'menu':('scroll',0.8),'meal':('scroll',0.8),'grocery':('apple',2.4),'recipes':('scroll',0.5),
+ 'recipe':('scroll',0.8),'cook':('next',2.8),
+ 'feed':('scroll',0.8),'details':('scroll',0.8),'channels':('open',0.8),'market':('scroll',0.8),
+ 'listing':('scroll',0.8),'listing2':('scroll',0.8),'mkt_offer':('tap',0.5),'mkt_cal':('tap',0.5),
+ 'mkt_book':('tap',0.5),
+ 'profile':('scroll',0.8),'climb':('climb',0.8),'score':('tier',1.2),'habits':('scroll',0.8)}
+def acts(name):
+    d=json.load(open(os.path.join(SEG,name,'times.json')))
+    return {k:v/1000.0 for k,v in d['acts']}, d['total']/1000.0
+def srcwin(name,w):
+    a,total=acts(name); f,pre=RULES[name]
+    s0=(0.0 if f=='rec' else a[f])-pre
+    hi=max(0.0,total-0.05-w)
+    s0=max(0.0,min(s0,hi)); s1=min(total-0.05,s0+w)
+    return s0,s1,total
+PLANS={
+ 'train':('t3',[(16,25,[('deck',9)],1),(25,31,[('swap',6)],1),(31,40,[('session',9)],1),
+                (40,47,[('setlog',7)],1),(47,56,[('calendar',9)],1),(56,61,'close',None)],1,61),
+ 'eat':('t1',[(8,16,[('menu',8)],1),(16,23,[('meal',7)],1),(23,31,[('grocery',8)],1),
+              (31,39,[('recipes',2),('recipe',6)],1),(39,48,[('cook',9)],1),(48,53,'close',None)],2,53),
+ 'community':('t1',[(8,16,[('feed',8)],1),(16,24,[('details',8)],1),(24,32,[('channels',8)],1),
+                    (32,40,[('market',8)],1),(40,48,[('listing',8)],1),(48,53,'close',None)],2,53),
+ 'score':('t3',[(16,28,[('profile',7),('climb',5)],1),(28,38,[('score',10)],1),(38,44,[('habits',6)],1),
+                (44,50,[('goal',6)],1),(50,56,[('checkin',6)],1),(56,61,'close',None)],1,61),
+ 'marketplace':('t3',[(16,24,[('market',8)],1),(24,32,[('listing',8)],1),(32,39,[('listing2',7)],1),
+                      (39,46,[('mkt_offer',7)],1),(46,51,[('mkt_cal',5)],1),(51,56,[('mkt_book',5)],1),
+                      (56,61,'close',None)],1,61)}
+CAPS={'train':5,'eat':5,'community':5,'score':5,'marketplace':6}
+def build(name):
+    track,plan,lead,endb=PLANS[name]
+    m=json.load(open(MEAS[track])); P=m['P']; phi=m['phase_used']
+    bt=lambda n: phi+n*P
+    b0=plan[0][0]; t0=bt(b0-lead)
+    T=bt(endb)-t0
+    segs=[]; caps=[]; ci=0
+    first=bt(b0)-t0
+    segs.append(dict(kind='logo',t0=0.0,t1=round(first,4)))
+    rows=[]
+    for item in plan:
+        a,b,pl,_=item
+        if pl=='close':
+            segs.append(dict(kind='logo',t0=round(bt(a)-t0,4),t1=round(bt(b)-t0,4),xf=0.2))
+            caps.append(dict(png='cap/txt/close.png',t0=round(bt(a)-t0,4),t1=round(T,4),y=300))
+            rows.append(('close',bt(a)-t0,bt(b)-t0,None,None,None,None)); continue
+        caps.append(dict(png=f'cap/txt/{name}_{ci}.png',t0=round(bt(a)-t0,4),t1=round(bt(b)-t0,4),y=300)); ci+=1
+        for (sname,beats) in pl:
+            w=beats*P
+            s0,s1,total=srcwin(sname,w)
+            got=s1-s0
+            sp=1.0 if got>=w-1e-6 else got/w   # only ever <=1.0 (slow), never speed up
+            segs.append(dict(kind='cap',src=os.path.join(SEG,sname+'.mp4'),s0=round(s0,3),
+                             speed=round(sp,3),t0=round(bt(a)-t0,4),t1=round(bt(a+beats)-t0,4),xf=0.2))
+            rows.append((sname,bt(a)-t0,bt(a+beats)-t0,s0,s1,total,sp)); a+=beats
+    spec=dict(name=name,T=round(T,4),track=f'/home/user/w/in/{track}.m4a',aoff=round(t0,4),
+              grid=dict(P=P,t_b0=0.0,bidx0=b0-lead,kb=m['kick_by_beat']),
+              segments=segs,captions=caps,env_out=0.5)
+    json.dump(spec,open(f'/home/user/w/spec_{name}.json','w'),indent=1)
+    print(f'== {name}  track={track}  T={spec["T"]}  aoff={spec["aoff"]}  beat0={b0-lead}')
+    for r in rows:
+        if r[3] is None: print(f'   {r[0]:<12} {r[1]:6.2f}->{r[2]:6.2f}')
+        else: print(f'   {r[0]:<12} {r[1]:6.2f}->{r[2]:6.2f}  src {r[3]:5.2f}->{r[4]:5.2f}/{r[5]:5.2f}  spd {r[6]:.2f}')
+if __name__=='__main__':
+    for n in (sys.argv[1:] or list(PLANS)): build(n)
+```
+
+**The captions** — one new row in `captions.py`'s `SPOTS`, the rest unchanged:
+
+```python
+'marketplace':[('COACHES','Find *your* coach.'),('COACHES','Coach of the *week.*'),('COACHES','The *rate card.*'),('COACHES',"See what's *included.*"),('COACHES','Open *to book.*'),('COACHES','Start with a *free intro.*')],
+```
+
+**`boot5.sh`** — the whole rebuild in one script, because the sandbox is reclaimed on a
+roughly 20-minute cycle even with the lease re-armed on every call (it has now been
+wiped four times). Rebuild is ~4 minutes, capture ~7, render ~4 — so the work has to be
+split into sub-20-minute runs with the capture persisted off-sandbox between them
+(`tar czf` `cap/seg` and upload it; re-download after the next wipe rather than
+re-capturing). `SKIP_DL=1` skips the source downloads when they survived.
+
+```bash
+#!/bin/bash
+set -e
+mkdir -p /home/user/w/in /home/user/w/cap/txt /home/user/w/out /home/user/w/scripts /home/user/pw /home/user/cap/seg
+cd /home/user/w
+R=/home/user/recipe.md
+[ -f $R ] || curl -sL -o $R https://raw.githubusercontent.com/cperry8800-droid/shape-app/claude/shape-marketing-video-4rin96/marketing/shape-radio-launch-cut.md
+python3 - <<'PY'
+import re,os
+L=open('/home/user/recipe.md').read().split('\n')
+MAP={'pw/lib.js':'/home/user/pw/lib.js','pw/tour4.js':'/home/user/pw/tour4.js',
+ 'pw/body5a.js':'/home/user/pw/body5a.js','pw/body5b.js':'/home/user/pw/body5b.js',
+ 'seg2mp4.py':'/home/user/w/scripts/seg2mp4.py','captions.py':'/home/user/w/scripts/captions.py',
+ 'mk_screen5.py':'/home/user/w/scripts/mk_screen5.py','spot.py':'/home/user/w/scripts/spot.py',
+ 'mkspecs.py':'/home/user/w/scripts/mkspecs.py','mkspecs5.py':'/home/user/w/scripts/mkspecs5.py',
+ 'verify5.py':'/home/user/w/scripts/verify5.py'}
+def block(i):
+    while not L[i].startswith('```'): i+=1
+    j=i+1
+    while not L[j].startswith('```'): j+=1
+    return '\n'.join(L[i+1:j])+'\n'
+for i,ln in enumerate(L):
+    m=re.match(r'^\*\*`([^`]+)`\*\*',ln) or re.match(r'^### (assets\.py)$',ln)
+    if not m: continue
+    k=m.group(1)
+    if k=='assets.py': open('/home/user/w/scripts/assets.py','w').write(block(i)); continue
+    if k in MAP: open(MAP[k],'w').write(block(i))
+# the recorded beat grids
+GR={'t1':(119.95,0.500208,0.064),'t2':(119.75,0.501044,0.044),'t3':(119.45,0.5023022185,0.030)}
+import json
+for ln in L:
+    m=re.match(r'^- (t\d) \(.*?\): `(.*)`$',ln)
+    if not m: continue
+    t=m.group(1); kb=[float(x) for x in m.group(2).split()]
+    bpm,P,phi=GR[t]
+    json.dump(dict(bpm=bpm,P=P,phase_used=phi,first_kick_t=phi,dur=32.023,kick_by_beat=kb),
+              open(f'/home/user/w/meas_{t}.json','w'))
+print('EXTRACT_OK',len(os.listdir('/home/user/w/scripts')))
+PY
+if [ -z "$SKIP_DL" ]; then
+  P=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
+  curl -sL -o in/A.mp4  $P/hf_20260901_165433_72d68899-3266-4302-bb45-0417c72f0ecb.mp4
+  curl -sL -o in/B.mp4  $P/hf_20260901_165434_a27526b7-057b-4165-865c-0e9c5c9b46e9.mp4
+  curl -sL -o in/C.mp4  $P/hf_20260901_165434_a1d1066e-7837-48c6-81ce-ef849c38d8a2.mp4
+  curl -sL -o in/t3.m4a $P/hf_20260901_195948_814905f0-3558-40b7-a918-04d447a98d58.m4a
+  curl -sL -o in/t1.m4a $P/hf_20260901_195948_20d50377-fdc1-45f5-b27c-b6928ba0ae40.m4a
+  curl -sL -o in/t2.m4a $P/hf_20260901_195949_e84649d8-0f3a-4aaa-a5fe-182837253bb8.m4a
+  G=https://raw.githubusercontent.com/cperry8800-droid/shape-app/main/public
+  curl -sL -o in/SHAPE-logo-teal-white.png "$G/SHAPE-logo-teal-white.png"
+  curl -sL -o in/radio-wordmark.png "$G/Shape%20radio%20logo%20updated.png"
+  F=https://raw.githubusercontent.com/google/fonts/main
+  curl -sL -o in/Newsreader.ttf "$F/ofl/newsreader/Newsreader%5Bopsz%2Cwght%5D.ttf"
+  curl -sL -o in/NewsreaderIt.ttf "$F/ofl/newsreader/Newsreader-Italic%5Bopsz%2Cwght%5D.ttf"
+  curl -sL -o in/JetBrainsMono.ttf "$F/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf"
+fi
+# B_long: B forward + reversed, then looped once -> 972 frames / 40.5 s
+[ -f in/B_long.mp4 ] || { \
+ ffmpeg -y -v error -i in/B.mp4 -vf "fps=24,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1" \
+   -an -c:v libx264 -preset veryfast -crf 14 -pix_fmt yuv420p in/B2.mp4 && \
+ ffmpeg -y -v error -stream_loop 1 -i in/B2.mp4 -c copy in/B_long.mp4; }
+python3 scripts/assets.py
+H=$(sed -n '1,18p' /home/user/pw/tour4.js | sed "s#const st={name,dir,n:0#fs.rmSync(dir,{recursive:true,force:true}); fs.mkdirSync(dir,{recursive:true}); const st={name,dir,n:0#")
+printf '%s\n' "$H" > /home/user/pw/tour5.js;  cat /home/user/pw/body5a.js >> /home/user/pw/tour5.js
+printf '%s\n' "$H" > /home/user/pw/tour5b.js; cat /home/user/pw/body5b.js >> /home/user/pw/tour5b.js
+sed -i "s#chromium.launch({args:\['--no-sandbox'\]})#chromium.launch({args:['--no-sandbox'],executablePath:'/ms-playwright/chromium-1228/chrome-linux64/chrome'})#" /home/user/pw/tour5.js /home/user/pw/tour5b.js
+sed -i "s#'python3','mk_screen5.py'#'python3','scripts/mk_screen5.py'#" scripts/spot.py
+echo BOOT5_OK
+```
+
+⚠ **THE PRE-INSTALLED BROWSER IS `chromium-1228`, AND PLAYWRIGHT'S PIN DOES NOT MATCH
+IT.** `/ms-playwright` already holds `chromium-1228`, `chromium_headless_shell-1228` and
+`ffmpeg-1011` (644 MB) with `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` set — but
+playwright 1.49.1 asks for revision 1148 and 1.55.1 asks for 1193, so a bare
+`chromium.launch()` dies with *"Executable doesn't exist at
+/ms-playwright/chromium_headless_shell-1148/chrome-linux/headless_shell"*. `npx playwright
+install` stalls for minutes and is unnecessary; pass
+`executablePath:'/ms-playwright/chromium-1228/chrome-linux64/chrome'` instead. Note
+`chrome-linux64`, not `chrome-linux` — the first attempt used the wrong directory name.
+
 ## Superseded: v1 and v2 (the record, kept)
 
 **29.575 s**, scored by the first track (prompted 124 BPM, **measured 128.0**, period
