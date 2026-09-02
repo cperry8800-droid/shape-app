@@ -468,7 +468,35 @@ changelog whenever something ships.
   page's `SHAPE_SCORE_TIERS` names it **Raw** while `bsTierForPoints` / `_HLNM` return
   **Base** — internally consistent within each component, and renaming a tier is an owner
   call, not a side effect of a layout pass.
-- **Verified:** `npm test` **2643/2643** · JSX parse · mobile build 0 with **the key and
+- ⚠ **AND THE SAME DEFECT WAS LIVE ON THE WEBSITE MEMBER PROFILE, WHICH THE MOBILE FIX
+  DOES NOT REACH.** `public/newdesign/livingDesktop.jsx`'s `memberLevel` **already computed
+  a correct `top` flag** — and neither consumer read it, so at Legend `TerrainVisual`
+  rendered the badge **"You · 98%"** (the `min(lvl.pct, 0.98)` clamp), **LEGEND at BOTH
+  ends** (`startLabel = lvl.cur`, flag `lvl.next || lvl.cur`), and the figure at the `0.7`
+  cap under a 98%-drawn trace — all four mobile symptoms, on the surface a member reaches
+  from a browser. The climb box's `dkClimbCfg` score aspect read **"Legend 15,000 pts →
+  Legend 15,000 pts"** identically. *A fix that lands on one surface is not a fix for
+  every member* — the ask was every member at Legend tier, and half of them are on the web.
+- **The web takes the SAME re-frame and the SAME `0.82` cap**, so the two surfaces can't
+  disagree about what a finished climb looks like: base = the first rung, summit = the tier
+  held, route complete, badge naming the state, and the summit label dropping to the
+  baseline at the top state (the figure runs under the flag's label slot at 0.82). ⚠ **The
+  cap is shared rather than re-derived**: probed against the web's own geometry (`W 520`,
+  88px avatar, pole at 87.7%), `0.82` puts the figure at **73.4%** and clears the flag pole
+  down to a **309px-wide card** — narrower than any real render — where `0.86` only cleared
+  to 396px. Its dead `summit` local (zero references) went with the change.
+- ⚠ **THE TIER VOCABULARY THAT CAN REACH THE MEMBER HERO WAS ENUMERATED, NOT ASSUMED.**
+  `_hlIdx` is a case-insensitive match against `_HLNM` and `Math.max(0, -1)` silently
+  collapses a miss to **Base** — so a name outside the list fails quietly. Every source
+  checked: `bsTierForPoints` (Base/Tempo/Form/Peak/Legend), `_BS_FEED_TIERS` (same five),
+  and `selfScore.tier` from the score route (Raw/Tempo/Form/Peak/**Legend**) — every one
+  spells Legend identically. **No coach ladder name can reach it at all**: `BSPublicProfile`
+  routes `kind === 'TRAINER' | 'NUTRI'` to `BSSignalCoachProfile`, which has carried its own
+  `_sigTop` → "Top of the ladder" state all along.
+- **Verified:** `npm test` **2643/2643** · JSX parse (mobile + newdesign) · newdesign
+  precompile `--check` 0 · the shipped `memberLevel`/`dkClimbCfg` **driven over the whole
+  ladder** (every mid-rung row byte-unchanged; no row renders the same word at both ends) ·
+  mobile build 0 with **the key and
   all 13 translated values confirmed in the emitted bundle** behind a positive control
   (`profile:role.trainer`) and a negative one · the ledger box, the `width: 60` pin and
   the `0.82` cap confirmed in the emitted bundle **in the minifier's backtick form** (a
