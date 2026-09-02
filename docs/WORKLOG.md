@@ -404,7 +404,55 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-01 — Launch cut v3: a deeper track, Radio threaded through the film, the rings gone
+
+- **Three owner notes on v2, one re-render.** *"need deeper and darker house music"* ·
+  *"shape radio needs to come together better, doesnt make sense how it just appears at
+  the end"* · *"remove the pulsing rings that appear, just have the logo itself pulse to
+  the house music beat"*. v3 answers all three; 1440×2560 · 24 fps · **27.9 s**. Recipe,
+  scripts and the measured numbers:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md).
+- **The track was CHOSEN BY MEASUREMENT, not by its prompt.** Three new owned Higgsfield
+  generations (prompted 122 / 124 / 126 BPM); the pick is the darkest on every axis —
+  spectral centroid 115 Hz (the others 137 / 174), 81 % of its energy under 90 Hz, the
+  cleanest kick (on-beat/half-beat contrast 3.2 against 1.6 and 0.5). ⚠ **All three
+  measure ~120 BPM whatever was prompted** — 119.45 for the pick — so the grid was
+  re-measured (comb search + split-half agreement + a per-beat residual check: the
+  envelope peaks sit within one frame of the grid across the whole track). *A number in
+  a prompt is a request, not a measurement* — the v1/v2 lesson, paid for a second time.
+- ⚠ **THE TRACK HAS AN 8 s KICK-LESS INTRO, AND THAT BECAME THE CUT'S STRUCTURE.** Rather
+  than trim it, the kick drop (beat 16, 8.07 s) is where the phone lands: the A→B fade
+  ENDS on it and the logo's first pulse is the first kick. Every transition ends on a
+  beat — A→B on beat 16, B→C on beat 36 (a downbeat) — which needs Scene B to run 0.22 s
+  past its 10.125 s, done with a 0.3 s clone-pad of its last frame (a static phone shot;
+  the pad sits entirely inside the fade).
+- **Radio is threaded, not appended.** On beat 24 (12.09 s) the big triangles fade out of
+  the phone and a teal "▸◂ RADIO" line fades in under the SHAPE text — cut from the real
+  Radio wordmark at the logo's own cap height — so the phone reads SHAPE, then SHAPE
+  RADIO, before the wall carries the full wordmark. The wall wordmark no longer fades in
+  at 21.7 s: it ramps in over the B→C fade to land fully lit ON the beat with a glow
+  flash, then keeps pulsing to the end. One motif, three sizes, all on one grid.
+- **No rings.** The only motion on the phone is the logo's own 6 % scale throb + glow
+  (`k = exp(−u/0.20)` per beat); the wall gets 3 % + glow. A whole-frame pulse was
+  considered and dropped — *"just the logo itself"*.
+- **Verified numerically** (the proxy still cannot fetch the render): the transition
+  frames match their source clips (mean diff 0.2 / 3.2 / 0.1); the phone layer's bbox is
+  477 px wide at a beat and 459 mid-beat (v2's mid-beat 606 was the ring — gone); the
+  morph frames show the triangles 3972 → 0 lit pixels and the RADIO line 0 → 2489; the
+  wall layer is blank before the fade, ramps through it, and at a beat lights 47 k pixels
+  against 17 k mid-beat (1270 vs 1225 px wide); the output audio re-measures at 119.45
+  BPM with the kick at 8.07 s. Tail RMS −17 dB over the last 0.9 s against −10 dB
+  mid-track, with an INPUT-side `-ss` (the v1/v2 false alarm not repeated).
+- ⚠ **litterbox returned a 500 on every upload attempt** (a BunkerWeb error page), so the
+  review link is a 48-hour uguu.se upload (the fallback order: litterbox → uguu.se →
+  0x0.st → catbox) — still a link, still not in the repo. Records only in the repo (this
+  entry, the recipe doc, the War Room item); **no PR, nothing merged.**
+
 ### 2026-09-01 — The Radio launch cut is rendered: three Higgsfield scenes, the SHAPE logo pulsing on the beat, an owned track
+- ⚠ **SUPERSEDED THE SAME EVENING BY v3 (the entry above).** The 128-BPM track, the
+  29.6 s runtime, the teal ring and the 21.7 s wall fade all changed on the owner's three
+  notes; the recipe doc now describes v3 and keeps this cut under "Superseded". Kept
+  because a dated entry says what was true on its date.
 
 - **The consumer brand video exists as a cut, not a plan.** Three Higgsfield
   generations (an athlete in light ribbons → a phone on a dark set → the club wall)
