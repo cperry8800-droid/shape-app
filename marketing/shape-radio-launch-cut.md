@@ -1,8 +1,8 @@
 # Shape Radio — the launch cut (recipe, sources, and what the versions are)
 
-Status: DRAFT for the owner · 2026-09-01, variants 2026-09-02. The production record for the ~28 s vertical
-brand video cut this session — **v3 is the current cut**; v1/v2 are kept at the end as
-the superseded record. The strategy lives in `social-brand-awareness-plan.md`; the
+Status: DRAFT for the owner · 2026-09-01, variants and v4 2026-09-02. The production record for the ~28 s vertical
+brand video cut this session — **v4 is the current cut (2026-09-02)**; v3 is the record it
+was cut from and v1/v2 are kept at the end as the superseded record. The strategy lives in `social-brand-awareness-plan.md`; the
 shot-by-shot scripts in `shape-radio-video-scripts.md` and
 `social-video-ideas-wave-2.md`. This file exists so the cut can be re-rendered,
 re-timed or re-scored without re-deriving anything below.
@@ -10,6 +10,10 @@ re-timed or re-scored without re-deriving anything below.
 **2026-09-02:** the owner liked both alternates too (*"i like both of them. We can use
 both"*), so the same cut now exists on all three tracks — see "Variants (2026-09-02)".
 v3 stays the primary; the alternates add a kick-presence gate and nothing else.
+
+**2026-09-02, later:** *"shape radio should only appear in the last clip and make it so it
+fits on the main wall"* → **v4**, on all three tracks — see "What v4 is". Everything below
+that describes the phone morph or a 1240 px wordmark is v3 and carries a ⚠ pointer.
 
 The review links handed over in-session are short-lived uploads and are deliberately
 NOT recorded here (they die). The SOURCES are permanent. Nothing is posted anywhere.
@@ -26,7 +30,7 @@ on a beat of the MEASURED grid (119.45 BPM — see "The beat grid"):
   kick-less intro (dark pads; the percussion enters at 6.0 s).
 - **8.07 s — the kick drops and the phone lands.** The A→B fade (0.3 s) ENDS on beat
   16, the first kick; the SHAPE logo on the phone screen pulses from that beat.
-- **12.09 s (beat 24) — Radio arrives on the phone.** The big triangles fade out and a
+- ⚠ *v3 only — v4 has no phone morph.* **12.09 s (beat 24) — Radio arrives on the phone.** The big triangles fade out and a
   teal "▸◂ RADIO" line fades in under the SHAPE text, at the text's own cap height, cut
   from the real Radio wordmark. The lockup keeps pulsing.
 - **17.81–18.11 s — the B→C fade**, ending on beat 36 (a downbeat). The Radio wordmark
@@ -41,6 +45,68 @@ end"* → the phone reads SHAPE, then SHAPE RADIO, then the wall carries the wor
 motif, three sizes, one grid; *"remove the pulsing rings … just have the logo itself
 pulse"* → no rings anywhere, only the logo's own scale + glow. A subtle whole-frame beat
 pulse was considered and dropped for the same reason: *just the logo*.
+
+## What v4 is (2026-09-02) — Radio only on the wall, and a lockup that fits it
+
+Owner, on the three 09-02 renders: *"shape radio should only appear in the last clip and
+make it so it fits on the main wall."* Two changes, on the SAME grids, gate and timing as
+the 09-02 variants — nothing else moved:
+
+- **The phone carries only the SHAPE logo.** The beat-24 morph is deleted: for the whole
+  of Scene B (the kick drop on beat 16 to the B→C fade) the logo — triangles + wordmark,
+  6 % scale + glow, `k = exp(−u/0.20)`, gated exactly as before — pulses on every beat
+  and nothing else appears on the screen. `tM` is no longer read.
+- **Radio appears once, on the club wall, cut to fit the panel.** Scene C is a dark
+  central panel in front of a lit club interior, and the panel is NARROW. Measured by
+  column means over the lockup's rows in `C.mp4` (dark = mean < 14; the contiguous dark
+  run containing x = 718): **x 321–1122 (802 px) at 0.35 s, 283–1154 at 3 s, 241–1198 at
+  6 s, 169–1239 at 9.5 s** — it widens with the push-in. The v3 wordmark was 1240 px wide
+  at x 100–1340, so it overran the panel on both sides at every frame with the lit
+  pillars behind the letters. "Fits" had never been measured; the geometry note that
+  "nothing competes" at the centre was true of the centre and false of the wordmark.
+- **The lockup is two lines.** A single line that clears the narrowest panel would be
+  ~45 px tall — a caption, not a wordmark. `assets.py` cuts the real wordmark into SHAPE
+  (x 275–985) and ▸◂ RADIO (x 1095–1918), rows 90–222 as ONE box so both lines share a
+  baseline, `MaxFilter(5)`, scales line 2 to `WALL_W = 680` (k = 0.826 → line 1 587×109,
+  line 2 680×109, `GAP = 20`) and centres the stack in the 1440×520 band (lit bbox
+  x 382–1057, y 153–367 in band coordinates). The band is overlaid at **`wallY = 1040`**
+  (a `params.json` field `render3.sh` now reads; 850 was v3's), so the lockup sits at
+  frame y 1193–1407 at rest and 1187–1409 at a beat — centred on the panel's own centre
+  (≈ y 1300) — with **50 / 58 px of panel either side at the narrowest moment at a beat**
+  (61 / 65 at rest) and 211 / 180 px by 9.5 s. The per-frame formula
+  (`word + glow·(0.35 + k)`, 3 % scale, the 0.3 s ramp through the fade, the kick gate) is
+  v3's, unchanged. `WALL_W` / `WALL_GAP` / `WALLY` re-size or re-place it in one env var.
+
+**Verified per variant** (`verify.py`, extended): the 09-02 checks, plus a **fit** check
+at four sample times (the lockup's lit bbox against the measured panel, ≥ 40 px both
+sides required — all four pass on all three tracks), a **no-second-line** check (no lit
+pixel below row 730 of the screen at any of four samples, while the triangle rows carry
+~4 000 lit pixels where v3 read 0 after beat 24) and a SECOND wall window (below). The
+numbers: v4 671 fr / 27.959 s, the alternates 669 / 27.875; transition frames match
+their sources (0.32 / 1.83 / 1.49 outside the layers); the phone 476–479 px and 20–22 k
+lit at a beat against 456 px / 8.8 k mid-beat; the wall blank at its first frame, then
+v4 42.5 k / 49.7 k lit at a beat against 19.8 k mid in both windows, alternate 2 40.0 k
+against 19.7 k in the first window and still in the second (its kick stops at beat 44),
+alternate 1 still in the first (kick-less 16.5–24.1 s) and 39.3 k against 19.8 k in the
+second; audio 119.4 / 119.95 / 119.7 BPM, halves agreeing, first kick 8.04 / 0.56 /
+8.02 s; tail RMS −17.3 / −19.3 / −25.8 dB against −10.0 / −12.9 / −10.3 mid (INPUT-side
+`-ss`). Two frame crops were also looked at (the checksummed transfer below): the logo
+alone on the phone; the lockup inside the panel with dark on both sides.
+
+⚠ **The first v4-alt1 render had a silent wall from 24.1 s** — the rebuilt `beat.py` had
+truncated the gate array to 48 beats; see "The kick-presence gate". Fixed, re-measured,
+re-rendered before upload.
+
+⚠ **Getting a frame OUT of the sandbox to look at is its own instrument.** The local proxy
+reaches no file host, so a crop travels as base64 in the tool output and is retyped; an
+11 KB block retyped in one piece was corrupt by one character. What works: the sandbox
+prints 400-char lines each prefixed with the first 4 hex of its own md5 plus a whole-file
+md5; a local script checks every line before decoding and names the bad ones; a bad line
+is re-printed in 50-char pieces with their own checksums and only those are retyped. A
+"corrected" retype from memory was wrong too — the checksum decides, not the eye.
+
+The three v4 renders are short-lived gofile links handed over in-session (md5-verified),
+deliberately not recorded here. The script deltas are under "The v4 deltas".
 
 ## Honesty + licensing — the constraints the cut obeys
 
@@ -145,7 +211,7 @@ way round.
 | P | 0.502302 s | one beat |
 | tK = beat 16 | 8.0668 s | the kick drop; the A→B fade ENDS here |
 | offAB = tK − 0.3 | 7.7668 s | A→B `xfade` offset (duration 0.3) |
-| tM = beat 24 | 12.0853 s | the phone morph lands (SHAPE → SHAPE RADIO) |
+| tM = beat 24 | 12.0853 s | the phone morph lands (SHAPE → SHAPE RADIO) — ⚠ v3 only; v4 has no morph and does not read tM |
 | tC = beat 36 | 18.1129 s | a downbeat; the B→C fade ENDS here; the wall lights |
 | offBC = tC − 0.3 | 17.8129 s | B→C `xfade` offset |
 | total | 27.9167 s | floor((offBC + 10.125) · 24) / 24 = 670 frames |
@@ -171,6 +237,10 @@ beat 35, the "4" before a downbeat.
   as a lit screen rather than a sticker.
 - **Scene C's centre is black for the whole clip** (the lit pillars are at the sides),
   so the wordmark sits at y 1110, 1240 px wide, with nothing competing.
+  ⚠ **CORRECTED 2026-09-02 — the CENTRE is black; the wordmark was WIDER than the black.**
+  The dark panel is only 802 px wide when the scene opens (x 321–1122) and 1071 px at
+  9.5 s; a 1240 px wordmark at x 100–1340 overran it on both sides at every frame — the
+  "doesn't fit the main wall" the owner saw. v4 re-cuts it to fit (see "What v4 is").
 
 ## The phone-screen layer (v3, `mk_screen3.py`)
 
@@ -189,7 +259,7 @@ covering composite 7.7668–18.1129 s), overlaid at (416, 592) and screen-blende
 - **Pulse**: `k(t) = exp(−u/0.20)`, u = fraction of the beat elapsed — a snap on the
   beat, decayed by the next — **gated to t ≥ tK** so nothing pulses on the kick-less
   intro's grid. Scale `1 + 0.06·k`; glow gain `0.25 + 0.9·k`. **No rings.**
-- **The morph**: triangles alpha 1→0 over tM−0.5 → tM; line 2 alpha 0→1 over
+- **The morph** (⚠ v3 only — deleted in v4): triangles alpha 1→0 over tM−0.5 → tM; line 2 alpha 0→1 over
   tM−0.4 → tM; both complete ON the beat, which also carries a k≈1 glow flash. The SHAPE
   text never changes — it is the logo's own text, so the letters do not dissolve.
 - **Halo**: a static elliptical teal wash at 10 % (this is a wash, not a ring — it is
@@ -205,6 +275,11 @@ was 606 px, which was the ring, and it is gone. Across the morph the triangle ro
 
 Pre-rendered as a 1440×520 band (`wall.mp4`, 242 frames, composite 17.8129 → 27.9167 s)
 overlaid at (0, 850) so the wordmark's centre lands at frame y 1110, then screen-blended.
+
+⚠ **v4 (2026-09-02) replaces the asset and the overlay y** — a two-line lockup 680 px wide,
+the band overlaid at y 1040 (`wallY` in `params.json`, read by `render3.sh`) so the lockup
+centres at frame y ≈ 1300, inside the panel; the per-frame formula, the ramp and the gate
+are unchanged. See "What v4 is" and "The v4 deltas".
 
 - `wall_word.png`: the wordmark (crop 270..1926 × 90..222 of the PNG), strokes dilated
   with `MaxFilter(5)` at source resolution, scaled to 1240 wide (99 tall), centred on the
@@ -285,8 +360,12 @@ host and logged a successful upload as a failure.
 
 ## Open
 
-- **OWNER — review the three cuts** (v3 the pick + the two alternates; links handed over
-  in-session). Nothing is posted; the wave-2 scripts are unreviewed too.
+- **OWNER — review the three v4 cuts** (the pick + the two alternates, Radio only on the
+  wall; links handed over in-session on 2026-09-02). The v3 trio is superseded. Nothing is
+  posted; the wave-2 scripts are unreviewed too.
+- **OWNER — the wall lockup's form:** v4 stacks SHAPE over ▸◂ RADIO at 680 px so it clears
+  the panel by ≥ 50 px at its narrowest; a single-line wordmark that fits would be ~45 px
+  tall. Either is a `WALL_W` / `WALL_GAP` re-render.
 - **Answered 2026-09-02 — the track pick:** *"i like both of them. We can use both"* →
   the same cut on all three tracks (see "Variants"); v3 stays primary.
 - **Questions for the owner** (defaults taken, all reversible): whether *"use both"*
@@ -307,7 +386,8 @@ as *the same film on each track*, not one film that changes track mid-way (that 
 is offered as a question in "Open"). So the v3 cut is rendered three times — the pick
 unchanged, and once per alternate — each re-planned by `plan.py` on that track's OWN
 measured grid with the identical structure: the A→B fade ends on beat 16, the SHAPE →
-SHAPE RADIO morph lands on beat 24, the B→C fade ends on beat 36. Scene B is clone-padded
+SHAPE RADIO morph lands on beat 24 (⚠ v3 variants only — the v4 renders on the same three
+grids have no morph), the B→C fade ends on beat 36. Scene B is clone-padded
 by 0.3 s on every variant (`padNeeded` 0.221 / 0.179 / 0.196 s).
 
 | Variant | Track | BPM · phase | Halves | tK (beat 16) | tM (beat 24) | tC (beat 36) | Total | Gate |
@@ -360,7 +440,12 @@ def kof(t):
 
 `kick_by_beat[n]` is the peak of the kick-band (35–150 Hz) energy within ±40 ms of grid
 beat n, normalized to the track's loudest beat (`beat.py` writes it into
-`meas_<track>.json`). A beat under 0.15 is silent, one over 0.45 pulses fully, and the
+`meas_<track>.json`). ⚠ **It must be written for EVERY beat** — `pres()` returns 0 past the
+array's end, so a record that stops early stills the pulse from that beat on with nothing to
+say so. On 2026-09-02 the sandbox was rebuilt from the transcript and the recovered `beat.py`
+wrote `kbn[:48]`: the first v4-alt1 render lost alternate 1's entire kick return (beat 48 on),
+caught only by `verify.py`'s second wall window. Fixed — `kick_by_beat` is every beat, 63 per
+track; the 09-02 gated renders used the full arrays listed below. A beat under 0.15 is silent, one over 0.45 pulses fully, and the
 ramp between is linear, so a fading kick fades the pulse. On the pick it is 0 for beats
 0–15 and ≥ 0.5 on every beat from 16 except its one gap — the gate generalizes v3's own
 `t ≥ tK` rule rather than replacing it. **v3 is deliberately rendered WITHOUT the gate**
@@ -381,7 +466,8 @@ One script runs the same checks on any variant: ffprobe (1440×2560 · 24 fps; a
 quirk, as on 09-01); transition frames against their source clips (mean diff ≤ 0.32
 outside the layers); screen-layer beat vs mid-beat frames chosen by the COMPUTED `k`
 (bbox 476–479 px lit at a beat vs 456 mid-beat); the morph (triangles 3987 / 3992 / 3999
-→ 0, the RADIO line 0 → 2490 / 2557 / 2485); the wall blank at its first frame; the
+→ 0, the RADIO line 0 → 2490 / 2557 / 2485 — ⚠ v3; the v4 check asserts the OPPOSITE, see
+"What v4 is"); the wall blank at its first frame; the
 output audio re-measured (119.95 / 119.7 / 119.4, halves agreeing, the first kick within
 40 ms of tK); tail RMS −19.2 / −25.8 / −17.3 dB against −12.9 / −10.3 / −10.0 mid-track
 (INPUT-side `-ss`). `pulsecheck.py <variant> <screen|wall> <t0> <t1>` proves the gate by
@@ -525,6 +611,51 @@ proc.stdin.close(); proc.wait()
 ```
 
 ---
+
+### The v4 deltas (2026-09-02)
+
+`assets.py` — the wall block replaces the single-line crop (the logo halves are unchanged):
+
+```python
+W=Image.open("in/radio-wordmark.png").convert("RGB")
+WALL_W=int(os.environ.get('WALL_W','680')); GAP=int(os.environ.get('WALL_GAP','20'))
+l1=W.crop((275,90,985,222)).filter(ImageFilter.MaxFilter(5))     # S H A P E
+l2=W.crop((1095,90,1918,222)).filter(ImageFilter.MaxFilter(5))   # ▸◂ RADIO
+k=WALL_W/l2.width
+l1=l1.resize((int(round(l1.width*k)),int(round(l1.height*k))),Image.LANCZOS)
+l2=l2.resize((WALL_W,int(round(l2.height*k))),Image.LANCZOS)
+BW,BH=1440,520; tot=l1.height+GAP+l2.height; y=(BH-tot)//2
+band=Image.new("RGB",(BW,BH),(0,0,0))
+band.paste(l1,((BW-l1.width)//2,y)); band.paste(l2,((BW-l2.width)//2,y+l1.height+GAP))
+band.save("in/wall_word.png"); band.filter(ImageFilter.GaussianBlur(22)).save("in/wall_glow.png")
+```
+
+`mk_screen3.py` — the morph is gone: no line 2, no `a1`/`a2`, no `tM`; per frame
+`paste(trig,g); paste(txtg,g); paste(tri,1); paste(txt,1)` with `s = 1 + 0.06·k` and
+`g = 0.25 + 0.9·k`. `plan.py` — writes `wallY` (1040; 850 reproduces v3) into
+`params.json`. `render3.sh` — `wy=int(p.get('wallY',850))` → the wall
+`overlay=x=0:y={wy}`. `beat.py` — `kick_by_beat=[round(float(v),2) for v in kbn]`, every
+beat. `verify.py` — the **fit** check, in outline (the lockup's lit bbox in the wall
+layer against the dark run of the SOURCE clip on the same rows):
+
+```python
+for tt in (0.35, 3.0, 6.0, 9.5):
+    i = round(tt*24)
+    lw = lit(frame(WALL, n=i))                         # x0 x1 y0 y1 of the lit lockup, layer coords
+    rows = (wy + lw['y0'] - 10, wy + lw['y1'] + 10)
+    col = frame('in/C.mp4', n=i)[rows[0]:rows[1]].mean(axis=0)
+    dark = col < 14                                    # the contiguous dark run containing x = 718
+    l = r = 718
+    while l > 0 and dark[l-1]: l -= 1
+    while r < len(dark)-1 and dark[r+1]: r += 1
+    fits = (lw['x0'] - l) >= 40 and (r - lw['x1']) >= 40
+```
+
+plus a `late` presence sample at T1 − 0.6 s (the layer's last frame sits inside its own
+fade-out) and a second wall window at tC + 12P … tC + 18P. Three variants render in
+parallel only from separate work directories (`w_<variant>/` with symlinked `in/ out/`
+and its own `params.json`) — `render3.sh` and both layer scripts read a cwd-relative
+`params.json`, so three renders in one directory race on it.
 
 ## Superseded: v1 and v2 (the record, kept)
 

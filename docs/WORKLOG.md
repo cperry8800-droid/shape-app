@@ -404,6 +404,83 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-02 — Launch cut v4: Radio only in the last clip, cut to fit the wall; the phone keeps the SHAPE logo
+
+- **Owner, on the three 09-02 renders: *"shape radio should only appear in the last clip
+  and make it so it fits on the main wall"*.** Two changes on the SAME grids, gate and
+  timing as the 09-02 variants — nothing else moved. The beat-24 phone morph
+  (SHAPE → ▸◂ RADIO) is deleted: for the whole of Scene B the SHAPE logo — triangles +
+  wordmark, 6 % scale + glow — pulses on every beat and nothing else appears on the
+  screen (`tM` is no longer read). Radio appears exactly once, on the club wall, as a
+  two-line lockup — SHAPE over ▸◂ RADIO, cut from the real wordmark — that ramps in over
+  the B→C fade, lands lit on beat 36 and pulses 3 % + glow to the end. Rendered as
+  **v4 / v4-alt1 / v4-alt2**; links handed over in-session, not in the repo. Recipe,
+  the measured panel, the fit check and the script deltas:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("What v4 is").
+- ⚠ **THE v3 WORDMARK DID NOT FIT THE WALL, AND "FITS" HAD NEVER BEEN MEASURED.** Scene C
+  is a dark central panel in front of a lit club interior, and the panel is NARROW — it
+  widens with the push-in: x 321–1122 (802 px) at 0.35 s, 283–1154 at 3 s, 241–1198 at
+  6 s, 169–1239 at 9.5 s (column means over the lockup's rows in `C.mp4`, dark = mean
+  < 14, the contiguous dark run containing x = 718). The v3 wordmark was **1240 px wide
+  at x 100–1340** — wider than the panel at every frame, 438 px wider at the start, the
+  lit pillars behind the letters. The recipe's geometry note said the scene's centre is
+  black "with nothing competing"; that was true of the CENTRE and false of the wordmark.
+  Corrected at the source.
+- **Two lines, not one.** A single-line wordmark that clears the narrowest panel would be
+  ~45 px tall — a caption, not a wordmark. The lockup stacks SHAPE (587×109) over
+  ▸◂ RADIO (680×109, `WALL_W = 680`, gap 20; both cut from the wordmark's rows 90–222 as
+  ONE box so they share a baseline; `MaxFilter(5)`), centred in the 1440×520 band and
+  overlaid at **`wallY = 1040`** (850 was v3's) so it centres on the panel's own centre
+  (≈ y 1300): frame y 1193–1407 at rest, 1187–1409 at a beat, with **50 / 58 px of panel
+  either side at the narrowest moment at a beat** (61 / 65 at rest) and 211 / 180 px by
+  9.5 s. `verify.py` now carries a **fit** check at four sample times — all four pass on
+  all three tracks — and a **no-second-line** check (no lit pixel below row 730 of the
+  screen at any of four samples, while the triangle rows carry ~4 000 lit pixels where
+  v3 read 0 after beat 24). `WALL_W` / `WALL_GAP` / `WALLY` re-size it in one env var if
+  the owner wants the single-line form.
+- ⚠ **THE FIRST v4-alt1 RENDER HAD A SILENT WALL FROM 24.1 s — THE GATE ARRAY HAD BEEN
+  TRUNCATED TO 48 BEATS.** The sandbox had been rebuilt from the transcript after a lease
+  loss, and the recovered `beat.py` wrote `kick_by_beat` as `kbn[:48]`; `pres()` returns 0
+  past the array's end, so alternate 1's kick return at beat 48 (24.07 s) never reached
+  the wall — k 0.0, 19 771 lit pixels constant through frames 140–241. (The 09-02 gated
+  renders used the full arrays — the recipe lists them through beat 62 — so the shipped
+  alternates were right; the rebuild was not.) Caught by `verify.py`'s SECOND wall window
+  (tC + 12P … tC + 18P), which exists precisely because a pulse proven in one window says
+  nothing about the next. Fixed at the instrument (every beat stored, 63 per track),
+  t1 / t2 / t3 re-measured, alternates re-rendered before anything was uploaded; alt1's
+  second window now reads 39 301 lit at a beat against 19 774 mid. *A gate array must
+  cover every beat of the track — a record that stops early is silence, not a gate.*
+- ⚠ **AND THE VERIFIER'S OWN "the logo is still there" SAMPLE WAS MISPLACED.** Its `last`
+  screen-layer frame sits inside the layer's own 0.3 s fade-out (1 851 / 3 279 lit, or
+  0 / 0 on alt2), so on a CORRECT render it read as "the logo is missing". A `late` sample
+  at T1 − 0.6 s now carries the presence assertion; `last` is checked only for the absent
+  second line. *Sample where the thing you assert can exist.*
+- **Verified numerically, per variant:** 1440×2560 · 24 fps; v4 671 fr / 27.959 s
+  (the `-t` +1-frame quirk, as before), the alternates 669 / 27.875; transition frames
+  match their sources (mean diff 0.32 / 1.83 / 1.49 outside the layers); the phone bbox
+  476–479 px and 20–22 k lit at a beat against 456 px / 8.8 k mid-beat; the wall blank at
+  its first frame, then v4 42.5 k / 49.7 k lit at a beat against 19.8 k mid in both
+  windows, alternate 2 40.0 k against 19.7 k in the first and still in the second (its
+  kick stops at beat 44), alternate 1 still in the first (kick-less 16.5–24.1 s) and
+  39.3 k against 19.8 k in the second; the output audio re-measures 119.4 / 119.95 / 119.7
+  BPM with halves agreeing and the first kick at 8.04 / 0.56 / 8.02 s; tail RMS
+  −17.3 / −19.3 / −25.8 dB against −10.0 / −12.9 / −10.3 mid (INPUT-side `-ss`). Each
+  upload's md5 matches the sandbox file (gofile guest, the 09-02 host order).
+- **Looked at, not only measured.** Two frame crops (the phone at a beat, the wall at a
+  beat) came out of the sandbox as base64, because the local proxy reaches no file host.
+  ⚠ An 11 KB block retyped in one piece was corrupt by ONE character. What works: the
+  sandbox prints 400-char lines each prefixed with the first 4 hex of its own md5 plus a
+  whole-file md5; a local script checks every line before decoding and names the bad
+  ones; a bad line is re-printed in 50-char pieces with their own checksums and only
+  those are retyped. A "corrected" retype of that line from memory was wrong too — the
+  checksum decides, not the eye. Both crops then read as designed: the logo alone on the
+  phone; the lockup inside the panel with dark on both sides.
+- **Records only in the repo** (this entry, the recipe's "What v4 is" + the script deltas
+  + ⚠ pointers on the superseded claims, the War Room item); **no PR, nothing merged.**
+  Open: the lockup's form (two lines vs a ~45 px single line — an env-var re-render) and
+  the 09-02 questions, unchanged.
+
 ### 2026-09-02 — The ascent chart at the top of the ladder, and two rounds of pill compaction
 
 - **Three owner calls, one presentation-only diff** (mobile only; no migration, no route,
@@ -511,7 +588,9 @@ changelog whenever something ships.
   renders now exist — **v3 (the pick, unchanged)** plus the identical cut on alternate 1
   and alternate 2, each re-planned by `plan.py` on that track's OWN measured grid with the
   same structure (the phone lands on beat 16, SHAPE → ▸◂ RADIO on beat 24, the wall on
-  beat 36). Links handed over in-session, not in the repo. The other reading (one cut, two
+  beat 36). ⚠ **SUPERSEDED THE SAME DAY BY v4 (the entry above)** — the phone morph on
+  beat 24 is gone and the wall lockup was re-cut to fit the slab; the grids and the gate
+  carry over. Links handed over in-session, not in the repo. The other reading (one cut, two
   tracks) is offered as a question, not built. Recipe, grids, gate and verification:
   [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
   ("Variants").
@@ -610,6 +689,10 @@ changelog whenever something ships.
   RADIO, before the wall carries the full wordmark. The wall wordmark no longer fades in
   at 21.7 s: it ramps in over the B→C fade to land fully lit ON the beat with a glow
   flash, then keeps pulsing to the end. One motif, three sizes, all on one grid.
+  ⚠ **SUPERSEDED 2026-09-02 BY v4** — the owner asked for Radio *"only in the last
+  clip"*: the phone keeps the SHAPE logo for the whole of Scene B, and the wall lockup
+  was re-cut to FIT the slab — the v3 wordmark, 1240 px wide, overran a panel that is
+  802 px wide when the scene opens (see the v4 entry).
 - **No rings.** The only motion on the phone is the logo's own 6 % scale throb + glow
   (`k = exp(−u/0.20)` per beat); the wall gets 3 % + glow. A whole-frame pulse was
   considered and dropped — *"just the logo itself"*.
