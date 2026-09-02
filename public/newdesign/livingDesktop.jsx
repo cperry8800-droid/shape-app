@@ -198,14 +198,23 @@ function TerrainVisual({ d }) {
   const c = tierOf(d).color;
   const W = 520, H = 460;
   const lvl = memberLevel(d);
-  const pct = Math.max(0.05, Math.min(lvl.pct, 0.98));
+  // ⚠ TOP OF THE LADDER (Legend) — the ridge's ordinary framing is ONE step
+  // (your tier → the next one), and the last rung has no next one. Left as-is it
+  // labelled BOTH ends of a segment that does not exist, read 98% of a span with
+  // no far end, and parked the figure two-thirds up a fully-drawn route. At the
+  // top the SAME picture re-frames as the WHOLE ladder: base = the FIRST rung,
+  // summit = the tier they hold, route complete, figure at the top of it, and
+  // the badge NAMES the state instead of quoting a percentage. Mirrors the
+  // mobile Terrain hero (iosAppBroadsheetClient.jsx) so both surfaces agree.
+  const top = !!lvl.top;
+  const pct = top ? 1 : Math.max(0.05, Math.min(lvl.pct, 0.98));
   const base = [44, H - 56], peak = [W - 64, 64];
   const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 96}, ${W * 0.6} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
-  const hp = Math.max(0.05, Math.min(pct, 0.7));
+  const hp = Math.max(0.05, Math.min(pct, top ? 0.82 : 0.7));
   const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
   const pctLabel = Math.round(pct * 100);
-  const summit = lvl.next || lvl.cur;
-  const startLabel = lvl.cur;
+  const baseLabel = top ? memberLevel({ score: 0 }).cur : lvl.cur;
+  const summitLabel = lvl.next || lvl.cur;
   // ridge length ≈ perimeter; dash to reveal pct of the trace.
   const dash = Math.round(pct * 1100);
   return (
@@ -224,11 +233,16 @@ function TerrainVisual({ d }) {
       {/* you-are-here avatar climbing the ridge */}
       <div style={{ position: "absolute", left: `calc(${(here.x / W) * 100}% - 44px)`, top: `calc(${(here.y / H) * 100}% - 100px)`, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <LvPortrait d={d} size={88} />
-        <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, background: dHexA(LV_BG, 0.85), padding: "3px 9px", borderRadius: 5, whiteSpace: "nowrap" }}>You · {pctLabel}%</div>
+        <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, background: dHexA(LV_BG, 0.85), padding: "3px 9px", borderRadius: 5, whiteSpace: "nowrap" }}>{top ? "Top tier" : `You · ${pctLabel}%`}</div>
       </div>
-      {/* current level (base) + next level (by the flag, top-right) */}
-      <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{startLabel} · now</div>
-      <div style={{ position: "absolute", left: `${(peak[0] / W) * 100}%`, transform: "translateX(-50%)", top: 56, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "center", whiteSpace: "nowrap", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }}>{lvl.next || lvl.cur}</div>
+      {/* base level + summit level. ⚠ At the top state the figure climbs to 0.86,
+          which runs under the flag's label slot — so the summit label drops to the
+          baseline beside the base one, where the whole-ladder framing reads as a
+          pair. Mid-ladder it stays by the flag, unchanged. */}
+      <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{top ? baseLabel : `${baseLabel} · now`}</div>
+      <div style={top
+        ? { position: "absolute", right: 16, bottom: 16, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "center", whiteSpace: "nowrap", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }
+        : { position: "absolute", left: `${(peak[0] / W) * 100}%`, transform: "translateX(-50%)", top: 56, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "center", whiteSpace: "nowrap", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }}>{summitLabel}</div>
     </div>
   );
 }
@@ -415,7 +429,12 @@ function dkClimbCfg(d, aspect) {
     const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
     let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
     const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
-    return { arc: [[NM[i], `${floor.toLocaleString()} pts`, "start"], ["Now", `${pts.toLocaleString()} pts`, "now"], [nextName, `${next.toLocaleString()} pts`, "target"]], pct: last ? 1 : Math.max(0.05, Math.min(0.95, (pts - floor) / Math.max(1, next - floor))) };
+    // ⚠ At the LAST rung there is no next tier, so the ordinary this-tier →
+    // next-tier arc would read "Legend 15,000 pts → Legend 15,000 pts". The top
+    // state spans the WHOLE ladder instead — the same re-frame the hero ridge
+    // above makes, so the two ridges on one page agree about a finished climb.
+    const startRung = last ? [NM[0], `${TH[0].toLocaleString()} pts`, "start"] : [NM[i], `${floor.toLocaleString()} pts`, "start"];
+    return { arc: [startRung, ["Now", `${pts.toLocaleString()} pts`, "now"], [nextName, `${next.toLocaleString()} pts`, "target"]], pct: last ? 1 : Math.max(0.05, Math.min(0.95, (pts - floor) / Math.max(1, next - floor))) };
   }
   if (aspect === "streak") {
     const s = Number(d.streak) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);

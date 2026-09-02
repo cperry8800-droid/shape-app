@@ -24,6 +24,7 @@
   "ridge.now": "Сейчас",
   "ridge.start": "Старт",
   "ridge.target": "Ориентир",
+  "ridge.topTier": "Высший уровень",
   "follow.follow": "＋ Подписаться",
   "follow.following": "Вы подписаны",
   "follow.requestCount": "{count, plural, one {# запрос} few {# запроса} many {# запросов} other {# запроса}}",

@@ -24,6 +24,7 @@
   "ridge.now": "Şimdi",
   "ridge.start": "Başlangıç",
   "ridge.target": "Amaç",
+  "ridge.topTier": "En üst seviye",
   "follow.follow": "＋ Takip et",
   "follow.following": "Takip ediliyor",
   "follow.requestCount": "{count, plural, one {# istek} other {# istek}}",

@@ -11664,13 +11664,19 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       </button>
     );
     const dot = <span aria-hidden style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.3), padding: '0 10px' }}>·</span>;
+    // ⚠ THE TINTED BOX IS THE INNER SPAN, NOT THE BUTTON (owner call — "make the
+    // box smaller, more compact"). The button keeps its 44px tap height, but a
+    // background painted on the button fills all 44px, which read as a big
+    // slab beside the hairline MESSAGE action. Painting the box on an inner
+    // span keeps the affordance compact (~24px) while the invisible hit area
+    // stays full size — the same negative-space trick the feed's ✎ edit uses.
     const followAction = !isSelf ? (
       <button onClick={onToggle} disabled={busy} style={{
-        flex: 'none', minHeight: 44, padding: fs === 'follow' ? '9px 12px' : '11px 2px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
-        fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', border: 0,
-        background: fs === 'follow' ? bsTHexA(c, 0.14) : 'transparent', borderRadius: fs === 'follow' ? 3 : 0,
+        flex: 'none', minHeight: 44, padding: '11px 0', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
+        display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0,
+        fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
         color: fs === 'requested' ? bsTHexA(INK, 0.55) : INK,
-      }}>{fs === 'following' ? <>{tr('profile:follow.following', { defaultValue: 'Following' })} <span style={{ color: c }}>✓</span></> : fs === 'requested' ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.follow', { defaultValue: '＋ Follow' })}</button>
+      }}><span style={{ display: 'inline-block', lineHeight: 1, padding: fs === 'follow' ? '5px 9px' : 0, borderRadius: fs === 'follow' ? 3 : 0, background: fs === 'follow' ? bsTHexA(c, 0.14) : 'transparent' }}>{fs === 'following' ? <>{tr('profile:follow.following', { defaultValue: 'Following' })} <span style={{ color: c }}>✓</span></> : fs === 'requested' ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.follow', { defaultValue: '＋ Follow' })}</span></button>
     ) : null;
     const msgAction = (!isSelf && typeof onMessage === 'function') ? (
       <button onClick={() => onMessage()} style={{ flex: 'none', minHeight: 44, padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.75), lineHeight: 1 }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>{tr('profile:action.message', { defaultValue: 'Message' })}</span></button>
@@ -11713,27 +11719,29 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   //    mono pill, solid tier-color for the primary and a hairline INK outline
   //    for the secondary (see the sticky dock at the foot of this page, which
   //    is the exact pair these now match).
-  //    SIZE (owner call 2026-08-31, second pass): 44 → 38 high, and the type
-  //    and padding come down with it so the pill keeps its proportions rather
-  //    than just getting shorter. 38 clears this repo's documented tap floor —
-  //    WCAG 2.5.8 AA is 24px — with room to spare; it is below Apple's 44pt
-  //    HIG suggestion by choice, matching the other quiet controls on this
-  //    page. Do not read the old "44 = the platform tap target" note as still
-  //    binding: it described the previous size, not a constraint.
+  //    SIZE (owner call, third pass 2026-09-02): 38 → 30 high. Every
+  //    dimension comes down together — type 9 → 8, padding 10/15 → 6/11,
+  //    tracking 0.1 → 0.09em, the pair's gap 8 → 6 — so the pills keep their
+  //    proportions instead of just getting squat. 30 still clears this repo's
+  //    documented tap floor (WCAG 2.5.8 AA is 24px) with room to spare; it is
+  //    below Apple's 44pt HIG suggestion by choice, matching the other quiet
+  //    controls on this page. Do not read the old "44 = the platform tap
+  //    target" note as still binding: it described a previous size, not a
+  //    constraint.
   //    KEPT: the press feedback and the Follow chip's breathing glow-until-you-
   //    follow. A box-shadow follows border-radius, so the affordance survives
   //    the shape change untouched. Motion respects prefers-reduced-motion.
   const faBase = {
-    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 38, padding: '10px 15px',
+    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 30, padding: '6px 11px',
     borderRadius: 999,
-    fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+    fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase',
     transition: 'transform 140ms ease, background 180ms ease, box-shadow 180ms ease',
   };
   if (!isSelf) bsInjectFollowChipCss();
   const actions = !isSelf ? (
     /* One flex item so Follow + Message always share a row — the pair wraps
        together, never apart. */
-    <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6 }}>
       <button onClick={onToggle} disabled={busy} className={fs === 'follow' ? 'bs-fa-follow' : undefined} style={{
         ...faBase, cursor: busy ? 'default' : 'pointer',
         '--fa-glow': bsTHexA(c, 0.5),
@@ -14455,7 +14463,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       const TH = [0, 750, 2000, 5000, 15000], NM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
       let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
       const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
-      return { arc: [[NM[i], `${floor.toLocaleString()} pts`, 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
+      // ⚠ At the LAST rung there is no next tier, so a "this tier → the next
+      // one" arc labels its two ends with the SAME name and points (it read
+      // "Legend 15,000 pts → Legend 15,000 pts"). The top state spans the WHOLE
+      // ladder instead — first rung → the tier they hold — which is the same
+      // re-frame the hero ascent makes, so the two ridges agree on this page.
+      const startRung = last ? [NM[0], `${TH[0].toLocaleString()} pts`, 'start'] : [NM[i], `${floor.toLocaleString()} pts`, 'start'];
+      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
     }
     if (aspect === 'streak') {
       const s = Number(streakEff) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
@@ -14495,8 +14509,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const climbCfg = climbCfgFor(activeClimb);
   const arc = climbCfg.arc;
   const pct = climbCfg.pct;
-  const pctLabel = Math.round(pct * 100);
-  const summitEff = climbCfg.summit;
+  // (`climbCfg.summit` + a rounded `pct` label had no readers — the climb box
+  // renders the arc rows and the ridge geometry, not a summit line — so they
+  // are not re-derived here. `pct` itself IS read, by the ridge.)
   // Hero ascent = standing toward the next LEVEL (tier). Independent of the Climb
   // tab's selected aspect, so the avatar never jumps when you switch tabs.
   const _HLNM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
@@ -14510,6 +14525,17 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   else { heroPct = Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)); nextLevel = _HLNM[Math.min(_hlIdx + 1, _HLNM.length - 1)]; }
   const heroPctLabel = Math.round(heroPct * 100);
   const curLevel = _HLNM[_hlIdx] || tierName;
+  // ⚠ TOP OF THE LADDER (Legend) — the ascent's normal framing is ONE segment,
+  // "your tier → the next one", and at the last rung that segment does not
+  // exist. Left alone it rendered nonsense: BOTH end labels read LEGEND (base =
+  // curLevel, summit = nextLevel ?? curLevel), the badge read "100%" of a span
+  // with no far end, and the figure stood two-thirds up a route drawn full to
+  // the flag. So the top state re-frames the SAME picture as the WHOLE ladder —
+  // base = the first rung, summit = the tier they hold, route complete, figure
+  // at the top of it — and the badge names the state instead of a percentage.
+  // (Same call as the coach sigil's `_sigTop` → "Top of the ladder".)
+  const heroBaseLevel = _hlTop ? _HLNM[0] : curLevel;
+  const heroSummitLevel = nextLevel || curLevel;
   // Coached-by band — real program phase + linked coach on your own profile.
   const blockEff = (isSelf && prog && prog.trainingPhase) ? tr('profile:terrain.currentPhase', { defaultValue: 'Current phase' }) : block;
   const programEff = (isSelf && prog && (prog.trainingPhase || prog.nutritionPhase)) ? [prog.trainingPhase, prog.nutritionPhase].filter(Boolean).join(' · ') : program;
@@ -14643,7 +14669,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             const W = 330, H = 150;
             const base = [12, H - 22], peak = [W - 22, 26];
             const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 34}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
-            const hp = Math.max(0.06, Math.min(heroPct, 0.66));
+            // The figure rides the chord, capped clear of the summit flag. At
+            // the top of the ladder it climbs to 0.82 so it stands AT the end of
+            // the fully-drawn route (0.66 there read as "100% — two-thirds up");
+            // the cap is what keeps it off the flag + summit label at any width.
+            const hp = Math.max(0.06, Math.min(heroPct, _hlTop ? 0.82 : 0.66));
             const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
             const reduced = bsSdReduced();
             // Over a photo the paper's INK is unusable — fixed cream + shadow.
@@ -14664,22 +14694,34 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={bsTHexA(rINK, heroCover ? 0.8 : 0.55)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
                 </svg>
                 {/* you-are-here facet (the page's one breathing loop) + 43% readout */}
-                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 30px))`, top: `${(here.y / H) * 100}%`, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, filter: heroCover ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.5))' : undefined }}>
+                {/* width is PINNED to the 60px facet so the figure sits exactly on
+                    the ridge point: shrink-to-fit would let a long badge (the top-of-
+                    ladder label runs to ~15 chars in ru/uk) widen the column and push
+                    the avatar sideways into the summit flag. The badge is nowrap and
+                    simply overflows this box symmetrically instead. */}
+                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 30px))`, top: `${(here.y / H) * 100}%`, width: 60, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, filter: heroCover ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.5))' : undefined }}>
                   <div style={{ borderRadius: '50%', ...(reduced ? null : { '--sd-glow': bsTHexA(c, 0.45), animation: 'bsSdPop 400ms cubic-bezier(.2,1.1,.3,1) 1150ms both, bsSdPrBreath 3.2s ease-in-out 1750ms infinite' }) }}>
                     <BSFacetAvatar size={60} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
                   </div>
-                  <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', color: rINK, textShadow: overSh, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{heroPctLabel}%</span>
+                  <span style={{ fontFamily: MONO, fontSize: _hlTop ? 8 : 9, fontWeight: 800, letterSpacing: _hlTop ? '0.12em' : '0.04em', textTransform: _hlTop ? 'uppercase' : 'none', color: rINK, textShadow: overSh, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{_hlTop ? tr('profile:ridge.topTier', { defaultValue: 'Top tier' }) : `${heroPctLabel}%`}</span>
                 </div>
                 {/* base + summit level labels — bare mono (no pills, no tier text) */}
-                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{curLevel}</span>
+                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{heroBaseLevel}</span>
                 {/* The inset must FOLLOW the SVG's percentage geometry, not be a fixed px:
                     preserveAspectRatio="none" stretches x with the width, so the flag's
                     left edge always sits (330−308)/330 = 6.67% from the right. A fixed
                     inset re-overlaps once the ridge is wide enough (landscape is enabled
                     in Info.plist, so >510px is reachable); calc(6.67% + 6px) keeps the
                     label left of the flag with a 6px gap at ANY width. At right:12 the
-                    label's tail painted over the flag fill and was unreadable. */}
-                <span style={{ position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{nextLevel || curLevel}</span>
+                    label's tail painted over the flag fill and was unreadable.
+                    ⚠ At the TOP of the ladder the summit label drops to the
+                    BASELINE instead (mirroring the base label), because the
+                    figure now stands near the peak and would collide with it up
+                    there. The right side under the ridge is empty at that height,
+                    so the two rung names read as the ends of one finished route. */}
+                <span style={_hlTop
+                  ? { position: 'absolute', right: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }
+                  : { position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{heroSummitLevel}</span>
               </div>
             );
           })()}
