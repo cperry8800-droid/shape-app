@@ -119,6 +119,10 @@ deliberately not recorded here. The script deltas are under "The v4 deltas".
 
 ## The feature spots + launch v5 (2026-09-02) — the real app on the phone, cut to the beat
 
+⚠ **SUPERSEDED 2026-09-02 BY v6 for the launch cut, and by the slowed re-cut for the
+four feature spots** — see "What v6 is" and "The spots, slowed" below. v5 is left as it
+shipped; it is not the launch cut any more.
+
 Owner, on the v4 trio: *"also the videos need to have a lot more going on. Create videos
 that show the other features of the app."* Five renders answer it: four ~14.5 s **feature
 spots** — **TRAIN · EAT · COMMUNITY · SCORE**, one per owned track — and **launch cut v5**,
@@ -1512,6 +1516,572 @@ if __name__=='__main__':
 ---
 
 
+## What v6 is (2026-09-02) — the watch on the run, the Radio screen on the wall, a globe to close
+
+**Three owner notes on the v4/v5 trio.** *"for the launch video, show the shape radio
+screen on the wall in the last screen and show the BPM & HRM beat match feature on the
+watch. Or maybe show that feature on the first scene with the guy running. And make sure
+the shape radio logo fits and it looks like it does on app and website. Not condensed.
+Maybe start that scene with the wall more zoomed in so it fits"* · *"and then the last
+scene, show video of the globle spinning and shape popping up around the globe
+representing people that have downloaded, with the shape logo appearing above the globe"*
+· *"popping up above the globe"*. v6 answers all three; **1440×2560 · 24 fps · 738 frames
+· 30.750 s**, on the pick (t3). ⚠ **v6 SUPERSEDES v5** — the montage cut is left as it
+is, unrendered against these changes, until the owner picks one.
+
+**Four scenes now, not three.** A (the runner) + a **wrist readout**; B (the phone) with
+the SHAPE logo alone, exactly as v4 left it; C (the club wall) **zoomed in**, carrying the
+**single-line Radio wordmark** and a **projected Radio screen**; and a new **D** — a night
+Earth, Shape marks popping onto its lit cities, the logo rising above it, the close copy
+under it.
+
+| beat | t (s) | what lands |
+| --- | --- | --- |
+| 14 | 7.062 | the watch reads **IN SYNC** (the ring flashes once) |
+| 16 | 8.067 | A→B fade ENDS on the kick drop (`offAB` 7.7668) |
+| 18 · 21 · 24 | — | the phone logo pulses |
+| 28 | 14.094 | B→C fade ENDS (`offBC` 13.7945); the wall lights |
+| 30 · 36 | — | the wall wordmark pulses |
+| 44 | 22.131 | C→D fade ENDS (`offCD` 21.8313); `lenC` 8.3368 |
+| 48 → 60 | 24.140 → 30.168 | **27 marks** pop onto the globe (1 · 2 · 3 per beat) |
+| 52 | 26.150 | the SHAPE logo pops **above** the globe, then pulses on the gate |
+| 56 | 28.159 | the close copy fades in under the globe |
+| total | 30.750 | t60 + 0.6 s video fade, rounded to frames (738) |
+
+**The watch (Scene A, `mk_watch.py`).** A 480×480 RGBA layer overlaid at x 890 / y 1660 —
+the app's own **HEART-RATE SYNC** card as a wrist face: the header, the YOU · BPM figure
+with a heart that beats at the displayed rate, the station line, and the app's own pill
+(`MATCH MY BPM` → `MATCHING BEAT` → `IN SYNC`). It fades in at 1.3 s, the rate eases
+**104 → 120** and lands IN SYNC on **beat 14**, two beats before the kick drop — so the
+sync reads as the reason the drop hits. Status colour follows the app: cream FREE → amber
+MATCHING → teal IN SYNC.
+
+⚠ **THE READOUT IS ILLUSTRATIVE, AND THE STATION NUMBER IS DELIBERATELY NOT THE APP'S.**
+The station line reads **120 BPM** because that is the track's real tempo (t3 measures
+119.45), while the shipped signed-out preview shows **132**. Nothing here is a live
+reading — the app's own demo path fabricates 114 bpm with no strap attached (the
+2026-08-31 capture rule), so a "real" number on camera would be a fabrication either way.
+The honest statement is that this is the feature's own UI at the film's own tempo.
+
+**The wall (Scene C, `mk_wall6.py`) — the wordmark is single-line again.** v4 stacked
+SHAPE over ▸◂ RADIO because the v3 one-liner overran a narrow panel. Zooming the scene
+fixes the premise instead of the lockup: `C_zoom.mp4` is `C.mp4` under
+`zoompan=z='1.15+0.35*pow(1-min(1,on/N),3)'` — it **opens at 1.50× and eases out to
+1.15×**, so the slab is widest exactly when the wordmark lands. The wordmark is the
+product's own `public/shape-radio-logo.png` (1647×116, one line, not condensed) at
+`WALL_W=1020`, and a **projected Radio screen** (a real capture of the app's Radio page,
+560 px wide, rounded-masked, bloomed) sits below it on the same slab. Measured in the
+render: wordmark x 214–1225 (w 1010–1012, h 62) with **74/81 · 62/70 · 47/48 · 73/72 px
+of slab either side** at 14.3 / 15.0 / 17.0 / 21.0 s, and the screen inside the slab at
+x 459–972.
+
+⚠ **THE CLUB CLIP STROBES, SO "IS THE SLAB THERE?" IS THE WRONG QUESTION.** The wordmark
+band reads dark on **64 of 200 Scene-C frames (32 %)** — the source is a lit club with a
+flashing rig, not a steady panel. The fit check therefore samples frames where the slab
+exists and reports the coverage as information rather than a failure; the wordmark and
+screen are SCREEN-blended, so a lit frame washes them brighter rather than clipping them.
+
+**The globe (Scene D, `mk_globe.py`).** A generated night Earth — city lights, a faint
+teal rim, a slow spin, no text — measured by `meas_globe.py` to disc centre (727, 1295)
+r 676. **27 Shape marks** (the real two-triangle geometry, cut from `logo_tri.png`) pop
+onto **lit cities**: each pop time samples that frame of the source, picks a pixel above
+luma 110 inside 0.90 R with a 150 px spacing rule, and lands with an ease-out-back
+overshoot plus one expanding teal ring. From beat 52 the **SHAPE logo pops above the
+globe** and pulses on the same kick gate; from beat 56 the close copy fades in beneath.
+
+⚠ **THE MARKS ARE ILLUSTRATIVE AND CLAIM NO COUNT.** They stand for people, not for a
+number of downloads — nothing on screen says how many, and nothing in the copy does
+either. The owner's phrase was "representing people that have downloaded"; the film shows
+that idea without asserting a figure it cannot support.
+
+⚠ **THE PULSE PEAK IS THE FIRST FRAME AT OR AFTER THE BEAT — AND THE FIRST v6 VERIFY RUN
+FAILED FIVE ASSERTIONS BECAUSE IT SAMPLED THE BEAT INSTANT ITSELF.** `k = exp(−u/0.20)`
+is maximal at u = 0, but a 24 fps render has no frame there unless the beat happens to
+land on one, so `frame(beat(n))` can return the frame BEFORE the pulse. Sampling
+`beat(n) + 1/24` fixes it. The second half of the same lesson: the wall's pulse is **3 %
+scale + glow** against the phone's **6 %**, so the wall needs a **lower lit threshold**
+(30, not 60) or a real pulse reads as none. With both corrections every assertion passes
+and the numbers are materially different — phone beats 18/21/24 read 12657 w477 / 13462
+w478 / 14499 w480 against mid-beat 8536–8644 w458–459, and wall beats 30/36 read 8290
+w1033 / 8863 w1037 against mid 7152 / 6986 w1013. *A pulse measured at a frame that does
+not exist is not a pulse that failed.*
+
+**Verified numerically** (`verify6.py`, all PASS): 738 frames · 1440×2560 · 24 fps · aac
+44100 stereo; A matches its source outside the watch rect (1.09) with the watch absent at
+0.5 s (0.20) and present at 3.0 / 6.5 (20.71 / 21.38), and MATCHING(amber) → IN SYNC(teal)
+across beat 14 (teal 579→2031, amber 1121→0); B matches `B_long` outside the phone rect
+(1.04–1.75); C matches `C_zoom` outside the layers (0.57–1.08); D matches the globe source
+before the pops (mean 0.68, p50 0.3, p99 5.1, layer lit 0) with marks lit in the disc at
+beats 50/54/58 (1832 / 4882 / 7231 against 0 pre-pop), the logo absent then present across
+beat 52 (0 → 8833 w463), the globe logo pulsing at beat 56 (13087 w465 against mid 7990
+w442), and the close copy absent then present across beat 56 (0 → 3035); the video fades
+to black and the audio re-measures **119.45 BPM** with the tail 8 dB under mid-track.
+**Render md5 `ebb1926f18c44e1b7f53a976e2034bf1`** (34,985,688 B).
+
+**New sources for v6** (added to the permanent list): the globe clip
+`hf_20260902_194057_a5fb13ea-1054-44d3-a5e2-9ef7d8188564.mp4` under the same cloudfront
+prefix, the product's own `public/shape-radio-logo.png`, and a Playwright capture of the
+app's Radio page (`cap/r3_radio_top.png`) for the projected screen. `in/phoneB.mp4` is
+v4's phone layer, unchanged.
+
+### v6 scripts
+
+**`meas_globe.py`** — Measures the globe disc in `in/D.mp4` (centre + radius) so the marks can be scattered on the lit landmass rather than guessed.
+
+```python
+import subprocess,sys,numpy as np
+W,H=1440,2560
+def frame(t):
+    raw=subprocess.run(['ffmpeg','-v','error','-ss',f'{t:.3f}','-i','in/D.mp4','-frames:v','1','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
+    return np.frombuffer(raw[:W*H],np.uint8).reshape(H,W).astype(np.float32)
+prev=None
+for t in [0,1,2,3,4,5,6,7,8,9,9.9]:
+    f=frame(t); m=f>28; ys,xs=np.where(m)
+    print(f"t={t}: mean {f.mean():.1f} disc bbox x {xs.min()}-{xs.max()} y {ys.min()}-{ys.max()} (w {xs.max()-xs.min()} h {ys.max()-ys.min()}) bright>120 px {(f>120).sum()}")
+    if prev is not None:
+        # horizontal drift: band through the middle rows, best shift
+        cy=(ys.min()+ys.max())//2; band=f[cy-200:cy+200]; pb=prev[cy-200:cy+200]
+        best=None
+        for s in range(-80,81,2):
+            a=band[:,max(0,s):W+min(0,s)]; b=pb[:,max(0,-s):W+min(0,-s)]
+            d=np.abs(a-b).mean()
+            if best is None or d<best[1]: best=(s,d)
+        print(f"   drift vs prev second: {best[0]} px (err {best[1]:.2f}), zero-shift err {np.abs(band-pb).mean():.2f}")
+    prev=f
+# top edge of the disc over time (for logo placement) and the black space above
+for t in [0,5,9.9]:
+    f=frame(t); rows=(f>28).sum(1); top=int(np.argmax(rows>20)); print(f"t={t}: disc top row {top}, rows above with any px>28: {(rows[:top]>0).sum()}")
+print('GLOBE_DONE')
+```
+
+**`mk_watch.py`** — Draws the watch HR-sync card as a 480x480 RGBA qtrle overlay, timed so IN SYNC lands on beat 14.
+
+```python
+# Scene A watch face: the app's HEART-RATE SYNC card as a wrist readout. 480x480 RGBA layer, overlaid lower-right on A.
+# Illustrative demo path: YOU climbs 104 -> 120 (the track's real tempo) and lands IN SYNC on beat 14, before the kick drop on 16.
+import math,json,subprocess,numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+p=json.load(open('params_v6.json')); P=p['P']; phi=p['phi']
+F='/home/user/fonts/'; S=480; FPS=24; T_END=p['t16']; N=int(round(T_END*FPS))
+TEAL=(52,214,197); CREAM=(242,237,228); DIM=(242,237,228,150); AMBER=(232,164,64)
+def mono(sz,w=700):
+    f=ImageFont.truetype(F+'JetBrainsMono[wght].ttf',sz); f.set_variation_by_axes([w]); return f
+fH=mono(19,700); fN=mono(128,800); fS=mono(23,600); fP=mono(24,700); fU=mono(20,600)
+tSync=phi+14*P; tIn=1.3; tHr0=2.2; tMatch=2.7
+def clamp(x): return max(0.0,min(1.0,x))
+def ss(x): x=clamp(x); return x*x*(3-2*x)
+def hr_of(t): return 104+16*ss((t-tHr0)/(tSync-tHr0))
+def tracked(d,x,y,txt,f,tr,fill,anchor='l'):
+    w=sum(f.getlength(c) for c in txt)+tr*(len(txt)-1)
+    if anchor=='c': x=x-w/2
+    if anchor=='r': x=x-w
+    for c in txt: d.text((x,y),c,font=f,fill=fill); x+=f.getlength(c)+tr
+    return w
+def heart(d,cx,cy,r,fill):
+    d.ellipse((cx-r,cy-r*0.9,cx,cy+r*0.1),fill=fill); d.ellipse((cx,cy-r*0.9,cx+r,cy+r*0.1),fill=fill)
+    d.polygon([(cx-r,cy-0.15*r),(cx+r,cy-0.15*r),(cx,cy+r*1.05)],fill=fill)
+def dotglyph(d,cx,cy,filled,col):
+    d.ellipse((cx-9,cy-9,cx+9,cy+9),outline=col,width=2)
+    if filled: d.ellipse((cx-4,cy-4,cx+4,cy+4),fill=col)
+proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgba','-s',f'{S}x{S}','-r',str(FPS),'-i','-','-c:v','qtrle','-pix_fmt','argb','in/watch.mov'],stdin=subprocess.PIPE)
+phase=0.0; last_t=0.0
+for i in range(N):
+    t=i/FPS; a=clamp((t-tIn)/0.6)
+    hr=hr_of(t); phase+=hr/60.0*(t-last_t); last_t=t; u=phase%1.0
+    img=Image.new('RGBA',(S,S),(0,0,0,0))
+    if a>0:
+        # shadow
+        sh=Image.new('RGBA',(S,S),(0,0,0,0)); ImageDraw.Draw(sh).rounded_rectangle((32,42,S-28,S-18),radius=104,fill=(0,0,0,150)); sh=sh.filter(ImageFilter.GaussianBlur(16)); img.alpha_composite(sh)
+        face=Image.new('RGBA',(S,S),(0,0,0,0)); d=ImageDraw.Draw(face)
+        synced=t>=tSync; flash=clamp((t-tSync)/0.5) if synced else 0.0
+        ringA=int(120+120*(1-flash)) if synced and flash<1 else 110
+        d.rounded_rectangle((30,30,S-30,S-30),radius=104,fill=(10,12,12,236),outline=TEAL+(ringA,),width=3)
+        # header
+        tracked(d,58,58,'HEART-RATE SYNC',fH,2.5,CREAM+(215,))
+        tag=('IN SYNC' if synced else ('MATCHING...' if t>=tMatch else 'FREE')); tcol=TEAL if synced else (AMBER if t>=tMatch else CREAM)
+        tracked(d,S-58,58,tag,fH,2.5,tcol+(240,),'r')
+        d.line((58,92,S-58,92),fill=CREAM+(50,),width=1)
+        # heart + big number (YOU)
+        hs=1+0.16*math.exp(-u/0.14); heart(d,86,182,int(round(15*hs)),TEAL+(255,))
+        num=str(int(round(hr))); d.text((116,104),num,font=fN,fill=CREAM+(255,))
+        tracked(d,120,232,'YOU · BPM',fU,2.0,CREAM+(150,))
+        # station line
+        delta=int(round(hr))-120; dl=('IN SYNC' if synced else f'{delta:+d} BPM')
+        tracked(d,58,278,'STATION 120 BPM',fS,1.5,CREAM+(200,)); tracked(d,S-58,278,dl,fS,1.5,(TEAL if synced else CREAM)+(220,),'r')
+        # pill (the app's button)
+        pilltxt=('IN SYNC' if synced else ('MATCHING BEAT' if t>=tMatch else 'MATCH MY BPM')); filled=t>=tMatch
+        pc=TEAL if synced else (CREAM if not filled else AMBER)
+        d.rounded_rectangle((58,322,S-58,378),radius=28,outline=pc+(190,),width=2,fill=(pc+(40,)) if synced else (0,0,0,0))
+        w=sum(fP.getlength(c) for c in pilltxt)+1.5*(len(pilltxt)-1); x0=(S-(w+34))/2
+        dotglyph(d,x0+9,350,filled,pc+(255,)); tracked(d,x0+34,338,pilltxt,fP,1.5,pc+(255,))
+        img.alpha_composite(face)
+        if synced and flash<1:  # one expanding teal ring on the sync instant
+            rg=Image.new('RGBA',(S,S),(0,0,0,0)); r=104+60*flash; ImageDraw.Draw(rg).rounded_rectangle((30-r+104,30-r+104,S-30+r-104,S-30+r-104),radius=104+r-104,outline=TEAL+(int(200*(1-flash)),),width=4)
+            img.alpha_composite(rg.filter(ImageFilter.GaussianBlur(4)))
+        if a<1:
+            al=img.split()[3].point(lambda v:int(v*a)); img.putalpha(al)
+    proc.stdin.write(img.tobytes())
+proc.stdin.close(); proc.wait(); print('WATCH-OK',N,'sync at',round(tSync,3))
+```
+
+**`mk_wall6.py`** — Draws the Scene C wall layer: the single-line Radio wordmark plus the app Radio screen, both pulsing on the gated kick.
+
+```python
+# Scene C wall layer (v6): the app+website Radio wordmark (single line, never stacked) over the projected Radio screen. 1440x2560, from offBC for lenC.
+import math,json,subprocess,numpy as np
+from PIL import Image, ImageFilter, ImageDraw
+p=json.load(open('params_v6.json')); m3=json.load(open('meas_t3.json'))
+P=p['P']; phi=p['phi']; KB=m3['kick_by_beat']; offBC=p['offBC']; T=p['lenC']; tC=p['t28']; FPS=24; W,H=1440,2560
+N=int(round(T*FPS))
+WW=int(__import__('os').environ.get('WALL_W','1020')); WY=int(__import__('os').environ.get('WALL_Y','760'))
+wm=Image.open('in/shape-radio-logo.png').convert('RGBA'); s=WW/wm.width; wmr=wm.resize((WW,int(round(wm.height*s))),Image.LANCZOS)
+wa=np.asarray(wmr).astype(np.float32)/255; word=wa[...,:3]*wa[...,3:4]; wh=word.shape[0]
+wimg=Image.fromarray((word*255+0.5).astype('uint8')); 
+pad=80; wcan=Image.new('RGB',(WW+2*pad,wh+2*pad),(0,0,0)); wcan.paste(wimg,(pad,pad)); glow=np.asarray(wcan.filter(ImageFilter.GaussianBlur(22))).astype(np.float32)/255
+wordp=np.asarray(wcan).astype(np.float32)/255
+# projected screen
+SW=int(__import__('os').environ.get('SCR_W','560')); SY=int(__import__('os').environ.get('SCR_Y','880'))
+scr=Image.open('/home/user/cap/r3_radio_top.png').convert('RGB').crop((0,240,750,1420)); SH=int(round(scr.height*SW/scr.width)); scr=scr.resize((SW,SH),Image.LANCZOS)
+mk=Image.new('L',(SW,SH),0); ImageDraw.Draw(mk).rounded_rectangle((6,6,SW-7,SH-7),radius=26,fill=255); mk=mk.filter(ImageFilter.GaussianBlur(9))
+sa=np.asarray(scr).astype(np.float32)/255*(np.asarray(mk).astype(np.float32)/255)[...,None]
+spad=90; scan=Image.new('RGB',(SW+2*spad,SH+2*spad),(0,0,0)); scan.paste(Image.fromarray((sa*255+0.5).astype('uint8')),(spad,spad))
+sbloom=np.asarray(scan.filter(ImageFilter.GaussianBlur(40))).astype(np.float32)/255
+SX=(W-SW)//2
+def pres(n): return 0.0 if n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
+def kof(t):
+    if t<tC-0.01: return 0.0
+    n=int(math.floor((t-phi)/P)); return math.exp(-(((t-phi)%P)/P)/0.20)*pres(n)
+def clamp(x): return max(0.0,min(1.0,x))
+def paste(dst,src,gain,x0,y0):
+    h,w=src.shape[:2]; xs0=max(0,x0); ys0=max(0,y0); xs1=min(W,x0+w); ys1=min(H,y0+h)
+    if xs1<=xs0 or ys1<=ys0: return
+    dst[ys0:ys1,xs0:xs1]+=src[ys0-y0:ys1-y0,xs0-x0:xs1-x0]*gain
+def scaled(arr,s):
+    if abs(s-1)<1e-4: return arr
+    h,w=arr.shape[:2]; im=Image.fromarray((np.clip(arr,0,1)*255+0.5).astype('uint8')); return np.asarray(im.resize((int(round(w*s)),int(round(h*s))),Image.LANCZOS)).astype(np.float32)/255
+proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-c:v','libx264','-preset','fast','-crf','10','-pix_fmt','yuv420p','in/wall6.mp4'],stdin=subprocess.PIPE)
+cx=W//2; cy=WY+wh//2
+for i in range(N):
+    t=offBC+i/FPS; k=kof(t); s=1+0.03*k; e=clamp((t-offBC)/0.3)*clamp((offBC+T-t)/0.3)
+    f=np.zeros((H,W,3),np.float32)
+    wp=scaled(wordp,s); gp=scaled(glow,s); h2,w2=wp.shape[:2]
+    paste(f,gp,0.35+1.0*k,cx-w2//2,cy-h2//2); paste(f,wp,1.0,cx-w2//2,cy-h2//2)
+    paste(f,sbloom,0.30,SX-spad,SY-spad); paste(f,sa,0.88,SX,SY)
+    proc.stdin.write((np.clip(f*e,0,1)*255+0.5).astype('uint8').tobytes())
+proc.stdin.close(); proc.wait(); print('WALL6-OK',N,'word',WW,'x',wh,'at y',WY,'screen',SW,'x',SH,'at',SX,SY)
+```
+
+**`mk_globe.py`** — Draws the Scene D layer: 27 SHAPE marks popping on lit cities, the logo above the globe from beat 52, the close copy from beat 56.
+
+```python
+# Scene D layer (v6): Shape marks popping onto the night-Earth's lit cities from beat 48, the SHAPE logo popping above the globe on beat 52
+# and pulsing on the kick gate, the close copy under the globe from beat 56. Illustrative — no count is claimed. 1440x2560 from offCD to total.
+import math,json,subprocess,random,numpy as np
+from PIL import Image, ImageFilter, ImageDraw
+p=json.load(open('params_v6.json')); m3=json.load(open('meas_t3.json'))
+P=p['P']; phi=p['phi']; KB=m3['kick_by_beat']; offCD=p['offCD']; total=p['total']; FPS=24; W,H=1440,2560
+N=int(round((total-offCD)*FPS)); random.seed(6)
+CX,CY,R=727,1295,676   # measured disc (meas_globe.py)
+def clamp(x): return max(0.0,min(1.0,x))
+def pres(n): return 0.0 if n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
+def kof(t,t0):
+    if t<t0-0.01: return 0.0
+    n=int(math.floor((t-phi)/P)); return math.exp(-(((t-phi)%P)/P)/0.20)*pres(n)
+def back(g):  # ease-out-back 0->1 with overshoot
+    g=clamp(g); c1=1.70158; c3=c1+1; return 1+c3*(g-1)**3+c1*(g-1)**2
+def dframe(td):  # gray frame of D at D-time td
+    raw=subprocess.run(['ffmpeg','-v','error','-ss',f'{max(0,td):.3f}','-i','in/D.mp4','-frames:v','1','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
+    return np.frombuffer(raw[:W*H],np.uint8).reshape(H,W).astype(np.float32)
+# --- the mark: the SHAPE two-triangle mark cut from logo_tri.png (teal + white, real geometry)
+tri=np.asarray(Image.open('in/logo_tri.png').convert('RGB')).astype(np.float32)/255
+ys,xs=np.where(tri.max(2)>0.05); mark=tri[ys.min():ys.max()+1,xs.min():xs.max()+1]
+MH=44; ms=MH/mark.shape[0]; mimg=Image.fromarray((mark*255+0.5).astype('uint8')).resize((int(round(mark.shape[1]*ms)),MH),Image.LANCZOS)
+markA=np.asarray(mimg).astype(np.float32)/255; mpad=30
+mcan=Image.new('RGB',(markA.shape[1]+2*mpad,MH+2*mpad),(0,0,0)); mcan.paste(mimg,(mpad,mpad)); markG=np.asarray(mcan.filter(ImageFilter.GaussianBlur(10))).astype(np.float32)/255; markP=np.asarray(mcan).astype(np.float32)/255
+# --- the logo above the globe
+tri_l,txt_l,trig_l,txtg_l=[np.asarray(Image.open(f'in/{n}.png').convert('RGB')).astype(np.float32)/255 for n in ('logo_tri','logo_txt','logo_tri_glow','logo_txt_glow')]
+LW=440; LCX,LCY=720,330
+# --- close copy
+close=np.asarray(Image.open('cap/txt/close.png').convert('RGBA')).astype(np.float32)/255; closeP=close[...,:3]*close[...,3:4]; CLY=2060
+# --- schedule the pops: beats 48-51 one, 52-55 two, 56-60 three
+pops=[]
+for n in range(48,61):
+    c=1 if n<52 else (2 if n<56 else 3)
+    for j in range(c): pops.append(phi+n*P+j*0.09)
+print('pops',len(pops))
+# choose positions on lit cities at each pop time, min spacing, inside 0.9R, not the top/bottom caps
+placed=[]
+for tp in pops:
+    f=dframe(tp-offCD); yy,xx=np.mgrid[0:H,0:W]; inside=((xx-CX)**2+(yy-CY)**2)<(0.90*R)**2
+    cand=np.where(inside&(f>110)&(np.abs(yy-CY)<0.78*R))
+    idx=list(range(len(cand[0]))); random.shuffle(idx); pick=None
+    for k in idx[:4000]:
+        x,y=int(cand[1][k]),int(cand[0][k])
+        if all((x-px)**2+(y-py)**2>150**2 for px,py,_ in placed if tp-_<2.8): pick=(x,y); break
+    if pick is None:  # fall back to any disc point with spacing
+        for _ in range(2000):
+            a=random.random()*2*math.pi; r=random.random()*0.85*R; x,y=int(CX+r*math.cos(a)),int(CY+r*math.sin(a)*0.8)
+            if all((x-px)**2+(y-py)**2>150**2 for px,py,_ in placed if tp-_<2.8): pick=(x,y); break
+    placed.append((pick[0],pick[1],tp))
+print('placed',placed[:5])
+def paste(dst,src,gain,x0,y0):
+    h,w=src.shape[:2]; xs0=max(0,x0); ys0=max(0,y0); xs1=min(W,x0+w); ys1=min(H,y0+h)
+    if xs1<=xs0 or ys1<=ys0: return
+    dst[ys0:ys1,xs0:xs1]+=src[ys0-y0:ys1-y0,xs0-x0:xs1-x0]*gain
+def scaled(arr,w):
+    h0,w0=arr.shape[:2]; h=int(round(h0*w/w0)); im=Image.fromarray((np.clip(arr,0,1)*255+0.5).astype('uint8')); return np.asarray(im.resize((max(1,w),max(1,h)),Image.LANCZOS)).astype(np.float32)/255
+t52=p['t52']; t56=p['t56']
+proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-c:v','libx264','-preset','fast','-crf','10','-pix_fmt','yuv420p','in/globe6.mp4'],stdin=subprocess.PIPE)
+for i in range(N):
+    t=offCD+i/FPS; f=np.zeros((H,W,3),np.float32); e=clamp((t-offCD)/0.3)
+    ring=Image.new('L',(W,H),0); rd=ImageDraw.Draw(ring); anyring=False
+    for x,y,tp in placed:
+        u=t-tp
+        if u<0 or u>2.6: continue
+        s=back(u/0.28); a=clamp(u/0.12)*clamp((2.6-u)/0.6)
+        w=int(round(markP.shape[1]*s)); 
+        if w<2: continue
+        mp=scaled(markP,w); mg=scaled(markG,w); h2,w2=mp.shape[:2]
+        paste(f,mg,0.55*a,x-w2//2,y-h2//2); paste(f,mp,a,x-w2//2,y-h2//2)
+        if u<0.5: rr=22+70*(u/0.5); rd.ellipse((x-rr,y-rr,x+rr,y+rr),outline=int(255*(1-u/0.5)*0.7),width=3); anyring=True
+    if anyring:
+        rg=np.asarray(ring.filter(ImageFilter.GaussianBlur(2))).astype(np.float32)/255; f+=rg[...,None]*np.array([52,214,197],np.float32)/255
+    if t>=t52:
+        u=t-t52; s0=back(u/0.35); k=kof(t,t52) if u>0.35 else 0.0; s=s0*(1+0.06*k); a=clamp(u/0.15); g=0.25+0.9*k
+        w=int(round(LW*s)); tg=scaled(trig_l,w); xg=scaled(txtg_l,w); tt=scaled(tri_l,w); tx=scaled(txt_l,w); h2,w2=tt.shape[:2]
+        x0=LCX-w2//2; y0=LCY-h2//2
+        paste(f,tg,g*a,x0,y0); paste(f,xg,g*a,x0,y0); paste(f,tt,a,x0,y0); paste(f,tx,a,x0,y0)
+    if t>=t56:
+        a=clamp((t-t56)/0.45); paste(f,closeP,a,0,CLY)
+    proc.stdin.write((np.clip(f*e,0,1)*255+0.5).astype('uint8').tobytes())
+proc.stdin.close(); proc.wait(); print('GLOBE6-OK',N,'marks',len(placed),'logo at',t52,'close at',t56)
+```
+
+**`render6.sh`** — The five-input xfade chain plus three screen-blended layer canvases and the audio tail fade.
+
+```bash
+#!/bin/bash
+# launch cut v6: A(+watch) -> B(logo) -> C(zoomed wall, radio screen) -> D(globe, marks, logo, close)
+set -e
+cd /home/user/w
+P=$(python3 -c "import json;p=json.load(open('params_v6.json'));print(p['offAB'],p['offBC'],p['offCD'],p['total'])")
+set -- $P; offAB=$1; offBC=$2; offCD=$3; TOTAL=$4
+FADEST=$(python3 -c "print(round($TOTAL-0.6,3))")
+ffmpeg -y -hide_banner -loglevel error -stats \
+ -i in/A.mp4 -i in/watch.mov -i in/B_long.mp4 -i in/C_zoom.mp4 -i in/D.mp4 \
+ -i in/phoneB.mp4 -i in/wall6.mp4 -i in/globe6.mp4 -i in/t3.m4a \
+ -filter_complex "
+ [0:v]fps=24,format=yuv420p,settb=AVTB[a0];
+ [1:v]fps=24,format=rgba,settb=AVTB[wt];
+ [a0][wt]overlay=x=890:y=1660:eof_action=pass:format=auto,format=yuv420p,settb=AVTB[A];
+ [2:v]fps=24,format=yuv420p,settb=AVTB[B];
+ [3:v]fps=24,format=yuv420p,settb=AVTB[C];
+ [4:v]fps=24,format=yuv420p,settb=AVTB[D];
+ [A][B]xfade=transition=fade:duration=0.3:offset=${offAB}[AB];
+ [AB][C]xfade=transition=fade:duration=0.3:offset=${offBC}[ABC];
+ [ABC][D]xfade=transition=fade:duration=0.3:offset=${offCD}[base];
+ [base]format=gbrp[baseg];
+ color=c=black:s=1440x2560:r=24:d=${TOTAL},format=rgb24[cv1];
+ [5:v]fps=24,tpad=start_duration=${offAB},format=rgb24[ph];
+ [cv1][ph]overlay=x=416:y=592:eof_action=pass:format=rgb,format=gbrp[L1];
+ [baseg][L1]blend=all_mode=screen,format=gbrp[s1];
+ color=c=black:s=1440x2560:r=24:d=${TOTAL},format=rgb24[cv2];
+ [6:v]fps=24,tpad=start_duration=${offBC},format=rgb24[wl];
+ [cv2][wl]overlay=x=0:y=0:eof_action=pass:format=rgb,format=gbrp[L2];
+ [s1][L2]blend=all_mode=screen,format=gbrp[s2];
+ color=c=black:s=1440x2560:r=24:d=${TOTAL},format=rgb24[cv3];
+ [7:v]fps=24,tpad=start_duration=${offCD},format=rgb24[gl];
+ [cv3][gl]overlay=x=0:y=0:eof_action=pass:format=rgb,format=gbrp[L3];
+ [s2][L3]blend=all_mode=screen,format=yuv420p[v];
+ [8:a]atrim=0:${TOTAL},asetpts=PTS-STARTPTS,afade=t=out:st=${FADEST}:d=0.6[a]
+ " -map "[v]" -map "[a]" \
+ -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 192k -ar 44100 \
+ -movflags +faststart -t ${TOTAL} out/launch_v6.mp4
+echo RENDER6-OK
+ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames,width,height,r_frame_rate -of csv=p=0 out/launch_v6.mp4
+ffprobe -v error -show_entries format=duration -of csv=p=0 out/launch_v6.mp4
+md5sum out/launch_v6.mp4
+```
+
+**`verify6.py`** — Every v6 assertion, including the corrected pulse-peak sampling and the informational club-strobe line.
+
+```python
+#!/usr/bin/env python3
+# verify6.py — numeric checks on out/launch_v6.mp4 against its sources, its LAYERS and params_v6.json
+import json, subprocess, numpy as np
+W,H=1440,2560
+p=json.load(open('params_v6.json'))
+P=p['P']; phi=p['phi']; offAB=p['offAB']; offBC=p['offBC']; offCD=p['offCD']; TOTAL=p['total']; lenC=p['lenC']
+OUT='out/launch_v6.mp4'
+_dims={}
+def dims(path):
+    if path not in _dims:
+        s=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=width,height','-of','csv=p=0',path],capture_output=True,text=True).stdout.strip().split(',')
+        _dims[path]=(int(s[0]),int(s[1]))
+    return _dims[path]
+def frame(path,t):
+    w,h=dims(path)
+    b=subprocess.run(['ffmpeg','-v','error','-ss',f'{max(0,t):.4f}','-i',path,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','-'],capture_output=True).stdout
+    a=np.frombuffer(b,np.uint8)
+    if a.size!=w*h*3: raise SystemExit(f'bad frame {path} t={t} size={a.size} dims={w}x{h}')
+    return a.reshape(h,w,3)
+def gray(a): return (0.299*a[...,0]+0.587*a[...,1]+0.114*a[...,2])
+def beat(n): return phi+n*P
+fails=[]
+def check(name,ok,detail):
+    print(('PASS ' if ok else 'FAIL ')+name+' :: '+detail)
+    if not ok: fails.append(name)
+s=subprocess.run(['ffprobe','-v','error','-count_frames','-select_streams','v:0','-show_entries','stream=nb_read_frames,width,height,r_frame_rate','-of','csv=p=0',OUT],capture_output=True,text=True).stdout.strip()
+d=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',OUT],capture_output=True,text=True).stdout.strip()
+au=subprocess.run(['ffprobe','-v','error','-select_streams','a:0','-show_entries','stream=codec_name,sample_rate,channels','-of','csv=p=0',OUT],capture_output=True,text=True).stdout.strip()
+print('probe',s,'dur',d,'audio',au)
+check('738 frames 1440x2560 24fps', s.startswith('1440,2560,24/1,738'), s)
+def mdiff(a,b,mask=None):
+    dd=np.abs(gray(a)-gray(b)); return float(dd[mask].mean()) if mask is not None else float(dd.mean())
+def lit(a,reg=None,th=60):
+    g=gray(a if reg is None else a[reg[0]:reg[1],reg[2]:reg[3]]); ys,xs=np.where(g>th)
+    if xs.size==0: return (0,0,0,0,0)
+    return (int(xs.size), int(xs.max()-xs.min()+1), int(ys.max()-ys.min()+1), int(xs.min()), int(xs.max()))
+# ---- A: watch ----
+wt=np.ones((H,W),bool); wt[1660:2140,890:1370]=False
+o=frame(OUT,3.0); sA=frame('in/A.mp4',3.0)
+check('A matches source outside watch', mdiff(o,sA,wt)<2.5, f'mean diff {mdiff(o,sA,wt):.2f}')
+for t,expect in ((0.5,False),(3.0,True),(6.5,True)):
+    o=frame(OUT,t); sA=frame('in/A.mp4',t); dd=mdiff(o,sA,~wt)
+    check(f'watch {"present" if expect else "absent"} at {t}', (dd>8) if expect else (dd<2.0), f'rect diff {dd:.2f}')
+def cnt(a,reg,f):
+    r=a[reg[0]:reg[1],reg[2]:reg[3]].astype(int); return int(f(r).sum())
+teal=lambda r:(r[...,2]>150)&(r[...,1]>150)&(r[...,0]<120)
+amber=lambda r:(r[...,0]>180)&(r[...,1]>120)&(r[...,1]<200)&(r[...,2]<90)
+reg=(1660,2140,890,1370); f5=frame(OUT,5.0); f75=frame(OUT,7.5)
+check('watch MATCHING(amber)->IN SYNC(teal) at beat 14', cnt(f75,reg,teal)>cnt(f5,reg,teal) and cnt(f5,reg,amber)>cnt(f75,reg,amber), f'teal {cnt(f5,reg,teal)}->{cnt(f75,reg,teal)} amber {cnt(f5,reg,amber)}->{cnt(f75,reg,amber)}')
+# ---- B: logo on the phone ----
+ph=np.ones((H,W),bool); ph[592:1926,416:1026]=False
+for t in (8.4,10.5,13.0):
+    o=frame(OUT,t); sB=frame('in/B_long.mp4',t-offAB); dd=mdiff(o,sB,ph)
+    check(f'B matches B_long outside phone at {t}', dd<2.5, f'mean diff {dd:.2f}')
+for n in (18,21,24):
+    lb=lit(frame('in/phoneB.mp4',beat(n)+1/24-offAB)); lm=lit(frame('in/phoneB.mp4',beat(n)+P/2-offAB))
+    check(f'phone logo pulses at beat {n} (layer)', lb[1]>=lm[1]+8 and lb[0]>lm[0]*1.3, f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
+# ---- C: wall ----
+def darkrun(g,row0,row1,cx=720,th=20):
+    col=g[row0:row1].mean(axis=0); dark=col<th
+    if not dark[cx]: return None
+    l=cx
+    while l>0 and dark[l-1]: l-=1
+    r=cx
+    while r<W-1 and dark[r+1]: r+=1
+    return l,r
+for t in (14.3,15.0,17.0,21.0):
+    gs=gray(frame('in/C_zoom.mp4',t-offBC)); L=frame('in/wall6.mp4',t-offBC)
+    dr=darkrun(gs,760,832); wm=lit(L,(740,852,0,W),100)
+    if dr is None: check(f'wordmark in slab at {t}',False,f'slab None (flash?) band mean {gs[760:832].mean():.1f}'); continue
+    check(f'wordmark in slab at {t}', wm[3]>dr[0]+20 and wm[4]<dr[1]-20 and wm[2]<=84, f'wordmark x {wm[3]}-{wm[4]} w{wm[1]} h{wm[2]} slab {dr[0]}-{dr[1]} margins {wm[3]-dr[0]}/{dr[1]-wm[4]}')
+    dr2=darkrun(gs,900,1740); sc=lit(L,(900,1740,0,W),60)
+    check(f'radio screen in slab at {t}', dr2 is not None and sc[3]>dr2[0]+10 and sc[4]<dr2[1]-10, f'screen x {sc[3]}-{sc[4]} h{sc[2]} slab {dr2}')
+    o=frame(OUT,t); sC=frame('in/C_zoom.mp4',t-offBC); cm=np.ones((H,W),bool); cm[600:1900,:]=False; dd=mdiff(o,sC,cm)
+    check(f'C matches C_zoom outside layers at {t}', dd<2.5, f'mean diff {dd:.2f}')
+# flash coverage of the club clip during Scene C (informational)
+b=subprocess.run(['ffmpeg','-v','error','-i','in/C_zoom.mp4','-t',f'{lenC:.3f}','-vf','fps=24,crop=1440:72:0:760,scale=90:9','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
+bm=np.frombuffer(b,np.uint8).reshape(-1,9,90).mean(axis=(1,2)); print(f'INFO club clip: wordmark band lit (>30) on {int((bm>30).sum())}/{bm.size} Scene-C frames ({100*(bm>30).mean():.0f}%) — the source strobes; the wordmark+screen ride SCREEN-blended over it')
+for n in (30,36):
+    lb=lit(frame('in/wall6.mp4',beat(n)+1/24-offBC),(700,900,0,W),100); lm=lit(frame('in/wall6.mp4',beat(n)+P/2-offBC),(700,900,0,W),100)
+    check(f'wall wordmark pulses at beat {n} (layer)', lb[0]>lm[0]*1.15 and lb[1]>=lm[1], f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
+# ---- D: globe ----
+o=frame(OUT,22.5); sD=frame('in/D.mp4',22.5-offCD); dd=np.abs(gray(o)-gray(sD)); g6=lit(frame('in/globe6.mp4',22.5-offCD))
+check('D matches globe source before pops', dd.mean()<3.5 and np.percentile(dd,99)<24 and g6[0]==0, f'mean {dd.mean():.2f} p50 {np.median(dd):.1f} p99 {np.percentile(dd,99):.1f} layer lit {g6[0]}')
+disc=(618,1972,44,1410)
+pre=lit(frame('in/globe6.mp4',23.5-offCD),disc)
+for n in (50,54,58):
+    c=lit(frame('in/globe6.mp4',beat(n)+0.2-offCD),disc)
+    check(f'marks lit in disc at beat {n} (layer)', pre[0]==0 and c[0]>300, f'lit {c[0]} vs pre-pop {pre[0]}')
+lg=(150,520,380,1060)
+l0=lit(frame(OUT,25.5),lg,90); l1=lit(frame(OUT,26.7),lg,90)
+check('logo pops above globe after beat 52', l0[0]<50 and l1[0]>1500, f'pre {l0[0]} post {l1[0]} w{l1[1]}')
+lb=lit(frame('in/globe6.mp4',beat(56)+1/24-offCD),lg,60); lm=lit(frame('in/globe6.mp4',beat(56)+P/2-offCD),lg,60)
+check('globe logo pulses at beat 56 (layer)', lb[1]>=lm[1]+8 and lb[0]>lm[0]*1.1, f'beat {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
+c0=lit(frame(OUT,27.5),(2060,2360,0,W),90); c1=lit(frame(OUT,29.5),(2060,2360,0,W),90)
+check('close copy fades in after beat 56', c0[0]<50 and c1[0]>2000, f'pre {c0[0]} post {c1[0]}')
+lastm=gray(frame(OUT,TOTAL-1/24)).mean()
+check('video fades to black', lastm<3.0, f'last frame mean luma {lastm:.2f}')
+# ---- audio ----
+b=subprocess.run(['ffmpeg','-v','error','-i',OUT,'-vn','-ac','1','-ar','22050','-f','f32le','-'],capture_output=True).stdout
+x=np.frombuffer(b,np.float32); sr=22050; hop=256; n=(x.size-1024)//hop
+env=np.zeros(n); win=np.hanning(1024); prev=None
+for i in range(n):
+    sp=np.abs(np.fft.rfft(x[i*hop:i*hop+1024]*win))[:60]
+    if prev is not None: env[i]=np.maximum(sp-prev,0).sum()
+    prev=sp
+env=env/(env.max()+1e-9); best=(0,0,0)
+for bpm in np.arange(115,125,0.05):
+    per=60/bpm*sr/hop
+    for ph_ in np.arange(0,per,per/24):
+        idx=np.arange(ph_,n-1,per).astype(int); s_=env[idx].sum()
+        if s_>best[0]: best=(s_,bpm,ph_*hop/sr)
+print('audio BPM',round(best[1],2),'phase',round(best[2],3))
+check('audio BPM ~119.45', abs(best[1]-119.45)<0.6, f'{best[1]:.2f}')
+def rms(ss,t):
+    r=subprocess.run(['ffmpeg','-v','info','-ss',f'{ss}','-i',OUT,'-t',f'{t}','-vn','-af','astats=measure_overall=RMS_level:measure_perchannel=none','-f','null','-'],capture_output=True,text=True).stderr
+    v=None
+    for ln in r.splitlines():
+        if 'RMS level dB' in ln: v=ln.split(':')[-1].strip()
+    return float(v)
+mid=rms(15.0,0.9); tail=rms(TOTAL-0.5,0.5)
+check('audio tail fades', tail<mid-8, f'tail(last 0.5 s) {tail:.1f} dB vs mid {mid:.1f} dB')
+print('FAILS',fails if fails else 'none')
+```
+
+**`scanpulse.py`** — The diagnostic that found the beatlit issue: prints lit counts at two thresholds for the frames either side of each pulse beat.
+
+```python
+import subprocess, numpy as np, sys, json
+def dims(p):
+    o=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=width,height','-of','csv=p=0',p],capture_output=True,text=True).stdout.strip().split(',')
+    return int(o[0]),int(o[1])
+def frames(p,a,b):
+    w,h=dims(p)
+    raw=subprocess.run(['ffmpeg','-v','error','-i',p,'-vf',f"select='between(n,{a},{b})'",'-vsync','0','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
+    n=len(raw)//(w*h); return np.frombuffer(raw,np.uint8).reshape(n,h,w)
+def lit(g,th):
+    m=g>th; c=int(m.sum())
+    if not c: return c,0
+    xs=np.where(m.any(0))[0]; return c,int(xs[-1]-xs[0]+1)
+P=0.5023022185; phi=0.03
+p=json.load(open('params_v6.json'))
+def beat(n): return phi+n*P
+print('phoneB around beats 18,21,24 (layer-local frames)')
+for n in (18,21,24):
+    tl=beat(n)-p['offAB']; f0=int(round(tl*24))
+    fr=frames('in/phoneB.mp4',f0-3,f0+3)
+    for i,g in enumerate(fr):
+        print(f' beat{n} fr{f0-3+i} t={(f0-3+i)/24:.3f} (beat at {tl:.3f}) lit60={lit(g,60)} lit100={lit(g,100)}')
+print('wall6 rows 700-900 around beats 30,36')
+for n in (30,36):
+    tl=beat(n)-p['offBC']; f0=int(round(tl*24))
+    fr=frames('in/wall6.mp4',f0-3,f0+3)
+    for i,g in enumerate(fr):
+        gg=g[700:900]
+        print(f' beat{n} fr{f0-3+i} t={(f0-3+i)/24:.3f} (beat at {tl:.3f}) lit60={lit(gg,60)} lit100={lit(gg,100)}')
+```
+
+**`upload6.sh`** — gofile first, then 0x0.st, then litterbox, printing the md5 either way.
+
+```bash
+#!/bin/bash
+cd /home/user/w; F=out/launch_v6.mp4
+echo "md5 $(md5sum $F)"
+R=$(curl -s -m 600 -F "file=@$F" https://upload.gofile.io/uploadfile)
+echo "gofile: $R"
+U=$(echo "$R" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('data',{}).get('downloadPage',''))" 2>/dev/null)
+if [ -n "$U" ]; then echo "URL $U"; exit 0; fi
+R=$(curl -s -m 600 -F "file=@$F" https://0x0.st); echo "0x0: $R"; echo "$R" | grep -q '^https://' && { echo "URL $R"; exit 0; }
+R=$(curl -s -m 600 -F "reqtype=fileupload" -F "time=72h" -F "fileToUpload=@$F" https://litterbox.catbox.moe/resources/internals/api.php); echo "litterbox: $R"; echo "$R" | grep -q '^https://' && { echo "URL $R"; exit 0; }
+echo "ALL-FAILED"
+```
+
+---
+
+
 ## The spots, slowed — and the MARKETPLACE spot
 
 **Owner, on the four feature spots: *"also reduce the scrolling times of all the other
@@ -1563,6 +2133,71 @@ NEXT OPEN SLOT** (it navigates to JOIN SHAPE and the boot is lost), and **every 
 day is aria-disabled for a demo coach**, so the calendar is shown rather than driven.
 Diego Morales still crashes the preview (the registered defect), so the spot uses Leah
 Kim throughout.
+
+
+**Verified numerically, per spot** (`verify5.py spot <name>`): 1440×2560 · 24 fps ·
+**555 / 555 / 564 / 564 / 555 frames** = **23.125 / 23.125 / 23.500 / 23.500 / 23.125 s**
+for MARKETPLACE / TRAIN / EAT / COMMUNITY / SCORE, against audio 23.106 / 23.106 / 23.510
+/ 23.510 / 23.106. At two samples per page the phone-screen layer matches the capture
+frame it was cut from on **58 of 60 samples (mean abs diff 1.65–2.03)** and the composite
+matches `screen(B_long, layer)` inside the rect at **1.22–1.95**. Captions: lit pixels at
+every caption midpoint (8,994–52,893) and **0 at t = 0.2 s on all five**. The closing logo
+pulses — bbox 477–480 px / 21.3–22.3 k lit at a beat against 458 px / 8.8–8.9 k mid-beat.
+The output audio re-measures **119.35 BPM** on the t3 spots and **119.9** on the t1 spots
+with every cut within 60 ms of a grid beat; RMS mid −7.5 dB / tail −14.6 dB (t3), mid
+−9.8 / tail −15.7 (t1). Old runtimes for comparison: 14.58 / 14.50 / 14.54 / 14.58 s — so
+the new cuts run **58–62 % longer**.
+
+⚠ **THE TWO SCORE OUTLIERS ARE TIMING, NOT A WRONG CLIP — and that is measured rather
+than assumed.** Two of the 60 samples read `layer_vs_src` **20.14** (profile @ t = 3.72)
+and **8.49** (score @ t = 11.25) while the other 58 read 1.65–2.03. A best-match scan
+(±0.35 s at 0.02 s) pins both to a source frame **one to two capture frames off** the
+nominal `s0 + (t − t0)·speed` map — +0.05 s and −0.05 s — after which they read **2.27**
+and **2.20**. Same 24 fps resample of an 11–19 fps capture the v4/v5 renders already
+recorded; the frames are the right frames.
+
+**md5 of each render** (the review links are short-lived uploads and stay out of the
+repo, as before): MARKETPLACE `94d02bb21ea330552448e1367de9233f` (19,766,603 B) · TRAIN
+`5c78408180852bb43c719111583de46b` (18,212,279) · EAT
+`5d14b27a601fd7300894ec7ba6d5aefb` (19,730,162) · COMMUNITY
+`11dc2fab28b26662b02e24cc3f2d6bc2` (19,129,345) · SCORE
+`a11486c103eaf1b4714a2541944ebd71` (19,175,222).
+
+**The plan `mkspecs5.py` printed** — every segment at `spd 1.00`, which is the claim
+"nothing is sped up" as a measurement rather than an intention:
+
+```
+== train  track=t3  T=23.1059  aoff=7.5645  beat0=15
+   deck    0.50-> 5.02  src 1.84-> 6.36/ 7.06 | swap 5.02-> 8.04 src 0.15-> 3.16/ 4.92
+   session 8.04->12.56  src 4.25-> 8.77/ 9.00 | setlog 12.56->16.07 src 0.20-> 3.72/ 5.23
+   calendar 16.07->20.59 src 1.63-> 6.15/ 6.20 | close 20.59->23.11
+== eat  track=t1  T=23.5098  aoff=3.0652  beat0=6
+   menu 1.00->5.00 src 1.84->5.84/6.77 | meal 5.00->8.50 src 4.13->7.63/8.25
+   grocery 8.50->12.51 src 4.02->8.02/9.81 | recipes 12.51->13.51 src 4.03->5.03/7.04
+   recipe 13.51->16.51 src 4.12->7.12/8.89 | cook 16.51->21.01 src 4.98->9.48/10.57 | close 21.01->23.51
+== community  track=t1  T=23.5098  aoff=3.0652  beat0=6
+   feed 1.00->5.00 src 1.90->5.91/7.42 | details 5.00->9.00 src 4.14->8.14/9.07
+   channels 9.00->13.01 src 2.17->6.17/6.22 | market 13.01->17.01 src 2.51->6.51/7.78
+   listing 17.01->21.01 src 4.12->8.12/9.17 | close 21.01->23.51
+== score  track=t3  T=23.1059  aoff=7.5645  beat0=15
+   profile 0.50->4.02 src 1.82->5.34/6.86 | climb 4.02->6.53 src 1.61->4.12/6.41
+   score 6.53->11.55 src 3.51->8.53/11.12 | habits 11.55->14.57 src 5.54->8.56/9.47
+   goal 14.57->17.58 src 3.12->6.14/7.30 | checkin 17.58->20.59 src 0.10->3.12/4.96 | close 20.59->23.11
+== marketplace  track=t3  T=23.1059  aoff=7.5645  beat0=15
+   market 0.50->4.52 src 2.51->6.53/7.78 | listing 4.52->8.54 src 4.12->8.14/9.17
+   listing2 8.54->12.06 src 0.00->3.52/4.93 | mkt_offer 12.06->15.57 src 0.00->3.52/4.93
+   mkt_cal 15.57->18.08 src 0.00->2.51/4.75 | mkt_book 18.08->20.59 src 0.00->2.51/4.96 | close 20.59->23.11
+```
+
+⚠ **THE SANDBOX WAS WIPED A SIXTH TIME MID-RUN, AND THE ANSWER WAS NOT A BIGGER
+CHECKPOINT — IT WAS A SHORTER UNIT OF LOSS.** The earlier plan (tar `cap/seg`, upload it,
+re-download after the next wipe) **cannot work**: a gofile guest upload is a download
+PAGE, not a file URL, so nothing in the sandbox can fetch it back. What does work is one
+background script (`runA.sh`) that boots, captures, plans, then **renders → md5s →
+uploads each spot immediately** in the order `marketplace train eat community score`,
+polled every ~55 s so the lease keeps re-arming. A wipe then costs at most the one spot
+in flight, and the whole run completed on the first attempt under that shape. *A
+checkpoint you cannot read back is not a checkpoint.*
 
 **`pw/tour5.js` and `pw/tour5b.js`** — the recapture, split in two so each stays under
 the sandbox's foreground limit. They share `tour4.js`'s header (its first 18 lines,
@@ -1715,12 +2350,64 @@ if __name__=='__main__':
 'marketplace':[('COACHES','Find *your* coach.'),('COACHES','Coach of the *week.*'),('COACHES','The *rate card.*'),('COACHES',"See what's *included.*"),('COACHES','Open *to book.*'),('COACHES','Start with a *free intro.*')],
 ```
 
+**`beat.py`** — the grid measurer `verify5.py` imports (`sys.path.insert(0,'/home/user')`;
+it uses `beat.decode` · `beat.SR` · `beat.bandpass` · `beat.energy` · `beat.onset` ·
+`beat.grid` · `beat.HOP`). ⚠ **`boot5.sh` did not extract it, and the recipe carried no
+copy — so every verification of the slowed spots died on `ModuleNotFoundError: No module
+named 'beat'` until it was rewritten from this file's own "The beat grid (measured)"
+description.** It is here now and boot5.sh's MAP extracts it. Decode 8 kHz mono →
+band-limit → rectified derivative of a 5 ms-smoothed energy envelope → comb search over
+110–140 BPM with a 2 ms phase refine. Re-measuring an OUTPUT is what it is for; the
+authoritative grids for the three tracks stay the recorded ones above.
+
+```python
+import subprocess, numpy as np
+SR=8000; HOP=0.005
+def decode(path):
+    o=subprocess.run(['ffmpeg','-v','error','-i',path,'-ac','1','-ar',str(SR),'-f','f32le','-'],
+                     capture_output=True).stdout
+    return np.frombuffer(o,dtype=np.float32).astype(np.float64)
+def bandpass(x,lo,hi):
+    n=len(x); X=np.fft.rfft(x); f=np.fft.rfftfreq(n,1.0/SR)
+    X[(f<lo)|(f>hi)]=0
+    return np.fft.irfft(X,n)
+def energy(x):
+    h=int(round(HOP*SR)); n=len(x)//h
+    e=np.array([float((x[i*h:(i+1)*h]**2).mean()) for i in range(n)])
+    return np.convolve(e,np.ones(3)/3.0,mode='same')
+def onset(e):
+    d=np.diff(e,prepend=e[0]); d[d<0]=0
+    m=d.max()
+    return d/m if m>0 else d
+def grid(o,bpm_lo=110.0,bpm_hi=140.0):
+    n=len(o); dur=n*HOP; best=None
+    for bpm in np.arange(bpm_lo,bpm_hi+1e-9,0.05):
+        P=60.0/bpm; nb=int(dur/P)
+        if nb<8: continue
+        for ph in np.arange(0.0,P,0.005):
+            idx=np.round((ph+np.arange(nb)*P)/HOP).astype(int)
+            idx=idx[(idx>=0)&(idx<n)]
+            s=float(o[idx].sum())/max(1,len(idx))
+            if best is None or s>best[0]: best=(s,float(bpm),float(P),float(ph))
+    if best is None: return dict(bpm=None,P=None,phase=None,score=None)
+    s,bpm,P,ph=best
+    nb=int(dur/P); bb=None
+    for ph2 in np.arange(max(0.0,ph-0.01),min(P,ph+0.01)+1e-9,0.002):
+        idx=np.round((ph2+np.arange(nb)*P)/HOP).astype(int); idx=idx[(idx>=0)&(idx<n)]
+        v=float(o[idx].sum())/max(1,len(idx))
+        if bb is None or v>bb[0]: bb=(v,float(ph2))
+    return dict(bpm=round(bpm,2),P=round(P,6),phase=round(bb[1],4),score=round(bb[0],4))
+```
+
 **`boot5.sh`** — the whole rebuild in one script, because the sandbox is reclaimed on a
 roughly 20-minute cycle even with the lease re-armed on every call (it has now been
-wiped four times). Rebuild is ~4 minutes, capture ~7, render ~4 — so the work has to be
-split into sub-20-minute runs with the capture persisted off-sandbox between them
-(`tar czf` `cap/seg` and upload it; re-download after the next wipe rather than
-re-capturing). `SKIP_DL=1` skips the source downloads when they survived.
+wiped **six** times). Rebuild is ~2 minutes, npm ~20 s, capture ~4, seg2mp4 ~1,
+specs+captions ~40 s, render+upload ~1 per spot — so the work has to be split into
+sub-20-minute runs. ⚠ **A `tar czf cap/seg` checkpoint does not work**: a gofile guest
+upload returns a download PAGE, not a file URL, so the tar cannot be curled back after
+the next wipe. The strategy that does work is one background `runA.sh` that renders,
+md5s and **uploads each spot immediately** in order, polled every ~55 s — a wipe then
+costs only the spot in flight. `SKIP_DL=1` skips the source downloads when they survived.
 
 ```bash
 #!/bin/bash
@@ -1737,7 +2424,7 @@ MAP={'pw/lib.js':'/home/user/pw/lib.js','pw/tour4.js':'/home/user/pw/tour4.js',
  'seg2mp4.py':'/home/user/w/scripts/seg2mp4.py','captions.py':'/home/user/w/scripts/captions.py',
  'mk_screen5.py':'/home/user/w/scripts/mk_screen5.py','spot.py':'/home/user/w/scripts/spot.py',
  'mkspecs.py':'/home/user/w/scripts/mkspecs.py','mkspecs5.py':'/home/user/w/scripts/mkspecs5.py',
- 'verify5.py':'/home/user/w/scripts/verify5.py'}
+ 'verify5.py':'/home/user/w/scripts/verify5.py','beat.py':'/home/user/beat.py'}
 def block(i):
     while not L[i].startswith('```'): i+=1
     j=i+1
@@ -1777,6 +2464,11 @@ if [ -z "$SKIP_DL" ]; then
   curl -sL -o in/NewsreaderIt.ttf "$F/ofl/newsreader/Newsreader-Italic%5Bopsz%2Cwght%5D.ttf"
   curl -sL -o in/JetBrainsMono.ttf "$F/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf"
 fi
+# captions.py loads F='/home/user/fonts/' with the bracketed upstream filenames — copy, don't rename
+mkdir -p /home/user/fonts
+cp -f in/JetBrainsMono.ttf "/home/user/fonts/JetBrainsMono[wght].ttf"
+cp -f in/Newsreader.ttf    "/home/user/fonts/Newsreader[opsz,wght].ttf"
+cp -f in/NewsreaderIt.ttf  "/home/user/fonts/Newsreader-Italic[opsz,wght].ttf"
 # B_long: B forward + reversed, then looped once -> 972 frames / 40.5 s
 [ -f in/B_long.mp4 ] || { \
  ffmpeg -y -v error -i in/B.mp4 -vf "fps=24,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1" \

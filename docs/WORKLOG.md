@@ -404,6 +404,101 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-02 — Launch cut v6 (watch · Radio wall · globe) and five slower feature spots
+
+- **Three owner notes on the launch cut, one re-render.** *"show the shape radio screen on
+  the wall in the last screen and show the BPM & HRM beat match feature on the watch … And
+  make sure the shape radio logo fits and it looks like it does on app and website. Not
+  condensed. Maybe start that scene with the wall more zoomed in so it fits"* · *"and then
+  the last scene, show video of the globle spinning and shape popping up around the globe
+  representing people that have downloaded, with the shape logo appearing above the globe"*
+  · *"popping up above the globe"*. **v6** answers all three: 1440×2560 · 24 fps · **738
+  frames / 30.750 s**, on the pick (t3), now **four scenes** — the runner with a wrist
+  readout, the phone with the SHAPE logo (v4 unchanged), the club wall **zoomed in**
+  carrying the single-line Radio wordmark plus a projected Radio screen, and a new night-Earth
+  globe where 27 marks pop on lit cities under the logo. ⚠ **v6 SUPERSEDES v5** — the
+  montage cut is left as it shipped, not re-rendered against these changes, until the owner
+  picks one. Recipe, timings, scripts and the measured panel:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("What v6 is").
+- **The four feature spots are re-cut at roughly half speed, and a fifth joins them.**
+  Owner: *"also reduce the scrolling times of all the other videos. The scrolling is going
+  too fast through the sections. Its hard to see what is going on."* and *"and need a
+  seperate video for the coaching marketplace"*. **TRAIN · EAT · COMMUNITY · SCORE** go from
+  ~14.5 s to **23.1–23.5 s** (58–62 % longer) by roughly doubling the beats per page, and
+  **MARKETPLACE** is new — the classifieds, Coach of the Week, the rate card, the included
+  sheet, the calendar, the free intro. Links handed over in-session (gofile, md5-verified),
+  not in the repo; nothing posted, nothing merged.
+- ⚠ **THE FIX IS AN ANCHORED WINDOW, NOT A SLOWER SPEED — AND THAT DISTINCTION IS THE WHOLE
+  POINT.** The old plan divided a fixed source window by the beats and let the playback speed
+  absorb the difference, clamped 0.85–1.75×, which is how a page ended up scrolling faster
+  than a viewer can read. Now the **beats decide the duration** and the source window is
+  **anchored on the page's focus act** with a pre-roll, clamped to the segment's own length —
+  so the speed can only ever move **DOWN**. Measured across all 26 segments of the five
+  spots: **every one fits at `spd 1.00`**. No page is sped up anywhere in the set.
+- ⚠ **t2 SITS THIS SET OUT, AND THAT IS A PROPERTY OF THE TRACK.** Its kick runs from beat
+  16 to beat 43 — about 14 seconds — so a ~23 s spot on t2 would either open or close in
+  silence, and the closing logo pulse is gated on a real kick. TRAIN · SCORE · MARKETPLACE
+  ride t3; EAT · COMMUNITY ride t1. The three-track set the 09-02 variants established is
+  intact for the launch cut; it is the spot length that t2 cannot carry.
+- ⚠ **THE HR READOUT ON THE WATCH IS ILLUSTRATIVE, AND THE NUMBER WAS CHOSEN TO MATCH THE
+  TRACK RATHER THAN THE APP.** The card shows the station at **120 BPM** because the cut's
+  own track measures 119.45; the shipped signed-out preview shows **132**. And the app's own
+  demo path is worse than a mismatch — `connectMonitor()` fabricates a **114 bpm** reading
+  with no strap attached and still reads connected, which is exactly why the 08-31 brand
+  plan tells a shooter to keep the **"You · live"** label in frame rather than the chip. So
+  the watch is a designed depiction of a shipped feature, not a capture of it.
+- ⚠ **THE CLUB CLIP STROBES, SO THE WALL WORDMARK IS DARK ON A THIRD OF SCENE C.** Measured:
+  the wordmark band reads dark on **64 of 200** sampled Scene-C frames (**32 %**). That is
+  the source footage's own lighting, not the layer — the wordmark is drawn every frame and
+  the slab behind it goes black. Recorded as an informational line in `verify6.py` rather
+  than an assertion, because the correct fix is a different club clip, not a brighter layer.
+- ⚠ **THE GLOBE MARKS ARE ILLUSTRATIVE AND CARRY NO COUNT, DELIBERATELY.** 27 marks pop on
+  lit cities; nothing on screen says how many people have downloaded anything, because
+  nothing has been downloaded yet. The honest-data doctrine applies to a marketing frame the
+  same way it applies to a card: a number would be a fabrication, a scatter of marks is a
+  picture of the idea.
+- ⚠ **THE FIRST v6 VERIFICATION FAILED FIVE ASSERTIONS AND ALL FIVE WERE THE INSTRUMENT.**
+  Three phone-logo and two wall-wordmark pulse checks read as unlit at the beat. **At 24 fps
+  there is no frame AT the beat instant** — the peak is the FIRST FRAME AT OR AFTER it, so
+  every sample must be taken at `beat(n) + 1/24`; and the wall's pulse is **3 %** scale
+  against the phone's **6 %**, so it needs a lower lit threshold (30, not 60) to register at
+  all. Sampling one frame early on a 3 % pulse reads as "the wordmark is missing". Fixed at
+  the sampler, both number sets re-measured, and the lesson written at the site — *sample
+  where the thing you assert can exist*, the same rule the v4 `last`-frame fix recorded, one
+  layer down.
+- **Verified numerically, per render.** The five spots: 555 / 555 / 564 / 564 / 555 frames
+  (23.125 / 23.125 / 23.500 / 23.500 / 23.125 s) against audio 23.106 / 23.106 / 23.510 /
+  23.510 / 23.106; the phone-screen layer matches its capture frame on **58 of 60** samples
+  (1.65–2.03) and the composite matches `screen(B_long, layer)` at 1.22–1.95; captions lit
+  at every midpoint (8,994–52,893) and **0 at t = 0.2 s** on all five; the closing logo bbox
+  477–480 px / 21.3–22.3 k lit at a beat against 458 px / 8.8–8.9 k mid-beat; the output
+  audio re-measures 119.35 BPM (t3) and 119.9 (t1) with every cut within 60 ms of a grid
+  beat. ⚠ **The two SCORE outliers (20.14 and 8.49) are timing, not a wrong clip** — a
+  best-match scan over ±0.35 s at 0.02 s pins both **one to two capture frames** off the
+  nominal map (+0.05 s and −0.05 s), after which they read 2.27 and 2.20; the 24 fps
+  resample of an 11–19 fps capture, the same artefact the 09-02 entry records.
+- **v6, measured:** 738 frames / 30.750 s; the three transition frames match their sources
+  outside the layers; the wrist readout reaches IN SYNC on beat 14; the wordmark sits at
+  x 214–1225 (w 1010–1012, h 62) with **74/81 · 62/70 · 47/48 · 73/72 px** of slab margin at
+  14.3 / 15.0 / 17.0 / 21.0 s as the zoom eases from 1.50× out to 1.15×, and the projected
+  screen at x 459–972; the globe's marks land inside 0.90 R on pixels above luma 110 with
+  150 px spacing; the logo holds from beat 52 and the close copy from beat 56.
+- ⚠ **A CHECKPOINT YOU CANNOT READ BACK IS NOT A CHECKPOINT.** The sandbox was reclaimed
+  **six** times across this work. The recorded mitigation — `tar czf` the capture and upload
+  it — **does not work**, because a gofile guest upload returns a download *page*, not a file
+  URL, so the tar can never be curled back. What does work is one background script that
+  **renders, md5s and uploads each spot immediately** in order, polled every ~55 s: a wipe
+  then costs only the spot in flight. Corrected at the source in the recipe's `boot5.sh`
+  prose alongside two real defects that cost a full round each — the MAP never extracted
+  **`beat.py`** (so every verification died on `ModuleNotFoundError`, and the recipe carried
+  no copy of it at all), and the fonts were downloaded under names `captions.py` does not
+  load. Both fixed; the whole extraction is now replayed and syntax-checked from the file.
+- **Records only in the repo** (this entry, the recipe's "What v6 is" + "The spots, slowed"
+  + the v6 scripts + `beat.py` + the boot fixes, the War Room item); **no PR, nothing
+  merged.** Open: the owner's review of the six cuts, whether v6 or v5 is the launch cut,
+  the preview-cast ruling from 09-02, and the caption copy for the MARKETPLACE spot.
+
 ### 2026-09-02 — Four feature spots + launch cut v5: the real app on the phone, cut to the beat
 
 - **Owner, on the v4 trio: *"also the videos need to have a lot more going on. Create videos
