@@ -24,6 +24,7 @@
   "ridge.now": "Now",
   "ridge.start": "Start",
   "ridge.target": "Target",
+  "ridge.topTier": "Top tier",
   "follow.follow": "＋ Follow",
   "follow.following": "Following",
   "follow.requestCount": "{count, plural, one {# request} other {# requests}}",

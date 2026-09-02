@@ -404,6 +404,106 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-02 — The ascent chart at the top of the ladder, and two rounds of pill compaction
+
+- **Three owner calls, one presentation-only diff** (mobile only; no migration, no route,
+  no data change). The measurement is untouched — the ratchet must not move.
+- ⚠ **AT LEGEND THE HERO ASCENT WAS LABELLING BOTH ENDS OF A SEGMENT THAT DOES NOT
+  EXIST.** The ridge's whole framing is ONE step — *your tier → the next one* — and the
+  last rung has no next one. `_hlTop` sets `heroPct = 1` and `nextLevel = null`, so the
+  base label (`curLevel`) and the summit label (`nextLevel || curLevel`) both rendered
+  **LEGEND**, the badge read **100%** of a span with no far end, and the figure stood at
+  the `0.66` clamp while the heat path drew all the way to the flag — a route finished
+  under a climber two-thirds up it. Every one of those is a *correct* reading of a frame
+  that stopped applying.
+- **The fix re-frames the SAME picture as the WHOLE ladder** rather than inventing a
+  metric: base = the **first** rung, summit = the tier they **hold**, route complete,
+  figure at the **top** of it (`0.82`, not `0.66`), and the badge **names the state**
+  (`Top tier`) instead of quoting a percentage. `heroBaseLevel` / `heroSummitLevel` carry
+  it so the two labels can never read the same word again.
+- ⚠ **THE SUMMIT LABEL MOVES TO THE BASELINE AT THE TOP STATE, AND THAT IS MEASURED, NOT
+  eyeballed.** A geometry probe reading W/H/base/peak/caps/avatar-size **out of the
+  shipped source** and composing them at 320 · 375 · 390 · 430 · 540px: the mid-ladder
+  figure (0.66) is clear at every width and is **unchanged**; the top-state figure (0.82)
+  clears the flag pole by **+21.7px at the narrowest width** and never overflows the
+  right edge — but it **overlaps the top-right label slot by 21–39px at EVERY width**.
+  So the label moves; the figure does not shuffle sideways to dodge it.
+- ⚠ **AND THE FIGURE COLUMN IS PINNED TO `width: 60`, WHICH IS THE FACET'S OWN WIDTH.**
+  Shrink-to-fit sizes the column to its widest child, and the longest top-tier badge
+  (ru «Высший уровень» / uk «Найвищий рівень», ~15 chars ≈ 86px) is wider than the
+  avatar — so on those two locales the column would have grown and shoved the avatar
+  sideways into the flag. The overlays are positioned in **percentages** because the SVG
+  is `preserveAspectRatio="none"` (the landscape lesson this file already records), so a
+  px-sized child is exactly the thing that breaks the alignment.
+- ⚠ **THE SAME start===target DEFECT WAS LIVE ONE LAYER DOWN, IN THE CLIMB BOX.**
+  `climbCfgFor`'s **score** aspect built its arc as *this tier → the next one* too, so at
+  the last rung it read **"Legend 15,000 pts → Legend 15,000 pts"**. It now spans the
+  whole ladder (first rung → held tier) — **the same re-frame**, so the two ridges on one
+  page agree instead of disagreeing about what a finished climb looks like. *Fixing where
+  the screenshot pointed would have left the twin shipping* — the rule this file keeps
+  paying for.
+- **Pills compacted (owner, two calls).** The coach Signal profile's **＋ FOLLOW / ✉
+  MESSAGE** pair comes down **38 → 30** high — and every dimension moves *with* it (type
+  9 → 8, padding 10/15 → 6/11, tracking 0.1 → 0.09em, the pair's gap 8 → 6) so the pills
+  keep their proportions instead of just getting squat. 30 clears this repo's documented
+  floor — **WCAG 2.5.8 AA is 24px**, not Apple's 44pt HIG suggestion. The breathing glow
+  + press transform were checked BEFORE the resize and are size-agnostic (a `box-shadow`
+  follows `border-radius`; the press is a transform), so neither affordance moved.
+- ⚠ **THE LEDGER FOLLOW BOX SHRANK WITHOUT SHRINKING ITS TAP TARGET, AND THAT IS THE
+  WHOLE TRICK.** The Terrain profile's tinted Follow box was painted on the **button**,
+  which carries a 44px tap height — so the tint filled all 44px and read as a slab beside
+  the hairline MESSAGE action. The box moved onto an **inner span** (~24px, padding 5/9,
+  radius 3), leaving the invisible 44px hit area intact — the same negative-space pattern
+  the feed's ✎ edit already uses. **Making a control look smaller and making it harder to
+  hit are different changes; only the first was asked for.**
+- **Dead code swept with the change:** `pctLabel` and `summitEff` (both zero references
+  after the re-frame) deleted rather than left to read as live inputs.
+- **i18n**: one new `profile:ridge.topTier` ×13, each **authored from that locale's own
+  `profile:stat.tier` word** (de *Stufe* · es/pt-BR *Nivel/Nível* · fr *Palier* · ha
+  *Matakin* · id *Tingkat* · it *Livello* · ru/uk *Уровень/Рівень* · tr *Seviye* · vi
+  *Bậc*) rather than invented; **pcm matches English legitimately** (an English-lexifier
+  creole — the pattern this file already records). A pure append — **1 insertion / 0
+  deletions per file**, inserted after `ridge.target` so the `ridge.*` run stays ordered.
+- ⚠ **THE FIRST-RUNG NAME SPLIT IS PRE-EXISTING AND DELIBERATELY NOT TOUCHED.** The Score
+  page's `SHAPE_SCORE_TIERS` names it **Raw** while `bsTierForPoints` / `_HLNM` return
+  **Base** — internally consistent within each component, and renaming a tier is an owner
+  call, not a side effect of a layout pass.
+- ⚠ **AND THE SAME DEFECT WAS LIVE ON THE WEBSITE MEMBER PROFILE, WHICH THE MOBILE FIX
+  DOES NOT REACH.** `public/newdesign/livingDesktop.jsx`'s `memberLevel` **already computed
+  a correct `top` flag** — and neither consumer read it, so at Legend `TerrainVisual`
+  rendered the badge **"You · 98%"** (the `min(lvl.pct, 0.98)` clamp), **LEGEND at BOTH
+  ends** (`startLabel = lvl.cur`, flag `lvl.next || lvl.cur`), and the figure at the `0.7`
+  cap under a 98%-drawn trace — all four mobile symptoms, on the surface a member reaches
+  from a browser. The climb box's `dkClimbCfg` score aspect read **"Legend 15,000 pts →
+  Legend 15,000 pts"** identically. *A fix that lands on one surface is not a fix for
+  every member* — the ask was every member at Legend tier, and half of them are on the web.
+- **The web takes the SAME re-frame and the SAME `0.82` cap**, so the two surfaces can't
+  disagree about what a finished climb looks like: base = the first rung, summit = the tier
+  held, route complete, badge naming the state, and the summit label dropping to the
+  baseline at the top state (the figure runs under the flag's label slot at 0.82). ⚠ **The
+  cap is shared rather than re-derived**: probed against the web's own geometry (`W 520`,
+  88px avatar, pole at 87.7%), `0.82` puts the figure at **73.4%** and clears the flag pole
+  down to a **309px-wide card** — narrower than any real render — where `0.86` only cleared
+  to 396px. Its dead `summit` local (zero references) went with the change.
+- ⚠ **THE TIER VOCABULARY THAT CAN REACH THE MEMBER HERO WAS ENUMERATED, NOT ASSUMED.**
+  `_hlIdx` is a case-insensitive match against `_HLNM` and `Math.max(0, -1)` silently
+  collapses a miss to **Base** — so a name outside the list fails quietly. Every source
+  checked: `bsTierForPoints` (Base/Tempo/Form/Peak/Legend), `_BS_FEED_TIERS` (same five),
+  and `selfScore.tier` from the score route (Raw/Tempo/Form/Peak/**Legend**) — every one
+  spells Legend identically. **No coach ladder name can reach it at all**: `BSPublicProfile`
+  routes `kind === 'TRAINER' | 'NUTRI'` to `BSSignalCoachProfile`, which has carried its own
+  `_sigTop` → "Top of the ladder" state all along.
+- **Verified:** `npm test` **2643/2643** · JSX parse (mobile + newdesign) · newdesign
+  precompile `--check` 0 · the shipped `memberLevel`/`dkClimbCfg` **driven over the whole
+  ladder** (every mid-rung row byte-unchanged; no row renders the same word at both ends) ·
+  mobile build 0 with **the key and
+  all 13 translated values confirmed in the emitted bundle** behind a positive control
+  (`profile:role.trainer`) and a negative one · the ledger box, the `width: 60` pin and
+  the `0.82` cap confirmed in the emitted bundle **in the minifier's backtick form** (a
+  double-quote grep reads 0 and looks like a miss — the trap this file records) · the
+  superseded `minHeight:38` / `10px 15px` hits traced to **unrelated components** rather
+  than assumed absent · LF, zero CR on all 14 files.
+
 ### 2026-09-02 — "We can use both": the launch cut rendered on all three tracks, each on its own grid, with a kick-presence gate
 
 - **Owner ruling on the two alternate tracks: *"i like both of them. We can use both"*.**
