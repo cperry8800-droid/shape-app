@@ -404,6 +404,80 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-03 — v7 scoped off four owner notes on the v6 cut, and the v6 video prompts turn out to be unrecoverable
+
+- **Records only.** Four owner notes on the rendered launch cut — the watch card reading
+  **IN SYNC** in three places at once · the projected Radio screen sitting inset on the
+  club slab instead of filling it · globe marks that float rather than pinpoint · a naked
+  runner, plus a request for a watch close-up. Scoped into
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md) §"What
+  v7 must answer". **Nothing rendered, nothing generated, no PR.**
+- ⚠ **THREE OF THE FOUR ARE OVERLAY BUGS, NOT HIGGSFIELD BUGS — AND THAT DECIDES WHO FIXES
+  WHAT.** Higgsfield makes four **backdrop clips**; every flagged element except the
+  runner's wardrobe is drawn by a Python script and SCREEN-composited by the ffmpeg graph.
+  Re-prompting cannot reach `IN SYNC` (`mk_watch.py`), the projected screen
+  (`mk_wall6.py`) or the mark geometry (`mk_globe.py`) — those pixels never pass through
+  the model at all. **Two recipe edits, one re-prompt (the owner picked it), and one that
+  is both.**
+- ⚠ **AND A RE-PROMPT INVALIDATES THAT SCENE'S MEASURED GEOMETRY, WHICH IS THE REAL COST
+  AND THE THING A "just regenerate it" READING MISSES.** Every v6 number was measured
+  against the **specific file**, never against the prompt: the watch card sits at
+  **x 890 / y 1660** because that is where *this* runner's wrist is, and the globe disc is
+  **(727, 1295) r 676** because `meas_globe.py` measured *this* render. A new Scene A clip
+  makes the watch position wrong; a new Scene D clip makes all 27 mark positions wrong.
+  Re-measure first or the overlays land on nothing — and Scene A has **no measurement
+  script**, so one has to be written.
+- ⚠ **THE TRIPLE `IN SYNC` IS IN THE SHIPPING APP TOO, SO FIXING THE FILM ALONE MAKES IT
+  DISAGREE WITH THE PRODUCT.** `iosAppBroadsheetRadio.jsx` carries the same three: the
+  status chip (`:1306`), the delta slot (`:1622`) and the pill (`:1651`) all resolve to
+  **In sync** at the same instant. **The film is the symptom; the card is the defect.**
+  Registered, not fixed — a live-UI change is its own PR, not a records commit.
+- ⚠ **AND `verify6.py` ASSERTS ON THE PIXELS THAT FIX WOULD CHANGE.** Its watch check
+  counts teal against amber across beat 14 (teal 579 → 2031, amber 1121 → 0); removing two
+  of the three IN SYNC strings removes teal glyphs, so the thresholds must be **re-derived
+  from the new render**, never carried. *An assertion tuned to a bug passes only while the
+  bug is there.*
+- **The wall knob already exists, and the missing number is vertical.** `mk_wall6.py`
+  reads `SCR_W` (560) and `SCR_Y` (880) from the environment, so widening is a parameter —
+  but the fit check only ever measured the slab's **left/right** margins (47–81 px at four
+  times). The capture is cropped `(0,240,750,1420)`, so `SCR_W=1010` renders **1589 px
+  tall** and reaches y 2469 of 2560 with **no measurement saying whether that is still on
+  the slab**. Measure the slab rect before choosing a width. ⚠ And the crop starting at
+  y = 240 **cuts the captured Radio page's own header** — un-cropping it puts the app's
+  real in-app wordmark on the wall (the owner's earlier *"looks like it does on app and
+  website"* note) and makes the separately-drawn wordmark band redundant. One change, two
+  notes answered.
+- **The globe: the owner chose the re-prompt** ("reprompt"), so Higgsfield renders anchored
+  pins rather than the overlay drawing leader lines. ⚠ **That puts the baked pins and
+  `mk_globe.py`'s 27 beat-locked marks in the same frame and one has to give** — the marks
+  ARE Scene D's beat lock (1 · 2 · 3 per beat, beats 48–60). Three routes recorded, ranked:
+  re-aim the marks at measured pin heads (keeps the lock) · prompt the pins **unlit** so
+  every teal head is drawn on its beat · retire the mark layer (**loses the lock** — not
+  recommended). The honest-data line does not move either way: **pins that look like a
+  telemetry map must not acquire numbers, labels or city names.**
+- **The watch close-up fits the grid for free, and it lands the payoff better.** The cut is
+  738 frames pinned to a measured grid (`t(n) ≈ 0.027 + n × 0.5025`), so a fifth shot reads
+  as a re-derivation — except **beat 12 (6.057 s) → the A→B fade start (7.7668 s)** is
+  **1.71 s / 41 frames** entirely inside Scene A: no downstream offset moves, the total
+  stays 738, and **IN SYNC arrives on beat 14 in close-up** two beats before the drop
+  instead of in a 480 px corner card. ⚠ It needs a **second watch placement**
+  (`mk_watch.py` overlays one fixed rect today) and a prompt that asks for a **blank
+  glowing face** — a readable UI on the wrist would put a second, different, fabricated
+  heart rate under the composited card.
+- ⚠ **THE v6 VIDEO PROMPTS WERE NEVER RECORDED AND CANNOT BE RECOVERED — CHECKED, NOT
+  ASSUMED.** The Sources table records **every track prompt verbatim** and **no video
+  prompt at all**; the four clips are listed by a piece label only. The session store holds
+  **one** transcript for this repo, it is **this session**, and it carries **zero**
+  Higgsfield calls — the job ids match only because they were read out of the doc. The
+  four scene prompts are therefore written up as **reconstructed from the surviving piece
+  labels and scene descriptions, explicitly labelled as inferred**, with the warning that
+  re-running them yields a different clip with different geometry. *A generation is
+  reproducible only if the prompt is written down beside the file id — the tracks were
+  recorded that way and can be re-made; the clips were not, and cannot.*
+- **Three v7 re-prompts drafted and NOT submitted** (clothed runner · watch close-up ·
+  pinned globe) — no generation has been fired. Verified: LF, zero CR, zero NUL, 72 fences
+  balanced, headings in order; **+185 lines to the launch-cut doc, no code touched.**
+
 ### 2026-09-02 — Launch cut v6 (watch · Radio wall · globe) and five slower feature spots
 
 - **Three owner notes on the launch cut, one re-render.** *"show the shape radio screen on

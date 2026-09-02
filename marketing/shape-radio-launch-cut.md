@@ -2082,6 +2082,191 @@ echo "ALL-FAILED"
 ---
 
 
+## What v7 must answer (2026-09-03) — the watch, the wall, the globe, the runner
+
+Four owner notes on the rendered v6 cut, three of them off screenshots of the film:
+
+- *"this needs to be fixed on intro video"* — the HEART-RATE SYNC card reads **IN SYNC**
+  in three places at once.
+- *"just have this fill the entire wall screen on launch video"* — the projected Radio
+  screen sits inset on the slab instead of filling it.
+- *"and have this map point out distinct areas on globe. Like have a link pinpoint a spot
+  on the globe"* — the marks float over the disc rather than anchoring to it.
+- *"make the guy running in the launch video not naked, have him wearing workout clothes,
+  and do a zoom in of the physical watch showing the heart-rate sync"*.
+
+⚠ **THREE OF THE FOUR ARE OVERLAY BUGS, NOT HIGGSFIELD BUGS — AND THAT DECIDES WHO FIXES
+WHAT.** Higgsfield generates four **backdrop clips**; every element the owner flagged
+except the runner's wardrobe is drawn by a Python script and SCREEN-composited by the
+ffmpeg graph. Re-prompting cannot reach `IN SYNC` (drawn by `mk_watch.py`), the projected
+screen (`mk_wall6.py`) or the mark geometry (`mk_globe.py`) — those pixels never pass
+through Higgsfield. So: two recipe edits, one re-prompt (the owner's call), and one that
+is **both** — new wardrobe is a new clip, and the close-up is a new shot *plus* a second
+watch placement.
+
+⚠ **AND A RE-PROMPT INVALIDATES THAT SCENE'S MEASURED GEOMETRY, WHICH IS THE REAL COST.**
+Every number v6 locks was measured **against the specific file**, not against the prompt:
+the watch card sits at **x 890 / y 1660** because that is where *this* runner's wrist is;
+the globe disc is **(727, 1295) r 676** because `meas_globe.py` measured *this* render.
+A new Scene A clip makes the watch position wrong, and a new Scene D clip makes every
+mark position wrong. **Re-measure before re-rendering, or the overlays land on nothing** —
+`meas_globe.py` already exists for the globe; Scene A has no measurement script and would
+need one (or a hand-measured wrist rect at the fade-in frame).
+
+### 1 · IN SYNC ×3 — a `mk_watch.py` edit, and the app says it three times too
+
+The card states one fact in three registers and they all resolve to the same two words at
+the same instant. In `mk_watch.py`:
+
+| site | expression | at sync |
+| --- | --- | --- |
+| header chip | `tag=('IN SYNC' if synced else ('MATCHING...' if t>=tMatch else 'FREE'))` | IN SYNC |
+| station line, right | `dl=('IN SYNC' if synced else f'{delta:+d} BPM')` | IN SYNC |
+| pill | `pilltxt=('IN SYNC' if synced else ('MATCHING BEAT' if t>=tMatch else 'MATCH MY BPM'))` | IN SYNC |
+
+The fix that keeps all three *stations* useful rather than deleting two of them: the
+**header chip** keeps the state word (it is the status field), the **station line** keeps
+carrying the delta — `+0 BPM` is the true reading at sync and it is the number that proves
+the match — and the **pill** becomes the action/acknowledgement, not a third status echo.
+One word on screen, two supporting figures.
+
+⚠ **THE SAME REDUNDANCY IS IN THE SHIPPING APP, SO A FIX HERE IS COSMETIC UNTIL IT LANDS
+THERE.** `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx` carries the identical
+triple: `hrStatus` at `:1306`, the delta slot at `:1622`
+(`isSynced ? radio:hr.inSync : radio:hr.deltaBpm`) and the pill at `:1651`. The film is a
+faithful capture of a UI that repeats itself — **the film is the symptom, the card is the
+defect.** Fixing only `mk_watch.py` makes the video disagree with the product.
+
+⚠ **AND `verify6.py` ASSERTS ON THE PIXELS THIS CHANGES.** The check
+`watch MATCHING(amber)->IN SYNC(teal) at beat 14` counts teal against amber in the card
+rect (teal 579 → 2031, amber 1121 → 0). Dropping two of the three IN SYNC strings removes
+teal glyphs, so the thresholds must be re-derived from the new render rather than kept.
+*An assertion tuned to a bug passes only while the bug is there.*
+
+### 2 · The screen must fill the slab — a `mk_wall6.py` edit, and the knob already exists
+
+`mk_wall6.py` already reads the screen size and position from the environment:
+`SW=int(os.environ.get('SCR_W','560'))`, `SY=int(os.environ.get('SCR_Y','880'))`, with
+`SX=(W-SW)//2`. The measured slab carries the wordmark at **x 214–1225** with 47–81 px of
+slab either side, so the slab is roughly **1010–1160 px wide** and the screen at 560 uses
+barely half of it.
+
+⚠ **THE MISSING NUMBER IS VERTICAL, AND NOBODY MEASURED IT.** The fit check samples the
+wordmark band's left/right margins at 14.3 / 15.0 / 17.0 / 21.0 s — **horizontal only**.
+The capture is cropped `(0, 240, 750, 1420)` = 750×1180, so at `SCR_W=1010` it renders
+**1589 px tall**; from `SY=880` that reaches y 2469 of 2560. Whether that is *on the slab*
+or spilling onto the room is unknown, because the slab's top and bottom were never
+measured. **Measure the slab rect before choosing `SCR_W`/`SCR_Y`** — widening blind is
+how the screen ends up half on the wall and half on the floor.
+
+⚠ **AND FILLING THE SLAB MAY RETIRE THE SEPARATE WORDMARK LAYER.** The crop starts at
+y = 240, which cuts the captured Radio page's own header. Un-cropping to include it puts
+**the app's real in-app wordmark** on the wall — which is what the owner asked for two
+notes ago (*"make sure the shape radio logo fits and it looks like it does on app and
+website"*) — and makes `mk_wall6.py`'s separately-drawn `shape-radio-logo.png` band
+redundant rather than something to reposition around a taller screen. One change answers
+both notes; it needs the capture re-checked for the header first.
+
+### 3 · A pinned globe — the owner chose the re-prompt
+
+Asked whether to re-prompt for a pinned globe or draw anchor-dot + leader-line pins over
+the existing clip, the owner said **reprompt**. So Higgsfield renders a night Earth whose
+markers already read as *anchored to the surface* — a dot on the ground, a thin riser, a
+head — rather than a clean disc that the overlay scatters triangles across.
+
+⚠ **THAT PUTS `mk_globe.py`'s 27 MARKS AND THE BAKED PINS IN THE SAME FRAME, AND ONE OF
+THEM HAS TO GIVE.** The marks are the film's beat lock in Scene D — 1 / 2 / 3 per beat
+across beats 48–60, each popping on a luma-sampled lit city. Baked pins are static. Three
+ways out, in order of preference:
+
+1. **Re-aim the marks at the pins.** Extend `meas_globe.py` to find the pin heads in the
+   new clip and pop the Shape marks **onto them** instead of onto sampled cities. Keeps
+   the beat lock, keeps the anchoring, costs one new measurement pass.
+2. **Prompt the pins unlit and let the marks light them.** The clip carries anchor
+   geometry only; every teal head is drawn by `mk_globe.py` on its beat.
+3. **Retire the mark layer.** Simplest, and it **loses the beat-locked pops** — the one
+   thing tying Scene D to the track. Not recommended.
+
+Whichever route: **the honest-data line does not move.** The marks stand for people, not
+for a count; nothing on screen or in the copy asserts a figure. Pins that look like a
+telemetry map must not acquire numbers, labels or city names on the way.
+
+### 4 · A clothed runner and a watch close-up — a re-prompt *and* a beat-grid change
+
+The wardrobe is a re-prompt: Scene A is regenerated with the athlete in real training
+kit. The close-up is not an edit at all — **it is a fifth shot in a cut whose 738 frames
+are already pinned to a measured grid**, every cut landing within 60 ms of a beat.
+
+The window that costs nothing: the grid runs `t(n) ≈ 0.027 + n × 0.5025 s`, and Scene A
+owns 0 → `offAB` 7.7668 s. **Beat 12 = 6.057 s** to the A→B fade start at 7.7668 s is
+**1.71 s / 41 frames** — a real beat-locked window inside Scene A that changes **no**
+downstream offset and keeps the total at 738 frames. And it lands the payoff better than
+v6 does: **IN SYNC arrives on beat 14 in close-up**, two beats before the drop, instead of
+in a 480 px card in the corner of a wide shot.
+
+⚠ **THE CLOSE-UP NEEDS A SECOND WATCH PLACEMENT, NOT THE SAME ONE.** `mk_watch.py`
+overlays one 480×480 card at a fixed **x 890 / y 1660**, sized for the wide shot. In a
+close-up the physical watch fills much of the frame, so frames ~145–186 need their own
+rect and scale — `mk_watch.py` gains a per-frame placement rather than a constant, and the
+`verify6.py` watch-rect checks (`A matches its source outside the watch rect`) must follow
+the moving rect or they will read the close-up as a mismatch.
+
+⚠ **AND THE PROMPT MUST ASK FOR A BLANK, GLOWING WATCH FACE.** If Higgsfield renders a
+readable UI on the wrist, the composited card lands **on top of a second, different,
+fabricated readout** — two heart rates on one wrist. The face has to be a clean lit
+surface for the real card to sit on.
+
+### The v7 re-prompts (drafted, NOT submitted — no generation has been fired)
+
+Three prompts, in the account's own style (the v6 clips are all h264 1440×2560, 24 fps,
+243 frames / 10.125 s — hold that spec):
+
+**A · the runner, clothed** — *Vertical 9:16. A lone athlete running at night through a
+dark space, wearing a fitted technical training top and shorts in black and deep teal,
+proper running shoes. Ribbons of teal and white light wrap and trail around the body as
+they move. Cinematic, high contrast, deep black background, volumetric haze, no text, no
+logos, no on-screen graphics. Slow steady camera, shallow depth of field.*
+
+**A2 · the watch close-up (new shot)** — *Vertical 9:16. Extreme close-up of a smartwatch
+on a runner's wrist, mid-stride, night. The watch face is a clean blank glowing panel —
+soft teal light, no numbers, no icons, no text, no user interface. Sweat on skin, dark
+technical sleeve at the edge of frame, deep black background, teal rim light. Shallow
+depth of field, slow push in, no text, no logos.*
+
+**D · the pinned globe** — *Vertical 9:16. A slowly rotating night Earth against deep
+black, seen from space. City lights glowing warm across the landmasses, a faint teal
+atmospheric rim. Thin vertical light beams rise from a scattering of points on the
+surface, each anchored to a small glowing dot where it meets the ground — location pins
+planted on the globe. No text, no labels, no country names, no numbers, no user interface.
+Cinematic, high contrast, slow steady spin.*
+
+### ⚠ THE v6 VIDEO PROMPTS WERE NEVER RECORDED, AND THE TRANSCRIPTS DO NOT HOLD THEM
+
+The Sources table records **every track prompt verbatim** ("deep dark tech house 126 BPM,
+driving kick, Detroit minor stabs, relentless") and **no video prompt at all** — the four
+clips are listed by a piece label only. Checked rather than assumed: the session store
+holds **one** transcript for this repo, it is **this session**, and it contains **zero**
+Higgsfield tool calls. The v6 generations were run elsewhere; the job ids match only
+because they were read out of this file. **They cannot be recovered.**
+
+What survives is the *intent*, in the doc's own words. Reconstructed below from the piece
+labels and the scene descriptions — **these are inferred, not the strings that produced
+the files**, and re-running them yields a different clip with different geometry (see the
+re-measure warning at the head of this section):
+
+| scene | recorded label | reconstructed intent |
+| --- | --- | --- |
+| A | *"athlete + light ribbons"* | a lone athlete moving in a dark space, wrapped and trailed by ribbons of teal/white light; cinematic, high contrast, no text |
+| B | *"static blank-screen phone"* | a phone held or standing still against a dark ground, screen **blank and unlit** — the SHAPE logo is composited onto it, so the source must not carry one |
+| C | *"dark club wall"* | a dark club interior with a large flat lit slab/panel on the wall and a moving rig; the wordmark and Radio screen are composited onto the slab |
+| D | *"a generated night Earth — city lights, a faint teal rim, a slow spin, no text"* | recorded almost as a prompt already; the only one whose wording survives near-verbatim |
+
+*The lesson is the one this file keeps paying for: a generation is only reproducible if the
+prompt is written down beside the file id. The tracks were recorded that way and can be
+re-made; the clips were not, and cannot.*
+
+---
+
 ## The spots, slowed — and the MARKETPLACE spot
 
 **Owner, on the four feature spots: *"also reduce the scrolling times of all the other
