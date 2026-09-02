@@ -404,6 +404,112 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-02 — Four feature spots + launch cut v5: the real app on the phone, cut to the beat
+
+- **Owner, on the v4 trio: *"also the videos need to have a lot more going on. Create videos
+  that show the other features of the app"*.** Five renders now exist beside the three v4
+  cuts — four ~14.5 s **feature spots** (**TRAIN** · **EAT** · **COMMUNITY** · **SCORE**, one
+  per owned track) and **launch cut v5** (the v4 pick with a six-page montage on the phone
+  during beats 20→32). Every frame on the phone is a **real capture of the shipped app** —
+  the production `/m/` build in its signed-out preview — composited into the Scene B screen
+  rect on the SAME grids as v4, cut on the beat, captioned in the website's own register.
+  Links handed over in-session (gofile, md5-verified), not in the repo; nothing posted,
+  nothing merged. Recipe, scripts, timings and the verify method:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("The feature spots + launch v5").
+- **What each spot shows** (page · beats · caption). **TRAIN** (the pick, t3): the Train deck
+  (5) *Written before you arrive.* → the swap sheet (4) *Swap a move.* → the live session
+  player (6) *The live session.* → a set logged (4) *Every set, logged.* → the month calendar
+  (4) *The whole month.* **EAT** (alternate 1, whose kick runs from bar one, so the logo pulses
+  from the first beat): the Menu (5) *The ledger ticks live.* → a meal (4) *Every meal,
+  planned.* → the grocery list opening Produce (5) *The shop list, sorted.* → Recipes + a
+  recipe (2 + 3) *Shape Kitchen.* → Cook mode (4) *Cook mode.* **COMMUNITY** (alternate 2):
+  the feed (5) *The social side of strong.* → Session details (4) *Every session, on the
+  wire.* → Channels (4) *Channels for your people.* → the marketplace (5) *Vetted trainers ·
+  Real humans* → a Listing (5) *Browse free before you pay.* **SCORE** (the pick): the Terrain
+  profile with the CLIMB tab (7) *A profile that climbs with you.* → Shape Score with THIS
+  TIER / THE LADDER (5) *One number that tells the truth.* → the Habit Ledger (4) *Small
+  things, daily.* → The Contract (3) *The Contract.* → the check-in (4) *How are you today.*
+  Every spot opens on the SHAPE logo and closes on it pulsing, under *Different goals. One
+  Community.* · ONE PLATFORM FEE · $5 /MO · CANCEL ANY TIME. **v5** is v4 byte-for-byte
+  outside the phone and inside it outside beats 20→32 (measured, below); the montage is
+  home · deck · session · menu · feed · profile, two beats each, no captions, back to the
+  logo on beat 32 — four beats before the wall.
+- ⚠ **THE FOOTAGE IS THE SIGNED-OUT PREVIEW, AND THAT IS STATED RATHER THAN HIDDEN.** The
+  app's preview is what every prospect sees when they tap PREVIEW THE APP FIRST: the demo
+  persona (Quinn Harper, an AI headshot), the demo cast (AI portraits, fictional names) on
+  the feed, in the channels and on the marketplace, and demo coach credits on the Train deck
+  and the Menu. The PREVIEW · DEMO DATA banner was dismissed for the capture, so the spots
+  carry the preview's numbers with no on-screen "demo" mark. Nothing in the copy claims a
+  real member's numbers — but the brand plan's own rule, *no faked community, the honest-data
+  doctrine extends to camera*, needs an **OWNER RULING** on whether the preview cast may
+  appear in a spot at all. If not, the COMMUNITY spot (and every coach credit) is a
+  re-capture of the same recipe on a real account once real members and coaches exist; the
+  TRAIN / EAT / SCORE mechanics are unaffected.
+- ⚠ **PLAYWRIGHT'S `recordVideo` PRODUCED A FLAT GREY FILM, AND THE TIMELINE CHECK CAUGHT
+  IT.** The tour webm's frames read a flat mid-grey (mean luma ~101) with real content only
+  at the instants `page.screenshot()` had fired — a saturated result across the whole file,
+  i.e. the instrument. Replaced by a **CDP `Page.captureScreenshot` loop** (jpeg q88,
+  `optimizeForSpeed`) at 11–19 fps with per-frame timestamps, stitched through the concat
+  demuxer with per-frame durations into 24 fps CFR segments (`seg2mp4.py`). ⚠ **Without
+  `clip` the CDP call returns CSS pixels** — the first stitch failed *"width not divisible
+  by 2 (375x820)"*; `clip:{…, scale:2}` yields 750×1640, and `capFrame()` now reads the
+  JPEG SOF dimensions and falls back to `page.screenshot` if they are ever wrong. The
+  **full-bleed native render** comes from an init-script MutationObserver adding
+  `is-native-app` to `<html>` — `isNativeBSApp()` reads that class and `main.jsx` adds it
+  only under Capacitor — so the capture has no desktop bezel to crop.
+- **Every cut lands on a grid beat.** `mkspecs.py` turns each segment's recorded act
+  timestamps (tab · tap · scroll · day · produce · apple · start · next · open · climb ·
+  signals · tier · ladder) into a source window per RULE, allocates whole beats per page,
+  and sets the playback speed to fit the window into the beats — clamped 0.85–1.75×, 2.0×
+  on the profile so the CLIMB tab is reached inside its seven beats. The audio starts one
+  beat before the first page (two on alternate 1); the logo is static before the track's
+  first kick and pulses through the close (`kof`, the v3 rule, gated on the measured
+  `kick_by_beat`); captions ride y 300 for the whole of their segment with 0.18 s alpha
+  fades; the screen layer fades in over 0.3 s and out over 0.5 s (0.3 s on v5, inside the
+  B→C fade). TRAIN + SCORE sit on the pick (t3), EAT on alternate 1, COMMUNITY on alternate
+  2 — a different owned track per spot, so the four can run as a set.
+- **Verified numerically, per render** (`verify5.py`): 1440×2560 · 24 fps, 350 / 348 / 349 /
+  350 frames (14.58 / 14.50 / 14.54 / 14.58 s) against audio 14.573 / 14.506 / 14.53 /
+  14.573; v5 671 fr / 27.958 s. At two samples per page the phone-screen layer matches the
+  capture frame it was cut from (mean abs diff 1.7–2.3) and the composite matches
+  `screen(B_long, layer)` inside the rect (1.2–2.0). ⚠ **Five samples read 3–27 and every
+  one is a timing artefact, not a wrong clip**: a best-match scan pins the layer to the
+  source frame 1–2 capture frames (≤ 83 ms) off the nominal `s0 + (t − t0)·speed` map — the
+  24 fps resample of an 11–19 fps capture — after which the diffs read 1.9–2.0. Captions:
+  lit pixels at every caption midpoint (9–42 k) and **0 at t = 0.2 s** on all four. The
+  closing logo pulses: bbox 477–481 px / 18–24 k lit at a beat against 456 px / 8.8 k
+  mid-beat. The output audio re-measures 119.45 / 119.9 / 119.7 / 119.45 / 119.35 BPM with
+  every cut within 60 ms of a grid beat (score's one −55 ms is one frame) and tails at
+  −15 … −22 dB against −7 mid. **v5 vs v4**: outside the phone rect mean diff 0.00–0.42 at
+  six sample times, inside it 0.00–0.27 outside the montage and 21.8–25.5 inside it — the
+  montage is the only change.
+- ⚠ **THE SANDBOX WAS WIPED AFTER THE UPLOADS, AND THE RECORD WAS REBUILT FROM THE VERIFIED
+  LOGS, NOT RE-MEASURED.** The background lease lapsed during the owner's usage-limit pause;
+  every render, verify and md5-checked upload had completed before it. Every figure above
+  was read back from the verify logs in the session transcript (a JSON decoder over the tool
+  results), and the scripts in the recipe are the transcript's own copies with the recorded
+  patches applied — so a re-render starts from the record, not from memory. A fresh
+  `verify5.py` run on a fresh render is the honest re-check, not this page.
+- ⚠ **PRODUCTION DEFECT FOUND BY THE CAPTURE, REGISTERED NOT FIXED.** On the `/m/` signed-out
+  preview, tapping the marketplace row **TRAINER · DIEGO MORALES** crashed the app to the
+  error boundary — *"Something went wrong · The app hit an error and recovered … Cannot read
+  properties of undefined (reading '0') TypeError"* — while Leah Kim's Listing (Coach of the
+  Week) opened normally; the COMMUNITY spot uses hers. Observed on production, not
+  root-caused here (a marketing branch is not the place); War Room item under Marketplace &
+  coach profiles.
+- **Hosting:** gofile (guest) took all five, md5 matching the sandbox file each time; a guest
+  file is removed after ~10 days without a download, so the links are reviewable this week,
+  not permanent. **Records only in the repo; no PR, nothing merged.** Open: the owner's
+  review of the five cuts, the preview-cast ruling, whether the montage belongs in the launch
+  cut (v4 stays the launch cut until then), and the caption copy — six of the twenty spot
+  captions and both lines of the close are the website's own words (*Written before you
+  arrive.* · *The social side of strong.* · *Vetted trainers · Real humans* · *Browse free
+  before you pay* · *A profile that climbs with you.* · *One number that tells the truth.* ·
+  *Different goals. One Community.* · *One platform fee · cancel any time*); three are the
+  product's own names, two are adapted from house copy and nine are new lines in the house
+  register — those fourteen want the owner's eye.
+
 ### 2026-09-02 — Launch cut v4: Radio only in the last clip, cut to fit the wall; the phone keeps the SHAPE logo
 
 - **Owner, on the three 09-02 renders: *"shape radio should only appear in the last clip
