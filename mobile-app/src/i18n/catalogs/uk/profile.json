@@ -24,6 +24,7 @@
   "ridge.now": "Зараз",
   "ridge.start": "Старт",
   "ridge.target": "Орієнтир",
+  "ridge.topTier": "Найвищий рівень",
   "follow.follow": "＋ Підписатися",
   "follow.following": "Ви підписані",
   "follow.requestCount": "{count, plural, one {# запит} few {# запити} many {# запитів} other {# запиту}}",

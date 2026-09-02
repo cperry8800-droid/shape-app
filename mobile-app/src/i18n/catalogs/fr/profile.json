@@ -24,6 +24,7 @@
   "ridge.now": "Maintenant",
   "ridge.start": "Départ",
   "ridge.target": "Objectif",
+  "ridge.topTier": "Palier max",
   "follow.follow": "＋ Suivre",
   "follow.following": "Abonné",
   "follow.requestCount": "{count, plural, one {# demande} other {# demandes}}",
