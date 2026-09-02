@@ -404,6 +404,84 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-02 — "We can use both": the launch cut rendered on all three tracks, each on its own grid, with a kick-presence gate
+
+- **Owner ruling on the two alternate tracks: *"i like both of them. We can use both"*.**
+  Read as *the same film on each track*, not one film that changes track mid-way. Three
+  renders now exist — **v3 (the pick, unchanged)** plus the identical cut on alternate 1
+  and alternate 2, each re-planned by `plan.py` on that track's OWN measured grid with the
+  same structure (the phone lands on beat 16, SHAPE → ▸◂ RADIO on beat 24, the wall on
+  beat 36). Links handed over in-session, not in the repo. The other reading (one cut, two
+  tracks) is offered as a question, not built. Recipe, grids, gate and verification:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("Variants").
+- ⚠ **THE ALTERNATE-2 KICK WAS NEVER OFF-BEAT — THE 09-01 GRID WAS HALF A BEAT OFF.** The
+  recipe's table read `0.46 (a dubby off-beat kick)`. Re-measured on a kick-centred phase
+  (0.044; the hat grid's 0.014 lags the kick by ~30 ms) the on-beat/half-beat contrast is
+  **3.26**, and **0.32** on a grid shifted by half a beat — the 0.46 was the instrument's
+  phase, and the description described the grid, not the track. Alternate 1 re-measures
+  2.05 (was 1.58) the same way. **This dents one of the three axes the pick rested on**:
+  it still wins both darkness axes by a margin (centroid 115 Hz against 137 / 174; 81 % of
+  its energy under 90 Hz against 66 / 74 %) — which is what *"deeper and darker"* asked
+  for — but it is NOT "the cleanest kick": alternate 2's is at least as clean (3.26 vs
+  3.22 today). Corrected at the source (the recipe table) and here; the entry below keeps
+  its date-true figure with a pointer.
+- ⚠ **THE PULSE MUST NEVER THROB TO A BEAT WITH NO KICK — AND BOTH ALTERNATES HAVE
+  KICK-LESS STRETCHES v3's RULE CANNOT SEE.** v3's `kof` is static only BEFORE the first
+  kick (`t ≥ tK`). Alternate 1's kick runs from bar one, fades over beats 29–32, is absent
+  from beat 33 to 47 (16.5–24.1 s — the whole B→C fade and the first six seconds of the
+  wall) and returns at beat 48 (24.07 s); alternate 2's stops at beat 44 (22.1 s) and its
+  outro is kick-less. An ungated render had the wall throbbing to silence. So the
+  alternates run a **kick-presence gate**: `k = exp(−u/0.20) · pres(n)`,
+  `pres = clip((kick_by_beat[n] − 0.15) / 0.30, 0, 1)`, where `kick_by_beat` is the
+  normalized peak kick-band energy within ±40 ms of each grid beat (`beat.py`, stored per
+  track). It generalizes v3's own rule — on the pick it reads 0 before beat 16 exactly as
+  `t ≥ tK` does. **v3 is deliberately NOT gated**, so it stays byte-identical to the cut
+  the owner approved; its one gap is beats 45–47 (22.6–24.1 s), where the wall throbs three
+  times to no kick — a one-flag re-render, the owner's call.
+- **Measured per track** (the v3 method — comb search, split-half agreement, per-beat
+  residuals): alternate 1 = 119.95 BPM, phase 0.064, halves 120.0 / 120.2, kick residual
+  after beat 16 median +5 ms; alternate 2 = 119.75 BPM, kick-centred phase 0.044, halves
+  119.6 / 119.6, residual median 0; the v3 control re-measures 119.4 with today's
+  instrument against the recorded 119.45 / 0.030 — the recorded grid is the better-centred
+  one (kick residual +10 ms against +30) and stands. ⚠ Prompted 122 / 124 / 126; all three
+  still measure ~120. *A number in a prompt is a request, not a measurement* — a third time.
+- **What each alternate does on screen.** Alternate 1: the phone lands with the kick
+  already running (a phrase boundary, not a drop); the wall lands inside the breakdown,
+  lit and still, and starts throbbing when the kick returns for the last 3.8 s. Alternate
+  2: an 8 s kick-less intro like the pick, so the phone lands on its drop (8.06 s); the
+  wall pulses from 18.08 s until the kick stops at 22.1 s, then holds lit through the
+  outro. **A re-time of alternate 1 that lands the wall ON its kick return was analysed
+  and not built** — Scene A is 10.125 s long, so the phone would have to land on beat 28,
+  the groove's last kick, and pulse once before the breakdown; one logo pulses briefly
+  either way, and this cut gives the long pulse to the phone. Owner's call.
+- **Verified numerically, per variant** (one `verify.py` for all three): 1440×2560 ·
+  24 fps; alternate 1 669 frames / 27.875 s, alternate 2 669 / 27.875, v3 671 / 27.959
+  (the `-t` +1-frame quirk, as before); transition frames match their sources (mean diff
+  ≤ 0.32 outside the layers); the screen bbox pulses 476–479 px at a beat against 456
+  mid-beat; the morph reads 3987 / 3992 / 3999 → 0 triangles and 0 → 2490 / 2557 / 2485
+  RADIO; the wall is blank at its first frame and pulses only where the gate says
+  (alternate 1: 16.2 k lit at beat and mid-beat alike at 19–21.6 s, 30.6 k against 16.3 k
+  after 24.1 s; alternate 2: 31.2 k against 16.3 k at 19–21.6 s, still from 23 s); the
+  output audio re-measures 119.95 / 119.7 / 119.4 with halves agreeing; tail RMS −19.2 /
+  −25.8 / −17.3 dB against −12.9 / −10.3 / −10.0 mid-track (INPUT-side `-ss`). Each
+  upload's md5 matches the sandbox file.
+- ⚠ **THE v3 REVIEW LINK DIED IN UNDER A DAY — uguu.se KEEPS A FILE ~3 h, NOT 48.** Both
+  the recipe and the entry below said 48 h; corrected at both. Today pixeldrain refuses
+  anonymous uploads (`authentication_required`), litterbox 500s again, 0x0.st resets the
+  TLS handshake, catbox answers "Invalid uploader"; **gofile (guest upload) took all
+  three** — its own policy removes a guest file after ~10 days without a download, so
+  the links are reviewable this week, not permanent. The order that works: gofile → 0x0.st
+  → litterbox → uguu (3 h). Links stay deliberately out of the repo.
+- ⚠ **AND THE UPLOAD SCRIPT'S OWN CHECK WAS BROKEN FIRST.** Its uguu regex
+  (`https?://h\.uguu\.se|uguu\.se[^ ]+`, an alternation without a group) matched only the
+  bare host, so a successful upload was logged as a 301 failure and never handed over.
+  Per-host URL extraction now (`jq` on the JSON, one regex per host). *A check that reports
+  a failure is a broken instrument until the failure is proven to have happened* — the
+  mirror of this file's saturated-zero rule.
+- **Records only in the repo** (this entry, the recipe's "Variants" section, the War Room
+  item); **no PR, nothing merged.**
+
 ### 2026-09-01 — Launch cut v3: a deeper track, Radio threaded through the film, the rings gone
 
 - **Three owner notes on v2, one re-render.** *"need deeper and darker house music"* ·
@@ -444,8 +522,9 @@ changelog whenever something ships.
   BPM with the kick at 8.07 s. Tail RMS −17 dB over the last 0.9 s against −10 dB
   mid-track, with an INPUT-side `-ss` (the v1/v2 false alarm not repeated).
 - ⚠ **litterbox returned a 500 on every upload attempt** (a BunkerWeb error page), so the
-  review link is a 48-hour uguu.se upload (the fallback order: litterbox → uguu.se →
-  0x0.st → catbox) — still a link, still not in the repo. Records only in the repo (this
+  review link is a 48-hour uguu.se upload (⚠ CORRECTED 2026-09-02 — uguu keeps a file
+  ~3 h, not 48; the link was dead the next morning, and the order that works now leads
+  with gofile — see the entry above) — still a link, still not in the repo. Records only in the repo (this
   entry, the recipe doc, the War Room item); **no PR, nothing merged.**
 
 ### 2026-09-01 — The Radio launch cut is rendered: three Higgsfield scenes, the SHAPE logo pulsing on the beat, an owned track

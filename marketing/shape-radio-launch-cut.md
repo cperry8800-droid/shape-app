@@ -1,11 +1,15 @@
 # Shape Radio — the launch cut (recipe, sources, and what the versions are)
 
-Status: DRAFT for the owner · 2026-09-01. The production record for the ~28 s vertical
+Status: DRAFT for the owner · 2026-09-01, variants 2026-09-02. The production record for the ~28 s vertical
 brand video cut this session — **v3 is the current cut**; v1/v2 are kept at the end as
 the superseded record. The strategy lives in `social-brand-awareness-plan.md`; the
 shot-by-shot scripts in `shape-radio-video-scripts.md` and
 `social-video-ideas-wave-2.md`. This file exists so the cut can be re-rendered,
 re-timed or re-scored without re-deriving anything below.
+
+**2026-09-02:** the owner liked both alternates too (*"i like both of them. We can use
+both"*), so the same cut now exists on all three tracks — see "Variants (2026-09-02)".
+v3 stays the primary; the alternates add a kick-presence gate and nothing else.
 
 The review links handed over in-session are short-lived uploads and are deliberately
 NOT recorded here (they die). The SOURCES are permanent. Nothing is posted anywhere.
@@ -85,13 +89,26 @@ Repo assets (all on `main`):
 ## The track pick (measured, not assumed)
 
 Three generations were made for the owner's *"deeper and darker"* note; each was decoded
-to 8 kHz mono and measured the same way. The pick is the darkest on every axis:
+to 8 kHz mono and measured the same way. The pick is the darkest on both darkness axes
+(⚠ the kick column was wrong for both alternates on 2026-09-01 — corrected below):
 
 | Track | Measured BPM | Spectral centroid | Energy 30–90 Hz | Energy > 2 kHz | Kick on-beat / half-beat | Intro |
 | --- | --- | --- | --- | --- | --- | --- |
-| alternate 1 | 119.95 | 137 Hz | 65.5 % | 0.4 % | 1.58 | kick from 0.07 s |
-| alternate 2 | 119.75 | 174 Hz | 74.3 % | 2.1 % | 0.46 (a dubby off-beat kick) | 8.1 s |
+| alternate 1 | 119.95 | 137 Hz | 65.5 % | 0.4 % | 2.05 (⚠ read 1.58 on 09-01) | kick from 0.07 s |
+| alternate 2 | 119.75 | 174 Hz | 74.3 % | 2.1 % | 3.26 (⚠ read 0.46 on 09-01 — a half-beat-off grid) | 8.1 s |
 | **v3 (pick)** | **119.45** | **115 Hz** | **81.1 %** | 0.8 % | **3.20** | 8.1 s; percussion from 6.0 s |
+
+⚠ **CORRECTED 2026-09-02 — the alternates' kick contrasts were measured on the wrong
+phase.** Re-measured on a kick-centred grid (phase 0.044 — its hats lead the kick by
+~30 ms, and the 09-01 pass had used 0.014), alternate 2 reads **3.26**, and **0.32** on a
+grid shifted by half a beat — i.e. the 0.46 was the instrument's phase error, and *"a
+dubby off-beat kick"* described the grid, not the track: its kick is ON the beat.
+Alternate 1 re-measures **2.05** (was 1.58) on its own kick-centred grid (0.064). The
+pick's 3.20 was already kick-centred and re-measures 3.22. So the pick rests on the two
+DARKNESS axes — the ask was *"deeper and darker"* and it wins both by a margin — and NOT
+on having the cleanest kick: alternate 2's is at least as clean. The owner has since
+ruled that both alternates are wanted too (see "Variants"), so the pick is primary,
+not exclusive.
 
 The pick's shape: −20 dB pads for 7 s, percussion at 6.0 s, the kick at 8.07 s, then
 −7 to −8 dB to the end, with a two-second breakdown at 22–24 s. The 8 s kick-less intro
@@ -254,24 +271,140 @@ upload all happen in the sandbox, and verification is numeric (frame statistics,
 luminance maps) rather than by eye. Each layer renders in ~15 s and the composite in
 ~40 s on 8 cores. Hand-over is a short-lived link — never a file attachment, never a
 committed binary. ⚠ litterbox answered every upload with a 500 (a BunkerWeb error page)
-on the evening of 2026-09-01; v3 went to uguu.se (48 h) instead. The fallback order:
-litterbox → uguu.se → 0x0.st → catbox.
+on 2026-09-01 AND on 2026-09-02. ⚠ **uguu.se keeps a file for ~3 h — not the 48 h this
+line first claimed**: the v3 link was dead the next morning. pixeldrain now refuses
+anonymous uploads (`authentication_required`), 0x0.st resets the TLS handshake, catbox
+answers "Invalid uploader". **gofile (guest upload) took all three renders on
+2026-09-02**, each md5-verified against the sandbox file; gofile's own policy removes a
+guest file after ~10 days without a download, so a link is reviewable this week, not
+permanent. The order that works: gofile → 0x0.st → litterbox → uguu.se (label it 3 h).
+`upload2.sh` in the sandbox runs that chain per file and appends
+`LINK <file> <host> <url>` to `links.txt` — per-host URL extraction (`jq` on the JSON,
+one regex per host), because the first script's single regex matched only uguu's bare
+host and logged a successful upload as a failure.
 
 ## Open
 
-- **OWNER — review v3.** Nothing is posted; the wave-2 scripts are unreviewed too.
-- **Questions for the owner** (defaults taken, all reversible): the track pick (the two
-  alternates are one link each, above); whether the real Radio app screen may ever appear
-  on the phone despite its ON AIR / LIVE 24/7 copy (kept off); whether a whole-frame beat
-  pulse is wanted (dropped — *just the logo*).
+- **OWNER — review the three cuts** (v3 the pick + the two alternates; links handed over
+  in-session). Nothing is posted; the wave-2 scripts are unreviewed too.
+- **Answered 2026-09-02 — the track pick:** *"i like both of them. We can use both"* →
+  the same cut on all three tracks (see "Variants"); v3 stays primary.
+- **Questions for the owner** (defaults taken, all reversible): whether *"use both"*
+  meant ONE film that changes track mid-way (not built — the three-render reading was
+  taken); whether alternate 1 should be re-timed so the wall lands on its kick return
+  (analysed, not built — "Variants"); whether v3's wall should be stilled through its own
+  three-beat kick gap at 22.6–24.1 s (`KICKGATE=meas_t3.json`, a one-flag re-render);
+  whether the real Radio app screen may ever appear on the phone despite its ON AIR /
+  LIVE 24/7 copy (kept off); whether a whole-frame beat pulse is wanted (dropped — *just
+  the logo*).
 - A longer cut needs a fourth generation, not a re-time; captions or a closing line on the
   wall must obey the capture rules in `shape-radio-video-scripts.md` (no broadcast claim).
+
+## Variants (2026-09-02) — the same cut on all three tracks
+
+The owner's ruling on the two alternates: *"i like both of them. We can use both."* Read
+as *the same film on each track*, not one film that changes track mid-way (that reading
+is offered as a question in "Open"). So the v3 cut is rendered three times — the pick
+unchanged, and once per alternate — each re-planned by `plan.py` on that track's OWN
+measured grid with the identical structure: the A→B fade ends on beat 16, the SHAPE →
+SHAPE RADIO morph lands on beat 24, the B→C fade ends on beat 36. Scene B is clone-padded
+by 0.3 s on every variant (`padNeeded` 0.221 / 0.179 / 0.196 s).
+
+| Variant | Track | BPM · phase | Halves | tK (beat 16) | tM (beat 24) | tC (beat 36) | Total | Gate |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **v3 (pick)** | t3 | 119.45 · 0.030 | 119.45 / 119.40 | 8.0668 | 12.0853 | 18.1129 | 27.9167 (670 fr) | none — `t ≥ tK` |
+| alternate 1 | t1 | 119.95 · 0.064 | 120.0 / 120.2 | 8.0673 | 12.0690 | 18.0715 | 27.8750 (669 fr) | `KICKGATE=meas_t1.json` |
+| alternate 2 | t2 | 119.75 · **0.044** | 119.6 / 119.6 | 8.0607 | 12.0691 | 18.0816 | 27.8750 (669 fr) | `KICKGATE=meas_t2.json` |
+
+Phases are kick-centred. Alternate 2's hat grid reads 0.014 and its kick lands a
+consistent ~30 ms later, so the pulse is planned on 0.044 (per-beat kick residual after
+beat 16: median 0 ms; alternate 1 median +5 ms). The v3 control re-measure with today's
+instrument read 119.4 / 0.000; the recorded 119.45 / 0.030 is the better-centred grid
+(kick residual +10 ms against +30) and stands. ⚠ All three prompts (122 / 124 / 126 BPM)
+still measure ~120.
+
+**What each track does to the film.** Alternate 1's kick runs from bar one, so the phone
+lands on a phrase boundary rather than a drop; the kick fades over beats 29–32
+(`0.16 0.20 0.11 0.13`), is absent from beat 33 to 47 (16.5–24.1 s — the whole B→C fade
+and the first six seconds of the wall) and returns at beat 48 (24.07 s): the wall lands
+lit and still, and throbs for the last 3.8 s. Alternate 2 has an 8 s kick-less intro like
+the pick, so the phone lands on its drop (8.06 s); its kick stops at beat 44 (22.1 s),
+leaves two ghost hits on beats 45–46 and is gone from beat 47 (23.6 s): the wall pulses
+for four seconds and then holds lit through the outro. **A re-time of alternate 1 that
+lands the wall ON the kick return was analysed and not built** — Scene A is 10.125 s
+long, so the phone would have to land on beat 28, the groove's last kick, and pulse once
+before the breakdown; one logo pulses briefly either way, and this cut gives the long
+pulse to the phone. Owner's call ("Open").
+
+### The kick-presence gate
+
+v3's `kof` is 0 before the first kick and pure `exp(−u/0.20)` after it — right for a
+track whose kick, once in, never leaves. Both alternates have kick-less stretches AFTER
+beat 16, and an ungated render throbs the wall to silence. The alternates therefore
+multiply the pulse by the measured kick presence of the CURRENT beat:
+
+```python
+import os                                   # prepended to mk_screen3.py and mk_wall.py
+_KG=None
+if os.environ.get('KICKGATE'):
+    _KG=json.load(open(os.environ['KICKGATE']))['kick_by_beat']
+def pres(t):
+    if _KG is None: return 1.0
+    n=int(math.floor((t-phi)/P))
+    if n<0 or n>=len(_KG): return 0.0
+    return min(1.0,max(0.0,(_KG[n]-0.15)/0.30))
+def kof(t):
+    if t<tK-0.01: return 0.0                # tC-0.01 in mk_wall.py
+    return math.exp(-(((t-phi)%P)/P)/0.20)*pres(t)
+```
+
+`kick_by_beat[n]` is the peak of the kick-band (35–150 Hz) energy within ±40 ms of grid
+beat n, normalized to the track's loudest beat (`beat.py` writes it into
+`meas_<track>.json`). A beat under 0.15 is silent, one over 0.45 pulses fully, and the
+ramp between is linear, so a fading kick fades the pulse. On the pick it is 0 for beats
+0–15 and ≥ 0.5 on every beat from 16 except its one gap — the gate generalizes v3's own
+`t ≥ tK` rule rather than replacing it. **v3 is deliberately rendered WITHOUT the gate**
+so it stays byte-identical to the approved cut; that gap is beats 45–47 (22.6–24.1 s,
+`0.00 0.01 0.00`), where the wall throbs three times to no kick — `KICKGATE=meas_t3.json`
+stills it, a one-flag refinement left for the owner.
+
+The measured arrays the gated renders used, beats 0–62 (the gate reads 0 below 0.15):
+
+- t1 (alternate 1): `0.76 0.68 0.66 0.89 0.66 0.75 0.65 0.97 0.62 0.77 0.63 0.83 0.63 0.74 0.73 0.86 0.60 0.75 0.73 1.00 0.89 0.77 0.77 0.89 0.75 0.75 0.52 0.64 0.50 0.16 0.20 0.11 0.13 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.47 0.58 0.46 0.59 0.60 0.73 0.64 0.62 0.58 0.75 0.59 0.55 0.68 0.68 0.67`
+- t2 (alternate 2): `0.01 0.01 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.02 0.00 0.00 0.00 0.00 0.00 0.00 0.79 0.55 0.81 0.77 0.90 0.43 0.72 0.69 0.84 0.62 0.84 0.70 0.91 0.73 1.00 0.61 0.92 0.67 0.92 0.61 0.90 0.75 0.82 0.64 0.69 0.48 0.84 0.60 0.00 0.20 0.34 0.15 0.14 0.00 0.02 0.04 0.02 0.00 0.01 0.03 0.03 0.00 0.01 0.02 0.02 0.00 0.04`
+- t3 (the pick, for reference): `0.00 0.04 0.03 0.07 0.07 0.08 0.05 0.03 0.02 0.11 0.08 0.03 0.00 0.00 0.00 0.00 0.84 0.61 0.72 0.50 0.68 0.56 0.87 0.62 0.61 0.55 0.87 0.72 0.93 0.59 0.90 0.70 0.50 0.30 0.90 0.76 0.85 0.84 0.93 0.59 0.79 0.67 0.93 0.69 0.38 0.00 0.01 0.00 1.00 0.59 0.87 0.67 0.92 0.87 0.94 0.73 0.73 0.81 0.99 0.70 0.69 0.61 0.94`
+
+### Verification, per variant (`verify.py`)
+
+One script runs the same checks on any variant: ffprobe (1440×2560 · 24 fps; alternate 1
+669 frames / 27.875 s, alternate 2 669 / 27.875, v3 671 / 27.959 — the `-t` +1-frame
+quirk, as on 09-01); transition frames against their source clips (mean diff ≤ 0.32
+outside the layers); screen-layer beat vs mid-beat frames chosen by the COMPUTED `k`
+(bbox 476–479 px lit at a beat vs 456 mid-beat); the morph (triangles 3987 / 3992 / 3999
+→ 0, the RADIO line 0 → 2490 / 2557 / 2485); the wall blank at its first frame; the
+output audio re-measured (119.95 / 119.7 / 119.4, halves agreeing, the first kick within
+40 ms of tK); tail RMS −19.2 / −25.8 / −17.3 dB against −12.9 / −10.3 / −10.0 mid-track
+(INPUT-side `-ss`). `pulsecheck.py <variant> <screen|wall> <t0> <t1>` proves the gate by
+windows: alternate 1's screen pulses 9–11.6 s and is still 15.1–17.6 s; its wall is still
+19–21.6 s (16.2 k lit at beat and mid-beat alike) and pulses 24.1–27.6 s (30.6 k against
+16.3 k); alternate 2's wall pulses 19–21.6 s (31.2 k against 16.3 k) and is still
+23–27.5 s. Each upload's md5 matched the local file.
+
+⚠ Two instrument faults on the way, both fixed before anything was read off them: the
+verify script's "bottom" slice for the RADIO line began at 62 % of the screen height and
+missed the line entirely (0 → 0 would have read as "the morph never lands"); it reads
+rows ≥ 700 now. And `upload.sh`'s uguu check matched only the bare host
+(`https?://h\.uguu\.se|uguu\.se[^ ]+` — an alternation without a group), so a successful
+upload was logged as a 301 failure.
 
 ## The v3 scripts
 
 Run in the sandbox with the sources in `in/` (`A.mp4 B.mp4 C.mp4 t3.m4a
 SHAPE-logo-teal-white.png radio-wordmark.png`). `render3.sh` runs `plan.py` →
-`mk_screen3.py` → `mk_wall.py` → writes `graph3.txt` → ffmpeg.
+`mk_screen3.py` → `mk_wall.py` → writes `graph3.txt` → ffmpeg. For a variant: `t1.m4a` or
+`t2.m4a` in place of `t3.m4a`, `plan.py` on that track's grid, and
+`KICKGATE=meas_<track>.json` in the environment of both layer scripts (the patch is in
+"Variants" above).
 
 ### plan.py
 
