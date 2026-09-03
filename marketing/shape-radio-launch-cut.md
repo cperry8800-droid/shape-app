@@ -2542,22 +2542,35 @@ done
 # The CLAMP uses D_SAFE, two frames longer, and the ASSERT uses D_MIN. That gap is not slack for its own sake:
 # ffmpeg quantises the output to whole 24 fps frames, so clamping straight to D_MIN and then asserting D_MIN
 # makes the ceiling itself fail (10/1.1211 = 8.920 s -> 214 frames -> 8.9167 s, one frame short of the assert).
+#
+# The spin ALWAYS derives from in/D_src.mp4, an immutable snapshot of the normalized clip, and WRITES in/D.mp4.
+# It must never read the file it overwrites. An earlier version spun in/D.mp4 onto itself and guarded re-runs with
+# the marker alone -- which only matches when the value is UNCHANGED, i.e. exactly the run you would not make.
+# Change 1.05 to 1.11 and the second setpts lands on the already-spun clip: the factors COMPOUND, MAXF is
+# recomputed off the shortened file so the clamp still passes, the assert still passes, and the globe silently
+# spins at the wrong speed with nothing to say so. Setting it back to 1.0 was worse -- the <=1.0001 branch
+# printed "source pace" and did nothing, leaving the clip spun and the marker stale. An immutable source makes
+# every run idempotent in the request rather than in the file.
 D_MIN=${D_MIN:-8.9187}
 D_SPIN=${D_SPIN:-1.0}
 D_SAFE=$(awk -v m="$D_MIN" 'BEGIN{printf "%.4f", m+2/24}')
-DDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 in/D.mp4)
-MAXF=$(awk -v d="$DDUR" -v m="$D_SAFE" 'BEGIN{printf "%.4f", d/m}')
-if [ -f in/.D_spun ] && [ "$(cat in/.D_spun)" = "$D_SPIN" ]; then
-  echo "NORM D already spun x$D_SPIN (${DDUR}s) -- skipping"
+[ -f in/D_src.mp4 ] || cp in/D.mp4 in/D_src.mp4
+SDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 in/D_src.mp4)
+MAXF=$(awk -v d="$SDUR" -v m="$D_SAFE" 'BEGIN{printf "%.4f", d/m}')
+if [ -f in/.D_spun ] && [ "$(cat in/.D_spun)" = "$D_SPIN" ] && [ -f in/D.mp4 ]; then
+  echo "NORM D already spun x$D_SPIN -- skipping"
 elif awk -v s="$D_SPIN" 'BEGIN{exit !(s<=1.0001)}'; then
-  echo "NORM D spin 1.00 (source pace, ${DDUR}s)"
+  # Restore from source rather than leave whatever a previous run left behind.
+  cp in/D_src.mp4 in/D.mp4
+  printf '%s' "$D_SPIN" > in/.D_spun
+  echo "NORM D spin 1.00 (source pace, ${SDUR}s)"
 else
   # A speed-up SHORTENS the clip. Past MAXF there is not enough footage for Scene D and render6.sh would have to
   # loop or freeze a tail -- a visible seam. So clamp, and say so, rather than produce a clip that cannot be used.
   EFF=$(awk -v s="$D_SPIN" -v m="$MAXF" 'BEGIN{printf "%.4f", (s<m?s:m)}')
-  awk -v s="$D_SPIN" -v m="$MAXF" 'BEGIN{if(s>m) printf "WARN D_SPIN %.3f exceeds the no-loop ceiling %.3f (source %s s, Scene D needs %s s) -- clamped\n", s, m, "'"$DDUR"'", "'"$D_MIN"'"}'
-  echo "NORM D spin x$EFF (${DDUR}s -> $(awk -v d="$DDUR" -v e="$EFF" 'BEGIN{printf "%.3f", d/e}')s)"
-  ffmpeg -y -v error -i in/D.mp4 -vf "setpts=PTS/$EFF,fps=24" \
+  awk -v s="$D_SPIN" -v m="$MAXF" 'BEGIN{if(s>m) printf "WARN D_SPIN %.3f exceeds the no-loop ceiling %.3f (source %s s, Scene D needs %s s) -- clamped\n", s, m, "'"$SDUR"'", "'"$D_MIN"'"}'
+  echo "NORM D spin x$EFF (${SDUR}s -> $(awk -v d="$SDUR" -v e="$EFF" 'BEGIN{printf "%.3f", d/e}')s)"
+  ffmpeg -y -v error -i in/D_src.mp4 -vf "setpts=PTS/$EFF,fps=24" \
     -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -an in/D_s.mp4
   mv in/D_s.mp4 in/D.mp4
   printf '%s' "$D_SPIN" > in/.D_spun
@@ -3383,10 +3396,23 @@ mid-render.** Scene D consumes `total − offCD = 8.9187 s` and the source is 10
 largest speed-up that does not run out of footage is `10 / 8.9187 = 1.121×` — and once frame
 quantisation is accounted for, the clamp uses **1.111×** (see below). A new `D_SPIN` env var
 takes a **request**; the script clamps it to what the footage allows, prints a WARN naming
-both numbers when it clamps, writes an `in/.D_spun` marker so a second run cannot compound the
-speed-up onto an already-spun clip, and then **asserts** the resulting duration. A short clip
+both numbers when it clamps, and then **asserts** the resulting duration. A short clip
 is refused outright — it is never quietly looped or freeze-framed, because that seam would
 land in the middle of the closing shot.
+
+⚠ **THE SPIN READS AN IMMUTABLE `in/D_src.mp4` AND WRITES `in/D.mp4` — IT MUST NEVER READ THE
+FILE IT OVERWRITES.** This paragraph previously credited the `in/.D_spun` marker with stopping
+a second run from compounding onto an already-spun clip, and **the marker cannot do that**: it
+only matches when the value is **unchanged**, which is precisely the run nobody makes. The
+first cut spun `in/D.mp4` onto itself, so changing `1.05` to `1.11` applied the new factor to
+the 9.524 s output of the old one — **the factors compound**, and because `MAXF` was recomputed
+off the shortened file the clamp passed, the assert passed, and the globe spun at a speed
+nothing on screen or in the log disagreed with. Setting it back to `1.0` was worse: the
+`<= 1.0001` branch printed *"source pace"*, did nothing, and left both the clip spun and the
+marker stale. With a snapshot the 1.0 path **restores** from it, every path writes the marker,
+and a re-run is idempotent in the **request** rather than in the file. The fetch in `boot5.sh`
+deletes the snapshot, because a re-prompted Scene D would otherwise be spun from the old globe.
+*A guard that only fires when the input is unchanged is not a guard.*
 
 ⚠ **THE CLAMP AND THE ASSERT DELIBERATELY USE DIFFERENT NUMBERS, AND THE GAP IS LOAD-BEARING.**
 `ffmpeg` quantises the output to whole 24 fps frames, so clamping to the exact requirement and
@@ -4117,6 +4143,10 @@ if [ -z "$SKIP_DL" ]; then
   curl -sL -o in/B.mp4  $P/hf_20260901_165434_a27526b7-057b-4165-865c-0e9c5c9b46e9.mp4
   curl -sL -o in/C.mp4  $P/hf_20260901_165434_a1d1066e-7837-48c6-81ce-ef849c38d8a2.mp4
   curl -sL -o in/D.mp4  $P/hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4
+  # norm6.sh keeps an immutable in/D_src.mp4 so a changed D_SPIN never compounds onto an already-spun clip.
+  # A FRESH D.mp4 makes that snapshot stale -- it would spin the OLD globe -- so the fetch invalidates it here.
+  # This is the only place D.mp4 is replaced from outside, which is why the invalidation belongs at the fetch.
+  rm -f in/D_src.mp4 in/.D_spun
   curl -sL -o in/t3.m4a $P/hf_20260901_195948_814905f0-3558-40b7-a918-04d447a98d58.m4a
   curl -sL -o in/t1.m4a $P/hf_20260901_195948_20d50377-fdc1-45f5-b27c-b6928ba0ae40.m4a
   curl -sL -o in/t2.m4a $P/hf_20260901_195949_e84649d8-0f3a-4aaa-a5fe-182837253bb8.m4a

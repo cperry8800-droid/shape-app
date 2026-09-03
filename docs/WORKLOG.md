@@ -618,11 +618,22 @@ Append new entries at the top, under this note.
   inherited**: *"filtered breakdown"* and *"long filtered build"* are requests for exactly the
   kick-less stretches the presence gate exists for, and the v4 lesson is that an array
   truncated short returns silence past its end with nothing raising an error.
-- ⚠ **THE TRIPLE IN SYNC IS STILL LIVE IN THE APP AND IS DELIBERATELY NOT IN THIS COMMIT.**
-  `iosAppBroadsheetRadio.jsx` resolves *In sync* at the status chip (`:1306`), the delta slot
+- **THE TRIPLE IN SYNC IS FIXED, AND IT SHIPS IN THE SAME PR AS THESE RECORDS (#2011).**
+  `iosAppBroadsheetRadio.jsx` resolved *In sync* at the status chip (`:1306`), the delta slot
   (`:1622`) and the pill (`:1651`) at the same instant — **the film was the symptom, the card
-  is the defect** — and it rides as its own commit because a mobile-app change runs the full
-  pre-commit gate a records commit skips.
+  was the defect.** The delta slot now always states the measured delta (`+3 BPM`, `0 BPM` —
+  `0 BPM` in teal is a stronger reading than the word, because it carries the tolerance the
+  sync test actually allows, `|delta| <= 4`); the pill names its toggle state; *In sync*
+  survives on the status chip, which is where a verdict belongs. No i18n key was added or
+  removed, so 13-locale catalog parity is untouched. `tests/radio-hr-sync-labels.test.mjs`
+  keeps it from regressing by driving the shipped expressions rather than pinning spelling.
+  ⚠ **THIS BULLET READ “STILL LIVE … DELIBERATELY NOT IN THIS COMMIT” UNTIL THE PR IT
+  DESCRIBES SHIPPED THE FIX.** It was written when the plan was a records-only commit, and it
+  stayed put when the app change joined the same PR — so on merge this file, **auto-loaded
+  into every session**, would have told every future reader that a resolved defect was
+  outstanding, with `src/lib/warroom.ts` repeating it on the owner-facing board. Caught by
+  Codex on `c40e58b`. *A plan written into the records becomes a false claim the moment the
+  plan changes* — the same class as the range claim this file post-mortems on 2026-09-01.
 - **Verified:** LF, zero CR, zero NUL; **94 line-start / 96 total fences (both even)**; the
   v7.1 section order intact; every new Python and JS fragment parses when wrapped as it will
   be spliced; the EAT beat arithmetic re-derived (48 page beats + lead + close = 55;
