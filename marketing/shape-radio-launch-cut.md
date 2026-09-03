@@ -1677,8 +1677,21 @@ fixes the premise instead of the lockup: `C_zoom.mp4` is `C.mp4` under
 `zoompan=z='1.15+0.35*pow(1-min(1,on/N),3)'` — it **opens at 1.50× and eases out to
 1.15×**, so the slab is widest exactly when the wordmark lands.
 
-⚠ **`in/C_zoom.mp4` IS NOT REPRODUCIBLE FROM THIS RECORD, AND THAT BLOCKS THE WHOLE RENDER
-— the same class as `cap/r3_radio_top.png` above and `params_v6.json` before it.** It is
+⚠ **RESOLVED 2026-09-03 — `norm6.sh` NOW BUILDS `in/C_zoom.mp4`, and the two missing parameters
+are re-derived rather than recovered.** The original command is gone: both branches carry the
+identical truncated fragment, `git log -S` shows it was introduced already incomplete in the v6
+record (`e22dead`), and no other session transcript survives. `N = 200` (the ease completes over
+Scene C: `lenC` 8.3368 s × 24 fps = 200.08 frames) and a centred anchor are **my choices**, stated
+as such at the producer — corroborated because the rebuilt slab measures a median **1127 px**
+against this file's own v6 checkpoint of **~1165 px** at 14.3 s, within 3%.
+⚠ **AND THE REFUSAL THAT EXPOSED IT WAS NOT ABOUT THE ZOOM AT ALL.** `meas_wall.py` dropped frames
+where the panel does not read but still intersected frames that read *badly* — a strobe-caught
+frame returns a legitimate-looking narrow rect, and one of them defined the whole answer (a 132 px
+intersection against a ~1165 px slab). Fixed there, with outlier rejection before the strict
+intersect. *The blocker was a measurement defect wearing the costume of a missing asset.*
+
+The original registration, kept because the class is real — **the same as `cap/r3_radio_top.png`
+above and `params_v6.json` before it.** It is
 read by **three** scripts (`meas_wall.py`, `render6.sh`, `verify6.py`) and written by
 **none**, and the expression above is missing the two parameters a rebuild needs:
 **`N`, the ease length, is defined nowhere in this file**, and the **pan anchor**
@@ -2181,6 +2194,28 @@ for t in ts:
     if r is None: bad.append(round(t,3))
     else: rs.append(dict(t=round(t,3),**r))
 if len(rs)<NS//3: raise SystemExit(f'slab read on only {len(rs)}/{NS} frames -- not a measurement; check SLAB_TH or the clip')
+# ⚠ DROPPING THE FRAMES THAT DO NOT READ IS ONLY HALF THE JOB -- THE FRAMES THAT READ *BADLY*
+# WERE STILL BEING INTERSECTED, AND ONE OF THEM COLLAPSED THE WHOLE MEASUREMENT.
+# The comment at the head of this file says to sample many, drop the frames where the panel does
+# not read, and intersect the rest. `rect()` returning None catches only the total misses. A frame
+# caught MID-STROBE still returns a rect -- the seed pixel is dark, the run just terminates early
+# on a lit edge -- so it survives as a legitimate-looking narrow slab and, under a strict min/max
+# intersection, a single one of them defines the answer.
+# Measured on the real clip: per-frame widths run median 1127, max 1200, but a handful read
+# 575-682, and one run produced a 132 px intersection -- against a slab the recipe's own checkpoint
+# records at ~1165 px (wordmark 1010 + margins 74/81). That is not a narrow slab, it is a failed
+# measurement wearing the same shape as one.
+# So: reject reads that disagree with the consensus BEFORE intersecting, then stay strict among the
+# survivors -- the file's "must fit the NARROWEST moment" rule is about the true narrowest, not an
+# artefact. 0.75 is a judgement call and is stated as one: the true width varies smoothly with the
+# 1.50x -> 1.15x ease (a ~22% span end to end), so a read more than 25% under the median cannot be
+# the slab at any point in the move.
+_w=[r['right']-r['left'] for r in rs]; _med=sorted(_w)[len(_w)//2]
+_keep=[r for r,w in zip(rs,_w) if w>0.75*_med]
+if len(_keep)<max(4,len(rs)//2):
+    raise SystemExit(f'slab consensus is not believable: only {len(_keep)}/{len(rs)} reads within 25% of the median width {_med} -- the panel geometry is not stable enough to size a screen against')
+print(f'slab: {len(rs)}/{NS} read, {len(_keep)} kept after outlier rejection (median width {_med})')
+rs=_keep
 slab=dict(left=max(r['left'] for r in rs), right=min(r['right'] for r in rs),
           top=max(r['top'] for r in rs),   bottom=min(r['bottom'] for r in rs))
 assert slab['right']>slab['left']+200 and slab['bottom']>slab['top']+200, f'degenerate slab {slab}'
@@ -2535,6 +2570,37 @@ for f in A A2 D; do
     -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -an "in/${f}_n.mp4"
   mv "in/${f}_n.mp4" "in/$f.mp4"
 done
+
+# ── in/C_zoom.mp4 — THE SCENE-C PUSH-IN. Read by meas_wall.py, render6.sh and verify6.py, and
+# until 2026-09-03 WRITTEN BY NOTHING: the fourth artifact in this pipeline recorded as a source
+# with no producer, after the v6 video prompts, beat.py and params_v6.json.
+# ⚠ THE ORIGINAL COMMAND IS UNRECOVERABLE AND THIS IS A RE-DERIVATION, SAID PLAINLY.
+# The recipe recorded the expression but neither N (the ease length) nor the pan anchor. Searched
+# and exhausted: both branches carry the identical truncated fragment; `git log -S` shows it was
+# introduced already incomplete in the v6 record (e22dead); no other session transcript survives.
+# The two choices below are therefore MINE, and each has a reason:
+#   N = 200  -- the ease completes over Scene C itself. lenC 8.3368 s x 24 fps = 200.08 frames, so
+#              the push-in resolves exactly as the scene ends rather than at an arbitrary count.
+#   centred  -- the slab sits mid-frame; a centred zoom keeps it centred, and any offset anchor
+#              would translate it as z changes, which is the one thing the fixed-geometry screen
+#              cannot tolerate.
+# ⚠ CORROBORATED, NOT ASSUMED. Measured on the rebuilt clip the slab runs a median 1127 px wide;
+# this file's own v6 checkpoint records ~1165 px at 14.3 s (wordmark 1010 + margins 74/81). Within
+# 3% -- close enough to believe the reconstruction reproduces the original move. If a later render
+# disagrees with the recorded margins, THIS is the line to revisit.
+# ⚠ `zoompan` SILENTLY EMITS 1280x720 WITHOUT AN EXPLICIT s=. The recorded fragment omits it, so a
+# naive paste of the recipe's own text produces a downscaled clip and every downstream pixel
+# coordinate is wrong with nothing raising an error.
+if [ -f in/C_zoom.mp4 ] && [ "$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 in/C_zoom.mp4)" = "1440,2560" ]; then
+  echo "NORM C_zoom already built"
+else
+  echo "NORM building C_zoom (push-in 1.50x -> 1.15x over N=200, centred)"
+  ffmpeg -y -v error -i in/C.mp4 -vf \
+    "fps=24,zoompan=z='1.15+0.35*pow(1-min(1,on/200),3)':d=1:s=1440x2560:fps=24:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'" \
+    -an -c:v libx264 -preset medium -crf 12 -pix_fmt yuv420p in/C_zoom.mp4
+fi
+[ "$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 in/C_zoom.mp4)" = "1440,2560" ] \
+  || { echo "C_zoom is not 1440x2560 -- check the zoompan s= parameter"; exit 1; }
 
 # --- v7.1 note 5, "have the globe spin faster". D_SPIN is a REQUEST; the cut's own length is the ceiling.
 # D_MIN is hardcoded, not read from params_v6.json, because norm6.sh runs BEFORE plan6.py writes that file --
