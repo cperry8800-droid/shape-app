@@ -404,6 +404,122 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-03 — v7.1 off five owner notes: the watch face, the pinned globe, the casting, the EAT prep beat, and four melodic tracks
+
+- **Five more owner notes on the v7 build.** *"for the watch, their is nothing appearing on
+  the screen, have the shape triangle logo in the top left of watch screen with the hrm/bpm
+  beat match. It just say synced with a glowing orb in the middle"* · *"for the globe, have
+  the shape logo appear at the tip of the lines that are coming out … make sure you hit
+  every major city. have the globe spin faster as well"* · *"also dont make the man running
+  asian"* · *"and for the eat video, show the screen that asks if you are cooking 1 meal at a
+  time, looking to serve meals together, so the shape engine will plan out timing of each
+  meal"* · *"also create some more house beats, maybe a little more melodic"*. All five are
+  in [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("What v7.1 is"). ⚠ **Four are recipe changes the owner re-renders; note 8 is the only one
+  that produced FILES** — nothing was rendered here (no `ffmpeg`, no `PIL`, no footage) and
+  no cut has been re-scored. **No PR, nothing merged.**
+- ⚠ **THE WATCH FACE IS ONLY BUILDABLE BECAUSE ITS LAYERS COMPOSITE WITH `overlay`, NOT
+  `blend=all_mode=screen` — CHECKED IN `render6.sh`, NOT ASSUMED.** The phone, wall and globe
+  layers ARE screen-blended, which is why they read as light *on* the footage; under screen a
+  near-black disc is a **no-op**, so every pixel of a drawn watch face would have been
+  invisible and the whole section would have been wrong. *Check the compositing mode before
+  designing the layer — the same drawing is a picture under one and nothing under the other.*
+- **"Nothing appearing on the screen" is the A2 clip working as designed.** Its prompt asks
+  for a **blank glowing panel** precisely so a drawn layer can own those pixels — a readable
+  UI on the wrist would put a second, different, **fabricated** heart rate under the
+  composited card. So the clip is right and the frame was empty because nothing had been
+  written yet; `mk_watch.py` now runs **two renderers off one clock** — `card()` for the wide
+  Scene A1 placement, a new `watchface()` for the round close-up (SHAPE mark top-left, a
+  glowing orb at centre, the two BPM figures, and **exactly ONE state word**). ⚠ **The beat
+  match is DRAWN, not captioned**: the orb pulses on the wearer's heart, its ring on the
+  **music** grid, and across `tSync` the orb's envelope crossfades onto the ring's so the two
+  visibly lock — **envelopes are blended, never phases** (a phase lerp jumps at every wrap).
+  The card and the face **never share a frame** (hard cut at `f12`), so the v7 three-places
+  IN SYNC defect cannot reappear across them.
+- ⚠ **"HIT EVERY MAJOR CITY" CANNOT BE PROMISED, AND SAYING SO IS THE ANSWER.** Nothing in
+  this pipeline knows what a city IS — `mk_globe.py` picks lit pixels off the rendered globe,
+  and the model draws light, not a gazetteer; the honest-data rule already forbids labels,
+  counts and city names on that frame. So v7.1 ships **three partial answers instead of a
+  claim**: marks go **27 → 44** (from beat 44, up to four a beat), each pick takes the
+  **brightest** free lit pixel rather than a random one (bright *is* the only proxy for
+  "major" available), and dedupe now spans the **whole scene** rather than one beat, so no
+  place is marked twice. The mark stands at a **pin head** with an **anchor dot** on the
+  ground, which is what "the tip of the lines" asks for.
+- ⚠ **AND THE SPIN REQUEST HAS A HARD CEILING SET BY THE CUT'S OWN LENGTH.** Scene D must
+  cover `30.75 − 21.8313 = 8.9187 s` from a **10 s** source, so a no-loop speed-up tops out at
+  **1.121×** — and 24 fps quantisation drops the usable clamp to **1.111×** (at the raw
+  ceiling ffmpeg emits 214 frames = 8.9167 s, four ten-thousandths short of the assert). The
+  first cut used ONE constant for both the clamp and the assert and therefore **made its own
+  ceiling unreachable**; `D_MIN` (assert) is now split from `D_SAFE = D_MIN + 2/24` (clamp).
+  `D_SPIN` is a request, not a setting.
+- ⚠ **A NEGATION CANNOT BE PROMPTED — the casting note is a POSITIVE adjective phrase, and it
+  is drafted, NOT submitted.** The submitted `minimax_h3` param set carries **no
+  negative-prompt field** (`aspect_ratio · duration · resolution · use_unlim · batch_size ·
+  aigc_watermark`), so *"dont make the man running asian"* cannot be expressed as an
+  exclusion; the only lever is describing the runner positively. **Casting is the owner's
+  call, so nothing was generated** — the phrase sits in the recipe beside the verbatim v7
+  Scene A prompt, and a re-prompt re-opens the geometry question either way (the wide watch
+  card is FRAME-relative and survives; a new Scene A still wants a look).
+- ⚠ **THE EAT PREP SCREEN IS ON THE MISE STAGE, NOT THE PICKER — and that correction is the
+  whole capture.** `BSPrepSession` runs `picker → mise → transition → cook → wrap`; the picker
+  is dish SELECTION only, and the **"How should these be timed?"** block sits on the **mise**
+  stage *below* the merged ingredient checklist, the allergen notes AND the "Your kitchen"
+  steppers. A capture that stops at the dish list never reaches the screen the owner asked
+  for. ⚠ **It renders only with ≥2 dishes selected** — the code's own comment: *"A single dish
+  skips this entirely: there is nothing to decide"* — so **two ticks is a hard requirement of
+  the shot**, and the segment must tick two dishes, press **Merge the mise**, then **scroll**.
+- ⚠ **AND THE HERO ROW CAN COME UP DISABLED, WHICH IS A CAPTURE CAUTION, NOT A BUG.** "Cook at
+  the same time" greys out and **suppresses its minutes** when the picked pair carries no
+  passive window — the minutes would equal the "cook separately" figure and advertise a saving
+  that does not exist. Measured: only **53 of 100** recipes can host a window and a two-dish
+  pair interleaves **50.8 %** of the time — a coin flip. Confirm the row is live before
+  recording, or swap a dish.
+- **The EAT spot grows rather than squeezing.** A sixth page (two segments under one caption —
+  the ticks and the timing block are ~6 s apart and the window rule takes ONE contiguous slice
+  anchored on one act) takes the spot **47 → 55 beats**, i.e. **564 → 660 frames** and
+  **23.500 → 27.500 s**; every existing page keeps its exact beat count and the close moves
+  48→53 → **56→61**, still inside t1's live kick band with a beat of margin under the gate
+  array's last index. ⚠ **Squeezing six pages into the old 40 beats was the wrong answer for a
+  reason the owner already gave** — the previous round's note was *"the scrolling is going too
+  fast … hard to see what is going on"*. The capture lands as a **new part F** in `body5b.js`,
+  never inside part C: `cook` opens with **Cook this**, which exists only on a recipe detail,
+  so inserting prep between them breaks that hand-off. **The other four spots are untouched**;
+  the EAT md5 is dead and `verify5.py spot eat` must be re-run.
+- ⚠ **THE NEW CAPTION MAY NOT PROMISE A SINGLE-MOMENT FINISH, AND THAT IS MEASURED.** SERVE
+  lands every dish at one moment in **7.4 %** of catalog pairs (mean gap **13.5 min**), and an
+  **unlimited-station** kitchen only reaches **8.6 %** — the constraint is the one cook, not
+  the room. The app's own copy carries no *"ready together"* claim **and no *"soonest"* claim**
+  (the planner is greedy and order-sensitive). *"Two dishes, one timeline"* is what
+  `cookOrchestrator` literally emits and claims nothing about where they land. **New line,
+  owner's eye wanted.**
+- **Four melodic house tracks generated** (`sonilo_music`, 60 s each), varying the melodic
+  character around the existing ~120 BPM register so the pick is a choice between kinds rather
+  than a re-roll of one kind: analog chords 122 · plucked arp 124 · Rhodes 120 · big lead 126.
+  **Every prompt is recorded verbatim beside its job id** in the recipe's Sources table, with
+  the required `duration` param — the exact discipline the 09-03 entry below proves the v6
+  video prompts were denied. ⚠ **`duration` is REQUIRED by `sonilo_music`**, so a re-run
+  reconstructed from prompt text alone would fail; it is recorded beside the prompt for that
+  reason.
+- ⚠ **A PROMPTED BPM IS A REQUEST, NOT A MEASUREMENT — THIS FILE HAS PAID FOR THAT THREE
+  TIMES.** The v1/v2 track was prompted 124 and measured **128**; the v3 set was prompted
+  122/124/126 and every one measured **~120**. So nothing may be cut to these four until each
+  is re-measured the way `beat.py` measures (comb search · split-half agreement · per-beat
+  residuals) — **and a melodic track needs its own `kick_by_beat` array re-measured too, not
+  inherited**: *"filtered breakdown"* and *"long filtered build"* are requests for exactly the
+  kick-less stretches the presence gate exists for, and the v4 lesson is that an array
+  truncated short returns silence past its end with nothing raising an error.
+- ⚠ **THE TRIPLE IN SYNC IS STILL LIVE IN THE APP AND IS DELIBERATELY NOT IN THIS COMMIT.**
+  `iosAppBroadsheetRadio.jsx` resolves *In sync* at the status chip (`:1306`), the delta slot
+  (`:1622`) and the pill (`:1651`) at the same instant — **the film was the symptom, the card
+  is the defect** — and it rides as its own commit because a mobile-app change runs the full
+  pre-commit gate a records commit skips.
+- **Verified:** LF, zero CR, zero NUL; **94 line-start / 96 total fences (both even)**; the
+  v7.1 section order intact; every new Python and JS fragment parses when wrapped as it will
+  be spliced; the EAT beat arithmetic re-derived (48 page beats + lead + close = 55;
+  55 × 0.500209 = 27.5115 s → 660 frames = 27.500 s) and both the lead and the close confirmed
+  inside t1's kick bands; and **all four track prompts diffed byte-for-byte against the
+  submitted JSON in the session transcript**, not retyped from memory.
+
 ### 2026-09-03 — v7 built into the recipe: all four owner notes answered, and the verification round found seven defects in the build
 
 - **Records only — the recipe, not a render.** Owner: *"fix all 4"*. All four notes on the

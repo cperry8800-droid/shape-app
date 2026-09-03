@@ -489,6 +489,10 @@ Prefix: `https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/`
 | alternate 1 — "deep dark minimal house 124 BPM, kick from bar one, sub-bass, detuned pads" | `hf_20260901_195948_20d50377-fdc1-45f5-b27c-b6928ba0ae40.m4a` |
 | alternate 2 — "dark deep dubby house 122 BPM, reverb stabs, cavernous, no drop" | `hf_20260901_195949_e84649d8-0f3a-4aaa-a5fe-182837253bb8.m4a` |
 | v1/v2 track (superseded) — "deep house, 124 BPM" | `hf_20260901_165439_f7f2681e-8955-48d9-8c6a-5b62eb5d9dd3.m4a` |
+| **v7.1 melodic 1** — melodic house 122 (analog chords) | `hf_20260903_164640_5a06417b-ce80-4651-a5c1-1dc026ddbe9b.m4a` |
+| **v7.1 melodic 2** — melodic progressive 124 (plucked arp) | `hf_20260903_164640_1eb7850f-c97e-4e56-8cbc-c250be32e92b.m4a` |
+| **v7.1 melodic 3** — melodic deep 120 (Rhodes) | `hf_20260903_164640_d3535005-a4f4-4b01-b3a3-6b575e193c59.m4a` |
+| **v7.1 melodic 4** — melodic anthem 126 (big synth lead) | `hf_20260903_164640_26a60d67-53cd-4b17-a0d4-261be0f9488e.m4a` |
 | **v7 Scene A** — the runner, clothed (replaces Scene A) | `hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4` |
 | **v7 Scene A2** — the watch close-up (NEW shot) | `hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4` |
 | **v7 Scene D** — the pinned globe (replaces Scene D) | `hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4` |
@@ -520,6 +524,49 @@ frames; these run 10 s (240 frames at 24 fps). Nothing needs more: A1 takes **14
 **60**, and D runs `30.75 − 21.8313 = 8.9187 s` = **214** frames. The longest demand is 214 of
 240. `norm6.sh` still runs first — the fps and pixel format are unverified until the files are
 in hand, and `concat` refuses a mismatch.
+
+### The v7.1 melodic-house tracks — SUBMITTED and completed, prompts verbatim
+
+Owner note 8: *"also create some more house beats, maybe a little more melodic"*. Four
+generated, each varying the melodic character around the existing ~120 BPM house register
+(chords · arpeggio · Rhodes · big lead) so the pick is a choice between kinds, not a
+re-roll of one kind. **Nothing is cut to any of them yet** — the launch cut and all five
+spots still ride t1/t2/t3.
+
+| index | job id | model | prompt (verbatim, as submitted) |
+| --- | --- | --- | --- |
+| 1 | `5a06417b-ce80-4651-a5c1-1dc026ddbe9b` | `sonilo_music` | *Melodic house, 122 BPM. Warm minor-key chord progression on an analog synth, rolling sub bassline, four-on-the-floor kick, airy reverb pads, crisp closed hats. Emotive and hypnotic. Instrumental, no vocals.* |
+| 2 | `1eb7850f-c97e-4e56-8cbc-c250be32e92b` | `sonilo_music` | *Melodic progressive house, 124 BPM. Bright plucked arpeggio riding a driving kick, evolving pad swell, filtered breakdown that lifts back into the groove. Uplifting, cinematic. Instrumental, no vocals.* |
+| 3 | `d3535005-a4f4-4b01-b3a3-6b575e193c59` | `sonilo_music` | *Melodic deep house, 120 BPM. Rhodes electric-piano chords, deep round sub bass, soft filtered lead hook, brushed shakers, laid-back swing. Late-night and soulful. Instrumental, no vocals.* |
+| 4 | `26a60d67-53cd-4b17-a0d4-261be0f9488e` | `sonilo_music` | *Melodic house anthem, 126 BPM. Big minor-key synth lead over a punchy kick and driving bass, long filtered build, wide stereo pads. Euphoric but restrained. Instrumental, no vocals.* |
+
+Submitted params, identical on all four: `model sonilo_music · duration 60`. ⚠ **`duration`
+is REQUIRED by `sonilo_music`** — a submission without it is rejected, which is worth
+recording beside the prompt because a re-run reconstructed from the prompt text alone
+would fail. 60 s was chosen so a track comfortably covers the 30.75 s launch cut AND any
+of the five 23–27.5 s spots with room to seek a good 30 s window; the three shipped tracks
+run 32.023 s, so these are the first sources long enough to re-cut a spot inside one track.
+
+⚠ **A PROMPTED BPM IS A REQUEST, NOT A MEASUREMENT — THIS FILE HAS PAID FOR THAT THREE
+TIMES.** The v1/v2 track was prompted 124 and measured **128**; the v3 set was prompted
+122 / 124 / 126 and every one of the three measured **~120** (119.95 / 119.75 / 119.45).
+So the 122 / 124 / 120 / 126 above are what was ASKED for, and nothing here may be used as
+a grid. Before a single timing number is written against any of these four, re-measure it
+the way `beat.py` measures: a comb search over the onset envelope, split-half agreement
+between the track's two halves, and a per-beat residual check that the envelope peaks sit
+within one frame of the grid — then write the measured BPM and phase beside the job id
+above. A pulse locked to a prompted tempo drifts half a beat inside fifteen seconds and
+reads as random.
+
+⚠ **AND A MELODIC TRACK NEEDS THE KICK-PRESENCE GATE RE-MEASURED, NOT INHERITED.** The
+whole gated-pulse machinery (`kick_by_beat` → `pres` → `k`) exists because the alternates
+carry kick-less stretches the pick does not: alternate 1 goes silent from beat 33 to 47,
+alternate 2's kick stops at beat 44, and t2's kick band is so short (beats 16–43, ~14 s)
+that it cannot carry a 23 s spot at all. "Melodic" and "filtered breakdown" and "long
+filtered build" are all requests for exactly that kind of gap. So a track picked from this
+set needs its own `kick_by_beat` array from `beat.py` — all 63 entries, per the v4 lesson
+that an array truncated to 48 returns silence past its end and the wall stops pulsing with
+nothing raising an error.
 
 Repo assets (all on `main`):
 
@@ -1844,11 +1891,13 @@ print('WATCH-MEAS believed',believed,'/',NF,'est',sum(1 for s0 in sm if s0['est'
       'wide',pa['wide']['x'],pa['wide']['y'])
 ```
 
-**`mk_watch.py`** — Draws the watch HR-sync card, in **both** placements, from ONE renderer: `WATCH_MODE=wide` writes the 480×480 lower-right card for Scene A1 (v6's layer, unchanged), `WATCH_MODE=closeup` writes a full-frame layer whose card **rides the measured watch face** through the beat-12 close-up. IN SYNC lands on beat 14 in both.
+**`mk_watch.py`** — Draws the watch HR sync in **both** placements. `WATCH_MODE=wide` writes the 480×480 lower-right **card** for Scene A1 (v6's layer, unchanged — a phone-shaped card on a phone-shaped surface). `WATCH_MODE=closeup` writes a full-frame layer whose **round watch FACE** rides the measured face rect through the beat-12 close-up.
+
+⚠ **v7.1 — TWO renderers, not one** (owner: *"for the watch, their is nothing appearing on the screen, have the shape triangle logo in the top left of watch screen with the hrm/bpm beat match. It just say synced with a glowing orb in the middle"*). The close-up now draws **`watchface()`**: the SHAPE two-triangle mark top-left, a glowing orb at centre, the two BPM figures, and **exactly ONE state word** (`SYNCED`, and only after sync). ⚠ **"nothing appearing on the screen" is what the RAW A2 clip looks like** — its prompt deliberately asks for a *blank glowing panel* so a drawn layer can own the pixels — but the ask supersedes the design regardless: the wide card's six elements typeset on a **round** face at ~900 px is clutter, and the round crop clips a rounded-rect's corners. ⚠ **The beat match is DRAWN, not captioned** — the orb pulses on the wearer's heart, the ring around it on the **music** grid, and across `tSync` the orb's envelope crossfades onto the ring's so the two visibly lock. **Envelopes are blended, never phases**: a phase lerp jumps at every wrap. The wide card and the face **never share a frame** (hard cut at `f12`), so the v7 IN-SYNC-in-three-places defect cannot reappear across them.
 
 ```python
 #!/usr/bin/env python3
-# mk_watch.py -- the watch HR-sync card, in BOTH placements, from ONE card renderer.
+# mk_watch.py -- the watch HR sync, in BOTH placements, from TWO renderers sharing ONE clock.
 #
 # v6 drew one 480x480 layer overlaid at a fixed x 890 / y 1660. v7 keeps that EXACTLY for the wide shot
 # and adds a second layer for the beat-12 close-up, where the physical watch fills much of the frame and
@@ -1861,11 +1910,17 @@ print('WATCH-MEAS believed',believed,'/',NF,'est',sum(1 for s0 in sm if s0['est'
 #   * the heart PHASE is integrated from frame 0 even when only frames [N0,N1) are written, so the pulse
 #     does not restart at the cut. (Integrating from N0 would land the close-up mid-beat at random.)
 #
-# Illustrative demo path, unchanged from v6: YOU climbs 104 -> 120 (the track's real tempo) and lands
-# IN SYNC on beat 14, before the kick drop on 16. The three slots carry three DIFFERENT facts --
-# chip = the state, station line = the delta (+0 BPM at sync), pill = the action.
+# v7.1: the close-up no longer draws card(). It draws watchface() -- a ROUND face carrying the SHAPE mark
+# top-left, a glowing orb at centre, the two BPM figures, and exactly ONE state word (SYNCED). card() is
+# untouched and still owns the wide shot. The two never share a frame (hard cut at f12), so the v7
+# IN-SYNC-in-three-places defect cannot come back across them either.
+#
+# Illustrative demo path, unchanged from v6: YOU climbs 104 -> 120 (the track's real tempo) and lands in
+# sync on beat 14, before the kick drop on 16. On the wide CARD the three slots carry three DIFFERENT
+# facts -- chip = the state, station line = the delta (+0 BPM at sync), pill = the action. On the FACE the
+# state is a colour (cream FREE -> amber MATCHING -> teal SYNCED, the app's own ladder) plus one word.
 import math,json,os,subprocess
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
 p=json.load(open('params_v6.json')); P=p['P']; phi=p['phi']
 pa=json.load(open('params_a2.json'))
 FPS=24; W,H=1440,2560
@@ -1895,6 +1950,20 @@ def heart(d,cx,cy,r,fill):
 def dotglyph(d,cx,cy,filled,col,k=1.0):
     d.ellipse((cx-9*k,cy-9*k,cx+9*k,cy+9*k),outline=col,width=max(1,int(round(2*k))))
     if filled: d.ellipse((cx-4*k,cy-4*k,cx+4*k,cy+4*k),fill=col)
+_tri={}
+def trimark(h):
+    """The SHAPE two-triangle mark at height h, cut from logo_tri.png -- the REAL geometry the wall lockup
+    and the globe marks already use, never a hand-drawn approximation. assets.py writes that file as RGB
+    PREMULTIPLIED OVER BLACK (no alpha channel), so straight alpha is recovered as the per-pixel max of
+    the three channels; the face fills (9,11,11) underneath, so the residual premultiply error is under
+    one part in 25. Cached per height -- this is called once per close-up frame."""
+    h=max(6,int(round(h)))
+    if 'src' not in _tri:
+        im=Image.open('in/logo_tri.png').convert('RGB').crop(Image.open('in/logo_tri.png').convert('RGB').getbbox())
+        r,g,b=im.split(); _tri['src']=Image.merge('RGBA',(r,g,b,ImageChops.lighter(ImageChops.lighter(r,g),b)))
+    if h not in _tri:
+        src=_tri['src']; _tri[h]=src.resize((max(1,int(round(src.width*h/src.height))),h),Image.LANCZOS)
+    return _tri[h]
 
 def card(t,S,u):
     """The card at side S. k scales EVERY coordinate, tracking value and font size, so the close-up is
@@ -1938,6 +2007,56 @@ def card(t,S,u):
         img.alpha_composite(rg.filter(ImageFilter.GaussianBlur(max(1.0,q(4)))))
     return img
 
+def watchface(t,S,u,ub):
+    """v7.1 -- the CLOSE-UP face. Deliberately NOT card(); see the header for why.
+
+    Layout in 480-space (every coordinate, tracking value and font size scales by k=S/480, so the face is
+    TYPESET at its real size rather than upscaled from a 480 bitmap -- the same rule card() follows):
+      disc     centre (240,240) r 222 -- nearly fills S, and S is the MEASURED face width x fill
+      mark     top-left at (84,92), height 46; its far corner is 211 px from centre, inside the 222 rim
+      orb      centre (240,218), base r 46; station ring r 78 (bottom 296, clear of the labels at 330)
+      figures  YOU column centred x 160, STATION column centred x 320; labels top y 330, numbers top y 352
+      state    centred, top y 406 -- the ONLY word on the face, and only after tSync
+    Every row was checked against the disc chord: the widest (numbers, bottom y 392) has 162 px either
+    side of centre and spends 72. Nothing here can fall outside the round crop.
+
+    The beat match is drawn: the orb's envelope is the WEARER's (u, integrated from hr_of), the ring's is
+    the MUSIC's (ub, from the measured grid), and across tSync the orb crossfades onto the ring so the two
+    lock in front of the viewer. Envelopes are blended, never phases -- a phase lerp jumps at every wrap.
+
+    Colour is the state, following the app's own ladder: cream FREE -> amber MATCHING -> teal SYNCED. That
+    is also what keeps verify6's amber->teal check honest with a wide margin: before sync NOTHING on the
+    face is teal at full alpha, after it the orb, ring and word all are."""
+    k=S/480.0
+    def q(x): return x*k
+    def wd(x): return max(1,int(round(x*k)))
+    fU=mono(17*k,600); fN=mono(40*k,800); fW=mono(22*k,700)
+    img=Image.new('RGBA',(S,S),(0,0,0,0)); d=ImageDraw.Draw(img)
+    C=q(240); R=q(222)
+    synced=t>=tSync; blend=clamp((t-tSync)/0.6)
+    SC=TEAL if synced else (AMBER if t>=tMatch else CREAM)      # ONE state colour, two pulse sources
+    eb=math.exp(-ub/0.13)                                        # the music
+    e=math.exp(-u/0.13)*(1-blend)+eb*blend                       # the wearer, crossfading onto the music
+    d.ellipse((C-R,C-R,C+R,C+R),fill=(9,11,11,236),outline=TEAL+(160 if synced else 110,),width=wd(3))
+    m=trimark(q(46)); img.alpha_composite(m,(int(round(q(84))),int(round(q(92)))))
+    ox,oy=C,q(218); orad=q(46)*(1+0.22*e)
+    gl=Image.new('RGBA',(S,S),(0,0,0,0))
+    ImageDraw.Draw(gl).ellipse((ox-orad*1.9,oy-orad*1.9,ox+orad*1.9,oy+orad*1.9),fill=SC+(int(60+90*e),))
+    img.alpha_composite(gl.filter(ImageFilter.GaussianBlur(max(1.0,q(22)))))
+    d.ellipse((ox-orad,oy-orad,ox+orad,oy+orad),fill=SC+(255,))
+    rr=q(78); d.ellipse((ox-rr,oy-rr,ox+rr,oy+rr),outline=SC+(int(90+150*eb),),width=wd(2+3*eb))
+    tracked(d,q(160),q(330),'YOU',fU,q(2.0),CREAM+(150,),'c')
+    tracked(d,q(320),q(330),'STATION',fU,q(2.0),CREAM+(150,),'c')
+    tracked(d,q(160),q(352),str(int(round(hr_of(t)))),fN,q(1.0),SC+(255,),'c')
+    tracked(d,q(320),q(352),'120',fN,q(1.0),CREAM+(210,),'c')
+    if synced:  # the one word, faded in over a quarter second
+        tracked(d,C,q(406),'SYNCED',fW,q(4.0),TEAL+(int(255*clamp((t-tSync)/0.25)),),'c')
+        if blend<1:  # one expanding rim ring on the sync instant -- capped so it cannot clip the canvas
+            ex=q(14)*blend; rg=Image.new('RGBA',(S,S),(0,0,0,0))
+            ImageDraw.Draw(rg).ellipse((C-R-ex,C-R-ex,C+R+ex,C+R+ex),outline=TEAL+(int(210*(1-blend)),),width=wd(4))
+            img.alpha_composite(rg.filter(ImageFilter.GaussianBlur(max(1.0,q(4)))))
+    return img
+
 if MODE=='wide':
     # v6's layer, byte-for-byte in intent: 480x480, overlaid at pa['wide'] (a FRAME-relative inset, not a
     # wrist trace -- see meas_watch.py). Rendered to t16 rather than to the cut so the layer still covers
@@ -1953,6 +2072,7 @@ phase=0.0; last_t=0.0; est=0
 for i in range(N1):
     t=i/FPS
     hr=hr_of(t); phase+=hr/60.0*(t-last_t); last_t=t; u=phase%1.0
+    ub=((t-phi)%P)/P             # the MUSIC's phase, straight off the measured grid -- the face's second pulse
     if i<N0: continue            # phase integrated from 0 regardless -- the pulse must not restart at the cut
     a=clamp((t-tIn)/0.6)
     img=Image.new('RGBA',(OW,OH),(0,0,0,0))
@@ -1962,7 +2082,7 @@ for i in range(N1):
         r=mw['frames'][i-N0]
         if r.get('est'): est+=1
         S=max(120,int(round(r['w']*mw['fill'])))
-        img.alpha_composite(card(t,S,u),(int(round(r['cx']-S/2)),int(round(r['cy']-S/2))))
+        img.alpha_composite(watchface(t,S,u,ub),(int(round(r['cx']-S/2)),int(round(r['cy']-S/2))))
     if a<1:
         img.putalpha(img.split()[3].point(lambda v:int(v*a)))
     proc.stdin.write(img.tobytes())
@@ -2173,22 +2293,34 @@ for t in ts:
     samples.append(dict(t=t, heads=[[h[0],h[1]] for h in hs], anchors=[[h[0],h[2]] for h in hs]))
     print(f't={t}: disc c({d["cx"]},{d["cy"]}) r{d["r"]} heads {len(hs)}')
 if not samples: raise SystemExit('no usable D frames -- check D_SRC')
-counts=sorted(len(s['heads']) for s in samples); med=counts[len(counts)//2]
-if med<FLOOR:
-    raise SystemExit(f'median {med} pin heads/frame (floor {FLOOR}) -- NOT a pin set. Re-tune PIN_TH/'
-                     f'PIN_BEAM_MIN/PIN_MAX_W against the clip, or accept the luma fallback in mk_globe.py')
+# The DISC and the DRIFT are measured from the frames themselves and do not depend on the pin count, so
+# they are computed BEFORE the believability test -- v7.1 fix. The first cut raised SystemExit on a low
+# head count, and under render6.sh's `set -e` that aborted the whole render; worse, when it was run by
+# hand the file was never written, so mk_globe.py fell back to v6's FILE-TIED cx/cy/r 727/1295/676 --
+# and the logo row and the close row are derived from that disc. A clip whose pins we cannot find is not
+# a clip whose GEOMETRY we cannot measure, and conflating the two silently mis-placed two more layers.
 med_disc=lambda k: int(np.median([d[k] for d in discs]))
 disc=dict(cx=med_disc('cx'), cy=med_disc('cy'), r=med_disc('r'),
           left=med_disc('left'), right=med_disc('right'), top=med_disc('top'), bottom=med_disc('bottom'))
 dt=ts[1]-ts[0]; vx,err=drift(frame(ts[0]),frame(ts[1]),disc,dt)
 vx2,err2=drift(frame(ts[-2]),frame(ts[-1]),disc,dt)
 print(f'drift {vx:.1f} px/s (err {err:.2f}) / {vx2:.1f} px/s late (err {err2:.2f})')
-out=dict(src=SRC, duration=round(D,3), disc=disc, samples=samples,
+counts=sorted(len(s['heads']) for s in samples); med=counts[len(counts)//2]
+believed = med>=FLOOR
+out=dict(src=SRC, duration=round(D,3), disc=disc, believed=believed,
+         samples=(samples if believed else []),
          heads=dict(min=counts[0], median=med, max=counts[-1]),
          drift_px_per_s=round((vx+vx2)/2,2), drift_err=[round(err,3),round(err2,3)],
          detector=dict(th=TH, beam_min=BMIN, max_w=BMAXW, samples=NS, floor=FLOOR))
 json.dump(out,open('meas_pins.json','w'),indent=1)
-print('PINS-OK', med, 'heads (median),', len(samples), 'samples, drift', out['drift_px_per_s'], 'px/s')
+if not believed:
+    msg=(f'PINS-UNBELIEVED median {med} heads/frame (floor {FLOOR}) -- the disc and drift ARE written and '
+         f'will be used; the pin SET is withheld and mk_globe.py draws its own beams. Re-tune PIN_TH/'
+         f'PIN_BEAM_MIN/PIN_MAX_W against the clip if the prompt really did bake beams in.')
+    if os.environ.get('PIN_STRICT'): raise SystemExit(msg)
+    print(msg)                                                 # exit 0: a render is still correct without pins
+else:
+    print('PINS-OK', med, 'heads (median),', len(samples), 'samples, drift', out['drift_px_per_s'], 'px/s')
 ```
 
 **`mk_globe.py`** — Draws the Scene D layer: 27 SHAPE marks popping on lit cities, the logo above the globe from beat 52, the close copy from beat 56.
@@ -2202,11 +2334,19 @@ from PIL import Image, ImageFilter, ImageDraw
 p=json.load(open('params_v6.json')); m3=json.load(open('meas_t3.json'))
 P=p['P']; phi=p['phi']; KB=m3['kick_by_beat']; offCD=p['offCD']; total=p['total']; FPS=24; W,H=1440,2560
 N=int(round((total-offCD)*FPS)); random.seed(6)
-try: PINS=json.load(open('meas_pins.json'))
-except Exception as e: PINS=None; print(f'WARN meas_pins.json unreadable ({type(e).__name__}) -- falling back to the v6 hardcoded disc AND luma placement')
+try: MEAS=json.load(open('meas_pins.json'))
+except Exception as e: MEAS=None; print(f'WARN meas_pins.json unreadable ({type(e).__name__}) -- falling back to the v6 hardcoded disc AND luma placement')
+# v7.1: the DISC is used whenever the file reads at all; only the pin SET is gated on `believed`. meas_pins.py
+# withholds `samples` when it cannot believe the detection but still writes the geometry it DID measure -- and
+# the logo row and the close row are derived from that geometry, so conflating "no pins" with "no disc" would
+# silently mis-place two more layers on a clip we HAD successfully measured.
+PINS = MEAS if (MEAS and MEAS.get('believed') and MEAS.get('samples')) else None
 # every one of these was measured against the v6 D.mp4 and is wrong for any re-prompted clip -> meas_pins.py owns them now
-D=(PINS or {}).get('disc') or dict(cx=727,cy=1295,r=676,top=618,bottom=1972,left=44,right=1410)
+D=(MEAS or {}).get('disc') or dict(cx=727,cy=1295,r=676,top=618,bottom=1972,left=44,right=1410)
 CX,CY,R=D['cx'],D['cy'],D['r']
+VX=float((MEAS or {}).get('drift_px_per_s',0.0))   # the spin, in px/s -- measured even when the pins are unbelieved
+BEAM=int(os.environ.get('BEAM_PX','118'))          # how far a mark stands ABOVE its anchor when WE draw the beam
+LINE=os.environ.get('PIN_LINE','auto')             # auto|always|never -- see the draw loop
 def clamp(x): return max(0.0,min(1.0,x))
 def pres(n): return 0.0 if n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
 def kof(t,t0):
@@ -2229,47 +2369,65 @@ LW=440; LCX=W//2; LCY=int(os.environ.get('LOGO_CY','0')) or max(150,int(round(0.
 # --- close copy
 close=np.asarray(Image.open('cap/txt/close.png').convert('RGBA')).astype(np.float32)/255; closeP=close[...,:3]*close[...,3:4]
 CLY=int(os.environ.get('CLOSE_Y','0')) or min(H-closeP.shape[0]-40, D['bottom']+88)   # v6's 2060 == its 1972-row disc bottom + 88
-# --- schedule the pops: beats 48-51 one, 52-55 two, 56-60 three
+# --- schedule the pops. v7.1: start at beat 44 and end at 4-a-beat -- 44 marks, up from v6's 27.
+# 44 is the FIRST beat inside Scene D (phi+44P = 22.131 > offCD 21.831; beat 43 lands at 21.629, before the
+# scene exists), so this is the widest window the cut has, not a number picked to look busy. More marks is the
+# only honest half of "hit every major city" this mechanism can deliver -- see the note under the loop.
 pops=[]
-for n in range(48,61):
-    c=1 if n<52 else (2 if n<56 else 3)
+for n in range(44,61):
+    c=1 if n<48 else (2 if n<52 else (3 if n<56 else 4))
     for j in range(c): pops.append(phi+n*P+j*0.09)
 print('pops',len(pops))
-# --- v7 placement: pop each mark ONTO a baked pin head; the v6 luma sample survives as the fallback
-placed=[]   # (x, y, tp, vx, pin) -- pin -1 means luma-sourced
-def far(x,y,tp): return all((x-q[0])**2+(y-q[1])**2>150**2 for q in placed if tp-q[2]<2.8)
+# --- v7.1 placement: a mark stands at a pin HEAD and is tied to its ANCHOR on the ground.
+# placed = (hx, hy, tp, vx, pin, ax, ay). pin -1 means luma-sourced (we draw the beam ourselves).
+placed=[]
+def dero(x,tp): return x-VX*(tp-offCD)             # de-rotate to scene-start x: a stable id for a physical point
+def far(x,y,tp):  return all((x-q[0])**2+(y-q[1])**2>150**2 for q in placed if tp-q[2]<2.8)
+def fresh(x,y,tp):                                 # v7.1: never mark the same place twice in the WHOLE scene
+    dx=dero(x,tp); return all((dx-dero(q[0],q[2]))**2+(y-q[1])**2>110**2 for q in placed)
+def ok(x,y,tp): return far(x,y,tp) and fresh(x,y,tp)
 def pin_pick(tp):
-    td=tp-offCD; sm=min(PINS['samples'],key=lambda s:abs(s['t']-td)); VX=PINS['drift_px_per_s']
+    td=tp-offCD; sm=min(PINS['samples'],key=lambda s:abs(s['t']-td)); dx=VX*(td-sm['t'])
     cands=[]
     for i,(hx,hy) in enumerate(sm['heads']):
-        hx=int(round(hx+VX*(td-sm['t'])))          # carry the measured head forward to this pop
-        if (hx-CX)**2+(hy-CY)**2>R*R: continue     # a head stands ABOVE the ground, so 1.00R -- not the 0.90R the cities used
-        cands.append((i,hx,hy))
+        ax,ay=sm['anchors'][i]                     # the GROUND point the beam rises from -- what the mark points AT
+        hx=int(round(hx+dx)); ax=int(round(ax+dx)) # carry both forward to this pop
+        if (ax-CX)**2+(ay-CY)**2>(1.02*R)**2: continue   # the anchor must still be on the globe after the carry
+        cands.append((i,hx,hy,ax,ay))
     random.shuffle(cands); live=[q[4] for q in placed if tp-q[2]<2.8]
-    for i,hx,hy in cands:                          # first pass: a pin nothing else is currently marking
-        if i not in live and far(hx,hy,tp): return hx,hy,i
-    for i,hx,hy in cands:                          # thin pin set -> spacing beats uniqueness
-        if far(hx,hy,tp): return hx,hy,i
+    for i,hx,hy,ax,ay in cands:                    # first pass: a pin nothing else is currently marking
+        if i not in live and ok(hx,hy,tp): return hx,hy,ax,ay,i
+    for i,hx,hy,ax,ay in cands:                    # thin pin set -> spacing beats uniqueness
+        if ok(hx,hy,tp): return hx,hy,ax,ay,i
     return None
-def luma_pick(tp):                                 # the v6 rule, verbatim, as the honest fallback
+def luma_pick(tp):
+    # v7.1: pick the BRIGHTEST free lit pixel, not a random one. Nothing in this pipeline knows what a city IS
+    # -- brightness is the closest a luma sampler gets to "major", and it is stated as that, not as knowledge.
     f=dframe(tp-offCD); yy,xx=np.mgrid[0:H,0:W]; inside=((xx-CX)**2+(yy-CY)**2)<(0.90*R)**2
     cand=np.where(inside&(f>110)&(np.abs(yy-CY)<0.78*R))
-    idx=list(range(len(cand[0]))); random.shuffle(idx)
-    for k in idx[:4000]:
-        x,y=int(cand[1][k]),int(cand[0][k])
-        if far(x,y,tp): return x,y
-    for _ in range(2000):
+    if len(cand[0]):
+        vals=f[cand[0],cand[1]]
+        for k in np.argsort(-vals)[:6000]:
+            x,y=int(cand[1][k]),int(cand[0][k])
+            if ok(x,y,tp): return x,y
+    for _ in range(2000):                          # nothing bright and free left -> anywhere on the ground
         a=random.random()*2*math.pi; r=random.random()*0.85*R
         x,y=int(CX+r*math.cos(a)),int(CY+r*math.sin(a)*0.8)
-        if far(x,y,tp): return x,y
-    return CX,CY
+        if ok(x,y,tp): return x,y
+    return None                                    # v7.1: drop the mark rather than stack one at the centre
 for tp in pops:
     pk=pin_pick(tp) if PINS else None
-    if pk: placed.append((pk[0],pk[1],tp,PINS['drift_px_per_s'],pk[2])); continue
+    if pk: placed.append((pk[0],pk[1],tp,VX,pk[4],pk[2],pk[3])); continue
     if PINS: print(f'WARN no free pin head at pop {tp:.3f} -- luma fallback for this one mark')
-    x,y=luma_pick(tp); placed.append((x,y,tp,0.0,-1))
+    lp=luma_pick(tp)
+    if lp is None: print(f'WARN no free spot at pop {tp:.3f} -- mark dropped'); continue
+    x,y=lp; placed.append((x,max(0,y-BEAM),tp,VX,-1,x,y))   # WE draw the beam: head sits BEAM px above the city
 frompins=sum(1 for q in placed if q[4]>=0)
-print('placed',len(placed),'from pins',frompins,'of',len(pops),'| first',placed[:3])
+print('placed',len(placed),'of',len(pops),'pops | from pins',frompins,'| first',placed[:2])
+# NOTE -- "every major city" is not reachable from this mechanism and the recipe says so rather than implying
+# otherwise: marks land where the model's beams are (or where the clip is brightest), nothing here holds a
+# city list, and the globe spins so some cities are never on the visible face at all. A literal answer needs
+# an owner-authored lon/lat list plus a measured rotation axis and phase -- registered, not built.
 def paste(dst,src,gain,x0,y0):
     h,w=src.shape[:2]; xs0=max(0,x0); ys0=max(0,y0); xs1=min(W,x0+w); ys1=min(H,y0+h)
     if xs1<=xs0 or ys1<=ys0: return
@@ -2281,11 +2439,19 @@ proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rg
 for i in range(N):
     t=offCD+i/FPS; f=np.zeros((H,W,3),np.float32); e=clamp((t-offCD)/0.3)
     ring=Image.new('L',(W,H),0); rd=ImageDraw.Draw(ring); anyring=False
-    for xm,y,tp,vx,_pin in placed:
+    for xm,y,tp,vx,_pin,axm,ay in placed:
         u=t-tp
         if u<0 or u>2.6: continue
-        x=int(round(xm+vx*u))          # ride the spin: a mark that stands still slides off the pin it marked
+        dx=vx*u                        # ride the spin: a mark that stands still slides off the pin it marked
+        x=int(round(xm+dx)); ax=int(round(axm+dx))
         s=back(u/0.28); a=clamp(u/0.12)*clamp((2.6-u)/0.6)
+        # v7.1 -- the ANCHOR: a dot on the ground the mark stands over, so the logo reads as pinning a PLACE
+        # rather than floating. Always drawn; it is what makes the head "the tip of a line" instead of a sticker.
+        if ay>y+6: rd.ellipse((ax-6,ay-6,ax+6,ay+6),fill=int(255*a*0.9)); anyring=True
+        # the LEADER LINE. 'auto' draws it only where we invented the head (luma marks), because the layer is
+        # SCREEN-blended: stroking over a beam the model already baked in doubles it into a blown-out streak.
+        if ay>y+6 and (LINE=='always' or (LINE=='auto' and _pin<0)):
+            rd.line((ax,ay,x,y+10),fill=int(255*a*0.55),width=3); anyring=True
         w=int(round(markP.shape[1]*s)); 
         if w<2: continue
         mp=scaled(markP,w); mg=scaled(markG,w); h2,w2=mp.shape[:2]
@@ -2302,18 +2468,19 @@ for i in range(N):
         a=clamp((t-t56)/0.45); paste(f,closeP,a,0,CLY)
     proc.stdin.write((np.clip(f*e,0,1)*255+0.5).astype('uint8').tobytes())
 proc.stdin.close(); proc.wait()
-json.dump(dict(disc=D, from_pins=bool(PINS), pins_used=frompins, marks=len(placed), logo_cy=LCY, logo_w=LW, close_y=CLY,
-               drift_px_per_s=(PINS or {}).get('drift_px_per_s',0.0),
-               placed=[dict(x=q[0],y=q[1],t=round(q[2],3),vx=q[3],pin=q[4]) for q in placed]),
+json.dump(dict(disc=D, from_pins=bool(PINS), pins_used=frompins, pops=len(pops), marks=len(placed),
+               logo_cy=LCY, logo_w=LW, close_y=CLY, drift_px_per_s=VX, beam_px=BEAM, line_mode=LINE,
+               placed=[dict(x=q[0],y=q[1],t=round(q[2],3),vx=q[3],pin=q[4],ax=q[5],ay=q[6]) for q in placed]),
           open('globe6_marks.json','w'),indent=1)
-print('GLOBE6-OK',N,'marks',len(placed),'from pins',frompins,'logo at',t52,'cy',LCY,'close at',t56,'y',CLY)
+print('GLOBE6-OK',N,'marks',len(placed),'of',len(pops),'pops | from pins',frompins,'| logo at',t52,'cy',LCY,'close at',t56,'y',CLY)
 ```
 
 **`norm6.sh`** — Normalizes every Scene source to exactly 1440×2560 @ 24 fps before anything measures or concatenates. v6 never needed this (one clip per scene, `xfade` between them); v7 does, because `concat` refuses mismatched dimensions and `meas_watch.py` / `meas_pins.py` index pixels by absolute coordinate. A re-prompted clip that comes back 1080×1920 would otherwise fail deep inside the render with a filtergraph error.
 
 ```bash
 #!/bin/bash
-# norm6.sh -- make in/A.mp4, in/A2.mp4, in/D.mp4 exactly 1440x2560 24fps. Idempotent: already-correct files are left alone.
+# norm6.sh -- make in/A.mp4, in/A2.mp4, in/D.mp4 exactly 1440x2560 24fps, then optionally spin the globe faster.
+# Idempotent: already-correct files are left alone and the spin writes a marker so a re-run cannot compound it.
 set -e
 cd /home/user/w
 for f in A A2 D; do
@@ -2325,6 +2492,37 @@ for f in A A2 D; do
     -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -an "in/${f}_n.mp4"
   mv "in/${f}_n.mp4" "in/$f.mp4"
 done
+
+# --- v7.1 note 5, "have the globe spin faster". D_SPIN is a REQUEST; the cut's own length is the ceiling.
+# D_MIN is hardcoded, not read from params_v6.json, because norm6.sh runs BEFORE plan6.py writes that file --
+# so this is total(30.75) - offCD(21.8313) = 8.9187, the exact footage Scene D consumes.
+# The CLAMP uses D_SAFE, two frames longer, and the ASSERT uses D_MIN. That gap is not slack for its own sake:
+# ffmpeg quantises the output to whole 24 fps frames, so clamping straight to D_MIN and then asserting D_MIN
+# makes the ceiling itself fail (10/1.1211 = 8.920 s -> 214 frames -> 8.9167 s, one frame short of the assert).
+D_MIN=${D_MIN:-8.9187}
+D_SPIN=${D_SPIN:-1.0}
+D_SAFE=$(awk -v m="$D_MIN" 'BEGIN{printf "%.4f", m+2/24}')
+DDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 in/D.mp4)
+MAXF=$(awk -v d="$DDUR" -v m="$D_SAFE" 'BEGIN{printf "%.4f", d/m}')
+if [ -f in/.D_spun ] && [ "$(cat in/.D_spun)" = "$D_SPIN" ]; then
+  echo "NORM D already spun x$D_SPIN (${DDUR}s) -- skipping"
+elif awk -v s="$D_SPIN" 'BEGIN{exit !(s<=1.0001)}'; then
+  echo "NORM D spin 1.00 (source pace, ${DDUR}s)"
+else
+  # A speed-up SHORTENS the clip. Past MAXF there is not enough footage for Scene D and render6.sh would have to
+  # loop or freeze a tail -- a visible seam. So clamp, and say so, rather than produce a clip that cannot be used.
+  EFF=$(awk -v s="$D_SPIN" -v m="$MAXF" 'BEGIN{printf "%.4f", (s<m?s:m)}')
+  awk -v s="$D_SPIN" -v m="$MAXF" 'BEGIN{if(s>m) printf "WARN D_SPIN %.3f exceeds the no-loop ceiling %.3f (source %s s, Scene D needs %s s) -- clamped\n", s, m, "'"$DDUR"'", "'"$D_MIN"'"}'
+  echo "NORM D spin x$EFF (${DDUR}s -> $(awk -v d="$DDUR" -v e="$EFF" 'BEGIN{printf "%.3f", d/e}')s)"
+  ffmpeg -y -v error -i in/D.mp4 -vf "setpts=PTS/$EFF,fps=24" \
+    -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -an in/D_s.mp4
+  mv in/D_s.mp4 in/D.mp4
+  printf '%s' "$D_SPIN" > in/.D_spun
+fi
+# Hard assert, whatever path we took: Scene D must have the footage the cut asks for. Refuse, never loop.
+DDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 in/D.mp4)
+awk -v d="$DDUR" -v m="$D_MIN" 'BEGIN{if(d+0 < m+0){printf "FATAL in/D.mp4 is %.3f s, Scene D needs %.3f s\n", d, m; exit 1}}'
+echo "NORM D duration ${DDUR}s (needs >= ${D_MIN}s) OK"
 echo NORM6-OK
 ```
 
@@ -2464,9 +2662,13 @@ def cnt(a,reg,f):
     r=a[reg[0]:reg[1],reg[2]:reg[3]].astype(int); return int(f(r).sum())
 teal=lambda r:(r[...,2]>150)&(r[...,1]>150)&(r[...,0]<120)
 amber=lambda r:(r[...,0]>180)&(r[...,1]>120)&(r[...,1]<200)&(r[...,2]<90)
-# both samples now sit INSIDE the close-up -- landing IN SYNC in close-up is the whole point of the fifth shot
+# both samples now sit INSIDE the close-up -- landing synced in close-up is the whole point of the fifth shot.
+# v7.1: the FACE carries no status WORDS before sync -- the state is a colour, and the orb (the largest lit
+# object on the face) carries it. So this reads amber-everywhere -> teal-everywhere rather than one small
+# chip changing hue, which is what gives the check its margin. Both counts are read inside a_src()'s MEASURED
+# face rect, never the fixed wide-card rect, so a re-measured A2 clip cannot silently move the sampling window.
 _,_,r65=a_src(6.5); _,_,r75=a_src(7.5); f65=frame(OUT,6.5); f75=frame(OUT,7.5)
-check('watch MATCHING(amber)->IN SYNC(teal) at beat 14', cnt(f75,r75,teal)>cnt(f65,r65,teal) and cnt(f65,r65,amber)>cnt(f75,r75,amber), f'teal {cnt(f65,r65,teal)}->{cnt(f75,r75,teal)} amber {cnt(f65,r65,amber)}->{cnt(f75,r75,amber)}')
+check('close-up face turns amber -> teal across beat 14', cnt(f75,r75,teal)>cnt(f65,r65,teal) and cnt(f65,r65,amber)>cnt(f75,r75,amber), f'teal {cnt(f65,r65,teal)}->{cnt(f75,r75,teal)} amber {cnt(f65,r65,amber)}->{cnt(f75,r75,amber)}')
 print(f"INFO close-up watch face believed on {mwt['believed']}/{nA2} frames; the rest carry the nearest measured rect")
 # ---- B: logo on the phone ----
 ph=np.ones((H,W),bool); ph[592:1926,416:1026]=False
@@ -2538,18 +2740,41 @@ if GM['placed']:
             cx=int(round(m['x']+m['vx']*u)); cy=m['y']
             if lit(L,(max(0,cy-45),cy+46,max(0,cx-45),cx+46))[0]<40: miss.append((cx,cy))
         check(f'every live mark is drawn at its placement at beat {n}', not miss, f'{len(miss)} missing: {miss[:4]}')
-    check('marks are pin-sourced, not luma-sampled', GM['from_pins'] and GM['pins_used']>=0.8*GM['marks'],
-          f"from_pins {GM['from_pins']} pins {GM['pins_used']}/{GM['marks']}")
-    try:
-        PN=json.load(open('meas_pins.json')); TOL=40; off=[]
-        for m in GM['placed']:
-            if m['pin']<0: continue
-            td=m['t']-offCD; sm=min(PN['samples'],key=lambda q:abs(q['t']-td))
-            best=min(((m['x']-(h[0]+PN['drift_px_per_s']*(td-sm['t'])))**2+(m['y']-h[1])**2) for h in sm['heads'])
-            if best>TOL*TOL: off.append(round(best**0.5,1))
-        check('every pin-sourced mark sits on a measured pin head', not off, f'{len(off)} off by {off[:4]} px (tol {TOL})')
-    except Exception as e:
-        print(f'INFO meas_pins.json unreadable ({type(e).__name__}) -- pin-coincidence check skipped')
+    # v7.1: not every pop has to LAND -- luma_pick now drops a mark rather than stacking one at the disc centre --
+    # but a mass drop means the spacing rules are starving the placement, which is a defect, not a style.
+    check('almost every pop placed a mark', GM['marks']>=0.9*GM['pops'], f"{GM['marks']} of {GM['pops']} pops")
+    # v7.1: pin-sourced is no longer REQUIRED -- meas_pins.py withholds an unbelieved pin set on purpose and
+    # mk_globe.py then draws its own beams, which is a correct render. So assert the mode is INTERNALLY
+    # consistent instead: pins claimed -> nearly all marks carry one; no pins -> none does and we drew the lines.
+    if GM['from_pins']:
+        check('pin mode: marks are pin-sourced, not luma-sampled', GM['pins_used']>=0.8*GM['marks'],
+              f"pins {GM['pins_used']}/{GM['marks']}")
+    else:
+        check('luma mode: no mark claims a pin it cannot have', GM['pins_used']==0 and GM['line_mode']!='never',
+              f"pins {GM['pins_used']} line_mode {GM['line_mode']} -- pins were unbelieved, so WE draw the beams")
+    if any(m['pin']>=0 for m in GM['placed']):
+        try:
+            PN=json.load(open('meas_pins.json')); TOL=40; off=[]
+            for m in GM['placed']:
+                if m['pin']<0: continue
+                td=m['t']-offCD; sm=min(PN['samples'],key=lambda q:abs(q['t']-td))
+                best=min(((m['x']-(h[0]+PN['drift_px_per_s']*(td-sm['t'])))**2+(m['y']-h[1])**2) for h in sm['heads'])
+                if best>TOL*TOL: off.append(round(best**0.5,1))
+            check('every pin-sourced mark sits on a measured pin head', not off, f'{len(off)} off by {off[:4]} px (tol {TOL})')
+        except Exception as e:
+            print(f'INFO meas_pins.json unreadable ({type(e).__name__}) -- pin-coincidence check skipped')
+    else:
+        print('INFO no pin-sourced marks -- pin-coincidence check does not apply (luma mode)')
+    # v7.1 note 5: the mark stands at the TIP of a line that pins a place, so the ANCHOR has to be on screen.
+    # Directional, not per-pixel: count the live marks whose ground dot lights a 30 px window and require the
+    # majority. A per-mark assertion here would flake on any mark whose measured beam is only a few px tall.
+    t=beat(54)+0.35; L=frame('in/globe6.mp4',t-offCD); live=0; anch=0
+    for m in GM['placed']:
+        u=t-m['t']
+        if u<0.12+1/24 or u>2.6 or m['ay']<=m['y']+6: continue
+        live+=1; ax=int(round(m['ax']+m['vx']*u)); ay=m['ay']
+        if lit(L,(max(0,ay-15),ay+16,max(0,ax-15),ax+16))[0]>0: anch+=1
+    check('marks are anchored to the ground, not floating', live>0 and anch>=0.8*live, f'{anch}/{live} anchors lit')
 LCY=GM['logo_cy']; LCX=W//2; lg=(max(0,LCY-190),LCY+191,max(0,LCX-340),min(W,LCX+341))
 l0=lit(frame(OUT,25.5),lg,90); l1=lit(frame(OUT,26.7),lg,90)
 check('logo pops above globe after beat 52', l0[0]<50 and l1[0]>1500, f'pre {l0[0]} post {l1[0]} w{l1[1]}')
@@ -2968,6 +3193,424 @@ re-measure warning at the head of this section):
 *The lesson is the one this file keeps paying for: a generation is only reproducible if the
 prompt is written down beside the file id. The tracks were recorded that way and can be
 re-made; the clips were not, and cannot.*
+
+---
+
+## What v7.1 is (2026-09-03) — the watch face, the pinned globe, the casting, the EAT prep beat, and four melodic tracks
+
+Five more owner notes on the v7 build. Each is recorded here with what it changes, what it
+**cannot** change, and what a re-render must re-measure. ⚠ **Four of the five are recipe
+changes the owner re-renders; note 8 is the only one that produced FILES** — four melodic
+house tracks, generated and recorded in Sources. **Nothing has been re-rendered here** (this
+container has no `ffmpeg`, no `PIL` and no footage), and no cut has been re-scored.
+
+| # | Owner note | Where the fix lives |
+|---|---|---|
+| 7 | *"for the watch, their is nothing appearing on the screen, have the shape triangle logo in the top left of watch screen with the hrm/bpm beat match. It just say synced with a glowing orb in the middle"* | **`mk_watch.py`** — a second renderer |
+| 5 | *"for the globe, have the shape logo appear at the tip of the lines that are coming out … make sure you hit every major city. have the globe spin faster as well"* | **`mk_globe.py`** (anchors + line) + **`meas_pins.py`** (non-fatal refusal) + **`norm6.sh`** (`D_SPIN`); the D re-prompt is drafted, not sent |
+| 6 | *"also dont make the man running asian"* | the **Scene A prompt** — one adjective phrase; drafted, **not** submitted (a negation cannot be prompted, and the casting is the owner's) |
+| 9 | *"for the eat video, show the screen that asks if you are cooking 1 meal at a time, looking to serve meals together, so the shape engine will plan out timing of each meal"* | a sixth EAT page — **`pw/body5b.js`** (a new part F) + **`mkspecs5.py`** (`RULES` · `PLANS['eat']` · `CAPS`) + one `captions.py` row; the spot runs 23.5 → 27.5 s |
+| 8 | *"also create some more house beats, maybe a little more melodic"* | **generated** — four `sonilo_music` tracks, prompts recorded verbatim beside their job ids in **Sources**; no cut is scored to any of them yet |
+
+### 7 · The watch close-up — BUILT: a second renderer, sharing one clock
+
+⚠ **"NOTHING APPEARING ON THE SCREEN" IS THE A2 CLIP WORKING AS DESIGNED — WHICH IS EXACTLY
+WHY THE FIX IS A DRAWN LAYER AND NOT A RE-PROMPT.** The v7 A2 prompt deliberately asks for a
+**blank glowing panel**: a readable UI on the wrist would put a second, different, fabricated
+heart rate under the composited card. So the clip is right and the frame was empty because
+nothing had been written to own those pixels yet. The ask supersedes the design either way —
+the owner wants the face to read — and the honest way to give it content is to draw it, not
+to ask a diffusion model to invent a watch UI.
+
+⚠ **AND IT IS ONLY BUILDABLE BECAUSE THE WATCH LAYERS COMPOSITE WITH `overlay`, NOT
+`blend=all_mode=screen` — CHECKED IN `render6.sh`, NOT ASSUMED.** The phone, wall and globe
+layers are screen-blended (`blend=all_mode=screen`), which is why they read as light *on* the
+footage and can never darken it. The two watch layers are `[a1][wc]overlay=…` /
+`[a2][wc]overlay=…`. Under screen a near-black disc is a no-op — every pixel of the face
+would have been invisible and this whole section would have been wrong. Under overlay an
+opaque fill genuinely **replaces** the clip's panel. *Check the compositing mode before
+designing the layer; the same drawing is a picture under one and nothing under the other.*
+
+**Two renderers, one clock.** `card()` still writes the 480×480 lower-right card for Scene A1
+(v6's layer, unchanged — a phone-shaped card reads correctly on a phone-shaped surface).
+`watchface()` writes the close-up: a **round** face on the measured face rect, typeset rather
+than upscaled — every coordinate, tracking value and font size scales by `k=S/480`, so a face
+measured at 900 px is drawn at 900 px rather than blown up from a 480 bitmap. They share
+`hr_of()`, `tSync`, and one phase integrated from frame 0, so the number and the pulse cannot
+jump on the cut at `f12`. **They never share a frame** — the cut is hard — so the
+IN-SYNC-in-three-places defect v7 fixed on the card cannot reappear across the pair.
+
+**The mark is the real mark.** `trimark()` cuts the SHAPE two triangles from `in/logo_tri.png`
+— the same geometry the wall lockup and the globe marks already use — never a hand-drawn
+approximation. ⚠ **That file carries NO ALPHA CHANNEL:** `assets.py` writes it as
+`Image.fromarray(…, 'RGB')`, i.e. **premultiplied over black**. Straight alpha is recovered as
+the per-pixel **max of R, G, B**; the face fills `(9,11,11)` underneath, so the residual
+premultiply error is under one part in 25. A naive `convert('RGBA')` would have produced a
+fully-opaque black rectangle with the mark inside it.
+
+**The beat match is DRAWN, not captioned.** The orb's envelope is the **wearer's** (phase
+integrated from `hr_of`), the ring's is the **music's** (`ub=((t-phi)%P)/P`, straight off the
+measured grid), and across `tSync` the orb crossfades onto the ring so the two visibly lock.
+⚠ **Envelopes are blended, never phases** — a phase lerp jumps at every wrap, which reads as a
+stutter exactly on the sync instant.
+
+⚠ **THE STATE IS A COLOUR, AND THAT IS ALSO WHAT KEEPS THE VERIFICATION HONEST.** The face
+follows the app's own ladder — cream FREE → amber MATCHING → teal SYNCED — with **one** word
+(`SYNCED`) and only after sync. The first design had a permanently-teal orb, which would have
+made `verify6`'s amber→teal check flake: measured, the orb alone pulses 46 → 56 px of radius
+(6,648 → 9,852 px² of area, a ~3,200 px teal swing) against roughly 3,250 px of teal added by
+the ring and the word at sync — the same order of magnitude, so `teal(7.5) > teal(6.5)` could
+have failed frame-to-frame on a correct render. With the state on the orb, teal is ≈ 0 before
+sync and thousands after, and amber is thousands before and **exactly 0** after. *A check with
+a margin the size of its own noise is not a check.*
+
+**Layout checked against the disc chord, not eyeballed** (480-space, centre 240,240, R 222):
+the mark's far corner sits **211** px from centre (inside the rim); the widest row — the two
+figures, bottom y 392 — has **162** px of chord either side of centre and spends **72**; the
+station ring's bottom (296) clears the labels (330); the one-shot sync rim is capped at
+`q(14)`, so `R+ex = 236 < 240` and cannot clip the canvas.
+
+⚠ **`tSync = φ+14P ≈ 7.062 s` IS AFTER THE BEAT-12 CUT (6.0576), WHICH IS THE WHOLE POINT OF
+THE FIFTH SHOT** — sync lands **in close-up**, two beats before the drop. `verify6` samples
+6.5 s and 7.5 s, both inside A2, and reads them through `a_src()`'s **measured** face rect, so
+a re-measured A2 clip cannot silently move the sampling window onto the wrong pixels.
+
+⚠ **THE RECORDED PANEL FIGURES ARE v6 OBSERVATIONS AND ARE NOW CERTAINLY STALE** — teal
+579 → 2031, amber 1121 → 0 were counted on a **card**; they are now counted on a **face** with
+a different glyph set and a large coloured orb. The **assertion** is directional and survives
+untouched (the v7 correction two sections up makes the same point); only the panel numbers
+move, and they move on the owner's re-render, not here. The check's *name* did change —
+`watch MATCHING(amber)->IN SYNC(teal)` → `close-up face turns amber -> teal` — because the face
+carries neither of those words.
+
+⚠ **NOTHING IN THIS SECTION WAS RENDERED.** There is no `ffmpeg`, no PIL and no `in/` clip in
+this container; every figure above is derived from the code and the recorded geometry. The
+first honest confirmation is the owner's re-render plus a fresh `verify6.py` run.
+
+### 5 · The globe — the logo at the beam tip, more of the world, and a spin with a ceiling
+
+**Owner: *"for the globe, have the shape logo appear at the tip of the lines that are coming
+out, that was better, make make sure you hit every major city. have the globe spin faster as
+well."*** Three asks, and they land in three different places: one is a real defect in the
+overlay, one is **partly unreachable** from this mechanism and is said so rather than faked,
+and one has a hard ceiling set by the cut's own length.
+
+⚠ **"AT THE TIP OF THE LINES" WAS ALREADY THE INTENT AND ONLY SOMETIMES THE BEHAVIOUR.**
+`pin_pick` has always aimed at `hy = min(tops)` — the TIP of the detected beam. But the
+detector is allowed to fail, and when it did, `luma_pick` dropped a mark onto a lit city with
+**no line under it at all** — a sticker on the globe, which is exactly the thing the note is
+asking not to see. Worse, `meas_pins.py` was already measuring `samples[].anchors`
+(`ay = max(bots)`, the point where the beam meets the ground) and `pin_pick` **threw it
+away**. So the recipe held the ground point the whole time and never drew it.
+
+**The fix is to carry the anchor, and to draw the line only where we invented it.** Every
+placement is now a `(head, anchor)` pair: `pin_pick` carries both forward by the measured
+drift, and `luma_pick` treats the bright pixel as the **anchor** and lifts the head
+`BEAM_PX` (118) above it. The draw loop always paints a small dot at the anchor — that dot is
+what makes the mark read as pinning a **place** rather than floating over one — and paints
+the leader line **only for luma marks** (`PIN_LINE=auto`, the default). ⚠ **The reason the
+line is conditional is the compositing mode, not taste:** the globe layer is
+`blend=all_mode=screen`, so stroking a line over a beam the model already baked in does not
+draw a line, it **doubles the one that is there** into a blown-out streak. `PIN_LINE=always`
+and `never` exist for a clip that turns out to have no beams at all, or one whose beams are
+already bright enough to carry the mark on their own.
+
+⚠ **"EVERY MAJOR CITY" IS NOT REACHABLE FROM THIS MECHANISM, AND THE RECIPE SAYS SO.** Three
+independent reasons, each of which alone is sufficient: the marks land where the **model's**
+beams are, so their positions are the clip's decision, not ours; the fallback samples **lit
+pixels**, and nothing anywhere in this pipeline holds a list of cities or knows what a city
+**is**; and the globe **spins**, so a large part of the world is never on the visible face at
+the moment a beat fires. What v7.1 does instead is three honest partial answers — more marks,
+**brighter** marks, and no repeats:
+
+| ask | what v7.1 actually does | what it does not do |
+| --- | --- | --- |
+| more places | pops start at **beat 44** (the first beat inside Scene D — beat 43 lands at 21.629 s, before `offCD` 21.831) and end at four a beat: **44 marks**, up from 27 | it does not make the globe show more of itself |
+| *major* | `luma_pick` now takes the **brightest** free candidate instead of a random one — brightness is the closest a luma sampler gets to "major", and it is stated as that, not as knowledge | it does not identify a city |
+| coverage | a whole-scene, **rotation-compensated** dedupe (`dero(x,t) = x − VX·(t − offCD)`) so the same physical point is never marked twice as it rotates past | it does not guarantee any particular place is hit |
+
+A literal answer to the note needs an owner-authored **lon/lat list** plus a **measured
+rotation axis and phase** for this specific clip, so a mark can be placed at a named city's
+projected position on the frame it is actually visible in. That is a real piece of work and it
+is **registered, not built** — inventing a plausible-looking city set here would be exactly
+the fabrication the honest-data line forbids, one layer up from a count.
+
+**The spin has a hard ceiling of 1.11×, and `norm6.sh` enforces it rather than discovering it
+mid-render.** Scene D consumes `total − offCD = 8.9187 s` and the source is 10 s, so the
+largest speed-up that does not run out of footage is `10 / 8.9187 = 1.121×` — and once frame
+quantisation is accounted for, the clamp uses **1.111×** (see below). A new `D_SPIN` env var
+takes a **request**; the script clamps it to what the footage allows, prints a WARN naming
+both numbers when it clamps, writes an `in/.D_spun` marker so a second run cannot compound the
+speed-up onto an already-spun clip, and then **asserts** the resulting duration. A short clip
+is refused outright — it is never quietly looped or freeze-framed, because that seam would
+land in the middle of the closing shot.
+
+⚠ **THE CLAMP AND THE ASSERT DELIBERATELY USE DIFFERENT NUMBERS, AND THE GAP IS LOAD-BEARING.**
+`ffmpeg` quantises the output to whole 24 fps frames, so clamping to the exact requirement and
+then asserting the exact requirement makes the ceiling itself fail: `10 / 1.1211 = 8.920 s` →
+214 frames → **8.9167 s**, one frame short. The clamp therefore targets `D_MIN + 2/24` while
+the assert targets `D_MIN`. Verified across the whole range — 1.05 / 1.11 / 1.5 / 3.0 all
+produce a quantised duration at or above 8.9187 s, and 1.5 and 3.0 both correctly report as
+clamped. ⚠ And `D_MIN` is **hardcoded, not read from `params_v6.json`**, because `norm6.sh` is
+the FIRST step in the run order and `plan6.py` — the only writer of that file — has not run
+yet; reading it there would fail on a clean tree.
+
+⚠ **1.11× IS BARELY PERCEPTIBLE, SO THE REAL FIX IS THE PROMPT.** A tenth faster is not what
+the note is asking for. The re-prompt below is **drafted, NOT submitted** — it swaps *"slowly
+rotating"* / *"slow steady spin"* for a brisker pace while holding every other clause,
+including the anchored-pin geometry v7 introduced and every honest-data prohibition:
+
+**D · the pinned globe, brisker (v7.1 draft, NOT SUBMITTED)** — *Vertical 9:16. A rotating
+night Earth against deep black, seen from space, turning at a brisk steady pace. City lights
+glowing warm across the landmasses, a faint teal atmospheric rim. Thin vertical light beams
+rise from a scattering of points on the surface, each anchored to a small glowing dot where it
+meets the ground — location pins planted on the globe. No text, no labels, no country names,
+no numbers, no user interface. Cinematic, high contrast.*
+
+⚠ **A RE-PROMPTED GLOBE COSTS NOTHING IN MEASURED GEOMETRY, WHICH IS THE POINT OF THE v7
+WORK.** Every Scene D number — the disc, the drift, the pin set, the logo row, the close row —
+already comes from `meas_pins.py` reading the actual file, so a new clip re-measures itself.
+The one thing that does **not** survive is the recorded v6 disc `(727, 1295) r 676`, which is
+now only a labelled fallback for a clip that cannot be measured at all.
+
+⚠ **AND `meas_pins.py`'S REFUSAL WAS A LATENT RENDER-KILLER, FIXED HERE.** Its low-head-count
+guard raised `SystemExit`, and under `render6.sh`'s `set -e` that **aborted the entire
+render**. Run by hand it was worse in a quieter way: the file was never written, so
+`mk_globe.py` fell through to the v6 hardcoded disc — **and both the logo row and the close row
+are derived from that disc**, so a clip whose pins we could not find silently mis-placed two
+further layers that had nothing to do with pins. A clip whose beams we cannot detect is not a
+clip whose **geometry** we cannot measure, and conflating the two is what caused the damage.
+Now the disc and the drift are computed and written **before** the believability test, the
+`believed` flag gates only the pin **set**, and the hard exit lives behind `PIN_STRICT=1`. The
+render continues, correctly, with drawn beams.
+
+**`verify6.py` follows the mode instead of assuming one.** The old
+`marks are pin-sourced, not luma-sampled` check would now **fail a correct render** — an
+unbelieved pin set is a legitimate, deliberate state. It is replaced by a pair that asserts the
+mode is internally **consistent**: with pins, ≥ 80 % of marks must carry a pin id; without,
+**none** may claim one and the line mode must not be `never` (or nothing would draw the beams
+we just took responsibility for). Two checks are added — **almost every pop placed a mark**
+(≥ 90 %, since `luma_pick` now **drops** a mark rather than stacking one at the disc centre,
+and a mass drop means the spacing rules are starving the placement), and **marks are anchored
+to the ground, not floating**, which is note 5's own claim: at beat 54 it counts the live marks
+whose ground dot lights a 30 px window and requires the majority. ⚠ That last one is
+**directional on purpose** — a per-mark assertion would flake on any mark whose measured beam
+happens to be only a few pixels tall, which is the same trap the beat-12 probe fell into in v7.
+The pin-coincidence check now **skips with an INFO line** when no mark carries a pin, rather
+than passing vacuously over an empty loop.
+
+**Nothing in this subsection was rendered.** There is no `ffmpeg`, no `PIL` and no `in/`
+footage in this container. What *was* run: the `norm6.sh` clamp and assert arithmetic, driven
+over the range above and checked against 24 fps quantisation; `bash -n` on the extracted
+script; and an AST parse of every python block in this file. The first honest confirmation is
+the owner's re-render.
+
+### 6 · The runner — DRAFTED, NOT SUBMITTED: the casting is one phrase, and it is the owner's
+
+⚠ **THE NOTE CANNOT BE WRITTEN INTO THE PROMPT AS IT IS PHRASED, AND WRITING IT THERE IS THE
+ONE EDIT MOST LIKELY TO PRODUCE THE CLIP THE OWNER ASKED AGAINST.** A diffusion text encoder
+has no NOT. Every token in the conditioning **steers toward** what it names — the "don't think
+of an elephant" failure, and it is why `minimax_h3` has no negative-prompt field in the param
+set we submit (`aspect_ratio · duration · resolution · use_unlim · batch_size ·
+aigc_watermark`). So *"dont make the man running asian"* pasted into the prompt would put that
+exact descriptor in front of the model as a subject cue. **A negation is not a casting
+instruction; only a positive descriptor is.**
+
+**Which makes the actual fix one phrase, and that phrase is the owner's to pick.** The note
+says what the runner should *not* be; it does not say what they *should* be, and choosing an
+ethnicity for a person on screen is a casting call, not an implementation detail. So this
+subsection **drafts** the prompt with the slot filled so it is immediately runnable, and the
+swap is exactly one adjective phrase before `athlete`:
+
+> `A lone {CASTING} athlete running at night through a dark space, …`
+
+Fills that read as one clean phrase: **a Black male** · **a white male** · **a Latino male** ·
+**a South Asian male**. (*male* is not an addition — the owner's own note says *"the man
+running"*.) Everything downstream of that slot stays **verbatim**, including the pronoun
+*"as they move"* — a pronoun steers nothing measurable in a diffusion prompt and rewriting it
+is churn in a record whose whole value is that it can be diffed against what was sent.
+
+**The draft, as it would be submitted** (`minimax_h3`, same params as the v7 set):
+
+> *Vertical 9:16. A lone Black male athlete running at night through a dark space, wearing a
+> fitted technical training top and shorts in black and deep teal, proper running shoes.
+> Ribbons of teal and white light wrap and trail around the body as they move. Cinematic, high
+> contrast, deep black background, volumetric haze, no text, no logos, no on-screen graphics.
+> Slow steady camera, shallow depth of field.*
+
+**Every other clause is held, and each one is load-bearing rather than decorative.** The
+**fitted technical training top and shorts** clause *is* v7's note 4 — the naked-runner fix —
+and dropping it re-opens a defect the owner already reported once. The **teal and white
+ribbons** are what make Scene A read as the same film as B, C and D. The **deep black
+background** is what the A→B fade crosses and what the watch card sits legibly on. And **no
+text, no logos, no on-screen graphics** is the honest-data clause: every mark in this film —
+the wordmark on the wall, the logo over the globe, the card on the wrist — is drawn by a
+script from `public/` assets, so a model-invented brand mark in the plate would be a
+fabrication nothing downstream could distinguish from ours.
+
+⚠ **A SCENE A RE-PROMPT INVALIDATES NOTHING MEASURED — WHICH IS NOT TRUE OF SCENE D, AND THE
+DIFFERENCE IS WORTH STATING.** Four reasons, each checked in the source rather than assumed:
+
+| What could have depended on the clip | Why it does not |
+|---|---|
+| the wide watch card at `x 890 / y 1660` | **frame-relative arithmetic** — `1440−480−70` and `2560−480−420`, a deliberate lower-right inset. `plan_a2.py` derives it, `render6.sh` reads it back, so the two cannot drift, and neither reads a pixel of A. |
+| the A/A2 cut at frame **146** | derived from the **beat grid** (`t12 = phi + 12P = 6.0576 s`), not from the footage. |
+| `meas_watch.py`'s face rect | it measures **`in/A2.mp4`** (`WATCH_SRC`), a different clip with its own job id. A Scene A re-prompt does not touch the close-up. |
+| `verify6.py`'s Scene-A checks | they resolve `a_src(t)` → clip, time and card rect, instead of hardcoding a mask — the fix v7 already made for exactly this reason. |
+
+What a new Scene A *does* change is **composition read by eye**: what sits under the card in
+the lower-right inset, and whether the runner is where the frame wants them at the cut. That
+is a look, not a number, and the only instrument for it is the owner watching the render.
+
+⚠ **AND DURATION IS NOT A CONSTRAINT HERE, WHICH IS PRECISELY WHY THERE IS NO CLAMP.** Scene A
+supplies frames 0–145 = **6.0576 s** (A2 carries the rest, including the fade), against a 10 s
+source. Scene D needs **8.9187 of 10** — a 1.121× ceiling — which is the whole reason `D_SPIN`
+exists and A gets nothing of the kind.
+
+⚠ **`norm6.sh` STILL RUNS FIRST.** Same rule as every new clip: `concat` refuses mismatched
+dimensions and both measurement scripts index absolute pixels, so a re-prompt that comes back
+1080×1920 fails deep inside the filtergraph rather than at the fetch.
+
+**Nothing was submitted.** `minimax_h3` is not unlim-covered — `use_unlim: true` is rejected
+outright and the submitted `false` **bills** — so a casting generation the owner has not chosen
+would be spending their credit on my guess. The two existing prompt records are **not edited**
+either: the Sources row for job `6f01a52f…` and the *"The v7 re-prompts — SUBMITTED"* block hold
+the text **as sent**, which is the entire point of recording them verbatim. This draft moves
+into those records the day it is actually submitted, with its own job id beside it.
+
+⚠ **AND IF ONE DESCRIPTOR DOES NOT LAND, THE REMEDY IS A STRONGER DESCRIPTOR — NEVER A STACK OF
+NEGATIONS.** The param set carries no start frame, so the prompt text is the only casting lever
+this model gives us; adding *"not X, not Y"* re-creates the failure at the top of this
+subsection with more tokens. Nothing on screen claims the runner is a real member — no name, no
+count, no attribution — so the casting is a depiction choice, not a data claim.
+
+### 9 · The EAT spot — the prep timing screen, and it is not where I first looked
+
+**Owner: *"and for the eat video, show the screen that asks if you are cooking 1 meal at a
+time, looking to serve meals together, so the shape engine will plan out timing of each
+meal. cool feature that should be in video"*.** The screen exists and ships — it is the
+Prep Session's timing ask — so this is a capture-and-plan change, not a product one. The
+EAT spot gains a sixth page for it.
+
+⚠ **THE ASK IS ON THE *MISE* STAGE, NOT THE PICKER — AND THAT CORRECTION IS THE WHOLE
+CAPTURE.** `BSPrepSession` runs `picker → mise → transition → cook → wrap`
+(`iosAppBroadsheetClient.jsx:7901`). The picker is dish SELECTION only; the block headed
+**"How should these be timed?"** (`cook:prep.howAsk`) lives on the **mise** stage, below the
+merged ingredient checklist, below the allergen notes, and below the **"Your kitchen"**
+burners/ovens steppers. A capture that stops at the dish list — which is what "the screen
+that asks" sounds like — never reaches it. The segment has to tick dishes, press **Merge the
+mise**, and then **scroll** before the block is on screen.
+
+⚠ **AND IT RENDERS ONLY WHEN TWO OR MORE DISHES ARE SELECTED.** The whole block is gated on
+`multi`, and the code says why in as many words: *"A single dish skips this entirely: there
+is nothing to decide."* So a one-dish capture produces a mise page with no timing question on
+it at all. **Two ticks is a hard requirement of the shot, not a nicety.**
+
+**What is on screen when it lands** — three rows, each carrying the engine's own figure for
+the dishes actually selected:
+
+| Row | Sub-line | Figure |
+|---|---|---|
+| **Cook at the same time** | *Everything at once — less time in the kitchen* | `spanOf(orchTogether)` min |
+| **Cook to serve** | *On the table at a time you choose* | none — a clock picker opens instead |
+| **Cook separately** | *Finish one, then start the next* | `spanOf(orchSeq)` min |
+
+Those minutes come from `cookOrchestrator` running over the picked dishes, so the shot is a
+**real plan, not a mock** — which is the strongest thing this spot can say and needs no
+disclaimer at all.
+
+⚠ **CAPTURE CAUTION — "COOK AT THE SAME TIME" CAN COME UP DISABLED, AND IT IS THE HERO ROW.**
+`togetherOn` is false when the picked pair carries no passive window to weave into; the row
+then greys to `opacity 0.45`, its minutes are **suppressed** (deliberately — they would equal
+the "cook separately" figure and advertise a saving that does not exist), and the sub-line
+swaps to `serialWhy(...)`. Measured on the catalog, **only 53 of 100 recipes can host an
+interleave window** and a two-dish pair interleaves **50.8 %** of the time — so this is a coin
+flip, not an edge case. **Confirm on the boot that the row is live before recording**; if it
+is not, swap one dish and re-tick.
+
+**Two segments under one caption, the `recipes` + `recipe` shape.** The picker and the timing
+block are ~6 s apart in a single continuous recording, and the window rule takes ONE contiguous
+slice anchored on one act — so a single segment can show the ticks or the timing block, never
+both. Two `rec()` calls, two anchors:
+
+```python
+# mkspecs5.py — RULES, two new rows
+ 'prep':('pick2',0.9),'prep_time':('mode',1.9),
+```
+
+`prep` (2 beats ≈ 1.0 s) is anchored on the SECOND tick, so both checkboxes land inside the
+window — the `recipes` flash, in the picker. `prep_time` (6 beats ≈ 3.0 s) is anchored on the
+mode tap with a 1.9 s pre-roll, so the block is settled and readable for ~1.9 s before a row
+lights up.
+
+```js
+ // ---- F: eat · prep session (the timing engine) ----
+ await L.boot('F');
+ await rec('prep',async()=>{await sleep(400); await act('tab',()=>L.tab('eat')); await sleep(1800); await act('open',()=>L.go('^PREP THE WEEK|^Prep the week',0)); await sleep(2600); await act('pick1',()=>L.go('kcal',0)); await sleep(1100); await act('pick2',()=>L.go('kcal',1)); await sleep(2200);});
+ await rec('prep_time',async()=>{await sleep(500); await act('mise',()=>L.go('^Merge the mise',0)); await sleep(2800); await act('scroll',()=>L.scroll(1100,3400)); await sleep(2600); await act('mode',()=>L.go('^Cook at the same time',0)); await sleep(3000);});
+```
+
+⚠ **IT GOES IN `body5b.js` AS A NEW PART F, NOT INTO PART C.** Part C runs
+`menu → meal → grocery → recipes → recipe → cook` in ONE boot, and **`cook` continues straight
+off the recipe detail** (it opens with `Cook this`, which only exists there) — inserting prep
+between them breaks that hand-off, and appending after `cook` would start from inside Cook
+mode. A fresh boot in `body5b.js` costs nothing the four existing eat segments depend on. The
+plan references segments by NAME, so capture order and spot order are independent.
+
+⚠ **TWO SELECTORS TO CONFIRM ON A LIVE BOOT.** (1) `L.go('kcal', n)` picks the first two dish
+rows by their `{kcal} kcal · {p}P` sub-line — correct on the picker, where nothing else carries
+it, but worth an eye before the run; the fallback is the dish titles, which vary with the demo
+week. (2) The door renders `cook:prep.door` under `textTransform: uppercase`, and a matcher
+reads DOM text rather than computed style — the alternation covers it either way, which is why
+it is written that way rather than guessed.
+
+**The page map — and the spot gets LONGER rather than thinner.**
+
+```python
+ 'eat':('t1',[(8,16,[('menu',8)],1),(16,23,[('meal',7)],1),(23,31,[('grocery',8)],1),
+              (31,39,[('recipes',2),('recipe',6)],1),(39,47,[('prep',2),('prep_time',6)],1),
+              (47,56,[('cook',9)],1),(56,61,'close',None)],2,61),
+```
+
+`CAPS['eat']` **5 → 6**. Every existing page keeps its exact beat count (8 · 7 · 8 · 2+6 · 9);
+the new page is 8 beats on top, pages run 8→56 instead of 8→48, and the close moves 48→53 →
+**56→61**. ⚠ **The alternative was to squeeze six pages into the old 40 beats, and it is the
+wrong answer for a reason the owner already gave**: the previous round's note was *"the
+scrolling is going too fast … hard to see what is going on"*, and taking beats back off menu /
+grocery / recipe re-introduces exactly that. Six pages of substance do not fit in 40 beats at
+the slowed rate; the honest move is a longer spot, stated rather than hidden.
+
+**Kick gate, checked not assumed.** t1 carries beats **0–28 and 48–62**. The close now spans
+**56→61**, inside the live band, so the closing logo still throbs to a real kick; the lead is
+beats 6→8, also live. Beat 61 leaves a beat of margin under `kick_by_beat`'s last index (62) —
+the v4 lesson that a gate array read past its end returns silence.
+
+**The caption** — one new row in `captions.py`'s `SPOTS`, inserted at index 4 so *Cook mode.*
+becomes index 5:
+
+```python
+ 'eat':[('EAT','The ledger ticks *live.*'),('EAT','Every meal, *planned.*'),
+        ('EAT','The shop list, *sorted.*'),('EAT','Shape *Kitchen.*'),
+        ('EAT','Two dishes, one *timeline.*'),('EAT','Cook *mode.*')],
+```
+
+⚠ **THE COPY MAY NOT PROMISE A SINGLE-MOMENT FINISH, AND THAT IS MEASURED.** "Cook to serve"
+lands every dish at one moment in **7.4 %** of catalog pairs (mean gap **13.5 min**), and an
+unlimited-station kitchen only reaches **8.6 %** — the constraint is the one cook, not the
+room. The app's own copy is careful for the same reason: TOGETHER carries no *"ready together"*
+claim **and no *"soonest"* claim either** (it is greedy and order-sensitive — a measured trio
+plans 50 min in the order the sheet sends and 47 in another). *"Two dishes, one timeline"* is
+what `cookOrchestrator` literally emits — an ordered timeline over both dishes — and claims
+nothing about where they land. **New line, owner's eye wanted**, like the other fourteen.
+
+⚠ **THE EAT SPOT'S RENDERED FIGURES ABOVE ARE SUPERSEDED BY THIS CHANGE AND ARE NOT RE-STATED
+HERE.** Runtime goes **47 → 55 beats** = `55 × 0.500209` = **27.5115 s**, so the render moves
+**564 → 660 frames (23.500 → 27.500 s)**, the printed `== eat` plan block gains two rows and
+re-times the four pages after `recipe`, and the EAT md5
+(`5d14b27a601fd7300894ec7ba6d5aefb`) is dead. **The other four spots are untouched** — no
+shared constant moved, only `PLANS['eat']`, `RULES`, `CAPS['eat']` and one caption row. A
+re-render must re-run `verify5.py spot eat`; nothing about it is verifiable from here.
+
 
 ---
 
