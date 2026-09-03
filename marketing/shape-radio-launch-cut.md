@@ -489,9 +489,37 @@ Prefix: `https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/`
 | alternate 1 — "deep dark minimal house 124 BPM, kick from bar one, sub-bass, detuned pads" | `hf_20260901_195948_20d50377-fdc1-45f5-b27c-b6928ba0ae40.m4a` |
 | alternate 2 — "dark deep dubby house 122 BPM, reverb stabs, cavernous, no drop" | `hf_20260901_195949_e84649d8-0f3a-4aaa-a5fe-182837253bb8.m4a` |
 | v1/v2 track (superseded) — "deep house, 124 BPM" | `hf_20260901_165439_f7f2681e-8955-48d9-8c6a-5b62eb5d9dd3.m4a` |
+| **v7 Scene A** — the runner, clothed (replaces Scene A) | `hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4` |
+| **v7 Scene A2** — the watch close-up (NEW shot) | `hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4` |
+| **v7 Scene D** — the pinned globe (replaces Scene D) | `hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4` |
 
-All three clips: h264 1440×2560, 24 fps, 243 frames = 10.125 s. The three new tracks:
+The v3 clips: h264 1440×2560, 24 fps, 243 frames = 10.125 s. The three new tracks:
 aac 44.1 kHz stereo, 32.023 s each.
+
+⚠ **THE v7 CLIPS' PROMPTS ARE RECORDED VERBATIM BELOW, BECAUSE THE v6 ONES WERE NOT AND
+CANNOT BE RECOVERED** (see "THE v6 VIDEO PROMPTS WERE NEVER RECORDED"). Job ids and the
+exact submitted text, so a re-run starts from the record rather than from memory:
+
+| index | job id | model | prompt (verbatim, as submitted) |
+| --- | --- | --- | --- |
+| 1 | `6f01a52f-de85-48ae-a0cd-771fa26afc70` | `minimax_h3` | *Vertical 9:16. A lone athlete running at night through a dark space, wearing a fitted technical training top and shorts in black and deep teal, proper running shoes. Ribbons of teal and white light wrap and trail around the body as they move. Cinematic, high contrast, deep black background, volumetric haze, no text, no logos, no on-screen graphics. Slow steady camera, shallow depth of field.* |
+| 2 | `e815ac55-08d2-497d-8244-5c58e7288dbd` | `minimax_h3` | *Vertical 9:16. Extreme close-up of a smartwatch on a runner's wrist, mid-stride, night. The watch face is a clean blank glowing panel - soft teal light, no numbers, no icons, no text, no user interface. Sweat on skin, dark technical sleeve at the edge of frame, deep black background, teal rim light. Shallow depth of field, slow push in, no text, no logos.* |
+| 3 | `34ebdcd6-c068-47e5-85ba-39d77708a058` | `minimax_h3` | *Vertical 9:16. A slowly rotating night Earth against deep black, seen from space. City lights glowing warm across the landmasses, a faint teal atmospheric rim. Thin vertical light beams rise from a scattering of points on the surface, each anchored to a small glowing dot where it meets the ground - location pins planted on the globe. No text, no labels, no country names, no numbers, no user interface. Cinematic, high contrast, slow steady spin.* |
+
+Submitted params, identical on all three: `aspect_ratio 9:16 · duration 10 · resolution 2K
+· use_unlim false · batch_size 1 · aigc_watermark false`. Reported output **1440×2560**.
+
+⚠ **`minimax_h3` IS THE ONLY VIDEO MODEL THIS ACCOUNT EXPOSES, AND IT IS NOT UNLIM-COVERED.**
+`use_unlim: true` is rejected outright — the submitted `false` **bills**. Every other id
+probed (`higgsfield_dop`, `kling_2_5`, `veo_3_1`, `sora_2`, `seedance_1_pro`, `wan_2_5`,
+`higgsfield_soul`, `minimax_hailuo_02`) came back unknown. Record this with the prompts:
+a re-run on a different model is a different clip, and the geometry follows the clip.
+
+⚠ **10 s, NOT 10.125 s — AND THAT IS FINE, BUT ONLY BY ARITHMETIC.** The v3 clips ran 243
+frames; these run 10 s (240 frames at 24 fps). Nothing needs more: A1 takes **146**, A2 takes
+**60**, and D runs `30.75 − 21.8313 = 8.9187 s` = **214** frames. The longest demand is 214 of
+240. `norm6.sh` still runs first — the fps and pixel format are unverified until the files are
+in hand, and `concat` refuses a mismatch.
 
 Repo assets (all on `main`):
 
@@ -1529,6 +1557,15 @@ representing people that have downloaded, with the shape logo appearing above th
 · 30.750 s**, on the pick (t3). ⚠ **v6 SUPERSEDES v5** — the montage cut is left as it
 is, unrendered against these changes, until the owner picks one.
 
+⚠ **AND v6 IS ITSELF SUPERSEDED BY v7 (2026-09-03) — READ THIS SECTION AS THE RENDERED
+RECORD, NOT AS THE CURRENT RECIPE.** Four of v6's numbers moved: Scene A is now **two
+shots** (a hard cut at beat 12 into a watch close-up), the wall screen is **derived from a
+measured slab** rather than the 560 px guess described below, the globe marks anchor to
+**baked pins** rather than luma-sampled cities, and the card's three IN SYNC slots now say
+three different things. **The grid, the beats and the 738-frame total are unchanged** — that
+is deliberate, and §4 shows the arithmetic. What is still true here: the beat table, the
+honesty rulings, and the measured panel *as a record of what v6 rendered*.
+
 **Four scenes now, not three.** A (the runner) + a **wrist readout**; B (the phone) with
 the SHAPE logo alone, exactly as v4 left it; C (the club wall) **zoomed in**, carrying the
 **single-line Radio wordmark** and a **projected Radio screen**; and a new **D** — a night
@@ -1654,20 +1691,195 @@ for t in [0,5,9.9]:
 print('GLOBE_DONE')
 ```
 
-**`mk_watch.py`** — Draws the watch HR-sync card as a 480x480 RGBA qtrle overlay, timed so IN SYNC lands on beat 14.
+**`plan6.py`** — Writes `params_v6.json`, the file every v6/v7 script reads. ⚠ **This block is a RECONSTRUCTION, and the reason it exists is the same lesson the v6 video prompts taught:** the generator was never recorded, only its output was, so a rebuilt sandbox could load `params_v6.json` from nowhere. Every value here is **derived** from the recorded t3 grid and then **asserted** against the numbers the v6 render actually used — so if the derivation is wrong it fails loudly instead of shifting a scene by a frame.
 
 ```python
-# Scene A watch face: the app's HEART-RATE SYNC card as a wrist readout. 480x480 RGBA layer, overlaid lower-right on A.
-# Illustrative demo path: YOU climbs 104 -> 120 (the track's real tempo) and lands IN SYNC on beat 14, before the kick drop on 16.
-import math,json,subprocess,numpy as np
+#!/usr/bin/env python3
+# plan6.py -- params_v6.json from the measured t3 grid. Nothing here is typed in; the offsets are derived.
+#
+# The rule the whole cut is built on: every transition's fade ENDS on a beat, so the new scene lands ON it
+# rather than arriving mid-fade. So off = beat(n) - 0.3 for a 0.3 s xfade, and the beat numbers are the
+# structure: 16 = the kick drop (phone), 28 = the wall, 44 = the globe.
+import json
+m=json.load(open('meas_t3.json')); P=m['P']; phi=m['phase_used']
+FPS=24; TOTAL_FR=738
+FADE=0.3; BEAT_AB, BEAT_BC, BEAT_CD = 16, 28, 44
+b=lambda n: phi+n*P
+offAB=round(b(BEAT_AB)-FADE,4); offBC=round(b(BEAT_BC)-FADE,4); offCD=round(b(BEAT_CD)-FADE,4)
+p=dict(P=P, phi=phi, offAB=offAB, offBC=offBC, offCD=offCD,
+       total=TOTAL_FR/FPS, lenC=round(offCD+FADE-offBC,4), t16=round(b(16),4),
+       # mk_wall6.py reads t28 (the wall's first pulse beat); mk_globe.py reads t52 (logo) and t56 (close
+       # copy). They were absent from the first cut of this file and both scripts died on a KeyError at
+       # module load, before a frame was written -- so they are derived here with everything else.
+       t28=round(b(28),4), t52=round(b(52),4), t56=round(b(56),4))
+# the v6 render's own numbers, from the measured panel -- a drift here means the grid or the beats moved
+for k,v in dict(offAB=7.7668, offBC=13.7945, offCD=21.8313, lenC=8.3368, total=30.75,
+                t28=14.0945, t52=26.1497, t56=28.1589).items():
+    assert abs(p[k]-v)<5e-4, f'{k} derived {p[k]} but v6 shipped {v} -- the grid or the fade beats changed'
+json.dump(p,open('params_v6.json','w'),indent=1); print(json.dumps(p,indent=1))
+```
+
+**`plan_a2.py`** — The beat-12 cut that inserts the watch close-up, derived **once**. `mk_watch.py` (twice), `render6.sh` and `verify6.py` all read `params_a2.json`.
+
+```python
+#!/usr/bin/env python3
+# plan_a2.py -- the beat-12 cut that inserts the watch close-up, in ONE place.
+# Three copies of this arithmetic is how a 738-frame total quietly becomes 739: mk_watch.py needs the
+# two segment windows, render6.sh needs the two trim lengths, verify6.py needs the cut frame.
+import json,math
+p=json.load(open('params_v6.json')); P=p['P']; phi=p['phi']; FPS=24; W,H=1440,2560
+t12=phi+12*P
+f12=math.ceil(t12*FPS)                  # the FIRST frame at or after beat 12 -- A2's first frame IS the beat frame
+lenA1=f12/FPS
+endA=p['offAB']+0.3                     # the A stream must reach the END of the A->B fade, not its start
+nA2=math.ceil((endA-lenA1)*FPS)+12      # +12 frames of pad; xfade discards the tail, the total stays 738
+lenA2=nA2/FPS
+tSync=phi+14*P; fSync=math.ceil(tSync*FPS)
+d=dict(t12=round(t12,4), f12=f12, lenA1=lenA1, nA2=nA2, lenA2=lenA2, endA=round(endA,4),
+       tSync=round(tSync,4), fSync=fSync, fFadeStart=int(round(p['offAB']*FPS)),
+       # the wide card's placement is FRAME-relative -- 1440-480-70 and 2560-480-420 -- so a re-prompted
+       # Scene A does not move it. Only the close-up rides a physical object (meas_watch.py).
+       wide=dict(s=480, x=W-480-70, y=H-480-420))
+# the payoff claim, asserted rather than hoped: IN SYNC must land INSIDE the close-up
+assert f12<=fSync<f12+nA2, f'beat 14 (frame {fSync}) is outside the close-up window [{f12},{f12+nA2})'
+json.dump(d,open('params_a2.json','w'),indent=1); print(json.dumps(d,indent=1))
+```
+
+**`meas_watch.py`** — Measures the physical watch **face rect per frame** in the close-up clip (`in/A2.mp4`) so the card rides the wrist instead of sliding off it. Writes `meas_watch.json`. The wide card needs no measurement — see the header.
+
+```python
+#!/usr/bin/env python3
+# meas_watch.py -- the physical watch FACE in the close-up clip, per frame -> meas_watch.json
+#
+# The WIDE card needs no measurement, and that is worth stating because the v7 scoping note got it
+# wrong: v6's x 890 / y 1660 is a FRAME-relative inset -- 1440-480-70 and 2560-480-420 -- not a trace
+# of that runner's wrist. A re-prompted Scene A does not move it. What a new clip CAN do is put the
+# new runner's body under the card; that is a composition read by eye, not a number.
+#
+# The CLOSE-UP is the opposite: the card is drawn ONTO a physical object that moves mid-stride, so its
+# rect has to be measured per frame or the card slides off the watch. The v7 A2 prompt asks for
+# "a clean blank glowing panel", so the face is the frame's dominant BRIGHT, COMPACT, SOLID blob --
+# solid panel vs scattered specular highlights IS the detector.
+#
+# Every threshold below is an UNMEASURED GUESS until this runs against the real clip: it prints the
+# per-frame area/aspect/solidity and REFUSES a series it cannot believe rather than handing
+# mk_watch.py a rect that tracks a sleeve highlight.
+import json,os,subprocess,numpy as np
+W,H=1440,2560; FPS=24; DS=4; RW,RH=W//DS,H//DS      # detect at 360x640 -- the face is huge in a close-up
+pa=json.load(open('params_a2.json')); F0=pa['f12']; NF=pa['nA2']
+SRC=os.environ.get('WATCH_SRC','in/A2.mp4')
+TH   =float(os.environ.get('FACE_TH','170'))        # a face pixel is at least this bright
+AMIN =float(os.environ.get('FACE_AMIN','0.010'))    # ...the blob covers at least this share of the reduced frame
+AMAX =float(os.environ.get('FACE_AMAX','0.320'))    # ...and at most this
+SOLID=float(os.environ.get('FACE_SOLID','0.45'))    # area/bbox -- a panel is solid, a scatter of lights is not
+ARLO =float(os.environ.get('FACE_AR_LO','0.55'))    # bbox aspect w/h
+ARHI =float(os.environ.get('FACE_AR_HI','1.90'))
+FLOOR=float(os.environ.get('FACE_FLOOR','0.70'))    # believe fewer than this share of frames -> refuse
+FILL =float(os.environ.get('WATCH_FILL','0.86'))    # card side as a fraction of the face width (recorded for the consumers)
+raw=subprocess.run(['ffmpeg','-v','error','-i',SRC,'-vf',f'fps={FPS},scale={RW}:{RH}','-frames:v',str(NF),
+                    '-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
+n=len(raw)//(RW*RH)
+if n<NF: raise SystemExit(f'{SRC} gave {n} frames at {FPS} fps, need {NF} -- the close-up clip is too short for the beat-12 window')
+G=np.frombuffer(raw[:n*RW*RH],np.uint8).reshape(n,RH,RW)
+def blobs(m):
+    """4-connected components of a boolean mask -> [[area,x0,x1,y0,y1]] by row runs + union-find
+    (no scipy in this container, and the face is one dominant blob so this is enough)"""
+    par={}
+    def find(a):
+        while par[a]!=a: par[a]=par[par[a]]; a=par[a]
+        return a
+    def uni(a,b):
+        a,b=find(a),find(b)
+        if a!=b: par[b]=a
+    runs=[]; prev=[]
+    for y in range(m.shape[0]):
+        row=m[y].view(np.int8); cur=[]
+        idx=np.flatnonzero(np.diff(np.concatenate(([np.int8(0)],row,[np.int8(0)]))))
+        for s0,e0 in zip(idx[0::2],idx[1::2]):
+            s0=int(s0); e0=int(e0)-1
+            rid=len(runs); runs.append((y,s0,e0)); par[rid]=rid
+            for ps,pe,pid in prev:
+                if ps<=e0 and s0<=pe: uni(pid,rid)
+            cur.append((s0,e0,rid))
+        prev=cur
+    acc={}
+    for rid,(y,s0,e0) in enumerate(runs):
+        r=find(rid); a=acc.get(r)
+        if a is None: acc[r]=[e0-s0+1,s0,e0,y,y]
+        else:
+            a[0]+=e0-s0+1; a[1]=min(a[1],s0); a[2]=max(a[2],e0); a[3]=min(a[3],y); a[4]=max(a[4],y)
+    return sorted(acc.values(),key=lambda a:-a[0])
+tot=float(RW*RH); pick=[None]*NF
+for i in range(NF):
+    for a,x0,x1,y0,y1 in blobs(G[i]>TH)[:6]:
+        bw=x1-x0+1; bh=y1-y0+1; sol=a/float(bw*bh); ar=bw/float(bh); sh=a/tot
+        if AMIN<=sh<=AMAX and sol>=SOLID and ARLO<=ar<=ARHI:
+            pick[i]=(x0,x1,y0,y1,sol,ar,sh); break
+believed=sum(1 for r in pick if r)
+if NF: print('FACE per-frame (first 8):', [None if r is None else (r[0]*DS,r[2]*DS,round(r[4],2),round(r[5],2),round(r[6],3)) for r in pick[:8]])
+if believed < FLOOR*NF:
+    raise SystemExit(f'only {believed}/{NF} frames carry a believable watch face (floor {FLOOR:.0%}) -- the card '
+                     f'would ride an interpolated guess for most of the shot. Re-tune FACE_TH/FACE_AMIN/FACE_SOLID '
+                     f'against the clip, or re-prompt A2 for a cleaner, brighter, blanker face')
+cx=[None]*NF; cy=[None]*NF; ww=[None]*NF; hh=[None]*NF
+for i,r in enumerate(pick):
+    if r:
+        cx[i]=(r[0]+r[1]+1)/2.0*DS; cy[i]=(r[2]+r[3]+1)/2.0*DS
+        ww[i]=(r[1]-r[0]+1)*DS;     hh[i]=(r[3]-r[2]+1)*DS
+def med(seq,i,w=2):
+    v=[seq[j] for j in range(max(0,i-w),min(len(seq),i+w+1)) if seq[j] is not None]
+    return float(np.median(v)) if v else None     # a 5-frame median: the wrist moves, the detector jitters
+sm=[dict(f=F0+i, cx=med(cx,i), cy=med(cy,i), w=med(ww,i), h=med(hh,i), est=pick[i] is None) for i in range(NF)]
+good=[i for i,s0 in enumerate(sm) if s0['cx'] is not None]
+if not good: raise SystemExit('no believable watch face in ANY frame -- re-tune FACE_TH/FACE_SOLID against the clip')
+for i,s0 in enumerate(sm):
+    if s0['cx'] is None:                          # a gap the median could not fill -> carry the nearest believed rect, FLAGGED
+        j=min(good,key=lambda g:abs(g-i)); s0.update({k:sm[j][k] for k in ('cx','cy','w','h')}); s0['est']=True
+    for k in ('cx','cy','w','h'): s0[k]=int(round(s0[k]))
+out=dict(closeup=dict(src=SRC,f0=F0,n=NF,believed=believed,fill=FILL,frames=sm), wide=pa['wide'])
+json.dump(out,open('meas_watch.json','w'),indent=1)
+print('WATCH-MEAS believed',believed,'/',NF,'est',sum(1 for s0 in sm if s0['est']),
+      'w',min(s0['w'] for s0 in sm),'-',max(s0['w'] for s0 in sm),
+      'cx',min(s0['cx'] for s0 in sm),'-',max(s0['cx'] for s0 in sm),
+      'wide',pa['wide']['x'],pa['wide']['y'])
+```
+
+**`mk_watch.py`** — Draws the watch HR-sync card, in **both** placements, from ONE renderer: `WATCH_MODE=wide` writes the 480×480 lower-right card for Scene A1 (v6's layer, unchanged), `WATCH_MODE=closeup` writes a full-frame layer whose card **rides the measured watch face** through the beat-12 close-up. IN SYNC lands on beat 14 in both.
+
+```python
+#!/usr/bin/env python3
+# mk_watch.py -- the watch HR-sync card, in BOTH placements, from ONE card renderer.
+#
+# v6 drew one 480x480 layer overlaid at a fixed x 890 / y 1660. v7 keeps that EXACTLY for the wide shot
+# and adds a second layer for the beat-12 close-up, where the physical watch fills much of the frame and
+# the card has to ride it. ffmpeg's overlay filter takes ONE x/y for the whole stream -- it cannot read a
+# per-frame table -- so a moving card must be baked into a FULL-FRAME layer overlaid at 0:0. That is the
+# same pattern mk_wall6.py and mk_globe.py already use; nothing new is invented here.
+#
+# Two properties are asserted rather than hoped, because both would read as a glitch on the cut:
+#   * hr_of() takes ABSOLUTE t in both modes, so the number does not jump at frame f12;
+#   * the heart PHASE is integrated from frame 0 even when only frames [N0,N1) are written, so the pulse
+#     does not restart at the cut. (Integrating from N0 would land the close-up mid-beat at random.)
+#
+# Illustrative demo path, unchanged from v6: YOU climbs 104 -> 120 (the track's real tempo) and lands
+# IN SYNC on beat 14, before the kick drop on 16. The three slots carry three DIFFERENT facts --
+# chip = the state, station line = the delta (+0 BPM at sync), pill = the action.
+import math,json,os,subprocess
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 p=json.load(open('params_v6.json')); P=p['P']; phi=p['phi']
-F='/home/user/fonts/'; S=480; FPS=24; T_END=p['t16']; N=int(round(T_END*FPS))
-TEAL=(52,214,197); CREAM=(242,237,228); DIM=(242,237,228,150); AMBER=(232,164,64)
-def mono(sz,w=700):
-    f=ImageFont.truetype(F+'JetBrainsMono[wght].ttf',sz); f.set_variation_by_axes([w]); return f
-fH=mono(19,700); fN=mono(128,800); fS=mono(23,600); fP=mono(24,700); fU=mono(20,600)
+pa=json.load(open('params_a2.json'))
+FPS=24; W,H=1440,2560
+MODE=os.environ.get('WATCH_MODE','wide')
+F='/home/user/fonts/'
+TEAL=(52,214,197); CREAM=(242,237,228); AMBER=(232,164,64)
 tSync=phi+14*P; tIn=1.3; tHr0=2.2; tMatch=2.7
+_fonts={}
+def mono(sz,w=700):
+    """cached -- card() is called once per frame and would otherwise re-open the variable font 5x60 times"""
+    sz=max(6,int(round(sz))); key=(sz,w)
+    if key not in _fonts:
+        f=ImageFont.truetype(F+'JetBrainsMono[wght].ttf',sz); f.set_variation_by_axes([w]); _fonts[key]=f
+    return _fonts[key]
 def clamp(x): return max(0.0,min(1.0,x))
 def ss(x): x=clamp(x); return x*x*(3-2*x)
 def hr_of(t): return 104+16*ss((t-tHr0)/(tSync-tHr0))
@@ -1680,73 +1892,183 @@ def tracked(d,x,y,txt,f,tr,fill,anchor='l'):
 def heart(d,cx,cy,r,fill):
     d.ellipse((cx-r,cy-r*0.9,cx,cy+r*0.1),fill=fill); d.ellipse((cx,cy-r*0.9,cx+r,cy+r*0.1),fill=fill)
     d.polygon([(cx-r,cy-0.15*r),(cx+r,cy-0.15*r),(cx,cy+r*1.05)],fill=fill)
-def dotglyph(d,cx,cy,filled,col):
-    d.ellipse((cx-9,cy-9,cx+9,cy+9),outline=col,width=2)
-    if filled: d.ellipse((cx-4,cy-4,cx+4,cy+4),fill=col)
-proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgba','-s',f'{S}x{S}','-r',str(FPS),'-i','-','-c:v','qtrle','-pix_fmt','argb','in/watch.mov'],stdin=subprocess.PIPE)
-phase=0.0; last_t=0.0
-for i in range(N):
-    t=i/FPS; a=clamp((t-tIn)/0.6)
-    hr=hr_of(t); phase+=hr/60.0*(t-last_t); last_t=t; u=phase%1.0
+def dotglyph(d,cx,cy,filled,col,k=1.0):
+    d.ellipse((cx-9*k,cy-9*k,cx+9*k,cy+9*k),outline=col,width=max(1,int(round(2*k))))
+    if filled: d.ellipse((cx-4*k,cy-4*k,cx+4*k,cy+4*k),fill=col)
+
+def card(t,S,u):
+    """The card at side S. k scales EVERY coordinate, tracking value and font size, so the close-up is
+    TYPESET at its real size rather than upscaled from a 480 bitmap -- a 480 card blown up to ~900 px is
+    visibly soft next to a real watch face, and softness is exactly what a close-up exposes."""
+    k=S/480.0
+    def q(x): return x*k
+    def wd(x): return max(1,int(round(x*k)))
+    fH=mono(19*k,700); fN=mono(128*k,800); fS=mono(23*k,600); fP=mono(24*k,700); fU=mono(20*k,600)
     img=Image.new('RGBA',(S,S),(0,0,0,0))
-    if a>0:
-        # shadow
-        sh=Image.new('RGBA',(S,S),(0,0,0,0)); ImageDraw.Draw(sh).rounded_rectangle((32,42,S-28,S-18),radius=104,fill=(0,0,0,150)); sh=sh.filter(ImageFilter.GaussianBlur(16)); img.alpha_composite(sh)
-        face=Image.new('RGBA',(S,S),(0,0,0,0)); d=ImageDraw.Draw(face)
-        synced=t>=tSync; flash=clamp((t-tSync)/0.5) if synced else 0.0
-        ringA=int(120+120*(1-flash)) if synced and flash<1 else 110
-        d.rounded_rectangle((30,30,S-30,S-30),radius=104,fill=(10,12,12,236),outline=TEAL+(ringA,),width=3)
-        # header
-        tracked(d,58,58,'HEART-RATE SYNC',fH,2.5,CREAM+(215,))
-        tag=('IN SYNC' if synced else ('MATCHING...' if t>=tMatch else 'FREE')); tcol=TEAL if synced else (AMBER if t>=tMatch else CREAM)
-        tracked(d,S-58,58,tag,fH,2.5,tcol+(240,),'r')
-        d.line((58,92,S-58,92),fill=CREAM+(50,),width=1)
-        # heart + big number (YOU)
-        hs=1+0.16*math.exp(-u/0.14); heart(d,86,182,int(round(15*hs)),TEAL+(255,))
-        num=str(int(round(hr))); d.text((116,104),num,font=fN,fill=CREAM+(255,))
-        tracked(d,120,232,'YOU · BPM',fU,2.0,CREAM+(150,))
-        # station line
-        delta=int(round(hr))-120; dl=('IN SYNC' if synced else f'{delta:+d} BPM')
-        tracked(d,58,278,'STATION 120 BPM',fS,1.5,CREAM+(200,)); tracked(d,S-58,278,dl,fS,1.5,(TEAL if synced else CREAM)+(220,),'r')
-        # pill (the app's button)
-        pilltxt=('IN SYNC' if synced else ('MATCHING BEAT' if t>=tMatch else 'MATCH MY BPM')); filled=t>=tMatch
-        pc=TEAL if synced else (CREAM if not filled else AMBER)
-        d.rounded_rectangle((58,322,S-58,378),radius=28,outline=pc+(190,),width=2,fill=(pc+(40,)) if synced else (0,0,0,0))
-        w=sum(fP.getlength(c) for c in pilltxt)+1.5*(len(pilltxt)-1); x0=(S-(w+34))/2
-        dotglyph(d,x0+9,350,filled,pc+(255,)); tracked(d,x0+34,338,pilltxt,fP,1.5,pc+(255,))
-        img.alpha_composite(face)
-        if synced and flash<1:  # one expanding teal ring on the sync instant
-            rg=Image.new('RGBA',(S,S),(0,0,0,0)); r=104+60*flash; ImageDraw.Draw(rg).rounded_rectangle((30-r+104,30-r+104,S-30+r-104,S-30+r-104),radius=104+r-104,outline=TEAL+(int(200*(1-flash)),),width=4)
-            img.alpha_composite(rg.filter(ImageFilter.GaussianBlur(4)))
-        if a<1:
-            al=img.split()[3].point(lambda v:int(v*a)); img.putalpha(al)
+    sh=Image.new('RGBA',(S,S),(0,0,0,0))
+    ImageDraw.Draw(sh).rounded_rectangle((q(32),q(42),S-q(28),S-q(18)),radius=q(104),fill=(0,0,0,150))
+    img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(max(1.0,q(16)))))
+    face=Image.new('RGBA',(S,S),(0,0,0,0)); d=ImageDraw.Draw(face)
+    synced=t>=tSync; flash=clamp((t-tSync)/0.5) if synced else 0.0
+    ringA=int(120+120*(1-flash)) if synced and flash<1 else 110
+    m=q(30)
+    d.rounded_rectangle((m,m,S-m,S-m),radius=q(104),fill=(10,12,12,236),outline=TEAL+(ringA,),width=wd(3))
+    tracked(d,q(58),q(58),'HEART-RATE SYNC',fH,q(2.5),CREAM+(215,))
+    # the header chip is the ONLY state word on the card; the other two slots carry a figure and an action
+    tag=('IN SYNC' if synced else ('MATCHING...' if t>=tMatch else 'FREE')); tcol=TEAL if synced else (AMBER if t>=tMatch else CREAM)
+    tracked(d,S-q(58),q(58),tag,fH,q(2.5),tcol+(240,),'r')
+    d.line((q(58),q(92),S-q(58),q(92)),fill=CREAM+(50,),width=wd(1))
+    hs=1+0.16*math.exp(-u/0.14); heart(d,q(86),q(182),max(1.0,q(15)*hs),TEAL+(255,))
+    d.text((q(116),q(104)),str(int(round(hr_of(t)))),font=fN,fill=CREAM+(255,))
+    tracked(d,q(120),q(232),'YOU · BPM',fU,q(2.0),CREAM+(150,))
+    # the delta is EVIDENCE, never a second status echo: hr_of clamps at 120, so this reads +0 BPM at sync
+    delta=int(round(hr_of(t)))-120
+    tracked(d,q(58),q(278),'STATION 120 BPM',fS,q(1.5),CREAM+(200,))
+    tracked(d,S-q(58),q(278),f'{delta:+d} BPM',fS,q(1.5),(TEAL if synced else CREAM)+(220,),'r')
+    # the pill is a BUTTON: it labels what pressing it DOES, so no state word lands here
+    pilltxt=('STOP MATCHING' if t>=tMatch else 'MATCH MY BPM'); filled=t>=tMatch
+    pc=TEAL if synced else (CREAM if not filled else AMBER)
+    d.rounded_rectangle((q(58),q(322),S-q(58),q(378)),radius=q(28),outline=pc+(190,),width=wd(2),fill=(pc+(40,)) if synced else (0,0,0,0))
+    w=sum(fP.getlength(c) for c in pilltxt)+q(1.5)*(len(pilltxt)-1); x0=(S-(w+q(34)))/2
+    dotglyph(d,x0+q(9),q(350),filled,pc+(255,),k); tracked(d,x0+q(34),q(338),pilltxt,fP,q(1.5),pc+(255,))
+    img.alpha_composite(face)
+    if synced and flash<1:  # one expanding ring on the sync instant
+        e=q(60)*flash; rg=Image.new('RGBA',(S,S),(0,0,0,0))
+        ImageDraw.Draw(rg).rounded_rectangle((m-e,m-e,S-m+e,S-m+e),radius=q(104)+e,outline=TEAL+(int(200*(1-flash)),),width=wd(4))
+        img.alpha_composite(rg.filter(ImageFilter.GaussianBlur(max(1.0,q(4)))))
+    return img
+
+if MODE=='wide':
+    # v6's layer, byte-for-byte in intent: 480x480, overlaid at pa['wide'] (a FRAME-relative inset, not a
+    # wrist trace -- see meas_watch.py). Rendered to t16 rather than to the cut so the layer still covers
+    # the whole of Scene A if the close-up is ever reverted; render6.sh trims what it does not use.
+    SW=480; N0=0; N1=int(round(p['t16']*FPS)); OW,OH=SW,SW; OUT=os.environ.get('WATCH_OUT','in/watch.mov'); mw=None
+else:
+    mw=json.load(open('meas_watch.json'))['closeup']
+    N0=mw['f0']; N1=N0+mw['n']; OW,OH=W,H; OUT=os.environ.get('WATCH_OUT','in/watch_cu.mov')
+    assert N0==pa['f12'] and mw['n']==pa['nA2'], 'meas_watch.json was measured against a different cut -- re-run plan_a2.py then meas_watch.py'
+proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgba','-s',f'{OW}x{OH}','-r',str(FPS),
+                       '-i','-','-c:v','qtrle','-pix_fmt','argb',OUT],stdin=subprocess.PIPE)
+phase=0.0; last_t=0.0; est=0
+for i in range(N1):
+    t=i/FPS
+    hr=hr_of(t); phase+=hr/60.0*(t-last_t); last_t=t; u=phase%1.0
+    if i<N0: continue            # phase integrated from 0 regardless -- the pulse must not restart at the cut
+    a=clamp((t-tIn)/0.6)
+    img=Image.new('RGBA',(OW,OH),(0,0,0,0))
+    if MODE=='wide':
+        if a>0: img.alpha_composite(card(t,SW,u))
+    else:
+        r=mw['frames'][i-N0]
+        if r.get('est'): est+=1
+        S=max(120,int(round(r['w']*mw['fill'])))
+        img.alpha_composite(card(t,S,u),(int(round(r['cx']-S/2)),int(round(r['cy']-S/2))))
+    if a<1:
+        img.putalpha(img.split()[3].point(lambda v:int(v*a)))
     proc.stdin.write(img.tobytes())
-proc.stdin.close(); proc.wait(); print('WATCH-OK',N,'sync at',round(tSync,3))
+proc.stdin.close(); proc.wait()
+print(f'WATCH-OK mode={MODE} out={OUT} frames={N1-N0} sync_at={round(tSync,3)}' + (f' interpolated={est}' if mw else ''))
 ```
 
-**`mk_wall6.py`** — Draws the Scene C wall layer: the single-line Radio wordmark plus the app Radio screen, both pulsing on the gated kick.
+**`meas_wall.py`** — Measures the Scene C slab **rect** (both axes) in `in/C_zoom.mp4`, plus the capture's own header row, so the projected screen can be sized to FILL the slab instead of guessed at 560 px.
 
 ```python
-# Scene C wall layer (v6): the app+website Radio wordmark (single line, never stacked) over the projected Radio screen. 1440x2560, from offBC for lenC.
-import math,json,subprocess,numpy as np
+#!/usr/bin/env python3
+# meas_wall.py -- the Scene C slab RECT + the capture's header row -> meas_wall.json
+# v6 chose SCR_W/SCR_Y against a HORIZONTAL bound alone: the fit check sampled the wordmark band's
+# left/right margins at four times and never measured the slab's top or bottom, so a wider screen
+# could reach y 2469 of 2560 with nothing saying whether that was still on the slab.
+# The club clip STROBES -- verify6 records the wordmark band reading dark on only 64 of 200 sampled
+# Scene-C frames -- so ONE frame is not a measurement. Sample many, drop the frames where the panel
+# does not read, and INTERSECT the rest: the screen is drawn at ONE constant geometry, so it must fit
+# the NARROWEST moment. (The push-in eases 1.50x -> 1.15x, so the slab only widens; the intersection
+# is that earliest, tightest bound.)
+import json,os,subprocess,numpy as np
+from PIL import Image
+W,H=1440,2560
+p=json.load(open('params_v6.json')); lenC=p['lenC']
+SRC='in/C_zoom.mp4'; CAP='/home/user/cap/r3_radio_top.png'
+TH=float(os.environ.get('SLAB_TH','20'))          # the same dark threshold verify6's darkrun uses
+NS=int(os.environ.get('SLAB_SAMPLES','60'))
+def gframe(t):
+    b=subprocess.run(['ffmpeg','-v','error','-ss',f'{max(0,t):.4f}','-i',SRC,'-frames:v','1','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
+    a=np.frombuffer(b,np.uint8)
+    if a.size!=W*H: raise SystemExit(f'bad frame t={t:.3f} size={a.size} expected {W*H}')
+    return a.reshape(H,W).astype(np.float32)
+def run(mask,c):
+    if c<0 or c>=len(mask) or not mask[c]: return None
+    l=c
+    while l>0 and mask[l-1]: l-=1
+    r=c
+    while r<len(mask)-1 and mask[r+1]: r+=1
+    return int(l),int(r)
+def rect(g):
+    h=run((g[760:832].mean(axis=0)<TH),720)                    # the band the v6 wordmark rode
+    if h is None: return None
+    cx=(h[0]+h[1])//2
+    v=run((g[:,max(0,cx-40):cx+41].mean(axis=1)<TH),796)       # vertical, through the slab's own centre
+    if v is None: return None
+    cy=(v[0]+v[1])//2
+    h2=run((g[max(0,cy-36):cy+37].mean(axis=0)<TH),cx) or h    # re-read horizontal at the vertical centre
+    return dict(left=h2[0],right=h2[1],top=v[0],bottom=v[1])
+ts=[lenC*(i+0.5)/NS for i in range(NS)]
+rs=[]; bad=[]
+for t in ts:
+    r=rect(gframe(t))
+    if r is None: bad.append(round(t,3))
+    else: rs.append(dict(t=round(t,3),**r))
+if len(rs)<NS//3: raise SystemExit(f'slab read on only {len(rs)}/{NS} frames -- not a measurement; check SLAB_TH or the clip')
+slab=dict(left=max(r['left'] for r in rs), right=min(r['right'] for r in rs),
+          top=max(r['top'] for r in rs),   bottom=min(r['bottom'] for r in rs))
+assert slab['right']>slab['left']+200 and slab['bottom']>slab['top']+200, f'degenerate slab {slab}'
+edge = slab['top']<=2 or slab['bottom']>=H-3
+if edge: print('WARN slab run reached a frame edge -- the dark run escaped the panel into an unlit room; bound SCR_W/SCR_Y by hand')
+# the capture's own header: the topmost row carrying real ink, so CROP_TOP restores the app wordmark
+cap=Image.open(CAP).convert('L'); ca=np.asarray(cap).astype(np.float32)
+ink=(ca<128).sum(axis=1); rows=np.where(ink[:400]>12)[0]
+ink_top=int(rows[0]) if rows.size else 0
+out=dict(slab=slab, samples=NS, valid=len(rs), rejected=len(bad), edge_touch=bool(edge),
+         spread={k:[min(r[k] for r in rs),max(r[k] for r in rs)] for k in ('left','right','top','bottom')},
+         capture=dict(w=cap.width,h=cap.height,ink_top=ink_top,crop_top=max(0,ink_top-24)))
+json.dump(out,open('meas_wall.json','w'),indent=1)
+print('WALL-MEAS',json.dumps(out['slab']),'valid',len(rs),'/',NS,'capture',cap.width,'x',cap.height,'ink_top',ink_top,'crop_top',out['capture']['crop_top'])
+```
+
+**`mk_wall6.py`** — Draws the Scene C wall layer: the app Radio page projected to **fill the measured slab**, its bloom pulsing on the gated kick. (v6 drew a separate wordmark band above a 560 px screen; v7 retires the band and lets the page's own header carry the wordmark.)
+
+```python
+# Scene C wall layer (v7): the app's Radio page projected to FILL the measured slab. 1440x2560, from offBC for lenC.
+# v6 drew a separate shape-radio-logo.png band above a 560px screen that used barely half the slab. v7 un-crops
+# the capture so the page's OWN header wordmark rides on the wall (the owner's "looks like it does on app and
+# website" note) and sizes the screen from meas_wall.json -- so the drawn band is RETIRED, not repositioned.
+import math,json,os,subprocess,numpy as np
 from PIL import Image, ImageFilter, ImageDraw
-p=json.load(open('params_v6.json')); m3=json.load(open('meas_t3.json'))
+p=json.load(open('params_v6.json')); m3=json.load(open('meas_t3.json')); mw=json.load(open('meas_wall.json'))
 P=p['P']; phi=p['phi']; KB=m3['kick_by_beat']; offBC=p['offBC']; T=p['lenC']; tC=p['t28']; FPS=24; W,H=1440,2560
 N=int(round(T*FPS))
-WW=int(__import__('os').environ.get('WALL_W','1020')); WY=int(__import__('os').environ.get('WALL_Y','760'))
-wm=Image.open('in/shape-radio-logo.png').convert('RGBA'); s=WW/wm.width; wmr=wm.resize((WW,int(round(wm.height*s))),Image.LANCZOS)
-wa=np.asarray(wmr).astype(np.float32)/255; word=wa[...,:3]*wa[...,3:4]; wh=word.shape[0]
-wimg=Image.fromarray((word*255+0.5).astype('uint8')); 
-pad=80; wcan=Image.new('RGB',(WW+2*pad,wh+2*pad),(0,0,0)); wcan.paste(wimg,(pad,pad)); glow=np.asarray(wcan.filter(ImageFilter.GaussianBlur(22))).astype(np.float32)/255
-wordp=np.asarray(wcan).astype(np.float32)/255
-# projected screen
-SW=int(__import__('os').environ.get('SCR_W','560')); SY=int(__import__('os').environ.get('SCR_Y','880'))
-scr=Image.open('/home/user/cap/r3_radio_top.png').convert('RGB').crop((0,240,750,1420)); SH=int(round(scr.height*SW/scr.width)); scr=scr.resize((SW,SH),Image.LANCZOS)
+SL,SR,ST,SB=(mw['slab'][k] for k in ('left','right','top','bottom'))
+MG=int(os.environ.get('SCR_MARGIN','34'))                                  # slab inset: fills without touching the edge
+CT=int(os.environ.get('CROP_TOP',str(mw['capture']['crop_top'])))          # measured: 24px of paper above the header ink
+CB=int(os.environ.get('CROP_BOT','1420'))
+scr=Image.open('/home/user/cap/r3_radio_top.png').convert('RGB').crop((0,CT,750,CB))
+availW=(SR-SL)-2*MG; availH=(SB-ST)-2*MG
+# 0 = derive (fill, height-bound). Derive HEIGHT first and take the width from it: going W->H and back
+# rounds twice, and the capture is ~1.4-1.9x taller than wide, so half a pixel of upward rounding in SW
+# becomes more than one in SH -- SH lands 1px over availH and the assert below blames the operator for
+# an artefact of the arithmetic. Deriving from the bound side makes the height exact by construction.
+SW=int(os.environ.get('SCR_W','0'))
+if SW: SH=int(round(scr.height*SW/scr.width))
+else:
+    SH=availH; SW=int(round(scr.width*SH/scr.height))
+    if SW>availW: SW=availW; SH=int(round(scr.height*SW/scr.width))
+scr=scr.resize((SW,SH),Image.LANCZOS)
+SX=int(os.environ.get('SCR_X','0')) or SL+((SR-SL)-SW)//2
+SY=int(os.environ.get('SCR_Y','0')) or ST+((SB-ST)-SH)//2
+assert SW<=availW and SH<=availH, f'screen {SW}x{SH} exceeds slab {availW}x{availH} -- lower SCR_MARGIN or re-measure'
 mk=Image.new('L',(SW,SH),0); ImageDraw.Draw(mk).rounded_rectangle((6,6,SW-7,SH-7),radius=26,fill=255); mk=mk.filter(ImageFilter.GaussianBlur(9))
 sa=np.asarray(scr).astype(np.float32)/255*(np.asarray(mk).astype(np.float32)/255)[...,None]
 spad=90; scan=Image.new('RGB',(SW+2*spad,SH+2*spad),(0,0,0)); scan.paste(Image.fromarray((sa*255+0.5).astype('uint8')),(spad,spad))
 sbloom=np.asarray(scan.filter(ImageFilter.GaussianBlur(40))).astype(np.float32)/255
-SX=(W-SW)//2
 def pres(n): return 0.0 if n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
 def kof(t):
     if t<tC-0.01: return 0.0
@@ -1760,28 +2082,131 @@ def scaled(arr,s):
     if abs(s-1)<1e-4: return arr
     h,w=arr.shape[:2]; im=Image.fromarray((np.clip(arr,0,1)*255+0.5).astype('uint8')); return np.asarray(im.resize((int(round(w*s)),int(round(h*s))),Image.LANCZOS)).astype(np.float32)/255
 proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-c:v','libx264','-preset','fast','-crf','10','-pix_fmt','yuv420p','in/wall6.mp4'],stdin=subprocess.PIPE)
-cx=W//2; cy=WY+wh//2
 for i in range(N):
-    t=offBC+i/FPS; k=kof(t); s=1+0.03*k; e=clamp((t-offBC)/0.3)*clamp((offBC+T-t)/0.3)
+    t=offBC+i/FPS; k=kof(t); e=clamp((t-offBC)/0.3)*clamp((offBC+T-t)/0.3)
     f=np.zeros((H,W,3),np.float32)
-    wp=scaled(wordp,s); gp=scaled(glow,s); h2,w2=wp.shape[:2]
-    paste(f,gp,0.35+1.0*k,cx-w2//2,cy-h2//2); paste(f,wp,1.0,cx-w2//2,cy-h2//2)
-    paste(f,sbloom,0.30,SX-spad,SY-spad); paste(f,sa,0.88,SX,SY)
+    # the beat rides the BLOOM, never the geometry: a slab-filling screen must not grow past the slab it fills
+    bl=scaled(sbloom,1+0.05*k); bh,bw=bl.shape[:2]
+    paste(f,bl,0.26+0.55*k,SX+SW//2-bw//2,SY+SH//2-bh//2)
+    paste(f,sa,0.88+0.10*k,SX,SY)
     proc.stdin.write((np.clip(f*e,0,1)*255+0.5).astype('uint8').tobytes())
-proc.stdin.close(); proc.wait(); print('WALL6-OK',N,'word',WW,'x',wh,'at y',WY,'screen',SW,'x',SH,'at',SX,SY)
+proc.stdin.close(); proc.wait(); print('WALL6-OK',N,'screen',SW,'x',SH,'at',SX,SY,'slab',(SL,SR,ST,SB),'margin',MG,'crop_top',CT)
+```
+
+**`meas_pins.py`** — Measures the Scene D disc **and the baked pin heads** in the re-prompted globe (v7), plus the spin's horizontal drift, so the marks can be popped **onto the pins** instead of onto luma-sampled cities. Writes `meas_pins.json`; also retires `mk_globe.py`'s file-tied `CX,CY,R=727,1295,676`.
+
+```python
+#!/usr/bin/env python3
+# meas_pins.py -- the Scene D disc + the BAKED PIN heads -> meas_pins.json
+# The v7 D prompt asks for "thin vertical light beams rise from a scattering of points on the
+# surface, each anchored to a small glowing dot where it meets the ground". So a pin beam is a
+# NARROW, TALL bright run and a city light is a WIDE, SHORT blob -- that difference IS the detector.
+# Every threshold below is an UNMEASURED GUESS until this runs against the real clip: it prints the
+# per-sample head count and REFUSES to write a set it cannot believe, rather than handing mk_globe.py
+# 27 city lights dressed as pins.
+import json,os,subprocess,numpy as np
+W,H=1440,2560
+SRC=os.environ.get('D_SRC','in/D.mp4')
+TH   =float(os.environ.get('PIN_TH','120'))      # a beam pixel is at least this bright
+BMIN =int(os.environ.get('PIN_BEAM_MIN','16'))   # a beam is at least this TALL (px)
+BMAXW=int(os.environ.get('PIN_MAX_W','8'))       # ...and at most this WIDE (px)
+NS   =int(os.environ.get('PIN_SAMPLES','16'))
+FLOOR=int(os.environ.get('PIN_FLOOR','10'))      # median heads below this -> refuse
+def frame(t):
+    raw=subprocess.run(['ffmpeg','-v','error','-ss',f'{max(0,t):.3f}','-i',SRC,'-frames:v','1','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
+    if len(raw)<W*H: raise SystemExit(f'short read at t={t:.3f} -- is {SRC} really {W}x{H}?')
+    return np.frombuffer(raw[:W*H],np.uint8).reshape(H,W).astype(np.float32)
+def dur():
+    o=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries','format=duration','-of','csv=p=0',SRC],capture_output=True,text=True).stdout.strip()
+    return float(o)
+def disc_of(f):
+    ys,xs=np.where(f>28)
+    if xs.size==0: return None
+    l,r,t,b=int(xs.min()),int(xs.max()),int(ys.min()),int(ys.max())
+    return dict(cx=(l+r)//2, cy=(t+b)//2, r=max(r-l,b-t)//2, left=l, right=r, top=t, bottom=b)
+def heads(f,d):
+    """tall+narrow column runs -> [(head_x, head_y, anchor_y)], anchor on the globe"""
+    m=f>TH; cols={}
+    for x in range(W):
+        c=m[:,x]
+        if not c.any(): continue
+        idx=np.where(c)[0]; brk=np.where(np.diff(idx)>1)[0]
+        st=np.concatenate(([0],brk+1)); en=np.concatenate((brk,[idx.size-1]))
+        runs=[(int(idx[a]),int(idx[b])) for a,b in zip(st,en) if idx[b]-idx[a]+1>=BMIN]
+        if runs: cols[x]=runs
+    out=[]; used=set()
+    for x in sorted(cols):
+        for (t0,b0) in cols[x]:
+            if (x,t0) in used: continue
+            used.add((x,t0)); xs=[x]; tops=[t0]; bots=[b0]; xx=x+1
+            # widen right while the run continues -- NO width cap on the loop. The first cut of this stopped
+            # at BMAXW+1 columns, so the reject below could only ever fire on exactly that width: a 40px lit
+            # region was SLICED into four rejected 9-wide groups plus an accepted 4-wide remainder that
+            # passed every downstream gate as a pin. Consume the whole region, then reject it whole.
+            while xx in cols:
+                cand=[(a,b) for (a,b) in cols[xx] if abs(a-t0)<=6 and (xx,a) not in used]
+                if not cand: break
+                a,b=cand[0]; used.add((xx,a)); xs.append(xx); tops.append(a); bots.append(b); xx+=1
+            if len(xs)>BMAXW: continue                              # too wide -> a lit region, not a beam
+            hx=int(round(sum(xs)/len(xs))); hy=int(min(tops)); ay=int(max(bots))
+            if (hx-d['cx'])**2+(ay-d['cy'])**2 > (1.02*d['r'])**2: continue   # the ANCHOR must sit on the globe
+            out.append((hx,hy,ay))
+    keep=[]                                                          # one beam read twice -> one head
+    for h in sorted(out,key=lambda h:(h[1],h[0])):
+        if all((h[0]-k[0])**2+(h[1]-k[1])**2>24**2 for k in keep): keep.append(h)
+    return keep
+def drift(earlier,later,d,dt):
+    """s that best maps earlier[x] -> later[x+s]; +ve = content moves RIGHT. px/s."""
+    cy=d['cy']; a0=later[max(0,cy-200):cy+200]; b0=earlier[max(0,cy-200):cy+200]
+    best=None
+    for s in range(-120,121):
+        a=a0[:,max(0,s):W+min(0,s)]; b=b0[:,max(0,-s):W+min(0,-s)]
+        e=float(np.abs(a-b).mean())
+        if best is None or e<best[1]: best=(s,e)
+    return best[0]/dt, best[1]
+D=dur(); ts=[round(D*(i+0.5)/NS,3) for i in range(NS)]
+samples=[]; discs=[]
+for t in ts:
+    f=frame(t); d=disc_of(f)
+    if d is None or d['r']<200: print(f'WARN no disc at t={t} -- skipped'); continue
+    hs=heads(f,d); discs.append(d)
+    samples.append(dict(t=t, heads=[[h[0],h[1]] for h in hs], anchors=[[h[0],h[2]] for h in hs]))
+    print(f't={t}: disc c({d["cx"]},{d["cy"]}) r{d["r"]} heads {len(hs)}')
+if not samples: raise SystemExit('no usable D frames -- check D_SRC')
+counts=sorted(len(s['heads']) for s in samples); med=counts[len(counts)//2]
+if med<FLOOR:
+    raise SystemExit(f'median {med} pin heads/frame (floor {FLOOR}) -- NOT a pin set. Re-tune PIN_TH/'
+                     f'PIN_BEAM_MIN/PIN_MAX_W against the clip, or accept the luma fallback in mk_globe.py')
+med_disc=lambda k: int(np.median([d[k] for d in discs]))
+disc=dict(cx=med_disc('cx'), cy=med_disc('cy'), r=med_disc('r'),
+          left=med_disc('left'), right=med_disc('right'), top=med_disc('top'), bottom=med_disc('bottom'))
+dt=ts[1]-ts[0]; vx,err=drift(frame(ts[0]),frame(ts[1]),disc,dt)
+vx2,err2=drift(frame(ts[-2]),frame(ts[-1]),disc,dt)
+print(f'drift {vx:.1f} px/s (err {err:.2f}) / {vx2:.1f} px/s late (err {err2:.2f})')
+out=dict(src=SRC, duration=round(D,3), disc=disc, samples=samples,
+         heads=dict(min=counts[0], median=med, max=counts[-1]),
+         drift_px_per_s=round((vx+vx2)/2,2), drift_err=[round(err,3),round(err2,3)],
+         detector=dict(th=TH, beam_min=BMIN, max_w=BMAXW, samples=NS, floor=FLOOR))
+json.dump(out,open('meas_pins.json','w'),indent=1)
+print('PINS-OK', med, 'heads (median),', len(samples), 'samples, drift', out['drift_px_per_s'], 'px/s')
 ```
 
 **`mk_globe.py`** — Draws the Scene D layer: 27 SHAPE marks popping on lit cities, the logo above the globe from beat 52, the close copy from beat 56.
 
 ```python
-# Scene D layer (v6): Shape marks popping onto the night-Earth's lit cities from beat 48, the SHAPE logo popping above the globe on beat 52
-# and pulsing on the kick gate, the close copy under the globe from beat 56. Illustrative — no count is claimed. 1440x2560 from offCD to total.
-import math,json,subprocess,random,numpy as np
+# Scene D layer (v7): Shape marks popping ONTO the globe's baked pin heads from beat 48 (v6 sampled lit cities), the SHAPE logo
+# popping above the globe on beat 52 and pulsing on the kick gate, the close copy under the globe from beat 56.
+# Illustrative — no count is claimed, and no number, label or city name is ever drawn. 1440x2560 from offCD to total.
+import math,json,os,subprocess,random,numpy as np
 from PIL import Image, ImageFilter, ImageDraw
 p=json.load(open('params_v6.json')); m3=json.load(open('meas_t3.json'))
 P=p['P']; phi=p['phi']; KB=m3['kick_by_beat']; offCD=p['offCD']; total=p['total']; FPS=24; W,H=1440,2560
 N=int(round((total-offCD)*FPS)); random.seed(6)
-CX,CY,R=727,1295,676   # measured disc (meas_globe.py)
+try: PINS=json.load(open('meas_pins.json'))
+except Exception as e: PINS=None; print(f'WARN meas_pins.json unreadable ({type(e).__name__}) -- falling back to the v6 hardcoded disc AND luma placement')
+# every one of these was measured against the v6 D.mp4 and is wrong for any re-prompted clip -> meas_pins.py owns them now
+D=(PINS or {}).get('disc') or dict(cx=727,cy=1295,r=676,top=618,bottom=1972,left=44,right=1410)
+CX,CY,R=D['cx'],D['cy'],D['r']
 def clamp(x): return max(0.0,min(1.0,x))
 def pres(n): return 0.0 if n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
 def kof(t,t0):
@@ -1800,30 +2225,51 @@ markA=np.asarray(mimg).astype(np.float32)/255; mpad=30
 mcan=Image.new('RGB',(markA.shape[1]+2*mpad,MH+2*mpad),(0,0,0)); mcan.paste(mimg,(mpad,mpad)); markG=np.asarray(mcan.filter(ImageFilter.GaussianBlur(10))).astype(np.float32)/255; markP=np.asarray(mcan).astype(np.float32)/255
 # --- the logo above the globe
 tri_l,txt_l,trig_l,txtg_l=[np.asarray(Image.open(f'in/{n}.png').convert('RGB')).astype(np.float32)/255 for n in ('logo_tri','logo_txt','logo_tri_glow','logo_txt_glow')]
-LW=440; LCX,LCY=720,330
+LW=440; LCX=W//2; LCY=int(os.environ.get('LOGO_CY','0')) or max(150,int(round(0.53*D['top'])))   # v6's 330 == 0.53 x its 618-row disc top
 # --- close copy
-close=np.asarray(Image.open('cap/txt/close.png').convert('RGBA')).astype(np.float32)/255; closeP=close[...,:3]*close[...,3:4]; CLY=2060
+close=np.asarray(Image.open('cap/txt/close.png').convert('RGBA')).astype(np.float32)/255; closeP=close[...,:3]*close[...,3:4]
+CLY=int(os.environ.get('CLOSE_Y','0')) or min(H-closeP.shape[0]-40, D['bottom']+88)   # v6's 2060 == its 1972-row disc bottom + 88
 # --- schedule the pops: beats 48-51 one, 52-55 two, 56-60 three
 pops=[]
 for n in range(48,61):
     c=1 if n<52 else (2 if n<56 else 3)
     for j in range(c): pops.append(phi+n*P+j*0.09)
 print('pops',len(pops))
-# choose positions on lit cities at each pop time, min spacing, inside 0.9R, not the top/bottom caps
-placed=[]
-for tp in pops:
+# --- v7 placement: pop each mark ONTO a baked pin head; the v6 luma sample survives as the fallback
+placed=[]   # (x, y, tp, vx, pin) -- pin -1 means luma-sourced
+def far(x,y,tp): return all((x-q[0])**2+(y-q[1])**2>150**2 for q in placed if tp-q[2]<2.8)
+def pin_pick(tp):
+    td=tp-offCD; sm=min(PINS['samples'],key=lambda s:abs(s['t']-td)); VX=PINS['drift_px_per_s']
+    cands=[]
+    for i,(hx,hy) in enumerate(sm['heads']):
+        hx=int(round(hx+VX*(td-sm['t'])))          # carry the measured head forward to this pop
+        if (hx-CX)**2+(hy-CY)**2>R*R: continue     # a head stands ABOVE the ground, so 1.00R -- not the 0.90R the cities used
+        cands.append((i,hx,hy))
+    random.shuffle(cands); live=[q[4] for q in placed if tp-q[2]<2.8]
+    for i,hx,hy in cands:                          # first pass: a pin nothing else is currently marking
+        if i not in live and far(hx,hy,tp): return hx,hy,i
+    for i,hx,hy in cands:                          # thin pin set -> spacing beats uniqueness
+        if far(hx,hy,tp): return hx,hy,i
+    return None
+def luma_pick(tp):                                 # the v6 rule, verbatim, as the honest fallback
     f=dframe(tp-offCD); yy,xx=np.mgrid[0:H,0:W]; inside=((xx-CX)**2+(yy-CY)**2)<(0.90*R)**2
     cand=np.where(inside&(f>110)&(np.abs(yy-CY)<0.78*R))
-    idx=list(range(len(cand[0]))); random.shuffle(idx); pick=None
+    idx=list(range(len(cand[0]))); random.shuffle(idx)
     for k in idx[:4000]:
         x,y=int(cand[1][k]),int(cand[0][k])
-        if all((x-px)**2+(y-py)**2>150**2 for px,py,_ in placed if tp-_<2.8): pick=(x,y); break
-    if pick is None:  # fall back to any disc point with spacing
-        for _ in range(2000):
-            a=random.random()*2*math.pi; r=random.random()*0.85*R; x,y=int(CX+r*math.cos(a)),int(CY+r*math.sin(a)*0.8)
-            if all((x-px)**2+(y-py)**2>150**2 for px,py,_ in placed if tp-_<2.8): pick=(x,y); break
-    placed.append((pick[0],pick[1],tp))
-print('placed',placed[:5])
+        if far(x,y,tp): return x,y
+    for _ in range(2000):
+        a=random.random()*2*math.pi; r=random.random()*0.85*R
+        x,y=int(CX+r*math.cos(a)),int(CY+r*math.sin(a)*0.8)
+        if far(x,y,tp): return x,y
+    return CX,CY
+for tp in pops:
+    pk=pin_pick(tp) if PINS else None
+    if pk: placed.append((pk[0],pk[1],tp,PINS['drift_px_per_s'],pk[2])); continue
+    if PINS: print(f'WARN no free pin head at pop {tp:.3f} -- luma fallback for this one mark')
+    x,y=luma_pick(tp); placed.append((x,y,tp,0.0,-1))
+frompins=sum(1 for q in placed if q[4]>=0)
+print('placed',len(placed),'from pins',frompins,'of',len(pops),'| first',placed[:3])
 def paste(dst,src,gain,x0,y0):
     h,w=src.shape[:2]; xs0=max(0,x0); ys0=max(0,y0); xs1=min(W,x0+w); ys1=min(H,y0+h)
     if xs1<=xs0 or ys1<=ys0: return
@@ -1835,9 +2281,10 @@ proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rg
 for i in range(N):
     t=offCD+i/FPS; f=np.zeros((H,W,3),np.float32); e=clamp((t-offCD)/0.3)
     ring=Image.new('L',(W,H),0); rd=ImageDraw.Draw(ring); anyring=False
-    for x,y,tp in placed:
+    for xm,y,tp,vx,_pin in placed:
         u=t-tp
         if u<0 or u>2.6: continue
+        x=int(round(xm+vx*u))          # ride the spin: a mark that stands still slides off the pin it marked
         s=back(u/0.28); a=clamp(u/0.12)*clamp((2.6-u)/0.6)
         w=int(round(markP.shape[1]*s)); 
         if w<2: continue
@@ -1854,65 +2301,98 @@ for i in range(N):
     if t>=t56:
         a=clamp((t-t56)/0.45); paste(f,closeP,a,0,CLY)
     proc.stdin.write((np.clip(f*e,0,1)*255+0.5).astype('uint8').tobytes())
-proc.stdin.close(); proc.wait(); print('GLOBE6-OK',N,'marks',len(placed),'logo at',t52,'close at',t56)
+proc.stdin.close(); proc.wait()
+json.dump(dict(disc=D, from_pins=bool(PINS), pins_used=frompins, marks=len(placed), logo_cy=LCY, logo_w=LW, close_y=CLY,
+               drift_px_per_s=(PINS or {}).get('drift_px_per_s',0.0),
+               placed=[dict(x=q[0],y=q[1],t=round(q[2],3),vx=q[3],pin=q[4]) for q in placed]),
+          open('globe6_marks.json','w'),indent=1)
+print('GLOBE6-OK',N,'marks',len(placed),'from pins',frompins,'logo at',t52,'cy',LCY,'close at',t56,'y',CLY)
 ```
 
-**`render6.sh`** — The five-input xfade chain plus three screen-blended layer canvases and the audio tail fade.
+**`norm6.sh`** — Normalizes every Scene source to exactly 1440×2560 @ 24 fps before anything measures or concatenates. v6 never needed this (one clip per scene, `xfade` between them); v7 does, because `concat` refuses mismatched dimensions and `meas_watch.py` / `meas_pins.py` index pixels by absolute coordinate. A re-prompted clip that comes back 1080×1920 would otherwise fail deep inside the render with a filtergraph error.
 
 ```bash
 #!/bin/bash
-# launch cut v6: A(+watch) -> B(logo) -> C(zoomed wall, radio screen) -> D(globe, marks, logo, close)
+# norm6.sh -- make in/A.mp4, in/A2.mp4, in/D.mp4 exactly 1440x2560 24fps. Idempotent: already-correct files are left alone.
+set -e
+cd /home/user/w
+for f in A A2 D; do
+  s=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "in/$f.mp4")
+  if [ "$s" = "1440,2560" ]; then echo "NORM $f already 1440x2560"; continue; fi
+  echo "NORM $f $s -> 1440x2560"
+  ffmpeg -y -v error -i "in/$f.mp4" \
+    -vf "fps=24,scale=1440:2560:force_original_aspect_ratio=increase,crop=1440:2560,setsar=1" \
+    -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -an "in/${f}_n.mp4"
+  mv "in/${f}_n.mp4" "in/$f.mp4"
+done
+echo NORM6-OK
+```
+
+**`render6.sh`** — The Scene-A hard cut (wide → watch close-up) plus the four-scene xfade chain, three screen-blended layer canvases and the audio tail fade. **Run order:** `norm6.sh` → **`plan6.py`** → `plan_a2.py` → `meas_watch.py` → `mk_watch.py` **twice** (`WATCH_MODE=wide`, then `WATCH_MODE=closeup`) → `meas_wall.py` → `mk_wall6.py` → `meas_pins.py` → `mk_globe.py` → here. ⚠ **`plan6.py` is not optional and was missing from the first cut of this list** — it is the ONLY writer of `params_v6.json`, and `plan_a2.py` is the very next step that reads it, so a run that skips it dies at the first python step with `FileNotFoundError: params_v6.json`.
+
+```bash
+#!/bin/bash
+# launch cut v7: A1(wide+watch) |cut| A2(watch close-up) -> B(logo) -> C(zoomed wall, radio screen) -> D(globe, pins, logo, close)
+# The Scene-A cut is a CONCAT, not an xfade: xfade consumes time (its duration overlaps the two streams) and
+# would shorten the cut by 0.3 s, moving every downstream offset. A hard cut on the beat costs zero frames.
 set -e
 cd /home/user/w
 P=$(python3 -c "import json;p=json.load(open('params_v6.json'));print(p['offAB'],p['offBC'],p['offCD'],p['total'])")
 set -- $P; offAB=$1; offBC=$2; offCD=$3; TOTAL=$4
+A=$(python3 -c "import json;p=json.load(open('params_a2.json'));print(p['f12'],p['nA2'],p['wide']['x'],p['wide']['y'])")
+set -- $A; nA1=$1; nA2=$2; WX=$3; WY=$4
 FADEST=$(python3 -c "print(round($TOTAL-0.6,3))")
 ffmpeg -y -hide_banner -loglevel error -stats \
- -i in/A.mp4 -i in/watch.mov -i in/B_long.mp4 -i in/C_zoom.mp4 -i in/D.mp4 \
+ -i in/A.mp4 -i in/watch.mov -i in/A2.mp4 -i in/watch_cu.mov \
+ -i in/B_long.mp4 -i in/C_zoom.mp4 -i in/D.mp4 \
  -i in/phoneB.mp4 -i in/wall6.mp4 -i in/globe6.mp4 -i in/t3.m4a \
  -filter_complex "
- [0:v]fps=24,format=yuv420p,settb=AVTB[a0];
+ [0:v]fps=24,format=yuv420p,settb=AVTB,trim=end_frame=${nA1},setpts=PTS-STARTPTS[a1];
  [1:v]fps=24,format=rgba,settb=AVTB[wt];
- [a0][wt]overlay=x=890:y=1660:eof_action=pass:format=auto,format=yuv420p,settb=AVTB[A];
- [2:v]fps=24,format=yuv420p,settb=AVTB[B];
- [3:v]fps=24,format=yuv420p,settb=AVTB[C];
- [4:v]fps=24,format=yuv420p,settb=AVTB[D];
+ [a1][wt]overlay=x=${WX}:y=${WY}:eof_action=pass:format=auto,format=yuv420p,settb=AVTB[A1];
+ [2:v]fps=24,format=yuv420p,settb=AVTB,trim=end_frame=${nA2},setpts=PTS-STARTPTS[a2];
+ [3:v]fps=24,format=rgba,settb=AVTB[wc];
+ [a2][wc]overlay=x=0:y=0:eof_action=pass:format=auto,format=yuv420p,settb=AVTB[A2];
+ [A1][A2]concat=n=2:v=1:a=0,settb=AVTB[A];
+ [4:v]fps=24,format=yuv420p,settb=AVTB[B];
+ [5:v]fps=24,format=yuv420p,settb=AVTB[C];
+ [6:v]fps=24,format=yuv420p,settb=AVTB[D];
  [A][B]xfade=transition=fade:duration=0.3:offset=${offAB}[AB];
  [AB][C]xfade=transition=fade:duration=0.3:offset=${offBC}[ABC];
  [ABC][D]xfade=transition=fade:duration=0.3:offset=${offCD}[base];
  [base]format=gbrp[baseg];
  color=c=black:s=1440x2560:r=24:d=${TOTAL},format=rgb24[cv1];
- [5:v]fps=24,tpad=start_duration=${offAB},format=rgb24[ph];
+ [7:v]fps=24,tpad=start_duration=${offAB},format=rgb24[ph];
  [cv1][ph]overlay=x=416:y=592:eof_action=pass:format=rgb,format=gbrp[L1];
  [baseg][L1]blend=all_mode=screen,format=gbrp[s1];
  color=c=black:s=1440x2560:r=24:d=${TOTAL},format=rgb24[cv2];
- [6:v]fps=24,tpad=start_duration=${offBC},format=rgb24[wl];
+ [8:v]fps=24,tpad=start_duration=${offBC},format=rgb24[wl];
  [cv2][wl]overlay=x=0:y=0:eof_action=pass:format=rgb,format=gbrp[L2];
  [s1][L2]blend=all_mode=screen,format=gbrp[s2];
  color=c=black:s=1440x2560:r=24:d=${TOTAL},format=rgb24[cv3];
- [7:v]fps=24,tpad=start_duration=${offCD},format=rgb24[gl];
+ [9:v]fps=24,tpad=start_duration=${offCD},format=rgb24[gl];
  [cv3][gl]overlay=x=0:y=0:eof_action=pass:format=rgb,format=gbrp[L3];
  [s2][L3]blend=all_mode=screen,format=yuv420p[v];
- [8:a]atrim=0:${TOTAL},asetpts=PTS-STARTPTS,afade=t=out:st=${FADEST}:d=0.6[a]
+ [10:a]atrim=0:${TOTAL},asetpts=PTS-STARTPTS,afade=t=out:st=${FADEST}:d=0.6[a]
  " -map "[v]" -map "[a]" \
  -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 192k -ar 44100 \
- -movflags +faststart -t ${TOTAL} out/launch_v6.mp4
-echo RENDER6-OK
-ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames,width,height,r_frame_rate -of csv=p=0 out/launch_v6.mp4
-ffprobe -v error -show_entries format=duration -of csv=p=0 out/launch_v6.mp4
-md5sum out/launch_v6.mp4
+ -movflags +faststart -t ${TOTAL} out/launch_v7.mp4
+echo RENDER7-OK
+ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames,width,height,r_frame_rate -of csv=p=0 out/launch_v7.mp4
+ffprobe -v error -show_entries format=duration -of csv=p=0 out/launch_v7.mp4
+md5sum out/launch_v7.mp4
 ```
 
-**`verify6.py`** — Every v6 assertion, including the corrected pulse-peak sampling and the informational club-strobe line.
+**`verify6.py`** — Every v6 assertion plus the v7 ones: the Scene-A cut, the card rect that FOLLOWS the watch through the close-up, the screen filling the measured slab, and the pins-anchored marks. Still carries the corrected pulse-peak sampling and the informational club-strobe line.
 
 ```python
 #!/usr/bin/env python3
-# verify6.py — numeric checks on out/launch_v6.mp4 against its sources, its LAYERS and params_v6.json
+# verify6.py — numeric checks on out/launch_v7.mp4 against its sources, its LAYERS, params_v6.json and params_a2.json
 import json, subprocess, numpy as np
 W,H=1440,2560
 p=json.load(open('params_v6.json'))
 P=p['P']; phi=p['phi']; offAB=p['offAB']; offBC=p['offBC']; offCD=p['offCD']; TOTAL=p['total']; lenC=p['lenC']
-OUT='out/launch_v6.mp4'
+OUT='out/launch_v7.mp4'
 _dims={}
 def dims(path):
     if path not in _dims:
@@ -1939,22 +2419,55 @@ check('738 frames 1440x2560 24fps', s.startswith('1440,2560,24/1,738'), s)
 def mdiff(a,b,mask=None):
     dd=np.abs(gray(a)-gray(b)); return float(dd[mask].mean()) if mask is not None else float(dd.mean())
 def lit(a,reg=None,th=60):
+    # ymin/ymax are APPENDED so every existing [0]..[4] caller is unaffected; the v7 wall check needs both axes
     g=gray(a if reg is None else a[reg[0]:reg[1],reg[2]:reg[3]]); ys,xs=np.where(g>th)
-    if xs.size==0: return (0,0,0,0,0)
-    return (int(xs.size), int(xs.max()-xs.min()+1), int(ys.max()-ys.min()+1), int(xs.min()), int(xs.max()))
-# ---- A: watch ----
-wt=np.ones((H,W),bool); wt[1660:2140,890:1370]=False
-o=frame(OUT,3.0); sA=frame('in/A.mp4',3.0)
-check('A matches source outside watch', mdiff(o,sA,wt)<2.5, f'mean diff {mdiff(o,sA,wt):.2f}')
-for t,expect in ((0.5,False),(3.0,True),(6.5,True)):
-    o=frame(OUT,t); sA=frame('in/A.mp4',t); dd=mdiff(o,sA,~wt)
-    check(f'watch {"present" if expect else "absent"} at {t}', (dd>8) if expect else (dd<2.0), f'rect diff {dd:.2f}')
+    if xs.size==0: return (0,0,0,0,0,0,0)
+    off=(reg[2] if reg else 0, reg[0] if reg else 0)
+    return (int(xs.size), int(xs.max()-xs.min()+1), int(ys.max()-ys.min()+1), int(xs.min())+off[0], int(xs.max())+off[0], int(ys.min())+off[1], int(ys.max())+off[1])
+# ---- A: watch (v7: A1 wide card, hard cut at beat 12, A2 close-up with a per-frame card) ----
+pa=json.load(open('params_a2.json')); mwt=json.load(open('meas_watch.json'))['closeup']
+f12=pa['f12']; nA2=pa['nA2']; WX=pa['wide']['x']; WY=pa['wide']['y']
+def a_src(t):
+    """Which Scene-A clip the output frame at t came from, its time in that clip, and where the card sits.
+    The rect MOVES in the close-up, so v6's fixed (1660..2140, 890..1370) mask would read a CORRECT render
+    as a mismatch. That is the reason this helper exists -- the check has to follow the card."""
+    # floor, not round -- frame() seeks with -ss, so the frame it returns is the one CONTAINING t (the same
+    # convention every beat check here relies on when it samples at beat(n)+1/24). Rounding disagrees with
+    # that on the back half of every frame, and round() also breaks ties to even, so a half-frame probe at
+    # the cut resolves BOTH sides to the same index.
+    i=int(t*24+1e-6)
+    if i<f12: return 'in/A.mp4', t, (WY,WY+480,WX,WX+480)
+    r=mwt['frames'][min(nA2-1,max(0,i-f12))]
+    S=max(120,int(round(r['w']*mwt['fill'])))
+    x0=int(round(r['cx']-S/2)); y0=int(round(r['cy']-S/2))
+    # frame CENTRE: -ss is formatted to 4dp, and n/24 rounds either side of the boundary, so a boundary
+    # seek can land one frame early. Half a frame of slack is far more than 4dp of rounding can spend.
+    return 'in/A2.mp4', (i-f12+0.5)/24.0, (max(0,y0),min(H,y0+S),max(0,x0),min(W,x0+S))
+for t,expect in ((0.5,False),(3.0,True),(6.5,True),(7.5,True)):
+    src,ts,rect=a_src(t); o=frame(OUT,t); sA=frame(src,ts)
+    m=np.ones((H,W),bool); m[rect[0]:rect[1],rect[2]:rect[3]]=False
+    outd=mdiff(o,sA,m); ind=mdiff(o,sA,~m)
+    check(f'A matches its source outside the card at {t} ({src.split("/")[-1]})', outd<2.5, f'mean diff {outd:.2f}')
+    check(f'card {"present" if expect else "absent"} at {t}', (ind>8) if expect else (ind<2.0), f'rect diff {ind:.2f}')
+# the cut itself: frame f12-1 must still be A, frame f12 must be A2 -- a drifted trim shows up here first.
+# Probe the two frame CENTRES. The first cut of this check probed the boundary at +-half a frame, which under
+# round()-to-even resolved BOTH sides to 146: it FAILED on a correct render and never once read frame 145,
+# the frame it exists to test.
+tb=(f12-0.5)/24.0; ta=(f12+0.5)/24.0
+sb,tsb,rb=a_src(tb); sa,tsa,ra=a_src(ta)
+check('beat-12 cut lands on the right frame', sb.endswith('A.mp4') and sa.endswith('A2.mp4'), f'{sb} -> {sa} at frame {f12}')
+mb=np.ones((H,W),bool); mb[rb[0]:rb[1],rb[2]:rb[3]]=False
+ma=np.ones((H,W),bool); ma[ra[0]:ra[1],ra[2]:ra[3]]=False
+db=mdiff(frame(OUT,tb),frame(sb,tsb),mb); da=mdiff(frame(OUT,ta),frame(sa,tsa),ma)
+check('both cut frames match their own clip', db<2.5 and da<2.5, f'before {db:.2f} after {da:.2f}')
 def cnt(a,reg,f):
     r=a[reg[0]:reg[1],reg[2]:reg[3]].astype(int); return int(f(r).sum())
 teal=lambda r:(r[...,2]>150)&(r[...,1]>150)&(r[...,0]<120)
 amber=lambda r:(r[...,0]>180)&(r[...,1]>120)&(r[...,1]<200)&(r[...,2]<90)
-reg=(1660,2140,890,1370); f5=frame(OUT,5.0); f75=frame(OUT,7.5)
-check('watch MATCHING(amber)->IN SYNC(teal) at beat 14', cnt(f75,reg,teal)>cnt(f5,reg,teal) and cnt(f5,reg,amber)>cnt(f75,reg,amber), f'teal {cnt(f5,reg,teal)}->{cnt(f75,reg,teal)} amber {cnt(f5,reg,amber)}->{cnt(f75,reg,amber)}')
+# both samples now sit INSIDE the close-up -- landing IN SYNC in close-up is the whole point of the fifth shot
+_,_,r65=a_src(6.5); _,_,r75=a_src(7.5); f65=frame(OUT,6.5); f75=frame(OUT,7.5)
+check('watch MATCHING(amber)->IN SYNC(teal) at beat 14', cnt(f75,r75,teal)>cnt(f65,r65,teal) and cnt(f65,r65,amber)>cnt(f75,r75,amber), f'teal {cnt(f65,r65,teal)}->{cnt(f75,r75,teal)} amber {cnt(f65,r65,amber)}->{cnt(f75,r75,amber)}')
+print(f"INFO close-up watch face believed on {mwt['believed']}/{nA2} frames; the rest carry the nearest measured rect")
 # ---- B: logo on the phone ----
 ph=np.ones((H,W),bool); ph[592:1926,416:1026]=False
 for t in (8.4,10.5,13.0):
@@ -1972,35 +2485,78 @@ def darkrun(g,row0,row1,cx=720,th=20):
     r=cx
     while r<W-1 and dark[r+1]: r+=1
     return l,r
+mw=json.load(open('meas_wall.json')); SLB=mw['slab']
+SLW=SLB['right']-SLB['left']; SLH=SLB['bottom']-SLB['top']; BPAD=140  # bloom reach: spad 90 + the 40px blur's tail
+print('INFO slab',json.dumps(SLB),f"{SLW}x{SLH}",'valid',mw['valid'],'/',mw['samples'],'edge_touch',mw['edge_touch'])
 for t in (14.3,15.0,17.0,21.0):
     gs=gray(frame('in/C_zoom.mp4',t-offBC)); L=frame('in/wall6.mp4',t-offBC)
-    dr=darkrun(gs,760,832); wm=lit(L,(740,852,0,W),100)
-    if dr is None: check(f'wordmark in slab at {t}',False,f'slab None (flash?) band mean {gs[760:832].mean():.1f}'); continue
-    check(f'wordmark in slab at {t}', wm[3]>dr[0]+20 and wm[4]<dr[1]-20 and wm[2]<=84, f'wordmark x {wm[3]}-{wm[4]} w{wm[1]} h{wm[2]} slab {dr[0]}-{dr[1]} margins {wm[3]-dr[0]}/{dr[1]-wm[4]}')
-    dr2=darkrun(gs,900,1740); sc=lit(L,(900,1740,0,W),60)
-    check(f'radio screen in slab at {t}', dr2 is not None and sc[3]>dr2[0]+10 and sc[4]<dr2[1]-10, f'screen x {sc[3]}-{sc[4]} h{sc[2]} slab {dr2}')
-    o=frame(OUT,t); sC=frame('in/C_zoom.mp4',t-offBC); cm=np.ones((H,W),bool); cm[600:1900,:]=False; dd=mdiff(o,sC,cm)
+    # 1. the STORED measurement must still bound the LIVE clip -- an intersection that drifted is not a bound
+    dr=darkrun(gs,760,832)
+    if dr is None: print(f'INFO slab unreadable at {t} (the clip strobes) band mean {gs[760:832].mean():.1f} -- skipping the bound check')
+    else: check(f'measured slab still inside the clip at {t}', SLB['left']>=dr[0] and SLB['right']<=dr[1], f"slab {SLB['left']}-{SLB['right']} live {dr[0]}-{dr[1]}")
+    # 2. the screen must FILL the slab, not sit inset in it: body (th 140) inside on both axes, >=0.90 on one
+    b=lit(L,None,140); fw=b[1]/SLW; fh=b[2]/SLH
+    inside=b[3]>=SLB['left'] and b[4]<=SLB['right'] and b[5]>=SLB['top'] and b[6]<=SLB['bottom']
+    check(f'screen fills the measured slab at {t}', inside and max(fw,fh)>=0.90, f'body x {b[3]}-{b[4]} y {b[5]}-{b[6]} fill {fw:.2f}w/{fh:.2f}h')
+    o=frame(OUT,t); sC=frame('in/C_zoom.mp4',t-offBC); cm=np.ones((H,W),bool)
+    cm[max(0,SLB['top']-BPAD):min(H,SLB['bottom']+BPAD),:]=False; dd=mdiff(o,sC,cm)
     check(f'C matches C_zoom outside layers at {t}', dd<2.5, f'mean diff {dd:.2f}')
 # flash coverage of the club clip during Scene C (informational)
 b=subprocess.run(['ffmpeg','-v','error','-i','in/C_zoom.mp4','-t',f'{lenC:.3f}','-vf','fps=24,crop=1440:72:0:760,scale=90:9','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True).stdout
 bm=np.frombuffer(b,np.uint8).reshape(-1,9,90).mean(axis=(1,2)); print(f'INFO club clip: wordmark band lit (>30) on {int((bm>30).sum())}/{bm.size} Scene-C frames ({100*(bm>30).mean():.0f}%) — the source strobes; the wordmark+screen ride SCREEN-blended over it')
 for n in (30,36):
-    lb=lit(frame('in/wall6.mp4',beat(n)+1/24-offBC),(700,900,0,W),100); lm=lit(frame('in/wall6.mp4',beat(n)+P/2-offBC),(700,900,0,W),100)
-    check(f'wall wordmark pulses at beat {n} (layer)', lb[0]>lm[0]*1.15 and lb[1]>=lm[1], f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
+    # v7: the pulse subject is the SCREEN (the drawn wordmark band is retired), measured over the slab rows
+    rows=(SLB['top'],SLB['bottom']+1,0,W)
+    lb=lit(frame('in/wall6.mp4',beat(n)+1/24-offBC),rows,100); lm=lit(frame('in/wall6.mp4',beat(n)+P/2-offBC),rows,100)
+    check(f'wall screen pulses at beat {n} (layer)', lb[0]>lm[0]*1.15 and lb[1]>=lm[1], f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
 # ---- D: globe ----
 o=frame(OUT,22.5); sD=frame('in/D.mp4',22.5-offCD); dd=np.abs(gray(o)-gray(sD)); g6=lit(frame('in/globe6.mp4',22.5-offCD))
 check('D matches globe source before pops', dd.mean()<3.5 and np.percentile(dd,99)<24 and g6[0]==0, f'mean {dd.mean():.2f} p50 {np.median(dd):.1f} p99 {np.percentile(dd,99):.1f} layer lit {g6[0]}')
-disc=(618,1972,44,1410)
+# v7: the disc, the logo box and the close row are DERIVED from what mk_globe.py actually placed --
+# 618/1972/44/1410, 330 and 2060 were all measured against the v6 D.mp4 and are wrong for a re-prompted clip
+try: GM=json.load(open('globe6_marks.json'))
+except Exception as e:
+    GM=dict(disc=dict(top=618,bottom=1972,left=44,right=1410), logo_cy=330, logo_w=440, close_y=2060,
+            from_pins=False, pins_used=0, marks=0, placed=[], drift_px_per_s=0.0)
+    print(f'INFO globe6_marks.json unreadable ({type(e).__name__}) -- Scene D checked against the v6 constants')
+GD=GM['disc']; disc=(GD['top'],GD['bottom']+1,GD['left'],GD['right']+1)
 pre=lit(frame('in/globe6.mp4',23.5-offCD),disc)
 for n in (50,54,58):
     c=lit(frame('in/globe6.mp4',beat(n)+0.2-offCD),disc)
     check(f'marks lit in disc at beat {n} (layer)', pre[0]==0 and c[0]>300, f'lit {c[0]} vs pre-pop {pre[0]}')
-lg=(150,520,380,1060)
+# the marks are drawn where mk_globe.py says it put them (drift included), and they came from PINS not luma
+if GM['placed']:
+    for n in (50,54,58):
+        # +0.35, not the +0.2 the aggregate check above uses. From beat 56 a beat fires THREE marks, at
+        # +0.00/+0.09/+0.18 s, and each ramps its alpha over clamp(u/0.12) -- so the third mark of beat 58
+        # is still fading in until +0.30. A +0.2 probe reads it at zero alpha and reports a correctly-placed
+        # mark as MISSING. This check is about placement; give the ramp a frame of clearance past 0.18+0.12.
+        t=beat(n)+0.35; L=frame('in/globe6.mp4',t-offCD); miss=[]
+        for m in GM['placed']:
+            u=t-m['t']
+            if u<0.12+1/24 or u>2.6: continue   # skip marks still inside their own fade-in
+            cx=int(round(m['x']+m['vx']*u)); cy=m['y']
+            if lit(L,(max(0,cy-45),cy+46,max(0,cx-45),cx+46))[0]<40: miss.append((cx,cy))
+        check(f'every live mark is drawn at its placement at beat {n}', not miss, f'{len(miss)} missing: {miss[:4]}')
+    check('marks are pin-sourced, not luma-sampled', GM['from_pins'] and GM['pins_used']>=0.8*GM['marks'],
+          f"from_pins {GM['from_pins']} pins {GM['pins_used']}/{GM['marks']}")
+    try:
+        PN=json.load(open('meas_pins.json')); TOL=40; off=[]
+        for m in GM['placed']:
+            if m['pin']<0: continue
+            td=m['t']-offCD; sm=min(PN['samples'],key=lambda q:abs(q['t']-td))
+            best=min(((m['x']-(h[0]+PN['drift_px_per_s']*(td-sm['t'])))**2+(m['y']-h[1])**2) for h in sm['heads'])
+            if best>TOL*TOL: off.append(round(best**0.5,1))
+        check('every pin-sourced mark sits on a measured pin head', not off, f'{len(off)} off by {off[:4]} px (tol {TOL})')
+    except Exception as e:
+        print(f'INFO meas_pins.json unreadable ({type(e).__name__}) -- pin-coincidence check skipped')
+LCY=GM['logo_cy']; LCX=W//2; lg=(max(0,LCY-190),LCY+191,max(0,LCX-340),min(W,LCX+341))
 l0=lit(frame(OUT,25.5),lg,90); l1=lit(frame(OUT,26.7),lg,90)
 check('logo pops above globe after beat 52', l0[0]<50 and l1[0]>1500, f'pre {l0[0]} post {l1[0]} w{l1[1]}')
 lb=lit(frame('in/globe6.mp4',beat(56)+1/24-offCD),lg,60); lm=lit(frame('in/globe6.mp4',beat(56)+P/2-offCD),lg,60)
 check('globe logo pulses at beat 56 (layer)', lb[1]>=lm[1]+8 and lb[0]>lm[0]*1.1, f'beat {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
-c0=lit(frame(OUT,27.5),(2060,2360,0,W),90); c1=lit(frame(OUT,29.5),(2060,2360,0,W),90)
+CLY=GM['close_y']; crow=(CLY,min(H,CLY+300),0,W)
+c0=lit(frame(OUT,27.5),crow,90); c1=lit(frame(OUT,29.5),crow,90)
 check('close copy fades in after beat 56', c0[0]<50 and c1[0]>2000, f'pre {c0[0]} post {c1[0]}')
 lastm=gray(frame(OUT,TOTAL-1/24)).mean()
 check('video fades to black', lastm<3.0, f'last frame mean luma {lastm:.2f}')
@@ -2068,7 +2624,7 @@ for n in (30,36):
 
 ```bash
 #!/bin/bash
-cd /home/user/w; F=out/launch_v6.mp4
+cd /home/user/w; F=${1:-out/launch_v7.mp4}
 echo "md5 $(md5sum $F)"
 R=$(curl -s -m 600 -F "file=@$F" https://upload.gofile.io/uploadfile)
 echo "gofile: $R"
@@ -2082,9 +2638,12 @@ echo "ALL-FAILED"
 ---
 
 
-## What v7 must answer (2026-09-03) — the watch, the wall, the globe, the runner
+## What v7 is (2026-09-03) — the watch, the wall, the globe, the runner
 
-Four owner notes on the rendered v6 cut, three of them off screenshots of the film:
+Four owner notes on the rendered v6 cut, three of them off screenshots of the film. **All four
+are BUILT in the recipe below and none of them is rendered** — this container has no `ffmpeg`,
+no `PIL` and none of the source clips, so every change here is a recipe change the owner
+re-renders. Each section records what shipped and what would prove it.
 
 - *"this needs to be fixed on intro video"* — the HEART-RATE SYNC card reads **IN SYNC**
   in three places at once.
@@ -2104,16 +2663,23 @@ through Higgsfield. So: two recipe edits, one re-prompt (the owner's call), and 
 is **both** — new wardrobe is a new clip, and the close-up is a new shot *plus* a second
 watch placement.
 
-⚠ **AND A RE-PROMPT INVALIDATES THAT SCENE'S MEASURED GEOMETRY, WHICH IS THE REAL COST.**
-Every number v6 locks was measured **against the specific file**, not against the prompt:
-the watch card sits at **x 890 / y 1660** because that is where *this* runner's wrist is;
-the globe disc is **(727, 1295) r 676** because `meas_globe.py` measured *this* render.
-A new Scene A clip makes the watch position wrong, and a new Scene D clip makes every
-mark position wrong. **Re-measure before re-rendering, or the overlays land on nothing** —
-`meas_globe.py` already exists for the globe; Scene A has no measurement script and would
-need one (or a hand-measured wrist rect at the fade-in frame).
+⚠ **A RE-PROMPT INVALIDATES A SCENE'S MEASURED GEOMETRY — BUT ONLY WHERE THE GEOMETRY WAS
+ACTUALLY MEASURED, AND THAT IS NARROWER THAN THIS PARAGRAPH FIRST CLAIMED.** ⚠ **CORRECTED
+WHILE BUILDING v7:** it read *"the watch card sits at x 890 / y 1660 because that is where
+this runner's wrist is"*, and that is **false**. Those two numbers are frame-relative
+arithmetic — `1440 − 480 − 70` and `2560 − 480 − 420`, a deliberate lower-right inset —
+so the **wide** card survives any new Scene A clip untouched and needs no measurement at
+all. `plan_a2.py` now derives them rather than hardcoding them, and `render6.sh` reads them
+back, so the claim can't drift again. The globe half stands: the disc **(727, 1295) r 676**
+really was `meas_globe.py`'s reading of *that* render, so a new Scene D clip does move
+every mark — ⚠ and v7 retires that measurement anyway, because `meas_pins.py` now finds the
+**baked pin heads** per frame instead of assuming a disc. **The rule that survives: measure
+what the clip decides, derive what the frame decides.** The one genuinely new measurement
+v7 needs is the wrist in the CLOSE-UP shot, where the watch fills the frame and moves —
+`meas_watch.py` does it, and **refuses** (non-zero exit) below a 70 % believed-frame floor
+rather than letting the card drift off the wrist.
 
-### 1 · IN SYNC ×3 — a `mk_watch.py` edit, and the app says it three times too
+### 1 · IN SYNC ×3 — BUILT: three registers, three different facts (and the app still says it three times)
 
 The card states one fact in three registers and they all resolve to the same two words at
 the same instant. In `mk_watch.py`:
@@ -2124,102 +2690,240 @@ the same instant. In `mk_watch.py`:
 | station line, right | `dl=('IN SYNC' if synced else f'{delta:+d} BPM')` | IN SYNC |
 | pill | `pilltxt=('IN SYNC' if synced else ('MATCHING BEAT' if t>=tMatch else 'MATCH MY BPM'))` | IN SYNC |
 
-The fix that keeps all three *stations* useful rather than deleting two of them: the
-**header chip** keeps the state word (it is the status field), the **station line** keeps
-carrying the delta — `+0 BPM` is the true reading at sync and it is the number that proves
-the match — and the **pill** becomes the action/acknowledgement, not a third status echo.
-One word on screen, two supporting figures.
+**BUILT.** Each slot now carries a **different fact**, so no two of them can say the same
+thing at the same instant:
+
+| site | v7 expression | at sync | what it is |
+| --- | --- | --- | --- |
+| header chip | unchanged | `IN SYNC` | the **state** — the one status word on the card |
+| station line, right | `dl=f'{delta:+d} BPM'` | `+0 BPM` | the **evidence** — the number that proves the match |
+| pill | `('STOP MATCHING' if t>=tMatch else 'MATCH MY BPM')` | `STOP MATCHING` | the **action** — a button labels what pressing it does |
+
+⚠ **`+0 BPM` IS NOT A PLACEHOLDER, IT IS THE READING.** `hr_of` clamps at 120 and the
+station is 120, so at sync the honest delta is exactly zero — which is why the slot can
+stop branching on `synced` entirely. It keeps its teal (`TEAL if synced else CREAM`), so
+the colour still confirms the state the chip names; only the *word* stopped repeating.
+
+⚠ **AND THE PILL DROPS A SECOND ECHO NOBODY FLAGGED.** Its pre-sync label was
+`MATCHING BEAT` — a status word on a button, one stage earlier. A toggle labels its
+action in both directions (the app's own `hr.connectMonitor` / `hr.disconnectMonitor` pair
+is the precedent), so `MATCH MY BPM` → `STOP MATCHING` reads correctly at every stage and
+the amber/teal `pc` keeps carrying the state. Two redundancies removed, not one.
 
 ⚠ **THE SAME REDUNDANCY IS IN THE SHIPPING APP, SO A FIX HERE IS COSMETIC UNTIL IT LANDS
 THERE.** `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx` carries the identical
 triple: `hrStatus` at `:1306`, the delta slot at `:1622`
 (`isSynced ? radio:hr.inSync : radio:hr.deltaBpm`) and the pill at `:1651`. The film is a
 faithful capture of a UI that repeats itself — **the film is the symptom, the card is the
-defect.** Fixing only `mk_watch.py` makes the video disagree with the product.
+defect.** Fixing only `mk_watch.py` makes the video disagree with the product. The app half
+is a separate commit (it runs the pre-commit JSX/tsc/test gates); the delta slot needs **no
+new i18n key** — `signedDelta = youHr - stationBpm`, so `hr.deltaBpm` already renders
+`+0 BPM` at sync and the fix is deleting the `isSynced ?` branch. The pill needs one new
+action key ×13 locales and orphans `hr.matchingBeat`.
 
-⚠ **AND `verify6.py` ASSERTS ON THE PIXELS THIS CHANGES.** The check
-`watch MATCHING(amber)->IN SYNC(teal) at beat 14` counts teal against amber in the card
-rect (teal 579 → 2031, amber 1121 → 0). Dropping two of the three IN SYNC strings removes
-teal glyphs, so the thresholds must be re-derived from the new render rather than kept.
-*An assertion tuned to a bug passes only while the bug is there.*
+⚠ **CORRECTED — `verify6.py` DOES NOT ASSERT ON THOSE PIXELS AS THRESHOLDS, AND THE FIRST
+DRAFT OF THIS SECTION SAID IT DID.** It read *"the thresholds (teal 579 → 2031, amber
+1121 → 0) must be re-derived"*. Those are not thresholds; they are the **v6 render's
+measured output**, recorded in the verification panel above. The shipped assertion is
+**purely directional**:
 
-### 2 · The screen must fill the slab — a `mk_wall6.py` edit, and the knob already exists
+```python
+check('watch MATCHING(amber)->IN SYNC(teal) at beat 14',
+      cnt(f75,reg,teal)>cnt(f5,reg,teal) and cnt(f5,reg,amber)>cnt(f75,reg,amber), ...)
+```
 
-`mk_wall6.py` already reads the screen size and position from the environment:
-`SW=int(os.environ.get('SCR_W','560'))`, `SY=int(os.environ.get('SCR_Y','880'))`, with
-`SX=(W-SW)//2`. The measured slab carries the wordmark at **x 214–1225** with 47–81 px of
-slab either side, so the slab is roughly **1010–1160 px wide** and the screen at 560 uses
-barely half of it.
+So it survives the fix untouched — and with **more** margin, not less. Counting glyph
+characters in the card rect at the two sampled instants: teal at 7.5 s goes from
+`IN SYNC` + `IN SYNC` + `IN SYNC` (21) to `IN SYNC` + `+0 BPM` + `STOP MATCHING` (26),
+while amber at 5.0 s is unchanged at `MATCHING...` + a 13-character pill (`MATCHING BEAT`
+and `STOP MATCHING` are the same length) and still falls to 0 after sync. **A directional
+assertion outlives the numbers it was written against; only the recorded panel figures
+move.** *Check what an assertion actually asserts before planning around it.*
 
-⚠ **THE MISSING NUMBER IS VERTICAL, AND NOBODY MEASURED IT.** The fit check samples the
-wordmark band's left/right margins at 14.3 / 15.0 / 17.0 / 21.0 s — **horizontal only**.
-The capture is cropped `(0, 240, 750, 1420)` = 750×1180, so at `SCR_W=1010` it renders
-**1589 px tall**; from `SY=880` that reaches y 2469 of 2560. Whether that is *on the slab*
-or spilling onto the room is unknown, because the slab's top and bottom were never
-measured. **Measure the slab rect before choosing `SCR_W`/`SCR_Y`** — widening blind is
-how the screen ends up half on the wall and half on the floor.
+### 2 · The screen must fill the slab — BUILT: `meas_wall.py` measures it, and the drawn wordmark band is retired
 
-⚠ **AND FILLING THE SLAB MAY RETIRE THE SEPARATE WORDMARK LAYER.** The crop starts at
-y = 240, which cuts the captured Radio page's own header. Un-cropping to include it puts
-**the app's real in-app wordmark** on the wall — which is what the owner asked for two
-notes ago (*"make sure the shape radio logo fits and it looks like it does on app and
-website"*) — and makes `mk_wall6.py`'s separately-drawn `shape-radio-logo.png` band
-redundant rather than something to reposition around a taller screen. One change answers
-both notes; it needs the capture re-checked for the header first.
+**BUILT.** `mk_wall6.py` no longer takes a guessed screen size: `meas_wall.py` measures the
+slab **rect on both axes**, and the screen is derived to fill it (`SCR_W='0'` = derive;
+height-bound, centred, inset by `SCR_MARGIN=34`), with an assertion that refuses to render a
+screen larger than the slab it is supposed to sit on.
 
-### 3 · A pinned globe — the owner chose the re-prompt
+⚠ **THE MISSING NUMBER WAS VERTICAL, AND v6 NEVER HAD IT.** v6's fit check sampled the
+wordmark band's left/right margins at 14.3 / 15.0 / 17.0 / 21.0 s — **horizontal only** — so
+`SCR_W=560` was chosen against a bound that says nothing about the top or bottom. At
+`SCR_W=1010` the capture renders **1589 px tall** and from `SY=880` reaches y 2469 of 2560,
+and *nothing measured whether that is still on the slab*. `meas_wall.py` reads the dark run
+through the slab's own centre in both axes, so the vertical bound now exists.
+
+⚠ **ONE FRAME IS NOT A MEASUREMENT — THE CLUB CLIP STROBES.** `verify6.py` records the
+wordmark band reading dark on only **64 of 200** sampled Scene-C frames, so a single-frame
+read is a coin flip. `meas_wall.py` samples **60** frames, **rejects** the ones where the
+panel doesn't read (refusing outright below a third), and **intersects** the survivors —
+`max(left)`, `min(right)`, `max(top)`, `min(bottom)`. The screen is drawn at ONE constant
+geometry, so it must fit the **narrowest moment**; the push-in eases 1.50× → 1.15×, so the
+slab only widens and that intersection is the earliest, tightest bound. It also **warns**
+when the dark run reaches a frame edge — that means the run escaped the panel into an unlit
+room and the number is not a slab.
+
+⚠ **AND FILLING THE SLAB RETIRED THE SEPARATE WORDMARK LAYER RATHER THAN REPOSITIONING IT.**
+v6's crop started at y = 240, which **cut the captured Radio page's own header** — which is
+exactly why a second `shape-radio-logo.png` band had to be drawn above the screen.
+`meas_wall.py` finds the capture's topmost ink row and emits `crop_top = ink_top − 24`, so
+v7 un-crops to include the header and **the app's real in-app wordmark rides on the wall**.
+That answers the owner's earlier note (*"make sure the shape radio logo fits and it looks
+like it does on app and website"*) with the same change, and the drawn band is deleted, not
+moved. **One change, two notes.**
+
+⚠ **THE BEAT NOW RIDES THE BLOOM, NOT THE GEOMETRY.** v6 pulsed the wordmark band by scaling
+it 3 %. A screen that *fills* its slab cannot grow on the beat without growing past the slab,
+so the kick drives the bloom gain (`0.26 + 0.55·k`) and a 5 % scale on the **blurred halo
+only**; the screen rect itself is constant. The gate (`pres(n)`, kick-presence) is unchanged.
+
+**`verify6.py` checks the fill, not the intent.** Three assertions at each Scene-C sample:
+the measured slab is still inside the live dark run (skipped with an INFO line on a strobed
+frame rather than failed), the drawn screen body sits **inside the slab on both axes** and
+covers **≥ 0.90 of one axis** — so an inset 560 px screen fails the check that v6 would have
+passed — and the pulse subject moved to the screen rows, since the band it used to measure no
+longer exists.
+
+### 3 · A pinned globe — BUILT: `meas_pins.py` + the marks re-aimed onto the pins
 
 Asked whether to re-prompt for a pinned globe or draw anchor-dot + leader-line pins over
 the existing clip, the owner said **reprompt**. So Higgsfield renders a night Earth whose
 markers already read as *anchored to the surface* — a dot on the ground, a thin riser, a
-head — rather than a clean disc that the overlay scatters triangles across.
+head — and **route 1 is built**: the mark layer is re-aimed onto those heads rather than
+retired. The beat lock survives, the anchoring is real, and it costs one new measurement.
 
-⚠ **THAT PUTS `mk_globe.py`'s 27 MARKS AND THE BAKED PINS IN THE SAME FRAME, AND ONE OF
-THEM HAS TO GIVE.** The marks are the film's beat lock in Scene D — 1 / 2 / 3 per beat
-across beats 48–60, each popping on a luma-sampled lit city. Baked pins are static. Three
-ways out, in order of preference:
+**`meas_pins.py` — the detector, and why it can tell a pin from a city.** The v7 D prompt
+asks for *"thin vertical light beams … each anchored to a small glowing dot where it meets
+the ground"*. A beam is therefore a **narrow, tall** bright run; a city light is a **wide,
+short** blob. That single difference is the whole detector: per column, find bright runs at
+least `PIN_BEAM_MIN` (16 px) tall, widen right while the run continues, and **reject any
+cluster wider than `PIN_MAX_W` (8 px)** as a lit region rather than a beam. The run's top
+is the head, its bottom the anchor — and **the anchor must sit on the globe** (inside
+1.02 R), which throws away rim glow and stray sparkle. It writes the disc, the per-sample
+head list, and the spin's horizontal drift to `meas_pins.json`.
 
-1. **Re-aim the marks at the pins.** Extend `meas_globe.py` to find the pin heads in the
-   new clip and pop the Shape marks **onto them** instead of onto sampled cities. Keeps
-   the beat lock, keeps the anchoring, costs one new measurement pass.
-2. **Prompt the pins unlit and let the marks light them.** The clip carries anchor
-   geometry only; every teal head is drawn by `mk_globe.py` on its beat.
-3. **Retire the mark layer.** Simplest, and it **loses the beat-locked pops** — the one
-   thing tying Scene D to the track. Not recommended.
+⚠ **EVERY THRESHOLD IN IT IS AN UNMEASURED GUESS UNTIL IT RUNS AGAINST THE REAL CLIP —
+which is why it refuses rather than guesses.** The pins do not exist yet; the numbers above
+were chosen from the prompt's own words, not from pixels. So the script prints the head
+count **per sample** and raises when the median falls under `PIN_FLOOR` (10), naming the
+three knobs to re-tune. **A detector that quietly returns 27 city lights dressed as pins is
+worse than one that stops** — the marks would look placed and be placed on nothing.
 
-Whichever route: **the honest-data line does not move.** The marks stand for people, not
-for a count; nothing on screen or in the copy asserts a figure. Pins that look like a
-telemetry map must not acquire numbers, labels or city names on the way.
+**`mk_globe.py` — pins first, luma as the honest fallback.** `pin_pick(tp)` takes the
+measured sample nearest that pop, carries each head forward by the measured drift, and
+picks one that (a) no still-lit mark is already on and (b) clears the existing 150 px
+spacing rule. A thin pin set drops requirement (a) before it drops spacing. If no head is
+free — or `meas_pins.json` is missing entirely — it falls back to **the v6 luma rule
+verbatim**, prints a WARN naming the pop, and the film still renders with its beat lock
+intact. Nothing about this fix can leave Scene D silent.
 
-### 4 · A clothed runner and a watch close-up — a re-prompt *and* a beat-grid change
+⚠ **1.00 R, NOT THE CITIES' 0.90 R — a head stands ABOVE the ground it is planted in.**
+The v6 rule kept marks inside 0.90 R *and* within 0.78 R of the centre vertically, because
+a city light near the limb reads as a smear. A pin head is a different object: its anchor
+is on the surface (that is what `meas_pins.py` gates on) while the head itself sits higher,
+so clamping heads to the city window would silently discard every pin in the upper third.
 
-The wardrobe is a re-prompt: Scene A is regenerated with the athlete in real training
-kit. The close-up is not an edit at all — **it is a fifth shot in a cut whose 738 frames
-are already pinned to a measured grid**, every cut landing within 60 ms of a beat.
+⚠ **AND THE MARK NOW RIDES THE SPIN.** A mark is visible for 2.6 s while the globe turns,
+so a mark drawn at a fixed x **slides off the pin it marked** — invisible in v6, where the
+target was an anonymous city, and obvious the moment the target is a pin the eye can track.
+`mk_globe.py` draws at `x + vx·u` from the measured `drift_px_per_s`. It is a **linear**
+extrapolation over 2.6 s of a rotation, so it is approximate near the limb and exact
+nowhere; the alternative — re-detecting each pin per frame — costs 738 ffmpeg reads to fix
+a few pixels of slide.
 
-The window that costs nothing: the grid runs `t(n) ≈ 0.027 + n × 0.5025 s`, and Scene A
-owns 0 → `offAB` 7.7668 s. **Beat 12 = 6.057 s** to the A→B fade start at 7.7668 s is
-**1.71 s / 41 frames** — a real beat-locked window inside Scene A that changes **no**
-downstream offset and keeps the total at 738 frames. And it lands the payoff better than
-v6 does: **IN SYNC arrives on beat 14 in close-up**, two beats before the drop, instead of
-in a 480 px card in the corner of a wide shot.
+**Three file-tied constants retired in the same pass.** `CX,CY,R = 727,1295,676` and the
+logo's `LCY=330` and close copy's `CLY=2060` were all measured against the **v6** D.mp4 —
+exactly the class of number the re-measure warning at the head of this section is about. The
+disc now comes from `meas_pins.json`; `LCY` derives as `0.53 × disc top` (which reproduces
+330 from v6's 618) and `CLY` as `disc bottom + 88` (which reproduces 2060 from 1972). A
+re-prompted globe of a different size now places its own logo and copy.
 
-⚠ **THE CLOSE-UP NEEDS A SECOND WATCH PLACEMENT, NOT THE SAME ONE.** `mk_watch.py`
-overlays one 480×480 card at a fixed **x 890 / y 1660**, sized for the wide shot. In a
-close-up the physical watch fills much of the frame, so frames ~145–186 need their own
-rect and scale — `mk_watch.py` gains a per-frame placement rather than a constant, and the
-`verify6.py` watch-rect checks (`A matches its source outside the watch rect`) must follow
-the moving rect or they will read the close-up as a mismatch.
+**`verify6.py` checks the claim, not the intention.** `mk_globe.py` writes
+`globe6_marks.json` — the disc, the derived logo/close rows, and every placement with its
+pin id and drift — so the Scene D checks derive their regions from what was actually placed
+and add three assertions v6 could not make: **every live mark is drawn at its placement**
+(a 90 px window at the drifted centre, at three sample beats), **the marks are pin-sourced**
+(`from_pins` true and ≥ 80 % of marks carrying a pin id — so a silent mass fallback to luma
+fails the run), and **every pin-sourced mark sits within 40 px of a measured head**. The
+last one needs no frames at all: it replays `meas_pins.json` against the recorded
+placements. An absent `globe6_marks.json` degrades to the v6 constants with an INFO line.
+
+**The honest-data line does not move.** The marks stand for people, not for a count;
+nothing on screen or in the copy asserts a figure, and the prompt forbids text, labels,
+country names and numbers. A globe that reads as a telemetry map must not acquire a
+readout on the way — the pins make the picture more concrete, not more claimed.
+
+### 4 · A clothed runner and a watch close-up — BUILT: a fifth shot on the grid, and one card renderer in two placements
+
+The wardrobe is the one genuine re-prompt in the whole v7 set: Scene A is regenerated with
+the athlete in real training kit. The close-up is not an edit either — **it is a fifth shot
+in a cut whose 738 frames are already pinned to a measured grid**, every cut landing within
+60 ms of a beat. Both halves are now built rather than scoped.
+
+**The cut, derived once in `plan_a2.py` and read by all four consumers.** Scene A owns
+0 → `offAB` 7.7668 s. Beat 12 = **6.0576 s** = frame **146**, and A2 runs frames **146–205**
+(60 frames / 2.5 s) — through the A→B fade, which starts at frame 186 and ends on beat 16.
+So the whole close-up sits inside Scene A's own budget: **no downstream offset moves and the
+total stays 738 frames.** `plan_a2.py` asserts the payoff rather than hoping for it —
+**IN SYNC lands on beat 14 = frame 170**, which is inside `[146, 206)` — two beats before the
+drop, in close-up, instead of in a 480 px card in the corner of a wide shot.
+
+⚠ **THE CUT IS A `concat`, NOT AN `xfade`, AND THAT IS ARITHMETIC RATHER THAN TASTE.** An
+xfade *consumes* time — its duration overlaps the two streams — so a 0.3 s dissolve here
+would shorten Scene A by 0.3 s and drag `offAB`, `offBC` and `offCD` with it. A hard cut on
+the beat costs exactly zero frames, which is the only reason a fifth shot is free. The trims
+use `trim=end_frame=` rather than a seconds value: `146/24` is 6.08333…, and a float compare
+against a frame's own PTS is precisely how a 738-frame total quietly becomes 739.
+
+⚠ **CORRECTION TO THE v7 SCOPING NOTE: v6's `x 890 / y 1660` IS NOT A TRACE OF THAT RUNNER'S
+WRIST.** It is frame-relative arithmetic — `1440−480−70` and `2560−480−420`, a deliberate
+lower-right inset. So the **wide card survives the re-prompt and needs no measurement at
+all**; `plan_a2.py` derives it and `render6.sh` reads it back, so the two can never drift.
+What a new Scene A *can* change is what sits *under* the card — a composition read by eye,
+not a number. Only the **close-up** rides a physical object, and only it is measured.
+
+**One renderer, two placements.** `mk_watch.py` now takes `WATCH_MODE`: `wide` writes v6's
+480×480 layer unchanged, `closeup` writes a **full-frame** layer whose card is composited at
+the measured face rect each frame. That shape is forced — ffmpeg's `overlay` takes ONE x/y
+for a whole stream and cannot read a per-frame table, so a moving card must be baked into a
+full-frame canvas overlaid at `0:0`, exactly as `mk_wall6.py` and `mk_globe.py` already do.
+The card is **typeset** at its real size (`k = S/480` scales every coordinate, tracking value
+and font) rather than upscaled from a 480 bitmap — softness is the one thing a close-up
+exposes. Two continuity properties are enforced rather than assumed, because both would read
+as a glitch on the cut: `hr_of()` takes **absolute** t in both modes, so the number does not
+jump; and the heart **phase is integrated from frame 0** even though only frames `[146,206)`
+are written, so the pulse does not restart mid-beat.
+
+**`meas_watch.py` refuses rather than guesses.** The face is the frame's dominant bright,
+compact, **solid** blob — solid panel vs a scatter of specular highlights *is* the detector.
+Every threshold in it is an **unmeasured guess until it runs against the real clip**, so it
+prints a per-frame table, median-smooths it (the wrist moves, the detector jitters), flags
+any frame it had to interpolate, and **exits non-zero** if fewer than 70 % of frames carry a
+believable face — naming the two remedies (re-tune, or re-prompt A2 for a blanker face)
+instead of silently sliding a card off a wrist for half the shot.
+
+**`verify6.py` follows the card.** v6's fixed `(1660..2140, 890..1370)` mask would read a
+*correct* v7 render as a mismatch, so the Scene-A checks resolve `a_src(t)` → which clip, its
+time in that clip, and where the card is; the cut itself is asserted (frame 145 must still be
+A, frame 146 must be A2, and both must match their own clip outside the card); and the
+MATCHING→IN SYNC colour check now samples 6.5 s and 7.5 s, **both inside the close-up**.
 
 ⚠ **AND THE PROMPT MUST ASK FOR A BLANK, GLOWING WATCH FACE.** If Higgsfield renders a
 readable UI on the wrist, the composited card lands **on top of a second, different,
-fabricated readout** — two heart rates on one wrist. The face has to be a clean lit
-surface for the real card to sit on.
+fabricated readout** — two heart rates on one wrist. The face has to be a clean lit surface
+for the real card to sit on, which is also what makes the detector above tractable.
 
-### The v7 re-prompts (drafted, NOT submitted — no generation has been fired)
+⚠ **A NEW CLIP MUST GO THROUGH `norm6.sh` FIRST.** `concat` refuses mismatched dimensions and
+both measurement scripts index pixels by absolute coordinate, so a re-prompt that returns
+1080×1920 would fail deep inside the filtergraph. v6 never needed this (one clip per scene,
+`xfade` between them); v7 does.
 
-Three prompts, in the account's own style (the v6 clips are all h264 1440×2560, 24 fps,
-243 frames / 10.125 s — hold that spec):
+### The v7 re-prompts — SUBMITTED and completed (job ids + URLs in Sources)
+
+All three rendered on `minimax_h3` at **1440×2560, 9:16, 2K, 10 s**; the cloudfront URLs,
+job ids and submitted params are in the **Sources** table above, recorded **verbatim** so
+this set can be re-run from the record rather than from memory. The three prompts, as sent:
 
 **A · the runner, clothed** — *Vertical 9:16. A lone athlete running at night through a
 dark space, wearing a fitted technical training top and shorts in black and deep teal,
@@ -2609,7 +3313,16 @@ MAP={'pw/lib.js':'/home/user/pw/lib.js','pw/tour4.js':'/home/user/pw/tour4.js',
  'seg2mp4.py':'/home/user/w/scripts/seg2mp4.py','captions.py':'/home/user/w/scripts/captions.py',
  'mk_screen5.py':'/home/user/w/scripts/mk_screen5.py','spot.py':'/home/user/w/scripts/spot.py',
  'mkspecs.py':'/home/user/w/scripts/mkspecs.py','mkspecs5.py':'/home/user/w/scripts/mkspecs5.py',
- 'verify5.py':'/home/user/w/scripts/verify5.py','beat.py':'/home/user/beat.py'}
+ 'verify5.py':'/home/user/w/scripts/verify5.py','beat.py':'/home/user/beat.py',
+ # the v6/v7 launch-cut scripts. ⚠ These were MISSING from the MAP through the whole of v6 -- the same
+ # class of gap as beat.py, and the reason a rebuilt sandbox could not re-render the launch cut at all.
+ 'plan6.py':'/home/user/w/scripts/plan6.py','plan_a2.py':'/home/user/w/scripts/plan_a2.py',
+ 'meas_globe.py':'/home/user/w/scripts/meas_globe.py','meas_watch.py':'/home/user/w/scripts/meas_watch.py',
+ 'meas_wall.py':'/home/user/w/scripts/meas_wall.py','meas_pins.py':'/home/user/w/scripts/meas_pins.py',
+ 'mk_watch.py':'/home/user/w/scripts/mk_watch.py','mk_wall6.py':'/home/user/w/scripts/mk_wall6.py',
+ 'mk_globe.py':'/home/user/w/scripts/mk_globe.py','scanpulse.py':'/home/user/w/scripts/scanpulse.py',
+ 'norm6.sh':'/home/user/w/scripts/norm6.sh','render6.sh':'/home/user/w/scripts/render6.sh',
+ 'verify6.py':'/home/user/w/scripts/verify6.py','upload6.sh':'/home/user/w/scripts/upload6.sh'}
 def block(i):
     while not L[i].startswith('```'): i+=1
     j=i+1
@@ -2635,9 +3348,15 @@ print('EXTRACT_OK',len(os.listdir('/home/user/w/scripts')))
 PY
 if [ -z "$SKIP_DL" ]; then
   P=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
-  curl -sL -o in/A.mp4  $P/hf_20260901_165433_72d68899-3266-4302-bb45-0417c72f0ecb.mp4
+  # v7 Scene A is the CLOTHED runner and v7 Scene D is the PINNED globe -- the v6 ids for both are superseded
+  # and must not be fetched here. The first cut of this block still pulled the v6 Scene A and fetched neither
+  # A2 nor D, so norm6.sh aborted on a missing in/A2.mp4 and -- worse -- a hand-fetched A2 let the run continue
+  # with the naked-runner A already in place, silently shipping the exact frame owner note #4 exists to fix.
+  curl -sL -o in/A.mp4  $P/hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4
+  curl -sL -o in/A2.mp4 $P/hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4
   curl -sL -o in/B.mp4  $P/hf_20260901_165434_a27526b7-057b-4165-865c-0e9c5c9b46e9.mp4
   curl -sL -o in/C.mp4  $P/hf_20260901_165434_a1d1066e-7837-48c6-81ce-ef849c38d8a2.mp4
+  curl -sL -o in/D.mp4  $P/hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4
   curl -sL -o in/t3.m4a $P/hf_20260901_195948_814905f0-3558-40b7-a918-04d447a98d58.m4a
   curl -sL -o in/t1.m4a $P/hf_20260901_195948_20d50377-fdc1-45f5-b27c-b6928ba0ae40.m4a
   curl -sL -o in/t2.m4a $P/hf_20260901_195949_e84649d8-0f3a-4aaa-a5fe-182837253bb8.m4a

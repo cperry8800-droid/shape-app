@@ -404,6 +404,85 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-09-03 — v7 built into the recipe: all four owner notes answered, and the verification round found seven defects in the build
+
+- **Records only — the recipe, not a render.** Owner: *"fix all 4"*. All four notes on the
+  v6 cut are now built into
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md): the
+  clothed runner + a watch close-up (a fifth shot inside Scene A), the Radio screen filling
+  the club slab, pinned globe marks, and the triple **IN SYNC** reduced to one. **Nothing was
+  rendered** — this container has no `ffmpeg`, no `PIL` and none of the clips, so every change
+  is a recipe change the owner re-renders. **No PR, nothing merged.**
+- ⚠ **THREE OF THE FOUR ARE OVERLAY EDITS AND ONE IS A RE-PROMPT — and the split is what made
+  the work tractable.** Higgsfield makes four backdrop clips; the watch card, the projected
+  screen and the mark geometry are drawn by Python and SCREEN-composited, so re-prompting
+  cannot reach them. Three new v7 clips were generated (clothed runner · watch close-up ·
+  pinned globe) with their **prompts recorded verbatim beside the job ids** — the exact thing
+  the 09-03 entry below records as unrecoverable for v6. *A generation is reproducible only if
+  the prompt is written down beside the file id.*
+- **The watch close-up fits the existing grid for free.** Beat 12 (6.0576 s) → the A→B fade
+  start is **1.71 s / 41 frames entirely inside Scene A**, so it is a hard **concat**, not an
+  xfade: no downstream offset moves and the total stays **738 frames / 30.750 s**. `plan_a2.py`
+  derives the cut once (`f12=146`) and `mk_watch.py`, `render6.sh` and `verify6.py` all read it
+  rather than re-deriving — the wide placement is FRAME-relative (`x 890 = 1440−480−70`), so it
+  survives a re-prompted Scene A with no re-measure.
+- ⚠ **AND THE ADVERSARIAL PASS FOUND SEVEN DEFECTS IN THAT BUILD, FOUR OF THEM FATAL BEFORE A
+  SINGLE FRAME.** Five verification dimensions, every finding piped through refuters that
+  default to *refuted* when uncertain; 11 findings survived and deduplicate to seven. **Four
+  would have aborted the render at module load or the first python step:** `plan6.py` wrote
+  eight keys and omitted `t28`/`t52`/`t56`, which `mk_wall6.py` and `mk_globe.py` read
+  unguarded (`KeyError` before a frame); `plan6.py` — the ONLY writer of `params_v6.json` —
+  was **missing from `render6.sh`'s own run order**, so the first python step died on
+  `FileNotFoundError`; and `boot5.sh` still fetched the **superseded** Scene A and fetched
+  neither A2 nor D, so `norm6.sh` aborted, and a hand-fetched A2 would then have shipped the
+  naked runner that owner note #4 exists to fix. **A run order that omits the file's only
+  writer is not a run order** — and the prose one line above it claimed `params_v6.json` was
+  "the file every v6/v7 script reads."
+- ⚠ **THE SHARPEST ONE IS A ROUNDING TIE THAT MADE A CHECK FAIL ON A CORRECT RENDER.** The
+  beat-12 cut probe read `(f12∓0.5)/24`, and `a_src` resolves an index with `int(round(t*24))`
+  — Python rounds ties **to even**, so `145.5 → 146` and `146.5 → 146`: **both** sides
+  resolved to A2, the check reported FAIL on a correct cut, and it **never once read frame
+  145** — the frame it exists to test. Fixed at the semantics rather than the probe: `a_src`
+  now floors (matching `frame()`'s `-ss` seek, the same convention every beat check leans on
+  when it samples at `beat(n)+1/24`) and both probes sit on frame **centres**, which is the
+  only position immune to the 4-decimal seek formatting. *A guard that cannot reach the frame
+  it names is not a guard.*
+- ⚠ **TWO MORE WERE ASSERTIONS THAT WOULD HAVE BLAMED THE OPERATOR.** `mk_wall6.py` derived
+  the screen width from the height and then the height back from the width; the capture is
+  ~1.4–1.9× taller than wide, so half a pixel of upward rounding in `SW` became more than one
+  in `SH` — 1 px over the slab, aborting with *"lower SCR_MARGIN or re-measure"* for an
+  artefact of the arithmetic (**20 %** of height-bound cases in the reachable band). It derives
+  from the **bound side** now, so the height is exact by construction. And `verify6.py` sampled
+  its per-mark globe check at `beat(n)+0.2` while beats ≥ 56 fire three marks at
+  +0.00/+0.09/+0.18 s over a 0.12 s alpha ramp — the third mark of beat 58 is still fading in
+  at +0.30, so a correctly-placed mark read as **MISSING**. Sampled at +0.35 now, past the
+  ramp. **Both are structural, not tuning: `0.2 < 0.18 + 0.12`.**
+- ⚠ **AND THE PIN DETECTOR'S WIDTH GATE COULD ONLY EVER FIRE ON ONE EXACT WIDTH.** The
+  widening loop stopped at `BMAXW+1` columns, so the `len(xs)>BMAXW` reject caught **only**
+  9-wide groups: a 40 px lit region was **sliced** into four rejected groups plus an accepted
+  4-wide remainder that passed every downstream gate as a pin — and the verifier's *"every mark
+  sits on a measured pin head"* check then replayed the same false head, so it was tautological.
+  Only widths that are exact multiples of 9 were ever rejected whole, which is why re-tuning
+  `PIN_MAX_W` could never have closed it. The loop consumes the whole region now and rejects it
+  whole. *A cap on the measurement is not a cap on the thing being measured.*
+- **Two findings were REFUTED and deliberately not acted on** — that the beat-12 block never
+  reads the render (it does, one check down) and that the slab "only widens" (the stated
+  failure mode is unreachable, since the sample times always span the scene). **A refuted
+  finding left in the record is worth as much as a fixed one**: without it the next reader
+  re-opens both.
+- ⚠ **THE TRIPLE `IN SYNC` IS STILL LIVE IN THE APP, AND THAT IS A SEPARATE COMMIT ON PURPOSE.**
+  `iosAppBroadsheetRadio.jsx` resolves **In sync** at the status chip (`:1306`), the delta slot
+  (`:1622`) and the pill (`:1651`) at the same instant — the film is the symptom, the card is the
+  defect. It rides alone because a `mobile-app` change runs the full pre-commit gate (JSX parse ·
+  `tsc` · mobile build + `public/m` diff · `npm test`) that a docs-only commit skips, and
+  bundling them would put a UI change behind a records commit's verification.
+- **Verified:** LF, **zero CR, zero NUL**, 86 fences balanced, 43 blocks (29 python · 6 bash ·
+  5 js), every python and bash block parses except one **pre-existing, deliberate** one-row dict
+  fragment; `plan6.py` and `plan_a2.py` **executed end to end** against the recorded t3 grid
+  (every assert passing, `f12=146`); and **every `params_v6`/`params_a2` key read anywhere in the
+  v6/v7 scripts resolves to a key those two files actually emit** — the check that would have
+  caught the `KeyError` before the workflow did.
+
 ### 2026-09-03 — v7 scoped off four owner notes on the v6 cut, and the v6 video prompts turn out to be unrecoverable
 
 - **Records only.** Four owner notes on the rendered launch cut — the watch card reading
