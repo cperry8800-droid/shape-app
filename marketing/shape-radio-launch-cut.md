@@ -3965,7 +3965,17 @@ set -e
 mkdir -p /home/user/w/in /home/user/w/cap/txt /home/user/w/out /home/user/w/scripts /home/user/pw /home/user/cap/seg
 cd /home/user/w
 R=/home/user/recipe.md
-[ -f $R ] || curl -sL -o $R https://raw.githubusercontent.com/cperry8800-droid/shape-app/claude/shape-marketing-video-4rin96/marketing/shape-radio-launch-cut.md
+# ⚠ THE BRANCH IN THIS URL IS LOAD-BEARING, AND IT WAS STALE THROUGH ALL OF v7/v7.1.
+# It pointed at claude/shape-marketing-video-4rin96 -- a 2,529-line v6-era copy -- while the MAP below
+# names the v7 scripts. Measured: 6 of the 26 MAP keys (plan6.py, plan_a2.py, meas_watch.py, meas_wall.py,
+# meas_pins.py, norm6.sh) have NO definition in that copy, so they were never written; and render6.sh,
+# verify6.py and mk_watch.py DID resolve there -- as their v6 versions. So the run either died on a
+# missing norm6.sh or, patched by hand, silently rendered a v6 cut from v6 scripts while looking correct.
+# The MAP was fixed to name the v7 scripts and the URL it reads them from was not: a fix written in one
+# place and undone by another, the same shape as the ls -t and --short defects in docs/WORKLOG.md.
+# Track the branch this recipe LIVES on; a re-point is one edit, a silent v6 render costs a whole run.
+RECIPE_BRANCH=${RECIPE_BRANCH:-claude/shape-radio-launch-cut-18jr67}
+[ -f $R ] || curl -sL -o $R https://raw.githubusercontent.com/cperry8800-droid/shape-app/$RECIPE_BRANCH/marketing/shape-radio-launch-cut.md
 python3 - <<'PY'
 import re,os
 L=open('/home/user/recipe.md').read().split('\n')
@@ -3989,12 +3999,13 @@ def block(i):
     j=i+1
     while not L[j].startswith('```'): j+=1
     return '\n'.join(L[i+1:j])+'\n'
+wrote=set(); got_assets=False
 for i,ln in enumerate(L):
     m=re.match(r'^\*\*`([^`]+)`\*\*',ln) or re.match(r'^### (assets\.py)$',ln)
     if not m: continue
     k=m.group(1)
-    if k=='assets.py': open('/home/user/w/scripts/assets.py','w').write(block(i)); continue
-    if k in MAP: open(MAP[k],'w').write(block(i))
+    if k=='assets.py': open('/home/user/w/scripts/assets.py','w').write(block(i)); got_assets=True; continue
+    if k in MAP: open(MAP[k],'w').write(block(i)); wrote.add(k)
 # the recorded beat grids
 GR={'t1':(119.95,0.500208,0.064),'t2':(119.75,0.501044,0.044),'t3':(119.45,0.5023022185,0.030)}
 import json
@@ -4005,7 +4016,25 @@ for ln in L:
     bpm,P,phi=GR[t]
     json.dump(dict(bpm=bpm,P=P,phase_used=phi,first_kick_t=phi,dur=32.023,kick_by_beat=kb),
               open(f'/home/user/w/meas_{t}.json','w'))
-print('EXTRACT_OK',len(os.listdir('/home/user/w/scripts')))
+# ⚠ A COUNT IS NOT A CHECK, AND THIS LINE PROVED IT. It printed len(os.listdir(scripts)) -- a number that
+# still rises when a stale recipe resolves 20 of 26 keys, and that counts leftovers from an earlier run in
+# a surviving sandbox. It reported EXTRACT_OK on exactly the failure it existed to catch: through all of
+# v7/v7.1 the URL above fetched a v6-era copy, six MAP keys were never written, and three more (render6.sh,
+# verify6.py, mk_watch.py) were written as their V6 versions. Assert the SET and name what is missing --
+# an unresolved key means the fetched recipe PREDATES that script, so refuse here rather than let norm6.sh
+# die three steps later with nothing pointing at the cause. Same for the beat grids: they are parsed out of
+# prose by the loop above, so a stale recipe loses them the same silent way.
+missing=sorted(set(MAP)-wrote)
+grids=sorted(t for t in ('t1','t2','t3') if os.path.exists(f'/home/user/w/meas_{t}.json'))
+if missing or not got_assets or len(grids)<3:
+    raise SystemExit(
+      'EXTRACT_FAIL: %d/%d MAP keys resolved%s; grids=%s\n'
+      '  missing: %s\n'
+      '  The fetched recipe does not define these. Check RECIPE_BRANCH=%s is the branch this recipe\n'
+      '  lives on, and delete a stale /home/user/recipe.md -- it is only fetched when absent.'
+      %(len(wrote),len(MAP),'' if got_assets else ' (assets.py MISSING)',grids,
+        missing or '(none)',os.environ.get('RECIPE_BRANCH','(unset)')))
+print('EXTRACT_OK %d/%d MAP keys + assets.py + grids %s'%(len(wrote),len(MAP),grids))
 PY
 if [ -z "$SKIP_DL" ]; then
   P=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
