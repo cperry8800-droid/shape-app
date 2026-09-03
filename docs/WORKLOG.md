@@ -76,6 +76,10 @@ changelog whenever something ships.
   ⚠ **When the month rolls over**, move the closed month into its own
   `WORKLOG-ARCHIVE-<YYYY-MM>.md` and add it to the list above. A `@`-imported log
   that is allowed to grow without bound is a tax on every future session.
+  ⚠ **To answer a question about older work, GREP the archives — never `cat` one.**
+  They are 700–840 KB each, so reading one whole re-pays the exact token tax the
+  split removed. `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md` to find the entry,
+  then `sed -n '<start>,<end>p'` to read only that entry.
 - **Mobile app** lives in `mobile-app/` (Capacitor/Vite SPA, the `/m/` broadsheet).
   - Build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
