@@ -59,6 +59,18 @@ changelog whenever something ships.
   written only where nobody auto-reads it is not a fix* — the same sentence the stale-base
   bullet above had to pay for, in the same section, two days later. Spelled identically in
   both files so a third form cannot drift in.
+- **Generated media (Higgsfield) → the Sources table in
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md).** Every
+  clip and track the marketing work has ever generated is listed there by **job id +
+  filename + verbatim prompt + the submitted params**, marked current vs superseded. ⚠ **A
+  generation is reproducible only if the prompt is written down beside the file id** — the
+  v6 video prompts were NOT, and cannot be recovered; the tracks were, and can be re-made.
+  So: never re-generate a clip you already have, and never fetch a superseded id (the
+  original Scene A is the naked runner owner note 6 exists to replace). Re-verify what is
+  still live with `mcp__Higgsfield__show_generation_by_ids`; the cloudfront prefix is in
+  the table. **The web container's proxy DENIES that cloudfront host**, so media cannot be
+  downloaded here at all — fetching, rendering and md5-verifying happen in the Higgsfield
+  sandbox (`sandbox_exec`), which is also the only place `ffmpeg`/`PIL` exist.
 - **Older history → `docs/WORKLOG-ARCHIVE-2026-06-cycles-2-5.md`.** The early-June
   root `WORKLOG.md` (Cycles 2–5, PRs #712–#807) is archived there; the root file is
   now just a pointer to THIS file. The archive's conventions (branch names, merge
