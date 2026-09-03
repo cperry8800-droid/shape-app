@@ -2678,6 +2678,36 @@ all (the same defect `beat.py` had). Whether v6/v7 should be carrying the **v5**
 owner, not something to guess at: picking wrong puts the wrong six pages on the phone through
 beats 20→32 and every downstream check still passes.
 
+⚠ **OWNER RULED 2026-09-03: CARRY THE MOST RECENT LAYER — the v5 montage, not v4's logo-only
+phone. Building it exposed three more things, and the first two mean the v5 launch spec could
+never have rebuilt from a clean sandbox either.**
+
+- **`params_v4.json` HAS NO PRODUCER.** `mkspecs.py` reads it for the v5 launch spec
+  (`P`, `phi`, `T0`, `T1`) and `verify5.py` reads it too; **nothing writes it.** The eighth
+  artifact in this class. Derivable, though — `P`/`phi` are the t3 grid, and `T0`/`T1` are the
+  phone layer's bounds, which `verify6.py` pins for us: it samples `phoneB` at
+  `beat(n) − offAB`, so **layer-local time is cut time minus `offAB`**, i.e. `T0 = offAB`.
+- ⚠ **AND THE v5 MONTAGE NAMES A SEGMENT THE v5 TOURS DO NOT CAPTURE.** `mkspecs.py`'s montage
+  list opens with **`home`** — and neither `body5a.js` nor `body5b.js` ever calls `rec('home')`.
+  Only the older `tour4.js` does. So a fresh capture yields 26 segments **without `home`**, and
+  the v5 launch spec silently builds one page short; it worked originally only because a
+  `tour4.js` capture happened to be lying around in the same sandbox. *A spec that names an
+  asset no current script produces is a spec that only runs on a dirty machine.*
+- ⚠ **AND THE v5 MONTAGE DOES NOT FIT v7's SCENE B.** Measured, not estimated:
+  `offAB 7.7668`, `offBC 13.7945`, so Scene B spans **6.328 s** (with the 0.3 s fade). The
+  montage is 6 captures × 2 beats = **6.028 s** at P 0.5023. v5 started it at beat 20; on this
+  grid `tb(20)` is 10.076 s and the montage would run to 16.10 s — **2.3 s past the end of the
+  scene, into Scene C.** Fitting it inside forces the start back to **beat 16**, which is the
+  instant the phone lands, so the montage consumes essentially the whole scene and the phone
+  has almost no logo left either side.
+
+  **That is a visible change to the film, not a plumbing detail** — the v4/v6 phone was the
+  SHAPE logo pulsing for the whole of Scene B, and carrying v5 forward replaces nearly all of
+  it with app pages. Registered for the owner's eye rather than presented as equivalent.
+  The two honest alternatives, if the bookend matters: cut the montage to **four** pages
+  (4.02 s, leaving ~1.1 s of logo each side), or lengthen Scene B, which moves every downstream
+  offset and re-times the whole cut.
+
 ```bash
 #!/bin/bash
 # launch cut v7: A1(wide+watch) |cut| A2(watch close-up) -> B(logo) -> C(zoomed wall, radio screen) -> D(globe, pins, logo, close)
