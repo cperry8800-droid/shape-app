@@ -2650,6 +2650,34 @@ echo NORM6-OK
 
 **`render6.sh`** — The Scene-A hard cut (wide → watch close-up) plus the four-scene xfade chain, three screen-blended layer canvases and the audio tail fade. **Run order:** `norm6.sh` → **`plan6.py`** → `plan_a2.py` → `meas_watch.py` → `mk_watch.py` **twice** (`WATCH_MODE=wide`, then `WATCH_MODE=closeup`) → `meas_wall.py` → `mk_wall6.py` → `meas_pins.py` → `mk_globe.py` → here. ⚠ **`plan6.py` is not optional and was missing from the first cut of this list** — it is the ONLY writer of `params_v6.json`, and `plan_a2.py` is the very next step that reads it, so a run that skips it dies at the first python step with `FileNotFoundError: params_v6.json`.
 
+⚠ **CORRECTED 2026-09-03 — TWO MORE PREREQUISITES WERE MISSING FROM THIS LIST, AND THE RUN DIES
+AT BOTH.** Measured by executing the order above end to end on a clean sandbox:
+
+- **`node pw/cap_radio.js`** must run before `meas_wall.py`. It writes `cap/r3_radio_top.png`,
+  which `meas_wall.py` and `mk_wall6.py` both read and which nothing else produces.
+- **`python3 captions.py`** must run before `mk_globe.py`, which opens `cap/txt/close.png`.
+  Without it the globe layer dies with `FileNotFoundError: cap/txt/close.png` — nine steps in,
+  after roughly two minutes of measurement work.
+
+So the true order is: `cap_radio.js` · `captions.py` → `norm6.sh` → `plan6.py` → `plan_a2.py` →
+`meas_watch.py` → `mk_watch.py` ×2 → `meas_wall.py` → `mk_wall6.py` → `meas_pins.py` →
+`mk_globe.py` → here.
+
+⚠ **AND `in/phoneB.mp4` HAS NO PRODUCER AT ALL — THIS IS WHERE THE RENDER NOW STOPS.**
+`render6.sh` takes it as `-i`, `verify6.py` samples it for the phone-pulse checks, and
+`scanpulse.py` scans it; the only other mention in this file is the prose line *"`in/phoneB.mp4`
+is v4's phone layer, unchanged"*. **Nothing writes it.** The seventh artifact recorded as a
+source with no way to rebuild it, after the v6 video prompts, `beat.py`, `params_v6.json`,
+`cap/r3_radio_top.png`, `C_zoom.mp4` and `captions.py`'s ordering.
+⚠ **`mk_screen3.py` is not the answer as written, and is itself unreachable.** It writes
+`in/screen3.mp4` (610×1334) and reads a v3 `params.json` that `plan6.py` does not produce — and
+it is documented under a `### mk_screen3.py` heading rather than the ``**`name`**`` form
+`boot5.sh`'s extractor matches, so it is not in the MAP and never reaches a rebuilt sandbox at
+all (the same defect `beat.py` had). Whether v6/v7 should be carrying the **v5** phone layer
+(`mk_screen5.py`, which IS in the MAP) under the old v4 filename is an open question for the
+owner, not something to guess at: picking wrong puts the wrong six pages on the phone through
+beats 20→32 and every downstream check still passes.
+
 ```bash
 #!/bin/bash
 # launch cut v7: A1(wide+watch) |cut| A2(watch close-up) -> B(logo) -> C(zoomed wall, radio screen) -> D(globe, pins, logo, close)
