@@ -1,0 +1,4 @@
+# Rendered media is handed over as a short-lived link, never committed — the same rule
+# shape-radio-launch-cut.md applies to audio. build-endcard.sh regenerates all of it.
+*.mp4
+*.png
