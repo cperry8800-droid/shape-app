@@ -18,6 +18,56 @@ markers; those corrections are part of the record and were carried forward.
 
 ## Changelog — 2026-08
 
+### 2026-08-31 — The marketing wave reaches the go-live board, and registering it found two gaps
+
+- **The consumer marketing wave was registered NOWHERE.** `marketing/social-brand-awareness-plan.md`
+  (#1988) and `marketing/shape-radio-video-scripts.md` (#1990) both merged, and the 08-31b
+  handoff's own follow-up says *"marketing is written, not shot"* — but the War Room carried
+  **no marketing section at all**, so the owner production steps and the two constraints that
+  bind anything filmed were invisible to `/console`. New checklist section
+  **Marketing — consumer social launch (Radio-as-channel)**, 10 items. Records only.
+- ⚠ **THE TWO BINDING CONSTRAINTS ARE THE POINT OF REGISTERING IT, not the calendar.** The
+  licensing guardrail (**never** bake commercial music into brand video — idents + Nora's
+  shipped `sage` TTS + link-outs, the app's own Peloton-lesson architecture applied to camera)
+  and the **code-derived capture rules**: `connectMonitor()` fabricates a **114 bpm demo
+  reading** whenever no strap is present and the card still reads connected, and the status
+  chip goes **blind at exactly the money shot** (it reads *Matching… / In sync* for demo and
+  live alike). The on-camera tell that works is the readout **LABEL — "You · live"** — gated on
+  `liveHr != null` at every stage.
+- ⚠ **AND THE SHAPE SETS CONSTRAINT WAS RE-PROVEN LIVE RATHER THAN READ OFF THE MIGRATION —
+  which turned out to be the stronger fact.** The scripts justify the *"first broadcast lands
+  when we do"* framing on `radio_station.provider` defaulting to `'mock'`. Measured against
+  production: **`public.radio_station` does not exist at all**, so both `/api/radio/station`
+  and `/api/radio/now-playing` fall through to `provider: 'mock'` with `configured: false` and
+  the app hides its own LIVE banner. The framing is right; its stated reason was weaker than
+  the truth. *A because-clause is a claim.*
+- ⚠ **GAP 1 — THERE IS NO ATTRIBUTION FOR THE PLAN'S OWN NORTH STAR, and my first count of it
+  was stale.** The plan names *"profile-tap → GetApp clicks"* among the numbers that matter and
+  schedules a Day-15 *"read the data"* checkpoint. Measured: `GetApp.html` and
+  `newdesign/index.html` carry **ZERO** `utm_` or `ShapeAnalytics` references, so a TikTok
+  arrival is indistinguishable from any other visitor. ⚠ I first recorded the `track_event`
+  whitelist as **5 events** from the 2026-06-23 migration — **three later migrations widen it**
+  (`session-rpe`, `guardrail-week-publish`, `week-publish-precondition`), and the **live**
+  function carries **8**: `onboarding_started · app_opened · workout_started · paywall_viewed ·
+  checkout_started · session_rpe_prompted · session_rpe_dropped · guardrail_evaluated`. None is
+  a landing visit, so the gap holds — but **reading the oldest migration file and stopping is
+  how a stale figure gets quoted forward**, which is this file's own recurring lesson.
+  **Registered `pending`, deliberately NOT built:** a tracked landing event touches
+  `docs/legal/ropa.md`, the retention schedule and the region-aware consent banner, so shipping
+  it inside a records pass would create the stale-record class the wave exists to close.
+- ⚠ **GAP 2 — THE TWO FUNNELS PRESCRIBE CONFLICTING ACCOUNT STRATEGIES, AND NEITHER DOC
+  REFERENCES THE OTHER.** The consumer plan says **one brand account per platform** with Radio
+  as the flagship show (*"splitting audiences pre-launch halves both"*);
+  `coach-marketing-campaign-plan.md` independently prescribes **IG 4×/wk + LinkedIn 2×/wk +
+  TikTok 3×/wk** of COACH-facing content on those same handles. Related and separately
+  unregistered: the consumer plan makes **coach residencies simultaneously content AND
+  recruiting (BYO · 0% commission)**, but *"residenc"* appears **ZERO times across all five**
+  `marketing/coach-*.md` files and `coach-recruiting-campaign-plan.md` mentions Shape Radio
+  exactly once — *"a nice-to-have, not the hook"*. Both are **owner rulings, not
+  implementations**, and are registered as such.
+- Verified: `tsc --noEmit` exit 0 · `warroom.ts` LF with zero CR/NUL · docs/config-only diff
+  (the two lockfiles the SessionStart dep install touched were restored, not committed).
+
 ### 2026-08-31 — Session handoff: `docs/HANDOFF-2026-08-31b.md`
 
 - **Three PRs since the day's first handoff — #1988 → #1990 — and two of them had no

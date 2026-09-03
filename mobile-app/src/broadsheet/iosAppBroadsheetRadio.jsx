@@ -1619,7 +1619,7 @@ function BSRadioScreen({ onBack }) {
                     <div style={{ position: 'absolute', left: `${Math.max(6, Math.min(94, 58 + signedDelta * 0.9))}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}`, transition: 'left 0.24s linear' }} />
                   </div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: isSynced ? TEAL : CREAM50, fontWeight: 700 }}>
-                    {isSynced ? tr('radio:hr.inSync', { defaultValue: 'In sync' }) : tr('radio:hr.deltaBpm', { delta: `${signedDelta > 0 ? '+' : ''}${signedDelta}`, defaultValue: '{delta} BPM' })}
+                    {tr('radio:hr.deltaBpm', { delta: `${signedDelta > 0 ? '+' : ''}${signedDelta}`, defaultValue: '{delta} BPM' })}
                   </div>
                 </div>
               )}
@@ -1648,7 +1648,7 @@ function BSRadioScreen({ onBack }) {
                     fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
                   }}>
                     <span style={{ fontSize: 10 }}>{matching ? '◉' : '○'}</span>
-                    {matching ? (isSynced ? tr('radio:hr.inSync', { defaultValue: 'In sync' }) : tr('radio:hr.matchingBeat', { defaultValue: 'Matching beat' })) : tr('radio:hr.matchMyBpm', { defaultValue: 'Match my BPM' })}
+                    {matching ? tr('radio:hr.matchingBeat', { defaultValue: 'Matching beat' }) : tr('radio:hr.matchMyBpm', { defaultValue: 'Match my BPM' })}
                   </button>
                   <button onClick={disconnectHrm} aria-label={tr('radio:hr.disconnectMonitor', { defaultValue: 'Disconnect monitor' })} style={{ borderRadius: 11, width: 44,
                     border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM, cursor: 'pointer',

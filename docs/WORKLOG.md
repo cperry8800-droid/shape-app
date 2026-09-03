@@ -59,6 +59,18 @@ changelog whenever something ships.
   written only where nobody auto-reads it is not a fix* — the same sentence the stale-base
   bullet above had to pay for, in the same section, two days later. Spelled identically in
   both files so a third form cannot drift in.
+- **Generated media (Higgsfield) → the Sources table in
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md).** Every
+  clip and track the marketing work has ever generated is listed there by **job id +
+  filename + verbatim prompt + the submitted params**, marked current vs superseded. ⚠ **A
+  generation is reproducible only if the prompt is written down beside the file id** — the
+  v6 video prompts were NOT, and cannot be recovered; the tracks were, and can be re-made.
+  So: never re-generate a clip you already have, and never fetch a superseded id (the
+  original Scene A is the naked runner owner note 6 exists to replace). Re-verify what is
+  still live with `mcp__Higgsfield__show_generation_by_ids`; the cloudfront prefix is in
+  the table. **The web container's proxy DENIES that cloudfront host**, so media cannot be
+  downloaded here at all — fetching, rendering and md5-verifying happen in the Higgsfield
+  sandbox (`sandbox_exec`), which is also the only place `ffmpeg`/`PIL` exist.
 - **This file carries the CURRENT MONTH only — older changelog lives in dated
   archives.** Split 2026-09-03: the changelog had grown to **20,657 lines / ~400k
   tokens**, and because `AGENTS.md` `@`-imports this file, *every session paid that
@@ -502,6 +514,564 @@ Append new entries at the top, under this note.
   resolve · no test or module parses WORKLOG content (every reference is a comment or
   a War Room label).
 
+### 2026-09-03 — v7.1 off five owner notes: the watch face, the pinned globe, the casting, the EAT prep beat, and four melodic tracks
+
+- **Five more owner notes on the v7 build.** *"for the watch, their is nothing appearing on
+  the screen, have the shape triangle logo in the top left of watch screen with the hrm/bpm
+  beat match. It just say synced with a glowing orb in the middle"* · *"for the globe, have
+  the shape logo appear at the tip of the lines that are coming out … make sure you hit
+  every major city. have the globe spin faster as well"* · *"also dont make the man running
+  asian"* · *"and for the eat video, show the screen that asks if you are cooking 1 meal at a
+  time, looking to serve meals together, so the shape engine will plan out timing of each
+  meal"* · *"also create some more house beats, maybe a little more melodic"*. All five are
+  in [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("What v7.1 is"). ⚠ **Four are recipe changes the owner re-renders; note 8 is the only one
+  that produced FILES** — nothing was rendered here (no `ffmpeg`, no `PIL`, no footage) and
+  no cut has been re-scored. **No PR, nothing merged.**
+- ⚠ **THE WATCH FACE IS ONLY BUILDABLE BECAUSE ITS LAYERS COMPOSITE WITH `overlay`, NOT
+  `blend=all_mode=screen` — CHECKED IN `render6.sh`, NOT ASSUMED.** The phone, wall and globe
+  layers ARE screen-blended, which is why they read as light *on* the footage; under screen a
+  near-black disc is a **no-op**, so every pixel of a drawn watch face would have been
+  invisible and the whole section would have been wrong. *Check the compositing mode before
+  designing the layer — the same drawing is a picture under one and nothing under the other.*
+- **"Nothing appearing on the screen" is the A2 clip working as designed.** Its prompt asks
+  for a **blank glowing panel** precisely so a drawn layer can own those pixels — a readable
+  UI on the wrist would put a second, different, **fabricated** heart rate under the
+  composited card. So the clip is right and the frame was empty because nothing had been
+  written yet; `mk_watch.py` now runs **two renderers off one clock** — `card()` for the wide
+  Scene A1 placement, a new `watchface()` for the round close-up (SHAPE mark top-left, a
+  glowing orb at centre, the two BPM figures, and **exactly ONE state word**). ⚠ **The beat
+  match is DRAWN, not captioned**: the orb pulses on the wearer's heart, its ring on the
+  **music** grid, and across `tSync` the orb's envelope crossfades onto the ring's so the two
+  visibly lock — **envelopes are blended, never phases** (a phase lerp jumps at every wrap).
+  The card and the face **never share a frame** (hard cut at `f12`), so the v7 three-places
+  IN SYNC defect cannot reappear across them.
+- ⚠ **"HIT EVERY MAJOR CITY" CANNOT BE PROMISED, AND SAYING SO IS THE ANSWER.** Nothing in
+  this pipeline knows what a city IS — `mk_globe.py` picks lit pixels off the rendered globe,
+  and the model draws light, not a gazetteer; the honest-data rule already forbids labels,
+  counts and city names on that frame. So v7.1 ships **three partial answers instead of a
+  claim**: marks go **27 → 44** (from beat 44, up to four a beat), each pick takes the
+  **brightest** free lit pixel rather than a random one (bright *is* the only proxy for
+  "major" available), and dedupe now spans the **whole scene** rather than one beat, so no
+  place is marked twice. The mark stands at a **pin head** with an **anchor dot** on the
+  ground, which is what "the tip of the lines" asks for.
+- ⚠ **AND THE SPIN REQUEST HAS A HARD CEILING SET BY THE CUT'S OWN LENGTH.** Scene D must
+  cover `30.75 − 21.8313 = 8.9187 s` from a **10 s** source, so a no-loop speed-up tops out at
+  **1.121×** — and 24 fps quantisation drops the usable clamp to **1.111×** (at the raw
+  ceiling ffmpeg emits 214 frames = 8.9167 s, four ten-thousandths short of the assert). The
+  first cut used ONE constant for both the clamp and the assert and therefore **made its own
+  ceiling unreachable**; `D_MIN` (assert) is now split from `D_SAFE = D_MIN + 2/24` (clamp).
+  `D_SPIN` is a request, not a setting.
+- ⚠ **A NEGATION CANNOT BE PROMPTED — the casting note is a POSITIVE adjective phrase, and it
+  is drafted, NOT submitted.** The submitted `minimax_h3` param set carries **no
+  negative-prompt field** (`aspect_ratio · duration · resolution · use_unlim · batch_size ·
+  aigc_watermark`), so *"dont make the man running asian"* cannot be expressed as an
+  exclusion; the only lever is describing the runner positively. **Casting is the owner's
+  call, so nothing was generated** — the phrase sits in the recipe beside the verbatim v7
+  Scene A prompt, and a re-prompt re-opens the geometry question either way (the wide watch
+  card is FRAME-relative and survives; a new Scene A still wants a look).
+- ⚠ **THE EAT PREP SCREEN IS ON THE MISE STAGE, NOT THE PICKER — and that correction is the
+  whole capture.** `BSPrepSession` runs `picker → mise → transition → cook → wrap`; the picker
+  is dish SELECTION only, and the **"How should these be timed?"** block sits on the **mise**
+  stage *below* the merged ingredient checklist, the allergen notes AND the "Your kitchen"
+  steppers. A capture that stops at the dish list never reaches the screen the owner asked
+  for. ⚠ **It renders only with ≥2 dishes selected** — the code's own comment: *"A single dish
+  skips this entirely: there is nothing to decide"* — so **two ticks is a hard requirement of
+  the shot**, and the segment must tick two dishes, press **Merge the mise**, then **scroll**.
+- ⚠ **AND THE HERO ROW CAN COME UP DISABLED, WHICH IS A CAPTURE CAUTION, NOT A BUG.** "Cook at
+  the same time" greys out and **suppresses its minutes** when the picked pair carries no
+  passive window — the minutes would equal the "cook separately" figure and advertise a saving
+  that does not exist. Measured: only **53 of 100** recipes can host a window and a two-dish
+  pair interleaves **50.8 %** of the time — a coin flip. Confirm the row is live before
+  recording, or swap a dish.
+- **The EAT spot grows rather than squeezing.** A sixth page (two segments under one caption —
+  the ticks and the timing block are ~6 s apart and the window rule takes ONE contiguous slice
+  anchored on one act) takes the spot **47 → 55 beats**, i.e. **564 → 660 frames** and
+  **23.500 → 27.500 s**; every existing page keeps its exact beat count and the close moves
+  48→53 → **56→61**, still inside t1's live kick band with a beat of margin under the gate
+  array's last index. ⚠ **Squeezing six pages into the old 40 beats was the wrong answer for a
+  reason the owner already gave** — the previous round's note was *"the scrolling is going too
+  fast … hard to see what is going on"*. The capture lands as a **new part F** in `body5b.js`,
+  never inside part C: `cook` opens with **Cook this**, which exists only on a recipe detail,
+  so inserting prep between them breaks that hand-off. **The other four spots are untouched**;
+  the EAT md5 is dead and `verify5.py spot eat` must be re-run.
+- ⚠ **THE NEW CAPTION MAY NOT PROMISE A SINGLE-MOMENT FINISH, AND THAT IS MEASURED.** SERVE
+  lands every dish at one moment in **7.4 %** of catalog pairs (mean gap **13.5 min**), and an
+  **unlimited-station** kitchen only reaches **8.6 %** — the constraint is the one cook, not
+  the room. The app's own copy carries no *"ready together"* claim **and no *"soonest"* claim**
+  (the planner is greedy and order-sensitive). *"Two dishes, one timeline"* is what
+  `cookOrchestrator` literally emits and claims nothing about where they land. **New line,
+  owner's eye wanted.**
+- **Four melodic house tracks generated** (`sonilo_music`, 60 s each), varying the melodic
+  character around the existing ~120 BPM register so the pick is a choice between kinds rather
+  than a re-roll of one kind: analog chords 122 · plucked arp 124 · Rhodes 120 · big lead 126.
+  **Every prompt is recorded verbatim beside its job id** in the recipe's Sources table, with
+  the required `duration` param — the exact discipline the 09-03 entry below proves the v6
+  video prompts were denied. ⚠ **`duration` is REQUIRED by `sonilo_music`**, so a re-run
+  reconstructed from prompt text alone would fail; it is recorded beside the prompt for that
+  reason.
+- ⚠ **A PROMPTED BPM IS A REQUEST, NOT A MEASUREMENT — THIS FILE HAS PAID FOR THAT THREE
+  TIMES.** The v1/v2 track was prompted 124 and measured **128**; the v3 set was prompted
+  122/124/126 and every one measured **~120**. So nothing may be cut to these four until each
+  is re-measured the way `beat.py` measures (comb search · split-half agreement · per-beat
+  residuals) — **and a melodic track needs its own `kick_by_beat` array re-measured too, not
+  inherited**: *"filtered breakdown"* and *"long filtered build"* are requests for exactly the
+  kick-less stretches the presence gate exists for, and the v4 lesson is that an array
+  truncated short returns silence past its end with nothing raising an error.
+- **THE TRIPLE IN SYNC IS FIXED, AND IT SHIPS IN THE SAME PR AS THESE RECORDS (#2011).**
+  `iosAppBroadsheetRadio.jsx` resolved *In sync* at the status chip (`:1306`), the delta slot
+  (`:1622`) and the pill (`:1651`) at the same instant — **the film was the symptom, the card
+  was the defect.** The delta slot now always states the measured delta (`+3 BPM`, `0 BPM` —
+  `0 BPM` in teal is a stronger reading than the word, because it carries the tolerance the
+  sync test actually allows, `|delta| <= 4`); the pill names its toggle state; *In sync*
+  survives on the status chip, which is where a verdict belongs. No i18n key was added or
+  removed, so 13-locale catalog parity is untouched. `tests/radio-hr-sync-labels.test.mjs`
+  keeps it from regressing by driving the shipped expressions rather than pinning spelling.
+  ⚠ **THIS BULLET READ “STILL LIVE … DELIBERATELY NOT IN THIS COMMIT” UNTIL THE PR IT
+  DESCRIBES SHIPPED THE FIX.** It was written when the plan was a records-only commit, and it
+  stayed put when the app change joined the same PR — so on merge this file, **auto-loaded
+  into every session**, would have told every future reader that a resolved defect was
+  outstanding, with `src/lib/warroom.ts` repeating it on the owner-facing board. Caught by
+  Codex on `c40e58b`. *A plan written into the records becomes a false claim the moment the
+  plan changes* — the same class as the range claim this file post-mortems on 2026-09-01.
+- **Verified:** LF, zero CR, zero NUL; **94 line-start / 96 total fences (both even)**; the
+  v7.1 section order intact; every new Python and JS fragment parses when wrapped as it will
+  be spliced; the EAT beat arithmetic re-derived (48 page beats + lead + close = 55;
+  55 × 0.500209 = 27.5115 s → 660 frames = 27.500 s) and both the lead and the close confirmed
+  inside t1's kick bands; and **all four track prompts diffed byte-for-byte against the
+  submitted JSON in the session transcript**, not retyped from memory.
+
+### 2026-09-03 — v7 built into the recipe: all four owner notes answered, and the verification round found seven defects in the build
+
+- **Records only — the recipe, not a render.** Owner: *"fix all 4"*. All four notes on the
+  v6 cut are now built into
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md): the
+  clothed runner + a watch close-up (a fifth shot inside Scene A), the Radio screen filling
+  the club slab, pinned globe marks, and the triple **IN SYNC** reduced to one. **Nothing was
+  rendered** — this container has no `ffmpeg`, no `PIL` and none of the clips, so every change
+  is a recipe change the owner re-renders. **No PR, nothing merged.**
+- ⚠ **THREE OF THE FOUR ARE OVERLAY EDITS AND ONE IS A RE-PROMPT — and the split is what made
+  the work tractable.** Higgsfield makes four backdrop clips; the watch card, the projected
+  screen and the mark geometry are drawn by Python and SCREEN-composited, so re-prompting
+  cannot reach them. Three new v7 clips were generated (clothed runner · watch close-up ·
+  pinned globe) with their **prompts recorded verbatim beside the job ids** — the exact thing
+  the 09-03 entry below records as unrecoverable for v6. *A generation is reproducible only if
+  the prompt is written down beside the file id.*
+- **The watch close-up fits the existing grid for free.** Beat 12 (6.0576 s) → the A→B fade
+  start is **1.71 s / 41 frames entirely inside Scene A**, so it is a hard **concat**, not an
+  xfade: no downstream offset moves and the total stays **738 frames / 30.750 s**. `plan_a2.py`
+  derives the cut once (`f12=146`) and `mk_watch.py`, `render6.sh` and `verify6.py` all read it
+  rather than re-deriving — the wide placement is FRAME-relative (`x 890 = 1440−480−70`), so it
+  survives a re-prompted Scene A with no re-measure.
+- ⚠ **AND THE ADVERSARIAL PASS FOUND SEVEN DEFECTS IN THAT BUILD, FOUR OF THEM FATAL BEFORE A
+  SINGLE FRAME.** Five verification dimensions, every finding piped through refuters that
+  default to *refuted* when uncertain; 11 findings survived and deduplicate to seven. **Four
+  would have aborted the render at module load or the first python step:** `plan6.py` wrote
+  eight keys and omitted `t28`/`t52`/`t56`, which `mk_wall6.py` and `mk_globe.py` read
+  unguarded (`KeyError` before a frame); `plan6.py` — the ONLY writer of `params_v6.json` —
+  was **missing from `render6.sh`'s own run order**, so the first python step died on
+  `FileNotFoundError`; and `boot5.sh` still fetched the **superseded** Scene A and fetched
+  neither A2 nor D, so `norm6.sh` aborted, and a hand-fetched A2 would then have shipped the
+  naked runner that owner note #4 exists to fix. **A run order that omits the file's only
+  writer is not a run order** — and the prose one line above it claimed `params_v6.json` was
+  "the file every v6/v7 script reads."
+- ⚠ **THE SHARPEST ONE IS A ROUNDING TIE THAT MADE A CHECK FAIL ON A CORRECT RENDER.** The
+  beat-12 cut probe read `(f12∓0.5)/24`, and `a_src` resolves an index with `int(round(t*24))`
+  — Python rounds ties **to even**, so `145.5 → 146` and `146.5 → 146`: **both** sides
+  resolved to A2, the check reported FAIL on a correct cut, and it **never once read frame
+  145** — the frame it exists to test. Fixed at the semantics rather than the probe: `a_src`
+  now floors (matching `frame()`'s `-ss` seek, the same convention every beat check leans on
+  when it samples at `beat(n)+1/24`) and both probes sit on frame **centres**, which is the
+  only position immune to the 4-decimal seek formatting. *A guard that cannot reach the frame
+  it names is not a guard.*
+- ⚠ **TWO MORE WERE ASSERTIONS THAT WOULD HAVE BLAMED THE OPERATOR.** `mk_wall6.py` derived
+  the screen width from the height and then the height back from the width; the capture is
+  ~1.4–1.9× taller than wide, so half a pixel of upward rounding in `SW` became more than one
+  in `SH` — 1 px over the slab, aborting with *"lower SCR_MARGIN or re-measure"* for an
+  artefact of the arithmetic (**20 %** of height-bound cases in the reachable band). It derives
+  from the **bound side** now, so the height is exact by construction. And `verify6.py` sampled
+  its per-mark globe check at `beat(n)+0.2` while beats ≥ 56 fire three marks at
+  +0.00/+0.09/+0.18 s over a 0.12 s alpha ramp — the third mark of beat 58 is still fading in
+  at +0.30, so a correctly-placed mark read as **MISSING**. Sampled at +0.35 now, past the
+  ramp. **Both are structural, not tuning: `0.2 < 0.18 + 0.12`.**
+- ⚠ **AND THE PIN DETECTOR'S WIDTH GATE COULD ONLY EVER FIRE ON ONE EXACT WIDTH.** The
+  widening loop stopped at `BMAXW+1` columns, so the `len(xs)>BMAXW` reject caught **only**
+  9-wide groups: a 40 px lit region was **sliced** into four rejected groups plus an accepted
+  4-wide remainder that passed every downstream gate as a pin — and the verifier's *"every mark
+  sits on a measured pin head"* check then replayed the same false head, so it was tautological.
+  Only widths that are exact multiples of 9 were ever rejected whole, which is why re-tuning
+  `PIN_MAX_W` could never have closed it. The loop consumes the whole region now and rejects it
+  whole. *A cap on the measurement is not a cap on the thing being measured.*
+- **Two findings were REFUTED and deliberately not acted on** — that the beat-12 block never
+  reads the render (it does, one check down) and that the slab "only widens" (the stated
+  failure mode is unreachable, since the sample times always span the scene). **A refuted
+  finding left in the record is worth as much as a fixed one**: without it the next reader
+  re-opens both.
+- ⚠ **THE TRIPLE `IN SYNC` IS STILL LIVE IN THE APP, AND THAT IS A SEPARATE COMMIT ON PURPOSE.**
+  `iosAppBroadsheetRadio.jsx` resolves **In sync** at the status chip (`:1306`), the delta slot
+  (`:1622`) and the pill (`:1651`) at the same instant — the film is the symptom, the card is the
+  defect. It rides alone because a `mobile-app` change runs the full pre-commit gate (JSX parse ·
+  `tsc` · mobile build + `public/m` diff · `npm test`) that a docs-only commit skips, and
+  bundling them would put a UI change behind a records commit's verification.
+- **Verified:** LF, **zero CR, zero NUL**, 86 fences balanced, 43 blocks (29 python · 6 bash ·
+  5 js), every python and bash block parses except one **pre-existing, deliberate** one-row dict
+  fragment; `plan6.py` and `plan_a2.py` **executed end to end** against the recorded t3 grid
+  (every assert passing, `f12=146`); and **every `params_v6`/`params_a2` key read anywhere in the
+  v6/v7 scripts resolves to a key those two files actually emit** — the check that would have
+  caught the `KeyError` before the workflow did.
+
+### 2026-09-03 — v7 scoped off four owner notes on the v6 cut, and the v6 video prompts turn out to be unrecoverable
+
+- **Records only.** Four owner notes on the rendered launch cut — the watch card reading
+  **IN SYNC** in three places at once · the projected Radio screen sitting inset on the
+  club slab instead of filling it · globe marks that float rather than pinpoint · a naked
+  runner, plus a request for a watch close-up. Scoped into
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md) §"What
+  v7 must answer". **Nothing rendered, nothing generated, no PR.**
+- ⚠ **THREE OF THE FOUR ARE OVERLAY BUGS, NOT HIGGSFIELD BUGS — AND THAT DECIDES WHO FIXES
+  WHAT.** Higgsfield makes four **backdrop clips**; every flagged element except the
+  runner's wardrobe is drawn by a Python script and SCREEN-composited by the ffmpeg graph.
+  Re-prompting cannot reach `IN SYNC` (`mk_watch.py`), the projected screen
+  (`mk_wall6.py`) or the mark geometry (`mk_globe.py`) — those pixels never pass through
+  the model at all. **Two recipe edits, one re-prompt (the owner picked it), and one that
+  is both.**
+- ⚠ **AND A RE-PROMPT INVALIDATES THAT SCENE'S MEASURED GEOMETRY, WHICH IS THE REAL COST
+  AND THE THING A "just regenerate it" READING MISSES.** Every v6 number was measured
+  against the **specific file**, never against the prompt: the watch card sits at
+  **x 890 / y 1660** because that is where *this* runner's wrist is, and the globe disc is
+  **(727, 1295) r 676** because `meas_globe.py` measured *this* render. A new Scene A clip
+  makes the watch position wrong; a new Scene D clip makes all 27 mark positions wrong.
+  Re-measure first or the overlays land on nothing — and Scene A has **no measurement
+  script**, so one has to be written.
+- ⚠ **THE TRIPLE `IN SYNC` IS IN THE SHIPPING APP TOO, SO FIXING THE FILM ALONE MAKES IT
+  DISAGREE WITH THE PRODUCT.** `iosAppBroadsheetRadio.jsx` carries the same three: the
+  status chip (`:1306`), the delta slot (`:1622`) and the pill (`:1651`) all resolve to
+  **In sync** at the same instant. **The film is the symptom; the card is the defect.**
+  Registered, not fixed — a live-UI change is its own PR, not a records commit.
+- ⚠ **AND `verify6.py` ASSERTS ON THE PIXELS THAT FIX WOULD CHANGE.** Its watch check
+  counts teal against amber across beat 14 (teal 579 → 2031, amber 1121 → 0); removing two
+  of the three IN SYNC strings removes teal glyphs, so the thresholds must be **re-derived
+  from the new render**, never carried. *An assertion tuned to a bug passes only while the
+  bug is there.*
+- **The wall knob already exists, and the missing number is vertical.** `mk_wall6.py`
+  reads `SCR_W` (560) and `SCR_Y` (880) from the environment, so widening is a parameter —
+  but the fit check only ever measured the slab's **left/right** margins (47–81 px at four
+  times). The capture is cropped `(0,240,750,1420)`, so `SCR_W=1010` renders **1589 px
+  tall** and reaches y 2469 of 2560 with **no measurement saying whether that is still on
+  the slab**. Measure the slab rect before choosing a width. ⚠ And the crop starting at
+  y = 240 **cuts the captured Radio page's own header** — un-cropping it puts the app's
+  real in-app wordmark on the wall (the owner's earlier *"looks like it does on app and
+  website"* note) and makes the separately-drawn wordmark band redundant. One change, two
+  notes answered.
+- **The globe: the owner chose the re-prompt** ("reprompt"), so Higgsfield renders anchored
+  pins rather than the overlay drawing leader lines. ⚠ **That puts the baked pins and
+  `mk_globe.py`'s 27 beat-locked marks in the same frame and one has to give** — the marks
+  ARE Scene D's beat lock (1 · 2 · 3 per beat, beats 48–60). Three routes recorded, ranked:
+  re-aim the marks at measured pin heads (keeps the lock) · prompt the pins **unlit** so
+  every teal head is drawn on its beat · retire the mark layer (**loses the lock** — not
+  recommended). The honest-data line does not move either way: **pins that look like a
+  telemetry map must not acquire numbers, labels or city names.**
+- **The watch close-up fits the grid for free, and it lands the payoff better.** The cut is
+  738 frames pinned to a measured grid (`t(n) ≈ 0.027 + n × 0.5025`), so a fifth shot reads
+  as a re-derivation — except **beat 12 (6.057 s) → the A→B fade start (7.7668 s)** is
+  **1.71 s / 41 frames** entirely inside Scene A: no downstream offset moves, the total
+  stays 738, and **IN SYNC arrives on beat 14 in close-up** two beats before the drop
+  instead of in a 480 px corner card. ⚠ It needs a **second watch placement**
+  (`mk_watch.py` overlays one fixed rect today) and a prompt that asks for a **blank
+  glowing face** — a readable UI on the wrist would put a second, different, fabricated
+  heart rate under the composited card.
+- ⚠ **THE v6 VIDEO PROMPTS WERE NEVER RECORDED AND CANNOT BE RECOVERED — CHECKED, NOT
+  ASSUMED.** The Sources table records **every track prompt verbatim** and **no video
+  prompt at all**; the four clips are listed by a piece label only. The session store holds
+  **one** transcript for this repo, it is **this session**, and it carries **zero**
+  Higgsfield calls — the job ids match only because they were read out of the doc. The
+  four scene prompts are therefore written up as **reconstructed from the surviving piece
+  labels and scene descriptions, explicitly labelled as inferred**, with the warning that
+  re-running them yields a different clip with different geometry. *A generation is
+  reproducible only if the prompt is written down beside the file id — the tracks were
+  recorded that way and can be re-made; the clips were not, and cannot.*
+- **Three v7 re-prompts drafted and NOT submitted** (clothed runner · watch close-up ·
+  pinned globe) — no generation has been fired. Verified: LF, zero CR, zero NUL, 72 fences
+  balanced, headings in order; **+185 lines to the launch-cut doc, no code touched.**
+
+### 2026-09-02 — Launch cut v6 (watch · Radio wall · globe) and five slower feature spots
+
+- **Three owner notes on the launch cut, one re-render.** *"show the shape radio screen on
+  the wall in the last screen and show the BPM & HRM beat match feature on the watch … And
+  make sure the shape radio logo fits and it looks like it does on app and website. Not
+  condensed. Maybe start that scene with the wall more zoomed in so it fits"* · *"and then
+  the last scene, show video of the globle spinning and shape popping up around the globe
+  representing people that have downloaded, with the shape logo appearing above the globe"*
+  · *"popping up above the globe"*. **v6** answers all three: 1440×2560 · 24 fps · **738
+  frames / 30.750 s**, on the pick (t3), now **four scenes** — the runner with a wrist
+  readout, the phone with the SHAPE logo (v4 unchanged), the club wall **zoomed in**
+  carrying the single-line Radio wordmark plus a projected Radio screen, and a new night-Earth
+  globe where 27 marks pop on lit cities under the logo. ⚠ **v6 SUPERSEDES v5** — the
+  montage cut is left as it shipped, not re-rendered against these changes, until the owner
+  picks one. Recipe, timings, scripts and the measured panel:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("What v6 is").
+- **The four feature spots are re-cut at roughly half speed, and a fifth joins them.**
+  Owner: *"also reduce the scrolling times of all the other videos. The scrolling is going
+  too fast through the sections. Its hard to see what is going on."* and *"and need a
+  seperate video for the coaching marketplace"*. **TRAIN · EAT · COMMUNITY · SCORE** go from
+  ~14.5 s to **23.1–23.5 s** (58–62 % longer) by roughly doubling the beats per page, and
+  **MARKETPLACE** is new — the classifieds, Coach of the Week, the rate card, the included
+  sheet, the calendar, the free intro. Links handed over in-session (gofile, md5-verified),
+  not in the repo; nothing posted, nothing merged.
+- ⚠ **THE FIX IS AN ANCHORED WINDOW, NOT A SLOWER SPEED — AND THAT DISTINCTION IS THE WHOLE
+  POINT.** The old plan divided a fixed source window by the beats and let the playback speed
+  absorb the difference, clamped 0.85–1.75×, which is how a page ended up scrolling faster
+  than a viewer can read. Now the **beats decide the duration** and the source window is
+  **anchored on the page's focus act** with a pre-roll, clamped to the segment's own length —
+  so the speed can only ever move **DOWN**. Measured across all 26 segments of the five
+  spots: **every one fits at `spd 1.00`**. No page is sped up anywhere in the set.
+- ⚠ **t2 SITS THIS SET OUT, AND THAT IS A PROPERTY OF THE TRACK.** Its kick runs from beat
+  16 to beat 43 — about 14 seconds — so a ~23 s spot on t2 would either open or close in
+  silence, and the closing logo pulse is gated on a real kick. TRAIN · SCORE · MARKETPLACE
+  ride t3; EAT · COMMUNITY ride t1. The three-track set the 09-02 variants established is
+  intact for the launch cut; it is the spot length that t2 cannot carry.
+- ⚠ **THE HR READOUT ON THE WATCH IS ILLUSTRATIVE, AND THE NUMBER WAS CHOSEN TO MATCH THE
+  TRACK RATHER THAN THE APP.** The card shows the station at **120 BPM** because the cut's
+  own track measures 119.45; the shipped signed-out preview shows **132**. And the app's own
+  demo path is worse than a mismatch — `connectMonitor()` fabricates a **114 bpm** reading
+  with no strap attached and still reads connected, which is exactly why the 08-31 brand
+  plan tells a shooter to keep the **"You · live"** label in frame rather than the chip. So
+  the watch is a designed depiction of a shipped feature, not a capture of it.
+- ⚠ **THE CLUB CLIP STROBES, SO THE WALL WORDMARK IS DARK ON A THIRD OF SCENE C.** Measured:
+  the wordmark band reads dark on **64 of 200** sampled Scene-C frames (**32 %**). That is
+  the source footage's own lighting, not the layer — the wordmark is drawn every frame and
+  the slab behind it goes black. Recorded as an informational line in `verify6.py` rather
+  than an assertion, because the correct fix is a different club clip, not a brighter layer.
+- ⚠ **THE GLOBE MARKS ARE ILLUSTRATIVE AND CARRY NO COUNT, DELIBERATELY.** 27 marks pop on
+  lit cities; nothing on screen says how many people have downloaded anything, because
+  nothing has been downloaded yet. The honest-data doctrine applies to a marketing frame the
+  same way it applies to a card: a number would be a fabrication, a scatter of marks is a
+  picture of the idea.
+- ⚠ **THE FIRST v6 VERIFICATION FAILED FIVE ASSERTIONS AND ALL FIVE WERE THE INSTRUMENT.**
+  Three phone-logo and two wall-wordmark pulse checks read as unlit at the beat. **At 24 fps
+  there is no frame AT the beat instant** — the peak is the FIRST FRAME AT OR AFTER it, so
+  every sample must be taken at `beat(n) + 1/24`; and the wall's pulse is **3 %** scale
+  against the phone's **6 %**, so it needs a lower lit threshold (30, not 60) to register at
+  all. Sampling one frame early on a 3 % pulse reads as "the wordmark is missing". Fixed at
+  the sampler, both number sets re-measured, and the lesson written at the site — *sample
+  where the thing you assert can exist*, the same rule the v4 `last`-frame fix recorded, one
+  layer down.
+- **Verified numerically, per render.** The five spots: 555 / 555 / 564 / 564 / 555 frames
+  (23.125 / 23.125 / 23.500 / 23.500 / 23.125 s) against audio 23.106 / 23.106 / 23.510 /
+  23.510 / 23.106; the phone-screen layer matches its capture frame on **58 of 60** samples
+  (1.65–2.03) and the composite matches `screen(B_long, layer)` at 1.22–1.95; captions lit
+  at every midpoint (8,994–52,893) and **0 at t = 0.2 s** on all five; the closing logo bbox
+  477–480 px / 21.3–22.3 k lit at a beat against 458 px / 8.8–8.9 k mid-beat; the output
+  audio re-measures 119.35 BPM (t3) and 119.9 (t1) with every cut within 60 ms of a grid
+  beat. ⚠ **The two SCORE outliers (20.14 and 8.49) are timing, not a wrong clip** — a
+  best-match scan over ±0.35 s at 0.02 s pins both **one to two capture frames** off the
+  nominal map (+0.05 s and −0.05 s), after which they read 2.27 and 2.20; the 24 fps
+  resample of an 11–19 fps capture, the same artefact the 09-02 entry records.
+- **v6, measured:** 738 frames / 30.750 s; the three transition frames match their sources
+  outside the layers; the wrist readout reaches IN SYNC on beat 14; the wordmark sits at
+  x 214–1225 (w 1010–1012, h 62) with **74/81 · 62/70 · 47/48 · 73/72 px** of slab margin at
+  14.3 / 15.0 / 17.0 / 21.0 s as the zoom eases from 1.50× out to 1.15×, and the projected
+  screen at x 459–972; the globe's marks land inside 0.90 R on pixels above luma 110 with
+  150 px spacing; the logo holds from beat 52 and the close copy from beat 56.
+- ⚠ **A CHECKPOINT YOU CANNOT READ BACK IS NOT A CHECKPOINT.** The sandbox was reclaimed
+  **six** times across this work. The recorded mitigation — `tar czf` the capture and upload
+  it — **does not work**, because a gofile guest upload returns a download *page*, not a file
+  URL, so the tar can never be curled back. What does work is one background script that
+  **renders, md5s and uploads each spot immediately** in order, polled every ~55 s: a wipe
+  then costs only the spot in flight. Corrected at the source in the recipe's `boot5.sh`
+  prose alongside two real defects that cost a full round each — the MAP never extracted
+  **`beat.py`** (so every verification died on `ModuleNotFoundError`, and the recipe carried
+  no copy of it at all), and the fonts were downloaded under names `captions.py` does not
+  load. Both fixed; the whole extraction is now replayed and syntax-checked from the file.
+- **Records only in the repo** (this entry, the recipe's "What v6 is" + "The spots, slowed"
+  + the v6 scripts + `beat.py` + the boot fixes, the War Room item); **no PR, nothing
+  merged.** Open: the owner's review of the six cuts, whether v6 or v5 is the launch cut,
+  the preview-cast ruling from 09-02, and the caption copy for the MARKETPLACE spot.
+
+### 2026-09-02 — Four feature spots + launch cut v5: the real app on the phone, cut to the beat
+
+- **Owner, on the v4 trio: *"also the videos need to have a lot more going on. Create videos
+  that show the other features of the app"*.** Five renders now exist beside the three v4
+  cuts — four ~14.5 s **feature spots** (**TRAIN** · **EAT** · **COMMUNITY** · **SCORE**, one
+  per owned track) and **launch cut v5** (the v4 pick with a six-page montage on the phone
+  during beats 20→32). Every frame on the phone is a **real capture of the shipped app** —
+  the production `/m/` build in its signed-out preview — composited into the Scene B screen
+  rect on the SAME grids as v4, cut on the beat, captioned in the website's own register.
+  Links handed over in-session (gofile, md5-verified), not in the repo; nothing posted,
+  nothing merged. Recipe, scripts, timings and the verify method:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("The feature spots + launch v5").
+- **What each spot shows** (page · beats · caption). **TRAIN** (the pick, t3): the Train deck
+  (5) *Written before you arrive.* → the swap sheet (4) *Swap a move.* → the live session
+  player (6) *The live session.* → a set logged (4) *Every set, logged.* → the month calendar
+  (4) *The whole month.* **EAT** (alternate 1, whose kick runs from bar one, so the logo pulses
+  from the first beat): the Menu (5) *The ledger ticks live.* → a meal (4) *Every meal,
+  planned.* → the grocery list opening Produce (5) *The shop list, sorted.* → Recipes + a
+  recipe (2 + 3) *Shape Kitchen.* → Cook mode (4) *Cook mode.* **COMMUNITY** (alternate 2):
+  the feed (5) *The social side of strong.* → Session details (4) *Every session, on the
+  wire.* → Channels (4) *Channels for your people.* → the marketplace (5) *Vetted trainers ·
+  Real humans* → a Listing (5) *Browse free before you pay.* **SCORE** (the pick): the Terrain
+  profile with the CLIMB tab (7) *A profile that climbs with you.* → Shape Score with THIS
+  TIER / THE LADDER (5) *One number that tells the truth.* → the Habit Ledger (4) *Small
+  things, daily.* → The Contract (3) *The Contract.* → the check-in (4) *How are you today.*
+  Every spot opens on the SHAPE logo and closes on it pulsing, under *Different goals. One
+  Community.* · ONE PLATFORM FEE · $5 /MO · CANCEL ANY TIME. **v5** is v4 byte-for-byte
+  outside the phone and inside it outside beats 20→32 (measured, below); the montage is
+  home · deck · session · menu · feed · profile, two beats each, no captions, back to the
+  logo on beat 32 — four beats before the wall.
+- ⚠ **THE FOOTAGE IS THE SIGNED-OUT PREVIEW, AND THAT IS STATED RATHER THAN HIDDEN.** The
+  app's preview is what every prospect sees when they tap PREVIEW THE APP FIRST: the demo
+  persona (Quinn Harper, an AI headshot), the demo cast (AI portraits, fictional names) on
+  the feed, in the channels and on the marketplace, and demo coach credits on the Train deck
+  and the Menu. The PREVIEW · DEMO DATA banner was dismissed for the capture, so the spots
+  carry the preview's numbers with no on-screen "demo" mark. Nothing in the copy claims a
+  real member's numbers — but the brand plan's own rule, *no faked community, the honest-data
+  doctrine extends to camera*, needs an **OWNER RULING** on whether the preview cast may
+  appear in a spot at all. If not, the COMMUNITY spot (and every coach credit) is a
+  re-capture of the same recipe on a real account once real members and coaches exist; the
+  TRAIN / EAT / SCORE mechanics are unaffected.
+- ⚠ **PLAYWRIGHT'S `recordVideo` PRODUCED A FLAT GREY FILM, AND THE TIMELINE CHECK CAUGHT
+  IT.** The tour webm's frames read a flat mid-grey (mean luma ~101) with real content only
+  at the instants `page.screenshot()` had fired — a saturated result across the whole file,
+  i.e. the instrument. Replaced by a **CDP `Page.captureScreenshot` loop** (jpeg q88,
+  `optimizeForSpeed`) at 11–19 fps with per-frame timestamps, stitched through the concat
+  demuxer with per-frame durations into 24 fps CFR segments (`seg2mp4.py`). ⚠ **Without
+  `clip` the CDP call returns CSS pixels** — the first stitch failed *"width not divisible
+  by 2 (375x820)"*; `clip:{…, scale:2}` yields 750×1640, and `capFrame()` now reads the
+  JPEG SOF dimensions and falls back to `page.screenshot` if they are ever wrong. The
+  **full-bleed native render** comes from an init-script MutationObserver adding
+  `is-native-app` to `<html>` — `isNativeBSApp()` reads that class and `main.jsx` adds it
+  only under Capacitor — so the capture has no desktop bezel to crop.
+- **Every cut lands on a grid beat.** `mkspecs.py` turns each segment's recorded act
+  timestamps (tab · tap · scroll · day · produce · apple · start · next · open · climb ·
+  signals · tier · ladder) into a source window per RULE, allocates whole beats per page,
+  and sets the playback speed to fit the window into the beats — clamped 0.85–1.75×, 2.0×
+  on the profile so the CLIMB tab is reached inside its seven beats. The audio starts one
+  beat before the first page (two on alternate 1); the logo is static before the track's
+  first kick and pulses through the close (`kof`, the v3 rule, gated on the measured
+  `kick_by_beat`); captions ride y 300 for the whole of their segment with 0.18 s alpha
+  fades; the screen layer fades in over 0.3 s and out over 0.5 s (0.3 s on v5, inside the
+  B→C fade). TRAIN + SCORE sit on the pick (t3), EAT on alternate 1, COMMUNITY on alternate
+  2 — a different owned track per spot, so the four can run as a set.
+- **Verified numerically, per render** (`verify5.py`): 1440×2560 · 24 fps, 350 / 348 / 349 /
+  350 frames (14.58 / 14.50 / 14.54 / 14.58 s) against audio 14.573 / 14.506 / 14.53 /
+  14.573; v5 671 fr / 27.958 s. At two samples per page the phone-screen layer matches the
+  capture frame it was cut from (mean abs diff 1.7–2.3) and the composite matches
+  `screen(B_long, layer)` inside the rect (1.2–2.0). ⚠ **Five samples read 3–27 and every
+  one is a timing artefact, not a wrong clip**: a best-match scan pins the layer to the
+  source frame 1–2 capture frames (≤ 83 ms) off the nominal `s0 + (t − t0)·speed` map — the
+  24 fps resample of an 11–19 fps capture — after which the diffs read 1.9–2.0. Captions:
+  lit pixels at every caption midpoint (9–42 k) and **0 at t = 0.2 s** on all four. The
+  closing logo pulses: bbox 477–481 px / 18–24 k lit at a beat against 456 px / 8.8 k
+  mid-beat. The output audio re-measures 119.45 / 119.9 / 119.7 / 119.45 / 119.35 BPM with
+  every cut within 60 ms of a grid beat (score's one −55 ms is one frame) and tails at
+  −15 … −22 dB against −7 mid. **v5 vs v4**: outside the phone rect mean diff 0.00–0.42 at
+  six sample times, inside it 0.00–0.27 outside the montage and 21.8–25.5 inside it — the
+  montage is the only change.
+- ⚠ **THE SANDBOX WAS WIPED AFTER THE UPLOADS, AND THE RECORD WAS REBUILT FROM THE VERIFIED
+  LOGS, NOT RE-MEASURED.** The background lease lapsed during the owner's usage-limit pause;
+  every render, verify and md5-checked upload had completed before it. Every figure above
+  was read back from the verify logs in the session transcript (a JSON decoder over the tool
+  results), and the scripts in the recipe are the transcript's own copies with the recorded
+  patches applied — so a re-render starts from the record, not from memory. A fresh
+  `verify5.py` run on a fresh render is the honest re-check, not this page.
+- ⚠ **PRODUCTION DEFECT FOUND BY THE CAPTURE, REGISTERED NOT FIXED.** On the `/m/` signed-out
+  preview, tapping the marketplace row **TRAINER · DIEGO MORALES** crashed the app to the
+  error boundary — *"Something went wrong · The app hit an error and recovered … Cannot read
+  properties of undefined (reading '0') TypeError"* — while Leah Kim's Listing (Coach of the
+  Week) opened normally; the COMMUNITY spot uses hers. Observed on production, not
+  root-caused here (a marketing branch is not the place); War Room item under Marketplace &
+  coach profiles.
+- **Hosting:** gofile (guest) took all five, md5 matching the sandbox file each time; a guest
+  file is removed after ~10 days without a download, so the links are reviewable this week,
+  not permanent. **Records only in the repo; no PR, nothing merged.** Open: the owner's
+  review of the five cuts, the preview-cast ruling, whether the montage belongs in the launch
+  cut (v4 stays the launch cut until then), and the caption copy — six of the twenty spot
+  captions and both lines of the close are the website's own words (*Written before you
+  arrive.* · *The social side of strong.* · *Vetted trainers · Real humans* · *Browse free
+  before you pay* · *A profile that climbs with you.* · *One number that tells the truth.* ·
+  *Different goals. One Community.* · *One platform fee · cancel any time*); three are the
+  product's own names, two are adapted from house copy and nine are new lines in the house
+  register — those fourteen want the owner's eye.
+
+### 2026-09-02 — Launch cut v4: Radio only in the last clip, cut to fit the wall; the phone keeps the SHAPE logo
+
+- **Owner, on the three 09-02 renders: *"shape radio should only appear in the last clip
+  and make it so it fits on the main wall"*.** Two changes on the SAME grids, gate and
+  timing as the 09-02 variants — nothing else moved. The beat-24 phone morph
+  (SHAPE → ▸◂ RADIO) is deleted: for the whole of Scene B the SHAPE logo — triangles +
+  wordmark, 6 % scale + glow — pulses on every beat and nothing else appears on the
+  screen (`tM` is no longer read). Radio appears exactly once, on the club wall, as a
+  two-line lockup — SHAPE over ▸◂ RADIO, cut from the real wordmark — that ramps in over
+  the B→C fade, lands lit on beat 36 and pulses 3 % + glow to the end. Rendered as
+  **v4 / v4-alt1 / v4-alt2**; links handed over in-session, not in the repo. Recipe,
+  the measured panel, the fit check and the script deltas:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("What v4 is").
+- ⚠ **THE v3 WORDMARK DID NOT FIT THE WALL, AND "FITS" HAD NEVER BEEN MEASURED.** Scene C
+  is a dark central panel in front of a lit club interior, and the panel is NARROW — it
+  widens with the push-in: x 321–1122 (802 px) at 0.35 s, 283–1154 at 3 s, 241–1198 at
+  6 s, 169–1239 at 9.5 s (column means over the lockup's rows in `C.mp4`, dark = mean
+  < 14, the contiguous dark run containing x = 718). The v3 wordmark was **1240 px wide
+  at x 100–1340** — wider than the panel at every frame, 438 px wider at the start, the
+  lit pillars behind the letters. The recipe's geometry note said the scene's centre is
+  black "with nothing competing"; that was true of the CENTRE and false of the wordmark.
+  Corrected at the source.
+- **Two lines, not one.** A single-line wordmark that clears the narrowest panel would be
+  ~45 px tall — a caption, not a wordmark. The lockup stacks SHAPE (587×109) over
+  ▸◂ RADIO (680×109, `WALL_W = 680`, gap 20; both cut from the wordmark's rows 90–222 as
+  ONE box so they share a baseline; `MaxFilter(5)`), centred in the 1440×520 band and
+  overlaid at **`wallY = 1040`** (850 was v3's) so it centres on the panel's own centre
+  (≈ y 1300): frame y 1193–1407 at rest, 1187–1409 at a beat, with **50 / 58 px of panel
+  either side at the narrowest moment at a beat** (61 / 65 at rest) and 211 / 180 px by
+  9.5 s. `verify.py` now carries a **fit** check at four sample times — all four pass on
+  all three tracks — and a **no-second-line** check (no lit pixel below row 730 of the
+  screen at any of four samples, while the triangle rows carry ~4 000 lit pixels where
+  v3 read 0 after beat 24). `WALL_W` / `WALL_GAP` / `WALLY` re-size it in one env var if
+  the owner wants the single-line form.
+- ⚠ **THE FIRST v4-alt1 RENDER HAD A SILENT WALL FROM 24.1 s — THE GATE ARRAY HAD BEEN
+  TRUNCATED TO 48 BEATS.** The sandbox had been rebuilt from the transcript after a lease
+  loss, and the recovered `beat.py` wrote `kick_by_beat` as `kbn[:48]`; `pres()` returns 0
+  past the array's end, so alternate 1's kick return at beat 48 (24.07 s) never reached
+  the wall — k 0.0, 19 771 lit pixels constant through frames 140–241. (The 09-02 gated
+  renders used the full arrays — the recipe lists them through beat 62 — so the shipped
+  alternates were right; the rebuild was not.) Caught by `verify.py`'s SECOND wall window
+  (tC + 12P … tC + 18P), which exists precisely because a pulse proven in one window says
+  nothing about the next. Fixed at the instrument (every beat stored, 63 per track),
+  t1 / t2 / t3 re-measured, alternates re-rendered before anything was uploaded; alt1's
+  second window now reads 39 301 lit at a beat against 19 774 mid. *A gate array must
+  cover every beat of the track — a record that stops early is silence, not a gate.*
+- ⚠ **AND THE VERIFIER'S OWN "the logo is still there" SAMPLE WAS MISPLACED.** Its `last`
+  screen-layer frame sits inside the layer's own 0.3 s fade-out (1 851 / 3 279 lit, or
+  0 / 0 on alt2), so on a CORRECT render it read as "the logo is missing". A `late` sample
+  at T1 − 0.6 s now carries the presence assertion; `last` is checked only for the absent
+  second line. *Sample where the thing you assert can exist.*
+- **Verified numerically, per variant:** 1440×2560 · 24 fps; v4 671 fr / 27.959 s
+  (the `-t` +1-frame quirk, as before), the alternates 669 / 27.875; transition frames
+  match their sources (mean diff 0.32 / 1.83 / 1.49 outside the layers); the phone bbox
+  476–479 px and 20–22 k lit at a beat against 456 px / 8.8 k mid-beat; the wall blank at
+  its first frame, then v4 42.5 k / 49.7 k lit at a beat against 19.8 k mid in both
+  windows, alternate 2 40.0 k against 19.7 k in the first and still in the second (its
+  kick stops at beat 44), alternate 1 still in the first (kick-less 16.5–24.1 s) and
+  39.3 k against 19.8 k in the second; the output audio re-measures 119.4 / 119.95 / 119.7
+  BPM with halves agreeing and the first kick at 8.04 / 0.56 / 8.02 s; tail RMS
+  −17.3 / −19.3 / −25.8 dB against −10.0 / −12.9 / −10.3 mid (INPUT-side `-ss`). Each
+  upload's md5 matches the sandbox file (gofile guest, the 09-02 host order).
+- **Looked at, not only measured.** Two frame crops (the phone at a beat, the wall at a
+  beat) came out of the sandbox as base64, because the local proxy reaches no file host.
+  ⚠ An 11 KB block retyped in one piece was corrupt by ONE character. What works: the
+  sandbox prints 400-char lines each prefixed with the first 4 hex of its own md5 plus a
+  whole-file md5; a local script checks every line before decoding and names the bad
+  ones; a bad line is re-printed in 50-char pieces with their own checksums and only
+  those are retyped. A "corrected" retype of that line from memory was wrong too — the
+  checksum decides, not the eye. Both crops then read as designed: the logo alone on the
+  phone; the lockup inside the panel with dark on both sides.
+- **Records only in the repo** (this entry, the recipe's "What v4 is" + the script deltas
+  + ⚠ pointers on the superseded claims, the War Room item); **no PR, nothing merged.**
+  Open: the lockup's form (two lines vs a ~45 px single line — an env-var re-render) and
+  the 09-02 questions, unchanged.
+
 ### 2026-09-02 — The ascent chart at the top of the ladder, and two rounds of pill compaction
 
 - **Three owner calls, one presentation-only diff** (mobile only; no migration, no route,
@@ -601,6 +1171,177 @@ Append new entries at the top, under this note.
   double-quote grep reads 0 and looks like a miss — the trap this file records) · the
   superseded `minHeight:38` / `10px 15px` hits traced to **unrelated components** rather
   than assumed absent · LF, zero CR on all 14 files.
+
+### 2026-09-02 — "We can use both": the launch cut rendered on all three tracks, each on its own grid, with a kick-presence gate
+
+- **Owner ruling on the two alternate tracks: *"i like both of them. We can use both"*.**
+  Read as *the same film on each track*, not one film that changes track mid-way. Three
+  renders now exist — **v3 (the pick, unchanged)** plus the identical cut on alternate 1
+  and alternate 2, each re-planned by `plan.py` on that track's OWN measured grid with the
+  same structure (the phone lands on beat 16, SHAPE → ▸◂ RADIO on beat 24, the wall on
+  beat 36). ⚠ **SUPERSEDED THE SAME DAY BY v4 (the entry above)** — the phone morph on
+  beat 24 is gone and the wall lockup was re-cut to fit the slab; the grids and the gate
+  carry over. Links handed over in-session, not in the repo. The other reading (one cut, two
+  tracks) is offered as a question, not built. Recipe, grids, gate and verification:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md)
+  ("Variants").
+- ⚠ **THE ALTERNATE-2 KICK WAS NEVER OFF-BEAT — THE 09-01 GRID WAS HALF A BEAT OFF.** The
+  recipe's table read `0.46 (a dubby off-beat kick)`. Re-measured on a kick-centred phase
+  (0.044; the hat grid's 0.014 lags the kick by ~30 ms) the on-beat/half-beat contrast is
+  **3.26**, and **0.32** on a grid shifted by half a beat — the 0.46 was the instrument's
+  phase, and the description described the grid, not the track. Alternate 1 re-measures
+  2.05 (was 1.58) the same way. **This dents one of the three axes the pick rested on**:
+  it still wins both darkness axes by a margin (centroid 115 Hz against 137 / 174; 81 % of
+  its energy under 90 Hz against 66 / 74 %) — which is what *"deeper and darker"* asked
+  for — but it is NOT "the cleanest kick": alternate 2's is at least as clean (3.26 vs
+  3.22 today). Corrected at the source (the recipe table) and here; the entry below keeps
+  its date-true figure with a pointer.
+- ⚠ **THE PULSE MUST NEVER THROB TO A BEAT WITH NO KICK — AND BOTH ALTERNATES HAVE
+  KICK-LESS STRETCHES v3's RULE CANNOT SEE.** v3's `kof` is static only BEFORE the first
+  kick (`t ≥ tK`). Alternate 1's kick runs from bar one, fades over beats 29–32, is absent
+  from beat 33 to 47 (16.5–24.1 s — the whole B→C fade and the first six seconds of the
+  wall) and returns at beat 48 (24.07 s); alternate 2's stops at beat 44 (22.1 s) and its
+  outro is kick-less. An ungated render had the wall throbbing to silence. So the
+  alternates run a **kick-presence gate**: `k = exp(−u/0.20) · pres(n)`,
+  `pres = clip((kick_by_beat[n] − 0.15) / 0.30, 0, 1)`, where `kick_by_beat` is the
+  normalized peak kick-band energy within ±40 ms of each grid beat (`beat.py`, stored per
+  track). It generalizes v3's own rule — on the pick it reads 0 before beat 16 exactly as
+  `t ≥ tK` does. **v3 is deliberately NOT gated**, so it stays byte-identical to the cut
+  the owner approved; its one gap is beats 45–47 (22.6–24.1 s), where the wall throbs three
+  times to no kick — a one-flag re-render, the owner's call.
+- **Measured per track** (the v3 method — comb search, split-half agreement, per-beat
+  residuals): alternate 1 = 119.95 BPM, phase 0.064, halves 120.0 / 120.2, kick residual
+  after beat 16 median +5 ms; alternate 2 = 119.75 BPM, kick-centred phase 0.044, halves
+  119.6 / 119.6, residual median 0; the v3 control re-measures 119.4 with today's
+  instrument against the recorded 119.45 / 0.030 — the recorded grid is the better-centred
+  one (kick residual +10 ms against +30) and stands. ⚠ Prompted 122 / 124 / 126; all three
+  still measure ~120. *A number in a prompt is a request, not a measurement* — a third time.
+- **What each alternate does on screen.** Alternate 1: the phone lands with the kick
+  already running (a phrase boundary, not a drop); the wall lands inside the breakdown,
+  lit and still, and starts throbbing when the kick returns for the last 3.8 s. Alternate
+  2: an 8 s kick-less intro like the pick, so the phone lands on its drop (8.06 s); the
+  wall pulses from 18.08 s until the kick stops at 22.1 s, then holds lit through the
+  outro. **A re-time of alternate 1 that lands the wall ON its kick return was analysed
+  and not built** — Scene A is 10.125 s long, so the phone would have to land on beat 28,
+  the groove's last kick, and pulse once before the breakdown; one logo pulses briefly
+  either way, and this cut gives the long pulse to the phone. Owner's call.
+- **Verified numerically, per variant** (one `verify.py` for all three): 1440×2560 ·
+  24 fps; alternate 1 669 frames / 27.875 s, alternate 2 669 / 27.875, v3 671 / 27.959
+  (the `-t` +1-frame quirk, as before); transition frames match their sources (mean diff
+  ≤ 0.32 outside the layers); the screen bbox pulses 476–479 px at a beat against 456
+  mid-beat; the morph reads 3987 / 3992 / 3999 → 0 triangles and 0 → 2490 / 2557 / 2485
+  RADIO; the wall is blank at its first frame and pulses only where the gate says
+  (alternate 1: 16.2 k lit at beat and mid-beat alike at 19–21.6 s, 30.6 k against 16.3 k
+  after 24.1 s; alternate 2: 31.2 k against 16.3 k at 19–21.6 s, still from 23 s); the
+  output audio re-measures 119.95 / 119.7 / 119.4 with halves agreeing; tail RMS −19.2 /
+  −25.8 / −17.3 dB against −12.9 / −10.3 / −10.0 mid-track (INPUT-side `-ss`). Each
+  upload's md5 matches the sandbox file.
+- ⚠ **THE v3 REVIEW LINK DIED IN UNDER A DAY — uguu.se KEEPS A FILE ~3 h, NOT 48.** Both
+  the recipe and the entry below said 48 h; corrected at both. Today pixeldrain refuses
+  anonymous uploads (`authentication_required`), litterbox 500s again, 0x0.st resets the
+  TLS handshake, catbox answers "Invalid uploader"; **gofile (guest upload) took all
+  three** — its own policy removes a guest file after ~10 days without a download, so
+  the links are reviewable this week, not permanent. The order that works: gofile → 0x0.st
+  → litterbox → uguu (3 h). Links stay deliberately out of the repo.
+- ⚠ **AND THE UPLOAD SCRIPT'S OWN CHECK WAS BROKEN FIRST.** Its uguu regex
+  (`https?://h\.uguu\.se|uguu\.se[^ ]+`, an alternation without a group) matched only the
+  bare host, so a successful upload was logged as a 301 failure and never handed over.
+  Per-host URL extraction now (`jq` on the JSON, one regex per host). *A check that reports
+  a failure is a broken instrument until the failure is proven to have happened* — the
+  mirror of this file's saturated-zero rule.
+- **Records only in the repo** (this entry, the recipe's "Variants" section, the War Room
+  item); **no PR, nothing merged.**
+
+### 2026-09-01 — Launch cut v3: a deeper track, Radio threaded through the film, the rings gone
+
+- **Three owner notes on v2, one re-render.** *"need deeper and darker house music"* ·
+  *"shape radio needs to come together better, doesnt make sense how it just appears at
+  the end"* · *"remove the pulsing rings that appear, just have the logo itself pulse to
+  the house music beat"*. v3 answers all three; 1440×2560 · 24 fps · **27.9 s**. Recipe,
+  scripts and the measured numbers:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md).
+- **The track was CHOSEN BY MEASUREMENT, not by its prompt.** Three new owned Higgsfield
+  generations (prompted 122 / 124 / 126 BPM); the pick is the darkest on every axis —
+  spectral centroid 115 Hz (the others 137 / 174), 81 % of its energy under 90 Hz, the
+  cleanest kick (on-beat/half-beat contrast 3.2 against 1.6 and 0.5). ⚠ **All three
+  measure ~120 BPM whatever was prompted** — 119.45 for the pick — so the grid was
+  re-measured (comb search + split-half agreement + a per-beat residual check: the
+  envelope peaks sit within one frame of the grid across the whole track). *A number in
+  a prompt is a request, not a measurement* — the v1/v2 lesson, paid for a second time.
+- ⚠ **THE TRACK HAS AN 8 s KICK-LESS INTRO, AND THAT BECAME THE CUT'S STRUCTURE.** Rather
+  than trim it, the kick drop (beat 16, 8.07 s) is where the phone lands: the A→B fade
+  ENDS on it and the logo's first pulse is the first kick. Every transition ends on a
+  beat — A→B on beat 16, B→C on beat 36 (a downbeat) — which needs Scene B to run 0.22 s
+  past its 10.125 s, done with a 0.3 s clone-pad of its last frame (a static phone shot;
+  the pad sits entirely inside the fade).
+- **Radio is threaded, not appended.** On beat 24 (12.09 s) the big triangles fade out of
+  the phone and a teal "▸◂ RADIO" line fades in under the SHAPE text — cut from the real
+  Radio wordmark at the logo's own cap height — so the phone reads SHAPE, then SHAPE
+  RADIO, before the wall carries the full wordmark. The wall wordmark no longer fades in
+  at 21.7 s: it ramps in over the B→C fade to land fully lit ON the beat with a glow
+  flash, then keeps pulsing to the end. One motif, three sizes, all on one grid.
+  ⚠ **SUPERSEDED 2026-09-02 BY v4** — the owner asked for Radio *"only in the last
+  clip"*: the phone keeps the SHAPE logo for the whole of Scene B, and the wall lockup
+  was re-cut to FIT the slab — the v3 wordmark, 1240 px wide, overran a panel that is
+  802 px wide when the scene opens (see the v4 entry).
+- **No rings.** The only motion on the phone is the logo's own 6 % scale throb + glow
+  (`k = exp(−u/0.20)` per beat); the wall gets 3 % + glow. A whole-frame pulse was
+  considered and dropped — *"just the logo itself"*.
+- **Verified numerically** (the proxy still cannot fetch the render): the transition
+  frames match their source clips (mean diff 0.2 / 3.2 / 0.1); the phone layer's bbox is
+  477 px wide at a beat and 459 mid-beat (v2's mid-beat 606 was the ring — gone); the
+  morph frames show the triangles 3972 → 0 lit pixels and the RADIO line 0 → 2489; the
+  wall layer is blank before the fade, ramps through it, and at a beat lights 47 k pixels
+  against 17 k mid-beat (1270 vs 1225 px wide); the output audio re-measures at 119.45
+  BPM with the kick at 8.07 s. Tail RMS −17 dB over the last 0.9 s against −10 dB
+  mid-track, with an INPUT-side `-ss` (the v1/v2 false alarm not repeated).
+- ⚠ **litterbox returned a 500 on every upload attempt** (a BunkerWeb error page), so the
+  review link is a 48-hour uguu.se upload (⚠ CORRECTED 2026-09-02 — uguu keeps a file
+  ~3 h, not 48; the link was dead the next morning, and the order that works now leads
+  with gofile — see the entry above) — still a link, still not in the repo. Records only in the repo (this
+  entry, the recipe doc, the War Room item); **no PR, nothing merged.**
+
+### 2026-09-01 — The Radio launch cut is rendered: three Higgsfield scenes, the SHAPE logo pulsing on the beat, an owned track
+- ⚠ **SUPERSEDED THE SAME EVENING BY v3 (the entry above).** The 128-BPM track, the
+  29.6 s runtime, the teal ring and the 21.7 s wall fade all changed on the owner's three
+  notes; the recipe doc now describes v3 and keeps this cut under "Superseded". Kept
+  because a dated entry says what was true on its date.
+
+- **The consumer brand video exists as a cut, not a plan.** Three Higgsfield
+  generations (an athlete in light ribbons → a phone on a dark set → the club wall)
+  crossfaded into one **1440×2560 · 24 fps · 29.6 s** vertical, scored by an
+  **owned** Higgsfield deep-house track, the Radio wordmark rising on the wall at
+  21.7 s. Two versions of the phone screen: **v1** a four-screenshot reel of the
+  real July app, **v2** — the owner's call mid-session (*"this video should have the
+  shape logo on screen pulsing"*) — the SHAPE logo throbbing on every beat with a
+  teal ring rippling out of the mark. Recipe, the permanent source URLs, the
+  measured geometry and the full filtergraph:
+  [`marketing/shape-radio-launch-cut.md`](../marketing/shape-radio-launch-cut.md).
+  The review links are 72-hour uploads and are deliberately **not** in the repo.
+- ⚠ **THE TRACK WAS PROMPTED AT 124 BPM AND MEASURED AT 128.** A pulse on the
+  prompted tempo drifts half a beat inside fifteen seconds and reads as random, so
+  the grid was measured — comb-filter search over onset envelopes; the percussion
+  band autocorrelates at 0.4668 s and both halves of the track agree — and the pulse
+  locks to 128.0 / phase 0.055 s. *A number in a prompt is a request, not a
+  measurement.*
+- ⚠ **THE PHONE-SCREEN RECT HAD TO BE RE-DERIVED.** The first detection found only
+  the top of the screen (aspect 0.62 against a 0.46 phone) because the moving beam
+  reflections defeated a per-frame variance test; the temporal MINIMUM over sampled
+  frames erases the glints and gives x 416–1026 · y 592–1926 · r ≈ 100. Everything
+  on the screen is SCREEN-blended rather than overlaid, so those same reflections
+  ride over the logo and it reads as a lit screen, not a sticker.
+- **Honesty held on camera:** owned music only (the licensing guardrail), no "tune
+  in now" (the station is not broadcasting), real app captures in v1.
+- **Verified numerically, not by eye** — the local proxy cannot fetch the render, so
+  the checks are frame statistics on the layer and the output: at a beat the logo
+  bbox grows 456 → 476 px and the lit-pixel count 8.8k → 22k; the audio tail sits at
+  −37 dB against −11 dB mid-track. ⚠ That last figure is only right with an
+  **input-side** `-ss` — an output-side seek runs the whole file through `astats`
+  and read as if the fade were missing, one false alarm.
+- **Records only in the repo** (this entry, the recipe doc, one War Room item). The
+  handoff branch's three commits were rebased onto `main` (#2007) and pushed to the
+  session branch; **no PR, nothing merged** — the owner has reviewed neither the
+  wave-2 scripts nor either cut.
 
 ### 2026-09-01 — Two textures voided the page background; the Settings overlay painted over a live Home
 
