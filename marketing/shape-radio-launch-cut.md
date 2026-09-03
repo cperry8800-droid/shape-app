@@ -519,11 +519,17 @@ probed (`higgsfield_dop`, `kling_2_5`, `veo_3_1`, `sora_2`, `seedance_1_pro`, `w
 `higgsfield_soul`, `minimax_hailuo_02`) came back unknown. Record this with the prompts:
 a re-run on a different model is a different clip, and the geometry follows the clip.
 
-⚠ **10 s, NOT 10.125 s — AND THAT IS FINE, BUT ONLY BY ARITHMETIC.** The v3 clips ran 243
-frames; these run 10 s (240 frames at 24 fps). Nothing needs more: A1 takes **146**, A2 takes
-**60**, and D runs `30.75 − 21.8313 = 8.9187 s` = **214** frames. The longest demand is 214 of
-240. `norm6.sh` still runs first — the fps and pixel format are unverified until the files are
-in hand, and `concat` refuses a mismatch.
+⚠ **CORRECTED 2026-09-03 — THEY ARE 243 FRAMES, NOT 240, AND THIS PARAGRAPH ASSERTED THE
+NUMBER WITHOUT PROBING THE FILES.** It read *"The v3 clips ran 243 frames; these run 10 s
+(240 frames at 24 fps)"*. Measured with `ffprobe` on the delivered files: **A, A2, B, C and
+D all report `1440,2560,24/1,243` and `duration 10.125000`** — the same 243 as the v3 clips.
+The conclusion survives and gets **more** margin, not less: A1 takes **146**, A2 takes **60**,
+and D runs `30.75 − 21.8313 = 8.9187 s` = **214** frames, so the longest demand is 214 of
+**243**. But a file whose whole discipline is that recorded numbers are measured rather than
+assumed cannot carry a reported duration as if it were a probe — the next person sizing a
+scene against "240" would be working from a floor that was never checked. `norm6.sh` still
+runs first — the fps and pixel format are unverified until the files are in hand, and
+`concat` refuses a mismatch.
 
 ### The v7.1 melodic-house tracks — SUBMITTED and completed, prompts verbatim
 
@@ -1669,7 +1675,26 @@ The honest statement is that this is the feature's own UI at the film's own temp
 SHAPE over ▸◂ RADIO because the v3 one-liner overran a narrow panel. Zooming the scene
 fixes the premise instead of the lockup: `C_zoom.mp4` is `C.mp4` under
 `zoompan=z='1.15+0.35*pow(1-min(1,on/N),3)'` — it **opens at 1.50× and eases out to
-1.15×**, so the slab is widest exactly when the wordmark lands. The wordmark is the
+1.15×**, so the slab is widest exactly when the wordmark lands.
+
+⚠ **`in/C_zoom.mp4` IS NOT REPRODUCIBLE FROM THIS RECORD, AND THAT BLOCKS THE WHOLE RENDER
+— the same class as `cap/r3_radio_top.png` above and `params_v6.json` before it.** It is
+read by **three** scripts (`meas_wall.py`, `render6.sh`, `verify6.py`) and written by
+**none**, and the expression above is missing the two parameters a rebuild needs:
+**`N`, the ease length, is defined nowhere in this file**, and the **pan anchor**
+(`zoompan`'s `x`/`y`) is never stated, so whether the push-in is centred is unknown. A
+third unknown sits beside them: `meas_wall.py` reads **`SLAB_TH` and `SLAB_SAMPLES` from
+the environment**, so the shipped render may not have used the defaults (20 / 60).
+Attempted 2026-09-03: `N=200` (= `lenC`×24 = 200.08) with a centred anchor and an explicit
+`s=1440x2560` — ⚠ **`zoompan` silently emits 1280×720 without `s=`**, which the recorded
+fragment also omits. It built clean at 1440×2560, and `meas_wall.py` **refused** it:
+*degenerate slab left 731 right 863 top 616 bottom 1978* — a **132 px** intersection where
+this section records the true wordmark run as **~1010 px**. The refusal is the guard doing
+its job. ⚠ **Do NOT tune `N`, the anchor or `SLAB_TH` until the assert passes**: that is
+fitting the input until the guard goes green, which is the one move this file post-mortems
+in every other section. Recover the original ffmpeg command, or re-derive `C_zoom`
+deliberately and **re-baseline** the checkpoints below rather than reverse-engineering
+numbers to match them. The wordmark is the
 product's own `public/shape-radio-logo.png` (1647×116, one line, not condensed) at
 `WALL_W=1020`, and a **projected Radio screen** (a real capture of the app's Radio page,
 560 px wide, rounded-masked, bloomed) sits below it on the same slab. Measured in the
@@ -3949,6 +3974,50 @@ def grid(o,bpm_lo=110.0,bpm_hi=140.0):
     return dict(bpm=round(bpm,2),P=round(P,6),phase=round(bb[1],4),score=round(bb[0],4))
 ```
 
+**`pw/cap_radio.js`** — The Playwright capture that writes `cap/r3_radio_top.png`.
+
+⚠ **THIS ARTIFACT WAS LISTED AS A SOURCE WITH NO WAY TO MAKE IT — the fourth instance of
+the class this file keeps paying for.** `cap/r3_radio_top.png` is read by `meas_wall.py`
+and `mk_wall6.py`, and was written by **nothing**: not by the MAP, not by `body5a.js`,
+not by `body5b.js`. The v6 "New sources" list records it beside the globe clip and the
+repo PNG, but unlike those two it is not fetchable — it is a capture, and the capture was
+never recorded. Same shape as the v6 video prompts that cannot be recovered, as `beat.py`
+missing from the MAP, and as the `params_v6.json` that `plan6.py` exists to reconstruct.
+It is written down here so a rebuilt sandbox can produce it instead of stalling.
+
+It reuses `lib.js`'s own `boot()` / `go()` / `dump()` rather than re-deriving the boot
+path, so a change to the app's entry flow is fixed in one place. Reaching Radio is tried
+direct first and via the chat tab second, and `dump('radio_probe',true)` records what was
+on screen — a MISS then leaves evidence rather than a blank PNG. Measured on the live
+site: `tab:"radio"`, `ON AIR · 3,472 · 132 Station BPM · HEART-RATE SYNC · NOT CONNECTED ·
+STATION 132 · AWAITING SIGNAL · YOU — —`, written 750×1640.
+
+```javascript
+const {chromium}=require('playwright');
+const {mk,sleep,UA,INIT}=require('/home/user/pw/lib.js');
+(async()=>{
+ const b=await chromium.launch({args:['--no-sandbox'],executablePath:'/ms-playwright/chromium-1228/chrome-linux64/chrome'});
+ const c=await b.newContext({viewport:{width:375,height:820},deviceScaleFactor:2,userAgent:UA,isMobile:true,hasTouch:true});
+ await c.addInitScript(INIT);
+ const p=await c.newPage(); const L=mk(p);
+ await L.boot('RADIO');
+ // Radio lives off the chat/feed tab -> CHANNELS in the v5 tour; try the direct routes first.
+ let ok=false;
+ for(const re of ['SHAPE RADIO','^RADIO$','\u25b8\u25c2 *RADIO','Shape Radio']){ if(await L.go(re)){ok=true;break;} }
+ if(!ok){ await L.tab('chat'); await sleep(2200);
+   for(const re of ['CHANNELS','SHAPE RADIO','^RADIO$']){ if(await L.go(re)){ok=true;break;} } }
+ await sleep(3000);
+ await L.dump('radio_probe',true);
+ await p.screenshot({path:'/home/user/cap/r3_radio_top.png'});
+ console.log('REACHED',ok);
+ await b.close();
+})().catch(e=>{console.log('ERR',e.message);process.exit(1);});
+```
+
+⚠ **RUN IT BEFORE `meas_wall.py`.** `boot5.sh` writes the file but does not run it; the
+capture needs the live site and takes ~25 s. `cd /home/user/pw && node cap_radio.js`.
+
+
 **`boot5.sh`** — the whole rebuild in one script, because the sandbox is reclaimed on a
 roughly 20-minute cycle even with the lease re-armed on every call (it has now been
 wiped **six** times). Rebuild is ~2 minutes, npm ~20 s, capture ~4, seg2mp4 ~1,
@@ -3981,6 +4050,7 @@ import re,os
 L=open('/home/user/recipe.md').read().split('\n')
 MAP={'pw/lib.js':'/home/user/pw/lib.js','pw/tour4.js':'/home/user/pw/tour4.js',
  'pw/body5a.js':'/home/user/pw/body5a.js','pw/body5b.js':'/home/user/pw/body5b.js',
+ 'pw/cap_radio.js':'/home/user/pw/cap_radio.js',
  'seg2mp4.py':'/home/user/w/scripts/seg2mp4.py','captions.py':'/home/user/w/scripts/captions.py',
  'mk_screen5.py':'/home/user/w/scripts/mk_screen5.py','spot.py':'/home/user/w/scripts/spot.py',
  'mkspecs.py':'/home/user/w/scripts/mkspecs.py','mkspecs5.py':'/home/user/w/scripts/mkspecs5.py',
