@@ -547,6 +547,24 @@ would fail. 60 s was chosen so a track comfortably covers the 30.75 s launch cut
 of the five 23–27.5 s spots with room to seek a good 30 s window; the three shipped tracks
 run 32.023 s, so these are the first sources long enough to re-cut a spot inside one track.
 
+**Fetched and verified 2026-09-03** — each job id was pulled from its `rawUrl` and probed,
+so the four are recoverable as bytes, not just as a record. All four probe **60.023220 s**
+(matching the API's `durationSec 60.0236`) at ~300 kbps AAC. The md5 of each fetched file,
+so a later re-fetch can be checked rather than assumed:
+
+| index | md5 of the fetched `.m4a` | bytes |
+| --- | --- | --- |
+| 1 — house 122 (analog chords) | `0bc1d8059d93cd0682a91ecc194f32d1` | 2,261,990 |
+| 2 — progressive 124 (plucked arp) | `540b76ad39d617d4b76a31fdc42696f6` | 2,249,112 |
+| 3 — deep 120 (Rhodes) | `f8a94aef2622547d8d3b1cd8da3fa274` | 2,245,139 |
+| 4 — anthem 126 (big lead) | `6caf632ccae0ede95c4ca72687d10391` | 2,248,185 |
+
+⚠ **NO AUDIO IS COMMITTED, DELIBERATELY** — this file's hand-over rule is a short-lived
+link, never a file attachment and never a committed binary, and the four sit behind the
+same cloudfront prefix as every other source in the table. The durable record is the
+**job id + verbatim prompt + `duration` param** above; the md5 is what turns a re-fetch
+from a hope into a check. Download links are handed over in-session, as with every cut.
+
 ⚠ **A PROMPTED BPM IS A REQUEST, NOT A MEASUREMENT — THIS FILE HAS PAID FOR THAT THREE
 TIMES.** The v1/v2 track was prompted 124 and measured **128**; the v3 set was prompted
 122 / 124 / 126 and every one of the three measured **~120** (119.95 / 119.75 / 119.45).
