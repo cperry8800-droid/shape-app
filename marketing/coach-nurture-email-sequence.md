@@ -17,7 +17,7 @@
 | # | Trigger | Purpose |
 |---|---|---|
 | 1 | On opt-in (Day 0) | Welcome + deliver the give + one-line what-Shape-is |
-| 2 | Day 2 | The wedge — set your rate, pay only when you earn (flat 15%) |
+| 2 | Day 2 | The wedge — set your rate; your own clients pay 0%, marketplace clients a flat 15% |
 | 3 | Day 5 | Proof — how coaching actually runs on Shape |
 | 4 | Day 8 | Offer — Founding Coach + first hard apply CTA |
 | 5 | Day 12 | Last call — low-pressure close + founder 1:1 offer |
@@ -31,7 +31,7 @@
 >
 > You're in — thanks for putting your name down. Here's what you asked for: **[deliver the lead magnet / resource link].**
 >
-> One line on what Shape is, so it's clear what you're on the list for: a marketplace of vetted trainers and nutritionists where **you set your own rates and keep 85%** — Shape's commission is a flat 15%, only when a client pays you — and the app runs the whole loop (train → eat → recover → coach) so you're coaching, not doing admin.
+> One line on what Shape is, so it's clear what you're on the list for: a marketplace of vetted trainers and nutritionists where **you set your own rates and keep 100% on the clients you bring** — Shape's flat 15% applies only to clients its marketplace sends you, and only when they pay you — and the app runs the whole loop (train → eat → recover → coach) so you're coaching, not doing admin.
 >
 > Over the next couple of weeks I'll show you exactly how it works and what the founding cohort gets. No spam — reply anytime with a question.
 >
@@ -48,7 +48,7 @@
 >
 > Most coaching tools bill you a monthly fee whether or not you have a single client — and lock your clients inside their platform. Shape's different:
 >
-> - **You set your rates and keep 85%.** Shape's commission is a flat 15% — charged only when a client actually pays you, with no monthly software fee.
+> - **You set your rates, and the clients you bring pay 0% commission.** Shape's flat 15% applies only to clients its marketplace finds for you — charged only when a client actually pays you, with no monthly software fee.
 > - **Members pay their own $5/mo** — and there's no software or setup fee to bring your current clients over.
 > - **You keep your clients.** They're yours, not the platform's.
 >

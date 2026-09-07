@@ -4237,7 +4237,14 @@ R=/home/user/recipe.md
 # The MAP was fixed to name the v7 scripts and the URL it reads them from was not: a fix written in one
 # place and undone by another, the same shape as the ls -t and --short defects in docs/WORKLOG.md.
 # Track the branch this recipe LIVES on; a re-point is one edit, a silent v6 render costs a whole run.
-RECIPE_BRANCH=${RECIPE_BRANCH:-claude/shape-radio-launch-cut-18jr67}
+# ⚠ RE-POINTED 2026-09-07 TO main -- the branch this recipe lives on once the v7.2 PR merges. The default read
+# claude/shape-radio-launch-cut-18jr67, a SESSION branch, and the house resets or deletes those after every
+# squash-merge: a default naming one is a landmine with a date on it, the same shape as the stale-URL defect
+# the paragraph above post-mortems. ⚠ UNTIL THAT PR MERGES, pass RECIPE_BRANCH=<the PR branch> explicitly:
+# main's copy predates the C_zoom producer in norm6.sh and the meas_wall.py outlier rejection, and the guard
+# below will NOT notice -- main already defines all 27 MAP keys, in their pre-fix form. A guard that asserts
+# the SET does not assert the CONTENTS.
+RECIPE_BRANCH=${RECIPE_BRANCH:-main}
 [ -f $R ] || curl -sL -o $R https://raw.githubusercontent.com/cperry8800-droid/shape-app/$RECIPE_BRANCH/marketing/shape-radio-launch-cut.md
 python3 - <<'PY'
 import re,os

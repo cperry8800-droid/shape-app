@@ -8,7 +8,7 @@
 
 ## 1. The opportunity
 
-Shape is a marketplace of vetted human trainers and nutritionists. Members pay a $5/mo platform fee; coaches set their own rates and keep 85% — Shape takes a flat 15% commission, and only when a client actually pays them, with no monthly software fee, no setup fee, and no seat math. For a working coach, that's a low-friction way to add recurring online income on top of in-person clients, with the app handling the whole training loop (train → eat → recover → coach) and even ad-free Shape Radio attached to workouts.
+Shape is a marketplace of vetted human trainers and nutritionists. Members pay a $5/mo platform fee; coaches set their own rates. Clients a coach brings — by in-app invite or their own share link — pay 0% Shape commission, so the coach keeps the full rate; clients the Shape marketplace delivers pay a flat 15%, charged only when the client actually pays, with no monthly software fee, no setup fee, and no seat math. For a working coach, that's a low-friction way to add recurring online income on top of in-person clients, with the app handling the whole training loop (train → eat → recover → coach) and even ad-free Shape Radio attached to workouts.
 
 The campaign's job is to make that proposition land with coaches who are currently cobbling together DMs, spreadsheets, and a payment app — and convert them into applicants.
 
@@ -19,11 +19,11 @@ The campaign's job is to make that proposition land with coaches who are current
 The pitch to a coach is not "get discovered" (that's a marketplace promise we can't guarantee day one). It's **"run your existing coaching business in one place and pay only when you earn."** Discovery via the marketplace is the upside, not the lead hook.
 
 **Reasons to believe:**
-- You set your own rates and keep 85% — Shape's commission is a flat 15%, charged only when a client pays you, with no monthly software fee.
+- You set your own rates. Clients you bring pay 0% Shape commission — you keep your full rate; clients the marketplace sends you pay a flat 15%, charged only when they pay you, with no monthly software fee.
 - The app loads every client's plan the night before — sets, tempo, cues, macros — so you stop rebuilding spreadsheets.
 - One weekly number (Shape Score from sleep, stress, training) tells you who to adjust before they stall.
 - Vetted marketplace = you're listed alongside real pros, not buried in an open directory.
-- Members pay their own $5/mo, and there's no software or setup fee to bring your roster over — Shape earns its 15% only on what you actually get paid.
+- Members pay their own $5/mo, and there's no software or setup fee to bring your roster over — the clients you bring pay 0% commission, and Shape earns its 15% only on clients it found for you, only on what you actually get paid.
 
 ## 3. Audience segments & angle
 

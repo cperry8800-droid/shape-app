@@ -484,6 +484,38 @@ Append new entries at the top, under this note.
   and `claude/worklog-review-ozn07z` (2: the orb-card record, the launch-video brief +
   end-card build). `marketing/shape-radio-watch-orb.md` exists on both; the launch-cut
   copy is newer.
+- ⚠ **UPDATED 2026-09-07, SECOND SESSION — CONSOLIDATED ONTO ONE BRANCH, AND THE BASE CLAIM
+  ABOVE WAS WRONG FOR ONE OF THE TWO.** `claude/handoff-docs-review-mj1oxt` = `origin/main`
+  (`da2c8ad`) + the five launch-cut commits + `ec0b8a7` cherry-picked from the worklog-review
+  branch; its other commit (`0039525`, the orb record's older copy) was left, because `acd7a7c`
+  had already carried it across and amended it — the superset, checked by diff. ⚠ **The
+  worklog-review branch was NOT "reset onto the #2011 merge"**: measured `ahead 2 / behind 1`,
+  it sat on `66cf547` (#2010). The commit taken from it only ADDS files, so it applied cleanly;
+  the claim was wrong, the work was not. *A branch's base is measured with `rev-list --count`, never
+  recalled.*
+- **Re-measured, not carried:** `npm test` **2646/2646** on this tree (the Verified bullet
+  below said "not re-run" and quoted a stale 2643) · `tsc --noEmit` 0 · open PRs `[]` · i18n
+  13 × 18 × **4,162** = 54,108 · the ratchet **9/9** with every column unchanged. And the
+  handoff now carries the **#2008 → #2011** merge table, which no handoff had recorded — the
+  09-01 one stops at #2006, #2007 was itself, and the first draft of this one recorded only the
+  unmerged work. *A range claim is a claim; a range GAP is one too.*
+- ⚠ **`boot5.sh`'s `RECIPE_BRANCH` default re-pointed to `main`.** It named the launch-cut
+  session branch — the branch the recipe lived on that day, and a landmine the day that branch
+  is reset or deleted after its squash-merge. **Until the PR merges, a sandbox boot must pass
+  `RECIPE_BRANCH=claude/handoff-docs-review-mj1oxt`**: `main`'s copy predates the `C_zoom`
+  producer and the `meas_wall.py` outlier rejection, and the extraction guard cannot tell —
+  `main` already defines all 27 MAP keys, in their pre-fix form. *A guard that asserts the set
+  does not assert the contents.*
+- **The BYO correction is DONE, not pending.** Verified first: `dashBusiness.jsx:237` and
+  `platform-fee.ts` both say coach-brought clients pay **0 %** and marketplace-found **15 %**
+  (owner-ruled 2026-07-21, migration `2026-07-21-coach-byo-commission-split.sql`). The five
+  coach docs carried **18 lines** of *"keep 85 %"* / *"a flat 15 %, only when a client pays
+  you"*; all 18 now state the split (your clients 0 % · marketplace clients 15 %, only when
+  they pay · $5/mo members · no software fee), the waiting-room caveat rides the plan's
+  *verify-claims* line rather than the email bodies, and a grep for `85%` / `keep 85` reads
+  zero. New house-register lines → the owner's eye before any send. ⚠ **The other ten findings
+  of that review are unrecoverable** — they lived in a session task list and never reached the
+  repo; the handoff says so rather than pretending the record is whole.
 - **The v7.1 pipeline had never produced a render; it now has.** Every blocker was found
   by **running the documented order on a clean sandbox** rather than reading it, and each
   turned out to be an artifact recorded as a source with no producer — the class this log
@@ -527,7 +559,9 @@ Append new entries at the top, under this note.
 - **Verified:** docs-only throughout (the hook skipped every commit); the recipe's own
   boot block re-run against the edited file extracts **27/27**; both edited scripts pass
   `bash -n` / `py_compile`. **The suite was not re-run** — the last figure (2643/2643,
-  2026-09-02) is stale and must be re-measured before it is trusted.
+  2026-09-02) is stale and must be re-measured before it is trusted. ⚠ **CORRECTED the same
+  day, second session: re-run on the consolidated tree, 2646/2646** — see the bullets above;
+  the recipe's own extraction guard re-run against the edited file still resolves 27/27.
 
 ### 2026-09-03 — The auto-loaded changelog was a ~400k-token tax on every session; split into dated archives
 

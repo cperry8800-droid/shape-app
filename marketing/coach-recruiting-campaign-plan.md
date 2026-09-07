@@ -32,11 +32,11 @@ Two message tracks (PT / NUT), same arc, swapped proof points. Keep them separat
 The lead is **not** "get discovered." Marketplace discovery is real upside but can't be promised while demand is early — leading with it invites disappointment. Lead with **"run your existing coaching business in one place and pay only when you earn."**
 
 **Reasons to believe (verify each against the live site before send):**
-- You set your own rates and keep 85% — Shape's commission is a **flat 15%**, charged only when a client pays you (no monthly software fee).
+- You set your own rates. Clients you bring pay **0% commission** — you keep your full rate; Shape's **flat 15%** applies only to clients its marketplace sends you, charged only when a client pays you (no monthly software fee).
 - The app loads every client's plan the night before — sets, tempo, cues, macros — so you stop rebuilding spreadsheets.
 - One weekly number (**Shape Score**, from sleep, stress, training) tells you who to adjust before they stall.
 - **Vetted** marketplace — you're listed alongside real pros, not buried in an open directory.
-- Members pay their own **$5/mo**, and there's no software or setup fee to bring your roster over — Shape earns its 15% only on what you actually get paid.
+- Members pay their own **$5/mo**, and there's no software or setup fee to bring your roster over — the clients you bring pay 0% commission, and Shape earns its 15% only on clients it found for you, only on what you actually get paid.
 - Ad-free **Shape Radio** rides along with every workout — a nice-to-have, not the hook.
 
 ## 4. Offer / reason to apply now

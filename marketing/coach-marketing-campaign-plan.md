@@ -14,7 +14,7 @@
 Two jobs, in order:
 
 1. **Grow the list.** Turn strangers into opt-ins on the Founding Coach list. That list is the fuel the recruiting campaign burns — a bigger, warmer list makes every recruiting metric go up.
-2. **Establish the coach-side brand.** Before the app ships, plant one idea: *Shape is the platform where you pay only when you earn — a flat 15%, no monthly software fee.* When outreach or a referral lands later, the name is already familiar.
+2. **Establish the coach-side brand.** Before the app ships, plant one idea: *Shape is the platform where the clients you bring cost you nothing — 0% commission — and a flat 15% applies only to the clients Shape finds for you, with no monthly software fee.* When outreach or a referral lands later, the name is already familiar.
 
 North-star metric: **qualified coaches added to the Founding Coach list.** Everything else (reach, follows) is a means to it.
 
@@ -27,7 +27,7 @@ Coaches scroll IG and (increasingly) TikTok between sessions; the serious-busine
 Same spine as recruiting, pitched at awareness altitude (educational/aspirational, not "apply now"):
 
 - **Core idea:** *Bring your clients. Keep your rates. We run the loop.*
-- **The wedge (lead with this):** most coaching tools bill you a flat monthly fee whether or not you have clients. Shape flips that — you set your own rate and pay a flat 15% *only when a client pays you*, so you owe nothing between clients. (Members pay their own $5/mo.)
+- **The wedge (lead with this):** most coaching tools bill you a flat monthly fee whether or not you have clients. Shape flips that — you set your own rate, the clients you bring pay **0% commission**, and Shape's flat 15% applies *only to clients its marketplace sends you, and only when they pay you*, so you owe nothing between clients. (Members pay their own $5/mo.)
 - **The relief:** the app runs the train → eat → recover → coach loop, loads each plan the night before, and gives you one weekly number (Shape Score) so you coach instead of doing admin.
 - **The status:** vetted marketplace, real pros only. Founding cohort now.
 
@@ -42,7 +42,7 @@ Rotate these; roughly 40% business, 30% product, 20% proof, 10% founder.
 | **1. The business of coaching** | Agitate the real pain (fragmented tools, hours cap, client churn) | "You don't have a client problem — you have a 'your business lives in six apps' problem." · "The math no trainer wants to do: how many hours until you're full?" · "Your clients don't quit because you're bad. They quit because they traveled." |
 | **2. How the loop works** | Product education, low-key | "What if the plan loaded the night before — every set, tempo and cue — and you never rebuilt a spreadsheet again?" · "One number that tells you which client is about to stall." |
 | **3. Coach proof / spotlights** | Peer credibility (run once founding coaches exist) | "How [Coach] runs 20 online clients without a single PDF." · "[Coach] kept her rates, dropped three apps, and coaches off one screen." |
-| **4. Founder POV** | Why Shape exists; trust | "We built Shape so coaches pay only when they earn — a flat 15%, not a monthly fee whether or not you have clients." · "What a fair deal for coaches actually looks like." |
+| **4. Founder POV** | Why Shape exists; trust | "We built Shape so coaches keep what they bring — 0% on your own clients, a flat 15% only on the ones we find for you, and never a monthly fee whether or not you have clients." · "What a fair deal for coaches actually looks like." |
 | **5. Give-first coaching value** | Authority without a pitch | Short, genuinely useful coaching/nutrition tips. No CTA — pure value so the account is worth following. |
 
 ## 5. Channels
@@ -76,7 +76,7 @@ Cadence: **IG 4×/week, LinkedIn 2×/week, TikTok repurpose 3×/week.** One foun
 |---|---|---|
 | **Week 1 — Problem** | Name the pain | Reel (P1): "six apps" hook · Carousel (P1): the hours-cap math · Founder (P4): why we built Shape · Tip (P5) |
 | **Week 2 — Mechanism** | Show the relief | Reel (P2): plan loads night-before · Carousel (P2): what Shape Score is · LinkedIn (P1): "keep your rates" business case · Tip (P5) |
-| **Week 3 — Proof** | Make it real | Spotlight (P3) if a founding coach exists, else founder demo (P2) · Reel (P1): client-churn angle · Carousel (P4): the "pay only when you earn — flat 15%, no monthly fee" stance · Tip (P5) |
+| **Week 3 — Proof** | Make it real | Spotlight (P3) if a founding coach exists, else founder demo (P2) · Reel (P1): client-churn angle · Carousel (P4): the "your clients 0% · marketplace clients a flat 15% · no monthly fee" stance · Tip (P5) |
 | **Week 4 — Invitation** | Open the loop | Reel (P3/P4): founding cohort is filling · Carousel: "what Founding Coach gets you" (conditional) · LinkedIn (P4): fair-deal-for-coaches manifesto · Direct: "list closes soon" |
 
 Every post ends with the soft CTA to the Founding Coach list except pure give-first tips (which build follow-worthiness).
@@ -103,7 +103,7 @@ Every post ends with the soft CTA to the Founding Coach list except pure give-fi
 
 - **Give-first, not salesy.** If every post is a pitch, the account dies. 4:1 value-to-ask, minimum.
 - **Don't over-promise discovery or perks.** Same rule as recruiting: marketplace demand is upside, not a guarantee; Founding Coach perks stay conditional until ops/finance sign off.
-- **Verify claims before posting.** The 15% commission, the $5/mo member fee, rates, and Shape Score — all drawn from the repo/live site as of July 1, 2026; re-check before scheduling.
+- **Verify claims before posting.** The commission split (0% on clients a coach brings by invite or share link, 15% on marketplace-found clients — shipped 2026-07-21; a member already in the coach's Shape waiting room counts as Shape-found), the $5/mo member fee, rates, and Shape Score — all drawn from the repo/live site as of September 7, 2026; re-check before scheduling.
 - **Proof needs a coach.** Pillar 3 can't run until a founding coach is live — sequence it after the first recruiting wins, and capture stories during onboarding.
 
 ---
