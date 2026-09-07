@@ -3376,6 +3376,50 @@ re-made; the clips were not, and cannot.*
 
 ---
 
+## What v7.2 is (2026-09-03) — the watch is gone, the orb card IS the beat match, and the cut finally renders
+
+Owner: *"this should be the beatmatching, remove the watch"*, pointing at the two-orb card.
+So the HR moment is no longer a wrist at all. Full card spec, renderer and the assets it
+rides on: [`shape-radio-watch-orb.md`](shape-radio-watch-orb.md).
+
+**What changed in the pipeline**
+
+- **`in/A2.mp4` is no longer a different shot.** It is Scene A continuing from frame `f12`
+  (`ffmpeg -ss f12/24 -t lenA2`), so the beat-12 hard cut becomes **invisible** and the
+  runner simply keeps running. No physical watch appears anywhere in the film.
+- **`in/watch.mov` / `in/watch_cu.mov` are drawn by the orb renderer**, not `mk_watch.py` —
+  same frame counts (194 / 60), same full-frame-overlaid-at-0:0 pattern, same measured wide
+  inset (`x 890 / y 1660`). They are written in **absolute cut time**, so the animation does
+  not restart at the (now invisible) cut.
+- **`meas_watch.py` and `mk_watch.py` drop out of the run order.** v7.1's `watchface()` and
+  v6's `card()` are both dead code.
+- The merge lands on **`tSync`** from `params_a2.json` — the grid's own sync instant, beat 14
+  — so `IN SYNC` resolves two beats before the drop, as v7.1 intended.
+
+⚠ **THE FIRST v7.2 RENDER SHIPPED A FABRICATED READOUT, AND IT WAS CAUGHT BY READING THIS
+FILE RATHER THAN THE FRAME.** The card's `BPM` was **hardcoded 140** — carried across from
+the standalone preview, which rides a *separate* 140 BPM bed — while `render6.sh` scores the
+launch cut to **`in/t3.m4a`, measured 119.45**. So it read **`140 / 140 · IN SYNC` over a
+track playing 119.45**: a claim of sync at a tempo the music is not playing, which is exactly
+what the v6 note forbids one section above (*"the station line reads 120 BPM because that is
+the track's real tempo"*). **The honest-data doctrine does not stop at the app's surfaces.**
+Fixed at the root, not by retyping: `BPM` is **derived from `meas_<track>.json`**, the same
+measurement the grid comes from, so the card cannot disagree with the music again whichever
+track a future cut rides. *A number typed beside a measurement will eventually contradict it.*
+
+⚠ **`verify6.py`'s WATCH ASSERTIONS ARE NOW STALE BY DESIGN — they test for a watch that no
+longer exists.** The beat-12 cut probe, the "both cut frames match their own clip" check and
+the close-up amber→teal count all describe the removed shot. They must be **re-derived
+against this render**, never carried — the rule this file already records for the v7 IN SYNC
+change: *an assertion tuned to a bug passes only while the bug is there*, and one tuned to a
+removed feature fails forever.
+
+⚠ **THE PHONE IN THIS RENDER IS THE LOGO-ONLY LAYER, NOT THE 4-PAGE MONTAGE.** Measured
+constraint, not a preference: the sandbox lease runs **~6.5 minutes** and the app capture
+alone costs **~5**, so capture and render cannot share a window. The montage spec is built
+and recorded (see the v7 phone-layer note above); it is a swap of one input, `in/phoneB.mp4`.
+
+
 ## What v7.1 is (2026-09-03) — the watch face, the pinned globe, the casting, the EAT prep beat, and four melodic tracks
 
 Five more owner notes on the v7 build. Each is recorded here with what it changes, what it
