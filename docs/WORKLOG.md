@@ -475,6 +475,60 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-07 — Session handoff: `docs/HANDOFF-2026-09-07.md` — the launch cut renders for the first time, and nothing is merged
+
+- **Handoff: [`docs/HANDOFF-2026-09-07.md`](HANDOFF-2026-09-07.md).** ⚠ **NOTHING FROM
+  THIS SESSION IS MERGED AND THERE IS NO PR** — measured, `list_pull_requests` returned
+  `[]`. Six docs-only commits sit on two `claude/*` branches, both reset onto the
+  `#2011` merge: `claude/shape-radio-launch-cut-18jr67` (4: the pipeline fixes + v7.2)
+  and `claude/worklog-review-ozn07z` (2: the orb-card record, the launch-video brief +
+  end-card build). `marketing/shape-radio-watch-orb.md` exists on both; the launch-cut
+  copy is newer.
+- **The v7.1 pipeline had never produced a render; it now has.** Every blocker was found
+  by **running the documented order on a clean sandbox** rather than reading it, and each
+  turned out to be an artifact recorded as a source with no producer — the class this log
+  keeps post-morteming: `boot5.sh` fetching a **v6-era recipe** (6 of 26 MAP keys never
+  extracted, three extracted as v6 versions, a guard that counted files and passed);
+  `cap/r3_radio_top.png` (no producer → `pw/cap_radio.js`); **`in/C_zoom.mp4`** (no
+  producer, `zoompan` recorded without `N` or the anchor, introduced already incomplete in
+  `e22dead` — re-derived, corroborated within 3 % of the recorded slab); `captions.py` and
+  `cap_radio.js` missing from the run order; and **`in/phoneB.mp4`** (no producer, and
+  `params_v4.json` behind it has none either).
+- ⚠ **THE C_ZOOM BLOCKER WAS A MEASUREMENT DEFECT WEARING THE COSTUME OF A MISSING ASSET.**
+  `meas_wall.py` dropped frames where the panel does not read but still intersected frames
+  that read *badly* — a mid-strobe frame returns a legitimate-looking narrow rect, and under
+  a strict min/max one of them defined the answer (132 px against a ~1165 px slab). Outlier
+  rejection before the intersect; measured after, 40/60 read, 38 kept, **1010 wide** against
+  the v6 record's 1010–1012.
+- **Owner rulings, all in the recipe's v7.2 section:** the **two-orb card is the beat
+  match and the physical watch is gone** (`A2` is Scene A continuing from `f12`; the
+  beat-12 cut is invisible; `meas_watch.py`/`mk_watch.py` are out) · runner is job
+  `878ea5a1` (wide, side-on, clothed, explosive — four rounds, each note a defect in the
+  prompt) · **the tracks already made**, all seven measured with a driver validated to
+  ≤ 0.05 BPM against the three recorded grids. ⚠ **`sonilo_music` ignores tempo requests
+  — six of seven landed at ~128 whatever was asked**; a tempo is imposed with `atempo` and
+  **re-measured** (`m1` × 1.09375 = a true 140.00).
+- ⚠ **THE FIRST v7.2 RENDER SHIPPED A FABRICATED READOUT, CAUGHT BY READING THE RECIPE
+  RATHER THAN THE FRAME.** The card's `BPM` was hardcoded **140** from the standalone
+  preview's separate bed while `render6.sh` scores the cut to `t3` at **119.45** — a sync
+  claim at a tempo the music is not playing, the exact thing the v6 note forbids one
+  section up. Fixed at the root: `BPM` is **derived from `meas_<track>.json`**, the same
+  file the grid comes from. *A number typed beside a measurement will eventually contradict
+  it.* The corrected render built twice and was **lost twice to sandbox reclamation before
+  upload** — see the handoff §5 for the lease reality (~4–6 min, not 15; one background
+  script, upload as the line after the render).
+- **Also shipped:** `marketing/launch-video-prompt.md` (the shot-by-shot brief, was
+  chat-only, sectioned ×9) and `marketing/launch-video/build-endcard.sh` (shot 12 in 9:16 +
+  1:1, media gitignored). ⚠ The wordmark canvas is 3626×882 but the **ink is 3082×342** —
+  scaling the canvas to 55 % of frame renders the mark at **46.8 %**; the script crops to
+  the ink first. And the eleven marketing-docs findings (tasks #1–#11), of which the one
+  that matters: **all five coach docs sell a flat 15 % on everything, while the product has
+  shipped BYO 0 % since 2026-07-21.**
+- **Verified:** docs-only throughout (the hook skipped every commit); the recipe's own
+  boot block re-run against the edited file extracts **27/27**; both edited scripts pass
+  `bash -n` / `py_compile`. **The suite was not re-run** — the last figure (2643/2643,
+  2026-09-02) is stale and must be re-measured before it is trusted.
+
 ### 2026-09-03 — The auto-loaded changelog was a ~400k-token tax on every session; split into dated archives
 
 - **`AGENTS.md` `@`-imports `docs/WORKLOG.md`, and that file had grown to 20,657
