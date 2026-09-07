@@ -3388,9 +3388,17 @@ rides on: [`shape-radio-watch-orb.md`](shape-radio-watch-orb.md).
   (`ffmpeg -ss f12/24 -t lenA2`), so the beat-12 hard cut becomes **invisible** and the
   runner simply keeps running. No physical watch appears anywhere in the film.
 - **`in/watch.mov` / `in/watch_cu.mov` are drawn by the orb renderer**, not `mk_watch.py` —
-  same frame counts (194 / 60), same full-frame-overlaid-at-0:0 pattern, same measured wide
-  inset (`x 890 / y 1660`). They are written in **absolute cut time**, so the animation does
-  not restart at the (now invisible) cut.
+  same frame counts (194 / 60), same measured wide inset (`x 890 / y 1660`). They are written
+  in **absolute cut time**, so the animation does not restart at the (now invisible) cut.
+  ⚠ **THEY ARE NOT THE SAME SHAPE, AND THIS LINE SAID THEY WERE.** `render6.sh` overlays
+  `watch.mov` at `x=WX:y=WY` and `watch_cu.mov` at `0:0` — so the wide layer must be the
+  **bare 480×480 card** and only the close-up layer a **full 1440×2560 frame** with the card
+  already at `(X, Y)`. The first three v7.2 renders wrote both full-frame, which put the wide
+  card at `(2X, 2Y)` = off-screen: **the card was blank for the whole of Scene A before `f12`**
+  and appeared only on the A2 segment. Caught 2026-09-07 by cropping the card rect at 2.0 s and
+  5.0 s out of the render — a frame that should carry two cream orbs carried the runner's shoe.
+  *Check the compositing geometry of BOTH consumers before declaring two layers "the same
+  pattern"* — the same rule this file records for `overlay` vs `screen`, one axis over.
 - **`meas_watch.py` and `mk_watch.py` drop out of the run order.** v7.1's `watchface()` and
   v6's `card()` are both dead code.
 - The merge lands on **`tSync`** from `params_a2.json` — the grid's own sync instant, beat 14
@@ -3418,6 +3426,159 @@ removed feature fails forever.
 constraint, not a preference: the sandbox lease runs **~6.5 minutes** and the app capture
 alone costs **~5**, so capture and render cannot share a window. The montage spec is built
 and recorded (see the v7 phone-layer note above); it is a swap of one input, `in/phoneB.mp4`.
+
+### Rendered 2026-09-07 — the corrected cut exists as a link, and two more defects fell on the way
+
+**The render:** `out/launch_v7.mp4`, 1440×2560 · 24 fps · **738 frames / 30.750 s**, md5
+`214e67b3ca0e7bc18284ef841e62f1c5`, 71 MB. Links (not permanent — gofile removes a guest file
+after ~10 days without a download, litterbox after 72 h):
+`https://gofile.io/d/IECkCiF1` · `https://litter.catbox.moe/9kfcmn.mp4`. The card reads
+**`119 / 86 → 119 / 119 · IN SYNC`** over `t3` at 119.45 — the derived readout, not the
+fabricated 140. Looked at, not only measured: eight frames across the cut and four crops of the
+card rect were pulled out of the sandbox as checksummed base64 and viewed.
+
+⚠ **EVERY v7.2 RENDER BEFORE THIS ONE SHIPPED THE WRONG RUNNER.** `boot5.sh` fetched Scene A as
+`6f01a52f` — the v7 clothed runner — while [`shape-radio-watch-orb.md`](shape-radio-watch-orb.md)
+had listed **`878ea5a1`** as the approved casting since 2026-09-03 (*"i like 11"*: wide, locked
+off, side profile, explosive). The approval was recorded in one file and the fetch lived in
+another, and nothing joined them — the same shape as the stale `RECIPE_BRANCH` this section
+opens with. Fixed at the fetch; `run72.sh` names the approved job in its own fetch list.
+
+⚠ **AND THE FIRST RENDER OF THE APPROVED RUNNER HAD A BLANK CARD FOR ALL OF SCENE A BEFORE
+`f12`.** See the corrected bullet above: the orb writer emitted both layers full-frame, and
+`render6.sh` overlays the wide one at `x=890:y=1660`, so the card sat at `(1780, 3320)` — outside
+a 1440×2560 frame. The whole-frame contact sheet looked right (the IN SYNC frame is past `f12`,
+where the close-up layer is overlaid at `0:0` and was correct); only cropping the card rect at
+2.0 s and 5.0 s showed the runner's shoe where two orbs belonged. *A contact sheet proves the
+frames you sampled, and nothing about the ones you did not.* That render (md5 `acc9afb0…`,
+`gofile.io/d/LTkZlziO`) is superseded.
+
+**Lease facts, re-measured today and different from the handoff's:** the sandbox **persists
+between back-to-back calls** — six parallel `sandbox_exec` calls all read the same file — but
+**a call that runs past 60 s is killed and the sandbox goes with it**, and a ~30 s idle gap after
+a completed call also lost it once. So the chain runs as one background script and is polled in
+calls of ≤ 45 s, which is what `run72.sh` documents in its header. The whole chain takes
+**~2 min 10 s** with `superfast` (render ~35 s on 8 cores), well inside what the sandbox allows.
+
+⚠ **`verify6.py` WAS RUN ON THE RENDER AND DIES AT LINE 40 — `meas_watch.json` does not exist,
+because `meas_watch.py` is out of the pipeline.** That is the "stale by design" note above coming
+true, not a new finding; the watch assertions have to be cut and the remaining thresholds
+re-derived against `214e67b3…`. **Not done in this session** — it is the open item on the
+launch cut, recorded rather than claimed.
+
+**`run72.sh`** — the one-shot driver that produced the render. It fetches this recipe, extracts
+`boot5.sh` from it, and runs everything through to the upload and the card proof. It is not in
+`boot5.sh`'s MAP because it is the thing that runs `boot5.sh`; paste it into the sandbox by hand.
+
+```bash
+#!/bin/bash
+# run72.sh -- the v7.2 launch cut, boot -> layers -> render -> upload, in ONE background script.
+# Launch:  nohup bash run72.sh > run72.log 2>&1 &   then poll `tail run72.log` in SHORT calls (<60 s each).
+# ⚠ Why one script: the Higgsfield sandbox survives between back-to-back calls but a sandbox_exec call that
+# runs past 60 s is killed AND takes the sandbox with it; anything split across calls, or any single call
+# that waits on the render, loses the sandbox. Measured 2026-09-07: fetch->layers ~40 s, render ~35 s
+# (superfast, 8 cores), uploads ~12 s -- the whole chain in ~2 min 10 s.
+exec 2>&1; set -e
+T(){ echo "▸ $1 $(date +%T)"; }
+cd /home/user
+mkdir -p w/in pw
+RECIPE_BRANCH=${RECIPE_BRANCH:-claude/shape-radio-launch-cut-18jr67}
+curl -sL -o recipe.md "https://raw.githubusercontent.com/cperry8800-droid/shape-app/$RECIPE_BRANCH/marketing/shape-radio-launch-cut.md"
+python3 -c "
+L=open('/home/user/recipe.md').read().split('\n')
+i=next(n for n,l in enumerate(L) if l.startswith('**\`boot5.sh\`**'))
+while not L[i].startswith('\`\`\`'): i+=1
+j=i+1
+while not L[j].startswith('\`\`\`'): j+=1
+open('/home/user/boot5.sh','w').write('\n'.join(L[i+1:j])+'\n')"
+# Parallel fetch of ONLY what v7.2 reads: the APPROVED runner (878ea5a1) as A, B, C, D, t3, logos, fonts.
+# A2 is derived from A below; t1/t2 and the v7 close-up are not fetched. boot5.sh runs with SKIP_DL=1.
+P=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
+G=https://raw.githubusercontent.com/cperry8800-droid/shape-app/main/public
+F=https://raw.githubusercontent.com/google/fonts/main
+cd w
+curl -sL -o in/A.mp4 $P/hf_20260903_204330_878ea5a1-c831-445b-8150-6ec7d3795b24.mp4 &
+curl -sL -o in/B.mp4 $P/hf_20260901_165434_a27526b7-057b-4165-865c-0e9c5c9b46e9.mp4 &
+curl -sL -o in/C.mp4 $P/hf_20260901_165434_a1d1066e-7837-48c6-81ce-ef849c38d8a2.mp4 &
+curl -sL -o in/D.mp4 $P/hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4 &
+curl -sL -o in/t3.m4a $P/hf_20260901_195948_814905f0-3558-40b7-a918-04d447a98d58.m4a &
+curl -sL -o in/SHAPE-logo-teal-white.png "$G/SHAPE-logo-teal-white.png" &
+curl -sL -o in/radio-wordmark.png "$G/Shape%20radio%20logo%20updated.png" &
+curl -sL -o in/Newsreader.ttf "$F/ofl/newsreader/Newsreader%5Bopsz%2Cwght%5D.ttf" &
+curl -sL -o in/NewsreaderIt.ttf "$F/ofl/newsreader/Newsreader-Italic%5Bopsz%2Cwght%5D.ttf" &
+curl -sL -o in/JetBrainsMono.ttf "$F/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf" &
+wait; cp in/JetBrainsMono.ttf mono.ttf; T FETCH
+SKIP_DL=1 bash /home/user/boot5.sh | tail -1; T BOOT
+# The wall capture runs in parallel with everything up to mk_wall6.py (it is the long pole: npm i + Playwright).
+( cd /home/user/pw && npm i -s playwright@1.49.1 >/dev/null 2>&1 && timeout 120 node cap_radio.js >/dev/null 2>&1; echo "cap exit $?" ) &
+CAP=$!
+mkdir -p cap/txt; python3 scripts/captions.py >/dev/null
+python3 scripts/plan6.py >/dev/null; python3 scripts/plan_a2.py >/dev/null
+# A2 = Scene A continuing from f12 (v7.2). It must exist BEFORE norm6.sh, which probes A A2 D and dies on a missing file.
+python3 -c "
+import json,subprocess;a=json.load(open('params_a2.json'))
+subprocess.run(['ffmpeg','-y','-v','error','-ss','%.4f'%(a['f12']/24.0),'-i','in/A.mp4','-t','%.4f'%a['lenA2'],'-an','-c:v','libx264','-preset','ultrafast','-crf','12','-pix_fmt','yuv420p','in/A2.mp4'],check=True)"
+sed -i 's/-preset medium -crf 12/-preset ultrafast -crf 14/' scripts/norm6.sh
+set +e; bash scripts/norm6.sh > norm.log 2>&1; NR=$?; set -e; tail -1 norm.log; [ $NR = 0 ] || { echo NORM6-FAILED; cat norm.log; exit 1; }
+T NORM
+# Three layer builders in parallel: the orb card, the logo-only phone, the globe.
+( python3 - <<'PY'
+import json,math,subprocess
+from PIL import Image,ImageDraw,ImageFont,ImageFilter
+a=json.load(open('params_a2.json')); m=json.load(open('meas_t3.json'))
+# BPM is DERIVED from the measured track, never typed -- see shape-radio-watch-orb.md.
+BPM=int(round(m['bpm'])); P=m['P']; PHI=m['phase_used']; HR0=BPM-36; tSync=a['tSync']; f12=a['f12']; X,Y=a['wide']['x'],a['wide']['y']
+W,H=1440,2560; S=480; t0=1.0; CREAM=(232,226,214); AMBER=(214,158,74); TEAL=(52,214,197)
+lerp=lambda A,B,u: tuple(int(round(A[i]+(B[i]-A[i])*u)) for i in range(3)); ease=lambda u: u*u*(3-2*u)
+F=ImageFont.truetype('mono.ttf',40); Fs=ImageFont.truetype('mono.ttf',18); cy=S//2; SPAN=150; R=30
+def card(t):
+    u=0.0 if t<t0 else min(1.0,(t-t0)/(tSync-t0)); e=ease(u); hr=int(round(HR0+(BPM-HR0)*e)); gap=(BPM-hr)/float(BPM-HR0); sy=t>=tSync
+    col=TEAL if sy else lerp(CREAM,AMBER,min(1.0,e*1.4)); im=Image.new('RGBA',(S,S),(0,0,0,0)); d=ImageDraw.Draw(im); g=Image.new('RGBA',(S,S),(0,0,0,0)); dg=ImageDraw.Draw(g)
+    d.line([(cy-SPAN-R,cy),(cy+SPAN+R,cy)],fill=col+(70,),width=2); ph=((t-PHI)%P)/P; pulse=1.0+0.16*math.exp(-ph/0.22); off=int(round(SPAN*gap))
+    if sy:
+        rr=int(R*1.45*pulse); dg.ellipse([cy-rr*2,cy-rr*2,cy+rr*2,cy+rr*2],fill=col+(95,)); d.ellipse([cy-rr,cy-rr,cy+rr,cy+rr],fill=col+(255,))
+        v=str(BPM); w=d.textlength(v,font=F); d.text((cy-w/2,cy-rr-58),v,font=F,fill=col+(255,)); s="IN SYNC"; w=d.textlength(s,font=F); d.text((cy-w/2,cy+rr+34),s,font=F,fill=col+(255,))
+    else:
+        for sgn,lab,val in((-1,'BPM',BPM),(1,'HRM',hr)):
+            x=cy+sgn*off; rr=int(R*pulse); dg.ellipse([x-rr*2,cy-rr*2,x+rr*2,cy+rr*2],fill=col+(85,)); d.ellipse([x-rr,cy-rr,x+rr,cy+rr],fill=col+(255,))
+            s=str(val); w=d.textlength(s,font=F); d.text((x-w/2,cy-rr-58),s,font=F,fill=col+(240,)); w=d.textlength(lab,font=Fs); d.text((x-w/2,cy+rr+26),lab,font=Fs,fill=col+(200,))
+    return Image.alpha_composite(g.filter(ImageFilter.GaussianBlur(14)),im)
+def write(path,n0,n,full):
+    # render6.sh overlays in/watch.mov at x=WX:y=WY (so it must be the bare 480x480 card) and in/watch_cu.mov at 0:0
+    # (so it must be a full frame with the card already at X,Y). Writing both full-frame put the wide card at (2*X,2*Y): off-screen.
+    sz=f'{W}x{H}' if full else f'{S}x{S}'
+    pr=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgba','-s',sz,'-r','24','-i','-','-c:v','qtrle','-pix_fmt','argb',path],stdin=subprocess.PIPE)
+    for i in range(n):
+        c=card((n0+i)/24.0)
+        if full: fr=Image.new('RGBA',(W,H),(0,0,0,0)); fr.paste(c,(X,Y),c); c=fr
+        pr.stdin.write(c.tobytes())
+    pr.stdin.close(); pr.wait()
+write('in/watch.mov',0,194,False); write('in/watch_cu.mov',f12,60,True); print('ORB BPM',BPM,'HR0',HR0,'tSync',tSync)
+PY
+) &
+( python3 -c "
+import json;p=json.load(open('params_v6.json'));m=json.load(open('meas_t3.json'));P=m['P'];phi=m['phase_used'];T0=p['offAB'];span=p['offBC']+0.3-T0;tb=lambda b:phi+b*P-T0
+json.dump({'name':'v7logo','T':round(span,4),'grid':{'P':P,'t_b0':round(tb(16),4),'bidx0':16,'kb':[1.0]*80},'segments':[{'kind':'logo','t0':0.0,'t1':round(span,4)}],'env_out':0.3,'logo_from':round(tb(16),4)},open('spec_v7logo.json','w'))"
+python3 scripts/mk_screen5.py spec_v7logo.json in/phoneB.mp4 >/dev/null; echo PHONE-OK ) &
+( python3 scripts/meas_pins.py >/dev/null; python3 scripts/mk_globe.py | tail -1 ) &
+wait $CAP || true; ls -la /home/user/cap/r3_radio_top.png | awk '{print $5,$9}'
+python3 scripts/meas_wall.py | tail -1; python3 scripts/mk_wall6.py | tail -1
+wait; T LAYERS
+ls -la in/watch.mov in/watch_cu.mov in/A2.mp4 in/phoneB.mp4 in/wall6.mp4 in/globe6.mp4 in/C_zoom.mp4 | awk '{print $5,$9}' | tr '\n' ' '; echo
+sed -i 's/-preset medium -crf 18/-preset superfast -crf 17/' scripts/render6.sh
+bash scripts/render6.sh 2>&1 | tail -4; T RENDER
+F=out/launch_v7.mp4
+# All three hosts in parallel, as the very next line after the render. uguu stays in the list but returned nothing on 2026-09-07.
+( curl -s -m 170 -F "file=@$F" https://upload.gofile.io/uploadfile | python3 -c "import sys,json;d=json.load(sys.stdin);print('GOFILE',d.get('data',{}).get('downloadPage',d))" 2>/dev/null || echo "GOFILE fail" ) &
+( curl -s -m 170 -F "files[]=@$F" https://uguu.se/upload.php | grep -oE 'https://[a-z]*\.?uguu\.se/[A-Za-z0-9._-]+' | head -1 | sed 's/^/UGUU /' || echo "UGUU fail" ) &
+( curl -s -m 170 -F "reqtype=fileupload" -F "time=72h" -F "fileToUpload=@$F" https://litterbox.catbox.moe/resources/internals/api.php | grep -oE '^https://[^ <]+' | head -1 | sed 's/^/LITTER /' || echo "LITTER fail" ) &
+wait; T UPLOADED
+# Proof the card is on screen for the WHOLE of Scene A: the card rect at 2.0 / 5.0 / 6.9 / 7.3 s, as one small JPEG,
+# printed as base64 with its md5 so it can be reassembled and LOOKED AT outside the sandbox (the proxy cannot fetch the render).
+for t in 2.0 5.0 6.9 7.3; do ffmpeg -v error -y -ss $t -i $F -frames:v 1 -vf "crop=480:480:890:1660,scale=160:160" c_$t.png; done
+ffmpeg -v error -y -i c_2.0.png -i c_5.0.png -i c_6.9.png -i c_7.3.png -filter_complex "[0][1][2][3]hstack=4" -q:v 6 cards.jpg
+echo CARDS $(wc -c < cards.jpg) $(md5sum cards.jpg | cut -c1-8); base64 -w 0 cards.jpg; echo; echo DONE
+```
 
 
 ## What v7.1 is (2026-09-03) — the watch face, the pinned globe, the casting, the EAT prep beat, and four melodic tracks
@@ -4306,8 +4467,11 @@ if [ -z "$SKIP_DL" ]; then
   # and must not be fetched here. The first cut of this block still pulled the v6 Scene A and fetched neither
   # A2 nor D, so norm6.sh aborted on a missing in/A2.mp4 and -- worse -- a hand-fetched A2 let the run continue
   # with the naked-runner A already in place, silently shipping the exact frame owner note #4 exists to fix.
-  curl -sL -o in/A.mp4  $P/hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4
-  curl -sL -o in/A2.mp4 $P/hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4
+  # v7.2: Scene A is the APPROVED runner, job 878ea5a1 (owner, 2026-09-03: "i like 11") -- NOT the v7 clothed
+  # runner 6f01a52f, which this line fetched through every v7.2 render up to 2026-09-07 while the orb record
+  # listed 878ea5a1 as approved. And in/A2.mp4 is no longer fetched at all: it is DERIVED from A (Scene A
+  # continuing from f12, see run72.sh), so the v7 close-up e815ac55 must not be pulled here either.
+  curl -sL -o in/A.mp4  $P/hf_20260903_204330_878ea5a1-c831-445b-8150-6ec7d3795b24.mp4
   curl -sL -o in/B.mp4  $P/hf_20260901_165434_a27526b7-057b-4165-865c-0e9c5c9b46e9.mp4
   curl -sL -o in/C.mp4  $P/hf_20260901_165434_a1d1066e-7837-48c6-81ce-ef849c38d8a2.mp4
   curl -sL -o in/D.mp4  $P/hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4

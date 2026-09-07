@@ -63,7 +63,7 @@ mechanism the cut would actually use.
 
 | Piece | Job | Notes |
 | --- | --- | --- |
-| **Scene A runner — APPROVED** | `878ea5a1-c831-445b-8150-6ec7d3795b24` | wide, locked-off, side profile, clothed, explosive. 1440×2560, 24 fps, **243 frames**, 10.125 s |
+| **Scene A runner — APPROVED** | `878ea5a1-c831-445b-8150-6ec7d3795b24` | wide, locked-off, side profile, clothed, explosive. 1440×2560, 24 fps, **243 frames**, 10.125 s. File `hf_20260903_204330_878ea5a1-….mp4`. ⚠ `boot5.sh` fetched `6f01a52f` as Scene A through every v7.2 render until 2026-09-07 — fixed there and in `run72.sh` |
 | **Audio bed — APPROVED** | `5a06417b-ce80-4651-a5c1-1dc026ddbe9b` (m1) **time-stretched** | see below |
 
 ### The 140 BPM bed, and why it is a stretch rather than a prompt
@@ -156,6 +156,13 @@ for n in range(N):
     im=Image.alpha_composite(g.filter(ImageFilter.GaussianBlur(14)),im)
     im.save(f'fr/f{n:04d}.png')
 ```
+
+⚠ **WHEN THIS RIDES INSIDE `render6.sh` (v7.2), THE TWO LAYERS ARE NOT THE SAME SHAPE.**
+`in/watch.mov` is overlaid at `x=890:y=1660`, so it must be the **bare 480×480 card**;
+`in/watch_cu.mov` is overlaid at `0:0`, so it must be a **full 1440×2560 frame** with the card
+pasted at `(890, 1660)`. Writing both full-frame — which the first three v7.2 renders did — put the
+wide card at `(1780, 3320)`, off-screen, and the card was blank for all of Scene A before `f12`.
+`run72.sh` in `shape-radio-launch-cut.md` carries the writer with a `full` flag per layer.
 
 Font: JetBrains Mono, the house mono —
 `https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf`.

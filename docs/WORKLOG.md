@@ -475,6 +475,47 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-07 — The corrected v7.2 launch cut is a link at last; it took the approved runner and an off-screen card to get there
+
+- **The render exists:** 1440×2560 · 24 fps · **738 frames / 30.750 s**, md5
+  `214e67b3ca0e7bc18284ef841e62f1c5`, the card reading **119 / 86 → 119 / 119 · IN SYNC** over
+  `t3` (119.45) — the derived readout, not the fabricated 140. Links (gofile ~10 days without a
+  download · litterbox 72 h) are in the recipe's §"Rendered 2026-09-07"; nothing is in the repo
+  but records. **Docs-only; no PR, nothing merged.**
+- ⚠ **EVERY v7.2 RENDER BEFORE THIS ONE USED THE WRONG RUNNER.** `boot5.sh` fetched Scene A as
+  `6f01a52f` (the v7 runner) while `shape-radio-watch-orb.md` had recorded **`878ea5a1`** as the
+  approved casting since 09-03. The approval and the fetch lived in different files with
+  nothing joining them — the same class as the stale `RECIPE_BRANCH` fixed on 09-03. Fixed at
+  the fetch, and the driver names the approved job in its own list.
+- ⚠ **THE FIRST RENDER OF THE APPROVED RUNNER HAD A BLANK CARD FOR ALL OF SCENE A BEFORE
+  `f12`, AND THE CONTACT SHEET DID NOT SHOW IT.** The orb writer emitted both HR layers as full
+  1440×2560 frames; `render6.sh` overlays the wide one at `890:1660` and only the close-up at
+  `0:0`, so the wide card sat at `(1780, 3320)` — off-screen. The eight-frame contact sheet
+  looked right because its IN SYNC sample was past `f12`, where the correctly-placed close-up
+  layer takes over. Only cropping the **card rect** at 2 s and 5 s showed the runner's shoe
+  where two cream orbs belonged. *A contact sheet proves the frames you sampled, and nothing
+  about the ones you did not.* Fixed with a `full` flag per layer; re-rendered; the crops now
+  read cream 119/86 → amber 119/109 → merged → teal IN SYNC.
+- ⚠ **THE LEASE FACTS IN THE 09-07 HANDOFF WERE WRONG, AND THE CORRECTION IS WHAT MADE THE
+  RENDER POSSIBLE.** Measured: the sandbox **persists between back-to-back calls** (six parallel
+  calls read one file), but **a `sandbox_exec` call that runs past 60 s is killed and takes the
+  sandbox with it**, and a ~30 s idle gap after a completed call lost it once. So the chain is
+  one background script (`run72.sh`, now in the recipe) launched from a call that returns at
+  once and **polled in calls of ≤ 45 s** — ~2 min 10 s end to end with `superfast`. Three earlier
+  "lost to reclamation" runs were almost certainly killed by a long call, not by a lease.
+- **Looked at, not only measured.** Frames leave the sandbox only as text (the proxy denies
+  every media host), so the contact sheet and the card crops came out as checksummed base64 in
+  ≤ 14,000-character chunks (a longer chunk is silently truncated in the MIDDLE of the output),
+  reassembled locally and md5-matched before viewing. The card crops are now the last line of
+  `run72.sh`, so every future render proves its own card.
+- **Not done, said plainly:** `verify6.py` dies at line 40 on the missing `meas_watch.json` — the
+  "stale by design" note coming true — and its thresholds are **not re-derived**. The 4-page
+  montage phone layer is still unrendered (logo-only shipped). EAT re-capture (#19) untouched.
+- **Verified:** LF, zero CR, zero NUL; **98 fences (even)**; `run72.sh` and `boot5.sh` extracted
+  from the edited recipe pass `bash -n`; the embedded orb renderer parses; `boot5.sh`'s MAP still
+  resolves **27/27** against the edited file. Docs-only, so the hook skipped the suite; the last
+  measured figure (2643/2643, 09-02) stays stale.
+
 ### 2026-09-07 — Session handoff: `docs/HANDOFF-2026-09-07.md` — the launch cut renders for the first time, and nothing is merged
 
 - **Handoff: [`docs/HANDOFF-2026-09-07.md`](HANDOFF-2026-09-07.md).** ⚠ **NOTHING FROM
