@@ -475,6 +475,36 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-07 — v7.3: the Radio screen fills the club wall on every frame, because the wall itself moves
+
+- **Owner: *"can you have shape radio actually fill the wall perfectly"*.** Done and rendered:
+  md5 `41e3c31b31cf7c22c10cba4a400d7713`, 738 frames / 30.750 s, links in the recipe's
+  §"v7.3". **Docs-only in the repo; no PR, nothing merged.**
+- ⚠ **A CONSTANT RECT COULD NEVER FILL IT, AND THE REASON WAS IN THE FOOTAGE.** `mk_wall6.py` drew
+  the screen once, height-bound inside the strict intersection — 803 px wide in a 1010 px slab,
+  and the right size at exactly one instant. Measured on the raw club clip: **it pushes in on its
+  own** (the slab widens 805 → 1034 px across its 8 s), and under the recipe's zoom ease the slab
+  first narrows (1170 → 1077 px by 3.8 s) and then widens again (→ 1188 px). Two eases
+  multiplied; no fixed rectangle is inside the slab always and touching it ever.
+- **So the slab is tracked per frame.** `track_wall.py` reads left / right / top on every second
+  frame with the existing dark-run detector, rejects strobe reads, fits each edge as a cubic in t
+  (rms 2.5 / 1.0 / 8.4 px); `mk_wall7.py` draws the screen into that rect on every frame, the
+  capture cropped to the slab's aspect so it fills both axes. ⚠ **The bottom edge cannot be
+  measured** (the dark run escapes into the floor on most frames) so it is not fitted: the slab's
+  aspect **K = 1.566** is the median of the nine frames whose bottom read, and the bottom follows
+  the width. Both scripts are in the recipe and its MAP; `run72.sh` calls them and now prints a
+  four-frame slab proof after the card proof.
+- **Looked at:** the screen meets the lit pillars on both sides at 14.3 / 16.0 / 18.5 / 21.3 s,
+  and a 4× crop of the slab's foot beside the gamma-lifted raw frame puts the screen's bottom
+  within ~20 px of where the wall meets the floor. ⚠ The one "clean" bottom read the old rect
+  leaned on (2205) was a strobe shadow — *a single read is not a measurement*, this file's own
+  rule, one edge over.
+- **Cost stated:** the capture crop drops the page below the HEART-RATE SYNC row (CONNECT MONITOR
+  and under) — a wall is wider than a phone, so the page's foot gives way, never its header.
+- **Verified:** LF, zero CR/NUL; fences even; both new scripts `py_compile`; `run72.sh` extracted
+  from the edited recipe passes `bash -n`; `boot5.sh`'s MAP resolves 29/29. Suite not re-run
+  (docs-only).
+
 ### 2026-09-07 — The corrected v7.2 launch cut is a link at last; it took the approved runner and an off-screen card to get there
 
 - **The render exists:** 1440×2560 · 24 fps · **738 frames / 30.750 s**, md5

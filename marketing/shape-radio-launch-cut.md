@@ -3466,6 +3466,166 @@ true, not a new finding; the watch assertions have to be cut and the remaining t
 re-derived against `214e67b3…`. **Not done in this session** — it is the open item on the
 launch cut, recorded rather than claimed.
 
+### v7.3 (2026-09-07) — the Radio screen fills the wall on every frame
+
+Owner: *"can you have shape radio actually fill the wall perfectly"*. Render md5
+`41e3c31b31cf7c22c10cba4a400d7713` (738 frames / 30.750 s, everything else as `214e67b3…`);
+`https://gofile.io/d/Mg4IdnzT` · `https://litter.catbox.moe/kb0sze.mp4` (72 h).
+
+⚠ **A CONSTANT RECT CANNOT FILL THIS SLAB, AND THE REASON IS IN THE FOOTAGE, NOT THE ZOOM.**
+`mk_wall6.py` drew the screen once, height-bound inside the strict intersection `meas_wall.py`
+returns (803 × 1521 in a 1010-wide slab) — so it never filled the width, and it matched the slab's
+size at exactly one instant. Measured on the raw `C.mp4`: **the club clip itself pushes in** — the
+slab widens **805 → 1034 px** across its 8 s (left 319 → 200, right 1124 → 1234, top 792 → 613).
+Under the recipe's zoom ease it first **narrows** (1170 → 1077 px by 3.8 s, the ease outrunning the
+source move) and then **widens again** (→ 1188 px). Two eases multiplied; no single rectangle is
+inside the slab at every moment *and* touching its edges at any.
+
+**So the slab is tracked per frame.** `track_wall.py` decodes every second frame of `C_zoom.mp4`,
+reads left / right / top with `meas_wall.py`'s own dark-run detector, rejects the strobe reads (the
+0.75-of-median width rule, plus any top that escaped to the frame edge), and fits each edge as a
+**cubic in t** with one robust re-pass. Measured: left rms 2.5 px, right rms 1.0 px, top rms 8.4 px
+over 71–75 kept reads. ⚠ **The bottom edge is unmeasurable on most frames** — the dark run
+escapes into the floor and reads 2559 — so it is not fitted: a physical rectangle facing the camera
+keeps its aspect under any zoom, and **K = h/w = 1.566** is the median over the nine frames whose
+bottom did read. `mk_wall7.py` then draws the screen into that rect **every frame** (margin 8 px,
+capture cropped to the slab's aspect so it fills BOTH axes — `(0,0,750,1174)`: the page's
+header wordmark, dial, waveform, RESUME and the HEART-RATE SYNC row stay; CONNECT MONITOR and
+below give way), the bloom pulsing on the gated kick as before.
+
+**Looked at:** the slab region at 14.3 / 16.0 / 18.5 / 21.3 s — the screen meets the lit pillars
+on both sides in all four; and a 4× crop of the slab's foot at 17.6 s beside the gamma-lifted raw
+frame — the screen's rounded bottom sits within ~20 px of where the wall meets the floor. ⚠ The
+single "clean" bottom read the constant-rect era leaned on (2205 at 3.8 s) was a strobe shadow,
+not the wall's foot; the aspect median is the better instrument.
+
+`meas_wall.py` stays in the run order for the capture's `crop_top`; `mk_wall6.py` is superseded and
+kept for the record.
+
+**`track_wall.py`** — the Scene C slab rect PER FRAME on `in/C_zoom.mp4` → `wall_track.json`.
+
+```python
+#!/usr/bin/env python3
+# track_wall.py -- the Scene C slab rect PER FRAME on in/C_zoom.mp4 -> wall_track.json
+# meas_wall.py measures ONE rect (the strict intersection over the scene) and mk_wall6.py drew the screen at that
+# constant geometry. Measured 2026-09-07, that cannot fill the slab: the club clip ITSELF pushes in (the slab in the
+# raw C.mp4 widens 805 -> 1034 px over its 8 s), and under the recipe's own zoom ease it first narrows (1170 -> 1077
+# px by 3.8 s) and then widens again (-> 1188 px). A constant rect fills the slab at exactly one instant.
+# So: read left / right / top on ~100 frames, reject the strobe reads, fit each edge as a smooth cubic in t, and
+# take the BOTTOM from the slab's measured aspect -- the bottom edge is unmeasurable (the dark run escapes into the
+# floor on most frames: it reads 2559), but a physical rectangle facing the camera keeps its aspect under any zoom.
+import json,subprocess,sys,numpy as np
+W,H=1440,2560; FPS=24; TH=20; STEP=2
+p=json.load(open('params_v6.json')); lenC=p['lenC']; N=int(round(lenC*FPS))
+SRC='in/C_zoom.mp4'
+pr=subprocess.Popen(['ffmpeg','-v','error','-i',SRC,'-vf',f'select=not(mod(n\\,{STEP}))','-vsync','0','-f','rawvideo','-pix_fmt','gray','-'],stdout=subprocess.PIPE)
+def run(mask,c):
+    if c<0 or c>=len(mask) or not mask[c]: return None
+    l=c
+    while l>0 and mask[l-1]: l-=1
+    r=c
+    while r<len(mask)-1 and mask[r+1]: r+=1
+    return int(l),int(r)
+def rect(g):
+    h=run((g[760:832].mean(axis=0)<TH),720)
+    if h is None: return None
+    cx=(h[0]+h[1])//2
+    v=run((g[:,max(0,cx-40):cx+41].mean(axis=1)<TH),796)
+    if v is None: return None
+    cy=(v[0]+v[1])//2
+    h2=run((g[max(0,cy-36):cy+37].mean(axis=0)<TH),cx) or h
+    return dict(left=h2[0],right=h2[1],top=v[0],bottom=v[1])
+reads=[]
+fi=0
+while True:
+    b=pr.stdout.read(W*H)
+    if len(b)<W*H: break
+    g=np.frombuffer(b,np.uint8).reshape(H,W).astype(np.float32)
+    r=rect(g)
+    if r: reads.append(dict(n=fi*STEP,t=fi*STEP/FPS,**r))
+    fi+=1
+pr.wait()
+if fi<N//STEP-2: sys.exit(f'decoded only {fi} frames of {N//STEP} expected')
+if len(reads)<20: sys.exit(f'slab read on only {len(reads)} frames -- not a measurement')
+# 1. reject strobe reads on width (the 0.75-of-median rule meas_wall.py records) and top-edge escapes
+w=np.array([r['right']-r['left'] for r in reads]); med=float(np.median(w))
+keep=[r for r,ww in zip(reads,w) if ww>0.75*med and r['top']>2]
+print(f'track: {fi} frames decoded, {len(reads)} read, {len(keep)} kept (median width {med:.0f})')
+t=np.array([r['t'] for r in keep])
+fits={}; resid={}
+for k in ('left','right','top'):
+    y=np.array([r[k] for r in keep],np.float64)
+    c=np.polyfit(t,y,3); res=y-np.polyval(c,t)
+    mad=np.median(np.abs(res-np.median(res)))+1e-6
+    ok=np.abs(res)<max(6.0,4*1.4826*mad)          # second pass without the reads the strobe still bent
+    c=np.polyfit(t[ok],y[ok],3); res=y[ok]-np.polyval(c,t[ok])
+    fits[k]=[float(x) for x in c]; resid[k]=dict(n=int(ok.sum()),rms=float(np.sqrt((res**2).mean())),max=float(np.abs(res).max()))
+    print(f'  {k}: {int(ok.sum())} pts, rms {resid[k]["rms"]:.1f} px, max {resid[k]["max"]:.1f} px')
+# 2. the slab's aspect from the frames where the bottom did NOT escape into the floor
+asp=[(r['bottom']-r['top'])/(r['right']-r['left']) for r in keep if r['bottom']<H-3]
+if len(asp)>=3: K=float(np.median(asp)); src='measured on %d frames'%len(asp)
+else: K=1.4754; src='FALLBACK constant (measured once on 2026-09-07: 1589/1077)'
+print(f'  aspect h/w K={K:.4f} ({src})')
+rects=[]
+for n in range(N):
+    tt=n/FPS; L=np.polyval(fits['left'],tt); R=np.polyval(fits['right'],tt); T=np.polyval(fits['top'],tt)
+    B=T+K*(R-L); rects.append([int(round(L)),int(round(R)),int(round(T)),int(round(B))])
+assert all(r[1]-r[0]>600 and r[3]>r[2]+600 for r in rects), 'degenerate tracked rect'
+for k in ('left','right','top'):
+    assert resid[k]['max']<25, f'{k} fit does not describe the reads (max resid {resid[k]["max"]:.0f} px) -- the slab is not moving smoothly'
+json.dump(dict(K=K,K_source=src,fits=fits,resid=resid,n_frames=N,rects=rects,samples=[[r['n'],r['left'],r['right'],r['top'],r['bottom']] for r in keep]),open('wall_track.json','w'))
+print('TRACK-OK first',rects[0],'mid',rects[N//2],'last',rects[-1])
+```
+
+**`mk_wall7.py`** — the wall layer drawn into the tracked rect on every frame; writes `in/wall6.mp4` so `render6.sh` is unchanged.
+
+```python
+# Scene C wall layer (v7.3): the app's Radio page projected to FILL the slab ON EVERY FRAME, tracking the push-in.
+# 1440x2560, from offBC for lenC, written to in/wall6.mp4 so render6.sh is unchanged. Replaces mk_wall6.py, which
+# drew one constant rect (the strict intersection) and therefore filled the slab at one instant only.
+import math,json,os,subprocess,numpy as np
+from PIL import Image, ImageFilter, ImageDraw
+p=json.load(open('params_v6.json')); m3=json.load(open('meas_t3.json')); tr=json.load(open('wall_track.json')); mw=json.load(open('meas_wall.json'))
+P=p['P']; phi=p['phi']; KB=m3['kick_by_beat']; offBC=p['offBC']; T=p['lenC']; tC=p['t28']; FPS=24; W,H=1440,2560
+N=int(round(T*FPS)); rects=tr['rects']; K=tr['K']; assert len(rects)==N
+MG=int(os.environ.get('SCR_MARGIN','8'))            # 8 px: the soft mask edge lands ON the slab edge, not inside it
+CT=int(os.environ.get('CROP_TOP',str(mw['capture']['crop_top'])))
+cap=Image.open('/home/user/cap/r3_radio_top.png').convert('RGB')
+# crop the capture to the SLAB'S aspect so it fills both axes -- the page is taller than the wall is, so the
+# bottom of the capture (below the fold) is what gives way, never the header wordmark.
+CB=min(cap.height,CT+int(round(cap.width*K)))
+scr0=cap.crop((0,CT,cap.width,CB))
+wmax=max(r[1]-r[0] for r in rects)-2*MG; hmax=int(round(wmax*K))
+scr=scr0.resize((wmax,hmax),Image.LANCZOS)
+mk=Image.new('L',(wmax,hmax),0); ImageDraw.Draw(mk).rounded_rectangle((6,6,wmax-7,hmax-7),radius=26,fill=255); mk=mk.filter(ImageFilter.GaussianBlur(9))
+base=Image.fromarray((np.asarray(scr).astype(np.float32)*(np.asarray(mk).astype(np.float32)/255)[...,None]+0.5).astype('uint8'))
+spad=90; scan=Image.new('RGB',(wmax+2*spad,hmax+2*spad),(0,0,0)); scan.paste(base,(spad,spad))
+bloom=scan.filter(ImageFilter.GaussianBlur(40))
+def pres(n): return 0.0 if n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
+def kof(t):
+    if t<tC-0.01: return 0.0
+    n=int(math.floor((t-phi)/P)); return math.exp(-(((t-phi)%P)/P)/0.20)*pres(n)
+def clamp(x): return max(0.0,min(1.0,x))
+def paste(dst,src,gain,x0,y0):
+    h,w=src.shape[:2]; xs0=max(0,x0); ys0=max(0,y0); xs1=min(W,x0+w); ys1=min(H,y0+h)
+    if xs1<=xs0 or ys1<=ys0: return
+    dst[ys0:ys1,xs0:xs1]+=src[ys0-y0:ys1-y0,xs0-x0:xs1-x0]*gain
+proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-c:v','libx264','-preset','fast','-crf','10','-pix_fmt','yuv420p','in/wall6.mp4'],stdin=subprocess.PIPE)
+for i in range(N):
+    t=offBC+i/FPS; k=kof(t); e=clamp((t-offBC)/0.3)*clamp((offBC+T-t)/0.3)
+    L,R,Tt,B=rects[i]; sw=(R-L)-2*MG; sh=int(round(sw*K)); sx=L+MG; sy=Tt+MG
+    s=sw/wmax
+    sa=np.asarray(base.resize((sw,sh),Image.LANCZOS)).astype(np.float32)/255
+    bs=1+0.05*k; bw=int(round(bloom.width*s*bs)); bh=int(round(bloom.height*s*bs))
+    bl=np.asarray(bloom.resize((bw,bh),Image.BILINEAR)).astype(np.float32)/255
+    f=np.zeros((H,W,3),np.float32)
+    paste(f,bl,0.26+0.55*k,sx+sw//2-bw//2,sy+sh//2-bh//2)     # the beat rides the BLOOM, never the geometry
+    paste(f,sa,0.88+0.10*k,sx,sy)
+    proc.stdin.write((np.clip(f*e,0,1)*255+0.5).astype('uint8').tobytes())
+proc.stdin.close(); proc.wait()
+print('WALL7-OK',N,'frames; screen at first',rects[0],'mid',rects[N//2],'last',rects[-1],'crop',(0,CT,cap.width,CB),'K',round(K,4),'margin',MG)
+```
+
 **`run72.sh`** — the one-shot driver that produced the render. It fetches this recipe, extracts
 `boot5.sh` from it, and runs everything through to the upload and the card proof. It is not in
 `boot5.sh`'s MAP because it is the thing that runs `boot5.sh`; paste it into the sandbox by hand.
@@ -3562,7 +3722,8 @@ json.dump({'name':'v7logo','T':round(span,4),'grid':{'P':P,'t_b0':round(tb(16),4
 python3 scripts/mk_screen5.py spec_v7logo.json in/phoneB.mp4 >/dev/null; echo PHONE-OK ) &
 ( python3 scripts/meas_pins.py >/dev/null; python3 scripts/mk_globe.py | tail -1 ) &
 wait $CAP || true; ls -la /home/user/cap/r3_radio_top.png | awk '{print $5,$9}'
-python3 scripts/meas_wall.py | tail -1; python3 scripts/mk_wall6.py | tail -1
+# v7.3: meas_wall.py still supplies the capture crop; the screen geometry comes from track_wall.py (per frame).
+python3 scripts/meas_wall.py | tail -1; python3 scripts/track_wall.py; python3 scripts/mk_wall7.py
 wait; T LAYERS
 ls -la in/watch.mov in/watch_cu.mov in/A2.mp4 in/phoneB.mp4 in/wall6.mp4 in/globe6.mp4 in/C_zoom.mp4 | awk '{print $5,$9}' | tr '\n' ' '; echo
 sed -i 's/-preset medium -crf 18/-preset superfast -crf 17/' scripts/render6.sh
@@ -3577,7 +3738,11 @@ wait; T UPLOADED
 # printed as base64 with its md5 so it can be reassembled and LOOKED AT outside the sandbox (the proxy cannot fetch the render).
 for t in 2.0 5.0 6.9 7.3; do ffmpeg -v error -y -ss $t -i $F -frames:v 1 -vf "crop=480:480:890:1660,scale=160:160" c_$t.png; done
 ffmpeg -v error -y -i c_2.0.png -i c_5.0.png -i c_6.9.png -i c_7.3.png -filter_complex "[0][1][2][3]hstack=4" -q:v 6 cards.jpg
-echo CARDS $(wc -c < cards.jpg) $(md5sum cards.jpg | cut -c1-8); base64 -w 0 cards.jpg; echo; echo DONE
+echo CARDS $(wc -c < cards.jpg) $(md5sum cards.jpg | cut -c1-8); base64 -w 0 cards.jpg; echo
+# And the wall: the slab region at four times across Scene C -- the screen must meet the lit pillars on both sides in all four.
+for t in 14.3 16.0 18.5 21.3; do ffmpeg -v error -y -ss $t -i $F -frames:v 1 -vf "crop=1440:2100:0:350,scale=120:175" s_$t.png; done
+ffmpeg -v error -y -i s_14.3.png -i s_16.0.png -i s_18.5.png -i s_21.3.png -filter_complex "[0][1][2][3]hstack=4" -q:v 7 slab.jpg
+echo SLAB $(wc -c < slab.jpg) $(md5sum slab.jpg | cut -c1-8); base64 -w 0 slab.jpg; echo; echo DONE
 ```
 
 
@@ -4416,6 +4581,7 @@ MAP={'pw/lib.js':'/home/user/pw/lib.js','pw/tour4.js':'/home/user/pw/tour4.js',
  'meas_globe.py':'/home/user/w/scripts/meas_globe.py','meas_watch.py':'/home/user/w/scripts/meas_watch.py',
  'meas_wall.py':'/home/user/w/scripts/meas_wall.py','meas_pins.py':'/home/user/w/scripts/meas_pins.py',
  'mk_watch.py':'/home/user/w/scripts/mk_watch.py','mk_wall6.py':'/home/user/w/scripts/mk_wall6.py',
+ 'track_wall.py':'/home/user/w/scripts/track_wall.py','mk_wall7.py':'/home/user/w/scripts/mk_wall7.py',
  'mk_globe.py':'/home/user/w/scripts/mk_globe.py','scanpulse.py':'/home/user/w/scripts/scanpulse.py',
  'norm6.sh':'/home/user/w/scripts/norm6.sh','render6.sh':'/home/user/w/scripts/render6.sh',
  'verify6.py':'/home/user/w/scripts/verify6.py','upload6.sh':'/home/user/w/scripts/upload6.sh'}
