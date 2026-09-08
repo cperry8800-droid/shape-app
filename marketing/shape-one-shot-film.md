@@ -138,8 +138,37 @@ teal triangle, which the first overlay measured (teal only in the top-left crop,
 page's own masthead rules, whose rows are measured off the clip's first frame (`dark fraction > 0.8` across the
 rule's span: rows 99–103, 111–126 and 135–139 — two hairlines and the band between them) rather than assumed. A
 first placement ABOVE the rules had to fit in 99 px and came out 75 px tall — present, measured, and too small to
-call visible — so the mark went below them at 130 px, over the top of the left column block. The mark is static; a 6 % beat pulse on the measured grid, as the launch cut's phone
-logo has, is one flag away and was not asked for.
+call visible — so the mark went below them at 130 px, over the top of the left column block. Then, on the approved pair (owner: *"i like it those are good, just make sure shape logo stays present in top left of
+screen, maybe have it glow a little or have an effect that matches the video"*): the mark is present in **every** frame,
+and it carries the launch cut's own effect — a **6 % throb on the measured grid** (`k = exp(−u/0.20)` per beat of the
+pick, gated on `kick_by_beat` where the array is present) with a **teal glow** behind it that sits at a low floor and
+flashes on the kick (cream page: floor 0.20, flash +0.55, blur 16; black page: floor 0.35, flash +0.65, blur 20 — the
+highlighter's own glow). Drawn per frame in `final.py` (below), never generated.
+
+**The phone, when it is in the shot** (owner: *"if you are going to keep phone in video, have the shape triangle logo on
+the phone screen, so you can see it as she runs"*). The image-to-video of frame 8 keeps the runner's phone, and on the
+cream page its screen is the **one pure-white object** — cream reads luma ~236, the screen 255 — so it is found per
+frame by a threshold at 246 (masthead and ticker rows excluded, specks removed by a 2-px blur at 0.6), its centre is
+the mask's centroid, its **tilt is the mask's own principal axis** (the eigenvector of the coordinate covariance,
+clamped to ±45°), and its sides are `sqrt(12·λ)` of the two eigenvalues, which is exact for a uniform rectangle. The
+mark rides that screen at 70 % of its short side, rotated with it, with the same throb and a small glow; the estimate
+is smoothed 0.45/0.55 frame to frame, and a frame whose white count falls outside 4,000–60,000 px keeps the last good
+one rather than jumping. On the **black page** the same mask draws the phone as a **highlighter outline** (the 5-px
+boundary band in teal with a glow) with the mark lit inside it, so the runner carries the phone in both looks. This
+is the treatment's original claim — *a white phone on a flat field can be TRACKED per frame by a threshold* — paid
+for the first time.
+
+**The sync bar** (owner, on the finished pair: *"make sure to add the hrm and bpm sync bar. Have one side of bar say
+HRM and the other BPM, and when they both come together, the in sync appears"*). The lock is now a **bar**, not the
+two-orb card: an instrument strip under the masthead rules (x 560–1120 at y 262, right of the mark), **HRM** and its
+climbing figure at the left end, **BPM** and the track's tempo at the right, an ink dot and a teal dot sliding in from
+the ends toward the centre as the heart rate closes on the tempo; on the first grid beat at or after 6.4 s the two dots
+meet, the merged dot swells and pulses on the kick, and **IN SYNC** fades in above the bar over a quarter second, once.
+The heart figure runs 84 → 120 on a smoothstep from 1.3 s to the meet; the tempo figure is **120 because the pick
+measures 119.95** — the only digit on the page that is a measurement, as the honesty ledger requires; the heart rate
+is illustrative, exactly as the launch cut's card is. Drawn per frame in `final3.py` (Montserrat ExtraBold, the one
+weight the sandbox carries, letter-spaced by hand because Pillow has no tracking); the film's placement of the bar is
+the beat map's call, this is the ten-second test's.
 
 **`hl.py` — the highlighter pass, as run on the hollow-lifter clip (2026-09-08).** Reads the 1440×2560 frames off
 ffmpeg, thresholds the figure (`luma < 90`, the ticker rows and the masthead rows excluded, the column rules removed
@@ -497,6 +526,341 @@ mark on both (`9966e8dca6fc4d251b4d2d5cbbe39ddb` / `7263b7cbd9c950ccc71a00f41121
 above: on cream the white triangle did not read. A third A (`fcb6ba395d285ed42f8c9872141deac0`, the ink-and-teal mark at
 75 px above the rules) is superseded for size. Measured on the final A at 3.0 s, top-left 400×320 crop: teal 2,310 px
 and ink 2,331 px below row 140, the two triangles side by side; on the final B: teal 2,956 px and white 2,986 px.
+
+**The approved pair, finished — the mark glowing on the kick, the phone screen carrying it (2026-09-08 22:0x UTC).**
+Owner: *"i like it those are good, just make sure shape logo stays present in top left of screen, maybe have it glow
+a little or have an effect that matches the video"* · *"if you are going to keep phone in video, have the shape
+triangle logo on the phone screen, so you can see it as she runs"*. Both videos re-drawn from the same source
+(`final.py`, below) over the muxed print video and the highlighter pass:
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**, the mark top-left with a teal glow flashing on the kick, the mark on the phone screen tracked and tilted with it | `6359a267ea73a5aa90bb63a03114fe7a` | 18,347,092 | top-left teal 2,549 px on a beat against 2,393 mid-beat; 2,479 at 0.2 s, 2,339 at 9.9 s |
+| **B — the highlighter**, the same mark and glow top-left, the phone as a teal outline with the mark lit inside it | `ae681a79f9816b79df8459a6acef0725` | 8,498,456 | top-left teal 6,585 on a beat against 6,423 mid-beat; 11,162 at 0.2 s, 9,325 at 9.9 s |
+
+⚠ **SUPERSEDED THE SAME HOUR — THE PHONE CANNOT BE TRACKED ON THIS CLIP, AND THE NUMBERS SAY WHY.** The top-left
+mark and its glow worked as designed (the measurements above). The phone did not: **123 of 243 frames had no white
+screen to find** — on the missed frames the box around the last known position holds 741–964 pixels above luma 236
+in a 440×520 window (the screen is ~17,000 when it reads) and a dark blob where the phone was, i.e. the image-to-video
+model renders the runner's phone as a **dark object in half its frames** and a white screen in the other half. A held
+estimate would have painted the mark on a dark blob or on empty page for five seconds, so the pair was not handed
+over. *A white phone on a flat field is trackable in a STILL; whether it is trackable in a clip is a property of the
+clip, and this one says no.*
+
+**The route that works: put the mark on the phone in the SOURCE, and let the model carry it.** No upload tool exists
+in this session (`medias` accepts only a prior generation's job id), so the still with the mark on its screen had to
+be a generation itself — two `nano_banana_pro` edits of frame 8 (job `bcfea348…` as `image_references`; the server
+coerces `role: image` to that key), then `minimax_h3` image-to-video from the better one, then the finishing pass
+(`final2.py`, below: the top-left mark with its glow on both pages, the highlighter pass for the black page with every
+teal pixel of the source carried across as teal light — the ribbon and the screen's teal triangle — and the pick under
+both). Measured on the two edits against frame 8: the screen region (frame 8's white screen at (1232, 748)–(1388, 956),
+17,344 px) now holds **3,494 / 3,635 teal px** (edit 1 / edit 2) where it held none, so the mark landed on both; and the
+rest of the frame differs from frame 8 by a mean of 25.2 / 24.5 luma levels — **the page is untouched** (top-band
+median 240 → 241, column block 201 → 201) and the difference lives where the figure is (a 6×4 grid reads 7–16 on the
+page cells and 31–54 on the runner's cells), i.e. the model **re-drew the runner** rather than editing pixels. Edit 2
+was taken (marginally closer, the mark marginally larger); the two edits differ from each other by under one level in
+every cell, so the choice is not load-bearing.
+
+| # | What | Job | File | Prompt (verbatim, as submitted) |
+| --- | --- | --- | --- | --- |
+| E1 | Edit of frame 8 · the mark on the phone screen, geometric description | `f45a8cde-6053-4993-8e01-4a0b1e917186` | `hf_20260908_221043_f45a8cde-6053-4993-8e01-4a0b1e917186.png` · md5 `c43779e5e90065b35512f5727803dd8c` | *Edit this image and change nothing except the phone screen. The runner's white smartphone screen now displays the Shape brand mark, drawn flat and crisp on the white screen, filling about two thirds of the screen's width and centred: two identical right-angled triangles arranged diagonally like a tall bracket. The upper triangle sits against the screen's top-right, its right angle at the top-right corner and its hypotenuse facing down-left, filled solid teal, hex 34D6C5. The lower triangle sits against the screen's bottom-left, its right angle at the bottom-left corner and its hypotenuse facing up-right, filled solid black. A thin diagonal strip of white screen separates the two hypotenuses. No other text or icons on the screen. Everything else in the image, the halftone runner, the cream newsprint page, the masthead rule, the column blocks, the ticker strip and the teal ribbon, stays exactly as it is.\n\nresolution: 2k* |
+| E2 | Edit of frame 8 · the mark on the phone screen, plain description (TAKEN) | `cf48d7dc-bb00-4342-9885-dba00a05366f` | `hf_20260908_221043_cf48d7dc-bb00-4342-9885-dba00a05366f.png` · md5 `f8ef0c7a90b3081001f65027d924b001` | *Same image, identical in every way, except that the phone's white screen now shows a logo: two solid triangles pointing at each other diagonally, one teal, hex 34D6C5, in the top right of the screen and one black in the bottom left, with a narrow white gap between them, centred on the screen and filling most of it. Nothing else in the picture changes.\n\nresolution: 2k* |
+| 5 | Image-to-video of E2 (`medias` role `image` → `image_references`; `declined_preset_id 24bae836-2c4a-48e0-89b6-49fcc0b21612`; 9:16 · 10 s · 2K · `use_unlim false`) | `821c6aa5-da6d-4fb6-9a15-a611557dd696` | `hf_20260908_221227_821c6aa5-da6d-4fb6-9a15-a611557dd696.mp4` | *Animate this exact frame without changing its style: a flat 2D editorial newspaper animation. The page of cream newsprint, the masthead rule, the grey column blocks and the ticker strip stay perfectly still; the halftone dots stay locked to the page and do not shimmer. The runner sprints in place in full stride, knees driving high, arms pumping, ponytail streaming, her limbs streaking with motion, and the ribbon of teal light flows out of the phone and around her body in a continuous wave. The phone stays in her hand with its screen facing the camera, and the screen keeps showing the two-triangle mark, teal and black, crisp and unchanged, in every frame. Locked-off camera, no camera movement, no zoom. No new text, no other logos.* |
+
+The owner then sent the ▸ alone, teal on white, as the reference (*"its still wrong, and the music is gone"* — said of
+the gallery clip, which is the raw generation: no track, the model's mark). Measured off that picture, the triangle is
+0.73 wide to tall (apex at 655 of a 98–1370 base); the ▸ half of `tri.png` is 0.73 as well, so the file is the target
+and the finished pass, which draws the file, is the answer — the gallery never shows a finished video. The mark's own
+geometry, read off `tri.png` rather than assumed, because the edit prompts had to describe it: two
+identical right triangles set diagonally in a 618×790 box — the upper one against the top-right (right angle at that
+corner, hypotenuse facing down-left), the lower one against the bottom-left — one teal and one white (86,510 and
+86,911 px), a narrow diagonal gap between the hypotenuses.
+
+**The finished pair from the marked still (`final2.py`):**
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**, the marked phone carried by the model, the mark top-left glowing on the kick | `4469c98c6f03716e39adf1e9a5f222ca` | 18,227,424 | top-left teal 2,545 on a beat against 2,390 mid-beat; 2,477 at 0.2 s, 2,350 at 9.9 s; the screen shows teal touching white in **10 of 10** sampled seconds (53–527 px) where the tracked route had it in half |
+| **B — the highlighter**, the same source through the pass, every teal pixel carried across, the mark top-left | `679c7337fd0979e095c7e8529100525f` | 6,731,956 | top-left teal 11,478 on a beat against 11,302 mid-beat; 11,374 at 0.2 s, 11,303 at 9.9 s |
+
+⚠ **SUPERSEDED BY THE OWNER'S NEXT TWO NOTES, from the gallery clip:** *"the phone is off, make the logo smaller so its
+proportionate on the screen. also the phone doesnt come down with her arms"* and *"make sure to add the hrm and bpm sync
+bar…"*. Both the size and the floating phone live in the source: edit 2 asked for a mark *"filling most of"* the screen,
+and the motion prompt said the phone *"stays in her hand with its screen facing the camera"*, which the model read as
+*stays still*. So: a third edit with a **small** mark (E3 — measured against E2 on the same screen region: teal
+**2,045 px against 3,635**, white **15,284 against 12,560**, i.e. the mark at ~56 % of E2's area with the screen mostly
+empty around it), and a motion prompt that says the phone is **gripped and moves with the hand through every arm swing,
+rising and falling and tilting, never floating**.
+
+| # | What | Job | File | Prompt (verbatim, as submitted) |
+| --- | --- | --- | --- | --- |
+| E3 | Edit of frame 8 · the mark small on the phone screen (TAKEN) | `02168b19-b951-43ff-aa92-4b3f484e6e6a` | `hf_20260908_222352_02168b19-b951-43ff-aa92-4b3f484e6e6a.png` · md5 `85c75d4fdbfd64e5729770c3aedd9b12` | *Same image, identical in every way, except that the phone's white screen now shows a small logo, centred on the screen and no wider than a third of the screen's width, with plenty of empty white screen around it: two solid triangles pointing at each other diagonally, one teal, hex 34D6C5, at the upper right of the logo and one black at the lower left, with a narrow white gap between them. The phone itself stays exactly the same size, in the same place, in her hand. Nothing else in the picture changes.\n\nresolution: 2k* |
+| 6 | Image-to-video of E3, the phone gripped (same params as 5) | `2ca2dd4c-a9b9-4d78-b52e-0c638ff12062` | `hf_20260908_222614_2ca2dd4c-a9b9-4d78-b52e-0c638ff12062.mp4` | *Animate this exact frame without changing its style: a flat 2D editorial newspaper animation. The page of cream newsprint, the masthead rule, the grey column blocks and the ticker strip stay perfectly still; the halftone dots stay locked to the page and do not shimmer. The runner sprints in place in full stride, knees driving high, arms pumping hard, ponytail streaming, her limbs streaking with motion. The phone is gripped tightly in her hand and moves with that hand through every arm swing, rising and falling and tilting with the arm as it pumps, never floating, never staying still on its own; its screen keeps showing the small two-triangle logo, teal and black, unchanged. The ribbon of teal light flows out of the phone and around her body in a continuous wave. Locked-off camera, no camera movement, no zoom. No new text, no other logos.* |
+
+**The pair from E3's clip, with the sync bar and the exact mark on the screen (`final5.py` = `final4.py` with the
+screen pass gated, below):** the gripped-phone clip is `hf_20260908_222614_2ca2dd4c-….mp4`, md5
+`e3d014dbfd923e9b0cdc49d7bd3a44a7`, 243 frames. ⚠ **This clip darkens the phone on the down-swing too: the screen
+reads in 140 of 243 frames** (`final4.py`'s first run: 103 misses), so a held fit would float the mark for the rest —
+and on the missed frames a stray white patch passed the 1,500-px floor and produced a fit of ~35 × 75 px at
+(1112, 1103), a shape the screen (62–73 × 156–164 in every hit) never has. `final5.py` therefore (a) accepts a fit only
+inside 55–95 × 130–200 px, (b) draws the exact mark only while the screen is lit, with a confidence that halves on
+every missed frame and a fade below 0.2 rather than a hold, and (c) paints the model's mark out only on hit frames.
+The mark is exact whenever the phone is legible and absent when the model has darkened it; the full film's phone
+shots will be prompted with a screen that stays lit, and this pass applies unchanged. The `final4.py` outputs (A
+`75492a7a2ef9f650b021f00fa7fe824c` 17,110,586 B · B `9468bbba0a1fb5924b3d25a2e7608a13` 5,770,967 B) are superseded and
+were not handed over; their bar and top-left measurements are identical to the rows below.
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**: the small mark on the gripped phone, the mark top-left glowing on the kick, the HRM / BPM bar closing to IN SYNC | `e412e2fb6cf7ff82428a9786859d4696` | 17,183,130 | the screen fit accepted on 120 of 243 frames, every accepted fit 62–73 × 156–164 px at confidence 1.0 (the gate rejected every stray patch); the bar: teal dot 1068 → 826 and IN SYNC 6,070 teal px above the bar from the meet on beat 13 (6.558 s), none before; top-left teal 2,542 on a beat against 2,389 mid-beat, 2,483 at 0.2 s and 2,340 at 9.9 s |
+| **B — the highlighter**: the same, on the black page | `dd5c4510ca54e5ffde6594d6aff64cf4` | 5,753,295 | same source and fits; the bar identical (6,150 teal px of IN SYNC); top-left teal 3,945 on a beat against 3,767 mid-beat, 3,847 at 0.2 s and 3,771 at 9.9 s |
+
+Handed over as links (gofile guest · litterbox 72 h), never committed. Every earlier pair is superseded by this one.
+⚠ **AND THE MARK ON THE SCREEN IS THE FILE, NOT THE MODEL'S DRAWING** (owner, on E3's clip: *"the logo is wrong, the
+triangles need to be the same as the logo, spacing on sizing is off"*). The model's mark is a description made
+picture; the logo is a file. So the finishing pass finds the screen per frame from its **white pixels alone** (the
+ribbon is teal and must not pull the fit: a 16-px closing bridges the mark's hole, the hull's principal axis gives
+the tilt, its eigenvalues the sides less the 32 px the closing added), **paints the model's mark out** (every
+non-white pixel inside the hull eroded 9 px goes white on the cream page, page-black on the black one) and draws
+`tri.png` — the mark cut from the logo canvas — at 42 % of the screen's long side, rotated with it, throbbing on the
+grid. On the marked-still clips this is feasible where it was not on the first: the model keeps a marked screen
+**lit**, measured on E2's clip as teal touching white in **10 of 10** sampled seconds. `final4.py` (below, md5
+`a3c0a2fd63636d8e71bf007b0c6e4c6b`) is `final2.py` + the sync bar + this screen pass; `final3.py` (the bar without
+the screen pass) was only a smoke test and is not kept. The bar's smoke test on E2's clip, measured: the teal dot's
+left edge 1082 → 1068 → 948 → 826 and the ink dot's right edge 599 → 611 → 732 → 830 over 0.5 → 6.46 s (closing on
+the centre at 840), then **6,070 teal px of IN SYNC above the bar** at 6.86 s and none before.
+
+**`final5.py` — the finishing pass as shipped, verbatim** (md5 `94e226cd9e038eb49f1b8c8522d78117`; `final4.py`, md5
+`a3c0a2fd63636d8e71bf007b0c6e4c6b`, differs only in the screen section — an ungated fit and a held estimate — and is
+not kept, because a script that floats the mark is not a recipe):
+
+```python
+import json, math, subprocess, sys, numpy as np
+from PIL import Image, ImageFilter, ImageDraw
+SRC=sys.argv[1]; OUTA=sys.argv[2]; OUTB=sys.argv[3]; W,H=1440,2560; TEAL=(0x34,0xd6,0xc5); TEALf=np.array(TEAL,np.float32); CREAM=np.array([0xf2,0xea,0xd8],np.float32)
+m=json.load(open('meas_d1.json')); BPM=m['bpm']; PH=m['phase']; KB=m.get('kick_by_beat'); P=60.0/BPM
+def kof(t):
+    u=(t-PH)%P; n=int((t-PH)//P); pres=1.0 if not KB or n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30)); return math.exp(-u/0.20)*pres
+tri=Image.open('tri.png').convert('RGBA'); trik=Image.open('tri_ink.png').convert('RGBA'); ASP=tri.width/tri.height
+def glow_mark(canvas, mark, cx, cy, h, k, base, flash, blur, amp=0.06, rot=0.0):
+    s=1.0+amp*k; hh=max(8,int(round(h*s))); ww=max(6,int(round(hh*ASP))); mk=mark.resize((ww,hh),Image.LANCZOS)
+    if abs(rot)>0.5: mk=mk.rotate(rot,expand=True,resample=Image.BICUBIC)
+    R=blur*3+mk.width//2+mk.height//2; x0,y0=int(cx-R),int(cy-R); S=2*R
+    layer=Image.new('RGBA',(S,S),(0,0,0,0)); px,py=int(round(R-mk.width/2)),int(round(R-mk.height/2))
+    a=Image.new('L',(S,S),0); a.paste(mk.split()[3],(px,py)); g=a.filter(ImageFilter.GaussianBlur(blur))
+    ga=Image.fromarray((np.asarray(g).astype(np.float32)*(base+flash*k)).clip(0,255).astype(np.uint8))
+    glow=Image.merge('RGBA',[Image.new('L',(S,S),TEAL[0]),Image.new('L',(S,S),TEAL[1]),Image.new('L',(S,S),TEAL[2]),ga])
+    layer=Image.alpha_composite(layer,glow); layer.alpha_composite(mk,(px,py)); canvas.alpha_composite(layer,(x0,y0))
+def blur_mask(m,r): return np.asarray(Image.fromarray((m*255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(np.float32)/255.0
+page=Image.new('RGB',(W,H),(10,10,10)); d=ImageDraw.Draw(page); c=tuple(int(v*0.30+10*0.70) for v in CREAM)
+d.rectangle([90,200,W-90,203],fill=c); d.rectangle([90,214,W-90,215],fill=c)
+for x in (90,W//3,2*W//3,W-90): d.rectangle([x,260,x+1,H-330],fill=c)
+d.rectangle([90,H-300,W-90,H-200],fill=(28,28,28)); d.rectangle([90,H-300,102,H-200],fill=TEAL); page=np.asarray(page).astype(np.float32)
+rd=subprocess.Popen(['ffmpeg','-v','error','-i',SRC,'-vf',f'scale={W}:{H}','-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,bufsize=10**8)
+def wr(out): return subprocess.Popen(['ffmpeg','-y','-v','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r','24','-i','-','-i','d1.m4a','-map','0:v','-map','1:a','-af','atrim=0:10.125,afade=t=out:st=9.725:d=0.4','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-c:a','aac','-b:a','192k','-shortest',out],stdin=subprocess.PIPE)
+from PIL import ImageFont
+FONT='/usr/share/fonts/truetype/higgsfield/Montserrat-ExtraBold.ttf'
+f_lab=ImageFont.truetype(FONT,30); f_num=ImageFont.truetype(FONT,46); f_sync=ImageFont.truetype(FONT,64)
+BPMi=int(round(BPM)); HR0=BPMi-36; T0=1.3; nS=math.ceil((6.4-PH)/P); TS=PH+nS*P
+def sstep(x): x=min(1.0,max(0.0,x)); return x*x*(3-2*x)
+def hr_of(t): return HR0+(BPMi-HR0)*sstep((t-T0)/(TS-T0))
+BX0,BX1,BY=560,1120,262; CX=(BX0+BX1)//2; HALF=(BX1-BX0)//2-24; LY0,LY1=150,340
+def spaced(d,x,y,s,font,col,anchor,sp=5):
+    ws=[font.getlength(ch) for ch in s]; tot=sum(ws)+sp*(len(s)-1)
+    x0={'l':x,'r':x-tot,'m':x-tot/2}[anchor]
+    for ch,w in zip(s,ws): d.text((x0,y),ch,font=font,fill=col,anchor='ls'); x0+=w+sp
+def sync_bar(canvas,t,k,ink,bar,teal):
+    L=Image.new('RGBA',(W,LY1-LY0),(0,0,0,0)); d=ImageDraw.Draw(L); y=BY-LY0
+    d.rectangle([BX0,y-2,BX1,y+2],fill=bar)
+    hr=hr_of(t); gap=(BPMi-hr)/float(BPMi-HR0); synced=t>=TS
+    spaced(d,BX0-40,y-14,'HRM',f_lab,ink,'r'); d.text((BX0-40,y+42),str(int(round(hr))),font=f_num,fill=ink,anchor='rs')
+    spaced(d,BX1+40,y-14,'BPM',f_lab,ink,'l'); d.text((BX1+40,y+42),str(BPMi),font=f_num,fill=teal,anchor='ls')
+    if not synced:
+        xL=CX-gap*HALF; xR=CX+gap*HALF; r=15
+        d.ellipse([xL-r,y-r,xL+r,y+r],fill=ink); d.ellipse([xR-r,y-r,xR+r,y+r],fill=teal)
+        canvas.alpha_composite(L,(0,LY0)); return
+    u=min(1.0,(t-TS)/0.25); r=15+9*u+4*k
+    G=Image.new('L',L.size,0); ImageDraw.Draw(G).ellipse([CX-r-10,y-r-10,CX+r+10,y+r+10],fill=255); G=G.filter(ImageFilter.GaussianBlur(18))
+    ga=Image.fromarray((np.asarray(G).astype(np.float32)*(0.35+0.5*k)*u).clip(0,255).astype(np.uint8))
+    L.alpha_composite(Image.merge('RGBA',[Image.new('L',L.size,teal[0]),Image.new('L',L.size,teal[1]),Image.new('L',L.size,teal[2]),ga]))
+    d=ImageDraw.Draw(L); d.ellipse([CX-r,y-r,CX+r,y+r],fill=teal)
+    T=Image.new('RGBA',L.size,(0,0,0,0)); spaced(ImageDraw.Draw(T),CX,y-40,'IN SYNC',f_sync,teal,'m',7)
+    if u<1: T.putalpha(T.split()[3].point(lambda v:int(v*u)))
+    L.alpha_composite(T); canvas.alpha_composite(L,(0,LY0))
+
+SCR=None; SMISS=0; SLOG=[]; CONF=0.0; BAD=0
+def find_screen(g):
+    wm=(g>=246); wm[:250]=False; wm[H-340:]=False; wm=blur_mask(wm,2)>0.6
+    if wm.sum()<1500: return None, wm, None
+    hull=blur_mask(wm,16)>0.2
+    ys,xs=np.nonzero(hull); C=np.cov(np.vstack([xs,ys]).astype(np.float64)); ev,vec=np.linalg.eigh(C); v=vec[:,1]
+    if v[1]>0: v=-v
+    th=max(-45.0,min(45.0,math.degrees(math.atan2(-v[0],-v[1]))))
+    short=max(20.0,math.sqrt(12*max(ev[0],1.0))-32); long_=max(40.0,math.sqrt(12*max(ev[1],1.0))-32)
+    if not (55<=short<=95 and 130<=long_<=200): return None, wm, None      # not the screen (measured hits: 62-73 x 156-164)
+    interior=blur_mask(hull,9)>0.92
+    return dict(cx=float(xs.mean()),cy=float(ys.mean()),th=th,short=short,long=long_), wm, interior
+def screen_mark(A_img,B_arr,g,k,n):
+    global SCR,SMISS,CONF,BAD
+    cur,wm,interior=find_screen(g)
+    if cur is None: SMISS+=1; CONF*=0.5
+    else: SCR=cur if SCR is None else {q:SCR[q]*0.45+cur[q]*0.55 for q in cur}; CONF=1.0
+    if SCR is None or CONF<0.2: return A_img,B_arr
+    if interior is not None:
+        rep=interior&~wm
+        a=np.asarray(A_img).copy(); a[rep]=(255,255,255,255); A_img=Image.fromarray(a,'RGBA')
+        B_arr=B_arr.copy(); B_arr[interior]=page[interior]
+        bm=blur_mask(interior,5); band=((bm>0.15)&(bm<0.85)).astype(np.float32); bg=blur_mask(band>0.5,9)
+        al=np.clip(bg*(0.45+0.25*k)+band*0.95,0,1)[...,None]; B_arr=B_arr*(1-al)+TEALf*al
+    mh=0.42*SCR['long']; mw=mh*ASP
+    if mw>0.66*SCR['short']: mw=0.66*SCR['short']; mh=mw/ASP
+    LA=Image.new('RGBA',A_img.size,(0,0,0,0)); glow_mark(LA,trik,SCR['cx'],SCR['cy'],mh,k,0.15,0.35,8,rot=SCR['th'])
+    if CONF<1: LA.putalpha(LA.split()[3].point(lambda v:int(v*CONF)))
+    A_img.alpha_composite(LA)
+    Bi=Image.fromarray(B_arr.clip(0,255).astype(np.uint8)).convert('RGBA'); LB=Image.new('RGBA',Bi.size,(0,0,0,0)); glow_mark(LB,tri,SCR['cx'],SCR['cy'],mh,k,0.30,0.5,8,rot=SCR['th'])
+    if CONF<1: LB.putalpha(LB.split()[3].point(lambda v:int(v*CONF)))
+    Bi.alpha_composite(LB)
+    if n%24==0: SLOG.append((n,int(wm.sum()),round(CONF,2),{q:round(SCR[q],1) for q in SCR}))
+    return A_img,np.asarray(Bi).astype(np.float32)
+wA=wr(OUTA); wB=wr(OUTB); FR=W*H*3; n=0; rulecols=None; log=[]
+while True:
+    b=rd.stdout.read(FR)
+    if len(b)<FR: break
+    f=np.frombuffer(b,np.uint8).reshape(H,W,3).astype(np.float32); g=0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2]; t=n/24.0; k=kof(t)
+    A=Image.fromarray(f.astype(np.uint8)).convert('RGBA'); glow_mark(A,trik,100+130*ASP/2,150+65,130,k,0.20,0.55,16); sync_bar(A,t,k,(20,20,20),(95,95,95),TEAL)
+    m0=g<90; m0[:250]=False; m0[H-340:]=False
+    if rulecols is None:
+        frac=m0[250:H-340].mean(0); rulecols=[x for x in range(W) if frac[x]>0.55]; print('rule columns',rulecols,flush=True)
+    for x in rulecols: m0[:,max(0,x-3):x+4]=False
+    mm=blur_mask(m0,4)>0.35; bm=blur_mask(mm,6); edge=(bm>0.12)&(bm<0.88)
+    E=Image.fromarray((edge*255).astype(np.uint8)); glow=np.asarray(E.filter(ImageFilter.GaussianBlur(14))).astype(np.float32)/255.0; st_=np.asarray(E.filter(ImageFilter.GaussianBlur(1))).astype(np.float32)/255.0
+    out=page.copy(); a=np.clip(glow*0.55+st_*0.95,0,1)[...,None]; out=out*(1-a)+TEALf*a
+    tm=((np.abs(f[...,0]-0x34)<60)&(np.abs(f[...,1]-0xd6)<60)&(np.abs(f[...,2]-0xc5)<60)); tg=blur_mask(tm,6); ta=np.clip(tg*0.5+tm.astype(np.float32)*0.95,0,1)[...,None]; out=out*(1-ta)+TEALf*ta
+    A,out=screen_mark(A,out,g,k,n)
+    B=Image.fromarray(out.clip(0,255).astype(np.uint8)).convert('RGBA'); glow_mark(B,tri,90+150*ASP/2,30+75,150,k,0.35,0.65,20); sync_bar(B,t,k,(190,184,170),(80,78,72),TEAL)
+    if n%24==0: log.append((n,int(m0.sum()),int(tm.sum()),round(k,2)))
+    wA.stdin.write(A.convert('RGB').tobytes()); wB.stdin.write(B.convert('RGB').tobytes()); n+=1
+for w in (wA,wB): w.stdin.close()
+for w in (wA,wB): w.wait()
+print('frames',n); print('(frame, ink px, teal px carried, k):',log); print('sync at beat',nS,'t',round(TS,4),'HR0',HR0,'BPM',BPMi); print('screen: miss frames',SMISS,'of',n); print('screen log (frame, white px, fit):'); [print(' ',l) for l in SLOG]; print('FINAL5-DONE')
+```
+
+**`final2.py` — the finishing pass for the marked-still route, verbatim** (md5 `63d104ec9a6ffe8c910ee15363383d16`;
+reads `meas_d1.json`, `tri.png`, `tri_ink.png`, `d1.m4a` and the source clip; writes both videos, the pick muxed
+under each with the 0.4 s fade). `final.py` above (md5 `46054cfb31cec743d6f87b07a6a29477`) is kept because its
+tracking branch is the measurement that retired it:
+
+```python
+import json, math, subprocess, sys, numpy as np
+from PIL import Image, ImageFilter, ImageDraw
+SRC=sys.argv[1]; OUTA=sys.argv[2]; OUTB=sys.argv[3]; W,H=1440,2560; TEAL=(0x34,0xd6,0xc5); TEALf=np.array(TEAL,np.float32); CREAM=np.array([0xf2,0xea,0xd8],np.float32)
+m=json.load(open('meas_d1.json')); BPM=m['bpm']; PH=m['phase']; KB=m.get('kick_by_beat'); P=60.0/BPM
+def kof(t):
+    u=(t-PH)%P; n=int((t-PH)//P); pres=1.0 if not KB or n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30)); return math.exp(-u/0.20)*pres
+tri=Image.open('tri.png').convert('RGBA'); trik=Image.open('tri_ink.png').convert('RGBA'); ASP=tri.width/tri.height
+def glow_mark(canvas, mark, cx, cy, h, k, base, flash, blur, amp=0.06):
+    s=1.0+amp*k; hh=int(round(h*s)); ww=int(round(hh*ASP)); mk=mark.resize((ww,hh),Image.LANCZOS)
+    R=blur*3+ww//2+hh//2; x0,y0=int(cx-R),int(cy-R); S=2*R
+    layer=Image.new('RGBA',(S,S),(0,0,0,0)); px,py=int(round(R-ww/2)),int(round(R-hh/2))
+    a=Image.new('L',(S,S),0); a.paste(mk.split()[3],(px,py)); g=a.filter(ImageFilter.GaussianBlur(blur))
+    ga=Image.fromarray((np.asarray(g).astype(np.float32)*(base+flash*k)).clip(0,255).astype(np.uint8))
+    glow=Image.merge('RGBA',[Image.new('L',(S,S),TEAL[0]),Image.new('L',(S,S),TEAL[1]),Image.new('L',(S,S),TEAL[2]),ga])
+    layer=Image.alpha_composite(layer,glow); layer.alpha_composite(mk,(px,py)); canvas.alpha_composite(layer,(x0,y0))
+def blur_mask(m,r): return np.asarray(Image.fromarray((m*255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(np.float32)/255.0
+page=Image.new('RGB',(W,H),(10,10,10)); d=ImageDraw.Draw(page); c=tuple(int(v*0.30+10*0.70) for v in CREAM)
+d.rectangle([90,200,W-90,203],fill=c); d.rectangle([90,214,W-90,215],fill=c)
+for x in (90,W//3,2*W//3,W-90): d.rectangle([x,260,x+1,H-330],fill=c)
+d.rectangle([90,H-300,W-90,H-200],fill=(28,28,28)); d.rectangle([90,H-300,102,H-200],fill=TEAL); page=np.asarray(page).astype(np.float32)
+rd=subprocess.Popen(['ffmpeg','-v','error','-i',SRC,'-vf',f'scale={W}:{H}','-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,bufsize=10**8)
+def wr(out): return subprocess.Popen(['ffmpeg','-y','-v','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r','24','-i','-','-i','d1.m4a','-map','0:v','-map','1:a','-af','atrim=0:10.125,afade=t=out:st=9.725:d=0.4','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-c:a','aac','-b:a','192k','-shortest',out],stdin=subprocess.PIPE)
+wA=wr(OUTA); wB=wr(OUTB); FR=W*H*3; n=0; rulecols=None; log=[]
+while True:
+    b=rd.stdout.read(FR)
+    if len(b)<FR: break
+    f=np.frombuffer(b,np.uint8).reshape(H,W,3).astype(np.float32); g=0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2]; t=n/24.0; k=kof(t)
+    A=Image.fromarray(f.astype(np.uint8)).convert('RGBA'); glow_mark(A,trik,100+130*ASP/2,150+65,130,k,0.20,0.55,16)
+    m0=g<90; m0[:250]=False; m0[H-340:]=False
+    if rulecols is None:
+        frac=m0[250:H-340].mean(0); rulecols=[x for x in range(W) if frac[x]>0.55]; print('rule columns',rulecols,flush=True)
+    for x in rulecols: m0[:,max(0,x-3):x+4]=False
+    mm=blur_mask(m0,4)>0.35; bm=blur_mask(mm,6); edge=(bm>0.12)&(bm<0.88)
+    E=Image.fromarray((edge*255).astype(np.uint8)); glow=np.asarray(E.filter(ImageFilter.GaussianBlur(14))).astype(np.float32)/255.0; st_=np.asarray(E.filter(ImageFilter.GaussianBlur(1))).astype(np.float32)/255.0
+    out=page.copy(); a=np.clip(glow*0.55+st_*0.95,0,1)[...,None]; out=out*(1-a)+TEALf*a
+    tm=((np.abs(f[...,0]-0x34)<60)&(np.abs(f[...,1]-0xd6)<60)&(np.abs(f[...,2]-0xc5)<60)); tg=blur_mask(tm,6); ta=np.clip(tg*0.5+tm.astype(np.float32)*0.95,0,1)[...,None]; out=out*(1-ta)+TEALf*ta
+    B=Image.fromarray(out.clip(0,255).astype(np.uint8)).convert('RGBA'); glow_mark(B,tri,90+150*ASP/2,30+75,150,k,0.35,0.65,20)
+    if n%24==0: log.append((n,int(m0.sum()),int(tm.sum()),round(k,2)))
+    wA.stdin.write(A.convert('RGB').tobytes()); wB.stdin.write(B.convert('RGB').tobytes()); n+=1
+for w in (wA,wB): w.stdin.close()
+for w in (wA,wB): w.wait()
+print('frames',n); print('(frame, ink px, teal px carried, k):',log); print('FINAL2-DONE')
+```
+
+**`final.py` — the finishing pass, verbatim** (reads `meas_d1.json`, `tri.png`, `tri_ink.png`, `A_print.mp4` and
+`B_highlighter.mp4`; writes `A_final.mp4` and `B_final.mp4`, audio copied from the print video):
+
+```python
+import json, math, subprocess, numpy as np
+from PIL import Image, ImageFilter
+W,H=1440,2560; TEAL=(0x34,0xd6,0xc5)
+m=json.load(open('meas_d1.json')); BPM=m['bpm']; PH=m['phase']; KB=m.get('kick_by_beat'); P=60.0/BPM
+def kof(t):
+    u=(t-PH)%P; n=int((t-PH)//P)
+    pres=1.0 if not KB or n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
+    return math.exp(-u/0.20)*pres
+tri=Image.open('tri.png').convert('RGBA'); trik=Image.open('tri_ink.png').convert('RGBA'); ASP=tri.width/tri.height
+def rd(p): return subprocess.Popen(['ffmpeg','-v','error','-i',p,'-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,bufsize=10**8)
+def wr(out,audio_src): return subprocess.Popen(['ffmpeg','-y','-v','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r','24','-i','-','-i',audio_src,'-map','0:v','-map','1:a','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-c:a','copy','-shortest',out],stdin=subprocess.PIPE)
+def glow_mark(canvas, mark, cx, cy, h, k, base, flash, blur, amp=0.06, rot=0.0):
+    s=1.0+amp*k; hh=max(8,int(round(h*s))); ww=max(6,int(round(hh*ASP)))
+    mk=mark.resize((ww,hh),Image.LANCZOS)
+    if abs(rot)>0.5: mk=mk.rotate(rot,expand=True,resample=Image.BICUBIC)
+    R=blur*3+ww//2+hh//2; x0,y0=int(cx-R),int(cy-R); S=2*R
+    layer=Image.new('RGBA',(S,S),(0,0,0,0)); px,py=int(round(R-mk.width/2)),int(round(R-mk.height/2))
+    a=Image.new('L',(S,S),0); a.paste(mk.split()[3],(px,py)); g=a.filter(ImageFilter.GaussianBlur(blur))
+    ga=Image.fromarray((np.asarray(g).astype(np.float32)*(base+flash*k)).clip(0,255).astype(np.uint8))
+    glow=Image.merge('RGBA',[Image.new('L',(S,S),TEAL[0]),Image.new('L',(S,S),TEAL[1]),Image.new('L',(S,S),TEAL[2]),ga])
+    layer=Image.alpha_composite(layer,glow); layer.alpha_composite(mk,(px,py))
+    canvas.alpha_composite(layer,(x0,y0))
+def blur_mask(m,r): return np.asarray(Image.fromarray((m*255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(np.float32)/255.0
+rA=rd('A_print.mp4'); rB=rd('B_highlighter.mp4'); wA=wr('A_final.mp4','A_print.mp4'); wB=wr('B_final.mp4','A_print.mp4')
+FR=W*H*3; n=0; st=None; log=[]; miss=0
+while True:
+    a=rA.stdout.read(FR); b=rB.stdout.read(FR)
+    if len(a)<FR or len(b)<FR: break
+    fa=np.frombuffer(a,np.uint8).reshape(H,W,3); fb=np.frombuffer(b,np.uint8).reshape(H,W,3)
+    t=n/24.0; k=kof(t)
+    # the phone screen: the one pure-white object on the cream page (cream luma ~236, screen 255)
+    g=(0.299*fa[...,0]+0.587*fa[...,1]+0.114*fa[...,2]); wm=g>=246; wm[:250]=False; wm[H-340:]=False
+    wm=blur_mask(wm,2)>0.6; ys,xs=np.nonzero(wm); cnt=len(xs)
+    if 4000<=cnt<=60000:
+        cx,cy=float(xs.mean()),float(ys.mean()); C=np.cov(np.vstack([xs,ys]).astype(np.float64)); ev,vec=np.linalg.eigh(C)
+        l2,l1=float(ev[0]),float(ev[1]); v=vec[:,1]
+        if v[1]>0: v=-v
+        th=math.degrees(math.atan2(-v[0],-v[1])); th=max(-45.0,min(45.0,th))
+        short,long_=math.sqrt(12*max(l2,1.0)),math.sqrt(12*max(l1,1.0))
+        cur=dict(cx=cx,cy=cy,th=th,short=short,long=long_)
+        st=cur if st is None else {q:st[q]*0.45+cur[q]*0.55 for q in cur}
+    else: miss+=1
+    A=Image.fromarray(fa).convert('RGBA'); B=Image.fromarray(fb).convert('RGBA')
+    # the mark top-left, both pages: a soft teal glow that flashes on the kick, the launch cut's 6 % throb
+    glow_mark(A,trik,100+130*ASP/2,150+65,130,k,0.20,0.55,16)
+    glow_mark(B,tri,90+150*ASP/2,30+75,150,k,0.35,0.65,20)
+    if st is not None:
+        mw=0.70*st['short']; mh=mw/ASP
+        if mh>0.55*st['long']: mh=0.55*st['long']
+        glow_mark(A,trik,st['cx'],st['cy'],mh,k,0.25,0.45,10,rot=st['th'])
+        # on the black page the phone itself is a highlighter outline with the mark lit inside it
+        bm=blur_mask(wm,5); band=((bm>0.15)&(bm<0.85)).astype(np.float32); bandg=blur_mask(band>0.5,9)
+        al=np.clip(bandg*(0.45+0.25*k)+band*0.95,0,1)[...,None]
+        fb2=np.asarray(B).astype(np.float32); fb2[...,:3]=fb2[...,:3]*(1-al)+np.array(TEAL,np.float32)*al
+        B=Image.fromarray(fb2.clip(0,255).astype(np.uint8),'RGBA')
+        glow_mark(B,tri,st['cx'],st['cy'],mh,k,0.35,0.55,10,rot=st['th'])
+    if n%24==0: log.append((n,cnt,None if st is None else {q:round(st[q],1) for q in st},round(k,2)))
+    wA.stdin.write(A.convert('RGB').tobytes()); wB.stdin.write(B.convert('RGB').tobytes()); n+=1
+for w in (wA,wB): w.stdin.close()
+for w in (wA,wB): w.wait()
+print('frames',n,'phone-miss frames',miss); print('track (frame, white px, state, k):'); [print(' ',l) for l in log]; print('FINAL-DONE')
+```
 
 **Deep-house tracks — three `sonilo_music` generations, 2026-09-08 21:29 UTC — owner: *"make sure the music is deep house music"* · *"more unique music then typical fitness ad"* · then *"music is good"*.** Params on all three: `model sonilo_music · duration 60 · use_unlim false` (⚠ `duration` is REQUIRED). Each probes **60.023220 s**, AAC 44.1 kHz stereo at 256–258 kbps; the service reports `durationSec 60.0236`. Measured with `beat.py` + `meas_dh.py` (below); the table of measurements is in §6. ⚠ No audio is committed; the durable record is the job id + prompt + `duration`, and the md5 is what turns a re-fetch into a check.
 

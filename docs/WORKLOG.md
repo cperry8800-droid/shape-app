@@ -477,7 +477,7 @@ Append new entries at the top, under this note.
 
 ### 2026-09-08 — The film's people go hollow, its page goes black, its music goes deep: five owner notes, twenty generations, and the first frame that was built rather than generated
 
-- **Six owner notes inside one hour, each answered before the next arrived.** *"those are better, but maybe create a
+- **Eleven owner notes inside two hours, each answered before the next arrived.** *"those are better, but maybe create a
   hollowed out person for the other animated people so it doesn't look like we are copying apple"* → six hollow
   treatments framed on the cream page (contour · halftone edge · misregistered plates · vessel of light · print
   beside hollow · woodcut). *"make sure the music is deep house music"* · *"more unique music then typical fitness
@@ -490,7 +490,22 @@ Append new entries at the top, under this note.
   each, handed over as links. *"have the shape triangles logo somewhere visible in video. maybe in top left of
   screen"* → the ▸◂ mark cut from the logo canvas by its own measured geometry and overlaid top-left on both, the
   white triangle set in ink on the cream page because on cream it does not read (measured: the first overlay left
-  only the teal triangle in the top-left crop). Everything is in
+  only the teal triangle in the top-left crop). *"i like it those are good, just make sure shape logo stays present in
+  top left of screen, maybe have it glow a little or have an effect that matches the video"* → the mark in every frame
+  with the launch cut's 6 % throb on the pick's measured grid and a teal glow that flashes on the kick. *"if you are
+  going to keep phone in video, have the shape triangle logo on the phone screen, so you can see it as she runs"* →
+  the phone screen found per frame as the page's one pure-white object, its tilt from the mask's own principal axis,
+  the mark riding it in the print video and the phone drawn as a highlighter outline with the mark inside on the
+  black page — and then, when the clip would not give up its phone, the mark put into the still and animated. *"the
+  phone is off, make the logo smaller so its proportionate on the screen. also the phone doesnt come down with her
+  arms"* → a third edit with the mark at ~56 % of the previous area (measured on the screen region) and a motion prompt
+  that grips the phone to the hand. *"make sure to add the hrm and bpm sync bar. Have one side of bar say HRM and the
+  other BPM, and when they both come together, the in sync appears"* → the lock is a BAR now, drawn on the grid: HRM
+  and its climbing figure left, BPM and the measured 120 right, two dots closing to the centre, IN SYNC once on the
+  meet, on a beat. *"the logo is wrong, the triangles need to be the same as the logo, spacing on sizing is off"* → the
+  model's drawing of the mark is painted out and the mark FILE drawn on the found screen, exact, at the screen's
+  size and tilt — only while the screen is lit, because this clip darkens the phone on the down-swing as the first
+  one did (the screen reads in 140 of 243 frames, and a held fit floats). Everything is in
   [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) — §2b (the figures and the lights-out
   page), §4 (the two master blocks), §6 (the music, measured), §10 (seven open questions) and the Sources tables
   with every prompt verbatim. **Twenty-two generations today on top of the morning's thirty-one; no PR, nothing
@@ -506,6 +521,20 @@ Append new entries at the top, under this note.
   0.76 across the clip while the ink area holds constant, i.e. the background floods the whole interior through a gap
   on two of eleven sampled frames. A generated outline is not closed; a mask boundary is closed by construction.
   *The model is asked for the thing it does reliably, and the thing that has to be exact is drawn.*
+- ⚠ **THE PHONE COULD NOT BE TRACKED ON THE CLIP, AND THE MARK HAD TO GO INTO THE SOURCE INSTEAD.** The treatment's
+  claim — *a white phone on a flat field can be TRACKED per frame by a threshold* — holds for the still and fails for
+  this clip: **123 of 243 frames had no white screen to find**. On the missed frames a 440×520 window around the last
+  known position holds 741–964 pixels above luma 236 (the screen is ~17,000 when it reads) and a dark blob where the
+  phone was — the image-to-video model draws the phone **dark in half its frames**. A held estimate would have painted
+  the mark on a dark blob or on empty page for five seconds, so that pair was measured, recorded and not handed over.
+  The route that works: the mark on the phone **in the still** — two `nano_banana_pro` edits of frame 8 (the only
+  way in, since `medias` takes a prior generation's job id and this session has no upload tool), measured against
+  frame 8 (the screen region gains 3,494 / 3,635 teal px; the page is untouched at the pixel level, top-band median
+  240 → 241; the runner is re-drawn, 31–54 luma levels of difference on her cells) — then `minimax_h3` from the
+  better edit, then the finishing pass (`final2.py`, in the treatment with its md5): the top-left mark glowing on the
+  kick on both pages, and on the black page **every teal pixel of the source carried across as teal light**, so the
+  ribbon and the screen's teal triangle survive the hollowing. *A property of the still is not a property of the
+  clip; the clip is measured on its own.*
 - ⚠ **THE BLACK PAGE IS NOT A NEW WORLD.** The highlighter-on-black look is the printed broadsheet's own **midnight
   paper** — the state the real *Pick your light* flips the app into — so the film keeps one world with two pages and
   one seam: cream and print for the day half, black and light for the night half, the flip on a downbeat in the real
