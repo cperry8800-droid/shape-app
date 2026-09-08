@@ -3816,6 +3816,61 @@ Owner: *"can you start with showing america on the globe"*.
   `render6.sh`: this validates Scene D's input, not the composite — the logo row at `LCY` 171 and the
   close row at the frame clamp are the two things to look at first.
 
+### The render (2026-09-08) — the first v7.3 composite, and what had to be rebuilt to make one
+
+**Result.** `out/launch_v7.mp4` — md5 **`21fb076a1dd30d266bdf93c2168fef66`**, 30,078,083 B, **738 frames / 30.750 s**, 1440×2560 · 24 fps ·
+aac 44.1 kHz. Recipe at commit `94b22cf4 (the render) / 15d06425 (the re-baselined verify)` (`RECIPE_BRANCH` = that SHA, not a branch name — raw.githubusercontent caches
+a branch for minutes and a stale fetch is silent). Scene D = `135d629d` through `D_WINDOW=4.5` (216 frames / 9.000 s);
+Scene A = the approved runner `878ea5a1`, A2 derived from it at `f12` 146 for `nA2` 60; the orb card reads `119` from
+`meas_t3.json`; the phone is the logo-only layer; the picture fades with the audio. The review link was handed over in
+chat and is deliberately not recorded here (gofile guest, ~10 days after the last download; litterbox answered with its BunkerWeb 500 page again, uguu was not tried because gofile took it).
+
+**Three producers had to be written before a frame could render, and none of the three was a new idea.**
+
+- **`mk_orb6.py`** — the v7.2 orb layer. The v7.2 section above describes it and `shape-radio-watch-orb.md` carries the
+  standalone `orb_card.py`; the script joining them was sandbox-only. Same two output files as `mk_watch.py`, same
+  frame counts (194 wide / 60 close-up), absolute cut time, `BPM = round(meas_t3.bpm)` = 119, `HR0 = BPM − 36`.
+- **`mk_phone6.py`** — `in/phoneB.mp4`, still producerless after the 09-07 fixes: `mk_screen3.py` with the v4 deltas
+  (logo only) on `params_v6.json`'s grid and the kick gate.
+- **`norm6.sh` derives `in/A2.mp4`** — `boot5.sh` was still fetching the superseded watch close-up `e815ac55` while the
+  v7.2 text said A2 is Scene A from `f12`. `trim=start_frame` (frame-exact; an input-side `-ss` on h264 is not), the
+  marker carries A's md5, and `plan6.py`/`plan_a2.py` moved ahead of `norm6.sh` because `f12`/`nA2` live in `plan_a2.py`
+  alone.
+
+**And one fetch was wrong.** The boot pulled the v7 runner `6f01a52f`; the orb record and the 09-07 handoff both record
+the owner's approved runner as `878ea5a1` and call `6f01a52f` superseded. The Sources table now carries the approved id
+(file name from `show_generation_by_ids`); the boot fetches it. ⚠ The one choice in this render that is mine: the ruling
+is on record, the previous session's v7.2 render may have used either clip, and swapping back is one URL.
+
+**Two deliberate differences from the approved standalone card, both flagged.** The numbers stop at a minimum separation
+instead of overprinting during the last half-second of the merge (`119` over `113` read as one glyph on the first local
+frames; `119 119` now sits side by side until the single figure lands on `tSync`). And the HRM orb breathes on the wearer's
+heart while the BPM orb breathes on the music, the envelopes crossfading across `tSync` — the v7.1 rule; `ORB_BREATH=beat`
+restores the preview's both-on-the-beat.
+
+**The lease, budgeted.** `run73.sh`, two background stages: stage 1 = boot → plan → `norm6.sh` → checkpoint uploads
+(`in/D.mp4`, `in/C_zoom.mp4`, md5-tagged, direct-URL host); stage 2 = boot (`SKIP_DL` when the sources survived — the
+download block deletes the window marker) → checkpoints if needed → capture → captions → five layers in three lanes →
+`render6.sh` → `upload6.sh` as the next line → `verify6.py`. Measured: stage 1 **383 s** (boot 15 s · A2 + C_zoom + the D remap 359 s · two checkpoint uploads 9 s); stage 2 **139 s to the upload** (boot 1 s on the surviving sandbox · capture 28 s · captions 1 s · five layers in three lanes 61 s · render 45 s on 8 cores · gofile 3 s), then verify. `NODE_PATH` is
+required for Playwright (a global install in the sandbox), `NORM_PRESET=veryfast` for the intermediates.
+
+**The two rows the handoff said to look at first, looked at** (a 420-px grayscale contact sheet moved out of the sandbox by the
+checksummed-lines route: 20 lines, four of them mis-typed on the first pass and rebuilt from 50-char pieces, md5 matching):
+
+- **The logo row.** `LCY` 172 → the logo occupies rows 73–270; the disc top is 324 but the atmospheric rim's GLOW starts about
+  30 rows above it (col 714: luma 38 at row 290 · 82 at 300 · 157 at 310), so the wordmark's baseline sits ~20 px above the
+  glow. Legible, and tight — v6 had a 618-px band, this clip 323. ⚠ **Owner's eye:** `LOGO_CY=150` (env var, `mk_globe.py`)
+  would centre it in the band (top margin 52, gap to the glow 46); `LOGO_CY=0.53×top` is v6's ratio, kept because it is
+  the recorded rule, not because it was judged better here.
+- **The close row.** `CLY` 2220 (the frame clamp; disc bottom 2234 + 88 would be 2321). The three lines sit on black under
+  the limb and read cleanly; the disc's bottom sliver (rows 2220–2234, 326 px wide) is dark night ocean and contributes 24
+  lit pixels to the pre-copy count.
+- Also on the sheet: the runner small in a wide dark frame with the card lower-right; the merged teal orb reading `119 · IN
+  SYNC`; the Americas at night with the dawn glow entering top-right by 29.5 s, as the input validation predicted.
+
+**`verify6.py`, re-baselined on this render:** **51 PASS · 0 FAIL** on the second pass (commit `15d06425`). The first pass, on the same render, failed **19 — every one the instrument, none the film**: the A2 probes read one frame late (`-ss` returns the first frame with pts ≥ t, so a half-frame probe reads the NEXT frame — 8 luma of "mismatch" on a correct cut; now `fseek(i) = i/24 − 1e-4`); the card-present threshold was v6's full-rect card (8) against an orb card measuring 5.8 at 6.5 s; the phone-pulse ratio 1.3 was measured on a v4 layer whose build is unrecoverable — the glow assets peak at 0.34 / 0.31, so `g = 0.25 + 0.9k` can add ~1–2k lit pixels, never the 13k v6 recorded (this layer: 9.3–10.1k at a beat against 8.54k mid, width +12..+14; threshold 1.06); "screen fills the slab" measured the INK of a dark-paper page (741 px) instead of the placed rect (803 × 1521 = 0.80 w / **0.96 h** of the slab — `mk_wall6.py` now writes `wall6_geom.json`); the slab bound disagreed by 1 px between two row bands (tolerance 2); the wall pulse read a dark page's bloom (0 pixels above luma 40 outside the rect at a beat) — re-read as the rect's mean luma, **1.24–1.28× at a beat**; "before pops" sampled 22.5 s, v6's beat-48 schedule, when the first pop has been beat 44 since v7.1 (the landing frame carries the beat-44 pop RING, 519 px — marks are masked out now, and the residue reads 0); one mark rode off the right edge of a disc wider than the frame (skipped past x 1394); the logo box reached 39 rows into the disc and counted 4,136 rim pixels as logo (box = the logo's own rect, stopping 30 rows above the disc top, marks masked); and the audio window (last 0.5 s) straddled a 0.6-s fade — over the last 0.3 s it reads **−23.4 dB against −10.0 mid**. *An assertion tuned to a different render is a description of that render.*
+⚠ Two of the surviving checks are weaker than they look and are said so here: the phone pulse is asserted at 1.06× because that is what the recipe's own glow assets can produce, and the globe-logo pulse at beat 55 measures a logo box with a mark's 240-px neighbourhood masked out of it (width 278 of 455) — the ratio is what is asserted, and it holds at beats 53 and 55.
+
 ## What v7.2 is (2026-09-03) — the watch is gone, the orb card IS the beat match, and the cut finally renders
 
 Owner: *"this should be the beatmatching, remove the watch"*, pointing at the two-orb card.
