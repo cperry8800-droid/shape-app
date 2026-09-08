@@ -19,6 +19,13 @@ rooms) is superseded and summarised at the end. The owner's rulings stand: **9:1
 with a 30 s cutdown · a new owned track, no voiceover, minimal type cards · style frames first, clips after the
 look is approved.**
 
+Then, on the hollow spread and the three tracks (same hour): *"those are better, but maybe create a hollowed out
+person for the other animated people so it doesn't look like we are copying apple"* · *"and make sure the music is
+deep house music"* · *"more unique music then typical fitness ad"* · *"music is good"* · *"have the people being
+outlined by a highlighter look looking border with a black background"*. So: **the runner stays printed; every other
+figure is hollow; the hollow figures are drawn as a highlighter stroke on a black page** — which is the printed
+broadsheet's own lights-out page (§2b) — and the bed is deep house, measured and picked (§6).
+
 ---
 
 ## 1 · The concept
@@ -51,8 +58,9 @@ before the orbs lock; the kick coming back *is* the lock; the music cuts dead on
 All four keep the mechanics of §2: the phone is a flat, trackable rectangle; the cut is a field change on a downbeat;
 the real UI overlays opaque. A **motion test** (one 10 s `minimax_h3` clip, the Shape-edition silhouette dancer on teal
 with the ribbon) was generated so the owner can judge movement rather than pose; it is in the Sources.
+**Chosen: the broadsheet, printed** — and amended the same hour with hollow figures and the highlighter page; §2b.
 
-## 2b · The world as built — the broadsheet, printed (CHOSEN 2026-09-08)
+## 2b · The world as built — the broadsheet, printed (CHOSEN 2026-09-08, amended the same hour: hollow figures, the highlighter page)
 
 **Generated: the figure. Drawn: everything else.** The generator is asked only for what it does reliably — one
 black figure in motion on a flat cream field, locked-off camera — and every Shape-specific element is built
@@ -79,6 +87,73 @@ rule so the page becomes the app; (C) **Re-screen** — the dots coarsen until t
 and re-form as the next figure (the print's own transition); (D) **The ticker** carries the line across every seam
 (the cord's job, now the app's own ticker strip); (E) **Lights-out** — the real *Pick your light* flips the page to
 midnight paper: ink page, cream figures, the ribbon unchanged.
+
+**The figures — one printed, the rest hollow.** The owner's note on the hollow spread: *"create a hollowed out
+person for the other animated people so it doesn't look like we are copying apple."* So the **runner** keeps the
+approved halftone print (frame 8), and **every other figure is hollow** — an outline with the page showing through,
+which is the one thing a silhouette campaign can never be. Six hollow treatments were framed (v5, Sources) so the
+choice is between kinds, and then the note that decided it: *"have the people being outlined by a highlighter look
+looking border with a black background."* Six more frames (v6, Sources) on the two axes that note leaves open — the
+stroke (a marker with overlapping passes and squared ends · a clean neon tube · a marker with a white ghost line) and
+the colour (teal `34D6C5` · highlighter yellow-green `CCFF00` · hot pink `FF4FD8` · two colours for a coach and a
+client leaning into the ▸◂ shape).
+
+| Treatment | Frame | How it is BUILT (every one is an operation on the figure's mask) |
+|---|---|---|
+| Contour | v5-1 the lifter | the mask's boundary band, stroked in ink; the page and the column rules show through the interior |
+| Halftone edge | v5-2 the cook | dot size from distance-to-edge, so the dots thin to nothing toward the centre |
+| Misregistered plates | v5-3 the kicker | two boundary strokes, the second offset a few px, ink and teal |
+| Vessel of light | v5-4 the skipper | the ribbon clipped to the mask — the light stays inside the outline |
+| Print beside hollow | v5-5 runner + coach | the halftone re-screen on one figure, the contour on the other, one page |
+| Woodcut | v5-6 the dancer | a hatch texture clipped to the boundary band |
+| **Highlighter on black** | **v6-1…6** | **the boundary band in a fluorescent colour with a Gaussian glow, on the ink page; the interior is the page** |
+
+⚠ **That table is the finding, not a menu.** Each treatment is a per-frame operation on the thresholded figure — the
+same mask the ribbon and the print already come from — so the generator only ever has to deliver **one solid black
+figure in motion on flat cream**, and never has to keep an interior empty across 240 frames. The hollow look, the
+highlighter look and the print are all applied in Pillow after the fact, at exact stroke widths, in colours that
+cannot drift, on a page that cannot boil. The three motion tests (Sources) settle the one remaining question: whether
+the model can ALSO draw the look directly and steadily enough to skip the pass — the halftone runner on cream, a
+hollow contour lifter on cream, and a highlighter runner on black. The hollow-lifter clip was run through the pass
+the same hour (`hl.py`, below): its page measured for boil, its figure measured for hollowness, and the result
+handed over as a link — the first frame of this film that was **built** rather than generated.
+
+**The lights-out page — highlighter on black.** The black page is not a new world: it is the printed broadsheet's
+own **midnight paper**, the state the real *Pick your light* flips the app into. So the film has two pages and one
+seam between them: the **cream page** (the print — the runner in halftone, the masthead double rule, the column
+blocks, the ticker with its teal border) and the **black page** (the same rules in dim cream, the same ticker, and
+every figure a highlighter outline). The lights-out flip in §2 (E) is where one becomes the other, on a downbeat, in
+the real Settings screen. Which page carries the opening is the owner's (§10 q1); the default is cream → black at
+the flip, so the day half is print and the night half is light, and the close lands on the black page with the mark
+in teal.
+
+**The mark, top-left, every frame** (owner, on the first two style videos: *"have the shape triangles logo somewhere
+visible in video. maybe in top left of screen"*). The ▸◂ two-triangle mark is cut from `public/SHAPE-logo-teal-white.png`
+by its own geometry — the canvas is 3696×1782, the mark occupies rows 200–990 and columns 1551–2169 (618×790), and
+the empty row run 990–1239 separates it from the wordmark; measured, and it agrees with the launch cut's `logo_tri`
+split (`tri_rows` to canvas row 990, `txt_rows` from 1240). On the **black page** it is the mark as drawn, teal and
+white, 150 px tall at (90, 30), above the dim masthead rule. On the **cream page** the white triangle is set in ink
+(`min(r,g,b) > 190 → 16,16,16`, alpha kept) — on cream a white triangle is invisible and the mark would read as one
+teal triangle, which the first overlay measured (teal only in the top-left crop, 41×56 px) — and it sits just below the
+page's own masthead rules, whose rows are measured off the clip's first frame (`dark fraction > 0.8` across the
+rule's span: rows 99–103, 111–126 and 135–139 — two hairlines and the band between them) rather than assumed. A
+first placement ABOVE the rules had to fit in 99 px and came out 75 px tall — present, measured, and too small to
+call visible — so the mark went below them at 130 px, over the top of the left column block. The mark is static; a 6 % beat pulse on the measured grid, as the launch cut's phone
+logo has, is one flag away and was not asked for.
+
+**`hl.py` — the highlighter pass, as run on the hollow-lifter clip (2026-09-08).** Reads the 1440×2560 frames off
+ffmpeg, thresholds the figure (`luma < 90`, the ticker rows and the masthead rows excluded, the column rules removed
+by column — a column whose dark fraction exceeds 0.55 is a rule, and rules are struck ±3 px), takes the stroke as the
+ink itself (`MODE=outline`, for a clip that is already an outline) or as the boundary band of the blurred mask
+(`MODE=solid`, for a halftone or silhouette clip: blur 4 → 0.35 merges the dots, blur 6 → the 0.12–0.88 band is the
+edge), draws it in teal with a 16-px Gaussian glow at 60 % on a black page carrying the dim cream rules and the
+ticker, trails the mask centroid over the last 18 frames as the ribbon, and muxes the first ten seconds of the picked
+track under it. Two measurements ride along: **page boil** (mean |Δluma| between frames six apart in the blank band
+above the masthead and the band below the ticker) and **hollowness** (every 24th frame, at quarter scale: the
+background flood-filled from the frame border, and the enclosed pixels that are neither ink nor reachable counted
+against the ink — a solid figure reads ≈ 0, a hollow one reads large). The script is in the run record below and in
+the Sources.
+
 
 ## 2 · Why it reads as one shot — and why this world builds better than v1
 
@@ -107,11 +182,11 @@ midnight paper: ink page, cream figures, the ribbon unchanged.
 
 ## 3 · The beat map (30 bars; every time re-derived from the measured grid of the new track)
 
-Nominal 128 BPM, bar = 1.875 s, 30 bars = 56.3 s (60.0 s if the track measures 120). Times of day are never
+**Measured 119.95 BPM** (the pick, §6): bar = 2.0008 s, 30 bars = 60.02 s — the whole track; the kick is absent for bars 16–20 (30.6–39.6 s) and returns on the bar-21 downbeat (40.0 s), which is where the lock lands. Times of day are never
 captioned; the app's own dateline clock carries them (browser clock set at capture). ⚠ Written for the silhouette
 world before the owner chose the printed page; read "field" as the page's paper (cream, then midnight after the flip),
 "the phone" as the UI's place in the page, and the colour flips as page turns — the order, bars, captures and the lock
-are unchanged. The re-cut in the page's own terms follows once the first printed clips are in.
+are unchanged. The re-cut in the page's own terms follows now that the printed clips and the grid are in: the lights-out flip moves to the bar-13 downbeat (the kick thinning), the lock section to bars 16–20 (the breakdown), the kicker and the skipper one bar later each, the close over bars 29–30.
 
 | Bars | Page | What we see | Figure | The REAL UI (in the page: a column, or full frame) | Out → |
 |---|---|---|---|---|---|
@@ -130,31 +205,48 @@ are unchanged. The re-cut in the page's own terms follows once the first printed
 ## 4 · The prompts
 
 `minimax_h3` (10 s, 2K, 1440×2560, every submission bills, no negative-prompt field — exclusions are phrased
-positively; decline any preset recommendation with `declined_preset_id`). Seven figures, two takes each. A take is a
-reject if the silhouette breaks (interior detail, a face, grey edges), if the field carries a gradient, or if a
-second white object appears.
+positively; decline the "IN THE DARK" preset with `declined_preset_id 24bae836-2c4a-48e0-89b6-49fcc0b21612`, which
+intercepts any figure-on-dark submission). Seven figures, one take each to start (a second only on a reject). A take
+is a reject if the figure gains a face or interior detail, if the page carries a gradient or moves, or if the model
+adds a phone, text or a logo.
 
-**Master block** (the head of every clip prompt):
+**Master block A — the cream page, the figure solid** (the default: the print and every hollow treatment are drawn
+from this figure's mask in post; the model is asked only for what it does reliably):
 
-> Vertical 9:16. A flat graphic advertising film in the style of a classic silhouette campaign: a solid, perfectly
-> flat, saturated {COLOUR} background with no gradient, texture, floor or shadow. One jet-black silhouette of a
-> {FIGURE}, pure black with no interior detail and hard clean edges, {ACTION} in time to a fast beat, big explosive
-> movements. Thin white earbud wires run from the ears to a white smartphone in one hand, its screen a plain flat
-> white rectangle; the wires and the phone are the only white elements. Locked-off camera. No text, no logos, no
-> other objects.
+> Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole
+> frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a
+> masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the
+> bottom with a teal left border, hex 34D6C5. One jet-black figure, {FIGURE}, {ACTION} in the middle of the page,
+> pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No
+> readable text, no logos, no phone.
 
-| Figure | {COLOUR} | {FIGURE} · {ACTION} |
+**Master block B — the black page, the figure a highlighter outline** (direct-prompted; used only if motion test 3
+holds the interior empty and the stroke steady — otherwise block A and the pass):
+
+> Vertical 9:16. A flat 2D animation in an editorial style unique to a brand called Shape. The whole frame is a
+> solid black page, hex 0A0A0A, that never moves, with faint typographic architecture in dim cream ink at low
+> opacity: a double hairline rule across the top like a masthead, thin vertical column rules with empty darker grey
+> blocks and no letters, and a ticker strip along the bottom with a bright teal left border. {FIGURE}, {ACTION} in
+> the middle of the page, drawn only as a hollow outline: a thick fluorescent teal highlighter-marker stroke, hex
+> 34D6C5, slightly translucent and uneven like a real highlighter pen, glowing softly against the black. The inside
+> of the body stays empty black, the same as the background, in every frame: no fill, no face, no interior detail.
+> A single thin ribbon of the same teal light trails behind. Locked-off camera, no camera movement. No readable
+> text, no logos, no phone.
+
+| Figure | Page | {FIGURE} · {ACTION} |
 |---|---|---|
-| The riser | teal, hex 34D6C5 | a woman with her hair flying · walking in from the left edge and breaking into a dance, the phone held up in front of her |
-| The lifter | electric blue | a broad-shouldered man · pressing a kettlebell overhead in a wide split stance on every beat, the phone in his other hand |
-| The cook | lime green | a cook in an apron · tossing a frying pan so chopped vegetables hang in the air as black shapes, then catching them, the phone propped upright at the bottom corner of the frame |
-| The coach | hot magenta pink | a woman seated on a stool · one foot tapping hard, head nodding, holding the phone up in both hands |
-| The runner | teal, hex 34D6C5 | a runner · sprinting side-on across the frame, knees driving high, ponytail streaming, the phone strapped to one arm |
-| The kicker | bright orange | a woman with braids · throwing high roundhouse kicks, braids whipping, the phone in one hand |
-| The skipper | deep navy | a man · jumping rope, the rope a thin black arc, one jump per beat, the phone held up in one hand |
+| The riser | cream, print → the first hollow | a woman with her hair flying · walking in from the left edge and breaking into a dance |
+| The lifter | black | a broad-shouldered man · swinging a kettlebell from between his legs to eye level and back, one swing per beat |
+| The cook | black | a cook in an apron · tossing a frying pan so chopped vegetables hang in the air as shapes, then catching them |
+| The coach | black | a woman seated on a stool · one foot tapping hard, head nodding |
+| The runner | **cream, the halftone print** (the approved frame 8) | a runner · sprinting in place side-on, knees driving high, ponytail streaming |
+| The kicker | black | a woman with braids · throwing high roundhouse kicks, braids whipping |
+| The skipper | black | a man · jumping rope, the rope a thin arc, one jump per beat |
 
-The seven descriptions are placeholders in the register the approved runner prompt used; casting remains the
-owner's call, and a silhouette makes it a matter of build and hair rather than face.
+The seven descriptions are placeholders in the register the approved frames used; casting remains the owner's
+call, and a hollow outline makes it a matter of build and hair rather than face. The three motion tests already
+generated (Sources: the halftone runner on cream, the hollow lifter on cream, the highlighter runner on black) are
+the runner's and the lifter's first takes if they hold.
 
 ## 5 · Real UI to capture
 
@@ -174,13 +266,41 @@ UI is composited **opaque** into the white phone, light paper in the day half an
 
 ## 6 · Music
 
-One new `sonilo_music` generation (`duration: 60`), prompted plainly: *house, 124 BPM, a hard kick from bar one,
-continuous, no intro, no breakdown, bright and driving, one short synth hook every four bars.* A prompted tempo is a
-request — six of seven tracks measured ~128 whatever was asked — so the track is **measured** with `beat.py` and
-`kick_by_beat` stored for every beat; the film is planned in bars from that grid. The opening is low-passed from
-frame 0 and opens to full band on the lock; bar 17 is high-passed so nothing pulses under the two orbs and the
-bar-18 downbeat is the kick coming back; the music cuts dead on the wordmark. A take with a breakdown or a late
-first kick is regenerated.
+Owner: *"make sure the music is deep house music"* · *"more unique music then typical fitness ad"* · then, on the
+three candidates: *"music is good."* A typical fitness-ad bed is a big-room build — risers, a filtered lift, a drop,
+a bright lead — so "unique" was read as its opposite: dry, dubby, textural, no build and no drop, with one
+instrument a fitness ad would never carry. Three `sonilo_music` candidates (`duration: 60`, prompts verbatim in
+Sources): **dub-dark** (detuned stabs with long dub tails, tape hiss, a kick from the first bar) · **muted trumpet**
+(a jazz-club phrase over a dusty Rhodes) · **bowed cello** (one line that never resolves, rain as texture).
+
+⚠ **A prompted BPM is a request and so is a prompted structure — measured, not trusted** (`beat.py`, the recipe's
+own grid measurer: 8 kHz decode → 40–120 Hz kick band → onset → comb search 110–140 BPM with a 2 ms phase refine;
+split halves must agree; `kick_by_beat` = the peak kick energy within ±40 ms of every grid beat, normalised):
+
+| Track | Prompted | **Measured** | Halves | Kick from | Kick-less stretches (beats · seconds) | Centroid | < 90 Hz | On/half-beat contrast |
+|---|---|---|---|---|---|---|---|---|
+| **dub-dark** (pick) | 122, no breakdown | **119.95** · P 0.500208 · φ 0.055 | 120.0 / 120.0 | **0.06 s** — the first beat | 61–79 · **30.6–39.6 s**; tail from 56.1 s (the kick thins from 24 s) | **133.7 Hz** | **68.6 %** | 4.31 |
+| muted trumpet | 120, no breakdown | **128.0** · P 0.46875 · φ 0.088 | 127.95 / 127.95 | 15.1 s | 0–31 · 0.1–14.6 s; 63–95 · 29.6–44.6 s | 288.5 Hz | 43.6 % | 5.92 |
+| bowed cello | 124, no breakdown | **120.0** · P 0.5 · φ 0.068 | 120.0 / 120.0 | 10.1 s | 0–19 · 0.1–9.6 s; 77–118 · **38.6 s to the end** | 202.2 Hz | 47.5 % | 4.02 |
+
+**The pick is the dub-dark track, on the measurement.** It is the darkest on both axes (centroid 134 Hz against 202
+and 289; 69 % of its energy under 90 Hz against 48 and 44), its kick starts on the first beat and runs 24 s
+unbroken, and its halves agree to the hundredth. The trumpet is the most unusual texture and the least usable bed:
+`sonilo_music` gave it 128 BPM whatever was asked (the seventh track of eight to land there) and two 15-second
+kick-less stretches, half the runtime. The cello loses its kick at 38.6 s and never gets it back, so a 45–60 s film
+would close in silence.
+
+⚠ **"No breakdown" was asked for and not delivered, and the film takes the breakdown rather than fighting it.** The
+pick drops its kick for **9.0 s at 30.6–39.6 s** (beats 61–79) and brings it back on **beat 80 = 40.0 s**. At the
+measured 119.95 BPM a bar is 2.0008 s and the 60 s track is exactly **30 bars**: the kick runs bars 1–12 full,
+thins through bars 13–15, is absent for bars 16–20, returns on the **bar-21 downbeat** and runs to bar 28, then
+tails. So the lock section (the two orbs, §3) sits **inside the breakdown the track already has** — nothing pulses
+under the orbs because nothing is playing — and the lock lands on the kick's return at 40.0 s, which is the payoff
+v1 planned to fake with a one-bar high-pass. The lights-out flip goes on the bar-13 downbeat where the kick starts
+to thin; the close rides bars 29–30 over the tail, and the music cuts dead on the wordmark. **The 30 s cutdown is
+bars 1–15 = 0–30.0 s and ends exactly where the kick drops out** (30.57 s): its wordmark lands on the last full
+kick. The §3 beat map is re-cut on this grid next; every time in it is derived from `meas_d1.json`, never typed.
+The opening is still low-passed from frame 0 and opens to full band on the first page turn.
 
 ## 7 · On-screen copy (eight lines, no voice)
 
@@ -197,26 +317,32 @@ IN SYNC, once.
 
 ## 9 · Cost and schedule
 
-| Stage | What | Bills |
+| Stage | What | Billed |
 |---|---|---|
-| Style frames | 6 silhouettes, one colour and one action each (**generated 2026-09-08**, Sources below) | 6 images |
-| Clips | 7 figures × 2 takes | ~14 `minimax_h3` submissions |
-| Music | 1–2 tracks, measured | 1–2 `sonilo_music` |
+| Style frames | v1 6 · v1b 6 · v2 6 · v3 6 · v4 6 · **v5 6 (hollow) · v6 6 (highlighter on black)** — all 2026-09-08, Sources | 42 images |
+| Motion tests | the Shape-edition dancer on teal · **the halftone runner on cream · the hollow lifter on cream · the highlighter runner on black** | 4 `minimax_h3` |
+| Music | **3 deep-house candidates, measured; the dub-dark track picked** | 3 `sonilo_music` |
+| Clips | 7 figures × 1 take (a second only on a reject); the two cream tests may already be two of them | ~7 `minimax_h3` |
+| The pass | `hl.py` on every clip (print or highlighter from the mask), the page, the ribbon, the UI | — (sandbox) |
 | Captures | one sandbox lease | — |
 | Renders | the two-stage runner, verify re-derived on the render | — |
 
 ## 10 · Open questions for the owner (with the default I will use)
 
-1. **The colours.** The campaign's rotation (blue · magenta · lime · orange · yellow) with Shape teal as the home
-   field (default), or teal-only fields with the silhouettes on tints of one colour? The rotation is the reference;
-   teal-only is more the brand's own register.
-2. **The coach thread.** A real two-account capture on your accounts (default) or the signed-out preview.
-3. **The one new line.** *A person. Not an algorithm.* — keep (default) or silence over the coach.
-4. **Casting.** Seven silhouettes in §4, one phrase each; the runner is no longer the photoreal `878ea5a1` clip — in
-   this world it is a silhouette too, so the casting note that took four rounds becomes a hair-and-build phrase.
-5. **The world.** v1 closed on the night Earth with 44 marks; this world closes on the montage and the mark (default).
-   A flat-graphic globe — black continents on teal, marks popping — is one extra generation if you want the world back.
-6. **Whose numbers.** The Score, ledger and Terrain captures come from a real account (default: yours).
+1. **The pages.** Cream for the day half and black after the lights-out flip (default), or the black page
+   throughout with the runner the one printed figure on it. The film has both pages either way; the question is
+   whether the opening is print or light.
+2. **The highlighter colour.** Teal only (default — the brand's one colour, and the ribbon and the ticker border
+   already carry it), or a colour per figure from the v6 spread (yellow-green for the cook, pink for the skipper,
+   teal + yellow-green for the coach and client). v6-6 shows the two-colour pairing.
+3. **The coach thread.** A real two-account capture on your accounts (default) or the signed-out preview.
+4. **The one new line.** *A person. Not an algorithm.* — keep (default) or silence over the coach.
+5. **Casting.** Seven figures in §4, one phrase each; the runner is the printed frame-8 runner, everyone else a
+   highlighter outline, so casting is build and hair rather than face.
+6. **The world.** v1 closed on the night Earth with 44 marks; this world closes on the montage and the mark
+   (default). A flat-graphic globe — continents as a highlighter outline on the black page, marks popping — is one
+   extra generation if you want the world back.
+7. **Whose numbers.** The Score, ledger and Terrain captures come from a real account (default: yours).
 
 ## 11 · What changed from v1, and why
 
@@ -236,6 +362,193 @@ Prefix: `https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/`
 `nano_banana_pro`, reported by the service as `nano_banana_2`; params `aspect_ratio 9:16 · resolution 2k · count 1 ·
 use_unlim false`; each prompt ends with the literal line `resolution: 2k` (written `\n\nresolution: 2k` below).
 ⚠ Not visually inspected by the agent — this container cannot reach the cloudfront host; the owner's look is the QA.
+
+**v6 — highlighter on black (CURRENT), 2026-09-08 21:35 UTC — owner: *"have the people being outlined by a highlighter look looking border with a black background"*.** Same model and params as every row above.
+
+| # | Look · figure | Job | File | Prompt (verbatim, as submitted) |
+| --- | --- | --- | --- | --- |
+| 1 | Highlighter · teal marker · the runner | `e1155701-c8fd-418d-aefb-fb87c3db40a2` | `hf_20260908_213504_e1155701-c8fd-418d-aefb-fb87c3db40a2.png` | *Vertical 9:16 animation frame in an editorial style unique to a brand called Shape. The whole frame is a solid black page, hex 0A0A0A. A runner in full sprint, side-on, knees driving high, ponytail streaming, is drawn only as a hollow outline: a thick fluorescent teal highlighter-marker stroke, hex 34D6C5, slightly translucent and uneven like a real highlighter pen with overlapping passes and squared stroke ends, glowing softly against the black. The inside of her body is empty black, the same as the background: no fill, no face, no interior detail. Faint typographic architecture frames her in dim cream ink at low opacity: a double hairline rule across the top like a masthead, thin vertical column rules with empty darker grey blocks and no letters, and a ticker strip along the bottom with a bright teal left border. A single thin ribbon of the same teal light trails behind her. Teal is the only colour on the page. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 2 | Highlighter · teal neon tube · the lifter | `e0ee184a-a9d1-4b0c-be48-639269872c3b` | `hf_20260908_213504_e0ee184a-a9d1-4b0c-be48-639269872c3b.png` | *Vertical 9:16 animation frame in an editorial style unique to a brand called Shape. The whole frame is a solid black page, hex 0A0A0A. A broad-shouldered man at the top of a kettlebell swing, the bell at eye level, body driving upward in a wide stance, is drawn only as a hollow outline: one clean continuous glowing line in fluorescent teal, hex 34D6C5, like a neon tube bent around the edge of his body and the bell, with a soft teal glow bleeding a little into the black. The inside of his body is empty black, the same as the background: no fill, no face, no interior detail. Faint typographic architecture frames him in dim cream ink at low opacity: a double hairline rule across the top like a masthead, thin vertical column rules with empty darker grey blocks and no letters, and a ticker strip along the bottom with a bright teal left border. Teal is the only colour on the page. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 3 | Highlighter · yellow-green marker · the cook | `5fda69fb-3e39-41e3-aeb7-7030f21c82ac` | `hf_20260908_213504_5fda69fb-3e39-41e3-aeb7-7030f21c82ac.png` | *Vertical 9:16 animation frame in an editorial style unique to a brand called Shape. The whole frame is a solid black page, hex 0A0A0A. A cook tossing a frying pan so a burst of chopped vegetables hangs in the air above it, body twisted with the throw, apron strings flying, is drawn only as a hollow outline: a thick fluorescent yellow-green highlighter-marker stroke, hex CCFF00, slightly translucent and uneven like a real highlighter pen with overlapping passes and squared stroke ends, glowing softly against the black; the pan and each vegetable are outlined the same way. The inside of every shape is empty black, the same as the background: no fill, no face, no interior detail. Faint typographic architecture frames her in dim cream ink at low opacity: a double hairline rule across the top like a masthead, thin vertical column rules with empty darker grey blocks and no letters, and a ticker strip along the bottom with a bright teal left border, hex 34D6C5. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 4 | Highlighter · teal marker + white ghost line, pure black · the kicker | `079b14a5-4859-4e3f-a199-a7dd33e825b6` | `hf_20260908_213504_079b14a5-4859-4e3f-a199-a7dd33e825b6.png` | *Vertical 9:16 animation frame in an editorial style unique to a brand called Shape. The whole frame is pure black, hex 0A0A0A, with nothing else on it. A woman throwing a high roundhouse kick, braids whipping out, body coiled and dynamic, is drawn only as a hollow outline: a thick fluorescent teal highlighter-marker stroke, hex 34D6C5, slightly translucent and uneven like a real highlighter pen with overlapping passes and squared stroke ends, and a second thin white ghost line running just inside it, slightly offset, like a misregistered print. The inside of her body is empty black, the same as the background: no fill, no face, no interior detail. A single ribbon of the same teal light whips off her kicking foot across the frame. No rules, no boxes, no readable text, no logos, no phone.\n\nresolution: 2k* |
+| 5 | Highlighter · hot-pink marker · the skipper | `d7359056-962d-469e-bf2e-f89d1a77169d` | `hf_20260908_213504_d7359056-962d-469e-bf2e-f89d1a77169d.png` | *Vertical 9:16 animation frame in an editorial style unique to a brand called Shape. The whole frame is a solid black page, hex 0A0A0A. A man jumping rope at the top of a jump, knees tucked, the rope a thin arc over his head, is drawn only as a hollow outline: a thick fluorescent hot-pink highlighter-marker stroke, hex FF4FD8, slightly translucent and uneven like a real highlighter pen with overlapping passes and squared stroke ends, glowing softly against the black; the rope is a thin stroke of the same pink. The inside of his body is empty black, the same as the background: no fill, no face, no interior detail. Faint typographic architecture frames him in dim cream ink at low opacity: a double hairline rule across the top like a masthead, thin vertical column rules with empty darker grey blocks and no letters, and a ticker strip along the bottom with a bright teal left border, hex 34D6C5. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 6 | Highlighter · teal + yellow-green · coach and client as ▸◂ | `003a470e-f771-4bb4-94d7-bac6d2758e63` | `hf_20260908_213504_003a470e-f771-4bb4-94d7-bac6d2758e63.png` | *Vertical 9:16 animation frame in an editorial style unique to a brand called Shape. The whole frame is a solid black page, hex 0A0A0A. Two figures lean in hard toward each other from the left and right edges, a coach and a client, their bodies angled so that together they form two triangles pointing at each other with a narrow gap between, like a play and a rewind symbol facing each other. Both are drawn only as hollow outlines in thick fluorescent highlighter-marker strokes, slightly translucent and uneven like a real highlighter pen with overlapping passes and squared ends: the coach in teal, hex 34D6C5, the client in yellow-green, hex CCFF00. The inside of each body is empty black, the same as the background: no fill, no faces, no interior detail. Along the bottom runs a ticker strip in dim cream ink at low opacity with a bright teal left border, and nothing else on the page. No readable text, no logos, no phone.\n\nresolution: 2k* |
+
+**v5 — the hollow figures on the cream page (CURRENT as the treatment catalogue; the highlighter page is the owner's ruling), 2026-09-08 21:29 UTC — owner: *"maybe create a hollowed out person for the other animated people so it doesn't look like we are copying apple"*.** Same model and params.
+
+| # | Look · figure | Job | File | Prompt (verbatim, as submitted) |
+| --- | --- | --- | --- | --- |
+| 1 | Hollow · contour · the lifter | `d3e13965-9f9a-42f0-9dc0-5c789b9340cd` | `hf_20260908_212936_d3e13965-9f9a-42f0-9dc0-5c789b9340cd.png` | *Vertical 9:16 animation frame in an editorial newspaper style unique to a brand called Shape. The whole frame is a page of cream newsprint. A broad-shouldered man at the top of a kettlebell swing, the bell at eye level, body driving upward in a wide stance, is drawn as a hollow figure: a single bold continuous black ink contour traces the outside edge of his body and the bell, and the inside is completely empty, so the cream newsprint and the thin column rules run straight through him as if he were a stencil cut out of the page. No fill, no interior detail, no shading, no face. Typographic architecture frames him: a bold double hairline rule across the top like a masthead, thin vertical column rules, and a black ticker strip along the bottom with a teal left border, hex 34D6C5; the columns are empty grey blocks with no letters. A single ribbon of teal light, hex 34D6C5, rises out of the ticker strip's teal border and threads up through the empty inside of his body and around the bell, the only colour on the page apart from that border. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 2 | Hollow · halftone edge · the cook | `7426359d-b080-4961-bcaa-1191be44dc09` | `hf_20260908_212936_7426359d-b080-4961-bcaa-1191be44dc09.png` | *Vertical 9:16 animation frame in an editorial newspaper style unique to a brand called Shape. The whole frame is a page of cream newsprint. A cook tossing a frying pan so a burst of chopped vegetables hangs in the air above it, body twisted with the throw, apron strings flying, is drawn as a hollow figure: only the outer edge of her body is printed, as a band of coarse black halftone dots that thins to nothing toward the centre, so the middle of her is empty cream newsprint with the page showing through, like a press photograph with its centre faded out. The pan and the vegetables are solid black shapes. No face, no interior detail. Typographic architecture frames her: a bold double hairline rule across the top like a masthead, thin vertical column rules, and a black ticker strip along the bottom with a teal left border, hex 34D6C5; the columns are empty grey blocks with no letters. A single ribbon of teal light, hex 34D6C5, curls up from the ticker strip's teal border through the hollow figure like steam, the only colour on the page apart from that border. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 3 | Hollow · misregistered plates · the kicker | `cf24e97f-da09-4f31-bfca-65acf278a378` | `hf_20260908_212936_cf24e97f-da09-4f31-bfca-65acf278a378.png` | *Vertical 9:16 animation frame in an editorial newspaper style unique to a brand called Shape. The whole frame is a page of cream newsprint. A woman throwing a high roundhouse kick, braids whipping out, body coiled and dynamic, is drawn as a hollow figure in two thin contours: one black ink line and a second line in teal, hex 34D6C5, printed slightly offset from it like a misregistered press plate, with the inside of her body left completely empty cream newsprint so the thin column rules show straight through her. No fill, no interior detail, no face. Typographic architecture frames her: a bold double hairline rule across the top like a masthead, thin vertical column rules, and a black ticker strip along the bottom with a teal left border, hex 34D6C5; the columns are empty grey blocks with no letters. A single ribbon of teal light whips off her kicking foot across the page. Teal is the only colour on the page. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 4 | Hollow · vessel of light · the skipper | `06ac95b4-983d-4cba-953a-c3d04f1a9ae7` | `hf_20260908_212936_06ac95b4-983d-4cba-953a-c3d04f1a9ae7.png` | *Vertical 9:16 animation frame in an editorial newspaper style unique to a brand called Shape. The whole frame is a page of cream newsprint. A man jumping rope at the top of a jump, knees tucked, the rope a thin black arc over his head, is drawn as a hollow figure: a bold continuous black ink contour with the inside of his body completely empty, and a single ribbon of teal light, hex 34D6C5, coils inside the hollow outline from his feet up to his chest as if the figure were a glass vessel filling with light; the light stays inside the contour and the cream page and the thin column rules show through everywhere it has not reached. No fill, no interior detail, no face. Typographic architecture frames him: a bold double hairline rule across the top like a masthead, thin vertical column rules, and a black ticker strip along the bottom with a teal left border, hex 34D6C5; the columns are empty grey blocks with no letters. Teal is the only colour on the page. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 5 | Print beside hollow · runner + coach | `21c82347-8f40-4bf5-b865-4edac0ce5b34` | `hf_20260908_212936_21c82347-8f40-4bf5-b865-4edac0ce5b34.png` | *Vertical 9:16 animation frame in an editorial newspaper style unique to a brand called Shape. The whole frame is a page of cream newsprint carrying two figures in two different print treatments side by side. On the left, a runner in full sprint, side-on, knees driving high, drawn as a coarse halftone-dot illustration in black ink like a press photograph screened into big dots, high contrast, her hair and limbs streaking with motion. On the right, a woman seated on a stool with one foot lifted mid-tap and her head nodding, drawn as a hollow figure: a single bold black ink contour with the inside completely empty cream newsprint, the thin column rules running straight through her. Solid print beside hollow line, on one page. No faces, no interior detail. Typographic architecture frames them: a bold double hairline rule across the top like a masthead, thin vertical column rules, and a black ticker strip along the bottom with a teal left border, hex 34D6C5; the columns are empty grey blocks with no letters. A single ribbon of teal light, hex 34D6C5, streams off the runner across the page and passes through the hollow figure's outline, the only colour on the page apart from that border. No readable text, no logos, no phone.\n\nresolution: 2k* |
+| 6 | Hollow · woodcut · the dancer | `fa9618a2-bd91-420a-9a54-2ea49e528b85` | `hf_20260908_212936_fa9618a2-bd91-420a-9a54-2ea49e528b85.png` | *Vertical 9:16 animation frame in an editorial newspaper style unique to a brand called Shape. The whole frame is a page of cream newsprint. A woman mid-air in an explosive dance jump, hair flying, arms thrown wide, is drawn as a hollow figure in the manner of a woodcut: her edge is made of short black engraved hatch lines that fade toward the inside, and the centre of her body is empty cream newsprint with the page and the thin column rules showing through. No fill, no face, no interior detail. Typographic architecture frames her: a bold double hairline rule across the top like a masthead, thin vertical column rules, and a black ticker strip along the bottom with a teal left border, hex 34D6C5; the columns are empty grey blocks with no letters. A single ribbon of teal light, hex 34D6C5, arcs up from the ticker strip's teal border through her hollow body, the only colour on the page apart from that border. No readable text, no logos, no phone.\n\nresolution: 2k* |
+
+**Motion tests in the printed world — four `minimax_h3` clips, 2026-09-08 21:30–21:4x UTC.** Params on all four:
+`aspect_ratio 9:16 · duration 10 · resolution 2K · use_unlim false · declined_preset_id
+24bae836-2c4a-48e0-89b6-49fcc0b21612`; the service reports `width 1440 · height 2560 · aigc_watermark false`. Row 4
+additionally carries `medias [{ value: bcfea348-9f2e-4bf5-bb30-c10b86d446be (the v4 frame-8 job), role: image }]`,
+which the server coerced to `image_references` (*"MiniMax H3 backend expects schema-key media roles"*) — recorded
+because a re-submission with `role: image` is accepted and adjusted, and one with a role the server cannot coerce is
+not. ⚠ Every clip is 243 frames / 10.125 s at 24 fps, measured on rows 1–2 (`ffprobe -count_frames`).
+
+| # | What | Job | File | Prompt (verbatim, as submitted) |
+| --- | --- | --- | --- | --- |
+| 1 | Motion test · the printed runner (halftone) on cream | `58956ff3-ac65-483d-aa7c-fee713e94aa6` | `hf_20260908_213008_58956ff3-ac65-483d-aa7c-fee713e94aa6.mp4` | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. A runner sprints in place side-on in the middle of the page, knees driving high, ponytail streaming, drawn as a coarse halftone-dot illustration in black ink like a press photograph screened into big dots, high contrast; the dots stay locked to the page and do not shimmer or re-sample while she moves. A single ribbon of teal light trails behind her and around her body, the only colour on the page apart from the ticker's border. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 2 | Motion test · the hollow lifter (contour) on cream | `cec35263-6f44-47f3-b852-6713b5acade7` | `hf_20260908_213007_cec35263-6f44-47f3-b852-6713b5acade7.mp4` | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. A broad-shouldered man swings a kettlebell from between his legs up to eye level and back, one big swing on every beat of a fast rhythm, drawn as a hollow figure: a single bold continuous black ink contour around his body and the bell with the inside completely empty, so the cream page and the column rules show straight through him like a stencil; no fill, no interior detail, no face. A single ribbon of teal light, hex 34D6C5, rises from the ticker strip's teal border and threads up through the empty inside of his body, following the bell. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 3 | Motion test · the highlighter runner on black | `c9e5397a-90b8-4e77-8d8a-82a69b96bcb4` | `hf_20260908_213508_c9e5397a-90b8-4e77-8d8a-82a69b96bcb4.mp4` | *Vertical 9:16. A flat 2D animation in an editorial style unique to a brand called Shape. The whole frame is a solid black page, hex 0A0A0A, that never moves, with faint typographic architecture in dim cream ink at low opacity: a double hairline rule across the top like a masthead, thin vertical column rules with empty darker grey blocks and no letters, and a ticker strip along the bottom with a bright teal left border. A runner sprints in place side-on in the middle of the page, knees driving high, ponytail streaming, drawn only as a hollow outline: a thick fluorescent teal highlighter-marker stroke, hex 34D6C5, slightly translucent and uneven like a real highlighter pen, glowing softly against the black. The inside of her body stays empty black, the same as the background, in every frame: no fill, no face, no interior detail. A single thin ribbon of the same teal light trails behind her. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 4 | Image-to-video · the approved frame 8 animated (owner: *"make video with look also"*, with the frame) | `7c0a575a-eb94-40be-86c2-68466b98aa8f` | `hf_20260908_214117_7c0a575a-eb94-40be-86c2-68466b98aa8f.mp4` | *Animate this exact frame without changing its style: a flat 2D editorial newspaper animation. The page of cream newsprint, the masthead rule, the grey column blocks and the ticker strip stay perfectly still; the halftone dots stay locked to the page and do not shimmer. The runner sprints in place in full stride, knees driving high, arms pumping, ponytail streaming, her limbs streaking with motion, and the ribbon of teal light flows out of the phone and around her body in a continuous wave. Locked-off camera, no camera movement, no zoom. No new text, no logos.* |
+
+**The highlighter pass, run on motion test 2 (2026-09-08 21:38–21:40 UTC).** `MODE=outline python3 hl.py lifter.mp4
+lifter_hl.mp4` on a fresh sandbox (`lifter.mp4` = row 2 fetched from its `rawUrl`; the pick's `.m4a` muxed under it,
+first ten seconds). Output **1440×2560 · 243 frames · 10.148 s · md5 `290c84b0a4366e10953b3220e676c394` ·
+1,872,533 B**; handed over as a link (gofile guest, litterbox 72 h), never committed. **Measured on the source clip:**
+page boil above the masthead **0.022 mean / 0.086 max** luma levels between frames six apart, below the ticker
+**0.091 / 0.211** — the generated page does not boil. **Hollowness** (enclosed ÷ ink, every 24th frame): 0.87 · 0.03
+· 0.85 · **0.00** · 0.76 · 0.06 · 0.34 · 0.52 · **0.00** · 0.83 · 0.87 — the ink area is constant (11.3–13.3 k at
+quarter scale) while the enclosed area swings between ~10 k and 0, so the model's contour **opens and closes** from
+frame to frame; on frames 72 and 192 the background floods the whole interior through a gap. ⚠ That is the
+generator's hollow figure failing exactly where the build rule said it would, and it is why the pass draws the
+outline from a **solid** figure's mask (`MODE=solid`) in the film rather than trusting a generated outline: a mask
+boundary is closed by construction. `rule columns []` — the model drew the columns as grey blocks (luma ≈ 180,
+above the 90 threshold), so nothing had to be struck.
+
+```python
+# hl.py — the highlighter pass. python3 hl.py <src.mp4> <out.mp4>; MODE=outline (a clip that is already an outline) or MODE=solid (a halftone or silhouette clip). Expects d1.m4a (the pick) beside it.
+import sys, os, subprocess, json, numpy as np
+from PIL import Image, ImageFilter, ImageDraw
+from collections import deque
+SRC=sys.argv[1]; OUT=sys.argv[2]; MODE=os.environ.get('MODE','outline'); W,H=1440,2560
+TEAL=np.array([0x34,0xd6,0xc5],np.float32); CREAM=np.array([0xf2,0xea,0xd8],np.float32)
+o=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-count_frames','-show_entries','stream=width,height,r_frame_rate,nb_read_frames','-of','json',SRC],capture_output=True,text=True).stdout
+st=json.loads(o)['streams'][0]; print('probe',st,flush=True); fps=st['r_frame_rate']
+rd=subprocess.Popen(['ffmpeg','-v','error','-i',SRC,'-vf',f'scale={W}:{H}','-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,bufsize=10**8)
+wr=subprocess.Popen(['ffmpeg','-y','-v','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',fps,'-i','-','-i','d1.m4a','-map','0:v','-map','1:a','-shortest','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-c:a','aac','-b:a','192k',OUT],stdin=subprocess.PIPE)
+page=Image.new('RGB',(W,H),(10,10,10)); d=ImageDraw.Draw(page); c=tuple(int(v*0.30+10*0.70) for v in CREAM)
+d.rectangle([90,200,W-90,203],fill=c); d.rectangle([90,214,W-90,215],fill=c)
+for x in (90,W//3,2*W//3,W-90): d.rectangle([x,260,x+1,H-330],fill=c)
+d.rectangle([90,H-300,W-90,H-200],fill=(28,28,28)); d.rectangle([90,H-300,102,H-200],fill=(0x34,0xd6,0xc5))
+page=np.asarray(page).astype(np.float32)
+def bl(m,r): return np.asarray(Image.fromarray((m*255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(np.float32)/255.0
+def dil1(m):
+    o=m.copy()
+    for dy in (-1,0,1):
+        for dx in (-1,0,1): o|=np.roll(np.roll(m,dy,0),dx,1)
+    return o
+FR=W*H*3; n=0; trail=deque(maxlen=18); stab_top=[]; stab_bot=[]; hollow=[]; prev=None; rulecols=None
+while True:
+    b=rd.stdout.read(FR)
+    if len(b)<FR: break
+    f=np.frombuffer(b,np.uint8).reshape(H,W,3); g=(0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2])
+    if prev is not None and n%6==0: stab_top.append(float(np.abs(g[20:120]-prev[20:120]).mean())); stab_bot.append(float(np.abs(g[H-120:H-20]-prev[H-120:H-20]).mean()))
+    prev=g
+    m=g<90; m[H-340:]=False; m[:250]=False
+    if rulecols is None:
+        frac=m.mean(axis=0); rulecols=np.nonzero(frac>0.55)[0]; print('rule columns',rulecols.tolist()[:40],flush=True)
+    for x in rulecols: m[:,max(0,x-3):x+4]=False
+    if MODE=='solid': m=bl(m,4)>0.35
+    if n%24==0:
+        s=m[::4,::4]; bg=~s; reach=np.zeros_like(bg); reach[0,:]=bg[0,:]; reach[-1,:]=bg[-1,:]; reach[:,0]=bg[:,0]; reach[:,-1]=bg[:,-1]
+        for _ in range(500):
+            nr=dil1(reach)&bg
+            if (nr==reach).all(): break
+            reach=nr
+        enc=(~reach)&~s; hollow.append((n,int(s.sum()),int(enc.sum())))
+    ys,xs=np.nonzero(m)
+    if len(xs)>200: trail.append((float(xs.mean()),float(ys.mean())))
+    if MODE=='solid':
+        bm=bl(m,6); stroke=((bm>0.12)&(bm<0.88)).astype(np.float32)
+    else: stroke=bl(m,1.2)
+    S=Image.fromarray((np.clip(stroke,0,1)*255).astype(np.uint8))
+    glow=np.asarray(S.filter(ImageFilter.GaussianBlur(16))).astype(np.float32)/255.0
+    a=np.clip(glow*0.6+stroke*0.95,0,1)[...,None]; out=page*(1-a)+TEAL*a
+    if len(trail)>2:
+        R=Image.new('L',(W,H),0); dr=ImageDraw.Draw(R); pts=list(trail)
+        for i in range(1,len(pts)): dr.line([pts[i-1],pts[i]],fill=int(255*i/len(pts)),width=6)
+        ra=np.asarray(R.filter(ImageFilter.GaussianBlur(2))).astype(np.float32)[...,None]/255.0*0.8; out=out*(1-ra)+TEAL*ra
+    wr.stdin.write(np.clip(out,0,255).astype(np.uint8).tobytes()); n+=1
+wr.stdin.close(); wr.wait(); rd.wait()
+print('frames',n,'page_stab_top mean/max',round(float(np.mean(stab_top)),3),round(float(np.max(stab_top)),3),'page_stab_bot mean/max',round(float(np.mean(stab_bot)),3),round(float(np.max(stab_bot)),3))
+print('hollow (frame, ink/16, enclosed/16, ratio):',[(a,b,c_,round(c_/max(1,b),2)) for a,b,c_ in hollow])
+print('HL-DONE',flush=True)
+```
+
+**The two style videos — the same runner in both looks, the pick under each (2026-09-08 21:41–21:5x UTC).**
+Owner: *"make video with look also"* (with frame 8) · *"2 videos with different styles"* · *"make sure to use the
+deep house music you made in those vids"* · *"have the shape triangles logo somewhere visible in video. maybe in top
+left of screen"*. Source: motion test 4, the image-to-video of frame 8 (`hf_20260908_214117_7c0a575a-….mp4`, md5
+`2f9ba3869d17016d6a7a04e81c4e25f9`, 243 frames / 10.125 s), so the two videos share every frame of motion and differ
+only in the look:
+
+| Video | How it was made | Frames · s | md5 | bytes |
+|---|---|---|---|---|
+| **A — the print** (cream page, halftone runner, the phone as the frame has it) | the source clip as generated; the pick's first 10.125 s muxed under it with a 0.4 s fade-out; the ink-and-teal mark at 130 px, top-left at (100, 150), just below the page's own masthead rules (measured off the clip's first frame at rows 99–139: two hairlines and the 16-px band between them) | 243 · 10.126 | `fcaf0dce379659bddf41142828f31f7b` | 18,239,082 |
+| **B — the highlighter** (black page, the same runner as a teal highlighter outline, glow, ribbon) | the source clip through `hl.py` `MODE=solid` (the halftone dots merged into the figure by a 4-px blur at 0.35, the boundary band of a 6-px blur between 0.12 and 0.88 as the stroke, the two column rules of the frame-8 page struck at columns 391–393 and 1063–1064), the pick muxed with the same fade; the teal-and-white mark at 150 px, top-left | 243 · 10.148 | `97c5b0945463bca4f7a972bb8df7aeb9` | 8,262,680 |
+
+Both handed over as links (gofile guest · litterbox 72 h), never committed. ⚠ **The ten seconds are not cut to the
+grid** — the clip's stride is the model's own rhythm and the kick simply runs under it from beat 0; the film proper is
+planned in bars from `meas_d1.json` (§6) and every figure lands on a downbeat. Measured on the source (the pass's own
+instruments): page boil above the masthead 0.088 mean / 0.767 max, below the ticker 0.114 / 0.403 — the image-to-video
+page holds still, the max a single ribbon pass through the band; hollowness 0.00–0.03 on every sampled frame, i.e. a
+**solid** figure, which is exactly what `MODE=solid` wants. The first pair uploaded without the mark (A md5
+`b5be286440cffd101ed6faa68c7725a0`, B `69205cfeaab6a4547cff00b9dfecb0df`) and the second pair with the teal-and-white
+mark on both (`9966e8dca6fc4d251b4d2d5cbbe39ddb` / `7263b7cbd9c950ccc71a00f4112101f0`) are superseded by the row
+above: on cream the white triangle did not read. A third A (`fcb6ba395d285ed42f8c9872141deac0`, the ink-and-teal mark at
+75 px above the rules) is superseded for size. Measured on the final A at 3.0 s, top-left 400×320 crop: teal 2,310 px
+and ink 2,331 px below row 140, the two triangles side by side; on the final B: teal 2,956 px and white 2,986 px.
+
+**Deep-house tracks — three `sonilo_music` generations, 2026-09-08 21:29 UTC — owner: *"make sure the music is deep house music"* · *"more unique music then typical fitness ad"* · then *"music is good"*.** Params on all three: `model sonilo_music · duration 60 · use_unlim false` (⚠ `duration` is REQUIRED). Each probes **60.023220 s**, AAC 44.1 kHz stereo at 256–258 kbps; the service reports `durationSec 60.0236`. Measured with `beat.py` + `meas_dh.py` (below); the table of measurements is in §6. ⚠ No audio is committed; the durable record is the job id + prompt + `duration`, and the md5 is what turns a re-fetch into a check.
+
+| # | Track | Job | File | md5 | bytes | Prompt (verbatim, as submitted) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | **dub-dark (PICK)** | `35ca8b30-6459-46e7-8fa0-7b0196f6ac69` | `hf_20260908_212940_35ca8b30-6459-46e7-8fa0-7b0196f6ac69.m4a` | `b0ba63689fc23e9f89eeb1b869e7a4c4` | 2,261,348 | *Deep house, 122 BPM. A dry heavy kick from the very first bar with no intro, a deep rubbery sub bass, dark detuned minor chords stabbing on the off-beats with long dub delay tails, tape hiss and vinyl crackle underneath, hypnotic and unhurried, a continuous groove with no breakdown, no drop and no risers. Instrumental, no vocals.* |
+| 2 | muted trumpet | `ffd58fa3-b481-4a5f-af73-3ad547d5ab3a` | `hf_20260908_212940_ffd58fa3-b481-4a5f-af73-3ad547d5ab3a.m4a` | `503984b9c4c34a4dc4fc271ad24dcee9` | 2,255,519 | *Deep house, 120 BPM. A muted trumpet phrase drenched in reverb over a warm dusty Rhodes chord, a round sub bass and a shuffling swung kick from bar one, brushed hi-hats, late-night jazz-club atmosphere, understated and soulful, a continuous groove with no breakdown and no drop. Instrumental, no vocals.* |
+| 3 | bowed cello | `3274b8f4-9f94-4680-8ed5-a8fe771bd2ba` | `hf_20260908_212940_3274b8f4-9f94-4680-8ed5-a8fe771bd2ba.m4a` | `9cffe10342b01c77b4f7ba4dfd7aca77` | 2,265,602 | *Deep house, 124 BPM. A hypnotic minimal groove: a kick from bar one, a deep pulsing bass, one melancholy bowed cello line that repeats and never resolves, distant rain and room tone as texture, tension held throughout, no build, no breakdown, no drop, no risers. Instrumental, no vocals.* |
+
+**`meas_d1.json`, the pick's grid — recorded here because the sandbox that measured it is gone:** `bpm 119.95 · P
+0.500208 · phase 0.055 · score 0.3865 · halves 120.0 / 120.0 · contrast 4.31 · first_kick 0.055 · beats 119`.
+`kick_by_beat` (119 values, beat 0 first, the peak 40–120 Hz energy within ±40 ms of each grid beat normalised to
+the track's own maximum): `0.84 0.77 0.78 0.76 0.76 0.71 0.74 0.74 0.72 0.72 0.77 0.73 0.77 0.76 0.86 0.72 0.75 0.86 0.79 0.88 0.80 0.72 0.72 0.80 0.69 0.77 0.82 0.79 0.78 0.79 0.83 0.82 0.86 0.80 0.87 0.78 0.82 0.76 0.88 0.83 0.79 0.78 0.90 0.77 0.81 0.80 0.93 0.83 0.36 0.33 0.41 0.29 0.39 0.23 0.42 0.31 0.49 0.22 0.35 0.28 0.41 0.07 0.10 0.02 0.10 0.04 0.01 0.00 0.00 0.00 0.00 0.01 0.01 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.51 0.46 0.45 0.47 0.59 0.73 0.79 0.75 0.81 0.95 0.69 0.83 0.79 0.86 0.74 0.47 0.82 0.69 1.00 0.72 0.95 0.81 0.86 0.84 0.89 0.77 0.89 0.77 0.90 0.85 0.94 0.75 0.01 0.00 0.00 0.00 0.00 0.00 0.00`.
+
+```python
+# meas_dh.py — python3 meas_dh.py d1 d2 d3 ; expects <name>.wav beside it and beat.py (the recipe's block) on the path. Writes meas_<name>.json.
+import sys, json, numpy as np
+sys.path.insert(0,'/home/user/dh'); import beat
+h=beat.HOP
+def win(a,t,r):
+    i=int((t-r)/h); j=int((t+r)/h)+1
+    return float(a[max(0,i):j].max()) if j>max(0,i) and max(0,i)<len(a) else 0.0
+def analyse(name):
+    x=beat.decode(f'/home/user/dh/{name}.wav'); dur=len(x)/beat.SR
+    kick=beat.bandpass(x,40,120); e=beat.energy(kick); o=beat.onset(e)
+    g=beat.grid(o); n=len(o)//2; g1=beat.grid(o[:n]); g2=beat.grid(o[n:])
+    P=g['P']; ph=g['phase']; nb=int((dur-ph)/P); ek=e/e.max()
+    kb=np.array([win(ek,ph+i*P,0.04) for i in range(nb)])
+    onb=np.array([win(ek,ph+i*P,0.01) for i in range(nb)]); half=np.array([win(ek,ph+(i+0.5)*P,0.01) for i in range(nb)])
+    contrast=float(onb.mean())/max(1e-9,float(half.mean()))
+    idx=np.where(kb>0.3)[0]; first=round(float(ph+idx[0]*P),3) if len(idx) else None
+    pres=np.clip((kb-0.15)/0.30,0,1); gaps=[]; run=None
+    for i,v in enumerate(pres):
+        if v<0.5: run=[i,i] if run is None else [run[0],i]
+        else:
+            if run: gaps.append(run); run=None
+    if run: gaps.append(run)
+    gaps=[q for q in gaps if q[1]-q[0]>=2]
+    X=np.abs(np.fft.rfft(x))**2; f=np.fft.rfftfreq(len(x),1/beat.SR)
+    cent=float((f*X).sum()/X.sum()); low=float(X[f<90].sum()/X.sum())
+    w=beat.SR; rms=[20*np.log10(np.sqrt((x[i*w:(i+1)*w]**2).mean())+1e-9) for i in range(int(dur))]
+    out=dict(name=name,dur=round(dur,3),bpm=g['bpm'],P=g['P'],phase=g['phase'],score=g['score'],halves=[g1['bpm'],g2['bpm']],
+        contrast=round(contrast,2),first_kick=first,beats=nb,kick_gaps_beats=[[int(a),int(b)] for a,b in gaps],
+        kick_gaps_s=[[round(ph+a*P,2),round(ph+b*P,2)] for a,b in gaps],centroid_hz=round(cent,1),low90=round(low,3),
+        rms_db_min=round(min(rms),1),rms_db_max=round(max(rms),1),rms_db_first4=round(float(np.mean(rms[:4])),1),
+        rms_db_mid=round(float(np.mean(rms[25:35])),1),rms_db_last4=round(float(np.mean(rms[-4:])),1),
+        kick_by_beat=[round(float(v),3) for v in kb])
+    json.dump(out,open(f'/home/user/dh/meas_{name}.json','w'))
+    o2=dict(out); o2.pop('kick_by_beat'); print(json.dumps(o2)); print('kb', ' '.join('%.2f'%v for v in kb))
+for nm in sys.argv[1:]: analyse(nm)
+print('MEAS-DONE')
+```
 
 **v4 — the Shape-original looks (CURRENT, with v3), 2026-09-08 21:06 UTC — owner: *"dont just replicate exactly the same images that apples made"*.** Same model and params as every row above.
 

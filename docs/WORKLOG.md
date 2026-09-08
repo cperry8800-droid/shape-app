@@ -475,6 +475,68 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-08 — The film's people go hollow, its page goes black, its music goes deep: five owner notes, twenty generations, and the first frame that was built rather than generated
+
+- **Six owner notes inside one hour, each answered before the next arrived.** *"those are better, but maybe create a
+  hollowed out person for the other animated people so it doesn't look like we are copying apple"* → six hollow
+  treatments framed on the cream page (contour · halftone edge · misregistered plates · vessel of light · print
+  beside hollow · woodcut). *"make sure the music is deep house music"* · *"more unique music then typical fitness
+  ad"* → three `sonilo_music` candidates, measured, one picked; *"music is good."* *"have the people being outlined by
+  a highlighter look looking border with a black background"* → six more frames on the two axes that note leaves open
+  (marker · neon tube · marker with a white ghost line; teal · yellow-green · pink · teal + yellow-green for a coach
+  and client leaning into the ▸◂ shape). *"make video with look also"* (with the approved frame 8) → the frame
+  itself animated as an image-to-video, plus three prompted motion tests. *"2 videos with different styles"* and
+  *"make sure to use the deep house music you made in those vids"* → the same runner in both looks, the pick under
+  each, handed over as links. *"have the shape triangles logo somewhere visible in video. maybe in top left of
+  screen"* → the ▸◂ mark cut from the logo canvas by its own measured geometry and overlaid top-left on both, the
+  white triangle set in ink on the cream page because on cream it does not read (measured: the first overlay left
+  only the teal triangle in the top-left crop). Everything is in
+  [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) — §2b (the figures and the lights-out
+  page), §4 (the two master blocks), §6 (the music, measured), §10 (seven open questions) and the Sources tables
+  with every prompt verbatim. **Twenty-two generations today on top of the morning's thirty-one; no PR, nothing
+  merged; nothing committed but records.**
+- ⚠ **"HOLLOW" IS A MASK OPERATION, AND THAT IS THE FINDING THAT DECIDES THE BUILD.** Every hollow treatment — and
+  the highlighter look, and the halftone print — is a per-frame operation on the thresholded figure: a boundary band
+  stroked, a dot size from distance-to-edge, two strokes offset, the ribbon clipped to the mask, a glow on the band.
+  So the generator only ever has to deliver **one solid black figure in motion on flat cream**, and the look is
+  applied in Pillow at exact stroke widths in colours that cannot drift, on a page that cannot boil. The hollow-lifter
+  motion test proved the other half of that sentence the same hour: run through the pass (`hl.py`, in the treatment)
+  and measured, its **page does not boil** (0.022 mean luma change between frames above the masthead, 0.09 below
+  the ticker) but its **contour opens and closes** — the enclosed-÷-ink ratio swings 0.87 → 0.03 → 0.85 → **0.00** →
+  0.76 across the clip while the ink area holds constant, i.e. the background floods the whole interior through a gap
+  on two of eleven sampled frames. A generated outline is not closed; a mask boundary is closed by construction.
+  *The model is asked for the thing it does reliably, and the thing that has to be exact is drawn.*
+- ⚠ **THE BLACK PAGE IS NOT A NEW WORLD.** The highlighter-on-black look is the printed broadsheet's own **midnight
+  paper** — the state the real *Pick your light* flips the app into — so the film keeps one world with two pages and
+  one seam: cream and print for the day half, black and light for the night half, the flip on a downbeat in the real
+  Settings screen. The alternative (black throughout, the runner the one printed figure) is §10 q1, the owner's.
+- ⚠ **A PROMPTED STRUCTURE IS A REQUEST, LIKE A PROMPTED BPM — PAID FOR A FOURTH TIME, AND THIS TIME THE FILM TAKES
+  THE DIFFERENCE RATHER THAN FIGHTING IT.** All three prompts asked for *no breakdown*. Measured with the recipe's own
+  `beat.py`: the dub-dark track (prompted 122) is **119.95 BPM**, halves 120.0 / 120.0, kick on the first beat, 24 s
+  unbroken, then **no kick for 9.0 s at 30.6–39.6 s** and back on beat 80 = 40.0 s; the trumpet track (prompted 120)
+  came back at **128.0** — the seventh track of eight to land there — with two 15-second kick-less stretches; the
+  cello track (prompted 124) measures 120.0 and **loses its kick at 38.6 s for good**. The pick is the dub-dark track
+  on the measurement: darkest on both axes (centroid 134 Hz against 202 / 289; 69 % of its energy under 90 Hz against
+  48 / 44), and its one breakdown lands where the film wanted a bar of silence anyway — the two-orb lock now sits
+  inside the breakdown the track already has, the lock lands on the kick's return at 40.0 s, and the **30 s cutdown
+  is bars 1–15 and ends on the last full kick** (30.57 s). At 119.95 BPM a bar is 2.0008 s and the 60 s track is
+  exactly 30 bars. The pick's whole `kick_by_beat` array is in the treatment, because the sandbox that measured it
+  is gone.
+- ⚠ **A "TYPICAL FITNESS AD" WAS READ AS A SHAPE OF MUSIC, NOT A GENRE.** Big-room build, riser, filtered lift,
+  drop, bright lead. "Unique" was therefore prompted as its opposite — dry, dubby, textural, no build, no drop, and
+  one instrument a fitness ad would never carry (dub tails and tape hiss · a muted trumpet · a bowed cello) — rather
+  than as a different genre name. The owner's *"music is good"* came on the three together; the pick among them is
+  the measurement's, above, and stated as such.
+- **The image-to-video route works and is recorded with its coercion.** `minimax_h3` accepts a prior image job id
+  in `medias` with `role: image`; the server coerces it to `image_references` (*"MiniMax H3 backend expects
+  schema-key media roles"*) and submits. Recorded because a role it cannot coerce is refused, and the accepted
+  spelling is the one that has to be re-typed.
+- **Verified:** every new Sources row carries its prompt verbatim from the submitted JSON (the tool's echo, not
+  memory); the treatment's two python blocks compile; 4 fences, CR 0, NUL 0; the three tracks' md5s and byte counts
+  recorded from the sandbox; the hollow-lifter pass output md5 recorded beside its link. ⚠ **None of the twenty-two
+  generations was visually inspected by the agent** — the cloudfront host is unreachable from this container; the
+  owner's look in the gallery is the QA, and the numbers above are what the agent could measure instead.
+
 ### 2026-09-08 — "Silhouettes": the Apple-style one-shot film, re-treated on the owner's picture, eighteen style frames billed
 
 - **Owner's ask: *"a video of shape like what apple did for the release of the ipad … people using the app on their
