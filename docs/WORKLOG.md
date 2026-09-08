@@ -505,9 +505,20 @@ Append new entries at the top, under this note.
   one action each). All **eighteen** generations are in the treatment's Sources table with verbatim prompts, twelve of
   them marked superseded; **none was visually inspected by the agent** (the cloudfront host is unreachable here). *A
   style word is a request; a picture is a measurement.*
-- **Next, per the ruling:** the owner's look on the six silhouettes and the six open questions (§10 — the colour
-  rotation vs teal-only, the coach rig, the one new line, casting, the world, whose numbers); then seven figures at two
-  takes each, the track measured, the captures, the render on the two-stage runner.
+- ⚠ **TWO MORE OWNER NOTES THE SAME HOUR, AND THEY CHANGE THE QUESTION FROM "WHICH FRAME" TO "WHICH WORLD".** *"the
+  actual people i want animated with the same idea as the apple ipod shots but more unique to shape. Half the people you
+  are showing look like real life"* — so no photoreal anywhere, every figure stylised — and *"dont just replicate exactly
+  the same images that apples made."* Answered with two spreads, all Shape's own: **v3**, the silhouette in Shape's terms
+  (a ribbon of teal light out of the phone instead of the white cord; fields of teal, cream newsprint with halftone, ink,
+  and the ▸◂ diagonal; a coach and client leaning into the ▸◂ shape) and **v4**, three looks that come from the brand
+  rather than the campaign — the broadsheet PRINTED (figures as coarse halftone press illustrations on newsprint, framed
+  by the masthead rule and the ticker strip), FIGURES OF LIGHT (the person drawn entirely from the brand's teal ribbons on
+  ink) and CUT PAPER (three-colour card collage). Plus one 10-s `minimax_h3` **motion test** (the Shape-edition dancer on
+  teal) so the owner judges movement, not pose. **Thirty-one generations today**, every one in the treatment's Sources with
+  its verbatim prompt; the treatment's §2a holds the four looks as an open choice, the beat map and honesty ledger hold for
+  any of them.
+- **Next, per the ruling:** the owner picks a WORLD (§2a) and answers the six open questions (§10); then seven figures at
+  two takes each in that world, the track measured, the captures, the render on the two-stage runner.
 
 ### 2026-09-08 — v7.3 rendered: the corrected cut reaches a link, and the layer that produced it turns out to have never been written down
 
