@@ -475,7 +475,7 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
-### 2026-09-08 — "Through the Glass": the Apple-style one-shot film, treated and ruled on, style frames next
+### 2026-09-08 — "Silhouettes": the Apple-style one-shot film, re-treated on the owner's picture, eighteen style frames billed
 
 - **Owner's ask: *"a video of shape like what apple did for the release of the ipad … people using the app on their
   phone … a whole walk through that blends together, almost in one shot with cool visual effects."*** Treatment in
@@ -494,8 +494,20 @@ Append new entries at the top, under this note.
   demo cast is kept out by a real two-account rig (default, the ruling on the preview cast still open); the globe carries
   no count; the music is owned and measured, the drop built in post rather than prompted. Six open questions with
   defaults, §11 — the coach rig, one new line, the lights-out arc, casting, whose numbers, the close.
-- **Next, per the ruling:** six 9:16 style frames (one per room, the master block as an image prompt) for the owner's
-  look approval; then clips at two takes a room, then captures, then the render on the two-stage runner.
+- ⚠ **THE REFERENCE WAS THE iPOD SILHOUETTE CAMPAIGN, NOT AN iPAD FILM — AND IT TOOK A PICTURE TO FIND OUT.** Six
+  photoreal style frames were generated (one per room); the owner: *"have the images be more animated"*; six more with
+  motion blur and light ribbons were already billed when the picture arrived: *"similar to this … again like the apple
+  ad"* — black figures mid-motion on flat saturated colour, white earbud cords, a white player in the hand. The
+  treatment is now **v2, "Silhouettes"**: the same spine (through the glass, one line — now the earbud cord — the lock,
+  the lights-out, the close on the mark) in that world, and the world dissolves v1's three hardest problems: no faces to
+  keep consistent, no hands holding phones, and a white phone on a flat field can be TRACKED per frame by a threshold,
+  so the phone may move with the dance. Six silhouette frames generated (blue · teal · magenta · lime · orange · yellow;
+  one action each). All **eighteen** generations are in the treatment's Sources table with verbatim prompts, twelve of
+  them marked superseded; **none was visually inspected by the agent** (the cloudfront host is unreachable here). *A
+  style word is a request; a picture is a measurement.*
+- **Next, per the ruling:** the owner's look on the six silhouettes and the six open questions (§10 — the colour
+  rotation vs teal-only, the coach rig, the one new line, casting, the world, whose numbers); then seven figures at two
+  takes each, the track measured, the captures, the render on the two-stage runner.
 
 ### 2026-09-08 — v7.3 rendered: the corrected cut reaches a link, and the layer that produced it turns out to have never been written down
 
