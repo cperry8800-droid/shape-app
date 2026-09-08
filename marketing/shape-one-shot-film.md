@@ -10,9 +10,11 @@ So the reference is the **silhouette campaign**: jet-black figures caught mid-mo
 fields, thin white earbud cords, a white player in the hand. Then, on the first silhouette set: *"the actual people i
 want animated with the same idea as the apple ipod shots but more unique to shape. Half the people you are showing look
 like real life"* and *"dont just replicate exactly the same images that apples made."* So: **no photoreal anywhere,
-every figure stylised and in motion, the idea kept and the look Shape's own.** The world is therefore an open choice
-among four looks (§2a), all shown to the owner as style frames on 2026-09-08; the beat map, the seams and the
-honesty ledger below hold for any of them. This file is v2 of the treatment; v1 ("Through the Glass", photoreal
+every figure stylised and in motion, the idea kept and the look Shape's own.** Four looks were shown as style frames
+(§2a); **the owner chose THE BROADSHEET, PRINTED** (frame 8, the halftone runner on newsprint: *"this is good"*) with one
+more ruling: *"she doesn't have to have her phone in her hand."* So the phone is no longer the portal — **the page is**:
+the film's page is the app's page, the real UI lives in a column or takes the whole frame on a seam, and the figures
+are free to move. §2b carries the world as built; the beat map below is re-cut for it. This file is v2 of the treatment; v1 ("Through the Glass", photoreal
 rooms) is superseded and summarised at the end. The owner's rulings stand: **9:16 only · 45–60 s
 with a 30 s cutdown · a new owned track, no voiceover, minimal type cards · style frames first, clips after the
 look is approved.**
@@ -50,6 +52,34 @@ All four keep the mechanics of §2: the phone is a flat, trackable rectangle; th
 the real UI overlays opaque. A **motion test** (one 10 s `minimax_h3` clip, the Shape-edition silhouette dancer on teal
 with the ribbon) was generated so the owner can judge movement rather than pose; it is in the Sources.
 
+## 2b · The world as built — the broadsheet, printed (CHOSEN 2026-09-08)
+
+**Generated: the figure. Drawn: everything else.** The generator is asked only for what it does reliably — one
+black figure in motion on a flat cream field, locked-off camera — and every Shape-specific element is built
+deterministically in the sandbox on top of it, at exact geometry, on the measured grid:
+
+| Layer | Built by | What |
+|---|---|---|
+| The figure | `minimax_h3`, 10 s, one take per figure (a second only on a reject) | a black silhouette in big motion on flat cream; no phone required |
+| The print | Pillow, per frame | the figure re-screened into **coarse halftone dots** (dot size from local luma, the streaks from the figure's own motion blur), so it reads as a press photograph, not a sticker |
+| The page | Pillow, once | the **masthead double rule**, thin column rules with empty grey blocks, the **ticker strip** along the bottom with its teal left border — the app's own typographic system (`BSMasthead` · `BSDateline` · `BSTicker`), drawn at the film's size |
+| The ribbon | Pillow, per frame | one ribbon of teal light following the figure's motion path (the thresholded figure's centroid over time → spline), the only colour on the page apart from the ticker's border |
+| The real UI | the CDP captures, opaque | in a **column** (a grey block resolves into a live page), or **full frame** on a seam — the app's masthead rule aligning with the film's masthead rule, so the page *becomes* the app page |
+
+Why this is the right split: a prompted halftone can boil from frame to frame (dots re-sampling every frame), a
+drawn screen is rock steady; the page geometry has to match the app's own masthead and the capture rects to the
+pixel; and "no phone in hand" costs nothing when the UI is part of the page. If the direct-prompted printed look
+(the first clip test) holds still enough, the re-screen pass is skipped for that shot and only the page, ribbon and
+UI are drawn.
+
+**The seams, in this world.** (A) **The page turn** — on a downbeat the page turns like a broadsheet (a vertical
+wipe with a folded-edge shadow, 6 frames) and the next figure is already running on the next page; (B) **Column fill**
+— a grey column block resolves into the real UI, the push goes into it, and the app's masthead rule meets the film's
+rule so the page becomes the app; (C) **Re-screen** — the dots coarsen until the figure dissolves into a field of dots
+and re-form as the next figure (the print's own transition); (D) **The ticker** carries the line across every seam
+(the cord's job, now the app's own ticker strip); (E) **Lights-out** — the real *Pick your light* flips the page to
+midnight paper: ink page, cream figures, the ribbon unchanged.
+
 ## 2 · Why it reads as one shot — and why this world builds better than v1
 
 - **Silhouettes have no continuity problem.** No face, no wardrobe, no skin to keep consistent across generated
@@ -78,9 +108,12 @@ with the ribbon) was generated so the owner can judge movement rather than pose;
 ## 3 · The beat map (30 bars; every time re-derived from the measured grid of the new track)
 
 Nominal 128 BPM, bar = 1.875 s, 30 bars = 56.3 s (60.0 s if the track measures 120). Times of day are never
-captioned; the app's own dateline clock carries them (browser clock set at capture).
+captioned; the app's own dateline clock carries them (browser clock set at capture). ⚠ Written for the silhouette
+world before the owner chose the printed page; read "field" as the page's paper (cream, then midnight after the flip),
+"the phone" as the UI's place in the page, and the colour flips as page turns — the order, bars, captures and the lock
+are unchanged. The re-cut in the page's own terms follows once the first printed clips are in.
 
-| Bars | Field | What we see | Silhouette | The REAL screen (light paper on the white phone) | Out → |
+| Bars | Page | What we see | Figure | The REAL UI (in the page: a column, or full frame) | Out → |
 |---|---|---|---|---|---|
 | 1–2 | teal | A white cord draws itself across the frame on the first kick. A figure walks in from the left, earbuds in, phone up; the cord runs into her ears. | The riser, walking | Home cold load — masthead, dateline clock 05:58, ticker — small in her hand, then the push. | **B** push into the phone. |
 | 3–4 | white (the page) | Full frame: the Home page, the slate row TRAIN tapped, the Train deck. *Written before you arrive.* | — | `BSClientHome` → `BSClientTrain`, one capture across the cut. | **A** flip to blue as we pull out. |
