@@ -653,20 +653,44 @@ clip) plus the plate and the dark screen; both are kept by md5 (`final6.py` `d30
 under the mark before the glow is computed; the A screen interior is painted `(16,16,16)` instead of white and its
 mark is `tri` rather than `trik`; and `screen_mark` fits and clips as described.
 
-**`final5.py` — the finishing pass as shipped for the previous pair, verbatim** (md5 `94e226cd9e038eb49f1b8c8522d78117`; `final4.py`, md5
-`a3c0a2fd63636d8e71bf007b0c6e4c6b`, differs only in the screen section — an ungated fit and a held estimate — and is
-not kept, because a script that floats the mark is not a recipe):
+⚠ **AND THE DARK SCREEN WAS THE WRONG GROUND — THE OWNER READ IT AS THE PHONE BEING OFF.** *"the phone is still off on
+the print look. logo is coming out of phone"*: the lit-dark-screen answer to the white-triangle problem reads as a
+switched-off phone on a cream page, and the plate-less mark still reached the bezel. A `final8.py` (the screen back to
+white with the mark on a small ink plate fitted by the plate's rotated extent) was running when the ruling arrived
+that ends the question: *"just remove the shape logo from the phone on both."* So **the phone carries no mark on
+either page**, and the source goes back to the clip the owner approved before the phone edits began — the plain
+image-to-video of frame 8 (`hf_20260908_214117_7c0a575a-….mp4`, md5 `2f9ba3869d17016d6a7a04e81c4e25f9`), whose screen
+never had a mark. `final9.py` is `final8.py` with the screen step not run (md5s: `final8.py` not captured — the sandbox holding it was reclaimed before its md5 was read, and its only change from `final7.py` is stated in the paragraph above · `final9.py`
+`077ec1cc7c68fb3ebc73d8a5f7b1f7df`, verified against a local copy of the same text); the top-left mark on its ink plate with the glow, the HRM / BPM bar, and the pick under both are unchanged.
+The three edits of the still and the two clips animated from them stay in the Sources as what they are: the route by
+which a marked phone was tried and measured, and retired by a ruling.
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**, `final9.py` on the approved clip: no mark on the phone | `ea54d73432d09abdfef5ae02f616cc80` | 18,364,448 | top-left crop on a beat: teal 2,416 px, white 2,427 px (both triangles, on the plate), teal 2,281 mid-beat; IN SYNC 6,071 teal px above the bar at 6.86 s and 0 at 6.0 s; the phone carries nothing |
+| **B — the highlighter**, `final9.py`: no mark on the phone | `85bb041f078a175046cdbe0f64be5313` | 6,346,212 | top-left crop on a beat: teal 6,601 px, white 3,213 px, teal 6,431 mid-beat; IN SYNC 6,139 teal px above the bar at 6.86 s and 0 at 6.0 s |
+
+Handed over as links; every earlier pair is superseded by this one.
+
+**`final9.py` — the finishing pass as shipped, verbatim** (md5 `077ec1cc7c68fb3ebc73d8a5f7b1f7df`). It is the top-left mark on
+its ink plate with the kick glow, the HRM / BPM bar, the highlighter page with every teal pixel carried across, and the
+pick under both; it has no screen step, by ruling. The earlier passes are kept by md5 only — `final5.py`
+`94e226cd9e038eb49f1b8c8522d78117` (the gated screen pass, the ink-for-white mark), `final4.py`
+`a3c0a2fd63636d8e71bf007b0c6e4c6b` (its ungated form), `final7.py` `3c959b47d2997c53b33b5b25415b416b` (the fit, the
+clip, the plate, the dark screen) — each described where it was retired:
 
 ```python
 import json, math, subprocess, sys, numpy as np
-from PIL import Image, ImageFilter, ImageDraw
+from PIL import Image, ImageFilter, ImageDraw, ImageFont
 SRC=sys.argv[1]; OUTA=sys.argv[2]; OUTB=sys.argv[3]; W,H=1440,2560; TEAL=(0x34,0xd6,0xc5); TEALf=np.array(TEAL,np.float32); CREAM=np.array([0xf2,0xea,0xd8],np.float32)
 m=json.load(open('meas_d1.json')); BPM=m['bpm']; PH=m['phase']; KB=m.get('kick_by_beat'); P=60.0/BPM
 def kof(t):
     u=(t-PH)%P; n=int((t-PH)//P); pres=1.0 if not KB or n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30)); return math.exp(-u/0.20)*pres
-tri=Image.open('tri.png').convert('RGBA'); trik=Image.open('tri_ink.png').convert('RGBA'); ASP=tri.width/tri.height
-def glow_mark(canvas, mark, cx, cy, h, k, base, flash, blur, amp=0.06, rot=0.0):
+tri=Image.open('tri.png').convert('RGBA'); ASP=tri.width/tri.height
+def glow_mark(canvas, mark, cx, cy, h, k, base, flash, blur, amp=0.06, rot=0.0, plate=0):
     s=1.0+amp*k; hh=max(8,int(round(h*s))); ww=max(6,int(round(hh*ASP))); mk=mark.resize((ww,hh),Image.LANCZOS)
+    if plate:
+        pw,ph=mk.width+2*plate,mk.height+2*plate; pl=Image.new('RGBA',(pw,ph),(0,0,0,0)); ImageDraw.Draw(pl).rounded_rectangle([0,0,pw-1,ph-1],radius=max(6,plate),fill=(16,16,16,255)); pl.alpha_composite(mk,(plate,plate)); mk=pl
     if abs(rot)>0.5: mk=mk.rotate(rot,expand=True,resample=Image.BICUBIC)
     R=blur*3+mk.width//2+mk.height//2; x0,y0=int(cx-R),int(cy-R); S=2*R
     layer=Image.new('RGBA',(S,S),(0,0,0,0)); px,py=int(round(R-mk.width/2)),int(round(R-mk.height/2))
@@ -681,7 +705,6 @@ for x in (90,W//3,2*W//3,W-90): d.rectangle([x,260,x+1,H-330],fill=c)
 d.rectangle([90,H-300,W-90,H-200],fill=(28,28,28)); d.rectangle([90,H-300,102,H-200],fill=TEAL); page=np.asarray(page).astype(np.float32)
 rd=subprocess.Popen(['ffmpeg','-v','error','-i',SRC,'-vf',f'scale={W}:{H}','-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,bufsize=10**8)
 def wr(out): return subprocess.Popen(['ffmpeg','-y','-v','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r','24','-i','-','-i','d1.m4a','-map','0:v','-map','1:a','-af','atrim=0:10.125,afade=t=out:st=9.725:d=0.4','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-c:a','aac','-b:a','192k','-shortest',out],stdin=subprocess.PIPE)
-from PIL import ImageFont
 FONT='/usr/share/fonts/truetype/higgsfield/Montserrat-ExtraBold.ttf'
 f_lab=ImageFont.truetype(FONT,30); f_num=ImageFont.truetype(FONT,46); f_sync=ImageFont.truetype(FONT,64)
 BPMi=int(round(BPM)); HR0=BPMi-36; T0=1.3; nS=math.ceil((6.4-PH)/P); TS=PH+nS*P
@@ -710,47 +733,12 @@ def sync_bar(canvas,t,k,ink,bar,teal):
     T=Image.new('RGBA',L.size,(0,0,0,0)); spaced(ImageDraw.Draw(T),CX,y-40,'IN SYNC',f_sync,teal,'m',7)
     if u<1: T.putalpha(T.split()[3].point(lambda v:int(v*u)))
     L.alpha_composite(T); canvas.alpha_composite(L,(0,LY0))
-
-SCR=None; SMISS=0; SLOG=[]; CONF=0.0; BAD=0
-def find_screen(g):
-    wm=(g>=246); wm[:250]=False; wm[H-340:]=False; wm=blur_mask(wm,2)>0.6
-    if wm.sum()<1500: return None, wm, None
-    hull=blur_mask(wm,16)>0.2
-    ys,xs=np.nonzero(hull); C=np.cov(np.vstack([xs,ys]).astype(np.float64)); ev,vec=np.linalg.eigh(C); v=vec[:,1]
-    if v[1]>0: v=-v
-    th=max(-45.0,min(45.0,math.degrees(math.atan2(-v[0],-v[1]))))
-    short=max(20.0,math.sqrt(12*max(ev[0],1.0))-32); long_=max(40.0,math.sqrt(12*max(ev[1],1.0))-32)
-    if not (55<=short<=95 and 130<=long_<=200): return None, wm, None      # not the screen (measured hits: 62-73 x 156-164)
-    interior=blur_mask(hull,9)>0.92
-    return dict(cx=float(xs.mean()),cy=float(ys.mean()),th=th,short=short,long=long_), wm, interior
-def screen_mark(A_img,B_arr,g,k,n):
-    global SCR,SMISS,CONF,BAD
-    cur,wm,interior=find_screen(g)
-    if cur is None: SMISS+=1; CONF*=0.5
-    else: SCR=cur if SCR is None else {q:SCR[q]*0.45+cur[q]*0.55 for q in cur}; CONF=1.0
-    if SCR is None or CONF<0.2: return A_img,B_arr
-    if interior is not None:
-        rep=interior&~wm
-        a=np.asarray(A_img).copy(); a[rep]=(255,255,255,255); A_img=Image.fromarray(a,'RGBA')
-        B_arr=B_arr.copy(); B_arr[interior]=page[interior]
-        bm=blur_mask(interior,5); band=((bm>0.15)&(bm<0.85)).astype(np.float32); bg=blur_mask(band>0.5,9)
-        al=np.clip(bg*(0.45+0.25*k)+band*0.95,0,1)[...,None]; B_arr=B_arr*(1-al)+TEALf*al
-    mh=0.42*SCR['long']; mw=mh*ASP
-    if mw>0.66*SCR['short']: mw=0.66*SCR['short']; mh=mw/ASP
-    LA=Image.new('RGBA',A_img.size,(0,0,0,0)); glow_mark(LA,trik,SCR['cx'],SCR['cy'],mh,k,0.15,0.35,8,rot=SCR['th'])
-    if CONF<1: LA.putalpha(LA.split()[3].point(lambda v:int(v*CONF)))
-    A_img.alpha_composite(LA)
-    Bi=Image.fromarray(B_arr.clip(0,255).astype(np.uint8)).convert('RGBA'); LB=Image.new('RGBA',Bi.size,(0,0,0,0)); glow_mark(LB,tri,SCR['cx'],SCR['cy'],mh,k,0.30,0.5,8,rot=SCR['th'])
-    if CONF<1: LB.putalpha(LB.split()[3].point(lambda v:int(v*CONF)))
-    Bi.alpha_composite(LB)
-    if n%24==0: SLOG.append((n,int(wm.sum()),round(CONF,2),{q:round(SCR[q],1) for q in SCR}))
-    return A_img,np.asarray(Bi).astype(np.float32)
 wA=wr(OUTA); wB=wr(OUTB); FR=W*H*3; n=0; rulecols=None; log=[]
 while True:
     b=rd.stdout.read(FR)
     if len(b)<FR: break
     f=np.frombuffer(b,np.uint8).reshape(H,W,3).astype(np.float32); g=0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2]; t=n/24.0; k=kof(t)
-    A=Image.fromarray(f.astype(np.uint8)).convert('RGBA'); glow_mark(A,trik,100+130*ASP/2,150+65,130,k,0.20,0.55,16); sync_bar(A,t,k,(20,20,20),(95,95,95),TEAL)
+    A=Image.fromarray(f.astype(np.uint8)).convert('RGBA'); glow_mark(A,tri,100+130*ASP/2+14,150+65+14,130,k,0.20,0.55,16,plate=14); sync_bar(A,t,k,(20,20,20),(95,95,95),TEAL)
     m0=g<90; m0[:250]=False; m0[H-340:]=False
     if rulecols is None:
         frac=m0[250:H-340].mean(0); rulecols=[x for x in range(W) if frac[x]>0.55]; print('rule columns',rulecols,flush=True)
@@ -759,13 +747,13 @@ while True:
     E=Image.fromarray((edge*255).astype(np.uint8)); glow=np.asarray(E.filter(ImageFilter.GaussianBlur(14))).astype(np.float32)/255.0; st_=np.asarray(E.filter(ImageFilter.GaussianBlur(1))).astype(np.float32)/255.0
     out=page.copy(); a=np.clip(glow*0.55+st_*0.95,0,1)[...,None]; out=out*(1-a)+TEALf*a
     tm=((np.abs(f[...,0]-0x34)<60)&(np.abs(f[...,1]-0xd6)<60)&(np.abs(f[...,2]-0xc5)<60)); tg=blur_mask(tm,6); ta=np.clip(tg*0.5+tm.astype(np.float32)*0.95,0,1)[...,None]; out=out*(1-ta)+TEALf*ta
-    A,out=screen_mark(A,out,g,k,n)
+    # owner: no logo on the phone, on either page -- no screen step
     B=Image.fromarray(out.clip(0,255).astype(np.uint8)).convert('RGBA'); glow_mark(B,tri,90+150*ASP/2,30+75,150,k,0.35,0.65,20); sync_bar(B,t,k,(190,184,170),(80,78,72),TEAL)
     if n%24==0: log.append((n,int(m0.sum()),int(tm.sum()),round(k,2)))
     wA.stdin.write(A.convert('RGB').tobytes()); wB.stdin.write(B.convert('RGB').tobytes()); n+=1
 for w in (wA,wB): w.stdin.close()
 for w in (wA,wB): w.wait()
-print('frames',n); print('(frame, ink px, teal px carried, k):',log); print('sync at beat',nS,'t',round(TS,4),'HR0',HR0,'BPM',BPMi); print('screen: miss frames',SMISS,'of',n); print('screen log (frame, white px, fit):'); [print(' ',l) for l in SLOG]; print('FINAL5-DONE')
+print('frames',n); print('sync at beat',nS,'t',round(TS,4),'HR0',HR0,'BPM',BPMi); print('(frame, ink px, teal px carried, k):',log); print('FINAL9-DONE')
 ```
 
 **`final2.py` — the finishing pass for the marked-still route, verbatim** (md5 `63d104ec9a6ffe8c910ee15363383d16`;
