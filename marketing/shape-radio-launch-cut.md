@@ -2420,6 +2420,8 @@ for i in range(N):
     paste(f,sa,0.88+0.10*k,SX,SY)
     proc.stdin.write((np.clip(f*e,0,1)*255+0.5).astype('uint8').tobytes())
 proc.stdin.close(); proc.wait(); print('WALL6-OK',N,'screen',SW,'x',SH,'at',SX,SY,'slab',(SL,SR,ST,SB),'margin',MG,'crop_top',CT)
+# v7.3: the placed rect, so verify6.py checks the SCREEN against the slab rather than the ink of a dark-paper page
+json.dump(dict(SX=SX,SY=SY,SW=SW,SH=SH,slab=dict(left=SL,right=SR,top=ST,bottom=SB),margin=MG,crop_top=CT),open('wall6_geom.json','w'),indent=1)
 ```
 
 **`meas_pins.py`** — Measures the Scene D disc **and the baked pin heads** in the re-prompted globe (v7), plus the spin's horizontal drift, so the marks can be popped **onto the pins** instead of onto luma-sampled cities. Writes `meas_pins.json`; also retires `mk_globe.py`'s file-tied `CX,CY,R=727,1295,676`.
@@ -3119,18 +3121,26 @@ RECT=(WY,WY+480,WX,WX+480)
 def a_src(t):
     """Which Scene-A clip the output frame at t came from and its time in that clip. Still routed through A2 for
     i >= f12 so a trim drift in norm6.sh's derivation shows up here as a mismatch, not as a jump nobody measured."""
-    i=int(t*24+1e-6)                    # floor: -ss returns the frame CONTAINING t (the convention every beat check uses)
-    return ('in/A.mp4',t) if i<f12 else ('in/A2.mp4',(i-f12+0.5)/24.0)
+    i=int(t*24+1e-6)
+    return ('in/A.mp4',t) if i<f12 else ('in/A2.mp4',fseek(i-f12))
+def fseek(i):
+    """The -ss that returns frame i EXACTLY. ffmpeg's input seek keeps the first frame whose pts >= ss, so a probe at a frame
+    CENTRE ((i+0.5)/24) returns frame i+1, and a probe at the boundary i/24 formatted to 4 dp can land a hair ABOVE the
+    true pts and skip frame i too (145/24 = 6.041666.. prints as 6.0417). A hair BELOW the boundary is the only safe
+    spot. Measured on the first v7.3 render: the +0.5 convention read A2 one frame late and reported 8 luma of
+    'mismatch' on a correct cut."""
+    return i/24.0-1e-4
 m_out=np.ones((H,W),bool); m_out[RECT[0]:RECT[1],RECT[2]:RECT[3]]=False
 for t,expect in ((0.5,False),(3.0,True),(6.5,True),(7.5,True)):
     src,ts=a_src(t); o=frame(OUT,t); sA=frame(src,ts)
     outd=mdiff(o,sA,m_out); ind=mdiff(o,sA,~m_out)
     check(f'A matches its source outside the card at {t} ({src.split("/")[-1]})', outd<2.5, f'mean diff {outd:.2f}')
-    check(f'card {"present" if expect else "absent"} at {t}', (ind>8) if expect else (ind<2.0), f'rect diff {ind:.2f}')
+    # present: > 4 (v6's card filled the rect; the orb card at 6.5 s is two orbs and four figures, measured 5.8); absent: < 2 (codec noise 1.4)
+    check(f'card {"present" if expect else "absent"} at {t}', (ind>4) if expect else (ind<2.0), f'rect diff {ind:.2f}')
 # the cut is INVISIBLE: the output frames f12-1 and f12 must both be Scene A's OWN frames (A2 continues A). Probed at
 # frame CENTRES -- the rounding-tie lesson of the v7 verification round.
 for fi,nm in ((f12-1,'before'),(f12,'after')):
-    tc=(fi+0.5)/24.0; dd=mdiff(frame(OUT,tc),frame('in/A.mp4',tc),m_out)
+    tc=fseek(fi); dd=mdiff(frame(OUT,tc),frame('in/A.mp4',tc),m_out)
     check(f'beat-12 cut is invisible: frame {fi} ({nm}) is A itself outside the card', dd<2.5, f'mean diff {dd:.2f}')
 # the orbs: amber before the merge, teal after -- the state is a COLOUR, read across the whole card rect
 def cnt(a,reg,f):
@@ -3161,7 +3171,10 @@ for t in (8.4,10.5,13.0):
     check(f'B matches B_long outside phone at {t}', dd<2.5, f'mean diff {dd:.2f}')
 for n in (18,21,24):
     lb=lit(frame('in/phoneB.mp4',beat(n)+1/24-offAB)); lm=lit(frame('in/phoneB.mp4',beat(n)+P/2-offAB))
-    check(f'phone logo pulses at beat {n} (layer)', lb[1]>=lm[1]+8 and lb[0]>lm[0]*1.3, f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
+    # v7.3: 1.06, not v6's 1.3. The glow assets peak at 0.34 (logo_txt_glow) / 0.31, so at g = 0.25 + 0.9k the halo can add
+    # ~1-2k pixels above luma 60, never the 13k v4/v6 recorded -- that layer's build is unrecoverable (no producer), this
+    # one is mk_screen3.py's recipe verbatim. Measured here: 9.3k-10.1k at a beat against 8.54k mid, width +12..+14.
+    check(f'phone logo pulses at beat {n} (layer)', lb[1]>=lm[1]+8 and lb[0]>lm[0]*1.06, f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
 # ---- C: wall ----
 def darkrun(g,row0,row1,cx=720,th=20):
     col=g[row0:row1].mean(axis=0); dark=col<th
@@ -3171,7 +3184,7 @@ def darkrun(g,row0,row1,cx=720,th=20):
     r=cx
     while r<W-1 and dark[r+1]: r+=1
     return l,r
-mw=json.load(open('meas_wall.json')); SLB=mw['slab']
+mw=json.load(open('meas_wall.json')); SLB=mw['slab']; WG=json.load(open('wall6_geom.json'))
 SLW=SLB['right']-SLB['left']; SLH=SLB['bottom']-SLB['top']; BPAD=140  # bloom reach: spad 90 + the 40px blur's tail
 print('INFO slab',json.dumps(SLB),f"{SLW}x{SLH}",'valid',mw['valid'],'/',mw['samples'],'edge_touch',mw['edge_touch'])
 for t in (14.3,15.0,17.0,21.0):
@@ -3179,11 +3192,14 @@ for t in (14.3,15.0,17.0,21.0):
     # 1. the STORED measurement must still bound the LIVE clip -- an intersection that drifted is not a bound
     dr=darkrun(gs,760,832)
     if dr is None: print(f'INFO slab unreadable at {t} (the clip strobes) band mean {gs[760:832].mean():.1f} -- skipping the bound check')
-    else: check(f'measured slab still inside the clip at {t}', SLB['left']>=dr[0] and SLB['right']<=dr[1], f"slab {SLB['left']}-{SLB['right']} live {dr[0]}-{dr[1]}")
-    # 2. the screen must FILL the slab, not sit inset in it: body (th 140) inside on both axes, >=0.90 on one
-    b=lit(L,None,140); fw=b[1]/SLW; fh=b[2]/SLH
-    inside=b[3]>=SLB['left'] and b[4]<=SLB['right'] and b[5]>=SLB['top'] and b[6]<=SLB['bottom']
-    check(f'screen fills the measured slab at {t}', inside and max(fw,fh)>=0.90, f'body x {b[3]}-{b[4]} y {b[5]}-{b[6]} fill {fw:.2f}w/{fh:.2f}h')
+    else: check(f'measured slab still inside the clip at {t}', SLB['left']>=dr[0]-2 and SLB['right']<=dr[1]+2, f"slab {SLB['left']}-{SLB['right']} live {dr[0]}-{dr[1]} (2 px: the band here vs the centre-row re-read in meas_wall.py)")
+    # 2. the screen must FILL the slab, not sit inset in it. v7.3: read the RECT mk_wall6.py placed (wall6_geom.json), not the
+    # lit body -- the Radio page is dark paper with light type, so the ink bbox (th 140) is 741 px wide inside an 803 px
+    # screen and the old check reported 0.73w on a screen that fills 0.96 of the slab's height. The ink must sit inside the rect.
+    fw=WG['SW']/SLW; fh=WG['SH']/SLH; b=lit(L,None,140)
+    inside=WG['SX']>=SLB['left'] and WG['SX']+WG['SW']<=SLB['right'] and WG['SY']>=SLB['top'] and WG['SY']+WG['SH']<=SLB['bottom']
+    ink_in=b[3]>=WG['SX'] and b[4]<=WG['SX']+WG['SW'] and b[5]>=WG['SY'] and b[6]<=WG['SY']+WG['SH']
+    check(f'screen fills the measured slab at {t}', inside and ink_in and max(fw,fh)>=0.90, f"rect {WG['SW']}x{WG['SH']} at {WG['SX']},{WG['SY']} fill {fw:.2f}w/{fh:.2f}h; ink x {b[3]}-{b[4]} y {b[5]}-{b[6]}")
     o=frame(OUT,t); sC=frame('in/C_zoom.mp4',t-offBC); cm=np.ones((H,W),bool)
     cm[max(0,SLB['top']-BPAD):min(H,SLB['bottom']+BPAD),:]=False; dd=mdiff(o,sC,cm)
     check(f'C matches C_zoom outside layers at {t}', dd<2.5, f'mean diff {dd:.2f}')
@@ -3192,24 +3208,37 @@ b=subprocess.run(['ffmpeg','-v','error','-i','in/C_zoom.mp4','-t',f'{lenC:.3f}',
 bm=np.frombuffer(b,np.uint8).reshape(-1,9,90).mean(axis=(1,2)); print(f'INFO club clip: wordmark band lit (>30) on {int((bm>30).sum())}/{bm.size} Scene-C frames ({100*(bm>30).mean():.0f}%) — the source strobes; the wordmark+screen ride SCREEN-blended over it')
 for n in (30,36):
     # v7: the pulse subject is the SCREEN (the drawn wordmark band is retired), measured over the slab rows
-    rows=(SLB['top'],SLB['bottom']+1,0,W)
-    lb=lit(frame('in/wall6.mp4',beat(n)+1/24-offBC),rows,100); lm=lit(frame('in/wall6.mp4',beat(n)+P/2-offBC),rows,100)
-    check(f'wall screen pulses at beat {n} (layer)', lb[0]>lm[0]*1.15 and lb[1]>=lm[1], f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
+    # v7.3: the beat rides the screen's own gain (0.88 + 0.10k) -- the bloom of a dark-paper page adds nothing measurable
+    # outside the rect (0 pixels above luma 40 at a beat, measured). So read the MEAN luma of the placed rect: 0.946/0.888
+    # at the +1/24 sample = 1.065 expected, 1.06-1.08 measured on lit counts. v6's 1.15 was the retired wordmark band's glow.
+    r=(WG['SY'],WG['SY']+WG['SH'],WG['SX'],WG['SX']+WG['SW'])
+    gb=gray(frame('in/wall6.mp4',beat(n)+1/24-offBC)[r[0]:r[1],r[2]:r[3]]).mean(); gm=gray(frame('in/wall6.mp4',beat(n)+P/2-offBC)[r[0]:r[1],r[2]:r[3]]).mean()
+    check(f'wall screen pulses at beat {n} (layer)', gb>gm*1.04, f'rect mean luma {gb:.2f} at beat vs {gm:.2f} mid ({gb/gm:.3f}x)')
 # ---- D: globe ----
 # v7.3: the first pop is on beat 44 -- the very beat the C->D fade LANDS on (offCD + 0.3) -- so "before pops" cannot be 22.5
 # (v6's, when pops began on beat 48): by then the beat-44 mark is 0.37 s old and fully drawn. Sample one frame after the
 # fade ends, where the first mark is a sub-pixel sprite at u = 1/24 (back(0.15) of 44 px, alpha 0.35) and the layer is
 # otherwise empty; the tolerance on the layer is a handful of pixels, not zero.
 tD0=offCD+0.3+1/24
-o=frame(OUT,tD0); sD=frame('in/D.mp4',tD0-offCD); dd=np.abs(gray(o)-gray(sD)); g6=lit(frame('in/globe6.mp4',tD0-offCD))
-check('D matches globe source as the scene lands (beat 44)', dd.mean()<3.5 and np.percentile(dd,99)<24 and g6[0]<200, f'mean {dd.mean():.2f} p50 {np.median(dd):.1f} p99 {np.percentile(dd,99):.1f} layer lit {g6[0]} at {tD0:.3f}')
-# v7: the disc, the logo box and the close row are DERIVED from what mk_globe.py actually placed --
-# 618/1972/44/1410, 330 and 2060 were all measured against the v6 D.mp4 and are wrong for a re-prompted clip
 try: GM=json.load(open('globe6_marks.json'))
 except Exception as e:
     GM=dict(disc=dict(top=618,bottom=1972,left=44,right=1410), logo_cy=330, logo_w=440, close_y=2060,
             from_pins=False, pins_used=0, marks=0, placed=[], drift_px_per_s=0.0)
     print(f'INFO globe6_marks.json unreadable ({type(e).__name__}) -- Scene D checked against the v6 constants')
+def unmarked(a,t,rad=120):
+    """the layer frame with every live mark's neighbourhood zeroed -- a pop ring (r 22..92) or a mark's glow is not the logo,
+    and not 'something lit before the pops' either. Measured: the beat-44 ring alone lit 519 pixels on the landing frame."""
+    a=a.copy()
+    for m in GM['placed']:
+        u=t-m['t']
+        if u<-0.05 or u>2.7: continue
+        cx=int(round(m['x']+m['vx']*u)); cy=m['y']
+        a[max(0,cy-rad):cy+rad,max(0,cx-rad):cx+rad]=0
+    return a
+o=frame(OUT,tD0); sD=frame('in/D.mp4',tD0-offCD); dd=np.abs(gray(o)-gray(sD)); g6=lit(unmarked(frame('in/globe6.mp4',tD0-offCD),tD0))
+check('D matches globe source as the scene lands (beat 44)', dd.mean()<3.5 and np.percentile(dd,99)<24 and g6[0]<50, f'mean {dd.mean():.2f} p50 {np.median(dd):.1f} p99 {np.percentile(dd,99):.1f} layer lit outside the marks {g6[0]} at {tD0:.3f}')
+# v7: the disc, the logo box and the close row are DERIVED from what mk_globe.py actually placed --
+# 618/1972/44/1410, 330 and 2060 were all measured against the v6 D.mp4 and are wrong for a re-prompted clip
 GD=GM['disc']; disc=(max(0,GD['top']),min(H,GD['bottom']+1),max(0,GD['left']),min(W,GD['right']+1))   # v7.3: the rim-fitted disc overruns the frame on both sides -- clamp
 pre=lit(frame('in/globe6.mp4',0.3-1/24),disc)              # the last fade frame BEFORE beat 44: nothing is drawn yet
 for n in (50,54,58):
@@ -3227,6 +3256,7 @@ if GM['placed']:
             u=t-m['t']
             if u<0.12+1/24 or u>2.6: continue   # skip marks still inside their own fade-in
             cx=int(round(m['x']+m['vx']*u)); cy=m['y']
+            if cx<45 or cx>W-46: continue        # v7.3: the disc overruns the frame, so a mark near the limb rides OFF it
             if lit(L,(max(0,cy-45),cy+46,max(0,cx-45),cx+46))[0]<40: miss.append((cx,cy))
         check(f'every live mark is drawn at its placement at beat {n}', not miss, f'{len(miss)} missing: {miss[:4]}')
     # v7.1: not every pop has to LAND -- luma_pick now drops a mark rather than stacking one at the disc centre --
@@ -3266,11 +3296,17 @@ if GM['placed']:
     check('marks are anchored to the ground, not floating', live>0 and anch>=0.8*live, f'{anch}/{live} anchors lit')
 # v7.3: the disc top is at 323 (v6: 618) and the logo row at LCY 171, so a +-190 box would reach 39 rows INTO the disc and
 # count the atmospheric rim as "logo". The box stops 4 px above the measured disc top.
-LCY=GM['logo_cy']; LCX=W//2; lg=(max(0,LCY-190),min(LCY+191,GD['top']-4),max(0,LCX-340),min(W,LCX+341))
+# v7.3: the box is the LOGO's own rect (+10 px), not +-190 rows: on this clip the disc top is 324 and the atmospheric rim's
+# glow starts ~30 rows above it (col 714: luma 38 at row 290, 82 at 300, 157 at 310), so a box reaching row 319 counted
+# 4,136 rim pixels as 'logo' before the logo existed. Marks are masked out the same way (their rings reach the box).
+LCY=GM['logo_cy']; LCX=W//2; LH=int(round(GM['logo_w']*1382/3082))
+lg=(max(0,LCY-LH//2-10),min(LCY+LH//2+10,GD['top']-30),max(0,LCX-GM['logo_w']//2-10),min(W,LCX+GM['logo_w']//2+11))
 l0=lit(frame(OUT,25.5),lg,90); l1=lit(frame(OUT,26.7),lg,90)
-check('logo pops above globe after beat 52', l0[0]<50 and l1[0]>1500, f'pre {l0[0]} post {l1[0]} w{l1[1]}')
-lb=lit(frame('in/globe6.mp4',beat(56)+1/24-offCD),lg,60); lm=lit(frame('in/globe6.mp4',beat(56)+P/2-offCD),lg,60)
-check('globe logo pulses at beat 56 (layer)', lb[1]>=lm[1]+8 and lb[0]>lm[0]*1.1, f'beat {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
+check('logo pops above globe after beat 52', l0[0]<50 and l1[0]>1500, f'pre {l0[0]} post {l1[0]} w{l1[1]} (box rows {lg[0]}-{lg[1]}, disc top {GD["top"]})')
+for n in (53,55):
+    tb_=beat(n)+1/24; tm_=beat(n)+P/2
+    lb=lit(unmarked(frame('in/globe6.mp4',tb_-offCD),tb_),lg,60); lm=lit(unmarked(frame('in/globe6.mp4',tm_-offCD),tm_),lg,60)
+    check(f'globe logo pulses at beat {n} (layer)', lb[1]>=lm[1]+8 and lb[0]>lm[0]*1.05, f'beat {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
 CLY=GM['close_y']; crow=(CLY,min(H,CLY+300),0,W)
 c0=lit(frame(OUT,27.5),crow,90); c1=lit(frame(OUT,29.5),crow,90)
 check('close copy fades in after beat 56', c0[0]<50 and c1[0]>2000, f'pre {c0[0]} post {c1[0]}')
@@ -3298,8 +3334,11 @@ def rms(ss,t):
     for ln in r.splitlines():
         if 'RMS level dB' in ln: v=ln.split(':')[-1].strip()
     return float(v)
-mid=rms(15.0,0.9); tail=rms(TOTAL-0.5,0.5)
-check('audio tail fades', tail<mid-8, f'tail(last 0.5 s) {tail:.1f} dB vs mid {mid:.1f} dB')
+# v7.3: the fade is 0.6 s; over the LAST 0.3 s its gain runs 0.5 -> 0, i.e. an RMS 10.8 dB under full scale. The old 0.5 s
+# window straddles the fade's first half (gain 0.83 -> 0) and lands at -6.4 dB by construction, which the -8 threshold
+# then reports as 'not fading' on a correct render (measured -16.2 vs -10.0).
+mid=rms(15.0,0.9); tail=rms(TOTAL-0.3,0.3)
+check('audio tail fades', tail<mid-8, f'tail(last 0.3 s) {tail:.1f} dB vs mid {mid:.1f} dB')
 print('FAILS',fails if fails else 'none')
 ```
 
