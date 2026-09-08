@@ -630,7 +630,30 @@ the screen pass) was only a smoke test and is not kept. The bar's smoke test on 
 left edge 1082 → 1068 → 948 → 826 and the ink dot's right edge 599 → 611 → 732 → 830 over 0.5 → 6.46 s (closing on
 the centre at 840), then **6,070 teal px of IN SYNC above the bar** at 6.86 s and none before.
 
-**`final5.py` — the finishing pass as shipped, verbatim** (md5 `94e226cd9e038eb49f1b8c8522d78117`; `final4.py`, md5
+⚠ **TWO MORE NOTES ON THAT PAIR, AND BOTH ARE THE PASS'S FAULT, NOT THE MODEL'S.** *"better. the shape logo is coming
+out of the phone on highlighter video"* → *"atuallly both of them"*: the mark was sized to the screen **before** it was
+rotated, so a tilted mark's corners reached past a 70-px-wide screen, and its glow was never clipped — on black a
+glow reads as the mark itself. `final7.py` fits the **rotated extent** inside 62 % of the short side and 50 % of the
+long side (a rotated w×h box spans w·cos θ + h·sin θ by w·sin θ + h·cos θ) and clips the mark layer, glow included, to
+the screen interior (3 px outside the interior on the cream page, 4 px inside it on the black page so nothing crosses
+the outline band), logging the alpha it removes as a spill fraction — measured on the shipped run as **18.7 % of the mark layer on the cream page and 25.7 % on the black page, averaged over the 120 hit frames** (the fit factor the rotated extent forced was 0.59–0.80, i.e. the mark had been 20–40 % too large for a tilted screen); a few hit frames clip to nothing (max 1.0) where the smoothed centre lags the newly found interior, and read as the mark absent for a frame rather than outside the phone. And *"the white and teal triangle
+need to be in both"*: the ink-for-white substitution on the cream page is withdrawn. A white triangle needs a dark
+ground, so the print video carries the true teal-and-white mark on an **ink plate** top-left (14 px of padding, the
+app-icon ground) and its phone screen is painted as a **lit dark screen** with the teal-and-white mark on it, rather
+than a white screen with an ink triangle. `tri_ink.png` is no longer used anywhere.
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**, `final7.py` | `22ab29a2c51f4b736fc9513915d393ee` | 17,169,952 | top-left crop on a beat: teal 2,420 px, **white 2,428 px**, ink 28,866 (the plate) — both triangles present on the cream page; teal 2,281 mid-beat; screen fits as the previous pair (120 of 243 frames accepted, every fit 62–73 × 156–164 px) |
+| **B — the highlighter**, `final7.py` | `9f75fdffbb334721e0d17e2a9c02b958` | 5,749,574 | top-left crop on a beat: teal 3,945 px, white 3,215 px; teal 3,767 mid-beat; the bar and the screen fits identical to A |
+
+Handed over as links; the `final5.py` pair above is superseded by this one. `final7.py` is `final6.py` (the fit and the
+clip) plus the plate and the dark screen; both are kept by md5 (`final6.py` `d30451717f6c66690bd8c47e3943d201` · `final7.py` `3c959b47d2997c53b33b5b25415b416b`) with
+`final7.py`'s three changes to `final5.py` stated here in full: `glow_mark(…, plate=14)` draws a rounded ink square
+under the mark before the glow is computed; the A screen interior is painted `(16,16,16)` instead of white and its
+mark is `tri` rather than `trik`; and `screen_mark` fits and clips as described.
+
+**`final5.py` — the finishing pass as shipped for the previous pair, verbatim** (md5 `94e226cd9e038eb49f1b8c8522d78117`; `final4.py`, md5
 `a3c0a2fd63636d8e71bf007b0c6e4c6b`, differs only in the screen section — an ungated fit and a held estimate — and is
 not kept, because a script that floats the mark is not a recipe):
 

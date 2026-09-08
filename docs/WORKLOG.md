@@ -477,7 +477,7 @@ Append new entries at the top, under this note.
 
 ### 2026-09-08 — The film's people go hollow, its page goes black, its music goes deep: five owner notes, twenty generations, and the first frame that was built rather than generated
 
-- **Eleven owner notes inside two hours, each answered before the next arrived.** *"those are better, but maybe create a
+- **Fourteen owner notes inside two and a half hours, each answered before the next arrived.** *"those are better, but maybe create a
   hollowed out person for the other animated people so it doesn't look like we are copying apple"* → six hollow
   treatments framed on the cream page (contour · halftone edge · misregistered plates · vessel of light · print
   beside hollow · woodcut). *"make sure the music is deep house music"* · *"more unique music then typical fitness
@@ -505,7 +505,11 @@ Append new entries at the top, under this note.
   meet, on a beat. *"the logo is wrong, the triangles need to be the same as the logo, spacing on sizing is off"* → the
   model's drawing of the mark is painted out and the mark FILE drawn on the found screen, exact, at the screen's
   size and tilt — only while the screen is lit, because this clip darkens the phone on the down-swing as the first
-  one did (the screen reads in 140 of 243 frames, and a held fit floats). Everything is in
+  one did (the screen reads in 140 of 243 frames, and a held fit floats). *"better. the shape logo is coming out of the
+  phone on highlighter video"* · *"atuallly both of them"* → the mark had been sized before it was rotated and its glow
+  never clipped; fitted by its rotated extent and clipped to the screen now, the spill measured as the alpha removed.
+  *"the white and teal triangle need to be in both"* → the ink-for-white substitution withdrawn: the true mark on an
+  ink plate top-left of the cream page, and the phone screen painted as a lit dark screen carrying it. Everything is in
   [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) — §2b (the figures and the lights-out
   page), §4 (the two master blocks), §6 (the music, measured), §10 (seven open questions) and the Sources tables
   with every prompt verbatim. **Twenty-two generations today on top of the morning's thirty-one; no PR, nothing
