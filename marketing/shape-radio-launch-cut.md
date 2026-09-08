@@ -21,6 +21,10 @@ COMMUNITY · SCORE) + **launch cut v5** (v4 + a phone montage on beats 20→32) 
 feature spots + launch v5". **v4 stays the launch cut until the owner rules on the
 montage.**
 
+**2026-09-07:** *"can you start with showing america on the globe"* → **v7.3** — Scene D is a new
+globe that opens on the Americas (job `135d629d`), with a night-window remap and a rim-fitted disc
+in `norm6.sh`; the v7 globe faced Europe/Africa for its whole length — see "What v7.3 is".
+
 The review links handed over in-session are short-lived uploads and are deliberately
 NOT recorded here (they die). The SOURCES are permanent. Nothing is posted anywhere.
 
@@ -495,7 +499,10 @@ Prefix: `https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/`
 | **v7.1 melodic 4** — melodic anthem 126 (big synth lead) | `hf_20260903_164640_26a60d67-53cd-4b17-a0d4-261be0f9488e.m4a` |
 | **v7 Scene A** — the runner, clothed (replaces Scene A) | `hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4` |
 | **v7 Scene A2** — the watch close-up (NEW shot) | `hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4` |
-| **v7 Scene D** — the pinned globe (replaces Scene D) | `hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4` |
+| **v7 Scene D** — the pinned globe (replaces Scene D) — ⚠ superseded 2026-09-07 by v7.3 below: it faces Europe/Africa from first frame to last | `hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4` |
+| **v7.3 Scene D — the globe opening on the AMERICAS** (replaces v7 Scene D; owner 2026-09-07) — the only one of three that opens on the Americas; close-up framing + a baked sunrise, both handled in `norm6.sh` (see "What v7.3 is") | `hf_20260907_232214_135d629d-2aa5-48ad-b734-02e2e72aa721.mp4` — md5 `5d12d472d5184b33e9014bef44f428d6`, 10 258 505 B |
+| v7.3 rejected A — day→night, never faces the Americas at either end | `hf_20260907_232229_4d9fbfa0-4298-4b1c-bf77-2eeab7f0b44a.mp4` — md5 `b6a1905ae392976a5e260a6d5c301a1c` |
+| v7.3 rejected C — holds night best (mean luma 13 → 24) but opens dark and ambiguous, brightens by the end | `hf_20260907_234350_20b6391e-fafc-4e55-823a-a3b0b469dad4.mp4` — md5 `bca53007019e84ef530fc58e105bb2fd` |
 
 The v3 clips: h264 1440×2560, 24 fps, 243 frames = 10.125 s. The three new tracks:
 aac 44.1 kHz stereo, 32.023 s each.
@@ -510,8 +517,23 @@ exact submitted text, so a re-run starts from the record rather than from memory
 | 2 | `e815ac55-08d2-497d-8244-5c58e7288dbd` | `minimax_h3` | *Vertical 9:16. Extreme close-up of a smartwatch on a runner's wrist, mid-stride, night. The watch face is a clean blank glowing panel - soft teal light, no numbers, no icons, no text, no user interface. Sweat on skin, dark technical sleeve at the edge of frame, deep black background, teal rim light. Shallow depth of field, slow push in, no text, no logos.* |
 | 3 | `34ebdcd6-c068-47e5-85ba-39d77708a058` | `minimax_h3` | *Vertical 9:16. A slowly rotating night Earth against deep black, seen from space. City lights glowing warm across the landmasses, a faint teal atmospheric rim. Thin vertical light beams rise from a scattering of points on the surface, each anchored to a small glowing dot where it meets the ground - location pins planted on the globe. No text, no labels, no country names, no numbers, no user interface. Cinematic, high contrast, slow steady spin.* |
 
-Submitted params, identical on all three: `aspect_ratio 9:16 · duration 10 · resolution 2K
+| 4 | `4d9fbfa0-4298-4b1c-bf77-2eeab7f0b44a` (v7.3 A, **rejected**) | `minimax_h3` | *Vertical 9:16. A rotating night Earth against deep black, seen from space, turning at a brisk steady pace. The shot opens with the Americas facing the camera: North America and South America centred in the disc, the United States clearly visible, the Pacific Ocean to the left and the Atlantic Ocean to the right. The globe turns slowly eastward from there. City lights glowing warm across the landmasses, a faint teal atmospheric rim. Thin vertical light beams rise from a scattering of points on the surface, each anchored to a small glowing dot where it meets the ground - location pins planted on the globe. No text, no labels, no country names, no numbers, no user interface. Cinematic, high contrast.* |
+| 5 | `135d629d-2aa5-48ad-b734-02e2e72aa721` (v7.3 B, **THE PICK**) | `minimax_h3` | *Vertical 9:16. The western hemisphere of Earth at night, seen from space against deep black: the whole of North America and South America fill the centre of the globe from the first frame, Florida and the Gulf of Mexico near the middle of the disc, Canada at the top, Brazil below. The planet rotates at a brisk steady pace, turning eastward, so the Americas drift slowly across the face of the globe. City lights glowing warm across the landmasses, a faint teal atmospheric rim. Thin vertical light beams rise from a scattering of points on the surface, each anchored to a small glowing dot where it meets the ground - location pins planted on the globe. No text, no labels, no country names, no numbers, no user interface. Cinematic, high contrast.* |
+| 6 | `20b6391e-fafc-4e55-823a-a3b0b469dad4` (v7.3 C, **rejected**) | `minimax_h3` | *Vertical 9:16. Earth at night seen from space against deep black, and it stays night for the entire shot: constant deep-night exposure from the first frame to the last, the whole visible hemisphere in darkness, lit only by warm city lights and a faint teal atmospheric rim. From the first frame the Americas fill the centre of the globe: North America and South America facing the camera, Florida and the Gulf of Mexico near the middle of the disc, Canada at the top, Brazil below. The planet rotates at a brisk steady pace, turning eastward. The camera holds one fixed distance for the whole shot, the globe the same size in frame throughout. Thin vertical light beams rise from a scattering of points on the surface, each anchored to a small glowing dot where it meets the ground - location pins planted on the globe. No text, no labels, no country names, no numbers, no user interface. Cinematic, high contrast.* |
+
+Submitted params, identical on all three v7 rows: `aspect_ratio 9:16 · duration 10 · resolution 2K
 · use_unlim false · batch_size 1 · aigc_watermark false`. Reported output **1440×2560**.
+The three v7.3 rows (2026-09-07) used the same set; rows 4 and 6 additionally carried
+`declined_preset_id 24bae836-2c4a-48e0-89b6-49fcc0b21612` — row 4's first submission without it was
+**intercepted** by the "IN THE DARK" preset recommendation and created no job (the trap the orb record
+warns about); row 5 went through without it. All three delivered `1440,2560,24/1,243` = 10.125 s.
+⚠ **THREE PROMPTS, ONE HIT — and the hit was the plainest description of the frame, not the most
+insistent.** Row 4 asks for the Americas and got a day-to-night globe facing the Atlantic; row 6 asks
+for constant night and a fixed camera and got a dark, ambiguous opening; row 5 simply *describes the
+picture* (Florida and the Gulf near the middle, Canada at the top, Brazil below) and got exactly that
+frame. Row 5's own clip still bakes in a sunrise and a push-in it was never asked for — the model
+animates a "rotating Earth" as a lighting change — so *a prompt is a request* holds for the frame's
+evolution even when it lands the first frame.
 
 ⚠ **`minimax_h3` IS THE ONLY VIDEO MODEL THIS ACCOUNT EXPOSES, AND IT IS NOT UNLIM-COVERED.**
 `use_unlim: true` is rejected outright — the submitted `false` **bills**. Every other id
@@ -2421,6 +2443,16 @@ except Exception as e: MEAS=None; print(f'WARN meas_pins.json unreadable ({type(
 PINS = MEAS if (MEAS and MEAS.get('believed') and MEAS.get('samples')) else None
 # every one of these was measured against the v6 D.mp4 and is wrong for any re-prompted clip -> meas_pins.py owns them now
 D=(MEAS or {}).get('disc') or dict(cx=727,cy=1295,r=676,top=618,bottom=1972,left=44,right=1410)
+# v7.3: the RIM-fitted disc (fit_D.json, written by meas_disc.py from norm6.sh) outranks meas_pins' luma disc
+# whenever it exists. On the v7.3 close-up source meas_pins read r 1100-1246 with the centre jumping 130 px
+# between samples -- not a measurement -- while the rim fit read r 955 at 12.7 px median residual. The logo row
+# (0.53 x top) and the close row (bottom + 88, clamped) are derived from D, so D has to be the real disc.
+try:
+    _f=json.load(open('fit_D.json')); _f=_f[sorted(_f,key=float)[0]]
+    D=dict(cx=_f['cx'],cy=_f['cy'],r=_f['r'],top=_f['top'],bottom=_f['bottom'],left=_f['left'],right=_f['right'])
+    print('disc from fit_D.json (rim fit):',D)
+except FileNotFoundError:
+    print('WARN fit_D.json absent -- using meas_pins/v6 disc; run meas_disc.py (norm6.sh does) before trusting the rows')
 CX,CY,R=D['cx'],D['cy'],D['r']
 VX=float((MEAS or {}).get('drift_px_per_s',0.0))   # the spin, in px/s -- measured even when the pins are unbelieved
 BEAM=int(os.environ.get('BEAM_PX','118'))          # how far a mark stands ABOVE its anchor when WE draw the beam
@@ -2553,6 +2585,49 @@ json.dump(dict(disc=D, from_pins=bool(PINS), pins_used=frompins, pops=len(pops),
 print('GLOBE6-OK',N,'marks',len(placed),'of',len(pops),'pops | from pins',frompins,'| logo at',t52,'cy',LCY,'close at',t56,'y',CLY)
 ```
 
+**`meas_disc.py`** — v7.3. The Scene D disc as a circle fitted to the **atmospheric RIM**, not to a luma threshold. Writes `fit_D.json`; `norm6.sh` runs it on the normalized `in/D.mp4` and `mk_globe.py` prefers it over `meas_pins.py`'s disc whenever it exists.
+
+```python
+#!/usr/bin/env python3
+# meas_disc.py -- the Scene D disc as a CIRCLE fitted to the atmospheric RIM -> fit_D.json
+# WHY THE RIM, MEASURED NOT ARGUED (2026-09-07, on the v7.3 source): the clip is a CLOSE-UP whose disc
+# overruns the frame on both sides, and its dark side sits within a few luma of space -- so a luma
+# threshold traces the TERMINATOR, not the limb. Tried at th 6/10/16 on frames 0, 2.5 and 5.0: median
+# residuals 105-214 px, radii anywhere from 610 to 690, i.e. not a circle and not a measurement. The one
+# feature that follows the limb everywhere it is visible is the prompt's "faint teal atmospheric rim",
+# so fit the circle to TEAL pixels (b - r > DISC_TEAL_TH) with outlier trimming, and drop anything on the
+# frame border, because a clipped limb is not a limb. Same clip, same frame 0: r 955.1, median residual
+# 12.7 px, 74k rim pixels. The fit degrades once the baked sunrise floods the day-side glow (t >= 2 s on
+# the raw source: residual 55-63 px) -- which is exactly why norm6.sh measures the WINDOWED clip, where
+# every frame is night. DISC_MAXRES makes that degradation a refusal instead of a wrong number.
+import json,os,subprocess,numpy as np
+W,H=1440,2560
+SRC=os.environ.get('D_SRC','in/D.mp4')
+TEAL_TH=float(os.environ.get('DISC_TEAL_TH','18'))
+TS=[float(x) for x in os.environ.get('DISC_T','0').split(',')]
+MAXRES=float(os.environ.get('DISC_MAXRES','40'))
+def frame(t):
+    raw=subprocess.run(['ffmpeg','-v','error','-ss',f'{t:.3f}','-i',SRC,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','-'],capture_output=True).stdout
+    return np.frombuffer(raw,np.uint8).reshape(H,W,3).astype(float)
+def fit(xs,ys):   # algebraic circle fit: x^2+y^2 + Dx + Ey + F = 0
+    A=np.c_[xs,ys,np.ones_like(xs)]; b=-(xs**2+ys**2); D,E,F=np.linalg.lstsq(A,b,rcond=None)[0]
+    cx,cy=-D/2,-E/2; return float(cx),float(cy),float(np.sqrt(max(cx*cx+cy*cy-F,1.0)))
+out={}
+for t in TS:
+    a=frame(t); teal=(a[...,2]-a[...,0])>TEAL_TH
+    ys,xs=np.nonzero(teal); keep=(xs>4)&(xs<W-5)&(ys>4)&(ys<H-5); xs=xs[keep].astype(float); ys=ys[keep].astype(float)
+    if len(xs)<500: raise SystemExit(f'DISC_FAIL t={t}: only {len(xs)} rim pixels above DISC_TEAL_TH={TEAL_TH}')
+    for _ in range(5):   # trim: the rim is thin, the day-side glow is not
+        cx,cy,r=fit(xs,ys); res=np.abs(np.hypot(xs-cx,ys-cy)-r); m=res<=max(2*np.median(res),6); xs,ys=xs[m],ys[m]
+    cx,cy,r=fit(xs,ys); res=np.abs(np.hypot(xs-cx,ys-cy)-r)
+    rec=dict(t=t,cx=round(cx,1),cy=round(cy,1),r=round(r,1),n=int(len(xs)),med_resid=round(float(np.median(res)),1),
+             top=int(round(cy-r)),bottom=int(round(cy+r)),left=int(round(cx-r)),right=int(round(cx+r)),
+             visible=dict(left=int(xs.min()),top=int(ys.min()),right=int(xs.max()),bottom=int(ys.max())))
+    print('DISC',rec); out[str(t)]=rec
+    if rec['med_resid']>MAXRES: raise SystemExit(f'DISC_FAIL t={t}: median residual {rec["med_resid"]} px > DISC_MAXRES {MAXRES} -- the rim did not fit a circle; check DISC_TEAL_TH, or the frame is not night')
+json.dump(out,open('fit_D.json','w'),indent=1); print('DISC-OK')
+```
+
 **`norm6.sh`** — Normalizes every Scene source to exactly 1440×2560 @ 24 fps before anything measures or concatenates. v6 never needed this (one clip per scene, `xfade` between them); v7 does, because `concat` refuses mismatched dimensions and `meas_watch.py` / `meas_pins.py` index pixels by absolute coordinate. A re-prompted clip that comes back 1080×1920 would otherwise fail deep inside the render with a filtergraph error.
 
 ```bash
@@ -2619,11 +2694,43 @@ fi
 # every run idempotent in the request rather than in the file.
 D_MIN=${D_MIN:-8.9187}
 D_SPIN=${D_SPIN:-1.0}
+# --- v7.3 (2026-09-07), "start with showing america on the globe". The clip that opens on the Americas (job
+# 135d629d) bakes in a SUNRISE and a slow push-in it was never asked for: mean luma 10 -> 79 across its 10 s,
+# bright(>200) pixels 6.9k -> 208k. The v7 pipeline needs a NIGHT globe -- luma_pick puts marks on the brightest
+# pixels (daylit clouds, once they exist), meas_pins reads cloud edges as beams (heads 114 -> 658 as it brightens),
+# and the logo/close layers are screen-blended, which is invisible over a bright field. Measured against the v7
+# globe's own exposure envelope (mean luma 20.8 -> 27.2), the first ~4.5 s of the source are inside it (t=4 s:
+# 21.6; t=5 s: 28.2 is already past it). So D_WINDOW takes the first D_WINDOW seconds and SLOWS them onto Scene D's
+# length with motion interpolation. The cost is stated, not hidden: the spin runs at 1/2.0 of the source pace,
+# which is the opposite direction from the owner's "spin faster" (v7.1 note 5) -- on THIS clip the two asks
+# conflict, because the faster the source runs the sooner the sunrise reaches the marks. D_WINDOW=0 disables the
+# window and falls through to the D_SPIN path below (native pace, sunrise included) -- the owner's call.
+# ⚠ NO scale-and-pad to the v6 disc: the source disc (r ~955, centre 714/1278) overruns the frame on BOTH sides,
+# so shrinking it would expose the clipped limbs as hard vertical cuts. The framing stays native; mk_globe.py
+# derives the logo row and the close row from the rim-fitted disc instead (fit_D.json, below).
+D_WINDOW=${D_WINDOW:-4.5}
 D_SAFE=$(awk -v m="$D_MIN" 'BEGIN{printf "%.4f", m+2/24}')
 [ -f in/D_src.mp4 ] || cp in/D.mp4 in/D_src.mp4
 SDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 in/D_src.mp4)
 MAXF=$(awk -v d="$SDUR" -v m="$D_SAFE" 'BEGIN{printf "%.4f", d/m}')
-if [ -f in/.D_spun ] && [ "$(cat in/.D_spun)" = "$D_SPIN" ] && [ -f in/D.mp4 ]; then
+if awk -v w="$D_WINDOW" 'BEGIN{exit !(w>0)}'; then
+  REQ="win:${D_WINDOW}"
+  if [ -f in/.D_spun ] && [ "$(cat in/.D_spun)" = "$REQ" ] && [ -f in/D.mp4 ]; then
+    echo "NORM D already windowed ($REQ) -- skipping"
+  else
+    # The request, not the file, is what makes a re-run idempotent (the D_SPIN lesson above): always from D_src.
+    F=$(awk -v s="$D_SAFE" -v w="$D_WINDOW" 'BEGIN{printf "%.4f", s/w}')
+    # ⚠ minterpolate TRUNCATES ITS TAIL: fed exactly D_WINDOW it returned 213 frames for a 216-frame request
+    # (8.875 s, under D_MIN -- the assert below would refuse a correct-looking run). So feed it 0.25 s past
+    # the window, keep the SAME factor (the pace is the request), and cut the output to D_SAFE with -t.
+    TRIM=$(awk -v w="$D_WINDOW" 'BEGIN{printf "%.3f", w+0.25}')
+    echo "NORM D window: first ${D_WINDOW}s of the source, slowed x$F to ${D_SAFE}s (mci interpolation)"
+    ffmpeg -y -v error -i in/D_src.mp4 -filter_complex "[0:v]trim=0:${TRIM},setpts=${F}*PTS,minterpolate=fps=24:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,format=yuv420p[o]" \
+      -map "[o]" -r 24 -t "$D_SAFE" -c:v libx264 -preset medium -crf 14 -an in/D_w.mp4
+    mv in/D_w.mp4 in/D.mp4
+    printf '%s' "$REQ" > in/.D_spun
+  fi
+elif [ -f in/.D_spun ] && [ "$(cat in/.D_spun)" = "$D_SPIN" ] && [ -f in/D.mp4 ]; then
   echo "NORM D already spun x$D_SPIN -- skipping"
 elif awk -v s="$D_SPIN" 'BEGIN{exit !(s<=1.0001)}'; then
   # Restore from source rather than leave whatever a previous run left behind.
@@ -2641,6 +2748,9 @@ else
   mv in/D_s.mp4 in/D.mp4
   printf '%s' "$D_SPIN" > in/.D_spun
 fi
+# v7.3: measure the disc of the clip Scene D will actually use, by its rim (see meas_disc.py). mk_globe.py
+# reads fit_D.json ahead of meas_pins' luma disc; on a close-up globe the luma disc is not a measurement.
+D_SRC=in/D.mp4 DISC_T=0 python3 scripts/meas_disc.py
 # Hard assert, whatever path we took: Scene D must have the footage the cut asks for. Refuse, never loop.
 DDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 in/D.mp4)
 awk -v d="$DDUR" -v m="$D_MIN" 'BEGIN{if(d+0 < m+0){printf "FATAL in/D.mp4 is %.3f s, Scene D needs %.3f s\n", d, m; exit 1}}'
@@ -3375,6 +3485,88 @@ prompt is written down beside the file id. The tracks were recorded that way and
 re-made; the clips were not, and cannot.*
 
 ---
+
+## What v7.3 is (2026-09-07) — the globe opens on the Americas
+
+Owner: *"can you start with showing america on the globe"*.
+
+- ⚠ **THE v7 GLOBE NEVER SHOWED THE AMERICAS — CHECKED, NOT ASSUMED.** Frames 0, 120 and 242 of
+  `34ebdcd6` face Europe, Africa and the Middle East throughout, and the disc barely turns in 10 s.
+  Nothing in the existing footage can open on America, so this is a **re-prompt**, and the v7 rule
+  applies: *a re-prompted globe costs nothing in measured geometry* — every Scene D number is
+  measured off the file.
+- **Three generations, one hit** — Sources rows 4–6, prompts verbatim, params and md5s beside them.
+  **B (`135d629d`) is the pick**: at frame 0 the Americas fill the disc — the US city lights with
+  Florida and the Great Lakes readable, Central America, Brazil below. **A** opens on a daylit,
+  cloud-covered globe and ends on a night Atlantic. **C**, prompted for constant night and a fixed
+  camera, opens dark and ambiguous and still brightens (mean luma 13.4 → 24.1). ⚠ The hit was the
+  plainest *description of the frame*, not the most insistent prompt (the note under the table).
+- ⚠ **HOW A FRAME WAS LOOKED AT, SINCE THIS CONTAINER CAN REACH NO IMAGE HOST.** The egress proxy
+  denies cloudfront, uguu, catbox, litterbox, 0x0.st, imgur, transfer.sh, tmpfiles and file.io
+  (403 on CONNECT); it allows github, npm and googleapis. So the sandbox renders a grayscale contact
+  sheet ≤ ~9 KB (JPEG `-q:v` raised until it fits), prints it as **400-char base64 lines each prefixed
+  by the first 4 hex of its own md5**, plus the file's md5; the lines are retyped locally, checked
+  per line, decoded, and read as an image. Three transfers, three lessons: the tool output cap is
+  ~16 KB, so a 16.7 KB sheet **lost lines 4–11 silently** (keep sheets ≤ 32 lines); one line in each
+  of two transfers arrived with a **miscounted run of `A`s** — repaired from 50-char pieces re-printed
+  with their own checksums, which works because ffmpeg regenerates the byte-identical file (same md5)
+  in a fresh sandbox; and the trailing all-`A` lines are pure padding whose lengths follow from the
+  file size, so generate them rather than count them. *Runs of repeated characters are the failure
+  mode of retyping* — a gzip'd payload would remove them (untested).
+- ⚠ **B BAKES IN TWO THINGS IT WAS NEVER ASKED FOR, AND BOTH ARE MEASURED.** (1) **A sunrise**: mean
+  luma **10.0 → 79.1** across the 10 s, bright(>200) pixels 6.9k → 208k. The v7 globe's own envelope
+  is 20.8 → 27.2, so B sits inside it only to **t ≈ 4.5 s** (t=4: 21.6 · t=5: 28.2 · t=8: 58.2).
+  (2) **A close-up**: the rim fit at frame 0 reads centre **(714.3, 1278.5), r 955.1**, median residual
+  12.7 px — the limb leaves the frame on both sides (fitted left −241, right 1669), and a slow push-in
+  grows r 955 → 980 over the first 1.5 s. **Why the pipeline cares:** `luma_pick` puts marks on the
+  brightest pixels, which become daylit clouds; `meas_pins.py` read heads **114 → 658** rising with
+  the light — cloud edges dressed as beams; the logo and close layers are **screen-blended**, which is
+  invisible over a bright field; and the logo row and close row are derived from the disc, which
+  `meas_pins.py` could not fit on this framing (r 1100–1246 with the centre jumping 130 px between
+  samples — not a measurement).
+- **What changed in the pipeline.** **`meas_disc.py`** — the disc as a circle fitted to the teal
+  atmospheric rim with outlier trimming; a luma threshold on this clip traces the terminator (median
+  residuals 105–214 px at three thresholds), the rim fits at 12.7 px; it **refuses** above
+  `DISC_MAXRES` (40 px), which is what the day-side glow produces from t ≥ 2 s on the raw source.
+  **`norm6.sh`** — `D_WINDOW` (default **4.5**): the first 4.5 s of `in/D_src.mp4` slowed ×2.0004 onto
+  `D_SAFE` with motion interpolation, fed 0.25 s past the window because `minterpolate` truncates its
+  tail (213 frames for a 216-frame request, under `D_MIN`), then cut to length; `D_WINDOW=0` falls
+  through to the `D_SPIN` path (native pace, sunrise included). It then runs `meas_disc.py` on the
+  clip Scene D will use. **`mk_globe.py`** — prefers `fit_D.json` over `meas_pins`' disc. ⚠ **No
+  scale-and-pad to the v6 geometry**: shrinking a disc that overruns the frame exposes the clipped
+  limbs as hard vertical cuts, so the framing stays native. Placement from the rim fit: disc top ≈ 323
+  → `LCY = max(150, 0.53 × 323) = 171`; disc bottom ≈ 2233 → `CLY = min(2560 − closeH − 40, 2321)`,
+  i.e. the frame clamp. The top band is **323 px against v6's 618** — both rows want a look on the
+  first render. The run order is unchanged: `meas_disc.py` runs inside `norm6.sh`.
+- ⚠ **THE TRADE-OFF IS THE OWNER'S, AND IT IS STATED RATHER THAN CHOSEN QUIETLY.** *"Spin faster"*
+  (v7.1 note 5) and *"start with America"* conflict on this clip: the window halves the pace, because
+  the faster the source runs the sooner the sunrise reaches the marks. Native pace (`D_WINDOW=0`) puts
+  the sunrise on the marks from about beat 50 and floods the close. Either is one env var; the default
+  is the one the pipeline's own detectors can survive.
+- ⚠ **`verify6.py`'s GLOBE CHECKS MUST BE RE-DERIVED ON THIS CLIP** — marks-on-pins, the per-mark luma
+  thresholds and the disc all describe a different globe; the rule this file already records. The
+  launch-video brief's end-card globe (`d05c9a59`, `marketing/launch-video/build-endcard.sh`) is a
+  different clip and was **not** re-examined.
+- **Cost:** three `minimax_h3` submissions billed; A's first submission was intercepted by the
+  "IN THE DARK" preset recommendation and created no job — the trap `shape-radio-watch-orb.md`
+  records, hit again.
+
+- **The remap, validated in the sandbox on the real clip (2026-09-08).** `D_WINDOW=4.5` →
+  **216 frames / 9.000 s** (the first cut, fed exactly the window, returned 213 — the tail truncation
+  the block now feeds past). Mean luma per second **10.0 · 10.6 · 11.3 · 12.1 · 13.3 · 14.8 · 16.5 ·
+  18.8 · 21.7 · 24.4** (bright(>200) 6.9k → 33.8k) — inside the v7 globe's 20.8 → 27.2 / 24.8k → 41k
+  for the whole scene. Rim fit on the remapped clip: t=0 **(714.3, 1278.7) r 955.1**, 12.7 px; t=2
+  (708.3, 1283.0) r 972.4, 13.6 px; from t=4 the residual climbs (37–71 px) as the day-side glow
+  thickens at the top-right, which is why `norm6.sh` measures at `DISC_T=0` and why the push-in
+  estimate for the scene is r 955 → ~1000. `meas_pins.py` on the same clip: **PINS-OK, 95 heads
+  median** (55 → 156, rising gently with the light), drift 21.3 px/s early / 3.6 late — and its
+  own disc read r 1060–1210, the number the `fit_D.json` override exists to outrank. **Looked at,
+  not only measured** (frames 0 / 107 / 215 by the checksummed-lines route): the Americas at night
+  in all three, the US and Brazilian city lights readable throughout, and the dawn glow entering the
+  top-right corner by the last frame without reaching the lit landmass. The test encode used
+  `-preset veryfast`; the recipe's `medium` changes bytes, not frames. ⚠ Still NOT rendered through
+  `render6.sh`: this validates Scene D's input, not the composite — the logo row at `LCY` 171 and the
+  close row at the frame clamp are the two things to look at first.
 
 ## What v7.2 is (2026-09-03) — the watch is gone, the orb card IS the beat match, and the cut finally renders
 
@@ -4261,6 +4453,7 @@ MAP={'pw/lib.js':'/home/user/pw/lib.js','pw/tour4.js':'/home/user/pw/tour4.js',
  'plan6.py':'/home/user/w/scripts/plan6.py','plan_a2.py':'/home/user/w/scripts/plan_a2.py',
  'meas_globe.py':'/home/user/w/scripts/meas_globe.py','meas_watch.py':'/home/user/w/scripts/meas_watch.py',
  'meas_wall.py':'/home/user/w/scripts/meas_wall.py','meas_pins.py':'/home/user/w/scripts/meas_pins.py',
+ 'meas_disc.py':'/home/user/w/scripts/meas_disc.py',   # v7.3: the rim-fitted disc (norm6.sh runs it; mk_globe.py reads fit_D.json)
  'mk_watch.py':'/home/user/w/scripts/mk_watch.py','mk_wall6.py':'/home/user/w/scripts/mk_wall6.py',
  'mk_globe.py':'/home/user/w/scripts/mk_globe.py','scanpulse.py':'/home/user/w/scripts/scanpulse.py',
  'norm6.sh':'/home/user/w/scripts/norm6.sh','render6.sh':'/home/user/w/scripts/render6.sh',
@@ -4317,7 +4510,9 @@ if [ -z "$SKIP_DL" ]; then
   curl -sL -o in/A2.mp4 $P/hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4
   curl -sL -o in/B.mp4  $P/hf_20260901_165434_a27526b7-057b-4165-865c-0e9c5c9b46e9.mp4
   curl -sL -o in/C.mp4  $P/hf_20260901_165434_a1d1066e-7837-48c6-81ce-ef849c38d8a2.mp4
-  curl -sL -o in/D.mp4  $P/hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4
+  # v7.3 (2026-09-07): Scene D is the globe that OPENS ON THE AMERICAS (job 135d629d). The v7 pinned globe
+  # (34ebdcd6) faces Europe/Africa for its whole length and is superseded -- do not fetch it here.
+  curl -sL -o in/D.mp4  $P/hf_20260907_232214_135d629d-2aa5-48ad-b734-02e2e72aa721.mp4
   # norm6.sh keeps an immutable in/D_src.mp4 so a changed D_SPIN never compounds onto an already-spun clip.
   # A FRESH D.mp4 makes that snapshot stale -- it would spin the OLD globe -- so the fetch invalidates it here.
   # This is the only place D.mp4 is replaced from outside, which is why the invalidation belongs at the fetch.
