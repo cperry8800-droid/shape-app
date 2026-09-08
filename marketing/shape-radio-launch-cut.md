@@ -497,8 +497,9 @@ Prefix: `https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/`
 | **v7.1 melodic 2** — melodic progressive 124 (plucked arp) | `hf_20260903_164640_1eb7850f-c97e-4e56-8cbc-c250be32e92b.m4a` |
 | **v7.1 melodic 3** — melodic deep 120 (Rhodes) | `hf_20260903_164640_d3535005-a4f4-4b01-b3a3-6b575e193c59.m4a` |
 | **v7.1 melodic 4** — melodic anthem 126 (big synth lead) | `hf_20260903_164640_26a60d67-53cd-4b17-a0d4-261be0f9488e.m4a` |
-| **v7 Scene A** — the runner, clothed (replaces Scene A) | `hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4` |
-| **v7 Scene A2** — the watch close-up (NEW shot) | `hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4` |
+| v7 Scene A — the runner, clothed — ⚠ superseded 2026-09-03 by the APPROVED runner below (owner casting, four rounds; `shape-radio-watch-orb.md`) | `hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4` |
+| **v7.2 Scene A — the APPROVED runner** (owner 2026-09-03: wide, locked off, side profile, clothed, explosive; job `878ea5a1-c831-445b-8150-6ec7d3795b24`, prompt verbatim in `shape-radio-watch-orb.md`) — `in/A2.mp4` is THIS clip from frame `f12`, derived by `norm6.sh` | `hf_20260903_204330_878ea5a1-c831-445b-8150-6ec7d3795b24.mp4` |
+| v7 Scene A2 — the watch close-up — ⚠ superseded by v7.2 (the physical watch is gone; A2 is derived, never fetched) | `hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4` |
 | **v7 Scene D** — the pinned globe (replaces Scene D) — ⚠ superseded 2026-09-07 by v7.3 below: it faces Europe/Africa from first frame to last | `hf_20260903_141033_34ebdcd6-c068-47e5-85ba-39d77708a058.mp4` |
 | **v7.3 Scene D — the globe opening on the AMERICAS** (replaces v7 Scene D; owner 2026-09-07) — the only one of three that opens on the Americas; close-up framing + a baked sunrise, both handled in `norm6.sh` (see "What v7.3 is") | `hf_20260907_232214_135d629d-2aa5-48ad-b734-02e2e72aa721.mp4` — md5 `5d12d472d5184b33e9014bef44f428d6`, 10 258 505 B |
 | v7.3 rejected A — day→night, never faces the Americas at either end | `hf_20260907_232229_4d9fbfa0-4298-4b1c-bf77-2eeab7f0b44a.mp4` — md5 `b6a1905ae392976a5e260a6d5c301a1c` |
@@ -2168,6 +2169,114 @@ proc.stdin.close(); proc.wait()
 print(f'WATCH-OK mode={MODE} out={OUT} frames={N1-N0} sync_at={round(tSync,3)}' + (f' interpolated={est}' if mw else ''))
 ```
 
+**`mk_orb6.py`** — v7.2/v7.3: the **two-orb HR sync card** as the cut's Scene-A layer, in both placements `mk_watch.py` used (`WATCH_MODE=wide` → `in/watch.mov`, `WATCH_MODE=closeup` → `in/watch_cu.mov`), so `render6.sh` reads the same two files. `BPM` is derived from `meas_<track>.json`; the merge lands on `tSync` from `params_a2.json`; `t` is absolute cut time in both modes.
+
+⚠ **RECONSTRUCTED 2026-09-08 — the v7.2 renderer was never written down.** The v7.2 section describes it and the orb record carries the standalone `orb_card.py` it came from; the sandbox that held the script was reclaimed. The ninth artifact this pipeline recorded as a source with no producer. Two things differ from the standalone on purpose: the HRM orb breathes on the **wearer's** heart (`ORB_BREATH=beat` restores the preview's both-on-the-beat), and the two numbers stop at a minimum separation instead of overprinting during the last half-second of the merge (measured on the first local frames: `119` over `113` read as one glyph).
+
+```python
+#!/usr/bin/env python3
+# mk_orb6.py -- v7.2/v7.3: the two-orb HR sync card, drawn as the cut's Scene-A layer in BOTH placements
+# mk_watch.py used, so render6.sh reads the same two files it always did: in/watch.mov (480x480, overlaid at
+# the frame-relative wide inset for A1) and in/watch_cu.mov (a full-frame layer overlaid at 0:0 for A2).
+#
+# RECONSTRUCTED 2026-09-08. The v7.2 renderer that produced the first (fabricated-BPM) render lived only in a
+# Higgsfield sandbox and was reclaimed with it: the recipe's v7.2 section DESCRIBES it (frame counts, absolute
+# cut time, the wide inset, BPM derived) and shape-radio-watch-orb.md carries the standalone orb_card.py it was
+# made from -- neither carried the script. The ninth artifact this pipeline recorded as a source with no
+# producer. This file is that producer, built from the two records:
+#   * geometry, colours, type and the "gap IS the delta" rule are orb_card.py's, unchanged;
+#   * the clock is the CUT's: t is absolute cut time in both modes (nothing restarts at the invisible f12 cut),
+#     the merge lands on tSync = phi + 14P from params_a2.json, the breath rides the measured t3 grid;
+#   * BPM is DERIVED from meas_<track>.json (119 on t3), HR0 = BPM - 36 -- the same 36-beat climb the approved
+#     card makes from 104 to 140, at this track's real tempo. Typing 140 here is how the first render lied;
+#   * the HRM orb breathes on the WEARER's heart (phase integrated from hr_of, as mk_watch.py did) and the BPM
+#     orb on the MUSIC; across tSync the wearer's envelope crossfades onto the music's, so the two visibly lock
+#     -- the v7.1 rule, envelopes blended, never phases. The standalone preview breathed both orbs on the beat;
+#     with the heart reading 83 that would pulse it at the station's 119, a readout lying by rhythm. ORB_BREATH=beat
+#     restores the preview's behaviour if the owner prefers it.
+import math,json,os,subprocess
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+p=json.load(open('params_v6.json')); P=p['P']; phi=p['phi']
+pa=json.load(open('params_a2.json')); m=json.load(open(os.environ.get('MEAS','meas_t3.json')))
+FPS=24; W,H=1440,2560; S=480
+MODE=os.environ.get('WATCH_MODE','wide')
+BREATH=os.environ.get('ORB_BREATH','heart')          # heart (default) | beat (the standalone preview's rule)
+MAXF=int(os.environ.get('ORB_MAXF','0'))             # smoke tests only: write at most this many frames
+BPM=int(round(m['bpm'])); HR0=BPM-36                 # DERIVED, never typed
+tSync=pa['tSync']; tIn=1.3; tHr0=2.2                 # fade-in and climb start -- mk_watch.py's own timings
+WX,WY=pa['wide']['x'],pa['wide']['y']                # 890 / 1660, frame-relative, derived by plan_a2.py
+FONT=os.environ.get('ORB_FONT','/home/user/fonts/JetBrainsMono[wght].ttf')
+CREAM=(232,226,214); AMBER=(214,158,74); TEAL=(52,214,197)   # the app's FREE / MATCHING / SYNCED ladder
+def font(sz,w=700):
+    f=ImageFont.truetype(FONT,sz)
+    try: f.set_variation_by_axes([w])
+    except Exception: pass                           # a static fallback font has no axes
+    return f
+F=font(40); Fs=font(18,600)
+def clamp(x): return max(0.0,min(1.0,x))
+def ss(x): x=clamp(x); return x*x*(3-2*x)
+def lerp(a,b,u): return tuple(int(round(a[i]+(b[i]-a[i])*u)) for i in range(3))
+def hr_of(t): return HR0+(BPM-HR0)*ss((t-tHr0)/(tSync-tHr0))
+CY=S//2; SPAN=150; R=30
+NUM_MIN=44; LAB_MIN=26                               # half the minimum centre-to-centre gap of the two numbers / labels (px)
+def card(t,u,ub):
+    """t = absolute cut time; u = the wearer's heart phase [0,1); ub = the music's phase on the measured grid."""
+    e=ss((t-tHr0)/(tSync-tHr0)); hr=int(round(hr_of(t)))
+    gap=(BPM-hr)/float(BPM-HR0)                       # THE GAP IS THE DELTA: they touch on the frame hr reads BPM
+    synced=t>=tSync; blend=clamp((t-tSync)/0.6)
+    col=TEAL if synced else lerp(CREAM,AMBER,min(1.0,e*1.4))
+    pm=1.0+0.16*math.exp(-ub/0.22)                    # the music's breath, once per beat
+    ph=pm if BREATH=='beat' else 1.0+0.16*math.exp(-u/0.22)   # the wearer's breath, once per heartbeat
+    im=Image.new('RGBA',(S,S),(0,0,0,0)); d=ImageDraw.Draw(im)
+    g=Image.new('RGBA',(S,S),(0,0,0,0)); dg=ImageDraw.Draw(g)
+    d.line([(CY-SPAN-R,CY),(CY+SPAN+R,CY)],fill=col+(70,),width=2)
+    if synced:
+        pulse=ph*(1-blend)+pm*blend                   # envelopes blended across tSync, never phases
+        rr=int(R*1.45*pulse)
+        dg.ellipse([CY-rr*2,CY-rr*2,CY+rr*2,CY+rr*2],fill=col+(95,))
+        d.ellipse([CY-rr,CY-rr,CY+rr,CY+rr],fill=col+(255,))
+        v=str(BPM); w=d.textlength(v,font=F); d.text((CY-w/2,CY-rr-58),v,font=F,fill=col+(255,))
+        lab='IN SYNC'; w=d.textlength(lab,font=F)
+        d.text((CY-w/2,CY+rr+34),lab,font=F,fill=col+(int(255*clamp((t-tSync)/0.25)),))   # the ONE state word, only after sync
+    else:
+        off=int(round(SPAN*gap))
+        # The ORBS may overlap -- that is the merge -- but the type must not: the standalone card let each number ride
+        # its orb all the way in, so for the last ~0.4 s before sync "119" and "11x" overprinted into one unreadable
+        # glyph (seen on the first local frames, 2026-09-08). The numbers and labels stop at a minimum separation and
+        # sit side by side above/below the merging orbs until the single figure replaces them at tSync.
+        offN=max(off,NUM_MIN); offL=max(off,LAB_MIN)
+        for sgn,lab,val,pulse in ((-1,'BPM',BPM,pm),(1,'HRM',hr,ph)):
+            x=CY+sgn*off; rr=int(R*pulse)
+            dg.ellipse([x-rr*2,CY-rr*2,x+rr*2,CY+rr*2],fill=col+(85,))
+            d.ellipse([x-rr,CY-rr,x+rr,CY+rr],fill=col+(255,))
+            s=str(val); w=d.textlength(s,font=F); d.text((CY+sgn*offN-w/2,CY-rr-58),s,font=F,fill=col+(240,))
+            w=d.textlength(lab,font=Fs); d.text((CY+sgn*offL-w/2,CY+rr+26),lab,font=Fs,fill=col+(200,))
+    return Image.alpha_composite(g.filter(ImageFilter.GaussianBlur(14)),im)
+if MODE=='wide':
+    # the wide layer covers the whole of Scene A to the end of the A->B fade (t16); render6.sh trims it to A1
+    N0=0; N1=int(round(p['t16']*FPS)); OW,OH=S,S; OUT=os.environ.get('WATCH_OUT','in/watch.mov')
+else:
+    # the A2 layer is FULL-FRAME so render6.sh's overlay=0:0 reads it unchanged; the card sits at the same inset
+    N0=pa['f12']; N1=N0+pa['nA2']; OW,OH=W,H; OUT=os.environ.get('WATCH_OUT','in/watch_cu.mov')
+if MAXF: N1=min(N1,N0+MAXF)
+proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgba','-s',f'{OW}x{OH}','-r',str(FPS),
+                       '-i','-','-c:v','qtrle','-pix_fmt','argb',OUT],stdin=subprocess.PIPE)
+phase=0.0; last_t=0.0
+for i in range(N1):
+    t=i/FPS
+    hr=hr_of(t); phase+=hr/60.0*(t-last_t); last_t=t; u=phase%1.0   # integrated from frame 0 in BOTH modes
+    ub=((t-phi)%P)/P
+    if i<N0: continue
+    a=clamp((t-tIn)/0.6)
+    c=card(t,u,ub)
+    if a<1: c.putalpha(c.split()[3].point(lambda v:int(v*a)))
+    if MODE=='wide': img=c
+    else: img=Image.new('RGBA',(OW,OH),(0,0,0,0)); img.alpha_composite(c,(WX,WY))
+    proc.stdin.write(img.tobytes())
+proc.stdin.close(); proc.wait()
+print(f'ORB6-OK mode={MODE} out={OUT} frames={N1-N0} BPM={BPM} HR0={HR0} sync_at={round(tSync,3)} breath={BREATH} wide=({WX},{WY})')
+```
+
 **`meas_wall.py`** — Measures the Scene C slab **rect** (both axes) in `in/C_zoom.mp4`, plus the capture's own header row, so the projected screen can be sized to FILL the slab instead of guessed at 560 px.
 
 ```python
@@ -2585,6 +2694,60 @@ json.dump(dict(disc=D, from_pins=bool(PINS), pins_used=frompins, pops=len(pops),
 print('GLOBE6-OK',N,'marks',len(placed),'of',len(pops),'pops | from pins',frompins,'| logo at',t52,'cy',LCY,'close at',t56,'y',CLY)
 ```
 
+**`mk_phone6.py`** — the Scene-B phone layer, **logo only** (v4 behaviour): `in/phoneB.mp4`, 610×1334, layer-local time from `offAB` to the end of the B→C fade, the SHAPE logo pulsing on the kick-presence gate the wall and globe layers use. `mk_screen3.py` with the v4 deltas applied, on `params_v6.json`'s grid.
+
+⚠ **RECONSTRUCTED 2026-09-08.** `in/phoneB.mp4` was the seventh artifact recorded with no producer (see the `render6.sh` prose); the v7.2 render's logo-only layer was built in the sandbox and lost with it. The owner's open montage question (§4 of the 09-07 handoff) is untouched: this is the logo-only layer that shipped, and the montage remains a swap of this one input.
+
+```python
+#!/usr/bin/env python3
+# mk_phone6.py -- the Scene-B phone layer: the SHAPE logo ALONE, pulsing on the gated kick (v4 behaviour; owner
+# 2026-09-02, "shape radio should only appear in the last clip"). 610x1334 -- the measured screen rect -- in
+# layer-local time from offAB to the END of the B->C fade; render6.sh tpads it by offAB and overlays it at (416, 592).
+#
+# RECONSTRUCTED 2026-09-08. in/phoneB.mp4 was the seventh artifact this recipe recorded as a source with no producer
+# (render6.sh reads it, verify6.py samples it, nothing wrote it); the v7.2 render carried a logo-only layer built in
+# the sandbox and lost with it. This is mk_screen3.py with the v4 deltas applied -- no morph, no line 2, no tM -- on
+# params_v6.json's grid and the kick-presence gate the wall and globe layers already use, so all three layers agree
+# on when the music has a kick. Before beat 16 the logo is static (the kick drop is its first pulse), as v6 was.
+import math,json,os,subprocess,numpy as np
+from PIL import Image, ImageDraw
+p=json.load(open('params_v6.json')); m3=json.load(open(os.environ.get('MEAS','meas_t3.json')))
+P=p['P']; phi=p['phi']; KB=m3['kick_by_beat']; T0=p['offAB']; T1=p['offBC']+0.3; tK=p['t16']
+W,H=610,1334; FPS=24; N=int(round((T1-T0)*FPS))
+MAXF=int(os.environ.get('PHONE_MAXF','0'))
+if MAXF: N=min(N,MAXF)
+def ld(nm): return Image.open(nm).convert('RGB')
+tri,txt,trig,txtg=[ld(f'in/{n}.png') for n in ('logo_tri','logo_txt','logo_tri_glow','logo_txt_glow')]
+bw,bh=tri.size
+LW=456; cx=W//2; cy=int(H*0.44); teal=np.array([52,214,197],np.float32)/255
+mask=Image.new('L',(W,H),0); ImageDraw.Draw(mask).rounded_rectangle((2,2,W-3,H-3),radius=100,fill=255)
+maskf=np.asarray(mask).astype(np.float32)[...,None]/255
+yy,xx=np.mgrid[0:H,0:W].astype(np.float32); rr=np.sqrt(((xx-cx)/380.0)**2+((yy-cy)/300.0)**2)
+ambient=(np.clip(1-rr,0,1)**2.2)[...,None]*teal*0.10
+def pres(n): return 0.0 if n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30))
+def kof(t):
+    if t<tK-0.01: return 0.0
+    n=int(math.floor((t-phi)/P)); return math.exp(-(((t-phi)%P)/P)/0.20)*pres(n)
+def arr(img,w,h): return np.asarray(img.resize((w,h),Image.LANCZOS)).astype(np.float32)/255
+def paste(dst,src,gain,x0,y0):
+    if gain<=0: return
+    sh,sw=src.shape[:2]; xs0,ys0=max(0,x0),max(0,y0); xs1,ys1=min(W,x0+sw),min(H,y0+sh)
+    if xs1<=xs0 or ys1<=ys0: return
+    dst[ys0:ys1,xs0:xs1]+=src[ys0-y0:ys1-y0,xs0-x0:xs1-x0]*gain
+clamp=lambda v: max(0.0,min(1.0,v))
+proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-c:v','libx264','-preset','fast','-crf','10','-pix_fmt','yuv420p','in/phoneB.mp4'],stdin=subprocess.PIPE)
+for i in range(N):
+    t=T0+i/FPS; k=kof(t); s=1+0.06*k; g=0.25+0.9*k
+    w=int(round(LW*s)); h=int(round(w*bh/bw)); x0=cx-w//2; y0=cy-h//2
+    f=np.zeros((H,W,3),np.float32)+ambient
+    paste(f,arr(trig,w,h),g,x0,y0); paste(f,arr(txtg,w,h),g,x0,y0)
+    paste(f,arr(tri,w,h),1.0,x0,y0); paste(f,arr(txt,w,h),1.0,x0,y0)
+    env=clamp((t-T0)/0.3)*clamp((T1-t)/0.3)           # in over the A->B fade, out inside the B->C fade
+    proc.stdin.write((np.clip(f*env*maskf,0,1)*255+0.5).astype('uint8').tobytes())
+proc.stdin.close(); proc.wait()
+print(f'PHONE6-OK frames={N} layer {round(T0,4)} -> {round(T1,4)} first pulse at t16={tK}')
+```
+
 **`meas_disc.py`** — v7.3. The Scene D disc as a circle fitted to the **atmospheric RIM**, not to a luma threshold. Writes `fit_D.json`; `norm6.sh` runs it on the normalized `in/D.mp4` and `mk_globe.py` prefers it over `meas_pins.py`'s disc whenever it exists.
 
 ```python
@@ -2636,15 +2799,41 @@ json.dump(out,open('fit_D.json','w'),indent=1); print('DISC-OK')
 # Idempotent: already-correct files are left alone and the spin writes a marker so a re-run cannot compound it.
 set -e
 cd /home/user/w
-for f in A A2 D; do
+# NORM_PRESET: the encoder preset for every INTERMEDIATE this script writes (A/D normalize, C_zoom, the D window/spin).
+# It changes bytes, not frames -- run73.sh passes veryfast because the D window's minterpolate alone is 5-6 minutes of a
+# ~15-minute sandbox lease; render6.sh keeps medium for the deliverable.
+PRE=${NORM_PRESET:-medium}
+for f in A D; do
   s=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "in/$f.mp4")
   if [ "$s" = "1440,2560" ]; then echo "NORM $f already 1440x2560"; continue; fi
   echo "NORM $f $s -> 1440x2560"
   ffmpeg -y -v error -i "in/$f.mp4" \
     -vf "fps=24,scale=1440:2560:force_original_aspect_ratio=increase,crop=1440:2560,setsar=1" \
-    -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -an "in/${f}_n.mp4"
+    -c:v libx264 -preset $PRE -crf 16 -pix_fmt yuv420p -an "in/${f}_n.mp4"
   mv "in/${f}_n.mp4" "in/$f.mp4"
 done
+
+# -- v7.2 (owner 2026-09-03, "remove the watch"): in/A2.mp4 is Scene A CONTINUING from frame f12, so the beat-12 hard cut
+# in render6.sh is invisible and the runner simply keeps running. Derived here from the NORMALIZED A, never fetched (the
+# v7 close-up e815ac55 is superseded). f12 and nA2 come from params_a2.json -- the ONE place that arithmetic lives -- which
+# is why plan6.py and plan_a2.py now run BEFORE this script (they read only meas_t3.json). trim=start_frame is frame-exact;
+# an input-side -ss on h264 is not, and one frame of drift here is a visible jump at the cut the whole change exists to hide.
+# The marker carries A's md5 so a re-fetched A re-derives A2 even when f12/nA2 did not move.
+[ -f params_a2.json ] || { echo "FATAL params_a2.json missing -- run plan6.py then plan_a2.py BEFORE norm6.sh (v7.2 order)"; exit 1; }
+read F12 NA2 < <(python3 -c "import json;p=json.load(open('params_a2.json'));print(p['f12'],p['nA2'])")
+NA=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 in/A.mp4)
+[ "$NA" -ge $((F12+NA2)) ] || { echo "FATAL in/A.mp4 has $NA frames, A2 needs frames $F12..$((F12+NA2-1))"; exit 1; }
+A2REQ="a2:${F12}:${NA2}:$(md5sum in/A.mp4 | cut -c1-12)"
+if [ -f in/.A2_from ] && [ "$(cat in/.A2_from)" = "$A2REQ" ] && [ -f in/A2.mp4 ]; then
+  echo "NORM A2 already derived ($A2REQ)"
+else
+  echo "NORM A2 = A from frame $F12, $NA2 frames"
+  ffmpeg -y -v error -i in/A.mp4 -vf "trim=start_frame=${F12},setpts=PTS-STARTPTS" -frames:v "$NA2" \
+    -c:v libx264 -preset $PRE -crf 12 -pix_fmt yuv420p -an in/A2.mp4
+  printf '%s' "$A2REQ" > in/.A2_from
+fi
+N2=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 in/A2.mp4)
+[ "$N2" = "$NA2" ] || { echo "FATAL in/A2.mp4 has $N2 frames, expected $NA2"; exit 1; }
 
 # ── in/C_zoom.mp4 — THE SCENE-C PUSH-IN. Read by meas_wall.py, render6.sh and verify6.py, and
 # until 2026-09-03 WRITTEN BY NOTHING: the fourth artifact in this pipeline recorded as a source
@@ -2672,14 +2861,15 @@ else
   echo "NORM building C_zoom (push-in 1.50x -> 1.15x over N=200, centred)"
   ffmpeg -y -v error -i in/C.mp4 -vf \
     "fps=24,zoompan=z='1.15+0.35*pow(1-min(1,on/200),3)':d=1:s=1440x2560:fps=24:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'" \
-    -an -c:v libx264 -preset medium -crf 12 -pix_fmt yuv420p in/C_zoom.mp4
+    -an -c:v libx264 -preset $PRE -crf 12 -pix_fmt yuv420p in/C_zoom.mp4
 fi
 [ "$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 in/C_zoom.mp4)" = "1440,2560" ] \
   || { echo "C_zoom is not 1440x2560 -- check the zoompan s= parameter"; exit 1; }
 
 # --- v7.1 note 5, "have the globe spin faster". D_SPIN is a REQUEST; the cut's own length is the ceiling.
-# D_MIN is hardcoded, not read from params_v6.json, because norm6.sh runs BEFORE plan6.py writes that file --
-# so this is total(30.75) - offCD(21.8313) = 8.9187, the exact footage Scene D consumes.
+# D_MIN is hardcoded, not read from params_v6.json: this is total(30.75) - offCD(21.8313) = 8.9187, the exact footage Scene D
+# consumes, and plan6.py asserts the same offCD/total against the grid. (v7.2 moved plan6.py/plan_a2.py AHEAD of this script
+# for the A2 derivation above; D_MIN stays a literal so the D path cannot depend on a file the A path happens to need.)
 # The CLAMP uses D_SAFE, two frames longer, and the ASSERT uses D_MIN. That gap is not slack for its own sake:
 # ffmpeg quantises the output to whole 24 fps frames, so clamping straight to D_MIN and then asserting D_MIN
 # makes the ceiling itself fail (10/1.1211 = 8.920 s -> 214 frames -> 8.9167 s, one frame short of the assert).
@@ -2726,7 +2916,7 @@ if awk -v w="$D_WINDOW" 'BEGIN{exit !(w>0)}'; then
     TRIM=$(awk -v w="$D_WINDOW" 'BEGIN{printf "%.3f", w+0.25}')
     echo "NORM D window: first ${D_WINDOW}s of the source, slowed x$F to ${D_SAFE}s (mci interpolation)"
     ffmpeg -y -v error -i in/D_src.mp4 -filter_complex "[0:v]trim=0:${TRIM},setpts=${F}*PTS,minterpolate=fps=24:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,format=yuv420p[o]" \
-      -map "[o]" -r 24 -t "$D_SAFE" -c:v libx264 -preset medium -crf 14 -an in/D_w.mp4
+      -map "[o]" -r 24 -t "$D_SAFE" -c:v libx264 -preset $PRE -crf 14 -an in/D_w.mp4
     mv in/D_w.mp4 in/D.mp4
     printf '%s' "$REQ" > in/.D_spun
   fi
@@ -2744,7 +2934,7 @@ else
   awk -v s="$D_SPIN" -v m="$MAXF" 'BEGIN{if(s>m) printf "WARN D_SPIN %.3f exceeds the no-loop ceiling %.3f (source %s s, Scene D needs %s s) -- clamped\n", s, m, "'"$SDUR"'", "'"$D_MIN"'"}'
   echo "NORM D spin x$EFF (${SDUR}s -> $(awk -v d="$SDUR" -v e="$EFF" 'BEGIN{printf "%.3f", d/e}')s)"
   ffmpeg -y -v error -i in/D_src.mp4 -vf "setpts=PTS/$EFF,fps=24" \
-    -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -an in/D_s.mp4
+    -c:v libx264 -preset $PRE -crf 16 -pix_fmt yuv420p -an in/D_s.mp4
   mv in/D_s.mp4 in/D.mp4
   printf '%s' "$D_SPIN" > in/.D_spun
 fi
@@ -2772,6 +2962,8 @@ AT BOTH.** Measured by executing the order above end to end on a clean sandbox:
 So the true order is: `cap_radio.js` · `captions.py` → `norm6.sh` → `plan6.py` → `plan_a2.py` →
 `meas_watch.py` → `mk_watch.py` ×2 → `meas_wall.py` → `mk_wall6.py` → `meas_pins.py` →
 `mk_globe.py` → here.
+
+⚠ **v7.2/v7.3 ORDER (2026-09-08) — the one `run73.sh` executes, superseding both lists above:** `plan6.py` → `plan_a2.py` → `norm6.sh` (normalizes A and D, **derives `in/A2.mp4`** from `params_a2.json`, builds `C_zoom`, windows D, runs `meas_disc.py`) → `pw/cap_radio.js` → `captions.py` → three parallel lanes {`mk_orb6.py` wide → closeup → `mk_phone6.py`} · {`meas_wall.py` → `mk_wall6.py`} · {`meas_pins.py` → `mk_globe.py`} → `render6.sh` → `upload6.sh` → `verify6.py`. `meas_watch.py` and `mk_watch.py` are out (v7.2). The plan moved ahead of `norm6.sh` because A2's derivation needs `f12`/`nA2`, and that arithmetic lives in `plan_a2.py` alone.
 
 ⚠ **AND `in/phoneB.mp4` HAS NO PRODUCER AT ALL — THIS IS WHERE THE RENDER NOW STOPS.**
 `render6.sh` takes it as `-i`, `verify6.py` samples it for the phone-pulse checks, and
@@ -2820,7 +3012,8 @@ never have rebuilt from a clean sandbox either.**
 
 ```bash
 #!/bin/bash
-# launch cut v7: A1(wide+watch) |cut| A2(watch close-up) -> B(logo) -> C(zoomed wall, radio screen) -> D(globe, pins, logo, close)
+# launch cut v7.3: A1(runner + orb card) |invisible cut| A2(A continued, orb card) -> B(logo) -> C(zoomed wall, radio screen) -> D(globe, pins, logo, close)
+# v7.2: in/watch.mov and in/watch_cu.mov are the ORB CARD (mk_orb6.py), same files, same overlay geometry; in/A2.mp4 is A from f12 (norm6.sh).
 # The Scene-A cut is a CONCAT, not an xfade: xfade consumes time (its duration overlaps the two streams) and
 # would shorten the cut by 0.3 s, moving every downstream offset. A hard cut on the beat costs zero frames.
 set -e
@@ -2830,6 +3023,8 @@ set -- $P; offAB=$1; offBC=$2; offCD=$3; TOTAL=$4
 A=$(python3 -c "import json;p=json.load(open('params_a2.json'));print(p['f12'],p['nA2'],p['wide']['x'],p['wide']['y'])")
 set -- $A; nA1=$1; nA2=$2; WX=$3; WY=$4
 FADEST=$(python3 -c "print(round($TOTAL-0.6,3))")
+# v7.3: the picture fades to black over the SAME 0.6 s the audio already faded over. verify6.py has asserted 'video fades to
+# black' since v6 and the first v7.2 render measured a last frame at luma 29 -- the audio went out under a lit globe.
 ffmpeg -y -hide_banner -loglevel error -stats \
  -i in/A.mp4 -i in/watch.mov -i in/A2.mp4 -i in/watch_cu.mov \
  -i in/B_long.mp4 -i in/C_zoom.mp4 -i in/D.mp4 \
@@ -2860,7 +3055,7 @@ ffmpeg -y -hide_banner -loglevel error -stats \
  color=c=black:s=1440x2560:r=24:d=${TOTAL},format=rgb24[cv3];
  [9:v]fps=24,tpad=start_duration=${offCD},format=rgb24[gl];
  [cv3][gl]overlay=x=0:y=0:eof_action=pass:format=rgb,format=gbrp[L3];
- [s2][L3]blend=all_mode=screen,format=yuv420p[v];
+ [s2][L3]blend=all_mode=screen,format=yuv420p,fade=t=out:st=${FADEST}:d=0.6[v];
  [10:a]atrim=0:${TOTAL},asetpts=PTS-STARTPTS,afade=t=out:st=${FADEST}:d=0.6[a]
  " -map "[v]" -map "[a]" \
  -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 192k -ar 44100 \
@@ -2876,6 +3071,9 @@ md5sum out/launch_v7.mp4
 ```python
 #!/usr/bin/env python3
 # verify6.py — numeric checks on out/launch_v7.mp4 against its sources, its LAYERS, params_v6.json and params_a2.json
+# v7.3 (2026-09-08): the watch assertions are GONE (they tested a shot v7.2 removed) and the globe checks are re-derived on the
+# v7.3 clip -- the first pop is beat 44, the disc is the rim fit, the logo box stops above the disc. Every threshold below was
+# measured on the v7.3 render it now guards, not carried from v6/v7.
 import json, subprocess, numpy as np
 W,H=1440,2560
 p=json.load(open('params_v6.json'))
@@ -2912,54 +3110,50 @@ def lit(a,reg=None,th=60):
     if xs.size==0: return (0,0,0,0,0,0,0)
     off=(reg[2] if reg else 0, reg[0] if reg else 0)
     return (int(xs.size), int(xs.max()-xs.min()+1), int(ys.max()-ys.min()+1), int(xs.min())+off[0], int(xs.max())+off[0], int(ys.min())+off[1], int(ys.max())+off[1])
-# ---- A: watch (v7: A1 wide card, hard cut at beat 12, A2 close-up with a per-frame card) ----
-pa=json.load(open('params_a2.json')); mwt=json.load(open('meas_watch.json'))['closeup']
-f12=pa['f12']; nA2=pa['nA2']; WX=pa['wide']['x']; WY=pa['wide']['y']
+# ---- A: the orb card (v7.2) -- ONE fixed wide rect for the whole of Scene A, and the beat-12 cut is INVISIBLE ----
+# v7's a_src() followed a moving watch face through a separate close-up clip (meas_watch.json). v7.2 removed the
+# watch: in/A2.mp4 is Scene A continuing from f12 and the card sits at the frame-relative inset in both segments,
+# so the rect is one constant and the strongest check is that the frames either side of the cut are A ITSELF.
+pa=json.load(open('params_a2.json')); f12=pa['f12']; nA2=pa['nA2']; WX=pa['wide']['x']; WY=pa['wide']['y']; tSync=pa['tSync']
+RECT=(WY,WY+480,WX,WX+480)
 def a_src(t):
-    """Which Scene-A clip the output frame at t came from, its time in that clip, and where the card sits.
-    The rect MOVES in the close-up, so v6's fixed (1660..2140, 890..1370) mask would read a CORRECT render
-    as a mismatch. That is the reason this helper exists -- the check has to follow the card."""
-    # floor, not round -- frame() seeks with -ss, so the frame it returns is the one CONTAINING t (the same
-    # convention every beat check here relies on when it samples at beat(n)+1/24). Rounding disagrees with
-    # that on the back half of every frame, and round() also breaks ties to even, so a half-frame probe at
-    # the cut resolves BOTH sides to the same index.
-    i=int(t*24+1e-6)
-    if i<f12: return 'in/A.mp4', t, (WY,WY+480,WX,WX+480)
-    r=mwt['frames'][min(nA2-1,max(0,i-f12))]
-    S=max(120,int(round(r['w']*mwt['fill'])))
-    x0=int(round(r['cx']-S/2)); y0=int(round(r['cy']-S/2))
-    # frame CENTRE: -ss is formatted to 4dp, and n/24 rounds either side of the boundary, so a boundary
-    # seek can land one frame early. Half a frame of slack is far more than 4dp of rounding can spend.
-    return 'in/A2.mp4', (i-f12+0.5)/24.0, (max(0,y0),min(H,y0+S),max(0,x0),min(W,x0+S))
+    """Which Scene-A clip the output frame at t came from and its time in that clip. Still routed through A2 for
+    i >= f12 so a trim drift in norm6.sh's derivation shows up here as a mismatch, not as a jump nobody measured."""
+    i=int(t*24+1e-6)                    # floor: -ss returns the frame CONTAINING t (the convention every beat check uses)
+    return ('in/A.mp4',t) if i<f12 else ('in/A2.mp4',(i-f12+0.5)/24.0)
+m_out=np.ones((H,W),bool); m_out[RECT[0]:RECT[1],RECT[2]:RECT[3]]=False
 for t,expect in ((0.5,False),(3.0,True),(6.5,True),(7.5,True)):
-    src,ts,rect=a_src(t); o=frame(OUT,t); sA=frame(src,ts)
-    m=np.ones((H,W),bool); m[rect[0]:rect[1],rect[2]:rect[3]]=False
-    outd=mdiff(o,sA,m); ind=mdiff(o,sA,~m)
+    src,ts=a_src(t); o=frame(OUT,t); sA=frame(src,ts)
+    outd=mdiff(o,sA,m_out); ind=mdiff(o,sA,~m_out)
     check(f'A matches its source outside the card at {t} ({src.split("/")[-1]})', outd<2.5, f'mean diff {outd:.2f}')
     check(f'card {"present" if expect else "absent"} at {t}', (ind>8) if expect else (ind<2.0), f'rect diff {ind:.2f}')
-# the cut itself: frame f12-1 must still be A, frame f12 must be A2 -- a drifted trim shows up here first.
-# Probe the two frame CENTRES. The first cut of this check probed the boundary at +-half a frame, which under
-# round()-to-even resolved BOTH sides to 146: it FAILED on a correct render and never once read frame 145,
-# the frame it exists to test.
-tb=(f12-0.5)/24.0; ta=(f12+0.5)/24.0
-sb,tsb,rb=a_src(tb); sa,tsa,ra=a_src(ta)
-check('beat-12 cut lands on the right frame', sb.endswith('A.mp4') and sa.endswith('A2.mp4'), f'{sb} -> {sa} at frame {f12}')
-mb=np.ones((H,W),bool); mb[rb[0]:rb[1],rb[2]:rb[3]]=False
-ma=np.ones((H,W),bool); ma[ra[0]:ra[1],ra[2]:ra[3]]=False
-db=mdiff(frame(OUT,tb),frame(sb,tsb),mb); da=mdiff(frame(OUT,ta),frame(sa,tsa),ma)
-check('both cut frames match their own clip', db<2.5 and da<2.5, f'before {db:.2f} after {da:.2f}')
+# the cut is INVISIBLE: the output frames f12-1 and f12 must both be Scene A's OWN frames (A2 continues A). Probed at
+# frame CENTRES -- the rounding-tie lesson of the v7 verification round.
+for fi,nm in ((f12-1,'before'),(f12,'after')):
+    tc=(fi+0.5)/24.0; dd=mdiff(frame(OUT,tc),frame('in/A.mp4',tc),m_out)
+    check(f'beat-12 cut is invisible: frame {fi} ({nm}) is A itself outside the card', dd<2.5, f'mean diff {dd:.2f}')
+# the orbs: amber before the merge, teal after -- the state is a COLOUR, read across the whole card rect
 def cnt(a,reg,f):
     r=a[reg[0]:reg[1],reg[2]:reg[3]].astype(int); return int(f(r).sum())
 teal=lambda r:(r[...,2]>150)&(r[...,1]>150)&(r[...,0]<120)
 amber=lambda r:(r[...,0]>180)&(r[...,1]>120)&(r[...,1]<200)&(r[...,2]<90)
-# both samples now sit INSIDE the close-up -- landing synced in close-up is the whole point of the fifth shot.
-# v7.1: the FACE carries no status WORDS before sync -- the state is a colour, and the orb (the largest lit
-# object on the face) carries it. So this reads amber-everywhere -> teal-everywhere rather than one small
-# chip changing hue, which is what gives the check its margin. Both counts are read inside a_src()'s MEASURED
-# face rect, never the fixed wide-card rect, so a re-measured A2 clip cannot silently move the sampling window.
-_,_,r65=a_src(6.5); _,_,r75=a_src(7.5); f65=frame(OUT,6.5); f75=frame(OUT,7.5)
-check('close-up face turns amber -> teal across beat 14', cnt(f75,r75,teal)>cnt(f65,r65,teal) and cnt(f65,r65,amber)>cnt(f75,r75,amber), f'teal {cnt(f65,r65,teal)}->{cnt(f75,r75,teal)} amber {cnt(f65,r65,amber)}->{cnt(f75,r75,amber)}')
-print(f"INFO close-up watch face believed on {mwt['believed']}/{nA2} frames; the rest carry the nearest measured rect")
+fpre=frame(OUT,tSync-0.5); fpost=frame(OUT,tSync+0.5)
+tp,tq,ap,aq=cnt(fpre,RECT,teal),cnt(fpost,RECT,teal),cnt(fpre,RECT,amber),cnt(fpost,RECT,amber)
+check('card turns amber -> teal across tSync', tq>max(300,3*tp) and ap>max(300,3*aq), f'teal {tp}->{tq} amber {ap}->{aq} (tSync {tSync})')
+# two orbs converge into ONE: the opaque extent of the layer (alpha > 128 -- the orbs and type, never the glow) is
+# wide while two orbs ride the line and narrow once one orb sits at centre. Read on the LAYERS, in their own time.
+def alpha(path,t):
+    w,h=dims(path)
+    b=subprocess.run(['ffmpeg','-v','error','-ss',f'{max(0,t):.4f}','-i',path,'-frames:v','1','-f','rawvideo','-pix_fmt','rgba','-'],capture_output=True).stdout
+    a=np.frombuffer(b,np.uint8)
+    if a.size!=w*h*4: raise SystemExit(f'bad alpha frame {path} t={t} size={a.size}')
+    return a.reshape(h,w,4)[...,3]
+def extent(al,th=128):
+    ys,xs=np.where(al>th); return (0,0) if xs.size==0 else (int(xs.size),int(xs.max()-xs.min()+1))
+iS=int(tSync*24+1e-6)+12                                   # half a second after the merge, inside A2's window
+assert f12<=iS<f12+nA2, f'sync probe frame {iS} outside A2 [{f12},{f12+nA2})'
+wpre=extent(alpha('in/watch.mov',3.0)); wpost=extent(alpha('in/watch_cu.mov',(iS-f12+0.5)/24.0)[RECT[0]:RECT[1],RECT[2]:RECT[3]])
+check('two orbs converge into one (layer opaque extent)', wpre[1]>=wpost[1]+100 and wpost[0]>0, f'width {wpre[1]} -> {wpost[1]} px, opaque {wpre[0]} -> {wpost[0]}')
 # ---- B: logo on the phone ----
 ph=np.ones((H,W),bool); ph[592:1926,416:1026]=False
 for t in (8.4,10.5,13.0):
@@ -3002,8 +3196,13 @@ for n in (30,36):
     lb=lit(frame('in/wall6.mp4',beat(n)+1/24-offBC),rows,100); lm=lit(frame('in/wall6.mp4',beat(n)+P/2-offBC),rows,100)
     check(f'wall screen pulses at beat {n} (layer)', lb[0]>lm[0]*1.15 and lb[1]>=lm[1], f'beat lit {lb[0]} w{lb[1]} vs mid {lm[0]} w{lm[1]}')
 # ---- D: globe ----
-o=frame(OUT,22.5); sD=frame('in/D.mp4',22.5-offCD); dd=np.abs(gray(o)-gray(sD)); g6=lit(frame('in/globe6.mp4',22.5-offCD))
-check('D matches globe source before pops', dd.mean()<3.5 and np.percentile(dd,99)<24 and g6[0]==0, f'mean {dd.mean():.2f} p50 {np.median(dd):.1f} p99 {np.percentile(dd,99):.1f} layer lit {g6[0]}')
+# v7.3: the first pop is on beat 44 -- the very beat the C->D fade LANDS on (offCD + 0.3) -- so "before pops" cannot be 22.5
+# (v6's, when pops began on beat 48): by then the beat-44 mark is 0.37 s old and fully drawn. Sample one frame after the
+# fade ends, where the first mark is a sub-pixel sprite at u = 1/24 (back(0.15) of 44 px, alpha 0.35) and the layer is
+# otherwise empty; the tolerance on the layer is a handful of pixels, not zero.
+tD0=offCD+0.3+1/24
+o=frame(OUT,tD0); sD=frame('in/D.mp4',tD0-offCD); dd=np.abs(gray(o)-gray(sD)); g6=lit(frame('in/globe6.mp4',tD0-offCD))
+check('D matches globe source as the scene lands (beat 44)', dd.mean()<3.5 and np.percentile(dd,99)<24 and g6[0]<200, f'mean {dd.mean():.2f} p50 {np.median(dd):.1f} p99 {np.percentile(dd,99):.1f} layer lit {g6[0]} at {tD0:.3f}')
 # v7: the disc, the logo box and the close row are DERIVED from what mk_globe.py actually placed --
 # 618/1972/44/1410, 330 and 2060 were all measured against the v6 D.mp4 and are wrong for a re-prompted clip
 try: GM=json.load(open('globe6_marks.json'))
@@ -3011,8 +3210,8 @@ except Exception as e:
     GM=dict(disc=dict(top=618,bottom=1972,left=44,right=1410), logo_cy=330, logo_w=440, close_y=2060,
             from_pins=False, pins_used=0, marks=0, placed=[], drift_px_per_s=0.0)
     print(f'INFO globe6_marks.json unreadable ({type(e).__name__}) -- Scene D checked against the v6 constants')
-GD=GM['disc']; disc=(GD['top'],GD['bottom']+1,GD['left'],GD['right']+1)
-pre=lit(frame('in/globe6.mp4',23.5-offCD),disc)
+GD=GM['disc']; disc=(max(0,GD['top']),min(H,GD['bottom']+1),max(0,GD['left']),min(W,GD['right']+1))   # v7.3: the rim-fitted disc overruns the frame on both sides -- clamp
+pre=lit(frame('in/globe6.mp4',0.3-1/24),disc)              # the last fade frame BEFORE beat 44: nothing is drawn yet
 for n in (50,54,58):
     c=lit(frame('in/globe6.mp4',beat(n)+0.2-offCD),disc)
     check(f'marks lit in disc at beat {n} (layer)', pre[0]==0 and c[0]>300, f'lit {c[0]} vs pre-pop {pre[0]}')
@@ -3065,7 +3264,9 @@ if GM['placed']:
         live+=1; ax=int(round(m['ax']+m['vx']*u)); ay=m['ay']
         if lit(L,(max(0,ay-15),ay+16,max(0,ax-15),ax+16))[0]>0: anch+=1
     check('marks are anchored to the ground, not floating', live>0 and anch>=0.8*live, f'{anch}/{live} anchors lit')
-LCY=GM['logo_cy']; LCX=W//2; lg=(max(0,LCY-190),LCY+191,max(0,LCX-340),min(W,LCX+341))
+# v7.3: the disc top is at 323 (v6: 618) and the logo row at LCY 171, so a +-190 box would reach 39 rows INTO the disc and
+# count the atmospheric rim as "logo". The box stops 4 px above the measured disc top.
+LCY=GM['logo_cy']; LCX=W//2; lg=(max(0,LCY-190),min(LCY+191,GD['top']-4),max(0,LCX-340),min(W,LCX+341))
 l0=lit(frame(OUT,25.5),lg,90); l1=lit(frame(OUT,26.7),lg,90)
 check('logo pops above globe after beat 52', l0[0]<50 and l1[0]>1500, f'pre {l0[0]} post {l1[0]} w{l1[1]}')
 lb=lit(frame('in/globe6.mp4',beat(56)+1/24-offCD),lg,60); lm=lit(frame('in/globe6.mp4',beat(56)+P/2-offCD),lg,60)
@@ -3139,15 +3340,23 @@ for n in (30,36):
 
 ```bash
 #!/bin/bash
-cd /home/user/w; F=${1:-out/launch_v7.mp4}
-echo "md5 $(md5sum $F)"
-R=$(curl -s -m 600 -F "file=@$F" https://upload.gofile.io/uploadfile)
-echo "gofile: $R"
+# upload6.sh -- the review link(s). gofile (guest; removed ~10 days after the last download) first, then litterbox (72 h),
+# then uguu (~3 h -- label it as such). Every host that takes the file is printed as "URL <host> <ttl> <url>", and the
+# md5 is printed first so a link can be checked against the file it came from. Exit 0 if at least one host took it.
+cd /home/user/w; F=${1:-out/launch_v7.mp4}; OK=0
+echo "md5 $(md5sum $F)"; echo "bytes $(stat -c%s $F)"
+R=$(curl -s -m 600 -F "file=@$F" https://upload.gofile.io/uploadfile); echo "gofile: $R"
 U=$(echo "$R" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('data',{}).get('downloadPage',''))" 2>/dev/null)
-if [ -n "$U" ]; then echo "URL $U"; exit 0; fi
-R=$(curl -s -m 600 -F "file=@$F" https://0x0.st); echo "0x0: $R"; echo "$R" | grep -q '^https://' && { echo "URL $R"; exit 0; }
-R=$(curl -s -m 600 -F "reqtype=fileupload" -F "time=72h" -F "fileToUpload=@$F" https://litterbox.catbox.moe/resources/internals/api.php); echo "litterbox: $R"; echo "$R" | grep -q '^https://' && { echo "URL $R"; exit 0; }
-echo "ALL-FAILED"
+[ -n "$U" ] && { echo "URL gofile ~10d $U"; OK=1; }
+R=$(curl -s -m 600 -F "reqtype=fileupload" -F "time=72h" -F "fileToUpload=@$F" https://litterbox.catbox.moe/resources/internals/api.php); echo "litterbox: $R"
+echo "$R" | grep -q '^https://' && { echo "URL litterbox 72h $R"; OK=1; }
+if [ "$OK" = 0 ]; then
+  R=$(curl -s -m 600 -F "files[]=@$F" https://uguu.se/upload); echo "uguu: $R"
+  U=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null)
+  [ -n "$U" ] && { echo "URL uguu 3h $U"; OK=1; }
+fi
+[ "$OK" = 1 ] && exit 0
+echo "ALL-FAILED"; exit 1
 ```
 
 ---
@@ -4457,7 +4666,11 @@ MAP={'pw/lib.js':'/home/user/pw/lib.js','pw/tour4.js':'/home/user/pw/tour4.js',
  'mk_watch.py':'/home/user/w/scripts/mk_watch.py','mk_wall6.py':'/home/user/w/scripts/mk_wall6.py',
  'mk_globe.py':'/home/user/w/scripts/mk_globe.py','scanpulse.py':'/home/user/w/scripts/scanpulse.py',
  'norm6.sh':'/home/user/w/scripts/norm6.sh','render6.sh':'/home/user/w/scripts/render6.sh',
- 'verify6.py':'/home/user/w/scripts/verify6.py','upload6.sh':'/home/user/w/scripts/upload6.sh'}
+ 'verify6.py':'/home/user/w/scripts/verify6.py','upload6.sh':'/home/user/w/scripts/upload6.sh',
+ # v7.2/v7.3 (2026-09-08): the orb-card layer and the logo-only phone layer -- the eighth and ninth artifacts this
+ # pipeline recorded as sources with no producer -- and the two-stage runner sized to the sandbox lease.
+ 'mk_orb6.py':'/home/user/w/scripts/mk_orb6.py','mk_phone6.py':'/home/user/w/scripts/mk_phone6.py',
+ 'run73.sh':'/home/user/w/scripts/run73.sh'}
 def block(i):
     while not L[i].startswith('```'): i+=1
     j=i+1
@@ -4506,8 +4719,15 @@ if [ -z "$SKIP_DL" ]; then
   # and must not be fetched here. The first cut of this block still pulled the v6 Scene A and fetched neither
   # A2 nor D, so norm6.sh aborted on a missing in/A2.mp4 and -- worse -- a hand-fetched A2 let the run continue
   # with the naked-runner A already in place, silently shipping the exact frame owner note #4 exists to fix.
-  curl -sL -o in/A.mp4  $P/hf_20260903_141033_6f01a52f-de85-48ae-a0cd-771fa26afc70.mp4
-  curl -sL -o in/A2.mp4 $P/hf_20260903_141033_e815ac55-08d2-497d-8244-5c58e7288dbd.mp4
+  # v7.2 (owner 2026-09-03): Scene A is the APPROVED runner, job 878ea5a1 -- wide, locked off, side profile, clothed,
+  # explosive, four casting rounds (shape-radio-watch-orb.md lists 6f01a52f as superseded by it). This line fetched
+  # 6f01a52f through the whole of v7.2/v7.3's records while the orb record called it superseded: two documents, two
+  # runners, and the boot followed the older one. The file id is what show_generation_by_ids reports for the job.
+  curl -sL -o in/A.mp4  $P/hf_20260903_204330_878ea5a1-c831-445b-8150-6ec7d3795b24.mp4
+  # v7.2: in/A2.mp4 is NOT fetched. It is Scene A CONTINUING from frame f12 -- norm6.sh derives it from params_a2.json,
+  # which is why plan6.py/plan_a2.py now run BEFORE norm6.sh. The e815ac55 watch close-up is superseded (the physical
+  # watch is gone) and must not land here; a fresh A invalidates any A2 derived from the old one.
+  rm -f in/A2.mp4 in/.A2_from
   curl -sL -o in/B.mp4  $P/hf_20260901_165434_a27526b7-057b-4165-865c-0e9c5c9b46e9.mp4
   curl -sL -o in/C.mp4  $P/hf_20260901_165434_a1d1066e-7837-48c6-81ce-ef849c38d8a2.mp4
   # v7.3 (2026-09-07): Scene D is the globe that OPENS ON THE AMERICAS (job 135d629d). The v7 pinned globe
@@ -4545,6 +4765,83 @@ printf '%s\n' "$H" > /home/user/pw/tour5b.js; cat /home/user/pw/body5b.js >> /ho
 sed -i "s#chromium.launch({args:\['--no-sandbox'\]})#chromium.launch({args:['--no-sandbox'],executablePath:'/ms-playwright/chromium-1228/chrome-linux64/chrome'})#" /home/user/pw/tour5.js /home/user/pw/tour5b.js
 sed -i "s#'python3','mk_screen5.py'#'python3','scripts/mk_screen5.py'#" scripts/spot.py
 echo BOOT5_OK
+```
+
+**`run73.sh`** — the v7.3 launch cut end to end, in **two background stages** sized to the sandbox lease (`STAGE=1`: boot → plan → `norm6.sh` → upload `in/D.mp4` + `in/C_zoom.mp4` as md5-tagged checkpoints; `STAGE=2`: boot → fetch the checkpoints if this sandbox no longer holds them → the five layers in three parallel lanes → `render6.sh` → `upload6.sh` as the very next line → `verify6.py`). The launch command is in the header. Sets `NODE_PATH` (Playwright is a global install in the sandbox and does not resolve from `/home/user` otherwise — measured) and `NORM_PRESET=veryfast` for the intermediates.
+
+```bash
+#!/bin/bash
+# run73.sh -- the v7.3 launch cut end to end, in TWO background stages sized to the sandbox lease.
+#
+# WHY TWO STAGES, MEASURED NOT ASSUMED (2026-09-07/08): a background sandbox_exec call holds its sandbox for ~15
+# minutes and poll calls do not shorten it; a foreground call after a gap may start a FRESH sandbox, so nothing
+# survives between separated calls. The v7.3 Scene D remap (norm6.sh, minterpolate at 1440x2560) alone takes
+# 5-6 minutes, and boot + layers + render + upload another ~10 -- one window cannot hold all of it with margin,
+# and six v7.2 runs died to reclamation, two of them AFTER the render and before the upload. So:
+#   STAGE=1  boot -> plan -> norm6.sh (C_zoom + the D window + meas_disc) -> upload in/D.mp4 and in/C_zoom.mp4
+#            to a direct-URL host as CHECKPOINTS, printing "CKPT <name> <md5> <url> <bytes>".
+#   STAGE=2  boot -> fetch the checkpoints if this sandbox no longer holds them (md5-checked; a mismatch rebuilds)
+#            -> norm6.sh (skips the window when the marker matches) -> capture -> captions -> the five layers,
+#            three lanes in parallel -> render6.sh -> upload6.sh AS THE VERY NEXT LINE -> verify6.py.
+# Launched from the sandbox with the recipe fetched at a COMMIT SHA (raw.githubusercontent caches a branch name):
+#   cd /home/user && rm -f recipe.md && curl -sL -o recipe.md https://raw.githubusercontent.com/<owner>/<repo>/<sha>/marketing/shape-radio-launch-cut.md
+#   python3 - <<'PY' ... extract the boot5.sh and run73.sh blocks ... PY
+#   RECIPE_BRANCH=<sha> STAGE=1 bash run73.sh            (background:true; poll the log)
+#   RECIPE_BRANCH=<sha> STAGE=2 CKPT_D_URL=.. CKPT_D_MD5=.. CKPT_C_URL=.. CKPT_C_MD5=.. bash run73.sh
+set -e
+STAGE=${STAGE:-2}
+export NODE_PATH=/usr/local/lib/node_modules      # playwright is a GLOBAL install in the sandbox; from /home/user it does not resolve without this (measured)
+export NORM_PRESET=${NORM_PRESET:-veryfast}       # intermediates only (norm6.sh); render6.sh keeps -preset medium for the deliverable
+export D_WINDOW=${D_WINDOW:-4.5}
+cd /home/user
+t0=$(date +%s); say(){ echo "[$(( $(date +%s) - t0 ))s] $*"; }
+# 0. boot. SKIP_DL when the sources survived: boot5.sh's download block also deletes in/D_src.mp4 and the window
+#    marker, which would re-run the 5-6 minute remap on a sandbox that already holds the remapped clip.
+if [ -f w/in/A.mp4 ] && [ -f w/in/t3.m4a ] && [ -f w/in/D.mp4 ] && [ -f w/in/JetBrainsMono.ttf ]; then export SKIP_DL=1; say "sources present -- SKIP_DL"; fi
+bash /home/user/boot5.sh; say BOOT-DONE
+cd /home/user/w
+# 1. the plan BEFORE norm6.sh (v7.2 order): norm6.sh derives in/A2.mp4 from params_a2.json
+python3 scripts/plan6.py >/dev/null && python3 scripts/plan_a2.py >/dev/null; say PLAN-DONE
+ckpt_up(){ local f=$1 n=$2 m u; m=$(md5sum "$f"|cut -d' ' -f1)
+  u=$(curl -s -m 300 -F "files[]=@$f" https://uguu.se/upload | python3 -c "import sys,json;print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null || true)
+  [ -n "$u" ] || u=$(curl -s -m 300 -F "file=@$f" https://0x0.st | grep -o 'https://[^ ]*' | head -1 || true)
+  [ -n "$u" ] || u=$(curl -s -m 300 -F reqtype=fileupload -F time=72h -F "fileToUpload=@$f" https://litterbox.catbox.moe/resources/internals/api.php | grep -o 'https://[^ ]*' | head -1 || true)
+  echo "CKPT $n $m ${u:-NONE} $(stat -c%s "$f")"; }
+ckpt_dn(){ local f=$1 u=$2 m=$3
+  if [ -f "$f" ] && [ "$(md5sum "$f"|cut -d' ' -f1)" = "$m" ]; then echo "CKPT $f already present (md5 ok)"; return 0; fi
+  if [ -z "$u" ] || [ "$u" = NONE ]; then echo "CKPT $f absent and no URL -- will rebuild"; return 1; fi
+  curl -sL -m 600 -o "$f" "$u" || { echo "CKPT $f fetch failed -- will rebuild"; rm -f "$f"; return 1; }
+  [ "$(md5sum "$f"|cut -d' ' -f1)" = "$m" ] || { echo "CKPT $f md5 MISMATCH after fetch -- will rebuild"; rm -f "$f"; return 1; }
+  echo "CKPT $f fetched (md5 ok)"; }
+if [ "$STAGE" = 1 ]; then
+  bash scripts/norm6.sh; say NORM-DONE
+  ckpt_up in/D.mp4 D; ckpt_up in/C_zoom.mp4 C
+  say STAGE1-OK; exit 0
+fi
+# 2. stage 2 -- the checkpoints, then everything else, then the upload as the line after the render
+if [ -n "$CKPT_D_MD5" ]; then
+  if ckpt_dn in/D.mp4 "$CKPT_D_URL" "$CKPT_D_MD5"; then printf 'win:%s' "$D_WINDOW" > in/.D_spun; [ -f in/D_src.mp4 ] || cp in/D.mp4 in/D_src.mp4; fi
+fi
+if [ -n "$CKPT_C_MD5" ]; then ckpt_dn in/C_zoom.mp4 "$CKPT_C_URL" "$CKPT_C_MD5" || rm -f in/C_zoom.mp4; fi
+bash scripts/norm6.sh; say NORM-DONE
+( cd /home/user && node pw/cap_radio.js ); say CAP-DONE
+[ -f /home/user/cap/r3_radio_top.png ] || { echo "FATAL: cap/r3_radio_top.png was not written -- cap_radio.js missed the Radio page"; exit 1; }
+python3 scripts/captions.py >/dev/null; say CAPTIONS-DONE
+# the five layers in three lanes -- each lane's scripts are single-threaded and independent of the other lanes
+( WATCH_MODE=wide python3 scripts/mk_orb6.py && WATCH_MODE=closeup python3 scripts/mk_orb6.py && python3 scripts/mk_phone6.py ) > log_A.txt 2>&1 &
+( python3 scripts/meas_wall.py && python3 scripts/mk_wall6.py ) > log_C.txt 2>&1 &
+( python3 scripts/meas_pins.py && python3 scripts/mk_globe.py ) > log_D.txt 2>&1 &
+wait
+cat log_A.txt log_C.txt log_D.txt
+for k in 'ORB6-OK mode=wide' 'ORB6-OK mode=closeup' 'PHONE6-OK' 'WALL6-OK' 'GLOBE6-OK'; do
+  grep -q "$k" log_A.txt log_C.txt log_D.txt || { echo "FATAL: layer marker missing: $k"; exit 1; }
+done
+say LAYERS-DONE
+bash scripts/render6.sh; say RENDER-DONE
+bash scripts/upload6.sh out/launch_v7.mp4; say UPLOAD-DONE
+python3 scripts/verify6.py > verify73.txt 2>&1 || true
+cat verify73.txt; say VERIFY-DONE
+echo STAGE2-OK
 ```
 
 ⚠ **THE PRE-INSTALLED BROWSER IS `chromium-1228`, AND PLAYWRIGHT'S PIN DOES NOT MATCH
