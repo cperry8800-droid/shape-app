@@ -475,6 +475,28 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-08 — "Through the Glass": the Apple-style one-shot film, treated and ruled on, style frames next
+
+- **Owner's ask: *"a video of shape like what apple did for the release of the ipad … people using the app on their
+  phone … a whole walk through that blends together, almost in one shot with cool visual effects."*** Treatment in
+  [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md): the camera never cuts — it goes IN through
+  the glass of one person's phone and OUT through the next — with one teal hairline (the masthead's rule) running the
+  whole film and closing into a circle at the lock; seven people, one day, every UI on screen a real capture, 30 bars
+  on a measured grid, a 30-s cutdown. **Owner's rulings, same day:** 9:16 only · 45–60 s + a 30 s cutdown · a new
+  owned track, no voiceover, minimal type cards · style frames before any clip.
+- **Made by a judge panel, then written by hand when the panel ran long.** Five directions under five lenses, three
+  judges (Apple craft · buildability · brand and honesty): match-cut chain 23, portal 22.5, Apple-literal 20, dolly 19,
+  light ribbon 13. The film fuses the two leaders and takes three grafts (the drop built in post under the lock, the
+  lights-out through the real *Pick your light*, the three-phone close as an option). The panel's synthesis and critic
+  were stopped unrun — the owner asked why it was taking so long, and the material was already sufficient.
+- ⚠ **THE HONESTY LEDGER IS THE DESIGN, NOT A CHECK AT THE END.** No Radio screen appears (its ON AIR / LIVE chrome may
+  not); the only Radio words are the card's labels and IN SYNC, once; the only digit that is a measurement is BPM; the
+  demo cast is kept out by a real two-account rig (default, the ruling on the preview cast still open); the globe carries
+  no count; the music is owned and measured, the drop built in post rather than prompted. Six open questions with
+  defaults, §11 — the coach rig, one new line, the lights-out arc, casting, whose numbers, the close.
+- **Next, per the ruling:** six 9:16 style frames (one per room, the master block as an image prompt) for the owner's
+  look approval; then clips at two takes a room, then captures, then the render on the two-stage runner.
+
 ### 2026-09-08 — v7.3 rendered: the corrected cut reaches a link, and the layer that produced it turns out to have never been written down
 
 - **Owner's standing ask, from the 09-07 handoff: get the corrected v7.2 render to a link, on the v7.3 globe.** Done —
