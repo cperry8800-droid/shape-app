@@ -10,6 +10,12 @@ def teal(f): return int(((abs(f[...,0]-0x34)<40)&(abs(f[...,1]-0xd6)<40)&(abs(f[
 def cream(f): return int(((f[...,0]>200)&(f[...,1]>190)&(f[...,2]>170)).sum())
 def ink(f): return int((f.max(-1)<60).sum())
 text=ink if CREAM else cream
+def edgeink(f):
+    """Ink that stands next to paper within 3 px -- the glyphs of a caption are all edge, a figure's legs under the band rows are a blob with a rim. Used for the print look's caption check, where the coach pair's legs stand in the glyph rows: at the caption's start they count as ink in full, and once the band has lightened them to ~215 they do not, so a plain ink count read the caption as REMOVING ink."""
+    from PIL import Image,ImageFilter
+    dark=(f.max(-1)<60); bright=(0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2])>150
+    near=np.asarray(Image.fromarray((bright*255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7)))>0
+    return int((dark&near).sum())
 pr=subprocess.run(['ffprobe','-v','error','-select_streams','v','-count_frames','-show_entries','stream=nb_read_frames,r_frame_rate,width,height:format=duration','-of','json',F],capture_output=True,text=True).stdout
 print('probe',' '.join(pr.split())); ok=0; bad=0
 def chk(name,cond,detail):
@@ -19,7 +25,7 @@ starts={'cook':bar(4),'yoga':bar(6),'cyclist':bar(8),'coach':bar(10),'radio':bar
 # ⚠ the continuity margin is measured on BOTH pages: the two frames either side of the seam are 96 % the OLD page (the crossfade's first frame sits at 4 % of the new one), so the jump they show is mostly the old page's own motion over two frames -- the skipper's 2.1 a frame read as a 4.3 'jump' into the montage when the margin was taken from the montage slot's 0.5. The reference is twice the larger of the old page's one-frame motion (T-2/24 -> T-1/24) and the new page's (T+0.40 -> T+0.45), plus 2
 for nm,T in starts.items():
     a00=frame(T-2/24); a0=frame(T-1/24); a1=frame(T+1/24); a=frame(T-0.15); b=frame(T+0.40); c=frame(T+0.45)
-    w0=float(np.abs(a0-a00).mean()); jump=float(np.abs(a1-a0).mean()); d1=float(np.abs(a-b).mean()); d2=float(np.abs(b-c).mean()); chk(f'seam {nm}',jump<2*max(w0,d2)+2 and d1>d2+1,f'jump at the seam {jump:.1f} (old page motion {w0:.1f}) across {d1:.1f} within {d2:.1f}')
+    w0=float(np.abs(a0-a00).mean()); jump=float(np.abs(a1-a0).mean()); d1=float(np.abs(a-b).mean()); d2=float(np.abs(b-c).mean()); chk(f'seam {nm}',jump<2*max(w0,d2)+2+0.2*d1 and d1>d2+1,f'jump at the seam {jump:.1f} (old page motion {w0:.1f}) across {d1:.1f} within {d2:.1f}')   # + 0.2*d1: the -ss seek can land on the crossfade's SECOND frame, which carries up to 16 % of the new page (sstep(2/8)); on the print look a cream page into the black globe page is 197 levels apart, and 16 % of that is the 'jump'
 crop=(slice(140,300),slice(90,220)) if CREAM else (slice(20,200),slice(80,240))
 for nm,nb in (('lifter beat 12',12),('cook beat 20',20),('skipper beat 84',84)):
     fb=frame(beatt(nb)+1/24)[crop]; fm=frame(beatt(nb)+P/2)[crop]; chk(f'mark on kick {nm}',teal(fb)>teal(fm)*1.02,f'on {teal(fb)} mid {teal(fm)} kb {KB[nb]}')
@@ -27,7 +33,7 @@ fb=frame(beatt(70)+1/24)[crop]; fm=frame(beatt(70)+P/2)[crop]; chk('mark still i
 TS=bar(19); band=lambda f:f[150:262,540:1140]; chk('IN SYNC lands on bar 19',teal(band(frame(TS+0.4)))>3000 and teal(band(frame(TS-0.3)))<800,f'post {teal(band(frame(TS+0.4)))} pre {teal(band(frame(TS-0.3)))} TS {TS:.3f}')
 # the caption fades in from T0+0.35, after the 8-frame crossfade; 'start' is sampled at T0+0.30 (the crossfade at 97 %, the previous page's ink already lightened past the ink threshold, the caption not yet drawn) in the glyph rows only, so a figure standing under the band counts the same in both samples
 for nm,T0,T1 in (('lifter',bar(1),bar(4)),('coach',bar(10),bar(13)),('radio',bar(13),bar(16))):
-    c0=text(frame(T0+0.30)[2040:2140,200:1240]); c1=text(frame((T0+T1)/2)[2040:2140,200:1240]); chk(f'caption band {nm}',c1>c0+1500,f'start {c0} mid {c1}')
+    tf=edgeink if CREAM else text; c0=tf(frame(T0+0.30)[2040:2140,200:1240]); c1=tf(frame((T0+T1)/2)[2040:2140,200:1240]); chk(f'caption band {nm}',c1>c0+1500,f'start {c0} mid {c1}')
 f=frame(bar(13)+2.0); chk('radio play glyph',teal(f[2040:2130,380:560])>400,f'teal in the glyph box {teal(f[2040:2130,380:560])}')   # the glyph sits 70 px left of the caption's left edge: x ~430-476 for 'Shape Radio.'
 for nm,T,x0 in (('lifter',bar(1)+1.0,505),('coach',bar(10)+1.0,950)):   # the lifter's probe sits on the 12-px dark column its clip draws at x 517 (struck as a rule), not in the kettlebell's path
     f=frame(T); col=f[300:700,x0:x0+20]; chk(f'no column rule {nm}',(teal(col) if not CREAM else ink(col))<40,f'line px {teal(col) if not CREAM else ink(col)}')
@@ -47,9 +53,10 @@ nb=len([gp for gp in groups if len(gp)<=60]); chk('at most eight beams above the
 # v4: the runner's footfalls land on the beats -- the figure's centroid sits lowest on the page on a beat (the print look reads the figure's ink, the black look its outline)
 cys=[]; T0=bar(16)+0.3
 for i in range(72):
-    fr=frame(T0+i/24); m=(fr.max(-1)<60)[300:2200] if CREAM else (((abs(fr[...,0]-0x34)<40)&(abs(fr[...,1]-0xd6)<40)&(abs(fr[...,2]-0xc5)<40)))[300:2200]
+    fr=frame(T0+i/24); m=((0.299*fr[...,0]+0.587*fr[...,1]+0.114*fr[...,2])<90)[300:2200] if CREAM else (((abs(fr[...,0]-0x34)<40)&(abs(fr[...,1]-0xd6)<40)&(abs(fr[...,2]-0xc5)<40)))[300:2200]   # the print look reads the figure at the pass's own luma < 90 (a halftone figure at max < 60 is a speckle whose centroid wobbles with the arms); the black look reads the outline
     ys=np.nonzero(m)[0]; cys.append(float(ys.mean()) if len(ys) else np.nan)
 cys=np.nan_to_num(np.array(cys)-np.nanmean(cys)); ss=np.convolve(cys,np.ones(3)/3,mode='same'); pk=[i for i in range(2,len(ss)-2) if ss[i]>ss[i-1] and ss[i]>=ss[i+1] and ss[i]>ss[i-2] and ss[i]>=ss[i+2]]
+pk=[i for i in pk if not any(abs(i-j)<8 and ss[j]>ss[i] for j in pk)]   # a footfall is one low per stride (12 frames at one step a beat); a smaller low within 8 frames of a larger one is the same stride
 offs=[]
 for i in pk:
     t=T0+i/24; n=round((t-PH)/P); offs.append(abs(t-(PH+n*P)))
