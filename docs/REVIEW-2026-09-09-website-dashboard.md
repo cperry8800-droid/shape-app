@@ -478,9 +478,10 @@ integrity attributes; every `/api/*` request answered 404, so each page took its
 branch; Google Fonts loaded. 44 captures: all 32 tabs across the three shells at 1440×900,
 the four client-detail entry points, and trainer/client Today at 390×844 (with and without
 phone emulation) and 1024×768. Result: **no horizontal overflow at any width**, console
-clean apart from the expected 404s and Babel's dev-mode warning, and one failed non-API
-asset request on each of the three Profile tabs (not investigated). Switch latency was not
-measured — the harness ran the in-browser Babel path, which production precompiles.
+clean apart from the expected 404s and Babel's dev-mode warning; the one failed non-API
+request on each Profile tab was the harness proxy refusing the Unsplash demo avatars, not
+a site defect. Switch latency was not measured — the harness ran the in-browser Babel
+path, which production precompiles.
 
 **What the renders showed that the source read could not**
 
@@ -512,12 +513,16 @@ measured — the harness ran the in-browser Babel path, which production precomp
   evaluates the product on.
 - **V6 — The Chat bubble covers content.** Fixed bottom-right, it overlaps the pulse
   panel's MESSAGE buttons on Today at 1440px and the right edge of every long page.
-- **V7 — Phones get the desktop page.** The three shells carry no `<meta name="viewport">`,
-  so a phone lays the dashboard out at 980px and shrinks it; the 240px sidebar never
-  collapses because the `dash.css` rule targets a class only the client Settings route
-  uses. At 1024px the two-column Today holds, with the pulse pills wrapping to two lines.
+- **V7 — Phones get the desktop page.** In a genuinely narrow window the sidebar does
+  collapse into a horizontal, scrollable tab strip (`pageShell.jsx:638`; the `dash.css`
+  collapse rule additionally targets a class only the client Settings route uses). But the
+  three shells carry no `<meta name="viewport">`, so a real phone never reaches that
+  breakpoint: it lays the dashboard out at 980px and shrinks it, sidebar and all. At
+  1024px the two-column Today holds, with the pulse pills wrapping to two lines.
 - **V8 — The orphaned client page has no preview state.** `TrainerClient.html` without an
-  id renders "Couldn't load · Missing client id" beside the demo payout card. The tabs that
+  id renders "Couldn't load · Missing client id" beside the demo payout card; with an
+  unknown id, "Not found". The trainer and nutritionist files are byte-identical and both
+  show the trainer sidebar in that error state. The tabs that
   carry no demo band (coach Playlists, Community, Goal, Score, Profile; client Library,
   Team, Community, Score, Habits, Profile, Settings) rendered demo or literal content with
   nothing marking it as such — the same list as §8.
