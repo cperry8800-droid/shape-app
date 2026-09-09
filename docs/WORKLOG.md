@@ -475,6 +475,33 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — Back to 120, the phone gone, a fitness watch on the wrist: the runner re-edited, re-animated, and the pair re-rendered on the native grid
+
+- **Owner: *"ok go back to 120 and lets remove the phone from the video all together. Can you have the person wear a
+  fitness watch?"*** Three changes, and only one of them is the pass's: the tempo returns to the pick's measured
+  **119.95** (`final10.py` unchanged on `meas_d1.json` — re-measured this run at exactly the recorded values — so the
+  bar reads **HRM 84 → 120 · BPM 120** and locks on beat 13). The other two are in the SOURCE: the approved frame 8 was
+  edited twice (`nano_banana_pro`, served as `nano_banana_2` — the phone removed, a fitness watch on the wrist, the
+  ribbon flowing from the watch), the better edit animated (`minimax_h3`), and the pass run on that clip. Links handed
+  over in chat; **three generations**; every prompt verbatim in the treatment's Sources (E4, E5, row 7) with md5s.
+- ⚠ **"REMOVE THE PHONE" WAS MEASURED, NOT ASSUMED, ON BOTH THE STILL AND THE CLIP.** On the edits, frame 8's phone box
+  held 19,000 px above luma 236 and holds 1,664 / 883 — gone in both; the taken edit also carries a compact 54×50 teal
+  blob at the wrist that held the phone (the watch face), where the other edit's watch landed on the far side of the
+  figure. On the clip, every sampled frame's figure band holds 18–498 px above luma 250 where a lit phone screen held
+  ~17,000 — no phone in any frame — and a compact teal blob sits at the wrist in 13 of 21 sampled frames; in the rest
+  the wrist's teal merges into the ribbon that flows from it, so the test cannot separate them there. `meas_edit.py`,
+  `meas_clip13.py` and `run13.sh` are in the treatment verbatim.
+- ⚠ **THE SANDBOX WAS RECLAIMED BETWEEN STAGING THE SCRIPTS AND THE CLIP'S ARRIVAL — a third reclaim today — so the run
+  was rewritten as ONE background lease that writes its six files and runs.** The md5s it logged for the files as
+  written match the local copies; the ▸◂ crop came back at its recorded md5 again. *A file staged in a sandbox that will
+  be reclaimed before it is used was never staged.*
+- **Verified on the renders:** 243 frames each; top-left teal on a beat against mid-beat A 2,518 / 2,364 · B 4,485 /
+  4,314; the white triangle present at every sample; IN SYNC 6,689 / 6,741 teal px after the lock against 340 / 334
+  before; the rendered audio re-measuring 120.0. This pair supersedes the 140 and 130 pairs and every phone-clip pair.
+  ⚠ Not visually inspected by the agent; the owner's look is the QA. ⚠ **The film's spine goes IN through each person's
+  phone glass** — this ruling was about the style video, and whether phones leave the film too is a new §10 q9 with a
+  default. Docs only; **no PR, nothing merged.**
+
 ### 2026-09-09 — 140, then 130, on the bar means 140, then 130, in the music: the style pair re-rendered twice on time-stretched, re-measured grids
 
 - **Owner: *"have the bpm and hrm be 140 in the 2 videos"*.** The HRM / BPM bar on both style videos now climbs

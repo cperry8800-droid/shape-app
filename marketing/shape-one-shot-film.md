@@ -184,6 +184,13 @@ against the ink — a solid figure reads ≈ 0, a hollow one reads large). The s
 the Sources.
 
 
+⚠ **THE PHONE IS OUT OF THE STYLE VIDEO AND THE RUNNER WEARS A FITNESS WATCH — owner, 2026-09-09:** *"lets remove the
+phone from the video all together. Can you have the person wear a fitness watch?"* Frame 8 was re-edited (E4: the
+phone gone, a rounded-square teal-faced watch on that wrist, the ribbon flowing from the watch) and re-animated (row 7);
+the finishing pass is unchanged and runs on the native 119.95 grid by the same ruling (*"go back to 120"*). The
+measurements are in the run record. The film's spine still goes in through each person's phone glass — §10 q9 asks
+whether that changes too.
+
 ## 2 · Why it reads as one shot — and why this world builds better than v1
 
 - **Silhouettes have no continuity problem.** No face, no wardrobe, no skin to keep consistent across generated
@@ -340,7 +347,7 @@ peak (`meas_d140.py`, in the run record under §2b):
 | Track | Asked of the stretch | **Measured** | Halves | Kick from | Kick-less stretches (beats · seconds) | Length |
 |---|---|---|---|---|---|---|
 | **dub-dark × 1.167153** (`d140.m4a`) | 140 | **140.0** · P 0.428571 · φ 0.060 | 139.95 / 140.15 | **0.06 s** — the first beat | 61–79 · **26.2–33.9 s**; 112–118 · 48.1–50.6 s | 51.45 s = **30 bars** at 140 |
-| **dub-dark × 1.083785** (`d130.m4a`, **current**) | 130 | **130.0** · P 0.461538 · φ 0.063 | 130.05 / 130.15 | **0.063 s** — the first beat | 57–59 · 26.4–27.3 s; 61–79 · **28.2–36.5 s**; 112–118 · 51.8–54.5 s | 55.39 s = **30 bars** at 130 |
+| **dub-dark × 1.083785** (`d130.m4a`, superseded) | 130 | **130.0** · P 0.461538 · φ 0.063 | 130.05 / 130.15 | **0.063 s** — the first beat | 57–59 · 26.4–27.3 s; 61–79 · **28.2–36.5 s**; 112–118 · 51.8–54.5 s | 55.39 s = **30 bars** at 130 |
 
 Every structural fact survives the stretch, scaled by the one ratio: the kick still opens on beat 0, the breakdown is
 still bars 16–20 and the return still the bar-21 downbeat, the track is still exactly 30 bars — a time-stretch moves
@@ -353,6 +360,10 @@ thinning bars before the breakdown (beats 57–59) fall **under the presence gat
 119.95 they stayed above it — the gate is a threshold on measured energy, and a stretch moves the energy a little as well
 as the time. Outside the 10 s clip either way (its beats 0–21 read 0.64–0.85). **The 130 pair is the current one**; the
 bed is the approved track 8 % faster rather than 17 %.
+⚠ **AND THEN BACK — owner, the same afternoon: *"ok go back to 120"*.** The style pair rides the pick unstretched at
+its measured **119.95** (`meas_d1.json`, re-measured in the 2026-09-09 run at exactly the recorded values); the bar
+reads 120 because that is the rounded measurement, and both stretched rows above are history. The 140 row's
+`d140.m4a` and the 130 row's `d130.m4a` stay recorded so the request can be re-made in one line if it comes back.
 
 ## 7 · On-screen copy (eight lines, no voice)
 
@@ -395,10 +406,13 @@ IN SYNC, once.
    (default). A flat-graphic globe — continents as a highlighter outline on the black page, marks popping — is one
    extra generation if you want the world back.
 7. **Whose numbers.** The Score, ledger and Terrain captures come from a real account (default: yours).
-8. **The tempo of the film.** The two style videos ride the pick stretched to **130** (your 2026-09-09 rulings —
-   140, then *"how about 130 bpms"*; §6). Default for the film: the same 130 stretch, so the bar in the film and the bar
-   in the videos say one number over one piece of music; the native 119.95 bed re-cuts §3 on its own grid and is the
-   alternative.
+8. **The tempo of the film — CLOSED.** Settled by the same day's rulings: 140, then *"how about 130 bpms"*, then
+   *"ok go back to 120"*. The film rides the pick at its native 119.95 (§6); the bar says 120 because that is what the
+   music measures.
+9. **Phones in the film.** The style video now has no phone and the runner wears the watch (your 2026-09-09 ruling).
+   The film's spine (§1, §2) goes IN through each person's phone glass and OUT through the next. Default: the runner's
+   own shot is phone-free with the watch, and the transitions still pass through phones; if phones are out of the film
+   altogether, the seam becomes the watch face and the ribbon, and §2 is re-cut.
 
 ## 11 · What changed from v1, and why
 
@@ -623,6 +637,9 @@ rising and falling and tilting, never floating**.
 | --- | --- | --- | --- | --- |
 | E3 | Edit of frame 8 · the mark small on the phone screen (TAKEN) | `02168b19-b951-43ff-aa92-4b3f484e6e6a` | `hf_20260908_222352_02168b19-b951-43ff-aa92-4b3f484e6e6a.png` · md5 `85c75d4fdbfd64e5729770c3aedd9b12` | *Same image, identical in every way, except that the phone's white screen now shows a small logo, centred on the screen and no wider than a third of the screen's width, with plenty of empty white screen around it: two solid triangles pointing at each other diagonally, one teal, hex 34D6C5, at the upper right of the logo and one black at the lower left, with a narrow white gap between them. The phone itself stays exactly the same size, in the same place, in her hand. Nothing else in the picture changes.\n\nresolution: 2k* |
 | 6 | Image-to-video of E3, the phone gripped (same params as 5) | `2ca2dd4c-a9b9-4d78-b52e-0c638ff12062` | `hf_20260908_222614_2ca2dd4c-a9b9-4d78-b52e-0c638ff12062.mp4` | *Animate this exact frame without changing its style: a flat 2D editorial newspaper animation. The page of cream newsprint, the masthead rule, the grey column blocks and the ticker strip stay perfectly still; the halftone dots stay locked to the page and do not shimmer. The runner sprints in place in full stride, knees driving high, arms pumping hard, ponytail streaming, her limbs streaking with motion. The phone is gripped tightly in her hand and moves with that hand through every arm swing, rising and falling and tilting with the arm as it pumps, never floating, never staying still on its own; its screen keeps showing the small two-triangle logo, teal and black, unchanged. The ribbon of teal light flows out of the phone and around her body in a continuous wave. Locked-off camera, no camera movement, no zoom. No new text, no other logos.* |
+| E4 | Edit of frame 8 · the phone removed, a fitness watch on the wrist, rounded-square teal face (TAKEN) — 2026-09-09 | `cbff7e80-12b6-47e6-9d63-b3cbef3a77ee` | `hf_20260909_174907_cbff7e80-12b6-47e6-9d63-b3cbef3a77ee.png` · md5 `00387339f7096cd15aa58f9916c8c5f4` · 3,806,506 B | *Same image, identical in every way, except two things. First, the white smartphone is gone: she is empty-handed, that hand drawn as a running hand in the same coarse halftone dots as the rest of her body, with the cream newsprint page showing where the phone was. Second, she wears a slim fitness watch on that wrist: a small rounded-square watch face with a thin black band, drawn crisp and unscreened, its face a plain flat teal, hex 34D6C5, the only sharp object on the page. The single ribbon of teal light now trails from the watch around her body instead of from a phone. Nothing else in the picture changes.\n\nresolution: 2k* |
+| E5 | Edit of frame 8 · the phone removed, a round-faced sports watch — 2026-09-09 | `d08f90f1-e7b7-4822-a6b5-c52f6f30885b` | `hf_20260909_174907_d08f90f1-e7b7-4822-a6b5-c52f6f30885b.png` · md5 `de54eec3cf5e235d769338b8aad6fe57` · 3,784,461 B | *Edit this image and change nothing except the runner's hand and wrist. Remove the white smartphone completely; where it was, draw her hand open and empty in the same coarse halftone dots as the rest of her body, with the cream page behind it. Put a fitness watch on that wrist: a small sports watch with a round face, plain and flat and glowing teal, hex 34D6C5, on a thin black strap, drawn crisp and sharp, the only unscreened object on the page. The single ribbon of teal light now streams out of the watch face and around her body. The cream newsprint page, the masthead rule, the column blocks, the ticker strip and the halftone runner stay exactly as they are.\n\nresolution: 2k* |
+| 7 | Image-to-video of E4 — 2026-09-09 (same params as 5: `minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…` · `medias` role `image` → `image_references cbff7e80…`). E4 and E5 were submitted as `nano_banana_pro` (9:16 · `resolution 2k` · `use_unlim false` · `image_references bcfea348…`) and the gallery records them served as `nano_banana_2` | `e7f33f15-d306-4e50-99e8-9a7612d7daca` | `hf_20260909_175056_e7f33f15-d306-4e50-99e8-9a7612d7daca.mp4` · md5 `32bee6015d5438b05941931dfc388870` · 12,888,949 B · 243 frames / 10.125 s | *Animate this exact frame without changing its style: a flat 2D editorial newspaper animation. The page of cream newsprint, the masthead rule, the grey column blocks and the ticker strip stay perfectly still; the halftone dots stay locked to the page and do not shimmer. The runner sprints in place in full stride, knees driving high, arms pumping, ponytail streaming, her limbs streaking with motion, her hands open and empty, and the ribbon of teal light flows out of the fitness watch on her wrist and around her body in a continuous wave. The watch stays on her wrist in every frame, its teal face visible as her arm swings. Locked-off camera, no camera movement, no zoom. No new text, no logos.* |
 
 **The pair from E3's clip, with the sync bar and the exact mark on the screen (`final5.py` = `final4.py` with the
 screen pass gated, below):** the gripped-phone clip is `hf_20260908_222614_2ca2dd4c-….mp4`, md5
@@ -848,6 +865,126 @@ echo RUN12-DONE >> f12.log
 
 ```json
 {"bpm": 130.0, "P": 0.461538, "phase": 0.063, "score": 0.2903, "halves": [130.05, 130.15], "first_kick_s": 0.063, "dur": 55.403, "kick_gaps_beats": [[57, 59], [61, 79], [112, 118]], "kick_by_beat": [0.841, 0.789, 0.797, 0.754, 0.769, 0.639, 0.755, 0.771, 0.741, 0.711, 0.738, 0.745, 0.768, 0.662, 0.845, 0.675, 0.747, 0.746, 0.739, 0.81, 0.789, 0.773, 0.777, 0.787, 0.655, 0.884, 0.858, 0.797, 0.814, 0.784, 0.833, 0.8, 0.87, 0.77, 0.859, 0.759, 0.969, 0.803, 0.89, 0.749, 0.854, 0.781, 0.866, 0.759, 0.78, 0.867, 0.873, 0.718, 0.363, 0.334, 0.411, 0.299, 0.41, 0.208, 0.445, 0.322, 0.546, 0.173, 0.281, 0.262, 0.458, 0.069, 0.109, 0.023, 0.114, 0.041, 0.018, 0.003, 0.001, 0.001, 0.0, 0.011, 0.004, 0.0, 0.0, 0.0, 0.0, 0.0, 0.003, 0.0, 0.559, 0.39, 0.472, 0.43, 0.592, 0.747, 0.761, 0.774, 0.947, 0.917, 0.837, 0.822, 0.79, 0.977, 0.823, 0.453, 0.76, 0.818, 0.897, 0.78, 1.0, 0.794, 0.981, 0.964, 0.747, 0.772, 0.958, 0.85, 0.894, 0.878, 0.976, 0.777, 0.006, 0.002, 0.0, 0.001, 0.0, 0.0, 0.0]}
+```
+
+⚠ **THEN THE RULING THAT CHANGES THE SOURCE, NOT THE PASS (2026-09-09): *"ok go back to 120 and lets remove the phone
+from the video all together. Can you have the person wear a fitness watch?"*** Three changes. The tempo is the one the
+pass was built on — `final10.py` unchanged (md5 `1e5e1cd17fa43694399004f814429562`) on `meas_d1.json` and `d1.m4a`,
+the native grid **re-measured this run at exactly the recorded values** (119.95 · P 0.500208 · φ 0.055 · halves
+120.0 / 120.0 · kick from 0.055 s · gaps 61–79 and 112–118; `meas_d1.json` md5 `66671eee4dae6b0283715147fecb144b`),
+so the bar reads **HRM 84 → 120 · BPM 120** and locks on beat 13 (6.5577 s). The other two are in the SOURCE: the
+approved frame 8 was edited twice (E4, E5 above — the phone removed, a fitness watch on the wrist, the ribbon flowing
+from the watch) and measured against frame 8 with `meas_edit.py` (below): frame 8's phone box, (1232, 748)–(1388, 956)
+at 1536×2752, held **19,000 px above luma 236 and holds 1,664 (E4) / 883 (E5)** — the phone is gone in both; E4 also
+carries a **compact 54×50 teal blob at (963, 1315)**, the wrist that held the phone, i.e. the watch face, where E5's
+compact blob sits at (1083, 330) on the far side of the figure. E4 taken. Its image-to-video (row 7) measured with
+`meas_clip13.py` (below): in every sampled frame the figure band holds **18–498 px above luma 250** where a lit phone
+screen held ~17,000 — no phone in any frame — and a compact teal blob sits at the wrist (cy 888–1116, cx 1056–1212) in
+**13 of 21** sampled frames; in the other 8 the teal at the wrist merges into the ribbon that flows from it, so the
+test cannot separate the two there. The pass finds this clip's column rules at 388–390 / 1067–1069 (the earlier
+clip's were 391–393 / 1063–1065; three pixels of page drift between two animations of one frame, found rather than
+assumed). The sandbox was reclaimed between staging the scripts and the clip's arrival, so `run13.sh` and every file it
+runs were written and launched in ONE background lease; their md5s as written: `beat.py`
+`ccd2568c4c6a866b917dbd177c7eb92e` · `final10.py` `1e5e1cd1…` · `meas_d1.py` `e7560987139aeb03854df3c8a9311aca`
+(`meas_d140.py` with `d140` → `d1`) · `meas_clip13.py` `c45200310c1fb6583f5b9ebbc126d57a` · `verify13.py`
+`5e328a6574c36d836364fac157634fe0` (`verify11.py` with `meas_d1.json` and the `_v13` names) · `run13.sh`
+`296cba7edba68a508b8cacfffa917eee`.
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**, `final10.py` on the watch clip, native grid | `8b1b842844ab1fac9ad8f875fe16e11f` | 17,898,392 | 243 frames / 10.126 s; top-left crop on a beat vs mid-beat: teal 2,518 / 2,364 (beat 4) · 2,516 / 2,365 (8) · 2,510 / 2,358 (16); white above channel-min 225 at every sample (2,450–3,241 px; the cream sits at 216); IN SYNC 6,689 teal px above the bar at 6.86 s and 340 (the teal dot) at 6.31 s; the rendered audio re-measures **120.0 BPM** (P 0.5, φ 0.058) over the clip's 20 beats |
+| **B — the highlighter**, the same | `572665ac17014395afca201030020eef` | 6,923,430 | 243 / 10.126 s; teal 4,485 / 4,314 · 4,484 / 4,317 · 4,336 / 4,163; white 3,236 / 3,078 · 3,234 / 3,078 · 3,229 / 3,077; IN SYNC 6,741 at 6.86 s and 334 at 6.31 s; audio 120.0 |
+
+Handed over as links; **this pair supersedes the 140 and 130 pairs and the phone clip's pairs.** ⚠ Not visually
+inspected by the agent. ⚠ The film's spine (§1, §2) goes IN through each person's phone glass; this ruling is about
+the style video, and whether phones leave the FILM too is §10 q9.
+
+**`run13.sh`**, verbatim (the clip URL is its one argument):
+
+```bash
+cd /home/user/dh; PFX=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
+[ -s d1.m4a ] || curl -sfL -o d1.m4a $PFX/hf_20260908_212940_35ca8b30-6459-46e7-8fa0-7b0196f6ac69.m4a
+[ -s logo.png ] || curl -sfL -o logo.png https://raw.githubusercontent.com/cperry8800-droid/shape-app/main/public/SHAPE-logo-teal-white.png
+[ -s tri.png ] || python3 -c "from PIL import Image;Image.open('logo.png').convert('RGBA').crop((1551,200,2169,990)).save('tri.png')"
+[ -s A_src13.mp4 ] || curl -sfL -o A_src13.mp4 "$1"
+md5sum A_src13.mp4 d1.m4a tri.png final10.py meas_d1.py verify13.py meas_clip13.py > f13.log
+ffprobe -v error -select_streams v -count_frames -show_entries stream=nb_read_frames,width,height:format=duration -of csv=p=0 A_src13.mp4 >> f13.log
+python3 meas_clip13.py A_src13.mp4 >> f13.log 2>&1
+python3 meas_d1.py >> f13.log 2>&1; md5sum meas_d1.json >> f13.log
+python3 final10.py A_src13.mp4 A_v13.mp4 B_v13.mp4 >> f13.log 2>&1
+md5sum A_v13.mp4 B_v13.mp4 >> f13.log; ls -l A_v13.mp4 B_v13.mp4 >> f13.log
+up(){ s=$(curl -s https://api.gofile.io/servers | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['servers'][0]['name'])"); g=$(curl -s -F "file=@$1" "https://$s.gofile.io/contents/uploadfile" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['downloadPage'])"); l=$(curl -s -F reqtype=fileupload -F time=72h -F "fileToUpload=@$1" https://litterbox.catbox.moe/resources/internals/api.php); echo "UPLOAD $1 gofile=$g litterbox=$l"; }
+up A_v13.mp4 >> f13.log 2>&1; up B_v13.mp4 >> f13.log 2>&1
+python3 verify13.py >> f13.log 2>&1
+echo RUN13-DONE >> f13.log
+```
+
+**`meas_clip13.py`** — the clip's phone-absence and watch-presence measurement:
+
+```python
+import sys,subprocess,collections,numpy as np
+from PIL import Image,ImageFilter
+SRC=sys.argv[1]; W,H=1440,2560
+rd=subprocess.Popen(['ffmpeg','-v','error','-i',SRC,'-vf',f'scale={W}:{H}','-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,bufsize=10**8)
+FR=W*H*3; n=0; rows=[]
+def blobs(mask):
+    ys,xs=np.nonzero(mask); pts=set(zip(ys.tolist(),xs.tolist())); out=[]
+    while pts:
+        s=pts.pop(); q=collections.deque([s]); b=[s]
+        while q:
+            y,x=q.popleft()
+            for dy,dx in ((1,0),(-1,0),(0,1),(0,-1)):
+                nb=(y+dy,x+dx)
+                if nb in pts: pts.remove(nb); q.append(nb); b.append(nb)
+        out.append(b)
+    return out
+while True:
+    b=rd.stdout.read(FR)
+    if len(b)<FR: break
+    if n%12==0:
+        f=np.frombuffer(b,np.uint8).reshape(H,W,3).astype(int); g=0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2]
+        white=int((g[250:H-340]>250).sum())
+        tm=((abs(f[...,0]-0x34)<60)&(abs(f[...,1]-0xd6)<60)&(abs(f[...,2]-0xc5)<60)); tm[H-340:]=False
+        small=Image.fromarray((tm*255).astype(np.uint8)).resize((W//4,H//4),Image.BOX); sm=np.asarray(small.filter(ImageFilter.MaxFilter(3)))>0
+        compact=[(len(bb)*16,int(np.mean([y for y,_ in bb]))*4,int(np.mean([x for _,x in bb]))*4) for bb in blobs(sm) if 5<=max(y for y,_ in bb)-min(y for y,_ in bb)<=35 and 5<=max(x for _,x in bb)-min(x for _,x in bb)<=35 and len(bb)>=20]
+        rows.append((n,white,int(tm.sum()),compact[:3]))
+    n+=1
+print('frames',n); print('(frame, white>250 px in the figure band, teal px, compact teal blobs [size,cy,cx]):')
+for r in rows: print(r)
+print('MEAS-CLIP13-DONE')
+```
+
+**`meas_edit.py`** (md5 `2a8ddd9db81caf3d85f7fba780eb2e3d`) — the two edits against frame 8 (`f8.png` = job `bcfea348…`, md5 `bfc10e6b8068dda31fb657bb0744b7b4`):
+
+```python
+import sys,subprocess,numpy as np
+from PIL import Image
+def lum(p):
+    a=np.asarray(Image.open(p).convert('RGB')).astype(int); return a,(0.299*a[...,0]+0.587*a[...,1]+0.114*a[...,2])
+def teal(a): return ((abs(a[...,0]-0x34)<60)&(abs(a[...,1]-0xd6)<60)&(abs(a[...,2]-0xc5)<60))
+f8,g8=lum('f8.png'); print('frame8',f8.shape)
+box=(slice(748,956),slice(1232,1388))
+for p in sys.argv[1:]:
+    a,g=lum(p); assert a.shape==f8.shape,(p,a.shape)
+    w_all=int((g>236).sum()); w8=int((g8>236).sum()); w_box=int((g[box]>236).sum()); w8_box=int((g8[box]>236).sum())
+    d=np.abs(g-g8); H,W=g.shape; cells=[[int(d[i*H//6:(i+1)*H//6,j*W//4:(j+1)*W//4].mean()) for j in range(4)] for i in range(6)]
+    print(p,'white>236 whole',w8,'->',w_all,'| phone box',w8_box,'->',w_box,'| teal px',int(teal(f8).sum()),'->',int(teal(a).sum()),'| top-band median',int(np.median(g8[:200])),'->',int(np.median(g[:200])),'| mean|diff| by 6x4 cell',cells)
+    # teal clusters: connected teal blobs, largest few with centroid (a watch face should be a compact blob)
+    from PIL import ImageFilter
+    t=Image.fromarray((teal(a)*255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5)); ta=np.asarray(t)>0
+    lab=np.zeros(ta.shape,int); n=0; import collections
+    ys,xs=np.nonzero(ta); pts=set(zip(ys.tolist(),xs.tolist())); blobs=[]
+    while pts:
+        s=pts.pop(); q=collections.deque([s]); b=[s]
+        while q:
+            y,x=q.popleft()
+            for dy,dx in ((1,0),(-1,0),(0,1),(0,-1)):
+                nb=(y+dy,x+dx)
+                if nb in pts: pts.remove(nb); q.append(nb); b.append(nb)
+        blobs.append(b)
+    blobs.sort(key=len,reverse=True)
+    print(p,'teal blobs (size, cy, cx, h, w):',[(len(b),int(np.mean([y for y,_ in b])),int(np.mean([x for _,x in b])),max(y for y,_ in b)-min(y for y,_ in b),max(x for _,x in b)-min(x for _,x in b)) for b in blobs[:5]])
+print('MEAS-EDIT-DONE')
 ```
 
 **`final9.py` — the finishing pass as shipped for the previous pair, verbatim** (md5 `077ec1cc7c68fb3ebc73d8a5f7b1f7df`; `final10.py` differs by the one line stated above). It is the top-left mark on
