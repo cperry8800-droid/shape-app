@@ -332,6 +332,12 @@ function CKLiveStation({ clientId, accent }) {
   );
 }
 
+// An honest empty for a station whose source is absent — the redaction the
+// roster drawer and the mobile Case File already use. Never a demo number.
+function CKEmpty({ children }) {
+  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.04em", color: "rgba(242,237,228,0.5)", fontStyle: "italic", lineHeight: 1.6, padding: "6px 0" }}>{children}</div>;
+}
+
 function CoachClientDetailPage() {
   const params = new URLSearchParams(window.location.search);
   const clientId = params.get("id");
@@ -466,16 +472,23 @@ function CoachClientDetailPage() {
   const upcoming = data.sessions.filter(s => new Date(s.at).getTime() >= Date.now() && s.status !== "completed");
   const past = data.sessions.filter(s => new Date(s.at).getTime() < Date.now() || s.status === "completed").slice(-12).reverse();
 
-  // ── live rollups (with per-field demo fallback) ──
+  // ── live rollups — HONEST EMPTIES, never a per-field demo fallback ──
+  // A field the client has not shared, or not logged yet, renders as a
+  // redaction (CKEmpty / "—"), the way the roster drawer and the mobile Case
+  // File already do. The fallbacks that lived here painted a plausible athlete
+  // under a real client's name — "Back Squat 82.5 kg", a 96% attendance, a
+  // 79.2 kg trend, 170 g of protein against a target nobody set (review
+  // 2026-09-09, R7). A coach reading a new client's file must see what is
+  // missing, not a stand-in.
   const S = data.stats || {}, L = data.lifts || {};
   const G = data.goals || {};
   const ov = (G && G.share !== false && G.overall) ? G.overall : null;
   const liveW = ov && Array.isArray(ov.weighIns) ? ov.weighIns.map(x => Number(x.kg)).filter(x => !isNaN(x)) : [];
-  const bwSeries = liveW.length >= 2 ? liveW : (isNutri ? [80.4, 80.1, 79.9, 79.7, 79.6, 79.4, 79.3, 79.2] : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]);
+  const bwSeries = liveW.length >= 2 ? liveW : null;
   const bwUnit = (ov && ov.unit) || "kg";
-  const bwNow = bwSeries[bwSeries.length - 1];
-  const bwDelta = +(bwNow - bwSeries[0]).toFixed(1);
-  const bwWeeks = bwSeries.length;
+  const bwNow = bwSeries ? bwSeries[bwSeries.length - 1] : null;
+  const bwDelta = bwSeries ? +(bwNow - bwSeries[0]).toFixed(1) : null;
+  const bwWeeks = bwSeries ? bwSeries.length : 0;
 
   const sDone = ckNum(S.sessionsCompleted), sPlan = ckNum(S.sessionsPlanned);
   const attendancePct = (sPlan && sPlan > 0) ? Math.round((sDone / sPlan) * 100) : null;
@@ -488,28 +501,27 @@ function CoachClientDetailPage() {
     const best = L.keyLifts.map(x => ckNum(x.best)).filter(v => v != null);
     const mx = best.length ? Math.max(...best) : 1;
     return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta), e1 = ckNum(x.e1rm); const v = b != null ? (e1 != null ? `${b} kg · ${Math.round(e1)} e1RM` : `${b} kg`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
-  })() : [
-    { n: "Back Squat", v: "82.5 kg", d: "+7.5", p: 0.92 },
-    { n: "Bench Press", v: "52.5 kg", d: "+5.0", p: 0.55 },
-    { n: "Deadlift", v: "110 kg", d: "+10", p: 1.0 },
-    { n: "Overhead Press", v: "35 kg", d: "+2.5", p: 0.38 },
-  ];
+  })() : [];
+  // Targets are not in the overview yet — the drawer says "no target set" for
+  // the same reason — so the row shows the average the client actually logged
+  // and names the missing target instead of inventing one.
   const macros = [
-    { n: "Protein", cur: avgP != null ? avgP : 165, tgt: 170, c: teal },
-    { n: "Carbs", cur: avgC != null ? avgC : 190, tgt: 200, c: gold },
-    { n: "Fat", cur: avgF != null ? avgF : 60, tgt: 62, c: rust },
+    { n: "Protein", cur: avgP, tgt: null, c: teal },
+    { n: "Carbs", cur: avgC, tgt: null, c: gold },
+    { n: "Fat", cur: avgF, tgt: null, c: rust },
   ];
 
+  const dash = "—";
   const statGrid = isNutri ? [
-    { label: "ADHERENCE", value: adherencePct != null ? adherencePct : 92, small: "%", sub: "this week", color: gold },
-    { label: "AVG INTAKE", value: kcalStr || "2,040", sub: "kcal / day", color: gold },
-    { label: "WEIGHT Δ", value: bwDelta, small: bwUnit, sub: "vs start", color: rust },
-    { label: "LOGGED", value: days7 != null ? days7 : 6, small: "/7", sub: "this week", color: gold },
+    { label: "ADHERENCE", value: adherencePct != null ? adherencePct : dash, small: adherencePct != null ? "%" : null, sub: adherencePct != null ? "this week" : "no logs shared yet", color: gold },
+    { label: "AVG INTAKE", value: kcalStr || dash, sub: kcalStr ? "kcal / day" : "no logs shared yet", color: gold },
+    { label: "WEIGHT Δ", value: bwDelta != null ? bwDelta : dash, small: bwDelta != null ? bwUnit : null, sub: bwDelta != null ? "vs start" : "no weigh-ins shared", color: rust },
+    { label: "LOGGED", value: days7 != null ? days7 : dash, small: days7 != null ? "/7" : null, sub: days7 != null ? "this week" : "no logs shared yet", color: gold },
   ] : [
-    { label: "ATTENDANCE", value: attendancePct != null ? attendancePct : 96, small: "%", sub: "this block", color: teal },
-    { label: "SESSIONS", value: sDone != null ? sDone : 38, sub: `of ${sPlan != null ? sPlan : 41} planned`, color: teal },
-    { label: "AVG RPE", value: avgRpe != null ? avgRpe.toFixed(1) : "8.0", sub: "effort logged", color: rust },
-    { label: "PRS", value: prs != null ? prs : 3, sub: "this block", color: gold },
+    { label: "ATTENDANCE", value: attendancePct != null ? attendancePct : dash, small: attendancePct != null ? "%" : null, sub: attendancePct != null ? "this block" : "no sessions planned yet", color: teal },
+    { label: "SESSIONS", value: sDone != null ? sDone : dash, sub: sPlan != null ? `of ${sPlan} planned` : "none planned yet", color: teal },
+    { label: "AVG RPE", value: avgRpe != null ? avgRpe.toFixed(1) : dash, sub: avgRpe != null ? "effort logged" : "no RPE logged yet", color: rust },
+    { label: "PRS", value: prs != null ? prs : dash, sub: prs != null ? "this block" : "none logged yet", color: gold },
   ];
 
   return (
@@ -545,7 +557,7 @@ function CoachClientDetailPage() {
           {!isNutri && (
             <Card style={{ marginBottom: 16 }}>
               <CKSecHead>KEY LIFTS</CKSecHead>
-              {liftRows.map((l, i) => (
+              {liftRows.length ? liftRows.map((l, i) => (
                 <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.n}</span>
@@ -553,7 +565,7 @@ function CoachClientDetailPage() {
                   </div>
                   <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, l.p) * 100}%`, background: accent }} /></div>
                 </div>
-              ))}
+              )) : <CKEmpty>No logged lifts yet — key lifts fill in from the sets they log.</CKEmpty>}
             </Card>
           )}
 
@@ -564,9 +576,9 @@ function CoachClientDetailPage() {
                 <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.n}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur} g <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.c }}>▲ {m.tgt} g</span></span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "rgba(242,237,228,0.45)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
                   </div>
-                  <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div>
+                  {m.cur != null && m.tgt ? <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div> : null}
                 </div>
               ))}
             </Card>
@@ -575,9 +587,9 @@ function CoachClientDetailPage() {
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
               <CKSecHead>{isNutri ? "BODY · WEIGHT TREND" : "BODY · BODYWEIGHT"}</CKSecHead>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>{bwNow} {bwUnit} · {bwDelta >= 0 ? "+" : ""}{bwDelta} over {bwWeeks}</span>
+              {bwSeries && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>{bwNow} {bwUnit} · {bwDelta >= 0 ? "+" : ""}{bwDelta} over {bwWeeks}</span>}
             </div>
-            <CKTrend vals={bwSeries} color={accent} />
+            {bwSeries ? <CKTrend vals={bwSeries} color={accent} /> : <CKEmpty>No shared weigh-ins yet — two weigh-ins draw the trend.</CKEmpty>}
           </Card>
 
           {counterparts.length > 0 && (
