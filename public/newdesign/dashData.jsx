@@ -161,7 +161,7 @@ function _dashRecordFromLive(row, ov, notesByClient) {
       : notesRead ? [] : notesPending ? undefined : null,
     recentLogs: logs ? logs.recent : logsKnown ? [] : null,
     milestones: null,
-    payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null },
+    payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null },
   };
 }
 
@@ -303,8 +303,74 @@ function useDashboard(role) {
   return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source };
 }
 
+// ── The coach's own live figures (review 2026-09-09, R9) ────────────────────
+// The Goal page's numbers were ALL typed: `cur` on every goal, the calculator's
+// "current pace", and every row of the momentum card. A coach who set them in
+// March was still being shown March in September, under headings that read as
+// measurements. This binds the ones the practice can answer for itself.
+//
+// Shares `_dashJson`'s 60s cache, so a page that already read /analytics for a
+// chart pays nothing here.
+//
+// `kind` is the honest three-way: "live" when the payload came back for this
+// role, "demo" when the viewer is signed out or is not this role (the page's
+// own sample state), and "unknown" when the read FAILED — which must not be
+// rendered as a zero, because "you have no clients" and "we could not ask" are
+// different sentences.
+function useCoachLiveFigures(role) {
+  const [state, setState] = React.useState({ kind: "loading" });
+  React.useEffect(() => {
+    let on = true;
+    const roleKey = role === "trainer" ? "isTrainer" : "isNutritionist";
+    (async () => {
+      let a = null;
+      try { a = await _dashJson("/api/" + role + "/analytics"); }
+      catch (e) { if (on) setState({ kind: "unknown" }); return; }
+      if (!on) return;
+      if (!a || !a[roleKey]) return setState({ kind: "demo" });
+      const m = a.metrics || {};
+      const net = m.mrrNetCents;
+      setState({
+        kind: "live",
+        activeClients: m.activeClients != null ? m.activeClients : null,
+        mrrNetCents: net != null ? net : null,
+        // 4.33 weeks/month — the same divisor the Goal page's own calculator
+        // uses, so the pace it compares against is on its scale.
+        weeklyNetCents: net != null ? Math.round(net / 4.33) : null,
+        avgAdherencePct: (a.clientProgress && a.clientProgress.avgAdherencePct != null) ? a.clientProgress.avgAdherencePct : null,
+        trajectory: a.trajectory || null,
+      });
+    })();
+    return () => { on = false; };
+  }, [role]);
+  return state;
+}
+
+// The momentum card's four rows, computed from the trajectory R8 already
+// ships. Returns null when there is nothing measured to say — an empty card is
+// better than four rows of zeroes that read as a flat quarter.
+function coachLiveMomentum(live) {
+  if (!live || live.kind !== "live" || !live.trajectory || !live.trajectory.summary) return null;
+  const s = live.trajectory.summary;
+  const rows = [];
+  const net = (s.addsThisMonth || 0) - (s.endedThisMonth || 0);
+  if (s.addsThisMonth != null && s.endedThisMonth != null) {
+    rows.push([(net >= 0 ? "+" : "") + net, "Net new clients", s.addsThisMonth + " joined · " + s.endedThisMonth + " left"]);
+  }
+  if (s.activeNow != null && s.active30dAgo != null) {
+    const d = s.activeNow - s.active30dAgo;
+    rows.push([String(s.activeNow), "Active clients", (d >= 0 ? "+" : "") + d + " vs 30d ago"]);
+  }
+  if (s.churnRate30dPct != null) rows.push([s.churnRate30dPct + "%", "Churn · 30d", "of " + s.active30dAgo + " active a month ago"]);
+  if (s.medianTenureDays != null) {
+    const t = s.medianTenureDays;
+    rows.push([t < 62 ? t + "d" : Math.round(t / 30.44) + "mo", "Median tenure", "across " + s.totalEverSubscribed + " ever subscribed"]);
+  }
+  return rows.length ? rows : null;
+}
+
 // `dashJson` is exposed so other modules on the page share this 60s cache
 // rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
 // wants the same /api/{role}/dashboard payload the page hook already asks for;
 // without the shared cache that is a second round trip on every dashboard load.
-Object.assign(window, { useDashboard, dashJson: _dashJson });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum });

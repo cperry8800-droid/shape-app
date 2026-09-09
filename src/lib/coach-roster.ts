@@ -104,6 +104,10 @@ export async function coachClientsResponse(
         name: e.name,
         sessions: e.sessions,
         mrrCents: e.mrrCents,
+        // The earliest subscription start — already computed above for `isNew`
+        // and then thrown away, so the roster could never show how long anyone
+        // had been a client (review 2026-09-09, R10).
+        joinedAt: e.joinedAt ? new Date(e.joinedAt).toISOString() : null,
         lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null,
         isNew,
         status,

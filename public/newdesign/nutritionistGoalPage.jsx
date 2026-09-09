@@ -51,6 +51,29 @@ function Field({ label, value, onChange, type }) {
   );
 }
 
+// ── Live metric bindings for a goal (review 2026-09-09, R9) ────────────────
+// A goal's CURRENT was always a number the coach typed, so "34 of 50 active
+// clients" stayed 34 while the roster moved. Binding it names a figure the
+// practice can answer for itself, and the card then reads a measurement.
+//
+// ⚠ A BOUND GOAL WHOSE FIGURE CANNOT BE READ SHOWS "—", NOT THE STORED NUMBER.
+// Falling back to the last typed value is exactly how a stale figure gets
+// presented as current — the thing this binding exists to stop.
+const GOAL_METRICS = [
+  ["", "Type it in"],
+  ["activeClients", "Active clients"],
+  ["mrrNetMonthly", "MRR · net per month"],
+  ["avgAdherencePct", "Avg client adherence %"],
+];
+function goalLiveValue(metric, live) {
+  if (!metric || !live) return undefined;
+  if (live.kind !== "live") return null;          // can't read → "—"
+  if (metric === "activeClients") return live.activeClients;
+  if (metric === "mrrNetMonthly") return live.mrrNetCents == null ? null : Math.round(live.mrrNetCents / 100);
+  if (metric === "avgAdherencePct") return live.avgAdherencePct;
+  return null;
+}
+
 function GoalEditModal({ goal, onClose, onSave, onDelete }) {
   const [g, setG] = React.useState(goal || { t: "", cur: 0, tgt: 100, sub: "", money: false, pct: false });
   return (
@@ -68,6 +91,13 @@ function GoalEditModal({ goal, onClose, onSave, onDelete }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Field label="CURRENT" type="number" value={g.cur} onChange={v => setG({ ...g, cur: v })} />
         <Field label="TARGET" type="number" value={g.tgt} onChange={v => setG({ ...g, tgt: v })} />
+      </div>
+      <div style={{ marginTop: 2 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>CURRENT READS FROM</div>
+        <select value={g.metric || ""} onChange={e => setG({ ...g, metric: e.target.value || undefined })}
+          style={{ width: "100%", background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "9px 11px", fontFamily: sans, fontSize: 13 }}>
+          {GOAL_METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612" }}>{label}</option>)}
+        </select>
       </div>
       <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
       <div style={{ display: "flex", gap: 18, marginTop: 4, color: INK, fontSize: 13 }}>
@@ -135,7 +165,11 @@ function NutritionistGoalPage() {
   const [toast, setToast] = React.useState(null);
   const [editGoalId, setEditGoalId] = React.useState(null); // goal id | 'new' | null
   const [editCalc, setEditCalc] = React.useState(false);
+  // Holds the ROWS to edit (or false) — the modal is seeded with whatever the
+  // card is showing, so opening it on a computed card adopts those figures as
+  // the coach's own starting point rather than a blank grid.
   const [editMomentum, setEditMomentum] = React.useState(false);
+  const live = useCoachLiveFigures("nutritionist");
 
   React.useEffect(() => {
     (async () => {
@@ -189,21 +223,42 @@ function NutritionistGoalPage() {
   const weekly = monthly / 4.33;
   const quarterly = monthly * 3;
   const annual = monthly * 12;
-  const fmt = n => "$" + Math.round(n).toLocaleString();
-  const currentNet = currentWeekly * (1 - PLATFORM_FEE_RATE);
+  // ⚠ The sign goes OUTSIDE the currency symbol. This read `"$" + n` and every
+  // caller happened to pass a positive, so a shortfall rendered "$-6,007" — and
+  // binding the pace to real subscriptions is exactly what starts producing
+  // negatives (a coach whose calculator is still zeroed is now BELOW their
+  // actual pace rather than level with a typed 0).
+  const fmt = n => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString();
+  // ⚠ THE PACE THE CALCULATOR COMPARES AGAINST WAS A NUMBER THE COACH TYPED.
+  // "vs $4,620 current pace" was `calc.currentWeekly`, entered once and never
+  // revisited — so the whole comparison drifted quietly out of date. When the
+  // coach has not set one and the practice can answer, use the real weekly net
+  // from their subscriptions and SAY which it is; a typed figure still wins,
+  // because a coach who set one is asserting something the subscriptions do
+  // not know (cash work, a rate change landing next month).
+  const liveWeeklyNet = live && live.kind === "live" && live.weeklyNetCents != null ? live.weeklyNetCents / 100 : null;
+  const paceIsLive = !Number(currentWeekly) && liveWeeklyNet != null;
+  const currentNet = paceIsLive ? liveWeeklyNet : currentWeekly * (1 - PLATFORM_FEE_RATE);
   const paceDelta = weekly - currentNet;
 
   // Each card below becomes a draggable/resizable DashGrid widget (role=nutritionist, tab=goal),
   // mirroring the Score refactor. The DashPage hero (title/actions) stays as the page header;
   // only the card stack is gridded. Each goal is a half-width widget; calc + momentum are full.
   const widgets = goals.map((g) => ({ key: "goal-" + g.id, title: g.t || "Goal", size: "half", render: () => {
-    const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
-    const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
+    // A bound goal reads its CURRENT from the practice; undefined means the
+    // goal is not bound (use the typed number), null means it IS bound and the
+    // figure could not be read — which shows "—", never the stale typed one.
+    const bound = goalLiveValue(g.metric, live);
+    const liveCur = bound === undefined ? Number(g.cur) || 0 : bound;
+    const unreadable = bound === null;
+    const pct = unreadable ? 0 : Math.min((Number(liveCur)||0) / (Number(g.tgt)||1), 1);
+    const curF = unreadable ? "—" : g.money ? `$${Number(liveCur).toLocaleString()}` : g.pct ? `${liveCur}%` : liveCur;
     const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
+    const metricLabel = (GOAL_METRICS.find(([v]) => v === g.metric) || [])[1];
     return (
       <Card style={{ padding: 26, position: "relative" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {unreadable ? "—" : Math.round(pct*100) + "%"}</div>
           <Chip onClick={() => setEditGoalId(g.id)}>EDIT</Chip>
         </div>
         <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
@@ -214,6 +269,11 @@ function NutritionistGoalPage() {
           <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
         </div>
         <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
+        {g.metric && (
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginTop: 10 }}>
+            {unreadable ? "Couldn't read " + (metricLabel || "this figure").toLowerCase() : "Live · " + (metricLabel || g.metric)}
+          </div>
+        )}
       </Card>
     );
   } })).concat([
@@ -250,7 +310,7 @@ function NutritionistGoalPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
             {[
-              ["WEEKLY TAKE-HOME", fmt(weekly), `vs ${fmt(currentNet)} current pace · ${fmt(grossWeekly)} gross`, paceDelta],
+              ["WEEKLY TAKE-HOME", fmt(weekly), `vs ${fmt(currentNet)} ${paceIsLive ? "from your subscriptions" : "current pace"} · ${fmt(grossWeekly)} gross`, paceDelta],
               ["MONTHLY TAKE-HOME", fmt(monthly), `${fmt(grossWeekly * 4.33)} gross · 4.33 weeks avg`, null],
               ["QUARTERLY TAKE-HOME", fmt(quarterly), `${fmt(grossWeekly * 4.33 * 3)} gross · 3 months`, null],
               ["ANNUAL TAKE-HOME", fmt(annual), `${fmt(grossWeekly * 4.33 * 12)} gross · 12 months`, null],
@@ -270,14 +330,23 @@ function NutritionistGoalPage() {
         </div>
       </Card>
     ) },
-    { key: "momentum", title: "Momentum", size: "full", render: () => (
+    { key: "momentum", title: "Momentum", size: "full", render: () => {
+      // ⚠ COMPUTED ONLY WHERE THERE IS NOTHING TO OVERWRITE. A signed-in coach
+      // with no saved goals gets `momentum: []` — an empty card — and that is
+      // exactly the gap the trajectory can fill. A coach who HAS typed rows
+      // keeps them: silently replacing someone's own reading of their quarter
+      // with a computed one is not a fix, it is data loss with a nicer label.
+      const computed = momentum.length ? null : coachLiveMomentum(live);
+      const rows = computed || momentum;
+      const isComputed = !!computed;
+      return (
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
-          <Chip onClick={() => setEditMomentum(true)}>EDIT</Chip>
+          <SectionTitle right={isComputed ? "MEASURED · 30D" : "THIS QUARTER"}>Momentum</SectionTitle>
+          <Chip onClick={() => setEditMomentum(rows)}>EDIT</Chip>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>
-          {momentum.map((m,i)=>(
+          {rows.map((m,i)=>(
             <div key={i}>
               <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
               <div style={{ fontSize: 12.5, marginTop: 8 }}>{m[1]}</div>
@@ -285,8 +354,14 @@ function NutritionistGoalPage() {
             </div>
           ))}
         </div>
+        {isComputed && (
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
+            From your own subscriptions · edit to write your own
+          </div>
+        )}
       </Card>
-    ) },
+      );
+    } },
   ]);
 
   return (
@@ -321,7 +396,9 @@ function NutritionistGoalPage() {
       )}
       {editMomentum && (
         <MomentumEditModal
-          momentum={momentum}
+          // Seeded with what the CARD is showing: on a computed card that means
+          // the coach starts from the measured figures rather than a blank grid.
+          momentum={Array.isArray(editMomentum) ? editMomentum : momentum}
           onClose={() => setEditMomentum(false)}
           onSave={m => { setEditMomentum(false); persist({ ...state, momentum: m }); }}
         />
