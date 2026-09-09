@@ -11,6 +11,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { loadStripe } from '@/lib/stripe';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed } from '@/lib/origin-attribution';
+import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -251,6 +252,34 @@ export async function GET() {
 
   const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : 0;
 
+  // The practice trajectory (review 2026-09-09, R8): every subscription this
+  // trainer has ever had, any status, plus paid one-time purchases — bucketed by
+  // ISO week into active / added / ended / MRR / one-time. Read with the same
+  // provider-scoped policies as the rows above; a failed read renders the
+  // plate's honest empty, never a demo series.
+  const [{ data: allSubRows }, { data: purchaseRows }] = await Promise.all([
+    supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('provider_role', 'trainer')
+      .eq('provider_id', providerId)
+      .order('created_at', { ascending: true })
+      .limit(2000),
+    supabase
+      .from('one_time_purchases')
+      .select('*')
+      .eq('provider_role', 'trainer')
+      .eq('provider_id', providerId)
+      .eq('status', 'paid')
+      .order('created_at', { ascending: true })
+      .limit(2000),
+  ]);
+  const trajectory = buildTrajectory({
+    subs: allSubRows ?? [],
+    purchases: purchaseRows ?? [],
+    cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
+  });
+
   const stripeSummary = await loadStripe(
     trainerRow.stripe_account_id ?? null,
     trainerRow.stripe_account_status ?? null
@@ -261,6 +290,7 @@ export async function GET() {
     providerId,
     churn,
     byOrigin,
+    trajectory,
     metrics: {
       mrrGrossCents: grossCents,
       mrrNetCents: netCents,

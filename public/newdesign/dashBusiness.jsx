@@ -384,6 +384,267 @@ function DbzOutcomesZone({ role, cp }) {
   );
 }
 
+// ── Practice trajectory — "are my clients increasing or decreasing?" ─────────
+// (review 2026-09-09, R8). The series comes from /api/{role}/analytics
+// `trajectory`: weekly ISO buckets of active · added · ended · MRR · one-time,
+// built in src/lib/coach-trajectory.mjs from every subscription the coach has
+// ever had plus paid one-time purchases. Three small multiples on one time
+// axis each (never a dual axis), a crosshair + one tooltip for every series,
+// a table twin, and a range row above the charts. Mark colours are the
+// validated dark-surface pair(s): teal #12a899 with rust #e0644b (adds vs
+// ended) and teal with amber #b8892f (MRR + one-time) — the brand's brighter
+// #2ee0c4 stays on chrome, where it belongs. Demo series ONLY under the band.
+const DBZ_T_TEAL = "#12a899";   // active · added · MRR
+const DBZ_T_RUST = "#e0644b";   // ended
+const DBZ_T_AMBER = "#b8892f";  // one-time purchases
+const DBZ_T_SURFACE = "#1a1612";
+const DBZ_T_GRID = "rgba(242,237,228,0.10)";
+const DBZ_T_INK = "#f2ede4";
+
+// A deterministic demo walk: 78 weeks, 6 → ~34 active, so the preview shows
+// what a growing practice looks like. Demo band only.
+const DBZ_DEMO_TRAJECTORY = (() => {
+  let seed = 7;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  const weeks = [];
+  let active = 6;
+  const monday = new Date(); monday.setUTCHours(0, 0, 0, 0); monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  for (let i = 77; i >= 0; i--) {
+    const added = rnd() < 0.42 ? 1 + (rnd() < 0.25 ? 1 : 0) : 0;
+    const ended = rnd() < 0.2 && active > 4 ? 1 : 0;
+    active = Math.max(0, active + added - ended);
+    const gross = active * 18500 + (active % 3) * 1500;
+    weeks.push({
+      weekOf: new Date(monday.getTime() - i * 7 * 86400000).toISOString().slice(0, 10),
+      active, added, ended,
+      mrrGrossCents: gross, mrrNetCents: Math.round(gross * 0.88),
+      oneTimeCents: rnd() < 0.3 ? 9000 * (1 + Math.floor(rnd() * 2)) : 0, oneTimeNetCents: 0,
+    });
+  }
+  weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * 0.85); });
+  const last = weeks[weeks.length - 1];
+  return {
+    weeks,
+    firstSubAt: new Date(monday.getTime() - 77 * 7 * 86400000).toISOString(),
+    summary: { activeNow: last.active, active30dAgo: weeks[weeks.length - 5].active, addsThisMonth: 3, endedThisMonth: 1, churnRate30dPct: 4, medianTenureDays: 212, oneTime30dCents: 27000, totalEverSubscribed: 51 },
+  };
+})();
+
+const DBZ_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function dbzWeekLabel(weekOf) { const d = new Date(weekOf + "T00:00:00Z"); return DBZ_MONTHS[d.getUTCMonth()] + " " + d.getUTCDate(); }
+function dbzMonthLabel(key) { const [y, m] = key.split("-"); return DBZ_MONTHS[Number(m) - 1] + " " + y.slice(2); }
+// Roll weekly buckets into calendar months: active and MRR are the month's last
+// week (a level), added / ended / one-time are sums (flows).
+function dbzRollMonths(weeks) {
+  const out = []; const byKey = new Map();
+  for (const w of weeks) {
+    const key = w.weekOf.slice(0, 7);
+    let m = byKey.get(key);
+    if (!m) { m = { key, label: dbzMonthLabel(key), active: 0, added: 0, ended: 0, mrrNetCents: 0, mrrGrossCents: 0, oneTimeCents: 0 }; byKey.set(key, m); out.push(m); }
+    m.active = w.active; m.mrrNetCents = w.mrrNetCents; m.mrrGrossCents = w.mrrGrossCents;
+    m.added += w.added; m.ended += w.ended; m.oneTimeCents += w.oneTimeCents;
+  }
+  return out;
+}
+function dbzBuckets(traj, range) {
+  const weeks = traj && Array.isArray(traj.weeks) ? traj.weeks : [];
+  if (!weeks.length) return [];
+  if (range === "90d") return weeks.slice(-13).map((w) => ({ ...w, key: w.weekOf, label: dbzWeekLabel(w.weekOf) }));
+  const src = range === "12mo" ? weeks.slice(-53) : weeks;
+  // A practice younger than a quarter reads better week by week even on "all".
+  if (range === "all" && traj.firstSubAt) {
+    const firstIdx = weeks.findIndex((w) => w.weekOf >= String(traj.firstSubAt).slice(0, 10));
+    const since = firstIdx >= 0 ? weeks.slice(Math.max(0, firstIdx - 1)) : weeks;
+    if (since.length <= 16) return since.map((w) => ({ ...w, key: w.weekOf, label: dbzWeekLabel(w.weekOf) }));
+    return dbzRollMonths(since);
+  }
+  return dbzRollMonths(src);
+}
+// Clean axis ticks: 0 · mid · max on a rounded ceiling. Counts never get a
+// fractional mid tick (a "0 · 1 · 1" axis is what rounding 0.5 produces).
+function dbzTicks(max, integer) {
+  if (!(max > 0)) return [0, 1];
+  const pow = Math.pow(10, Math.floor(Math.log10(max)));
+  const nice = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((v) => v >= max) || max;
+  const mid = nice / 2;
+  if (integer && mid !== Math.floor(mid)) return [0, nice];
+  return [0, mid, nice];
+}
+// A column with a 4px rounded data-end and a square baseline; a zero draws nothing.
+function dbzBarPath(x, w, yTop, yBase) {
+  if (yBase - yTop <= 0.5) return "";
+  const r = Math.min(4, w / 2, Math.max(0, yBase - yTop));
+  return `M${x},${yBase} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + w - r} Q${x + w},${yTop} ${x + w},${yTop + r} V${yBase} Z`;
+}
+
+// One small multiple. kind: "line" (value → area + line + endpoint) or "bars"
+// (series: [{ key, color }] side by side per bucket), optionally with a line
+// on the same axis (MRR over one-time). All series share ONE scale.
+function DbzChart({ buckets, series, line, unit, hover, onHover, fmt }) {
+  const W = 760, H = 150, padL = 44, padR = 16, padT = 12, padB = 24;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const n = buckets.length;
+  const vals = [];
+  for (const b of buckets) { for (const s of series || []) vals.push(b[s.key] || 0); if (line) vals.push(b[line.key] || 0); }
+  const ticks = dbzTicks(Math.max(...vals, 0), unit !== "$");
+  const top = ticks[ticks.length - 1] || 1;
+  const y = (v) => padT + plotH - (Math.max(0, v) / top) * plotH;
+  const xc = (i) => padL + (n <= 1 ? plotW / 2 : (i + 0.5) * (plotW / n));
+  const band = n ? plotW / n : plotW;
+  const ref = React.useRef(null);
+  const move = (e) => {
+    if (!ref.current || !n) return;
+    const r = ref.current.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * W;
+    const i = Math.max(0, Math.min(n - 1, Math.floor((px - padL) / band)));
+    onHover(i);
+  };
+  const labelEvery = n > 16 ? Math.ceil(n / 8) : n > 8 ? 2 : 1;
+  const fmtTick = (v) => unit === "$" ? "$" + Math.round(v / 100).toLocaleString() : String(Math.round(v));
+  return (
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", height: "auto", overflow: "visible" }} onMouseMove={move} onMouseLeave={() => onHover(null)} role="img" aria-hidden="true">
+      {ticks.map((t, i) => (
+        <g key={i}>
+          <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={DBZ_T_GRID} strokeWidth="1" />
+          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="rgba(242,237,228,0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{fmtTick(t)}</text>
+        </g>
+      ))}
+      {buckets.map((b, i) => (i % labelEvery === 0 || i === n - 1) ? (
+        <text key={b.key} x={xc(i)} y={H - 8} textAnchor="middle" fill="rgba(242,237,228,0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{b.label}</text>
+      ) : null)}
+      {(series || []).length > 0 && buckets.map((b, i) => {
+        const k = series.length, gap = 2, bw = Math.min(24, Math.max(3, (band * 0.62 - gap * (k - 1)) / k));
+        const x0 = xc(i) - (bw * k + gap * (k - 1)) / 2;
+        return series.map((s, j) => {
+          const d = dbzBarPath(x0 + j * (bw + gap), bw, y(b[s.key] || 0), y(0));
+          return d ? <path key={b.key + s.key} d={d} fill={s.color} opacity={hover == null || hover === i ? 1 : 0.55} /> : null;
+        });
+      })}
+      {line && n > 0 && (() => {
+        const pts = buckets.map((b, i) => [xc(i), y(b[line.key] || 0)]);
+        const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+        const area = d + ` L${pts[n - 1][0].toFixed(1)},${y(0)} L${pts[0][0].toFixed(1)},${y(0)} Z`;
+        const end = pts[n - 1];
+        return (
+          <g>
+            {line.area && <path d={area} fill={line.color} opacity="0.10" />}
+            <path d={d} fill="none" stroke={line.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <circle cx={end[0]} cy={end[1]} r="5" fill={line.color} stroke={DBZ_T_SURFACE} strokeWidth="2" />
+            <text x={end[0] - 8} y={end[1] - 9} textAnchor="end" fill={DBZ_T_INK} fontFamily="'JetBrains Mono', monospace" fontSize="10">{fmt(buckets[n - 1][line.key] || 0)}</text>
+          </g>
+        );
+      })()}
+      {hover != null && n > 0 && <line x1={xc(hover)} x2={xc(hover)} y1={padT} y2={padT + plotH} stroke="rgba(242,237,228,0.35)" strokeWidth="1" />}
+    </svg>
+  );
+}
+
+function DbzLegend({ items }) {
+  return (
+    <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+      {items.map((it) => (
+        <span key={it.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>
+          {it.line ? <span style={{ width: 14, height: 2, background: it.color, borderRadius: 1 }} /> : <span style={{ width: 9, height: 9, background: it.color, borderRadius: 2 }} />}
+          {it.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function DbzTrajectoryZone({ live, trajectory, role, loading }) {
+  const [range, setRange] = React.useState("12mo");
+  const [table, setTable] = React.useState(false);
+  const [hover, setHover] = React.useState(null);
+  const traj = live ? trajectory : DBZ_DEMO_TRAJECTORY;
+  if (live && !traj) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50 }}>{loading ? "Your trajectory loads with the analytics rollup…" : "Your trajectory could not be read just now — refresh to try again."}</div>;
+  }
+  const s = traj.summary || {};
+  if (live && !(s.totalEverSubscribed > 0)) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Your trajectory starts with your first subscriber — this plate draws itself from the first one: active clients over time, who joined and who left, and what the practice earns.</div>;
+  }
+  const buckets = dbzBuckets(traj, range);
+  const money = (c) => dashMoney(c);
+  const delta30 = s.active30dAgo != null && s.activeNow != null ? s.activeNow - s.active30dAgo : null;
+  const net = (s.addsThisMonth || 0) - (s.endedThisMonth || 0);
+  const tenure = s.medianTenureDays == null ? "—" : s.medianTenureDays >= 60 ? (Math.round(s.medianTenureDays / 30.4 * 10) / 10) + " mo" : s.medianTenureDays + " d";
+  const figures = [
+    { k: String(s.activeNow ?? 0), l: "Active now", sub: delta30 == null ? "vs 30 days ago —" : (delta30 >= 0 ? "+" : "−") + Math.abs(delta30) + " vs 30 days ago", tone: delta30 == null ? null : delta30 >= 0 ? DBZ_GREEN : DBZ_RED },
+    { k: (net >= 0 ? "+" : "−") + Math.abs(net), l: "Net this month", sub: (s.addsThisMonth || 0) + " joined · " + (s.endedThisMonth || 0) + " left", tone: net > 0 ? DBZ_GREEN : net < 0 ? DBZ_RED : null },
+    { k: s.churnRate30dPct == null ? "—" : s.churnRate30dPct + "%", l: "Churn · 30d", sub: s.churnRate30dPct == null ? "no clients 30 days ago" : "of clients you had 30 days ago", tone: s.churnRate30dPct == null ? null : s.churnRate30dPct > 10 ? DBZ_AMBER : null },
+    { k: tenure, l: "Median tenure", sub: s.totalEverSubscribed ? s.totalEverSubscribed + " subscribers, ever" : "—", tone: null },
+  ];
+  const chip = (on) => ({ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 3, border: "1px solid " + (on ? DBZ_TEAL : "rgba(242,237,228,0.18)"), background: on ? "rgba(46,224,196,0.10)" : "transparent", color: on ? DBZ_TEAL : DBZ_INK50, cursor: "pointer" });
+  const hb = hover != null ? buckets[hover] : null;
+  const chartHead = (title, legend) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 4px" }}>
+      <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK50 }}>{title}</span>
+      {legend ? <DbzLegend items={legend} /> : null}
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 6 }}>
+        {figures.map((f, i) => (
+          <div key={i}>
+            <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", lineHeight: 1 }}>{f.k}</div>
+            <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 6 }}>{f.l}</div>
+            <div style={{ fontSize: 10, color: f.tone || DBZ_INK50, marginTop: 2 }}>{f.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["90d", "90 days"], ["12mo", "12 months"], ["all", "All time"]].map(([k, l]) => <button key={k} type="button" onClick={() => setRange(k)} style={chip(range === k)}>{l}</button>)}
+        </div>
+        <button type="button" onClick={() => setTable(!table)} style={chip(table)}>{table ? "Charts" : "Table"}</button>
+      </div>
+      {table ? (
+        <div style={{ overflowX: "auto", marginTop: 10 }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: DBZ_MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+            <thead><tr>{["Period", "Active", "Joined", "Left", "MRR · net", "One-time"].map((h) => <th key={h} style={{ textAlign: h === "Period" ? "left" : "right", padding: "6px 8px", color: DBZ_INK50, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", fontSize: 8.5, borderBottom: "1px solid rgba(242,237,228,0.1)" }}>{h}</th>)}</tr></thead>
+            <tbody>{buckets.map((b) => (
+              <tr key={b.key}>
+                <td style={{ padding: "5px 8px", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.label}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.active}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.added ? "+" + b.added : "0"}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.ended ? "−" + b.ended : "0"}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{money(b.mrrNetCents)}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.oneTimeCents ? money(b.oneTimeCents) : "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ position: "relative" }}>
+          {chartHead("Active clients")}
+          <DbzChart buckets={buckets} line={{ key: "active", color: DBZ_T_TEAL, area: true }} unit="n" hover={hover} onHover={setHover} fmt={(v) => String(v)} />
+          {chartHead("Joined vs left", [{ label: "Joined", color: DBZ_T_TEAL }, { label: "Left", color: DBZ_T_RUST }])}
+          <DbzChart buckets={buckets} series={[{ key: "added", color: DBZ_T_TEAL }, { key: "ended", color: DBZ_T_RUST }]} unit="n" hover={hover} onHover={setHover} fmt={(v) => String(v)} />
+          {chartHead("Revenue · MRR net, one-time purchases", [{ label: "MRR · net", color: DBZ_T_TEAL, line: true }, { label: "One-time", color: DBZ_T_AMBER }])}
+          <DbzChart buckets={buckets} series={[{ key: "oneTimeCents", color: DBZ_T_AMBER }]} line={{ key: "mrrNetCents", color: DBZ_T_TEAL, area: false }} unit="$" hover={hover} onHover={setHover} fmt={money} />
+          {hb && (
+            <div style={{ position: "absolute", top: 8, ...(hover < buckets.length / 2 ? { right: 8 } : { left: 52 }), pointerEvents: "none", background: "rgba(20,17,14,0.96)", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 6, padding: "9px 12px", minWidth: 170, boxShadow: "0 12px 30px rgba(0,0,0,0.4)" }}>
+              <div style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 6 }}>{hb.label}</div>
+              {[[String(hb.active), "active", DBZ_T_TEAL, false], ["+" + hb.added, "joined", DBZ_T_TEAL, false], ["−" + hb.ended, "left", DBZ_T_RUST, false], [money(hb.mrrNetCents), "MRR · net", DBZ_T_TEAL, true], [hb.oneTimeCents ? money(hb.oneTimeCents) : "—", "one-time", DBZ_T_AMBER, false]].map(([v, l, c, isLine], i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "14px 1fr auto", gap: 8, alignItems: "center", padding: "2px 0" }}>
+                  <span style={{ width: isLine ? 14 : 9, height: isLine ? 2 : 9, background: c, borderRadius: isLine ? 1 : 2, justifySelf: "center" }} />
+                  <span style={{ fontFamily: DBZ_MONO, fontSize: 9, color: DBZ_INK50, textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</span>
+                  <span style={{ fontFamily: DBZ_MONO, fontSize: 11, color: DBZ_T_INK, fontWeight: 700 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.08em", color: DBZ_INK50, marginTop: 10 }}>
+        {range === "90d" ? "Weekly · " : "Monthly · "}from your subscription and purchase records{traj.firstSubAt ? " · first subscriber " + dbzWeekLabel(String(traj.firstSubAt).slice(0, 10)) : ""} · a payment that is retrying still counts as active
+      </div>
+    </div>
+  );
+}
+
 // ── The page ─────────────────────────────────────────────────────────────────
 function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
@@ -426,6 +687,16 @@ function CoachBusinessPage({ role }) {
         title="Business"
         subtitle="The money side, told straight — real subscription revenue, real Stripe payouts, the marketplace funnel, and who left. Nothing here is invented."
       >
+        {/* Practice trajectory — the growth question, answered first */}
+        <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24, marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <span className="dash-eyebrow">Practice · trajectory</span>
+            <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>active clients · joined vs left · revenue over time</span>
+          </div>
+          <div className="dash-ledger" style={{ marginTop: 9, marginBottom: 12 }} />
+          <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra} />
+        </div>
+
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "start", marginBottom: 16 }}>
           {/* Revenue trend — 90 days */}
           <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24 }}>
