@@ -442,6 +442,9 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R12 | CSV export + monthly statement | P2 | M | after payouts |
 | R15/R16 | Widget settings; remembered filters | P2 | M | — |
 | R20 | Client booking + notifications inbox on the web | P2 | M | tables exist |
+| V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
+| V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
+| V4/V5 | Check the GridStack gaps on a real screen; make the demo dataset agree with itself (one money figure, one client count) | P2 | S | — |
 
 Sizing: S = one PR, M = a short wave of PRs.
 
@@ -469,4 +472,55 @@ Sizing: S = one PR, M = a short wave of PRs.
 
 ## Addendum — renders
 
-_Filled in below once the headless capture finished; see the changelog entry for the date._
+**Setup.** Chromium 141 through `playwright-core` 1.56.1; React/ReactDOM 18.3.1 and
+`@babel/standalone` 7.29.0 served from local copies whose sha384 matched the pages'
+integrity attributes; every `/api/*` request answered 404, so each page took its demo
+branch; Google Fonts loaded. 44 captures: all 32 tabs across the three shells at 1440×900,
+the four client-detail entry points, and trainer/client Today at 390×844 (with and without
+phone emulation) and 1024×768. Result: **no horizontal overflow at any width**, console
+clean apart from the expected 404s and Babel's dev-mode warning, and one failed non-API
+asset request on each of the three Profile tabs (not investigated). Switch latency was not
+measured — the harness ran the in-browser Babel path, which production precompiles.
+
+**What the renders showed that the source read could not**
+
+- **V1 — Roster column collision (trainer).** The PROGRAM column is a fixed 170px
+  (`dashRoster.jsx:106`) and cells do not clip, so "Strength Block 3 · Wk 6/12" runs into
+  the STREAK column at 1440px and reads as "Wk 6/129d". Program names of realistic length
+  will do this on live rosters too.
+- **V2 — Availability hours are hidden.** The availability grid has 15 hour columns
+  (6a–8p, `DSC_HOURS`, min-width 520) inside a 300px right rail with its scrollbar hidden
+  (`dash-hide-scroll`, `dashSchedule.jsx:101, 166, 387`). Only 6a–12p are visible; the
+  afternoon and evening hours a coach most needs to set are reachable only by an
+  invisible horizontal scroll.
+- **V3 — Run-in titles on Goal.** "Revenue calculatorSET YOUR TARGET" and
+  "MomentumTHIS QUARTER": `SectionTitle`'s space-between is defeated inside the grid card
+  (`trainerGoalPage.jsx:218, 270`). The page eyebrow reads "YOUR GOALS · Q2 2026" in
+  September.
+- **V4 — Dead space on the GridStack tabs.** Trainer Score rendered 2,496px tall with
+  roughly a third of it empty; client Score 3,234px with 150–300px gaps between every
+  card; Progress leaves a hole beside the Photos card. The engine's ordered pack
+  (`relayoutInOrder`, `dashGrid.jsx:161-197`) exists to prevent exactly this. Whether the
+  gaps reproduce in a real browser or are a timing artefact of the 200ms fit in a headless
+  capture needs one look on a real screen; either way the fit is fragile enough to fail
+  under load timing.
+- **V5 — The demo does not agree with itself.** Trainer Today shows four different
+  monthly money figures at once — sidebar "$18,420 · PAYOUT APR 30", "THIS MONTH
+  $4,192.00", "MONTHLY RECURRING $1,820", and the Business card's "$1,547 · MONTHLY · NET"
+  — and the sidebar badge says 34 clients while the roster and KPI strip say 10 and the
+  Business outcomes plate says 34. The signed-out preview is what a prospective coach
+  evaluates the product on.
+- **V6 — The Chat bubble covers content.** Fixed bottom-right, it overlaps the pulse
+  panel's MESSAGE buttons on Today at 1440px and the right edge of every long page.
+- **V7 — Phones get the desktop page.** The three shells carry no `<meta name="viewport">`,
+  so a phone lays the dashboard out at 980px and shrinks it; the 240px sidebar never
+  collapses because the `dash.css` rule targets a class only the client Settings route
+  uses. At 1024px the two-column Today holds, with the pulse pills wrapping to two lines.
+- **V8 — The orphaned client page has no preview state.** `TrainerClient.html` without an
+  id renders "Couldn't load · Missing client id" beside the demo payout card. The tabs that
+  carry no demo band (coach Playlists, Community, Goal, Score, Profile; client Library,
+  Team, Community, Score, Habits, Profile, Settings) rendered demo or literal content with
+  nothing marking it as such — the same list as §8.
+- **V9 — What holds up.** The instrument-plate language is consistent across all three
+  roles; Today, Progress and Workouts read densely and legibly; Schedule and Business are
+  the two coach tabs that already look like a working office.
