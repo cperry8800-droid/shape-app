@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
+import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg } from '@/lib/coach-client-legs.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -169,19 +170,20 @@ export async function GET(
   // the counterpart read assigned/active/paused rows + their template header.
   const { data: assignments } = await supabase
     .from('coach_program_assignments')
-    .select('id, status, provider_role, provider_id, program_template_id, updated_at, notes')
+    .select('id, status, provider_role, provider_id, program_template_id, created_at, updated_at, notes')
     .eq('client_id', clientId)
     .in('status', ['assigned', 'active', 'paused'])
     .order('updated_at', { ascending: false })
     .limit(20);
 
   const templateIds = [...new Set((assignments ?? []).map(a => a.program_template_id))];
-  const { data: templates } = templateIds.length
+  const { data: templates, error: templatesErr } = templateIds.length
     ? await supabase
         .from('coach_program_templates')
         .select('id, title, goal, level, duration_weeks, days_per_week')
         .in('id', templateIds)
-    : { data: [] as Array<{ id: string; title: string; goal: string | null; level: string | null; duration_weeks: number | null; days_per_week: number | null }> };
+    : { data: [] as Array<{ id: string; title: string; goal: string | null; level: string | null; duration_weeks: number | null; days_per_week: number | null }>, error: null };
+  if (templatesErr) console.error('[shared-overview] program templates read failed:', templatesErr.message);
   const templateById = new Map<string, { title: string; goal: string | null; level: string | null; durationWeeks: number | null; daysPerWeek: number | null }>();
   for (const t of templates ?? []) {
     templateById.set(t.id, {
@@ -235,6 +237,8 @@ export async function GET(
     { data: cycle },
     { data: prep },
     { data: programRow },
+    { data: convoRows, error: convoErr },
+    { data: scoreHistory },
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
     supabase.rpc('get_client_stats', { p_user_id: clientId }),
@@ -255,6 +259,18 @@ export async function GET(
     // client_programs: coach-readable by RLS — carries the pro-set goals
     // (detail.goals, the Goals-page store) and the program phases.
     supabase.from('client_programs').select('training_phase, nutrition_phase, detail').eq('user_id', clientId).maybeSingle(),
+    // Last contact (R4) — the caller's OWN direct thread with this client.
+    // `conversations` is participant-scoped by RLS, so a coach reads only
+    // threads they are in; the leg then narrows to their own provider id.
+    supabase.from('conversations').select('provider_role, provider_id, last_message_at').eq('client_id', clientId).eq('kind', 'direct'),
+    // (the error is read alongside the data below — a failed read must not ship
+    //  as "you have never messaged this client")
+    // Weekly Shape Score + the member's streak (R4). `score_ledger` and
+    // `workout_sessions` are owner-scoped, so this is the ONE leg that needs a
+    // definer: 2026-09-09-client-score-history-coach-read.sql. Pre-migration
+    // the RPC 404s, the leg reads null, and the column keeps its honest
+    // "Not shared" — the get_client_meal_prep precedent above.
+    supabase.rpc('get_client_score_history', { p_user_id: clientId }),
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
 
@@ -274,7 +290,7 @@ export async function GET(
   // SHORTER real history, silently. The JS filter is kept as defence in depth (a
   // stale schema cache or a widened select must not reopen it).
   const snapCeiling = vitalsCeilingISO();
-  const { data: snapRowsDesc } = await supabase
+  const { data: snapRowsDesc, error: snapErr } = await supabase
     .from('daily_health_snapshot')
     .select('*')
     .eq('user_id', clientId)
@@ -293,6 +309,12 @@ export async function GET(
   // member's LOCAL day and a member ahead of UTC legitimately writes one — the same
   // one-day boundary tolerance the vitals window already documents. Comparison is
   // lexicographic against ISO `YYYY-MM-DD`, which is exact.
+  // ⚠ An ERROR and an empty table both arrive as no rows, and the R4 `logs` leg
+  // turns the second into the positive claim "this member logged nothing". Keep
+  // them apart at the read: every other leg here degrades to a quiet absence,
+  // but that one has a sentence attached to it.
+  const snapReadFailed = Boolean(snapErr);
+  if (snapErr) console.error('[shared-overview] daily_health_snapshot read failed:', snapErr.message);
   const snapRows = (snapRowsDesc ?? [])
     .filter((r) => {
       const day = (r as Record<string, unknown>).snapshot_date;
@@ -377,6 +399,52 @@ export async function GET(
   // Derivation lives in the pure, tested bsVitals (src/lib/vitals-leg.mjs).
   const vitals = bsVitals(snapRows as Array<Record<string, unknown>>);
 
+  // ── The legs the roster columns and the signals engine read (review
+  // 2026-09-09, R4). Until these existed, `_dashRecordFromLive` set six fields
+  // to null, so the trainer roster's SCORE / PROGRAM / STREAK / LAST CONTACT
+  // columns read "Not shared" on every live row and most of the twelve engine
+  // rules could not fire — a real roster showed a sliver of what the demo did.
+  //
+  // Derivation lives in the pure, tested src/lib/coach-client-legs.mjs; every
+  // leg is null when its source is absent, never a zero or a stand-in.
+  //
+  // ⚠ `mine` IS THE CALLER'S PROVIDER ID FOR THIS CLIENT, NOT THEIR ROLE.
+  // `shared_coach_reads_assignments` hands every linked coach EVERY row, so a
+  // role-only filter attributes a predecessor's or the counterpart's block to
+  // the caller; and a coach who merely OWNS a trainer row is not this client's
+  // trainer. `isMe` is set against the client's own linked coaches above, which
+  // is exactly the link the legs need.
+  const mine = {
+    trainer: trainers.find((t) => t.isMe)?.providerId ?? null,
+    nutritionist: nutritionists.find((n) => n.isMe)?.providerId ?? null,
+  };
+  // ⚠ THE SAME THREE-STATE RULE AS `logs` BELOW, and for the same reason: this
+  // leg's empty value is the POSITIVE claim "you have never messaged them"
+  // ("Never" in the LAST CONTACT column), so a failed read that yields no rows
+  // would assert it about every client on the roster. Omitted on error, which
+  // the column renders as its honest "Not shared".
+  if (convoErr) console.error('[shared-overview] conversations read failed:', convoErr.message);
+  const lastContact = convoErr ? undefined : bsLastContactLeg(convoRows ?? [], mine);
+  // Likewise: an unreadable TEMPLATE makes bsProgramLeg return null, which the
+  // roster renders as "Not set" — "this client has no program" — for clients who
+  // all have one. `templatesErr` is the only thing that can tell them apart.
+  const program = templatesErr ? undefined : bsProgramLeg(assignments ?? [], templateById, mine, Date.now());
+
+  // Food logging off the SAME 30-row snapshot window every other leg reads —
+  // the last logged day (which `get_client_stats` has never carried), the
+  // calendar-week count, and the last few days themselves for the drawer.
+  //
+  // ⚠ A FAILED READ MUST NOT SHIP AS AN EMPTY ONE. `logs: null` on a response
+  // that carries the key means "this member logged nothing", and the drawer
+  // says so in as many words. A PostgREST error or a stale schema cache also
+  // yields no rows — so when the read itself failed the key is OMITTED and the
+  // drawer keeps its "isn't shared to the web yet", which is then the truth.
+  const logs = snapReadFailed ? undefined : bsLogsLeg(snapRows as Array<Record<string, unknown>>, Date.now());
+
+  // The coach's own nutrition targets. Without these the ledger and protein
+  // rules skip every live client — they need value AND target.
+  const nutritionTargets = bsNutritionTargets(programDetail);
+
   return NextResponse.json({
     client: clientProfile
       ? { id: clientProfile.id, name: (clientProfile.full_name ?? '').trim() || 'Client', avatarUrl: clientProfile.avatar_url }
@@ -403,5 +471,13 @@ export async function GET(
       : null,
     sleep,
     vitals,
+    // R4 legs — each null when its source is absent (never a zero). `logs` is
+    // OMITTED entirely when the snapshot read failed, so the client can tell an
+    // empty window from an unreadable one.
+    ...(lastContact === undefined ? {} : { lastContact }),
+    ...(program === undefined ? {} : { program }),
+    ...(logs === undefined ? {} : { logs }),
+    nutritionTargets,
+    scoreHistory: scoreHistory ?? null,
   });
 }

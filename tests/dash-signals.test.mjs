@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { THRESHOLDS, evaluateClient, getTriageFeed, buildProgrammingQueue, buildMilestones, findJointAttention, buildMockClients,
-  projectGoal, goalSlipDays, goalsFromDoc, buildDirective, buildEvidencePack } =
+  projectGoal, goalSlipDays, goalsFromDoc, buildDirective, buildEvidencePack, scoreWeekReading } =
   require("../public/newdesign/dashSignals.js");
 
 // Fixed reference clock: Friday 2026-06-12 (day-into-week 4 ≥ grace 3, so the
@@ -399,4 +399,56 @@ test("projectGoal marks an already-hit goal achieved (S3-14)", () => {
 test("goalSlipDays is null without a prior baseline (S3-14)", () => {
   const g = { metric: "weight", unit: "lb", target: 170, start: 180, history: [{ on: ago(2), value: 178 }] };
   assert.equal(goalSlipDays(g, NOW), null);
+});
+
+// ── scoreWeekReading — the one definition of a weekly-score delta ────────────
+// Added with review 2026-09-09 R4: the live series carries the CURRENT week,
+// flagged `partial` by get_client_score_history. Three surfaces read it (the
+// rule, the roster's SCORE·WK cell, the drawer), and a delta defined
+// differently in any of them is a number that disagrees with itself on one
+// screen.
+test("scoreWeekReading: the delta compares COMPLETE weeks, the number is the live one", () => {
+  const r = scoreWeekReading([
+    { weekOf: "2026-08-24", points: 70 },
+    { weekOf: "2026-08-31", points: 72 },
+    { weekOf: "2026-09-07", points: 20, partial: true },
+  ]);
+  assert.equal(r.points, 20, "the in-progress week is a real, live number and is shown");
+  assert.equal(r.partial, true);
+  assert.equal(r.delta, 2, "72 − 70, never 20 − 72");
+  assert.deepEqual(r.series, [70, 72, 20], "the sparkline draws every week including the partial one");
+});
+
+test("scoreWeekReading: a series with no complete pair has no delta", () => {
+  assert.equal(scoreWeekReading([{ weekOf: "2026-09-07", points: 20, partial: true }]).delta, null);
+  assert.equal(scoreWeekReading([{ weekOf: "2026-08-31", points: 72 }, { weekOf: "2026-09-07", points: 20, partial: true }]).delta, null,
+    "one complete week is not a week-over-week reading");
+  assert.equal(scoreWeekReading([]), null);
+  assert.equal(scoreWeekReading(null), null);
+  assert.equal(scoreWeekReading([{ weekOf: "x", points: null }, { weekOf: "y", points: "lots" }]), null, "junk points are dropped, not coerced");
+});
+
+test("ruleScoreDrop cannot fire on an in-progress week", () => {
+  // The regression this exists to stop: a steady ~70pt/wk client on a Tuesday
+  // holds ~20 points so far. Comparing that against last week's 72 reads as
+  // "Score ↓52" — every actively-logging client amber, Monday to Wednesday.
+  const midweek = clean({
+    shapeScoreHistory: [
+      { weekOf: mondaysAgo(2), points: 70 },
+      { weekOf: mondaysAgo(1), points: 72 },
+      { weekOf: mondaysAgo(0), points: 20, partial: true },
+    ],
+  });
+  assert.ok(!evaluateClient(midweek, NOW, "trainer").flags.some((f) => f.key === "score_drop"));
+  // A real drop between two COMPLETE weeks still flags.
+  const dropped = clean({
+    shapeScoreHistory: [
+      { weekOf: mondaysAgo(2), points: 72 },
+      { weekOf: mondaysAgo(1), points: 20 },
+      { weekOf: mondaysAgo(0), points: 18, partial: true },
+    ],
+  });
+  const f = evaluateClient(dropped, NOW, "trainer").flags.find((x) => x.key === "score_drop");
+  assert.ok(f, "a 52-point fall between complete weeks is still a drop");
+  assert.match(f.reason, /down 52 pts/);
 });
