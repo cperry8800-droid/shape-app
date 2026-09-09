@@ -71,3 +71,7 @@ next-env.d.ts
 
 # Deploy-time newdesign JSX precompile output (scripts/build-newdesign.mjs)
 /public/newdesign/nd
+
+# python bytecode (py_compile in marketing/film-v2 left one behind once)
+__pycache__/
+*.pyc
