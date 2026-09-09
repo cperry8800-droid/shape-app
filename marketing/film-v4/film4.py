@@ -156,11 +156,19 @@ def lockup_layers():
     a=Image.new('L',(W,H),0); a.paste(mk.split()[3],(W//2-mk.width//2,cy-mk.height//2)); g=np.asarray(a.filter(ImageFilter.GaussianBlur(26))).astype(np.float32)
     return wm,mk,g,cy
 # ---------- the globe's pins: the Shape mark at the tip of every beam of light the clip raises from a city ----------
-PIN_LUM=float(os.environ.get('PIN_LUM','170')); PIN_H=int(os.environ.get('PIN_H','44')); MAXPINS=int(os.environ.get('MAXPINS','8')); BEAM_W=int(os.environ.get('BEAM_W','30'))
+PIN_LUM=float(os.environ.get('PIN_LUM','90')); PIN_H=int(os.environ.get('PIN_H','44')); MAXPINS=int(os.environ.get('MAXPINS','8')); BEAM_W=int(os.environ.get('BEAM_W','30')); BEAM_RIDGE=float(os.environ.get('BEAM_RIDGE','35')); BEAM_MINH=int(os.environ.get('BEAM_MINH','20'))
 def narrow(m,wmax=None):
     """Keep only the pixels of horizontal runs no wider than wmax: a beam is narrow in every row, the rim's top and bottom arcs are not -- and a wide arc in the mask would bridge every column it spans, so that the column groups below could not tell one beam from the whole disc."""
     wmax=wmax or BEAM_W; st=m&~np.roll(m,1,axis=1); st[:,0]=m[:,0]
     rid=np.cumsum(st.ravel())*m.ravel(); ln=np.bincount(rid); return (m.ravel()&(ln[rid]<=wmax)).reshape(m.shape)
+def beam_mask(fs):
+    """A beam of light on the page: a thin vertical cool line -- brighter by BEAM_RIDGE than the page 6-10 px to either side (so the rim, the lit limb and the lit surface, all wide, fail), cool (a city light is warm), above PIN_LUM, and standing in a vertical run of at least BEAM_MINH px. Measured at PAGE scale, because a 3-px beam scaled onto the page by 0.76 with LANCZOS lands well under the luma the raw clip reads, which is why the strict test that found the tips on the clip found almost nothing on the page."""
+    g=fs.astype(np.float32); lum=0.299*g[...,0]+0.587*g[...,1]+0.114*g[...,2]; coolish=(g[...,1]+g[...,2])>(2*g[...,0]+40)
+    side=np.zeros_like(lum)
+    for d in (6,8,10): side=np.maximum(side,np.maximum(np.roll(lum,d,axis=1),np.roll(lum,-d,axis=1)))
+    ridge=(lum-side>BEAM_RIDGE)&coolish&(lum>PIN_LUM); ridge[:120]=False; ridge[H-340:]=False; ridge[:,:12]=False; ridge[:,-12:]=False
+    rt=np.ascontiguousarray(ridge.T); st=rt&~np.roll(rt,1,axis=1); st[:,0]=rt[:,0]; rid=np.cumsum(st.ravel())*rt.ravel(); ln=np.bincount(rid)
+    return np.ascontiguousarray((rt.ravel()&(ln[rid]>=BEAM_MINH)).reshape(rt.shape).T)
 def col_groups(mask,gap=3):
     cols=np.nonzero(mask.any(0))[0]; groups=[]
     for x in cols:
@@ -168,19 +176,17 @@ def col_groups(mask,gap=3):
         else: groups.append([int(x)])
     return groups
 class Pins:
-    """Per frame: bright COOL pixels (a beam of teal or white light; a city light is warm and fails the test) grouped by column, each group's topmost pixel a tip. Tips are tracked across frames (matched within 28 px, position smoothed, drawn once seen twice) so the mark rides its beam as the globe turns."""
+    """Per frame: the beams (beam_mask: thin vertical cool ridges on the page) grouped by column, each group's topmost pixel a tip. Tips are tracked across frames (matched within 28 px, position smoothed, drawn once seen twice) so the mark rides its beam as the globe turns."""
     def __init__(self): self.tracks=[]; self.nid=0; self.erased=0; self.chosen=[]   # [x, y, frames unseen, frames seen, id]
-    def tips(self,f):
-        g=f.astype(np.float32); lum=0.299*g[...,0]+0.587*g[...,1]+0.114*g[...,2]
-        cool=(lum>PIN_LUM)&((g[...,1]+g[...,2])>(2*g[...,0]+40)); cool[:120]=False; cool[H-340:]=False; cool=narrow(cool)
-        out=[]
+    def tips(self,f,bm=None):
+        cool=beam_mask(f) if bm is None else bm; out=[]
         for gp in col_groups(cool):
             if len(gp)>60: continue   # the atmospheric rim or a lit limb, not a beam
             x0,x1=gp[0],gp[-1]+1; sub=cool[:,x0:x1]; rows=np.nonzero(sub.any(1))[0]; ytop=int(rows.min())
             xs=np.nonzero(sub[ytop:ytop+6].any(0))[0]; out.append((x0+float(xs.mean()),float(ytop)))
         return out
-    def update(self,f):
-        tips=self.tips(f); used=[False]*len(tips)
+    def update(self,f,bm=None):
+        tips=self.tips(f,bm); used=[False]*len(tips)
         for tr in self.tracks:
             best=None
             for i,(x,y) in enumerate(tips):
@@ -199,11 +205,10 @@ class Pins:
             cx=[tr[0] for tr in self.tracks if tr[4] in self.chosen]
             best=max(cand,key=lambda tr:((min(abs(tr[0]-x) for x in cx) if cx else 0),-tr[4])); self.chosen.append(best[4]); cand.remove(best)
         return [(tr[0],tr[1]) for tr in live if tr[4] in self.chosen]
-    def erase(self,fs,keep):
-        """Paint out every beam but the kept ones. A beam is a column group of bright cool pixels (the strict test that finds the tips, wide runs dropped so the rim cannot join them) no wider than a beam and not within +-16 px of a kept tip. The groups' columns (+-8) are merged into intervals first, so two beams standing 13 px apart are one region and neither lerps into the other; over each interval's rows (the beams' span +-24) every cool pixel above luma 60 -- the beam and its halo -- is replaced by a horizontal lerp between the page just outside the interval, so the surface's own lights and coasts stay. Columns within 12 px of a kept tip are never touched."""
+    def erase(self,fs,keep,bm=None):
+        """Paint out every beam but the kept ones. A beam is a column group of beam_mask pixels (the ridge test that finds the tips) no wider than a beam and not within +-16 px of a kept tip. The groups' columns (+-8) are merged into intervals first, so two beams standing 13 px apart are one region and neither lerps into the other; over each interval's rows (the beams' span +-24) every cool pixel above luma 60 -- the beam and its halo -- is replaced by a horizontal lerp between the page just outside the interval, so the surface's own lights and coasts stay. Columns within 12 px of a kept tip are never touched."""
         g=fs.astype(np.float32); lum=0.299*g[...,0]+0.587*g[...,1]+0.114*g[...,2]; coolish=(g[...,1]+g[...,2])>(2*g[...,0]+40)
-        strict=coolish&(lum>PIN_LUM); strict[:120]=False; strict[H-340:]=False; strict=narrow(strict)
-        loose=coolish&(lum>60); colmask=np.zeros(W,bool); spans={}
+        strict=beam_mask(fs) if bm is None else bm; loose=coolish&(lum>45); colmask=np.zeros(W,bool); spans={}
         for gp in col_groups(strict):
             if len(gp)>60: continue
             x0,x1=gp[0],gp[-1]+1
@@ -300,8 +305,8 @@ class Page:
         fe=np.ones((small.height,small.width),np.float32); ramp=np.linspace(0,1,60,dtype=np.float32); fe[:60]*=ramp[:,None]; fe[-60:]*=ramp[::-1][:,None]; rh=np.linspace(0,1,80,dtype=np.float32); fe[:,:80]*=rh[None,:]; fe[:,-80:]*=rh[::-1][None,:]   # the clip's disc outgrows its frame late in the shot, so the paste's sides are feathered as well as its top and bottom
         sa=np.asarray(small).astype(np.float32); sa=sa*fe[...,None]+np.array(bg,np.float32)*(1-fe[...,None]); small=Image.fromarray(sa.clip(0,255).astype(np.uint8))
         img=Image.new('RGBA',(W,H),bg+(255,)); img.paste(small,(W//2-small.width//2,GCY-small.height//2))
-        fs=np.asarray(img.convert('RGB')); pts=self.pins.update(fs); fs2=self.pins.erase(fs,pts); img=Image.fromarray(fs2).convert('RGBA'); self.pins.draw(img,k,pts)   # the pins are found on the page as drawn; every beam but the kept ones is painted out
-        if os.environ.get('PIN_DEBUG'): print('pins',round(t,3),'tips',len(self.pins.tips(fs)),'drawn',len(pts),'erased',self.pins.erased,flush=True)
+        fs=np.asarray(img.convert('RGB')); bm=beam_mask(fs); pts=self.pins.update(fs,bm); fs2=self.pins.erase(fs,pts,bm); img=Image.fromarray(fs2).convert('RGBA'); self.pins.draw(img,k,pts)   # the beams are found once on the page as drawn; every beam but the kept ones is painted out
+        if os.environ.get('PIN_DEBUG'): print('pins',round(t,3),'tips',len(self.pins.tips(fs,bm)),'drawn',len(pts),'erased',self.pins.erased,flush=True)
         al=sstep((u-4.0)/0.5)
         if al>0:
             kk=max(k,math.exp(-(u-4.0)/0.3)); layer=Image.new('RGBA',(W,H),(0,0,0,0))
