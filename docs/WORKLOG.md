@@ -475,6 +475,34 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — 140 on the bar means 140 in the music: the style pair re-rendered on a time-stretched, re-measured grid
+
+- **Owner: *"have the bpm and hrm be 140 in the 2 videos"*.** The HRM / BPM bar on both style videos now climbs
+  **HRM 104 → 140** against **BPM 140** and locks IN SYNC on beat 15 (6.49 s). Links handed over in chat, never
+  committed; **nothing generated**; the record is in
+  [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) — the run record under §2b (the pass,
+  the producer script, the verifier and the measurement file verbatim), §6 (the stretched track, measured) and §10 q8.
+- ⚠ **THE NUMBER ON THE BAR IS THE MEASURED TEMPO OF THE MUSIC PLAYING, SO "140" IS A CHANGE TO THE MUSIC, NOT TO A
+  STRING.** The launch cut's v7.2 post-mortem (a card reading 140 over a bed measured at 119.45) is the rule, and
+  `sonilo_music` cannot be asked for a tempo (seven of eight tracks landed at ~128 whatever was prompted), so the pick
+  was **time-stretched** — `atempo=1.167153` = 140 / 119.95, pitch unchanged — and **re-measured** with `beat.py`,
+  its comb range widened to 110–150 because the default cap of 140 sits on the answer: **140.0 BPM**, halves
+  139.95 / 140.15, phase 0.06, kick from the first beat, the breakdown now at 26.2–33.9 s, the track 51.4 s = still
+  exactly 30 bars. The rendered audio re-measures 139.85 over the clip's 23 beats, a quarter of a frame of drift
+  across the whole clip. ⚠ **The music the owner approved with *"music is good"* was at 119.95; at 140 it is the same
+  track 17 % faster**, and whether the full film rides the stretch is §10 q8, the owner's.
+- **The pass is `final10.py` with three substitutions** (the measurement file, the audio file, the done marker;
+  `final11.py` md5 `633aa633a485633c33074bc2e103ac5e`), so `BPMi = 140` and `HR0 = BPMi − 36 = 104` follow from
+  `meas_d140.json` rather than from an edit, and `TS = 0.06 + 15 × 0.428571`. The producer of every file
+  (`run11.sh`), the verifier (`verify11.py`), the measurer (`meas_d140.py`) and the measurement itself are in the
+  treatment verbatim, with md5s — *a thing that exists only in a sandbox does not exist*, and this sandbox will be
+  reclaimed.
+- **Verified on the renders:** 243 frames / 10.126 s each; top-left teal on a beat against mid-beat A 2,518 / 2,326
+  · B 4,677 / 4,432 at beat 4, and likewise at 8 and 16; the white triangle present on both pages at every sample;
+  IN SYNC 6,706 / 6,724 teal px above the bar at 6.79 s against 340 / 338 at 6.24 s; the pass's own summary line
+  reads `sync at beat 15 t 6.4886 HR0 104 BPM 140`. ⚠ Not visually inspected by the agent — no media host is
+  reachable from this container; the owner's look is the QA. Docs only; **no PR, nothing merged.**
+
 ### 2026-09-08 — The film's people go hollow, its page goes black, its music goes deep: five owner notes, twenty generations, and the first frame that was built rather than generated
 
 - **Seventeen owner notes inside three hours, each answered before the next arrived.** *"those are better, but maybe create a

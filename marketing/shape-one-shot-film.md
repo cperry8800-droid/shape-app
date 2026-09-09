@@ -331,6 +331,22 @@ bars 1–15 = 0–30.0 s and ends exactly where the kick drops out** (30.57 s): 
 kick. The §3 beat map is re-cut on this grid next; every time in it is derived from `meas_d1.json`, never typed.
 The opening is still low-passed from frame 0 and opens to full band on the first page turn.
 
+⚠ **THE TWO STYLE VIDEOS RIDE THE PICK AT 140, BY RULING — STRETCHED, NOT RE-LABELLED** (owner, 2026-09-09: *"have
+the bpm and hrm be 140 in the 2 videos"*). The bar's BPM is the measured tempo of the bed, so the bed was made 140:
+`atempo=1.167153` on the dub-dark track (140 / 119.95; pitch unchanged) and re-measured by the same method with the
+comb range widened to 110–150 — the default cap of 140 sits ON the answer, and a search cannot tell its edge from a
+peak (`meas_d140.py`, in the run record under §2b):
+
+| Track | Asked of the stretch | **Measured** | Halves | Kick from | Kick-less stretches (beats · seconds) | Length |
+|---|---|---|---|---|---|---|
+| **dub-dark × 1.167153** (`d140.m4a`) | 140 | **140.0** · P 0.428571 · φ 0.060 | 139.95 / 140.15 | **0.06 s** — the first beat | 61–79 · **26.2–33.9 s**; 112–118 · 48.1–50.6 s | 51.45 s = **30 bars** at 140 |
+
+Every structural fact survives the stretch, scaled by the one ratio: the kick still opens on beat 0, the breakdown is
+still bars 16–20 and the return still the bar-21 downbeat, the track is still exactly 30 bars — a time-stretch moves
+every event by the same factor. What changes is the feel: **this is the track the owner approved, 17 % faster.** The
+10 s clip covers beats 0–23, whose `kick_by_beat` all read 0.54–0.85, so the mark pulses on every beat of both videos.
+Whether the full film rides the 140 stretch too, or the §3 beat map is cut on the native 119.95 grid, is §10 q8.
+
 ## 7 · On-screen copy (eight lines, no voice)
 
 Same eight lines as v1 — *Written before you arrive.* · *Two dishes, one timeline.* · *A person. Not an algorithm.*
@@ -372,6 +388,9 @@ IN SYNC, once.
    (default). A flat-graphic globe — continents as a highlighter outline on the black page, marks popping — is one
    extra generation if you want the world back.
 7. **Whose numbers.** The Score, ledger and Terrain captures come from a real account (default: yours).
+8. **The tempo of the film.** The two style videos ride the pick stretched to 140 (your 2026-09-09 ruling; §6).
+   Default for the film: the same 140 stretch, so the bar in the film and the bar in the videos say one number over
+   one piece of music; the native 119.95 bed re-cuts §3 on its own grid and is the alternative.
 
 ## 11 · What changed from v1, and why
 
@@ -682,6 +701,98 @@ the cream; measured on the render below. `final10.py` (md5 `1e5e1cd17fa436943990
 |---|---|---|---|
 | **A — the print**, `final10.py`, no plate | `c8c29c6060c3ec6ed76e36359f747ae5` | 18,424,384 | top-left crop on a beat: teal 2,550 px, **white 2,501 px above channel-min 240** (the cream page sits at ~216, so that is the white triangle, not paper), no plate ink; teal 2,392 mid-beat; IN SYNC 6,068 teal px above the bar at 6.86 s and 0 at 6.0 s. The same run re-rendered B and produced the **byte-identical** file (`85bb041f078a175046cdbe0f64be5313`), which is the pass proving itself deterministic |
 | **B — the highlighter** | unchanged from the `final9.py` row above (its corner never had a plate) | | |
+
+⚠ **AND THE NUMBER ON THE BAR (2026-09-09):** *"have the bpm and hrm be 140 in the 2 videos"* → the bar reads
+**HRM 104 → 140** against **BPM 140** and locks IN SYNC on beat 15 (6.49 s), on both pages. The figure beside BPM is
+the measured tempo of the music that is playing — the launch cut's v7.2 post-mortem (a card that said 140 over a bed
+measured at 119.45) is the rule — so 140 on the bar meant **140 in the music**. `sonilo_music` cannot be asked for it
+(seven of eight tracks landed at ~128 whatever was prompted), so the pick was **time-stretched**, not replaced:
+`ffmpeg -i d1.m4a -af atempo=1.167153 -c:a aac -b:a 256k d140.m4a` (140 / 119.95; `atempo` keeps the pitch; md5
+`7bf02d66c0351fd0c2e037e3f772f3c4`, 1,768,136 bytes, 51.445 s) and re-measured (§6, `meas_d140.py` below). `final11.py`
+(md5 `633aa633a485633c33074bc2e103ac5e`) is `final10.py` with three substitutions — `meas_d1.json` → `meas_d140.json`,
+`d1.m4a` → `d140.m4a`, the done marker — so `BPMi = 140`, `HR0 = BPMi − 36 = 104` and
+`TS = 0.06 + 15 × 0.428571 = 6.4886 s` follow from the measurement file; no number was typed. Its summary line on the
+run: `sync at beat 15 t 6.4886 HR0 104 BPM 140`. `run11.sh` (below) produced every file, `verify11.py` (below)
+measured them:
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**, `final11.py`, 140 | `f66651cd1642a1f4b79c51220e73ec40` | 18,370,664 | 243 frames / 10.126 s; top-left crop on a beat vs mid-beat: teal 2,518 / 2,326 (beat 4) · 2,512 / 2,332 (8) · 2,501 / 2,369 (16); white above channel-min 225 at every sample (2,950–4,442 px; the cream sits at 216); IN SYNC 6,706 teal px above the bar at 6.79 s and 340 (the teal dot) at 6.24 s; the rendered audio re-measures **139.85 BPM** over the clip's 23 beats — 0.15 BPM is a quarter of a frame across the whole clip |
+| **B — the highlighter**, `final11.py`, 140 | `3ac30669a7ec23dac59488448cb6eb41` | 6,343,107 | 243 / 10.126 s; teal 4,677 / 4,432 · 4,044 / 3,861 · 4,780 / 4,615; white 3,282 / 3,115 · 3,285 / 3,118 · 3,235 / 3,120 (the white triangle throbbing with the teal one); IN SYNC 6,724 at 6.79 s and 338 at 6.24 s; audio 139.85 |
+
+Handed over as links; the `final10.py` pair above is superseded. ⚠ **This is the track the owner approved, 17 %
+faster** — *"music is good"* was said of it at 119.95 — and whether the whole film rides the stretch is §10 q8.
+⚠ Not visually inspected by the agent (no image or media host is reachable from this container); the owner's look is the QA.
+
+**`run11.sh`** (md5 `189f355c5cedae420649181e60f72683`) — the producer of `d140.m4a`, both renders, the uploads and
+the verification, in one background lease; the guards re-fetch the sources so a reclaimed sandbox re-runs it unchanged:
+
+```bash
+cd /home/user/dh; PFX=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
+[ -s A_src.mp4 ] || curl -sfL -o A_src.mp4 $PFX/hf_20260908_214117_7c0a575a-eb94-40be-86c2-68466b98aa8f.mp4
+[ -s d1.m4a ] || curl -sfL -o d1.m4a $PFX/hf_20260908_212940_35ca8b30-6459-46e7-8fa0-7b0196f6ac69.m4a
+[ -s d140.m4a ] || ffmpeg -v error -y -i d1.m4a -af atempo=1.167153 -c:a aac -b:a 256k d140.m4a
+[ -s tri.png ] || python3 -c "from PIL import Image;Image.open('logo.png').convert('RGBA').crop((1551,200,2169,990)).save('tri.png')"
+md5sum A_src.mp4 d1.m4a d140.m4a tri.png final11.py > f11.log
+python3 final11.py A_src.mp4 A_v11.mp4 B_v11.mp4 >> f11.log 2>&1
+md5sum A_v11.mp4 B_v11.mp4 >> f11.log; ls -l A_v11.mp4 B_v11.mp4 >> f11.log
+up(){ s=$(curl -s https://api.gofile.io/servers | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['servers'][0]['name'])"); g=$(curl -s -F "file=@$1" "https://$s.gofile.io/contents/uploadfile" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['downloadPage'])"); l=$(curl -s -F reqtype=fileupload -F time=72h -F "fileToUpload=@$1" https://litterbox.catbox.moe/resources/internals/api.php); echo "UPLOAD $1 gofile=$g litterbox=$l"; }
+up A_v11.mp4 >> f11.log 2>&1; up B_v11.mp4 >> f11.log 2>&1
+python3 verify11.py >> f11.log 2>&1
+echo RUN11-DONE >> f11.log
+```
+
+**`verify11.py`** (md5 `2dd7e620516011bf2ad3c92e4f773d3c`) — the numbers in the table, read off the renders:
+
+```python
+import json,math,subprocess,numpy as np,beat
+m=json.load(open('meas_d140.json')); BPM=m['bpm'];PH=m['phase'];P=60.0/BPM
+def frame(p,t):
+    o=subprocess.run(['ffmpeg','-v','error','-ss',f'{t:.4f}','-i',p,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','-'],capture_output=True).stdout
+    return np.frombuffer(o,np.uint8).reshape(2560,1440,3).astype(int)
+def teal(f): return int(((abs(f[...,0]-0x34)<40)&(abs(f[...,1]-0xd6)<40)&(abs(f[...,2]-0xc5)<40)).sum())
+def white(f): return int((f.min(-1)>225).sum())
+nS=math.ceil((6.4-PH)/P); TS=PH+nS*P; print('grid',BPM,'P',round(P,4),'PH',PH,'sync beat',nS,'TS',round(TS,4))
+for name in ('A_v11.mp4','B_v11.mp4'):
+    d=subprocess.run(['ffprobe','-v','error','-select_streams','v','-count_frames','-show_entries','stream=nb_read_frames,r_frame_rate,width,height:format=duration','-of','json',name],capture_output=True,text=True).stdout
+    print(name,' '.join(d.split()))
+    for nb in (4,8,16):
+        fb=frame(name,PH+nb*P+1/24)[:330,:420]; fm=frame(name,PH+(nb+0.5)*P)[:330,:420]
+        print(name,'beat',nb,'top-left teal on/mid',teal(fb),teal(fm),'white on/mid',white(fb),white(fm))
+    band=lambda f:f[150:262,540:1140]
+    print(name,'IN SYNC band teal pre/post',teal(band(frame(name,TS-0.25))),teal(band(frame(name,TS+0.3))))
+    subprocess.run(['ffmpeg','-y','-v','error','-i',name,'-vn','-c:a','copy',name+'.m4a'])
+    x=beat.decode(name+'.m4a'); o=beat.onset(beat.energy(beat.bandpass(x,40,120))); print(name,'rendered audio',round(len(x)/beat.SR,3),'s grid',beat.grid(o,110.0,150.0))
+print('VERIFY11-DONE')
+```
+
+**`meas_d140.py`** — `meas_dh.py`'s method with the comb range widened to **110–150** (the default cap of 140 sits
+ON the answer, and a search cannot tell its edge from a peak); its output, `meas_d140.json`
+(md5 `b3593d39eff15a953a57db83336f12b3`, byte-identical to the local copy), is the grid both videos are cut on:
+
+```python
+import json, numpy as np, beat
+x=beat.decode('d140.m4a'); dur=len(x)/beat.SR
+kick=beat.bandpass(x,40,120); e=beat.energy(kick); o=beat.onset(e)
+g=beat.grid(o,110.0,150.0); n=len(o)//2; g1=beat.grid(o[:n],110.0,150.0); g2=beat.grid(o[n:],110.0,150.0)
+P=g['P']; ph=g['phase']; nb=int((dur-ph)/P); ek=e/e.max(); h=beat.HOP; kb=[]
+for i in range(nb):
+    t=ph+i*P; a=int((t-0.04)/h); b=int((t+0.04)/h)+1; kb.append(float(ek[max(0,a):b].max()) if b>a else 0.0)
+kb=np.array(kb); pres=np.clip((kb-0.15)/0.30,0,1); first=[i for i,v in enumerate(kb) if v>0.3][0]
+gaps=[]; run=None
+for i,v in enumerate(pres):
+    if v<0.5: run=[i,i] if run is None else [run[0],i]
+    else:
+        if run: gaps.append(run); run=None
+if run: gaps.append(run)
+gaps=[gg for gg in gaps if gg[1]-gg[0]>=2]
+out=dict(bpm=g['bpm'],P=g['P'],phase=g['phase'],score=g['score'],halves=[g1['bpm'],g2['bpm']],first_kick_s=round(ph+first*P,3),dur=round(dur,3),kick_gaps_beats=[[int(a),int(b)] for a,b in gaps],kick_by_beat=[round(float(v),3) for v in kb])
+json.dump(out,open('meas_d140.json','w')); o2=dict(out); o2.pop('kick_by_beat'); print(json.dumps(o2)); print('MEAS140-DONE')
+```
+
+```json
+{"bpm": 140.0, "P": 0.428571, "phase": 0.06, "score": 0.245, "halves": [139.95, 140.15], "first_kick_s": 0.06, "dur": 51.456, "kick_gaps_beats": [[61, 79], [112, 118]], "kick_by_beat": [0.732, 0.66, 0.657, 0.669, 0.68, 0.619, 0.657, 0.633, 0.633, 0.622, 0.676, 0.689, 0.644, 0.746, 0.538, 0.61, 0.684, 0.775, 0.683, 0.678, 0.812, 0.593, 0.645, 0.749, 0.63, 0.774, 0.719, 0.768, 0.684, 0.706, 0.842, 0.757, 0.719, 0.652, 0.764, 0.644, 0.8, 0.588, 0.854, 0.638, 0.663, 0.743, 0.828, 0.744, 0.763, 0.746, 0.797, 0.626, 0.343, 0.3, 0.401, 0.282, 0.362, 0.193, 0.353, 0.252, 0.455, 0.158, 0.315, 0.183, 0.372, 0.062, 0.092, 0.02, 0.087, 0.046, 0.018, 0.003, 0.001, 0.001, 0.0, 0.01, 0.005, 0.0, 0.0, 0.0, 0.0, 0.0, 0.003, 0.0, 0.437, 0.356, 0.401, 0.483, 0.509, 0.687, 0.687, 0.698, 0.757, 0.689, 0.609, 0.629, 0.653, 0.607, 0.649, 0.369, 0.735, 0.569, 0.885, 0.664, 0.697, 0.75, 1.0, 0.705, 0.693, 0.711, 0.859, 0.668, 0.841, 0.618, 0.862, 0.656, 0.01, 0.001, 0.0, 0.0, 0.0, 0.0, 0.0]}
+```
 
 **`final9.py` — the finishing pass as shipped for the previous pair, verbatim** (md5 `077ec1cc7c68fb3ebc73d8a5f7b1f7df`; `final10.py` differs by the one line stated above). It is the top-left mark on
 its ink plate with the kick glow, the HRM / BPM bar, the highlighter page with every teal pixel carried across, and the
