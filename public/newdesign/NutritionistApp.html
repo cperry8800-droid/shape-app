@@ -38,6 +38,10 @@
 
 <!-- Single-page nutritionist dashboard: every tab module loaded + compiled ONCE,
      then the router below swaps the active page client-side on #hash change. -->
+<!-- The coach client page (#client/<id>) reads these three module globals — the same tags the standalone TrainerClient.html carries. -->
+<script type="module">import * as LP from "/newdesign/liveProgress.mjs?v=20260720"; window.ShapeLiveValidate = LP;</script>
+<script type="module">import * as VB from "/newdesign/varianceBand.mjs?v=20260719"; window.ShapeVariance = VB;</script>
+<script type="module">import * as CY from "/newdesign/cyclePhase.mjs?v=20260719"; window.ShapeCycleLib = CY;</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx?v=20260614"></script>
@@ -50,6 +54,7 @@
 <script type="text/babel" src="dashSchedule.jsx?v=20260621s"></script>
 <script type="text/babel" src="sharedClientsTab.jsx"></script>
 <script type="text/babel" src="nutritionistClientsPage.jsx?v=20260620u"></script>
+<script type="text/babel" src="coachClientDetail.jsx?v=20260909"></script>
 <script type="text/babel" src="dashGrid.jsx?v=20260629a"></script>
 <script type="text/babel" src="dashClient.jsx?v=20260629a"></script>
 <script src="dashMealCore.js?v=20260613"></script>
@@ -84,6 +89,9 @@ const NUTRI_CTX = {
   payoutCard: nutriPayoutCard,
   subtitle: "Paste a Spotify or Apple Music link, attach it to a meal, recipe, or prep routine, and your client gets a play button in their kitchen. Optional, always skippable."
 };
+// Tells dashClientPageHref() that a client link is the `#client/<id>` route here
+// (an instant, same-document switch that keeps the sidebar), not the standalone page.
+window.__shapeCoachShell = "nutritionist";
 const NA_ROUTES = {
   today:     () => <CoachDashboardPage role="nutritionist" />,
   schedule:  () => <CoachSchedulePage role="nutritionist" />,
@@ -95,17 +103,26 @@ const NA_ROUTES = {
   goal:      () => <NutritionistGoalPage />,
   score:     () => <NutritionistScorePage />,
   profile:   () => <LiveProfilePage demoRole="nutritionist" shell={{ navItems: nutriNavItems("profile"), payoutCard: nutriPayoutCard }} extras={<DashProfileExtras />} />,
+  // The per-client deep dive (review 2026-09-09, R2): the same page TrainerClient.html /
+  // NutritionistClient.html mount standalone, keyed so switching clients remounts it.
+  client:    (id) => <CoachClientDetailPage key={id} clientId={id} role="nutritionist" inShell />,
 };
-function naSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return NA_ROUTES[h] ? h : "today"; }
+function naParse() {
+  const raw = (window.location.hash || "").replace(/^#/, "");
+  const m = /^client\/(.+)$/.exec(raw);
+  if (m) { try { return { slug: "client", param: decodeURIComponent(m[1]) }; } catch (e) { return { slug: "clients", param: null }; } }
+  const h = raw.toLowerCase();
+  return { slug: (h !== "client" && NA_ROUTES[h]) ? h : "today", param: null };
+}
 function NutritionistApp() {
-  const [route, setRoute] = React.useState(naSlug());
+  const [route, setRoute] = React.useState(naParse());
   React.useEffect(() => {
-    if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route); } catch (e) {} }
-    const onHash = () => { setRoute(naSlug()); try { window.scrollTo(0, 0); } catch (e) {} };
+    if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route.slug); } catch (e) {} }
+    const onHash = () => { setRoute(naParse()); try { window.scrollTo(0, 0); } catch (e) {} };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  return (NA_ROUTES[route] || NA_ROUTES.today)();
+  return (NA_ROUTES[route.slug] || NA_ROUTES.today)(route.param);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistApp />);
 window.ShapeDashTour && window.ShapeDashTour.init('nutritionist');

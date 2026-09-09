@@ -38,6 +38,10 @@
 
 <!-- Single-page trainer dashboard: every tab module is loaded + compiled ONCE,
      then the router below swaps the active page client-side on #hash change. -->
+<!-- The coach client page (#client/<id>) reads these three module globals — the same tags the standalone TrainerClient.html carries. -->
+<script type="module">import * as LP from "/newdesign/liveProgress.mjs?v=20260720"; window.ShapeLiveValidate = LP;</script>
+<script type="module">import * as VB from "/newdesign/varianceBand.mjs?v=20260719"; window.ShapeVariance = VB;</script>
+<script type="module">import * as CY from "/newdesign/cyclePhase.mjs?v=20260719"; window.ShapeCycleLib = CY;</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx?v=20260614"></script>
@@ -50,6 +54,7 @@
 <script type="text/babel" src="dashSchedule.jsx?v=20260621s"></script>
 <script type="text/babel" src="sharedClientsTab.jsx"></script>
 <script type="text/babel" src="trainerClientsPage.jsx?v=20260620u"></script>
+<script type="text/babel" src="coachClientDetail.jsx?v=20260909"></script>
 <script type="text/babel" src="dashGrid.jsx?v=20260629a"></script>
 <script type="text/babel" src="dashClient.jsx?v=20260629a"></script>
 <script src="dashBuilderCore.js?v=20260729"></script>
@@ -85,6 +90,9 @@ const TRAINER_CTX = {
   payoutCard: trainerPayoutCard,
   subtitle: "Paste a Spotify or Apple Music link, attach it to a workout, and your client gets a play button on the session card. Optional, always skippable."
 };
+// Tells dashClientPageHref() that a client link is the `#client/<id>` route here
+// (an instant, same-document switch that keeps the sidebar), not the standalone page.
+window.__shapeCoachShell = "trainer";
 const TA_ROUTES = {
   today:     () => <CoachDashboardPage role="trainer" />,
   schedule:  () => <CoachSchedulePage role="trainer" />,
@@ -96,17 +104,26 @@ const TA_ROUTES = {
   goal:      () => <TrainerGoalPage />,
   score:     () => <TrainerScorePage />,
   profile:   () => <LiveProfilePage demoRole="trainer" shell={{ navItems: trainerNavItems("profile"), payoutCard: trainerPayoutCard }} extras={<DashProfileExtras />} />,
+  // The per-client deep dive (review 2026-09-09, R2): the same page TrainerClient.html /
+  // NutritionistClient.html mount standalone, keyed so switching clients remounts it.
+  client:    (id) => <CoachClientDetailPage key={id} clientId={id} role="trainer" inShell />,
 };
-function taSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return TA_ROUTES[h] ? h : "today"; }
+function taParse() {
+  const raw = (window.location.hash || "").replace(/^#/, "");
+  const m = /^client\/(.+)$/.exec(raw);
+  if (m) { try { return { slug: "client", param: decodeURIComponent(m[1]) }; } catch (e) { return { slug: "clients", param: null }; } }
+  const h = raw.toLowerCase();
+  return { slug: (h !== "client" && TA_ROUTES[h]) ? h : "today", param: null };
+}
 function TrainerApp() {
-  const [route, setRoute] = React.useState(taSlug());
+  const [route, setRoute] = React.useState(taParse());
   React.useEffect(() => {
-    if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route); } catch (e) {} }
-    const onHash = () => { setRoute(taSlug()); try { window.scrollTo(0, 0); } catch (e) {} };
+    if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route.slug); } catch (e) {} }
+    const onHash = () => { setRoute(taParse()); try { window.scrollTo(0, 0); } catch (e) {} };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  return (TA_ROUTES[route] || TA_ROUTES.today)();
+  return (TA_ROUTES[route.slug] || TA_ROUTES.today)(route.param);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<TrainerApp />);
 window.ShapeDashTour && window.ShapeDashTour.init('trainer');

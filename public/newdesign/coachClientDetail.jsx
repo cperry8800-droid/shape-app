@@ -338,9 +338,86 @@ function CKEmpty({ children }) {
   return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.04em", color: "rgba(242,237,228,0.5)", fontStyle: "italic", lineHeight: 1.6, padding: "6px 0" }}>{children}</div>;
 }
 
-function CoachClientDetailPage() {
+// The coach's private note on a client — one whole-doc store per coach
+// (user_goals 'coach_client_notes': { [clientId]: { text, updatedAt } }), read
+// before every write so a note on client A never clobbers the note on B, and
+// declined when the read cannot be trusted (getUserGoals resolves null for
+// "not signed in" AND "the read failed", so a null doc is never written over).
+const _ckNotesLane = { p: Promise.resolve() };
+function ckNotesSerial(fn) { const run = _ckNotesLane.p.then(fn, fn); _ckNotesLane.p = run.catch(() => {}); return run; }
+function ckNoteDate(iso) { try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; } }
+function CKCoachNote({ clientId, accent }) {
+  const [state, setState] = React.useState({ kind: "loading", text: "", savedAt: null });
+  const [draft, setDraft] = React.useState("");
+  React.useEffect(() => {
+    let on = true;
+    setState({ kind: "loading", text: "", savedAt: null }); setDraft("");   // reset FIRST: A's note must never sit under B
+    (async () => {
+      const db = window.shapeDb;
+      if (!db || !db.getUserGoals) { if (on) setState({ kind: "unavailable", text: "", savedAt: null }); return; }
+      let doc = null;
+      try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
+      if (!on) return;
+      if (doc == null) { setState({ kind: "signedout", text: "", savedAt: null }); return; }
+      const n = doc[clientId];
+      const text = n && typeof n.text === "string" ? n.text : "";
+      setState({ kind: "ready", text, savedAt: n && n.updatedAt ? n.updatedAt : null });
+      setDraft(text);
+    })();
+    return () => { on = false; };
+  }, [clientId]);
+  const dirty = (state.kind === "ready" || state.kind === "error") && draft !== state.text;
+  const save = () => ckNotesSerial(async () => {
+    const db = window.shapeDb;
+    let doc = null;
+    try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
+    if (doc == null) { setState((s) => ({ ...s, kind: "error" })); return; }
+    const now = new Date().toISOString();
+    const next = { ...doc };
+    if (draft.trim()) next[clientId] = { text: draft, updatedAt: now }; else delete next[clientId];
+    let res = null;
+    try { res = await db.saveUserGoals("coach_client_notes", next); } catch (e) { res = null; }
+    if (!res || res.error) { setState((s) => ({ ...s, kind: "error" })); return; }
+    setState({ kind: "ready", text: draft, savedAt: draft.trim() ? now : null });
+  });
+  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
+  const status = state.kind === "error" ? "Couldn't save — try again"
+    : dirty ? "Unsaved changes"
+    : state.savedAt ? "Saved · " + ckNoteDate(state.savedAt)
+    : state.kind === "ready" ? "Nothing written yet" : "";
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
+        <CKSecHead>COACH NOTE · ONLY YOU SEE THIS</CKSecHead>
+        <span style={{ ...mono, color: state.kind === "error" ? "#e0644b" : mono.color }}>{status}</span>
+      </div>
+      {state.kind === "loading" ? <CKEmpty>Loading your note…</CKEmpty>
+        : (state.kind === "unavailable" || state.kind === "signedout") ? <CKEmpty>Sign in to keep a private note on this client — it lives with your account, not on this device.</CKEmpty>
+        : (
+          <React.Fragment>
+            <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4}
+              placeholder="What you're watching, what you told them, what to check next week."
+              style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: 12, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, lineHeight: 1.5 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+              <button onClick={save} disabled={!dirty} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: accent, border: 0, borderRadius: 4, padding: "10px 16px", cursor: dirty ? "pointer" : "default", opacity: dirty ? 1 : 0.5 }}>Save note</button>
+              <span style={mono}>Private to you — never shown to the client or a co-coach.</span>
+            </div>
+          </React.Fragment>
+        )}
+    </Card>
+  );
+}
+
+// Standalone (TrainerClient.html?id=…) reads the id from the query string; inside a
+// coach shell the `#client/<id>` route passes it as a prop, with the shell's role
+// and inShell so the back / Schedule / Assign links stay same-document hashes.
+function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell } = {}) {
   const params = new URLSearchParams(window.location.search);
-  const clientId = params.get("id");
+  const clientId = clientIdProp || params.get("id");
+  const navForRole = (r) => (r === "nutritionist" ? nutriNavItems : trainerNavItems)("clients");
+  const cardForRole = (r) => (r === "nutritionist" ? nutriPayoutCard : trainerPayoutCard);
+  const appFor = (r) => (r === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html");
+  const hrefTo = (r, slug) => (inShell ? "#" + slug : appFor(r) + "#" + slug);
   const [data, setData] = React.useState(null);
   // Week-to-week variance line (spec 2026-07-19). No route: the definer RPC is
   // called straight from the browser, and bsVarianceCopy is the ONE copy source
@@ -436,16 +513,17 @@ function CoachClientDetailPage() {
     }
   }
 
+  const backLink = (r) => <a href={hrefTo(r, "clients")} style={{ color: "#2ee0c4", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>← Back to clients</a>;
   if (err) {
     return (
-      <DashPage navItems={trainerNavItems("clients")} payoutCard={trainerPayoutCard} eyebrow="CLIENT" title="Couldn't load" subtitle={err}>
-        <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.65)" }}>Try refreshing or go back to the clients list.</div></Card>
+      <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Couldn't load" subtitle={err}>
+        <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.65)", display: "flex", gap: 18, alignItems: "baseline", flexWrap: "wrap" }}><span>Try refreshing or go back to the clients list.</span>{backLink(roleProp)}</div></Card>
       </DashPage>
     );
   }
   if (!data) {
     return (
-      <DashPage navItems={trainerNavItems("clients")} payoutCard={trainerPayoutCard} eyebrow="CLIENT" title="Loading…" subtitle="">
+      <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Loading…" subtitle="">
         <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.55)" }}>Loading client overview…</div></Card>
       </DashPage>
     );
@@ -458,6 +536,28 @@ function CoachClientDetailPage() {
   const teal = "#2ee0c4", rust = "#d2693f", gold = "#d8b25a";
   const accent = isNutri ? gold : teal;
   const firstName = data.client.name.split(/\s+/)[0];
+
+  // The action line — the Case File's verbs, on the website. Message rides the
+  // existing chat bubble (the drawer's helper when dashToday.jsx is loaded, the
+  // bubble's own deep-link otherwise); Schedule and Assign are the shell's own
+  // tabs, same-document inside a coach shell.
+  const messageClient = () => {
+    if (typeof dashMessageClient === "function") { dashMessageClient(data.client.name, myRole); return; }
+    const opts = { who: data.client.name };
+    try { if (typeof window.__openChat === "function") { window.__openChat(opts); return; } } catch (e) {}
+    const b = document.getElementById("shape-global-chat-button");
+    if (b) { window.__openChatRequest = opts; b.click(); }
+  };
+  const actGhost = { background: "transparent", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.25)", padding: "10px 18px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: "pointer", whiteSpace: "nowrap" };
+  const actPrimary = { ...actGhost, background: "#f2ede4", color: "#1a1612", border: 0, fontWeight: 500 };
+  const actions = (
+    <React.Fragment>
+      <a href={hrefTo(myRole, "clients")} style={actGhost}>← Clients</a>
+      <a href={hrefTo(myRole, "schedule")} style={actGhost}>Schedule</a>
+      <a href={hrefTo(myRole, isNutri ? "plans" : "programs")} style={actGhost}>{isNutri ? "Assign a plan" : "Assign a program"}</a>
+      <button onClick={messageClient} style={actPrimary}>Message {firstName}</button>
+    </React.Fragment>
+  );
 
   const counterparts = data.careTeam.filter(c => !c.isMe);
   // A FAILED care-team read must never render as "you are the only coach". When
@@ -528,6 +628,7 @@ function CoachClientDetailPage() {
     <DashPage
       navItems={navItems}
       payoutCard={payout}
+      actions={actions}
       eyebrow={typeof memberAge === "number" ? `CLIENT · AGE ${memberAge}` : "CLIENT"}
       title={data.client.name}
       subtitle={careTeamPartial
@@ -553,6 +654,8 @@ function CoachClientDetailPage() {
               </div>
             )}
           </Card>
+
+          <CKCoachNote key={clientId} clientId={clientId} accent={accent} />
 
           {!isNutri && (
             <Card style={{ marginBottom: 16 }}>
