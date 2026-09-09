@@ -55,12 +55,16 @@ class Figure:
         self.vr=None if not fade else np.clip((H-340-np.arange(H))/float(fade),0,1).astype(np.float32)[:,None,None]
     def mask(self,f):
         g=0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2]; m=g<self.th; m[:250]=False; m[H-340:]=False
-        if self.rulecols is None:   # a column rule is a HAIRLINE: a group of at most 8 dark columns; a wide figure's columns are just as dark and are not rules
-            frac=m[250:H-340].mean(0); cs=[x for x in range(W) if frac[x]>0.35]; groups=[]
-            for x in cs:
-                if groups and x-groups[-1][-1]<=2: groups[-1].append(x)
-                else: groups.append([x])
-            self.rulecols=[x for gp in groups if len(gp)<=8 for x in gp]
+        if self.rulecols is None:   # a column rule is a HAIRLINE: a group of <= 8 dark columns over the page's height, or <= 12 dark through the top zone (rows 250-700), where a rule runs from the masthead and a figure rarely reaches. The cook's left rule stands beside his counter, so over the full height it merges into the counter's columns and only the top zone separates it; a wide figure's columns are just as dark and are not rules
+            frac=m[250:H-340].mean(0); top=m[250:700].mean(0); cols=set()
+            for thr,arr,wmax in ((0.35,frac,8),(0.8,top,12)):
+                cs=[x for x in range(W) if arr[x]>thr]; groups=[]
+                for x in cs:
+                    if groups and x-groups[-1][-1]<=2: groups[-1].append(x)
+                    else: groups.append([x])
+                for gp in groups:
+                    if len(gp)<=wmax: cols.update(gp)
+            self.rulecols=sorted(cols)
         for x in self.rulecols: m[:,max(0,x-4):x+5]=False
         rf=m[:,90:W-90].mean(1); dark=rf>0.5; y=250
         while y<H-340:
