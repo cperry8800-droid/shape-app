@@ -1,0 +1,12 @@
+[
+ {"name":"lifter","kind":"fig","src":"fig_lifter.mp4","t0":"bar(1)","t1":"bar(4)","s0":0.5,"caption":"Written before you arrive."},
+ {"name":"cook","kind":"fig","src":"fig_cook.mp4","t0":"bar(4)","t1":"bar(6)","s0":0.5,"caption":"Every meal, planned."},
+ {"name":"yoga","kind":"fig","src":"fig_yoga.mp4","t0":"bar(6)","t1":"bar(8)","s0":0.5,"caption":"Small things, daily."},
+ {"name":"cyclist","kind":"fig","src":"fig_cyclist.mp4","t0":"bar(8)","t1":"bar(10)","s0":0.5,"caption":"One number that tells the truth."},
+ {"name":"coach","kind":"fig","src":"fig_coach.mp4","t0":"bar(10)","t1":"bar(13)","s0":0.5,"caption":"A person. Not an algorithm."},
+ {"name":"radio","kind":"fig","src":"fig_driver.mp4","t0":"bar(13)","t1":"bar(16)","s0":0.5,"caption":"Shape Radio.","play":true},
+ {"name":"runner","kind":"runner","src":"runner_beat.mp4","t0":"bar(16)","t1":"bar(21)","s0":0.0,"ts":"bar(19)"},
+ {"name":"skipper","kind":"fig","src":"fig_skipper.mp4","t0":"bar(21)","t1":"bar(23)","s0":0.5},
+ {"name":"montage","kind":"montage","t0":"bar(23)","t1":"bar(25)","slots":[["fig_lifter.mp4",6.0],["fig_cook.mp4",6.0],["fig_yoga.mp4",6.0],["fig_cyclist.mp4",6.0],["fig_coach.mp4",6.0],["fig_driver.mp4",6.0],["runner_beat.mp4",6.0],["fig_skipper.mp4",6.0]]},
+ {"name":"globe","kind":"globe","src":"globe.mp4","t0":"bar(25)","t1":"bar(31)","s0":0.0}
+]
