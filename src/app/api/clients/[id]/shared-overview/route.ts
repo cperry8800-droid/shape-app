@@ -177,12 +177,13 @@ export async function GET(
     .limit(20);
 
   const templateIds = [...new Set((assignments ?? []).map(a => a.program_template_id))];
-  const { data: templates } = templateIds.length
+  const { data: templates, error: templatesErr } = templateIds.length
     ? await supabase
         .from('coach_program_templates')
         .select('id, title, goal, level, duration_weeks, days_per_week')
         .in('id', templateIds)
-    : { data: [] as Array<{ id: string; title: string; goal: string | null; level: string | null; duration_weeks: number | null; days_per_week: number | null }> };
+    : { data: [] as Array<{ id: string; title: string; goal: string | null; level: string | null; duration_weeks: number | null; days_per_week: number | null }>, error: null };
+  if (templatesErr) console.error('[shared-overview] program templates read failed:', templatesErr.message);
   const templateById = new Map<string, { title: string; goal: string | null; level: string | null; durationWeeks: number | null; daysPerWeek: number | null }>();
   for (const t of templates ?? []) {
     templateById.set(t.id, {
@@ -236,7 +237,7 @@ export async function GET(
     { data: cycle },
     { data: prep },
     { data: programRow },
-    { data: convoRows },
+    { data: convoRows, error: convoErr },
     { data: scoreHistory },
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
@@ -262,6 +263,8 @@ export async function GET(
     // `conversations` is participant-scoped by RLS, so a coach reads only
     // threads they are in; the leg then narrows to their own provider id.
     supabase.from('conversations').select('provider_role, provider_id, last_message_at').eq('client_id', clientId).eq('kind', 'direct'),
+    // (the error is read alongside the data below — a failed read must not ship
+    //  as "you have never messaged this client")
     // Weekly Shape Score + the member's streak (R4). `score_ledger` and
     // `workout_sessions` are owner-scoped, so this is the ONE leg that needs a
     // definer: 2026-09-09-client-score-history-coach-read.sql. Pre-migration
@@ -415,8 +418,17 @@ export async function GET(
     trainer: trainers.find((t) => t.isMe)?.providerId ?? null,
     nutritionist: nutritionists.find((n) => n.isMe)?.providerId ?? null,
   };
-  const lastContact = bsLastContactLeg(convoRows ?? [], mine);
-  const program = bsProgramLeg(assignments ?? [], templateById, mine, Date.now());
+  // ⚠ THE SAME THREE-STATE RULE AS `logs` BELOW, and for the same reason: this
+  // leg's empty value is the POSITIVE claim "you have never messaged them"
+  // ("Never" in the LAST CONTACT column), so a failed read that yields no rows
+  // would assert it about every client on the roster. Omitted on error, which
+  // the column renders as its honest "Not shared".
+  if (convoErr) console.error('[shared-overview] conversations read failed:', convoErr.message);
+  const lastContact = convoErr ? undefined : bsLastContactLeg(convoRows ?? [], mine);
+  // Likewise: an unreadable TEMPLATE makes bsProgramLeg return null, which the
+  // roster renders as "Not set" — "this client has no program" — for clients who
+  // all have one. `templatesErr` is the only thing that can tell them apart.
+  const program = templatesErr ? undefined : bsProgramLeg(assignments ?? [], templateById, mine, Date.now());
 
   // Food logging off the SAME 30-row snapshot window every other leg reads —
   // the last logged day (which `get_client_stats` has never carried), the
@@ -462,8 +474,8 @@ export async function GET(
     // R4 legs — each null when its source is absent (never a zero). `logs` is
     // OMITTED entirely when the snapshot read failed, so the client can tell an
     // empty window from an unreadable one.
-    lastContact,
-    program,
+    ...(lastContact === undefined ? {} : { lastContact }),
+    ...(program === undefined ? {} : { program }),
     ...(logs === undefined ? {} : { logs }),
     nutritionTargets,
     scoreHistory: scoreHistory ?? null,

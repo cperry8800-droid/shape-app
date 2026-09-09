@@ -475,6 +475,79 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — Reviewing the fixes from the last review: ten more findings, and the sharpest one was a hole my own fix opened
+
+- **Owner: *"did you review 2017?"*** — and the honest answer exposed the gap. I ran
+  `/code-review` on the **staged diff before pushing** #2017, worked its eleven findings,
+  and merged on CI green. What never happened is a review of the **fixes themselves**: a
+  new engine function, four call sites repointed at it, two SQL changes and a route
+  rewiring, all shipped on my own mutation round alone. Running it after the fact returned
+  **ten findings**. ⚠ *A review round produces a new diff, and that diff has not been
+  reviewed.* The fix batch is not a footnote to the reviewed change — on this PR it was
+  roughly a third of it.
+- ⚠ **THE WEEKLY SCORE OMITTED EMPTY WEEKS, SO A CLIENT WHO STOPPED ENTIRELY KEPT LAST
+  WEEK'S HEALTHY NUMBER — under the column that exists to catch exactly that.** The
+  definer GROUPed over `score_ledger`, so a week with no rows produced **no bucket**; the
+  newest bucket was then **last week**, carrying `partial: false`, so the roster read
+  `70 ▲+2` in green on a Friday for someone who had banked **zero all week**, and
+  `ruleScoreDrop` could not fire. The same absence made the delta subtract **non-adjacent**
+  weeks and report it as *"week-over-week"*. My own comment argued for the omission —
+  *"inventing a 0 would draw a crash that never happened"* — **and it is wrong twice**: the
+  ledger records points EARNED, so the sum over an empty week is a **measured** zero, and
+  dropping the bucket silently breaks the adjacency every consumer assumes. Zero-filled
+  from the client's first entry now, so adjacency is structural rather than hoped for.
+  ⚠ **AND THE FIX I DID SHIP MADE THIS ONE HARDER TO SEE**: `partial` correctly stopped the
+  in-progress week being compared, which is precisely why an absent week reading as
+  `partial: false` looked like a settled result.
+- ⚠ **AND THE 8-WEEK WINDOW WAS A ROLLING TIMESTAMP, so the OLDEST bucket was truncated
+  mid-week and shipped `partial: false`** — manufacturing a drop or a gain out of the
+  window's own edge. Floored to `date_trunc('week', …)`; the grid is exactly 8 buckets.
+- ⚠ **`best` WAS A LIFETIME MAXIMUM, AND FILLING THE RECORD IS WHAT ARMED IT.**
+  `ruleStreakBroken` fires on `current === 0 && best >= 3`, so anyone who has **ever**
+  trained three days running is permanently eligible — and a Mon/Wed/Fri member has
+  `current: 0` every Sunday. Before #2017 `streaks` was null on live and the rule never
+  ran; filling it would have flagged *"Streak broken — was 3 days"* at a large slice of a
+  real roster on rotation, turning rows **red** wherever a second flag landed. `best` is
+  windowed to the same 8 weeks now: measured, an alternate-day trainer reads `best 1` and
+  cannot fire, an old 5-day run no longer counts, a recent one still does. *A rule that has
+  never had inputs has never been tested.*
+- ⚠ **TWO MORE READS DROPPED THEIR ERRORS — the exact class `snapReadFailed` was added to
+  close, one round earlier, in the same file.** `conversations` failing yields no rows, and
+  the leg's empty value is the **positive claim** *"Never"* in LAST CONTACT — on **every**
+  row. `coach_program_templates` failing makes the program leg return null, which renders
+  *"Not set"* for clients who all have one. Both are omitted on error now, and the columns
+  fall back to their honest *"Not shared"*. *Writing the rule down where the fix landed did
+  not carry it fifteen lines up the same function.*
+- ⚠ **AND OF THE FOUR SURFACES THE LAST ENTRY CLAIMS I UNIFIED, TWO ADOPTED THE SHARED
+  READING WITHOUT ITS FLAG.** The drawer's read-only training panel rendered the
+  in-progress week's `20 pts` under a delta literally labelled **`wk/wk`** that compares two
+  *earlier* weeks, and Today's triage line carried the same number with no marker at all —
+  so the defect the round was run to fix survived on two of the four. *Adopting a shared
+  helper is not the same as adopting what it returns.*
+- **The rest, each fixed:** a **paused** block outranked the live one because `updated_at`
+  moves on any edit (status ranks above recency now, so pausing Block 3 on Tuesday cannot
+  hide Block 4 assigned on Monday); the fast-paint pass told a coach who opened a drawer
+  during enrichment that their notes **could not be read** before the read was attempted
+  (a fourth `undefined` state, and the one read now starts with the roster rather than
+  behind the 30-client pool); and `bsNutritionTargets` was documented as *"the coach's
+  own"* when `detail.nutrition` is **one whole-doc override per client with no author id** —
+  a predecessor's months-old prescription drives the current coach's flags, which is a data
+  -model gap the function cannot close but must stop claiming to.
+- ⚠ **ONE FINDING WAS A DOCS DEFECT, AND IT WAS MINE.** The migration's header promised
+  *"an empty history returns the shape with empty legs — the UI renders its own 'not shared'
+  either way"*, while the code returns `{current: 0, best: 0}` and the roster renders `0d`.
+  **`0d` is right** — a client who has not trained has a zero-day streak, and that is
+  measured, not unknown. The **claim** was wrong, so the claim moved.
+- **Verified:** `npm test` **2679/2679** · `tsc --noEmit` 0 · JSX parse on the three touched
+  web modules · the newdesign precompile check · the migration **re-applied and driven
+  through seven new fixtures on a real Postgres 16** (a silent current week is a flagged 0
+  adjacent to last week · a mid-series silent week is a 0 · weeks *before* a member's first
+  entry are **not** zero-filled · exactly 8 buckets with the oldest on a week start · an
+  alternate-day member reads `best 1` · an old run is windowed out · a recent one is not) ·
+  **3 mutations killed** on the new guards · and headless renders confirming the training
+  panel now reads `12 pts*` / `▼ −13 last full wk` / *Week in progress* instead of a bare
+  `wk/wk`, with zero page errors.
+
 ### 2026-09-09 — R4: the live client record filled, and the review round that caught a mid-week false alarm on every client
 
 - **P1-A off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
