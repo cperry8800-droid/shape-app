@@ -287,11 +287,19 @@ function dashFindRecord(clients, who) {
 // a name-slug into ClientProfile.html, a demo persona page with no backend calls
 // that fell back to "Priya Shah" for any real client (review 2026-09-09, R1) —
 // a live coach must never be routed there again.
+// Inside a coach shell (TrainerApp / NutritionistApp set window.__shapeCoachShell)
+// the page is the `#client/<id>` route — an instant, same-document switch that
+// keeps the sidebar. Anywhere else it is the standalone page.
+function dashClientPageHref(id, role) {
+  if (!id) return null;
+  if (typeof window !== "undefined" && window.__shapeCoachShell) return "#client/" + encodeURIComponent(id);
+  return (role === "nutritionist" ? "NutritionistClient.html" : "TrainerClient.html") + "?id=" + encodeURIComponent(id);
+}
 function dashClientHref(rec, role) {
   const r = rec && rec.client ? rec.client : rec;
   const id = r && r.profile ? r.profile.id : null;
   if (!id || /^demo-/.test(String(id))) return null;
-  return (role === "nutritionist" ? "NutritionistClient.html" : "TrainerClient.html") + "?id=" + encodeURIComponent(id);
+  return dashClientPageHref(id, role);
 }
 
 // Expandable schedule rows (step 4.1) — same anatomy as DashShell's default
@@ -848,4 +856,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
