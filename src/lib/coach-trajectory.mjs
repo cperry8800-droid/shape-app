@@ -8,14 +8,36 @@
 //                    · price_cents · fee_bps
 //   one_time_purchases — created_at · status · price_cents · application_fee_cents
 //
-// A subscription is a span. It opens at created_at; it closes at its end date
-// when the status says it ended (canceled / unpaid / incomplete_expired), and it
-// is still open otherwise — including a payment that is retrying (past_due):
-// that member has not left, and a growth line that dropped them for a week and
-// picked them back up would be noise, not news. `active` at a moment is the
-// count of spans covering it; `added` / `ended` are the spans that opened /
-// closed inside the bucket; MRR is the sum over the spans open at the bucket's
-// end, cut by each row's STORED fee (never a hardcoded 85%).
+// A subscription is a span. It opens at created_at and stays open while the
+// status is one the house counts as a subscription — active · trialing ·
+// past_due, the same set membership-core.ts uses. A payment that is retrying
+// has not left: a growth line that dropped them for a week and picked them back
+// up would be noise, not news. Any other status closes the span.
+//
+// ⚠ A ROW THAT NEVER BECAME A CLIENT IS NOT A JOIN AND NOT A DEPARTURE.
+// `incomplete` (checkout started, first invoice never paid) and
+// `incomplete_expired` are dropped entirely rather than counted as a span that
+// opened and closed — an abandoned checkout in the "joined vs left" columns is
+// a fabricated event.
+//
+// ⚠ AND THE CLOSE DATE IS CLAMPED TO NOW, WHICH IS THE WHOLE REASON THIS IS NOT
+// A ONE-LINER. `subscriptions` carries NO canceled_at — the Stripe webhook
+// writes only { status, current_period_end } — so a member cancelled mid-period
+// keeps a current_period_end in the FUTURE. Reading that verbatim counts them
+// as active today and buckets their departure into a week beyond the series,
+// where it is never drawn. The status says they are gone, so the span closes at
+// the earlier of its period end and now. (The optional canceled_at / ended_at
+// reads below cost nothing and would be exact if a migration ever adds them.)
+//
+// ⚠ THE HISTORY IS RECONSTRUCTED FROM THE CURRENT STATUS, so a member who
+// paused and resumed reads as continuously active: the row remembers only where
+// it stands today. That is a known floor on the series' resolution, not a bug
+// to paper over with a guess.
+//
+// `active` at a moment is the count of spans covering it; `added` / `ended` are
+// the spans that opened / closed inside the bucket; MRR is the sum over the
+// spans open at the bucket's end, cut by each row's STORED fee (never a
+// hardcoded 85%).
 //
 // Weekly ISO buckets (Monday, UTC), oldest first, the last one the current
 // partial week. The UI rolls them up to months for the longer ranges.
@@ -23,7 +45,10 @@
 export const TRAJECTORY_WEEKS = 104;
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
-const ENDED = new Set(['canceled', 'cancelled', 'unpaid', 'incomplete_expired']);
+// Open while the status is one of these (membership-core.ts's ACTIVE_SUB).
+const OPEN_STATUSES = new Set(['active', 'trialing', 'past_due']);
+// Never a client: no join, no departure, no row in the series.
+const NEVER_STARTED = new Set(['incomplete', 'incomplete_expired']);
 
 // The Monday (00:00 UTC) of the ISO week containing `ms`.
 export function mondayUTC(ms) {
@@ -39,10 +64,19 @@ function ms(v) {
   return Number.isFinite(t) ? t : null;
 }
 
-// When a subscription row's span closed, or null while it is open.
-export function subEndedAt(row) {
-  if (!row || !ENDED.has(String(row.status || '').toLowerCase())) return null;
-  return ms(row.canceled_at) ?? ms(row.ended_at) ?? ms(row.current_period_end) ?? ms(row.updated_at) ?? ms(row.created_at);
+// True for a row that never became a client (an abandoned checkout).
+export function subNeverStarted(row) {
+  return !!row && NEVER_STARTED.has(String(row.status || '').toLowerCase());
+}
+
+// When a subscription row's span closed, or null while it is open. `now` clamps
+// the close date: a status that says "gone" cannot resolve to a future date.
+export function subEndedAt(row, now = Date.now()) {
+  if (!row || subNeverStarted(row)) return null;
+  if (OPEN_STATUSES.has(String(row.status || '').toLowerCase())) return null;
+  const at = ms(row.canceled_at) ?? ms(row.ended_at) ?? ms(row.current_period_end) ?? ms(row.updated_at) ?? ms(row.created_at);
+  if (at == null) return null;
+  return Math.min(at, now);
 }
 
 function defaultCut(priceCents, feeBps) {
@@ -63,9 +97,10 @@ function median(nums) {
 export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), weeks = TRAJECTORY_WEEKS, cutCents = defaultCut } = {}) {
   const spans = [];
   for (const r of subs) {
+    if (subNeverStarted(r)) continue;   // an abandoned checkout is not a join and not a departure
     const start = ms(r && r.created_at);
     if (start == null) continue;
-    const end = subEndedAt(r);
+    const end = subEndedAt(r, now);
     spans.push({
       start,
       end: end != null && end < start ? start : end, // a close before its open is a data error; treat as a zero-length span

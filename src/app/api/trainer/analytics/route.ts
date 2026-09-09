@@ -255,15 +255,24 @@ export async function GET() {
   // The practice trajectory (review 2026-09-09, R8): every subscription this
   // trainer has ever had, any status, plus paid one-time purchases — bucketed by
   // ISO week into active / added / ended / MRR / one-time. Read with the same
-  // provider-scoped policies as the rows above; a failed read renders the
-  // plate's honest empty, never a demo series.
-  const [{ data: allSubRows }, { data: purchaseRows }] = await Promise.all([
+  // provider-scoped policies as the rows above.
+  //
+  // ⚠ NEWEST FIRST, because the cap has to cut the OLD end. Ordered ascending,
+  // a coach past the limit would lose their most recent rows — the half
+  // activeNow, the adds and the churn rate are computed from.
+  //
+  // ⚠ AND A FAILED READ MUST NOT RENDER AS "no subscribers yet". `data` is null
+  // for an RLS denial, a timeout or a pre-migration column mismatch alike, and
+  // an empty series is a claim about the coach's business rather than about the
+  // read — so the error sends `trajectory: null` and the plate says it could not
+  // be read.
+  const [subsAllRes, purchasesRes] = await Promise.all([
     supabase
       .from('subscriptions')
       .select('*')
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(2000),
     supabase
       .from('one_time_purchases')
@@ -271,14 +280,22 @@ export async function GET() {
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
       .eq('status', 'paid')
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(2000),
   ]);
-  const trajectory = buildTrajectory({
-    subs: allSubRows ?? [],
-    purchases: purchaseRows ?? [],
-    cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
-  });
+  if (subsAllRes.error) {
+    console.warn('[shape-app] trainer analytics: trajectory subscriptions read failed — the plate renders "could not be read":', subsAllRes.error.message);
+  }
+  if (purchasesRes.error) {
+    console.warn('[shape-app] trainer analytics: trajectory purchases read failed — one-time revenue omitted:', purchasesRes.error.message);
+  }
+  const trajectory = subsAllRes.error
+    ? null
+    : buildTrajectory({
+        subs: subsAllRes.data ?? [],
+        purchases: purchasesRes.data ?? [],
+        cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
+      });
 
   const stripeSummary = await loadStripe(
     trainerRow.stripe_account_id ?? null,

@@ -115,7 +115,11 @@ function taParse() {
   const m = /^client\/(.+)$/.exec(raw);
   if (m) { try { return { slug: "client", param: decodeURIComponent(m[1]) }; } catch (e) { return { slug: "clients", param: null }; } }
   const h = raw.toLowerCase();
-  return { slug: (h !== "client" && TA_ROUTES[h]) ? h : "today", param: null };
+  // hasOwnProperty, not a bare lookup: `#constructor` resolves through
+  // Object.prototype, and the route call then returns an Object that React
+  // throws on instead of falling back to Today.
+  const known = h !== "client" && Object.prototype.hasOwnProperty.call(TA_ROUTES, h);
+  return { slug: known ? h : "today", param: null };
 }
 function TrainerApp() {
   const [route, setRoute] = React.useState(taParse());
@@ -125,7 +129,8 @@ function TrainerApp() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  return (TA_ROUTES[route.slug] || TA_ROUTES.today)(route.param);
+  const view = Object.prototype.hasOwnProperty.call(TA_ROUTES, route.slug) ? TA_ROUTES[route.slug] : TA_ROUTES.today;
+  return view(route.param);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<TrainerApp />);
 window.ShapeDashTour && window.ShapeDashTour.init('trainer');

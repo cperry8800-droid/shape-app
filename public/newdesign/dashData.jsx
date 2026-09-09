@@ -197,4 +197,8 @@ function useDashboard(role) {
   return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source };
 }
 
-Object.assign(window, { useDashboard });
+// `dashJson` is exposed so other modules on the page share this 60s cache
+// rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
+// wants the same /api/{role}/dashboard payload the page hook already asks for;
+// without the shared cache that is a second round trip on every dashboard load.
+Object.assign(window, { useDashboard, dashJson: _dashJson });

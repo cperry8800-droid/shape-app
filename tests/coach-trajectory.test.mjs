@@ -5,7 +5,7 @@
 // current week is measured at "now"; the summary figures agree with the series.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTrajectory, mondayUTC, subEndedAt, TRAJECTORY_WEEKS } from '../src/lib/coach-trajectory.mjs';
+import { buildTrajectory, mondayUTC, subEndedAt, subNeverStarted, TRAJECTORY_WEEKS } from '../src/lib/coach-trajectory.mjs';
 
 const DAY = 86400000;
 const WEEK = 7 * DAY;
@@ -21,18 +21,50 @@ test('mondayUTC lands on the ISO Monday at 00:00 UTC', () => {
   assert.equal(m.toISOString(), '2026-09-07T00:00:00.000Z');
 });
 
-test('subEndedAt: only an ended status closes the span, from the best-known end date', () => {
-  assert.equal(subEndedAt({ status: 'active', current_period_end: iso(0) }), null);
-  assert.equal(subEndedAt({ status: 'past_due', current_period_end: iso(DAY) }), null);
-  assert.equal(subEndedAt({ status: 'canceled', canceled_at: iso(3 * DAY), current_period_end: iso(DAY) }), NOW - 3 * DAY);
-  assert.equal(subEndedAt({ status: 'canceled', current_period_end: iso(DAY) }), NOW - DAY);
-  assert.equal(subEndedAt({ status: 'unpaid', created_at: iso(10 * DAY) }), NOW - 10 * DAY);
+test('subEndedAt: the span stays open only while the status is one the house counts', () => {
+  assert.equal(subEndedAt({ status: 'active', current_period_end: iso(0) }, NOW), null);
+  assert.equal(subEndedAt({ status: 'trialing', current_period_end: iso(DAY) }, NOW), null);
+  assert.equal(subEndedAt({ status: 'past_due', current_period_end: iso(DAY) }, NOW), null, 'a retrying payment has not left');
+  // The only end date production writes is current_period_end (there is no
+  // canceled_at column — the webhook writes { status, current_period_end }).
+  assert.equal(subEndedAt({ status: 'canceled', current_period_end: iso(DAY) }, NOW), NOW - DAY);
+  assert.equal(subEndedAt({ status: 'unpaid', created_at: iso(10 * DAY) }, NOW), NOW - 10 * DAY);
+  assert.equal(subEndedAt({ status: 'paused', current_period_end: iso(2 * DAY) }, NOW), NOW - 2 * DAY);
+});
+
+test('subEndedAt CLAMPS to now — a cancelled member paid through next month is gone today', () => {
+  // The real production shape: cancelled mid-period, current_period_end still
+  // in the future. Read verbatim this counted them active forever and bucketed
+  // their departure past the end of the series.
+  const future = new Date(NOW + 20 * DAY).toISOString();
+  assert.equal(subEndedAt({ status: 'canceled', current_period_end: future }, NOW), NOW);
+  const t = buildTrajectory({ subs: [sub({ created_at: iso(40 * DAY), status: 'canceled', current_period_end: future })], now: NOW, weeks: 8 });
+  assert.equal(t.summary.activeNow, 0, 'the status says gone, so they are not an active client');
+  assert.equal(t.weeks[t.weeks.length - 1].ended, 1, 'and the departure lands in the current week, not off the end');
+  assert.equal(t.weeks[t.weeks.length - 1].active, 0);
+});
+
+test('an abandoned checkout is neither a join nor a departure', () => {
+  assert.equal(subNeverStarted({ status: 'incomplete' }), true);
+  assert.equal(subNeverStarted({ status: 'incomplete_expired' }), true);
+  assert.equal(subNeverStarted({ status: 'canceled' }), false);
+  // All three inside the CURRENT ISO week (NOW is a Wednesday, so 1–2 days back
+  // is still this week; 3 would land in the previous bucket).
+  const t = buildTrajectory({
+    subs: [sub({ created_at: iso(DAY) }), sub({ created_at: iso(2 * DAY), status: 'incomplete' }), sub({ created_at: iso(DAY), status: 'incomplete_expired' })],
+    now: NOW, weeks: 4,
+  });
+  const last = t.weeks[t.weeks.length - 1];
+  assert.equal(last.active, 1, 'only the real subscriber counts');
+  assert.equal(last.added, 1, 'the two incompletes are not joins');
+  assert.equal(last.ended, 0, 'and not departures either');
+  assert.equal(t.summary.totalEverSubscribed, 1);
 });
 
 test('buckets: added / ended / active / MRR / one-time land in the right weeks', () => {
   const subs = [
     sub({ created_at: iso(10 * WEEK) }),                                                    // A: open for 10 weeks
-    sub({ created_at: iso(20 * WEEK), status: 'canceled', canceled_at: iso(5 * WEEK + DAY), price_cents: 22000, fee_bps: 0 }), // B: BYO, ended ~5w ago
+    sub({ created_at: iso(20 * WEEK), status: 'canceled', current_period_end: iso(5 * WEEK + DAY), price_cents: 22000, fee_bps: 0 }), // B: BYO, ended ~5w ago
     sub({ created_at: iso(2 * DAY), price_cents: 9000, fee_bps: 1500, status: 'past_due' }), // C: this week, payment retrying → still counted
   ];
   const purchases = [
@@ -67,9 +99,9 @@ test('buckets: added / ended / active / MRR / one-time land in the right weeks',
 
 test('summary: active now vs 30 days ago, this month, churn rate, median tenure', () => {
   const subs = [
-    sub({ created_at: iso(100 * DAY) }),                                                   // open, 100d
-    sub({ created_at: iso(60 * DAY), status: 'canceled', canceled_at: iso(5 * DAY) }),      // ended Sep 4 (inside 30d AND this month), tenure 55d
-    sub({ created_at: iso(5 * DAY) }),                                                     // added this month (Sep 4), tenure 5d
+    sub({ created_at: iso(100 * DAY) }),                                                       // open, 100d
+    sub({ created_at: iso(60 * DAY), status: 'canceled', current_period_end: iso(5 * DAY) }),   // ended Sep 4 (inside 30d AND this month), tenure 55d
+    sub({ created_at: iso(5 * DAY) }),                                                         // added this month (Sep 4), tenure 5d
   ];
   const t = buildTrajectory({ subs, now: NOW, weeks: 8 });
   assert.equal(t.summary.activeNow, 2);
@@ -79,7 +111,7 @@ test('summary: active now vs 30 days ago, this month, churn rate, median tenure'
   assert.equal(t.summary.endedThisMonth, 1);
   assert.equal(t.summary.medianTenureDays, 55);
   // A close in the previous calendar month is inside the 30-day window but not "this month".
-  const t2 = buildTrajectory({ subs: [sub({ created_at: iso(60 * DAY), status: 'canceled', canceled_at: iso(10 * DAY) })], now: NOW, weeks: 8 });
+  const t2 = buildTrajectory({ subs: [sub({ created_at: iso(60 * DAY), status: 'canceled', current_period_end: iso(10 * DAY) })], now: NOW, weeks: 8 });
   assert.equal(t2.summary.endedThisMonth, 0, 'Aug 30 is not September');
   assert.equal(t2.summary.churnRate30dPct, 100);
   assert.equal(t.summary.totalEverSubscribed, 3);

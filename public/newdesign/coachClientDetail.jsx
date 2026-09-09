@@ -346,15 +346,30 @@ function CKEmpty({ children }) {
 const _ckNotesLane = { p: Promise.resolve() };
 function ckNotesSerial(fn) { const run = _ckNotesLane.p.then(fn, fn); _ckNotesLane.p = run.catch(() => {}); return run; }
 function ckNoteDate(iso) { try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; } }
+// ⚠ getSession() BEFORE getUserGoals. getUserGoals resolves the user through
+// client.auth.getUser(), which does NOT bootstrap the Next.js cookie-session
+// bridge — a coach signed in through that path reads as ANON, the note panel
+// says "sign in", and nothing ever saves. The variance effect below this one
+// already carries the same guard for the same reason (#1769).
+async function ckBridge() {
+  try { if (window.shapeDb && window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* fall through as anon */ }
+}
+async function ckUid() {
+  try { const u = await window.shapeDb.getUser(); return u && u.id ? u.id : null; } catch (e) { return null; }
+}
 function CKCoachNote({ clientId, accent }) {
   const [state, setState] = React.useState({ kind: "loading", text: "", savedAt: null });
   const [draft, setDraft] = React.useState("");
+  const uidRef = React.useRef(null);
   React.useEffect(() => {
     let on = true;
     setState({ kind: "loading", text: "", savedAt: null }); setDraft("");   // reset FIRST: A's note must never sit under B
     (async () => {
       const db = window.shapeDb;
       if (!db || !db.getUserGoals) { if (on) setState({ kind: "unavailable", text: "", savedAt: null }); return; }
+      await ckBridge();
+      if (!on) return;
+      uidRef.current = await ckUid();
       let doc = null;
       try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
       if (!on) return;
@@ -369,9 +384,15 @@ function CKCoachNote({ clientId, accent }) {
   const dirty = (state.kind === "ready" || state.kind === "error") && draft !== state.text;
   const save = () => ckNotesSerial(async () => {
     const db = window.shapeDb;
+    // ⚠ BOUND TO THE ACCOUNT THAT TYPED IT. getUserGoals and saveUserGoals each
+    // resolve the user at their own call time, so an account switch between the
+    // two would upsert coach A's whole notes blob into B's row.
+    const startUid = uidRef.current;
     let doc = null;
     try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
     if (doc == null) { setState((s) => ({ ...s, kind: "error" })); return; }
+    const nowUid = await ckUid();
+    if (!nowUid || (startUid && nowUid !== startUid)) { setState((s) => ({ ...s, kind: "error" })); return; }
     const now = new Date().toISOString();
     const next = { ...doc };
     if (draft.trim()) next[clientId] = { text: draft, updatedAt: now }; else delete next[clientId];
