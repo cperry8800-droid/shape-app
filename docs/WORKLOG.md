@@ -475,6 +475,64 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — Film v4: no dancer, the runner on the beat, the beams thinned, the sphere larger, a truer outline; the print-style cast approved as stills; the video balance reads empty while the image balance pays
+
+- **Owner, on v3 (the globe sheet attached): *"way too many lines coming up, make the people look less like bathroom stick figures,
+  more human outlined. and have the runner match the beat. this applies to the highlighter one. zoom in on globe more"*; (the
+  approved halftone runner attached) *"use this style and look for the person through whole video of the print style"*; *"make the
+  cooking someone cutting on an island etc. remove the person dancing in the beginning"*; then *"how are credits out? i just bought
+  1000"*, and on the seven stills *"these are much better"* · *"these images are solid"*.** [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md)
+  now carries **"The film, v4"** and the scripts are files under `marketing/film-v4/`. Both looks rendered on v3's clips with the
+  four pass-side answers; links handed over in chat; **seven stills generated, no video generated; no PR, nothing merged.**
+- **The runner's feet land on the kick.** Her stride was measured (34 footfalls in 10 s at source frames 3, 10, 18 … 232 — the
+  frames where the figure's centroid sits lowest — mean step 0.289 s) and the clip re-timed by a piecewise-linear map, footfall k →
+  k·P, sampled from a 48-fps motion-interpolated copy with a blend between neighbouring frames: a slow-motion sprint at 0.58× whose
+  every footfall is a beat. The verifier reads six centroid lows in three seconds at a mean 0.063 s from the grid (a frame is
+  0.042). ⚠ The first plan interpolated the whole clip at 96 fps; at ~2.4 fps of output that is a 27-minute job inside a 15-minute
+  lease, so the copy is 48 fps of the first 7.2 s (86 s) — the page needs 6 s of source.
+- ⚠ **THE BEAMS ARE FOUND ON THE PAGE, NOT ON THE CLIP — the first detector found almost nothing.** v3's tips test (cool pixels
+  above luma 170, column groups) worked on the raw clip; scaled onto the page by 0.76 with LANCZOS a 3-px beam lands well under
+  170, and the first v4 test frame showed every beam standing with eight marks among them. The detector is now a thin-line ridge
+  test at page scale (brighter by 35 than the page 6–10 px away along x OR y — the late clip's beams curve — cool, above 90), its
+  connected components (a run-based union-find, since the sandbox has no scipy) are the beams, at most eight are kept (a freed slot
+  goes to the beam farthest across the disc from the ones standing) and the rest are painted out by a row-wise lerp of the page
+  either side of them, twice. Measured on the real page: clean at 3 s (a handful of beams, each with its mark), **still a field at
+  9 s** — the clip raises dozens of curved streaks late in the shot and the pass thins them, it does not clear them. *The fix is
+  the re-prompt* — "never more than eight lines standing at once" — drafted and refused (below).
+- ⚠ **THE VIDEO BALANCE AND THE IMAGE BALANCE ARE NOT THE SAME BALANCE.** The owner bought 1,000 credits; in the same minutes seven
+  `nano_banana_pro` stills were accepted and rendered while every `seedance_2_5` submission — the globe re-prompt three times (with
+  `use_unlim false` and with it omitted), the lifter's animation twice — was refused with *"Out of credits on plus (monthly) plan in
+  Private workspace"*. Nothing was billed by a refusal. Either the pack sits in a workspace other than "Private", or video draws on
+  the plan's monthly balance alone; the owner's Higgsfield account page says which. **Every animation waits on it**: the seven
+  print-style figures (the runner's own route, `omni_reference` from each still) and the globe with few beams.
+- **The print-style cast exists as stills and is approved.** `nano_banana_pro` with the approved runner (E4) as the reference and
+  the figure swapped per prompt: the lifter, the cook cutting at a kitchen island (the owner's note), the yoga flow, the cyclist,
+  the coach and client, the driver, the skipper — Sources rows 30–36, prompts verbatim, md5s recorded, 1536×2752 each. A
+  photographic figure gives the highlighter pass a human outline for free (the Seedance runner already reads that way on black), so
+  one cast serves both looks once animated.
+- ⚠ **THE SEAM CHECK WAS RE-DERIVED TWICE, AND BOTH TIMES THE INSTRUMENT WAS MEASURING THE WRONG PAGE.** v3's seam test asked only
+  that the page after a seam differ from the page before by twice the page's own one-frame motion plus 2; the thinner v4 outline made
+  two mostly-black pages read alike (across 4.0–8.5 against within 1.7–5.0) on five seams that are crossfades. Rewritten as what
+  "crossfade, not a wipe" means — continuity across the seam plus a change of page — it then failed the montage and the globe: the
+  frames either side of a crossfade's first frame are 96 % the OLD page, so the "jump" they show is the old page's motion over two
+  frames (the skipper's 2.1 a frame read as 4.3), while the margin had been taken from the NEW page (0.5). The margin now reads
+  both pages. *A seam has two sides, and the instrument has to know which one it is looking at.*
+- **Verified on the renders:** hl **27 / 28** and print **27 / 28** on the final instrument (28 checks each, the second pair), the one
+  failure each the beams count at the close (35–36 groups where eight are asked — the late-clip field, the re-prompt refused);
+  every seam a crossfade (continuity at the seam and a change of page), the mark on the kick and still in the breakdown, IN SYNC
+  on bar 19, the bands, the ▸ glyph, no column rules, the globe close, the sphere under the lockup with the marks above it, **the
+  runner's footfalls on the beat** (six lows in three seconds, 0.063 s from the grid on black and 0.032 s on cream), the montage
+  cut, the audio at 119.95. The first pair read 22 / 28 and 23 / 28 on the instrument as first written and 27 / 28 and 26 / 28 on
+  the one of that hour — every difference the instrument, re-derived five times in all (the seam check three times, the print
+  look's caption check twice) and once un-commented. Links handed over in chat (gofile and 72-hour litterbox copies); the second
+  pair supersedes the first. ⚠ Twelve frames per look of the FIRST pair were looked at as checksummed contact sheets; the second
+  pair was not re-looked at — its changes are at the chunk seams and the pins, and the checks are the evidence; the owner's look
+  is the QA.
+- **Records:** the treatment section with the note table, the pass, the render and verify tables and the sheets looked at; Sources
+  rows 30–36 and two refused rows; §9 and §10 (q12: the video balance); the scripts as files with md5s; this entry. ⚠ The owner
+  also sent *"ultra code"* mid-turn; the work is one sandbox lease at a time, so it stayed single-threaded, with one background
+  reviewer over the four scripts (its findings, if any, are in the treatment). Docs and script files only; **no PR, nothing merged.**
+
 ### 2026-09-09 — Reviewing the fixes from the last review: ten more findings, and the sharpest one was a hole my own fix opened
 
 - **Owner: *"did you review 2017?"*** — and the honest answer exposed the gap. I ran
