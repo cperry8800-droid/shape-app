@@ -1049,19 +1049,90 @@ concatenated, muxed, uploaded and verified. The run script's own chunk loop now 
 
 **The render.**
 
-{{RENDER_TABLE}}
+| Output | md5 | bytes | frames · s | measured |
+|---|---|---|---|---|
+| **`film_v2_hl.mp4`** (the highlighter look) | `028d179f96bbbde886e1809d92e6dde1` | 29,913,947 | 1,442 · 60.084 | chunks A/B/C 482 / 480 / 480 frames; the rendered audio re-measures 119.95 · P 0.500208 · φ 0.055 over 60.024 s; verifier **23 / 24** (the one failure the instrument, below) |
+| **`film_v2_print.mp4`** (the print look) | `95d1284144328a17a92ac7a3154e476e` | 43,471,315 | 1,442 · 60.084 | chunks 482 / 480 / 480; the rendered audio the same 119.95 grid; verifier **24 / 24** |
 
-**Verified on the renders** (`verifyF2.py`): {{VERIFY_SUMMARY}}
+The first lease (`runFilm2.sh`) launched six chunks at once and lost three to the OOM killer; `runFix.sh` finished that plan in
+551 s (the survivors 156 s in, the three re-rendered by 446 s, mux and uploads by 487 s, verify by 551 s). The re-render after the
+top-zone rule fix (`rerender.sh`: the four touched chunks three at a time from the checkpointed B chunks, on 8 cores / 8 GB) ran
+chunks 287 s, mux and uploads by 341 s, the sheets by 348 s, verify by 409 s. The 72-hour host answered 500 to the four re-rendered
+chunks' checkpoints and to the films at first; a retry an hour later took both films, and 0x0.st has switched uploads off ("AI
+botnet spam"). Handed over as links (gofile, and the 72-hour direct links); review copies are never committed.
+
+**Verified on the renders** (`verifyF2.py`): **hl 23 PASS / 1 FAIL · print 24 PASS / 0 FAIL — the one failure is the instrument: the seam into the runner's page is read against
+the runner's own motion (the sprint moves 10.4 luma levels per frame on the black look) and the check demands the seam exceed twice
+that; the seam itself reads 14.4, in line with the other pages' 6–23.** On both renders every other seam reads as a page change,
+the mark is brighter on the kick than mid-beat on three pages and still in the breakdown, IN SYNC lands on the bar-19 downbeat,
+the caption bands are lit mid-page and absent after the crossfade, the play glyph is drawn, no column rule stands on the lifter's
+or the coach's page, the globe close carries the wordmark and the two lines, the montage cuts on the beat, and the rendered audio
+re-measures at 119.95.
 
 ```
-{{VERIFY_HL}}
+probe 1440×2560 · 24/1 · nb_read_frames 1442 · duration 60.084
+PASS seam lifter across 6.4 within 1.8
+PASS seam cook across 11.1 within 4.4
+PASS seam yoga across 10.5 within 0.7
+PASS seam cyclist across 12.8 within 2.1
+PASS seam coach across 11.6 within 1.9
+PASS seam radio across 11.8 within 2.0
+FAIL seam runner across 14.4 within 10.4
+PASS seam skipper across 14.6 within 3.7
+PASS seam montage across 8.1 within 2.4
+PASS seam globe across 23.4 within 0.4
+PASS mark on kick lifter beat 12 on 3209 mid 3011 kb 0.773
+PASS mark on kick cook beat 20 on 3215 mid 3014 kb 0.802
+PASS mark on kick skipper beat 84 on 3251 mid 3032 kb 0.594
+PASS mark still in the breakdown on 2943 mid 2943 kb 0.001
+PASS IN SYNC lands on bar 19 post 6678 pre 339 TS 36.070
+PASS caption band lifter start 0 mid 14254
+PASS caption band coach start 0 mid 15540
+PASS caption band radio start 0 mid 8290
+PASS radio play glyph teal in the glyph box 1163
+PASS no column rule lifter line px 0
+PASS no column rule coach line px 0
+PASS globe close wordmark white px 11909 band text px 19537 mean luma 27.6
+PASS montage cut diff 6.2
+PASS audio grid {'bpm': 119.95, 'P': 0.500208, 'phase': 0.055, 'score': 0.3855} dur 60.024
+RESULT hl 23 PASS 1 FAIL
 ```
 
 ```
-{{VERIFY_PRINT}}
+probe 1440×2560 · 24/1 · nb_read_frames 1442 · duration 60.084
+PASS seam lifter across 17.4 within 1.8
+PASS seam cook across 36.6 within 7.4
+PASS seam yoga across 29.5 within 0.5
+PASS seam cyclist across 24.5 within 1.6
+PASS seam coach across 29.6 within 1.4
+PASS seam radio across 49.0 within 2.2
+PASS seam runner across 73.2 within 21.0
+PASS seam skipper across 62.7 within 2.2
+PASS seam montage across 18.3 within 2.2
+PASS seam globe across 157.3 within 0.4
+PASS mark on kick lifter beat 12 on 2516 mid 2362 kb 0.773
+PASS mark on kick cook beat 20 on 2514 mid 2358 kb 0.802
+PASS mark on kick skipper beat 84 on 2512 mid 2364 kb 0.594
+PASS mark still in the breakdown on 2304 mid 2315 kb 0.001
+PASS IN SYNC lands on bar 19 post 6624 pre 338 TS 36.070
+PASS caption band lifter start 3049 mid 14348
+PASS caption band coach start 0 mid 15633
+PASS caption band radio start 0 mid 8358
+PASS radio play glyph teal in the glyph box 1163
+PASS no column rule lifter line px 0
+PASS no column rule coach line px 0
+PASS globe close wordmark white px 11862 band text px 293096 mean luma 27.6
+PASS montage cut diff 17.9
+PASS audio grid {'bpm': 119.95, 'P': 0.500208, 'phase': 0.055, 'score': 0.3855} dur 60.024
+RESULT print 24 PASS 0 FAIL
 ```
 
-{{LOOKED_AT}}
+**Looked at, one frame per page, both looks** (a checksummed 8-level contact sheet each, 30–31 lines): the riser; the lifter with
+his line; the cook with the pan and the vegetables in the air — and no rule beside him now, where the first render's sheet showed
+one; the yoga flow in warrior; the cyclist out of the saddle; the coach on her stool; the radio chooser's head and shoulders with
+both hands at her ears, dissolving into the band under ▸ *Shape Radio.*; the runner with the bar reading IN SYNC (the print itself on
+cream, a teal outline on black); the skipper; the cook again in the montage; and the Americas at night under the mark, SHAPE and
+the two lines. ⚠ Not watched by the agent beyond those eleven frames per look; the owner's look is the QA.
 
 **The scripts** — files in [`marketing/film-v2/`](film-v2/), fetched by each lease from this branch; md5s as they ran: `film2.py`
 `8880aa8f23af39dd0067ded3f9b13a5b` (the assembly: `LOOK`, the figure masks with the grouped rule strike over the full height and

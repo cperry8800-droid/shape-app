@@ -522,7 +522,9 @@ Append new entries at the top, under this note.
   the sunrise the model baked in (measured 2026-09-08); stretched ×2.6667 they cover the six-bar page without a frozen frame,
   and the lockup — the mark with its glow flash, the wordmark, the teal rule, the two end lines in the band — draws over it
   from 4.0 s in.
-- **Verified on the renders:** {{VERIFY_SUMMARY_WL}} ⚠ Not watched by the agent; {{LOOKED_AT_WL}} the owner's look is the QA.
+- **Verified on the renders:** hl **23 / 24** and print **24 / 24** on the corrected instrument — the one failure the seam into the runner's
+  page read against the sprint's own per-frame motion; every seam a crossfade, the mark on the kick, IN SYNC on bar 19, the
+  bands, the glyph, no column rules, the globe close, the audio at 119.95. ⚠ Not watched by the agent; eleven frames per look came across as checksummed contact sheets and were looked at (the cook's rule gone on the second render); the owner's look is the QA.
   Records: the treatment section, Sources rows 14–16 plus the un-billed row, §9 and §10 (q6 and q9 closed by the notes, q10 the
   re-shoot), the scripts as files with md5s; the branch merged with `origin/main` (#2012–#2016) rather than rebased, one
   WORKLOG conflict resolved by keeping both sides. Docs and script files only; **no PR, nothing merged.**
