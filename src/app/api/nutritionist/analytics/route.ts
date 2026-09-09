@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { loadStripe } from '@/lib/stripe';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed } from '@/lib/origin-attribution';
+import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -207,6 +208,32 @@ export async function GET() {
   const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : 0;
   const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
 
+  // The practice trajectory (review 2026-09-09, R8) — the same series the trainer
+  // route builds: every subscription any status, plus paid one-time purchases,
+  // bucketed by ISO week. A failed read renders the plate's honest empty.
+  const [{ data: allSubRows }, { data: purchaseRows }] = await Promise.all([
+    supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('provider_role', 'nutritionist')
+      .eq('provider_id', providerId)
+      .order('created_at', { ascending: true })
+      .limit(2000),
+    supabase
+      .from('one_time_purchases')
+      .select('*')
+      .eq('provider_role', 'nutritionist')
+      .eq('provider_id', providerId)
+      .eq('status', 'paid')
+      .order('created_at', { ascending: true })
+      .limit(2000),
+  ]);
+  const trajectory = buildTrajectory({
+    subs: allSubRows ?? [],
+    purchases: purchaseRows ?? [],
+    cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
+  });
+
   const stripeSummary = await loadStripe(
     nutriRow.stripe_account_id ?? null,
     nutriRow.stripe_account_status ?? null
@@ -217,6 +244,7 @@ export async function GET() {
     providerId,
     churn,
     byOrigin,
+    trajectory,
     metrics: {
       mrrGrossCents: grossCents,
       mrrNetCents: netCents,
