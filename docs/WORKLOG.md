@@ -477,7 +477,7 @@ Append new entries at the top, under this note.
 
 ### 2026-09-08 — The film's people go hollow, its page goes black, its music goes deep: five owner notes, twenty generations, and the first frame that was built rather than generated
 
-- **Sixteen owner notes inside three hours, each answered before the next arrived.** *"those are better, but maybe create a
+- **Seventeen owner notes inside three hours, each answered before the next arrived.** *"those are better, but maybe create a
   hollowed out person for the other animated people so it doesn't look like we are copying apple"* → six hollow
   treatments framed on the cream page (contour · halftone edge · misregistered plates · vessel of light · print
   beside hollow · woodcut). *"make sure the music is deep house music"* · *"more unique music then typical fitness
@@ -513,7 +513,9 @@ Append new entries at the top, under this note.
   coming out of phone"* → the dark screen read as a switched-off phone, the wrong ground; and then the ruling that
   ends the question, *"just remove the shape logo from the phone on both"* → no mark on the phone on either page, the
   source back to the approved clip whose screen never carried one, the finishing pass run without its screen step.
-  Everything is in
+  *"remove the black box behind logo in porint look"* → the ink plate withdrawn from the cream page's corner; the
+  teal-and-white mark sits straight on the paper with the glow behind it, the white triangle's separation measured
+  rather than assumed. Everything is in
   [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) — §2b (the figures and the lights-out
   page), §4 (the two master blocks), §6 (the music, measured), §10 (seven open questions) and the Sources tables
   with every prompt verbatim. **Twenty-two generations today on top of the morning's thirty-one; no PR, nothing

@@ -672,7 +672,18 @@ which a marked phone was tried and measured, and retired by a ruling.
 
 Handed over as links; every earlier pair is superseded by this one.
 
-**`final9.py` — the finishing pass as shipped, verbatim** (md5 `077ec1cc7c68fb3ebc73d8a5f7b1f7df`). It is the top-left mark on
+⚠ **ONE MORE, ON THE PRINT LOOK'S CORNER:** *"remove the black box behind logo in porint look"* → the ink plate is
+withdrawn too. The top-left mark on the cream page is the teal-and-white triangles straight on the paper, and the
+teal glow behind them (floor raised 0.20 → 0.28, the kick flash unchanged) is what separates the white triangle from
+the cream; measured on the render below. `final10.py` (md5 `1e5e1cd17fa43694399004f814429562`) is `final9.py` with that one line changed
+— `plate=14` → no plate, the mark back at (100, 150), base 0.28 — and is the pass now shipped; its output:
+
+| Video | md5 | bytes | measured |
+|---|---|---|---|
+| **A — the print**, `final10.py`, no plate | `c8c29c6060c3ec6ed76e36359f747ae5` | 18,424,384 | top-left crop on a beat: teal 2,550 px, **white 2,501 px above channel-min 240** (the cream page sits at ~216, so that is the white triangle, not paper), no plate ink; teal 2,392 mid-beat; IN SYNC 6,068 teal px above the bar at 6.86 s and 0 at 6.0 s. The same run re-rendered B and produced the **byte-identical** file (`85bb041f078a175046cdbe0f64be5313`), which is the pass proving itself deterministic |
+| **B — the highlighter** | unchanged from the `final9.py` row above (its corner never had a plate) | | |
+
+**`final9.py` — the finishing pass as shipped for the previous pair, verbatim** (md5 `077ec1cc7c68fb3ebc73d8a5f7b1f7df`; `final10.py` differs by the one line stated above). It is the top-left mark on
 its ink plate with the kick glow, the HRM / BPM bar, the highlighter page with every teal pixel carried across, and the
 pick under both; it has no screen step, by ruling. The earlier passes are kept by md5 only — `final5.py`
 `94e226cd9e038eb49f1b8c8522d78117` (the gated screen pass, the ink-for-white mark), `final4.py`
