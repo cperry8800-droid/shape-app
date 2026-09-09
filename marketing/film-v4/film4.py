@@ -189,11 +189,11 @@ def components(m,minpx=20):
                 ra,rb=find(i),find(k)
                 if ra!=rb: parent[ra]=rb
                 k+=1
-    lab=[find(i) for i in range(n)]; L=np.zeros((H,W),np.int32); info={}
+    lab=[find(i) for i in range(n)]; L=np.zeros((H,W),np.int32); info={}; ext={}
     for i in range(n):
         l=lab[i]+1; L[ry[i],rx0l[i]:rx1l[i]+1]=l; px,ty,tx=info.get(l,(0,H,0)); w=rx1l[i]-rx0l[i]+1
-        info[l]=(px+w,ty,tx) if ry[i]>=ty else (px+w,int(ry[i]),(rx0l[i]+rx1l[i])/2)
-    return L,{l:v for l,v in info.items() if v[0]>=minpx}
+        info[l]=(px+w,ty,tx) if ry[i]>=ty else (px+w,int(ry[i]),(rx0l[i]+rx1l[i])/2); e=ext.get(l,(W,0)); ext[l]=(min(e[0],rx0l[i]),max(e[1],rx1l[i]))
+    return L,{l:v for l,v in info.items() if v[0]>=minpx and ext[l][1]-ext[l][0]<BEAM_GW}   # a component wider than any beam (the rim's ring, thin in x along its sides) is not a beam
 def col_groups(mask,gap=3):
     cols=np.nonzero(mask.any(0))[0]; groups=[]
     for x in cols:
@@ -222,7 +222,7 @@ class Pins:
         self.tracks=[tr for tr in self.tracks if tr[2]<=6][:80]
         # at most MAXPINS beams stand at once (owner: "way too many lines coming up"); a slot is held until its beam dies, and a freed slot goes to the live beam farthest across the page from the ones standing, so the eight spread over the disc instead of crowding one side
         alive={tr[4] for tr in self.tracks}; self.chosen=[i for i in self.chosen if i in alive]
-        live=[tr for tr in self.tracks if tr[3]>=2 and tr[2]==0]; cand=[tr for tr in live if tr[4] not in self.chosen]
+        live=[tr for tr in self.tracks if tr[3]>=2]; cand=[tr for tr in live if tr[4] not in self.chosen and tr[2]==0]   # a chosen beam COASTS at its last position while unseen (<= 6 frames): dropped from the kept set on a missed frame, its beam was painted out and its mark vanished for that frame (review finding)
         while len(self.chosen)<MAXPINS and cand:
             cx=[tr[0] for tr in self.tracks if tr[4] in self.chosen]
             best=max(cand,key=lambda tr:((min(abs(tr[0]-x) for x in cx) if cx else 0),-tr[4])); self.chosen.append(best[4]); cand.remove(best)
@@ -305,7 +305,7 @@ class Page:
             s=min(len(pg['slots'])-1,int((t-pg['t0'])//P))
             if s!=self.slot:
                 if self.slot_reader: self.slot_reader.close()
-                src,s0=pg['slots'][s]; self.slot=s; self.slot_reader=Reader(f'{D}/{src}',s0); self.slot_fig=Figure(src=src,carry_teal=src.startswith('runner')); self.slot_rf=RuleFinder()
+                src,s0=pg['slots'][s]; self.slot=s; self.slot_reader=Reader(f'{D}/{src}',s0+max(0.0,t-(pg['t0']+s*P))); self.slot_fig=Figure(src=src,carry_teal=src.startswith('runner')); self.slot_rf=RuleFinder()   # opened mid-slot (a WINDOW starting inside the montage) the reader begins where the slot already is
             f=self.slot_reader.read()
             if CREAM_LOOK and self.slot_fig.carry: img=Image.fromarray(strike_clip_rules(f,self.slot_rf.find(f))).convert('RGBA')   # the runner's clip is the print already; its own hairline rules go
             else: img=Image.fromarray(self.slot_fig.frame(f)).convert('RGBA')
@@ -367,8 +367,15 @@ for n in range(NF):
         if cur is None or cur.pg is not PLAN[i]:
             cur=Page(PLAN[i]); log.append((n,round(t,3),PLAN[i]['name']))
     if not want(t):
-        if cur.kind!='montage': cur.reader.read()
-        if prev is not None and t<prev_end+XF and prev.kind!='montage': prev.reader.read()
+        pre=any(a-20/FPS<=t<a for a,b in WIN)   # the 20 frames before a window: render and discard, so the ribbon's 18-frame trail, the rules struck on a page's first frame and the pins' tracks are warm when the window opens (review finding: chunk B opened with a cold ribbon 2 s into the coach page)
+        first=(cur.kind in ('fig','runner') and cur.fig.rulecols is None)
+        if pre or (first and cur.kind!='montage'):
+            cur.render(t)
+            if prev is not None and t<prev_end+XF: prev.render(t)
+        else:
+            if cur.kind!='montage': cur.reader.read()
+            elif cur.slot_reader is not None and int((t-cur.pg['t0'])//P)==cur.slot: cur.slot_reader.read()   # a montage slot already open keeps pace; a new slot opens with the offset when rendered
+            if prev is not None and t<prev_end+XF and prev.kind!='montage': prev.reader.read()
         continue
     img=cur.render(t)
     if prev is not None and t<prev_end+XF and prev.kind!='montage' or (prev is not None and t<prev_end+XF and prev.kind=='montage'):

@@ -18,13 +18,14 @@ P=$(python3 -c "import json;print(json.load(open('meas_d1.json'))['P'])"); HIFPS
 say INTERP-DONE; ffprobe -v error -select_streams v -count_frames -show_entries stream=r_frame_rate,nb_read_frames:format=duration -of csv=p=0 runner_hi.mp4 | tr '\n' ' '; echo
 [ -s runner_beat.mp4 ] || python3 beatwarp.py runner.mp4 runner_hi.mp4 runner_beat.mp4 $P
 say WARP-DONE; ffprobe -v error -select_streams v -count_frames -show_entries stream=width,height,nb_read_frames:format=duration -of csv=p=0 runner_beat.mp4 | tr '\n' ' '; echo; cat footfalls.json; echo
+RB=$(ffprobe -v error -show_entries format=duration -of csv=p=0 runner_beat.mp4); python3 -c "import sys; d=float('$RB'); sys.exit(0 if d>=10.4 else 1)" || { echo "FATAL runner_beat.mp4 is $RB s; the runner page needs 10.34 s (raise HISEC)"; exit 1; }
 md5sum fig_*.mp4 runner.mp4 runner_hi.mp4 runner_beat.mp4 globe.mp4 d1.m4a tri.png Newsreader.ttf film4.py plan4.json verifyF4.py beatwarp.py beat.py meas_d1.py runFilm4.sh; say INPUTS-OK
 [ "$STAGE" = prep ] && { say PREP-DONE; exit 0; }
 for look in $LOOKS; do
   LOOK=$look NOAUDIO=1 WINDOWS="0-20.0633" python3 film4.py ${look}_A.mp4 > log_${look}_A.txt 2>&1 &
   LOOK=$look NOAUDIO=1 WINDOWS="20.0633-40.0716" python3 film4.py ${look}_B.mp4 > log_${look}_B.txt 2>&1 &
   LOOK=$look NOAUDIO=1 WINDOWS="40.0716-61" python3 film4.py ${look}_C.mp4 > log_${look}_C.txt 2>&1 &
-  wait; say CHUNKS-$look-DONE
+  wait; for c in A B C; do grep -q FILM2-DONE log_${look}_$c.txt || { echo "FATAL chunk $look $c did not finish"; tail -n 5 log_${look}_$c.txt; exit 1; }; done; say CHUNKS-$look-DONE
 done
 for l in log_*.txt; do echo "== $l"; tail -n 1 $l | cut -c1-120; done; say CHUNKS-DONE
 up(){ f=$1; g=$(s=$(curl -s https://api.gofile.io/servers | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['servers'][0]['name'])"); curl -s -F "file=@$f" "https://$s.gofile.io/contents/uploadfile" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['downloadPage'])")

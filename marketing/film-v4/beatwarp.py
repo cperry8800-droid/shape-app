@@ -6,7 +6,9 @@
 import sys,subprocess,numpy as np,json,os
 SRC,SRCHI,OUT,P=sys.argv[1],sys.argv[2],sys.argv[3],float(sys.argv[4]); W,H=720,1280; FPS=24
 SPB=float(os.environ.get('STEPS_PER_BEAT','1')); STEP=P/SPB
-r=subprocess.run(['ffprobe','-v','error','-select_streams','v','-show_entries','stream=r_frame_rate','-of','csv=p=0',SRCHI],capture_output=True,text=True).stdout.strip(); a,b=r.split('/'); FPSHI=float(a)/float(b)
+def fps_of(p):
+    r=subprocess.run(['ffprobe','-v','error','-select_streams','v','-show_entries','stream=r_frame_rate','-of','csv=p=0',p],capture_output=True,text=True).stdout.strip(); a,b=r.split('/'); return float(a)/float(b)
+FPSHI=fps_of(SRCHI); SRCFPS=fps_of(SRC)   # the source's own rate for the footfall times (24 for this clip; a 25- or 30-fps source would otherwise drift the map -- review finding)
 def frames(path,w,h):
     p=subprocess.Popen(['ffmpeg','-v','error','-i',path,'-vf',f'scale={w}:{h}','-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,bufsize=10**8)
     while True:
@@ -22,9 +24,9 @@ peaks=[i for i in range(2,len(ss)-2) if ss[i]>ss[i-1] and ss[i]>=ss[i+1] and ss[
 clean=[]   # drop double-detections closer than 4 frames
 for i in peaks:
     if not clean or i-clean[-1]>=4: clean.append(i)
-peaks=clean; src_t=np.array(peaks)/FPS; tgt_t=np.arange(len(peaks))*STEP
+peaks=clean; src_t=np.array(peaks)/SRCFPS; tgt_t=np.arange(len(peaks))*STEP
 print('footfalls',len(peaks),'source frames',peaks,'mean source step',round(float(np.mean(np.diff(src_t))),3),'s -> target step',round(STEP,4),'(hi-rate copy at',FPSHI,'fps)')
-json.dump(dict(footfall_frames=peaks,P=P,steps_per_beat=SPB,step=STEP,hi_fps=FPSHI),open('footfalls.json','w'))
+json.dump(dict(footfall_frames=peaks,P=P,steps_per_beat=SPB,step=STEP,hi_fps=FPSHI,src_fps=SRCFPS),open('footfalls.json','w'))
 def src_time(t):   # output time -> source time by the inverse piecewise-linear map (before the first footfall and after the last: the neighbouring segment's speed)
     if t<=tgt_t[0]: return src_t[0]+(t-tgt_t[0])*(src_t[1]-src_t[0])/(tgt_t[1]-tgt_t[0])
     k=int(np.searchsorted(tgt_t,t,side='right')-1)
