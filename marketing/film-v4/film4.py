@@ -156,19 +156,44 @@ def lockup_layers():
     a=Image.new('L',(W,H),0); a.paste(mk.split()[3],(W//2-mk.width//2,cy-mk.height//2)); g=np.asarray(a.filter(ImageFilter.GaussianBlur(26))).astype(np.float32)
     return wm,mk,g,cy
 # ---------- the globe's pins: the Shape mark at the tip of every beam of light the clip raises from a city ----------
-PIN_LUM=float(os.environ.get('PIN_LUM','90')); PIN_H=int(os.environ.get('PIN_H','44')); MAXPINS=int(os.environ.get('MAXPINS','8')); BEAM_W=int(os.environ.get('BEAM_W','30')); BEAM_RIDGE=float(os.environ.get('BEAM_RIDGE','35')); BEAM_MINH=int(os.environ.get('BEAM_MINH','20'))
+PIN_LUM=float(os.environ.get('PIN_LUM','90')); PIN_H=int(os.environ.get('PIN_H','44')); MAXPINS=int(os.environ.get('MAXPINS','8')); BEAM_W=int(os.environ.get('BEAM_W','30')); BEAM_RIDGE=float(os.environ.get('BEAM_RIDGE','35')); BEAM_MINH=int(os.environ.get('BEAM_MINH','8')); BEAM_GW=int(os.environ.get('BEAM_GW','200'))
 def narrow(m,wmax=None):
     """Keep only the pixels of horizontal runs no wider than wmax: a beam is narrow in every row, the rim's top and bottom arcs are not -- and a wide arc in the mask would bridge every column it spans, so that the column groups below could not tell one beam from the whole disc."""
     wmax=wmax or BEAM_W; st=m&~np.roll(m,1,axis=1); st[:,0]=m[:,0]
     rid=np.cumsum(st.ravel())*m.ravel(); ln=np.bincount(rid); return (m.ravel()&(ln[rid]<=wmax)).reshape(m.shape)
+BEAM_Y0=int(os.environ.get('BEAM_Y0','480'))
 def beam_mask(fs):
-    """A beam of light on the page: a thin vertical cool line -- brighter by BEAM_RIDGE than the page 6-10 px to either side (so the rim, the lit limb and the lit surface, all wide, fail), cool (a city light is warm), above PIN_LUM, and standing in a vertical run of at least BEAM_MINH px. Measured at PAGE scale, because a 3-px beam scaled onto the page by 0.76 with LANCZOS lands well under the luma the raw clip reads, which is why the strict test that found the tips on the clip found almost nothing on the page."""
-    g=fs.astype(np.float32); lum=0.299*g[...,0]+0.587*g[...,1]+0.114*g[...,2]; coolish=(g[...,1]+g[...,2])>(2*g[...,0]+40)
-    side=np.zeros_like(lum)
-    for d in (6,8,10): side=np.maximum(side,np.maximum(np.roll(lum,d,axis=1),np.roll(lum,-d,axis=1)))
-    ridge=(lum-side>BEAM_RIDGE)&coolish&(lum>PIN_LUM); ridge[:120]=False; ridge[H-340:]=False; ridge[:,:12]=False; ridge[:,-12:]=False
-    rt=np.ascontiguousarray(ridge.T); st=rt&~np.roll(rt,1,axis=1); st[:,0]=rt[:,0]; rid=np.cumsum(st.ravel())*rt.ravel(); ln=np.bincount(rid)
-    return np.ascontiguousarray((rt.ravel()&(ln[rid]>=BEAM_MINH)).reshape(rt.shape).T)
+    """A beam of light on the page: a thin cool line -- brighter by BEAM_RIDGE than the page 6-10 px to either side, along x OR along y, so a line of any slant passes and the rim, the lit limb and the lit surface, all wide in both axes, fail -- cool (a city light is warm) and above PIN_LUM. Measured at PAGE scale, because a 3-px beam scaled onto the page by 0.76 with LANCZOS lands well under the luma the raw clip reads, which is why the strict test that found the tips on the clip found almost nothing on the page. Only the rows the sphere can reach are read (BEAM_Y0 .. H-340)."""
+    g=fs[BEAM_Y0:H-340].astype(np.float32); lum=0.299*g[...,0]+0.587*g[...,1]+0.114*g[...,2]; coolish=(g[...,1]+g[...,2])>(2*g[...,0]+40)
+    sx=np.zeros_like(lum); sy=np.zeros_like(lum)
+    for d in (6,8,10): sx=np.maximum(sx,np.maximum(np.roll(lum,d,axis=1),np.roll(lum,-d,axis=1))); sy=np.maximum(sy,np.maximum(np.roll(lum,d,axis=0),np.roll(lum,-d,axis=0)))
+    ridge=((lum-sx>BEAM_RIDGE)|(lum-sy>BEAM_RIDGE))&coolish&(lum>PIN_LUM); ridge[:,:12]=False; ridge[:,-12:]=False; ridge[:12]=False; ridge[-12:]=False
+    out=np.zeros((H,W),bool); out[BEAM_Y0:H-340]=ridge; return out
+def components(m,minpx=20):
+    """Connected components (8-connected, 1-px bridging) of a sparse mask, by runs: returns a label image (0 = none) and, per label, (pixels, top row, x at the top). A few thousand runs, so the union-find is cheap."""
+    st=m&~np.roll(m,1,axis=1); st[:,0]=m[:,0]; en=m&~np.roll(m,-1,axis=1); en[:,-1]=m[:,-1]
+    ry,rx0=np.nonzero(st); _,rx1=np.nonzero(en); n=len(ry); parent=list(range(n))
+    def find(i):
+        while parent[i]!=i: parent[i]=parent[parent[i]]; i=parent[i]
+        return i
+    rs=np.searchsorted(ry,np.arange(H+1)); rx0l=rx0.tolist(); rx1l=rx1.tolist()
+    for y in range(1,H):
+        a0,a1=rs[y],rs[y+1]; b0,b1=rs[y-1],rs[y]
+        if a1==a0 or b1==b0: continue
+        j=b0
+        for i in range(a0,a1):
+            x0,x1=rx0l[i]-1,rx1l[i]+1
+            while j<b1 and rx1l[j]<x0: j+=1
+            k=j
+            while k<b1 and rx0l[k]<=x1:
+                ra,rb=find(i),find(k)
+                if ra!=rb: parent[ra]=rb
+                k+=1
+    lab=[find(i) for i in range(n)]; L=np.zeros((H,W),np.int32); info={}
+    for i in range(n):
+        l=lab[i]+1; L[ry[i],rx0l[i]:rx1l[i]+1]=l; px,ty,tx=info.get(l,(0,H,0)); w=rx1l[i]-rx0l[i]+1
+        info[l]=(px+w,ty,tx) if ry[i]>=ty else (px+w,int(ry[i]),(rx0l[i]+rx1l[i])/2)
+    return L,{l:v for l,v in info.items() if v[0]>=minpx}
 def col_groups(mask,gap=3):
     cols=np.nonzero(mask.any(0))[0]; groups=[]
     for x in cols:
@@ -179,12 +204,9 @@ class Pins:
     """Per frame: the beams (beam_mask: thin vertical cool ridges on the page) grouped by column, each group's topmost pixel a tip. Tips are tracked across frames (matched within 28 px, position smoothed, drawn once seen twice) so the mark rides its beam as the globe turns."""
     def __init__(self): self.tracks=[]; self.nid=0; self.erased=0; self.chosen=[]   # [x, y, frames unseen, frames seen, id]
     def tips(self,f,bm=None):
-        cool=beam_mask(f) if bm is None else bm; out=[]
-        for gp in col_groups(cool):
-            if len(gp)>60: continue   # the atmospheric rim or a lit limb, not a beam
-            x0,x1=gp[0],gp[-1]+1; sub=cool[:,x0:x1]; rows=np.nonzero(sub.any(1))[0]; ytop=int(rows.min())
-            xs=np.nonzero(sub[ytop:ytop+6].any(0))[0]; out.append((x0+float(xs.mean()),float(ytop)))
-        return out
+        """Each component of the beam mask with at least 20 px is a beam; its topmost pixel is the tip. The label image is kept for erase()."""
+        cool=beam_mask(f) if bm is None else bm; self.L,info=components(cool); self.info=info
+        return [(tx,float(ty)) for l,(px,ty,tx) in info.items()]
     def update(self,f,bm=None):
         tips=self.tips(f,bm); used=[False]*len(tips)
         for tr in self.tracks:
@@ -206,26 +228,27 @@ class Pins:
             best=max(cand,key=lambda tr:((min(abs(tr[0]-x) for x in cx) if cx else 0),-tr[4])); self.chosen.append(best[4]); cand.remove(best)
         return [(tr[0],tr[1]) for tr in live if tr[4] in self.chosen]
     def erase(self,fs,keep,bm=None):
-        """Paint out every beam but the kept ones. A beam is a column group of beam_mask pixels (the ridge test that finds the tips) no wider than a beam and not within +-16 px of a kept tip. The groups' columns (+-8) are merged into intervals first, so two beams standing 13 px apart are one region and neither lerps into the other; over each interval's rows (the beams' span +-24) every cool pixel above luma 60 -- the beam and its halo -- is replaced by a horizontal lerp between the page just outside the interval, so the surface's own lights and coasts stay. Columns within 12 px of a kept tip are never touched."""
-        g=fs.astype(np.float32); lum=0.299*g[...,0]+0.587*g[...,1]+0.114*g[...,2]; coolish=(g[...,1]+g[...,2])>(2*g[...,0]+40)
-        strict=beam_mask(fs) if bm is None else bm; loose=coolish&(lum>45); colmask=np.zeros(W,bool); spans={}
-        for gp in col_groups(strict):
-            if len(gp)>60: continue
-            x0,x1=gp[0],gp[-1]+1
-            if any(x0-16<=x<=x1+16 for x,_ in keep): continue
-            rows=np.nonzero(strict[:,x0:x1].any(1))[0]; xa=max(1,x0-8); xb=min(W-1,x1+8); colmask[xa:xb]=True
-            for x in range(xa,xb): spans[x]=(min(spans.get(x,(H,0))[0],int(rows.min())),max(spans.get(x,(H,0))[1],int(rows.max())))
-        prot=np.zeros(W,bool)
-        for x,_ in keep: prot[max(0,int(x)-12):int(x)+13]=True
-        out=fs.copy(); n=0
-        for iv in col_groups(colmask[None,:],gap=1):
-            xa,xb=iv[0],iv[-1]+1; y0=max(0,min(spans[x][0] for x in iv)-24); y1=min(H,max(spans[x][1] for x in iv)+25)
-            reg=loose[y0:y1,xa:xb].copy(); reg[:,prot[xa:xb]]=False
-            if not reg.any(): continue
-            reg=blur_mask(reg,1.5)>0.2; reg[:,prot[xa:xb]]=False
-            L=out[y0:y1,xa-1].astype(np.float32)[:,None,:]; R=out[y0:y1,xb].astype(np.float32)[:,None,:]; w=np.linspace(0,1,xb-xa,dtype=np.float32)[None,:,None]
-            fill=(L*(1-w)+R*w); sub=out[y0:y1,xa:xb]; sub[reg]=fill[reg].astype(np.uint8); n+=1
-        self.erased=n; return out
+        """Paint out every beam but the kept ones. The beams are the ridge pixels (beam_mask) dilated by ~5 px and intersected with the cool pixels above luma 45 -- the beam and its halo, straight or curved -- minus the kept beams' own components (dilated the same way). Every horizontal run of those pixels is replaced by a lerp between the two page pixels just outside it, row by row, so the fill is local: a beam crossing a lit coast is filled with that coast, and nothing outside the beams' own pixels moves. Two passes: what the first leaves (a beam's foot where it met the rim, a crossing) stands alone on the filled page and the ridge test finds it the second time."""
+        strict=beam_mask(fs) if bm is None else bm
+        if getattr(self,'L',None) is None or self.L.shape!=strict.shape: self.L,self.info=components(strict)
+        prot=np.zeros((H,W),bool)   # a kept tip protects the component whose top is nearest it (within 40 px): that beam's own pixels, dilated, and nothing else
+        for x,y in keep:
+            best=None
+            for l,(px,ty,tx) in self.info.items():
+                d=math.hypot(tx-x,ty-y)
+                if d<40 and (best is None or d<best[0]): best=(d,l)
+            if best: prot|=(self.L==best[1])
+        protn=blur_mask(prot,3)>0.05; out=fs; self.erased=0
+        for p in range(2):
+            if p: strict=beam_mask(out)
+            g=out.astype(np.float32); lum=0.299*g[...,0]+0.587*g[...,1]+0.114*g[...,2]; coolish=(g[...,1]+g[...,2])>(2*g[...,0]+40)
+            near=blur_mask(strict&~prot,3)>0.05; E=coolish&(lum>45)&near&~protn; E[:120]=False; E[H-340:]=False
+            st=E&~np.roll(E,1,axis=1); st[:,0]=E[:,0]; rid=np.cumsum(st.ravel())*E.ravel(); n=int(rid.max()); self.erased+=n
+            if n==0: break
+            ys,xs=np.nonzero(E); r=rid.reshape(H,W)[ys,xs]; sx=np.nonzero(st.ravel())[0]%W; xl=sx[r-1]; ln=np.bincount(rid,minlength=n+1)[r]; xr=xl+ln
+            L=out[ys,np.maximum(xl-1,0)].astype(np.float32); R=out[ys,np.minimum(xr,W-1)].astype(np.float32); t=((xs-xl+1)/(ln+1)).astype(np.float32)[:,None]
+            o=out.copy(); o[ys,xs]=(L*(1-t)+R*t).clip(0,255).astype(np.uint8); out=o
+        return out
     def draw(self,img,k,pts):
         for x,y in pts: glow_mark(img,tri,x,y-30,PIN_H,k,0.30,0.5,6,amp=0.10)
 # ---------- readers ----------
