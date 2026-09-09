@@ -55,6 +55,7 @@
 <script type="text/babel" src="sharedClientsTab.jsx"></script>
 <script type="text/babel" src="trainerClientsPage.jsx?v=20260620u"></script>
 <script type="text/babel" src="coachClientDetail.jsx?v=20260909"></script>
+<script type="text/babel" src="dashWeek.jsx?v=20260909"></script>
 <script type="text/babel" src="dashGrid.jsx?v=20260629a"></script>
 <script type="text/babel" src="dashClient.jsx?v=20260629a"></script>
 <script src="dashBuilderCore.js?v=20260729"></script>
@@ -95,6 +96,7 @@ const TRAINER_CTX = {
 window.__shapeCoachShell = "trainer";
 const TA_ROUTES = {
   today:     () => <CoachDashboardPage role="trainer" />,
+  week:      () => <CoachWeekPage role="trainer" />,
   schedule:  () => <CoachSchedulePage role="trainer" />,
   clients:   () => <TrainerClientsPage />,
   programs:  () => <TrainerProgramsPage />,

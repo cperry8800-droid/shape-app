@@ -7,6 +7,7 @@ function trainerNavItems(active) {
   // normal nav into the shell (the old pages self-redirect).
   const items = [
     { label: "Today",     slug: "today" },
+    { label: "Week",      slug: "week" },      // the end-of-week review (review 2026-09-09, R3)
     { label: "Schedule",  slug: "schedule" },
     { label: "Clients",   slug: "clients" },   // the live count is overlaid by DashSidebar (was a literal 34)
     { label: "Programs",  slug: "programs" },
@@ -30,6 +31,7 @@ function nutriNavItems(active) {
   // Tabs route into the single-page nutritionist dashboard (NutritionistApp.html).
   const items = [
     { label: "Today",     slug: "today" },
+    { label: "Week",      slug: "week" },      // the end-of-week review (review 2026-09-09, R3)
     { label: "Schedule",  slug: "schedule" },
     { label: "Clients",   slug: "clients" },   // the live count is overlaid by DashSidebar (was a literal 28)
     { label: "Plans",     slug: "plans" },

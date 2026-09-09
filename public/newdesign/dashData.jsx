@@ -71,6 +71,10 @@ function _dashRecordFromLive(row, ov) {
     streaks: null,             // not exposed to coaches yet
     lastContact: null,         // needs a thread-timestamp lookup (roadmap)
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || checkins[0].weekOf || null : null } : null,
+    // The last few check-ins themselves (week_of · ratings · wins · struggles ·
+    // question · weight), so the Week view can read a client's week without a
+    // second round trip; the engine keeps reading the summary above.
+    checkins: checkins || null,
     nutrition: stats && (stats.avgCalories != null || stats.avgProtein != null)
       ? { avgCalories: stats.avgCalories, targetCalories: null, avgProtein: stats.avgProtein, targetProtein: null }
       : null,

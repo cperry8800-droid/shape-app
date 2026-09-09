@@ -55,6 +55,7 @@
 <script type="text/babel" src="sharedClientsTab.jsx"></script>
 <script type="text/babel" src="nutritionistClientsPage.jsx?v=20260620u"></script>
 <script type="text/babel" src="coachClientDetail.jsx?v=20260909"></script>
+<script type="text/babel" src="dashWeek.jsx?v=20260909"></script>
 <script type="text/babel" src="dashGrid.jsx?v=20260629a"></script>
 <script type="text/babel" src="dashClient.jsx?v=20260629a"></script>
 <script src="dashMealCore.js?v=20260613"></script>
@@ -94,6 +95,7 @@ const NUTRI_CTX = {
 window.__shapeCoachShell = "nutritionist";
 const NA_ROUTES = {
   today:     () => <CoachDashboardPage role="nutritionist" />,
+  week:      () => <CoachWeekPage role="nutritionist" />,
   schedule:  () => <CoachSchedulePage role="nutritionist" />,
   clients:   () => <NutritionistClientsPage />,
   plans:     () => <NutritionistPlansPage />,
