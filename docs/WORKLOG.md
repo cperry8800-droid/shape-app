@@ -475,6 +475,65 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — Website dashboard review (coaches + clients): the office-day brief, measured against the shipped SPAs
+
+- **Records only — a review, not a build.** Owner: *"review the shape website dashboard for
+  coaches and clients … how fluid it is, easy to use and navigate … gaps where it could be
+  more customizable … the coaches' office days … check status at the end of each week …
+  their own progress … how they're progressing financially … clients … up to speed with no
+  gaps."* The review is
+  [`docs/REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md):
+  a full read of the 31 `public/newdesign/` dashboard modules, the routes and tables behind
+  them, the mobile apps for parity, and **44 headless renders** of every tab in the demo
+  state. **No code changed, no migration, no PR beyond the records.**
+- ⚠ **THE DEEP DIVE DEAD-ENDS, AND THE REAL PAGE IS ORPHANED.** The roster drawer's "Open
+  full profile →" and Today's "Last notes" go to `ClientProfile.html`, a demo persona page
+  with **zero backend calls** that falls back to "Priya Shah" for any unknown name
+  (`client.jsx:80-85`); the real per-client page (`coachClientDetail.jsx`, 961 lines) is
+  linked from nothing but the Shared-clients tab. A coach cannot reach a client's file from
+  their own roster. Registered as the P0 of the roadmap (R1/R2), with a `#client/<id>` route.
+- ⚠ **THERE IS NO "WEEK".** Nothing on the website is an end-of-week object — no
+  week-over-week comparison (one variance line, on the orphaned page), no check-in
+  read-back or reply, no "reviewed" state, no coach notes on the web at all (the live record
+  in `dashData.jsx:56-94` never carries them), and `/api/ai/weekly-readout` is consumed by no
+  website surface. The live record's nulls also leave most of the twelve engine rules unable
+  to fire on a real roster (`dashSignals.js:9-11`) — the demo shows the whole engine, a real
+  account a sliver. R3 (Week view + Reviewed ✓ + note) and R4 (fill the live record) are the
+  answer.
+- ⚠ **THE COACH'S TRAJECTORY IS NOT DRAWN.** Business shows point-in-time MRR and 90-day
+  subscriber *adds*; churn is a list. No active-client series, net adds, churn rate, MRR
+  history, tenure, one-time revenue, or live-bound goals — every one derivable today from
+  the `subscriptions` and `one_time_purchases` rows `/api/{role}/analytics` already reads
+  (R8).
+- ⚠ **FABRICATED NUMBERS REACH SIGNED-IN ACCOUNTS.** The sidebar "PAYOUT APR 30 ·
+  $18,420 · +22%" and the "Clients 34" badge are literals (`coachNav.jsx:11,25,34,47`) on six
+  of ten coach tabs with no demo band; the coach Score page defaults to "6,420 · MASTER ·
+  Top 4%"; Community posts as "Priya M." (`dashboardCommunity.jsx:219,1330`); the client
+  page substitutes demo lifts, bodyweight and stat-grid numbers field by field
+  (`coachClientDetail.jsx:474-512`); client Score and Habits fall back to 1,284 points and
+  nine fake habits on a failed fetch; the client sidebar reads "1,284 · Tempo" on 11 of 12
+  tabs. The review's §8 is the file:line table.
+- ⚠ **AND THE RENDERS FOUND WHAT READING COULD NOT.** The trainer roster's PROGRAM column
+  (fixed 170px, no clipping) collides with STREAK at 1440px; the availability grid's 1p–8p
+  hours sit behind a hidden horizontal scroll in a 300px rail; Goal's card titles run into
+  their eyebrows ("Revenue calculatorSET YOUR TARGET"); the GridStack Score tabs render with
+  a third of their height empty (real-browser check owed); the three shells carry **no
+  viewport meta**, so phones get a 980px desktop layout with the sidebar never collapsing;
+  and the demo Today shows four different monthly money figures at once.
+- **The client side is closer to "up to speed" than the coach side:** Today, Progress,
+  Workouts, Nutrition, Goal and Settings are live, write real data, and are honest about
+  empties (`dashProgress.jsx:711-718` is the standard the coach side should adopt). Its
+  gaps: no score history (the ledger link is `href="#"`), no leaderboard, no check-in
+  history or coach reply, no weekly readout, dead Library/Team/Community controls, and every
+  in-card link is a legacy `.html` that reloads the SPA (`PORTAL_NAV` in the header does the
+  same for both roles).
+- **Customization is layout-only** (drag/resize/hide on the card tabs): no date ranges,
+  sort, columns, saved views, widget settings, per-coach thresholds, default tab, units,
+  theme or locale on the web, and no coach notification preferences at all (R14–R16).
+- Verified: docs-only (pre-commit skipped the code gates), every cited line re-read against
+  the source before it was written down, the render harness's own report kept beside the
+  captures in the session scratchpad (not committed — 44 PNGs).
+
 ### 2026-09-03 — The auto-loaded changelog was a ~400k-token tax on every session; split into dated archives
 
 - **`AGENTS.md` `@`-imports `docs/WORKLOG.md`, and that file had grown to 20,657
