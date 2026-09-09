@@ -209,15 +209,17 @@ export async function GET() {
   const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
 
   // The practice trajectory (review 2026-09-09, R8) — the same series the trainer
-  // route builds: every subscription any status, plus paid one-time purchases,
-  // bucketed by ISO week. A failed read renders the plate's honest empty.
-  const [{ data: allSubRows }, { data: purchaseRows }] = await Promise.all([
+  // route builds, and the same two rules: NEWEST FIRST so the 2000-row cap cuts
+  // the old end rather than the recent rows activeNow and churn depend on, and a
+  // failed read sends `trajectory: null` so the plate says it could not be read
+  // instead of asserting the coach has no subscribers.
+  const [subsAllRes, purchasesRes] = await Promise.all([
     supabase
       .from('subscriptions')
       .select('*')
       .eq('provider_role', 'nutritionist')
       .eq('provider_id', providerId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(2000),
     supabase
       .from('one_time_purchases')
@@ -225,14 +227,22 @@ export async function GET() {
       .eq('provider_role', 'nutritionist')
       .eq('provider_id', providerId)
       .eq('status', 'paid')
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(2000),
   ]);
-  const trajectory = buildTrajectory({
-    subs: allSubRows ?? [],
-    purchases: purchaseRows ?? [],
-    cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
-  });
+  if (subsAllRes.error) {
+    console.warn('[shape-app] nutritionist analytics: trajectory subscriptions read failed — the plate renders "could not be read":', subsAllRes.error.message);
+  }
+  if (purchasesRes.error) {
+    console.warn('[shape-app] nutritionist analytics: trajectory purchases read failed — one-time revenue omitted:', purchasesRes.error.message);
+  }
+  const trajectory = subsAllRes.error
+    ? null
+    : buildTrajectory({
+        subs: subsAllRes.data ?? [],
+        purchases: purchasesRes.data ?? [],
+        cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
+      });
 
   const stripeSummary = await loadStripe(
     nutriRow.stripe_account_id ?? null,

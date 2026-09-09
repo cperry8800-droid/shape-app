@@ -6,7 +6,9 @@ export const TRAJECTORY_WEEKS: number;
 
 export function mondayUTC(ms: number): number;
 
-export function subEndedAt(row: Record<string, unknown> | null | undefined): number | null;
+export function subNeverStarted(row: Record<string, unknown> | null | undefined): boolean;
+
+export function subEndedAt(row: Record<string, unknown> | null | undefined, now?: number): number | null;
 
 export type TrajectoryBucket = {
   weekOf: string;

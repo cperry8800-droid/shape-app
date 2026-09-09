@@ -557,8 +557,12 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
   const [table, setTable] = React.useState(false);
   const [hover, setHover] = React.useState(null);
   const traj = live ? trajectory : DBZ_DEMO_TRAJECTORY;
+  // ⚠ A FAILED READ IS NOT AN EMPTY PRACTICE. The route sends `trajectory: null`
+  // when the subscriptions read errors, so this branch says so rather than
+  // falling through to the "no subscribers yet" line below — which would assert
+  // a fact about the coach's business on the strength of a query that failed.
   if (live && !traj) {
-    return <div style={{ fontSize: 12.5, color: DBZ_INK50 }}>{loading ? "Your trajectory loads with the analytics rollup…" : "Your trajectory could not be read just now — refresh to try again."}</div>;
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50 }}>{loading ? "Your trajectory loads with the analytics rollup…" : "Your trajectory could not be read just now — that's a loading problem, not an empty practice. Refresh to try again."}</div>;
   }
   const s = traj.summary || {};
   if (live && !(s.totalEverSubscribed > 0)) {

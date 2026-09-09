@@ -55,6 +55,7 @@
 <script type="text/babel" src="sharedClientsTab.jsx"></script>
 <script type="text/babel" src="nutritionistClientsPage.jsx?v=20260620u"></script>
 <script type="text/babel" src="coachClientDetail.jsx?v=20260909"></script>
+<script type="text/babel" src="dashWeek.jsx?v=20260909"></script>
 <script type="text/babel" src="dashGrid.jsx?v=20260629a"></script>
 <script type="text/babel" src="dashClient.jsx?v=20260629a"></script>
 <script src="dashMealCore.js?v=20260613"></script>
@@ -94,6 +95,7 @@ const NUTRI_CTX = {
 window.__shapeCoachShell = "nutritionist";
 const NA_ROUTES = {
   today:     () => <CoachDashboardPage role="nutritionist" />,
+  week:      () => <CoachWeekPage role="nutritionist" />,
   schedule:  () => <CoachSchedulePage role="nutritionist" />,
   clients:   () => <NutritionistClientsPage />,
   plans:     () => <NutritionistPlansPage />,
@@ -112,7 +114,11 @@ function naParse() {
   const m = /^client\/(.+)$/.exec(raw);
   if (m) { try { return { slug: "client", param: decodeURIComponent(m[1]) }; } catch (e) { return { slug: "clients", param: null }; } }
   const h = raw.toLowerCase();
-  return { slug: (h !== "client" && NA_ROUTES[h]) ? h : "today", param: null };
+  // hasOwnProperty, not a bare lookup: `#constructor` resolves through
+  // Object.prototype, and the route call then returns an Object that React
+  // throws on instead of falling back to Today.
+  const known = h !== "client" && Object.prototype.hasOwnProperty.call(NA_ROUTES, h);
+  return { slug: known ? h : "today", param: null };
 }
 function NutritionistApp() {
   const [route, setRoute] = React.useState(naParse());
@@ -122,7 +128,8 @@ function NutritionistApp() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  return (NA_ROUTES[route.slug] || NA_ROUTES.today)(route.param);
+  const view = Object.prototype.hasOwnProperty.call(NA_ROUTES, route.slug) ? NA_ROUTES[route.slug] : NA_ROUTES.today;
+  return view(route.param);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistApp />);
 window.ShapeDashTour && window.ShapeDashTour.init('nutritionist');

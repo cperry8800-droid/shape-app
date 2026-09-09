@@ -20,11 +20,25 @@ async function dsbFetch(url) {
   if (hit && Date.now() - hit.at < 60000) return hit;
   let out;
   try {
-    const res = await fetch(url, { credentials: "same-origin" });
-    if (res.status === 401) out = { ok: false, signedOut: true, data: null };
-    else if (!res.ok) out = { ok: false, signedOut: false, data: null };
-    else out = { ok: true, signedOut: false, data: await res.json() };
-  } catch (e) { out = { ok: false, signedOut: false, data: null }; }
+    // Prefer dashData.jsx's shared 60s cache when it is on the page: the route
+    // hook asks for this same endpoint, and two fetches of one payload per page
+    // load is a round trip nobody needs. It resolves at CALL time, not at
+    // definition time — this module loads before dashData.jsx.
+    const shared = typeof window !== "undefined" && window.dashJson;
+    if (shared) {
+      out = { ok: true, signedOut: false, data: await shared(url) };
+    } else {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (res.status === 401) out = { ok: false, signedOut: true, data: null };
+      else if (!res.ok) out = { ok: false, signedOut: false, data: null };
+      else out = { ok: true, signedOut: false, data: await res.json() };
+    }
+  } catch (e) {
+    // dashJson throws "HTTP 401" for the signed-out case; everything else is an
+    // unknown, which renders "—" rather than a demo figure.
+    const signedOut = /\b401\b/.test(String((e && e.message) || ""));
+    out = { ok: false, signedOut, data: null };
+  }
   out.at = Date.now();
   _dsbCache.set(url, out);
   return out;
@@ -86,8 +100,14 @@ function useDashSidebarLive(role) {
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   const role = dsbRoleFromNav(navItems);
   const live = useDashSidebarLive(role);
+  // ⚠ THE DEMO CARD IS RECOGNISED BY A MARK ON THE DATA, not by object identity.
+  // The three literals carry `demo: true` (coachNav.jsx / clientNav.jsx); a
+  // clone, a spread, or a page that loads neither nav module would all miss an
+  // identity check and put "$18,420 · +22%" back in front of a live coach —
+  // which is the defect this exists to fix. Identity stays as a fallback for a
+  // literal that has not been marked.
   const demoLiterals = [window.trainerPayoutCard, window.nutriPayoutCard, window.clientPayoutCard].filter(Boolean);
-  const passedIsDemo = !!payoutCard && demoLiterals.indexOf(payoutCard) !== -1;
+  const passedIsDemo = !!payoutCard && (payoutCard.demo === true || demoLiterals.indexOf(payoutCard) !== -1);
   let card = payoutCard;
   if (passedIsDemo && !(live && (live.kind === "demo" || live.kind === "none"))) {
     card = live && live.kind === "live"
@@ -143,7 +163,11 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
             <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1 }}>{title}</h1>
             {subtitle && <div style={{ fontSize: 15, color: "rgba(242,237,228,0.6)", marginTop: 14, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
           </div>
-          {actions && <div style={{ display: "flex", gap: 10, paddingTop: 14 }}>{actions}</div>}
+          {/* flexWrap: a nowrap row of action pills opposite a 52px title is
+              clipped by main's overflowX:hidden at narrow widths (and on a
+              phone, which gets the 980px desktop layout) — the buttons wrap
+              under the title instead of disappearing. */}
+          {actions && <div style={{ display: "flex", gap: 10, paddingTop: 14, flexWrap: "wrap", justifyContent: "flex-end" }}>{actions}</div>}
         </div>
         {children}
       </main>
