@@ -475,6 +475,41 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — The one-shot film exists as a cut: six figures generated, four app pages captured, thirty bars assembled on the pick's grid
+
+- **Owner, on the runner pair with the watch: *"ok looks good. make the rest of video now."*** So the film in
+  [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) is now a **60-s render** ("The film, v1"): six new
+  figures as highlighter outlines on the black page (the riser, the lifter, the cook, the coach, the kicker, the skipper — one
+  `minimax_h3` take each from §4's block A, prompts verbatim in Sources rows 8–13), four real app pages captured from the
+  production preview (Home → TRAIN, the live session, Eat, Shape Score), the approved runner with the watch as the lock on the
+  cream page, a page turn on every downbeat, the mark glowing on every kick in every frame, six captions, a beat-per-figure
+  montage, and the end card. Link handed over in chat; **six generations**; docs only in the repo; **no PR, nothing merged.**
+- ⚠ **THE PREVIEW BOOTS ON DARK PAPER, AND THAT DECIDED THE FILM'S PAGES.** Measured on the first capture (luma 18–31 across
+  the Home page's rows): the app's own pages are already the film's black page, so the lights-out seam the treatment planned is
+  not needed — black pages for the figures and the app, the runner's cream print as the one lit page, the seam a page turn.
+  §10 q1 closes itself that way.
+- ⚠ **THE SIX CLIPS WERE GATED AND LOOKED AT BEFORE A FRAME WAS RENDERED — and one thing the numbers missed, the picture
+  caught.** Sampled frames: every figure solid (hollow ratio 0.00–0.03), the page still (boil 0.1–1.3), no white object (a lit
+  phone screen is ~17,000 px; these hold 0–921), grey column blocks safely above the figure threshold (luma 90–150 against
+  < 40). Then a 1-bit mask sheet of the six at three times was brought across as checksummed base64 (18 lines; one line
+  corrupted in transit and repaired from 50-char pieces — the route this log records) and viewed: the figures are what was asked
+  for, and **two clips draw the masthead hairlines LOW, inside the band the pass strokes**, which would have become long thin
+  glowing boxes. The pass now strikes thin full-width dark rows like the column rules; thick bands stay (the cook's counter,
+  the skipper's floor). *A generated page has its architecture where the model put it, not where the prompt did.*
+- ⚠ **THE CAPTURE'S FRAME SIZE AND ITS FRAME RATE TRADE OFF, AND THE FIRST PASS TOOK THE WRONG SIDE.** At scale 4 the CDP
+  screenshot is the film's exact 1440×2560 but lands at ~5 fps, so a 3.6-s scroll is 16 steps. Scale 3 (1080×1920, upscaled
+  in the stitch) captures at ~10 fps; the eight segments were re-captured that way and checkpointed. The first upload of the
+  scale-4 set had matched a host's error page as a URL — the uploader now checks the host in what comes back.
+- **The render is three chunks of one script** (`film.py`, `WINDOWS` at the bar-11 and bar-21 downbeats, video only, in
+  parallel, then a `-c copy` concat and one mux with the fade) — the whole film in one lease where a single process would have
+  run past it. Measured this run: inputs reused with md5s matching, the grid re-measured in 3 s, the three chunks 198 s wall (A 180 · B 117 · C 193 on three cores), concat and mux 12 s, upload 6 s, verify 32 s — **248 s for the lease**. `film_v1.mp4` md5 `2561acfa4e44feb5111f382eabd4ecd6`, 28,485,970 B, **1,442 frames / 60.084 s**. A first render of the same plan (md5 `12677a5d…`) is superseded: on the cook's page the masthead band that clip draws low is thicker than a hairline, survived a 12-px strike and was outlined as a glowing bar (12,265 teal px in the top-left crop against the lifter's 3,208); the strike is 60 px in the top zone now and the crop reads 3,252.
+- **Verified on the render:** **21 of 22 checks pass**: a page turn measured at every one of the twelve page starts (the frame 0.3 s in differs from the one 0.15 s before by 5–160 luma levels against ≤ 4 inside the page); the mark brighter on the kick than between kicks on the lifter's and the cook's pages (3,208 / 3,026 · 3,252 / 3,028 teal px) and still inside the breakdown (2,306 / 2,313 on beat 70, where `kick_by_beat` reads 0.001); IN SYNC 6,628 teal px above the bar 0.4 s after the bar-19 downbeat against 339 before; captions lit mid-page and absent at the page start on three pages; the end card's wordmark (15,685 white px) and fee line (8,747 teal); the montage cutting on the beat; the rendered audio re-measuring 119.95 · φ 0.055. The one failure is the instrument — the turn into the montage is one black outline page becoming another, 8.4 levels apart where the check wanted 8.6, and the pages log shows the turn. ⚠ Not watched by the agent; the owner's look is the QA. Every script that
+  produced the film (`tourF.js`, `segF.py`, `runCap2.sh`, `gate.py`, `gate2.py`, `film.py`, `plan.json`, `runFilm.sh`,
+  `verifyF.py`) is in the treatment verbatim with its md5.
+- **Assumptions stated rather than asked, because the owner asked for the film now:** the signed-out preview's demo cast is on
+  the app pages (the open ruling); casting is §4's placeholder phrases; the coach thread is not captured (no coach account), so
+  the coach's page carries her line alone; the tempo is the native grid by ruling; the phone is nowhere.
+
 ### 2026-09-09 — Back to 120, the phone gone, a fitness watch on the wrist: the runner re-edited, re-animated, and the pair re-rendered on the native grid
 
 - **Owner: *"ok go back to 120 and lets remove the phone from the video all together. Can you have the person wear a

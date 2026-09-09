@@ -389,12 +389,14 @@ IN SYNC, once.
 | The pass | `hl.py` on every clip (print or highlighter from the mask), the page, the ribbon, the UI | — (sandbox) |
 | Captures | one sandbox lease | — |
 | Renders | the two-stage runner, verify re-derived on the render | — |
+| **The film, v1 (2026-09-09)** | six block-A figures, one take each, all six kept; the runner's watch clip and the pick reused; eight captures; one render lease (248 s) | **6 `minimax_h3`** |
 
 ## 10 · Open questions for the owner (with the default I will use)
 
-1. **The pages.** Cream for the day half and black after the lights-out flip (default), or the black page
-   throughout with the runner the one printed figure on it. The film has both pages either way; the question is
-   whether the opening is print or light.
+1. **The pages — CLOSED by measurement (2026-09-09).** The production preview boots on its dark paper (luma 18–31 across the
+   Home page's rows), so the app pages are black pages already: the film is the black page throughout with the runner the
+   one lit, printed figure, and every seam a page turn. The lights-out flip is not needed. Re-open only if the app's default
+   paper changes.
 2. **The highlighter colour.** Teal only (default — the brand's one colour, and the ribbon and the ticker border
    already carry it), or a colour per figure from the v6 spread (yellow-green for the cook, pink for the skipper,
    teal + yellow-green for the coach and client). v6-6 shows the two-colour pairing.
@@ -425,6 +427,424 @@ glass, one line, the lock, the lights-out, the close on the mark. The globe and 
 things this world does not carry; both stay available (§10).
 
 ---
+
+
+**The scripts, verbatim.** `film.py` (md5 `a6fb1d284af62fa40db8ff761f897326`) — the assembly; `plan.json` (md5 `73bab387490a77abb6da41a0cc86bc22`) — the pages;
+`runFilm.sh` (md5 `fbc3d4f2db34198147524c13873000b7`) — the lease; `pw/tourF.js` (md5 `281706420cbd08d0f42d4bbf6ea8d545`) — the capture tour at scale 3, and
+`segF.py` (md5 `ed8ea16086c0fa036849706cb3e86449`) — the stitch; `runCap2.sh` (md5 `6aa10cf47768241fe39652112bf1c2c1`) — the capture lease; `verifyF.py`
+(md5 `071351874e647e1801057b2c575303bf`, the copy that ran; the local copy `16214cc140af6cc09e244c2a9cb3bafe` carries comment lines) — the verifier;
+`gate.py` / `gate2.py` — the clip gate (by description above; their outputs are in the WORKLOG entry). `beat.py` and
+`meas_d1.py` are the ones recorded with the style pair.
+
+```python
+# film.py -- the one-shot film assembly. python3 film.py <out.mp4>; FILM_DIR holds the inputs (see PLAN); WINDOWS="a-b,c-d" renders only those seconds (a test).
+import json, math, os, sys, subprocess, numpy as np
+from collections import deque
+from PIL import Image, ImageFilter, ImageDraw, ImageFont
+W,H=1440,2560; FPS=24; D=os.environ.get('FILM_DIR','/home/user/film'); OUT=sys.argv[1]
+TEAL=(0x34,0xd6,0xc5); TEALf=np.array(TEAL,np.float32); CREAM=(0xf2,0xea,0xd8); CREAMf=np.array(CREAM,np.float32); INK=(20,20,20)
+m=json.load(open(f'{D}/meas_d1.json')); BPM=m['bpm']; PH=m['phase']; KB=m.get('kick_by_beat') or []; P=60.0/BPM
+def beat(n): return PH+n*P
+def bar(b): return beat(4*(b-1))
+def kof(t):
+    u=(t-PH)%P; n=int((t-PH)//P); pres=1.0 if not KB or n<0 or n>=len(KB) else min(1.0,max(0.0,(KB[n]-0.15)/0.30)); return math.exp(-u/0.20)*pres
+def sstep(x): x=min(1.0,max(0.0,x)); return x*x*(3-2*x)
+# ---------- fonts ----------
+def font(path,size,var=None):
+    try:
+        f=ImageFont.truetype(path,size)
+        if var:
+            try: f.set_variation_by_axes(var)
+            except Exception: pass
+        return f
+    except Exception: return ImageFont.load_default(size)
+F_MONT=os.environ.get('F_MONT','/usr/share/fonts/truetype/higgsfield/Montserrat-ExtraBold.ttf'); F_NEWS=os.environ.get('F_NEWS',f'{D}/Newsreader.ttf')
+f_lab=font(F_MONT,30); f_num=font(F_MONT,46); f_sync=font(F_MONT,64); f_cap=font(F_NEWS,70,[500,60]); f_end=font(F_NEWS,78,[500,60]); f_fee=font(F_MONT,34)
+# ---------- the mark ----------
+tri=Image.open(f'{D}/tri.png').convert('RGBA'); ASP=tri.width/tri.height
+def glow_mark(canvas, mark, cx, cy, h, k, base, flash, blur, amp=0.06):
+    s=1.0+amp*k; hh=max(8,int(round(h*s))); ww=max(6,int(round(hh*ASP))); mk=mark.resize((ww,hh),Image.LANCZOS)
+    R=blur*3+mk.width//2+mk.height//2; x0,y0=int(cx-R),int(cy-R); S=2*R
+    layer=Image.new('RGBA',(S,S),(0,0,0,0)); px,py=int(round(R-mk.width/2)),int(round(R-mk.height/2))
+    a=Image.new('L',(S,S),0); a.paste(mk.split()[3],(px,py)); g=a.filter(ImageFilter.GaussianBlur(blur))
+    ga=Image.fromarray((np.asarray(g).astype(np.float32)*(base+flash*k)).clip(0,255).astype(np.uint8))
+    glow=Image.merge('RGBA',[Image.new('L',(S,S),TEAL[0]),Image.new('L',(S,S),TEAL[1]),Image.new('L',(S,S),TEAL[2]),ga])
+    layer=Image.alpha_composite(layer,glow); layer.alpha_composite(mk,(px,py)); canvas.alpha_composite(layer,(x0,y0))
+def mark_on(canvas,k,cream):
+    if cream: glow_mark(canvas,tri,100+130*ASP/2,150+65,130,k,0.28,0.55,16)
+    else: glow_mark(canvas,tri,90+150*ASP/2,30+75,150,k,0.35,0.65,20)
+# ---------- the black page ----------
+def blur_mask(m,r): return np.asarray(Image.fromarray((m*255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(np.float32)/255.0
+def black_page():
+    page=Image.new('RGB',(W,H),(10,10,10)); d=ImageDraw.Draw(page); c=tuple(int(v*0.30+10*0.70) for v in CREAM)
+    d.rectangle([90,200,W-90,203],fill=c); d.rectangle([90,214,W-90,215],fill=c)
+    for x in (90,W//3,2*W//3,W-90): d.rectangle([x,260,x+1,H-330],fill=c)
+    d.rectangle([90,H-300,W-90,H-200],fill=(28,28,28)); d.rectangle([90,H-300,102,H-200],fill=TEAL); return page
+PAGE=np.asarray(black_page()).astype(np.float32)
+class Highlighter:
+    """hl.py MODE=solid: the figure's mask -> a teal stroke with glow on the black page, the centroid trail as the ribbon."""
+    def __init__(self): self.rulecols=None; self.trail=deque(maxlen=18)
+    def frame(self,f):
+        g=0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2]; m=g<90; m[:250]=False; m[H-340:]=False
+        if self.rulecols is None:
+            frac=m[250:H-340].mean(0); self.rulecols=[x for x in range(W) if frac[x]>0.55]
+        for x in self.rulecols: m[:,max(0,x-3):x+4]=False
+        # thin full-width dark rows are the page's own hairlines drawn low: struck like the column rules; thick bands stay (a counter, a floor)
+        rf=m[:,90:W-90].mean(1); dark=rf>0.5; y=250
+        while y<H-340:
+            if dark[y]:
+                y0=y
+                while y<H-340 and dark[y]: y+=1
+                if y-y0<=(60 if y0<700 else 12): m[max(0,y0-2):y+2]=False   # a masthead band drawn low (the top zone) or a hairline anywhere; a counter or a floor stays
+            else: y+=1
+        m=blur_mask(m,4)>0.35; bm=blur_mask(m,6); stroke=((bm>0.12)&(bm<0.88)).astype(np.float32)
+        S=Image.fromarray((stroke*255).astype(np.uint8)); glow=np.asarray(S.filter(ImageFilter.GaussianBlur(16))).astype(np.float32)/255.0
+        a=np.clip(glow*0.6+stroke*0.95,0,1)[...,None]; out=PAGE*(1-a)+TEALf*a
+        ys,xs=np.nonzero(m)
+        if len(xs)>200: self.trail.append((float(xs.mean()),float(ys.mean())))
+        if len(self.trail)>2:
+            R=Image.new('L',(W,H),0); dr=ImageDraw.Draw(R); pts=list(self.trail)
+            for i in range(1,len(pts)): dr.line([pts[i-1],pts[i]],fill=int(255*i/len(pts)),width=6)
+            ra=np.asarray(R.filter(ImageFilter.GaussianBlur(2))).astype(np.float32)[...,None]/255.0*0.8; out=out*(1-ra)+TEALf*ra
+        return out.clip(0,255).astype(np.uint8)
+# ---------- the sync bar (the runner page) ----------
+BX0,BX1,BY=560,1120,262; CX=(BX0+BX1)//2; HALF=(BX1-BX0)//2-24; LY0,LY1=150,340; BPMi=int(round(BPM)); HR0=BPMi-36
+def spaced(d,x,y,s,fnt,col,anchor,sp=5):
+    ws=[fnt.getlength(ch) for ch in s]; tot=sum(ws)+sp*(len(s)-1); x0={'l':x,'r':x-tot,'m':x-tot/2}[anchor]
+    for ch,w in zip(s,ws): d.text((x0,y),ch,font=fnt,fill=col,anchor='ls'); x0+=w+sp
+def sync_bar(canvas,t,k,T0,TS,ink,barc,teal):
+    L=Image.new('RGBA',(W,LY1-LY0),(0,0,0,0)); d=ImageDraw.Draw(L); y=BY-LY0
+    d.rectangle([BX0,y-2,BX1,y+2],fill=barc)
+    hr=HR0+(BPMi-HR0)*sstep((t-T0)/(TS-T0)); gap=(BPMi-hr)/float(BPMi-HR0); synced=t>=TS
+    spaced(d,BX0-40,y-14,'HRM',f_lab,ink,'r'); d.text((BX0-40,y+42),str(int(round(hr))),font=f_num,fill=ink,anchor='rs')
+    spaced(d,BX1+40,y-14,'BPM',f_lab,ink,'l'); d.text((BX1+40,y+42),str(BPMi),font=f_num,fill=teal,anchor='ls')
+    if not synced:
+        xL=CX-gap*HALF; xR=CX+gap*HALF; r=15
+        d.ellipse([xL-r,y-r,xL+r,y+r],fill=ink); d.ellipse([xR-r,y-r,xR+r,y+r],fill=teal); canvas.alpha_composite(L,(0,LY0)); return
+    u=min(1.0,(t-TS)/0.25); r=15+9*u+4*k
+    G=Image.new('L',L.size,0); ImageDraw.Draw(G).ellipse([CX-r-10,y-r-10,CX+r+10,y+r+10],fill=255); G=G.filter(ImageFilter.GaussianBlur(18))
+    ga=Image.fromarray((np.asarray(G).astype(np.float32)*(0.35+0.5*k)*u).clip(0,255).astype(np.uint8))
+    L.alpha_composite(Image.merge('RGBA',[Image.new('L',L.size,teal[0]),Image.new('L',L.size,teal[1]),Image.new('L',L.size,teal[2]),ga]))
+    d=ImageDraw.Draw(L); d.ellipse([CX-r,y-r,CX+r,y+r],fill=teal)
+    T=Image.new('RGBA',L.size,(0,0,0,0)); spaced(ImageDraw.Draw(T),CX,y-40,'IN SYNC',f_sync,teal,'m',7)
+    if u<1: T.putalpha(T.split()[3].point(lambda v:int(v*u)))
+    L.alpha_composite(T); canvas.alpha_composite(L,(0,LY0))
+# ---------- captions ----------
+CAP_Y=2150
+def caption_layer(text,col):
+    L=Image.new('RGBA',(W,H),(0,0,0,0)); d=ImageDraw.Draw(L)
+    sh=Image.new('L',(W,H),0); ImageDraw.Draw(sh).text((W//2,CAP_Y),text,font=f_cap,fill=255,anchor='ms'); sh=sh.filter(ImageFilter.GaussianBlur(10))
+    sha=Image.fromarray((np.asarray(sh).astype(np.float32)*0.75).astype(np.uint8)); L.alpha_composite(Image.merge('RGBA',[Image.new('L',(W,H),0),Image.new('L',(W,H),0),Image.new('L',(W,H),0),sha]))
+    d=ImageDraw.Draw(L); d.text((W//2,CAP_Y),text,font=f_cap,fill=col,anchor='ms'); return L
+def with_alpha(L,a):
+    if a>=1: return L
+    return Image.merge('RGBA',[*L.split()[:3],L.split()[3].point(lambda v:int(v*a))])
+def cap_alpha(t,t0,t1): return min(1.0,max(0.0,(t-(t0+0.35))/0.18))*min(1.0,max(0.0,((t1-0.15)-t)/0.18))
+# ---------- the end card ----------
+def endcard_layers():
+    logo=Image.open(f'{D}/logo.png').convert('RGBA'); a=np.asarray(logo.split()[3]); rows=np.nonzero(a[1240:].sum(1)>0)[0]; cols=np.nonzero(a[1240:].sum(0)>0)[0]
+    wm=logo.crop((int(cols[0]),1240+int(rows[0]),int(cols[-1])+1,1240+int(rows[-1])+1)); ww=960; wm=wm.resize((ww,int(wm.height*ww/wm.width)),Image.LANCZOS)
+    mk=tri.resize((int(380*ASP),380),Image.LANCZOS)
+    a=Image.new('L',(W,H),0); a.paste(mk.split()[3],(W//2-mk.width//2,880-mk.height//2)); g=np.asarray(a.filter(ImageFilter.GaussianBlur(28))).astype(np.float32)
+    return wm,mk,g
+# ---------- readers ----------
+class Reader:
+    def __init__(self,src,s0):
+        self.p=subprocess.Popen(['ffmpeg','-v','error','-ss',f'{max(0.0,s0):.4f}','-i',src,'-vf',f'scale={W}:{H}','-f','rawvideo','-pix_fmt','rgb24','-'],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,bufsize=10**8); self.last=None
+    def read(self):
+        b=self.p.stdout.read(W*H*3)
+        if len(b)<W*H*3: return self.last
+        self.last=np.frombuffer(b,np.uint8).reshape(H,W,3); return self.last
+    def close(self):
+        try: self.p.kill(); self.p.stdout.close(); self.p.wait()
+        except Exception: pass
+# ---------- the plan ----------
+PLAN=json.load(open(f'{D}/plan.json'))   # [{name,kind,src,t0,t1,s0,caption?}, ...]; montage: {kind:'montage',slots:[[src,s0],...]}
+for pg in PLAN: pg['t0']=eval(str(pg['t0'])); pg['t1']=eval(str(pg['t1']))
+T_END=PLAN[-1]['t1']; TURN=6/FPS
+wm_img,mk_big,mk_glow=endcard_layers(); caps={}
+class Page:
+    def __init__(self,pg):
+        self.pg=pg; self.kind=pg['kind']; self.hl=Highlighter() if self.kind in ('fig',) else None; self.reader=None; self.slot=-1; self.slot_reader=None; self.slot_hl=None
+        if self.kind not in ('montage','end'): self.reader=Reader(f"{D}/{pg['src']}",pg['s0'])
+        self.cap=caption_layer(pg['caption'],CREAM if self.kind!='runner' else INK) if pg.get('caption') else None
+    def render(self,t):
+        k=kof(t); pg=self.pg
+        if self.kind=='end': return self.render_end(t,k)
+        if self.kind=='montage':
+            s=min(len(pg['slots'])-1,int((t-pg['t0'])//P))
+            if s!=self.slot:
+                if self.slot_reader: self.slot_reader.close()
+                src,s0=pg['slots'][s]; self.slot=s; self.slot_reader=Reader(f'{D}/{src}',s0); self.slot_hl=Highlighter() if not src.startswith('runner') else None
+            f=self.slot_reader.read(); cream=self.slot_hl is None
+            img=Image.fromarray(f if cream else self.slot_hl.frame(f)).convert('RGBA'); mark_on(img,k,cream); return img
+        f=self.reader.read()
+        if self.kind=='fig': img=Image.fromarray(self.hl.frame(f)).convert('RGBA'); mark_on(img,k,False)
+        elif self.kind=='ui': img=Image.fromarray(f).convert('RGBA'); mark_on(img,k,False)
+        elif self.kind=='runner':
+            img=Image.fromarray(f).convert('RGBA'); mark_on(img,k,True); sync_bar(img,t,k,pg['t0']+0.5,eval(str(pg['ts'])),INK,(95,95,95),TEAL)
+        if self.cap is not None:
+            a=cap_alpha(t,pg['t0'],pg['t1'])
+            if a>0: img.alpha_composite(with_alpha(self.cap,a))
+        return img
+    def render_end(self,t,k):
+        pg=self.pg; u=t-pg['t0']; img=black_page().convert('RGBA')
+        kk=max(k,math.exp(-u/0.25))   # the card's own flash on its downbeat
+        mk=mk_big; cx,cy=W//2,880; layer=Image.new('RGBA',(W,H),(0,0,0,0))
+        ga=Image.fromarray((mk_glow*(0.30+0.6*kk)).clip(0,255).astype(np.uint8))
+        layer.alpha_composite(Image.merge('RGBA',[Image.new('L',(W,H),TEAL[0]),Image.new('L',(W,H),TEAL[1]),Image.new('L',(W,H),TEAL[2]),ga])); layer.alpha_composite(mk,(cx-mk.width//2,cy-mk.height//2))
+        img.alpha_composite(layer)
+        aw=sstep((u-0.4)/0.35)
+        if aw>0: img.alpha_composite(with_alpha(wm_img,aw),(cx-wm_img.width//2,1180))
+        ar=sstep((u-0.9)/0.5)
+        if ar>0: ImageDraw.Draw(img).rectangle([cx-480,1180+wm_img.height+40,int(cx-480+960*ar),1180+wm_img.height+44],fill=TEAL)
+        a1=sstep((u-1.3)/0.3)
+        if a1>0:
+            L=Image.new('RGBA',(W,H),(0,0,0,0)); ImageDraw.Draw(L).text((cx,1180+wm_img.height+180),'Different goals. One Community.',font=f_end,fill=CREAM,anchor='ms'); img.alpha_composite(with_alpha(L,a1))
+        a2=sstep((u-1.8)/0.3)
+        if a2>0:
+            L=Image.new('RGBA',(W,H),(0,0,0,0)); spaced(ImageDraw.Draw(L),cx,1180+wm_img.height+290,'ONE PLATFORM FEE  ·  $5 /MO  ·  CANCEL ANY TIME',f_fee,TEAL,'m',4); img.alpha_composite(with_alpha(L,a2))
+        return img
+    def close(self):
+        if self.reader: self.reader.close()
+        if self.slot_reader: self.slot_reader.close()
+def page_turn(new,old,f):
+    """the broadsheet turn: the new page comes down from the top over the old one, a folded-edge shadow under the edge."""
+    e=f*f*(3-2*f); y=int(round(e*H)); out=old.copy()
+    if y>0: out.paste(new.crop((0,0,W,y)),(0,0))
+    if 0<y<H:
+        sh=Image.new('RGBA',(W,min(56,H-y)),(0,0,0,0)); d=ImageDraw.Draw(sh)
+        for i in range(sh.height): d.line([(0,i),(W,i)],fill=(0,0,0,int(150*(1-i/sh.height))))
+        out.alpha_composite(sh,(0,y))
+    return out
+# ---------- render ----------
+WIN=[tuple(float(v) for v in w.split('-')) for w in os.environ.get('WINDOWS','').split(',') if w]
+def want(t): return (not WIN) or any(a<=t<b for a,b in WIN)
+VID=['ffmpeg','-y','-v','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-']
+AUD=[] if os.environ.get('NOAUDIO') else ['-i',f'{D}/d1.m4a','-map','0:v','-map','1:a','-af',f'atrim=0:{T_END:.3f},afade=t=out:st={T_END-0.6:.3f}:d=0.6','-c:a','aac','-b:a','192k','-shortest']
+wr=subprocess.Popen(VID+AUD+['-c:v','libx264','-preset',os.environ.get('PRESET','medium'),'-crf','18','-pix_fmt','yuv420p',OUT],stdin=subprocess.PIPE)
+pages=[]; cur=None; prev=None; n=0; nw=0; log=[]
+NF=int(math.ceil(T_END*FPS))
+import time; t_start=time.time()
+for n in range(NF):
+    t=n/FPS
+    if cur is None or t>=cur.pg['t1']:
+        i=0
+        while i<len(PLAN)-1 and t>=PLAN[i]['t1']: i+=1
+        if cur is not None and cur.pg is not PLAN[i]:
+            if prev: prev.close()
+            prev=cur; prev_end=cur.pg['t1']
+        if cur is None or cur.pg is not PLAN[i]:
+            cur=Page(PLAN[i]); log.append((n,round(t,3),PLAN[i]['name']))
+    if not want(t):
+        # keep the readers in step even when a frame is skipped
+        if cur.kind not in ('montage','end'): cur.reader.read()
+        if prev is not None and t<prev_end+TURN and prev.kind not in ('montage','end'): prev.reader.read()
+        continue
+    img=cur.render(t)
+    if prev is not None and t<prev_end+TURN and prev.kind!='montage':
+        old=prev.render(t); img=page_turn(img,old,(t-prev_end)/TURN)
+    elif prev is not None and t<prev_end+TURN and prev.kind=='montage':
+        old=prev.render(t); img=page_turn(img,old,(t-prev_end)/TURN)
+    wr.stdin.write(img.convert('RGB').tobytes()); nw+=1
+    if n%120==0: print('frame',n,'t',round(t,2),cur.pg['name'],'elapsed',int(time.time()-t_start),flush=True)
+wr.stdin.close(); wr.wait()
+print('frames planned',NF,'written',nw,'pages',log); print('FILM-DONE',flush=True)
+```
+
+```json
+[
+ {"name":"riser","kind":"fig","src":"fig_riser.mp4","t0":"bar(1)","t1":"bar(3)","s0":0.0},
+ {"name":"ui_train","kind":"ui","src":"ui_home_train.mp4","t0":"bar(3)","t1":"bar(5)","s0":0.8,"caption":"Written before you arrive."},
+ {"name":"lifter","kind":"fig","src":"fig_lifter.mp4","t0":"bar(5)","t1":"bar(7)","s0":0.5},
+ {"name":"ui_session","kind":"ui","src":"ui_session.mp4","t0":"bar(7)","t1":"bar(9)","s0":1.2,"caption":"The live session."},
+ {"name":"cook","kind":"fig","src":"fig_cook.mp4","t0":"bar(9)","t1":"bar(11)","s0":0.5},
+ {"name":"ui_menu","kind":"ui","src":"ui_menu.mp4","t0":"bar(11)","t1":"bar(13)","s0":0.3,"caption":"Every meal, planned."},
+ {"name":"coach","kind":"fig","src":"fig_coach.mp4","t0":"bar(13)","t1":"bar(16)","s0":0.5,"caption":"A person. Not an algorithm."},
+ {"name":"runner","kind":"runner","src":"runner.mp4","t0":"bar(16)","t1":"bar(21)","s0":0.0,"ts":"bar(19)"},
+ {"name":"kicker","kind":"fig","src":"fig_kicker.mp4","t0":"bar(21)","t1":"bar(23)","s0":0.5},
+ {"name":"ui_score","kind":"ui","src":"ui_score.mp4","t0":"bar(23)","t1":"bar(25)","s0":3.2,"caption":"One number that tells the truth."},
+ {"name":"skipper","kind":"fig","src":"fig_skipper.mp4","t0":"bar(25)","t1":"bar(27)","s0":0.5},
+ {"name":"montage","kind":"montage","t0":"bar(27)","t1":"bar(29)","slots":[["fig_riser.mp4",6.0],["fig_lifter.mp4",6.0],["fig_cook.mp4",6.0],["fig_coach.mp4",6.0],["runner.mp4",6.0],["fig_kicker.mp4",6.0],["fig_skipper.mp4",6.0],["fig_riser.mp4",7.0]]},
+ {"name":"end","kind":"end","t0":"bar(29)","t1":"bar(31)"}
+]
+```
+
+```bash
+cd /home/user/film; t0=$(date +%s); say(){ echo "[$(( $(date +%s) - t0 ))s] $*"; }
+PFX=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
+for f in film.py plan.json beat.py meas_d1.py verifyF.py; do [ -s $f ] || { echo "FATAL missing $f"; exit 1; }; done
+for pair in "riser ab46e09f-673e-4472-a786-9295c5252c57" "lifter 18f57dfd-3376-419b-b839-257387e17bed" "cook e5ae899a-8f7b-4334-8330-9ff42025a91c" "coach c739d3a7-3538-4748-a8f1-5bed0265097c" "kicker c420854d-efa3-441a-abc9-3abbb53181d5" "skipper a15ce573-8f24-4561-a059-eb80cf6726f3"; do set -- $pair; [ -s fig_$1.mp4 ] || curl -sfL -o fig_$1.mp4 $PFX/hf_20260909_181112_$2.mp4 & done
+[ -s runner.mp4 ] || curl -sfL -o runner.mp4 $PFX/hf_20260909_175056_e7f33f15-d306-4e50-99e8-9a7612d7daca.mp4 &
+[ -s d1.m4a ] || curl -sfL -o d1.m4a $PFX/hf_20260908_212940_35ca8b30-6459-46e7-8fa0-7b0196f6ac69.m4a &
+[ -s logo.png ] || curl -sfL -o logo.png https://raw.githubusercontent.com/cperry8800-droid/shape-app/main/public/SHAPE-logo-teal-white.png &
+[ -s Newsreader.ttf ] || curl -sfL -o Newsreader.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/newsreader/Newsreader%5Bopsz%2Cwght%5D.ttf" &
+wait
+[ -s tri.png ] || python3 -c "from PIL import Image;Image.open('logo.png').convert('RGBA').crop((1551,200,2169,990)).save('tri.png')"
+ck(){ n=$1; m=$2; u=$3; f=ui_$n.mp4
+  if [ -s /home/user/cap/seg/$n.mp4 ] && [ "$(md5sum /home/user/cap/seg/$n.mp4|cut -d' ' -f1)" = "$m" ]; then cp /home/user/cap/seg/$n.mp4 $f; echo "UI $n from the sandbox capture (md5 ok)"; return 0; fi
+  curl -sfL -m 300 -o $f "$u" && [ "$(md5sum $f|cut -d' ' -f1)" = "$m" ] && { echo "UI $n fetched (md5 ok)"; return 0; }
+  echo "FATAL UI $n unavailable"; exit 1; }
+ck home_train 3cb18da045576648baad736fd3108d50 https://h.uguu.se/bbThttWb.mp4
+ck session 2ee07376ad8db2b380062780953e7436 https://n.uguu.se/nNcSgNDc.mp4
+ck menu 1b5fc19cb79c78172b98ff1721c965c7 https://n.uguu.se/iZNwTQZB.mp4
+ck score 9ba53b79c7a0ee49434dc6d63185b75c https://n.uguu.se/ofgHyPAJ.mp4
+md5sum fig_*.mp4 runner.mp4 d1.m4a logo.png tri.png Newsreader.ttf ui_*.mp4 film.py plan.json verifyF.py; say INPUTS-OK
+python3 meas_d1.py; md5sum meas_d1.json; say GRID-OK
+NOAUDIO=1 WINDOWS="0-20.0633" python3 film.py chunkA.mp4 > logA.txt 2>&1 &
+NOAUDIO=1 WINDOWS="20.0633-40.0716" python3 film.py chunkB.mp4 > logB.txt 2>&1 &
+NOAUDIO=1 WINDOWS="40.0716-61" python3 film.py chunkC.mp4 > logC.txt 2>&1 &
+wait; tail -n 2 logA.txt logB.txt logC.txt; say CHUNKS-DONE
+for c in A B C; do ffprobe -v error -select_streams v -count_frames -show_entries stream=nb_read_frames -of csv=p=0 chunk$c.mp4; done
+printf "file 'chunkA.mp4'\nfile 'chunkB.mp4'\nfile 'chunkC.mp4'\n" > list.txt
+ffmpeg -y -v error -f concat -safe 0 -i list.txt -i d1.m4a -map 0:v -map 1:a -af "atrim=0:60.083,afade=t=out:st=59.483:d=0.6" -c:v copy -c:a aac -b:a 192k -shortest film_v1.mp4
+md5sum film_v1.mp4; ls -l film_v1.mp4; say RENDER-DONE
+g=$(s=$(curl -s https://api.gofile.io/servers | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['servers'][0]['name'])"); curl -s -F "file=@film_v1.mp4" "https://$s.gofile.io/contents/uploadfile" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['downloadPage'])")
+r=$(curl -s -m 300 -F reqtype=fileupload -F time=72h -F "fileToUpload=@film_v1.mp4" https://litterbox.catbox.moe/resources/internals/api.php); case "$r" in https://litter.catbox.moe/*) l=$r;; *) l=$(curl -s -m 300 -F "files[]=@film_v1.mp4" https://uguu.se/upload | python3 -c "import sys,json;print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null);; esac
+echo "UPLOAD film_v1.mp4 gofile=$g direct=$l"; say UPLOAD-DONE
+python3 verifyF.py film_v1.mp4; say VERIFY-DONE
+echo RUNFILM-DONE
+```
+
+```js
+const {chromium}=require('playwright'); const fs=require('fs'); const path=require('path');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const UA='Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+const INIT=()=>{const add=()=>{const h=document.documentElement;if(h){h.classList.add('is-native-app');return true;}return false;};if(!add()){new MutationObserver((m,o)=>{if(add())o.disconnect();}).observe(document,{childList:true,subtree:true});}};
+const SEG="/home/user/cap/seg"; const VW=360,VH=640,DPR=3;
+(async()=>{
+ const b=await chromium.launch({args:['--no-sandbox'],executablePath:'/ms-playwright/chromium-1228/chrome-linux64/chrome'});
+ const c=await b.newContext({viewport:{width:VW,height:VH},deviceScaleFactor:DPR,isMobile:true,hasTouch:true,userAgent:UA});
+ await c.addInitScript(INIT); const p=await c.newPage(); const cdp=await c.newCDPSession(p); const log=(...a)=>console.log(...a);
+ const go=async(re,which,ms)=>{const pt=await p.evaluate(([src,which,ms])=>new Promise(res=>{const re=new RegExp(src,'i');
+  const txt=e=>((e.innerText||'')+' '+(e.getAttribute('aria-label')||'')).replace(/\s+/g,' ').trim();
+  const sz=e=>{const r=e.getBoundingClientRect();return r.width>2&&r.height>2;};
+  const all=[...document.querySelectorAll('button,[role=button],a,div,span,h1,h2,h3,p,label,li')].filter(sz).filter(e=>re.test(txt(e)));
+  const deep=all.filter(e=>!all.some(o=>o!==e&&e.contains(o)));
+  if(!deep.length){res(null);return;}
+  const e=deep[which==='last'?deep.length-1:(typeof which==='number'?Math.min(which,deep.length-1):0)];
+  let sc=e.parentElement; while(sc&&!(sc.scrollHeight>sc.clientHeight+20&&/(auto|scroll)/.test(getComputedStyle(sc).overflowY)))sc=sc.parentElement;
+  const done=()=>{const r=e.getBoundingClientRect();res({x:r.left+r.width/2,y:r.top+r.height/2,t:txt(e).slice(0,34),n:deep.length});};
+  if(!sc){e.scrollIntoView({block:'center'});setTimeout(done,150);return;}
+  const cr=sc.getBoundingClientRect(),er=e.getBoundingClientRect(); const target=sc.scrollTop+(er.top-cr.top)-(cr.height*0.42-er.height/2);
+  const to=Math.max(0,Math.min(sc.scrollHeight-sc.clientHeight,target)); const from=sc.scrollTop; if(Math.abs(to-from)<4){done();return;}
+  const t1=performance.now(); const step=()=>{const k=Math.min(1,(performance.now()-t1)/ms);const ease=k<.5?2*k*k:-1+(4-2*k)*k;sc.scrollTop=from+(to-from)*ease;if(k<1)requestAnimationFrame(step);else setTimeout(done,120);}; step();}),[re,which||'first',ms||650]);
+  if(!pt){log('MISS',re);return false;} await p.mouse.click(pt.x,pt.y); log('GO',re,'->',JSON.stringify(pt.t),'of',pt.n); return true;};
+ const scroll=async(dy,ms)=>p.evaluate(([dy,ms])=>new Promise(res=>{let els=[...document.querySelectorAll('.bs-scroll,[style*="overflow"]')].filter(e=>e.scrollHeight>e.clientHeight+20&&e.clientHeight>300);
+  els.sort((a,b)=>b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight); const el=els[0]||document.scrollingElement; const from=el.scrollTop, t1=performance.now();
+  const step=()=>{const k=Math.min(1,(performance.now()-t1)/ms); const e=k<.5?2*k*k:-1+(4-2*k)*k; el.scrollTop=from+dy*e; if(k<1)requestAnimationFrame(step); else res(Math.round(el.scrollTop));}; step();}),[dy,ms]).then(r=>{log('SCROLL',dy,'->',r);return r;});
+ const tab=async(t)=>{await p.evaluate((t)=>document.querySelector('[data-tour="tab-'+t+'"]').click(),t);};
+ const dismiss=()=>p.evaluate(()=>{const b=document.querySelector('button[aria-label="Dismiss"],[aria-label="Dismiss"]'); if(b)b.click(); return !!b;});
+ const boot=async(tag)=>{await p.goto('https://theshapecommunity.com/m/',{waitUntil:'domcontentloaded',timeout:60000}); await sleep(5500);
+  if(await go('^English')){await sleep(500); await go('^CONTINUE$'); await sleep(1500);} await go('Preview the app'); await sleep(2500); await go('Step inside'); await sleep(3500);
+  await dismiss().then(r=>log('DISMISS',r)); await sleep(900); log('BOOT_DONE',tag);};
+ const back=async()=>{await go('^← ?BACK|^BACK$|^Close|^✕|^CANCEL',0); await sleep(900);};
+ const jdim=(b)=>{let i=2;while(i<b.length-9){if(b[i]!==0xFF){i++;continue;}const m=b[i+1];if(m>=0xC0&&m<=0xCF&&m!==0xC4&&m!==0xC8&&m!==0xCC)return [b.readUInt16BE(i+7),b.readUInt16BE(i+5)];const len=b.readUInt16BE(i+2);i+=2+len;}return [0,0];};
+ let capMode='cdp'; let cur=null;
+ const capFrame=async()=>{if(capMode==='cdp'){const r=await cdp.send('Page.captureScreenshot',{format:'jpeg',quality:88,optimizeForSpeed:true,clip:{x:0,y:0,width:VW,height:VH,scale:DPR}}); const buf=Buffer.from(r.data,'base64'); const [w,h]=jdim(buf); if(w===VW*DPR&&h===VH*DPR)return buf; log('CAPMODE cdp gave',w,h,'-> switching to pw'); capMode='pw';} return await p.screenshot({type:'jpeg',quality:88});};
+ const startRec=(name)=>{const dir=path.join(SEG,name); fs.rmSync(dir,{recursive:true,force:true}); fs.mkdirSync(dir,{recursive:true}); const st={name,dir,n:0,ts:[],t0:Date.now(),on:true,acts:[]};
+  st.done=(async()=>{while(st.on){const buf=await capFrame(); const t=Date.now()-st.t0; fs.writeFileSync(path.join(dir,`f${String(st.n).padStart(5,'0')}.jpg`),buf); st.ts.push(t); st.n++;}})(); cur=st; return st;};
+ const stopRec=async(st)=>{st.on=false; await st.done; const total=Date.now()-st.t0; fs.writeFileSync(path.join(st.dir,'times.json'),JSON.stringify({ts:st.ts,total,acts:st.acts})); log('REC',st.name,'frames',st.n,'ms',total,'fps',(st.n/total*1000).toFixed(1),'acts',JSON.stringify(st.acts)); cur=null;};
+ const rec=async(name,fn)=>{const st=startRec(name); try{await fn();}catch(e){log('SEGERR',name,String(e).slice(0,300));} await stopRec(st);};
+ const act=async(label,fn)=>{const t=cur?Date.now()-cur.t0:-1; if(cur)cur.acts.push([label,t]); return fn();};
+ // ---- A: home -> train ----
+ await boot('A');
+ await rec('home_train',async()=>{await sleep(1800); await act('tab',()=>tab('train')); await sleep(2400); await act('scroll',()=>scroll(500,3600)); await sleep(1000);});
+ await rec('session',async()=>{await sleep(500); await act('tap',()=>go('^▶',0)); await sleep(3200); await act('scroll',()=>scroll(360,3200)); await sleep(800);});
+ await rec('setlog',async()=>{await sleep(500); await act('tap',()=>go('Mark set 1|Log set 1|set 1 done|^✓$',0)); await sleep(3200);});
+ // ---- C: eat ----
+ await boot('C');
+ await rec('menu',async()=>{await sleep(500); await act('tab',()=>tab('eat')); await sleep(2400); await act('scroll',()=>scroll(420,3600)); await sleep(1000);});
+ await rec('meal',async()=>{await sleep(500); await act('tap',()=>go('Yogurt \\+ granola|Tuna, white bean',0)); await sleep(3200); await act('scroll',()=>scroll(450,3200)); await sleep(800);});
+ // ---- E: me / score / habits ----
+ await boot('E');
+ await rec('profile',async()=>{await sleep(500); await act('tab',()=>tab('me')); await sleep(2200); await act('scroll',()=>scroll(560,3000)); await sleep(500); await scroll(-560,1200); await sleep(500); await act('climb',()=>go('^CLIMB$')); await sleep(3200);});
+ await rec('score',async()=>{await sleep(500); await act('tap',()=>go('SHAPE SCORE|Shape Score',0)); await sleep(3200); await act('tier',()=>go('^THIS TIER')); await sleep(1800); await act('ladder',()=>go('^THE LADDER')); await sleep(1600); await act('scroll',()=>scroll(520,3200)); await sleep(800);}); await back();
+ await rec('habits',async()=>{await sleep(400); await act('tab',()=>tab('home')); await sleep(1400); await act('tap',()=>go('^VIEW ALL')); await sleep(2800); await act('scroll',()=>scroll(320,2600)); await sleep(800);});
+ await b.close(); log('TOURF DONE');
+})().catch(e=>{console.log('TOUR ERR',String(e).slice(0,600));process.exit(1);});
+```
+
+```python
+import json,os,subprocess,sys
+SEG='/home/user/cap/seg'
+names=sys.argv[1:] or sorted(d for d in os.listdir(SEG) if os.path.isdir(os.path.join(SEG,d)))
+for n in names:
+    d=os.path.join(SEG,n); tj=os.path.join(d,'times.json')
+    if not os.path.exists(tj): print('SKIP',n); continue
+    t=json.load(open(tj)); ts=t['ts']; total=t['total']
+    lines=['ffconcat version 1.0']
+    for i,x in enumerate(ts):
+        nxt=ts[i+1] if i+1<len(ts) else total
+        dur=max(1,nxt-x)/1000.0
+        lines.append(f"file 'f{i:05d}.jpg'\nduration {dur:.4f}")
+    lines.append(f"file 'f{len(ts)-1:05d}.jpg'")
+    open(os.path.join(d,'list.txt'),'w').write('\n'.join(lines)+'\n')
+    out=os.path.join(SEG,n+'.mp4')
+    subprocess.run(['ffmpeg','-y','-v','error','-f','concat','-safe','0','-i',os.path.join(d,'list.txt'),'-vf','fps=24,scale=1440:2560,format=yuv420p','-c:v','libx264','-preset','fast','-crf','14',out])
+    pr=subprocess.run(['ffprobe','-v','error','-select_streams','v','-count_frames','-show_entries','stream=nb_read_frames,width,height','-of','csv=p=0',out],capture_output=True,text=True).stdout.strip()
+    print('SEG',n,'frames_in',len(ts),'total_ms',total,'->',pr,'acts',t.get('acts'))
+print('SEGF-DONE')
+```
+
+```bash
+cd /home/user; export NODE_PATH=/usr/local/lib/node_modules; t0=$(date +%s); say(){ echo "[$(( $(date +%s) - t0 ))s] $*"; }
+rm -rf cap/seg; mkdir -p cap/seg; md5sum pw/tourF.js segF.py > cap2.log; node pw/tourF.js >> cap2.log 2>&1; say TOUR-DONE >> cap2.log
+python3 segF.py >> cap2.log 2>&1
+up(){ f=$1; m=$(md5sum "$f"|cut -d' ' -f1); u=""
+  for h in litter uguu x0; do
+    case $h in
+      litter) r=$(curl -s -m 200 -F reqtype=fileupload -F time=72h -F "fileToUpload=@$f" https://litterbox.catbox.moe/resources/internals/api.php); case "$r" in https://litter.catbox.moe/*) u=$r;; esac;;
+      uguu) r=$(curl -s -m 200 -F "files[]=@$f" https://uguu.se/upload | python3 -c "import sys,json;print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null); case "$r" in https://*uguu.se/*) u=$r;; esac;;
+      x0) r=$(curl -s -m 200 -F "file=@$f" https://0x0.st); case "$r" in https://0x0.st/*) u=$r;; esac;;
+    esac
+    [ -n "$u" ] && break
+  done
+  echo "CKPT $(basename $f .mp4) $m ${u:-NONE} $(stat -c%s "$f")"; }
+for f in cap/seg/*.mp4; do up "$f" >> cap2.log; done
+say CAP2-ALL-DONE >> cap2.log
+```
+
+```python
+import json,math,subprocess,numpy as np,beat,sys
+m=json.load(open('meas_d1.json')); BPM=m['bpm'];PH=m['phase'];P=60.0/BPM; KB=m['kick_by_beat']
+def beatt(n): return PH+n*P
+def bar(b): return beatt(4*(b-1))
+F=sys.argv[1] if len(sys.argv)>1 else 'film_v1.mp4'; W,H=1440,2560
+def frame(t):
+    o=subprocess.run(['ffmpeg','-v','error','-ss',f'{t:.4f}','-i',F,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','-'],capture_output=True).stdout
+    return np.frombuffer(o,np.uint8).reshape(H,W,3).astype(int)
+def teal(f): return int(((abs(f[...,0]-0x34)<40)&(abs(f[...,1]-0xd6)<40)&(abs(f[...,2]-0xc5)<40)).sum())
+def cream(f): return int(((f[...,0]>200)&(f[...,1]>190)&(f[...,2]>170)).sum())
+pr=subprocess.run(['ffprobe','-v','error','-select_streams','v','-count_frames','-show_entries','stream=nb_read_frames,r_frame_rate,width,height:format=duration','-of','json',F],capture_output=True,text=True).stdout
+print('probe',' '.join(pr.split()))
+ok=0; bad=0
+def chk(name,cond,detail):
+    global ok,bad; ok+=cond; bad+=(not cond); print(('PASS' if cond else 'FAIL'),name,detail)
+# 1 page turns at every page start: the frame 0.35 s after the start differs from the one 0.15 s before it far more than two frames inside the page do
+starts={'ui_train':bar(3),'lifter':bar(5),'ui_session':bar(7),'cook':bar(9),'ui_menu':bar(11),'coach':bar(13),'runner':bar(16),'kicker':bar(21),'ui_score':bar(23),'skipper':bar(25),'montage':bar(27),'end':bar(29)}
+for nm,T in starts.items():
+    a=frame(T-0.15); b=frame(T+0.30); c=frame(T+0.40)
+    d1=float(np.abs(a-b).mean()); d2=float(np.abs(b-c).mean()); chk(f'turn {nm}',d1>2*d2+2,f'across {d1:.1f} within {d2:.1f}')
+# 2 the mark glows on the kick on a black page (bar 5, the lifter) and the cream page (bar 17, the runner: the kick is thinning; use bar 16 beat 60)
+for nm,nb,crop in (('lifter beat 16',16+0,(slice(20,200),slice(80,240))),('cook beat 32',32,(slice(20,200),slice(80,240)))):
+    fb=frame(beatt(nb)+1/24)[crop]; fm=frame(beatt(nb)+P/2)[crop]; chk(f'mark on kick {nm}',teal(fb)>teal(fm)*1.02,f'on {teal(fb)} mid {teal(fm)} kb {KB[nb]}')
+# 3 the mark is still where nothing is playing (beat 70, inside the breakdown, the runner page: cream placement crop)
+fb=frame(beatt(70)+1/24)[140:300,90:220]; fm=frame(beatt(70)+P/2)[140:300,90:220]; chk('mark still in the breakdown',abs(teal(fb)-teal(fm))<=max(60,0.03*teal(fb)),f'on {teal(fb)} mid {teal(fm)} kb {KB[70]}')
+# 4 IN SYNC at the lock (bar 19)
+TS=bar(19); band=lambda f:f[150:262,540:1140]; chk('IN SYNC lands on bar 19',teal(band(frame(TS+0.4)))>3000 and teal(band(frame(TS-0.3)))<800,f'post {teal(band(frame(TS+0.4)))} pre {teal(band(frame(TS-0.3)))} TS {TS:.3f}')
+# 5 captions lit mid-page, absent at the page start
+for nm,T0,T1 in (('ui_train',bar(3),bar(5)),('coach',bar(13),bar(16)),('ui_score',bar(23),bar(25))):
+    c0=cream(frame(T0+0.05)[2060:2180]); c1=cream(frame((T0+T1)/2)[2060:2180]); chk(f'caption {nm}',c1>c0+1500,f'start {c0} mid {c1}')
+# 6 the end card: wordmark and fee line in the last second
+f=frame(bar(31)-0.3); wm=int((f[1180:1400].min(-1)>200).sum()); fee=teal(f[1550:1700]); chk('end card',wm>8000 and fee>600,f'wordmark white px {wm} fee-line teal {fee}')
+# 7 the montage cuts on beats: consecutive slots differ
+a=frame(bar(27)+0.25); b=frame(bar(27)+P+0.25); chk('montage cut',float(np.abs(a-b).mean())>3,f'diff {float(np.abs(a-b).mean()):.1f}')
+# 8 audio: the rendered track re-measures on the grid
+subprocess.run(['ffmpeg','-y','-v','error','-i',F,'-vn','-c:a','copy','film_audio.m4a']); x=beat.decode('film_audio.m4a'); o=beat.onset(beat.energy(beat.bandpass(x,40,120))); g=beat.grid(o,110.0,150.0)
+chk('audio grid',abs(g['bpm']-BPM)<0.3,f"{g} dur {len(x)/beat.SR:.3f}")
+print('RESULT',ok,'PASS',bad,'FAIL'); print('VERIFYF-DONE')
+```
 
 ## Sources — generated media, prompts verbatim (never re-generate what is listed here)
 
@@ -640,6 +1060,12 @@ rising and falling and tilting, never floating**.
 | E4 | Edit of frame 8 · the phone removed, a fitness watch on the wrist, rounded-square teal face (TAKEN) — 2026-09-09 | `cbff7e80-12b6-47e6-9d63-b3cbef3a77ee` | `hf_20260909_174907_cbff7e80-12b6-47e6-9d63-b3cbef3a77ee.png` · md5 `00387339f7096cd15aa58f9916c8c5f4` · 3,806,506 B | *Same image, identical in every way, except two things. First, the white smartphone is gone: she is empty-handed, that hand drawn as a running hand in the same coarse halftone dots as the rest of her body, with the cream newsprint page showing where the phone was. Second, she wears a slim fitness watch on that wrist: a small rounded-square watch face with a thin black band, drawn crisp and unscreened, its face a plain flat teal, hex 34D6C5, the only sharp object on the page. The single ribbon of teal light now trails from the watch around her body instead of from a phone. Nothing else in the picture changes.\n\nresolution: 2k* |
 | E5 | Edit of frame 8 · the phone removed, a round-faced sports watch — 2026-09-09 | `d08f90f1-e7b7-4822-a6b5-c52f6f30885b` | `hf_20260909_174907_d08f90f1-e7b7-4822-a6b5-c52f6f30885b.png` · md5 `de54eec3cf5e235d769338b8aad6fe57` · 3,784,461 B | *Edit this image and change nothing except the runner's hand and wrist. Remove the white smartphone completely; where it was, draw her hand open and empty in the same coarse halftone dots as the rest of her body, with the cream page behind it. Put a fitness watch on that wrist: a small sports watch with a round face, plain and flat and glowing teal, hex 34D6C5, on a thin black strap, drawn crisp and sharp, the only unscreened object on the page. The single ribbon of teal light now streams out of the watch face and around her body. The cream newsprint page, the masthead rule, the column blocks, the ticker strip and the halftone runner stay exactly as they are.\n\nresolution: 2k* |
 | 7 | Image-to-video of E4 — 2026-09-09 (same params as 5: `minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…` · `medias` role `image` → `image_references cbff7e80…`). E4 and E5 were submitted as `nano_banana_pro` (9:16 · `resolution 2k` · `use_unlim false` · `image_references bcfea348…`) and the gallery records them served as `nano_banana_2` | `e7f33f15-d306-4e50-99e8-9a7612d7daca` | `hf_20260909_175056_e7f33f15-d306-4e50-99e8-9a7612d7daca.mp4` · md5 `32bee6015d5438b05941931dfc388870` · 12,888,949 B · 243 frames / 10.125 s | *Animate this exact frame without changing its style: a flat 2D editorial newspaper animation. The page of cream newsprint, the masthead rule, the grey column blocks and the ticker strip stay perfectly still; the halftone dots stay locked to the page and do not shimmer. The runner sprints in place in full stride, knees driving high, arms pumping, ponytail streaming, her limbs streaking with motion, her hands open and empty, and the ribbon of teal light flows out of the fitness watch on her wrist and around her body in a continuous wave. The watch stays on her wrist in every frame, its teal face visible as her arm swings. Locked-off camera, no camera movement, no zoom. No new text, no logos.* |
+| 8 | The riser · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `ab46e09f-673e-4472-a786-9295c5252c57` | `hf_20260909_181112_ab46e09f-673e-4472-a786-9295c5252c57.mp4` · md5 `7dfd16ee6de3ce54ef4fc1f091f06d45` · 2,450,261 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman with her hair flying, walking in from the left edge and breaking into a dance in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 9 | The lifter · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `18f57dfd-3376-419b-b839-257387e17bed` | `hf_20260909_181112_18f57dfd-3376-419b-b839-257387e17bed.mp4` · md5 `08ee71d5d451f6147d9be8de9a8b9b7b` · 1,966,409 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a broad-shouldered man, swinging a kettlebell from between his legs up to eye level and back in steady rhythmic swings in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 10 | The cook · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `e5ae899a-8f7b-4334-8330-9ff42025a91c` | `hf_20260909_181112_e5ae899a-8f7b-4334-8330-9ff42025a91c.mp4` · md5 `a0f4cd45e3d9bd943284ce3d13c740f7` · 2,136,292 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a cook in an apron, tossing a frying pan so chopped vegetables hang in the air as black shapes, then catching them, again and again in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 11 | The coach · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `c739d3a7-3538-4748-a8f1-5bed0265097c` | `hf_20260909_181112_c739d3a7-3538-4748-a8f1-5bed0265097c.mp4` · md5 `76fc4cc0b70c260b561c3a18bb8f844f` · 2,629,840 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman seated on a stool, one foot tapping hard and her head nodding to a beat in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 12 | The kicker · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `c420854d-efa3-441a-abc9-3abbb53181d5` | `hf_20260909_181112_c420854d-efa3-441a-abc9-3abbb53181d5.mp4` · md5 `4af5670e12cb9612652dfd5ed4c39281` · 3,901,873 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman with long braids, throwing high roundhouse kicks one after another, her braids whipping in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 13 | The skipper · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `a15ce573-8f24-4561-a059-eb80cf6726f3` | `hf_20260909_181112_a15ce573-8f24-4561-a059-eb80cf6726f3.mp4` · md5 `6a4a9d3dc7dfe99f5ae38d4d19f2a2f9` · 1,814,902 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a man jumping rope in steady rhythmic jumps, the rope a thin black arc over his head in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
 
 **The pair from E3's clip, with the sync bar and the exact mark on the screen (`final5.py` = `final4.py` with the
 screen pass gated, below):** the gripped-phone clip is `hf_20260908_222614_2ca2dd4c-….mp4`, md5
