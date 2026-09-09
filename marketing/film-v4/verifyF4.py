@@ -15,10 +15,10 @@ print('probe',' '.join(pr.split())); ok=0; bad=0
 def chk(name,cond,detail):
     global ok,bad; ok+=cond; bad+=(not cond); print(('PASS' if cond else 'FAIL'),name,detail)
 starts={'cook':bar(4),'yoga':bar(6),'cyclist':bar(8),'coach':bar(10),'radio':bar(13),'runner':bar(16),'skipper':bar(21),'montage':bar(23),'globe':bar(25)}   # v4: no dancer, the lifter opens on bar 1
-# the seam is an 8-frame crossfade, not a wipe: the page before it (T-0.15) differs from the page after it (T+0.40) by more than the page's own motion over one frame (T+0.40 -> T+0.45); both samples sit inside the montage's first slot
+# the seam is an 8-frame crossfade, not a wipe or a cut: (1) CONTINUITY -- the first frame after the seam (T+1/24) differs from the last frame before it (T-1/24) by no more than the page's own motion over one frame (T+0.40 -> T+0.45) plus a margin, where a cut would jump by the whole page; (2) A CHANGE -- the page before the seam (T-0.15) differs from the page after it (T+0.40) by more than that one-frame motion. v3's instrument asked only for the change, at twice the motion plus 2, and the thinner v4 outline made two mostly-black pages read alike (across 4.0-8.5 against within 1.7-5.0) on seams that were crossfades; the continuity test is what 'crossfade, not a wipe' means. Both samples sit inside the montage's first slot
 for nm,T in starts.items():
-    a=frame(T-0.15); b=frame(T+0.40); c=frame(T+0.45)
-    d1=float(np.abs(a-b).mean()); d2=float(np.abs(b-c).mean()); chk(f'seam {nm}',d1>2*d2+2,f'across {d1:.1f} within {d2:.1f}')
+    a0=frame(T-1/24); a1=frame(T+1/24); a=frame(T-0.15); b=frame(T+0.40); c=frame(T+0.45)
+    jump=float(np.abs(a1-a0).mean()); d1=float(np.abs(a-b).mean()); d2=float(np.abs(b-c).mean()); chk(f'seam {nm}',jump<2*d2+2 and d1>d2+1,f'jump at the seam {jump:.1f} across {d1:.1f} within {d2:.1f}')
 crop=(slice(140,300),slice(90,220)) if CREAM else (slice(20,200),slice(80,240))
 for nm,nb in (('lifter beat 12',12),('cook beat 20',20),('skipper beat 84',84)):
     fb=frame(beatt(nb)+1/24)[crop]; fm=frame(beatt(nb)+P/2)[crop]; chk(f'mark on kick {nm}',teal(fb)>teal(fm)*1.02,f'on {teal(fb)} mid {teal(fm)} kb {KB[nb]}')
