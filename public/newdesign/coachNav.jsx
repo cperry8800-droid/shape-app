@@ -8,7 +8,7 @@ function trainerNavItems(active) {
   const items = [
     { label: "Today",     slug: "today" },
     { label: "Schedule",  slug: "schedule" },
-    { label: "Clients",   slug: "clients", count: 34 },
+    { label: "Clients",   slug: "clients" },   // the live count is overlaid by DashSidebar (was a literal 34)
     { label: "Programs",  slug: "programs" },
     { label: "Business",  slug: "business" },
     { label: "Playlists", slug: "playlists" },
@@ -31,7 +31,7 @@ function nutriNavItems(active) {
   const items = [
     { label: "Today",     slug: "today" },
     { label: "Schedule",  slug: "schedule" },
-    { label: "Clients",   slug: "clients", count: 28 },
+    { label: "Clients",   slug: "clients" },   // the live count is overlaid by DashSidebar (was a literal 28)
     { label: "Plans",     slug: "plans" },
     { label: "Business",  slug: "business" },
     { label: "Playlists", slug: "playlists" },

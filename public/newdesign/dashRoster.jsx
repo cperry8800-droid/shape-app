@@ -28,7 +28,7 @@ function dashRelShort(isoStr) {
 // ── Honest cell values — real, or a labelled empty state, never a bare dash ──
 function dashCellText(v) {
   return (
-    <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: v.dim ? "rgba(242,237,228,0.4)" : v.warn ? DASH_SEV_COLORS.amber : "rgba(242,237,228,0.85)", fontStyle: v.dim ? "italic" : "normal", whiteSpace: "nowrap" }}>{v.text}</span>
+    <span title={v.text} style={{ display: "block", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: v.dim ? "rgba(242,237,228,0.4)" : v.warn ? DASH_SEV_COLORS.amber : "rgba(242,237,228,0.85)", fontStyle: v.dim ? "italic" : "normal", whiteSpace: "nowrap" }}>{v.text}</span>
   );
 }
 function dashLastLogLabel(rec) {
@@ -104,7 +104,10 @@ const DASH_ROSTER_VIEWS = {
     ],
   },
   trainer: {
-    cols: "1.8fr 110px 96px 170px 70px 100px",
+    // PROGRAM is flexible with a floor: a fixed 170px let "Strength Block 3 ·
+    // Wk 6/12" run into STREAK at 1440px (review 2026-09-09, V1); the cell
+    // also ellipsises now, with the full text on hover.
+    cols: "1.6fr 104px 92px minmax(180px, 1fr) 64px 100px",
     minWidth: 760,
     heads: ["SCORE · WK", "ADHERENCE", "PROGRAM", "STREAK", "LAST CONTACT"],
     cells: (rec, role) => [
@@ -384,7 +387,7 @@ function DashClientDrawer({ row, role, onClose }) {
         ))}
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
           <button onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
-          <a href={dashClientSlugHref(rec.profile.name)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open full profile →</a>
+          {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
         </div>
       </div>
     </div>

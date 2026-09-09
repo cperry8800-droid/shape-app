@@ -11,7 +11,7 @@ function clientNavItems(active) {
     { label: "Workouts",  slug: "workouts" },
     { label: "Nutrition", slug: "nutrition" },
     { label: "Library",   slug: "library" },
-    { label: "Team",      slug: "team", count: 2 },
+    { label: "Team",      slug: "team" },      // was a literal badge of 2 on every tab, signed in or not
     { label: "Community", slug: "community" },
     { label: "Score",     slug: "score" },
     { label: "Habits",    slug: "habits" },
