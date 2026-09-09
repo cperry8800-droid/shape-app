@@ -134,11 +134,90 @@ const PORTAL_NAV = {
   ],
 };
 
+// ── In-shell routing (review 2026-09-09, R19) ───────────────────────────────
+// Every page in this table is a PURE REDIRECT STUB — its entire body is
+// `location.replace("<Shell>.html#<slug>")`. So from inside that shell, a link
+// to one costs TWO full page loads (the stub, then the shell) and a fresh SPA
+// boot to do what a hash change does instantly; the header nav was reloading
+// the dashboard on every tab. Mapped to the hash when we are already in the
+// matching shell.
+//
+// ⚠ A PAGE WITH NO SHELL ROUTE MUST STAY A REAL LINK. Messages, Grocery and
+// Marketplace are real pages, not stubs — rewriting them to a hash would route
+// to a tab that does not exist, and the shells fall back to `today`, so the
+// link would silently go somewhere else. Membership of this table is exactly
+// "is a stub for this shell", which is why `tests/dash-shell-routes.test.mjs`
+// derives it from the stub files rather than trusting it.
+const DASH_SHELL_STUBS = {
+  trainer: {
+    "TrainerDashboard.html": "today", "TrainerSchedule.html": "schedule",
+    "TrainerClients.html": "clients", "TrainerPrograms.html": "programs",
+    "TrainerAnalytics.html": "business", "TrainerPlaylists.html": "playlists",
+    "TrainerCommunity.html": "community", "TrainerGoal.html": "goal",
+    "TrainerScore.html": "score", "TrainerProfile.html": "profile",
+  },
+  nutritionist: {
+    "NutritionistDashboard.html": "today", "NutritionistSchedule.html": "schedule",
+    "NutritionistClients.html": "clients", "NutritionistPlans.html": "plans",
+    "NutritionistAnalytics.html": "business", "NutritionistPlaylists.html": "playlists",
+    "NutritionistCommunity.html": "community", "NutritionistGoal.html": "goal",
+    "NutritionistScore.html": "score", "NutritionistProfile.html": "profile",
+  },
+  client: {
+    "ClientDashboard.html": "today", "ClientProgress.html": "progress",
+    "ClientTrain.html": "workouts", "ClientNutri.html": "nutrition",
+    "ClientLibrary.html": "library", "ClientTeam.html": "team",
+    "ClientCommunity.html": "community", "ClientScore.html": "score",
+    "ClientHabits.html": "habits", "ClientGoal.html": "goal",
+    "ClientMe.html": "settings",
+  },
+};
+// The shell we are inside, or null. Set by the three shell documents.
+function dashShellRole() {
+  if (typeof window === "undefined") return null;
+  // ⚠ ONLY __shapeDashShell. `__shapeCoachShell` means something narrower —
+  // "render client links as #client/<id> here" — and the standalone client-file
+  // pages are the obvious next thing to set it. If they did, every header and
+  // drawer link would be rewritten to a hash on a page with no hash router:
+  // the whole nav would become dead fragments.
+  const r = window.__shapeDashShell || null;
+  return r && Object.prototype.hasOwnProperty.call(DASH_SHELL_STUBS, r) ? r : null;
+}
+// A link's in-shell form. Unchanged outside a shell, for a page this shell does
+// not route, and for any href carrying a query string.
+//
+// ⚠ THE QUERY BAIL IS LOAD-BEARING, and only because the file extraction below
+// strips `?` as well as `#`. A stub forwards `location.search`; a hash route
+// cannot carry it, so mapping a query-bearing link would silently DROP it. The
+// first draft left `?` in the extracted name so the lookup missed by accident
+// and the bail was dead code — which mutation-testing caught: deleting the bail
+// changed nothing. Extract the file name correctly, then refuse the case that
+// cannot be represented.
+function dashShellHref(href) {
+  const role = dashShellRole();
+  if (!role || typeof href !== "string" || !href || href.indexOf("?") !== -1) return href;
+  const file = href.replace(/^.*\//, "").split(/[?#]/)[0];
+  // hasOwnProperty, not a bare lookup: a prototype key such as "constructor"
+  // would otherwise resolve to a function and return
+  // "#function Object() { [native code] }" — the same class the shells' own
+  // route parsers were hardened against, and this helper is on `window` for
+  // exactly the dynamic caller that would hit it.
+  const slug = Object.prototype.hasOwnProperty.call(DASH_SHELL_STUBS[role], file) ? DASH_SHELL_STUBS[role][file] : null;
+  return slug ? "#" + slug : href;
+}
+
 // The nav groups to show: role-scoped portal nav when signed in, else marketing.
+// ⚠ Hrefs are rewritten HERE rather than at each render site — the desktop nav,
+// the mobile drawer and the dropdowns all read this one function, and the
+// drawer is the ONLY nav a phone has once the header collapses.
 function navGroupsFor(authUser) {
-  if (authUser && authUser.role && PORTAL_NAV[authUser.role]) return PORTAL_NAV[authUser.role];
-  if (authUser) return PORTAL_NAV.client;
-  return SHAPE_NAV_GROUPS;
+  const groups = authUser && authUser.role && PORTAL_NAV[authUser.role] ? PORTAL_NAV[authUser.role]
+    : authUser ? PORTAL_NAV.client
+    : SHAPE_NAV_GROUPS;
+  if (!dashShellRole()) return groups;
+  return groups.map((g) => g.kind === "drop"
+    ? { ...g, items: (g.items || []).map(([n, h]) => [n, dashShellHref(h)]) }
+    : { ...g, href: dashShellHref(g.href) });
 }
 
 // ── Universal search — site-wide ⌕ in the header ─────────────────────────────
@@ -318,12 +397,17 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
             <div style={{ ...linkBase, color: g.match.includes(active) ? TEAL : INK, fontWeight: 500, borderBottom: "1px solid rgba(242,237,228,0.12)", paddingBottom: 10 }}>{g.label}</div>
             <div style={{ paddingLeft: 14, paddingBottom: 14, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
               {g.items.map(([n, h]) => (
-                <a key={n} href={h} style={{ display: "block", padding: "10px 0", fontFamily: sans, fontSize: 15, color: "rgba(242,237,228,0.72)", textDecoration: "none" }}>{n}</a>
+                <a key={n} href={h} onClick={onClose} style={{ display: "block", padding: "10px 0", fontFamily: sans, fontSize: 15, color: "rgba(242,237,228,0.72)", textDecoration: "none" }}>{n}</a>
               ))}
             </div>
           </div>
         ) : (
-          <a key={g.label} href={g.href} style={{ ...linkBase, color: active === g.label ? TEAL : INK, fontWeight: active === g.label ? 500 : 400 }}>{g.label}</a>
+          /* ⚠ onClose is REQUIRED now these are hash routes. A drawer link used
+             to be a document navigation, which tore the drawer down; `#today`
+             tapped while already on #today fires no hashchange and re-renders
+             nothing, so the full-screen menu stayed open over the page with the
+             body scroll still locked and no feedback. */
+          <a key={g.label} href={g.href} onClick={onClose} style={{ ...linkBase, color: active === g.label ? TEAL : INK, fontWeight: active === g.label ? 500 : 400 }}>{g.label}</a>
         ))}
       </nav>
       <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
@@ -639,6 +723,12 @@ function ShapeMobileStyles() {
         .shape-dash-navlink { flex: 0 0 auto !important; white-space: nowrap !important; padding: 9px 13px !important; }
         .shape-dash-payout { display: none !important; }
 
+        /* ⚠ <main> was never in this list, so every dashboard page kept 44-48px
+           of side padding on a phone — 96px of a 390px screen, a quarter of it.
+           Invisible while the shells reported 980px; the viewport meta is what
+           made it a real inset. */
+        main { padding-left: 18px !important; padding-right: 18px !important; }
+
         /* Footer */
         .shape-footer { padding: 32px 22px 24px !important; }
         .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }
@@ -658,6 +748,17 @@ function ShapeMobileStyles() {
         /* Collapse multi-column grids. Attribute selectors match the inline style
            that React serializes (e.g. "grid-template-columns: repeat(4, 1fr)"). */
         [style*="grid-template-columns: 1fr 1fr"],
+        /* ⚠ An enumerated substring list misses whatever nobody enumerated —
+           "1fr 1.6fr" IS the Revenue calculator body, directly under the
+           SectionTitle this same change repairs. (No backticks in here: this
+           whole block is a JS template literal, and one would end it.) */
+        [style*="grid-template-columns: 1fr 1.6fr"],
+        [style*="grid-template-columns: 1fr 1.5fr 1.5fr"],
+        [style*="grid-template-columns: 1.35fr 1fr"],
+        [style*="grid-template-columns: 1.25fr 1fr"],
+        [style*="grid-template-columns: repeat(6"],
+        [style*="grid-template-columns: repeat(7"],
+        [style*="grid-template-columns: repeat(10"],
         [style*="grid-template-columns:1fr 1fr"],
         [style*="grid-template-columns: 1.4fr 1fr"],
         [style*="grid-template-columns: 1.3fr 1fr"],
@@ -686,7 +787,7 @@ function ShapeMobileStyles() {
   );
 }
 
-Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch });
+Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch, dashShellHref, dashShellRole, DASH_SHELL_STUBS });
 
 // ── Error tracking (Sentry, static website) — DELIBERATELY NOT HERE ──────────
 // This file used to set window.SHAPE_SENTRY_DSN and load sentryInit.js, on the

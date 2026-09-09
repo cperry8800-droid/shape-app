@@ -718,7 +718,7 @@ function DashNutriAggPanel({ clients, live }) {
         <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.8)", lineHeight: 1.55, marginTop: 6 }}>
           Clients with fresh recipes in their plan log meals more consistently — your lowest-compliance clients are the first place a new recipe drop pays off.
         </div>
-        <a href="NutritionistPlans.html" style={{ display: "inline-block", marginTop: 9, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d8a23a", textDecoration: "none" }}>Publish a recipe →</a>
+        <a href={dashShellHref("NutritionistPlans.html")} style={{ display: "inline-block", marginTop: 9, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d8a23a", textDecoration: "none" }}>Publish a recipe →</a>
       </div>
     </div>
   );

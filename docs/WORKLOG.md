@@ -475,6 +475,86 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — P1-B: the phone layout that was never switched on, and the layout-destroying bug switching it on would have released
+
+- **The review's V2 · V3 · V7 · R19, one PR.** The three dashboard shells declared **no
+  viewport meta**, so a phone reported a **980px** layout viewport and *every* responsive
+  rule in `dash.css` and `pageShell.jsx` sat dormant — including the block that collapses the
+  grid and turns the 240px sidebar into a horizontal tab bar. **The work was already
+  written; nothing was asking for it.** Measured after: 390px layout, no horizontal
+  overflow, sidebar as a row, all 11–12 tabs still reachable.
+- ⚠ **AND TURNING IT ON WOULD HAVE DESTROYED EVERY MEMBER'S SAVED DASHBOARD LAYOUT.**
+  `dashGrid.jsx` inits GridStack with `breakpoints: [{ w: 768, c: 1 }]` and
+  `grid.on("change", persistFromGrid)` → `saveUserGoals('dashboard_layout')`. Below 768px
+  GridStack calls `column(1)` and clamps every widget to `x:0/w:1`, then fires `change` —
+  which would have **upserted that as the account's arrangement**, restored one-column on
+  every device, across 12 card tabs in all three shells. The breakpoint was **unreachable
+  in production** precisely because the viewport meta was missing, so the two defects were
+  holding each other harmless. `persistFromGrid` now bails while the grid is
+  column-collapsed: *a collapsed grid is a VIEW of the layout, not the layout.*
+- ⚠ **THE SECOND STYLESHEET DISAGREED WITH THE FIRST ABOUT THE SAME ELEMENT.** `dash.css`
+  hid the aside outright below 760px while `pageShell.jsx` was busy turning that same aside
+  into the only nav a phone has. Both are loaded by all three shells; the rule that keeps
+  the tabs reachable wins, and the hiding rule is gone.
+- **R19 — the header nav was reloading the dashboard on every tab.** Each of those legacy
+  pages is a **pure redirect stub** (`location.replace("<Shell>.html#<slug>")`), so from
+  inside the shell a nav click cost **two full page loads and an SPA boot** to do what a hash
+  change does instantly. One `dashShellHref` helper, applied in `navGroupsFor` so the desktop
+  nav, the dropdowns **and the mobile drawer** all get it from one place — the drawer being
+  the only nav a phone has once the header collapses. **28 in-card links** swept too.
+  ⚠ **A page with no shell route stays a real link** (Messages, Grocery, Marketplace): both
+  shells fall back to `today` on an unknown hash, so a wrong entry would route somewhere
+  else *silently* rather than failing.
+- ⚠ **THE MAP IS DERIVED FROM THE STUB FILES, AND THE FIRST DERIVATION WAS A FALSE GUARD.**
+  Its regex required the hash inside the first string literal, so it never saw
+  `ClientMe.html` — `location.replace("ClientApp.html"+(location.search||"")+"#settings")`.
+  Two consequences, both bad: the map was quietly wrong, **and** anyone adding the correct
+  entry would have been failed by the test. It parses the whole `replace()` call now and
+  **asserts** that every redirect into a shell yielded a slug. *A guard that can only see one
+  spelling of the thing it derives is not deriving it.*
+- **V2 — the availability grid never fitted its rail.** 15 hour columns at `minWidth: 520`
+  inside a **300px** rail with the scrollbar **deliberately hidden**: 1p–8p were unreachable
+  with nothing saying so, and the visible cells were ~15px. Transposed (hours down, days
+  across): **105 cells, 28px wide, 0 outside the plate, no scroller**, and the cell height
+  went 18 → 22px to clear this repo's own documented **24px** WCAG 2.5.8 floor. The
+  injected hide-the-scrollbar style went with it.
+- **V3 — `space-between` is not a gap.** It only separates while there is slack; once the
+  title filled the row the two children touched and read as one word (*"Revenue
+  calculatorSET YOUR TARGET"*). A real `gap: 12` cannot be consumed, `flexWrap` drops the
+  eyebrow to its own line when even that will not fit, and `marginLeft: auto` keeps it
+  right-aligned in both cases. **One shared component, 62 call sites.**
+- ⚠ **TWELVE FINDINGS FROM THE PRE-PUSH REVIEW, and the run paid for itself on the first
+  one** (the GridStack persist above). Also fixed from it: `<main>` kept **44–48px a side**
+  on a phone — a quarter of a 390px screen — because the 900px block overrode `section` and
+  `footer` and never `main`; the grid-collapse list is an **enumerated substring list** that
+  missed `1fr 1.6fr`, which *is* the Revenue calculator body sitting directly under the
+  SectionTitle this same change repairs; the mobile drawer stayed open over the page with the
+  scroll locked when you tapped the tab you were already on (a hash route fires no
+  `hashchange`, and the anchors had no `onClose`); `caSlug()` in the **client** shell still
+  used a bare route lookup, so `#constructor` white-screened the SPA — both coach shells were
+  hardened against exactly that and the client one never was; `dashShellHref` had the same
+  hole; and `dashShellRole` OR'd in `__shapeCoachShell`, a flag that means something
+  *narrower*, which would have turned every nav link into a dead fragment the moment a
+  standalone page set it.
+- ⚠ **AND MY OWN COMMENT BROKE THE FILE IT DOCUMENTED.** The CSS block in `pageShell.jsx`
+  is a JS **template literal**, and the comment I added to it contained backticks — which
+  ended the template and made `1fr` parse as a number followed by an identifier. Caught by
+  the parse-check, not by reading. *A comment inside a template literal is code.*
+- **Verified:** `npm test` **2689/2689** · `tsc --noEmit` 0 · JSX parse on every changed
+  module · the newdesign precompile check · **6 mutations killed** on the routing guard
+  (and two of them survived a first attempt because my `perl` never landed the edit — *a
+  guard that reports a pass is a broken instrument until the mutation is proven to have
+  landed*, in the harness written to enforce it) · every host page confirmed to load
+  `pageShell.jsx` before the sweep was trusted, rather than assumed · and headless renders
+  at **1440px and 390px** on two shells: viewport meta present, no horizontal overflow, the
+  sidebar a row with every tab reachable, `gapPx: 12` with no run-in, and the availability
+  grid fully inside its plate — zero page errors throughout.
+- **Still open from the review:** R5 (the weekly readout on the web), R9 (live-bound goals),
+  R10 (roster revenue/tenure columns), R6, R14, R17/R18, and the P2 set. And **12 real
+  (non-stub) dashboard pages still declare no viewport meta** — Messages, Grocery, the
+  standalone client file and the console pages — so a coach who taps Messages from a phone
+  still lands on a 980px layout. Registered, not fixed here.
+
 ### 2026-09-09 — Reviewing the fixes from the last review: ten more findings, and the sharpest one was a hole my own fix opened
 
 - **Owner: *"did you review 2017?"*** — and the honest answer exposed the gap. I ran

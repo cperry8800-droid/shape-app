@@ -102,7 +102,7 @@ function HabitsWidget({ max = 5, items }) {
             +{todayPoints} / +{maxPoints} PTS
           </span>
         </div>
-        <a href="ClientHabits.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <a href={dashShellHref("ClientHabits.html")} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
           OPEN HABITS <span>→</span>
         </a>
       </div>

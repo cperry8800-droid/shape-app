@@ -232,7 +232,7 @@ function DtrNextWeekLocked({ coach, weekN }) {
       <div style={{ fontSize: 12.5, color: DTR_INK50, lineHeight: 1.55, maxWidth: 520 }}>
         Your next block isn't generated — it's built from what this week's check-in says. Send it and the plan lands here.
       </div>
-      <a href="ClientProgress.html" style={{ display: "inline-block", marginTop: 11, fontFamily: DTR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#231803", background: "#d8a23a", borderRadius: 4, padding: "10px 16px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Check in →</a>
+      <a href={dashShellHref("ClientProgress.html")} style={{ display: "inline-block", marginTop: 11, fontFamily: DTR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#231803", background: "#d8a23a", borderRadius: 4, padding: "10px 16px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Check in →</a>
     </div>
   );
 }
@@ -783,7 +783,7 @@ function ClientWorkoutsPage() {
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <span className="dash-eyebrow" style={{ color: DTR_RUST }}>Session history · logged vs prescribed</span>
-          <a href="ClientProgress.html" style={{ fontFamily: DTR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DTR_INK50, textDecoration: "none" }}>PR history →</a>
+          <a href={dashShellHref("ClientProgress.html")} style={{ fontFamily: DTR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DTR_INK50, textDecoration: "none" }}>PR history →</a>
         </div>
         <div className="dash-ledger" style={{ "--dac": DTR_RUST, marginTop: 9 }} />
         <DtrHistory sessions={history} prDates={prDates} />

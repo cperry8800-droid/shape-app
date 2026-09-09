@@ -142,7 +142,7 @@ function ClientScorePage() {
   const staticBreakdown = [
     ["Workouts logged",   420, "14d streak · +8 this week"],
     ["Plan adherence",    280, "92% · last 30d"],
-    ["Habits",            120, <>78% adherence · 9 active · <a href="ClientHabits.html" style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>open →</a></>],
+    ["Habits",            120, <>78% adherence · 9 active · <a href={dashShellHref("ClientHabits.html")} style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>open →</a></>],
     ["PRs hit",           180, "4 this quarter"],
     ["Community",          84, "12 posts, 38 reactions"],
     ["Coach endorsements",160, "Maya + Rae weekly"],

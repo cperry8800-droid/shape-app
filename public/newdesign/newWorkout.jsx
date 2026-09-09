@@ -202,11 +202,11 @@ function NewWorkoutPage() {
     <DashPage
       navItems={trainerNavItems("programs")}
       payoutCard={trainerPayoutCard}
-      eyebrow={<a href="TrainerPrograms.html" style={{ color: "rgba(242,237,228,0.55)" }}>← PROGRAMS & WORKOUTS</a>}
+      eyebrow={<a href={dashShellHref("TrainerPrograms.html")} style={{ color: "rgba(242,237,228,0.55)" }}>← PROGRAMS & WORKOUTS</a>}
       title={isEditing ? "Manage workout" : "New workout"}
       subtitle={isEditing ? "Edit exercise blocks, pricing, client assignments, marketplace settings, and attached playlists for this workout." : "Build a single session. Save to your library, attach to a program, or sell stand-alone."}
       actions={<>
-        <a href="TrainerPrograms.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</a>
+        <a href={dashShellHref("TrainerPrograms.html")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</a>
         <button onClick={() => alert("Saved to your library.")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Save to library</button>
         <button onClick={sendToClients} disabled={saving} style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Assigning…" : <>Send to client{assignedIds.length > 1 ? "s" : ""}{assignedIds.length ? ` (${assignedIds.length})` : ""} →</>}</button>
         <button onClick={assignWorkout} disabled={saving} style={{ background: TEAL, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>Publish →</button>

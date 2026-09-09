@@ -324,7 +324,7 @@ function RecipeDetailPage() {
             padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, cursor: "pointer",
           }}>{saved ? "✓ Saved to library" : "♥ Save to library"}</button>
           {planAdded ? (
-            <a href="ClientNutri.html" style={{ background: "rgba(46,224,196,0.12)", color: TEAL_BRIGHT, border: "1px solid rgba(46,224,196,0.5)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>✓ Added · Open plan →</a>
+            <a href={dashShellHref("ClientNutri.html")} style={{ background: "rgba(46,224,196,0.12)", color: TEAL_BRIGHT, border: "1px solid rgba(46,224,196,0.5)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>✓ Added · Open plan →</a>
           ) : (
             <button onClick={addToPlan} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, cursor: "pointer" }}>Add to today's plan</button>
           )}

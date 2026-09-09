@@ -20,7 +20,16 @@ a { text-decoration: none; color: inherit; }
 @media (max-width: 1000px) {
   .dash-cols { grid-template-columns: 1fr !important; }
 }
+/* ⚠ THIS BLOCK USED TO HIDE THE SIDEBAR ENTIRELY BELOW 760px, and the sidebar
+   IS the dashboard's navigation. It never fired in practice — the shells
+   declared no viewport meta, so a phone reported 980px (review 2026-09-09, V7)
+   — and the moment that was fixed it would have taken the only nav away from
+   the narrowest screens, while pageShell.jsx's own @media (max-width: 900px)
+   block was busy turning that same <aside> into a horizontal scrolling tab bar
+   for exactly this case. Two stylesheets, both loaded by all three shells,
+   disagreeing about the same element; the one that keeps the tabs reachable
+   wins. Only the column collapse is kept here, and pageShell's 900px rule gets
+   there first anyway. */
 @media (max-width: 760px) {
   .dash-shell-grid { grid-template-columns: 1fr !important; }
-  .dash-shell-grid > aside { display: none; }
 }
