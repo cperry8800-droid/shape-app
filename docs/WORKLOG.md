@@ -475,7 +475,7 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
-### 2026-09-09 — 140 on the bar means 140 in the music: the style pair re-rendered on a time-stretched, re-measured grid
+### 2026-09-09 — 140, then 130, on the bar means 140, then 130, in the music: the style pair re-rendered twice on time-stretched, re-measured grids
 
 - **Owner: *"have the bpm and hrm be 140 in the 2 videos"*.** The HRM / BPM bar on both style videos now climbs
   **HRM 104 → 140** against **BPM 140** and locks IN SYNC on beat 15 (6.49 s). Links handed over in chat, never
@@ -502,6 +502,19 @@ Append new entries at the top, under this note.
   IN SYNC 6,706 / 6,724 teal px above the bar at 6.79 s against 340 / 338 at 6.24 s; the pass's own summary line
   reads `sync at beat 15 t 6.4886 HR0 104 BPM 140`. ⚠ Not visually inspected by the agent — no media host is
   reachable from this container; the owner's look is the QA. Docs only; **no PR, nothing merged.**
+- ⚠ **THEN, THE SAME AFTERNOON: *"how about 130 bpms"* — the same route, one number changed, and the 140 pair
+  superseded.** `atempo=1.083785` (130 / 119.95) → `d130.m4a`, re-measured at **130.0 BPM**, halves 130.05 / 130.15,
+  phase 0.063, kick from the first beat, the breakdown at 28.2–36.5 s, 55.4 s = 30 bars; the bar climbs **HRM 94 → 130**
+  against **BPM 130** and locks on beat 14 (6.52 s). `final12.py` / `verify12.py` / `meas_d130.py` are the 140 scripts
+  with the filenames substituted (md5s in the treatment); the sandbox had been reclaimed between the runs, so `run12.sh`
+  (in the treatment verbatim) rebuilt everything from the cloudfront sources and the repo's logo, and the ▸◂ crop came
+  back at its recorded md5. Verified on the renders the same way: 243 frames each, top-left teal on a beat against
+  mid-beat A 2,512 / 2,358 · B 4,623 / 4,546, IN SYNC 6,690 / 6,750 teal px after the lock against 337 / 339 before,
+  the rendered audio re-measuring 130.05. ⚠ **One thing the measured row shows that a scaled one would have hidden:**
+  at 130 the thinning bars before the breakdown (beats 57–59) read **under the presence gate** for three beats, where at
+  119.95 and at 140 they stayed above it — a stretch moves the measured energy a little as well as the time, and the gate
+  is a threshold on energy. Outside the 10 s clip either way. The bed is now the approved track 8 % faster rather than
+  17 %; the film's tempo is still §10 q8.
 
 ### 2026-09-08 — The film's people go hollow, its page goes black, its music goes deep: five owner notes, twenty generations, and the first frame that was built rather than generated
 
