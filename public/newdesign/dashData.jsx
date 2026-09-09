@@ -8,9 +8,11 @@
 // Source resolution (the UI never knows which it got):
 //   1. LIVE — roster from /api/{role}/clients, then per-client enrichment from
 //      /api/clients/{id}/shared-overview (share-gated RPCs), fetched through a
-//      small concurrency pool with a 60s module cache. Fields the APIs don't
-//      expose yet (score history, last contact, goal phase, exact last-log
-//      date) stay null — the signal engine skips rules with missing inputs.
+//      small concurrency pool with a 60s module cache, plus ONE read of the
+//      coach's own notes doc for the whole roster. Fields the APIs still don't
+//      expose (goal phase, milestones) stay null — the signal engine skips
+//      rules with missing inputs, so a live account never gets a false alarm
+//      from absent data.
 //   2. DEMO — DashSignals.buildMockClients() when signed out / not this role /
 //      the API is unreachable. Same record shape, fully populated.
 //
@@ -48,7 +50,11 @@ async function _dashPool(items, worker, size = DASH_POOL_SIZE) {
 }
 
 // Map one roster row + its (optional) shared-overview into a unified record.
-function _dashRecordFromLive(row, ov) {
+//
+// `notesByClient` is the coach's own `coach_client_notes` doc, read ONCE for
+// the whole roster (a per-client read would be one round trip per row for a
+// document that already holds every row).
+function _dashRecordFromLive(row, ov, notesByClient) {
   const stats = ov && ov.stats ? ov.stats : null;
   const checkins = ov && Array.isArray(ov.checkins) ? ov.checkins : null;
   const goals = ov && ov.goals ? ov.goals : null;
@@ -58,25 +64,77 @@ function _dashRecordFromLive(row, ov) {
         .filter((w) => w.on && w.weight != null)
     : null;
   const phases = ov && ov.programPhases ? ov.programPhases : null;
+  // ── The R4 legs (review 2026-09-09). Each was hardcoded null here until
+  // /api/clients/[id]/shared-overview started deriving it, which is why the
+  // roster's SCORE · PROGRAM · STREAK · LAST CONTACT columns read "Not shared"
+  // on every live row while the demo showed all four.
+  const logs = ov && ov.logs ? ov.logs : null;
+  // ⚠ "no logs" and "logs aren't shared" are DIFFERENT empties, and the drawer
+  // renders a different sentence for each. A null `logs` from a response that
+  // CARRIES the key means the window is genuinely empty ([]); a response
+  // without the key is an older deploy and stays null.
+  const logsKnown = !!(ov && Object.prototype.hasOwnProperty.call(ov, "logs"));
+  const score = ov && ov.scoreHistory ? ov.scoreHistory : null;
+  // ⚠ `partial` RIDES ALONG AND MUST NOT BE DROPPED. The newest bucket is the
+  // week in progress, and DashSignals.scoreWeekReading uses the flag to keep a
+  // week-over-week delta comparing two COMPLETE weeks — without it every
+  // actively-logging client reads as a mid-week collapse on a Monday.
+  const scoreWeeks = score && Array.isArray(score.weeks)
+    ? score.weeks
+        .filter((w) => w && w.weekOf && w.points != null && isFinite(Number(w.points)))
+        .map((w) => ({ weekOf: w.weekOf, points: Number(w.points), partial: !!w.partial }))
+        .slice(-8)
+    : null;
+  const streak = score && score.streak && score.streak.current != null ? score.streak : null;
+  const targets = ov && ov.nutritionTargets ? ov.nutritionTargets : null;
+  // One note per client today (the client page keeps a single running note),
+  // carried as the engine's [{ on, text }] list so the drawer needs no special
+  // case and a future multi-note store drops straight in.
+  //
+  // ⚠ THREE STATES, the same idiom `recentLogs` uses just below: a list when
+  // there is a note, [] when the doc was READ and holds none for this client,
+  // and null when the doc could not be read at all. Collapsing the last two
+  // tells a coach "no notes yet" when the truth is we could not look.
+  const notesRead = notesByClient && typeof notesByClient === "object";
+  const note = notesRead && row.id ? notesByClient[row.id] : null;
+  const noteText = note && typeof note.text === "string" && note.text.trim() ? note.text.trim() : null;
   return {
     profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null },
     trainingAdherence: stats && stats.sessionsPlanned
       ? { pct: Math.round((stats.sessionsCompleted / stats.sessionsPlanned) * 100), done: stats.sessionsCompleted, planned: stats.sessionsPlanned }
       : null,
+    // `daysLogged7d` stays the get_client_stats rollup where it exists — it is
+    // the number every other surface already quotes, and two counts that
+    // disagree is worse than one that is a day coarse. The snapshot leg only
+    // supplies it when the rollup has none.
     foodLogs: stats && stats.daysLogged7d != null
-      ? { lastLoggedOn: null, daysLogged7d: stats.daysLogged7d } // no last-log date in the rollup yet
-      : null,
-    shapeScoreHistory: null,   // needs a coach-gated weekly-score RPC (roadmap)
+      ? { lastLoggedOn: logs ? logs.lastLoggedOn : null, daysLogged7d: stats.daysLogged7d }
+      : logs
+        ? { lastLoggedOn: logs.lastLoggedOn, daysLogged7d: logs.daysLogged7d }
+        : null,
+    // Null until `2026-09-09-client-score-history-coach-read.sql` is applied —
+    // the RPC 404s before that and the column keeps its honest "Not shared".
+    shapeScoreHistory: scoreWeeks && scoreWeeks.length ? scoreWeeks : null,
     weighIns,
-    streaks: null,             // not exposed to coaches yet
-    lastContact: null,         // needs a thread-timestamp lookup (roadmap)
+    streaks: streak
+      ? { current: streak.current, best: streak.best != null ? streak.best : streak.current, lastActiveOn: streak.lastActiveOn || null }
+      : null,
+    lastContact: ov && ov.lastContact ? ov.lastContact : null,
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || checkins[0].weekOf || null : null } : null,
     // The last few check-ins themselves (week_of · ratings · wins · struggles ·
     // question · weight), so the Week view can read a client's week without a
     // second round trip; the engine keeps reading the summary above.
     checkins: checkins || null,
+    // The targets are the coach's own (client_programs.detail.nutrition) — the
+    // ledger and protein rules need a value AND a target, so without these
+    // they skipped every live client.
     nutrition: stats && (stats.avgCalories != null || stats.avgProtein != null)
-      ? { avgCalories: stats.avgCalories, targetCalories: null, avgProtein: stats.avgProtein, targetProtein: null }
+      ? {
+          avgCalories: stats.avgCalories,
+          targetCalories: targets ? targets.calories : null,
+          avgProtein: stats.avgProtein,
+          targetProtein: targets ? targets.protein : null,
+        }
       : null,
     goal: goals && goals.overall && goals.overall.target != null
       ? { target: Number(goals.overall.target), unit: goals.overall.unit || "lb", now: goals.overall.now != null ? Number(goals.overall.now) : null }
@@ -92,9 +150,42 @@ function _dashRecordFromLive(row, ov) {
         })
       : null,
     goalPhase: phases ? phases.nutrition || phases.training || null : null,
+    // The block the CALLER assigned, and the week it is in — counted from the
+    // assignment and capped at the template's length (src/lib/coach-client-legs.mjs).
+    program: ov && ov.program ? ov.program : null,
+    coachNotes: noteText
+      ? [{ on: note.updatedAt ? String(note.updatedAt).slice(0, 10) : null, text: noteText }]
+      : notesRead ? [] : null,
+    recentLogs: logs ? logs.recent : logsKnown ? [] : null,
     milestones: null,
     payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null },
   };
+}
+
+// The coach's own client notes, one read for the whole roster.
+//
+// ⚠ getSession() BEFORE getUserGoals, ALWAYS. getUserGoals resolves the user
+// through client.auth.getUser(), which does NOT bootstrap the Next.js
+// cookie-session bridge — on a page where nothing in localStorage carries the
+// session, a signed-in coach reads as ANON and every note silently reads
+// empty. The same guard is on the writer in coachClientDetail.jsx.
+//
+// ⚠ NULL means "could not read", {} means "read it, nothing in it" — and
+// getUserGoals returns null for BOTH "not signed in" and "the read failed", so
+// every one of those is a can't-know. The record's `coachNotes` is null in the
+// first case and [] in the second, which is what lets the drawer say "couldn't
+// read your notes" instead of asserting the coach never wrote one.
+//
+// Never throws: notes are an enrichment, and a roster must never fail to paint
+// because a note doc could not be read.
+async function _dashCoachNotes() {
+  try {
+    const db = window.shapeDb;
+    if (!db || !db.getUserGoals) return null;
+    try { if (db.getSession) await db.getSession(); } catch (e) { /* fall through as anon */ }
+    const doc = await db.getUserGoals("coach_client_notes");
+    return doc && typeof doc === "object" ? doc : null;
+  } catch (e) { return null; }
 }
 
 // The signed-in client's own record from their rollups.
@@ -167,13 +258,19 @@ function useDashboard(role) {
         const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null));
         if (on) setState({ loading: false, clients: base, source: "live", today });
         const rows = roster.clients || [];
-        const overviews = await _dashPool(rows, (row) =>
-          row.id ? _dashJson("/api/clients/" + encodeURIComponent(row.id) + "/shared-overview") : null
-        );
+        // The per-client overviews and the ONE notes doc resolve together — the
+        // notes read is a single round trip for the whole roster, so it must not
+        // sit behind the pool.
+        const [overviews, notes] = await Promise.all([
+          _dashPool(rows, (row) =>
+            row.id ? _dashJson("/api/clients/" + encodeURIComponent(row.id) + "/shared-overview") : null
+          ),
+          _dashCoachNotes(),
+        ]);
         if (!on) return;
         setState({
           loading: false,
-          clients: rows.map((row, i) => _dashRecordFromLive(row, overviews[i])),
+          clients: rows.map((row, i) => _dashRecordFromLive(row, overviews[i], notes)),
           source: "live",
           today,
         });

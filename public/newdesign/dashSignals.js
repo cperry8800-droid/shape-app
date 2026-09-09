@@ -347,12 +347,46 @@
     return null;
   }
 
+  // ── The one reading of a weekly-score series ───────────────────────────────
+  // ⚠ A WEEK-OVER-WEEK DELTA MAY ONLY COMPARE COMPLETE WEEKS. The live series
+  // carries the CURRENT week, flagged `partial` by the definer, and it holds
+  // however many days have happened so far. Comparing Tuesday's two days
+  // against last week's seven reads as a collapse: every actively-logging
+  // client would go amber with "Score down 54" every Monday through Wednesday.
+  // So `points` is the newest week (partial or not — it is a real, live number
+  // and the coach should see it) while `delta` is computed from the two newest
+  // COMPLETE weeks, and is null when there are not two of them.
+  //
+  // One function because three places read this series — ruleScoreDrop, the
+  // roster's SCORE · WK cell and the drawer's score section — and a delta
+  // defined differently in any of them is a number that disagrees with itself
+  // on one screen.
+  function scoreWeekReading(h) {
+    if (!Array.isArray(h) || !h.length) return null;
+    var weeks = [];
+    for (var i = 0; i < h.length; i++) {
+      if (h[i] && h[i].points != null && isFinite(Number(h[i].points))) weeks.push(h[i]);
+    }
+    if (!weeks.length) return null;
+    var newest = weeks[weeks.length - 1];
+    var complete = weeks.filter(function (w) { return !w.partial; });
+    var delta = complete.length >= 2
+      ? Number(complete[complete.length - 1].points) - Number(complete[complete.length - 2].points)
+      : null;
+    return {
+      points: Number(newest.points),
+      weekOf: newest.weekOf || null,
+      partial: !!newest.partial,
+      delta: delta,
+      // The series a sparkline should draw — the partial week is a real point.
+      series: weeks.map(function (w) { return Number(w.points); }),
+    };
+  }
+
   function ruleScoreDrop(c) {
-    var h = c.shapeScoreHistory;
-    if (!Array.isArray(h) || h.length < 2) return null;
-    var prev = h[h.length - 2], last = h[h.length - 1];
-    if (prev == null || last == null || prev.points == null || last.points == null) return null;
-    var drop = prev.points - last.points;
+    var r = scoreWeekReading(c.shapeScoreHistory);
+    if (!r || r.delta == null) return null;
+    var drop = -r.delta;
     if (drop >= THRESHOLDS.SCORE_DROP_PTS) {
       return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week" };
     }
@@ -1372,6 +1406,7 @@
     goalBrief: goalBrief,
     goalsFromDoc: goalsFromDoc,
     goalDateLabel: goalDateLabel,
+    scoreWeekReading: scoreWeekReading,
     crossoverRead: crossoverRead,
     crossoverCopy: crossoverCopy,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
