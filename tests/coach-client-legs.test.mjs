@@ -51,6 +51,23 @@ test('program leg: a PAUSED block reports no week', () => {
   assert.deepEqual(p, { name: 'Strength Block 3', week: null, weeks: 12, status: 'paused' });
 });
 
+test('program leg: an ACTIVE block outranks a paused one, whatever updated_at says', () => {
+  // Pausing an old block restamps its updated_at above the live block assigned
+  // the day before — recency alone would name the paused one and leave the
+  // program the client is actually running invisible.
+  const templates = new Map([['t1', { title: 'Block 3', durationWeeks: 8 }], ['t2', { title: 'Block 4', durationWeeks: 6 }]]);
+  const pausedYesterday = asg({ program_template_id: 't1', status: 'paused', updated_at: iso(0) });
+  const activeLastWeek = asg({ program_template_id: 't2', status: 'active', updated_at: iso(6 * DAY), created_at: iso(6 * DAY) });
+  assert.equal(bsProgramLeg([pausedYesterday, activeLastWeek], templates, ME, NOW).name, 'Block 4');
+  assert.equal(bsProgramLeg([activeLastWeek, pausedYesterday], templates, ME, NOW).name, 'Block 4');
+  // 'assigned' (not yet started) still outranks 'paused'…
+  const assignedOld = asg({ program_template_id: 't2', status: 'assigned', updated_at: iso(30 * DAY) });
+  assert.equal(bsProgramLeg([pausedYesterday, assignedOld], templates, ME, NOW).name, 'Block 4');
+  // …and within one status class recency still decides.
+  const activeNewer = asg({ program_template_id: 't1', status: 'active', updated_at: iso(0) });
+  assert.equal(bsProgramLeg([activeLastWeek, activeNewer], templates, ME, NOW).name, 'Block 3');
+});
+
 test('program leg: an untitled or unknown template is not a program name', () => {
   assert.equal(bsProgramLeg([asg()], tpl({ title: '   ' }), ME, NOW), null);
   assert.equal(bsProgramLeg([asg({ program_template_id: 'gone' })], tpl(), ME, NOW), null);

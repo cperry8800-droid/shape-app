@@ -42,8 +42,14 @@
 -- streaks that disagree is worse than one that is a few hours coarse. If the
 -- member's own route ever moves to local days, move this with it.
 --
--- Absence returns NULL (not their coach), and an empty history returns the
--- shape with empty legs — the UI renders its own "not shared" either way.
+-- Absence returns NULL (not their coach). A client with no ledger entries at
+-- all returns `weeks` holding only the current week at 0 — the grid below
+-- starts at their first entry, and they have none — and a client with no
+-- completed sessions returns `{current: 0, best: 0, lastActiveOn: null}`.
+-- ⚠ BOTH OF THOSE ARE MEASURED ZEROES, NOT "NOT SHARED", and the roster says
+-- so: `0d` in STREAK is the true answer for someone who has not trained. Only
+-- an unapplied migration or a failed read renders "Not shared", because only
+-- then is the answer genuinely unknown.
 --
 -- Idempotent: CREATE OR REPLACE + guarded grants.
 
@@ -65,25 +71,64 @@ begin
     return null;
   end if;
 
-  -- Weekly points, last 8 ISO weeks (oldest first). Weeks with no entries are
-  -- absent rather than zero-filled: "no points banked" and "no week" are the
-  -- same to a sparkline, and inventing a 0 would draw a crash that never
-  -- happened.
-  select coalesce(jsonb_agg(w order by w->>'weekOf'), '[]'::jsonb)
-    into v_weeks
-  from (
-    select jsonb_build_object(
-             'weekOf', to_char(date_trunc('week', l.earned_at at time zone 'UTC')::date, 'YYYY-MM-DD'),
-             'points', sum(l.delta)::int,
-             'partial', date_trunc('week', l.earned_at at time zone 'UTC')
-                          = date_trunc('week', now() at time zone 'UTC')
-           ) as w
+  -- Weekly points, the last 8 ISO weeks (oldest first), ZERO-FILLED.
+  --
+  -- ⚠ A WEEK WITH NO ENTRIES MUST SHIP AS 0, NOT BE OMITTED. This read
+  -- originally dropped empty weeks on the reasoning that "inventing a 0 would
+  -- draw a crash that never happened" — and that reasoning is WRONG twice
+  -- over. The ledger is the record of points EARNED, so the sum over an empty
+  -- week is a measured zero, not an invention. And omitting it silently breaks
+  -- adjacency for every consumer: `scoreWeekReading` compares the two newest
+  -- complete buckets, so a client who banks nothing all week keeps LAST week's
+  -- healthy number in the SCORE · WK column, unflagged (the newest bucket is
+  -- last week, and it is not `partial`), while a client silent for a month has
+  -- two non-adjacent weeks subtracted and reported as "week-over-week".
+  -- A zero-filled grid makes adjacency structural rather than hoped for.
+  --
+  -- ⚠ AND THE WINDOW IS FLOORED TO A WEEK BOUNDARY. A rolling
+  -- `now() - interval '8 weeks'` starts mid-week, so the OLDEST bucket held a
+  -- partial week's points while reporting `partial: false` — manufacturing a
+  -- drop or a gain out of the window's own edge.
+  --
+  -- The grid starts at the client's FIRST ledger week when that is inside the
+  -- window: weeks before a member earned anything are genuinely no-data, and
+  -- zero-filling those would draw a flat run they never lived.
+  with bounds as (
+    select date_trunc('week', now() at time zone 'UTC')::date as cur_week,
+           (date_trunc('week', now() at time zone 'UTC') - interval '7 weeks')::date as win_start
+  ),
+  first_entry as (
+    select date_trunc('week', min(l.earned_at) at time zone 'UTC')::date as first_week
     from public.score_ledger l
     where l.user_id = p_user_id
-      and l.earned_at >= (now() at time zone 'UTC') - interval '8 weeks'
       and coalesce(l.source_kind, '') <> 'store_redeem'
-    group by date_trunc('week', l.earned_at at time zone 'UTC')
-  ) s;
+  ),
+  grid as (
+    select generate_series(
+             greatest(b.win_start, coalesce(f.first_week, b.cur_week)),
+             b.cur_week,
+             interval '1 week'
+           )::date as w
+    from bounds b cross join first_entry f
+  ),
+  sums as (
+    select date_trunc('week', l.earned_at at time zone 'UTC')::date as w,
+           sum(l.delta)::int as pts
+    from public.score_ledger l, bounds b
+    where l.user_id = p_user_id
+      and coalesce(l.source_kind, '') <> 'store_redeem'
+      and l.earned_at >= b.win_start
+    group by 1
+  )
+  select coalesce(jsonb_agg(
+           jsonb_build_object(
+             'weekOf', to_char(g.w, 'YYYY-MM-DD'),
+             'points', coalesce(s.pts, 0),
+             'partial', g.w = (select cur_week from bounds)
+           ) order by g.w
+         ), '[]'::jsonb)
+    into v_weeks
+  from grid g left join sums s on s.w = g.w;
 
   -- Streak — consecutive UTC days carrying a COMPLETED workout session, the
   -- same definition and the same day boundary /api/client/dashboard uses.
@@ -112,7 +157,14 @@ begin
     select count(*)::int as len, max(d) as ends_on from runs group by grp
   )
   select
-    coalesce(max(len), 0),
+    -- ⚠ `best` IS WINDOWED TO THE SAME 8 WEEKS AS THE SCORE, and that is what
+    -- keeps ruleStreakBroken from firing at half the roster. It fires on
+    -- `current === 0 && best >= 3`, so a LIFETIME best is permanently >= 3 for
+    -- anyone who ever trained three days running — and a Mon/Wed/Fri member
+    -- has current 0 every Sunday, so they would be flagged "streak broken"
+    -- every week forever. A recent best asks the question the rule means:
+    -- did they have a roll lately, and have they lost it.
+    coalesce(max(len) filter (where ends_on >= v_today - 56), 0),
     -- At most ONE run can end today or yesterday (a run ending yesterday and a
     -- separate one starting today would be adjacent, hence the same run), so
     -- this max IS the current streak. "Not today but yesterday" is allowed

@@ -67,10 +67,15 @@ export function bsProgramLeg(assignments, templatesById, mine, now = Date.now())
     (a.provider_role === 'nutritionist' && n != null && String(a.provider_id) === n);
   const mineRows = assignments.filter((a) => a && isMine(a));
   if (!mineRows.length) return null;
-  // Newest assignment wins — the route already orders by updated_at desc, but
-  // a leg that depends on its caller's ordering breaks the first time someone
-  // reorders the query.
-  const a = mineRows.slice().sort((x, y) => (ms(y.updated_at) || 0) - (ms(x.updated_at) || 0))[0];
+  // ⚠ STATUS RANKS ABOVE RECENCY. `updated_at` moves on ANY edit, so pausing an
+  // old block on Tuesday restamps it above the live block assigned on Monday —
+  // and the PROGRAM column would name the paused one while the program the
+  // client is actually running is invisible. A live assignment is the current
+  // program by definition; recency only breaks ties within a status class.
+  const rank = (st) => (st === 'active' ? 0 : st === 'assigned' ? 1 : 2);
+  const a = mineRows.slice().sort((x, y) =>
+    rank(x.status) - rank(y.status) || (ms(y.updated_at) || 0) - (ms(x.updated_at) || 0)
+  )[0];
   const tpl = (templatesById && templatesById.get ? templatesById.get(a.program_template_id) : null) || null;
   const name = tpl && typeof tpl.title === 'string' && tpl.title.trim() ? tpl.title.trim() : null;
   if (!name) return null;   // an untitled program is not a program name
@@ -114,7 +119,7 @@ export function bsLogsLeg(snapRows, now = Date.now(), recentLimit = 3) {
   return { lastLoggedOn: logged[0].on, daysLogged7d, recent: logged.slice(0, recentLimit) };
 }
 
-// ── The coach's own nutrition targets (client_programs.detail.nutrition) ────
+// ── The client's nutrition targets (client_programs.detail.nutrition) ───────
 // The same override the member's Eat hero reads. A HALF-SET pair is kept, not
 // discarded: a calories-only target legitimately drives ruleLedgerBlown, and a
 // protein-only one drives ruleProteinUnder — each rule needs only its own half,
@@ -122,6 +127,14 @@ export function bsLogsLeg(snapRows, now = Date.now(), recentLimit = 3) {
 // discarded is a target that carries no usable number at all (absent, zero,
 // negative, or non-numeric) — a "0 g protein target" would fire `protein_under`
 // at every client whose coach never set one.
+//
+// ⚠ THIS IS THE ONE LEG THE BANNER'S PROVIDER SCOPING CANNOT REACH, AND SAYING
+// SO IS THE HONEST ANSWER. `detail.nutrition` is ONE whole-doc override per
+// client, written by whichever coach last used Adjust and carrying no author
+// id — so there is nothing to scope by. A predecessor's months-old prescription
+// therefore drives the current coach's ledger and protein flags. That is a data
+// -model gap, not something this function can close; what it must not do is
+// call the result "the coach's own", which is how a stale target gets trusted.
 export function bsNutritionTargets(programDetail) {
   const n = programDetail && typeof programDetail === 'object' ? programDetail.nutrition : null;
   if (!n || typeof n !== 'object') return null;

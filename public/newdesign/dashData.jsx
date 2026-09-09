@@ -91,11 +91,14 @@ function _dashRecordFromLive(row, ov, notesByClient) {
   // carried as the engine's [{ on, text }] list so the drawer needs no special
   // case and a future multi-note store drops straight in.
   //
-  // ⚠ THREE STATES, the same idiom `recentLogs` uses just below: a list when
-  // there is a note, [] when the doc was READ and holds none for this client,
-  // and null when the doc could not be read at all. Collapsing the last two
-  // tells a coach "no notes yet" when the truth is we could not look.
-  const notesRead = notesByClient && typeof notesByClient === "object";
+  // ⚠ FOUR STATES, one more than `recentLogs` needs: a list when there is a
+  // note, [] when the doc was READ and holds none for this client, null when
+  // the read FAILED, and undefined while it has not been attempted — which is
+  // the fast-paint pass, before enrichment resolves. Without that fourth state
+  // a coach who opens a drawer during the enrichment window is told the read
+  // failed before it has been tried.
+  const notesPending = notesByClient === undefined;
+  const notesRead = !notesPending && notesByClient && typeof notesByClient === "object";
   const note = notesRead && row.id ? notesByClient[row.id] : null;
   const noteText = note && typeof note.text === "string" && note.text.trim() ? note.text.trim() : null;
   return {
@@ -155,7 +158,7 @@ function _dashRecordFromLive(row, ov, notesByClient) {
     program: ov && ov.program ? ov.program : null,
     coachNotes: noteText
       ? [{ on: note.updatedAt ? String(note.updatedAt).slice(0, 10) : null, text: noteText }]
-      : notesRead ? [] : null,
+      : notesRead ? [] : notesPending ? undefined : null,
     recentLogs: logs ? logs.recent : logsKnown ? [] : null,
     milestones: null,
     payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null },
@@ -248,6 +251,10 @@ function useDashboard(role) {
           return;
         }
         const roleKey = role === "trainer" ? "isTrainer" : "isNutritionist";
+        // The notes doc is ONE read for the whole roster, so it starts with the
+        // roster rather than behind the per-client pool — the window in which a
+        // drawer can open on un-attempted notes is then a single round trip.
+        const notesPromise = _dashCoachNotes();
         const [roster, todayRes] = await Promise.all([
           _dashJson("/api/" + role + "/clients").catch(() => null),
           _dashJson("/api/" + role + "/dashboard").catch(() => null),
@@ -255,6 +262,8 @@ function useDashboard(role) {
         const today = todayRes && todayRes[roleKey] ? todayRes : null;
         if (!roster || !roster[roleKey]) return demo(today);
         // Roster first (fast paint for callers), then enrich rows with ids.
+        // ⚠ The third argument is deliberately absent, not null: undefined is
+        // "the notes have not been read yet", null would claim the read failed.
         const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null));
         if (on) setState({ loading: false, clients: base, source: "live", today });
         const rows = roster.clients || [];
@@ -265,7 +274,7 @@ function useDashboard(role) {
           _dashPool(rows, (row) =>
             row.id ? _dashJson("/api/clients/" + encodeURIComponent(row.id) + "/shared-overview") : null
           ),
-          _dashCoachNotes(),
+          notesPromise,
         ]);
         if (!on) return;
         setState({

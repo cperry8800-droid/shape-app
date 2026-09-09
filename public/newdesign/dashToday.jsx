@@ -484,6 +484,9 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
         const wk = DashSignals.scoreWeekReading(c.shapeScoreHistory);
         const wkPts = wk ? wk.points : null;
         const delta = wk ? wk.delta : null;
+        // The `*` marks a week still in progress — without it this line reads
+        // "12 wk pts ▲+2" as though the 12 and the +2 were the same comparison.
+        const wkPartial = !!(wk && wk.partial);
         const streak = c.streaks && c.streaks.current != null ? c.streaks.current + "d streak" : null;
         const contact = c.lastContact ? dashRelDay(role === "nutritionist" ? c.lastContact.nutritionist : c.lastContact.trainer) : null;
         // Owned = this pro acts on it; routed = the other discipline's signal,
@@ -515,7 +518,7 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
               <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.05em", color: ink50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {[
                   streak,
-                  wkPts != null ? <span key="p">{wkPts} wk pts{delta != null && <span style={{ color: delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{" "}{delta >= 0 ? "▲+" + delta : "▼−" + Math.abs(delta)}</span>}</span> : null,
+                  wkPts != null ? <span key="p" title={wkPartial ? "Week in progress · the delta is the last two full weeks" : undefined}>{wkPts}{wkPartial ? "*" : ""} wk pts{delta != null && <span style={{ color: delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{" "}{delta >= 0 ? "▲+" + delta : "▼−" + Math.abs(delta)}</span>}</span> : null,
                   contact ? "spoke " + contact : null,
                 ].filter(Boolean).map((part, j, arr) => <React.Fragment key={j}>{part}{j < arr.length - 1 ? " · " : ""}</React.Fragment>)}
                 {streak == null && wkPts == null && contact == null && "—"}

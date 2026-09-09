@@ -193,6 +193,7 @@ function DashSecNotes({ rec }) {
   // holds nothing for this client; null is a doc that could not be read, and
   // asserting "no notes yet" there tells the coach they wrote nothing when the
   // truth is we could not look.
+  if (notes === undefined) return <DashDrawerEmpty>Loading your notes…</DashDrawerEmpty>;
   if (notes == null) return <DashDrawerEmpty>Couldn't read your notes just now — reopen to retry.</DashDrawerEmpty>;
   if (!Array.isArray(notes) || !notes.length) return <DashDrawerEmpty>No notes yet — write one on the client's file.</DashDrawerEmpty>;
   return (
@@ -317,6 +318,12 @@ function DashSecTrainingContext({ rec }) {
   const wk = DashSignals.scoreWeekReading(rec.shapeScoreHistory);
   const wkPts = wk ? wk.points : null;
   const wkDelta = wk ? wk.delta : null;
+  // ⚠ The delta compares the two newest COMPLETE weeks, so when the number
+  // above it is the week in progress the two are not the same comparison and
+  // the label must not say "wk/wk" — the same marker dashScoreCell and
+  // DashSecScore carry. Adopting the shared reading without its `partial` flag
+  // is how a number ends up disagreeing with its own caption.
+  const wkPartial = !!(wk && wk.partial);
   if (!adh && wkPts == null) return <DashDrawerEmpty>Training data isn't shared to coaches on the web yet.</DashDrawerEmpty>;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -327,8 +334,9 @@ function DashSecTrainingContext({ rec }) {
       </div>
       <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "12px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Shape Score · wk</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, marginTop: 5 }}>{wkPts != null ? wkPts + " pts" : "—"}</div>
-        <div style={{ fontSize: 10.5, color: wkDelta == null ? DASH_ROSTER_INK50 : wkDelta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, marginTop: 2 }}>{wkDelta != null ? (wkDelta >= 0 ? "▲ +" + wkDelta : "▼ −" + Math.abs(wkDelta)) + " wk/wk" : "history not shared"}</div>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, marginTop: 5 }}>{wkPts != null ? wkPts + " pts" : "—"}{wkPartial && <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>*</span>}</div>
+        <div style={{ fontSize: 10.5, color: wkDelta == null ? DASH_ROSTER_INK50 : wkDelta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, marginTop: 2 }}>{wkDelta != null ? (wkDelta >= 0 ? "▲ +" + wkDelta : "▼ −" + Math.abs(wkDelta)) + (wkPartial ? " last full wk" : " wk/wk") : "history not shared"}</div>
+        {wkPartial && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginTop: 2 }}>Week in progress</div>}
       </div>
     </div>
   );

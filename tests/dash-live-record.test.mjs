@@ -112,6 +112,10 @@ test('coach notes carry three states: a note, a read-but-empty doc, an unreadabl
   assert.deepEqual(recordFromLive(ROW, FULL, {}).coachNotes, []);
   assert.deepEqual(recordFromLive(ROW, FULL, { 'c-1': { text: '   ' } }).coachNotes, [], 'whitespace is not a note');
   assert.equal(recordFromLive(ROW, FULL, null).coachNotes, null, 'an unreadable doc must not assert the coach wrote nothing');
+  // ⚠ The FOURTH state: the fast-paint pass runs before the notes read has been
+  // attempted at all. Collapsing it into null told a coach who opened a drawer
+  // during enrichment that the read had failed before it was tried.
+  assert.equal(recordFromLive(ROW, FULL).coachNotes, undefined, 'not-yet-read is not the same as read-and-failed');
 });
 
 test('the in-progress week rides through flagged, and no longer reads as a collapse', () => {
