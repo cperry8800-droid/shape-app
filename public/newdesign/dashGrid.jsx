@@ -82,6 +82,15 @@ function DashGrid({ role, tab = "today", widgets }) {
   };
   const persistFromGrid = () => {
     const grid = gridRef.current; if (!grid) return;
+    // ⚠ NEVER PERSIST THE RESPONSIVE PROJECTION OF A LAYOUT. The grid is inited
+    // with `breakpoints: [{ w: 768, c: 1 }]`, so below 768px GridStack calls
+    // column(1) and clamps every widget to x:0/w:1 — then fires `change`, which
+    // lands here and would upsert that as the account's saved arrangement. The
+    // breakpoint was unreachable in production while the shells declared no
+    // viewport meta (a phone reported 980px); adding the meta made every phone
+    // visit overwrite the member's desktop dashboard, restored one-column on
+    // every device. A collapsed grid is a VIEW of the layout, not the layout.
+    try { if (typeof grid.getColumn === "function" && grid.getColumn() !== 12) return; } catch (e) { return; }
     let items = [];
     try { items = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) {}
     persist({ items, hidden });

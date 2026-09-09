@@ -465,7 +465,7 @@ function DashTodayCard({ live }) {
           <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: ink50 }}>
             {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : "Sleep & recovery"}
           </span>
-          <a href="ClientProgress.html" style={{ display: "inline-block", padding: "7px 8px", margin: "-7px -8px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: blue, textDecoration: "none" }}>Trends →</a>
+          <a href={dashShellHref("ClientProgress.html")} style={{ display: "inline-block", padding: "7px 8px", margin: "-7px -8px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: blue, textDecoration: "none" }}>Trends →</a>
         </div>
       )}
     </div>
@@ -617,8 +617,8 @@ function ClientDashboardPage() {
               <h1 style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.025em", fontWeight: 400, margin: "8px 0 0", lineHeight: 1.02 }}>Welcome back, {firstName}.</h1>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <a href="ClientTrain.html" style={{ ...btn, textDecoration: "none", display: "inline-block", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)", padding: "10px 16px" }}>Log workout</a>
-              <a href="ClientTeam.html" style={{ ...ghost, padding: "10px 16px" }}>Book session</a>
+              <a href={dashShellHref("ClientTrain.html")} style={{ ...btn, textDecoration: "none", display: "inline-block", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)", padding: "10px 16px" }}>Log workout</a>
+              <a href={dashShellHref("ClientTeam.html")} style={{ ...ghost, padding: "10px 16px" }}>Book session</a>
             </div>
           </div>
 
@@ -629,7 +629,7 @@ function ClientDashboardPage() {
                 <div className="dash-eyebrow" style={{ color: "#d8a23a" }}>Weekly check-in · due</div>
                 <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", marginTop: 6 }}>2 minutes, 6 sliders — your coaches see it.</div>
               </div>
-              <a href="ClientProgress.html" style={{ ...btn, background: "#d8a23a", textDecoration: "none" }}>Check in →</a>
+              <a href={dashShellHref("ClientProgress.html")} style={{ ...btn, background: "#d8a23a", textDecoration: "none" }}>Check in →</a>
             </div>
           )}
 
@@ -638,7 +638,7 @@ function ClientDashboardPage() {
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
                   {/* The ring IS the link to the Score deep-dive */}
-                  <a href="ClientScore.html" aria-label="Open your Shape Score" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                  <a href={dashShellHref("ClientScore.html")} aria-label="Open your Shape Score" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
                     <DclRing pct={hero.pct} color={DCL_TEAL}>
                       <div style={{ fontFamily: serif, fontSize: 22, lineHeight: 1 }}>{hero.total.toLocaleString()}</div>
                       <div style={{ fontFamily: DCL_MONO, fontSize: 7.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginTop: 3 }}>{hero.tier}</div>
@@ -676,7 +676,7 @@ function ClientDashboardPage() {
                   swapStorageKey={"shape.dashMealSwap." + todayIso}
                 />
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", textAlign: "right" }}>
-                  <a href="ClientNutri.html" style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL, textDecoration: "none" }}>Full meal plan · week &amp; swaps →</a>
+                  <a href={dashShellHref("ClientNutri.html")} style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL, textDecoration: "none" }}>Full meal plan · week &amp; swaps →</a>
                 </div>
               </div>
             ) },
@@ -773,7 +773,7 @@ function ClientDashboardPage() {
                     <div style={{ fontSize: 13.5, fontWeight: 500 }}>{nextSession ? nextSession.when : "No session booked"}</div>
                     <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>{nextSession ? nextSession.what : "Book one with your coach"}</div>
                   </div>
-                  <a href="ClientTeam.html" aria-label="Book a session" style={{ color: DCL_TEAL, textDecoration: "none", padding: "8px 10px", margin: "-8px -10px" }}>→</a>
+                  <a href={dashShellHref("ClientTeam.html")} aria-label="Book a session" style={{ color: DCL_TEAL, textDecoration: "none", padding: "8px 10px", margin: "-8px -10px" }}>→</a>
                 </div>
                 <div style={{ borderTop: "1px solid rgba(242,237,228,0.05)", paddingTop: 10, marginTop: 2 }}>
                   <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(242,237,228,0.18)" : memberPill.c + "55"), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>

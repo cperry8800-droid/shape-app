@@ -431,7 +431,7 @@ function ClientGoalsPage() {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 13, flexWrap: "wrap" }}>
           <button onClick={() => setLogOpen(true)} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Log weigh-in</button>
-          <a href="ClientProgress.html" style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 16px", textDecoration: "none" }}>Weekly check-in →</a>
+          <a href={dashShellHref("ClientProgress.html")} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 16px", textDecoration: "none" }}>Weekly check-in →</a>
         </div>
       </div>
     ) },

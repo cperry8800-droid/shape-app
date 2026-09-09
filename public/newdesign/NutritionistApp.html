@@ -2,6 +2,14 @@
 <html>
 <head>
 <meta charset="utf-8" />
+<!-- ⚠ WITHOUT THIS EVERY RESPONSIVE RULE IN dash.css AND pageShell.jsx IS DEAD.
+     A phone with no viewport meta reports a 980px layout viewport, so the
+     @media (max-width: 900px) block that collapses the dashboard grid and
+     turns the 240px sidebar into a horizontal tab bar never matched — phones
+     got the desktop layout, zoomed out, with the sidebar never collapsing
+     (review 2026-09-09, V7). The work was already written; nothing was
+     asking for it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Shape · Nutritionist</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,6 +101,7 @@ const NUTRI_CTX = {
 // Tells dashClientPageHref() that a client link is the `#client/<id>` route here
 // (an instant, same-document switch that keeps the sidebar), not the standalone page.
 window.__shapeCoachShell = "nutritionist";
+window.__shapeDashShell = "nutritionist";   // read by pageShell's dashShellHref (R19)
 const NA_ROUTES = {
   today:     () => <CoachDashboardPage role="nutritionist" />,
   week:      () => <CoachWeekPage role="nutritionist" />,

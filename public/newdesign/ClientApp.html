@@ -2,6 +2,14 @@
 <html>
 <head>
 <meta charset="utf-8" />
+<!-- ⚠ WITHOUT THIS EVERY RESPONSIVE RULE IN dash.css AND pageShell.jsx IS DEAD.
+     A phone with no viewport meta reports a 980px layout viewport, so the
+     @media (max-width: 900px) block that collapses the dashboard grid and
+     turns the 240px sidebar into a horizontal tab bar never matched — phones
+     got the desktop layout, zoomed out, with the sidebar never collapsing
+     (review 2026-09-09, V7). The work was already written; nothing was
+     asking for it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Shape · Client</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,6 +101,8 @@
 // Each route returns exactly what the standalone page used to mount, so behaviour
 // (incl. the ChatWidget where a page had one) is identical — only the navigation
 // is now client-side. The page components render their own full layout + sidebar.
+window.__shapeDashShell = "client";   // read by pageShell's dashShellHref (R19)
+
 const CA_ROUTES = {
   today:     () => <React.Fragment><ClientDashboardPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   progress:  () => <React.Fragment><ClientProgressPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
@@ -127,7 +137,11 @@ function ClientSettingsPage() {
     </div>
   );
 }
-function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return CA_ROUTES[h] ? h : "today"; }
+// ⚠ hasOwnProperty, not a bare lookup — `#constructor` resolves through
+// Object.prototype, renders an Object into React and white-screens the SPA.
+// Both coach shells were hardened against this; the client shell was not.
+function caHasRoute(h) { return Object.prototype.hasOwnProperty.call(CA_ROUTES, h); }
+function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return caHasRoute(h) ? h : "today"; }
 function ClientApp() {
   const [route, setRoute] = React.useState(caSlug());
   React.useEffect(() => {
@@ -136,7 +150,7 @@ function ClientApp() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  return (CA_ROUTES[route] || CA_ROUTES.today)();
+  return (caHasRoute(route) ? CA_ROUTES[route] : CA_ROUTES.today)();
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<ClientApp />);
 window.ShapeDashTour && window.ShapeDashTour.init('client');

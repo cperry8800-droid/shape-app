@@ -190,11 +190,19 @@ function Card({ children, style }) {
     ...style
   }}>{children}</div>;
 }
+// ⚠ THE GAP IS LOAD-BEARING, and `space-between` alone did not supply it.
+// space-between only separates items while there is slack; once the title fills
+// the row the two children TOUCH, and a 14px title against an 11px mono eyebrow
+// reads as one word — "Revenue calculatorSET YOUR TARGET" on the Goal tab
+// (review 2026-09-09, V3). A real `gap` cannot be consumed, `flexWrap` drops the
+// eyebrow to its own line when even that will not fit, and `marginLeft: auto`
+// keeps it right-aligned in both cases (which is what space-between was for).
+// Shared by 48 call sites, so this is the one place to fix it.
 function SectionTitle({ children, right }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 500 }}>{children}</div>
-      {right && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)", letterSpacing: "0.08em" }}>{right}</div>}
+    <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 500, minWidth: 0 }}>{children}</div>
+      {right && <div style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)", letterSpacing: "0.08em" }}>{right}</div>}
     </div>
   );
 }

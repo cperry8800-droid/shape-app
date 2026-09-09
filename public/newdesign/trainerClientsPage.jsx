@@ -50,7 +50,7 @@ function TrainerClientsPage() {
           Shared clients{sharedBadge > 0 ? ` · ${sharedBadge} new` : ""}
         </button>
         <a href="TrainerLiveConsole.html" style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Console</a>
-        <a href="TrainerAnalytics.html" style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Business</a>
+        <a href={dashShellHref("TrainerAnalytics.html")} style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Business</a>
       </div>
       <Card>
         {tab === "shared" ? (

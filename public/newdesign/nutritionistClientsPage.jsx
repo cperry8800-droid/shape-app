@@ -50,7 +50,7 @@ function NutritionistClientsPage() {
           Shared clients{sharedBadge > 0 ? ` · ${sharedBadge} new` : ""}
         </button>
         <a href="NutritionistLiveConsole.html" style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Console</a>
-        <a href="NutritionistAnalytics.html" style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Business</a>
+        <a href={dashShellHref("NutritionistAnalytics.html")} style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Business</a>
       </div>
       <Card>
         {tab === "shared" ? (

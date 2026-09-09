@@ -349,7 +349,7 @@ function ClientNutritionPage() {
           <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
               <span className="dash-eyebrow" style={{ color: DNU_GOLD }}>Saved recipes</span>
-              <a href="ClientLibrary.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Library →</a>
+              <a href={dashShellHref("ClientLibrary.html")} style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Library →</a>
             </div>
             <div className="dash-ledger" style={{ "--dac": DNU_GOLD, marginTop: 9 }} />
             {favorites.length ? favorites.map((r, i) => (

@@ -294,7 +294,7 @@ function ClientHabitsPage() {
         <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 8, lineHeight: 1.5 }}>
           Earned from habits this week. Each row's <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace" }}>+pts</span> rolls into your Shape Score nightly.
         </div>
-        <a href="ClientScore.html" style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none" }}>
+        <a href={dashShellHref("ClientScore.html")} style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none" }}>
           SEE FULL BREAKDOWN <span>→</span>
         </a>
       </Card>
@@ -327,7 +327,7 @@ function ClientHabitsPage() {
       title="Habits"
       subtitle="Do's earn Shape Score when you complete them. Don'ts earn the same when you successfully avoid them. Tap a circle (do) or square (don't) to log today."
       actions={<>
-        <a href="ClientScore.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
+        <a href={dashShellHref("ClientScore.html")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
         <button onClick={() => addHabit("do")} title="Add habit" style={{ width: 42, height: 42, borderRadius: 999, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 22, fontWeight: 500, cursor: "pointer", lineHeight: 1 }}>+</button>
       </>}
     >

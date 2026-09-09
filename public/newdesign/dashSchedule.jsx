@@ -1,12 +1,3 @@
-// Hide the horizontal scrollbar on the availability grid (scroll still works).
-(function () {
-  if (typeof document === 'undefined' || document.getElementById('dash-hide-scroll-css')) return;
-  var s = document.createElement('style');
-  s.id = 'dash-hide-scroll-css';
-  s.textContent = '.dash-hide-scroll{scrollbar-width:none;-ms-overflow-style:none}.dash-hide-scroll::-webkit-scrollbar{display:none;width:0;height:0}';
-  document.head.appendChild(s);
-})();
-
 // Schedule v2 — the pro PLANNING view (dashboard-v2 gap step). A dedicated
 // page (NOT the Today summary) for both coach roles: a full month/week
 // calendar with sessions + consults color-coded BY CLIENT, click any event →
@@ -162,20 +153,29 @@ function DscAvailability({ role, live, initial }) {
       <div style={{ fontSize: 11.5, color: DSC_INK50, lineHeight: 1.5, margin: "8px 0 10px", maxWidth: 560 }}>
         Tap the hours you take clients. This is exactly what shows on your marketplace profile — members book into these blocks.
       </div>
-      <div style={{ overflowX: "auto" }} className="dash-roster-scroll dash-hide-scroll">
-        <div style={{ display: "grid", gridTemplateColumns: "34px repeat(" + DSC_HOURS.length + ", 1fr)", gap: 3, minWidth: 520 }}>
-          <span />
-          {DSC_HOURS.map((h) => <span key={h} style={{ fontFamily: DSC_MONO, fontSize: 7, color: DSC_INK50, textAlign: "center" }}>{h % 12 === 0 ? 12 : h % 12}{h >= 12 ? "p" : "a"}</span>)}
-          {DSC_AVAIL_DAYS.map(([lbl, wd]) => (
-            <React.Fragment key={wd}>
-              <span style={{ fontFamily: DSC_MONO, fontSize: 8, color: DSC_INK50, alignSelf: "center" }}>{lbl}</span>
-              {DSC_HOURS.map((h) => {
+      {/* ⚠ HOURS RUN DOWN, DAYS RUN ACROSS — and the transpose is the fix, not a
+          restyle. This plate lives in the Schedule page's 300px rail, and the
+          old layout put 15 hour COLUMNS in it behind `minWidth: 520` with the
+          scrollbar hidden on purpose: 1p–8p were off-screen with no affordance
+          saying so, and the cells that were visible sat ~15px wide, under any
+          usable tap target (review 2026-09-09, V2). Seven day columns fit the
+          rail with ~35px cells and nothing hidden — and hours-down is the shape
+          every calendar uses, so it reads as a week rather than a heatmap. */}
+      <div style={{ display: "grid", gridTemplateColumns: "34px repeat(" + DSC_AVAIL_DAYS.length + ", 1fr)", gap: 3 }}>
+        <span />
+        {DSC_AVAIL_DAYS.map(([lbl]) => <span key={lbl} style={{ fontFamily: DSC_MONO, fontSize: 8, color: DSC_INK50, textAlign: "center" }}>{lbl}</span>)}
+        {DSC_HOURS.map((h) => {
+          const hLbl = (h % 12 === 0 ? 12 : h % 12) + (h >= 12 ? "p" : "a");
+          return (
+            <React.Fragment key={h}>
+              <span style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50, alignSelf: "center", textAlign: "right", paddingRight: 2 }}>{hLbl}</span>
+              {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
                 const on = cells.has(wd + ":" + h);
-                return <button key={h} onClick={() => toggle(wd, h)} aria-label={lbl + " " + h} style={{ height: 18, borderRadius: 3, border: "1px solid " + (on ? "rgba(216,162,58,0.5)" : "rgba(242,237,228,0.12)"), background: on ? "#d8a23a" : "transparent", cursor: "pointer", padding: 0 }} />;
+                return <button key={wd} onClick={() => toggle(wd, h)} aria-label={lbl + " " + hLbl} aria-pressed={on} style={{ height: 22, borderRadius: 3, border: "1px solid " + (on ? "rgba(216,162,58,0.5)" : "rgba(242,237,228,0.12)"), background: on ? "#d8a23a" : "transparent", cursor: "pointer", padding: 0 }} />;
               })}
             </React.Fragment>
-          ))}
-        </div>
+          );
+        })}
       </div>
     </div>
   );
