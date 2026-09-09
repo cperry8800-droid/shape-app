@@ -28,7 +28,7 @@ TS=bar(19); band=lambda f:f[150:262,540:1140]; chk('IN SYNC lands on bar 19',tea
 # the caption fades in from T0+0.35, after the 8-frame crossfade; 'start' is sampled at T0+0.30 (the crossfade at 97 %, the previous page's ink already lightened past the ink threshold, the caption not yet drawn) in the glyph rows only, so a figure standing under the band counts the same in both samples
 for nm,T0,T1 in (('lifter',bar(1),bar(4)),('coach',bar(10),bar(13)),('radio',bar(13),bar(16))):
     if CREAM:   # the print look: a halftone figure standing in the band rows is ALL edge, so edge ink read the same before and after the band (13.8k / 12.7k on the coach page). The band is one layer with the caption, and its fill lightens whatever stands under it: at the caption's midpoint the rows above the glyphs (2010-2040) read cream nearly everywhere, and the glyph rows carry the text's ink
-        fm=frame((T0+T1)/2); c1=ink(fm[2040:2140,200:1240]); u1=float((fm[2010:2040,200:1240].min(-1)>200).mean()); c0=ink(frame(T0+0.30)[2040:2140,200:1240])
+        fm=frame((T0+T1)/2); c1=ink(fm[2040:2140,200:1240]); u1=float((fm[2010:2040,200:1240].min(-1)>180).mean())   # the band's fill is cream at alpha 225/255: over ink it lands at ~(216,209,193), whose blue is under 200, so a 200 floor read a lightened figure as not-cream (0.81 / 0.64 on the lifter's and the coach's pages); bare halftone ink is ~20; c0=ink(frame(T0+0.30)[2040:2140,200:1240])
         chk(f'caption band {nm}',c1>1500 and u1>0.97,f'start ink {c0} mid ink {c1} band rows cream {u1:.3f}')
     else:
         c0=text(frame(T0+0.30)[2040:2140,200:1240]); c1=text(frame((T0+T1)/2)[2040:2140,200:1240]); chk(f'caption band {nm}',c1>c0+1500,f'start {c0} mid {c1}')
