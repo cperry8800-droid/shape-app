@@ -475,6 +475,46 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — Film v3: the whole film re-shot on Seedance 2.5, the driver jamming out, the standing coach, and a rotating globe with the mark on every beam
+
+- **Owner, on v2: *"are you using seedance 2.5?"* — no, every clip had been `minimax_h3`, the one video model the account
+  exposed when probed. Then *"credits are back, use seedance 2.5, remove the person rocking their head in the chair, have them
+  maybe jaming out while driving a car or in another situation. also the globe scene at the end needs to have the globe
+  rotatining with the points coming up from majoe cities with shape symbol"*, *"nano banan is good as well. I want the top video
+  generation models"*, and on v2's globe page, *"2 shape triangles on this page, make the sphere smaller and but shape logo above
+  it."*** So [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) carries **"The film, v3"**: every figure
+  page re-shot on `seedance_2_5` with the v2 prompts; the coach on her stool (the head-nodder) re-cast as a **standing coach
+  beside a client mid-squat**; the Shape Radio page a **driver at the wheel** seen through the side window, the radio bust
+  retired; the runner Seedance's animation of the same Nano Banana Pro still; and the close a Seedance night Earth that
+  **turns eastward** with beams of teal light rising from the cities, **the ▸◂ mark drawn on every beam's tip per frame** and
+  tracked as the globe turns — the sphere at 60 % of the frame, the lockup above it, one mark on the page. Thirteen takes
+  (Sources rows 17–29); links handed over in chat; **no PR, nothing merged.**
+- ⚠ **THE MODEL'S CONTRACT WAS MEASURED BY SUBMITTING, NOT ASSUMED.** `seedance_2_5` exists (the first take created a job);
+  output is **720p by default and 1080p on request** (`resolution: "1080p"`, learned on the driver retake); `duration` 12 is
+  honoured; a reference image is refused in the default `t2v` mode and taken in **`omni_reference`** (the error names the four
+  modes); bursts are rate-limited (429 on three of eight in one batch, and three retries of the runner) — a refused submission
+  creates no job and bills nothing, so each was simply resubmitted; and the preset interception is model-independent (the
+  cyclist again). *A tool's schema is what its errors say, read one at a time.*
+- ⚠ **"THE PERSON ROCKING THEIR HEAD IN THE CHAIR" IS THE COACH, NOT THE RADIO BUST — READ FROM THE PROMPT, NOT THE SCREEN.** Row
+  11's phrase is *"a woman seated on a stool, one foot tapping hard and her head nodding to a beat"*; the radio bust nods too,
+  but the owner's *"have them jamming out while driving"* is the music listener's replacement, so the driver takes the radio
+  page and the coach page gets a coach who is standing. Both changed; the caption on each is unchanged.
+- ⚠ **THE PINS ARE DRAWN, NOT PROMPTED, BECAUSE NO MODEL DRAWS THE MARK.** The clip is asked for beams of light from the cities;
+  `Pins` finds each beam's tip (bright, cool pixels grouped by column; the rim rejected by width), tracks tips across frames and
+  draws the mark on each — so the symbol rides its beam as the globe turns. Driven on a synthetic rotating globe first; the first
+  local run found nothing because the rig's plan still named the old clip. The globe took three takes: two phrasings at 720p,
+  then the better one at 1080p, whose city-light pattern shifts +28 → +72 px/s one way across the clip and whose luma rises
+  14.6 → 23.6 (the beams, not a sunrise).
+- ⚠ **THE DRIVER TOOK TWO TAKES AND THE FIRST IS THE PAGE.** Take 1 draws the car door as a solid slab under the window (struck by a
+  per-clip `cut_below`), take 2 — prompted for a bigger jam and no car body — came back as a head-and-shoulders filling the lower
+  frame with no car at all. The first reads as driving; the second is recorded, unused, and one line of the plan away.
+- **Verified on the renders:** hl **25 / 27** and print **25 / 27**, all four failures the instrument (the runner's seam against her sprint, the lifter's
+  raised kettlebell in the column the rule probe samples, the coach pair's legs in the print look's glyph rows); every seam, the
+  mark on the kick, IN SYNC on bar 19, the bands, one mark on the globe page, the sphere under the lockup, the pins' marks,
+  the audio at 119.95. ⚠ Not watched by the agent; eleven frames per look came across as checksummed contact sheets and were looked at; the owner's look is the QA. Records:
+  the treatment section, Sources rows 17–29 with every prompt verbatim and every refusal, §9, §10 (q10 closed), the scripts as
+  files under `marketing/film-v3/` with md5s. Docs and script files only; **no PR, nothing merged.**
+
 ### 2026-09-09 — Film v2 in two looks: eight owner notes answered, no app pages, a Shape Radio page, the globe close — and the account runs out of credits mid-build
 
 - **Owner, on film v1: *"the wording at bottom of video gets lost in background, hard to see. also the person is getting cut off
