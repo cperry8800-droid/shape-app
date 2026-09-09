@@ -332,9 +332,113 @@ function CKLiveStation({ clientId, accent }) {
   );
 }
 
-function CoachClientDetailPage() {
+// An honest empty for a station whose source is absent — the redaction the
+// roster drawer and the mobile Case File already use. Never a demo number.
+function CKEmpty({ children }) {
+  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.04em", color: "rgba(242,237,228,0.5)", fontStyle: "italic", lineHeight: 1.6, padding: "6px 0" }}>{children}</div>;
+}
+
+// The coach's private note on a client — one whole-doc store per coach
+// (user_goals 'coach_client_notes': { [clientId]: { text, updatedAt } }), read
+// before every write so a note on client A never clobbers the note on B, and
+// declined when the read cannot be trusted (getUserGoals resolves null for
+// "not signed in" AND "the read failed", so a null doc is never written over).
+const _ckNotesLane = { p: Promise.resolve() };
+function ckNotesSerial(fn) { const run = _ckNotesLane.p.then(fn, fn); _ckNotesLane.p = run.catch(() => {}); return run; }
+function ckNoteDate(iso) { try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; } }
+// ⚠ getSession() BEFORE getUserGoals. getUserGoals resolves the user through
+// client.auth.getUser(), which does NOT bootstrap the Next.js cookie-session
+// bridge — a coach signed in through that path reads as ANON, the note panel
+// says "sign in", and nothing ever saves. The variance effect below this one
+// already carries the same guard for the same reason (#1769).
+async function ckBridge() {
+  try { if (window.shapeDb && window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* fall through as anon */ }
+}
+async function ckUid() {
+  try { const u = await window.shapeDb.getUser(); return u && u.id ? u.id : null; } catch (e) { return null; }
+}
+function CKCoachNote({ clientId, accent }) {
+  const [state, setState] = React.useState({ kind: "loading", text: "", savedAt: null });
+  const [draft, setDraft] = React.useState("");
+  const uidRef = React.useRef(null);
+  React.useEffect(() => {
+    let on = true;
+    setState({ kind: "loading", text: "", savedAt: null }); setDraft("");   // reset FIRST: A's note must never sit under B
+    (async () => {
+      const db = window.shapeDb;
+      if (!db || !db.getUserGoals) { if (on) setState({ kind: "unavailable", text: "", savedAt: null }); return; }
+      await ckBridge();
+      if (!on) return;
+      uidRef.current = await ckUid();
+      let doc = null;
+      try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
+      if (!on) return;
+      if (doc == null) { setState({ kind: "signedout", text: "", savedAt: null }); return; }
+      const n = doc[clientId];
+      const text = n && typeof n.text === "string" ? n.text : "";
+      setState({ kind: "ready", text, savedAt: n && n.updatedAt ? n.updatedAt : null });
+      setDraft(text);
+    })();
+    return () => { on = false; };
+  }, [clientId]);
+  const dirty = (state.kind === "ready" || state.kind === "error") && draft !== state.text;
+  const save = () => ckNotesSerial(async () => {
+    const db = window.shapeDb;
+    // ⚠ BOUND TO THE ACCOUNT THAT TYPED IT. getUserGoals and saveUserGoals each
+    // resolve the user at their own call time, so an account switch between the
+    // two would upsert coach A's whole notes blob into B's row.
+    const startUid = uidRef.current;
+    let doc = null;
+    try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
+    if (doc == null) { setState((s) => ({ ...s, kind: "error" })); return; }
+    const nowUid = await ckUid();
+    if (!nowUid || (startUid && nowUid !== startUid)) { setState((s) => ({ ...s, kind: "error" })); return; }
+    const now = new Date().toISOString();
+    const next = { ...doc };
+    if (draft.trim()) next[clientId] = { text: draft, updatedAt: now }; else delete next[clientId];
+    let res = null;
+    try { res = await db.saveUserGoals("coach_client_notes", next); } catch (e) { res = null; }
+    if (!res || res.error) { setState((s) => ({ ...s, kind: "error" })); return; }
+    setState({ kind: "ready", text: draft, savedAt: draft.trim() ? now : null });
+  });
+  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
+  const status = state.kind === "error" ? "Couldn't save — try again"
+    : dirty ? "Unsaved changes"
+    : state.savedAt ? "Saved · " + ckNoteDate(state.savedAt)
+    : state.kind === "ready" ? "Nothing written yet" : "";
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
+        <CKSecHead>COACH NOTE · ONLY YOU SEE THIS</CKSecHead>
+        <span style={{ ...mono, color: state.kind === "error" ? "#e0644b" : mono.color }}>{status}</span>
+      </div>
+      {state.kind === "loading" ? <CKEmpty>Loading your note…</CKEmpty>
+        : (state.kind === "unavailable" || state.kind === "signedout") ? <CKEmpty>Sign in to keep a private note on this client — it lives with your account, not on this device.</CKEmpty>
+        : (
+          <React.Fragment>
+            <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4}
+              placeholder="What you're watching, what you told them, what to check next week."
+              style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: 12, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, lineHeight: 1.5 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+              <button onClick={save} disabled={!dirty} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: accent, border: 0, borderRadius: 4, padding: "10px 16px", cursor: dirty ? "pointer" : "default", opacity: dirty ? 1 : 0.5 }}>Save note</button>
+              <span style={mono}>Private to you — never shown to the client or a co-coach.</span>
+            </div>
+          </React.Fragment>
+        )}
+    </Card>
+  );
+}
+
+// Standalone (TrainerClient.html?id=…) reads the id from the query string; inside a
+// coach shell the `#client/<id>` route passes it as a prop, with the shell's role
+// and inShell so the back / Schedule / Assign links stay same-document hashes.
+function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell } = {}) {
   const params = new URLSearchParams(window.location.search);
-  const clientId = params.get("id");
+  const clientId = clientIdProp || params.get("id");
+  const navForRole = (r) => (r === "nutritionist" ? nutriNavItems : trainerNavItems)("clients");
+  const cardForRole = (r) => (r === "nutritionist" ? nutriPayoutCard : trainerPayoutCard);
+  const appFor = (r) => (r === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html");
+  const hrefTo = (r, slug) => (inShell ? "#" + slug : appFor(r) + "#" + slug);
   const [data, setData] = React.useState(null);
   // Week-to-week variance line (spec 2026-07-19). No route: the definer RPC is
   // called straight from the browser, and bsVarianceCopy is the ONE copy source
@@ -430,16 +534,17 @@ function CoachClientDetailPage() {
     }
   }
 
+  const backLink = (r) => <a href={hrefTo(r, "clients")} style={{ color: "#2ee0c4", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>← Back to clients</a>;
   if (err) {
     return (
-      <DashPage navItems={trainerNavItems("clients")} payoutCard={trainerPayoutCard} eyebrow="CLIENT" title="Couldn't load" subtitle={err}>
-        <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.65)" }}>Try refreshing or go back to the clients list.</div></Card>
+      <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Couldn't load" subtitle={err}>
+        <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.65)", display: "flex", gap: 18, alignItems: "baseline", flexWrap: "wrap" }}><span>Try refreshing or go back to the clients list.</span>{backLink(roleProp)}</div></Card>
       </DashPage>
     );
   }
   if (!data) {
     return (
-      <DashPage navItems={trainerNavItems("clients")} payoutCard={trainerPayoutCard} eyebrow="CLIENT" title="Loading…" subtitle="">
+      <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Loading…" subtitle="">
         <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.55)" }}>Loading client overview…</div></Card>
       </DashPage>
     );
@@ -452,6 +557,28 @@ function CoachClientDetailPage() {
   const teal = "#2ee0c4", rust = "#d2693f", gold = "#d8b25a";
   const accent = isNutri ? gold : teal;
   const firstName = data.client.name.split(/\s+/)[0];
+
+  // The action line — the Case File's verbs, on the website. Message rides the
+  // existing chat bubble (the drawer's helper when dashToday.jsx is loaded, the
+  // bubble's own deep-link otherwise); Schedule and Assign are the shell's own
+  // tabs, same-document inside a coach shell.
+  const messageClient = () => {
+    if (typeof dashMessageClient === "function") { dashMessageClient(data.client.name, myRole); return; }
+    const opts = { who: data.client.name };
+    try { if (typeof window.__openChat === "function") { window.__openChat(opts); return; } } catch (e) {}
+    const b = document.getElementById("shape-global-chat-button");
+    if (b) { window.__openChatRequest = opts; b.click(); }
+  };
+  const actGhost = { background: "transparent", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.25)", padding: "10px 18px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: "pointer", whiteSpace: "nowrap" };
+  const actPrimary = { ...actGhost, background: "#f2ede4", color: "#1a1612", border: 0, fontWeight: 500 };
+  const actions = (
+    <React.Fragment>
+      <a href={hrefTo(myRole, "clients")} style={actGhost}>← Clients</a>
+      <a href={hrefTo(myRole, "schedule")} style={actGhost}>Schedule</a>
+      <a href={hrefTo(myRole, isNutri ? "plans" : "programs")} style={actGhost}>{isNutri ? "Assign a plan" : "Assign a program"}</a>
+      <button onClick={messageClient} style={actPrimary}>Message {firstName}</button>
+    </React.Fragment>
+  );
 
   const counterparts = data.careTeam.filter(c => !c.isMe);
   // A FAILED care-team read must never render as "you are the only coach". When
@@ -466,16 +593,23 @@ function CoachClientDetailPage() {
   const upcoming = data.sessions.filter(s => new Date(s.at).getTime() >= Date.now() && s.status !== "completed");
   const past = data.sessions.filter(s => new Date(s.at).getTime() < Date.now() || s.status === "completed").slice(-12).reverse();
 
-  // ── live rollups (with per-field demo fallback) ──
+  // ── live rollups — HONEST EMPTIES, never a per-field demo fallback ──
+  // A field the client has not shared, or not logged yet, renders as a
+  // redaction (CKEmpty / "—"), the way the roster drawer and the mobile Case
+  // File already do. The fallbacks that lived here painted a plausible athlete
+  // under a real client's name — "Back Squat 82.5 kg", a 96% attendance, a
+  // 79.2 kg trend, 170 g of protein against a target nobody set (review
+  // 2026-09-09, R7). A coach reading a new client's file must see what is
+  // missing, not a stand-in.
   const S = data.stats || {}, L = data.lifts || {};
   const G = data.goals || {};
   const ov = (G && G.share !== false && G.overall) ? G.overall : null;
   const liveW = ov && Array.isArray(ov.weighIns) ? ov.weighIns.map(x => Number(x.kg)).filter(x => !isNaN(x)) : [];
-  const bwSeries = liveW.length >= 2 ? liveW : (isNutri ? [80.4, 80.1, 79.9, 79.7, 79.6, 79.4, 79.3, 79.2] : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]);
+  const bwSeries = liveW.length >= 2 ? liveW : null;
   const bwUnit = (ov && ov.unit) || "kg";
-  const bwNow = bwSeries[bwSeries.length - 1];
-  const bwDelta = +(bwNow - bwSeries[0]).toFixed(1);
-  const bwWeeks = bwSeries.length;
+  const bwNow = bwSeries ? bwSeries[bwSeries.length - 1] : null;
+  const bwDelta = bwSeries ? +(bwNow - bwSeries[0]).toFixed(1) : null;
+  const bwWeeks = bwSeries ? bwSeries.length : 0;
 
   const sDone = ckNum(S.sessionsCompleted), sPlan = ckNum(S.sessionsPlanned);
   const attendancePct = (sPlan && sPlan > 0) ? Math.round((sDone / sPlan) * 100) : null;
@@ -488,34 +622,34 @@ function CoachClientDetailPage() {
     const best = L.keyLifts.map(x => ckNum(x.best)).filter(v => v != null);
     const mx = best.length ? Math.max(...best) : 1;
     return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta), e1 = ckNum(x.e1rm); const v = b != null ? (e1 != null ? `${b} kg · ${Math.round(e1)} e1RM` : `${b} kg`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
-  })() : [
-    { n: "Back Squat", v: "82.5 kg", d: "+7.5", p: 0.92 },
-    { n: "Bench Press", v: "52.5 kg", d: "+5.0", p: 0.55 },
-    { n: "Deadlift", v: "110 kg", d: "+10", p: 1.0 },
-    { n: "Overhead Press", v: "35 kg", d: "+2.5", p: 0.38 },
-  ];
+  })() : [];
+  // Targets are not in the overview yet — the drawer says "no target set" for
+  // the same reason — so the row shows the average the client actually logged
+  // and names the missing target instead of inventing one.
   const macros = [
-    { n: "Protein", cur: avgP != null ? avgP : 165, tgt: 170, c: teal },
-    { n: "Carbs", cur: avgC != null ? avgC : 190, tgt: 200, c: gold },
-    { n: "Fat", cur: avgF != null ? avgF : 60, tgt: 62, c: rust },
+    { n: "Protein", cur: avgP, tgt: null, c: teal },
+    { n: "Carbs", cur: avgC, tgt: null, c: gold },
+    { n: "Fat", cur: avgF, tgt: null, c: rust },
   ];
 
+  const dash = "—";
   const statGrid = isNutri ? [
-    { label: "ADHERENCE", value: adherencePct != null ? adherencePct : 92, small: "%", sub: "this week", color: gold },
-    { label: "AVG INTAKE", value: kcalStr || "2,040", sub: "kcal / day", color: gold },
-    { label: "WEIGHT Δ", value: bwDelta, small: bwUnit, sub: "vs start", color: rust },
-    { label: "LOGGED", value: days7 != null ? days7 : 6, small: "/7", sub: "this week", color: gold },
+    { label: "ADHERENCE", value: adherencePct != null ? adherencePct : dash, small: adherencePct != null ? "%" : null, sub: adherencePct != null ? "this week" : "no logs shared yet", color: gold },
+    { label: "AVG INTAKE", value: kcalStr || dash, sub: kcalStr ? "kcal / day" : "no logs shared yet", color: gold },
+    { label: "WEIGHT Δ", value: bwDelta != null ? bwDelta : dash, small: bwDelta != null ? bwUnit : null, sub: bwDelta != null ? "vs start" : "no weigh-ins shared", color: rust },
+    { label: "LOGGED", value: days7 != null ? days7 : dash, small: days7 != null ? "/7" : null, sub: days7 != null ? "this week" : "no logs shared yet", color: gold },
   ] : [
-    { label: "ATTENDANCE", value: attendancePct != null ? attendancePct : 96, small: "%", sub: "this block", color: teal },
-    { label: "SESSIONS", value: sDone != null ? sDone : 38, sub: `of ${sPlan != null ? sPlan : 41} planned`, color: teal },
-    { label: "AVG RPE", value: avgRpe != null ? avgRpe.toFixed(1) : "8.0", sub: "effort logged", color: rust },
-    { label: "PRS", value: prs != null ? prs : 3, sub: "this block", color: gold },
+    { label: "ATTENDANCE", value: attendancePct != null ? attendancePct : dash, small: attendancePct != null ? "%" : null, sub: attendancePct != null ? "this block" : "no sessions planned yet", color: teal },
+    { label: "SESSIONS", value: sDone != null ? sDone : dash, sub: sPlan != null ? `of ${sPlan} planned` : "none planned yet", color: teal },
+    { label: "AVG RPE", value: avgRpe != null ? avgRpe.toFixed(1) : dash, sub: avgRpe != null ? "effort logged" : "no RPE logged yet", color: rust },
+    { label: "PRS", value: prs != null ? prs : dash, sub: prs != null ? "this block" : "none logged yet", color: gold },
   ];
 
   return (
     <DashPage
       navItems={navItems}
       payoutCard={payout}
+      actions={actions}
       eyebrow={typeof memberAge === "number" ? `CLIENT · AGE ${memberAge}` : "CLIENT"}
       title={data.client.name}
       subtitle={careTeamPartial
@@ -542,10 +676,12 @@ function CoachClientDetailPage() {
             )}
           </Card>
 
+          <CKCoachNote key={clientId} clientId={clientId} accent={accent} />
+
           {!isNutri && (
             <Card style={{ marginBottom: 16 }}>
               <CKSecHead>KEY LIFTS</CKSecHead>
-              {liftRows.map((l, i) => (
+              {liftRows.length ? liftRows.map((l, i) => (
                 <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.n}</span>
@@ -553,7 +689,7 @@ function CoachClientDetailPage() {
                   </div>
                   <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, l.p) * 100}%`, background: accent }} /></div>
                 </div>
-              ))}
+              )) : <CKEmpty>No logged lifts yet — key lifts fill in from the sets they log.</CKEmpty>}
             </Card>
           )}
 
@@ -564,9 +700,9 @@ function CoachClientDetailPage() {
                 <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.n}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur} g <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.c }}>▲ {m.tgt} g</span></span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "rgba(242,237,228,0.45)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
                   </div>
-                  <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div>
+                  {m.cur != null && m.tgt ? <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div> : null}
                 </div>
               ))}
             </Card>
@@ -575,9 +711,9 @@ function CoachClientDetailPage() {
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
               <CKSecHead>{isNutri ? "BODY · WEIGHT TREND" : "BODY · BODYWEIGHT"}</CKSecHead>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>{bwNow} {bwUnit} · {bwDelta >= 0 ? "+" : ""}{bwDelta} over {bwWeeks}</span>
+              {bwSeries && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>{bwNow} {bwUnit} · {bwDelta >= 0 ? "+" : ""}{bwDelta} over {bwWeeks}</span>}
             </div>
-            <CKTrend vals={bwSeries} color={accent} />
+            {bwSeries ? <CKTrend vals={bwSeries} color={accent} /> : <CKEmpty>No shared weigh-ins yet — two weigh-ins draw the trend.</CKEmpty>}
           </Card>
 
           {counterparts.length > 0 && (

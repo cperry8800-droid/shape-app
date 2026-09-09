@@ -281,9 +281,25 @@ function dashFindRecord(clients, who) {
   return (clients || []).find((c) => String(c.client ? c.client.profile.name : c.profile.name).trim().toLowerCase() === key) || null;
 }
 
-function dashClientSlugHref(name) {
-  const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  return "ClientProfile.html?client=" + encodeURIComponent(slug);
+// The per-client deep dive — the REAL coach client page, by id. Only a live
+// record (a real user id) has one: a demo record and a live client with no
+// linked account resolve to null, and callers hide the link. This used to build
+// a name-slug into ClientProfile.html, a demo persona page with no backend calls
+// that fell back to "Priya Shah" for any real client (review 2026-09-09, R1) —
+// a live coach must never be routed there again.
+// Inside a coach shell (TrainerApp / NutritionistApp set window.__shapeCoachShell)
+// the page is the `#client/<id>` route — an instant, same-document switch that
+// keeps the sidebar. Anywhere else it is the standalone page.
+function dashClientPageHref(id, role) {
+  if (!id) return null;
+  if (typeof window !== "undefined" && window.__shapeCoachShell) return "#client/" + encodeURIComponent(id);
+  return (role === "nutritionist" ? "NutritionistClient.html" : "TrainerClient.html") + "?id=" + encodeURIComponent(id);
+}
+function dashClientHref(rec, role) {
+  const r = rec && rec.client ? rec.client : rec;
+  const id = r && r.profile ? r.profile.id : null;
+  if (!id || /^demo-/.test(String(id))) return null;
+  return dashClientPageHref(id, role);
 }
 
 // Expandable schedule rows (step 4.1) — same anatomy as DashShell's default
@@ -325,7 +341,7 @@ function ExpandableSchedule({ schedule, clients, role }) {
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={() => dashMessageClient(s.who, role)} style={actionStyle}>Message</button>
-                  <a href={dashClientSlugHref(s.who)} style={{ ...actionStyle, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)" }}>Last notes</a>
+                  {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ ...actionStyle, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)" }}>Client file</a>}
                   <a href={role === "nutritionist" ? "NutritionistLiveConsole.html" : "TrainerLiveConsole.html"} style={{ ...actionStyle, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)" }}>Start log</a>
                 </div>
               </div>
@@ -840,4 +856,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientSlugHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });

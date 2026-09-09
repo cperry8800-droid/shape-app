@@ -11,7 +11,7 @@ function clientNavItems(active) {
     { label: "Workouts",  slug: "workouts" },
     { label: "Nutrition", slug: "nutrition" },
     { label: "Library",   slug: "library" },
-    { label: "Team",      slug: "team", count: 2 },
+    { label: "Team",      slug: "team" },      // was a literal badge of 2 on every tab, signed in or not
     { label: "Community", slug: "community" },
     { label: "Score",     slug: "score" },
     { label: "Habits",    slug: "habits" },
@@ -21,6 +21,7 @@ function clientNavItems(active) {
   ];
   return items.map(n => ({ ...n, href: "ClientApp.html#" + n.slug, active: n.label.toLowerCase() === active.toLowerCase() }));
 }
-const clientPayoutCard = { label: "SHAPE SCORE", amount: "1,284", sub: "Tempo · 716 to Form" };
+// `demo: true` marks it as the preview card — see coachNav.jsx.
+const clientPayoutCard = { demo: true, label: "SHAPE SCORE", amount: "1,284", sub: "Tempo · 716 to Form" };
 
 Object.assign(window, { clientNavItems, clientPayoutCard });

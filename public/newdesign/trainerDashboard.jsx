@@ -1,15 +1,126 @@
 // Dashboard layout — shared between Trainer, Client, Nutritionist variants.
 // See: Shape Community live spec. Direction B visual system (PAPER/INK/TEAL).
 
+// ── The sidebar's live figures ───────────────────────────────────────────────
+// The money card and the Clients count used to be LITERALS in coachNav.jsx /
+// clientNav.jsx ("PAYOUT APR 30 · $18,420 · Month to date · +22%", 34 clients,
+// "SHAPE SCORE · 1,284"), passed by every route and therefore shown to
+// signed-in accounts on the tabs that never fetched anything (review
+// 2026-09-09, R11). The sidebar now resolves them itself from the same feeds
+// Today uses — one fetch per page load, cached 60s — so every tab agrees:
+//   signed out (401)         → the demo literal the route passed (under the band)
+//   signed in, feed live     → MONTHLY · NET + active subs, or SHAPE SCORE
+//   signed in, feed unknown  → "—" (a number nobody measured is never shown)
+//   still resolving          → "—" (never a flash of demo money on a real account)
+// A route that computed its own live card (Business shows the Stripe balance)
+// keeps it: only the three known demo literals are ever replaced.
+const _dsbCache = new Map(); // url -> { at, ok, signedOut, data }
+async function dsbFetch(url) {
+  const hit = _dsbCache.get(url);
+  if (hit && Date.now() - hit.at < 60000) return hit;
+  let out;
+  try {
+    // Prefer dashData.jsx's shared 60s cache when it is on the page: the route
+    // hook asks for this same endpoint, and two fetches of one payload per page
+    // load is a round trip nobody needs. It resolves at CALL time, not at
+    // definition time — this module loads before dashData.jsx.
+    const shared = typeof window !== "undefined" && window.dashJson;
+    if (shared) {
+      out = { ok: true, signedOut: false, data: await shared(url) };
+    } else {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (res.status === 401) out = { ok: false, signedOut: true, data: null };
+      else if (!res.ok) out = { ok: false, signedOut: false, data: null };
+      else out = { ok: true, signedOut: false, data: await res.json() };
+    }
+  } catch (e) {
+    // dashJson throws "HTTP 401" for the signed-out case; everything else is an
+    // unknown, which renders "—" rather than a demo figure.
+    const signedOut = /\b401\b/.test(String((e && e.message) || ""));
+    out = { ok: false, signedOut, data: null };
+  }
+  out.at = Date.now();
+  _dsbCache.set(url, out);
+  return out;
+}
+function dsbMoney(cents) {
+  const n = Math.round(Number(cents) || 0) / 100;
+  return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function dsbRoleFromNav(navItems) {
+  const href = (navItems && navItems[0] && navItems[0].href) || "";
+  if (/NutritionistApp/i.test(href)) return "nutritionist";
+  if (/TrainerApp/i.test(href)) return "trainer";
+  if (/ClientApp/i.test(href)) return "client";
+  return null;
+}
+function useDashSidebarLive(role) {
+  const [state, setState] = React.useState(null); // null = still resolving
+  React.useEffect(() => {
+    let on = true;
+    if (!role) { setState({ kind: "none" }); return undefined; }
+    (async () => {
+      if (role === "client") {
+        const r = await dsbFetch("/api/client/score");
+        if (!on) return;
+        if (r.signedOut) return setState({ kind: "demo" });
+        const d = r.ok ? r.data : null;
+        if (!d || typeof d.points_total !== "number") return setState({ kind: "unknown" });
+        const cur = d.current_tier, next = d.next_tier;
+        setState({ kind: "live", card: {
+          label: "SHAPE SCORE",
+          amount: d.points_total.toLocaleString(),
+          sub: (cur && cur.name ? cur.name : "") + (next && next.name ? " · " + (d.points_to_next != null ? d.points_to_next + " to " : "") + next.name : ""),
+        } });
+        return;
+      }
+      const r = await dsbFetch("/api/" + role + "/dashboard");
+      if (!on) return;
+      if (r.signedOut) return setState({ kind: "demo" });
+      const d = r.ok ? r.data : null;
+      const okKey = role === "trainer" ? "isTrainer" : "isNutritionist";
+      if (!d || !d[okKey] || !d.kpis) return setState({ kind: "unknown" });
+      const k = d.kpis;
+      setState({ kind: "live", count: k.activeClients, card: {
+        label: "MONTHLY · NET",
+        amount: k.monthlyNetCents != null ? dsbMoney(k.monthlyNetCents) : "—",
+        sub: (k.activeClients != null ? k.activeClients : 0) + " active subs · payouts connect soon",
+      } });
+    })();
+    return () => { on = false; };
+  }, [role]);
+  return state;
+}
+
 // Reusable sidebar. Renders a dashboard home href + nav items with active states.
 // navItems items: { label, count, active, href }
 // Note: the marketing top nav (Header from pageShell.jsx) is rendered above
 // this sidebar by DashPage/DashShell. The fixed header is ~56px tall so the
 // sticky sidebar offsets by that amount to sit just below it.
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
+  const role = dsbRoleFromNav(navItems);
+  const live = useDashSidebarLive(role);
+  // ⚠ THE DEMO CARD IS RECOGNISED BY A MARK ON THE DATA, not by object identity.
+  // The three literals carry `demo: true` (coachNav.jsx / clientNav.jsx); a
+  // clone, a spread, or a page that loads neither nav module would all miss an
+  // identity check and put "$18,420 · +22%" back in front of a live coach —
+  // which is the defect this exists to fix. Identity stays as a fallback for a
+  // literal that has not been marked.
+  const demoLiterals = [window.trainerPayoutCard, window.nutriPayoutCard, window.clientPayoutCard].filter(Boolean);
+  const passedIsDemo = !!payoutCard && (payoutCard.demo === true || demoLiterals.indexOf(payoutCard) !== -1);
+  let card = payoutCard;
+  if (passedIsDemo && !(live && (live.kind === "demo" || live.kind === "none"))) {
+    card = live && live.kind === "live"
+      ? live.card
+      : role === "client"
+        ? { label: "SHAPE SCORE", amount: "—", sub: live ? "loads when your score syncs" : "loading…" }
+        : { label: "PAYOUTS", amount: "—", sub: live ? "connects when payouts go live" : "loading…" };
+  }
+  const liveCount = live && live.kind === "live" && live.count != null ? live.count : null;
+  const items = (navItems || []).map((n) => (liveCount != null && (n.slug === "clients" || n.label === "Clients")) ? { ...n, count: liveCount } : n);
   return (
     <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 82, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
-      {navItems.map((n, i) => (
+      {items.map((n, i) => (
         <a key={i} href={n.href || "#"} data-tour={'webtab-' + (n.slug || '')} className="shape-dash-navlink" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "11px 14px", borderRadius: 14,
@@ -25,11 +136,11 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
           )}
         </a>
       ))}
-      {payoutCard && (
+      {card && (
         <div className="shape-dash-payout" style={{ marginTop: 24, padding: 16, background: "rgba(10,197,168,0.08)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{payoutCard.label}</div>
-          <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, marginTop: 6, letterSpacing: "-0.01em" }}>{payoutCard.amount}</div>
-          <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{payoutCard.sub}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{card.label}</div>
+          <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, marginTop: 6, letterSpacing: "-0.01em" }}>{card.amount}</div>
+          <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{card.sub}</div>
         </div>
       )}
     </aside>
@@ -52,7 +163,11 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
             <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1 }}>{title}</h1>
             {subtitle && <div style={{ fontSize: 15, color: "rgba(242,237,228,0.6)", marginTop: 14, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
           </div>
-          {actions && <div style={{ display: "flex", gap: 10, paddingTop: 14 }}>{actions}</div>}
+          {/* flexWrap: a nowrap row of action pills opposite a 52px title is
+              clipped by main's overflowX:hidden at narrow widths (and on a
+              phone, which gets the 980px desktop layout) — the buttons wrap
+              under the title instead of disappearing. */}
+          {actions && <div style={{ display: "flex", gap: 10, paddingTop: 14, flexWrap: "wrap", justifyContent: "flex-end" }}>{actions}</div>}
         </div>
         {children}
       </main>

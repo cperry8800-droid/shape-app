@@ -71,6 +71,10 @@ function _dashRecordFromLive(row, ov) {
     streaks: null,             // not exposed to coaches yet
     lastContact: null,         // needs a thread-timestamp lookup (roadmap)
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || checkins[0].weekOf || null : null } : null,
+    // The last few check-ins themselves (week_of · ratings · wins · struggles ·
+    // question · weight), so the Week view can read a client's week without a
+    // second round trip; the engine keeps reading the summary above.
+    checkins: checkins || null,
     nutrition: stats && (stats.avgCalories != null || stats.avgProtein != null)
       ? { avgCalories: stats.avgCalories, targetCalories: null, avgProtein: stats.avgProtein, targetProtein: null }
       : null,
@@ -193,4 +197,8 @@ function useDashboard(role) {
   return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source };
 }
 
-Object.assign(window, { useDashboard });
+// `dashJson` is exposed so other modules on the page share this 60s cache
+// rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
+// wants the same /api/{role}/dashboard payload the page hook already asks for;
+// without the shared cache that is a second round trip on every dashboard load.
+Object.assign(window, { useDashboard, dashJson: _dashJson });
