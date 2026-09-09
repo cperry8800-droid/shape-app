@@ -429,6 +429,120 @@ things this world does not carry; both stay available (§10).
 ---
 
 
+## The film, v1 — "Silhouettes" built: thirty bars on the pick's grid (2026-09-09)
+
+Owner, on the runner pair with the watch: *"ok looks good. make the rest of video now."* So the film is built as §2b describes it —
+**generated: the figures; drawn: everything else** — on the pick's measured 119.95 grid (`meas_d1.json`, re-measured in the run:
+119.95 · P 0.500208 · φ 0.055 · halves 120.0 / 120.0), 1440×2560 · 24 fps · **30 bars = 1,442 frames / 60.08 s**. Every page
+starts on a downbeat with a page turn; the mark is top-left in every frame with the launch cut's throb and glow, gated on the
+kick; the bar, the captions and the end card are drawn per frame; no phone appears anywhere (the runner wears the watch).
+
+**The pages** (`plan.json`, verbatim below; `bar(b)` = the bar-b downbeat on the grid):
+
+| Bars | Page | What is on it | Source · offset | Caption |
+|---|---|---|---|---|
+| 1–2 | black · the riser | walks in from the left and breaks into a dance, a highlighter outline | `fig_riser.mp4` · 0.0 s | — |
+| 3–4 | the app · Home → TRAIN → the Train deck | a real capture of the production preview on its dark paper | `ui_home_train.mp4` · 0.8 s | *Written before you arrive.* |
+| 5–6 | black · the lifter | kettlebell swings | `fig_lifter.mp4` · 0.5 s | — |
+| 7–8 | the app · the live session | the ▶ tap, the session, a scroll | `ui_session.mp4` · 1.2 s | *The live session.* |
+| 9–10 | black · the cook | tossing the pan, vegetables in the air | `fig_cook.mp4` · 0.5 s | — |
+| 11–12 | the app · Eat | the Menu, a scroll | `ui_menu.mp4` · 0.3 s | *Every meal, planned.* |
+| 13–15 | black · the coach | seated on her stool, one foot tapping, on the thinning kick | `fig_coach.mp4` · 0.5 s | *A person. Not an algorithm.* |
+| 16–20 | **cream · the runner** | the approved watch clip as it is, the HRM / BPM bar, the lock on the bar-19 downbeat inside the breakdown | `runner.mp4` · 0.0 s | (the bar) |
+| 21–22 | black · the kicker | roundhouse kicks, landing on the kick's return | `fig_kicker.mp4` · 0.5 s | — |
+| 23–24 | the app · Shape Score | the ring, THIS TIER, THE LADDER | `ui_score.mp4` · 3.2 s | *One number that tells the truth.* |
+| 25–26 | black · the skipper | one jump per beat under the rope | `fig_skipper.mp4` · 0.5 s | — |
+| 27–28 | the montage | one figure per beat: riser · lifter · cook · coach · **runner (cream)** · kicker · skipper · riser | each at 6.0 s in (the last at 7.0) | — |
+| 29–30 | the end card | the mark centred with its glow flashing on the downbeat, the wordmark, the teal rule drawing under it, *Different goals. One Community.*, ONE PLATFORM FEE · $5 /MO · CANCEL ANY TIME; the track fades over the last 0.6 s | drawn | — |
+
+**What the clip gate settled, measured before a frame was rendered.** The six block-A clips (one take each, `minimax_h3`,
+Sources rows 8–13) were gated on sampled frames (`gate.py`, `gate2.py`): every figure solid (hollow ratio 0.00–0.03), the page
+still (top-band boil 0.1–1.3 luma), no white object anywhere (a lit phone screen is ~17,000 px above luma 250; these hold 0–921),
+mask areas 3–14 % of the page, and the grey column blocks safely above the figure threshold (luma 90–150 against the figures'
+< 40). A 1-bit **mask sheet** of the six at 1, 4 and 8 s was brought across as checksummed base64 (18 lines; one corrupted in
+transit and repaired from 50-char pieces) and looked at: the riser walks in from the left edge and opens into a dance; the
+lifter swings; the cook stands behind a counter with the vegetables in the air; the coach sits on a stool; the kicker's braids
+whip; the skipper jumps under the rope. ⚠ **Two of the clips draw the page's masthead rule LOW — inside the band the pass
+strokes.** The pass strikes thin full-width dark rows the way it strikes the column rules — up to 60 px in the top zone (rows
+250–700), 12 px below it — so a masthead band drawn low goes and the cook's counter and the skipper's floor stay. *A generated
+page has its architecture where the model put it, not where the prompt did.*
+
+**The captures.** Eight segments of the production `/m/` signed-out preview (`pw/tourF.js`, below), CDP `Page.captureScreenshot`
+at a 360×640 viewport, **scale 3** (1080×1920 → 1440×2560 in the stitch), ~10 fps — a first pass at scale 4 gave the film's exact
+frame but only ~5 fps, and a 3.6-s scroll in 16 steps is a stepped scroll. ⚠ **The preview boots on its dark paper** (measured:
+the Home page's luma is 18–31 across its rows), so the app pages sit on the film's black page world natively and no lights-out
+seam is needed. The four used: `home_train` (tab at 1.80 s, scroll at 4.24), `session` (tap 0.50, scroll 4.54), `menu` (tab 0.50,
+scroll 2.94), `score` (tap 0.50, tier 4.55, ladder 7.14, scroll 8.75); `setlog`, `meal`, `profile` (CLIMB) and `habits` were
+captured and are checkpointed for the next cut. ⚠ **The preview's demo cast is on these pages** — the same honesty caveat as the
+feature spots, and the same owner ruling still open.
+
+| Segment | Captured frames · ms · fps | Acts (s) | Stitched (1440×2560 · 24 fps) | md5 | bytes |
+|---|---|---|---|---|---|
+| `home_train` (used, bars 3–4) | 90 · 8,870 · 10.1 | tab TRAIN 1.80 · scroll 4.24 | 209 frames | `3cb18da045576648baad736fd3108d50` | 2,279,674 |
+| `session` (used, bars 7–8) | 88 · 8,664 · 10.2 | tap ▶ 0.50 · scroll 4.54 | 206 | `2ee07376ad8db2b380062780953e7436` | 1,893,599 |
+| `setlog` | 40 · 4,580 · 8.7 | tap 0.50 | 108 | `3a1072d7b7abc0299783337144c01bcb` | 445,578 |
+| `menu` (used, bars 11–12) | 73 · 7,551 · 9.7 | tab EAT 0.50 · scroll 2.94 | 179 | `1b5fc19cb79c78172b98ff1721c965c7` | 2,180,996 |
+| `meal` | 82 · 8,628 · 9.5 | tap 0.50 · scroll 4.51 | 205 | `edb825381e252f89bf9549988bb559a5` | 3,358,426 |
+| `profile` (CLIMB) | 120 · 12,069 · 9.9 | tab ME 0.50 · scroll 2.74 · CLIMB 8.02 | 287 | `9fb38a06a78ee1492d38f9a9af831444` | 7,358,891 |
+| `score` (used, bars 23–24) | 124 · 12,848 · 9.7 | tap 0.50 · THIS TIER 4.55 · THE LADDER 7.14 · scroll 8.75 | 307 | `9ba53b79c7a0ee49434dc6d63185b75c` | 2,879,770 |
+| `habits` | 70 · 8,973 · 7.8 | tab HOME 0.40 · VIEW ALL 1.83 · scroll 5.46 | 213 | `5ee3ed76939a87f5450782d931f729c1` | 1,901,470 |
+
+Checkpointed on uguu (a 3-hour host; the film lease consumed them inside the hour) and kept in the sandbox's `cap/seg/`; the run
+took the four it used from the sandbox copies with md5s matching. The first pass at scale 4 (5 fps; md5s `7a04213d…` `b9f4ba08…`
+`d03e1994…` `0bf5ad9e…` `ebc8a9f5…` `38df237c…` `7b15c615…` `5c9fadd2…`) is superseded and was not used; its uploader had matched
+a host's error page as a URL, and the uploader now checks the host in what comes back.
+
+**The render.** `runFilm.sh` (below) in one background lease: inputs fetched or reused with md5 checks, the grid re-measured,
+**three chunks rendered in parallel** on the same script (`WINDOWS` at the bar-11 and bar-21 downbeats, video only), concatenated
+with `-c copy` and the pick muxed once with the fade — the whole pass fits one lease that way where a single process would not.
+
+| Output | md5 | bytes | frames · s | measured |
+|---|---|---|---|---|
+| **`film_v1.mp4`** | `2561acfa4e44feb5111f382eabd4ecd6` | 28,485,970 | 1,442 · 60.084 | chunks A/B/C 482 / 480 / 480 frames, rendered in 198 (A 180 · B 117 · C 193) s on three cores, the whole lease 248 s; the pick under it at 119.95 (re-measured on the rendered audio: 119.95 · P 0.500208 · φ 0.055 over 60.024 s) |
+
+The first render of the same plan (`film.py` md5 `a4a8a1281945c9b31f2f02ce5c33ecf4`, output md5 `12677a5d5fd6b92ae04c09428ce7fc7f`,
+28,520,674 B) is superseded: its verifier read 18 / 22, and the one real failure among the four was the cook's page — the
+masthead band that clip draws low is thicker than a hairline, survived the 12-px strike and was outlined as a glowing bar (the
+top-left crop held 12,265 teal px against the lifter's 3,208). The other three were the instrument: a "within-page" window that
+straddled a caption's fade-in, the same window straddling a montage cut, and a threshold tuned for cream pages applied to two
+black ones. Handed over as links (gofile, and a 72-hour direct link); review copies are never committed.
+
+**Verified on the render** (`verifyF.py`, below, md5 `071351874e647e1801057b2c575303bf`): **21 PASS / 1 FAIL — the one failure is the instrument: the turn INTO the montage is a black outline page turning into another black outline page, which differ by 8.4 luma levels where the check wanted 8.6; the pages log and the montage-cut check show the turn and the cut happened**.
+
+```
+probe 1440×2560 · 24/1 · nb_read_frames 1442 · duration 60.084
+PASS turn ui_train across 23.7 within 0.6
+PASS turn lifter across 11.5 within 0.7
+PASS turn ui_session across 10.1 within 0.2
+PASS turn cook across 14.3 within 3.5
+PASS turn ui_menu across 14.0 within 0.4
+PASS turn coach across 14.8 within 2.7
+PASS turn runner across 158.3 within 28.7
+PASS turn kicker across 159.6 within 5.4
+PASS turn ui_score across 13.6 within 0.4
+PASS turn skipper across 15.8 within 3.6
+FAIL turn montage across 8.4 within 3.3
+PASS turn end across 5.4 within 0.0
+PASS mark on kick lifter beat 16 on 3208 mid 3026 kb 0.749
+PASS mark on kick cook beat 32 on 3252 mid 3028 kb 0.864
+PASS mark still in the breakdown on 2306 mid 2313 kb 0.001
+PASS IN SYNC lands on bar 19 post 6628 pre 339 TS 36.070
+PASS caption ui_train start 0 mid 12642
+PASS caption coach start 2229 mid 10963
+PASS caption ui_score start 0 mid 13299
+PASS end card wordmark white px 15685 fee-line teal 8747
+PASS montage cut diff 6.8
+PASS audio grid {'bpm': 119.95, 'P': 0.500208, 'phase': 0.055, 'score': 0.3855} dur 60.024
+RESULT 21 PASS 1 FAIL
+```
+
+⚠ **Not watched by the agent.** Eight frames — one per kind of page — were brought across as a checksummed 6-level contact sheet
+and looked at: the riser's outline with the mark and ribbon on the black page; the Train deck with *Written before you arrive.*;
+the coach with her line; the runner on cream with the bar reading IN SYNC; the kicker; Shape Score with its line; the runner's
+cream flash in the montage; the end card. Two things for the next cut, seen there: the captions on the app pages sit over
+content near the bottom of the page (a band, or a higher line, next time), and the coach's clip carries a tall dark block beside
+her stool that the pass outlines as furniture.
+
 **The scripts, verbatim.** `film.py` (md5 `a6fb1d284af62fa40db8ff761f897326`) — the assembly; `plan.json` (md5 `73bab387490a77abb6da41a0cc86bc22`) — the pages;
 `runFilm.sh` (md5 `fbc3d4f2db34198147524c13873000b7`) — the lease; `pw/tourF.js` (md5 `281706420cbd08d0f42d4bbf6ea8d545`) — the capture tour at scale 3, and
 `segF.py` (md5 `ed8ea16086c0fa036849706cb3e86449`) — the stitch; `runCap2.sh` (md5 `6aa10cf47768241fe39652112bf1c2c1`) — the capture lease; `verifyF.py`
