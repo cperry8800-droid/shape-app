@@ -24,8 +24,9 @@ for nm,nb in (('lifter beat 12',12),('cook beat 20',20),('skipper beat 84',84)):
     fb=frame(beatt(nb)+1/24)[crop]; fm=frame(beatt(nb)+P/2)[crop]; chk(f'mark on kick {nm}',teal(fb)>teal(fm)*1.02,f'on {teal(fb)} mid {teal(fm)} kb {KB[nb]}')
 fb=frame(beatt(70)+1/24)[crop]; fm=frame(beatt(70)+P/2)[crop]; chk('mark still in the breakdown',abs(teal(fb)-teal(fm))<=max(60,0.03*teal(fb)),f'on {teal(fb)} mid {teal(fm)} kb {KB[70]}')
 TS=bar(19); band=lambda f:f[150:262,540:1140]; chk('IN SYNC lands on bar 19',teal(band(frame(TS+0.4)))>3000 and teal(band(frame(TS-0.3)))<800,f'post {teal(band(frame(TS+0.4)))} pre {teal(band(frame(TS-0.3)))} TS {TS:.3f}')
+# the caption fades in from T0+0.35, after the 8-frame crossfade; 'start' is sampled at T0+0.30 (the crossfade at 97 %, the previous page's ink already lightened past the ink threshold, the caption not yet drawn) in the glyph rows only, so a figure standing under the band counts the same in both samples
 for nm,T0,T1 in (('lifter',bar(3),bar(5)),('coach',bar(11),bar(14)),('radio',bar(14),bar(16))):
-    c0=text(frame(T0+0.05)[2000:2180,90:1350]); c1=text(frame((T0+T1)/2)[2000:2180,90:1350]); chk(f'caption band {nm}',c1>c0+1500,f'start {c0} mid {c1}')
+    c0=text(frame(T0+0.30)[2040:2140,200:1240]); c1=text(frame((T0+T1)/2)[2040:2140,200:1240]); chk(f'caption band {nm}',c1>c0+1500,f'start {c0} mid {c1}')
 f=frame(bar(14)+2.0); chk('radio play glyph',teal(f[2040:2130,380:560])>400,f'teal in the glyph box {teal(f[2040:2130,380:560])}')   # the glyph sits 70 px left of the caption's left edge: x ~430-476 for 'Shape Radio.'
 for nm,T in (('lifter',bar(3)+1.0),('coach',bar(11)+1.0)):
     f=frame(T); col=f[300:700,950:970]; chk(f'no column rule {nm}',(teal(col) if not CREAM else ink(col))<40,f'line px {teal(col) if not CREAM else ink(col)}')
