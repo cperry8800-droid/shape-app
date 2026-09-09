@@ -16,12 +16,14 @@ ffprobe -v error -select_streams v -count_frames -show_entries stream=nb_read_fr
 md5sum fig_*.mp4 runner.mp4 globe.mp4 globe_slow.mp4 d1.m4a tri.png Newsreader.ttf film2.py plan2.json verifyF2.py beat.py meas_d1.py runFilm2.sh; say INPUTS-OK
 [ -s meas_d1.json ] || python3 meas_d1.py; md5sum meas_d1.json; say GRID-OK
 [ "$STAGE" = prep ] && { say PREP-DONE; exit 0; }
+# three chunks at a time: the sandbox has 8 GB, and six x264 encoders at 1440x2560 (~1.1 GB each) beside six assemblies (~0.9 GB each) were OOM-killed on the first lease
 for look in $LOOKS; do
   LOOK=$look NOAUDIO=1 WINDOWS="0-20.0633" python3 film2.py ${look}_A.mp4 > log_${look}_A.txt 2>&1 &
   LOOK=$look NOAUDIO=1 WINDOWS="20.0633-40.0716" python3 film2.py ${look}_B.mp4 > log_${look}_B.txt 2>&1 &
   LOOK=$look NOAUDIO=1 WINDOWS="40.0716-61" python3 film2.py ${look}_C.mp4 > log_${look}_C.txt 2>&1 &
+  wait; say CHUNKS-$look-DONE
 done
-wait; for l in log_*.txt; do echo "== $l"; tail -n 1 $l | cut -c1-120; done; say CHUNKS-DONE
+for l in log_*.txt; do echo "== $l"; tail -n 1 $l | cut -c1-120; done; say CHUNKS-DONE
 up(){ f=$1; g=$(s=$(curl -s https://api.gofile.io/servers | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['servers'][0]['name'])"); curl -s -F "file=@$f" "https://$s.gofile.io/contents/uploadfile" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['downloadPage'])")
   r=$(curl -s -m 300 -F reqtype=fileupload -F time=72h -F "fileToUpload=@$f" https://litterbox.catbox.moe/resources/internals/api.php); case "$r" in https://litter.catbox.moe/*) l=$r;; *) l=$(curl -s -m 300 -F "files[]=@$f" https://uguu.se/upload | python3 -c "import sys,json;print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null);; esac
   echo "UPLOAD $f gofile=$g direct=$l"; }

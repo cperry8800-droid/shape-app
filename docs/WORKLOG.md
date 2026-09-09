@@ -475,6 +475,58 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-09 — Film v2 in two looks: eight owner notes answered, no app pages, a Shape Radio page, the globe close — and the account runs out of credits mid-build
+
+- **Owner, on film v1: *"the wording at bottom of video gets lost in background, hard to see. also the person is getting cut off
+  in the middle of video. there is a weird line thats cuts the down middle of screen. remove the fighting/karate scene. There is
+  none of those activities on shape. dont include full pictures of the app, that is going to be in a separate ad video. This is
+  all acting out of various activities how shape helps and improves somones health and fitness. also dont forget a clip on shape
+  radio. need someone choosing to listen during a workout, also need to end with the globe clip that we generated. I want a
+  version in the highliter and print look."*** So [`marketing/shape-one-shot-film.md`](../marketing/shape-one-shot-film.md) now
+  carries **"The film, v2"**: one plan rendered twice — the highlighter look on the black page and the halftone print on cream —
+  on the same 119.95 grid. Captions sit in a translucent band so they read on anything; every seam is an 8-frame crossfade
+  (v1's page-turn wipe is what sliced the figures); the pages draw no column rules and the pass strikes the hairlines the
+  clips draw; the kicker is gone; no app capture appears; a Shape Radio page (a woman putting her earbuds in and tapping her
+  watch, under **▸ Shape Radio.**); and the film ends on the Americas globe from the launch cut with the lockup and the two end
+  lines. Three new figures generated (the yoga flow, the cyclist, the radio chooser; Sources rows 14–16, prompts verbatim); links
+  handed over in chat; **no PR, nothing merged.**
+- ⚠ **THE ACCOUNT IS OUT OF CREDITS — MEASURED, NOT ASSUMED.** The radio take came back as a **bust** (head and shoulders filling
+  43–46 % of the page, the model's grey pseudo-text behind her), so a full-length second take was drafted and submitted: the
+  first submission was intercepted by a preset recommendation and created no job; the resubmission with the preset declined was
+  refused — *"Out of credits on plus (monthly) plan in Private workspace."* Nothing billed, no second take. The bust is
+  therefore the page: taken at luma < 40 (the pseudo-text is grey, the figure black) and dissolved over the 260 px above the
+  ticker rather than ending on a cut. **Every further generation waits on the owner's plan** — the film can be re-shot page by
+  page when credits return, and nothing else in it needs one.
+- ⚠ **THE SYNTHETIC TEST CAUGHT A DEFECT THAT EVERY REAL INPUT SO FAR HAD HIDDEN.** The column-rule detector struck any
+  column more than 35 % dark; v1's figures were thin (3–14 % of the page) and never tripped it, and a bust does — every column
+  through the torso is 80 % dark, so the figure was hollowed into stripes and the radio page rendered **empty**. Found by
+  rendering the page on a synthetic bust before a lease was spent; the detector now groups the dark columns and strikes only
+  groups at most 8 px wide, the rule `RuleFinder` always had. **Then the first render's contact sheet showed the note's own
+  "line down the middle" on the cook's page**: his clip draws a 4-px rule beside his counter, and over the page's height the
+  counter's columns are as dark as the rule, so the two merged into one 344-column group the width test kept. Rules are 2–4 px
+  groups dark through the top zone (rows 250–700), where no figure reaches — measured on every clip — so the strike takes those
+  too, and the four chunks the cook touches were re-rendered from the checkpointed ones. *A property that held on every input
+  so far is a property of those inputs* — twice in one afternoon, and the second one was found by looking, not by a number.
+- ⚠ **THE SANDBOX REPLACES ITS INSTANCE BETWEEN CALLS NOW, AND THE 16 KB COMMAND CAP MEANS A HEREDOC CANNOT CARRY THE
+  ASSEMBLY.** Files staged in one call were gone at the next (`/proc/uptime` under 20 s on a fresh instance, three times in an
+  hour), and `film2.py` is 18 KB. So the six producers are **committed as files** under `marketing/film-v2/` and the lease is one
+  line that fetches them from `raw.githubusercontent.com` on the branch — the launch-cut recipe's `boot5.sh` route with files
+  instead of fenced blocks. *A file staged in a sandbox that will be reclaimed before it is used was never staged* — this file's
+  own sentence from the morning, paid for again the same afternoon.
+- ⚠ **AND THE FIRST RENDER LEASE RAN SIX CHUNKS AT ONCE ON 8 GB, AND THE KERNEL KILLED THREE ENCODERS.** Each x264 at
+  1440×2560 holds ~1.1 GB and each assembly process ~0.9 GB; `dmesg` recorded the OOM kills and the three assemblies died on the
+  broken pipe behind them. `runFix.sh` waited for the survivors, **checkpointed every finished chunk to a 72-hour host** (so a
+  reclaimed instance costs the chunk in flight, not the film), re-rendered the three that died three at a time — the ceiling v1
+  measured — checkpointed those, then muxed, uploaded and verified. Three at a time is now the run script's loop.
+- **The globe close is the launch cut's Scene D clip, not a new generation.** Its first 4.5 s hold the Americas at night before
+  the sunrise the model baked in (measured 2026-09-08); stretched ×2.6667 they cover the six-bar page without a frozen frame,
+  and the lockup — the mark with its glow flash, the wordmark, the teal rule, the two end lines in the band — draws over it
+  from 4.0 s in.
+- **Verified on the renders:** {{VERIFY_SUMMARY_WL}} ⚠ Not watched by the agent; {{LOOKED_AT_WL}} the owner's look is the QA.
+  Records: the treatment section, Sources rows 14–16 plus the un-billed row, §9 and §10 (q6 and q9 closed by the notes, q10 the
+  re-shoot), the scripts as files with md5s; the branch merged with `origin/main` (#2012–#2016) rather than rebased, one
+  WORKLOG conflict resolved by keeping both sides. Docs and script files only; **no PR, nothing merged.**
+
 ### 2026-09-09 — The one-shot film exists as a cut: six figures generated, four app pages captured, thirty bars assembled on the pick's grid
 
 - **Owner, on the runner pair with the watch: *"ok looks good. make the rest of video now."*** So the film in

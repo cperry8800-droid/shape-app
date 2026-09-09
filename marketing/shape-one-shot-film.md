@@ -390,6 +390,7 @@ IN SYNC, once.
 | Captures | one sandbox lease | — |
 | Renders | the two-stage runner, verify re-derived on the render | — |
 | **The film, v1 (2026-09-09)** | six block-A figures, one take each, all six kept; the runner's watch clip and the pick reused; eight captures; one render lease (248 s) | **6 `minimax_h3`** |
+| **The film, v2 (2026-09-09)** | three new figures (yoga · cyclist · radio), one take each; the runner, the six kept v1 figures, the globe and the pick reused; no captures; two render leases (the first OOM-killed three of six chunks; the recovery lease re-rendered them three at a time) and one re-verify lease. A second radio take was refused: **the plan is out of credits** | **3 `minimax_h3`** (a fourth submitted and refused, unbilled) |
 
 ## 10 · Open questions for the owner (with the default I will use)
 
@@ -404,17 +405,20 @@ IN SYNC, once.
 4. **The one new line.** *A person. Not an algorithm.* — keep (default) or silence over the coach.
 5. **Casting.** Seven figures in §4, one phrase each; the runner is the printed frame-8 runner, everyone else a
    highlighter outline, so casting is build and hair rather than face.
-6. **The world.** v1 closed on the night Earth with 44 marks; this world closes on the montage and the mark
-   (default). A flat-graphic globe — continents as a highlighter outline on the black page, marks popping — is one
-   extra generation if you want the world back.
+6. **The world — CLOSED (2026-09-09).** *"need to end with the globe clip that we generated"*: v2 closes on the Americas globe
+   (the launch cut's Scene D, row 4 of the launch-cut Sources) with the lockup and the two end lines over it. No new
+   generation: the clip's first 4.5 s, stretched, cover the six-bar page.
 7. **Whose numbers.** The Score, ledger and Terrain captures come from a real account (default: yours).
 8. **The tempo of the film — CLOSED.** Settled by the same day's rulings: 140, then *"how about 130 bpms"*, then
    *"ok go back to 120"*. The film rides the pick at its native 119.95 (§6); the bar says 120 because that is what the
    music measures.
-9. **Phones in the film.** The style video now has no phone and the runner wears the watch (your 2026-09-09 ruling).
-   The film's spine (§1, §2) goes IN through each person's phone glass and OUT through the next. Default: the runner's
-   own shot is phone-free with the watch, and the transitions still pass through phones; if phones are out of the film
-   altogether, the seam becomes the watch face and the ribbon, and §2 is re-cut.
+9. **Phones in the film — CLOSED (2026-09-09).** v2 has no phone anywhere and no seam passes through one: every seam is a
+   crossfade, the runner wears the watch, and the app is not on screen (*"dont include full pictures of the app, that is going
+   to be in a separate ad video"*). The through-the-glass spine of §1–§2 is v1's; v2's spine is the ribbon and the grid.
+10. **The Shape Radio page is a bust, because the account ran out of credits.** The one take (row 15) is head and shoulders;
+    a full-length second take was drafted and refused for credits (the un-billed Sources row). Default: the bust stays, taken
+    at luma < 40 and dissolved above the ticker. When credits return, one `minimax_h3` re-shoot with the drafted prompt
+    replaces it; nothing else in the film needs a generation.
 
 ## 11 · What changed from v1, and why
 
@@ -960,6 +964,126 @@ chk('audio grid',abs(g['bpm']-BPM)<0.3,f"{g} dur {len(x)/beat.SR:.3f}")
 print('RESULT',ok,'PASS',bad,'FAIL'); print('VERIFYF-DONE')
 ```
 
+## The film, v2 — two looks, activities only, the globe close (2026-09-09)
+
+Owner, on v1: *"the wording at bottom of video gets lost in background, hard to see. also the person is getting cut off in the
+middle of video. there is a weird line thats cuts the down middle of screen. remove the fighting/karate scene. There is none
+of those activities on shape. dont include full pictures of the app, that is going to be in a separate ad video. This is all
+acting out of various activities how shape helps and improves somones health and fitness. also dont forget a clip on shape
+radio. need someone choosing to listen during a workout, also need to end with the globe clip that we generated. I want a
+version in the highliter and print look."* Eight notes; v2 answers each, and is rendered **twice from one plan** — the
+highlighter look on the black page and the halftone print on cream — on the same 119.95 grid, 1440×2560 · 24 fps · 30 bars.
+
+| The note | What v2 does |
+|---|---|
+| the wording gets lost | every caption sits in a **band** across the page (rows 2000–2180, a translucent cream band with ink type on the print look, an ink band with cream type on the black look; 82-px Newsreader); the two end lines ride the same band over the globe |
+| the person is cut off | v1 turned the page with a **wipe** on every downbeat, and a wipe slices whatever figure is mid-page; v2's seams are **8-frame crossfades** — no figure is ever cut |
+| the line down the middle | the **column rules**: v1's pages drew the broadsheet's rules and the clips carried their own; v2's pages carry only the masthead rule and the ticker, the pass strikes any hairline rule a clip draws (a group of ≤ 8 dark columns — see the defect below), and the runner's own rules are painted out on the print look (`strike_clip_rules`) |
+| no fighting | the kicker is gone (Sources row 12 superseded; not on a page, not in the montage) |
+| no pictures of the app | no capture appears; the eight v1 segments stay checkpointed for the separate ad. Every page is a person doing something |
+| a Shape Radio clip | bars 14–15: a woman putting her earbuds in and tapping her watch, under **▸ Shape Radio.** (row 15 — the one take; see the bust note) |
+| end with the globe | bars 25–30 (12 s): the Americas globe (the launch cut's Scene D, job `135d629d`), its first 4.5 s — the night side before the baked-in sunrise — stretched ×2.6667 to cover the page, the mark with its glow flash, the wordmark, the teal rule and the two end lines from 4.0 s in |
+| the two looks | `LOOK=hl` and `LOOK=print`: the same masks, the same ribbon, the same bar; teal strokes with glow on black, or ink halftone (16-px cells) on cream; the runner's approved clip is the print itself on cream and is hollowed on black (its teal carried as light); the globe page is the same on both |
+
+**The pages** (`plan2.json`; `bar(b)` = the bar-b downbeat; every page starts on a downbeat and crossfades in over 8 frames):
+
+| Bars | Page | Source · offset | Caption |
+|---|---|---|---|
+| 1–2 | the riser — walks in and breaks into a dance | `fig_riser.mp4` · 1.5 s | — |
+| 3–4 | the lifter — kettlebell swings | `fig_lifter.mp4` · 0.5 s | *Written before you arrive.* |
+| 5–6 | the cook — the pan tossed, vegetables in the air | `fig_cook.mp4` · 0.5 s | *Every meal, planned.* |
+| 7–8 | the yoga flow — lunge to warrior and back | `fig_yoga.mp4` · 0.5 s | *Small things, daily.* |
+| 9–10 | the cyclist — out of the saddle and back | `fig_cyclist.mp4` · 0.5 s | *One number that tells the truth.* |
+| 11–13 | the coach — on her stool, one foot tapping, on the thinning kick | `fig_coach.mp4` · 0.5 s | *A person. Not an algorithm.* |
+| 14–15 | Shape Radio — the earbuds in, the watch tapped, the nod | `fig_radio.mp4` · 0.5 s | **▸** *Shape Radio.* |
+| 16–20 | **the runner** — the approved watch clip, the HRM / BPM bar, IN SYNC on the bar-19 downbeat inside the breakdown | `runner.mp4` · 0.0 s | (the bar) |
+| 21–22 | the skipper — one jump per beat, landing on the kick's return | `fig_skipper.mp4` · 0.5 s | — |
+| 23–24 | the montage — riser · lifter · cook · yoga · cyclist · coach · radio · runner, one per beat | each at 6.0 s in | — |
+| 25–30 | **the globe** — the Americas at night, the lockup from 4.0 s, *Different goals. One Community.* · ONE PLATFORM FEE · $5 /MO · CANCEL ANY TIME from 6.0 s; the track fades under it | `globe_slow.mp4` · 0.0 s | (the end lines) |
+
+Three new figures (rows 14–16): the yoga flow, the cyclist and the radio chooser, one take each. The cyclist's first submission
+created **no job** — the tool answered with a preset recommendation instead ("DROWN IN MUSIC"), the trap the orb record warns
+about — and was resubmitted with that preset declined. Gated the same way as v1's six (mask area, boil, white objects) and
+looked at on a 1-bit mask sheet: the yoga figure clean at 8.5–9.2 % of the page, the cyclist and his bike one shape at 12.6–13 %,
+and **the radio take a bust** — head and shoulders filling 43–46 % of the page, the model's grey pseudo-text behind her.
+
+⚠ **The radio take is a bust, and it stays, because the account has no credits.** A second take was drafted — full-length, small in
+the middle of a plain cream page — and submitted twice: the first submission was intercepted by the "IN THE DARK" preset and
+created no job; the second, with the preset declined, was refused: *"Out of credits on plus (monthly) plan in Private
+workspace."* **Nothing was billed; there is no second take.** So the pass carries the bust instead: the figure is taken at
+luma < 40 (the pseudo-text is grey at ~150, the figure black), and dissolved over the 260 px above the ticker so it does not
+end on a straight cut (`OPTS` in `film2.py`, keyed by the clip's file name — the montage's slot inherits it). Whether the page
+is re-shot when credits return is the owner's (§10 q10).
+
+⚠ **A defect the synthetic test caught before a lease was spent: the column-rule detector struck any column that was more than
+35 % dark, which hollows a wide figure into stripes.** v1's figures were thin (3–14 % of the page) and never tripped it; a bust
+does — every column through the torso is 80 % dark. Rendering the radio page on a synthetic bust (a black head-and-shoulders on
+cream with grey text-rows behind it) produced **an empty page**: no figure at all. The detector now groups the dark columns and
+strikes only groups at most 8 px wide — the same rule `RuleFinder` has always used — so a hairline goes and a torso stays.
+*A property that held on every input so far is a property of those inputs.*
+
+⚠ **And the first render's contact sheet showed a rule the grouped strike had spared — on the cook's page, the note's own
+"line down the middle".** The cook's clip (row 10, a block-A prompt that still asked for column rules) draws a 4-px rule at
+x 389 beside his counter; over the page's height the counter's columns are as dark as the rule, so the two merge into one
+344-column group and the width test keeps it. Measured on every clip at 0.5 s: the rules are 2–4 px groups dark through more
+than 80 % of the **top zone** (rows 250–700), where no figure reaches; the strike now takes those as well (≤ 12 px through the
+top zone, alongside ≤ 8 px over the full height), and the four chunks the cook touches — the A chunks and the montage's C
+chunks, both looks — were re-rendered from the checkpointed B chunks (`rerender.sh`). The first render of the plan (`film2.py`
+`ca56d1ba702c46b9d4f2ec1d5ea996e6`; hl md5 `6e3e92257aff387acd78c4e70024cedd` · 29,955,784 B, print `ba704b018b118f2e9303d910a1d18b6f`
+· 43,438,109 B; verifier 22 / 24 and 24 / 24 on the corrected instrument, the two hl failures the cook's and the runner's
+seams read against pages whose own motion exceeds the seam) is superseded by it. *A sheet is looked at for what the numbers
+did not ask.*
+
+⚠ **The sandbox replaces its instance between calls now, so the scripts live in the repo.** Files staged in one call were gone
+at the next (a fresh instance, `/proc/uptime` under 20 s), and `film2.py` is bigger than the 16 KB a single command may carry.
+The six producers are therefore committed as files under [`marketing/film-v2/`](film-v2/) and the launch is one line that fetches
+them from `raw.githubusercontent.com` on this branch — a fetch survives an instance the way a heredoc cannot. The launch-cut recipe's
+`boot5.sh` fetches its recipe the same way; this is the same route with the scripts as files rather than fenced blocks.
+
+⚠ **The first render lease ran six chunks at once and the kernel killed three of its encoders.** The sandbox has 8 cores and
+8 GB; each x264 encoder at 1440×2560 holds ~1.1 GB and each assembly process ~0.9 GB, so six pairs do not fit — `dmesg`
+recorded `Out of memory: Killed process (ffmpeg)` for the two A chunks and one C chunk, and each assembly died on the broken pipe
+behind it. The three survivors finished; `runFix.sh` (below) waited for them, checkpointed each finished chunk to a 72-hour host,
+re-rendered the three that died — **three at a time, the ceiling v1 measured on three cores** — checkpointed those, then
+concatenated, muxed, uploaded and verified. The run script's own chunk loop now runs one look at a time (`LOOKS`).
+
+**The render.**
+
+{{RENDER_TABLE}}
+
+**Verified on the renders** (`verifyF2.py`): {{VERIFY_SUMMARY}}
+
+```
+{{VERIFY_HL}}
+```
+
+```
+{{VERIFY_PRINT}}
+```
+
+{{LOOKED_AT}}
+
+**The scripts** — files in [`marketing/film-v2/`](film-v2/), fetched by each lease from this branch; md5s as they ran: `film2.py`
+`8880aa8f23af39dd0067ded3f9b13a5b` (the assembly: `LOOK`, the figure masks with the grouped rule strike over the full height and
+through the top zone, the per-clip `OPTS`, the halftone and the highlighter stroke, the ribbon, the bar, the bands, the globe
+lockup, the crossfade seams, `WINDOWS` chunking; the first render's copy `ca56d1ba…` lacked the top-zone rule) · `plan2.json`
+`0c7f0933a12119dca1c6a3604cad117e` · `runFilm2.sh` `54559d5ace266000953723a1548f9e01` (inputs, the globe stretch, the grid, the chunks three at a time, the mux, the
+uploads, the verify; `STAGE=prep` stops after the grid, `LOOKS` picks the looks — the copy that ran the first lease,
+`081649f3fd071641a70cc85b90b3b82d`, launched all six chunks at once) · `runFix.sh` `d66f67a78643ae4aedbffab93a91c130` (the recovery
+lease) · `rerender.sh` `c599078b40c163d08ae99e41c9cc54f3` (the re-render lease: the touched chunks from the checkpointed ones, three
+at a time, then mux, upload, sheets, verify) · `verifyF2.py` `fc72f3585b4545d8893cf74b9ab7a55d` (the instrument as corrected: a
+crossfade seam read as the page before it against the page after it over one frame of its own motion, both samples inside the
+montage's first slot; the caption's "start" sampled after the crossfade in the glyph rows; the play glyph looked for where it is
+drawn — the copy that ran on the first render, `45796f26…`, sampled the montage's seam across its first cut and the caption
+inside the crossfade) · `meas_d1.py` `e7560987139aeb03854df3c8a9311aca` · `beat.py` `63b18de45fe6eb1e446043583cc7c19e` (the
+launch-cut recipe's copy; the style pair's sandbox copy was `ccd2568c…` and is in no record, so the recipe's is the one that runs).
+`meas_d1.json`
+as measured in the lease: `66671eee4dae6b0283715147fecb144b` — 119.95 · P 0.500208 · φ 0.055 · halves 120.0 / 120.0, kick gaps at
+beats 61–79 and 112–118, the same values as every run before it.
+
+---
+
+
 ## Sources — generated media, prompts verbatim (never re-generate what is listed here)
 
 Prefix: `https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/`. Every row submitted as
@@ -1178,8 +1302,12 @@ rising and falling and tilting, never floating**.
 | 9 | The lifter · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `18f57dfd-3376-419b-b839-257387e17bed` | `hf_20260909_181112_18f57dfd-3376-419b-b839-257387e17bed.mp4` · md5 `08ee71d5d451f6147d9be8de9a8b9b7b` · 1,966,409 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a broad-shouldered man, swinging a kettlebell from between his legs up to eye level and back in steady rhythmic swings in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
 | 10 | The cook · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `e5ae899a-8f7b-4334-8330-9ff42025a91c` | `hf_20260909_181112_e5ae899a-8f7b-4334-8330-9ff42025a91c.mp4` · md5 `a0f4cd45e3d9bd943284ce3d13c740f7` · 2,136,292 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a cook in an apron, tossing a frying pan so chopped vegetables hang in the air as black shapes, then catching them, again and again in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
 | 11 | The coach · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `c739d3a7-3538-4748-a8f1-5bed0265097c` | `hf_20260909_181112_c739d3a7-3538-4748-a8f1-5bed0265097c.mp4` · md5 `76fc4cc0b70c260b561c3a18bb8f844f` · 2,629,840 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman seated on a stool, one foot tapping hard and her head nodding to a beat in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
-| 12 | The kicker · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `c420854d-efa3-441a-abc9-3abbb53181d5` | `hf_20260909_181112_c420854d-efa3-441a-abc9-3abbb53181d5.mp4` · md5 `4af5670e12cb9612652dfd5ed4c39281` · 3,901,873 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman with long braids, throwing high roundhouse kicks one after another, her braids whipping in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 12 | The kicker · block A, one take — ⚠ **not in v2** (owner: *"remove the fighting/karate scene. There is none of those activities on shape"*); generated, kept, unused (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `c420854d-efa3-441a-abc9-3abbb53181d5` | `hf_20260909_181112_c420854d-efa3-441a-abc9-3abbb53181d5.mp4` · md5 `4af5670e12cb9612652dfd5ed4c39281` · 3,901,873 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman with long braids, throwing high roundhouse kicks one after another, her braids whipping in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
 | 13 | The skipper · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 18:11 UTC | `a15ce573-8f24-4561-a059-eb80cf6726f3` | `hf_20260909_181112_a15ce573-8f24-4561-a059-eb80cf6726f3.mp4` · md5 `6a4a9d3dc7dfe99f5ae38d4d19f2a2f9` · 1,814,902 B · 243 frames | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, thin vertical column rules with empty grey blocks and no letters, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a man jumping rope in steady rhythmic jumps, the rope a thin black arc over his head in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 14 | The yoga flow · block A, one take (`minimax_h3` · 9:16 · 10 s · 2K · `use_unlim false` · `declined_preset_id 24bae836-…`) — 2026-09-09 19:20 UTC | `e2269340-1db6-40b9-a10c-3c2ae91d25a3` | `hf_20260909_192019_e2269340-1db6-40b9-a10c-3c2ae91d25a3.mp4` · md5 `8e2f09052d5cac5a577bc68689a242c3` · 1,795,607 B | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman in a yoga flow, moving from a deep lunge into a warrior pose and back, her arms sweeping up overhead and down, slow and continuous, in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 15 | The radio chooser · block A, one take (same params) — 2026-09-09 19:20 UTC. ⚠ A bust: head and shoulders fill 43–46 % of the page with the model's grey pseudo-text behind her; used as it is, at luma < 40 with the bottom dissolved (see "The film, v2") | `0a0efbdd-f348-4cec-98f0-e207f2d9a938` | `hf_20260909_192018_0a0efbdd-f348-4cec-98f0-e207f2d9a938.mp4` · md5 `0fba566e850893a61117ff3b5d8fb6eb` · 2,823,200 B | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman standing at the start of a workout, putting a small wireless earbud into one ear and then the other, then tapping the fitness watch on her wrist and starting to nod and bounce to a beat, in the middle of the page, pure black with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| 16 | The cyclist · block A, one take (same params, but `declined_preset_id f1821f84-945b-4cd1-9085-1f479db0028e` — the first submission created no job: the tool recommended the "DROWN IN MUSIC" preset instead) — 2026-09-09 19:21 UTC | `de795141-1050-440a-9f60-25aee30c685c` | `hf_20260909_192131_de795141-1050-440a-9f60-25aee30c685c.mp4` · md5 `822950fd0acb716742b9e5baacbf9d64` · 2,048,105 B | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a man on a stationary exercise bike seen side-on, pedalling hard, rising out of the saddle and sitting back down, in the middle of the page, the bike and the man one pure black shape with hard clean edges and no interior detail, no face. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
+| — | A second radio take, full-length on a plain page — **NOT GENERATED, nothing billed.** Submitted 2026-09-09 19:43 UTC: the first submission was intercepted by the "IN THE DARK" preset (no job); the resubmission with `declined_preset_id 24bae836-…` was refused — *"Out of credits on plus (monthly) plan in Private workspace."* | — | — | *Vertical 9:16. A flat 2D animation in an editorial newspaper style unique to a brand called Shape. The whole frame is a static page of cream newsprint that never moves: a bold double hairline rule across the top like a masthead, and a black ticker strip along the bottom with a teal left border, hex 34D6C5. One jet-black figure, a woman standing at the start of a workout, seen full-length from head to toe and from a distance so the whole figure is small in the middle of the page with plain cream space all around her, putting a small wireless earbud into one ear and then the other, then tapping the fitness watch on her wrist and starting to nod and bounce to a beat, pure black with hard clean edges and no interior detail, no face. The cream page is plain and flat with no texture, no dots, no halftone, no pattern. Locked-off camera, no camera movement. No readable text, no logos, no phone.* |
 
 **The pair from E3's clip, with the sync bar and the exact mark on the screen (`final5.py` = `final4.py` with the
 screen pass gated, below):** the gripped-phone clip is `hf_20260908_222614_2ca2dd4c-….mp4`, md5
