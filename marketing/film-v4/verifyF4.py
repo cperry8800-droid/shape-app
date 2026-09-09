@@ -10,12 +10,6 @@ def teal(f): return int(((abs(f[...,0]-0x34)<40)&(abs(f[...,1]-0xd6)<40)&(abs(f[
 def cream(f): return int(((f[...,0]>200)&(f[...,1]>190)&(f[...,2]>170)).sum())
 def ink(f): return int((f.max(-1)<60).sum())
 text=ink if CREAM else cream
-def edgeink(f):
-    """Ink that stands next to paper within 3 px -- the glyphs of a caption are all edge, a figure's legs under the band rows are a blob with a rim. Used for the print look's caption check, where the coach pair's legs stand in the glyph rows: at the caption's start they count as ink in full, and once the band has lightened them to ~215 they do not, so a plain ink count read the caption as REMOVING ink."""
-    from PIL import Image,ImageFilter
-    dark=(f.max(-1)<60); bright=(0.299*f[...,0]+0.587*f[...,1]+0.114*f[...,2])>150
-    near=np.asarray(Image.fromarray((bright*255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7)))>0
-    return int((dark&near).sum())
 pr=subprocess.run(['ffprobe','-v','error','-select_streams','v','-count_frames','-show_entries','stream=nb_read_frames,r_frame_rate,width,height:format=duration','-of','json',F],capture_output=True,text=True).stdout
 print('probe',' '.join(pr.split())); ok=0; bad=0
 def chk(name,cond,detail):
@@ -33,7 +27,11 @@ fb=frame(beatt(70)+1/24)[crop]; fm=frame(beatt(70)+P/2)[crop]; chk('mark still i
 TS=bar(19); band=lambda f:f[150:262,540:1140]; chk('IN SYNC lands on bar 19',teal(band(frame(TS+0.4)))>3000 and teal(band(frame(TS-0.3)))<1200,f'post {teal(band(frame(TS+0.4)))} pre {teal(band(frame(TS-0.3)))} TS {TS:.3f}')
 # the caption fades in from T0+0.35, after the 8-frame crossfade; 'start' is sampled at T0+0.30 (the crossfade at 97 %, the previous page's ink already lightened past the ink threshold, the caption not yet drawn) in the glyph rows only, so a figure standing under the band counts the same in both samples
 for nm,T0,T1 in (('lifter',bar(1),bar(4)),('coach',bar(10),bar(13)),('radio',bar(13),bar(16))):
-    tf=edgeink if CREAM else text; c0=tf(frame(T0+0.30)[2040:2140,200:1240]); c1=tf(frame((T0+T1)/2)[2040:2140,200:1240]); chk(f'caption band {nm}',c1>c0+1500,f'start {c0} mid {c1}')
+    if CREAM:   # the print look: a halftone figure standing in the band rows is ALL edge, so edge ink read the same before and after the band (13.8k / 12.7k on the coach page). The band is one layer with the caption, and its fill lightens whatever stands under it: at the caption's midpoint the rows above the glyphs (2010-2040) read cream nearly everywhere, and the glyph rows carry the text's ink
+        fm=frame((T0+T1)/2); c1=ink(fm[2040:2140,200:1240]); u1=float((fm[2010:2040,200:1240].min(-1)>200).mean()); c0=ink(frame(T0+0.30)[2040:2140,200:1240])
+        chk(f'caption band {nm}',c1>1500 and u1>0.97,f'start ink {c0} mid ink {c1} band rows cream {u1:.3f}')
+    else:
+        c0=text(frame(T0+0.30)[2040:2140,200:1240]); c1=text(frame((T0+T1)/2)[2040:2140,200:1240]); chk(f'caption band {nm}',c1>c0+1500,f'start {c0} mid {c1}')
 f=frame(bar(13)+2.0); chk('radio play glyph',teal(f[2040:2130,380:560])>400,f'teal in the glyph box {teal(f[2040:2130,380:560])}')   # the glyph sits 70 px left of the caption's left edge: x ~430-476 for 'Shape Radio.'
 for nm,T,x0 in (('lifter',bar(1)+1.0,505),('coach',bar(10)+1.0,950)):   # the lifter's probe sits on the 12-px dark column its clip draws at x 517 (struck as a rule), not in the kettlebell's path
     f=frame(T); col=f[300:700,x0:x0+20]; chk(f'no column rule {nm}',(teal(col) if not CREAM else ink(col))<40,f'line px {teal(col) if not CREAM else ink(col)}')
