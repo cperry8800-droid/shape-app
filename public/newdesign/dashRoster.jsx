@@ -64,7 +64,12 @@ function dashAdherenceLabel(rec) {
 function dashProgramLabel(rec) {
   const pr = rec.program;
   if (!pr || !pr.name) return { text: "Not set", dim: true };
-  return { text: pr.name + (pr.week ? " · Wk " + pr.week + (pr.weeks ? "/" + pr.weeks : "") : "") };
+  // A paused block carries no week (the count is wall-clock and knows nothing
+  // about the pause), so say WHY the number is missing rather than showing a
+  // bare name that reads like a live program.
+  const tail = pr.status === "paused" ? " · paused"
+    : pr.week ? " · Wk " + pr.week + (pr.weeks ? "/" + pr.weeks : "") : "";
+  return { text: pr.name + tail };
 }
 function dashStreakLabel(rec) {
   const s = rec.streaks;
@@ -73,19 +78,26 @@ function dashStreakLabel(rec) {
 }
 function dashContactLabel(rec, role) {
   const lc = rec.lastContact;
-  const ts = lc ? (role === "nutritionist" ? lc.nutritionist : lc.trainer) : null;
-  if (!ts) return { text: "Not shared", dim: true };
+  // Three states, not two: no leg at all = we can't see your thread; a leg with
+  // a null timestamp = your thread exists and you have never used it. The
+  // second is a KNOWN fact about the coach's own inbox, and calling it "Not
+  // shared" hides exactly the client who most needs the nudge.
+  if (!lc) return { text: "Not shared", dim: true };
+  const ts = role === "nutritionist" ? lc.nutritionist : lc.trainer;
+  if (!ts) return { text: "Never", warn: true };
   const d = dashDaysSince(ts);
   return { text: d === 0 ? "Today" : d + "d ago", warn: d >= 5 };
 }
 function dashScoreCell(rec) {
-  const h = rec.shapeScoreHistory;
-  if (!Array.isArray(h) || !h.length) return dashCellText({ text: "Not shared", dim: true });
-  const last = h[h.length - 1].points;
-  const delta = h.length >= 2 ? last - h[h.length - 2].points : null;
+  // DashSignals.scoreWeekReading is the ONE definition of this delta — it
+  // compares the two newest COMPLETE weeks, so an in-progress current week
+  // shows its live number without reading as a mid-week collapse.
+  const r = DashSignals.scoreWeekReading(rec.shapeScoreHistory);
+  if (!r) return dashCellText({ text: "Not shared", dim: true });
   return (
-    <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.85)", whiteSpace: "nowrap" }}>
-      {last}{delta != null && <span style={{ color: delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}> {delta >= 0 ? "▲+" + delta : "▼−" + Math.abs(delta)}</span>}
+    <span title={r.partial ? "Week in progress" : undefined} style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.85)", whiteSpace: "nowrap" }}>
+      {r.points}{r.partial && <span style={{ color: DASH_ROSTER_INK50 }}>*</span>}
+      {r.delta != null && <span style={{ color: r.delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}> {r.delta >= 0 ? "▲+" + r.delta : "▼−" + Math.abs(r.delta)}</span>}
     </span>
   );
 }
@@ -145,16 +157,17 @@ function DashDrawerSpark({ data, color = "#2ee0c4", w = 120, h = 34 }) {
 
 // Section bodies — each handles its own honest empty state.
 function DashSecScore({ rec }) {
-  const h = rec.shapeScoreHistory;
-  if (!Array.isArray(h) || !h.length) return <DashDrawerEmpty>Score history isn't shared to coaches yet.</DashDrawerEmpty>;
-  const last = h[h.length - 1].points;
-  const delta = h.length >= 2 ? last - h[h.length - 2].points : null;
+  const r = DashSignals.scoreWeekReading(rec.shapeScoreHistory);
+  if (!r) return <DashDrawerEmpty>Score history isn't shared to coaches yet.</DashDrawerEmpty>;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-      <DashDrawerSpark data={h.map((x) => x.points)} />
+      <DashDrawerSpark data={r.series} />
       <div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, letterSpacing: "-0.02em" }}>{last} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>wk pts</span></div>
-        {delta != null && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, marginTop: 3, color: delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{delta >= 0 ? "▲ +" + delta : "▼ −" + Math.abs(delta)} wk/wk</div>}
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, letterSpacing: "-0.02em" }}>{r.points} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>wk pts</span></div>
+        {/* The delta names which weeks it compares — a bare arrow beside an
+            in-progress number invites reading it as this week vs last. */}
+        {r.delta != null && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, marginTop: 3, color: r.delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{r.delta >= 0 ? "▲ +" + r.delta : "▼ −" + Math.abs(r.delta)} {r.partial ? "last full wk" : "wk/wk"}</div>}
+        {r.partial && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginTop: 3 }}>Week in progress</div>}
       </div>
     </div>
   );
@@ -176,7 +189,12 @@ function DashSecAdherence({ rec }) {
 }
 function DashSecNotes({ rec }) {
   const notes = rec.coachNotes;
-  if (!Array.isArray(notes) || !notes.length) return <DashDrawerEmpty>No notes yet — console notes will sync here.</DashDrawerEmpty>;
+  // Same three-state idiom as DashSecLogs below: [] is a doc that was read and
+  // holds nothing for this client; null is a doc that could not be read, and
+  // asserting "no notes yet" there tells the coach they wrote nothing when the
+  // truth is we could not look.
+  if (notes == null) return <DashDrawerEmpty>Couldn't read your notes just now — reopen to retry.</DashDrawerEmpty>;
+  if (!Array.isArray(notes) || !notes.length) return <DashDrawerEmpty>No notes yet — write one on the client's file.</DashDrawerEmpty>;
   return (
     <div>
       {notes.slice(0, 3).map((n, i) => (
@@ -296,9 +314,9 @@ function DashSecWeighIns({ rec }) {
 }
 function DashSecTrainingContext({ rec }) {
   const adh = rec.trainingAdherence;
-  const hist = rec.shapeScoreHistory;
-  const wkPts = Array.isArray(hist) && hist.length ? hist[hist.length - 1].points : null;
-  const wkDelta = Array.isArray(hist) && hist.length >= 2 ? hist[hist.length - 1].points - hist[hist.length - 2].points : null;
+  const wk = DashSignals.scoreWeekReading(rec.shapeScoreHistory);
+  const wkPts = wk ? wk.points : null;
+  const wkDelta = wk ? wk.delta : null;
   if (!adh && wkPts == null) return <DashDrawerEmpty>Training data isn't shared to coaches on the web yet.</DashDrawerEmpty>;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -361,7 +379,7 @@ function DashClientDrawer({ row, role, onClose }) {
   const view = DASH_DRAWER_VIEWS[role] || DASH_DRAWER_VIEWS.trainer;
   const sevColor = row.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[row.severity];
   const programLine = rec.program && rec.program.name
-    ? rec.program.name + (rec.program.week ? " · Wk " + rec.program.week + (rec.program.weeks ? "/" + rec.program.weeks : "") : "")
+    ? dashProgramLabel(rec).text
     : rec.goalPhase ? rec.goalPhase + " phase" : null;
 
   return (

@@ -478,9 +478,12 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
         const c = r.client;
         const isNew = r.severity === "green" && c.profile.isNew;
         const sevColor = isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS[r.severity];
-        const hist = c.shapeScoreHistory;
-        const wkPts = Array.isArray(hist) && hist.length ? hist[hist.length - 1].points : null;
-        const delta = Array.isArray(hist) && hist.length >= 2 ? hist[hist.length - 1].points - hist[hist.length - 2].points : null;
+        // One reading, shared with the roster cell, the drawer and the rule —
+        // it compares the two newest COMPLETE weeks, so the current week in
+        // progress shows its live number without reading as a collapse.
+        const wk = DashSignals.scoreWeekReading(c.shapeScoreHistory);
+        const wkPts = wk ? wk.points : null;
+        const delta = wk ? wk.delta : null;
         const streak = c.streaks && c.streaks.current != null ? c.streaks.current + "d streak" : null;
         const contact = c.lastContact ? dashRelDay(role === "nutritionist" ? c.lastContact.nutritionist : c.lastContact.trainer) : null;
         // Owned = this pro acts on it; routed = the other discipline's signal,
