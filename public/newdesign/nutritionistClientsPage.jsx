@@ -15,6 +15,12 @@ function NutritionistClientsPage() {
   const prefs = useRememberedChoices(source === "live");
   const [tab, setTab] = useRememberedChoice(prefs, "clientsTab", ["all", "shared"], "all");
   const [flt, setFlt] = useRememberedChoice(prefs, "rosterFilter", NCP_FILTER_KEYS, "all");
+  // The sort R16's memory was waiting on. `triage` — the engine's severity order — is
+  // the default and is what the roster has always shown, so a coach who never touches a
+  // header sees no change at all.
+  const [sort, setSort] = useRememberedChoice(prefs, "rosterSort", DASH_ROSTER_SORT_KEYS, "triage");
+  const [sortDir, setSortDir] = useRememberedChoice(prefs, "rosterSortDir", ["asc", "desc"], "desc");
+  const onSort = (k, d) => { setSort(k); setSortDir(d); };
 
   const activeCount = clients.length;
   const mrrCents = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
@@ -76,7 +82,7 @@ function NutritionistClientsPage() {
             </div>
             {loading
               ? <div style={{ padding: "34px 4px", textAlign: "center", color: "rgba(242,237,228,0.55)", fontSize: 13.5 }}>Loading roster…</div>
-              : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} />}
+              : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} />}
           </>
         )}
       </Card>

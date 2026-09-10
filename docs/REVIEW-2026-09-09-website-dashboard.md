@@ -333,6 +333,15 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
 - **R15 (P2, medium) — Widget settings.** A ⚙ on each card: KPI picker for the stat
   strips, time window (7d · 30d · 90d) per chart, pin clients to Today's pulse, choose the
   drawer's sections per lens.
+  ⚠ **THE ROSTER SORT SHIPPED 2026-09-10, AND IT IS THE ONLY PART OF R15 THAT HAS.** It
+  is here rather than under R16 because R16 asked to *remember* a sort that did not
+  exist — every roster column with a value behind it is now a sort button, remembered per
+  account alongside the filter and the tab. **The other four are still open**: the ⚙
+  itself, the KPI picker, the per-chart time window, pinning clients to Today's pulse, and
+  the drawer's sections per lens.
+  ⚠ **AND TWO COLUMNS DELIBERATELY DO NOT SORT:** PROGRAM and GOAL PHASE are free text a
+  coach types, so alphabetical order over them answers no question. They render as plain
+  text rather than as buttons that lead nowhere.
 - **R16 (P2, small) — Remember state.** Persist roster filters, sort, Progress trend tab
   and Schedule view alongside `dashboard_layout`.
   ⚠ **SHIPPED 2026-09-10, AND ONE QUARTER OF IT DOES NOT EXIST TO BE PERSISTED.** The
@@ -342,7 +351,10 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   (all · needs eyes · new · on track) and a search box, and no ordering control of any
   kind. Remembering a default for a control that does not exist is a preference for a
   feature that does not exist; the sort belongs to **R15**, and its memory follows it
-  there. The search box is deliberately **not** remembered either — a half-typed name is
+  there. ⚠ **AND IT DID, LATER THE SAME DAY** — the sort control shipped under R15, so
+  every roster column with a value behind it is a sort button and the choice is
+  remembered as `rosterSort` / `rosterSortDir`. **R16 is complete.** The search box is
+  deliberately **not** remembered either — a half-typed name is
   a moment, not a standing preference, and restoring it would show a coach a roster
   mysteriously narrowed to "pri" a week later.
 
@@ -450,7 +462,7 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R17/R18 | Client: score record, leaderboard, check-in history, readout; fix dead controls | P1 | S–M | routes exist |
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
 | R12 | CSV export + monthly statement | P2 | M | after payouts |
-| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 (sort belongs to R15 — no such control) |
+| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 · R15's roster SORT shipped 2026-09-10; the ⚙, KPI picker, time window, pinning and drawer sections remain |
 | R20 | Client booking + notifications inbox on the web | P2 | M | tables exist |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
