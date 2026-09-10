@@ -64,3 +64,141 @@ export function bsSdNeedle(value, trace, mode = 'pace') {
   const avg = (+m[1]) * 60 + (+m[2]);
   return { frac: clamp01((hi - avg) / (hi - lo)), lo: fmtPace(hi), hi: fmtPace(lo) };
 }
+
+// ── Display-unit conversion ─────────────────────────────────────────────────
+//
+// ⚠ THE APP BAKES UNITS INTO DISPLAY STRINGS, AND THAT IS WHY FLIPPING SETTINGS
+// USED TO CHANGE ALMOST NOTHING. A session's stats, its breakdown rows and a
+// feed card's hero all arrive as text — `'245 lb'`, `'8,150 lb'`, `'3.2 mi'`,
+// `'245 lb × 3'`, `'9:30/mi'` — from demo arrays and from live builders alike.
+// There is no number to convert by the time a card renders it, so the reader's
+// preference could only ever have relabelled them, which is worse than doing
+// nothing: a 245 that says "kg" is a lie where a 245 that says "lb" is merely
+// the wrong unit for that reader.
+//
+// So conversion happens on the TEXT, at the last moment before it is drawn.
+// The rules that keep that safe:
+//   · a strict whitelist — lb / lbs / kg / mi / km and the pace forms /mi, /km.
+//     bpm, %, spm, kcal, min, m, reps and anything else pass through untouched.
+//   · `in` is deliberately NOT a unit here. It is the commonest English word in
+//     this corpus ("3 in a row", "in 14 weeks"), and no height string in the app
+//     is worth the false positives. Inches are handled structurally where they
+//     are actually entered, not by pattern-matching prose.
+//   · the trailing guard is `(?![\w-])`, not `\b`: `\b` matches inside "mi-" and
+//     would rewrite a hyphenated word.
+//   · a number that is already in the target unit is returned untouched, so a
+//     string can be passed through this repeatedly without drifting.
+const SD_LB_TO_KG = 0.45359237;
+const SD_MI_TO_KM = 1.609344;
+
+function sdUnitKind(u) {
+  const v = String(u || '').toLowerCase();
+  if (v === 'lb' || v === 'lbs') return { kind: 'weight', key: 'lb' };
+  if (v === 'kg') return { kind: 'weight', key: 'kg' };
+  if (v === 'mi') return { kind: 'distance', key: 'mi' };
+  if (v === 'km') return { kind: 'distance', key: 'km' };
+  return { kind: null, key: v };
+}
+
+// Keep the source's own thousands separator, because dropping it turns a
+// legible "8,150 lb" into "3697 kg".
+function sdFormatNumber(n, grouped, digits) {
+  const r = Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * Math.pow(10, digits)) / Math.pow(10, digits);
+  const fixed = Math.abs(n) >= 100 ? String(r) : r.toFixed(digits).replace(/\.0+$/, '');
+  if (!grouped) return fixed;
+  const [whole, frac] = fixed.split('.');
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (frac ? `.${frac}` : '');
+}
+
+export function bsSdConvertValue(value, from, to) {
+  const f = sdUnitKind(from), d = sdUnitKind(to);
+  if (!f.kind || f.kind !== d.kind || f.key === d.key) return null;
+  if (f.kind === 'weight') return d.key === 'kg' ? value * SD_LB_TO_KG : value / SD_LB_TO_KG;
+  return d.key === 'km' ? value * SD_MI_TO_KM : value / SD_MI_TO_KM;
+}
+
+// `prefs` is { weight: 'lb'|'kg', distance: 'mi'|'km' } — the reader's two
+// Settings units. Anything missing means "leave that family alone".
+export function bsSdUnitizeText(text, prefs) {
+  if (text == null || text === '') return text;
+  const s = String(text);
+  if (!prefs) return s;
+  const want = { weight: sdUnitKind(prefs.weight).key, distance: sdUnitKind(prefs.distance).key };
+
+  // Pace first: "9:30/mi" is minutes-per-unit, so the SAME distance conversion
+  // applies to the denominator and therefore INVERTS — a faster-sounding number
+  // per kilometre is the same speed. Converting it as a plain distance token
+  // would have made every runner 60% faster on a unit flip.
+  let out = s.replace(/(\d{1,2}):([0-5]\d)\s*\/\s*(mi|km)(?![\w-])/gi, (m, mm, ss, unit) => {
+    const src = sdUnitKind(unit).key;
+    if (!want.distance || want.distance === src) return m;
+    const secs = Number(mm) * 60 + Number(ss);
+    // seconds per mile -> seconds per km is a DIVISION by 1.609, not a
+    // multiplication: a mile is longer, so each km takes less time.
+    const conv = want.distance === 'km' ? secs / SD_MI_TO_KM : secs * SD_MI_TO_KM;
+    const total = Math.round(conv);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}/${want.distance}`;
+  });
+
+  out = out.replace(/(\d[\d,]*(?:\.\d+)?)\s*(lbs?|kg|mi|km)(?![\w-])/gi, (m, num, unit) => {
+    const src = sdUnitKind(unit);
+    const target = src.kind === 'weight' ? want.weight : want.distance;
+    if (!src.kind || !target || target === src.key) return m;
+    const grouped = num.includes(',');
+    const n = Number(num.replace(/,/g, ''));
+    if (!Number.isFinite(n)) return m;
+    const conv = bsSdConvertValue(n, src.key, target);
+    if (conv == null) return m;
+    const spaced = /\s/.test(m);
+    return `${sdFormatNumber(conv, grouped, 1)}${spaced ? ' ' : ''}${target}`;
+  });
+  return out;
+}
+
+// A bare unit label with no number beside it ("lb" under a big figure).
+export function bsSdUnitizeLabel(unit, prefs) {
+  const src = sdUnitKind(unit);
+  if (!src.kind || !prefs) return unit;
+  const target = src.kind === 'weight' ? sdUnitKind(prefs.weight).key : sdUnitKind(prefs.distance).key;
+  if (!target || target === src.key) return unit;
+  // Preserve the caller's casing: these render inside uppercase type.
+  return String(unit) === String(unit).toUpperCase() ? target.toUpperCase() : target;
+}
+
+// ── Structured value + unit ─────────────────────────────────────────────────
+//
+// Where a measurement arrives as a NUMBER and a separate unit FIELD, there is
+// no prose to be careful about — so this converts a third family the text path
+// deliberately refuses: length (in ↔ cm). `in` is unmatchable in free text (it
+// is the commonest English word in this corpus) but perfectly safe as a field.
+const SD_IN_TO_CM = 2.54;
+
+function sdMeasureKind(u) {
+  const v = String(u || '').trim().toLowerCase();
+  if (v === 'lb' || v === 'lbs') return { kind: 'weight', key: 'lb' };
+  if (v === 'kg') return { kind: 'weight', key: 'kg' };
+  if (v === 'mi') return { kind: 'distance', key: 'mi' };
+  if (v === 'km') return { kind: 'distance', key: 'km' };
+  if (v === 'in' || v === 'inch' || v === 'inches') return { kind: 'length', key: 'in' };
+  if (v === 'cm') return { kind: 'length', key: 'cm' };
+  return { kind: null, key: v };
+}
+
+// Returns { value, unit } in the reader's units, or the input untouched when
+// the unit is one this does not know. `value` stays a NUMBER so the caller
+// keeps control of formatting.
+export function bsSdMeasure(value, unit, prefs) {
+  const src = sdMeasureKind(unit);
+  const n = (value == null || value === '') ? null : Number(value);
+  if (!src.kind || !prefs || n == null || !Number.isFinite(n)) return { value, unit };
+  const target = sdMeasureKind(
+    src.kind === 'weight' ? prefs.weight : src.kind === 'distance' ? prefs.distance : (prefs.length || (sdMeasureKind(prefs.weight).key === 'kg' ? 'cm' : 'in')),
+  );
+  if (!target.kind || target.kind !== src.kind || target.key === src.key) return { value: n, unit: src.key };
+  let out;
+  if (src.kind === 'weight') out = target.key === 'kg' ? n * SD_LB_TO_KG : n / SD_LB_TO_KG;
+  else if (src.kind === 'distance') out = target.key === 'km' ? n * SD_MI_TO_KM : n / SD_MI_TO_KM;
+  else out = target.key === 'cm' ? n * SD_IN_TO_CM : n / SD_IN_TO_CM;
+  const rounded = Math.abs(out) >= 100 ? Math.round(out) : Math.round(out * 10) / 10;
+  return { value: rounded, unit: target.key };
+}

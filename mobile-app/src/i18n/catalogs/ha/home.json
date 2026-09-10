@@ -16,6 +16,8 @@
   "aria.today": "yau",
   "bulletin.checkin": "Ana jiran check-in",
   "bulletin.checkinDetail": "Kuzari · barci · 30 sec",
+  "bulletin.onTheWall": "A kan bango",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Ana jiran check-in na mako",
   "bulletin.weeklyCheckinDetail": "2 min",
   "card.training": "Motsa jiki",

@@ -16,6 +16,8 @@
   "aria.today": "hôm nay",
   "bulletin.checkin": "Cần check-in",
   "bulletin.checkinDetail": "Năng lượng · giấc ngủ · 30 giây",
+  "bulletin.onTheWall": "Trên bảng vàng",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Cần check-in tuần",
   "bulletin.weeklyCheckinDetail": "2 phút",
   "card.training": "Tập luyện",

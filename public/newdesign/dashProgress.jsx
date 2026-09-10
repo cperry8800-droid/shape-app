@@ -124,6 +124,9 @@ const DPR_TREND_TABS = [
   { k: "protein", label: "Protein", unit: "g", color: "#ffb46b", fmt: (v) => Math.round(v) },
   { k: "hydration", label: "Hydration", unit: "L", color: "#6ec8ff", fmt: (v) => v.toFixed(1) },
 ];
+// Derived, never typed out again: a tab added above is remembered without anyone
+// having to notice a second list exists.
+const DPR_TREND_KEYS = DPR_TREND_TABS.map((t) => t.k);
 
 // Big trend chart — migrated from the old page.
 function DprChart({ points, height = 180, color = DPR_TEAL, gradId = "g" }) {
@@ -924,7 +927,6 @@ function ClientProgressPage() {
   const [dash, setDash] = React.useState(null);
   const [strength, setStrength] = React.useState(null);
   const [source, setSource] = React.useState(null); // null=loading · 'live' · 'demo'
-  const [trend, setTrend] = React.useState("weight");
   const [reloadKey, setReloadKey] = React.useState(0);
 
   React.useEffect(() => {
@@ -945,6 +947,12 @@ function ClientProgressPage() {
     return () => { on = false; };
   }, [reloadKey]);
   const live = source === "live";
+  // Which trend the member last looked at. `DPR_TREND_TABS` is the allowlist, so a
+  // series retired since they chose it is ignored rather than selected — and a
+  // remembered tab with fewer than two points still falls through to `availableTabs[0]`
+  // at the render below, which is the pre-existing rule and the right one.
+  const prefs = useRememberedChoices(live);
+  const [trend, setTrend] = useRememberedChoice(prefs, "progressTrend", DPR_TREND_KEYS, "weight");
   // Hoisted out of the card so the widget below can declare its own emptiness —
   // see the note on useDprWeeklyReadout.
   //

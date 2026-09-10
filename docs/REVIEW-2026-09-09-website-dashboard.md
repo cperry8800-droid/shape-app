@@ -347,6 +347,16 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   drawer's sections per lens.
 - **R16 (P2, small) — Remember state.** Persist roster filters, sort, Progress trend tab
   and Schedule view alongside `dashboard_layout`.
+  ⚠ **SHIPPED 2026-09-10, AND ONE QUARTER OF IT DOES NOT EXIST TO BE PERSISTED.** The
+  roster filter, both roster tabs, the Progress trend tab and the Schedule view are now
+  remembered per account in `user_goals('dashboard_prefs')`. **Sort is not, because
+  `dashRoster.jsx` has no sort control** — measured, not assumed: it carries a filter
+  (all · needs eyes · new · on track) and a search box, and no ordering control of any
+  kind. Remembering a default for a control that does not exist is a preference for a
+  feature that does not exist; the sort belongs to **R15**, and its memory follows it
+  there. The search box is deliberately **not** remembered either — a half-typed name is
+  a moment, not a standing preference, and restoring it would show a coach a roster
+  mysteriously narrowed to "pri" a week later.
 
 ---
 
@@ -451,12 +461,17 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R14 | Coach office settings (landing tab, units, theme, locale, thresholds, notifications) | P1 | M | partly |
 | R17/R18 | Client: score record, leaderboard, check-in history, readout; fix dead controls | P1 | S–M | routes exist |
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
+<<<<<<< HEAD
 | R12 | CSV export + monthly statement | P2 | M | CSVs SHIPPED 2026-09-10 · statement still gated on payouts |
 | R15/R16 | Widget settings; remembered filters | P2 | M | — |
+=======
+| R12 | CSV export + monthly statement | P2 | M | after payouts |
+| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 (sort belongs to R15 — no such control) |
+>>>>>>> origin/main
 | R20 | Client booking + notifications inbox on the web | P2 | M | tables exist |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
-| V4/V5 | Check the GridStack gaps on a real screen; make the demo dataset agree with itself (one money figure, one client count) | P2 | S | — |
+| V4/V5 | Check the GridStack gaps on a real screen; make the demo dataset agree with itself (one money figure, one client count) | P2 | S | V4 CHECKED 2026-09-10 — does not reproduce |
 
 Sizing: S = one PR, M = a short wave of PRs.
 
@@ -517,6 +532,31 @@ path, which production precompiles.
   gaps reproduce in a real browser or are a timing artefact of the 200ms fit in a headless
   capture needs one look on a real screen; either way the fit is fragile enough to fail
   under load timing.
+  ⚠ **CORRECTED 2026-09-10 — IT DOES NOT REPRODUCE, AND THE HEDGE IN THE LAST SENTENCE
+  WAS THE RIGHT ONE.** Re-measured in Chromium at 1440px, sampling the same grids at
+  1.5s · 3s · 6s · 9s and reading each item's own box against its content box:
+
+  | tab | height recorded | height measured | items | per-item slack | inter-row gaps |
+  | :-- | --: | --: | --: | :-- | :-- |
+  | trainer Score | 2,496px | **1,480px** | 5 | 19–20px | 0, 0, 0 |
+  | client Score | 3,234px | **1,200px** | 6 | 18–20px | 0, 0, 0, 0 |
+  | client Progress | — | **1,264px** | 8 | 18–19px | 0, 0, 0, 0 |
+  | trainer Today | — | **2,180px** | 7 | 18–19px | 0, 0, 0, 0, 0 |
+
+  There are **no 150–300px gaps anywhere**, and no hole beside Photos. The 18–20px that
+  separates a card's content from its box is the `item-content` inset — constant on every
+  card on every tab, i.e. the design, not dead space.
+  ⚠ **AND THE SETTLE TRACE SAYS WHERE THE ORIGINAL FIGURES CAME FROM.** At **1.5s every
+  one of these grids reports `n=0` items and a height of 660px** — the fit has not run
+  yet. A capture taken in that window is measuring an empty grid and a placeholder
+  height, so "a third of it empty" was a measurement of the instrument. From 3s onward
+  every figure above is stable across three further samples. **The measured heights are
+  40–63% SMALLER than the recorded ones**, which is the shape a too-early capture
+  produces, not the shape a packing bug produces.
+  ⚠ **THE SECOND CLAUSE IS NOT REFUTED AND IS NOT CLOSED BY THIS.** "The fit is fragile
+  enough to fail under load timing" is about `relayoutInOrder` racing content that
+  resizes after it runs, and nothing here tests that. What is now known is that it packs
+  correctly once it has run.
 - **V5 — The demo does not agree with itself.** Trainer Today shows four different
   monthly money figures at once — sidebar "$18,420 · PAYOUT APR 30", "THIS MONTH
   $4,192.00", "MONTHLY RECURRING $1,820", and the Business card's "$1,547 · MONTHLY · NET"

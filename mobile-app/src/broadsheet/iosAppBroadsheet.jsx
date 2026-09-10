@@ -1,5 +1,6 @@
 import React from 'react';
 import { bsSwipeIntent } from '../services/swipeIntent.mjs';
+import { bsSdUnitizeText, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -374,6 +375,30 @@ function bsUnitFormatters(system) {
     // Format a native Imperial value with the active unit appended.
     fmtWeight: (lb, digits = 0, sep = ' ') => (lb == null ? '' : `${num(metric ? lb * LB_TO_KG : lb, digits)}${sep}${metric ? 'kg' : 'lb'}`),
     fmtDistance: (mi, digits = 1, sep = ' ') => (mi == null ? '' : `${num(metric ? mi * MI_TO_KM : mi, digits)}${sep}${metric ? 'km' : 'mi'}`),
+    // ⚠ BODY WEIGHT IS KILOGRAM-NATIVE, WHICH IS THE OPPOSITE OF THE PAIR
+    // ABOVE, AND THE TWO ARE NOT INTERCHANGEABLE. `client_weigh_ins.weight` is
+    // canonicalised to kg (shapeBackend `listWeighIns`/`logWeighIn`), while a
+    // LIFT is stored in pounds — so a body weight passed to convWeight() is
+    // read as pounds and a 80 kg member renders as "36 kg". Keeping both pairs
+    // named for what they take is the only thing that stops that swap.
+    kgToDisplay: (kg) => (kg == null ? null : (metric ? Number(kg) : Number(kg) / LB_TO_KG)),
+    displayToKg: (v) => (v == null ? null : (metric ? Number(v) : Number(v) * LB_TO_KG)),
+    fmtBodyWeight: (kg, digits = 1, sep = ' ') => (kg == null ? '' : `${num(metric ? Number(kg) : Number(kg) / LB_TO_KG, digits)}${sep}${metric ? 'kg' : 'lb'}`),
+    // ⚠ THE LAST RESORT, AND THE ONE THAT REACHES THE MOST SCREENS. Most of the
+    // app's measurements are already TEXT by the time a component sees them —
+    // a session's stats, a breakdown row, a feed card's hero all arrive as
+    // '245 lb' or '9:30/mi' from demo arrays and live builders alike. There is
+    // no number left to convert, so these rewrite the string itself against a
+    // strict unit whitelist (see sessionLedger.mjs for what is and is not
+    // matched, and why `in` is deliberately excluded). Prefer a real numeric
+    // converter above wherever the number is still in hand; reach for these
+    // when it is not.
+    uText: (text) => bsSdUnitizeText(text, { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi' }),
+    uLabel: (unit) => bsSdUnitizeLabel(unit, { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi' }),
+    unitPrefs: { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi', length: metric ? 'cm' : 'in' },
+    // A number plus a separate unit FIELD — no prose to be careful about, so
+    // this also converts length (in <-> cm), which the text path refuses.
+    uMeasure: (value, unit) => bsSdMeasure(value, unit, { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi', length: metric ? 'cm' : 'in' }),
   };
 }
 

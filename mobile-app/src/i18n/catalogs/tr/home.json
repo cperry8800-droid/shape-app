@@ -16,6 +16,8 @@
   "aria.today": "bugün",
   "bulletin.checkin": "Check-in bekliyor",
   "bulletin.checkinDetail": "Enerji · uyku · 30 sn",
+  "bulletin.onTheWall": "Duvarda yeni rekor",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Haftalık check-in bekliyor",
   "bulletin.weeklyCheckinDetail": "2 dk",
   "card.training": "Antrenman",

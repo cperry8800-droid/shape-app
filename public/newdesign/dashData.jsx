@@ -826,4 +826,143 @@ function useWeekClock(compute) {
   return value;
 }
 
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });
+// ── REMEMBERED CHOICES (review 2026-09-09, R16) ──────────────────────────
+// The dashboard remembered a member's card LAYOUT and nothing else, so a coach who
+// filtered their roster to "needs eyes", a member who set Progress to strength, and
+// anyone who preferred the week view of Schedule had to say so again on every visit.
+//
+// ⚠ IT IS BUILT ON `useCoachDoc` RATHER THAN BESIDE IT. That store already carries the
+// account binding, the serial write lane, the optimistic rollback and the three read
+// states — nine review rounds' worth — and this file already post-mortems having THREE
+// line-for-line copies of it. A fourth would be the same mistake with a new name.
+//
+// ⚠ THE STORE IS OPENED ONCE PER PAGE AND SHARED ACROSS KEYS, which is why it is a
+// separate hook from the choice. A page with two remembered controls that opened two
+// stores would issue two reads of the same document and hold two copies of it: the
+// writes would still be safe (every write re-reads the server document inside the
+// serial lane), but each copy would be blind to the other's key, and the second read
+// buys nothing.
+//
+// ⚠ R16 ALSO ASKS FOR ROSTER SORT, AND THERE IS NO SORT CONTROL TO REMEMBER. Measured
+// in `dashRoster.jsx`: it has a filter (all · needs eyes · new · on track) and a search,
+// and no sort of any kind. A default for a control that does not exist is a preference
+// for a feature that does not exist — R15 is where the control belongs, and the memory
+// follows it.
+//
+// ⚠ IT IS BOUND TO THE ACCOUNT, NOT ONLY TO `live` (CodeRabbit, #2029), AND THE HOLE
+// WAS BIGGER THAN A STALE READ. `useCoachDoc`'s hydrate deps are `[goalKind, live,
+// accountId]`, so an A→B switch that leaves `live` true never re-runs it: B reads A's
+// document, and — because `uidRef` is also set by that hydrate — every write B makes
+// resolves `startUid` as A, fails the unconditional identity comparison inside `apply`,
+// and is REFUSED. B's own preferences become silently unsaveable until a reload. (The
+// guard does its job: A's document is never upserted into B's row. It just leaves B
+// unable to save.) The account is a dependency now, so the store re-hydrates for B.
+function useRememberedChoices(live) {
+  // One `useSignedIn` per page, not one per read: it takes a getUser() round trip and
+  // an auth subscription, and calling it twice in the same expression would take two.
+  const accountId = useSignedIn();
+  // ⚠ AND IT DOES NOT OPEN UNTIL THE ACCOUNT IS KNOWN, which is one read rather than
+  // two AND is the same rule the fix is about: reading a per-account document before
+  // knowing whose it is was the defect. `useSignedIn` publishes `undefined` until it
+  // resolves and `null` for a confirmed signed-out visitor — both leave the store
+  // closed, so nothing is read and nothing is written, and a choice made in that window
+  // is retried by the reconciliation effect the moment it opens. An account that never
+  // resolves degrades to remembering nothing, which is the honest failure.
+  const store = useCoachDoc("dashboard_prefs", !!live && accountId != null, accountId);
+  return { ...store, accountId };
+}
+
+// One control's memory, read out of a store opened by `useRememberedChoices`.
+// Returns `[value, choose]` and is a drop-in for the `React.useState` it replaces.
+function useRememberedChoice(store, key, allowed, fallback) {
+  // The choice made in THIS session, if any. Null means "nobody has touched it here".
+  const [chosen, setChosen] = React.useState(null);
+  // The value this hook last asked the document to hold. It is never reset on
+  // success, only replaced by the next choice — see the loop note on the effect.
+  const askedRef = React.useRef(null);
+
+  // ⚠ A DIFFERENT ACCOUNT GETS A CLEAN SLATE, and re-hydrating the store is not enough
+  // on its own: `chosen` outranks the document by design, so A's session choice would
+  // have gone on governing B's screen after B signed in — and `askedRef` would have
+  // suppressed B's first write of the same value.
+  //
+  // ⚠ IT RESETS BETWEEN TWO KNOWN ACCOUNTS ONLY, which is why the last KNOWN one is
+  // tracked rather than the last value seen. `useSignedIn` publishes `undefined` for
+  // "not resolved yet" and `null` for "confirmed signed out", so resetting on every
+  // change would discard a choice made during the load — the one case the whole
+  // reconciliation effect exists to keep. Tracking the last known account also closes
+  // A → signed out → B on a shared browser, which a plain previous-value comparison
+  // would wave through.
+  const acct = store && store.accountId != null ? store.accountId : null;
+  const knownRef = React.useRef(null);
+  if (acct != null && knownRef.current != null && acct !== knownRef.current) {
+    // Adjusting state during render rather than in an effect: an effect resets a frame
+    // late, and that frame is the one that shows B the control A left behind. React
+    // discards this render and re-runs it, and the ref assignment below has already
+    // happened by then, so the condition is false on the retry and it terminates.
+    setChosen(null);
+    askedRef.current = null;
+  }
+  if (acct != null) knownRef.current = acct;
+  const doc = (store && store.doc) || {};
+  const kind = (store && store.kind) || "loading";
+  const apply = store && store.apply;
+  const stored = Object.prototype.hasOwnProperty.call(doc, key) ? doc[key] : undefined;
+  // ⚠ A STORED VALUE IS VALIDATED AGAINST WHAT EXISTS TODAY. A filter renamed or
+  // retired since it was written would otherwise select nothing, and the roster would
+  // look empty for a reason the member cannot see. An unknown value is ignored, not
+  // applied — and it is left in the document rather than deleted, because a key this
+  // build does not recognise may belong to a build that does.
+  const remembered = allowed.indexOf(stored) >= 0 ? stored : null;
+  // ⚠ AND A LATE READ NEVER YANKS SOMEONE WHO HAS ALREADY CHOSEN. The document
+  // resolves after the first paint, so preferring it unconditionally would move a
+  // control out from under a hand already on it.
+  const value = chosen != null ? chosen : (remembered != null ? remembered : fallback);
+  // Wrapped rather than handed out raw so that a caller passing a function gets their
+  // function stored, not React's updater semantics applied to it.
+  const choose = React.useCallback((next) => { setChosen(next); }, []);
+
+  // ⚠ THE WRITE IS A RECONCILIATION, NOT A CLICK HANDLER, AND THAT IS THE WHOLE
+  // REASON IT IS AN EFFECT. A choice made before the document is writable — during the
+  // load, or while `useDashboard` still reads demo on a page that is about to resolve
+  // live — had nowhere to go, so a handler would have dropped it silently and the
+  // member's preference would simply not have been there next time. Stating the goal
+  // ("the document should say what they chose") instead of the action ("write on
+  // click") makes the store becoming writable retry it for free.
+  const allowedKey = allowed.join("\u0000");
+  React.useEffect(() => {
+    if (chosen == null) return;                     // nobody has chosen on this page
+    if (allowed.indexOf(chosen) < 0) return;        // never persist a value we would refuse to read back
+    if (kind !== "ready" && kind !== "error") return;
+    if (typeof apply !== "function") return;
+    // The fallback is not a preference — storing it would pin today's default into the
+    // member's own data, so tomorrow's default could never reach them. Choosing it back
+    // means "no preference", which is what an absent key says.
+    const want = chosen === fallback ? undefined : chosen;
+    if (stored === want) return;                    // the document already says it
+    // ⚠ ONE ATTEMPT PER CHOICE, AND THE REF IS WHAT MAKES THAT TRUE. `apply` paints
+    // optimistically and rolls the paint back when the write fails, so `stored` moves
+    // to the wanted value and then back again — which is a dependency change, which
+    // re-runs this effect, which would write again, forever. Keying on the choice
+    // rather than on the document breaks that: a failed write leaves the preference in
+    // force for the session and simply unsaved, which is exactly what the page did
+    // before it remembered anything.
+    if (askedRef.current === chosen) return;
+    askedRef.current = chosen;
+    apply((d) => {
+      const out = { ...d };
+      if (want === undefined) delete out[key]; else out[key] = want;
+      return out;
+    });
+    // eslint-disable-next-line
+  }, [chosen, kind, stored, key, fallback, allowedKey]);
+
+  return [value, choose];
+}
+
+// ⚠ `dashDemoPayouts` MOVED TO `dashSignals.js` on 2026-09-10 as `DashSignals.demoPayouts`.
+// It derives from `buildMockClients`, which lives there, and the sidebar's payout card is
+// rendered on pages that load NEITHER this file nor `dashToday.jsx` — so keeping the
+// derivation here made the card's own getters throw on ten of them and report the failure
+// as an em-dash. A pure derivation belongs with the data it derives from.
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });

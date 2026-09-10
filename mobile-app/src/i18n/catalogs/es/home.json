@@ -16,6 +16,8 @@
   "aria.today": "hoy",
   "bulletin.checkin": "Check-in pendiente",
   "bulletin.checkinDetail": "Energía · sueño · 30 seg",
+  "bulletin.onTheWall": "En el muro",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Check-in semanal pendiente",
   "bulletin.weeklyCheckinDetail": "2 min",
   "card.training": "Entrenamiento",

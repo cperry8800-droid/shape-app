@@ -1505,6 +1505,85 @@
     return rows;
   }
 
+  // ── THE PREVIEW'S MONEY, DERIVED FROM ONE NUMBER (review 2026-09-09, V5) ─────
+  // The signed-out preview is what a prospective coach evaluates the product on, and it
+  // used to contradict itself on a single screen: the sidebar said "$18,420 · Month to
+  // date" while the practice strip beside it said "$1,820 monthly recurring" — from the
+  // SAME ten demo clients — and the payouts strip said "$4,192 this month". Three answers
+  // to one question, none of them derived from the roster on the page.
+  //
+  // ⚠ AND EVERY PAYOUT DATE WAS FROZEN IN APRIL, under a dateline that renders today.
+  // "PAYOUT APR 30", "Apr 21", "in 3 days" — the last of which was fixed text, so it was
+  // wrong even in April on every day but one.
+  //
+  // Everything now falls out of the roster's own MRR. Each figure means something
+  // DIFFERENT, or it would just be the same number wearing four labels:
+  //   monthly     Σ of what the demo clients pay — the anchor
+  //   net         after the 15% platform fee, the rate dashToday already applies
+  //   thisMonth   net accrued month-to-date
+  //   balance     the settled part: accrued up to the 7-day holding period
+  //   lifetime    net × the months since the LONGEST-TENURED client joined
+  function demoPayouts(clients, now) {
+    const at = now instanceof Date ? now : new Date();
+    const rows = Array.isArray(clients) ? clients : [];
+    const monthlyCents = rows.reduce((sum, c) => sum + ((c && c.payments && c.payments.mrrCents) || 0), 0);
+    const netCents = Math.round(monthlyCents * 0.85);
+
+    const daysInMonth = new Date(at.getFullYear(), at.getMonth() + 1, 0).getDate();
+    const dayOfMonth = at.getDate();
+    const thisMonthCents = Math.round((netCents * dayOfMonth) / daysInMonth);
+    // The holding period is why a balance is not simply "this month": a payout processor
+    // settles on a lag. Seven days, floored at zero for the first week of a month.
+    const settledDays = Math.max(0, dayOfMonth - 7);
+    const balanceCents = Math.round((netCents * settledDays) / daysInMonth);
+
+    // Payouts land on the last day of the month, which is where "PAYOUT <date>" comes from.
+    const payoutOn = new Date(at.getFullYear(), at.getMonth() + 1, 0);
+    const daysToPayout = Math.max(0, Math.round((payoutOn - new Date(at.getFullYear(), at.getMonth(), dayOfMonth)) / 86400000));
+
+    // ⚠ LIFETIME IS MEASURED, NOT PICKED. The demo roster carries joinedAt, so the
+    // practice's age is a fact about the data on the page rather than a bigger-looking
+    // number. A roster with no dates yields one month, never a fabricated history.
+    let oldest = null;
+    for (const c of rows) {
+      const j = c && c.payments && c.payments.joinedAt ? new Date(c.payments.joinedAt) : null;
+      if (j && !isNaN(j.getTime()) && (oldest == null || j < oldest)) oldest = j;
+    }
+    const months = oldest
+      ? Math.max(1, (at.getFullYear() - oldest.getFullYear()) * 12 + (at.getMonth() - oldest.getMonth()))
+      : 1;
+    const lifetimeCents = netCents * months;
+
+    return {
+      monthlyCents, netCents, thisMonthCents, balanceCents, lifetimeCents,
+      months, daysToPayout,
+      payoutLabel: payoutOn.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase(),
+      payoutShort: payoutOn.toLocaleDateString([], { month: "short", day: "numeric" }),
+    };
+  }
+
+  // The sidebar's demo payout card, strings and all (review 2026-09-09, V5).
+  //
+  // ⚠ IT RESOLVES HERE AND NOT IN `coachNav.jsx`, WHICH IS WHERE THE BUG WAS. That
+  // module is loaded by ~20 pages and reached into THREE others to build this card:
+  // `buildMockClients` here, `dashDemoPayouts` in dashData.jsx, `dashMoney` in
+  // dashToday.jsx. Ten of those pages load none of the three, so the getters threw and
+  // the broad catch reported a missing script as "PAYOUTS · —" — an honest-looking
+  // empty standing in for a page that was simply built wrong. One pure function in the
+  // module that owns the roster means one small plain <script> is the whole dependency.
+  function demoPayoutCard(now) {
+    const at = now instanceof Date ? now : new Date();
+    const p = demoPayouts(buildMockClients(at), at);
+    // A local formatter rather than a reach into dashToday.jsx: three lines of
+    // Intl is a smaller price than the cross-module dependency that caused this.
+    let amount;
+    try { amount = "$" + Math.round((p.thisMonthCents || 0) / 100).toLocaleString(); }
+    catch (e) { amount = "$0"; }
+    const days = p.daysToPayout === 0 ? "pays out today"
+      : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s");
+    return { label: "PAYOUT " + p.payoutLabel, amount: amount, sub: "Month to date · " + days };
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     DEFAULT_THRESHOLDS: DEFAULT_THRESHOLDS,
@@ -1532,6 +1611,8 @@
     scoreWeekReading: scoreWeekReading,
     crossoverRead: crossoverRead,
     crossoverCopy: crossoverCopy,
+    demoPayouts: demoPayouts,
+    demoPayoutCard: demoPayoutCard,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
   };
 });
