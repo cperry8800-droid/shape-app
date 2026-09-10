@@ -551,10 +551,20 @@ Append new entries at the top, under this note.
   it. **A migration's status is a claim with a shelf life measured in minutes, and it belongs to the
   database, not to the file describing it.** Every status line in this wave is now written from a
   catalog query.
-- **Still owed, and both are the owner's call:** run the lockdown, and decide `/api/league` —
-  apply-and-build, or delete the route and its `RAW_ROUTES` entry. ⚠ `league_standings`' missing privacy
-  gate belongs **with that decision**, not inside a lockdown migration; registered rather than silently
-  redesigned.
+- ⚠ **THE LOCKDOWN IS APPLIED — the owner ran it the same evening, and it is VERIFIED LIVE rather than
+  assumed.** Re-queried `pg_proc` after the apply: `league_week_score` is **`service_role` only**
+  (anon ✗, authenticated ✗), `league_standings` is **`authenticated` + `service_role`** (anon ✗), and
+  **both now pin `search_path=public, pg_temp`** while remaining definers. Then probed **by role on
+  production behind a POSITIVE CONTROL** — anon reads `public.profiles` first, so a refusal is proven to
+  land on the FUNCTION grant and not on schema usage, which is exactly what the first probe of this
+  migration got wrong. anon refused on both; `authenticated` refused on the helper; `authenticated`
+  **still executes `league_standings`**, so the route is intact. ⚠ **And a NEGATIVE CONTROL was run
+  after it** — asserting the opposite raised — because *a guard that reports a pass is a broken
+  instrument until it is proven able to fail*. This file's own rule, and the reason the pass is worth
+  writing down.
+- **Still owed, and it is the owner's call:** decide `/api/league` — apply-and-build, or delete the
+  route and its `RAW_ROUTES` entry. ⚠ `league_standings`' missing privacy gate belongs **with that
+  decision**, not inside a lockdown migration; registered rather than silently redesigned.
 
 ### 2026-09-10 — The CodeRabbit round on the units wave: nine findings, and the one I answered with the wrong finding
 
