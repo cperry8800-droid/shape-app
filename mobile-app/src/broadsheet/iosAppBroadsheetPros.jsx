@@ -534,7 +534,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
             <div style={{ marginTop: 16 }}>
               {setLogs.length ? setLogs.map((entry, index) => {
                 const name = `${entry.movement_name || entry.moveName || tr('coach:review.movementFallback', { defaultValue: 'Movement' })} #${entry.set_number || entry.setNumber || index + 1}`;
-                const target = `${entry.target_reps || entry.targetReps || tr('coach:review.targetFallback', { defaultValue: 'target' })} · ${entry.target_load || entry.targetLoad || tr('coach:review.loadFallback', { defaultValue: 'load' })}`;
+                const target = t.uText(`${entry.target_reps || entry.targetReps || tr('coach:review.targetFallback', { defaultValue: 'target' })} · ${entry.target_load || entry.targetLoad || tr('coach:review.loadFallback', { defaultValue: 'load' })}`);
                 return (
                   <div key={entry.id || index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -560,7 +560,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                   <div key={sample.id || index} style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.type || tr('coach:review.metricFallback', { defaultValue: 'metric' })).replace(/_/g, ' ')}</div>
                     <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                      {pending ? '—' : sample.value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{sample.unit}</span> : null}
+                      {pending ? '—' : t.uMeasure(sample.value, sample.unit).value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{t.uMeasure(sample.value, sample.unit).unit}</span> : null}
                     </div>
                   </div>
                 );
@@ -879,7 +879,7 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{m.name}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{tr('coach:live.moveMeta', { defaultValue: '{scheme} · {rest} rest · {done}/{total} sets', scheme: m.scheme, rest: m.rest, done: m.done, total: m.sets })}</div>
               </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{m.load}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{t.uText(m.load)}</span>
             </div>
           );
         })}
@@ -5557,7 +5557,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{m.site}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{String(m.measured_on).slice(5)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(m.value)} {m.unit}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uMeasure(m.value, m.unit).value} {t.uMeasure(m.value, m.unit).unit}</span>
             </div>
           ))}
         </div>

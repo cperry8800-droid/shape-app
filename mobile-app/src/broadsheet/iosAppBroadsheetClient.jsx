@@ -2004,7 +2004,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
               <span style={{ flexShrink: 0, width: 20, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
               <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{m.name}</span>
               <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-4px)' }} />
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{m.load || ''}{m.load && m.up ? ' +' : ''}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uText(m.load) || ''}{m.load && m.up ? ' +' : ''}</span>
             </div>
             <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
             {m.cue && <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em' }}>“{m.cue}”</div>}
@@ -4530,7 +4530,7 @@ function bsBuildTrainProgram(workouts, t, tr) {
       if (e.seg) return { n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '', video: e.video || null };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
-      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—', video: e.video || null };
+      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: t.uText(e.load) || '—', video: e.video || null };
     });
     const isSelf = !!w.selfAuthored;
     const prog = w.program && w.program.id ? w.program : null;
@@ -14217,6 +14217,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     let on = true;
     window.ShapeProgress.train().then((d) => {
       const prs = (d && Array.isArray(d.prs)) ? d.prs : [];
+      // Stored in the unit the record was set in and converted at RENDER — this
+      // effect is keyed on [isSelf], so converting here would freeze the unit at
+      // mount and a Settings flip would not reach the row until a remount.
       const top = prs.slice(0, 3).map((p) => [String(p.lift || 'Lift'), `${p.value}${p.unit ? ' ' + p.unit : ''}`]);
       if (on && top.length) setRealLifts(top);
     }).catch(() => {});
@@ -14955,7 +14958,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
               <div style={{ marginBottom: 28 }}>
                 <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })} />
-                {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(String(val)); return (
+                {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(tTheme.uText(String(val))); return (
                   <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0' }}>
                     <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{label}</span>
                     <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(INK, 0.22)}`, transform: 'translateY(-3px)' }} />
@@ -17434,18 +17437,32 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const comments = actComments[key] || [];
     const cmtOpen = actCmtOpen === key;
     const typeLabel = a.real ? a.typeLabel : (a.typeLabel || (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout'));
-    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
+    // The title is APP-FORMATTED ("Tempo ride · 25 mi"), so it carries units and
+    // converts. The member's own note (`a.body`) deliberately does NOT: rewriting
+    // someone's own words is a different act from converting a figure the app
+    // itself composed, and it is not what a unit preference asks for.
+    const title = t.uText(a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title));
     // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
     // tally stays one unified count. PR/milestone (a new-best delta, or the demo
     // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
     const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
     const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
     const cheer = bsReactionVerb(actType);
-    const stats = a.real ? a.statsRow
+    // ⚠ EVERY MEASUREMENT ON THIS CARD IS TEXT BY THE TIME IT ARRIVES, so the
+    // reader's unit preference is applied to the STRING. `t.uText` rewrites only
+    // a whitelist (lb/lbs/kg/mi/km and the /mi · /km pace forms) and leaves
+    // bpm, %, spm, kcal, reps and prose alone. This is the single place the card
+    // does it, so the 3-up row, the hero, the detail page and the breakdown can
+    // never disagree about which unit they are quoting.
+    const uStats = (rows) => (Array.isArray(rows)
+      ? rows.map((r) => (Array.isArray(r) ? [r[0], t.uText(r[1]), ...r.slice(2).map((c) => t.uText(c))] : r))
+      : rows);
+    const statsRaw = a.real ? a.statsRow
       : Array.isArray(a.stats) ? a.stats
       : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
+    const stats = uStats(statsRaw);
     const showRoute = a.real ? !!a.route : a.kind === 'run';
     // Real GPS points (Strava/Garmin imports normalize them server-side) draw
     // the actual route; the tier-tinted tile is the fallback for routeless flags.
@@ -17497,8 +17514,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       if (!isWall || !heroStat) return [];
       const out = [];
       if (!a.real) {
-        if (a.topset) out.push([tr('feed:card.topSet', { defaultValue: 'Top set' }), String(a.topset)]);
-        if (a.e1rm) out.push([tr('feed:card.e1rm', { defaultValue: 'Est. 1RM' }), String(a.e1rm)]);
+        // Read straight off the post rather than out of `stats`, so they need
+        // the same conversion the stat rows already got.
+        if (a.topset) out.push([tr('feed:card.topSet', { defaultValue: 'Top set' }), t.uText(String(a.topset))]);
+        if (a.e1rm) out.push([tr('feed:card.e1rm', { defaultValue: 'Est. 1RM' }), t.uText(String(a.e1rm))]);
       }
       for (const st of secStats) {
         if (out.length >= 2) break;
@@ -17544,12 +17563,16 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       : allComments.filter((c) => c.follows);
     const likeFacepile = followedLikers.slice(0, 4);
     // Full stat set for the detail page (every stat, not the card's 3-up).
-    const detailStats = a.real ? (a.fullStats || stats) : (a.stats || stats);
+    const detailStats = uStats(a.real ? (a.fullStats || statsRaw) : (a.stats || statsRaw));
     // Open the full-screen activity page (stats focus or comments focus).
     const openDetail = (focus) => setActivityDetail({
       a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
       title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
-      routeObj, showRoute, breakdown: a.breakdown || null,
+      routeObj, showRoute,
+      // The breakdown's rows are set-by-set text ('245 lb × 3'), so they carry
+      // units too — converted here rather than on the detail page, so the page
+      // and the card it opened from quote the same figures.
+      breakdown: a.breakdown ? { ...a.breakdown, rows: uStats(a.breakdown.rows) } : null,
       zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, rawSplits: a.rawSplits || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
@@ -22529,7 +22552,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // the lift rows, which is the honest answer; the demo set is signed-out only.
   // (Pointing livePrs at the route that actually serves PRs is registered.)
   const prRows = livePrs
-    ? livePrs.slice(0, 4).map((p) => ({ t: p.lift, w: `${p.value} ${p.unit}`, d: p.deltaPct != null ? `+${Number(p.deltaPct).toFixed(1)}%` : 'held' }))
+    ? livePrs.slice(0, 4).map((p) => { const m = t.uMeasure(p.value, p.unit); return { t: p.lift, w: `${m.value} ${m.unit}`, d: p.deltaPct != null ? `+${Number(p.deltaPct).toFixed(1)}%` : 'held' }; })
     : null;
   const liftRows = prRows || (signedIn ? [] : [
     { t: 'Bench Press', w: '90 kg', d: '+5.0' },
@@ -24779,7 +24802,7 @@ function BSStrengthHistory({ onClose, focusKey = null }) {
               {vals.length >= 2 && <BSStrengthSpark vals={vals} color={sm.color} />}
               {top && (
                 <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 8, letterSpacing: '0.04em' }}>
-                  top set {top.load}×{top.reps}{top.rpe != null ? ` @ RPE ${top.rpe}` : ''} · best {Math.round(l.bestE1rm)} {l.unit}
+                  top set {t.uText(top.load)}×{top.reps}{top.rpe != null ? ` @ RPE ${top.rpe}` : ''} · best {t.uText(`${Math.round(l.bestE1rm)} ${l.unit}`)}
                 </div>
               )}
             </div>
@@ -29050,7 +29073,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
             <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{tr('session:player.suggested')}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{_bsSug.load} {_bsSug.unit}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{t.uText(`${_bsSug.load} ${_bsSug.unit}`)}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>{tr('session:player.use')}</span>
             </span>
@@ -33053,8 +33076,14 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   // ---------- OVERALL ----------
   const kpis = O.kpis || {};
   const wc = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v)) + ' lb';
-  const activeTrend = BSPROG_TREND_TABS.find((x) => x.k === trend) || BSPROG_TREND_TABS[0];
-  const trendVals = bsProgSeriesVals(O.series[activeTrend.k]);
+  // ⚠ THE SERIES AND ITS LABEL CONVERT TOGETHER OR NOT AT ALL. The tabs declare
+  // their native unit — 'lb' for Weight and Strength, and a non-convertible
+  // token ('bpm', '%', 'h', '/10') for the rest, which `uMeasure`/`uLabel` pass
+  // through untouched. Converting the heading alone would plot pounds under a
+  // "kg" label, which is the one outcome worse than not converting at all.
+  const activeTrendRaw = BSPROG_TREND_TABS.find((x) => x.k === trend) || BSPROG_TREND_TABS[0];
+  const activeTrend = { ...activeTrendRaw, unit: t.uLabel(activeTrendRaw.unit) };
+  const trendVals = bsProgSeriesVals(O.series[activeTrend.k]).map((v) => (v == null ? v : t.uMeasure(v, activeTrendRaw.unit).value));
   const latest = trendVals.length ? trendVals[trendVals.length - 1] : null;
   const first = trendVals.length ? trendVals[0] : null;
   const delta = latest != null && first != null ? latest - first : null;
@@ -33100,10 +33129,10 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         <div key={i} role="button" tabIndex={0} onClick={() => setStrengthOpen({})} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStrengthOpen({}); } }} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0, cursor: 'pointer' }}>
         <span style={{ minWidth: 0 }}>
           <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{p.move}</span>
-          {p.e1rm != null && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3, letterSpacing: '0.04em' }}>≈ {Math.round(p.e1rm)} {p.unit} e1RM</span>}
+          {p.e1rm != null && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3, letterSpacing: '0.04em' }}>≈ {t.uMeasure(Math.round(p.e1rm), p.unit).value} {t.uMeasure(p.e1rm, p.unit).unit} e1RM</span>}
         </span>
         {leader}
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Math.round(p.best)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{p.unit}</span></span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uMeasure(Math.round(p.best), p.unit).value} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{t.uMeasure(p.best, p.unit).unit}</span></span>
         {p.bestReps != null && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap' }}>× {p.bestReps}</span>}
       </div>
       )) : <BSTRedact INK={t.INK} label="Lifts · not on record" />)}
@@ -33118,12 +33147,15 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         });
         const label = { waist: 'Waist', hips: 'Hips', chest: 'Chest', arm: 'Upper arm', thigh: 'Thigh', calf: 'Calf', neck: 'Neck', shoulders: 'Shoulders' };
         return [...bySite.entries()].map(([site, e], i) => {
-          const delta = +(Number(e.last.value) - Number(e.first.value)).toFixed(1);
+          // Convert both ends BEFORE subtracting, so the delta is in the same
+          // unit as the figure it sits beside.
+          const lastM = t.uMeasure(e.last.value, e.last.unit), firstM = t.uMeasure(e.first.value, e.first.unit);
+          const delta = +(Number(lastM.value) - Number(firstM.value)).toFixed(1);
           return (
             <div key={site} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '9px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{label[site] || site}</span>
               {leader}
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(e.last.value)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{e.last.unit}</span></span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(lastM.value)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{lastM.unit}</span></span>
               <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : bsTHexA(t.INK, 0.7), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{delta === 0 ? '—' : <><span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: delta < 0 ? heat : undefined }}>{delta < 0 ? '▾' : '▴'}</span> {Math.abs(delta)}</>}</span>
             </div>
           );

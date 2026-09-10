@@ -495,6 +495,75 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — Units, part two: the switch now reaches every measurement, because most of them are TEXT
+
+- **Owner: *"i want it so when you flip either imperial or metric, it changes everywhere on that app
+  for that user."*** The previous round fixed the goal/weigh-in path and the Wall record — the places
+  where a NUMBER was still in hand. This one covers the rest, and the rest is most of it.
+- ⚠ **THE REASON ALMOST NOTHING RESPONDED TO THE SETTING IS THAT THE APP BAKES UNITS INTO DISPLAY
+  STRINGS.** A session's stats, its breakdown rows, a feed card's hero and its title all arrive as
+  text — `'245 lb'`, `'8,150 lb'`, `'3.2 mi'`, `'245 lb × 3'`, `'9:30/mi'` — from demo arrays and
+  from live builders alike. There is no number left to convert by the time a card renders one, so a
+  preference could only ever have **relabelled** them. That is worse than doing nothing: *a 245 that
+  says "kg" is a lie, where a 245 that says "lb" is merely the wrong unit for that reader.*
+- **So conversion happens on the text, at the last moment before it is drawn** —
+  `bsSdUnitizeText` in `sessionLedger.mjs` (pure, dependency-free, already the home of the ledger's
+  unit splitter), surfaced on the theme as **`t.uText`**. Three rules keep it safe: a strict
+  whitelist (`lb` · `lbs` · `kg` · `mi` · `km` and the `/mi` · `/km` pace forms — `bpm`, `%`, `spm`,
+  `kcal`, `min`, `reps` and everything else pass through); the trailing guard is `(?![\w-])` rather
+  than `\b`, which matches inside `km-split`; and a value already in the target unit is returned
+  untouched, so a string can pass through render repeatedly without drifting.
+- ⚠ **PACE INVERTS, AND GETTING THAT WRONG WOULD HAVE MADE EVERY RUNNER 60% FASTER.** `9:30/mi` is a
+  per-unit TIME, so the distance conversion applies to the denominator: seconds-per-mile →
+  seconds-per-kilometre is a **division** by 1.609, not a multiplication. It round-trips exactly, so
+  flipping back and forth is not a slow drift.
+- ⚠ **`in` IS DELIBERATELY NOT A UNIT IN FREE TEXT.** It is the commonest English word in this
+  corpus (*"3 in a row"*, *"+60 lb in 14 weeks"*), and no height string is worth the false
+  positives. Inches convert through a SECOND path — **`t.uMeasure`**, for a number plus a separate
+  unit FIELD, where there is no prose to be careful about — which also covers `cm ↔ in` on
+  measurements. ⚠ A mutation admitting `in` to the text path's unit table **SURVIVED, and it is a
+  no-op rather than a gap**: the text path only ever resolves a weight or a distance target, and
+  `bsSdConvertValue` refuses to cross families, so defeating the property needs **three** coordinated
+  edits. Recorded as a test rather than chased.
+- **Converted, in one place each so two surfaces cannot disagree:** `BSActivityCard`'s stat row,
+  its detail-page stats, its breakdown rows, its wall facts and its **title** — which covers the
+  Feed, the Wall and Session details at once; the Train deck's move loads and the session player's;
+  the profile's lift rows and PR ledger; the **trend station**, where the series and its unit label
+  convert together (converting the heading alone would plot pounds under a "kg" label — the one
+  outcome worse than not converting); measurements, where both ends convert **before** the delta is
+  subtracted; and on the coach side the live-session move loads, the session-review target line and
+  the structured sample/measurement readouts.
+- ⚠ **A MEMBER'S OWN NOTE IS NOT CONVERTED, ON PURPOSE.** The card's title is app-formatted
+  (*"Tempo ride · 25 mi"*) and converts; `a.body` is the member's own writing. Rewriting someone's
+  words is a different act from converting a figure the app itself composed, and it is not what a
+  unit preference asks for.
+- ⚠ **AND ONE FIX HAD TO MOVE OUT OF AN EFFECT TO WORK AT ALL.** The Terrain profile's lift rows
+  were converted inside a `useEffect` keyed on `[isSelf]`, so the unit would have frozen at mount
+  and a Settings flip would not have reached the row until a remount. The effect stores the record's
+  own unit now and the conversion happens at **render**.
+- ⚠ **THE MOUNT HARNESS'S THEME STUB IS A `Proxy` THAT ANSWERS EVERY UNKNOWN KEY WITH A COLOUR**, so
+  a missing `uText` did not read as absent — it read as the string `'#000'` and threw
+  *"t.uText is not a function"* from inside a render. The stub carries the **real** converters now,
+  pinned to imperial to match its own `isMetric: false`, so suites written against `'245 lb'` keep
+  asserting on the unit they were written for.
+- ⚠ **AND MY OWN HYPHEN TEST WAS HOLLOW — a mutation proved it.** It asked for `'12 km-split'` under
+  METRIC prefs, where `km` is already the target and the function returns early, so it passed with
+  the guard removed. Every case is now checked against the prefs that would actually convert it,
+  plus an un-hyphenated control so the guard cannot pass by refusing everything.
+- **Verified:** `npm test` **2898/2898** · `tsc --noEmit` 0 · JSX parse on all three changed modules
+  · **7 mutations killed** on the new converters (pace not inverted · separator dropped · hyphen
+  guard weakened · same-unit no longer a no-op · length inverted · label ignoring the preference ·
+  the structured null guard), one survivor proven to be a no-op · and the app **swept in headless
+  Chromium across Home, Feed and Wall in both systems**: Home 3 lb → 3 kg, Feed 5 lb → 5 kg and
+  6 mi → 7 km, Wall 11 lb → 11 kg, 7 mi → 7 km and **4 `/mi` paces → 4 `/km`** — with **zero
+  imperial tokens surviving in metric mode on any tab** and zero page errors. No migration.
+- ⚠ **STILL NOT COVERED, AND NAMED RATHER THAN GLOSSED.** `/api/client/profile-stats` **drops the
+  unit** from `keyLifts` (`[name, "245"]`), so the coach's client-lift rollup labels an
+  unknown-unit number `kg` in its own i18n string. Converting a number whose unit is unknown would
+  be a fabrication, so it is left and registered: the fix is to carry the unit through
+  `get_my_lifts` → the route → the coach app. Recipe and food quantities keep their own household
+  logic. And **no on-account pass** — every check here is signed-out preview.
+
 ### 2026-09-10 — Units: the kg/lb switch reached the labels and not the numbers, and one column held both
 
 - **Owner: *"make sure in settings the user has the ability to change metrics from U.S. to
