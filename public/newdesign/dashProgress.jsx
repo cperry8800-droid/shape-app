@@ -642,16 +642,50 @@ function DprWeeklyReadout({ live }) {
   // message. The response carries the authoritative `user_id`, so the subject is
   // taken FROM the answer rather than made a precondition of the question.
   const [held, setHeld] = React.useState(null);
-  // A tick that changes whenever the signed-in account might have. `live` is a
+  // The account signed in NOW, against which a held readout's own subject is
+  // checked. `undefined` means not yet resolved — which is not the same as "no
+  // account", and must not hide a card the cookie session is entitled to.
+  const [whoNow, setWhoNow] = React.useState(undefined);
+  // A tick that changes whenever the signed-in account actually has. `live` is a
   // one-way latch — `source` is set once by the mount fetch and never returns to
   // "demo" — so keying the fetch on it alone means the subject is resolved once
   // and the account-switch comparison below can never fire.
   const [authTick, setAuthTick] = React.useState(0);
+  // The last subject an auth event reported, so the callback can tell a real
+  // account change from the several same-user events supabase also emits.
+  const lastAuthUidRef = React.useRef(undefined); // undefined = no event seen yet
   React.useEffect(() => {
     const db = window.shapeDb;
     if (!db || !db.client || !db.client.auth || !db.client.auth.onAuthStateChange) return undefined;
     let sub = null;
-    try { sub = db.client.auth.onAuthStateChange(() => setAuthTick((n) => n + 1)); } catch (e) { sub = null; }
+    try {
+      sub = db.client.auth.onAuthStateChange((_event, session) => {
+        const id = (session && session.user && session.user.id) || null;
+        // ⚠ NOT EVERY AUTH EVENT IS AN ACCOUNT SWITCH, AND TREATING THEM ALIKE
+        // COSTS THE MEMBER THEIR WEEKLY READOUT. supabase-js emits
+        // INITIAL_SESSION the moment this subscribes (verified in the installed
+        // 2.112.4), plus SIGNED_IN and TOKEN_REFRESHED for the SAME user — and
+        // `getSession()` bridging the cookie emits one too. Ticking on those
+        // cancels the POST already in flight and starts a second, which then
+        // LOSES the weekly claim the first is still holding: the route's
+        // `mayGenerate = !claim || claim.outcome === 'claimed'` serves that
+        // caller `fallbackReadout` instead, so the member is shown "Computed,
+        // not written" for a week whose AI readout was generated and discarded.
+        if (lastAuthUidRef.current === undefined) { lastAuthUidRef.current = id; return; }
+        if (id === lastAuthUidRef.current) return;
+        lastAuthUidRef.current = id;
+        // ⚠ CLEARED SYNCHRONOUSLY, BEFORE THE RE-FETCH. Bumping the tick alone
+        // leaves the NEXT render holding the previous account's readout and the
+        // previous account's `whoNow` — so `mismatched` is false and A's private
+        // health summary is committed under B's session until an async getUser()
+        // round trip resolves. A readout is a claim about one person's own body;
+        // rendering one under another account is the worst thing this card can
+        // do, and this repo treats it as a defect class rather than a race.
+        setHeld(null);
+        setWhoNow(id);
+        setAuthTick((n) => n + 1);
+      });
+    } catch (e) { sub = null; }
     return () => { try { if (sub && sub.data && sub.data.subscription) sub.data.subscription.unsubscribe(); } catch (e) {} };
   }, []);
   React.useEffect(() => {
@@ -684,9 +718,8 @@ function DprWeeklyReadout({ live }) {
   // ⚠ THE READOUT CARRIES ITS SUBJECT AND THE RENDER CHECKS IT AGAINST THE
   // ACCOUNT SIGNED IN NOW. A readout is a claim about a specific person's own
   // body, written in the second person; painting one under a different account is
-  // the worst thing this card can do. The subject is the response's `user_id`,
-  // and `whoNow` is re-resolved on every auth change.
-  const [whoNow, setWhoNow] = React.useState(undefined); // undefined = not resolved yet
+  // the worst thing this card can do. The subject is the response's `user_id`;
+  // `whoNow` is set fast by the auth callback above and confirmed here.
   React.useEffect(() => {
     let on = true;
     (async () => {

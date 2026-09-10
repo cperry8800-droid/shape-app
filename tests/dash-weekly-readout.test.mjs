@@ -300,6 +300,80 @@ test('the account-switch guard can actually fire', () => {
   assert.match(src, /subscription\.unsubscribe\(\)/, 'the auth subscription outlives the card');
 });
 
+// ── The Codex round on this PR, DRIVEN ───────────────────────────────────────
+// The auth callback is extracted and executed against a fake emitter, because
+// both findings are about WHICH events it acts on and WHAT it clears before the
+// next render — neither of which a source match can see.
+function runAuthCallback(events) {
+  const src = fn(PROG, 'DprWeeklyReadout');
+  // The callback body, lifted out of the effect that registers it.
+  const at = src.indexOf('sub = db.client.auth.onAuthStateChange(');
+  assert.notEqual(at, -1, 'the auth subscription moved');
+  let depth = 0, i = src.indexOf('(', at + 'sub = db.client.auth.onAuthStateChange'.length);
+  const start = i;
+  for (; i < src.length; i++) {
+    if (src[i] === '(') depth++;
+    else if (src[i] === ')' && --depth === 0) break;
+  }
+  const cb = src.slice(start + 1, i); // the arrow function source
+
+  const calls = { held: [], who: [], tick: 0 };
+  const ref = { current: undefined };
+  const fnBody = new Function('lastAuthUidRef', 'setHeld', 'setWhoNow', 'setAuthTick', 'return (' + cb + ');')(
+    ref,
+    (v) => calls.held.push(v),
+    (v) => calls.who.push(v),
+    () => { calls.tick += 1; },
+  );
+  for (const [event, session] of events) fnBody(event, session);
+  return calls;
+}
+const sess = (id) => (id ? { user: { id } } : null);
+
+test('a same-user auth event does not cancel the POST already in flight', () => {
+  // ⚠ VERIFIED AGAINST THE INSTALLED LIBRARY, not assumed: supabase-js 2.112.4
+  // emits INITIAL_SESSION the moment onAuthStateChange subscribes, plus SIGNED_IN
+  // and TOKEN_REFRESHED for the SAME user. Ticking on those cancels the in-flight
+  // request and starts a second — which then LOSES the weekly claim the first is
+  // still holding, and the route's `mayGenerate = !claim || claim.outcome ===
+  // 'claimed'` serves that caller the deterministic fallback. The member is shown
+  // "Computed, not written" for a week whose AI readout was generated and thrown
+  // away.
+  const c = runAuthCallback([
+    ['INITIAL_SESSION', sess('A')],
+    ['SIGNED_IN', sess('A')],
+    ['TOKEN_REFRESHED', sess('A')],
+  ]);
+  assert.equal(c.tick, 0, 'a same-user event re-fetched');
+  assert.deepEqual(c.held, [], 'a same-user event discarded the held readout');
+});
+
+test('a real account switch clears the held readout BEFORE the re-fetch', () => {
+  // ⚠ THE CROSS-ACCOUNT DEFECT. Bumping the tick alone leaves the next render
+  // holding A's readout and A's `whoNow`, so `mismatched` is false and A's
+  // private health summary commits under B's session until an async getUser()
+  // round trip resolves.
+  const c = runAuthCallback([['INITIAL_SESSION', sess('A')], ['SIGNED_IN', sess('B')]]);
+  assert.equal(c.tick, 1);
+  assert.deepEqual(c.held, [null], 'the previous account\u2019s readout was not cleared');
+  assert.deepEqual(c.who, ['B'], 'the subject was not moved to the new account synchronously');
+});
+
+test('a sign-out clears the readout too, and does not carry the subject over', () => {
+  const c = runAuthCallback([['INITIAL_SESSION', sess('A')], ['SIGNED_OUT', null]]);
+  assert.equal(c.tick, 1);
+  assert.deepEqual(c.held, [null]);
+  assert.deepEqual(c.who, [null]);
+});
+
+test('the first event only registers the subject; it is not a switch', () => {
+  // The card may mount already signed in — INITIAL_SESSION then reports the
+  // account it is already showing, which is not a change.
+  const c = runAuthCallback([['INITIAL_SESSION', sess('A')]]);
+  assert.equal(c.tick, 0);
+  assert.deepEqual(c.held, []);
+});
+
 test('insight rows are keyed uniquely, since the route does not dedupe them', () => {
   // `generateReadout` filters by `validKeys.has(correlation_key)` — membership
   // only — so two insights citing the same pair carry the same key and React
