@@ -16,6 +16,8 @@
   "aria.today": "aujourd’hui",
   "bulletin.checkin": "Bilan à faire",
   "bulletin.checkinDetail": "Énergie · sommeil · 30 s",
+  "bulletin.onTheWall": "Sur le mur",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Bilan hebdo à faire",
   "bulletin.weeklyCheckinDetail": "2 min",
   "card.training": "Entraînement",

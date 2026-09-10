@@ -53,7 +53,8 @@ const DBZ_DEMO_CHURN = [
 // Roster outcomes — migrated verbatim from the old Analytics pages' mocks.
 const DBZ_DEMO_OUTCOMES = {
   trainer: {
-    activeClients: 34, workouts30d: 412, workouts7d: 96, prs30d: 41, avgAdherencePct: 88,
+    get activeClients() { return dbzDemoRosterSize(); },   // was a literal 34 — see V5 above
+    workouts30d: 412, workouts7d: 96, prs30d: 41, avgAdherencePct: 88,
     roster: [
       { name: "Alex Rivera", workouts30d: 18, workouts7d: 4, weightChangeLb: -6.2, prs30d: 3 },
       { name: "Casey Morgan", workouts30d: 16, workouts7d: 4, weightChangeLb: -3.4, prs30d: 2 },
@@ -64,7 +65,8 @@ const DBZ_DEMO_OUTCOMES = {
     ],
   },
   nutritionist: {
-    activeClients: 28, proteinAdherencePct: 78, avgLogsPerClient: 22, totalDaysLogged: 612,
+    get activeClients() { return dbzDemoRosterSize(); },   // was a literal 28
+    proteinAdherencePct: 78, avgLogsPerClient: 22, totalDaysLogged: 612,
     roster: [
       { name: "Casey Morgan", daysLogged30d: 28, avgProteinG: 168, weightChangeLb: -5.2 },
       { name: "Riley Kim", daysLogged30d: 26, avgProteinG: 152, weightChangeLb: -3.4 },
@@ -403,7 +405,32 @@ const DBZ_T_INK = "#f2ede4";
 
 // A deterministic demo walk: 78 weeks, 6 → ~34 active, so the preview shows
 // what a growing practice looks like. Demo band only.
-const DBZ_DEMO_TRAJECTORY = (() => {
+// ⚠ THE PREVIEW HAS ONE PRACTICE, NOT TWO (review 2026-09-09, V5). This page told a
+// prospective coach they had 34 active clients while Today, the roster and the Week —
+// all built from `buildMockClients` — showed ten. Two internally-coherent demo datasets
+// that contradict each other on adjacent tabs is worse than either alone, because the
+// preview is what the product is judged on.
+//
+// The growth walk KEEPS ITS SHAPE and changes only where it lands: every week's active
+// count is rescaled so the last one equals the roster the rest of the preview shows.
+// Rescaling rather than re-walking is deliberate — the curve is the story, and a
+// re-walk to a smaller target would flatten it.
+function dbzDemoRosterSize() {
+  try {
+    const n = DashSignals.buildMockClients(new Date()).length;
+    return n > 0 ? n : 10;
+  } catch (e) { return 10; }   // dashSignals not up yet — the ten it would have returned
+}
+// ⚠ LAZY AND DAY-KEYED, FOR TWO REASONS. It reads `dbzDemoRosterSize()`, and an IIFE at
+// module scope would read it at LOAD while the outcomes plate's getter reads it at
+// RENDER — two read times for one number is the disagreement this whole change is
+// about. And its week anchor is `new Date()`, so a module-scope build leaves a tab open
+// overnight quoting yesterday's weeks.
+let _dbzTraj = null;
+function dbzDemoTrajectory() {
+  const key = new Date().toDateString();
+  if (_dbzTraj && _dbzTraj.key === key) return _dbzTraj.v;
+  const v = (() => {
   let seed = 7;
   const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
   const weeks = [];
@@ -422,13 +449,44 @@ const DBZ_DEMO_TRAJECTORY = (() => {
     });
   }
   weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * 0.85); });
+  // Land the curve on the roster the rest of the preview shows, keeping its shape.
+  const target = dbzDemoRosterSize();
+  const peak = weeks[weeks.length - 1].active;
+  if (peak > 0 && target !== peak) {
+    const k = target / peak;
+    let prev = null;
+    weeks.forEach((w, i) => {
+      w.active = i === weeks.length - 1 ? target : Math.max(1, Math.round(w.active * k));
+      // adds and ends are FLOWS, so they follow from the levels rather than being
+      // scaled independently — otherwise the series stops adding up.
+      if (prev != null) { const d = w.active - prev; w.added = Math.max(0, d); w.ended = Math.max(0, -d); }
+      prev = w.active;
+      const gross = w.active * 18500 + (w.active % 3) * 1500;
+      w.mrrGrossCents = gross;
+      w.mrrNetCents = Math.round(gross * 0.88);
+    });
+  }
   const last = weeks[weeks.length - 1];
   return {
     weeks,
     firstSubAt: new Date(monday.getTime() - 77 * 7 * 86400000).toISOString(),
-    summary: { activeNow: last.active, active30dAgo: weeks[weeks.length - 5].active, addsThisMonth: 3, endedThisMonth: 1, churnRate30dPct: 4, medianTenureDays: 212, oneTime30dCents: 27000, totalEverSubscribed: 51 },
+    // ⚠ THE FLOWS ARE SUMMED FROM THE WEEKS, not asserted beside them. `addsThisMonth: 3`
+    // was a literal sitting next to a series that says something else — the same class of
+    // disagreement one level down.
+    summary: {
+      activeNow: last.active,
+      active30dAgo: weeks[weeks.length - 5].active,
+      addsThisMonth: weeks.slice(-4).reduce((n, w) => n + w.added, 0),
+      endedThisMonth: weeks.slice(-4).reduce((n, w) => n + w.ended, 0),
+      churnRate30dPct: 4, medianTenureDays: 212,
+      oneTime30dCents: weeks.slice(-4).reduce((n, w) => n + w.oneTimeCents, 0),
+      totalEverSubscribed: weeks.reduce((n, w) => n + w.added, 6),
+    },
   };
-})();
+  })();
+  _dbzTraj = { key, v };
+  return v;
+}
 
 const DBZ_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function dbzWeekLabel(weekOf) { const d = new Date(weekOf + "T00:00:00Z"); return DBZ_MONTHS[d.getUTCMonth()] + " " + d.getUTCDate(); }
@@ -556,7 +614,7 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
   const [range, setRange] = React.useState("12mo");
   const [table, setTable] = React.useState(false);
   const [hover, setHover] = React.useState(null);
-  const traj = live ? trajectory : DBZ_DEMO_TRAJECTORY;
+  const traj = live ? trajectory : dbzDemoTrajectory();
   // ⚠ A FAILED READ IS NOT AN EMPTY PRACTICE. The route sends `trajectory: null`
   // when the subscriptions read errors, so this branch says so rather than
   // falling through to the "no subscribers yet" line below — which would assert

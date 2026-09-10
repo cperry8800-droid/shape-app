@@ -16,6 +16,8 @@
   "aria.today": "heute",
   "bulletin.checkin": "Check-in fällig",
   "bulletin.checkinDetail": "Energie · Schlaf · 30 Sek.",
+  "bulletin.onTheWall": "An der Wand",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Wöchentlicher Check-in fällig",
   "bulletin.weeklyCheckinDetail": "2 Min.",
   "card.training": "Training",
