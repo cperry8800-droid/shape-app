@@ -556,6 +556,41 @@ Append new entries at the top, under this note.
   settle first.* **The second clause of V4 is NOT closed by this** — whether the fit can lose
   a race against content that resizes after it runs is a different question and nothing here
   tests it.
+- ⚠ **AND THE REVIEW ROUND FOUND THE ONE THING I HAD FLAGGED AS A QUESTION AND NOT
+  ANSWERED: THE STORE WAS BOUND TO `live` AND NOT TO THE ACCOUNT.** `useCoachDoc`'s
+  hydrate deps are `[goalKind, live, accountId]`, and `useRememberedChoices` passed no
+  account — so an A→B switch that leaves `live` true never re-runs it. **The second half
+  is the worse one:** the same hydrate sets `uidRef`, so every write B makes resolves
+  `startUid` as **A**, fails the unconditional identity comparison inside `apply`, and is
+  **refused**. B's own preferences become silently unsaveable until a reload. The guard
+  did its job — A's document is never upserted into B's row — it just left B unable to
+  save. The account is a dependency now.
+- ⚠ **AND RE-HYDRATING THE STORE IS NOT ENOUGH ON ITS OWN**, because `chosen` outranks
+  the document by design: A's session choice would have gone on governing B's screen, and
+  `askedRef` would have suppressed B's first write of that same value. Both reset — **but
+  only between two KNOWN accounts**, tracked as the last *known* one rather than the last
+  value seen. `useSignedIn` publishes `undefined` for "not resolved" and `null` for
+  "confirmed signed out", so resetting on every change would discard a choice made during
+  the load, which is the one case the reconciliation effect exists to keep; and tracking
+  the last known account also closes **A → signed out → B** on a shared browser, which a
+  plain previous-value comparison waves through. The reset happens **during render**, not
+  in an effect — an effect resets a frame late, and that frame is the one that shows B
+  the control A left behind.
+- ⚠ **AND THE STORE NOW STAYS SHUT UNTIL THE ACCOUNT IS KNOWN, which is one read rather
+  than two and is the same rule the fix is about.** Opening on `live` alone hydrated once
+  for an unresolved account and again for the real one — a wasted round trip, and a read
+  of a per-account document before knowing whose it is. An account that never resolves
+  degrades to remembering nothing, which is the honest failure.
+- ⚠ **AND THE LIVE RENDER HARNESS THEN REPORTED THE FEATURE BROKEN, AND IT WAS THE
+  HARNESS TELLING TWO STORIES.** It stubbed `getUser()` as signed in and left the REAL
+  supabase auth channel in place — which truthfully fired `INITIAL_SESSION` with a null
+  session. `useSignedIn` correctly let that event beat the in-flight read (its generation
+  guard, added for exactly the cross-account case), the account resolved to signed-OUT for
+  the whole run, and the store never opened. **The code disbelieved a half-finished lie,
+  which is what it is supposed to do.** It also polled for `window.shapeDb` on an interval
+  while `useSignedIn` resolves at mount, so the stub arrived after the read it was meant
+  to serve; it patches on assignment now. *An instrument that fakes half of a contract
+  measures the half it faked.*
 - ⚠ **AND MY MUTATION HARNESS WAS ITSELF A BROKEN INSTRUMENT, WHICH IS THE FOURTH TIME
   THIS FILE HAS PAID FOR THAT RULE.** Its restore list omitted `nutritionistClientsPage.jsx`,
   so the one mutation aimed at that file **stayed applied for every mutation after it** — and
@@ -564,8 +599,8 @@ Append new entries at the top, under this note.
   what killed the mutant was a file left broken three rounds earlier. The harness now runs
   the suite **before the first mutation and after the last restore**, and refuses to start on
   a dirty tree — so it reports on itself before it reports on the code.
-- **Verified:** `npm test` **2878/2878** · `tsc --noEmit` 0 · JSX parse on all five changed
-  modules · the newdesign precompile check · **14/14 mutations killed, each proven to land,
+- **Verified:** `npm test` **2879/2879** · `tsc --noEmit` 0 · JSX parse on all five changed
+  modules · the newdesign precompile check · **18/18 mutations killed, each proven to land,
   sanity green at both ends** — and **two survived the first pass, both real gaps in my
   guards rather than no-op mutations**: reversing the read/choice precedence survived because a healthy write repairs
   it one tick later (it is pinned now where the save FAILS, which is the only place

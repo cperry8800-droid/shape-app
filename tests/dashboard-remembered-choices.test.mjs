@@ -24,6 +24,7 @@ function region(from, to) {
   assert.ok(b > a, 'region end not found: ' + to);
   return SRC.slice(a, b);
 }
+const AUTH = region('function useSignedIn(', '\nfunction ');
 const HELPERS = region('async function dashDocBridge', 'function useCoachDoc(');
 const STORE = region('function useCoachDoc(', 'function goalMetricUnit(');
 const CHOICE = region('function useRememberedChoices(', 'Object.assign(window,');
@@ -34,6 +35,7 @@ test('the suite is running the shipped hooks, not an empty string', () => {
   assert.match(STORE, /pendingRef/);
   assert.match(CHOICE, /function useRememberedChoice\(store, key, allowed, fallback\)/);
   assert.ok(CHOICE.length > 400, 'the choice hook lifted as a stub');
+  assert.match(AUTH, /onAuthStateChange/, 'the account hook lifted as a stub');
 });
 
 // ── a re-rendering React host ────────────────────────────────────────────────
@@ -87,15 +89,24 @@ function makeHost(body) {
 
 function makeDb(doc, opts) {
   const o = opts || {};
-  const state = { doc: { ...doc }, gets: 0, saves: 0, written: [] };
+  const state = { doc: { ...doc }, gets: 0, saves: 0, written: [], uid: o.uid === undefined ? 'coach-a' : o.uid, auth: null };
   const db = {
     getSession: async () => ({}),
-    getUser: async () => (o.uid === null ? null : { id: o.uid || 'coach-a' }),
-    getUserGoals: async () => { state.gets += 1; return o.readFails ? null : { ...state.doc }; },
+    getUser: async () => (state.uid == null ? null : { id: state.uid }),
+    client: { auth: { onAuthStateChange: (fn) => { state.auth = fn; return { data: { subscription: { unsubscribe() {} } } }; } } },
+    // Keyed BY ACCOUNT, so a switch genuinely reads a different row rather than the
+    // same object under a new name — a shared document would let the A→B test pass
+    // on a store that never re-hydrated.
+    getUserGoals: async () => {
+      state.gets += 1;
+      if (o.readFails) return null;
+      return { ...(state.uid === 'coach-a' ? state.doc : (state.docB || {})) };
+    },
     saveUserGoals: async (kind, val) => {
-      state.saves += 1; state.written.push({ kind, val });
+      state.saves += 1; state.written.push({ kind, val, uid: state.uid });
       if (o.saveFails) return { error: 'nope' };
-      state.doc = val; return { data: val };
+      if (state.uid === 'coach-a') state.doc = val; else state.docB = val;
+      return { data: val };
     },
   };
   return { db, state };
@@ -106,12 +117,12 @@ function drivePage(dbState, opts) {
   const o = opts || {};
   const keys = o.keys || [{ key: 'rosterFilter', allowed: ['all', 'eyes', 'new', 'ontrack'], fallback: 'all' }];
   const ctl = { live: o.live !== false, chose: null };
-  const hooks = new Function('React', 'window', HELPERS + '\n' + STORE + '\n' + CHOICE +
+  const hooks = new Function('React', 'window', AUTH + '\n' + HELPERS + '\n' + STORE + '\n' + CHOICE +
     '\nreturn { useRememberedChoices, useRememberedChoice };');
   const host = makeHost((React) => {
     const api = hooks(React, { shapeDb: dbState.db });
     const prefs = api.useRememberedChoices(ctl.live);
-    const out = { kind: prefs.kind, doc: prefs.doc, values: {}, choose: {} };
+    const out = { kind: prefs.kind, doc: prefs.doc, accountId: prefs.accountId, values: {}, choose: {} };
     for (const k of keys) {
       const [v, choose] = api.useRememberedChoice(prefs, k.key, k.allowed, k.fallback);
       out.values[k.key] = v; out.choose[k.key] = choose;
@@ -289,6 +300,89 @@ test('the store is bound to the account, and an unresolvable one refuses the wri
   assert.equal(db.state.saves, 0, 'a write went out with no account behind it');
 });
 
+// ── a different account gets a different answer (CodeRabbit, #2029) ────────
+test('an A→B switch with `live` still true gives B their OWN document, not A\'s', async () => {
+  // ⚠ THE HOLE WAS BIGGER THAN A STALE READ, AND THE SECOND HALF IS THE WORSE ONE.
+  // `useCoachDoc`'s hydrate deps are [goalKind, live, accountId]; without the account,
+  // a switch that leaves `live` true never re-runs it. B then reads A's document — and
+  // because the same hydrate sets `uidRef`, every write B makes resolves `startUid` as
+  // A, fails the identity comparison inside `apply`, and is REFUSED. B's own
+  // preferences become silently unsaveable until a reload.
+  const db = makeDb({ rosterFilter: 'eyes' });
+  db.state.docB = { rosterFilter: 'ontrack' };
+  const { host } = drivePage(db);
+  const out = await host.flush();
+  assert.equal(out.values.rosterFilter, 'eyes', 'setup: A does not see A\'s document');
+  assert.equal(out.accountId, 'coach-a');
+
+  // B signs in from another tab. `live` never moves.
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-b', 'the store never noticed the switch');
+  assert.equal(host.out.values.rosterFilter, 'ontrack', "B is being shown A's remembered filter");
+
+  // and B can actually save
+  const before = db.state.saves;
+  host.out.choose.rosterFilter('new');
+  await host.flush();
+  assert.equal(db.state.saves, before + 1, "B's write was refused — the identity guard is reading A");
+  assert.equal(db.state.written[db.state.written.length - 1].uid, 'coach-b');
+  assert.deepEqual(db.state.docB, { rosterFilter: 'new' });
+  assert.deepEqual(db.state.doc, { rosterFilter: 'eyes' }, "A's document was written to");
+});
+
+test("A's un-saved session choice does not follow them to B", async () => {
+  // ⚠ RE-HYDRATING THE STORE IS NOT ENOUGH ON ITS OWN: `chosen` outranks the document
+  // by design, so A's session choice would go on governing B's screen. And `askedRef`
+  // would suppress B's first write of that same value.
+  const db = makeDb({}, { saveFails: true });
+  db.state.docB = {};
+  const { host } = drivePage(db);
+  const out = await host.flush();
+  out.choose.rosterFilter('eyes');
+  await host.flush();
+  assert.equal(host.out.values.rosterFilter, 'eyes', "setup: A's choice did not take");
+
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.values.rosterFilter, 'all', "A's session choice governs B's screen");
+});
+
+test('the store stays SHUT until the account is known, so nothing is read for nobody', async () => {
+  // ⚠ AND IT IS ONE READ RATHER THAN TWO. Opening on `live` alone hydrated once for an
+  // unresolved account and again for the real one — a wasted round trip, and a read of
+  // a per-account document before knowing whose it is, which is the defect itself.
+  const db = makeDb({ rosterFilter: 'eyes' }, { uid: null });   // confirmed signed out
+  const { host } = drivePage(db);
+  const out = await host.flush();
+  assert.equal(db.state.gets, 0, 'a per-account document was read with no account');
+  assert.notEqual(out.kind, 'ready');
+  assert.equal(out.values.rosterFilter, 'all');
+  // a choice made while it is shut still takes effect, and is written when it opens
+  out.choose.rosterFilter('new');
+  await host.flush();
+  assert.equal(db.state.saves, 0);
+  assert.equal(host.out.values.rosterFilter, 'new');
+  db.state.uid = 'coach-a';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-a' } });
+  await host.flush();
+  assert.equal(db.state.saves, 1, 'the choice was never written once the account resolved');
+  // ⚠ TWO READS HERE, AND ONLY ONE OF THEM IS A HYDRATE. `apply` re-reads the server
+  // document inside the serial lane before writing — that is how concurrent writes
+  // merge and it is deliberate. My first cut of this assertion counted them together
+  // and failed a correct fix. A regression to two hydrates reads 3.
+  assert.equal(db.state.gets, 2, 'the store read ' + db.state.gets + ' times: one hydrate + one merge read');
+
+  // and a fresh load with nothing pending reads exactly once
+  const db2 = makeDb({ rosterFilter: 'eyes' });
+  const p2 = drivePage(db2);
+  await p2.host.flush();
+  assert.equal(db2.state.gets, 1, 'a plain load read the document ' + db2.state.gets + ' times');
+  assert.equal(p2.host.out.values.rosterFilter, 'eyes');
+});
+
 // ── the wiring ───────────────────────────────────────────────────────────────
 const page = (f) => stripComments(readFileSync(new URL('../public/newdesign/' + f, import.meta.url), 'utf8'));
 
@@ -343,7 +437,7 @@ test('every host page loads dashData.jsx before the module that now needs it', (
 });
 
 test('the preference document is one named kind, not a new store per control', () => {
-  assert.match(CHOICE, /useCoachDoc\("dashboard_prefs", live\)/);
+  assert.match(CHOICE, /useCoachDoc\("dashboard_prefs", !!live && accountId != null, accountId\)/);
   // and it is the shared store, not a fourth copy of it — the thing the file
   // post-mortems having three of already
   assert.ok(!/getUserGoals|saveUserGoals|dashDocSerial/.test(CHOICE),

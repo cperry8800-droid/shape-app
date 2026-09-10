@@ -839,8 +839,28 @@ function useWeekClock(compute) {
 // and no sort of any kind. A default for a control that does not exist is a preference
 // for a feature that does not exist — R15 is where the control belongs, and the memory
 // follows it.
+//
+// ⚠ IT IS BOUND TO THE ACCOUNT, NOT ONLY TO `live` (CodeRabbit, #2029), AND THE HOLE
+// WAS BIGGER THAN A STALE READ. `useCoachDoc`'s hydrate deps are `[goalKind, live,
+// accountId]`, so an A→B switch that leaves `live` true never re-runs it: B reads A's
+// document, and — because `uidRef` is also set by that hydrate — every write B makes
+// resolves `startUid` as A, fails the unconditional identity comparison inside `apply`,
+// and is REFUSED. B's own preferences become silently unsaveable until a reload. (The
+// guard does its job: A's document is never upserted into B's row. It just leaves B
+// unable to save.) The account is a dependency now, so the store re-hydrates for B.
 function useRememberedChoices(live) {
-  return useCoachDoc("dashboard_prefs", live);
+  // One `useSignedIn` per page, not one per read: it takes a getUser() round trip and
+  // an auth subscription, and calling it twice in the same expression would take two.
+  const accountId = useSignedIn();
+  // ⚠ AND IT DOES NOT OPEN UNTIL THE ACCOUNT IS KNOWN, which is one read rather than
+  // two AND is the same rule the fix is about: reading a per-account document before
+  // knowing whose it is was the defect. `useSignedIn` publishes `undefined` until it
+  // resolves and `null` for a confirmed signed-out visitor — both leave the store
+  // closed, so nothing is read and nothing is written, and a choice made in that window
+  // is retried by the reconciliation effect the moment it opens. An account that never
+  // resolves degrades to remembering nothing, which is the honest failure.
+  const store = useCoachDoc("dashboard_prefs", !!live && accountId != null, accountId);
+  return { ...store, accountId };
 }
 
 // One control's memory, read out of a store opened by `useRememberedChoices`.
@@ -851,6 +871,30 @@ function useRememberedChoice(store, key, allowed, fallback) {
   // The value this hook last asked the document to hold. It is never reset on
   // success, only replaced by the next choice — see the loop note on the effect.
   const askedRef = React.useRef(null);
+
+  // ⚠ A DIFFERENT ACCOUNT GETS A CLEAN SLATE, and re-hydrating the store is not enough
+  // on its own: `chosen` outranks the document by design, so A's session choice would
+  // have gone on governing B's screen after B signed in — and `askedRef` would have
+  // suppressed B's first write of the same value.
+  //
+  // ⚠ IT RESETS BETWEEN TWO KNOWN ACCOUNTS ONLY, which is why the last KNOWN one is
+  // tracked rather than the last value seen. `useSignedIn` publishes `undefined` for
+  // "not resolved yet" and `null` for "confirmed signed out", so resetting on every
+  // change would discard a choice made during the load — the one case the whole
+  // reconciliation effect exists to keep. Tracking the last known account also closes
+  // A → signed out → B on a shared browser, which a plain previous-value comparison
+  // would wave through.
+  const acct = store && store.accountId != null ? store.accountId : null;
+  const knownRef = React.useRef(null);
+  if (acct != null && knownRef.current != null && acct !== knownRef.current) {
+    // Adjusting state during render rather than in an effect: an effect resets a frame
+    // late, and that frame is the one that shows B the control A left behind. React
+    // discards this render and re-runs it, and the ref assignment below has already
+    // happened by then, so the condition is false on the retry and it terminates.
+    setChosen(null);
+    askedRef.current = null;
+  }
+  if (acct != null) knownRef.current = acct;
   const doc = (store && store.doc) || {};
   const kind = (store && store.kind) || "loading";
   const apply = store && store.apply;
