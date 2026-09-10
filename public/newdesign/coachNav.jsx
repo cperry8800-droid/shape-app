@@ -27,7 +27,52 @@ function trainerNavItems(active) {
 // `demo: true` MARKS THE DATA, so DashSidebar can tell a demo card from a real
 // one without depending on object identity (a spread or a clone would slip an
 // invented payout past an identity check and show it to a live coach).
-const trainerPayoutCard = { demo: true, label: "PAYOUT APR 30", amount: "$18,420", sub: "Month to date · +22%" };
+//
+// ⚠ AND ITS FIGURES ARE DERIVED, NOT PICKED (review 2026-09-09, V5). The card said
+// "$18,420 · Month to date" beside a practice strip reading "$1,820 monthly recurring"
+// — from the SAME ten demo clients, a tenfold disagreement on one screen — under a
+// label frozen at "PAYOUT APR 30" while the page's own dateline rendered today. The
+// preview is what a prospective coach evaluates the product on, so it has to agree
+// with itself.
+//
+// ⚠ LAZY, BECAUSE THIS FILE LOADS BEFORE THE ENGINE IT DERIVES FROM. coachNav.jsx is
+// script #55 and dashSignals.js is #56, so a module-scope call would read undefined.
+// Getters evaluate at render, by which time both are up; a spread copies the evaluated
+// values, so `{...card}` still behaves exactly as it did.
+let _coachDemoPayout = null;
+function coachDemoPayoutCard() {
+  const now = new Date();
+  // Keyed on the DAY: a dashboard left open across midnight must not keep quoting
+  // yesterday's month-to-date, and the payout countdown moves with it.
+  const key = now.toDateString();
+  if (_coachDemoPayout && _coachDemoPayout.key === key) return _coachDemoPayout.v;
+  let v;
+  try {
+    const p = dashDemoPayouts(DashSignals.buildMockClients(now), now);
+    v = {
+      label: "PAYOUT " + p.payoutLabel,
+      amount: dashMoney(p.thisMonthCents),
+      sub: "Month to date · " + (p.daysToPayout === 0 ? "pays out today" : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s")),
+    };
+  } catch (e) {
+    // Nothing to derive from yet — say so rather than falling back to an invented figure.
+    v = { label: "PAYOUTS", amount: "—", sub: "Month to date" };
+  }
+  _coachDemoPayout = { key, v };
+  return v;
+}
+// ⚠ ONE SET OF FIGURES FOR BOTH ROLES, because there is one demo roster:
+// `buildMockClients` takes no role and `useDashboard` hands the same ten clients to a
+// trainer and a nutritionist alike. Two different payout numbers off one roster was
+// part of what made the preview incoherent. The two names stay so the nine call sites
+// that pick by role do not have to change.
+const coachPayoutCardDemo = {
+  demo: true,
+  get label() { return coachDemoPayoutCard().label; },
+  get amount() { return coachDemoPayoutCard().amount; },
+  get sub() { return coachDemoPayoutCard().sub; },
+};
+const trainerPayoutCard = coachPayoutCardDemo;
 
 // Shared nutritionist dashboard sidebar config
 function nutriNavItems(active) {
@@ -51,6 +96,6 @@ function nutriNavItems(active) {
   const norm = map[active.toLowerCase()] || active;
   return items.map(n => ({ ...n, href: "NutritionistApp.html#" + n.slug, active: n.label.toLowerCase() === norm.toLowerCase() }));
 }
-const nutriPayoutCard = { demo: true, label: "PAYOUT APR 30", amount: "$11,240", sub: "Month to date · +14%" };
+const nutriPayoutCard = coachPayoutCardDemo;
 
 Object.assign(window, { trainerNavItems, trainerPayoutCard, nutriNavItems, nutriPayoutCard });
