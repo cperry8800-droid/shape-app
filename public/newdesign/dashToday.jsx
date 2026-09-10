@@ -381,10 +381,17 @@ function dashQueueKeyOf(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 function dashQueueWeekKey() { return dashQueueKeyOf(dashQueueMonday()); }
+// ⚠ THE WINDOW THE ROUTE FILTERS ON IS AN INSTANT, NOT THIS LABEL. `weekKey` is
+// a local calendar date and a bare date is read at UTC midnight, which EXCLUDES a
+// publish made east of UTC early on the coach's own Monday (UTC+10, local 08:00 =
+// Sunday 22:00Z). The label stays the marks bucket; the query gets the moment.
+function dashQueueSince() { return dashQueueMonday().toISOString(); }
 // How many weeks of marks the document keeps. Only the current bucket is ever
 // read; the rest are kept briefly so a clock skew or a late tap cannot land in a
 // bucket that was just pruned.
 const DASH_QUEUE_KEEP_WEEKS = 6;
+// One frozen empty set, so an absent week bucket does not allocate per render.
+const DASH_QUEUE_NO_MARKS = new Set();
 function dashQueueWeekKeyAgo(weeks) {
   const m = dashQueueMonday();
   m.setDate(m.getDate() - weeks * 7);
@@ -418,7 +425,7 @@ function useWeekPublishes(live, weekKey, role) {
     setState({ kind: "loading", published: {} });
     (async () => {
       let j = null;
-      try { j = await dashJson("/api/coach/week-publishes?since=" + weekKey); }
+      try { j = await dashJson("/api/coach/week-publishes?since=" + encodeURIComponent(dashQueueSince())); }
       catch (e) { if (on) setState({ kind: "error", published: {} }); return; }
       if (!on) return;
       setState({ kind: "ready", published: (j && j.published) || {} });
@@ -518,7 +525,17 @@ function ProgrammingQueuePanel({ queue, role, live }) {
   // enabled button did nothing at all, silently, where the localStorage this
   // change removed at least kept the week's work. It ticks locally now, with the
   // notice above saying so. Same precedent as the Week view.
-  const [localMarks, setLocalMarks] = React.useState(() => new Set());
+  // ⚠ KEYED BY WEEK. These are the device-only marks used when the store cannot
+  // keep one, and the panel's clock now advances `weekKey` on its own across
+  // Monday midnight — so an unkeyed Set carried every one of last week's marks
+  // into the new queue and reported those clients as already handled.
+  const [localByWeek, setLocalByWeek] = React.useState(() => ({}));
+  const localMarks = localByWeek[weekKey] || DASH_QUEUE_NO_MARKS;
+  // ⚠ AND THE FAILED-WRITE INTENTS ARE KEYED WITH THEM, for the same reason and
+  // because a retry belongs to the week it was made in.
+  const intentRef = React.useRef({});
+  const intentKeyRef = React.useRef(weekKey);
+  if (intentKeyRef.current !== weekKey) { intentKeyRef.current = weekKey; intentRef.current = {}; }
   const storeKind = marks.kind;
   const rowState = (id) => dashQueueRowState(id, { published: ledger.published, marked, storeKind, localMarks });
 
@@ -526,12 +543,26 @@ function ProgrammingQueuePanel({ queue, role, live }) {
     const st = rowState(id);
     if (!st.canToggle) return; // a publish is a fact, not a preference
     if (storeKind !== "ready" && storeKind !== "error") {
-      setLocalMarks((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+      setLocalByWeek((prev) => {
+        const set = new Set(prev[weekKey] || []);
+        set.has(id) ? set.delete(id) : set.add(id);
+        return { ...prev, [weekKey]: set };
+      });
       return;
     }
-    const on = !marked[id];
+    // ⚠ A RETRY RE-ISSUES THE FAILED INTENT; IT DOES NOT INVERT THE PAINT. When a
+    // write's own READ fails there is nothing to roll back to, so the optimistic
+    // mark stays on screen and the notice says to tap again. Deriving `on` from
+    // that paint makes the retry compute `on = false` — so a recovered read would
+    // save a DELETION of the mark the coach was trying to keep. The intent is
+    // held until a write for it actually succeeds.
+    const held = Object.prototype.hasOwnProperty.call(intentRef.current, id);
+    const on = held ? intentRef.current[id] : !marked[id];
+    intentRef.current[id] = on;
     const cutoff = dashQueueWeekKeyAgo(DASH_QUEUE_KEEP_WEEKS);
-    marks.apply((doc) => dashQueueMergeMarks(doc, weekKey, id, on, cutoff, new Date().toISOString()));
+    Promise.resolve(marks.apply((doc) => dashQueueMergeMarks(doc, weekKey, id, on, cutoff, new Date().toISOString())))
+      .then((ok) => { if (ok) delete intentRef.current[id]; })
+      .catch(() => {});
   };
 
   const ink50 = "rgba(242,237,228,0.55)";
@@ -590,7 +621,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
               <a href={dashShellHref(role === "nutritionist" ? "NutritionistPlans.html" : "TrainerPrograms.html")} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 11px", textDecoration: "none" }}>Template</a>
               {st.canToggle && (
                 <button onClick={() => toggle(id)} disabled={settling} style={{ opacity: settling ? 0.45 : 1, cursor: settling ? "default" : "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: st.done ? "rgba(242,237,228,0.55)" : "#06231f", background: st.done ? "transparent" : "#2ee0c4", border: st.done ? "1px solid rgba(242,237,228,0.18)" : "0", borderRadius: 4, padding: "7px 11px" }}>
-                  {st.done ? "Undo" : "Mark written"}
+                  {Object.prototype.hasOwnProperty.call(intentRef.current, id) ? "Retry" : st.done ? "Undo" : "Mark written"}
                 </button>
               )}
             </div>

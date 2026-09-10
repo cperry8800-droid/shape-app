@@ -284,6 +284,59 @@ test('useCoachDoc binds the write to the account that acted and declines an untr
     'the optimistic paint clears the error again');
 });
 
+// ── The second Codex round ──────────────────────────────────────
+
+test('the ledger window is an INSTANT, so the coach\u2019s Monday is their own', () => {
+  // ⚠ MEASURED IN BOTH DIRECTIONS, because the comment this replaces claimed the
+  // skew was harmless — "it can only ever include a publish, never hide one" —
+  // and that is true only WEST of UTC.
+  const label = '2026-09-07';                                   // a local Monday
+  const asUtcMidnight = Date.parse(label + 'T00:00:00Z');       // how a bare date reads
+  const eastPublish = Date.parse('2026-09-06T22:00:00Z');       // UTC+10, local Mon 08:00
+  assert.equal(eastPublish >= asUtcMidnight, false,
+    'a bare date HIDES an east-of-UTC publish made on the coach\u2019s own Monday');
+  // The instant the caller now sends closes it: local Monday midnight at +10:00
+  // is Sunday 14:00Z, which is before that publish.
+  const eastSince = Date.parse('2026-09-07T00:00:00+10:00');
+  assert.equal(eastPublish >= eastSince, true);
+
+  // and the caller sends an instant, not the bucket label
+  const fn2 = fn(TODAY, 'dashQueueSince');
+  assert.match(fn2, /dashQueueMonday\(\)\.toISOString\(\)/);
+  const panel = TODAY.slice(TODAY.indexOf('function useWeekPublishes('), TODAY.indexOf('// Client-wins briefing'));
+  assert.match(panel, /since=" \+ encodeURIComponent\(dashQueueSince\(\)\)/);
+  assert.ok(!/since=" \+ weekKey/.test(panel), 'the naive local date is still being sent');
+});
+
+test('the device-only marks are bucketed by week, so Monday does not inherit them', () => {
+  // ⚠ The panel's clock advances `weekKey` on its own now, so an UNKEYED Set
+  // carried every one of last week's device-only marks into the new queue and
+  // reported those clients as already handled.
+  const panel = TODAY.slice(TODAY.indexOf('function ProgrammingQueuePanel('), TODAY.indexOf('// Client-wins briefing'));
+  assert.match(panel, /const \[localByWeek, setLocalByWeek\] = React\.useState\(\(\) => \(\{\}\)\);/);
+  assert.match(panel, /const localMarks = localByWeek\[weekKey\] \|\| DASH_QUEUE_NO_MARKS;/);
+  assert.match(panel, /return \{ \.\.\.prev, \[weekKey\]: set \};/);
+  assert.ok(!/React\.useState\(\(\) => new Set\(\)\)/.test(panel), 'the unkeyed Set survived');
+  // and the failed-write intents are cleared on the same boundary
+  assert.match(panel, /if \(intentKeyRef\.current !== weekKey\) \{ intentKeyRef\.current = weekKey; intentRef\.current = \{\}; \}/);
+});
+
+test('a retry re-issues the failed intent instead of inverting the paint', () => {
+  // ⚠ THE NOTICE SAID "tap it again to retry" AND THE HANDLER DID THE OPPOSITE.
+  // When a write's own READ fails there is nothing to roll back to, so the
+  // optimistic mark stays painted; deriving `on` from that paint makes the retry
+  // compute `on = false`, and a recovered read then saves a DELETION of the mark
+  // the coach was trying to keep.
+  const panel = TODAY.slice(TODAY.indexOf('function ProgrammingQueuePanel('), TODAY.indexOf('// Client-wins briefing'));
+  assert.match(panel, /const held = Object\.prototype\.hasOwnProperty\.call\(intentRef\.current, id\);/);
+  assert.match(panel, /const on = held \? intentRef\.current\[id\] : !marked\[id\];/);
+  assert.ok(!/const on = !marked\[id\];/.test(panel), 'the bare inversion survived');
+  // the intent is released only when a write for it actually succeeded
+  assert.match(panel, /\.then\(\(ok\) => \{ if \(ok\) delete intentRef\.current\[id\]; \}\)/);
+  // and the button stops calling a retry an Undo
+  assert.match(panel, /hasOwnProperty\.call\(intentRef\.current, id\) \? "Retry"/);
+});
+
 // ── The read route, DRIVEN ───────────────────────────────────────────────────
 // ⚠ RLS on coach_week_publishes is deliberately deny-all with no policies, so
 // this route runs the SERVICE ROLE. The coach_user_id filter is therefore the
@@ -329,7 +382,7 @@ test('the query is scoped to the authenticated coach, whatever the caller asks f
   const spy = adminSpy({ data: [], error: null });
   const mod = await loadRoute(spy);
   // A caller trying to name someone else's ledger — the scope must ignore it.
-  const res = await mod.GET(req('?since=2026-09-07&coach=22222222-2222-4222-8222-222222222222&coach_user_id=nope'));
+  const res = await mod.GET(req('?since=2026-09-07T00%3A00%3A00Z&coach=22222222-2222-4222-8222-222222222222&coach_user_id=nope'));
   assert.equal(res.status, 200);
   const scope = spy.filters.filter(([c]) => c === 'coach_user_id');
   assert.deepEqual(scope, [['coach_user_id', ME]], 'exactly one scope filter, and it is the signed-in user');
@@ -338,30 +391,43 @@ test('the query is scoped to the authenticated coach, whatever the caller asks f
 test('an anonymous caller gets 401 and the ledger is never queried', async () => {
   const spy = adminSpy({ data: [], error: null });
   const mod = await loadRoute(spy, { user: null });
-  const res = await mod.GET(req('?since=2026-09-07'));
+  const res = await mod.GET(req('?since=2026-09-07T00%3A00%3A00Z'));
   assert.equal(res.status, 401);
   assert.deepEqual(spy.filters, [], 'the query ran anyway');
 });
 
 test('a malformed `since` is refused, so it cannot widen the window', async () => {
   const mod = await loadRoute(adminSpy({ data: [], error: null }));
-  // ⚠ `+002026-09-07` IS THE ONE THAT MATTERS. Every other bad input here is
-  // also rejected by the Date parse on the next line, so a test without it
-  // passes with the SHAPE check disabled entirely — measured: `if (false && …)`
-  // survived until this case was added. An expanded-year form parses fine and
-  // is only caught by the shape.
-  for (const bad of ['', 'yesterday', '2026-9-7', '2026-13-40', '+002026-09-07', "2026-09-07' or true--"]) {
+  // ⚠ `+002026-09-07T00:00:00Z` IS THE ONE THAT MATTERS. Every other bad input
+  // here is also rejected by the Date parse on the next line, so a test without
+  // it passes with the SHAPE check disabled entirely — measured: `if (false && …)`
+  // survived until this case was added. An expanded-year form parses fine and is
+  // only caught by the shape.
+  //
+  // ⚠ AND A BARE DATE IS NOW REFUSED TOO. `2026-09-07` parses, but PostgREST
+  // reads it at UTC midnight — which EXCLUDES a publish made east of UTC early on
+  // the coach's own Monday. An offset is required so the window is the coach's
+  // week wherever they are.
+  for (const bad of ['', 'yesterday', '2026-9-7', '2026-13-40', '2026-09-07',
+                     '2026-09-07T00:00:00', '+002026-09-07T00:00:00Z',
+                     "2026-09-07T00:00:00Z' or true--"]) {
     const res = await mod.GET(req('?since=' + encodeURIComponent(bad)));
     assert.equal(res.status, 400, `"${bad}" was accepted`);
   }
   const spy = adminSpy({ data: [], error: null });
   const ok = await loadRoute(spy);
-  assert.equal((await ok.GET(req('?since=2026-09-07'))).status, 200);
+  assert.equal((await ok.GET(req('?since=2026-09-07T00%3A00%3A00Z'))).status, 200);
   // ⚠ THE WINDOW IS `created_at`, NOT `week_start` — the queue asks who the
   // coach has PROGRAMMED this week, and a week published last Monday FOR this
   // week is last week's work. Filtering on week_start dropped that client from
   // "ready to program" while the coming week's plan did not exist.
-  assert.deepEqual(spy.filters.find(([c]) => c === 'gte:created_at'), ['gte:created_at', '2026-09-07']);
+  assert.deepEqual(spy.filters.find(([c]) => c === 'gte:created_at'), ['gte:created_at', '2026-09-07T00:00:00Z']);
+  // An offset other than Z is accepted and passed through verbatim — the coach's
+  // own Monday midnight, wherever they are.
+  const east = adminSpy({ data: [], error: null });
+  const eastMod = await loadRoute(east);
+  assert.equal((await eastMod.GET(req('?since=' + encodeURIComponent('2026-09-07T00:00:00+10:00')))).status, 200);
+  assert.deepEqual(east.filters.find(([c]) => c === 'gte:created_at'), ['gte:created_at', '2026-09-07T00:00:00+10:00']);
   assert.equal(spy.filters.find(([c]) => c === 'gte:week_start'), undefined, 'the old window survived');
 });
 
@@ -370,7 +436,7 @@ test('an unreadable ledger is an error, never an empty map', async () => {
   // anyone" — the one sentence a coach must not be shown when the truth is
   // that the read failed.
   const mod = await loadRoute(adminSpy({ data: null, error: { message: 'permission denied' } }));
-  const res = await mod.GET(req('?since=2026-09-07'));
+  const res = await mod.GET(req('?since=2026-09-07T00%3A00%3A00Z'));
   assert.equal(res.status, 502);
   const body = await res.json();
   assert.ok(!('published' in body), 'a failed read still answered with a map');
@@ -396,7 +462,7 @@ for (const [label, rows] of [
 ]) {
   test(`the newest week wins whatever order the rows arrive in (${label})`, async () => {
     const mod = await loadRoute(adminSpy({ data: rows, error: null }));
-    const { published } = await (await mod.GET(req('?since=2026-09-07'))).json();
+    const { published } = await (await mod.GET(req('?since=2026-09-07T00%3A00%3A00Z'))).json();
     assert.equal(published.u1.weekStart, '2026-09-14', 'an older publish overwrote a newer one');
     assert.equal(published.u1.at, '2026-09-10T09:00:00Z', 'and it carries that row\u2019s own timestamp');
     assert.equal(published.u2.weekStart, '2026-09-07');

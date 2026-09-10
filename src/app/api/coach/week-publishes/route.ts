@@ -13,7 +13,7 @@
 // publish boundary writes (SPEC-guardrails.md §9.4). It is the only record that
 // a week was actually delivered, so it is what the queue should read.
 //
-// GET ?since=YYYY-MM-DD -> { published: { [clientId]: { weekStart, at } } }
+// GET ?since=<RFC3339 instant> -> { published: { [clientId]: { weekStart, at } } }
 //
 // ⚠ THE WINDOW IS WHEN THE PLAN WAS WRITTEN, NOT WHICH WEEK IT COVERS — and
 // the first cut had this backwards. Filtering `week_start >= thisMonday` matches
@@ -23,10 +23,16 @@
 // during THIS office week, so the filter is `created_at`, and `week_start` rides
 // along in the payload only so the row can say which week was delivered.
 //
-// ⚠ `since` IS A LOCAL DATE COMPARED AT UTC MIDNIGHT. The caller's Monday comes
-// from its own calendar; a coach west of UTC therefore sees the window open up
-// to a day early. Acceptable for a nudge list — it can only ever include a
-// publish, never hide one — and stated rather than silently assumed.
+// ⚠ `since` IS AN INSTANT, NOT A DATE — AND AN EARLIER CUT OF THIS COMMENT WAS
+// WRONG ABOUT WHY THAT MATTERS. It took a bare `YYYY-MM-DD` local Monday and said
+// the skew was harmless because it "can only ever include a publish, never hide
+// one". PostgREST reads a bare date at UTC midnight, so that is true only WEST of
+// UTC. Measured east of it: a coach at UTC+10 publishes at local Monday 08:00,
+// which is **Sunday 22:00Z** — strictly less than Monday 00:00Z, so the row is
+// EXCLUDED and the queue reports an already-programmed client as still ready.
+// The caller now sends the UTC instant of its own local Monday midnight, so the
+// window is the coach's week wherever they are. *A justification that only holds
+// in one hemisphere is not a justification.*
 //
 // ⚠ ADMIN CLIENT, SCOPED TO THE CALLER — and the scope is the whole security
 // argument. RLS on that table is deliberately deny-all with NO policies (the
@@ -43,15 +49,17 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+// An RFC3339 instant with an explicit offset. The offset is REQUIRED: a
+// timezone-free string is exactly the ambiguity this parameter stopped carrying.
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/;
 
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const since = new URL(request.url).searchParams.get('since') ?? '';
-  if (!ISO_DATE.test(since) || Number.isNaN(new Date(since + 'T00:00:00Z').getTime())) {
-    return NextResponse.json({ error: 'since must be a YYYY-MM-DD date.' }, { status: 400 });
+  if (!ISO_INSTANT.test(since) || Number.isNaN(new Date(since).getTime())) {
+    return NextResponse.json({ error: 'since must be an RFC3339 instant with an offset.' }, { status: 400 });
   }
 
   let admin;

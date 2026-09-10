@@ -581,8 +581,31 @@ Append new entries at the top, under this note.
   check `if (!db || !db.getUserGoals)`, sitting *before* it — and one used `[^}]*` across a
   span containing a closing brace. Both would have failed correct code. *A guard is code, and
   it gets the same scrutiny or it is decoration.*
-- **Verified:** `npm test` **2739/2739** · `tsc --noEmit` 0 · JSX parse on both changed modules
-  · the newdesign precompile check · **39 mutations killed across three rounds**, each **proven
+- ⚠ **AND THE SECOND CODEX ROUND REFUTED A JUSTIFICATION I HAD WRITTEN INTO THE ROUTE.**
+  Its comment said the local-date window was harmless because *"it can only ever include a
+  publish, never hide one"* — and that is true only **WEST of UTC**. PostgREST reads a bare
+  `YYYY-MM-DD` at UTC midnight, so a coach at **UTC+10** publishing at their local Monday
+  08:00 writes a `created_at` of **Sunday 22:00Z**, which is strictly less than Monday 00:00Z:
+  the row is **EXCLUDED** and the queue reports an already-programmed client as still ready.
+  Measured in both directions rather than reasoned about. The caller sends the **UTC instant
+  of its own local Monday midnight** now, and the route requires an explicit offset — a bare
+  date is refused, because a timezone-free string is exactly the ambiguity it was carrying.
+  *A justification that only holds in one hemisphere is not a justification.*
+- ⚠ **AND THE WEEK CLOCK THE LAST ROUND ADDED GAVE THE DEVICE-ONLY MARKS A NEW WAY TO LIE.**
+  Those marks (the fallback when the store cannot keep one) lived in an **unkeyed** `Set`, so
+  once `weekKey` started advancing on its own across Monday midnight, an open dashboard
+  carried **every one of last week's marks into the new queue** and reported those clients as
+  already handled. Bucketed by week now — as are the failed-write intents below, which belong
+  to the week they were made in. *A fix that makes something move gives everything downstream
+  of it a new state to be wrong in.*
+- ⚠ **AND THE NOTICE SAID "TAP IT AGAIN TO RETRY" WHILE THE HANDLER DID THE OPPOSITE.** When
+  a write's own read fails there is nothing to roll back to, so the optimistic mark **stays
+  painted** — and the toggle derived its next value from that paint, computing `on = false`.
+  A recovered read would then have saved a **DELETION of the mark the coach was trying to
+  keep**, under a message telling them to tap it. The intent is held until a write for it
+  actually succeeds, and the button says **Retry** rather than calling it an Undo.
+- **Verified:** `npm test` **2742/2742** · `tsc --noEmit` 0 · JSX parse on both changed modules
+  · the newdesign precompile check · **48 mutations killed across four rounds**, each **proven
   to land** — and *three of the four survivors were no-op mutations of mine*, which is the same
   broken-instrument lesson this file keeps paying for · headless renders of both Today tabs at
   1440, 1024 and 390px with zero page errors. Route registered in the War Room. No migration.
