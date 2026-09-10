@@ -490,6 +490,44 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — The website's app screenshots refreshed to the app as built today; the board's phones show real screens
+
+- **Owner: *"make sure the app screens that are showing on website are matching what is actually
+  live on the app currently."*** They did not. The nine `getapp-*.png` files the site shows
+  (five in `index.html`'s loop, nine in `GetApp.html`) were captured on 2026-07-10/15; the app
+  has since shipped the Home masthead dateline (09-01), the feed's online-rail **Hide ×** and
+  typed-reaction bar, the profile's cover photo and *training for* line (08-31), the grocery
+  list's collapsed aisles and action bar, and a sign-in-gated radio that reads paused with no
+  track for a visitor. **All nine replaced, same filenames, `?v=20260910`** in both pages.
+- **Method, so it can be repeated:** the app built from `main` and served locally; Playwright
+  at 375×867 at 1.6× (= the site's 600×1387) in the signed-out preview (language → paywall →
+  *Preview the app first* → *Step inside*, the demo banner dismissed); the `is-native-app` class
+  so no desktop bezel renders; the clock **pinned to Friday 2026-09-11 09:30 New York** so the
+  example member is on a strength day like the existing images; `/api/radio/now-playing`
+  fulfilled with what production answers. Fourteen screens captured and compared side by side
+  with the files on the site; the six that differed are in the review's §8.
+- ⚠ **THE BOARD'S PHONES WERE MY DRAWINGS, AND NOW THEY ARE NOT.** Concept A's phone cycles
+  three real screens (Eat, the live session player, the feed's PR post) and the moment cards on
+  every concept are windows onto the real captures with the live element ringed, labelled
+  *the app today*. The Wall preview keeps its proposed content but takes the app's actual Chat
+  chrome. A preview of "the app" built from invented UI is the demo-data class one step
+  removed; the owner caught it.
+- **Also answered, in the review's §7:** Feed vs Wall vs Team, read from the built app — the
+  Feed is everything members post with typed reactions and co-signs; Team is the 1:1 coach
+  and friend threads (the client ↔ trainer / nutritionist chat, mirrored in the coach apps,
+  with meal-log notes, photos and voice memos arriving as messages); Channels are the rooms,
+  #PR Wall among them; the proposed Wall is the record board. The one duplication to rule on
+  is whether #PR Wall stays as the room about PRs once the Wall ships.
+- **And three board changes on owner notes the same afternoon:** thinner display weights
+  (Anybody 500/600, the Wall at 400), the original logo artwork restored wherever the concepts
+  show it (the nav and footer use the real `shape-logo-nav-*.png` files; the Radio wordmark is
+  built the way the live site builds it), and E's climb redrawn as a **monotone rising score
+  line** to the summit with a soft fill beneath it — the ridge silhouette it followed before
+  went down as well as up, which a climb must not.
+- Verified: nine PNGs at 600×1387 (`stat`), refs bumped in both pages, no other page references
+  the files; the board rebuilt, each changed tab captured once; the pre-commit gate on the HTML
+  change (`npm test`, the newdesign precompile check) below.
+
 ### 2026-09-10 — Homepage review: "less analog, more alive", with a live concept board
 
 - **Records only — a review, not a build.** Owner: *"full review of new design index page …

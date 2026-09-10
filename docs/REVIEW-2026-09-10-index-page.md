@@ -389,7 +389,60 @@ preview shows sample plates labelled demo, as the app already does elsewhere. **
 two PRs; no new data is collected. **Order:** the migration and public read first (it also
 serves the homepage), then the segment and the Home card, then the coach Stamp.
 
-## 8. Method notes, limits, renders
+**Feed, Wall, Team: what each one is** (owner: *"what is the difference between wall and feed
+on the app?"* · *"and what about the chat feature for clients, trainers, and nutritionists"*).
+Read from the built app in its signed-out preview, not from memory:
+
+| Surface | Where | What it is | Who talks |
+|---|---|---|---|
+| **Feed** | Chat → Feed | Everything members post, newest first: PRs, long runs, swims, rest days, meals, check-ins, with typed reactions (Beast, Respect, Gliding, Spot), comments and coach co-signs. Filters: Universal / Following, and Shape / Client / Community. The online-now rail sits above it. | everyone public, plus who you follow |
+| **Wall** (proposed) | Chat → Wall | Only records: every public member's new best, from the structured PR ledger, as plates with the number, the delta over their last best, the coach's stamp, reactions; filter by lift; your own best pinned. A board, not a conversation. Today those records exist only as feed posts and as messages in the PR Wall channel. | nobody; you cheer and coaches stamp |
+| **Team** | Chat → Team | The 1:1 threads: **Coaches** (your trainer, your nutritionist, an endurance coach in the demo) and **Friends**, with unread badges. This is the client ↔ trainer / nutritionist chat. Coaches get the mirror of it in their own apps (the same `BSChatThread` code), and a nutritionist also receives a client's meal-log note, photo and voice memo as a message. | you and your coaches, you and friends |
+| **Channels** | Chat → Channels | Group rooms: #Shape HQ, #PR Wall, #strength-block-3, #Sunday Run Club, #Macro Mondays. #PR Wall is the system channel the PR RPC posts into; a Wall surface would read the ledger instead and could retire the channel or leave it as the chat about PRs. | members of the room |
+| **Support** | Chat → Support | The support thread. | you and Shape |
+
+So the Wall does not replace the Feed or the Team threads. The Feed is the conversation, the
+Team tab is the coach chat, the Wall is the record board. The one duplication to decide is
+the PR Wall channel: keep it as the room where people talk about PRs, or fold it into the
+Wall once the Wall ships.
+
+## 8. The app screens on the website, refreshed
+
+Owner: *"make sure the app screens that are showing on website are matching what is actually
+live on the app currently."* Two sets were checked: the nine PNGs the live site shows (five
+in `index.html`'s loop, nine in `GetApp.html`, all captured 2026-07-10/15), and the phones on
+the concept board, which were stylised mock-ups I drew.
+
+**Method.** The current app built from `main` (`VITE_BASE=/m/ npm run build`), served locally
+and driven with Playwright at 375×867 at 1.6× (the site's 600×1387), in the signed-out
+preview (language → paywall → *Preview the app first* → *Step inside*, the demo banner
+dismissed), with the `is-native-app` class so the desktop bezel does not render, the clock
+pinned to **Friday 2026-09-11 09:30 New York** so the example member is on a strength day
+like the existing images, and `/api/radio/now-playing` answering what production answers.
+Fourteen screens captured; each compared side by side with the file the site shows.
+
+**What was stale on the site, now replaced (same filenames, `?v=20260910`):**
+
+| Screen | File | What had changed in the app |
+|---|---|---|
+| Home | `getapp-home-v5.png` | the masthead dateline (*Clients edition · Thu · Sep 10 · Cut W37 · clock*, shipped 2026-09-01) and the ticker's macro line; the radio card's muted state |
+| Community | `getapp-community-v2.png` | *Universal / Following* moved into the title row; the online rail's **Hide ×**; an *All* filter; the typed-reaction bar (Beast · 41, comments, share, send) |
+| Profile | `getapp-profile-v2.png` | the *Training for · first half-marathon · 74 days out* line, the member's quote, and the **cover photo** behind the ascent (2026-08-31) |
+| Grocery | `getapp-grocery-v2.png` | aisles collapsed by default with counts, *Prep the week*, and the *Send to Instacart · Save to library · Share* bar |
+| Radio | `getapp-radio-v3.png` | the signed-out state is paused with no track (playback is sign-in gated); the old image showed a playing state |
+| Train, Eat, Score, Habits | `getapp-train-v3` · `getapp-nutri-v3` · `getapp-score-v3` · `getapp-habits-v1` | layout unchanged; the day's content differs (week 23 of the block, the Friday session, *The menu.*), so they are refreshed for consistency |
+
+**On the board:** A's phone now cycles three real screens (Eat, the live session player, the
+feed's PR post) and the three moment cards on every concept are windows onto the real
+captures with the live element ringed, labelled *the app today*; the Wall preview's chrome is
+the app's actual Chat chrome (title row, online rail, the Feed · Team · Channels pills).
+Everything else on the board that looks like the app is a proposed widget, not a screen.
+
+**Not changed:** the nine other `getapp-*` files no page references (`chat-v2/v3`, `eat-v2`,
+`home-v2/v4`, `home-mobile-light-v5`, `personalize-v2`, `recipes-v2`, `workout-v2`) are dead
+assets; deleting them is a separate tidy.
+
+## 9. Method notes, limits, renders
 
 - **Second revision.** Nine typefaces installed from `@fontsource` and rendered as a specimen
   sheet with the real glyphs (a zoomed pass on the dot-matrix candidates settled Doto over
