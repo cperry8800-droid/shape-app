@@ -495,6 +495,96 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — The CodeRabbit round on the units wave: nine findings, and the one I answered with the wrong finding
+
+- **Owner: *"run it through coderabbit on the PR"*.** It returned **nine findings on `2bb923c` — eight
+  real, one refuted** (and CodeRabbit itself withdrew the refuted one). PR #2024, still **unmerged**.
+- ⚠ **IT FOUND A BLIND SPOT THE CODEX ROUNDS HAD NOT: I FIXED CROSS-UNIT COMPARISON IN SQL AND LEFT
+  THE IDENTICAL BUG IN THREE JAVASCRIPT PATHS.** `announcePRsFromSetLogs` and `myBestLifts` compared
+  bare numbers, so a member logging 200 lb and 100 kg on the same lift had the **lighter** set
+  recorded as the PR (100 kg is 220.5 lb) — and `myBestLifts` is the member's *standing* record, read
+  by the Wall's *Your best*. `_liftToLb` normalises both to pounds for the comparison while each row
+  keeps the unit it was lifted in. *A lesson applied at the bottom of a file is not applied at the
+  top of it* — this file's own rule, earned again one layer over.
+- ⚠ **AND `dashGoals.jsx` WAS REFILLING THE MIXED-UNIT COLUMN FROM THE OTHER END.** The web Goal page
+  writes the same `client_weigh_ins` the mobile logger canonicalised, and it wrote in the goal
+  document's unit — so an Imperial member logging from a browser put `180` into a column the rest of
+  the app now reads as kilograms. **Canonicalising a column is not done until every WRITER is found;
+  I went looking for readers.**
+- **Two new migrations, both OWED ON SUPABASE.** ⚠ Shipped as **new files** rather than edits to the
+  applied ones: silently changing an applied migration leaves the repo claiming something the
+  database does not do, and the outstanding apply becomes invisible.
+  - **`2026-09-10-pr-wall-units.sql`** — `post_my_pr_to_wall` compared `p_value` against the stored
+    best with each side in whatever unit it carried, and stored `prev_value` verbatim while `unit`
+    became the new post's. Driven on Postgres 16, an old-vs-new control on **identical seeded state**:
+    a 100 kg lift after a 200 lb record went `not_a_pr` → **posted**; a 210 lb lift after a 100 kg
+    record went **accepted** → `not_a_pr`.
+  - **`2026-09-10-my-lifts-source.sql`** — the two lift RPCs **disagreed about which field IS the
+    lift**. Measured: a set logged `{actualLoad: 225}` against a prescribed `185 lb` reported **185 —
+    the prescription** on the member's own card, and a set whose only load string was
+    `{actualLoad: "100 kg"}` produced a null `raw_load` and **vanished entirely** while the coach
+    could see it. The applied file's own comment claimed its unit rule *"MIRRORS `_setLogUnit`
+    EXACTLY"*; it sniffed a different field than the value came from.
+- ⚠ **I ANSWERED A THREAD WITH THE WRONG FINDING AND RESOLVED IT, AND THE REVIEWER ACCEPTED THAT.**
+  The comment on `shapeBackend.js:3442` is about the **2000-row recency window**; I replied about
+  cross-unit comparison — the sibling finding at `:3309` — and marked it addressed. The fix I
+  described was real and needed; it simply was not what that thread asked. **A reviewer confirming
+  your reply is not evidence that you answered the finding.** Found only by draining the notification
+  queue and re-reading each finding against its own anchor.
+- **The recency window itself:** `myBestLifts` ordered by `created_at` desc, capped at 2000, then took
+  a **maximum** — so a member past ~5 months of training silently lost every older row and a heavier
+  old set vanished from *Your best*. ⚠ **The proposed fix re-breaks it across units**, which
+  CodeRabbit flagged itself: `actual_load` mixes lb and kg, so a 100 kg set sorts *below* a 150 lb one
+  and a metric member's heavy rows truncate first. The read is **split by `load_unit`** instead —
+  within one unit the ordering is true. ⚠ **REGISTERED, NOT CLOSED, at the call site:** a per-MOVE
+  maximum is still not guaranteed under a row cap; that needs a `max() group by move_name` aggregate.
+  The cap predates this PR, so it is registered rather than fixed — **fix what this PR introduced,
+  register what predates it.**
+- ⚠ **AND ONE FINDING WAS OUTSIDE THE DIFF, WHICH IS THE KIND A DIFF-SCOPED REVIEW NEED NOT CATCH.**
+  The coach case file's body-weight series is kilogram-native (`weighIns[].kg` is canonical kg and the
+  demo series is kg) and nothing converted it, so BODY rendered `79.2kg` and `-1.2 kg · 8 weeks` to a
+  coach whose Settings say Imperial. The units wave reached the member's own surfaces and stopped at
+  the coach's file. ⚠ The **document's** stated unit picks the converter, because a client who has not
+  re-saved can still be sharing a legacy doc whose `kg` field holds POUNDS — `convWeight` takes pounds
+  and `kgToDisplay` takes kilograms, and passing one to the other is the 2.2× mistake being removed.
+- ⚠ **GUARDING THE UPSERT INTRODUCED A DEFECT OF ITS OWN, AND IT WAS MINE TO CLOSE.** The guard made
+  the statement able to affect **zero rows** — and nothing downstream knew, so the losing side of a
+  race had its ledger write correctly refused and then posted *"new PR"* to the channel and returned
+  `ok:true` anyway. **Proven as a real race, not asserted:** two psql sessions, A commits 300 lb while
+  B posts 150 lb concurrently — without the witness B returns `{"ok": true, "body": "150 lb Press —
+  new PR"}` and the channel carries **two** messages against a ledger holding 300; with
+  `returning best_value into v_written` and a bail before every side effect, B returns `not_a_pr` and
+  **one** message is posted. *A fix that makes a state reachable owes that state a definition.*
+- ⚠ **FIVE OF MY OWN NEW GUARDS WERE HOLLOW ON THEIR FIRST MUTATION ROUND.** Two `'lb'`-fallback
+  reverts survived with no test at all; the per-page error case was **untestable** because the stub
+  gave both pages one shared error, so `||` and `&&` were indistinguishable; `bwSeriesDisp =
+  bwSeries.slice()` survived because every assertion named a variable that still existed; and pinning
+  two *template spellings* of the unit label let `unit: bwUnit` — the same defect as a `tr()` argument
+  — walk through. The last one is the recurring shape: **a guard that names the forms a defect can
+  wear only catches those forms**, so it asserts the invariant instead (`bwUnit` is the document's
+  unit: it may pick a converter and nothing else, so it may appear exactly twice in the file).
+- ⚠ **AND THE TEST HARNESS HID A REFERENCE ERROR BEHIND A BEST-EFFORT CATCH.** Adding `_liftToLb`
+  broke `announcePRsFromSetLogs`'s eval scope, and that function wraps its whole body in
+  `catch { /* best-effort */ }` — so the ReferenceError announced nothing and the assertion failed as
+  *"no such lift"* rather than *"the harness is incomplete"*. It lifts the real helper from the source
+  now. **A swallowing catch hides which of the two you are looking at.**
+- **Refuted, and left in the record:** CodeRabbit asked for the French `wall.lift*` keys to move from
+  *Soulevé* to *Exercice*. Linguistically defensible, but *Soulevé* is the **pre-existing** French
+  convention across ten strings in `fr/profile.json` **on `main`**; changing only the five Wall keys
+  would say *Exercice* on the Wall and *Soulevé* on the profile for one concept, on adjacent screens.
+  Retranslating the French lift vocabulary is a translator's call, not a side effect of shipping a
+  Wall. **CodeRabbit withdrew the finding.**
+- **Verified:** `npm test` **2976/2976** · `tsc --noEmit` 0 · JSX/JS parse on every changed module ·
+  the newdesign precompile check · mobile build + `public/m` republished · **19 mutations killed
+  across three rounds**, each proven to land and restored in a `finally` · both new migrations applied
+  twice on a real Postgres 16 and driven through fixtures (20/20 and 5/5) with old-vs-new controls on
+  identical state, plus the two-session race above · CI green on all required checks.
+- ⚠ **TWO MIGRATIONS ARE UNAPPLIED AND THERE IS STILL NO ON-ACCOUNT PASS.** Production has **0**
+  `workout_set_logs` and **0** `client_weigh_ins` rows, so nothing in this wave is exercised by real
+  data; the first real member logging a lift in kilograms is the actual test. The War Room item was
+  corrected in the same pass — it had been telling the owner to apply a migration they had **already
+  run** while saying nothing about the two that genuinely are pending.
+
 ### 2026-09-10 — The second Codex round: a fix that established the wrong ordering, and a migration that broke a consumer the moment it was applied
 
 - **Codex reviewed the fix round on `747433a` and returned two more P1s. Both real, and the second was
