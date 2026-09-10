@@ -451,10 +451,15 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
-- **The Wall in the app — owner ask 2026-09-10, NEXT TASK after the homepage pick.** Promote
+- **The Wall in the app — owner go-ahead 2026-09-10 (*"yes lets implement the new chat/wall look
+  on app"*); THE CURRENT BUILD. The website update is ON HOLD (owner, same day).** Promote
   the PR Wall from a chat channel to a surface: a public definer read over `pr_wall_posts` +
-  `post_id` + reactions (one migration), a fourth Community segment on `BSPlate`, a Home card,
-  a coach Stamp. Preview: the board's W tab; plan: `REVIEW-2026-09-10-index-page.md` §7.
+  `post_id` + reactions (one migration), a fifth Chat segment (Feed · **Wall** · Team · Channels ·
+  Support) rendering the feed's own `BSActivityCard` inside a `BSPlate` record frame, *Your best*
+  + *Post a PR*, a Home card; a coach's reaction on a client's plate is already the Stamp.
+  Preview: the board's W tab; spec: `REVIEW-2026-09-10-index-page.md` §7; **code-level build
+  brief: [`BUILD-2026-09-10-wall-in-app.md`](BUILD-2026-09-10-wall-in-app.md)** — read it before
+  touching the code; every line reference in it was verified against `main` = `7d23eb8`.
 - **Design-system pass — Phase 1 SHIPPED 2026-06-11** (`BSPlate` shared
   primitive in the chrome, window-exposed; AgendaCard + weekly-totals tiles
   refactored onto it; converted: Train hero, coach-adjust banner, home

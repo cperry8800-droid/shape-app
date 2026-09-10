@@ -339,6 +339,10 @@ band the day the station is on the http provider. C stays on the board as the an
 
 ## 7. Next task: the Wall in the app
 
+> **Build brief:** [`BUILD-2026-09-10-wall-in-app.md`](BUILD-2026-09-10-wall-in-app.md) — the code-level
+> plan (line references, migration, backend, client, i18n, tests) for the build. Owner, 2026-09-10:
+> *"yes lets implement the new chat/wall look on app"* · *"lets put the website update on hold for now"*.
+
 Owner, 2026-09-10: *"the wall concept that you have on the floor page that is showing on the
 app, we don't currently have that on the app but i like it. How could that be incorporated on
 the app? Add that to next task. I want to see a preview of that as well."* The preview is the
