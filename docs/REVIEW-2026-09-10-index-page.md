@@ -458,6 +458,16 @@ captures with the live element ringed, labelled *the app today*; the Wall previe
 the app's actual Chat chrome (title row, online rail, the Feed · Team · Channels pills).
 Everything else on the board that looks like the app is a proposed widget, not a screen.
 
+⚠ **RE-SHOT AGAIN THE SAME DAY, AFTER THE WALL SHIPPED.** The refresh above was captured
+*before* §7 was built, so `getapp-community-v2.png` showed a **four-across** pill row
+(Feed · Team · Channels · Support) while the app now ships five. It is re-captured from the
+build in `public/m` at the same 600×1387 (`?v=20260910b` on both pages that show it), and
+the Wall joins `GetApp.html` as **step 10 of 10** — `getapp-wall-v1.png`, new. The two
+screens are reached by `shape:goCommunity` / `shape:goWall` rather than by clicking: the
+footer tab bar is icon-only, so a label-driven walker gets into the app and then stops. The
+homepage's five-beat loop stays at five (a sixth is `.loopbeats` 525vh → 630vh, a page a
+fifth longer, which is a design call, not a re-shoot).
+
 **Not changed:** the nine other `getapp-*` files no page references (`chat-v2/v3`, `eat-v2`,
 `home-v2/v4`, `home-mobile-light-v5`, `personalize-v2`, `recipes-v2`, `workout-v2`) are dead
 assets; deleting them is a separate tidy.

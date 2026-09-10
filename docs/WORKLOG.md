@@ -495,6 +495,45 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — The site's app tour is re-shot against the Wall, and gains it as a tenth screen
+
+- **Owner: *"well make sure the new screenshots include the new chat design"*.** The nine
+  `getapp-*.png` the website shows were refreshed this morning (`ea72dfc`) — *before* the Wall
+  existed — so `getapp-community-v2.png` showed a **four-across** pill row (Feed · Team ·
+  Channels · Support) while the app now ships **five**. Re-captured from the build in
+  `public/m`, and the Wall joins the walkthrough as **step 10 of 10** —
+  `getapp-wall-v1.png`, new.
+- **The geometry is the site's, not a choice.** Every image the pages show is **600×1387**,
+  which is 375×867 at `deviceScaleFactor: 1.6`; the clock is pinned to **Friday 2026-09-11
+  09:30 New York** so the demo member is on a strength day, matching the rest of the set.
+  `is-native-app` is set from an init script (the class `main.jsx` adds under Capacitor and
+  `isNativeBSApp()` reads), so there is no desktop bezel to crop.
+- ⚠ **THE TWO SCREENS ARE REACHED BY THE APP'S OWN DEEP LINKS, BECAUSE THE TAB BAR HAS NO
+  TEXT TO CLICK.** The footer is icon-only, so a label-driven walker gets into the app and
+  then stops. `shape:goCommunity` and `shape:goWall` are the events the shell already listens
+  for — the second is what the Home bulletin fires — so driving them captures the screens
+  *and* exercises that wiring. The entry flow itself stays adaptive (a stored locale skips the
+  picker, so a fixed script is the wrong shape).
+- ⚠ **AND THE DEMO BANNER IS DISMISSED BY `aria-label`, NOT BY ITS TEXT.** `BSPreviewBanner`'s
+  close button renders the glyph **✕** and carries `aria-label="Dismiss"`, so a walker reading
+  `innerText || aria-label` sees the glyph and never the word — the first run captured both
+  screens with *PREVIEW · DEMO DATA* sitting over the plate. Every other image on the site is
+  taken with it dismissed.
+- ⚠ **THE `?v=` BUMP IS REQUIRED HERE, WHICH IS NOT THE CASE FOR A `.jsx`.**
+  `scripts/build-newdesign.mjs` rewrites **script tags only** — it never touches an image ref —
+  so a same-named PNG's hand-written `?v` is the only cache key it has. `getapp-community-v2`
+  goes to `?v=20260910b` on both pages that show it; the eight unchanged files keep theirs.
+- **The homepage's five-beat loop is deliberately left at five.** Adding a sixth means
+  `.loopbeats{height:525vh}` → 630vh — a page a fifth longer, which is a design call the owner
+  has not made. Beat 04 carries the refreshed Community capture; the Wall is on the
+  walkthrough, where the carousel is derived from `STEPS.length` and a tenth entry costs
+  nothing.
+- **Verified:** `npm test` **2860/2860** · `tsc --noEmit` 0 · the newdesign precompile check ·
+  both PNGs re-measured at **600×1387** · and headless renders of `GetApp.html` at 1440 and
+  390px (step 10 of 10, kind *THE WALL*, the Wall image on screen at its natural size, no
+  horizontal overflow, no 4xx, no page errors) and of `index.html` (all five beat images load
+  at 600×1387, beat 04 carrying the new cache key). No migration.
+
 ### 2026-09-10 — The Wall: the PR ledger becomes a surface, and the plate is the feed's own card
 
 - **The review's §7, built for the app only** ([`REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md)
