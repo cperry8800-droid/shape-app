@@ -242,29 +242,59 @@ const DASH_THRESHOLDS_EVENT = "shape:coach-thresholds";
 // same shape as `_dashCache` collapses them. `dashInvalidateCoachSettings` is what the
 // save path calls, so a write is never read back stale.
 let _dashCoachSettings = null;   // { at, doc }
+// ⚠ A GENERATION, AND ONE FLIGHT. Two races, both measured on this document:
+//   · Two callers miss the cache together and both fetch. The LATE one writes the
+//     cache — so a read started BEFORE a save, finishing after it, pins the stale
+//     document for the whole TTL and the roster runs the old thresholds while the
+//     server has already saved the new ones.
+//   · A read in flight when a save invalidates must not then repopulate the cache
+//     it was invalidated out of.
+// The counter is bumped by every invalidation, and a read may only write the cache
+// if the generation it started in is still current. `_flight` collapses concurrent
+// callers onto one round trip and is dropped on invalidation, so the next caller
+// starts a fresh read rather than joining a stale one.
+let _dashCoachSettingsGen = 0;
+let _dashCoachSettingsFlight = null;
 async function dashReadCoachSettings() {
   if (_dashCoachSettings && Date.now() - _dashCoachSettings.at < DASH_CACHE_TTL) return _dashCoachSettings.doc;
+  if (_dashCoachSettingsFlight) return _dashCoachSettingsFlight;
   const db = window.shapeDb;
   if (!db || !db.getUserGoals) return null;
-  await dashDocBridge();
-  let doc = null;
-  try { doc = await db.getUserGoals("coach_settings"); } catch (e) { doc = null; }
-  // ⚠ ONLY A SUCCESSFUL READ IS CACHED. Caching a null would pin "we could not read
-  // it" for a minute, so a coach who signs in mid-session runs on house policy until
-  // the entry expires — and the panel would say their settings are unreadable.
-  if (doc != null) _dashCoachSettings = { at: Date.now(), doc };
-  return doc;
+  const gen = _dashCoachSettingsGen;
+  const p = (async () => {
+    await dashDocBridge();
+    let doc = null;
+    try { doc = await db.getUserGoals("coach_settings"); } catch (e) { doc = null; }
+    // ⚠ ONLY A SUCCESSFUL READ IS CACHED. Caching a null would pin "we could not read
+    // it" for a minute, so a coach who signs in mid-session runs on house policy until
+    // the entry expires — and the panel would say their settings are unreadable.
+    if (doc != null && gen === _dashCoachSettingsGen) _dashCoachSettings = { at: Date.now(), doc };
+    return doc;
+  })();
+  _dashCoachSettingsFlight = p;
+  try { return await p; } finally { if (_dashCoachSettingsFlight === p) _dashCoachSettingsFlight = null; }
 }
-function dashInvalidateCoachSettings() { _dashCoachSettings = null; }
+function dashInvalidateCoachSettings() {
+  _dashCoachSettings = null;
+  _dashCoachSettingsGen += 1;
+  _dashCoachSettingsFlight = null;   // the next caller re-reads rather than joining a stale flight
+}
 
 function useCoachThresholds(role) {
   const [resolved, setResolved] = React.useState(null);
+  // ⚠ AND THE CONSUMER NEEDS ITS OWN GENERATION, because the read it awaits may not be
+  // the newest one. A mount read still in flight when a save fires the change event
+  // resolves AFTER the post-save read and would set the OLD tuning as the answer.
+  const genRef = React.useRef(0);
   const load = React.useCallback(async () => {
     // ⚠ THE CLIENT ROLE NEVER READS THIS. A member's own pages load DashSignals too,
     // and on a DUAL-ROLE account the coach's roster tuning would otherwise decide how
     // their own data reads back to them.
+    const gen = (genRef.current += 1);
     if (role === "client") { setResolved(null); return; }
-    setResolved(dashResolveCoachThresholds(await dashReadCoachSettings()));
+    const doc = await dashReadCoachSettings();
+    if (gen !== genRef.current) return;   // a newer load started — this answer is stale
+    setResolved(dashResolveCoachThresholds(doc));
   }, [role]);
   React.useEffect(() => { let on = true; load().catch(() => { if (on) setResolved(null); }); return () => { on = false; }; }, [load]);
   React.useEffect(() => {

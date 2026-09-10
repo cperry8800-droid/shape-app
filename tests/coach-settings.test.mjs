@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { execSync } from 'node:child_process';
 import { NOTIFY_TYPES, channelsForType } from '../src/lib/ai/notifications.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
@@ -219,8 +220,29 @@ test('the coach matrix matches the registry’s coach-audience types exactly', (
   // NOTIFY_TYPES with audience 'coach' fails here and points at the panel.
   const fromRegistry = Object.keys(NOTIFY_TYPES).filter((k) => NOTIFY_TYPES[k].audience === 'coach').sort();
   const inPanel = [...SETTINGS.matchAll(/\n  \["([a-z_]+)",/g)].map((m) => m[1]).sort();
-  assert.deepEqual(inPanel, fromRegistry,
-    'the coach notification matrix has drifted from the type registry');
+  // ⚠ A SUPERSET, NOT AN EQUALITY — and asserting equality is what DROPPED one.
+  // `waitlist_join` is sent through createPreferredNotification (so the matrix governs
+  // it) but never becomes an AI-layer candidate, so it carries no registry entry. An
+  // equality check therefore quietly required the panel to omit a switch a coach needs,
+  // while the card's own footer claimed only credential-expiry and payment were
+  // ungoverned. Every registry coach type must appear; extras must be justified below.
+  for (const k of fromRegistry) {
+    assert.ok(inPanel.includes(k), 'the panel dropped the registry coach type ' + k);
+  }
+  const registryInPanel = new Function('return ' + /const CST_REGISTRY_COACH_TYPES = (\[[^\]]*\]);/.exec(SETTINGS)[1])().sort();
+  assert.deepEqual(registryInPanel, fromRegistry,
+    'CST_REGISTRY_COACH_TYPES has drifted from the registry');
+  // …and every EXTRA is a preference-gated send: it must be routed through
+  // createPreferredNotification somewhere, or the switch governs nothing.
+  const extras = inPanel.filter((k) => !fromRegistry.includes(k));
+  assert.ok(extras.length > 0, 'the extras guard is vacuous — no non-registry type is listed');
+  for (const k of extras) {
+    const hit = execSync("grep -rl \"type: '" + k + "'\" src/app --include=*.ts", { encoding: 'utf8' }).trim().split('\n');
+    assert.ok(hit.length && hit[0], k + ' is offered as a switch but nothing sends it');
+    const src = readFileSync(new URL('../' + hit[0], import.meta.url), 'utf8');
+    assert.match(src, /createPreferredNotification\(/,
+      k + ' is offered as a switch but is not sent preference-aware — the toggle governs nothing');
+  }
 });
 
 test('the panel says which notifications it does NOT govern', () => {
@@ -382,7 +404,11 @@ test('the coach_settings document is read once, and a save drops the cache first
   // ⚠ ONLY A SUCCESSFUL READ IS CACHED: pinning a null would keep a coach on house
   // policy for the whole TTL after they sign in, with the panel calling their
   // settings unreadable.
-  assert.match(data, /if \(doc != null\) _dashCoachSettings = \{ at: Date\.now\(\), doc \};/);
+  // Anchored on the two invariants, not the line: it now also carries a generation
+  // guard, so pinning the expression failed a test about CACHING for a reason it does
+  // not care about — the third time in this PR.
+  assert.match(data, /if \(doc != null && gen === _dashCoachSettingsGen\)/,
+    'a null read is cached, or a read caches outside its generation');
   const announce = stripComments(SETTINGS).slice(stripComments(SETTINGS).indexOf('const announce ='));
   const body = announce.slice(0, announce.indexOf('\n  };'));
   assert.ok(body.indexOf('dashInvalidateCoachSettings') < body.indexOf('dispatchEvent'),
@@ -457,4 +483,42 @@ test('whole-row notification writes are serialized', () => {
   const lane = src.slice(src.indexOf('function cstSerial'));
   assert.match(lane.slice(0, 220), /_cstLane\.then\(fn, fn\)/, 'a failed write skips the next one');
   assert.match(lane.slice(0, 220), /\.then\(\(\) => \{\}, \(\) => \{\}\)/, 'a rejection wedges the lane');
+});
+
+// ── the stale-read races ─────────────────────────────────────────────────────
+test('a read started before an invalidation cannot repopulate the cache', () => {
+  // ⚠ TWO RACES ON ONE DOCUMENT. Two callers miss the cache together and both fetch;
+  // the LATE one wrote the cache — so a read started BEFORE a save, finishing after
+  // it, pinned the stale document for the whole TTL and the roster ran the old
+  // thresholds while the server already held the new ones.
+  const src = stripComments(DATA);
+  assert.match(src, /let _dashCoachSettingsGen = 0;/);
+  const read = src.slice(src.indexOf('async function dashReadCoachSettings'));
+  const body = read.slice(0, read.indexOf('\nfunction dashInvalidateCoachSettings'));
+  assert.match(body, /const gen = _dashCoachSettingsGen;/, 'the read does not record its generation');
+  assert.match(body, /gen === _dashCoachSettingsGen/, 'a stale read can still write the cache');
+  // …and concurrent callers collapse onto one round trip
+  assert.match(body, /if \(_dashCoachSettingsFlight\) return _dashCoachSettingsFlight;/);
+  // the invalidation bumps the generation AND drops the flight, or the next caller
+  // joins a read that started before the save
+  const inv = src.slice(src.indexOf('function dashInvalidateCoachSettings'));
+  const invBody = inv.slice(0, inv.indexOf('\n}') + 2);
+  assert.match(invBody, /_dashCoachSettingsGen \+= 1;/);
+  assert.match(invBody, /_dashCoachSettingsFlight = null;/, 'a new caller can join a pre-save flight');
+});
+
+test('an older threshold load cannot overwrite a newer one', () => {
+  // A mount read still in flight when a save fires the change event resolves AFTER the
+  // post-save read, and would set the OLD tuning as the answer.
+  const src = stripComments(DATA);
+  const hook = src.slice(src.indexOf('function useCoachThresholds'));
+  const body = hook.slice(0, hook.indexOf('return resolved'));
+  assert.match(body, /const genRef = React\.useRef\(0\);/);
+  assert.match(body, /const gen = \(genRef\.current \+= 1\);/, 'the load does not claim a generation');
+  assert.match(body, /if \(gen !== genRef\.current\) return;/, 'a stale load can still set the tuning');
+  // the guard sits between the await and the setState, or it guards nothing
+  const awaitAt = body.indexOf('await dashReadCoachSettings()');
+  const guardAt = body.indexOf('if (gen !== genRef.current) return;');
+  const setAt = body.indexOf('setResolved(dashResolveCoachThresholds(doc))');
+  assert.ok(awaitAt < guardAt && guardAt < setAt, 'the generation check does not sit between the read and the write');
 });

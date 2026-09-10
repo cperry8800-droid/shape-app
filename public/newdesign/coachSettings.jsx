@@ -48,7 +48,19 @@ const CST_COACH_TYPES = [
   ["client_red", "Client went red", "A client you act on crossed into red"],
   ["client_amber", "Client went amber", "A client moved to amber — worth a look, not an alarm"],
   ["checkin_submitted", "Check-in filed", "A client submitted their weekly check-in"],
+  // ⚠ GOVERNED BY THE MATRIX, AND ABSENT FROM THE REGISTRY — so a list derived from
+  // NOTIFY_TYPES alone silently dropped it. `waitlist_join` is sent by
+  // src/app/api/waitlist/join/route.ts through `createPreferredNotification`, which
+  // consults notification_preferences; it is not an AI-notify-layer CANDIDATE, which is
+  // why it carries no registry entry. The mobile coach settings have always shown it,
+  // so the web was the odd one out — and the footer below claimed credential-expiry and
+  // payment were the ONLY notifications this panel does not govern, which made the
+  // omission a false claim rather than a gap.
+  ["waitlist_join", "Waiting-list requests", "Someone joined your waiting list"],
 ];
+// The registry's coach types, which this panel must cover in full — the extra entries
+// above are preference-gated sends that never become candidates.
+const CST_REGISTRY_COACH_TYPES = ["client_red", "client_amber", "checkin_submitted"];
 
 function cstCard(children, extra) {
   return (
@@ -481,7 +493,7 @@ function CoachNotificationCard({ signedIn }) {
         {/* Said plainly, because the alternative is a coach believing they muted
             something they did not. */}
         These are the notifications this panel governs. Credential-expiry and payment
-        alerts are sent outside it and arrive whatever is set here.
+        alerts are sent outside the preference matrix and arrive whatever is set here.
       </div>
     </React.Fragment>
   );
@@ -503,4 +515,4 @@ async function cstResolveLandingTab(isKnownSlug) {
   } catch (e) { return null; }
 }
 
-Object.assign(window, { CoachSettingsPage, CoachNotificationCard, CstNumber, cstLandingOptions, cstResolveLandingTab, CST_COACH_TYPES, CST_DEFAULT_CHANNELS });
+Object.assign(window, { CoachSettingsPage, CoachNotificationCard, CstNumber, cstLandingOptions, cstResolveLandingTab, CST_COACH_TYPES, CST_REGISTRY_COACH_TYPES, CST_DEFAULT_CHANNELS });
