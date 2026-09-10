@@ -1387,6 +1387,77 @@ Append new entries at the top, under this note.
   → **reload → the tab comes back lit** → choose the defaults back → `{}`.
 - ⚠ **STILL A SIMULATED LIVE STATE.** The account above is a stubbed `shapeDb` over
   localStorage. An on-account pass is owed.
+### 2026-09-10 — Third-party recipe import, specced: the seam was already built, and the interleave is the thing it may never claim
+
+- **Records only — a spec, not a build.** Owner: *"how can we create the ability to upload
+  3rd party recipes, which can then ingredients are broken down and the recipe or cooking
+  instructions can then be uploaded in the cooking tutorial we have created"*. The design is
+  [`docs/superpowers/specs/2026-09-10-third-party-recipe-import-design.md`](superpowers/specs/2026-09-10-third-party-recipe-import-design.md):
+  a full read of the cook stack (`cookable.mjs` · `cookOrchestrator.mjs` · `mealPrep.mjs` ·
+  the catalog + its four guard tests), the store, the two breakdown engines and the routes.
+  **No code changed, no migration, no PR beyond the records.**
+- ⚠ **THE COOKING TUTORIAL NEEDS NO CHANGES, AND THAT IS THE FINDING THAT SHAPES THE WHOLE
+  BUILD.** `BSCookMode` consumes a normalized `cookable`, never a recipe — and
+  `bsCookableFromText` (`cookable.mjs:841`) is **shipped, tested, and has ZERO production
+  callers**, its own header naming this exact use (*"the seam future creation surfaces …
+  call with whatever they honestly have"*). The work is entirely upstream of the walkthrough:
+  ingest, store, review. The seam was built and never connected.
+- ⚠ **AN IMPORTED RECIPE GETS NO PASSIVE WINDOWS, AND THAT IS THE BINDING CONSTRAINT RATHER
+  THAN A V1 SHORTCUT.** `cookOrchestrator.mjs:8-12` — *"no fabricated parallelism …
+  never a merely-parsed duration"*. The catalog's windows come from `_KITCHEN_STEP_META`
+  (`shapeKitchenData.js:1011`), **hand-curated per recipe title** with commentary no parse
+  reproduces, and four guard tests enforce the annotation quality
+  (`tests/shape-kitchen-data.test.mjs:101,167,205,233`) — every one of which an import
+  bypasses by construction. So the import falls back to SERIAL, which
+  `BS_SERIAL_REASON.NO_WINDOW` already models and explains. **The attractive version of this
+  feature is the exact thing the module was written to refuse**, and the spec says so in a
+  box above §1 so a later session cannot re-open it by accident. The honest alternative —
+  **the MEMBER marks a step hands-off**, which is a human annotating their own recipe rather
+  than a model inferring one — is registered, not designed.
+- ⚠ **AND THE OBVIOUS STORE WOULD HAVE EATEN THE MEMBER'S RECIPE.** `client_library` looks
+  like the place (it already holds saved recipes), but it holds **POINTERS, not bodies** —
+  `bsRecipeLibItem` emits five fields resolved back against the catalog by slug — and
+  `bsLibWrite` (`iosAppBroadsheetClient.jsx:1668`) upserts the whole array **blind, with no
+  read-merge**. A one-time union on mount protects a pointer, whose loss costs a re-save; it
+  does **not** protect a typed-in recipe, which has nothing to re-derive it from. Bodies go
+  in their own `client_recipes` kind and the library keeps holding pointers, so the
+  Catalogue lists member recipes with no change to its write path.
+- **The breakdown is TWO engines, and conflating them is how the build goes wrong.**
+  Quantities/scaling/merging is `mealPrep.mjs` (`bsQtyParse` · `bsScaleQty` · `bsMergeMise`),
+  deliberately narrow — *"honest > clever"*, so `"a pinch"` survives verbatim and `200 g` +
+  `1 cup` print as two rows rather than a fabricated conversion. Macros-per-ingredient is
+  `/api/nutrition/food-search` (USDA FDC + Open Food Facts), which is a **guess per row** and
+  is therefore member-confirmed one row at a time, never looped over on import. ⚠ **Partial
+  coverage shows no total** — summing the mapped rows and presenting it as the recipe's kcal
+  is the fabrication class `foodSearch.mjs:13` already refuses at the row level.
+- **Owner decisions taken in-session:** private to the member (so **no schema migration** —
+  `user_goals`); AI drafting allowed but **labelled and member-reviewed** before save, per
+  the precedent already named in `cookable.mjs`'s header and the `parseModelJson` rule
+  (*"never write raw model text straight to the record"*); **paste + photo in v1**, URL fetch
+  deferred with its SSRF and copyright work written up rather than hand-waved. `draftedByAI`
+  is **never cleared, even after the member edits every field** — provenance does not change
+  because someone fixed a typo.
+- ⚠ **THE PHOTO PATH RESTS ON SOMETHING THIS REPO HAS NEVER DONE, AND THE SPEC SAYS SO IN
+  ITS OWN SECTION RATHER THAN IN A FOOTNOTE.** `grep -rn "input_image\|image_url" src/
+  --include=*.ts` returns **nothing** — no vision call exists anywhere, and `src/lib/ai.ts`
+  targets the **Responses API** whose content-block shape must not be inferred from Chat
+  Completions (its own comment at `:12` warns against exactly that). PR 4 is gated on
+  confirming the pinned production model accepts image input at all; if it does not, the PR
+  stops at the bucket and the upload. **PR 2 (paste) needs no AI, no new route, and ships the
+  feature alone** — 3 and 4 are genuinely optional.
+- ⚠ **ONE MIGRATION IS OWED AFTER ALL, AND THE HEADER'S "MIGRATIONS: NONE" IS SCOPED, NOT
+  WRONG.** No *schema* change — but the photo path needs a **`recipe-imports` storage
+  bucket**, deliberately NOT `meal-notes`: that bucket hands out **year-long signed URLs**
+  (`SIGNED_URL_TTL`, `meal-note/route.ts:22`) so a coach can open an attachment, and a recipe
+  photo with no coach recipient must not inherit a year-long public link. The document stores
+  the **path** and mints a short-lived URL on demand.
+- **Verified:** docs-only (the pre-commit hook skips the code gates) · **every `path:line`
+  citation machine-checked** by a script that resolves each one and prints the line it lands
+  on — 54 line references resolved automatically, the 4 it could not path-resolve verified by
+  hand — which caught **eighteen** that had drifted: most by a few lines, one
+  (`bsSplitMethodProse`) by five hundred, and three ranges whose end fell on a blank line.
+  Reading would have found none of them. LF, zero CR, zero NUL, 12 line-start fences (even),
+  no CJK. *A citation nobody re-derived is a claim, not a reference.*
 
 ### 2026-09-10 — P1-E: the weekly readout on the web, and eight cards that were never on it
 
