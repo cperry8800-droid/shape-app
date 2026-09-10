@@ -1640,6 +1640,7 @@ window.shapeClearLocalUserContent = function (opts) {
       "shape.dashMealLog.",   // today's meal-log ticks (dashClient.jsx)
       "shape.dashMealSwap.",  // today's meal swaps (dashClient.jsx)
       "shape.dashNutriSwap.", // nutritionist-side day swaps (dashNutri.jsx)
+      "shape.recipes.",       // a member's OWN recipes, mirrored per uid
       // Legacy role families (profiles, client messages/check-ins, plans,
       // assigned content, widget libs — all account-scoped; the KEEP-list keys
       // shapeGrocery*/shapeRecipes_v1/shape-pwa-* don't match these prefixes):

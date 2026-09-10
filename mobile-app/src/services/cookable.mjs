@@ -859,6 +859,58 @@ export const bsCookableFromText = ({ title, text, ingredients, macros, coach } =
   });
 };
 
+// A MEMBER'S OWN recipe (user_goals `client_recipes`, spec §5.3). A thin wrapper
+// over bsCookableFromRecipe, because the stored document already carries steps
+// the member reviewed — feeding it through bsCookableFromText would join and
+// re-split what they just confirmed.
+//
+// ⚠ AN IMPORTED RECIPE MAY NEVER HOST AN INTERLEAVE WINDOW (cookOrchestrator's
+// binding "no fabricated parallelism" — the catalog's windows are hand-curated
+// per recipe and four guard tests police their quality; a parse reproduces
+// none of that). TWO independent legs hold that here, and NEITHER covers the
+// other:
+//   1. every step is coerced to a plain STRING, so a structured step cannot
+//      carry its own {min, passive, station} through splitSteps; and
+//   2. `stepMeta` is never forwarded, because bsCookableFromRecipe applies a
+//      caller-supplied PARALLEL overlay onto plain strings (the overlay block
+//      above) — which is exactly how the catalog's windows attach.
+// ⚠ And the key must be ABSENT rather than `[]`: Array.isArray([]) is true, so
+// an empty array IS taken as the overlay. It happens to be harmless today only
+// because leg 1 leaves the inline meta plain for it to fall back to — which
+// makes the invariant depend on two things interacting instead of on one key
+// not being there. Absent is the version that stays true.
+export const bsCookableFromMemberRecipe = (doc) => {
+  if (typeof doc !== 'object' || doc === null) return null;
+  const title = str(doc.title);
+  if (!title) return null;
+  const plain = {
+    title,
+    servings: doc.servings,
+    ingredients: doc.ingredients,
+    // Coerce every step to text; an object step keeps only its `t`.
+    steps: Array.isArray(doc.steps)
+      ? doc.steps.map((x) => (typeof x === 'object' && x !== null ? str(x.t) : str(x))).filter(Boolean)
+      : [],
+    // stepMeta deliberately absent — see above.
+  };
+  const c = bsCookableFromRecipe(plain);
+  if (!c) return null;
+  // bsCookKey checks mealId FIRST, so resume state is per-recipe and survives a
+  // rename — without it a non-Latin title slugs to '' and every such recipe
+  // would share one hash bucket.
+  c.mealId = str(doc.id);
+  // 'member' is a new value; the only consumer of sourceKind is a strict
+  // === 'meal' test that stamps a log "As planned · From {coach}'s plan".
+  c.sourceKind = 'member';
+  // ⚠ NULL, not the title: three surfaces slug recipeTitle into a recipeId the
+  // Kitchen Card resolves against the CATALOG, so a title collision would credit
+  // the member's dish to a catalog recipe's author.
+  c.recipeTitle = null;
+  c.coach = null;
+  c.allergenNotes = null;
+  return c;
+};
+
 // The dispatch: recipes carry a macros OBJECT, meals carry flat p/c/f.
 export const bsCookable = (source, opts = {}) => {
   if (typeof source !== 'object' || source === null) return null;
