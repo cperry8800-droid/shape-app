@@ -817,4 +817,9 @@ function useWeekClock(compute) {
   return value;
 }
 
+// ⚠ `dashDemoPayouts` MOVED TO `dashSignals.js` on 2026-09-10 as `DashSignals.demoPayouts`.
+// It derives from `buildMockClients`, which lives there, and the sidebar's payout card is
+// rendered on pages that load NEITHER this file nor `dashToday.jsx` — so keeping the
+// derivation here made the card's own getters throw on ten of them and report the failure
+// as an em-dash. A pure derivation belongs with the data it derives from.
 Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });

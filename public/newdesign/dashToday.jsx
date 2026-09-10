@@ -23,6 +23,69 @@ function dashCalTime(iso) {
   try { const d = new Date(iso); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
   catch (e) { return ""; }
 }
+// The payouts strip in the signed-out preview. ⚠ EVERY FIGURE COMES OUT OF THE DEMO
+// ROSTER ON THE SAME PAGE (review 2026-09-09, V5): it used to read
+// "$4,192.00 this month" beside a practice strip saying "$1,820 monthly recurring" from
+// those same ten clients, with a next payout frozen at "Apr 21 · in 3 days" — text that
+// was wrong on every day but one, even in April.
+// ⚠ THE DEMO CALENDAR WAS FROZEN IN APRIL 2026 — 48 entries across the two roles, on a
+// page whose own dateline renders today (review 2026-09-09, V5). A September visitor saw
+// a month that had already happened, and two of the entries quoted payout figures the
+// strip beside them no longer shows.
+//
+// Both blocks start on Monday 2026-04-13, so the whole thing shifts by whole weeks onto
+// the current week: every weekday, every time and every ordering is preserved, and only
+// the calendar's position in the year moves.
+const DASH_DEMO_CAL_BASE = "2026-04-13";   // a Monday, and the first date in both blocks
+let _dashDemoCal = null;
+function dashDemoCalendar(rows, now) {
+  const at = now instanceof Date ? now : new Date();
+  const key = at.toDateString() + ":" + (rows && rows.length);
+  if (_dashDemoCal && _dashDemoCal.key === key) return _dashDemoCal.v;
+  const parts = DASH_DEMO_CAL_BASE.split("-").map(Number);
+  const base = new Date(parts[0], parts[1] - 1, parts[2]);
+  // This week's Monday, in LOCAL time — the dateline and every other date on this page
+  // are local, and mixing the two is how a demo lands a day out west of UTC.
+  const monday = new Date(at.getFullYear(), at.getMonth(), at.getDate());
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const shiftDays = Math.round((monday - base) / 86400000);
+  const p = DashSignals.demoPayouts(DashSignals.buildMockClients(at), at);
+  const v = (rows || []).map((e) => {
+    const d = e.date.split("-").map(Number);
+    const moved = new Date(d[0], d[1] - 1, d[2] + shiftDays);
+    const iso = moved.getFullYear() + "-" + String(moved.getMonth() + 1).padStart(2, "0") + "-" + String(moved.getDate()).padStart(2, "0");
+    // ⚠ THE PAYOUT ENTRIES FOLLOW THE STRIP, not a date of their own. They used to read
+    // "Apr 21 · $2,847" beside a strip that now derives both from the demo roster.
+    if (/^Payout day/.test(e.title)) {
+      const po = new Date(at.getFullYear(), at.getMonth() + 1, 0);
+      const poIso = po.getFullYear() + "-" + String(po.getMonth() + 1).padStart(2, "0") + "-" + String(po.getDate()).padStart(2, "0");
+      return { ...e, date: poIso, sub: p.payoutShort + " · " + dashMoney(p.thisMonthCents) };
+    }
+    if (/^Payout review/.test(e.title)) return { ...e, date: iso, sub: "This cycle" };
+    return { ...e, date: iso };
+  });
+  _dashDemoCal = { key, v };
+  return v;
+}
+
+let _dashDemoKpis = null;
+function dashDemoKpis(now) {
+  const at = now instanceof Date ? now : new Date();
+  // Keyed on the DAY: this runs on every Today render, and rebuilding the ten-client
+  // roster each time to reach a figure that only moves at midnight is waste.
+  const key = at.toDateString();
+  if (_dashDemoKpis && _dashDemoKpis.key === key) return _dashDemoKpis.v;
+  const p = DashSignals.demoPayouts(DashSignals.buildMockClients(at), at);
+  const v = [
+    { k: dashMoney(p.balanceCents), l: "Current balance", sub: "settled · 7-day hold" },
+    { k: p.payoutShort, l: "Next payout", sub: p.daysToPayout === 0 ? "today" : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s") },
+    { k: dashMoney(p.thisMonthCents), l: "This month", sub: "net · after 15% fee" },
+    { k: dashMoney(p.lifetimeCents), l: "Lifetime", sub: p.months + " month" + (p.months === 1 ? "" : "s") + " on Shape" },
+  ];
+  _dashDemoKpis = { key, v };
+  return v;
+}
+
 function dashMoney(cents) {
   try { return "$" + Math.round((cents || 0) / 100).toLocaleString(); }
   catch (e) { return "$0"; }
@@ -60,12 +123,7 @@ const DASH_TODAY_ROLES = {
     unit: "session",
     emptySchedule: { time: "—", who: "No sessions today", sub: "Your schedule is clear" },
     emptyPulse: { who: "No clients yet", sub: "Sessions will appear here", trend: DASH_FLAT_TREND },
-    mockKpis: [
-      { k: "$2,847.50", l: "Current balance" },
-      { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
-      { k: "$4,192.00", l: "This month" },
-      { k: "$38,420", l: "Lifetime" },
-    ],
+    mockKpis: () => dashDemoKpis(),
     mockSchedule: [
       { time: "07:00", who: "Priya S.", sub: "Lower pull · remote", status: "DONE" },
       { time: "09:30", who: "Deandre K.", sub: "Upper push · Brooklyn", status: "DONE" },
@@ -89,7 +147,7 @@ const DASH_TODAY_ROLES = {
       { date: "2026-04-15", time: "07:00", kind: "SESSION", title: "Marcus L. · Deload", sub: "Studio · 60 min" },
       { date: "2026-04-15", time: "14:00", kind: "CHECKIN", title: "Weekly w/ Priya", sub: "20 min · video" },
       { date: "2026-04-16", time: "06:30", kind: "SESSION", title: "Ana P. · Long run", sub: "Tempo 12k" },
-      { date: "2026-04-16", time: "15:00", kind: "ADMIN",   title: "Payout review", sub: "Apr 21 cycle" },
+      { date: "2026-04-16", time: "15:00", kind: "ADMIN",   title: "Payout review", sub: "" },   // sub is derived — dashDemoCalendar
       { date: "2026-04-17", time: "09:00", kind: "SESSION", title: "Priya S. · Upper pull", sub: "Remote · 45 min" },
       { date: "2026-04-17", time: "18:00", kind: "CHECKIN", title: "Weekly w/ Marcus", sub: "Video · 20 min" },
       { date: "2026-04-18", time: "07:00", kind: "SESSION", title: "Priya S. · Lower pull", sub: "Remote" },
@@ -100,7 +158,7 @@ const DASH_TODAY_ROLES = {
       { date: "2026-04-19", time: "10:00", kind: "ADMIN",   title: "Programming block", sub: "Focus time" },
       { date: "2026-04-20", time: "07:00", kind: "SESSION", title: "Jonah W. · Foundations", sub: "Studio" },
       { date: "2026-04-20", time: "18:00", kind: "CHECKIN", title: "Jen K. · Intake", sub: "New client" },
-      { date: "2026-04-21", time: "10:00", kind: "ADMIN",   title: "Payout day", sub: "Apr 21 · $2,847" },
+      { date: "2026-04-21", time: "10:00", kind: "ADMIN",   title: "Payout day", sub: "" },   // date + sub are derived — dashDemoCalendar
       { date: "2026-04-22", time: "09:00", kind: "SESSION", title: "Ana P. · Tempo", sub: "Remote" },
       { date: "2026-04-23", time: "17:00", kind: "REVIEW",  title: "Quarterly client review", sub: "With Rae" },
       { date: "2026-04-24", time: "08:00", kind: "SESSION", title: "Marcus L. · Squat work", sub: "Studio" },
@@ -130,12 +188,7 @@ const DASH_TODAY_ROLES = {
     unit: "consult",
     emptySchedule: { time: "—", who: "No consults today", sub: "Your schedule is clear" },
     emptyPulse: { who: "No clients yet", sub: "Consults will appear here", trend: DASH_FLAT_TREND },
-    mockKpis: [
-      { k: "$1,864.00", l: "Current balance" },
-      { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
-      { k: "$2,948.00", l: "This month" },
-      { k: "$24,160", l: "Lifetime" },
-    ],
+    mockKpis: () => dashDemoKpis(),
     mockSchedule: [
       { time: "08:30", who: "Elena R.", sub: "Weekly check · remote", status: "DONE" },
       { time: "11:00", who: "Marcus L.", sub: "Meal plan refresh", status: "DONE" },
@@ -166,7 +219,7 @@ const DASH_TODAY_ROLES = {
       { date: "2026-04-18", time: "16:00", kind: "CONSULT", title: "Jonah W. · race fueling", sub: "20 min" },
       { date: "2026-04-19", time: "11:00", kind: "ADMIN",   title: "Content block", sub: "Newsletter" },
       { date: "2026-04-20", time: "09:00", kind: "CONSULT", title: "Ana P. · race debrief", sub: "30 min" },
-      { date: "2026-04-21", time: "10:00", kind: "ADMIN",   title: "Payout day", sub: "Apr 21 · $1,864" },
+      { date: "2026-04-21", time: "10:00", kind: "ADMIN",   title: "Payout day", sub: "" },   // date + sub are derived — dashDemoCalendar
       { date: "2026-04-22", time: "14:00", kind: "REVIEW",  title: "Bloodwork · Priya S.", sub: "30 min" },
       { date: "2026-04-23", time: "10:00", kind: "CONSULT", title: "Elena R. · monthly", sub: "Body-comp retest" },
       { date: "2026-04-24", time: "13:00", kind: "PLAN",    title: "Weekly plan drops", sub: "6 clients" },
@@ -956,7 +1009,7 @@ function CoachDashboardPage({ role }) {
     { k: dashMoney(live.kpis.monthlyNetCents), l: "Monthly (net)", sub: "after 15% fee" },
     { k: String(live.kpis[cfg.kpiKeys.week]), l: cfg.weekLabel },
     { k: String(live.kpis[cfg.kpiKeys.upcoming]), l: cfg.upcomingLabel },
-  ] : cfg.mockKpis;
+  ] : cfg.mockKpis();
 
   const todayRows = live && Array.isArray(live.today) ? live.today : null;
   const schedule = !todayRows
@@ -993,7 +1046,7 @@ function CoachDashboardPage({ role }) {
 
   const calendarEvents = live && Array.isArray(live.calendar)
     ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
-    : cfg.mockCalendar;
+    : dashDemoCalendar(cfg.mockCalendar);
 
   const pulseRows = live && Array.isArray(live.pulse) ? live.pulse : null;
   const pulse = !pulseRows
