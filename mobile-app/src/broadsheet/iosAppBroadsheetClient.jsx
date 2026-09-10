@@ -17378,7 +17378,14 @@ function bsActivityKey(a) {
   return (a && a.key) || `${a && a.who}|${a && a.ago}`;
 }
 
-function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0 }) {
+// ⚠ `variant` IS THE ONLY THING THAT SEPARATES THE FEED CARD FROM THE WALL
+// PLATE, ON PURPOSE. The owner approved a plate that leads with a record pill,
+// sets the figure as a dot-matrix numeral and PREVIEWS the session — and was
+// explicit that Session details still opens the whole thing. Doing that in a
+// second component would let the two drift; doing it as a variant means every
+// field, every honest-empty and every reaction path stays shared, and the diff
+// between the two surfaces is legible in one file.
+function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0, variant = 'feed', recordNote = '' }) {
   const tr = useShapeTr();
   const {
     t, cardInk, muted, hair, card,
@@ -17453,6 +17460,47 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const secStats = stats.filter((_, i) => i !== _primIdx);
     const detailsOpen = !!actDetailsOpen[key];
     const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
+    const isWall = variant === 'wall';
+    // ── What the wall's plate says ABOUT the record ────────────────────────
+    // The pill names the measure and the figure. A stamped PR says so outright;
+    // anything else names the metric it is a record of, so a ride's peak power
+    // and a swim's distance read as the same kind of claim as a lift's best.
+    // Derived from the SAME heroStat the figure uses, so the two can never
+    // disagree about which number the plate is about.
+    const wallPill = (() => {
+      if (!heroStat) return '';
+      const measure = String(heroStat[0] || '').trim();
+      const lift = (a.real ? '' : String(a.lift || '')).trim();
+      // A stamped PR (real posts carry `delta`; demo PRs carry kind 'pr').
+      const isPR = !!prDelta || (!a.real && a.kind === 'pr');
+      // ⚠ THE DELTA RIDES IN THE PILL RATHER THAN ON ITS OWN LINE. The plate
+      // used to state the record twice — a header above the card and the card's
+      // own hero below it — which is the one thing the approved board does not
+      // do. The gain is the part of that header worth keeping, so it joins the
+      // pill and the duplicate header is gone.
+      const tail = recordNote ? ` · ${recordNote}` : '';
+      if (isPR) {
+        return `${tr('feed:card.newPR', { defaultValue: 'New PR' })}${lift ? ` · ${lift}` : (measure ? ` · ${measure}` : '')}${tail}`;
+      }
+      return `${measure}${heroStat[1] ? ` · ${heroStat[1]}` : ''}${tail}`;
+    })();
+    // The two facts that QUALIFY the figure. Demo records carry the lift's own
+    // (`topset`, `e1rm`); everything else takes the next two real stats. Both
+    // paths drop absent values rather than printing a placeholder, so a rest
+    // day with three stats simply shows fewer.
+    const wallFacts = (() => {
+      if (!isWall || !heroStat) return [];
+      const out = [];
+      if (!a.real) {
+        if (a.topset) out.push([tr('feed:card.topSet', { defaultValue: 'Top set' }), String(a.topset)]);
+        if (a.e1rm) out.push([tr('feed:card.e1rm', { defaultValue: 'Est. 1RM' }), String(a.e1rm)]);
+      }
+      for (const st of secStats) {
+        if (out.length >= 2) break;
+        if (st && st[0] && st[1]) out.push([st[0], String(st[1])]);
+      }
+      return out.slice(0, 2);
+    })();
     const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
     const coachProgram = a.real ? (a.program || '') : '';
     // Coach co-sign — one coach co-sign reads heavier than any peer reaction.
@@ -17542,7 +17590,19 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               title/metric/caption (or the route below) opens the full session-
               details page. */}
           <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label={tr('feed:card.openSessionDetails', { defaultValue: 'Open session details' })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
+            {/* THE RECORD PILL (wall only) — what this plate is a record OF,
+                stated before the title. It names the measure and the figure it
+                was set at, so a ride's peak power and a lift's new best read as
+                the same kind of claim. Suppressed when the activity carries no
+                hero figure: a pill with nothing in it is chrome. */}
+            {isWall && heroStat && (
+              <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, marginBottom: 7, padding: '4px 9px', borderRadius: 4, background: bsTHexA(heat, 0.14), border: `1px solid ${bsTHexA(heat, 0.4)}` }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, whiteSpace: 'nowrap' }}>
+                  {wallPill}
+                </span>
+              </div>
+            )}
+            <div style={{ fontFamily: t.DISPLAY, fontSize: isWall ? 19 : 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
             {/* honest hero figure — posts with no hero stat skip this block
                 entirely (never a fabricated placeholder). Eyebrow sits ABOVE
                 the figure (Open Ledger order); split-unit + count-up + a heat
@@ -17556,12 +17616,36 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               return (
                 <div>
                   <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                      <BSSdCountUp text={u.num} run={railSeen} duration={750} delay={80} />
-                    </span>
-                    {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55) }}>{u.unit}</span> : null}
-                    {prDelta && (
+                  <div style={{ display: 'flex', alignItems: isWall ? 'flex-end' : 'baseline', gap: isWall ? 10 : 6, marginTop: 2, flexWrap: 'wrap' }}>
+                    {/* ⚠ THE WALL'S FIGURE IS DRAWN, THE FEED'S IS TYPESET, and
+                        the drawn one does NOT count up: BSSdCountUp animates a
+                        string through a font, which a dot matrix cannot do
+                        without redrawing 245 glyph grids a second for a number
+                        that is already the loudest thing on the plate. */}
+                    {isWall ? (
+                      <BSDotNumber text={u.num} size={38} color={t.INK} title={`${u.num}${u.unit ? ' ' + u.unit : ''}`} />
+                    ) : (
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                        <BSSdCountUp text={u.num} run={railSeen} duration={750} delay={80} />
+                      </span>
+                    )}
+                    {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55), lineHeight: isWall ? 1.6 : 'normal' }}>{u.unit}</span> : null}
+                    {/* The two facts that qualify the figure, beside it rather
+                        than under it — a top set means little without its reps,
+                        and an estimated max means nothing without the set it
+                        was estimated from. Real values only; absent ones simply
+                        do not render. */}
+                    {isWall && wallFacts.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginLeft: 4, paddingBottom: 2 }}>
+                        {wallFacts.map(([k, v]) => (
+                          <div key={k} style={{ display: 'flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap' }}>
+                            <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{k}</span>
+                            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: bsTHexA(t.INK, 0.8), fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {prDelta && !isWall && (
                       <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.75), whiteSpace: 'nowrap' }}>↑ PR {prDelta}</span>
                     )}
                   </div>
@@ -18113,6 +18197,11 @@ function BSWallPlate({ rec, ctx, newest }) {
   // viewing coach a moment ago (the optimistic co-sign the card itself reads).
   // Anything else says so, because a stamp nobody withholds is worth nothing.
   const stamped = !!(a && (a.cosign || (ctx.feedCtx.actCoSign && ctx.feedCtx.actCoSign[bsActivityKey(a)])));
+  // What the retired header uniquely said: how much this beat their own last
+  // best by. Empty for a first record — there is nothing to have beaten.
+  const recordNote = h.gain != null
+    ? tr('feed:wall.overShort', { defaultValue: '+{gain} {unit}', gain: bsWallNum(h.gain), unit: h.unit })
+    : '';
   return (
     // ⚠ THE PLATE ADDS NO SIDE INSET, AND THE HEADER PADS ITSELF INSTEAD.
     // The card is built for the page's own width — the community feed renders
@@ -18124,9 +18213,14 @@ function BSWallPlate({ rec, ctx, newest }) {
     // no inset the card gets exactly the width it gets on the Feed, and the
     // 3px spine reads as the frame's left edge rather than eating into it.
     <BSPlate c={teal} tick={!!newest} pad="12px 0 10px" style={{ marginBottom: 12 }}>
-      {/* BSPlate draws the live tick at left:8, 6px wide — so on the newest
-          plate the eyebrow needs the room or it reads as one glyph joined to
-          the mark. */}
+      {/* ⚠ THE HEADER RENDERS ONLY FOR A BARE RECORD. When the card is here it
+          carries the whole reading itself — the pill names the record, the
+          title names the lift, the drawn figure IS the number — and a header
+          above it stated all three a second time. What the header uniquely
+          held, the gain over the last best, rides in the pill now.
+          BSPlate draws the live tick at left:8, 6px wide, so the eyebrow needs
+          the room or it reads as one glyph joined to the mark. */}
+      {!a && (
       <div style={{ padding: `0 14px 0 ${newest ? 22 : 15}px` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -18147,6 +18241,7 @@ function BSWallPlate({ rec, ctx, newest }) {
         </div>
       )}
       </div>
+      )}
       {/* ⚠ A BARE RECORD STILL NAMES ITS MEMBER. The attribution a plate usually
           shows lives inside the wrapped card — so a row whose post is missing
           (an older ledger row, one posted from outside the app, or one whose
@@ -18159,11 +18254,11 @@ function BSWallPlate({ rec, ctx, newest }) {
         </div>
       )}
       {a && (
-        <div style={{ marginTop: 8, borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}` }}>
+        <div>
           {/* pagePad 0 + isLast: the card's media strip bleeds 12px, which stays
               inside this plate's 14px inset, and the trailing feed rule would
               draw a second line under a frame that already has an edge. */}
-          <BSActivityCard a={a} ctx={ctx.feedCtx} isLast pagePad={0} />
+          <BSActivityCard a={a} ctx={ctx.feedCtx} isLast pagePad={0} variant="wall" recordNote={recordNote} />
         </div>
       )}
       {a && !stamped && (

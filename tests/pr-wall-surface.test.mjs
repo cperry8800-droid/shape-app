@@ -225,25 +225,47 @@ test('a record with no linked post renders as a bare record', () => {
 
 const plateText = (rec) => drive(BSWallPlate, { rec, ctx: wallCtx(), newest: false }).text;
 
-test('the delta line states the gain, or says it is a first', () => {
+const byName = () => Object.fromEntries(bsWallDemoRows().map((r) => [r.name, r]));
+const cardOn = (rec) => drive(BSWallPlate, { rec, ctx: wallCtx(), newest: false })
+  .nodes().find((n) => n.type === BSActivityCard);
+
+test('a linked record is stated ONCE — the card carries it, the plate does not', () => {
+  // ⚠ THIS TEST USED TO ASSERT THE PLATE'S OWN HEADER, and that header was the
+  // bug: the plate said "NEW BEST · DEADLIFT / 245 LB / ↑ +10 LB" and then the
+  // card said the same three things again underneath. The approved board states
+  // the record once. What the header uniquely held — the gain — moved into the
+  // card's pill.
   withCopyValues(() => {
-    const by = Object.fromEntries(bsWallDemoRows().map((r) => [r.name, r]));
-    assert.match(plateText(by['Priya Shah']), /↑ \+10 lb over last best/, "Priya's 245 over 235");
-    assert.match(plateText(by['Drew Oyelaran']), /↑ \+1\.8 mi over last best/, "Drew's 18.2 over 16.4");
-    assert.match(plateText(by['Quinn Harper']), /First on the wall/, "Quinn's first back squat");
-    for (const r of bsWallDemoRows()) {
-      assert.doesNotMatch(plateText(r), /\{gain\}|\{unit\}/, 'no placeholder reaches the screen');
-    }
+    const by = byName();
+    const text = plateText(by['Priya Shah']);
+    assert.doesNotMatch(text, /New best/i, 'no second record header above the card');
+    assert.doesNotMatch(text, /over last best/i, 'and no second delta line');
+    assert.equal(cardOn(by['Priya Shah']).props.recordNote, '+10 lb', "Priya's 245 over 235");
+    assert.equal(cardOn(by['Drew Oyelaran']).props.recordNote, '+1.8 mi', "Drew's 18.2 over 16.4");
+    assert.equal(cardOn(by['Quinn Harper']).props.recordNote, '', 'a first record has beaten nothing');
   });
 });
 
-test('the figure and its unit are stated on every plate', () => {
+test('the plate renders the wall variant of the card, never the feed one', () => {
+  // The variant is the only thing separating the two surfaces; a plate that
+  // forgot to pass it would silently render the feed's typeset hero.
+  for (const rec of bsWallDemoRows()) {
+    assert.equal(cardOn(rec).props.variant, 'wall', `${rec.name}`);
+  }
+});
+
+test('a bare record still states its own figure and delta', () => {
+  // With no card there is nothing else to carry the reading, so the plate's
+  // header stands — and it is the ONLY place those words should now appear.
   withCopyValues(() => {
-    const by = Object.fromEntries(bsWallDemoRows().map((r) => [r.name, r]));
-    assert.match(plateText(by['Priya Shah']), /245.*lb/s);
-    assert.match(plateText(by['Priya Shah']), /× 3/, 'a set of three says so');
-    assert.match(plateText(by['Drew Oyelaran']), /18\.2.*mi/s);
-    assert.doesNotMatch(plateText(by['Drew Oyelaran']), /×/, 'a run has no reps');
+    const base = byName()['Priya Shah'];
+    const text = drive(BSWallPlate, { rec: { ...base, act: null }, ctx: wallCtx(), newest: false }).text;
+    assert.match(text, /New best/i);
+    assert.match(text, /245/);
+    assert.match(text, /↑ \+10 lb over last best/);
+    const first = byName()['Quinn Harper'];
+    assert.match(drive(BSWallPlate, { rec: { ...first, act: null }, ctx: wallCtx(), newest: false }).text,
+      /First on the wall/);
   });
 });
 
