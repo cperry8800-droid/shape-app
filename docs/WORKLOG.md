@@ -486,6 +486,55 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — Homepage review: "less analog, more alive", with a live concept board
+
+- **Records only — a review, not a build.** Owner: *"full review of new design index page …
+  any improvements or alternative designs to make look better"* · *"less analog, make it look
+  more alive"* · *"if you have recommendations and new design ideas, i want to see previews of
+  them"*. The review is
+  [`docs/REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md); the previews are
+  a **live concept board** — https://claude.ai/code/artifact/adc4c3d3-2922-4735-b379-f3640e12c016 — six tabs: the shipped page (real captures),
+  four directions rendered as proportional, animated hero folds (**A · The Floor**, the product
+  running in a phone · **B · Pulse**, the fold breathing at the station's BPM · **C · Daylight**,
+  a white page that moves · **D · Electrified broadsheet**, the same sky and serif with a
+  cursor-reactive constellation, a kinetic headline and three live plates), and a **Pick** tab
+  with the page map and the recommendation. **No code on the page changed, no migration, no PR
+  beyond the records.**
+- ⚠ **PHONES NEVER SEE THE PAGE.** `index.html:6` redirects every viewport under 760 px to
+  `GetApp.html`, a cream paper walkthrough — so on a phone the homepage is the most analog
+  surface the site has. P0 whatever direction wins.
+- ⚠ **24.4 SCREENS OF SCROLL FOR EIGHT SCREENS OF CONTENT.** `.jtrack{height:1500vh}` pins the
+  member journey for 15 of them and `.loopbeats{height:525vh}` five more; "See how it works"
+  anchors to `#loop`, which sits *after* the journey, so with `scroll-behavior:smooth` the
+  button smooth-scrolls through all 15,600 px.
+- ⚠ **ONE LIVE NUMBER, THREE ILLUSTRATIVE ONES DRESSED AS LIVE.** Only the coach count reads an
+  endpoint. The radio card says **LIVE** over `@keyframes eq` bars and the nav's **ON AIR** chip
+  is permanent while `/api/radio/now-playing` answers from the **mock provider**; the eight
+  "Expert Marketplace" coaches are `coachDirectory.js`'s **AI-generated portraits** with
+  fictional session counts, under an eyebrow that becomes a real count — the preview-cast
+  question the 09-02 entry registered as **OWNER RULING NEEDED**, now on the homepage; and the
+  journey counts a Shape Score to 847. The brand plan's own rule: *no demo data presented as
+  live members.*
+- **What "analog" is, measured:** Fraunces at weight **300** at 106 px, cream on paper-brown,
+  six mono eyebrows above the fold, hairlines and corner brackets on every card, static PNGs in
+  a cream-bezel phone, and a sky where 16 of 346 stars twinkle and nothing reacts to the
+  visitor. **Keep:** the journey's point cloud, the splash's self-drawing mark, the teal.
+- **Recommendation: D this sprint, on the way to A.** D ships the structure, honesty and mobile
+  fixes with the cursor sky, the kinetic headline and the three live plates, and every piece
+  carries into A when the serif leaves the fold; B's beat goes into the radio band the day the
+  station is really broadcasting; C is parked until the app has a light default.
+- ⚠ **THE FIRST RENDER PASS HAD THE WRONG FONTS AND WAS THROWN AWAY.** The container's proxy
+  404s `fonts.gstatic.com`, so the page rendered in Times New Roman through its metrics-matched
+  fallbacks — a typography review of the wrong typeface. The families were installed from
+  `@fontsource-variable` and served locally with the Google Fonts CSS request rewritten to them
+  (React, ReactDOM and Babel likewise, since unpkg is blocked too), and `document.fonts`
+  confirmed the load before any capture was used. *A render is evidence only of what actually
+  rendered.*
+- Verified: docs-only (the pre-commit hook skips the code gates) · every cited line re-read from
+  the source · contrast computed, not eyeballed (`--cream-3` at 0.40 alpha = **3.46:1** on four
+  label styles) · 31 captures kept in the session scratchpad, not committed · the board's script
+  parse-checked and each tab rendered once at 1440 and 400 px with zero page errors.
+
 ### 2026-09-10 — R6: the programming queue leaves one browser, and stops calling a tick a publish
 
 - **P1-D off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
