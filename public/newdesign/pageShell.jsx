@@ -206,6 +206,222 @@ function dashShellHref(href) {
   return slug ? "#" + slug : href;
 }
 
+// ── THE NOTIFICATIONS INBOX (review 2026-09-09, R20) ───────────────────────
+// `/api/notifications` has shipped since the 2026-05-30 migration and the mobile app
+// reads it; **no website surface did**. A member could be told on their phone that their
+// coach had replied and see nothing on the web.
+//
+// ⚠ IT LIVES IN THIS FILE RATHER THAN IN ITS OWN. `pageShell.jsx` is the shared chrome
+// every newdesign page already loads — a new module would mean a script tag in 69 files,
+// which is the churn this repo post-mortems, and a load-order question on each of them.
+//
+// ⚠ AND IT IS THE HEADER, NOT A DASHBOARD CARD, because a notification is not about the
+// page you happen to be on.
+const DASH_INBOX_TEAL = "#2ee0c4";
+
+// The API's routes are the MOBILE app's slugs. Only the ones with a real website
+// destination are turned into links.
+//
+// ⚠ A ROW WITH NO MAPPING IS NOT CLICKABLE, and that is R18's own rule turned on this
+// feature: a button that does nothing costs more trust than an absent one. `chat` is the
+// clearest case — the client shell has no `messages` route at all (the chat is a widget),
+// so a "your coach replied" notification opens nothing rather than opening the wrong page.
+//
+// ⚠ THE TARGETS ARE THE LEGACY STUB FILENAMES, NOT `ClientApp.html#slug`, and that is
+// the whole point of `dashShellHref`: it keys on those names (`DASH_SHELL_STUBS`), so
+// in-shell they become an instant `#slug` switch and from a marketing page they are a
+// real link that the stub then forwards. Writing `ClientApp.html#score` directly bypasses
+// the map — measured in a browser, the link rendered as a full page load from inside the
+// shell it was already in, which is the exact cost R19 removed.
+const DASH_INBOX_ROUTES = {
+  home: "ClientDashboard.html",
+  checkin: "ClientDashboard.html",     // the check-in form lives on Today
+  goal: "ClientGoal.html",
+  score: "ClientScore.html",
+  feed: "ClientCommunity.html",
+  habits: "ClientHabits.html",
+};
+function dashInboxHref(n, role) {
+  if (!n || typeof n.route !== "string") return null;
+  // A coach's client_red / client_amber / checkin_submitted carries the client it is
+  // about; without an id there is no page to open, so it stays plain text.
+  if (n.route === "client") {
+    const id = n.data && (n.data.clientId || n.data.client_id);
+    if (!id || (role !== "trainer" && role !== "nutritionist")) return null;
+    const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
+    return (typeof window !== "undefined" && window.__shapeCoachShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
+  }
+  if (!Object.prototype.hasOwnProperty.call(DASH_INBOX_ROUTES, n.route)) return null;
+  const target = DASH_INBOX_ROUTES[n.route];
+  // In-shell this is a hash switch; from a marketing page it is a real navigation.
+  return typeof dashShellHref === "function" ? dashShellHref(target) : target;
+}
+
+// ⚠ A SHAPE CHECK, NOT A TRUST FALL. `getJsonOrDefault` on mobile swallows a failure
+// into `{ notifications: [], unread: 0 }` — which on a bell is the positive claim
+// "nothing new". Here an unreadable response is `null` and the panel says so.
+function dashInboxShape(json) {
+  if (!json || typeof json !== "object" || !Array.isArray(json.notifications)) return null;
+  const rows = json.notifications
+    .filter((n) => n && typeof n.id === "string" && typeof n.title === "string")
+    .map((n) => ({
+      id: n.id, type: String(n.type || ""), title: n.title, body: typeof n.body === "string" ? n.body : "",
+      route: typeof n.route === "string" ? n.route : null, data: n.data && typeof n.data === "object" ? n.data : {},
+      read: !!n.read, createdAt: typeof n.createdAt === "string" ? n.createdAt : null,
+    }));
+  // The server's `unread` counts the same rows; recomputing keeps the badge and the
+  // list from ever disagreeing after an optimistic mark.
+  return { rows: rows, unread: rows.filter((r) => !r.read).length };
+}
+
+// Relative age. Deliberately coarse — an inbox wants "3h", not "3h 12m".
+function dashInboxWhen(iso, now) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return "";
+  const at = (now instanceof Date ? now : new Date()).getTime();
+  const s = Math.round((at - t) / 1000);
+  // ⚠ `s < 60` OWNS THE CLOCK-SKEW CASE, and it is written this way on purpose. A
+  // timestamp a few seconds in the future (a device clock, a server clock) makes `s`
+  // negative, and this branch already catches every negative — a `Math.max(0, …)` above
+  // it looked like a guard and was unreachable, which a mutation round proved by
+  // deleting it and changing nothing. Dead code that reads as a guard is worse than no
+  // guard: the next reader trusts it.
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  if (s < 7 * 86400) return Math.floor(s / 86400) + "d";
+  try { return new Date(t).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; }
+}
+
+function DashInbox({ signedIn, role }) {
+  const [open, setOpen] = React.useState(false);
+  // undefined = not read yet · null = the read FAILED · an object = read
+  const [feed, setFeed] = React.useState(undefined);
+  const [busy, setBusy] = React.useState(false);
+  const boxRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!signedIn) { setFeed(undefined); return undefined; }
+    let on = true;
+    fetch("/api/notifications", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((j) => { if (on) setFeed(dashInboxShape(j)); });
+    return () => { on = false; };
+  }, [signedIn]);
+
+  // Click-away and Escape, because a panel pinned to a fixed header cannot be
+  // dismissed by scrolling past it.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+
+  if (!signedIn) return null;
+  const rows = feed && feed.rows ? feed.rows : [];
+  const unread = feed ? feed.unread : 0;
+
+  // ⚠ OPTIMISTIC, WITH A ROLLBACK, and the rollback is the part that matters: a bell
+  // that clears itself on a write that failed tells a member they have seen something
+  // they have not, and the row is gone from the list to prove it.
+  const mark = (body, applyLocal) => {
+    if (!feed || busy) return;
+    const before = feed;
+    setFeed(applyLocal(feed));
+    setBusy(true);
+    fetch("/api/notifications", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    })
+      .then((r) => { if (!r.ok) setFeed(before); })
+      .catch(() => setFeed(before))
+      .then(() => setBusy(false));
+  };
+  const markAll = () => mark({ all: true }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 }));
+  const markOne = (id) => mark({ id: id }, (f) => {
+    const next = f.rows.map((r) => (r.id === id ? { ...r, read: true } : r));
+    return { rows: next, unread: next.filter((r) => !r.read).length };
+  });
+
+  const badge = unread > 9 ? "9+" : String(unread);
+  return (
+    <div ref={boxRef} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label={unread ? unread + " unread notifications" : "Notifications"}
+        aria-expanded={open}
+        style={{ position: "relative", background: "transparent", border: 0, padding: "6px 8px", cursor: "pointer",
+                 color: open ? DASH_INBOX_TEAL : "rgba(245,239,225,0.78)", lineHeight: 0, minHeight: 30, minWidth: 30 }}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
+        </svg>
+        {unread > 0 && (
+          <span style={{ position: "absolute", top: 1, right: 1, minWidth: 15, height: 15, padding: "0 4px", borderRadius: 999,
+                         background: DASH_INBOX_TEAL, color: "#0b0e0c", fontFamily: "'JetBrains Mono', monospace",
+                         fontSize: 9, fontWeight: 700, lineHeight: "15px", textAlign: "center" }}>{badge}</span>
+        )}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 8, width: 340, maxWidth: "calc(100vw - 32px)", zIndex: 70 }}>
+          <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)",
+                        borderRadius: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Notifications</span>
+              {unread > 0 && (
+                <button onClick={markAll} disabled={busy} style={{ background: "transparent", border: 0, padding: 0, cursor: busy ? "default" : "pointer",
+                          fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(242,237,228,0.3)" : DASH_INBOX_TEAL }}>Mark all read</button>
+              )}
+            </div>
+            <div style={{ maxHeight: 380, overflowY: "auto" }}>
+              {/* ⚠ FOUR STATES, AND THE THIRD IS THE ONE THAT MATTERS. An unreadable feed
+                  must not render as "you're all caught up" — that is a claim about the
+                  member's inbox made from a failure to read it. */}
+              {feed === undefined ? (
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Reading your notifications…</div>
+              ) : feed === null ? (
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Couldn't read your notifications just now. Reload to try again.</div>
+              ) : rows.length === 0 ? (
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Nothing new.</div>
+              ) : rows.map((n) => {
+                const href = dashInboxHref(n, role);
+                const inner = (
+                  <>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      {!n.read && <span aria-hidden="true" style={{ flex: "none", width: 6, height: 6, borderRadius: 999, background: DASH_INBOX_TEAL, transform: "translateY(-1px)" }} />}
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: n.read ? "rgba(242,237,228,0.7)" : "#f2ede4", fontWeight: n.read ? 400 : 500 }}>{n.title}</span>
+                      <span style={{ flex: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(242,237,228,0.35)" }}>{dashInboxWhen(n.createdAt)}</span>
+                    </div>
+                    {n.body && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 3, marginLeft: n.read ? 0 : 14, lineHeight: 1.45 }}>{n.body}</div>}
+                  </>
+                );
+                const pad = { display: "block", width: "100%", textAlign: "left", background: "transparent", border: 0,
+                              borderBottom: "1px solid rgba(242,237,228,0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
+                return href ? (
+                  <a key={n.id} href={href} onClick={() => { if (!n.read) markOne(n.id); }} style={{ ...pad, cursor: "pointer" }}>{inner}</a>
+                ) : (
+                  <div key={n.id} style={pad}>
+                    {inner}
+                    {!n.read && (
+                      <button onClick={() => markOne(n.id)} disabled={busy} style={{ background: "transparent", border: 0, padding: "6px 0 0", marginLeft: 14, cursor: busy ? "default" : "pointer",
+                                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(242,237,228,0.3)" : "rgba(242,237,228,0.45)" }}>Mark read</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The nav groups to show: role-scoped portal nav when signed in, else marketing.
 // ⚠ Hrefs are rewritten HERE rather than at each render site — the desktop nav,
 // the mobile drawer and the dropdowns all read this one function, and the
@@ -576,6 +792,7 @@ function Header({ active }) {
         </nav>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 13, flexShrink: 0 }}>
           <SiteSearch signedIn={!!authUser} />
+          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} />
           {authUser ? (
             <>
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>

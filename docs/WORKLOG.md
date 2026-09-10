@@ -486,6 +486,67 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — R20's half: the notifications the app has had all along reach the web
+
+- **`/api/notifications` has been live since the 2026-05-30 migration and the mobile app
+  reads it; NO WEBSITE SURFACE DID.** A member could be told on their phone that their
+  coach had replied and see nothing on the web. There is a bell in the shared header now
+  — signed-in only, unread badge, mark-one and mark-all — on every newdesign page.
+  **Booking, R20's other half, is NOT shipped**: `/api/availability` and `/api/sessions`
+  both exist and the client Team page's *"Book session"* is still one of R18's dead
+  controls. No migration, no new route.
+- ⚠ **IT LIVES IN `pageShell.jsx` RATHER THAN IN ITS OWN MODULE.** That file is the
+  chrome every newdesign page already loads, so there is no script tag to add to 69 files
+  — the churn this log post-mortems — and no load-order question on any of them. It is
+  the **header**, not a dashboard card, because a notification is not about the page you
+  happen to be on.
+- ⚠ **AN UNREADABLE FEED IS `null`, NEVER AN EMPTY INBOX.** The mobile client swallows a
+  failure into `{ notifications: [], unread: 0 }` — which on a bell is the positive claim
+  *"nothing new"*. The panel has **four** states and the third one says *"Couldn't read
+  your notifications just now"*. And `unread` is **recomputed from the rows** rather than
+  taken from the server, so the badge and the list cannot disagree after an optimistic
+  mark.
+- ⚠ **A ROUTE WITH NO WEBSITE DESTINATION IS NOT A LINK — R18's OWN RULE, TURNED ON THIS
+  FEATURE.** The API's routes are the MOBILE app's slugs, and `chat` is the sharp case:
+  the client shell has **no messages route at all** (the chat is a widget), so a *"your
+  coach replied"* notice renders as plain text with its own **Mark read** button rather
+  than opening the wrong page. A coach's `client_red` needs **both** a client id in its
+  `data` **and** a coach role before it becomes a link, and the id is
+  `encodeURIComponent`d so one carrying a `#` cannot rewrite the route.
+- ⚠ **MARKING READ IS OPTIMISTIC AND ROLLS BACK, and the rollback is the half that
+  matters.** A bell that clears itself on a write that failed tells a member they have
+  seen something they have not — and the row is gone from the list to prove it. Both the
+  rejected-response and the network-failure arms restore the previous feed; **verified in
+  a browser**, not argued: with the POST 500ing, the badge goes 2 → back to **2**.
+- ⚠ **AND THE FIRST ROUTE MAP BYPASSED THE MECHANISM R19 BUILT.** It targeted
+  `ClientApp.html#score` directly — but `dashShellHref` keys on the **legacy stub
+  filenames** (`DASH_SHELL_STUBS`), so a hash-bearing target misses the map entirely and
+  renders as a **full page load from inside the shell it was already in**. Measured in the
+  browser: `href="ClientApp.html#score"`. The targets are stub filenames now and the links
+  read `#score` / `#habits`. The guard chains **both** maps — stub filename → slug → the
+  shell's own `CA_ROUTES` — so a rename in either fails, and a target carrying a hash
+  fails on its own assertion.
+- ⚠ **ONE MUTATION SURVIVED AND THE CODE WAS THE DEAD PART.** `Math.max(0, …)` on the
+  relative age looked like a clock-skew guard and was **unreachable**: the `s < 60` branch
+  already catches every negative. Deleted, with the reasoning at the site, and the
+  mutation re-pointed at the branch that actually owns the case (`s > 0 && s < 60` makes a
+  future-dated row render **"-1m"**). *Dead code that reads as a guard is worse than no
+  guard — the next reader trusts it.*
+- **Verified:** `npm test` **2901/2901** · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **22/22 mutations killed, sanity green at both ends** · and five
+  browser states driven end to end: signed out (**no bell at all**), 2 unread (badge `2`,
+  `chat` as plain text with its own Mark read, `#score` and `#habits` as hash links, ages
+  `2m` / `2h` / `3d`), **Mark all** (badge → empty, `POST {"all":true}`), **Mark all with
+  the write failing** (badge rolls back to `2`), an unreadable read (*Couldn't read your
+  notifications just now*) and an empty one (*Nothing new.*). Zero page errors throughout.
+- ⚠ **AND THE HARNESS WAS WRONG TWICE BEFORE IT WAS RIGHT, WHICH IS THE THIRD TIME
+  TODAY.** It stubbed `shapeDb` while the header's `authUser` comes from **`/api/me`**,
+  which it was 401ing — so the bell correctly did not render and every state read as
+  ABSENT. And it sampled the locator once at a fixed 7 s while the shell is babel-compiled
+  in the browser and the header mounts after `/api/me` resolves; a later read of the *same
+  locator* returned `2`. It waits for the element now. *A single timed sample is a race
+  the harness loses silently and reports as "the feature is absent".*
+
 ### 2026-09-10 — R16: the dashboard remembers how you read it, and V4 turns out to have been a measurement of the instrument
 
 - **R16 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
