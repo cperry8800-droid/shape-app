@@ -391,7 +391,9 @@ test('a number field commits on blur and refuses an empty value', () => {
 // guard broke on a correct refactor for exactly that reason.
 function driveNotificationCard(seed, run) {
   const a = SETTINGS.indexOf('function CoachNotificationCard({ signedIn }) {');
-  const b = SETTINGS.indexOf('\n  if (!signedIn) {', a);
+  // The prelude ends where the render ladder begins — anchored on the LAST handler
+  // rather than on the first `if`, which moved the moment a branch was added above it.
+  const b = SETTINGS.indexOf('\n  });', SETTINGS.indexOf('const toggle =', a)) + '\n  });'.length;
   assert.ok(a > 0 && b > a, 'CoachNotificationCard moved');
   const prelude = SETTINGS.slice(a + 'function CoachNotificationCard({ signedIn }) {'.length, b);
   // The notice-wording helpers and the type table are SHIPPED code too — reimplementing
@@ -725,6 +727,54 @@ test('a re-read shows LOADING, not the answer it is about to replace', async () 
   });
 });
 
+test('the food-gap knob is honoured on the shape live accounts actually have', () => {
+  // ⚠ A CONTROL THAT DOES NOTHING ON THE COMMON INPUT IS A DECORATION. Live rollups
+  // carry no last-logged date, so `ruleFoodGap` falls to an empty-week approximation —
+  // and that branch flagged unconditionally, ignoring FOOD_GAP_DAYS entirely. An empty
+  // 7-day window establishes "at least 7 days" and nothing more, so a threshold ABOVE
+  // the window is a question this evidence cannot answer; one at or under it is.
+  const rec = (extra) => Object.assign({ id: 'c1', name: 'A', foodLogs: { lastLoggedOn: null, daysLogged7d: 0 } }, extra || {});
+  assert.ok(flagKeys(rec()).includes('food_gap'), 'an empty week does not flag at the house default');
+  assert.ok(flagKeys(rec(), tuned({ FOOD_GAP_DAYS: 3 })).includes('food_gap'), 'a threshold under the window stopped flagging');
+  assert.ok(flagKeys(rec(), tuned({ FOOD_GAP_DAYS: 7 })).includes('food_gap'), 'the window itself stopped flagging');
+  assert.ok(!flagKeys(rec(), tuned({ FOOD_GAP_DAYS: 10 })).includes('food_gap'), 'a 10-day gap was claimed from a 7-day window');
+  assert.ok(!flagKeys(rec(), tuned({ FOOD_GAP_DAYS: 14 })).includes('food_gap'), 'the knob\u2019s own maximum still flags');
+  // and the dated branch is untouched — a real last-logged date still measures the gap
+  const dated = { id: 'c2', name: 'B', foodLogs: { lastLoggedOn: ago(9), daysLogged7d: 0 } };
+  assert.ok(flagKeys(dated, tuned({ FOOD_GAP_DAYS: 8 })).includes('food_gap'));
+  assert.ok(!flagKeys(dated, tuned({ FOOD_GAP_DAYS: 12 })).includes('food_gap'));
+});
+
+test('opening Settings does not run the roster pipeline', () => {
+  // ⚠ ONE HUNDRED API CALLS TO EDIT A NUMBER. `useDashboard` fetches the roster and the
+  // dashboard and then issues one /shared-overview per roster member; this page renders
+  // none of it and needs only `tuning.refused`. `useCoachThresholds` is the hook
+  // `useDashboard` itself uses for `tuning`, so the value is identical.
+  const src = stripComments(SETTINGS);
+  assert.ok(!/\buseDashboard\(/.test(src), 'the Settings page runs the whole dashboard pipeline again');
+  assert.match(src, /const tuning = useCoachThresholds\(role\);/);
+  // and the demo band is a statement about whose account this is, not about a roster
+  assert.ok(!/source === "demo"/.test(src), 'the band still keys on the roster request');
+  assert.match(src, /signedIn === false && <DashDemoBand \/>/);
+  // the hook this page now depends on is exported for it
+  assert.match(stripComments(DATA), /useCoachThresholds,/);
+});
+
+test('unknown authentication renders Loading, never the signed-out card', () => {
+  // ⚠ THE SAME CONFLATION ONE FRAME EARLIER. `useSignedIn` starts undefined; collapsing
+  // it to a boolean at the call site told every authenticated coach to sign in for the
+  // whole auth round trip. The ORDER of the ladder is the invariant — the unknown
+  // branch has to come first, or the signed-out card claims the answer.
+  const src = stripComments(SETTINGS);
+  assert.match(src, /<CoachNotificationCard signedIn=\{signedIn\} \/>/, 'the card is handed a boolean again');
+  const at = src.indexOf('function CoachNotificationCard');
+  const ladder = src.slice(src.indexOf('  if (', src.indexOf('const toggle =', at)));
+  const unknown = ladder.indexOf('signedIn === undefined');
+  const signedOut = ladder.indexOf('if (!signedIn)');
+  assert.ok(unknown > -1, 'the unknown-auth branch is gone');
+  assert.ok(signedOut > -1 && unknown < signedOut, 'signed-out is decided before authentication is known');
+});
+
 test('quiet hours carry the coach’s timezone, or they are evaluated in UTC', () => {
   // The column defaults to 'UTC' and this panel is the first place a coach ever writes
   // the row; `inQuietHours` resolves the hour through prefs.tz. Omitting it silenced a
@@ -916,8 +966,9 @@ test('persistence keys on AUTHENTICATION, not on the roster fetch', () => {
   assert.ok(!/const live = source === "live"/.test(src), 'live is derived from the roster again');
   // an unknown answer is settling, or an early edit is routed before it is known
   assert.match(src, /const settling = signedIn === undefined \|\| \(live && store\.kind === "loading"\)/);
-  // …and `source` still decides the demo band, which IS a statement about the data
-  assert.match(src, /source === "demo" && <DashDemoBand \/>/);
+  // ⚠ THE BAND MOVED OFF `source` TOO, and the reason is narrower than the persistence
+  // one: this page renders no roster data, so "is this a preview" is exactly "is this
+  // someone's own account". Pinned in its own guard beside the pipeline check.
 });
 
 test('useSignedIn resolves independently and has three states', () => {

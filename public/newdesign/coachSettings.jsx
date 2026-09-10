@@ -152,17 +152,19 @@ function cstLandingOptions(role) {
 function CoachSettingsPage({ role }) {
   const nav = role === "nutritionist" ? nutriNavItems : trainerNavItems;
   const card = role === "nutritionist" ? nutriPayoutCard : trainerPayoutCard;
-  // ⚠ `source` AND `tuning` COME FROM THE ONE HOOK THE SHELL ALREADY DRIVES. This page
-  // renders none of the roster, but useDashboard is where "is this a live account" and
-  // "what did the engine make of the stored overrides" are already resolved — and
-  // `tuning.refused` is the half this panel cannot do without (below).
-  const { source, tuning } = useDashboard(role);
-  // ⚠ PERSISTENCE KEYS ON AUTHENTICATION, NOT ON THE ROSTER. `source` is about DATA:
-  // null while the roster request is in flight, and "demo" when that request FAILS.
+  // ⚠ THE TWO LIGHTWEIGHT HOOKS, NOT THE WHOLE DASHBOARD PIPELINE. This page reads
+  // `tuning.refused` and nothing else off the engine, but `useDashboard` fetches the
+  // roster and the dashboard and then issues one /shared-overview per roster member —
+  // so opening Settings on a 100-client practice cost about a hundred API calls to
+  // edit a number. `useCoachThresholds` is literally the hook `useDashboard` uses for
+  // `tuning`, so this is the same value with none of the fan-out.
+  const tuning = useCoachThresholds(role);
+  // ⚠ PERSISTENCE KEYS ON AUTHENTICATION, NOT ON THE ROSTER. The roster's `source` is
+  // about DATA: null while its request is in flight, "demo" when that request FAILS.
   // Keying on it meant a roster outage made every edit tab-only and told a signed-in
-  // coach to sign in while the settings backend was healthy — and an edit made during
-  // the pending window was dropped the moment the roster resolved. `source` still
-  // decides the DEMO BAND, which is a statement about the data on screen.
+  // coach to sign in while the settings backend was healthy. It decided the DEMO BAND
+  // too — and on a page that renders no roster data, the honest band is simply whether
+  // this is someone's own account.
   const signedIn = useSignedIn();
   const live = signedIn === true;
   const store = useCoachDoc("coach_settings", live);
@@ -237,7 +239,7 @@ function CoachSettingsPage({ role }) {
 
   return (
     <React.Fragment>
-      {source === "demo" && <DashDemoBand />}
+      {signedIn === false && <DashDemoBand />}
       <DashPage
         navItems={nav("settings")}
         payoutCard={card}
@@ -322,7 +324,7 @@ function CoachSettingsPage({ role }) {
 
         {/* ── notifications ───────────────────────────────────────────────── */}
         <div style={{ marginTop: 16 }}>
-          <CoachNotificationCard signedIn={live} />
+          <CoachNotificationCard signedIn={signedIn} />
         </div>
       </DashPage>
     </React.Fragment>
@@ -490,19 +492,23 @@ function CoachNotificationCard({ signedIn }) {
     } catch (e) { if (!stale()) failMatrix(base.matrix, keys, "Couldn't save " + what + " just now."); }
   });
 
+  // ⚠ UNKNOWN AUTHENTICATION IS NOT SIGNED OUT. `useSignedIn` starts undefined, so
+  // collapsing it to a boolean at the call site told every authenticated coach to sign
+  // in for the whole auth round trip — the same conflation the load path above was
+  // fixed for, one frame earlier and on the other side of the same question.
+  if (signedIn === undefined || state === null) {
+    return cstCard(
+      <React.Fragment>
+        <span className="dash-eyebrow">Notifications</span>
+        <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Loading…</div>
+      </React.Fragment>
+    );
+  }
   if (!signedIn) {
     return cstCard(
       <React.Fragment>
         <span className="dash-eyebrow">Notifications</span>
         <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Sign in to set which of your notifications reach you.</div>
-      </React.Fragment>
-    );
-  }
-  if (state === null) {
-    return cstCard(
-      <React.Fragment>
-        <span className="dash-eyebrow">Notifications</span>
-        <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Loading…</div>
       </React.Fragment>
     );
   }

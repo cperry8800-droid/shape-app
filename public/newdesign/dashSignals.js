@@ -516,7 +516,14 @@
     }
     // Live rollups only expose days-logged-this-week today (no last-logged
     // date) — approximate: a fully empty week flags, anything else skips.
-    if (f.daysLogged7d === 0) {
+    // ⚠ AND THE APPROXIMATION CANNOT SUPPORT EVERY SETTING OF THE KNOB ABOVE IT. An
+    // empty 7-day window establishes "at least 7 days with no log" and nothing more:
+    // a coach who set the gap to 10 or 14 has asked a question this evidence cannot
+    // answer, and flagging anyway made the control a decoration on exactly the shape
+    // live accounts have — `lastLoggedOn` is null for a client with no snapshot rows
+    // at all, i.e. every brand-new one. A threshold at or under the window is still
+    // satisfied by it, so that half keeps flagging.
+    if (f.daysLogged7d === 0 && THRESHOLDS.FOOD_GAP_DAYS <= 7) {
       return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week" };
     }
     return null;
