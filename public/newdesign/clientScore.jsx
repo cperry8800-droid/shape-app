@@ -117,20 +117,49 @@ function ClientScorePage() {
     ["Legend", 15000, "15,000+", "A free year of Shape + a cap"],
   ];
 
-  // Live score state. When signed in, the API hydrates this with the
-  // user's own ledger totals. When signed out, we keep the static demo
-  // numbers so the page still renders for marketing.
-  const [live, setLive] = React.useState(null);
+  // Live score state. When signed in, the API hydrates this with the user's own ledger
+  // totals. When signed out, the static demo numbers stay so the page still renders for
+  // marketing — that half is deliberate.
+  //
+  // ⚠ WHAT WAS NOT DELIBERATE: A SIGNED-IN MEMBER FELL BACK TO THEM TOO (review
+  // 2026-09-09, R13/C3). `live` stays null when the fetch FAILS, so a member whose
+  // request 500'd — or who had simply never earned a point — was shown 1,284 points, a
+  // fabricated eight-line breakdown and someone else's ledger, with nothing saying so.
+  // A member's own standing is the last place to invent a number.
+  //
+  // ⚠ THE ROUTE ANSWERS THE QUESTION — THE PAGE DOES NOT ASK AUTH SEPARATELY.
+  // A first cut gated this on `useSignedIn`, and that was worse than the defect: a
+  // failed or slow `getUser()` leaves the hook unresolved by design (an unknown account
+  // must not let an edit land), so the page sat on "Reading your standing…" FOREVER —
+  // measured in a browser, on all four states including the signed-out marketing page.
+  // `/api/client/score` already distinguishes all three cases in one request:
+  //   401 · nobody is signed in  → the marketing preview, demo figures and all
+  //   2xx · this member's ledger → live
+  //   anything else              → we could not read it, and say so
+  const [state, setState] = React.useState({ kind: "loading" });
   React.useEffect(() => {
     let alive = true;
-    fetch('/api/client/score', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (alive && d && typeof d.points_total === 'number') setLive(d); })
-      .catch(() => {});
+    fetch("/api/client/score", { credentials: "same-origin" })
+      .then((r) => {
+        if (r.status === 401 || r.status === 403) return { kind: "anon" };
+        if (!r.ok) return { kind: "error" };
+        return r.json().then(
+          (d) => (d && typeof d.points_total === "number" ? { kind: "ready", data: d } : { kind: "error" }),
+          () => ({ kind: "error" })
+        );
+      }, () => ({ kind: "error" }))
+      .then((v) => { if (alive) setState(v); });
     return () => { alive = false; };
   }, []);
 
-  const myPoints = live ? live.points_total : 1284;
+  const live = state.kind === "ready" ? state.data : null;
+  // Three audiences, three treatments. `demo` is the signed-out marketing page and is the
+  // ONLY one that may show invented figures; `unread` is a member whose score could not
+  // be read, and shows none.
+  const demo = state.kind === "anon";
+  const unread = state.kind === "error";
+  const settling = state.kind === "loading";
+  const myPoints = live ? live.points_total : demo ? 1284 : 0;
   const atRisk = !!(live && live.at_risk);
   // Displayed tier is high-water-marked: prefer the API's current_tier (the
   // highest the rank has ever reached) so penalties dent the number but never
@@ -161,9 +190,11 @@ function ClientScorePage() {
     ["Radio participation",60, "4 rooms joined"],
     ["Referrals",         100, "2 friends on Shape"],
   ];
+  // ⚠ AN EMPTY BREAKDOWN IS AN EMPTY BREAKDOWN. Falling through to the demo list on a
+  // zero-length array showed a brand-new member eight categories they have never earned.
   const breakdown = live && Array.isArray(live.breakdown_total) && live.breakdown_total.length
     ? live.breakdown_total.map(b => [b.label, b.points, ""])
-    : staticBreakdown;
+    : demo ? staticBreakdown : [];
   const total = breakdown.reduce((a, b) => a + b[1], 0);
 
   // Recent ledger entries
@@ -201,12 +232,33 @@ function ClientScorePage() {
         what: r.note || (r.source_kind || 'Score event'),
         delta: r.delta,
       }))
-    : staticLedger;
+    : demo ? staticLedger : [];
 
   const ORANGE = "#c1641f";
   // Momentum meter — real { value, bonusThisWeek } when signed in (null = pre-migration,
   // card hidden); a demo value drives the signed-out marketing preview.
-  const momentum = live ? (live.momentum || null) : { value: 72, bonusThisWeek: false };
+  // ⚠ THE DEMO MOMENTUM IS FOR THE SIGNED-OUT PAGE ONLY. `live` is null for a member
+  // whose read failed as well as for a visitor, so the old ternary handed a signed-in
+  // member an invented 72.
+  // ⚠ TWELVE WEEKS, FROM THE ROUTE THE RECORD ALREADY READS (review 2026-09-09, R13).
+  // `/api/client/score-record`'s `3m` range is week-bucketed by `bsScoreRecord` — the
+  // same aggregation twin the mobile app uses — so this is the shape R13 asks for with
+  // no new route, no new query, and no second definition of a member's history.
+  const [trend, setTrend] = React.useState(undefined);   // undefined reading · null unreadable · [] none
+  React.useEffect(() => {
+    let alive = true;
+    csrRead("/api/client/score-record", csrRecordShaped).then((r) => {
+      if (!alive) return;
+      // A visitor and a member with no history both get no line; only a real failure is
+      // an unreadable one, and the widget declares itself empty either way.
+      if (r.kind !== "ready") { setTrend(r.kind === "error" ? null : []); return; }
+      const rng = r.data && r.data.ranges && r.data.ranges["3m"];
+      setTrend(rng && Array.isArray(rng.series) ? rng.series.slice(-12) : []);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const momentum = live ? (live.momentum || null) : demo ? { value: 72, bonusThisWeek: false } : null;
 
   // Each card below becomes a draggable/resizable DashGrid widget (role=client, tab=score),
   // mirroring the client Today rollout. The DashPage hero (title/subtitle/actions) stays as
@@ -221,6 +273,27 @@ function ClientScorePage() {
     // the item stayed: `chrome()` found no widget for the key, rendered nothing, and
     // the fit left an empty 18px slot on the page. Declaring `empty` lets the grid
     // remove the item instead.
+    // ⚠ `empty` WHEN THERE IS NOTHING TO PLOT, not a null the body then reads. One point
+    // is not a trend and two are the minimum a line can join.
+    { key: "trend12", title: "Twelve weeks", size: "full", empty: !(Array.isArray(trend) && trend.length >= 2), render: () => (
+      <Card>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4, gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>Twelve weeks</span>
+          <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>
+            {trend.length} WEEK{trend.length === 1 ? "" : "S"} ON THE LEDGER
+          </span>
+        </div>
+        <div style={{ marginTop: 12 }}><CsrLine series={trend} height={72} /></div>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.45)" }}>
+          <span>{trend[0].cumulative.toLocaleString()} PTS</span>
+          <span style={{ color: TEAL_BRIGHT }}>
+            {(() => { const d = trend[trend.length - 1].cumulative - trend[0].cumulative; return (d > 0 ? "+" : d < 0 ? "−" : "") + Math.abs(d).toLocaleString(); })()} OVER THE SPAN
+          </span>
+          <span>{trend[trend.length - 1].cumulative.toLocaleString()} PTS</span>
+        </div>
+      </Card>
+    ) },
+
     { key: "momentum", title: "Momentum", size: "full", empty: !momentum, render: () => {
       const mv = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
       const hit = mv >= 80;
@@ -299,6 +372,13 @@ function ClientScorePage() {
     { key: "breakdown", title: "Score breakdown", size: "full", render: () => (
       <Card>
         <SectionTitle right={`TOTAL ${total.toLocaleString()}`}>Score breakdown</SectionTitle>
+        {!breakdown.length ? (
+          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.5)", lineHeight: 1.5 }}>
+            {settling ? "Reading your breakdown…"
+              : unread ? "Couldn't read your breakdown just now."
+              : "Nothing banked yet — the categories appear as you earn in them."}
+          </div>
+        ) : null}
         {breakdown.map(([l, v, sub], i) => {
           const w = (v / maxBreakdown) * 100;
           return (
@@ -346,6 +426,13 @@ function ClientScorePage() {
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>LEDGER</span>
         </div>
         <div style={{ marginTop: 12 }}>
+          {!ledger.length ? (
+            <div style={{ fontSize: 13, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, padding: "8px 4px" }}>
+              {settling ? "Reading your ledger…"
+                : unread ? "Couldn't read your ledger just now."
+                : "No entries yet. Log a workout, a meal or a habit and the first one lands here."}
+            </div>
+          ) : null}
           {ledger.map((row, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "180px 1fr auto", gap: 16, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{row.when}</div>
@@ -367,8 +454,11 @@ function ClientScorePage() {
       navItems={clientNavItems("score")}
       payoutCard={clientPayoutCard}
       eyebrow="SHAPE SCORE · UPDATED NIGHTLY"
-      title={myPoints.toLocaleString()}
-      subtitle={atRisk
+      title={settling ? "—" : unread ? "—" : myPoints.toLocaleString()}
+      subtitle={settling ? "Reading your standing…"
+        : unread ? "Couldn't read your score just now. Nothing has changed — reload to try again."
+        : (!demo && myPoints === 0) ? "Your first logged workout, meal or habit opens this. Every point is written to the Record with the reason it was given."
+        : atRisk
         ? `You're in ${currentTier[0]} — but your score has slipped ${(tierFloor - myPoints).toLocaleString()} below the line. Earn it back to stay clear of the cutoff.`
         : `You're in ${currentTier[0]}. ${ptsToNext.toLocaleString()} points to ${nextTier ? nextTier[0] : "the top"} — that's about ${nextTier ? Math.ceil(ptsToNext / 36) : 0} weeks at your current pace.`}
       actions={<>
