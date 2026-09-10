@@ -1421,15 +1421,40 @@ Append new entries at the top, under this note.
   `{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F` **unguarded** and the stored
   document has no `macros` key. `BSKitchenCard` **is** null-safe at that field, so a
   card-level render test misses it, and **no CI job would catch it**.
-- ⚠ **THE GDPR EXPORT WAS MAPPED BY NOBODY, INCLUDING ME.**
-  `src/app/api/account/export/route.ts:16` exports the **whole** `user_goals` table under the
-  key `health_screening_and_goals`, with a `SENSITIVE_KEYS` scrub matching **none** of the new
-  document's fields — so member-typed `sourceNote` and `photoPath` would be exported under a
-  health-screening label the day the store ships. Portability is right; the label is not.
-  Deletion is already covered. **Registered as an owner ruling (§10.6), not defaulted
-  silently.** ⚠ Related: `user_goals` has **no user-facing DELETE policy**, so *"delete my
-  recipe"* is an upsert with the key removed — which is also the evidence behind the spec's
-  "no migration" (the table has no check constraint on `kind` and no allow-list anywhere).
+- ⚠ **THE GDPR EXPORT WAS MAPPED BY NOBODY, INCLUDING ME — AND THEN I REPEATED HALF A CLAIM
+  THAT IS WRONG.** As first written this bullet reported the `SENSITIVE_KEYS` scrub *"matching
+  none of the new document's fields"* as a defect. **It is not, and the correction is here
+  rather than in a later entry.** That scrub is for **tokens and secrets** — its own comment
+  says so — and a GDPR export is the member receiving **their own** data: their recipe notes
+  belong in it, unscrubbed, and scrubbing member content out of a member's own export would be
+  the real defect. `photoPath` follows the route's own stated pattern (*"Media files … are
+  referenced by path; the file itself is delivered on request"*). **There is no privacy problem
+  here.** *A survey finding repeated without being re-derived is a claim, not a finding* — the
+  same rule this entry's last bullet is about, failed one bullet earlier.
+- **What survives is the LABEL, and it is not this feature's defect.** The export maps each
+  table to one key (`export/route.ts:15-30`), so **~22 `user_goals` kinds** share
+  `health_screening_and_goals` — grocery lists, dashboard layout, voice preferences, coach
+  notes, week reviews, ticker settings — of which exactly **one** is health screening.
+  **Owner ruling taken 2026-09-10: rename the key in its own one-line PR; do not block the
+  recipe work on it.** Splitting `client_recipes` out would fix one kind and leave twenty
+  mislabelled. It costs nothing to defer — exports are generated fresh, so there is no stored
+  artifact to migrate. ⚠ Related: `user_goals` has **no user-facing DELETE policy**, so
+  *"delete my recipe"* is an upsert with the key removed — which is also the evidence behind
+  the spec's "no migration" (the table has no check constraint on `kind` and no allow-list
+  anywhere).
+- ⚠ **AND PR 1 SHEDS ITS UI — the second owner question is RETIRED rather than answered.** It
+  asked whether PR 1's render half should be test-only or dev-seeded; both are ways of living
+  with a **half-wired PR**. As specified, PR 1 shipped a store **and** a render path with **no
+  writer**: dead in production until PR 2, unverifiable on device, and paying an i18n ratchet
+  bill for copy nothing could reach. **PR 1 is now the store and nothing a member can see** —
+  the lane, the uid binding, the null-read decline, the synchronous mirror and its three
+  `localScrub` edits, plus the **first tests the pointer array has ever had** (existing
+  behaviour, so PR 2 extends a tested array). **PR 2 becomes the whole feature end to end.**
+  *Either ship no UI, or ship UI that works; the half is the one option worth removing.*
+  ⚠ **And the mirror's justification moved with it**: the survey justified it by the mount
+  harness, which does not survive a PR with no mount — the durable reason is **offline parity
+  with `client_library`**, because a member who typed a recipe must be able to read it on a
+  plane.
 - ⚠ **CI HAS FOUR JOBS, NOT THE THREE THE AUTO-LOADED CONVENTIONS NAME.** `Tests (unit +
   mount)` is its own job, installs **both** `node_modules` trees, and is the **only** one that
   executes a React component — so every render assertion runs there and nowhere else. And the

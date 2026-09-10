@@ -158,12 +158,22 @@ file scan is a **non-recursive `readdirSync` over `broadsheet/*.jsx`**, so a sub
 `.mjs`, or anything under `services/` ships English to 13 locales with the suite fully green.
 *Recorded in §9 and §13.*
 
-⚠ **0b.6 — THE GDPR EXPORT WAS MAPPED BY NOBODY, AND IT NEEDS A RULING.**
-`src/app/api/account/export/route.ts:16` exports the **whole** `user_goals` table under the
-key `health_screening_and_goals`, and its `SENSITIVE_KEYS` scrub matches **none** of §3.2's
-fields. So `client_recipes` — member-typed `sourceNote`, `photoPath` — is exported the day
-PR 1 ships, under a health-screening label. Portability is correct; the label is not.
-Deletion is already covered (`delete/route.ts:34`). *Owner question §10.6.*
+⚠ **0b.6 — THE GDPR EXPORT WAS MAPPED BY NOBODY. ⚠ AND HALF OF WHAT THE SURVEY SAID ABOUT
+IT WAS WRONG — CORRECTED HERE RATHER THAN CARRIED.** The survey reported that the
+`SENSITIVE_KEYS` scrub *"matches none of §3.2's fields"* as though that were a defect. **It is
+not.** That scrub is for tokens and secrets — its own comment says so — and a GDPR export is
+the member receiving **their own** data: their recipe notes belong in it, unscrubbed.
+Scrubbing member content out of a member's own export would be the actual defect. And
+`photoPath` follows the route's own stated pattern (*"Media files … are referenced by path;
+the file itself is delivered on request"*). **There is no privacy problem here.**
+
+What survives is narrow and real, and it is **not recipe-specific**: the export is a flat
+table→key map (`export/route.ts:15-30`), so `user_goals` gets **one** key —
+`health_screening_and_goals` — and **~22 distinct kinds land under it**: grocery lists,
+dashboard layout, voice preferences, coach notes, week reviews, ticker settings, home cards.
+Exactly **one** (`health_profile`) is health screening. The label has been wrong for twenty
+other kinds since long before this feature. *§10.6 — a rename, in its own PR, not PR 1's
+business.* Deletion is already covered (`delete/route.ts:34`).
 
 ⚠ **0b.7 — THERE IS NO ROW DELETE FOR THIS KIND, BY DESIGN.** `user_goals` carries no
 user-facing DELETE policy (the only one is kind-scoped and GUC-gated, for `cycle_settings`).
@@ -180,8 +190,15 @@ no sync check exists; `ci.yml`'s own header says the name is kept so branch prot
 matching. The auto-loaded `AGENTS.md` convention to `cp -r mobile-app/dist public/m` produces
 nothing committable. *Corrected in §13.*
 
-⚠ **0b.9 — PR 1 NEEDS A SYNCHRONOUS LOCAL MIRROR, AND THAT PULLS IN A THREE-FILE EDIT.**
-Measured rather than argued: `drive(BSClientLibrary)` renders **today** under
+⚠ **0b.9 — THE STORE NEEDS A SYNCHRONOUS LOCAL MIRROR, AND THAT PULLS IN A THREE-FILE EDIT.**
+⚠ **The survey justified the mirror by the test harness; that is the weaker reason and it does
+not survive §13's resplit** (PR 1 ships no UI, so there is no mount test to satisfy). The
+durable reason is **offline parity with `client_library`**: a member who typed a recipe must
+be able to read it on a plane, and a cloud-only kind cannot. The mirror is part of the store's
+design, so it lands in PR 1 with its `localScrub` entries — the privacy obligation attaches
+the moment the mirror exists, not when a screen reads it.
+
+The harness measurement still binds **PR 2**: `drive(BSClientLibrary)` renders **today** under
 `tests/helpers/broadsheet-mount.mjs` — but only a **synchronous** seed is visible; an
 effect-only load renders nothing and the test passes **vacuously**. A localStorage mirror
 means adding the key to **three** `localScrub` inventories (`public/newdesign/localScrub.mjs`,
@@ -806,7 +823,12 @@ rewrite and passes on a broken one.
 
 ⚠ **THE POINTER ARRAY HAS NO EXISTING COVERAGE** (0b.10) — `bsLibWrite`, `bsLibToggle`,
 `useBSLibrary` and `BS_LIB_KINDS` return zero hits across `tests/`. There is no guard to
-extend; all of it is new code.
+extend; all of it is new code. ⚠ **PR 1 writes that net against the array's EXISTING
+behaviour** (§13), so PR 2 extends a tested array rather than an untested one.
+
+⚠ **WHICH PR OWNS WHICH TEST** (§13's resplit): **PR 1** owns test 18 and the pointer-array
+net — everything provable without a screen. **PR 2** owns 1–8 and 11–17, every one of which
+needs either an adapter the store does not call or a surface PR 1 does not ship.
 
 ⚠ **AND THE MOUNT HARNESS ONLY SEES A SYNCHRONOUS SEED** (0b.9). `drive(BSClientLibrary)`
 renders today, but an effect-only load renders nothing and the test **passes vacuously** —
@@ -845,23 +867,22 @@ between members, published, or shown to a coach — i.e. §10.1 and any future s
 ⚠ **This is a legal question with a business answer, not an engineering one**, and it should
 be settled before the share path is built rather than after.
 
-**10.6 The GDPR export label — a ruling, not a default** (0b.6).
-`src/app/api/account/export/route.ts:16` exports the whole `user_goals` table under the key
-`health_screening_and_goals`, and its `SENSITIVE_KEYS` scrub matches none of §3.2's fields.
-So the day PR 1 ships, a member's typed recipes — including `sourceNote` and `photoPath` —
-are exported under a health-screening label with no scrub. Portability is right; the label is
-wrong. Options: rename the key, split `client_recipes` into its own export section, or record
-that the label is known-inaccurate. ⚠ **Actionable in PR 1**, because PR 1 is what creates the
-first member-authored freeform *content* kind in that table. Default if unanswered: **split
-it into its own section**, since renaming the existing key changes the shape of every prior
-export.
+**10.6 The GDPR export label — RESOLVED 2026-09-10: rename it, in its own PR, and do not
+block this feature on it.** (0b.6.) ⚠ **This was registered as a recipe decision and it is
+not one.** The export maps each table to one key, so **~22 `user_goals` kinds** already share
+`health_screening_and_goals` — grocery lists, dashboard layout, voice preferences, coach
+notes, week reviews — of which exactly one is health screening. Splitting `client_recipes` out
+would fix the label for recipes, leave it wrong for twenty other kinds, and add a special
+case. **Renaming the key** (each row already carries its own `kind`, so the data is
+intelligible once the heading stops over-claiming) is a one-line change to the `OWNED` array,
+costs nothing to defer — exports are generated fresh, so there is no stored artifact to
+migrate — and belongs to no PR in this feature. ⚠ **And the scrub is not part of it**: see
+0b.6, where the survey's claim is refuted rather than repeated.
 
-**10.7 Does PR 1 accept a test-only render half?** (0b.9, §13.) PR 1 as specified ships **no
-writer**, so *"a member recipe appears in the Catalogue"* is true only under a test fixture —
-the path is dead in production until PR 2, and the house's on-device `manual` pass cannot be
-performed. Options: accept it and say so in the WORKLOG entry, or add a dev-only seed — which,
-if it lives in a `broadsheet/*.jsx`, becomes ratchet-visible copy. Default if unanswered:
-**accept, and state it in the entry**; a dev seed is a second thing to remember to remove.
+⚠ **10.7 RETIRED, NOT ANSWERED.** It asked whether PR 1 should accept a test-only render half
+or add a dev seed. **Both are ways of living with a half-wired PR**, and §13's resplit removes
+the half: PR 1 ships **no UI at all**, so there is no dead render path to caveat and no
+on-device pass to owe.
 
 **10.5 Does an imported recipe belong in the grocery builder and the meal plan?**
 Default: **yes to grocery** (it is `bsMergeMise` output like anything else, and the aisle
@@ -881,8 +902,10 @@ plan claims.
 - Recipe photos as *food* photography (the frontispiece follow-up, WORKLOG "PR E
   FOLLOW-UPS"). §4.2's photo is the **source document**, not a plated shot.
 - Nutrition-label OCR. Different problem, different validator.
-- Renaming the GDPR export key. It is **registered as §10.6**, not deferred silently — the
-  data rides out correctly today; only its section label is wrong.
+- Renaming the GDPR export key (§10.6). ⚠ **Out of scope because it is not this feature's
+  defect** — ~22 `user_goals` kinds already share that label and exactly one is health
+  screening. The data rides out correctly today, unscrubbed and complete, which is what a
+  portability export owes; only the section heading over-claims. Its own one-line PR.
 - The website. `public/newdesign/recipes.jsx` carries a content-parity copy of the catalog
   (`recipe-web-mobile-parity.test.mjs` enforces it); member recipes are mobile-only in v1 and
   **must not** be added to that parity check.
@@ -932,25 +955,43 @@ the time of writing). **`tsc` does NOT run** — nothing under `src/*.ts` is sta
 reader assuming typecheck covers this change is wrong. A missing root `node_modules` is a hard
 **fail**, not a warning.
 
-**PR 1 — the store and the pointer.** `client_recipes` kind, its own serial write lane, uid
-binding, null-read decline, `res.error` inspected. A member recipe appears in
-**`BSClientLibrary`** (0b.3) and opens a detail screen. No ingest yet — seeded by a test
-fixture (§10.7).
+⚠ **RESPLIT 2026-09-10 — PR 1 SHEDS ITS UI.** The first draft gave PR 1 a store **and** a
+render path with **no writer**: half a UI, dead in production until PR 2, unverifiable on
+device, and paying an i18n bill for copy nothing could reach. §10.7 asked how to live with
+that; the better answer is not to have it. **Either ship no UI, or ship UI that works.**
 
-⚠ **Its real cost is four things the first draft did not budget:** a **synchronous local
-mirror** (0b.9 — without it the mount test passes vacuously), which drags in the **three
-`localScrub` inventory edits**; the **two false-provenance strings** (0b.4), which are
-baseline strings in an i18n-UNCOVERED component and therefore move the ratchet; **all-new
-pointer tests**, since that array has zero coverage today (0b.10); and the i18n budget for
-whatever copy the detail screen adds — where a **fully-keyed new component** is the cheap path
-and editing a baseline string is the expensive one (0b.5). ⚠ Keep new UI copy out of a
-`broadsheet/` subdirectory, out of `.mjs`, and out of `services/`: the ratchet's scan is
-non-recursive and top-level-only, so English would ship to 13 locales with the suite green.
+**PR 1 — the store, and nothing a member can see.** The `client_recipes` kind, its own serial
+write lane, uid binding, null-read decline, `res.error` inspected, and the **synchronous local
+mirror** with its **three `localScrub` inventory edits** (0b.9 — justified by offline parity
+with `client_library`, not by a test harness). No pointer, no Catalogue change, no detail
+screen, **no new user-visible strings**. Tests 18 of §9, plus the store's own vectors.
 
-**PR 2 — paste ingest + cook.** The paste sheet with the structural split (§4.1), the review
-screen, `bsCookableFromMemberRecipe` (§5.3), the prep picker's `myrecipe:` resolution (§0.4)
-and the plated stage's no-kcal state (§6.3). **This is the PR where the feature becomes real,
-and it needs no AI and no new route.** Tests 1–8 and 11–15 of §9.
+⚠ **And it carries one thing that is not about member recipes at all: the FIRST tests for the
+pointer array.** `bsLibWrite` / `bsLibToggle` / `useBSLibrary` / `BS_LIB_KINDS` have **zero**
+coverage today (0b.10), so PR 2 would otherwise build the pointer on an untested array. Pin
+the **existing** behaviour here — the blind whole-array write, the mount-time union, the
+`kind` switch — as a regression net PR 2 can then extend.
+
+**What the resplit buys, and it is the reason to prefer it over a dev seed:** nothing
+user-visible ships that does not work; **zero i18n cost in PR 1** (the ratchet budget moves to
+the PR that has to pay it regardless); the risky part is genuinely retired, because
+persistence is fully testable without a screen; and there is no on-device `manual` pass to
+owe, because there is nothing to look at.
+
+**PR 2 — the feature, end to end.** The library pointer and its `BSClientLibrary` row (0b.3),
+the detail screen and the **two false-provenance strings** (0b.4), the paste sheet with the
+structural split (§4.1), the review screen, `bsCookableFromMemberRecipe` (§5.3), the prep
+picker's `myrecipe:` resolution (§0.4) and the plated stage's no-kcal state (§6.3). **This is
+the PR where the feature becomes real, and it needs no AI and no new route.** Tests 1–8 and
+11–17 of §9.
+
+⚠ **It is the bigger PR, deliberately, and it is COHERENT rather than merely large** — one
+reviewable story (*a member brings a recipe in and sees it*) instead of two halves that only
+work together. ⚠ **Its i18n budget is the whole feature's**: a **fully-keyed new component** is
+the cheap path, editing a baseline string in an UNCOVERED component is the expensive one
+(0b.5), and new UI copy must stay out of a `broadsheet/` subdirectory, out of `.mjs` and out of
+`services/` — the ratchet's scan is non-recursive and top-level-only, so English would
+otherwise ship to 13 locales with the suite green.
 
 **PR 3 — macros.** Per-row food-search mapping on the review screen, partial-coverage
 display rule. Test 10.
