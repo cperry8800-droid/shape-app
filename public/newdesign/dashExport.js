@@ -156,6 +156,13 @@
   // where a naive rollup goes wrong.
   function revenueRows(trajectory) {
     var weeks = trajectory && Array.isArray(trajectory.weeks) ? trajectory.weeks : [];
+    // ⚠ A FAILED PURCHASES READ IS NOT ZERO ONE-TIME REVENUE. Both analytics routes
+    // build the trajectory with `purchases: purchasesRes.data ?? []`, so an RLS change,
+    // a schema drift or a timeout produces a series of honest-looking zeroes — and
+    // writing those into a coach's accounting file is the claim that no one-time
+    // revenue existed. The routes carry the flag; the cells stay EMPTY, and so does
+    // Total net, because a total that silently omits one leg understates the year.
+    var oneTimeUnknown = !!(trajectory && trajectory.oneTimeUnknown);
     var order = [];
     var byMonth = {};
     for (var i = 0; i < weeks.length; i++) {
@@ -194,15 +201,21 @@
     var first = 0;
     while (first < order.length) {
       var f = byMonth[order[first]];
-      if ((f.active || 0) > 0 || f.joined > 0 || f.left > 0 || (f.grossCents || 0) > 0 || f.oneTimeCents > 0) break;
+      // ⚠ AND THE TRIM MUST NOT WEIGH A LEG IT CANNOT READ: with one-time unknown, a
+      // month whose ONLY activity was a purchase is indistinguishable from an empty one,
+      // so the trim leans on the legs that are known and keeps a month it is unsure of.
+      if ((f.active || 0) > 0 || f.joined > 0 || f.left > 0 || (f.grossCents || 0) > 0
+          || (!oneTimeUnknown && f.oneTimeCents > 0)) break;
       first += 1;
     }
     var out = [];
     for (var k = first; k < order.length; k++) {
       var r = byMonth[order[k]];
-      var total = r.netCents == null ? null : r.netCents + r.oneTimeNetCents;
+      var total = (r.netCents == null || oneTimeUnknown) ? null : r.netCents + r.oneTimeNetCents;
       out.push([r.month, r.active, r.joined, r.left, money(r.grossCents), money(r.netCents),
-                money(r.oneTimeCents), money(r.oneTimeNetCents), money(total)]);
+                oneTimeUnknown ? null : money(r.oneTimeCents),
+                oneTimeUnknown ? null : money(r.oneTimeNetCents),
+                money(total)]);
     }
     return out;
   }

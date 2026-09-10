@@ -565,13 +565,33 @@ Append new entries at the top, under this note.
   Re-anchored on the block, extended to cover every money leg, and both operators
   re-proven by mutation. *A guard that pins a layout pins whatever that layout is wrong
   about.*
-- **Verified:** `npm test` **2879/2879** · `tsc --noEmit` 0 · JSX parse on all five changed
+- **Verified:** `npm test` **2883/2883** · `tsc --noEmit` 0 · JSX parse on all five changed
   modules · `dashExport.js` `require()`s clean in Node · the newdesign precompile check ·
-  **21/21 mutations killed, sanity green at both ends** · and the whole thing driven in
+  **28/28 mutations killed, sanity green at both ends** · and the whole thing driven in
   Chromium in both states: the preview's control is **present, disabled, says "live only",
   and a forced click produces zero files**; signed in, a real `roster-2026-09-10.csv`
   downloads with a BOM, `"'=Bo, R."` neutralised and quoted, `0.00` for the measured zero
   and **empty cells** for the unreadable client. Zero page errors. No migration.
+- ⚠ **AND THE REVIEW ROUND FOUND A DATABASE ERROR TURNING INTO A FINANCIAL CLAIM.** Both
+  analytics routes build the trajectory with `purchases: purchasesRes.data ?? []` — so an
+  RLS change, a schema drift or a timeout produces a series of honest-looking **zeroes**,
+  and the export wrote `0.00` into a coach's accounting file as the statement that no
+  one-time revenue existed. **The routes already knew**: each logs *"one-time revenue
+  omitted"*. The payload never said so, and a consumer cannot tell *none* from *not read*
+  without being told. `oneTimeUnknown` rides the trajectory now; the one-time columns
+  **and Total net** go empty, and the subscription half is still exported — a coach doing
+  their books should not lose their MRR because one leg was unreadable.
+- ⚠ **AND THE LEADING-MONTH TRIM HAD TO STOP WEIGHING THAT LEG TOO.** With one-time
+  unknown, a month whose only activity was a purchase is indistinguishable from an empty
+  one — so the trim leans on the legs that are known and keeps a month it is unsure of.
+  *A fix that introduces an unknown owes every consumer of that value a decision.*
+- ⚠ **AND THE ORIGIN WAS NON-DETERMINISTIC IN TWO WAYS, ONE OF WHICH CONTRADICTED MY OWN
+  COMMENT.** An `else if (!e.origin && !e.originAt)` arm handed the acquisition to whichever
+  **undated** row PostgREST returned first — the exact opposite of the sentence above it
+  promising that an undated row cannot claim it. And two rows created in the same
+  millisecond resolved to whichever the database happened to return first, a value that
+  can change between two loads of the same page. An undated-only client now has **no**
+  origin (an empty cell, not a guess), and ties break on the row id.
 - ⚠ **AND ONE INVISIBLE CHARACTER GOT INTO THE SOURCE.** The BOM was written as a
   **literal U+FEFF** in the middle of `dashExport.js` rather than as the escape `"\ufeff"`.
   It parsed and it worked — and it is exactly the kind of thing an editor or a formatter

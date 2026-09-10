@@ -203,6 +203,58 @@ test('a week is assigned to the month its MONDAY falls in, and months come out s
   assert.equal(rows(E.revenueCsv(null)).length, 1, 'a null trajectory threw or invented rows');
 });
 
+test('an unreadable purchases leg leaves the one-time columns EMPTY, never 0.00', () => {
+  // ⚠ BOTH ANALYTICS ROUTES BUILD THE TRAJECTORY WITH `purchases: purchasesRes.data ?? []`,
+  // so an RLS change, a schema drift or a timeout produces a series of honest-looking
+  // zeroes — and writing those into a coach's accounting file is the claim that no
+  // one-time revenue existed. The subscription half is real and is still exported; the
+  // one-time cells and Total net are the ones that must go blank.
+  const t = TRAJ();
+  const known = rows(E.revenueCsv(t));
+  const unknown = rows(E.revenueCsv({ ...t, oneTimeUnknown: true }));
+  const augK = known.find((r) => r[0] === '2026-08');
+  const augU = unknown.find((r) => r[0] === '2026-08');
+  assert.equal(augK[6], '40.00', 'setup: the known case has no one-time revenue to lose');
+  assert.deepEqual(augU.slice(6), ['', '', ''], 'a failed purchases read was exported as 0.00');
+  // the subscription half survives — a coach does not lose their MRR because one leg failed
+  assert.equal(augU[4], augK[4]);
+  assert.equal(augU[5], augK[5]);
+  assert.deepEqual(augU.slice(0, 4), augK.slice(0, 4));
+  // and every month is blanked, not just the one with a purchase in it
+  for (const r of unknown.slice(1)) assert.deepEqual(r.slice(6), ['', '', ''], r[0]);
+});
+
+test('the leading trim does not weigh a leg it cannot read', () => {
+  // With one-time unknown, a month whose ONLY activity was a purchase is
+  // indistinguishable from an empty one — so the trim leans on the known legs.
+  const w = (weekOf, over) => ({ weekOf, active: 0, added: 0, ended: 0, mrrGrossCents: 0, mrrNetCents: 0, oneTimeCents: 0, oneTimeNetCents: 0, ...over });
+  const weeks = [w('2026-06-01', { oneTimeCents: 5000 }), w('2026-07-06', { active: 2, mrrGrossCents: 1000 })];
+  assert.equal(rows(E.revenueCsv({ weeks }))[1][0], '2026-06', 'a purchase-only month was trimmed off the front');
+  assert.equal(rows(E.revenueCsv({ weeks, oneTimeUnknown: true }))[1][0], '2026-07',
+    'the trim counted a one-time figure it had just been told was unreadable');
+});
+
+test('the routes carry the failed purchases read rather than coercing it', () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    const src = stripComments(readFileSync(new URL('../src/app/api/' + role + '/analytics/route.ts', import.meta.url), 'utf8'));
+    assert.match(src, /oneTimeUnknown: !!purchasesRes\.error/, role + ' drops the purchases error into a zero');
+    // and the subscriptions error still nulls the whole trajectory — a different rule
+    assert.match(src, /subsAllRes\.error\s*\?\s*null/, role);
+  }
+});
+
+test('an origin is only claimed by a DATED row, and ties resolve the same way twice', () => {
+  // ⚠ AN UNDATED ROW NEVER CLAIMS THE ACQUISITION. An earlier cut handed the origin to
+  // whichever undated row PostgREST returned first — non-deterministic, and the exact
+  // opposite of what its own comment promised.
+  const src = stripComments(readFileSync(new URL('../src/lib/coach-roster.ts', import.meta.url), 'utf8'));
+  assert.ok(!/else if \(!e\.origin && !e\.originAt\)/.test(src), 'an undated row can claim the origin again');
+  assert.match(src, /if \(sub\.created_at\) \{/, 'the origin is assigned outside a dated guard');
+  // ties break on the row id, so two rows in the same millisecond resolve identically
+  assert.match(src, /String\(sub\.created_at\) \+ '\\u0000' \+ String\(sub\.id \?\? ''\)/);
+  assert.match(src, /if \(!e\.originAt \|\| key < e\.originAt\)/);
+});
+
 test('the file is named with its date, so a folder of them is readable', () => {
   assert.equal(E.fileName('roster', NOW), 'roster-2026-09-10.csv');
   assert.equal(E.fileName('revenue', NOW), 'revenue-2026-09-10.csv');

@@ -134,13 +134,25 @@ export async function coachClientsResponse(
     if (sub.created_at && (!e.joinedAt || sub.created_at < e.joinedAt)) {
       e.joinedAt = sub.created_at;
     }
-    // The origin follows the earliest row, tracked separately from `joinedAt`
+    // The origin follows the earliest DATED row, tracked separately from `joinedAt`
     // so a row with no created_at cannot claim the acquisition by arriving first.
-    if (sub.created_at && (!e.originAt || sub.created_at < e.originAt)) {
-      e.originAt = sub.created_at;
-      e.origin = typeof sub.origin === 'string' && sub.origin ? sub.origin : DEFAULT_ORIGIN;
-    } else if (!e.origin && !e.originAt) {
-      e.origin = typeof sub.origin === 'string' && sub.origin ? sub.origin : DEFAULT_ORIGIN;
+    //
+    // ⚠ AND AN UNDATED ROW NEVER CLAIMS IT AT ALL (CodeRabbit, #2030). An earlier cut
+    // had an `else if (!e.origin && !e.originAt)` arm that handed the origin to whichever
+    // undated row PostgREST returned first — non-deterministic, and the exact opposite of
+    // what the comment above it promised. A client whose every subscription lacks a date
+    // has no readable acquisition, so `origin` stays null and the export writes an empty
+    // cell rather than a guess.
+    //
+    // ⚠ AND TIES ARE BROKEN ON THE ROW ID, because two rows created in the same
+    // millisecond would otherwise resolve to whichever the database happened to return
+    // first — a value that can change between two loads of the same page.
+    if (sub.created_at) {
+      const key = String(sub.created_at) + '\u0000' + String(sub.id ?? '');
+      if (!e.originAt || key < e.originAt) {
+        e.originAt = key;
+        e.origin = typeof sub.origin === 'string' && sub.origin ? sub.origin : DEFAULT_ORIGIN;
+      }
     }
   }
 

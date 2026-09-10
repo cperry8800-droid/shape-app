@@ -707,6 +707,11 @@ function CoachBusinessPage({ role }) {
                   when the viewer is a preview: an export built from a null series would
                   be a header row and nothing under it, which reads as "the practice
                   earned nothing" rather than as "we could not read it". */}
+              {/* ⚠ THE EXPORT STILL RUNS WITH A FAILED PURCHASES READ, and that is
+                  deliberate: the subscription half is real and a coach doing their books
+                  should not lose it because one leg was unreadable. What must not happen
+                  is the one-time columns reporting 0.00 — `revenueRows` leaves them and
+                  Total net EMPTY when the route says the leg is unknown. */}
               <DashExportButton kind="revenue" label="monthly revenue"
                 live={isLive && !!(extra && extra.trajectory)}
                 build={() => window.DashExport.revenueCsv(extra.trajectory)} />
