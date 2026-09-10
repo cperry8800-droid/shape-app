@@ -161,6 +161,94 @@ function useRosterAdherence(ids, live) {
   return map;
 }
 
+// ── The weekly readout, READ FROM THE CACHE (review 2026-09-09, R5) ─────────
+// ⚠ THIS NEVER POSTS, AND THAT IS THE WHOLE DESIGN. `/api/ai/weekly-readout` is
+// POST-only and its first act is to CLAIM the week (`claim_weekly_readout`), which
+// is the database's own enforcement of one model call per member per week. A coach
+// opening the Week tab on a 30-client roster would therefore spend thirty members'
+// weekly AI calls on their behalf, for a page they may only be scrolling past —
+// and the member whose call was spent never asked for it.
+//
+// `ai_weekly_readouts` already carries `for select using (is_coach_on_client(user_id))`,
+// so the browser reads the cache directly under RLS. A row that is not there means
+// the member has not generated theirs yet; that is a real answer and the row says
+// so, rather than the coach's tab quietly making one.
+//
+// ⚠ AND A `generating` ROW IS NOT A READOUT. The table's status starts at
+// 'generating' with a null `readout` while a claim is in flight; rendering it would
+// paint an empty finding. Only 'ready' rows with a body count.
+//
+// ⚠ `week_start` IS A **UTC**-DERIVED MONDAY (`weeklyReadoutWeekStart` takes
+// `toISOString().slice(0,10)` and floors that to its Monday), while this page's
+// `weekOf` is a LOCAL calendar Monday. For a few hours around the Sunday/Monday
+// boundary those two labels can name different weeks, so an existing readout can
+// fail to match the week a coach is looking at. That is inherited from the route
+// rather than introduced here — the member's own card reads the same row the same
+// way — and the cost is bounded to a MISS, never a mismatch: the query is exact,
+// so a row for another week can never be shown under this one. The empty copy is
+// therefore written about the RECORD ("no read on record for this week") and not
+// about the member ("they haven't generated one"), because the second is a claim
+// this page cannot make at that boundary.
+function useWeekReadouts(ids, weeksBack, live) {
+  // `read` is the set of ids whose batch actually came back; `map` the rows found.
+  const [map, setMap] = React.useState(null); // null = not read yet
+  const key = ids.join(",");
+  React.useEffect(() => {
+    let on = true;
+    setMap(null);
+    const db = window.shapeDb && window.shapeDb.client;
+    if (!live || !db || !ids.length) return undefined;
+    // ⚠ THE ROUTE'S KEY, NOT THIS PAGE'S. See readoutWeekKey in dashData.jsx: the
+    // row is stamped with the Monday of the **UTC** date, so querying a LOCAL
+    // Monday misses a row on the week it belongs to and finds it on the week
+    // before — a readout attributed to a week it was not run in.
+    const weekKey = readoutWeekKey(weeksBack);
+    (async () => {
+      await dwkBridge();
+      if (!on) return;
+      const m = {};
+      for (let i = 0; i < ids.length; i += DWK_RPC_BATCH) {
+        const batch = ids.slice(i, i + DWK_RPC_BATCH);
+        try {
+          const res = await db
+            .from("ai_weekly_readouts")
+            // ⚠ THE SUMMARY ONLY. The full `readout` JSONB carries 3–5 insights
+            // with their headline, detail and recommendation — a member's private
+            // reading of their own body, none of which this page renders. Pulling
+            // it would put ~100 whole documents over the wire per week paged, and
+            // put that text in a payload the coach's page has no use for.
+            .select("user_id, source, window_days, sample_size, summary:readout->>summary")
+            .in("user_id", batch)
+            .eq("week_start", weekKey);
+          if (!on) return;
+          if (!res || res.error || !Array.isArray(res.data)) {
+            if (res && res.error) console.warn("[shape] week: readout read failed", res.error.message || res.error);
+            continue; // this batch stays UNREAD — and is recorded as such below
+          }
+          for (const r of res.data) {
+            // A row still `generating` carries a null summary; rendering it paints
+            // an empty finding. The projection returns null for those, so the same
+            // check covers both.
+            if (!r || !r.user_id || !r.summary) continue;
+            m[String(r.user_id)] = r;
+          }
+        } catch (e) { /* this batch stays unread; the row says nothing about it */ }
+      }
+      // ⚠ NO PER-BATCH READ-TRACKING, AND ITS ABSENCE IS THE POINT. An earlier cut
+      // carried one so a partially-read roster would not tell a coach "no read on
+      // record" about members nobody had looked up. That bookkeeping stopped being
+      // needed the moment the row stopped claiming an absence at all — which it
+      // must, because `is_coach_on_client` also hides the readouts of session-only
+      // clients, and this page cannot tell "not run" from "not mine to read".
+      // A map that is simply missing an id renders nothing for it, which is true
+      // under every one of those reasons.
+      if (on) setMap(m);
+    })();
+    return () => { on = false; };
+  }, [key, weeksBack, live]);
+  return map;
+}
+
 // ── Demo check-ins + adherence for the mock roster — ONLY under the band ─────
 function dwkDemoCheckin(rec, weekOf, thisMonday) {
   const name = rec.profile.name || "";
@@ -206,7 +294,7 @@ function DwkStat({ label, value, sub, tone }) {
   );
 }
 
-function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, onReview, onNote, canPersist, editable }) {
+function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readout, onReview, onNote, canPersist, editable }) {
   const rec = row.client;
   const id = rec.profile.id;
   const [noteOpen, setNoteOpen] = React.useState(false);
@@ -272,6 +360,27 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, onRevi
               </div>
             )}
           </div>
+          {/* THE READ — the member's own weekly readout, from the cache.
+              ⚠ SHOWN ONLY WHERE IT EXISTS, AND SILENT OTHERWISE. Nothing here
+              generates one: this page reads `ai_weekly_readouts` under the coach
+              SELECT policy, so a coach scrolling their Week never spends a
+              member's one weekly AI call.
+              ⚠ AND AN ABSENCE IS NOT REPORTED, because this page cannot tell the
+              two reasons apart. `is_coach_on_client` requires an active/trialing
+              subscription, while the roster also carries session-only clients — so
+              a member whose readout the coach simply may not SELECT arrives
+              identically to one who never ran it. "No read on record" would tell a
+              coach that a member has not done something they may be looking at on
+              their own Progress page. The mobile card's rule, for the same reason:
+              there is no readout, so there is nothing. */}
+          {live && readout && readout.summary && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DWK_INK50, marginBottom: 5 }}>
+                {"The read" + (readoutStamp(readout, true) ? " · " + readoutStamp(readout, true) : "")}
+              </div>
+              <div style={{ fontSize: 13, lineHeight: 1.45, color: "rgba(242,237,228,0.85)" }}>{readout.summary}</div>
+            </div>
+          )}
           {/* The numbers */}
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 12 }}>
             <DwkStat label={isCurrent ? "Adherence · this week" : "Adherence · week"} value={adh != null ? adh + "%" : "—"} sub={adhDelta != null ? (adhDelta >= 0 ? "▲ +" : "▼ −") + Math.abs(adhDelta) + " vs week before" : adhNote} tone={adh != null && adh < 70 ? DWK_AMBER : null} />
@@ -325,6 +434,11 @@ function CoachWeekPage({ role }) {
   const rows = (triage || []).filter((r) => r && r.client && r.client.profile);
   const ids = rows.map((r) => r.client.profile.id).filter((id) => id && !/^demo-/.test(String(id)));
   const adherence = useRosterAdherence(ids, live);
+  // Read-only: the coach never generates a member's readout — see useWeekReadouts.
+  // Whole weeks back from today, because that is the only part the local and UTC
+  // calendars agree on (readoutWeekKey turns it into the route's own key).
+  const weeksBack = Math.round((new Date(thisMonday + "T00:00:00") - new Date(weekOf + "T00:00:00")) / (7 * 86400000));
+  const readouts = useWeekReadouts(ids, weeksBack, live);
   const [localDemo, setLocalDemo] = React.useState({}); // ticks that cannot be persisted — this tab only
   const canPersist = reviews.kind === "ready" || reviews.kind === "error";
   // Where a tick goes: the account's store when it resolved, otherwise a local
@@ -394,6 +508,7 @@ function CoachWeekPage({ role }) {
             return (
               <DwkRow key={id + weekOf} row={row} role={role} weekOf={weekOf} thisMonday={thisMonday} live={live}
                 review={weekDoc[id] || null} adherence={adherence} canPersist={live ? canPersist : false} editable={editable}
+                readout={readouts ? readouts[id] || null : null}
                 onReview={(on) => patch([{ weekOf, clientId: id, patch: { reviewedAt: on ? new Date().toISOString() : null } }])}
                 onNote={(text) => patch([{ weekOf, clientId: id, patch: { note: text } }])} />
             );
