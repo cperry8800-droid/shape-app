@@ -37,7 +37,15 @@ function fn(src, name) {
 // own prose names the route it forbids, in backticks — which a naive "is this
 // string absent" check reads as a URL literal. Twice in this wave a guard failed
 // on the documentation of the rule it was written to enforce.
-const stripComments = (src) => src.replace(/^[ \t]*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+//
+// ⚠ AND THIS FILE SHIPPED A LOCAL COPY THAT WAS A BROKEN INSTRUMENT — the FOURTH,
+// written after tests/helpers/strip-comments.mjs had already post-mortemed the
+// other three. Its lazy `/\*[\s\S]*?\*\//` span opened on `accept="image/*"` in
+// dashProgress.jsx and ran to the next `*/` hundreds of lines later: measured, it
+// deleted 4,038 characters of dashProgress.jsx and 1,271 of dashWeek.jsx before
+// the assertions read them. A guard cannot report on source it has silently
+// removed. Import the one implementation; never re-derive it.
+import { stripComments } from './helpers/strip-comments.mjs';
 
 const { readoutStamp, readoutWeekKey } = new Function(
   fn(DATA, 'readoutStamp') + '\n' + fn(DATA, 'readoutWeekKey') + '\nreturn { readoutStamp, readoutWeekKey };'
@@ -78,7 +86,7 @@ test('one stamp, not two — the duplication P1-C already removed once', () => {
   // claim has to land once or they disagree about the same row.
   assert.ok(!/function dwkReadoutStamp/.test(WEEK));
   assert.ok(!/function dprReadoutStamp/.test(PROG));
-  assert.match(DATA, /readoutStamp, readoutWeekKey \}\);/);
+  assert.match(DATA, /readoutStamp, readoutWeekKey, useWeekClock \}\);/);
 });
 
 // ── The week key matches the ROUTE's, not the browser's calendar ─────────────
@@ -179,14 +187,27 @@ async function runHook({ ids, weeksBack = 0, live = true, plan }) {
   // Minimal React: one state cell, effects run immediately, deps ignored.
   let value = undefined;
   const pending = [];
+  const cells = [];
+  let idx = 0;
   const React = {
-    useState: (init) => [typeof init === 'function' ? init() : init, (v) => { value = v; }],
+    // Cell 0 belongs to useWeekReadouts' own `map`; useWeekClock takes the rest.
+    useState: (init) => {
+      const i = idx++;
+      if (!(i in cells)) cells[i] = typeof init === 'function' ? init() : init;
+      return [cells[i], (v) => { if (i === 0) value = v; }];
+    },
+    useRef: (init) => { const i = idx++; if (!(i in cells)) cells[i] = { current: init }; return cells[i]; },
+    useCallback: (f) => f,
     useEffect: (f) => { pending.push(f); },
   };
   const db = stubDb(plan);
-  const g = { React, window: { shapeDb: db }, DWK_RPC_BATCH: 100, dwkBridge: async () => {}, readoutWeekKey };
-  const hook = new Function('React', 'window', 'DWK_RPC_BATCH', 'dwkBridge', 'readoutWeekKey',
-    src + '\nreturn useWeekReadouts;')(g.React, g.window, g.DWK_RPC_BATCH, g.dwkBridge, g.readoutWeekKey);
+  // ⚠ THE REAL CLOCK, not a stub of it: the week key the query is scoped to now
+  // comes THROUGH useWeekClock, so stubbing it here would leave the assertions
+  // below testing a path production does not take.
+  const useWeekClock = new Function('React', 'setInterval', 'clearInterval',
+    fn(DATA, 'useWeekClock') + '\nreturn useWeekClock;')(React, () => 1, () => {});
+  const hook = new Function('React', 'window', 'DWK_RPC_BATCH', 'dwkBridge', 'readoutWeekKey', 'useWeekClock',
+    src + '\nreturn useWeekReadouts;')(React, { shapeDb: db }, 100, async () => {}, readoutWeekKey, useWeekClock);
   hook(ids, weeksBack, live);
   for (const f of pending) { const c = f(); if (typeof c === 'function') { /* keep mounted */ } }
   await new Promise((r) => setTimeout(r, 0));
@@ -258,18 +279,36 @@ test('the coach row is silent about an absence, because it cannot explain one', 
 });
 
 // ── The member's card ────────────────────────────────────────────────────────
-test('the member’s widget is registered UNCONDITIONALLY, or it never mounts', () => {
+test('the member’s widget declares emptiness — it is never omitted from the array', () => {
   // ⚠ MEASURED, AND IT MADE THE FEATURE DEAD. DashGrid's boot effect has deps
   // `[role, tab]`, so the widget array it resolves a layout from is the one
   // captured on the FIRST render — where `source` is null and `live` is false. A
   // `live ? {…} : null` entry is absent when the portal hosts are created, and the
-  // card never mounts for anyone.
+  // card never mounts for anyone. The contract is `empty`, which keeps the entry in
+  // the list and lets the grid add and remove its item as the flag flips.
   const m = PROG.match(/\{ key: "readout"[^\n]*\}/);
   assert.ok(m, 'the readout widget entry moved');
   assert.ok(!/live \?\s*\{ key: "readout"/.test(PROG), 'the entry is gated on a value that is false at boot');
-  // the gate belongs in the component, which chrome() honours by skipping a
-  // widget whose render() returns null
-  assert.match(fn(PROG, 'DprWeeklyReadout'), /if \(!live \|\| !held \|\| !held\.readout \|\| mismatched\) return null;/);
+  assert.match(m[0], /empty: !readout\.shown/, 'the entry does not declare its own emptiness');
+});
+
+test('the readout’s data is fetched by the PAGE, because an empty widget never mounts', () => {
+  // ⚠ THIS IS A DEADLOCK, NOT A PREFERENCE. DashGrid creates no portal host for a
+  // widget that declares `empty: true` — so a card that could only discover it has
+  // something to show BY MOUNTING AND FETCHING would be skipped forever. Moving the
+  // fetch back inside the card re-creates it silently: the card simply stops
+  // appearing, with nothing failing.
+  const page = fn(PROG, 'ClientProgressPage');
+  assert.match(page, /useDprWeeklyReadout\(live\)/, 'the page no longer owns the readout fetch');
+  const card = fn(PROG, 'DprWeeklyReadout');
+  assert.ok(!/\bfetch\s*\(/.test(card), 'the card fetches again — the empty widget can never mount to do it');
+  assert.ok(!/useState|useEffect/.test(card), 'the card holds state again, so the page cannot know if it is empty');
+  // the card keeps its own guard for the frame the effect cannot cover: `empty`
+  // reaches the grid through an effect, which runs AFTER the commit
+  assert.match(card, /if \(!shown \|\| !held \|\| !held\.readout\) return null;/);
+  // …and the hook is what decides `shown`, from the same render's `live`
+  assert.match(fn(PROG, 'useDprWeeklyReadout'),
+    /return \{ held, shown: !\(!live \|\| !held \|\| !held\.readout \|\| mismatched\) \};/);
 });
 
 test('the member’s card does not make a resolvable identity a precondition of the POST', () => {
@@ -277,7 +316,7 @@ test('the member’s card does not make a resolvable identity a precondition of 
   // while `shapeDb.getUser()` is a live round trip that returns null on any blip.
   // Gating the request on it meant one transient auth failure silently removed
   // this card while every other card on the page stayed live, with no message.
-  const src = fn(PROG, 'DprWeeklyReadout');
+  const src = fn(PROG, 'useDprWeeklyReadout');
   const post = src.slice(src.indexOf('const res = await fetch'));
   assert.ok(src.indexOf('await fetch') !== -1);
   assert.ok(!/if \(!live \|\| !uid\)/.test(src), 'the POST is still gated on a supabase-js uid');
@@ -293,7 +332,7 @@ test('the account-switch guard can actually fire', () => {
   // ⚠ `live` is a one-way latch — `source` is set once by the mount fetch and
   // never returns to "demo" — so keying the fetch on it alone resolves the
   // subject once and the comparison can never fire.
-  const src = fn(PROG, 'DprWeeklyReadout');
+  const src = fn(PROG, 'useDprWeeklyReadout');
   assert.match(src, /onAuthStateChange/);
   assert.match(src, /\}, \[live, authTick\]\);/, 'the fetch does not re-run on an auth change');
   assert.match(src, /\}, \[authTick\]\);/, 'the subject is not re-resolved on an auth change');
@@ -305,7 +344,7 @@ test('the account-switch guard can actually fire', () => {
 // both findings are about WHICH events it acts on and WHAT it clears before the
 // next render — neither of which a source match can see.
 function runAuthCallback(events) {
-  const src = fn(PROG, 'DprWeeklyReadout');
+  const src = fn(PROG, 'useDprWeeklyReadout');
   // The callback body, lifted out of the effect that registers it.
   const at = src.indexOf('sub = db.client.auth.onAuthStateChange(');
   assert.notEqual(at, -1, 'the auth subscription moved');
@@ -319,8 +358,10 @@ function runAuthCallback(events) {
 
   const calls = { held: [], who: [], tick: 0 };
   const ref = { current: undefined };
-  const fnBody = new Function('lastAuthUidRef', 'setHeld', 'setWhoNow', 'setAuthTick', 'return (' + cb + ');')(
+  const est = { current: false };
+  const fnBody = new Function('lastAuthUidRef', 'authEstablishedRef', 'setHeld', 'setWhoNow', 'setAuthTick', 'return (' + cb + ');')(
     ref,
+    est,
     (v) => calls.held.push(v),
     (v) => calls.who.push(v),
     () => { calls.tick += 1; },
@@ -379,4 +420,98 @@ test('insight rows are keyed uniquely, since the route does not dedupe them', ()
   // only — so two insights citing the same pair carry the same key and React
   // reconciles the two rows as one.
   assert.match(fn(PROG, 'DprWeeklyReadout'), /key=\{\(ins\.correlation_key \|\| "i"\) \+ "@" \+ i\}/);
+});
+
+// ── The SECOND Codex round, driven ───────────────────────────────────────────
+test('the cookie bridge arriving late is initialization, not an account switch', () => {
+  // ⚠ ON A COOKIE-ONLY LOAD supabase has nothing in localStorage, so INITIAL_SESSION
+  // reports a NULL session; `shapeDb.getSession()` then bridges the cookie with
+  // `setSession()` (public/supabase.js), which emits SIGNED_IN for the account that
+  // was signed in all along. Reading that null as an established baseline makes the
+  // bridge's arrival look like a switch: it cancels the POST already in flight and
+  // starts a second, which loses the weekly claim the first still holds and is
+  // served the deterministic fallback — the member sees "Computed, not written" for
+  // a week whose AI readout was generated and discarded.
+  const c = runAuthCallback([['INITIAL_SESSION', null], ['SIGNED_IN', sess('A')]]);
+  assert.equal(c.tick, 0, 'the cookie bridge cancelled the in-flight POST');
+  assert.deepEqual(c.held, [], 'the bridge discarded a readout for the same account');
+});
+
+test('…and a subject, once established, makes sign-out → sign-in a real switch', () => {
+  // ⚠ THE FLAG IS ONE-WAY ON PURPOSE. Keying "still establishing" on the last value
+  // being null instead would swallow the sign-in after a sign-out — B would never
+  // get a fetch, and would sit looking at an empty card until a reload.
+  const c = runAuthCallback([['INITIAL_SESSION', sess('A')], ['SIGNED_OUT', null], ['SIGNED_IN', sess('B')]]);
+  assert.equal(c.tick, 2, 'a sign-out or the sign-in after it stopped counting');
+  assert.deepEqual(c.held, [null, null]);
+  assert.deepEqual(c.who, [null, 'B']);
+});
+
+test('a signed-out page that never resolves an account never ticks', () => {
+  const c = runAuthCallback([['INITIAL_SESSION', null], ['TOKEN_REFRESHED', null]]);
+  assert.equal(c.tick, 0);
+});
+
+// ── The UTC week can turn while this page's week does not ────────────────────
+test('the UTC week key moves at an instant the local week key does not', () => {
+  // The premise of the clock below, measured rather than argued: Sydney is UTC+10,
+  // so its Monday starts ten hours before UTC's. Between those two instants the
+  // coach's own week is unchanged and the row's key is not.
+  const beforeUtcMonday = Date.UTC(2026, 8, 13, 23, 0);  // Sun 23:00Z = Mon 09:00 Sydney
+  const afterUtcMonday = Date.UTC(2026, 8, 14, 1, 0);    // Mon 01:00Z = Mon 11:00 Sydney
+  assert.notEqual(readoutWeekKey(0, beforeUtcMonday), readoutWeekKey(0, afterUtcMonday),
+    'the two instants share a UTC week — the fixture does not test the boundary');
+  const sydneyDay = (ms) => new Date(ms + 10 * 3600000).toISOString().slice(0, 10);
+  assert.equal(sydneyDay(beforeUtcMonday), sydneyDay(afterUtcMonday),
+    'the fixture crosses a Sydney day too, so it proves nothing about the local week');
+});
+
+test('the Week view resolves its key through the clock, not inside the effect', () => {
+  // ⚠ COMPUTING IT DURING THE EFFECT DOES NOT CAUSE THE EFFECT TO RUN. With deps
+  // [ids, weeksBack, live] none of them changes at the UTC boundary, so a page left
+  // open goes on querying the previous week's key and misses every readout written
+  // after it.
+  const src = fn(stripComments(WEEK), 'useWeekReadouts');
+  assert.match(src, /useWeekClock\(/, 'the week key is not on a clock');
+  const deps = src.slice(src.lastIndexOf('}, ['));
+  assert.match(deps, /weekKey/, 'the read does not depend on the clock-derived key');
+  assert.ok(!/const weekKey = readoutWeekKey/.test(src.slice(src.indexOf('React.useEffect'))),
+    'the key is still computed inside the effect it is supposed to trigger');
+});
+
+test('useWeekClock returns a fresh value every render and only forces one on a change', () => {
+  // Driven against a stub React: the hook is the only thing standing between an idle
+  // dashboard and a stale week, so its two properties are executed rather than read.
+  const src = fn(readFileSync(new URL('../public/newdesign/dashData.jsx', import.meta.url), 'utf8'), 'useWeekClock');
+  let effect = null; let forced = 0; let timer = null;
+  const cells = [];
+  let idx = 0;
+  const React = {
+    useState(init) {
+      const i = idx++;
+      if (!(i in cells)) cells[i] = typeof init === 'function' ? init() : init;
+      return [cells[i], () => { forced += 1; }];
+    },
+    useRef(init) { const i = idx++; if (!(i in cells)) cells[i] = { current: init }; return cells[i]; },
+    useEffect(f) { if (effect === null) effect = f; },
+  };
+  const useWeekClock = new Function('React', 'setInterval', 'clearInterval',
+    src + '\nreturn useWeekClock;')(React, (f) => { timer = f; return 1; }, () => {});
+
+  let now = 'W1';
+  const render = () => { idx = 0; return useWeekClock(() => now); };
+  assert.equal(render(), 'W1');
+  effect();                       // mount
+  timer(); assert.equal(forced, 0, 'an unchanged key forced a render');
+  now = 'W2';
+  timer(); assert.equal(forced, 1, 'the boundary did not force a render');
+  // and the NEXT render reads the new value — the tick only causes the render,
+  // it is not itself the source of truth
+  assert.equal(render(), 'W2');
+  // a compute that throws must not take the page down with it
+  now = null;
+  const boom = () => { idx = 0; return useWeekClock(() => { throw new Error('x'); }); };
+  assert.throws(boom);            // during render it is the caller's problem…
+  idx = 0; useWeekClock(() => 'W2');
+  assert.doesNotThrow(() => timer());   // …but the timer swallows it
 });

@@ -451,12 +451,15 @@ function ClientGoalsPage() {
         </div>
       </div>
     ) },
-    why ? { key: "why", title: "Your why", size: "half", render: () => (
+    // ⚠ `empty`, NEVER `why ? {…} : null`: `why` is empty until the goals doc loads,
+    // and DashGrid's boot effect resolved its layout from the FIRST render — so an
+    // omitted entry got no portal host and this card never mounted for anyone.
+    { key: "why", title: "Your why", size: "half", empty: !why, render: () => (
       <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "16px 18px" }}>
         <div className="dash-eyebrow">Your why</div>
         <div style={{ fontSize: 12.5, fontStyle: "italic", color: "rgba(242,237,228,0.75)", lineHeight: 1.6, marginTop: 8 }}>“{why}”</div>
       </div>
-    ) } : null,
+    ) },
   ]).filter(Boolean);
 
   return (

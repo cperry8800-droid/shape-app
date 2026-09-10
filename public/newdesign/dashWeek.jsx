@@ -193,16 +193,23 @@ function useWeekReadouts(ids, weeksBack, live) {
   // `read` is the set of ids whose batch actually came back; `map` the rows found.
   const [map, setMap] = React.useState(null); // null = not read yet
   const key = ids.join(",");
+  // ⚠ THE ROUTE'S KEY, NOT THIS PAGE'S. See readoutWeekKey in dashData.jsx: the row
+  // is stamped with the Monday of the **UTC** date, so querying a LOCAL Monday
+  // misses a row on the week it belongs to and finds it on the week before — a
+  // readout attributed to a week it was not run in.
+  //
+  // ⚠ AND IT IS ON A CLOCK, because the UTC week can turn while THIS page's own
+  // week does not. A coach in Sydney opens the Week on their local Monday morning
+  // — UTC is still Sunday — and UTC Monday arrives a couple of hours later: `key`,
+  // `weeksBack` and `live` are all unchanged, so nothing re-runs and the page goes
+  // on asking for the previous UTC week, missing every readout written after the
+  // boundary. Los Angeles has the mirror of it on a Sunday afternoon.
+  const weekKey = useWeekClock(React.useCallback(() => readoutWeekKey(weeksBack), [weeksBack]));
   React.useEffect(() => {
     let on = true;
     setMap(null);
     const db = window.shapeDb && window.shapeDb.client;
     if (!live || !db || !ids.length) return undefined;
-    // ⚠ THE ROUTE'S KEY, NOT THIS PAGE'S. See readoutWeekKey in dashData.jsx: the
-    // row is stamped with the Monday of the **UTC** date, so querying a LOCAL
-    // Monday misses a row on the week it belongs to and finds it on the week
-    // before — a readout attributed to a week it was not run in.
-    const weekKey = readoutWeekKey(weeksBack);
     (async () => {
       await dwkBridge();
       if (!on) return;
@@ -245,7 +252,7 @@ function useWeekReadouts(ids, weeksBack, live) {
       if (on) setMap(m);
     })();
     return () => { on = false; };
-  }, [key, weeksBack, live]);
+  }, [key, weekKey, live]);
   return map;
 }
 

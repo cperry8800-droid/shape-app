@@ -604,4 +604,38 @@ function coachLiveMomentum(live) {
 // rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
 // wants the same /api/{role}/dashboard payload the page hook already asks for;
 // without the shared cache that is a second round trip on every dashboard load.
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey });
+// ⚠ A KEY DERIVED FROM THE CLOCK NEEDS A CLOCK, NOT JUST A DEPENDENCY. Computing
+// one during render does not CAUSE a render — so a page left open and idle across
+// the week boundary keeps querying last week's key indefinitely, and a dependency
+// on it only helps once something unrelated re-renders. This polls rather than
+// scheduling a single timeout to the boundary, because a timeout is wrong after a
+// laptop sleeps through it or the system clock moves; a comparison that costs a
+// string a minute is self-correcting either way.
+//
+// The value is computed during RENDER and returned fresh, so it also tracks an
+// ordinary dependency change (a coach paging to the previous week) in the same
+// commit; the state tick exists only to force a render when the boundary moves,
+// and only fires when the key has ACTUALLY changed — an idle page re-renders 52
+// times a year.
+//
+// ⚠ dashToday.jsx's `useQueueWeekKey` is the same pattern over the LOCAL Monday.
+// Converging the two is REGISTERED, NOT DONE — a fix believed to have landed in
+// two places when it landed in one is worse than an honest duplicate.
+function useWeekClock(compute) {
+  const [, force] = React.useState(0);
+  const fnRef = React.useRef(compute); fnRef.current = compute;
+  const lastRef = React.useRef(null);
+  const value = compute();
+  lastRef.current = value;
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      let next = null;
+      try { next = fnRef.current(); } catch (e) { return; }
+      if (next !== lastRef.current) force((n) => n + 1);
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+  return value;
+}
+
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock });

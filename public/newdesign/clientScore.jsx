@@ -193,7 +193,15 @@ function ClientScorePage() {
   // the page header; only the card stack is gridded.
   const maxBreakdown = Math.max(...breakdown.map(b => b[1]), 1);
   const scoreWidgets = [
-    momentum ? { key: "momentum", title: "Momentum", size: "full", render: () => {
+    // ⚠ `empty`, NEVER `momentum ? {…} : null` — and this one fails in the OTHER
+    // direction, which is why it is worth naming. `momentum` is the DEMO object on
+    // the first render (`live` is null), so the entry was present when DashGrid's
+    // boot effect resolved its layout and an item was created. When the fetch then
+    // reported a member with no momentum, the entry vanished from the array while
+    // the item stayed: `chrome()` found no widget for the key, rendered nothing, and
+    // the fit left an empty 18px slot on the page. Declaring `empty` lets the grid
+    // remove the item instead.
+    { key: "momentum", title: "Momentum", size: "full", empty: !momentum, render: () => {
       const mv = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
       const hit = mv >= 80;
       return (
@@ -218,7 +226,7 @@ function ClientScorePage() {
           <div style={{ marginTop: 6, fontSize: 12.5, color: "rgba(242,237,228,0.65)" }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
         </Card>
       );
-    } } : null,
+    } },
 
     { key: "commitment", title: "This week's commitment", size: "full", render: () => <ClientCommitmentCard /> },
 
