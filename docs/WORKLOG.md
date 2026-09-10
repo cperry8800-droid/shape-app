@@ -550,9 +550,61 @@ Append new entries at the top, under this note.
   gets `/code-review` **and** an explicit `@codex review` — which reverses the standing
   "never trigger Codex" ruling. And one round per PR, not a fan-out: an 8-dimension ×
   3-refuter review workflow was called *"overkill"* and stopped. The merge gate is unchanged.
-- **Verified:** `npm test` · `tsc --noEmit` 0 · JSX parse on every changed module · the
-  newdesign precompile check · headless renders of the roster and the Goal tab in both live
-  and demo state. No migration.
+- ⚠ **AND THE CODEX ROUND ON THE FIXED HEAD FOUND FIVE MORE — THE SAME CLASS I HAD JUST
+  SPENT THE ROUND FIXING, IN THE READS I DID NOT LOOK AT.** Both `/analytics` routes
+  destructured `{ data: subRows }` and **dropped the error**, so a failed subscriptions read
+  collapsed into `subs = []` and the route still answered with a role-valid payload reporting
+  **zero active clients and zero MRR** — shown under a **Live** label on any bound goal, and
+  adopted by the calculator as a $0 pace. The decisive detail is that the **trajectory leg in
+  the same file already handled its own error this way** (`trajectory: null` → *"could not be
+  read"*); the primary read four hundred lines up never got the treatment. And
+  `activeClients: subs.length` was published on **three** surfaces — metrics, clientProgress
+  and ticker — so fixing one would have left the zero on two. *A lesson applied at the
+  bottom of a file is not applied at the top of it.*
+- ⚠ **THE ROSTER ROUTE DID THE SAME THING ONE LAYER OVER, AND THE CONSUMER WOULD HAVE
+  ERASED THE FIX ANYWAY.** `coachClientsResponse` dropped its subscriptions error and emitted
+  session-derived clients with `mrrCents: 0`, so a transient fault, an RLS change or a schema
+  drift rendered a confident **"$0/mo"** on every row — the exact *"$0 is a real answer about
+  a real client"* line this entry opens with, turned into a lie by a read that never
+  happened. **And `_dashRecordFromLive` coerced it through `|| 0`**, so even a null-emitting
+  route would have been relabelled at the consumer. Both fixed; the `?? null` is pinned by a
+  test **because `|| 0` and `?? null` are indistinguishable on every input except the one
+  that matters**. The roster path is **driven against the real route**, not grepped — a
+  source scan cannot see a dropped error.
+- ⚠ **A SPAN IS A SUBSCRIPTION ROW; A CLIENT IS A PERSON — AND `buildTrajectory` COUNTED
+  ROWS WHILE THE CARD SAID "CLIENTS".** Nothing in the schema stops one client holding
+  several rows under one provider (a plan change, a re-subscribe, a duplicated checkout), and
+  the roster groups by `client_id`, so the momentum card and the sidebar could print
+  **different headcounts for the same practice on the same screen**. Every count that says
+  "client" is taken over the client key now, with the two rules the dedupe implies: a
+  **mid-membership plan change is not a join**, and **closing one row while another stays
+  open is not a departure**. `medianTenureDays` stays measured over **spans** on purpose, so
+  `totalSpans` is kept beside it as its own denominator — quoting a people count at a
+  span-measured median describes a denominator it was never taken over.
+- **The two P2s, both real:** binding a metric changed only `metric` while the card formats
+  through `money`/`pct`, so MRR rendered as a bare `12000`, adherence as a bare `88`, and
+  active clients as **`$12`** on a goal that had been revenue — the unit comes with the metric
+  now, and the checkboxes **lock while bound** rather than accepting input the card overrides;
+  and the momentum eyebrow still claimed **MEASURED · 30D** over rows whose own windows are
+  month-to-date, 30d and per-membership.
+- ⚠ **ONE FINDING REFUTED, AND LEFT IN THE RECORD.** Codex asked for TENURE to be based on
+  the client's **first-ever** subscription. It stays the start of the **current** run — the
+  divergence from the Goal page's lifetime median is deliberate and recorded at both sites,
+  because *"how long has this person been with me"* and *"how long do my clients last"* are
+  different questions. **A refuted finding left in the record is worth as much as a fixed
+  one**: without it the next reader re-opens it.
+- ⚠ **AND MY OWN TEST FAILED THE CORRECT FIX, AGAIN.** The momentum-window guard asserted
+  `match(/lifetime/i)` on the tenure row's label — so **re-labelling that row correctly**
+  (its denominator moved from people to memberships) broke a test about something else
+  entirely. Re-anchored on the invariant the card actually promises: **no row leaves its
+  period to the eyebrow to state**. *A guard that pins an expression pins whatever that
+  expression is wrong about* — the third time this file has paid for it, twice in the same
+  wave.
+- **Verified:** `npm test` **2716/2716** · `tsc --noEmit` 0 · JSX parse on every changed
+  module · the newdesign precompile check · **7/7 mutations killed**, each **proven to land**
+  before its run · headless renders of both Goal tabs, both rosters and Business at 1440px
+  with **zero page errors** · and the roster's unknown-revenue path driven against the real
+  route with a scripted PostgREST error. No migration.
 
 ### 2026-09-09 — P1-B: the phone layout that was never switched on, and the layout-destroying bug switching it on would have released
 
