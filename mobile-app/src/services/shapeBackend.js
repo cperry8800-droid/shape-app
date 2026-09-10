@@ -3287,16 +3287,23 @@ async function announcePRsFromSetLogs(setLogs = []) {
     for (const e of (setLogs || [])) {
       if (!e || e.completed === false) continue;
       const lift = String(e.moveName || e.move || e.exercise || '').trim();
-      const rawLoad = String(e.actualLoad ?? e.load ?? e.actual_load ?? '');
-      const load = parseFloat(rawLoad.replace(/[^0-9.]/g, ''));
+      const load = parseFloat(String(e.actualLoad ?? e.load ?? e.actual_load ?? '').replace(/[^0-9.]/g, ''));
       if (!lift || !Number.isFinite(load) || load <= 0) continue;
-      // ⚠ THE UNIT IS READ, NOT ASSUMED. This hardcoded 'lb' until 2026-09-10,
-      // which was invisible while a PR was only a line of chat text — the Wall
-      // prints the unit beside the number and computes a delta against the
-      // stored best, so a kg lifter's 100 kg was headlined "100 lb" and could
-      // produce a cross-unit "↑ +110 lb over last best". Same detection the
-      // community composer uses (`/kg/i` on the entered load).
-      const unit = /kg/i.test(rawLoad) ? 'kg' : 'lb';
+      // ⚠ THE UNIT IS READ FROM THE FIELD THAT HOLDS IT, VIA THE FUNCTION THAT
+      // ALREADY KNOWS HOW. This hardcoded 'lb' until 2026-09-10 — invisible
+      // while a PR was only a line of chat text, but the Wall prints the unit
+      // beside the number and computes a delta against the stored best, so a
+      // kg lifter's 100 kg was headlined "100 lb".
+      //
+      // ⚠ AND THE FIRST FIX SNIFFED `/kg/i` OFF THE LOAD STRING, WHICH IS THE
+      // FALLBACK HALF OF THE RULE AND MISSES THE COMMON CASE. The live set
+      // logger stores the number in `actualLoad` and the unit SEPARATELY, so a
+      // metric session hands this `{ actualLoad: 100, unit: 'kg' }` — the
+      // string carries no "kg" to find, and every metric set was still filed
+      // as lb. `_setLogUnit` (defined in this file for the write path) reads
+      // the explicit field first and only then sniffs; using it is also one
+      // copy of the rule instead of two. Found by Codex on #2024.
+      const unit = _setLogUnit(e);
       const reps = parseInt(String(e.actualReps ?? e.reps ?? e.actual_reps ?? ''), 10);
       const prev = best.get(lift);
       if (!prev || load > prev.load) best.set(lift, { load, unit, reps: Number.isFinite(reps) ? reps : null });

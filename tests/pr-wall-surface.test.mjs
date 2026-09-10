@@ -23,10 +23,11 @@ globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
 
 const {
   BSWall, BSWallPlate, BSActivityCard, bsActivityKey, bsWallGain, bsWallNum, bsWallHeader,
-  bsWallLifts, bsWallDemoRows, BS_WALL_DEMO, BS_WALL_UNITS,
+  bsWallLifts, bsWallDemoRows, bsWallBulletinPick, BS_WALL_DEMO, BS_WALL_UNITS,
 } = await loadBroadsheet([
   'BSWall', 'BSWallPlate', 'BSActivityCard', 'bsActivityKey', 'bsWallGain', 'bsWallNum',
-  'bsWallHeader', 'bsWallLifts', 'bsWallDemoRows', 'BS_WALL_DEMO', 'BS_WALL_UNITS',
+  'bsWallHeader', 'bsWallLifts', 'bsWallDemoRows', 'bsWallBulletinPick', 'BS_WALL_DEMO',
+  'BS_WALL_UNITS',
 ]);
 
 const src = readFileSync(SRC, 'utf8');
@@ -591,16 +592,25 @@ test('a set-logged PR records the unit it was lifted in', () => {
     'return announcePRsFromSetLogs;',
   ].join('\n');
   // eslint-disable-next-line no-new-func
-  const announce = new Function('postPRToWall', body)(async (a) => { posted.push(a); });
+  const announce = new Function('postPRToWall', '_setLogUnit', body)(
+    async (a) => { posted.push(a); },
+    // the shipped writer's own rule, extracted rather than restated
+    new Function('return ' + extractFn('function _setLogUnit(entry)') + '; ')(),
+  );
   return announce([
-    { moveName: 'Back squat', actualLoad: '100 kg', actualReps: 3, completed: true },
+    // ⚠ THE FIRST ONE IS THE CASE THE FIRST FIX MISSED. The live set logger
+    // stores the number and the unit in SEPARATE fields, so the load string
+    // carries no "kg" to sniff and every metric set was filed as lb.
+    { moveName: 'Back squat', actualLoad: 100, unit: 'kg', actualReps: 3, completed: true },
     { moveName: 'Bench press', actualLoad: '225 lb', actualReps: 5, completed: true },
-    { moveName: 'Back squat', actualLoad: '90 kg', actualReps: 5, completed: true },
+    { moveName: 'Back squat', actualLoad: 90, unit: 'kg', actualReps: 5, completed: true },
+    { moveName: 'Front squat', actualLoad: '80', loadUnit: 'kg', actualReps: 3, completed: true },
   ]).then(() => {
     const by = Object.fromEntries(posted.map((x) => [x.lift, x]));
-    assert.equal(by['Back squat'].unit, 'kg');
+    assert.equal(by['Back squat'].unit, 'kg', 'the explicit field wins');
     assert.equal(by['Back squat'].value, 100, 'the heaviest completed set of that move');
-    assert.equal(by['Bench press'].unit, 'lb');
+    assert.equal(by['Front squat'].unit, 'kg', 'under any of its spellings');
+    assert.equal(by['Bench press'].unit, 'lb', 'and the string sniff still covers the old shape');
     assert.ok(posted.every((x) => x.postId === undefined), 'and no post is linked');
   });
 });
@@ -626,3 +636,16 @@ test('the PR is announced AFTER the post exists, carrying its id', () => {
 });
 
 function bare_backend() { return stripComments(backendSrc); }
+
+test("Home's record line prefers a stamped record but never vanishes without one", () => {
+  // The wall read is a capped, newest-first WINDOW. A strict co-sign filter
+  // finds nothing once enough unstamped records are newer than the latest
+  // stamped one, and the Home line disappears while a co-signed record exists.
+  const stamped = { name: 'Priya', post: { cosign: { name: 'Dana' } } };
+  const plain = (n) => ({ name: n, post: { cosign: null } });
+  assert.equal(bsWallBulletinPick([plain('a'), stamped, plain('b')]), stamped, 'the stamped one wins');
+  assert.equal(bsWallBulletinPick([plain('a'), plain('b')]).name, 'a', 'else the newest');
+  assert.equal(bsWallBulletinPick([{ name: 'c', post: null }]).name, 'c', 'a bare record still counts');
+  assert.equal(bsWallBulletinPick([]), null, 'an empty wall has no line');
+  assert.equal(bsWallBulletinPick(null), null, 'and neither does an unreadable one');
+});

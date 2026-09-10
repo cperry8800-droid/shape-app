@@ -23603,6 +23603,22 @@ function BSHomeBulletin({ label, detail, onOpen }) {
 // The co-sign is the filter on purpose: an unstamped record is the member's,
 // and Home already carries their own training. A COACH putting their name on
 // somebody's number is the thing worth leaving the page for.
+// Which record the Home line points at: the latest co-signed one when the
+// window holds one, else simply the latest.
+//
+// ⚠ THE CO-SIGN IS A PREFERENCE, NOT A REQUIREMENT, BECAUSE THE READ IS A
+// WINDOW. The wall comes back newest-first and capped, so once enough
+// unstamped records are newer than the latest stamped one, a strict filter
+// finds nothing in the prefix and the Home line VANISHES even though a
+// co-signed record exists. Answering it strictly means filtering server-side
+// or paging until one turns up, and neither is worth a round trip for one row
+// of text — the line names the member, the lift and the number, never the
+// stamp, so it reads the same either way. Found by Codex on #2024.
+function bsWallBulletinPick(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  return list.find((r) => r && r.post && r.post.cosign && r.post.cosign.name) || list[0] || null;
+}
+
 // ⚠ THE READ IS CACHED PER ACCOUNT FOR FIVE MINUTES. Home remounts on every
 // tab return, and this line costs a definer RPC plus a `community_posts` fetch
 // carrying its likes and comments joins — a real round trip to decide one row
@@ -23624,7 +23640,7 @@ function BSHomeWallBulletin() {
     Promise.resolve(list({ limit: 6 }))
       .then((res) => {
         if (dead || !res || res.stored !== 'supabase') return;
-        const hit = (res.data || []).find((r) => r.post && r.post.cosign && r.post.cosign.name) || null;
+        const hit = bsWallBulletinPick(res.data);
         // ⚠ The cache is stamped with the uid the READ started under, and only
         // adopted when that is still the current account — an account switch
         // mid-flight must not publish A's record onto B's Home.
