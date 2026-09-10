@@ -486,8 +486,29 @@ function dashQueueNotices(ledgerKind, storeKind) {
   return out;
 }
 
+// ⚠ THE WEEK KEY NEEDS A CLOCK, NOT JUST A DEPENDENCY. Computing it during
+// render does not cause a render — so a dashboard left open and idle across
+// local Monday midnight keeps showing last week's marks and last week's ledger
+// indefinitely, and the dependency added to `useWeekPublishes` only helps once
+// something unrelated re-renders the page. This polls rather than scheduling a
+// single timeout to the boundary, because a timeout is wrong after a laptop
+// sleeps through it or the system clock moves; a comparison that costs a string
+// a minute is self-correcting either way, and it only sets state when the key
+// has ACTUALLY changed, so an idle panel re-renders 52 times a year.
+function useQueueWeekKey() {
+  const [key, setKey] = React.useState(dashQueueWeekKey);
+  React.useEffect(() => {
+    const id = setInterval(() => setKey((k) => {
+      const next = dashQueueWeekKey();
+      return next === k ? k : next;
+    }), 60000);
+    return () => clearInterval(id);
+  }, []);
+  return key;
+}
+
 function ProgrammingQueuePanel({ queue, role, live }) {
-  const weekKey = dashQueueWeekKey();
+  const weekKey = useQueueWeekKey();
   const ledger = useWeekPublishes(live, weekKey, role);
   // { [weekOf]: { [clientId]: { markedAt } } } — one document per coach.
   const marks = useCoachDoc("coach_week_plans", live);

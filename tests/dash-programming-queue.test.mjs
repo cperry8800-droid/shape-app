@@ -189,6 +189,56 @@ test('the retention cutoff is a Monday N weeks back, so it compares with the key
   assert.equal(Math.round((new Date(dashQueueWeekKey()) - new Date(cutoff)) / 86400000), 42);
 });
 
+// ── The Codex round on this PR ───────────────────────────────────
+
+test('the queue week advances on its own clock, not only on an unrelated render', () => {
+  // ⚠ Computing `weekKey` during render does not CAUSE a render, so a dashboard
+  // left open and idle across local Monday midnight showed last week's marks and
+  // last week's ledger forever. A dependency on `weekKey` cannot fix that by
+  // itself — something has to re-render.
+  const hook = fn(TODAY, 'useQueueWeekKey');
+  assert.match(hook, /setInterval\(/, 'nothing advances the key on its own');
+  assert.match(hook, /return next === k \? k : next;/, 'it re-renders every tick instead of only on a change');
+  assert.match(hook, /clearInterval\(id\)/, 'the interval outlives the panel');
+  // and the panel reads the ticking key, not a fresh render-time computation
+  const panel = TODAY.slice(TODAY.indexOf('function ProgrammingQueuePanel('), TODAY.indexOf('// Client-wins briefing'));
+  assert.match(panel, /const weekKey = useQueueWeekKey\(\);/);
+});
+
+test('an unknown initiating account refuses the write rather than guessing', () => {
+  // ⚠ `startUid && nowUid !== startUid` SKIPPED the comparison in exactly the
+  // case that cannot be checked — a transient failure of the hydrate's uid read
+  // left every later whole-document write unguarded, so an account switch could
+  // upsert coach A's blob into B's row.
+  const src = fn(DATA, 'useCoachDoc');
+  assert.match(src, /if \(!nowUid \|\| nowUid !== startUid\)/, 'the comparison is still conditional');
+  assert.ok(!/startUid && nowUid !== startUid/.test(src), 'the skip-when-unknown branch survived');
+  // it is resolved late when missing, so one bad read does not disable writes forever
+  assert.match(src, /if \(!startUid\) \{ startUid = await dashDocUid\(\); uidRef\.current = startUid; \}/);
+  assert.match(src, /if \(!startUid\) \{ pendingRef\.current -= 1; setState\(\(s\) => \(\{ \.\.\.s, kind: "error" \}\)\); return false; \}/);
+});
+
+test('a later success reconciles the document instead of clearing an older failure', () => {
+  // ⚠ THE SILENT LOSS. Mark A's READ fails, so its optimistic paint stays (there
+  // is nothing to roll back to) and the state goes "error". Mark B then reads and
+  // saves fine. A bare `kind: "ready"` showed BOTH as saved while the server held
+  // only B — and A vanished on reload.
+  const src = fn(DATA, 'useCoachDoc');
+  assert.match(src, /const written = merge\(doc\);/);
+  assert.match(src, /saveUserGoals\(goalKind, written\)/, 'the saved value is not the one reconciled to');
+  assert.match(src, /setState\(\(s\) => \(pendingRef\.current === 0 \? \{ \.\.\.s, doc: written, kind: "ready" \} : \{ \.\.\.s, kind: "ready" \}\)\);/);
+  assert.ok(!/setState\(\(s\) => \(\{ \.\.\.s, kind: "ready" \}\)\);\n      return true;/.test(src),
+    'success still clears the error without reconciling');
+  // ⚠ AND THE RECONCILE WAITS FOR THE LANE. Doing it while a write is still
+  // queued behind this one would erase that write's own optimistic paint.
+  assert.match(DATA, /const pendingRef = React\.useRef\(0\);/);
+  assert.match(src, /pendingRef\.current \+= 1;/);
+  // every exit from the lane releases its slot — a leak would freeze the
+  // reconcile permanently
+  assert.equal((src.match(/pendingRef\.current -= 1;/g) || []).length, 4,
+    'a lane exit does not release its pending slot');
+});
+
 test('the Template link goes through the shell router, not a full page load', () => {
   // TrainerPrograms.html / NutritionistPlans.html are redirect stubs; a raw href
   // from inside the shell costs two page loads and an SPA boot (R19).
@@ -198,20 +248,40 @@ test('the Template link goes through the shell router, not a full page load', ()
 });
 
 test('useCoachDoc binds the write to the account that acted and declines an untrusted read', () => {
+  // ⚠ RE-ANCHORED ON THE INVARIANTS, because the first version pinned the exact
+  // text of four branches and broke the moment the Codex round made three of them
+  // STRICTER — a test about account binding failing because a pending counter was
+  // added beside it. The fourth time this wave has paid for a spelling pin.
   const src = fn(DATA, 'useCoachDoc');
+
+  // The cookie-session bridge runs before the read, or a coach signed in that
+  // way reads as ANON and every write is silently discarded.
   assert.match(DATA, /async function dashDocBridge\(\)/);
-  assert.match(src, /await dashDocBridge\(\);/);
-  assert.match(src, /if \(doc == null\) \{ setState\(\(s\) => \(\{ \.\.\.s, kind: "error" \}\)\); return false; \}/);
-  assert.match(src, /if \(!nowUid \|\| \(startUid && nowUid !== startUid\)\)/);
+  assert.ok(src.indexOf('await dashDocBridge();') !== -1);
+  // ⚠ THE CALL, NOT THE NAME. `getUserGoals` first appears in the capability
+  // check (`if (!db || !db.getUserGoals)`), which sits BEFORE the bridge — so a
+  // bare name search compares the bridge against the wrong occurrence and fails
+  // on correct code. My own assertion, wrong on its first run.
+  assert.ok(src.indexOf('await dashDocBridge();') < src.indexOf('db.getUserGoals(goalKind)'),
+    'the bridge must run before the read it exists to make honest');
+
+  // An unreadable document is never merged over: getUserGoals returns null for
+  // "not signed in" AND "the read failed" alike, and saveUserGoals replaces the
+  // whole thing.
+  // (`[^}]*` cannot cross the closing brace of `({ ...s, kind: "error" })`.)
+  assert.match(src, /if \(doc == null\) \{[\s\S]{0,140}?kind: "error"[\s\S]{0,60}?return false; \}/);
+  assert.ok(!/if \(doc == null\) \{ doc = \{\}/.test(src));
+
+  // The write rides the serial lane, since two whole-document writers in flight
+  // each land a snapshot predating the other.
   assert.match(src, /return dashDocSerial\(async \(\) => \{/);
-  // ⚠ A FAILED WRITE ROLLS THE PAINT BACK onto the server copy and does NOT
-  // clear an existing error — the two together were a silent data loss: a
-  // failed mark stayed on screen as saved, the next mark hid the notice, and
-  // the lane re-read a server doc that had never received the first one.
-  assert.ok(!/kind: s\.kind === "error" \? "ready" : s\.kind/.test(src), 'the optimistic paint clears the error again');
-  assert.equal((src.match(/setState\(\(s\) => \(\{ \.\.\.s, doc, kind: "error" \}\)\)/g) || []).length, 2,
-    'a failed save must restore the server copy');
-  assert.match(src, /setState\(\(s\) => \(\{ \.\.\.s, kind: "ready" \}\)\);\n      return true;/);
+
+  // A failed save restores the server copy rather than leaving a claim on screen
+  // that the row does not carry.
+  assert.equal((src.match(/\{ \.\.\.s, doc, kind: "error" \}/g) || []).length, 2,
+    'a failure arm does not restore the server copy');
+  assert.ok(!/kind: s\.kind === "error" \? "ready" : s\.kind/.test(src),
+    'the optimistic paint clears the error again');
 });
 
 // ── The read route, DRIVEN ───────────────────────────────────────────────────

@@ -406,9 +406,14 @@ function useCoachDoc(goalKind, live) {
   const kindRef = React.useRef("loading");
   kindRef.current = state.kind;
   const uidRef = React.useRef(null);
+  // How many writes are still in the lane. A success reconciles the document to
+  // what it wrote only when this reaches 0 — otherwise it would erase the paint
+  // of a write queued behind it that has not run yet.
+  const pendingRef = React.useRef(0);
   React.useEffect(() => {
     let on = true;
     kindRef.current = "loading";
+    pendingRef.current = 0;
     if (!live) { setState({ kind: "demo", doc: {} }); return undefined; }
     setState({ kind: "loading", doc: {} });
     (async () => {
@@ -435,26 +440,43 @@ function useCoachDoc(goalKind, live) {
   const apply = (merge) => {
     if (kindRef.current !== "ready" && kindRef.current !== "error") return Promise.resolve(false);
     setState((s) => ({ ...s, doc: merge(s.doc) }));
+    pendingRef.current += 1;
     return dashDocSerial(async () => {
       const db = window.shapeDb;
-      // ⚠ BOUND TO THE ACCOUNT THAT ACTED. getUserGoals and saveUserGoals each
-      // resolve the user independently at their own call time, and the save
-      // REPLACES the whole document — so an account switch between them would
-      // upsert coach A's blob into B's row. A changed or unresolvable identity
-      // discards the write; the next hydrate re-issues it.
-      const startUid = uidRef.current;
+      // ⚠ BOUND TO THE ACCOUNT THAT ACTED, AND AN UNKNOWN ACCOUNT IS NOT A PASS.
+      // getUserGoals and saveUserGoals each resolve the user independently at
+      // their own call time, and the save REPLACES the whole document — so an
+      // account switch between them would upsert coach A's blob into B's row.
+      // An earlier cut skipped the comparison when the INITIATING id had not
+      // resolved (`startUid && …`), which is exactly the case that cannot be
+      // checked: a transient failure of the hydrate's own uid read left every
+      // later write unguarded. It is resolved here when it is missing, and the
+      // comparison is unconditional; an id that still will not resolve refuses
+      // the write rather than guessing whose row it belongs in.
+      let startUid = uidRef.current;
+      if (!startUid) { startUid = await dashDocUid(); uidRef.current = startUid; }
+      if (!startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
       let doc = null;
       try { doc = await db.getUserGoals(goalKind); } catch (e) { doc = null; }
       // The read is the last known truth. When it succeeds, a failed save can be
       // rolled back onto it exactly; when it fails there is nothing to roll back
       // TO, so the paint is left standing and the caller is told it is unsaved.
-      if (doc == null) { setState((s) => ({ ...s, kind: "error" })); return false; }
+      if (doc == null) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
       const nowUid = await dashDocUid();
-      if (!nowUid || (startUid && nowUid !== startUid)) { setState((s) => ({ ...s, doc, kind: "error" })); return false; }
+      if (!nowUid || nowUid !== startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, doc, kind: "error" })); return false; }
+      const written = merge(doc);
       let res = null;
-      try { res = await db.saveUserGoals(goalKind, merge(doc)); } catch (e) { res = null; }
+      try { res = await db.saveUserGoals(goalKind, written); } catch (e) { res = null; }
+      pendingRef.current -= 1;
       if (!res || res.error) { setState((s) => ({ ...s, doc, kind: "error" })); return false; }
-      setState((s) => ({ ...s, kind: "ready" }));
+      // ⚠ A SUCCESS RECONCILES; IT DOES NOT SIMPLY CLEAR THE ERROR. An earlier
+      // write whose READ failed leaves its optimistic paint standing (there was
+      // nothing to roll back to), so flipping the state to "ready" on a LATER
+      // write's success would show both as saved while the server holds only the
+      // second — and the first would vanish on reload. The document is set to
+      // what was actually written, and only once the lane is empty, so a write
+      // still queued behind this one does not have its own paint erased.
+      setState((s) => (pendingRef.current === 0 ? { ...s, doc: written, kind: "ready" } : { ...s, kind: "ready" }));
       return true;
     });
   };
