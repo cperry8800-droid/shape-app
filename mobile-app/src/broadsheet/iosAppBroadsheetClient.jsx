@@ -17875,6 +17875,91 @@ const COMMUNITY_ACTIVITIES = [
   { kind: 'workout', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '5d', body: 'Everything moved well. RPE 8 across the board, no missed reps.', title: 'Lower push · Block 2', duration: '48 min', exercises: 5, rpe: 8, kudos: 11, replies: 1, stats: [['Top set', '245 lb'], ['Total sets', '18'], ['Avg HR', '136 bpm'], ['Max HR', '159 bpm'], ['Calories', '440'], ['Volume', '9,120 lb']], zones: [['Z1', 32], ['Z2', 36], ['Z3', 22], ['Z4', 8], ['Z5', 2]], trace: [102, 116, 130, 118, 108, 122, 138, 126, 112, 124, 144, 132, 116, 128, 148, 136, 118, 130, 150, 138, 120, 132, 146, 134, 114, 126, 142, 128, 110, 106], breakdown: { label: 'Working sets', rows: [['Back squat', '4 × 5 @ 245', 'RPE 8'], ['RDL', '3 × 8 @ 185', 'RPE 8'], ['Leg press', '3 × 12', 'RPE 7'], ['Accessories', '2 circuits', 'RPE 6']] } },
 ];
 
+// ── The record numeral ──────────────────────────────────────────────────────
+// A 5×7 dot-matrix figure, drawn as SVG. The app ships seven font families
+// (DM Mono, DM Serif Display, Italiana, JetBrains Mono, Newsreader, Saira,
+// Space Grotesk) and none of them is a matrix face, so the alternative was an
+// eighth webfont on every launch for one number on one screen. Drawn digits
+// cost no asset, scale to any size without a subset, and cannot arrive late —
+// a record that renders in a fallback face for 200ms is the wrong first frame
+// for the loudest number on the board.
+//
+// ⚠ THE GLYPHS ARE DATA, NOT DRAWING CODE. Each digit is seven 5-bit rows, so
+// a wrong pixel is a wrong character in a string rather than a wrong path
+// command — and the test can read a digit back out of the rendered dots.
+const BS_DOT_GLYPHS = {
+  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+  '3': ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
+  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+  '.': ['00000', '00000', '00000', '00000', '00000', '00000', '00110'],
+  ',': ['00000', '00000', '00000', '00000', '00000', '00110', '01100'],
+  '-': ['00000', '00000', '00000', '01110', '00000', '00000', '00000'],
+  ':': ['00000', '00110', '00110', '00000', '00110', '00110', '00000'],
+  '/': ['00001', '00001', '00010', '00100', '01000', '10000', '10000'],
+};
+const BS_DOT_COLS = 5;
+const BS_DOT_ROWS = 7;
+
+// A character the matrix has no glyph for is DROPPED, not rendered as a blank
+// cell: a silent gap in a number reads as a different number.
+function bsDotChars(text) {
+  return String(text == null ? '' : text).split('').filter((ch) => ch === ' ' || BS_DOT_GLYPHS[ch]);
+}
+
+function BSDotNumber({ text, size = 34, color, dim, gap = 1, title }) {
+  const t = useBS();
+  const ink = color || t.INK;
+  const off = dim || bsTHexA(ink, 0.13);
+  const chars = bsDotChars(text);
+  if (!chars.length) return null;
+  // One dot is `unit` tall; a glyph is 7 units, so `size` IS the cap height.
+  const unit = size / BS_DOT_ROWS;
+  const advance = (BS_DOT_COLS + gap) * unit;
+  const width = chars.length * advance - gap * unit;
+  const r = unit * 0.36;
+  const dots = [];
+  chars.forEach((ch, i) => {
+    const rows = BS_DOT_GLYPHS[ch];
+    if (!rows) return;                       // a space advances and draws nothing
+    for (let y = 0; y < BS_DOT_ROWS; y++) {
+      for (let x = 0; x < BS_DOT_COLS; x++) {
+        const on = rows[y][x] === '1';
+        dots.push(
+          <rect
+            key={`${i}-${y}-${x}`}
+            x={i * advance + x * unit + (unit - r * 2) / 2}
+            y={y * unit + (unit - r * 2) / 2}
+            width={r * 2}
+            height={r * 2}
+            rx={r * 0.35}
+            fill={on ? ink : off}
+          />,
+        );
+      }
+    }
+  });
+  return (
+    <svg
+      width={width}
+      height={size}
+      viewBox={`0 0 ${width} ${size}`}
+      role={title ? 'img' : undefined}
+      aria-label={title || undefined}
+      aria-hidden={title ? undefined : true}
+      style={{ display: 'block', flexShrink: 0 }}
+    >
+      {dots}
+    </svg>
+  );
+}
+
 // ── The Wall ────────────────────────────────────────────────────────────────
 // A record board, not a conversation (review 2026-09-10 §7). Every plate is a
 // new best out of `pr_wall_posts`: the number, the delta over that member's own
