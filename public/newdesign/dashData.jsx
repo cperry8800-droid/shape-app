@@ -217,6 +217,167 @@ function _dashRecordFromSelf(dash, kit) {
   };
 }
 
+// ── the coach's own tuning of the signal engine (review 2026-09-09, R14) ─────
+// ⚠ THE TUNING TRAVELS AS A VALUE; NOTHING IS EVER GLOBALLY SET. dashSignals.js is a
+// singleton, and `src/lib/ai/notify-core.ts` imports the SAME file server-side to
+// build client_red / client_amber — so a mutable effective set would be one Node
+// process shared by every coach. `resolveThresholds` returns a new object and the
+// three entry points take it per call.
+function dashResolveCoachThresholds(doc) {
+  const t = (doc && doc.thresholds && typeof doc.thresholds === "object") ? doc.thresholds : null;
+  try { return t ? DashSignals.resolveThresholds(t) : null; } catch (e) { return null; }
+}
+const DASH_THRESHOLDS_EVENT = "shape:coach-thresholds";
+
+// Returns the resolved set to hand the engine, or null for house policy — which is
+// every non-answer: signed out, unreadable, the client role, nothing tuned.
+// ⚠ A NULL READ IS "SIGNED OUT OR UNREADABLE", NOT "TUNED NOTHING", and both land on
+// house policy here deliberately. Running a coach's roster on a half-remembered
+// tuning nobody could confirm is worse than running it on the policy every other
+// coach gets; the panel is where the difference is stated.
+// ⚠ ONE READ PER TAB SWITCH, NOT THREE. Every coach route component remounts on a
+// hash change, so `useDashboard` — and therefore this hook — re-ran on every tab, and
+// the Settings page adds two more reads of the same document (the shell's landing-tab
+// resolve and useCoachDoc). It changes only from one page, so a short cache in the
+// same shape as `_dashCache` collapses them. `dashInvalidateCoachSettings` is what the
+// save path calls, so a write is never read back stale.
+let _dashCoachSettings = null;   // { at, doc }
+// ⚠ A GENERATION, AND ONE FLIGHT. Two races, both measured on this document:
+//   · Two callers miss the cache together and both fetch. The LATE one writes the
+//     cache — so a read started BEFORE a save, finishing after it, pins the stale
+//     document for the whole TTL and the roster runs the old thresholds while the
+//     server has already saved the new ones.
+//   · A read in flight when a save invalidates must not then repopulate the cache
+//     it was invalidated out of.
+// The counter is bumped by every invalidation, and a read may only write the cache
+// if the generation it started in is still current. `_flight` collapses concurrent
+// callers onto one round trip and is dropped on invalidation, so the next caller
+// starts a fresh read rather than joining a stale one.
+let _dashCoachSettingsGen = 0;
+let _dashCoachSettingsFlight = null;
+async function dashReadCoachSettings() {
+  if (_dashCoachSettings && Date.now() - _dashCoachSettings.at < DASH_CACHE_TTL) return _dashCoachSettings.doc;
+  if (_dashCoachSettingsFlight) return _dashCoachSettingsFlight;
+  const db = window.shapeDb;
+  if (!db || !db.getUserGoals) return null;
+  const gen = _dashCoachSettingsGen;
+  const p = (async () => {
+    await dashDocBridge();
+    let doc = null;
+    try { doc = await db.getUserGoals("coach_settings"); } catch (e) { doc = null; }
+    // ⚠ ONLY A SUCCESSFUL READ IS CACHED. Caching a null would pin "we could not read
+    // it" for a minute, so a coach who signs in mid-session runs on house policy until
+    // the entry expires — and the panel would say their settings are unreadable.
+    if (doc != null && gen === _dashCoachSettingsGen) _dashCoachSettings = { at: Date.now(), doc };
+    return doc;
+  })();
+  _dashCoachSettingsFlight = p;
+  try { return await p; } finally { if (_dashCoachSettingsFlight === p) _dashCoachSettingsFlight = null; }
+}
+function dashInvalidateCoachSettings() {
+  _dashCoachSettings = null;
+  _dashCoachSettingsGen += 1;
+  _dashCoachSettingsFlight = null;   // the next caller re-reads rather than joining a stale flight
+}
+
+// Is there a signed-in account? `undefined` while unknown, then true/false.
+// ⚠ NOT DERIVED FROM THE ROSTER, AND THAT IS THE POINT. `useDashboard`'s `source` is
+// about DATA — it is null while the roster request is in flight and "demo" when that
+// request FAILS — so keying persistence on it meant a roster outage turned every
+// settings edit tab-only and told a signed-in coach to sign in, while the settings
+// backend was perfectly healthy. Authentication is its own question and gets its own
+// answer.
+// ⚠ IT RESOLVES AN IDENTITY, NOT A BOOLEAN, AND IT SUBSCRIBES. A one-shot `true` is
+// the cross-account defect this file has now paid for five times: if account B signs in
+// from another same-origin tab, A's open Settings tab keeps its `true`, keeps A's
+// document on screen, and the write paths — which resolve `getUser()` at CLICK time —
+// upsert the displayed change under B's id. The account is the thing the callers need,
+// so it is the thing this returns.
+//
+// Four answers, three values:
+//   undefined — still resolving, OR the read FAILED. Both mean "do not let an edit
+//               land yet". Collapsing an unreadable read into `false` showed an
+//               authenticated coach the preview UI with live controls, and their edits
+//               went to a tab-local copy and disappeared.
+//   null      — confirmed signed out.
+//   "<uid>"   — signed in as this account.
+function useSignedIn() {
+  const [uid, setUid] = React.useState(undefined);
+  // ⚠ AN AUTH EVENT IS ALWAYS NEWER THAN THE READ THAT WAS ALREADY IN FLIGHT. The
+  // initial `getUser()` and the subscription race: if the read observed A, B signs in,
+  // and the read THEN resolves, it put A back. The write-time check still refused the
+  // cross-account write — but the page remounted A's settings under B's session, and
+  // refused B's own writes until another event or a reload repaired the identity. So a
+  // stale answer is dropped rather than merely out-voted.
+  const authGenRef = React.useRef(0);
+  React.useEffect(() => {
+    let on = true;
+    const resolve = async () => {
+      const gen = authGenRef.current;
+      const db = window.shapeDb;
+      if (!db || !db.getUser) { if (on && gen === authGenRef.current) setUid(null); return; }
+      await dashDocBridge();
+      // ⚠ `dashDocUid` SWALLOWS ITS FAILURE and returns null, so a transient network or
+      // bridge fault is indistinguishable from a signed-out visitor at that layer. The
+      // session is asked directly: a session that reads back carries an id, and a read
+      // that THROWS leaves the answer unresolved rather than answering "signed out".
+      try {
+        const u = await db.getUser();
+        if (on && gen === authGenRef.current) setUid(u && u.id ? u.id : null);
+      } catch (e) {
+        if (on && gen === authGenRef.current) setUid(undefined);
+      }
+    };
+    resolve().catch(() => { if (on) setUid(undefined); });
+    // The same capability guard dashProgress uses — this runs on pages whose supabase
+    // client may not be present at all.
+    let sub = null;
+    try {
+      const db = window.shapeDb;
+      if (db && db.client && db.client.auth && db.client.auth.onAuthStateChange) {
+        sub = db.client.auth.onAuthStateChange((_event, session) => {
+          if (!on) return;
+          // Bump FIRST: an in-flight read that resolves after this must not win.
+          authGenRef.current += 1;
+          const next = session && session.user && session.user.id ? session.user.id : null;
+          setUid(next);
+        });
+      }
+    } catch (e) { /* no subscription is a stale tab, not a broken one */ }
+    return () => {
+      on = false;
+      try { if (sub && sub.data && sub.data.subscription) sub.data.subscription.unsubscribe(); } catch (e) {}
+    };
+  }, []);
+  return uid;
+}
+
+function useCoachThresholds(role) {
+  const [resolved, setResolved] = React.useState(null);
+  // ⚠ AND THE CONSUMER NEEDS ITS OWN GENERATION, because the read it awaits may not be
+  // the newest one. A mount read still in flight when a save fires the change event
+  // resolves AFTER the post-save read and would set the OLD tuning as the answer.
+  const genRef = React.useRef(0);
+  const load = React.useCallback(async () => {
+    // ⚠ THE CLIENT ROLE NEVER READS THIS. A member's own pages load DashSignals too,
+    // and on a DUAL-ROLE account the coach's roster tuning would otherwise decide how
+    // their own data reads back to them.
+    const gen = (genRef.current += 1);
+    if (role === "client") { setResolved(null); return; }
+    const doc = await dashReadCoachSettings();
+    if (gen !== genRef.current) return;   // a newer load started — this answer is stale
+    setResolved(dashResolveCoachThresholds(doc));
+  }, [role]);
+  React.useEffect(() => { let on = true; load().catch(() => { if (on) setResolved(null); }); return () => { on = false; }; }, [load]);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onChange = () => { dashInvalidateCoachSettings(); load().catch(() => {}); };
+    window.addEventListener(DASH_THRESHOLDS_EVENT, onChange);
+    return () => window.removeEventListener(DASH_THRESHOLDS_EVENT, onChange);
+  }, [load]);
+  return resolved;
+}
+
 function useDashboard(role) {
   const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null });
 
@@ -291,19 +452,35 @@ function useDashboard(role) {
     return () => { on = false; };
   }, [role]);
 
+  // ⚠ THE FEED DEPENDS ON THE TUNING, or a coach changes a threshold and their roster
+  // goes on showing the flags the old one produced until something unrelated
+  // re-renders. The dependency is a SIGNATURE of the resolved set rather than the
+  // object, so an identical re-read does not invalidate the memo.
+  const tuning = useCoachThresholds(role);
+  const thresholds = tuning ? tuning.thresholds : null;
+  const thresholdSig = tuning ? JSON.stringify(tuning.applied) : "";
   const triage = React.useMemo(
-    () => DashSignals.getTriageFeed(role, state.clients),
-    [role, state.clients]
+    () => DashSignals.getTriageFeed(role, state.clients, undefined, thresholds || undefined),
+    // eslint-disable-next-line
+    [role, state.clients, thresholdSig]
   );
   const queue = React.useMemo(
     () => DashSignals.buildProgrammingQueue(state.clients),
     [state.clients]
   );
+  // ⚠ THIS ONE READS THE TUNING TOO, and less obviously: `findJointAttention` calls
+  // `evaluateClient` internally. `buildProgrammingQueue` and `buildMilestones` do not
+  // — checked rather than assumed, because adding a dependency that changes nothing is
+  // cheap and MISSING one leaves a panel quietly showing the old thresholds' output.
   const joint = React.useMemo(
-    () => (role === "client" ? [] : DashSignals.findJointAttention(state.clients)),
-    [role, state.clients]
+    () => (role === "client" ? [] : DashSignals.findJointAttention(state.clients, undefined, thresholds || undefined)),
+    // eslint-disable-next-line
+    [role, state.clients, thresholdSig]
   );
-  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source };
+  // `tuning.refused` is carried out, not swallowed: a stored override the engine
+  // rejected must not render in the panel as an active tuning while the roster runs
+  // on the house default — which is exactly what refuse-don't-clamp exists to prevent.
+  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning };
 }
 
 // ── The coach's own live figures (review 2026-09-09, R9) ────────────────────
@@ -443,7 +620,9 @@ function dashDocSerial(fn) { const run = _dashDocLane.p.then(fn, fn); _dashDocLa
 // `merge(doc)` returns the next whole document. It runs TWICE on purpose: once
 // against the rendered copy for the optimistic paint, and once against the
 // freshly-read server copy inside the lane, which is the copy that is written.
-function useCoachDoc(goalKind, live) {
+// `accountId` is optional and exists for one reason: a document read for account A must
+// be re-read when B signs in, or A's settings stay on screen under B's session.
+function useCoachDoc(goalKind, live, accountId) {
   const [state, setState] = React.useState({ kind: "loading", doc: {} });
   // The write path must read the CURRENT kind, not the one captured when the
   // handler was created: a change made during the load would otherwise take the
@@ -473,7 +652,7 @@ function useCoachDoc(goalKind, live) {
       setState(doc == null ? { kind: "signedout", doc: {} } : { kind: "ready", doc: doc || {} });
     })();
     return () => { on = false; };
-  }, [goalKind, live]);
+  }, [goalKind, live, accountId]);
   // ⚠ THE OPTIMISTIC PAINT IS ROLLED BACK WHEN THE WRITE FAILS, and it does NOT
   // clear an existing error. An earlier cut did both wrong, and the two combined
   // into a silent data loss: a failed mark stayed on screen as saved, the next
@@ -638,4 +817,4 @@ function useWeekClock(compute) {
   return value;
 }
 
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });

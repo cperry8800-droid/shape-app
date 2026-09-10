@@ -64,6 +64,7 @@
 <script type="text/babel" src="trainerClientsPage.jsx?v=20260620u"></script>
 <script type="text/babel" src="coachClientDetail.jsx?v=20260909"></script>
 <script type="text/babel" src="dashWeek.jsx?v=20260909"></script>
+<script type="text/babel" src="coachSettings.jsx"></script>
 <script type="text/babel" src="dashGrid.jsx?v=20260629a"></script>
 <script type="text/babel" src="dashClient.jsx?v=20260629a"></script>
 <script src="dashBuilderCore.js?v=20260729"></script>
@@ -115,6 +116,7 @@ const TA_ROUTES = {
   goal:      () => <TrainerGoalPage />,
   score:     () => <TrainerScorePage />,
   profile:   () => <LiveProfilePage demoRole="trainer" shell={{ navItems: trainerNavItems("profile"), payoutCard: trainerPayoutCard }} extras={<DashProfileExtras />} />,
+  settings:  () => <CoachSettingsPage role="trainer" />,
   // The per-client deep dive (review 2026-09-09, R2): the same page TrainerClient.html /
   // NutritionistClient.html mount standalone, keyed so switching clients remounts it.
   client:    (id) => <CoachClientDetailPage key={id} clientId={id} role="trainer" inShell />,
@@ -133,7 +135,27 @@ function taParse() {
 function TrainerApp() {
   const [route, setRoute] = React.useState(taParse());
   React.useEffect(() => {
-    if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route.slug); } catch (e) {} }
+    if (!window.location.hash) {
+      try { window.history.replaceState(null, "", "#" + route.slug); } catch (e) {}
+      // ⚠ THE COACH'S OWN LANDING TAB (R14), AND ONLY IF THEY ARE STILL HERE. This is
+      // an async read; a coach who has clicked a tab while it was in flight must not be
+      // yanked back to a default. Re-checked against the CURRENT hash, not the one this
+      // effect saw — and `hashchange` does the rendering, so nothing races the router.
+      cstResolveLandingTab((slug) => Object.prototype.hasOwnProperty.call(TA_ROUTES, slug)).then((slug) => {
+        if (!slug) return;
+        const now = (window.location.hash || "").replace(/^#/, "");
+        if (now && now !== route.slug) return;   // they navigated — leave them alone
+        if (slug === route.slug) return;
+        // ⚠ replaceState, NOT `location.hash = …`. An assignment PUSHES a history
+        // entry on top of the "#today" the line above just replaceState'd — so a coach
+        // whose landing tab is Week pressed Back and landed on a tab they never chose,
+        // needing a second Back to leave the dashboard at all. Replacing keeps their
+        // history pointing at wherever they came from; the router state is set here
+        // directly, since replaceState fires no hashchange.
+        try { window.history.replaceState(null, "", "#" + slug); } catch (e) {}
+        setRoute(taParse());
+      }).catch(() => {});
+    }
     const onHash = () => { setRoute(taParse()); try { window.scrollTo(0, 0); } catch (e) {} };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);

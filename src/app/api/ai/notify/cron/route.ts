@@ -17,7 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
 
 export const runtime = 'nodejs';
@@ -78,8 +78,11 @@ async function run(request: Request) {
     const now = new Date();
     const isCoach = isCoachRole(snapshot.role);  // trainer | nutritionist | dietitian
     const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
+    // The coach's own office-settings tuning (R14), so the cron's alerts agree with
+    // the roster the same thresholds produce on their dashboard.
+    const thresholds = isCoach ? await loadCoachThresholds(admin, userId) : null;
 
-    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut });
+    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds });
     const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut });
     const items = digest ? [...send, digest] : send;
     if (items.length) { await deliver(admin, userId, items); delivered += items.length; }

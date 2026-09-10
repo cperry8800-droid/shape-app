@@ -48,6 +48,11 @@
   var DAY = 86400000;
 
   // Every tunable in one place (roadmap: thresholds are named constants).
+  // ⚠ `THRESHOLDS` IS THE EFFECTIVE SET AND IT IS MUTABLE; `DEFAULT_THRESHOLDS` is the
+  // house policy it starts from. A coach may tune the POLICY ones from their office
+  // settings (see TUNABLES below) — mutated IN PLACE rather than reassigned, so the
+  // exported reference and every rule's closure keep seeing the same object, and
+  // `DashSignals.THRESHOLDS` always reads as what the engine is actually applying.
   var THRESHOLDS = {
     SCORE_DROP_PTS: 5,        // wk/wk Shape Score drop that flags
     FOOD_GAP_DAYS: 3,         // days without a food log
@@ -72,6 +77,110 @@
     HYDRATION_LOW_FRAC: 0.5,  // 7-day avg water STRICTLY under this fraction of target flags
     HYDRATION_MIN_DAYS: 4,    // real hydration logs needed before the rule may fire
   };
+
+  var DEFAULT_THRESHOLDS = {};
+  for (var _tk in THRESHOLDS) if (Object.prototype.hasOwnProperty.call(THRESHOLDS, _tk)) DEFAULT_THRESHOLDS[_tk] = THRESHOLDS[_tk];
+
+  // ⚠ ONLY THE POLICY THRESHOLDS ARE TUNABLE, AND THE LINE IS PRINCIPLED RATHER THAN
+  // ARBITRARY. These are questions a coach's practice can legitimately answer
+  // differently — "how many days without a food log is a gap in MY practice". The ones
+  // deliberately NOT here are the engine's own statistical machinery: the `*_MIN_DAYS`
+  // evidence floors, `GOAL_RECENT_DAYS`, `GOAL_MIN_SPAN_DAYS`, `GOAL_FAR_DAYS`.
+  // The floors in particular guarantee "absence is never a signal" — a member who skips
+  // the daily check-in is never flagged for skipping it — and a coach who could lower
+  // them to 0 would be manufacturing flags out of no data. A tuning knob that lets you
+  // fabricate evidence is not a preference.
+  //
+  // ⚠ EVERY TUNABLE IS SHOWN TO EVERY ROLE, AND THE `role` FIELD THAT USED TO SCOPE
+  // THEM IS GONE BECAUSE IT WAS A FICTION. The engine does not evaluate different rules
+  // per role so much as ROUTE their flags: `ruleSleepRecovery` fires outside every
+  // `disciplineForRole` branch, and `readOnlyFlags` deliberately runs `ruleLedgerBlown`,
+  // `ruleProteinUnder` and `ruleHungerHigh` for the NON-nutrition role so a trainer
+  // keeps full visibility of the under-fuelling read as routed context (dashToday
+  // renders it). So all three "role-scoped" thresholds were read by both roles, and
+  // hiding a row from one of them meant that role ran on a setting its panel could
+  // neither display nor reset — twice, found one at a time. A threshold a role's
+  // evaluation can move must be visible to that role.
+  var TUNABLES = [
+    { key: "FOOD_GAP_DAYS",      label: "Food-log gap",        unit: "days",  min: 1,  max: 14, step: 1,
+      help: "Flag a client after this many days with no food log." },
+    { key: "CONTACT_GAP_DAYS",   label: "Contact gap",         unit: "days",  min: 1,  max: 30, step: 1,
+      help: "Flag when neither of you has written for this long." },
+    { key: "CHECKIN_GRACE_DAYS", label: "Check-in grace",      unit: "days",  min: 0,  max: 6,  step: 1,
+      help: "Days into the week before an unfiled check-in is called due." },
+    { key: "CHECKIN_RED_WEEKS",  label: "Check-ins missed",    unit: "weeks", min: 1,  max: 8,  step: 1,
+      help: "Consecutive missed check-ins that go red on their own." },
+    { key: "SCORE_DROP_PTS",     label: "Score drop",          unit: "pts",   min: 1,  max: 50, step: 1,
+      help: "Week-over-week Shape Score fall that flags." },
+    { key: "GOAL_SLIP_DAYS",     label: "Goal slip",           unit: "days",  min: 1,  max: 60, step: 1,
+      help: "How far a projected goal date may move later before it flags." },
+    { key: "SLEEP_DEFICIT_H",    label: "Sleep deficit",       unit: "hours", min: 0.5, max: 4, step: 0.5,
+      help: "7-day average sleep this far under target reads as a severe deficit." },
+    { key: "LEDGER_OVER_PCT",    label: "Calories over",       unit: "%",     min: 1,  max: 50, step: 1,
+      help: "Average intake this far above target counts the ledger blown. A trainer sees this as routed context." },
+    { key: "PROTEIN_UNDER_PCT",  label: "Protein under",       unit: "%",     min: 1,  max: 50, step: 1,
+      help: "Average protein this far below target flags. A trainer sees this as routed context." },
+  ];
+  var TUNABLE_BY_KEY = {};
+  for (var _i = 0; _i < TUNABLES.length; _i++) TUNABLE_BY_KEY[TUNABLES[_i].key] = TUNABLES[_i];
+
+  // Resolve a coach's overrides over the house defaults into a NEW object.
+  // Returns what it applied and what it refused, so a caller can say so rather
+  // than silently dropping input.
+  //
+  // ⚠ PURE, AND THAT IS NOT A STYLE CHOICE. An earlier cut mutated a module-level
+  // effective set. This module is a UMD singleton and `src/lib/ai/notify-core.ts`
+  // IMPORTS IT SERVER-SIDE (`import DashSignals from '../../../public/newdesign/
+  // dashSignals.js'`) to build client_red / client_amber for the notify cron — so a
+  // mutable global would be one Node process shared by every coach, and one
+  // request's tuning would decide another coach's alerts. Thresholds travel as a
+  // VALUE now; nothing is ever globally set.
+  //
+  // ⚠ AND THE TYPE CHECK IS ON THE RAW VALUE, NOT ON Number(). `Number(null)` is 0,
+  // `Number(true)` is 1 and `Number("")` is 0 — all finite — so a stored document
+  // holding `CHECKIN_GRACE_DAYS: null` would have been applied as 0, nagging a whole
+  // roster from Monday morning. A stored document is untrusted input like any other.
+  function resolveThresholds(overrides) {
+    var applied = {}, refused = [];
+    var src = (overrides && typeof overrides === "object") ? overrides : {};
+    for (var k in src) {
+      if (!Object.prototype.hasOwnProperty.call(src, k)) continue;
+      var spec = TUNABLE_BY_KEY[k];
+      if (!spec) { refused.push({ key: k, why: "not tunable" }); continue; }
+      var v = src[k];
+      if (typeof v !== "number" || !isFinite(v)) { refused.push({ key: k, why: "not a number" }); continue; }
+      // Refused, never clamped: clamping runs the engine at a number the coach never
+      // chose while their panel shows the one they typed.
+      if (v < spec.min || v > spec.max) { refused.push({ key: k, why: "out of range" }); continue; }
+      applied[k] = v;
+    }
+    var out = {};
+    for (var d in DEFAULT_THRESHOLDS) {
+      if (!Object.prototype.hasOwnProperty.call(DEFAULT_THRESHOLDS, d)) continue;
+      out[d] = Object.prototype.hasOwnProperty.call(applied, d) ? applied[d] : DEFAULT_THRESHOLDS[d];
+    }
+    return { thresholds: out, applied: applied, refused: refused };
+  }
+
+  // Run `fn` with `t` as the effective set, then put back what was there.
+  // ⚠ SYNCHRONOUS BY CONSTRUCTION. The fifteen rule functions read the closed-over
+  // `THRESHOLDS`, and threading a parameter through all of them is a wide change with
+  // a lot of places to get one wrong. This scopes it at the three entry points
+  // instead — and because `fn` is synchronous, nothing can interleave between the
+  // swap and the restore, so a server handling two coaches cannot mix them.
+  function withThresholds(t, fn) {
+    if (!t || typeof t !== "object") return fn();
+    var prev = {};
+    for (var k in DEFAULT_THRESHOLDS) {
+      if (!Object.prototype.hasOwnProperty.call(DEFAULT_THRESHOLDS, k)) continue;
+      prev[k] = THRESHOLDS[k];
+      if (Object.prototype.hasOwnProperty.call(t, k)) THRESHOLDS[k] = t[k];
+    }
+    try { return fn(); } finally {
+      for (var r in prev) if (Object.prototype.hasOwnProperty.call(prev, r)) THRESHOLDS[r] = prev[r];
+    }
+  }
+
 
   function toDate(v) {
     if (v == null) return null;
@@ -407,7 +516,14 @@
     }
     // Live rollups only expose days-logged-this-week today (no last-logged
     // date) — approximate: a fully empty week flags, anything else skips.
-    if (f.daysLogged7d === 0) {
+    // ⚠ AND THE APPROXIMATION CANNOT SUPPORT EVERY SETTING OF THE KNOB ABOVE IT. An
+    // empty 7-day window establishes "at least 7 days with no log" and nothing more:
+    // a coach who set the gap to 10 or 14 has asked a question this evidence cannot
+    // answer, and flagging anyway made the control a decoration on exactly the shape
+    // live accounts have — `lastLoggedOn` is null for a client with no snapshot rows
+    // at all, i.e. every brand-new one. A threshold at or under the window is still
+    // satisfied by it, so that half keeps flagging.
+    if (f.daysLogged7d === 0 && THRESHOLDS.FOOD_GAP_DAYS <= 7) {
       return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week" };
     }
     return null;
@@ -561,7 +677,8 @@
   // evaluateClient(record, now, role) -> { flags, severity }
   // severity: red = 2+ flags, or a check-in missed ≥ CHECKIN_RED_WEEKS weeks;
   //           amber = exactly 1 flag; green = clean.
-  function evaluateClient(c, now, role) {
+  function evaluateClient(c, now, role, thresholds) {
+    if (thresholds) return withThresholds(thresholds, function () { return evaluateClient(c, now, role); });
     now = now || new Date();
     var flags = [];
     var f;
@@ -683,7 +800,8 @@
   // most-flagged first within a band, name as the stable tiebreak. Each flag is
   // tagged with its discipline + owned/read-only routing; `readOnly` carries the
   // other discipline's context flags (not counted in severity).
-  function getTriageFeed(role, clients, now) {
+  function getTriageFeed(role, clients, now, thresholds) {
+    if (thresholds) return withThresholds(thresholds, function () { return getTriageFeed(role, clients, now); });
     now = now || new Date();
     var rank = { red: 2, amber: 1, green: 0 };
     return (clients || [])
@@ -1007,7 +1125,8 @@
   // separate nudges. Evaluated with the nutritionist rule set (superset).
   var TRAINING_KEYS = { streak_broken: true };
   var NUTRITION_KEYS = { food_gap: true, ledger_blown: true, protein_under: true };
-  function findJointAttention(clients, now) {
+  function findJointAttention(clients, now, thresholds) {
+    if (thresholds) return withThresholds(thresholds, function () { return findJointAttention(clients, now); });
     now = now || new Date();
     var out = [];
     for (var i = 0; i < (clients || []).length; i++) {
@@ -1388,6 +1507,9 @@
 
   return {
     THRESHOLDS: THRESHOLDS,
+    DEFAULT_THRESHOLDS: DEFAULT_THRESHOLDS,
+    TUNABLES: TUNABLES,
+    resolveThresholds: resolveThresholds,
     MAX_GOALS: MAX_GOALS,
     evaluateClient: evaluateClient,
     buildDirective: buildDirective,
