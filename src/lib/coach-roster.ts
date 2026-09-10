@@ -26,7 +26,23 @@ type ClientEntry = {
   lastAt: number | null;
   mrrCents: number;
   joinedAt: string | null;
+  // The platform's cut of this client's MRR, summed from each row's STORED
+  // fee_bps (review 2026-09-09, R12). Never re-derived from the current rate
+  // constant: a future change to the fee must not rewrite what a coach was
+  // charged last month, which is the whole reason the pair is stamped.
+  feeCents: number;
+  // How this client arrived, taken from their EARLIEST row — the one that also
+  // sets `joinedAt`. A client with several rows may have several origins (a
+  // marketplace find who later re-subscribed through the coach's own link); the
+  // acquisition is the first one, and the fee above already reflects the mix.
+  origin: string | null;
+  originAt: string | null;
 };
+
+// A pre-feature row carries neither column and genuinely paid the marketplace
+// rate, so these are the honest defaults rather than a guess.
+const DEFAULT_ORIGIN = 'marketplace';
+const DEFAULT_FEE_BPS = 1500;
 
 export async function coachClientsResponse(
   role: 'trainer' | 'nutritionist',
@@ -58,9 +74,16 @@ export async function coachClientsResponse(
   // RLS change or a schema drift would otherwise have every row on the roster
   // confidently reporting zero revenue — the same collapse of "no data" into
   // "a measured zero" this review round has already fixed twice elsewhere.
+  //
+  // ⚠ `'*'` IS DELIBERATE AND IS THE SAME MIGRATION-SAFETY THE ANALYTICS ROUTE USES.
+  // An explicit `origin, fee_bps` select ERRORS THE WHOLE QUERY on a pre-migration DB,
+  // which would take the roster's revenue and tenure down with it — and by the rule
+  // above, a failed read renders "Not shared" on every row. Absent columns arrive as
+  // undefined and default to marketplace / 1500 bps, which is correct for every
+  // pre-feature row: they genuinely paid 15% through the marketplace.
   const { data: subRows, error: subErr } = await supabase
     .from('subscriptions')
-    .select('client_id, price_cents, status, created_at')
+    .select('*')
     .eq('provider_role', role)
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);
@@ -84,7 +107,8 @@ export async function coachClientsResponse(
   const ensure = (key: string): ClientEntry => {
     let e = byClient.get(key);
     if (!e) {
-      e = { id: null, name: 'Client', sessions: 0, lastAt: null, mrrCents: 0, joinedAt: null };
+      e = { id: null, name: 'Client', sessions: 0, lastAt: null, mrrCents: 0, joinedAt: null,
+            feeCents: 0, origin: null, originAt: null };
       byClient.set(key, e);
     }
     return e;
@@ -103,9 +127,20 @@ export async function coachClientsResponse(
   for (const sub of subRows ?? []) {
     const e = ensure(sub.client_id || 'unknown');
     if (sub.client_id) e.id = sub.client_id;
-    e.mrrCents += sub.price_cents ?? 0;
+    const price = sub.price_cents ?? 0;
+    e.mrrCents += price;
+    const bps = typeof sub.fee_bps === 'number' && Number.isFinite(sub.fee_bps) ? sub.fee_bps : DEFAULT_FEE_BPS;
+    e.feeCents += Math.round((price * bps) / 10000);
     if (sub.created_at && (!e.joinedAt || sub.created_at < e.joinedAt)) {
       e.joinedAt = sub.created_at;
+    }
+    // The origin follows the earliest row, tracked separately from `joinedAt`
+    // so a row with no created_at cannot claim the acquisition by arriving first.
+    if (sub.created_at && (!e.originAt || sub.created_at < e.originAt)) {
+      e.originAt = sub.created_at;
+      e.origin = typeof sub.origin === 'string' && sub.origin ? sub.origin : DEFAULT_ORIGIN;
+    } else if (!e.origin && !e.originAt) {
+      e.origin = typeof sub.origin === 'string' && sub.origin ? sub.origin : DEFAULT_ORIGIN;
     }
   }
 
@@ -142,6 +177,12 @@ export async function coachClientsResponse(
         // computed over EVERY span by `buildTrajectory`, which is the lifetime
         // reading; the two answer different questions on purpose.
         joinedAt: isoOrNull(e.joinedAt),
+        // ⚠ NULL ON AN UNREADABLE SUBSCRIPTIONS READ, exactly like `mrrCents` above.
+        // A fee of 0 is a real answer (a BYO client pays the coach 0%); "we could not
+        // read it" is not, and an export that silently reports 0 is worse than one
+        // that leaves the cell empty.
+        feeCents: subsUnknown ? null : e.feeCents,
+        origin: subsUnknown ? null : e.origin,
         lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null,
         isNew,
         status,

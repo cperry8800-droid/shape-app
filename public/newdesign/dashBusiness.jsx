@@ -695,7 +695,22 @@ function CoachBusinessPage({ role }) {
         <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24, marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <span className="dash-eyebrow">Practice · trajectory</span>
-            <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>active clients · joined vs left · revenue over time</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+              <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>active clients · joined vs left · revenue over time</span>
+              {/* ⚠ EXPORTED BY MONTH, WHILE THE PLATE IS DRAWN BY WEEK, and that is a
+                  deliberate re-bucketing rather than a mismatch: a coach's accountant
+                  works in months. `revenueRows` assigns a week to the month its MONDAY
+                  falls in and carries the headcount as the LAST week of the month rather
+                  than a sum — summing a headcount across four weeks would report four
+                  times the practice. Joins and departures are events and do sum.
+                  ⚠ AND THE BUTTON IS OFF WHEN THE TRAJECTORY COULD NOT BE READ, not just
+                  when the viewer is a preview: an export built from a null series would
+                  be a header row and nothing under it, which reads as "the practice
+                  earned nothing" rather than as "we could not read it". */}
+              <DashExportButton kind="revenue" label="monthly revenue"
+                live={isLive && !!(extra && extra.trajectory)}
+                build={() => window.DashExport.revenueCsv(extra.trajectory)} />
+            </span>
           </div>
           <div className="dash-ledger" style={{ marginTop: 9, marginBottom: 12 }} />
           <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra} />
