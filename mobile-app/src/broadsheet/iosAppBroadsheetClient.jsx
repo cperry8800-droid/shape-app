@@ -663,6 +663,19 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
 
+  // Chat → The Wall. Same shape as goCommunity, but it carries a request the
+  // chat page's openRequest effect reads, so the segment is chosen by the
+  // caller rather than by whatever tab the page was last left on.
+  React.useEffect(() => {
+    const open = () => {
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setChatRequest({ wall: true, nonce: Date.now() }); setTab('chat');
+    };
+    window.addEventListener('shape:goWall', open);
+    return () => window.removeEventListener('shape:goWall', open);
+  }, []);
+
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
   React.useEffect(() => {
@@ -1991,7 +2004,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
               <span style={{ flexShrink: 0, width: 20, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
               <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{m.name}</span>
               <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-4px)' }} />
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{m.load || ''}{m.load && m.up ? ' +' : ''}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uText(m.load) || ''}{m.load && m.up ? ' +' : ''}</span>
             </div>
             <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
             {m.cue && <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em' }}>“{m.cue}”</div>}
@@ -3864,6 +3877,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
+      {/* ⚠ THE WALL BULLETIN YIELDS TO THE WEEKLY CHECK-IN, so the block keeps
+          its documented max of two. BSTodayNudge above self-gates on whether
+          today's check-in is logged, and the weekly one on `checkinDue` — this
+          third line renders only when the weekly one is not, which bounds the
+          block at two however those two resolve. It is the lowest-priority of
+          the three: somebody else's record is worth leaving the page for, but
+          never ahead of the member's own overdue check-in. */}
+      {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
 
       {/* ★ THE LEAD renders INSIDE the slate's rail now (concept B) — see
           _leadBlock above. Timed leads (workout / meal) thread at their slot;
@@ -4509,7 +4530,7 @@ function bsBuildTrainProgram(workouts, t, tr) {
       if (e.seg) return { n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '', video: e.video || null };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
-      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—', video: e.video || null };
+      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: t.uText(e.load) || '—', video: e.video || null };
     });
     const isSelf = !!w.selfAuthored;
     const prog = w.program && w.program.id ? w.program : null;
@@ -14196,6 +14217,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     let on = true;
     window.ShapeProgress.train().then((d) => {
       const prs = (d && Array.isArray(d.prs)) ? d.prs : [];
+      // Stored in the unit the record was set in and converted at RENDER — this
+      // effect is keyed on [isSelf], so converting here would freeze the unit at
+      // mount and a Settings flip would not reach the row until a remount.
       const top = prs.slice(0, 3).map((p) => [String(p.lift || 'Lift'), `${p.value}${p.unit ? ' ' + p.unit : ''}`]);
       if (on && top.length) setRealLifts(top);
     }).catch(() => {});
@@ -14270,7 +14294,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       if (!alive) return;
       const o = (doc && doc.overall && typeof doc.overall === 'object') ? { ...doc.overall } : null;
       let merged = o;
-      if (Array.isArray(weigh) && weigh.length) merged = { ...(o || {}), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+      // The live series is kilograms, so the document it is merged into must say
+      // so — otherwise `bsGoalDocKg` converts these figures a second time.
+      if (Array.isArray(weigh) && weigh.length) {
+        const base = o || {};
+        merged = { ...base, unit: 'kg', start: bsGoalDocKg(base.start, base), target: bsGoalDocKg(base.target, base), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+      }
       if (merged && (merged.start != null || merged.target != null || merged.now != null)) setRealGoal(merged);
       if (climb && climb.source) setClimbSource(climb.source);
       if (climb && Array.isArray(climb.shown) && climb.shown.length) setClimbShown(climb.shown.filter((k) => CLIMB_SOURCES.some((s) => s.key === k)));
@@ -14449,9 +14478,15 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
   };
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
-    const unit = realGoal.unit || 'kg';
-    const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
-    const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
+    // ⚠ CANONICAL KILOGRAMS IN, THE MEMBER'S UNIT OUT. The merge above stamps
+    // this document 'kg', so reading `realGoal.unit` for DISPLAY printed "80.8
+    // kg" to a member whose Settings say pounds. The figures stay kilograms for
+    // the span/percentage arithmetic below and only the labels convert.
+    const unit = tTheme.weightUnit;
+    const s = bsGoalDocKg(realGoal.start, realGoal), tg = bsGoalDocKg(realGoal.target, realGoal);
+    const nRaw = realGoal.now != null ? bsGoalDocKg(realGoal.now, realGoal) : s;
+    const n = nRaw == null ? s : nRaw;
+    const fmt = (v) => `${Math.round(tTheme.kgToDisplay(v) * 10) / 10} ${unit}`;
     const span = Math.abs(tg - s);
     return { arc: [[realGoal.startMonth || tr('profile:ridge.start', { defaultValue: 'Start' }), fmt(s), 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), fmt(n), 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), fmt(tg), 'target']], pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)), summit: realGoal.title || fmt(tg) };
   })() : null;
@@ -14929,7 +14964,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
               <div style={{ marginBottom: 28 }}>
                 <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })} />
-                {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(String(val)); return (
+                {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(tTheme.uText(String(val))); return (
                   <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0' }}>
                     <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{label}</span>
                     <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(INK, 0.22)}`, transform: 'translateY(-3px)' }} />
@@ -17345,7 +17380,26 @@ function useBSCardSheets() {
 // community feed builds it once per render, the profile builds a slim version
 // (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
 // `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
-function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0 }) {
+// The identity a reaction, a co-sign and a local comment are filed under. Real
+// posts carry a stable `key` (`post-<id>`); demo cards have none, so they fall
+// back to who-and-when.
+//
+// ⚠ ONE COPY, BECAUSE TWO SURFACES READ THE SAME MAPS WITH IT. The Wall plate
+// derived its own `a.key` and got `undefined` for every demo card — so a coach
+// co-signing one would have left the plate still reading "not yet stamped"
+// under the co-sign line the card had already drawn.
+function bsActivityKey(a) {
+  return (a && a.key) || `${a && a.who}|${a && a.ago}`;
+}
+
+// ⚠ `variant` IS THE ONLY THING THAT SEPARATES THE FEED CARD FROM THE WALL
+// PLATE, ON PURPOSE. The owner approved a plate that leads with a record pill,
+// sets the figure as a dot-matrix numeral and PREVIEWS the session — and was
+// explicit that Session details still opens the whole thing. Doing that in a
+// second component would let the two drift; doing it as a variant means every
+// field, every honest-empty and every reaction path stays shared, and the diff
+// between the two surfaces is legible in one file.
+function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0, variant = 'feed', recordNote = '' }) {
   const tr = useShapeTr();
   const {
     t, cardInk, muted, hair, card,
@@ -17362,7 +17416,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : (a.tier || bsPostTier({ who: a.who }));
     const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
     const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
-    const key = a.key || `${a.who}|${a.ago}`;
+    const key = bsActivityKey(a);
     // Dispatch rail heat — role color, NOT tier (tier stays on the avatar ring
     // only). Spec §1's literals: client teal + nutritionist gold are LIGHT/DARK
     // pairs (the older roleColor() helper elsewhere in this file carries only
@@ -17389,18 +17443,32 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const comments = actComments[key] || [];
     const cmtOpen = actCmtOpen === key;
     const typeLabel = a.real ? a.typeLabel : (a.typeLabel || (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout'));
-    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
+    // The title is APP-FORMATTED ("Tempo ride · 25 mi"), so it carries units and
+    // converts. The member's own note (`a.body`) deliberately does NOT: rewriting
+    // someone's own words is a different act from converting a figure the app
+    // itself composed, and it is not what a unit preference asks for.
+    const title = t.uText(a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title));
     // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
     // tally stays one unified count. PR/milestone (a new-best delta, or the demo
     // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
     const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
     const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
     const cheer = bsReactionVerb(actType);
-    const stats = a.real ? a.statsRow
+    // ⚠ EVERY MEASUREMENT ON THIS CARD IS TEXT BY THE TIME IT ARRIVES, so the
+    // reader's unit preference is applied to the STRING. `t.uText` rewrites only
+    // a whitelist (lb/lbs/kg/mi/km and the /mi · /km pace forms) and leaves
+    // bpm, %, spm, kcal, reps and prose alone. This is the single place the card
+    // does it, so the 3-up row, the hero, the detail page and the breakdown can
+    // never disagree about which unit they are quoting.
+    const uStats = (rows) => (Array.isArray(rows)
+      ? rows.map((r) => (Array.isArray(r) ? [r[0], t.uText(r[1]), ...r.slice(2).map((c) => t.uText(c))] : r))
+      : rows);
+    const statsRaw = a.real ? a.statsRow
       : Array.isArray(a.stats) ? a.stats
       : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
+    const stats = uStats(statsRaw);
     const showRoute = a.real ? !!a.route : a.kind === 'run';
     // Real GPS points (Strava/Garmin imports normalize them server-side) draw
     // the actual route; the tier-tinted tile is the fallback for routeless flags.
@@ -17420,6 +17488,49 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const secStats = stats.filter((_, i) => i !== _primIdx);
     const detailsOpen = !!actDetailsOpen[key];
     const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
+    const isWall = variant === 'wall';
+    // ── What the wall's plate says ABOUT the record ────────────────────────
+    // The pill names the measure and the figure. A stamped PR says so outright;
+    // anything else names the metric it is a record of, so a ride's peak power
+    // and a swim's distance read as the same kind of claim as a lift's best.
+    // Derived from the SAME heroStat the figure uses, so the two can never
+    // disagree about which number the plate is about.
+    const wallPill = (() => {
+      if (!heroStat) return '';
+      const measure = String(heroStat[0] || '').trim();
+      const lift = (a.real ? '' : String(a.lift || '')).trim();
+      // A stamped PR (real posts carry `delta`; demo PRs carry kind 'pr').
+      const isPR = !!prDelta || (!a.real && a.kind === 'pr');
+      // ⚠ THE DELTA RIDES IN THE PILL RATHER THAN ON ITS OWN LINE. The plate
+      // used to state the record twice — a header above the card and the card's
+      // own hero below it — which is the one thing the approved board does not
+      // do. The gain is the part of that header worth keeping, so it joins the
+      // pill and the duplicate header is gone.
+      const tail = recordNote ? ` · ${recordNote}` : '';
+      if (isPR) {
+        return `${tr('feed:card.newPR', { defaultValue: 'New PR' })}${lift ? ` · ${lift}` : (measure ? ` · ${measure}` : '')}${tail}`;
+      }
+      return `${measure}${heroStat[1] ? ` · ${heroStat[1]}` : ''}${tail}`;
+    })();
+    // The two facts that QUALIFY the figure. Demo records carry the lift's own
+    // (`topset`, `e1rm`); everything else takes the next two real stats. Both
+    // paths drop absent values rather than printing a placeholder, so a rest
+    // day with three stats simply shows fewer.
+    const wallFacts = (() => {
+      if (!isWall || !heroStat) return [];
+      const out = [];
+      if (!a.real) {
+        // Read straight off the post rather than out of `stats`, so they need
+        // the same conversion the stat rows already got.
+        if (a.topset) out.push([tr('feed:card.topSet', { defaultValue: 'Top set' }), t.uText(String(a.topset))]);
+        if (a.e1rm) out.push([tr('feed:card.e1rm', { defaultValue: 'Est. 1RM' }), t.uText(String(a.e1rm))]);
+      }
+      for (const st of secStats) {
+        if (out.length >= 2) break;
+        if (st && st[0] && st[1]) out.push([st[0], String(st[1])]);
+      }
+      return out.slice(0, 2);
+    })();
     const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
     const coachProgram = a.real ? (a.program || '') : '';
     // Coach co-sign — one coach co-sign reads heavier than any peer reaction.
@@ -17458,12 +17569,16 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       : allComments.filter((c) => c.follows);
     const likeFacepile = followedLikers.slice(0, 4);
     // Full stat set for the detail page (every stat, not the card's 3-up).
-    const detailStats = a.real ? (a.fullStats || stats) : (a.stats || stats);
+    const detailStats = uStats(a.real ? (a.fullStats || statsRaw) : (a.stats || statsRaw));
     // Open the full-screen activity page (stats focus or comments focus).
     const openDetail = (focus) => setActivityDetail({
       a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
       title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
-      routeObj, showRoute, breakdown: a.breakdown || null,
+      routeObj, showRoute,
+      // The breakdown's rows are set-by-set text ('245 lb × 3'), so they carry
+      // units too — converted here rather than on the detail page, so the page
+      // and the card it opened from quote the same figures.
+      breakdown: a.breakdown ? { ...a.breakdown, rows: uStats(a.breakdown.rows) } : null,
       zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, rawSplits: a.rawSplits || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
@@ -17509,7 +17624,19 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               title/metric/caption (or the route below) opens the full session-
               details page. */}
           <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label={tr('feed:card.openSessionDetails', { defaultValue: 'Open session details' })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
+            {/* THE RECORD PILL (wall only) — what this plate is a record OF,
+                stated before the title. It names the measure and the figure it
+                was set at, so a ride's peak power and a lift's new best read as
+                the same kind of claim. Suppressed when the activity carries no
+                hero figure: a pill with nothing in it is chrome. */}
+            {isWall && heroStat && (
+              <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, marginBottom: 7, padding: '4px 9px', borderRadius: 4, background: bsTHexA(heat, 0.14), border: `1px solid ${bsTHexA(heat, 0.4)}` }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, whiteSpace: 'nowrap' }}>
+                  {wallPill}
+                </span>
+              </div>
+            )}
+            <div style={{ fontFamily: t.DISPLAY, fontSize: isWall ? 19 : 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
             {/* honest hero figure — posts with no hero stat skip this block
                 entirely (never a fabricated placeholder). Eyebrow sits ABOVE
                 the figure (Open Ledger order); split-unit + count-up + a heat
@@ -17523,12 +17650,36 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               return (
                 <div>
                   <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                      <BSSdCountUp text={u.num} run={railSeen} duration={750} delay={80} />
-                    </span>
-                    {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55) }}>{u.unit}</span> : null}
-                    {prDelta && (
+                  <div style={{ display: 'flex', alignItems: isWall ? 'flex-end' : 'baseline', gap: isWall ? 10 : 6, marginTop: 2, flexWrap: 'wrap' }}>
+                    {/* ⚠ THE WALL'S FIGURE IS DRAWN, THE FEED'S IS TYPESET, and
+                        the drawn one does NOT count up: BSSdCountUp animates a
+                        string through a font, which a dot matrix cannot do
+                        without redrawing 245 glyph grids a second for a number
+                        that is already the loudest thing on the plate. */}
+                    {isWall ? (
+                      <BSDotNumber text={u.num} size={38} color={t.INK} title={`${u.num}${u.unit ? ' ' + u.unit : ''}`} />
+                    ) : (
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                        <BSSdCountUp text={u.num} run={railSeen} duration={750} delay={80} />
+                      </span>
+                    )}
+                    {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55), lineHeight: isWall ? 1.6 : 'normal' }}>{u.unit}</span> : null}
+                    {/* The two facts that qualify the figure, beside it rather
+                        than under it — a top set means little without its reps,
+                        and an estimated max means nothing without the set it
+                        was estimated from. Real values only; absent ones simply
+                        do not render. */}
+                    {isWall && wallFacts.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginLeft: 4, paddingBottom: 2 }}>
+                        {wallFacts.map(([k, v]) => (
+                          <div key={k} style={{ display: 'flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap' }}>
+                            <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{k}</span>
+                            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: bsTHexA(t.INK, 0.8), fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {prDelta && !isWall && (
                       <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.75), whiteSpace: 'nowrap' }}>↑ PR {prDelta}</span>
                     )}
                   </div>
@@ -17650,6 +17801,60 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
               <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px' }}>{tr('feed:card.gpsNotRecorded', { defaultValue: 'GPS · Not recorded' })}</span>
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+            </div>
+          )}
+          {/* ── THE WALL'S PREVIEW ────────────────────────────────────────
+              A record is a claim, and on a board of other people's claims the
+              evidence has to be visible without a tap — so the plate previews
+              what Session details holds: the stat set, the time in each HR
+              zone, and the heart-rate trace. Session details still opens the
+              WHOLE activity (splits, every trace, the route); this is the
+              front of it, not a replacement.
+
+              ⚠ EVERY BLOCK IS DRAWN FROM WHAT THE ACTIVITY ACTUALLY CARRIES,
+              which is what makes a ride's plate look different from a lift's
+              without a single per-kind branch here: `detailStats` is already
+              derived per activity type upstream, so a ride brings avg/max
+              power and speed, a lift brings top set, reps and volume, a swim
+              brings SWOLF, and a rest day brings three rows and no zones. An
+              activity with no zones or no trace renders neither — never an
+              empty axis. */}
+          {isWall && detailStats.length > 0 && (
+            <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '11px 10px' }}>
+              {detailStats.slice(0, 6).map(([k, v], i) => (
+                <div key={`${k}-${i}`} style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.85), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {isWall && (a.zones || a.trace) && (
+            <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: a.zones && a.trace ? '1fr 1fr' : '1fr', gap: 12, alignItems: 'end' }}>
+              {a.zones && (
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{tr('feed:card.hrZones', { defaultValue: 'HR zones' })}</div>
+                  {/* One bar, each zone's share of the session by width. The
+                      shares are the activity's own percentages, so the bar is
+                      full only because they sum to the session. */}
+                  <div style={{ display: 'flex', gap: 2, marginTop: 5, height: 9, borderRadius: 2, overflow: 'hidden' }}>
+                    {a.zones.map(([z, pct], i) => (
+                      <div key={z} title={`${z} ${pct}%`} style={{ flex: Math.max(pct, 0.5), background: bsTHexA(heat, 0.25 + (i * 0.17)) }} />
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    {a.zones.map(([z, pct]) => (
+                      <span key={z} style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.5), fontVariantNumeric: 'tabular-nums' }}>{z} {pct}%</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {a.trace && (
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{tr('session:chart.heartRate', { defaultValue: 'Heart rate' })}</div>
+                  <div style={{ marginTop: 5 }}>{bsWallTrace(a.trace, heat)}</div>
+                </div>
+              )}
             </div>
           )}
           {/* The card stays a glance — the full metric readout lives on the
@@ -17837,10 +18042,781 @@ const COMMUNITY_ACTIVITIES = [
   { kind: 'pr', who: 'Devon Wells', role: 'Client', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
   { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3, stats: [['Distance', '5.1 mi'], ['Avg pace', '9:30/mi'], ['Best pace', '8:58/mi'], ['Time', '48:27'], ['Avg HR', '141 bpm'], ['Max HR', '158 bpm'], ['Cadence', '168 spm'], ['Elevation', '180 ft'], ['Calories', '590'], ['Stride', '1.04 m'], ['Ground', '268 ms'], ['Training', '2.1 · LO']], zones: [['Z1', 22], ['Z2', 58], ['Z3', 16], ['Z4', 4], ['Z5', 0]], trace: [128, 134, 138, 136, 140, 142, 139, 144, 141, 138, 143, 145, 142, 139, 144, 146, 143, 140, 145, 147, 144, 141, 146, 148, 145, 142, 147, 149, 152, 138], cadenceTrace: [162, 165, 167, 168, 166, 169, 168, 170, 169, 167, 170, 171, 169, 167, 170, 172, 170, 168, 171, 172, 171, 169, 172, 173, 171, 170, 172, 174, 173, 168], elevTrace: [60, 64, 70, 78, 74, 68, 76, 84, 80, 72, 80, 92, 88, 80, 76, 84, 96, 90, 82, 88, 98, 92, 86, 94, 102, 96, 88, 80, 72, 64], paceTrace: [600, 588, 582, 590, 578, 585, 575, 583, 590, 580, 572, 581, 588, 574, 582, 570, 579, 586, 572, 580, 588, 575, 583, 590, 576, 584, 578, 586, 572, 580], breakdown: { label: 'Mile splits', rows: [['Mile 1', '9:42/mi', 'Warm-up'], ['Miles 2–3', '9:30/mi', 'Steady'], ['Miles 4–5', '9:24/mi', 'Smooth'], ['Last 0.1', '8:58/mi', 'Strides']] } },
   { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9, stats: [['Top set', '185 lb'], ['Total sets', '24'], ['Avg HR', '132 bpm'], ['Max HR', '158 bpm'], ['Calories', '510'], ['Volume', '12,400 lb']], zones: [['Z1', 34], ['Z2', 38], ['Z3', 20], ['Z4', 7], ['Z5', 1]], trace: [104, 118, 132, 120, 110, 124, 140, 128, 114, 126, 146, 134, 118, 130, 150, 138, 120, 132, 152, 140, 122, 134, 148, 136, 116, 128, 144, 130, 112, 108], breakdown: { label: 'Working sets', rows: [['Back squat', '5 × 5 @ 185', 'RPE 7'], ['Bench', '5 × 5 @ 145', 'RPE 7'], ['Row', '4 × 8 @ 135', 'RPE 8'], ['Accessories', '3 circuits', 'RPE 6']] } },
-  { kind: 'pr', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '2d', body: 'Six weeks ago this was a hard triple at 225. Bar speed stayed crisp through the last rep.', lift: 'Back Squat', topset: '1×3', load: '247 lb', e1rm: '271 lb', kudos: 24, replies: 3, likers: [{ name: 'Maya Okafor', role: 'Trainer' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Maya Okafor', text: 'That last rep was the cleanest yet — progress is showing.', follows: true }], stats: [['Top set', '247 lb'], ['Reps', '3'], ['Est. 1RM', '271 lb'], ['Avg HR', '141 bpm'], ['Max HR', '168 bpm'], ['Calories', '380'], ['Volume', '6,240 lb']], zones: [['Z1', 30], ['Z2', 32], ['Z3', 26], ['Z4', 10], ['Z5', 2]], trace: [98, 110, 132, 120, 106, 118, 148, 130, 112, 124, 152, 136, 118, 128, 158, 138, 116, 130, 162, 140, 118, 132, 156, 136, 112, 126, 150, 132, 108, 104], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '236 lb × 3', 'RPE 8'], ['Set 3', '247 lb × 3', 'RPE 9 · PR']] } },
+  { kind: 'pr', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '2d', body: 'Six weeks ago this was a hard triple at 225. Bar speed stayed crisp through the last rep.', lift: 'Back Squat', topset: '1×3', load: '247 lb', e1rm: '271 lb', kudos: 24, replies: 3, cosign: { name: 'Maya Okafor', role: 'trainer' }, likers: [{ name: 'Maya Okafor', role: 'Trainer' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Maya Okafor', text: 'That last rep was the cleanest yet — progress is showing.', follows: true }], stats: [['Top set', '247 lb'], ['Reps', '3'], ['Est. 1RM', '271 lb'], ['Avg HR', '141 bpm'], ['Max HR', '168 bpm'], ['Calories', '380'], ['Volume', '6,240 lb']], zones: [['Z1', 30], ['Z2', 32], ['Z3', 26], ['Z4', 10], ['Z5', 2]], trace: [98, 110, 132, 120, 106, 118, 148, 130, 112, 124, 152, 136, 118, 128, 158, 138, 116, 130, 162, 140, 118, 132, 156, 136, 112, 126, 150, 132, 108, 104], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '236 lb × 3', 'RPE 8'], ['Set 3', '247 lb × 3', 'RPE 9 · PR']] } },
   { kind: 'run', who: 'Quinn Harper', role: 'Client', city: 'Prospect Park · NYC', tier: 'TEMPO', ago: '3d', body: '5.2 km easy. Legs felt springy after yesterday’s pulls.', distance: '3.2 mi', pace: '7:58/mi', duration: '25:31', elev: '120 ft', route: true, kudos: 15, replies: 2, likers: [{ name: 'Sofia Park', role: 'Nutritionist' }], comments: [{ who: 'Sofia Park', text: 'Perfect easy-day effort.', follows: true }], stats: [['Distance', '3.2 mi'], ['Avg pace', '7:58/mi'], ['Best pace', '7:31/mi'], ['Time', '25:31'], ['Avg HR', '148 bpm'], ['Max HR', '164 bpm'], ['Cadence', '172 spm'], ['Elevation', '120 ft'], ['Calories', '410'], ['Stride', '1.12 m'], ['Ground', '250 ms'], ['Training', '2.4 · MO']], zones: [['Z1', 12], ['Z2', 52], ['Z3', 28], ['Z4', 7], ['Z5', 1]], trace: [124, 132, 138, 141, 139, 145, 143, 148, 146, 142, 149, 152, 149, 145, 150, 154, 151, 147, 152, 156, 153, 149, 154, 158, 155, 150, 156, 160, 164, 146], cadenceTrace: [166, 169, 171, 172, 170, 173, 172, 174, 173, 171, 174, 175, 173, 171, 174, 176, 174, 172, 175, 176, 175, 173, 176, 177, 175, 173, 176, 178, 177, 171], elevTrace: [50, 56, 64, 72, 68, 62, 70, 80, 76, 68, 76, 88, 84, 76, 70, 80, 92, 86, 78, 84, 94, 88, 80, 88, 98, 90, 82, 74, 66, 58], paceTrace: [508, 496, 502, 490, 498, 486, 494, 480, 490, 500, 478, 488, 496, 476, 486, 474, 484, 492, 472, 482, 490, 470, 480, 488, 468, 478, 484, 466, 476, 484], breakdown: { label: 'Mile splits', rows: [['Mile 1', '8:12/mi', 'Warm-up'], ['Mile 2', '7:58/mi', 'Steady'], ['Last 1.2', '7:39/mi', 'Strides']] } },
   { kind: 'workout', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '5d', body: 'Everything moved well. RPE 8 across the board, no missed reps.', title: 'Lower push · Block 2', duration: '48 min', exercises: 5, rpe: 8, kudos: 11, replies: 1, stats: [['Top set', '245 lb'], ['Total sets', '18'], ['Avg HR', '136 bpm'], ['Max HR', '159 bpm'], ['Calories', '440'], ['Volume', '9,120 lb']], zones: [['Z1', 32], ['Z2', 36], ['Z3', 22], ['Z4', 8], ['Z5', 2]], trace: [102, 116, 130, 118, 108, 122, 138, 126, 112, 124, 144, 132, 116, 128, 148, 136, 118, 130, 150, 138, 120, 132, 146, 134, 114, 126, 142, 128, 110, 106], breakdown: { label: 'Working sets', rows: [['Back squat', '4 × 5 @ 245', 'RPE 8'], ['RDL', '3 × 8 @ 185', 'RPE 8'], ['Leg press', '3 × 12', 'RPE 7'], ['Accessories', '2 circuits', 'RPE 6']] } },
 ];
+
+// ── The record numeral ──────────────────────────────────────────────────────
+// A 5×7 dot-matrix figure, drawn as SVG. The app ships seven font families
+// (DM Mono, DM Serif Display, Italiana, JetBrains Mono, Newsreader, Saira,
+// Space Grotesk) and none of them is a matrix face, so the alternative was an
+// eighth webfont on every launch for one number on one screen. Drawn digits
+// cost no asset, scale to any size without a subset, and cannot arrive late —
+// a record that renders in a fallback face for 200ms is the wrong first frame
+// for the loudest number on the board.
+//
+// ⚠ THE GLYPHS ARE DATA, NOT DRAWING CODE. Each digit is seven 5-bit rows, so
+// a wrong pixel is a wrong character in a string rather than a wrong path
+// command — and the test can read a digit back out of the rendered dots.
+const BS_DOT_GLYPHS = {
+  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+  '3': ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
+  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+  '.': ['00000', '00000', '00000', '00000', '00000', '00000', '00110'],
+  ',': ['00000', '00000', '00000', '00000', '00000', '00110', '01100'],
+  '-': ['00000', '00000', '00000', '01110', '00000', '00000', '00000'],
+  ':': ['00000', '00110', '00110', '00000', '00110', '00110', '00000'],
+  '/': ['00001', '00001', '00010', '00100', '01000', '10000', '10000'],
+};
+const BS_DOT_COLS = 5;
+const BS_DOT_ROWS = 7;
+
+// A character the matrix has no glyph for is DROPPED, not rendered as a blank
+// cell: a silent gap in a number reads as a different number.
+function bsDotChars(text) {
+  return String(text == null ? '' : text).split('').filter((ch) => ch === ' ' || BS_DOT_GLYPHS[ch]);
+}
+
+// The heart-rate trace as a plain polyline. Scaled to its OWN min/max, because
+// a fixed 0–200 axis flattens every real session into the same shallow ripple —
+// the shape of the effort is the point, and the figures beside it carry the
+// absolute numbers.
+function bsWallTrace(points, color, w = 128, h = 30) {
+  const nums = (Array.isArray(points) ? points : []).map(Number).filter(Number.isFinite);
+  if (nums.length < 2) return null;
+  const lo = Math.min(...nums);
+  const hi = Math.max(...nums);
+  const span = hi - lo || 1;
+  const d = nums.map((n, i) => `${(i / (nums.length - 1)) * w},${h - ((n - lo) / span) * (h - 2) - 1}`).join(' ');
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+      <polyline points={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function BSDotNumber({ text, size = 34, color, dim, gap = 1, title }) {
+  const t = useBS();
+  const ink = color || t.INK;
+  const off = dim || bsTHexA(ink, 0.13);
+  const chars = bsDotChars(text);
+  if (!chars.length) return null;
+  // One dot is `unit` tall; a glyph is 7 units, so `size` IS the cap height.
+  const unit = size / BS_DOT_ROWS;
+  const advance = (BS_DOT_COLS + gap) * unit;
+  const width = chars.length * advance - gap * unit;
+  const r = unit * 0.36;
+  const dots = [];
+  chars.forEach((ch, i) => {
+    const rows = BS_DOT_GLYPHS[ch];
+    if (!rows) return;                       // a space advances and draws nothing
+    for (let y = 0; y < BS_DOT_ROWS; y++) {
+      for (let x = 0; x < BS_DOT_COLS; x++) {
+        const on = rows[y][x] === '1';
+        dots.push(
+          <rect
+            key={`${i}-${y}-${x}`}
+            x={i * advance + x * unit + (unit - r * 2) / 2}
+            y={y * unit + (unit - r * 2) / 2}
+            width={r * 2}
+            height={r * 2}
+            rx={r * 0.35}
+            fill={on ? ink : off}
+          />,
+        );
+      }
+    }
+  });
+  return (
+    <svg
+      width={width}
+      height={size}
+      viewBox={`0 0 ${width} ${size}`}
+      role={title ? 'img' : undefined}
+      aria-label={title || undefined}
+      aria-hidden={title ? undefined : true}
+      style={{ display: 'block', flexShrink: 0 }}
+    >
+      {dots}
+    </svg>
+  );
+}
+
+// ── The Wall ────────────────────────────────────────────────────────────────
+// A record board, not a conversation (review 2026-09-10 §7). Every plate is a
+// new best out of `pr_wall_posts`: the number, the delta over that member's own
+// last best, and — when the record was posted from the app — the WHOLE activity
+// record the feed already renders. The owner's words: "make sure each activity
+// that is logged on the wall displays the stats that is already implemented. I
+// want all of the information that is currently displayed incorporated in the
+// new design."
+//
+// ⚠ THE PLATE DOES NOT RE-IMPLEMENT THE RECORD — IT WRAPS `BSActivityCard`.
+// The stats grid, the zones, the trace, the breakdown with the record row
+// marked, "Session details · full activity", the coach's co-sign, the
+// followed-liker facepile, the typed reactions, comments, share, send and
+// repost are all that component's, and they arrive here by rendering it. So
+// anything the feed learns to show, the Wall shows the same day, and one
+// activity can never read two different ways on two surfaces.
+
+// The gain over the member's OWN previous best. Null when there is nothing to
+// be better than (their first record for that lift), which the plate then says
+// in words — printing "↑ +245" against no prior best would be a claim about a
+// comparison that never happened.
+function bsWallGain(best, prev) {
+  // ⚠ THE null/undefined TEST COMES FIRST, AND IT IS NOT REDUNDANT WITH
+  // isFinite: `Number(null)` is 0, which IS finite — so a member's FIRST record
+  // for a lift, whose prev_value is null by definition, computed a gain of the
+  // whole number and rendered "↑ +245 lb over last best" against a best that
+  // never existed. Caught by the guard, not by reading.
+  if (best == null || prev == null || best === '' || prev === '') return null;
+  const b = Number(best);
+  const p = Number(prev);
+  if (!Number.isFinite(b) || !Number.isFinite(p)) return null;
+  const raw = b - p;
+  if (!(raw > 0)) return null;
+  // ⚠ A REAL IMPROVEMENT MUST NEVER ROUND AWAY TO NOTHING. The RPC accepts any
+  // value strictly greater than the stored best, so 245 → 245.02 IS a new
+  // record — and at one decimal place its gain rounded to 0, which the plate
+  // then read as "no gain". Fall through to finer places rather than reporting
+  // a beaten best as no change.
+  const r1 = Math.round(raw * 10) / 10;
+  if (r1 > 0) return r1;
+  const r2 = Math.round(raw * 100) / 100;
+  return r2 > 0 ? r2 : raw;
+}
+
+// 245, not 245.0 — but 18.2 stays 18.2. A record board reads as numbers, and a
+// trailing zero is noise on every one of them.
+function bsWallNum(v) {
+  // Same trap as bsWallGain: `Number(null)` is 0, so an absent figure rendered a
+  // confident "0" where it should render nothing at all.
+  if (v == null || v === '') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  // ⚠ THE FEWEST DECIMALS THAT DO NOT PRINT A REAL NUMBER AS ZERO. A record
+  // board reads as whole numbers — 245, not 245.0 — but a genuine gain of
+  // 0.02 kg formatted at one decimal place became "+0", which says the
+  // opposite of what happened. Widen only as far as the value needs.
+  for (const places of [1, 2, 3, 4]) {
+    const f = Math.pow(10, places);
+    const r = Math.round(n * f) / f;
+    if (r !== 0 || n === 0) return String(r);
+  }
+  return String(n);
+}
+
+// The ONE place that decides what a record's header states. Kept pure and apart
+// from the JSX so the reading can be driven by a test: `first` and `gain` are
+// mutually exclusive by construction, so no plate can ever claim both a first
+// record and an improvement on it.
+// A wall record carries the unit it was SET in — a member who lifts in pounds
+// posts pounds — but the reader sees it in the unit THEY chose in Settings.
+// Converting is display only: the ledger keeps the record as it was set.
+const BS_WALL_LB_TO_KG = 0.45359237;
+const BS_WALL_MI_TO_KM = 1.609344;
+// ⚠ THE WALL CARRIES MORE THAN BARBELLS — A LONGEST RUN IS A RECORD TOO, AND
+// ITS UNIT IS A DISTANCE. The first cut of this resolved every unit onto the
+// weight pair, which turned an 18.2 mi record into "18.2 lb" the moment a
+// reader's preference was applied. So the FAMILY is resolved first, a unit is
+// only ever converted within its own family, and anything outside these two
+// (a rep count, a duration, a unit a future record type invents) is passed
+// through untouched rather than guessed at.
+function bsWallUnitFamily(u) {
+  const v = String(u == null ? '' : u).trim();
+  if (/^(kg|kilo)/i.test(v)) return { family: 'weight', key: 'kg' };
+  if (/^(lb|lbs|pound)/i.test(v)) return { family: 'weight', key: 'lb' };
+  if (/^(km|kilomet)/i.test(v)) return { family: 'distance', key: 'km' };
+  if (/^(mi|mile)/i.test(v)) return { family: 'distance', key: 'mi' };
+  return { family: null, key: v };
+}
+// `prefs` is { weight, distance } — the reader's two Settings units. A record
+// whose family has no preference, or whose preference names another family,
+// keeps the unit it was set in.
+function bsWallTargetUnit(srcUnit, prefs) {
+  const src = bsWallUnitFamily(srcUnit);
+  const fallback = src.key || 'lb';
+  if (!src.family || !prefs) return fallback;
+  const want = bsWallUnitFamily(src.family === 'weight' ? prefs.weight : prefs.distance);
+  return want.family === src.family ? want.key : fallback;
+}
+function bsWallToUnit(value, from, to) {
+  // `Number(null)` and `Number('')` are both a finite 0, so an absent figure
+  // has to be rejected before the arithmetic, not by Number.isFinite after it.
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const f = bsWallUnitFamily(from), d = bsWallUnitFamily(to);
+  if (!f.family || f.family !== d.family || f.key === d.key) return n;
+  if (f.family === 'weight') return d.key === 'kg' ? n * BS_WALL_LB_TO_KG : n / BS_WALL_LB_TO_KG;
+  return d.key === 'km' ? n * BS_WALL_MI_TO_KM : n / BS_WALL_MI_TO_KM;
+}
+// `toUnit` omitted keeps the record's own unit — the signature stays additive so
+// a caller that has no theme in hand is unchanged.
+function bsWallHeader(rec, prefs) {
+  const srcUnit = (rec && rec.unit != null && String(rec.unit).trim()) ? String(rec.unit).trim() : 'lb';
+  const unit = bsWallTargetUnit(srcUnit, prefs);
+  const gain = bsWallToUnit(bsWallGain(rec && rec.best, rec && rec.prev), srcUnit, unit);
+  // ⚠ "FIRST" IS WHETHER A PREVIOUS BEST EXISTS — NOT WHETHER A GAIN COULD BE
+  // COMPUTED FROM IT. Deriving it from `gain == null` meant any record whose
+  // improvement failed to produce a number (a rounding edge, a malformed stored
+  // value) was announced as the member's first on the wall while the ledger
+  // held a prior best. The two are different questions and they are asked
+  // separately now.
+  const prev = rec && rec.prev;
+  return {
+    label: String((rec && (rec.liftLabel || rec.liftKey)) || '').trim(),
+    figure: bsWallNum(bsWallToUnit(rec && rec.best, srcUnit, unit)),
+    unit,
+    reps: (rec && Number.isFinite(Number(rec.reps)) && Number(rec.reps) > 1) ? Number(rec.reps) : null,
+    gain,
+    first: prev == null || prev === '',
+  };
+}
+
+// YOUR BEST — one row per lift the member has, merging what their own training
+// data says with what the wall carries.
+//
+// ⚠ TWO DIFFERENT NUMBERS, AND THE DIFFERENCE BETWEEN THEM IS THE POINT.
+// `logged` is their best from their own set logs — a PR the moment they lift
+// it, whether or not it ever reached the wall. `posted` is the ledger's value,
+// i.e. what everyone else can see. When the first is higher they are sitting on
+// an unposted record, and the gap is exactly how much: "20 lb to the wall".
+//
+// A lift they have posted but never logged in-app still shows (they set it
+// elsewhere and posted it by hand), with no gap — there is nothing to compare
+// it against.
+function bsWallYourBest(logged, posted) {
+  const rows = new Map();
+  for (const p of (Array.isArray(posted) ? posted : [])) {
+    if (!p || !p.liftKey) continue;
+    rows.set(p.liftKey, {
+      liftKey: p.liftKey, liftLabel: p.liftLabel || p.liftKey,
+      posted: Number(p.best), postedUnit: p.unit || 'lb', postedAt: p.postedAt || null,
+      logged: null, unit: p.unit || 'lb', reps: null, gap: null,
+    });
+  }
+  for (const l of (Array.isArray(logged) ? logged : [])) {
+    if (!l || !l.liftKey) continue;
+    const row = rows.get(l.liftKey) || {
+      liftKey: l.liftKey, liftLabel: l.liftLabel || l.liftKey,
+      posted: null, postedUnit: null, postedAt: null,
+    };
+    row.liftLabel = l.liftLabel || row.liftLabel;
+    row.logged = Number(l.best);
+    row.unit = l.unit || row.postedUnit || 'lb';
+    row.reps = l.reps;
+    rows.set(l.liftKey, row);
+  }
+  for (const row of rows.values()) {
+    // ⚠ THE GAP IS ONLY COMPARABLE IN ONE UNIT. A lift logged in kg against a
+    // ledger row in lb is two different numbers, and subtracting them would
+    // invent a gap out of the conversion. Left null; the row still shows both.
+    const comparable = row.posted != null && row.logged != null
+      && (!row.postedUnit || row.postedUnit === row.unit);
+    row.gap = comparable ? bsWallGain(row.logged, row.posted) : null;
+    row.unposted = row.logged != null && (row.posted == null || (comparable && row.gap != null));
+    row.best = row.logged != null ? row.logged : row.posted;
+  }
+  return [...rows.values()].sort((a, b) => {
+    // An unposted record is the actionable row, so it leads.
+    if (a.unposted !== b.unposted) return a.unposted ? -1 : 1;
+    return (b.best || 0) - (a.best || 0);
+  });
+}
+
+// The lifts actually present in the loaded rows — the filter must never offer a
+// lift the wall cannot show, and must never hide one it can.
+function bsWallLifts(rows) {
+  const seen = new Map();
+  for (const r of (rows || [])) {
+    if (!r || !r.liftKey || seen.has(r.liftKey)) continue;
+    seen.set(r.liftKey, r.liftLabel || r.liftKey);
+  }
+  return [...seen.entries()].map(([key, label]) => ({ key, label }));
+}
+
+// Sample records for the SIGNED-OUT preview only. Each one is matched to a demo
+// activity in COMMUNITY_ACTIVITIES by name, so the preview's plate carries that
+// record's real demo stats, zones, trace and breakdown rather than a second,
+// disagreeing copy of them.
+//
+// ⚠ Quinn Harper's carries NO `prev` and Priya Shah's is the only co-signed
+// one, both on purpose: the preview has to show the "first on the wall" state
+// and an unstamped plate, because those are states a real wall spends most of
+// its time in. The co-sign is read from the demo activity itself — inventing
+// one here would make the same record read differently on the Wall and the
+// Feed, which is exactly what wrapping the card exists to prevent.
+// lb / kg are unit SYMBOLS, not copy — no locale renames them, and keying them
+// would ship thirteen identical values a translator must not touch. Held as a
+// constant so the select never carries a literal for the i18n walk to find.
+const BS_WALL_UNITS = ['lb', 'kg'];
+
+const BS_WALL_DEMO = [
+  { who: 'Priya Shah',    liftKey: 'deadlift',   liftLabel: 'Deadlift',    best: 245,  prev: 235,  unit: 'lb', reps: 3 },
+  { who: 'Drew Oyelaran', liftKey: 'long run',   liftLabel: 'Long run',    best: 18.2, prev: 16.4, unit: 'mi', reps: null },
+  { who: 'Lena Fischer',  liftKey: 'pool swim',  liftLabel: 'Pool swim',   best: 2000, prev: 1600, unit: 'm',  reps: null },
+  { who: 'Devon Wells',   liftKey: 'bench press', liftLabel: 'Bench Press', best: 225, prev: 215,  unit: 'lb', reps: 5 },
+  { who: 'Marcus Bell',   liftKey: 'peak power', liftLabel: 'Peak power',  best: 612,  prev: 588,  unit: 'W',  reps: null },
+  { who: 'Quinn Harper',  liftKey: 'back squat', liftLabel: 'Back Squat',  best: 247,  prev: null, unit: 'lb', reps: 3 },
+];
+
+function bsWallDemoRows() {
+  return BS_WALL_DEMO.map((d) => {
+    const act = COMMUNITY_ACTIVITIES.find((a) => a.who === d.who) || null;
+    return {
+      key: `demo-${d.liftKey}-${d.who}`,
+      userId: null,
+      name: d.who,
+      liftKey: d.liftKey,
+      liftLabel: d.liftLabel,
+      best: d.best,
+      prev: d.prev,
+      unit: d.unit,
+      reps: d.reps,
+      ago: (act && act.ago) || '',
+      act,
+    };
+  }).filter((r) => r.act);
+}
+
+// One record. The header is the Wall's; everything under it is the feed's card.
+function BSWallPlate({ rec, ctx, newest }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const h = bsWallHeader(rec, { weight: t.weightUnit, distance: t.distanceUnit });
+  const a = rec.act;
+  // A stamped record is one a coach has co-signed — either already, or by this
+  // viewing coach a moment ago (the optimistic co-sign the card itself reads).
+  // Anything else says so, because a stamp nobody withholds is worth nothing.
+  const stamped = !!(a && (a.cosign || (ctx.feedCtx.actCoSign && ctx.feedCtx.actCoSign[bsActivityKey(a)])));
+  // What the retired header uniquely said: how much this beat their own last
+  // best by. Empty for a first record — there is nothing to have beaten.
+  const recordNote = h.gain != null
+    ? tr('feed:wall.overShort', { defaultValue: '+{gain} {unit}', gain: bsWallNum(h.gain), unit: h.unit })
+    : '';
+  return (
+    // ⚠ THE PLATE ADDS NO SIDE INSET, AND THE HEADER PADS ITSELF INSTEAD.
+    // The card is built for the page's own width — the community feed renders
+    // it inside a container with NO horizontal padding at all — so every pixel
+    // a frame takes off the sides is a pixel its author row loses. Measured at
+    // 375px with a 14px inset: Drew Oyelaran's row ran 12px past the frame with
+    // `overflow: visible` (silently), and Priya's `PEAK · CLIENT` collided with
+    // the STRENGTH tag while the same card on the Feed had room for both. With
+    // no inset the card gets exactly the width it gets on the Feed, and the
+    // 3px spine reads as the frame's left edge rather than eating into it.
+    <BSPlate c={teal} tick={!!newest} pad="12px 0 10px" style={{ marginBottom: 12 }}>
+      {/* ⚠ THE HEADER RENDERS ONLY FOR A BARE RECORD. When the card is here it
+          carries the whole reading itself — the pill names the record, the
+          title names the lift, the drawn figure IS the number — and a header
+          above it stated all three a second time. What the header uniquely
+          held, the gain over the last best, rides in the pill now.
+          BSPlate draws the live tick at left:8, 6px wide, so the eyebrow needs
+          the room or it reads as one glyph joined to the mark. */}
+      {!a && (
+      <div style={{ padding: `0 14px 0 ${newest ? 22 : 15}px` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {tr('feed:wall.newBest', { defaultValue: 'New best' })}{h.label ? ` · ${h.label}` : ''}
+        </div>
+        {rec.ago && <div style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{rec.ago}</div>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{h.figure}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{h.unit}</span>
+        {h.reps != null && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>× {h.reps}</span>}
+      </div>
+      {(h.first || h.gain != null) && (
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: h.first ? t.INK50 : teal }}>
+          {h.first
+            ? tr('feed:wall.first', { defaultValue: 'First on the wall' })
+            : tr('feed:wall.over', { defaultValue: '↑ +{gain} {unit} over last best', gain: bsWallNum(h.gain), unit: h.unit })}
+        </div>
+      )}
+      </div>
+      )}
+      {/* ⚠ A BARE RECORD STILL NAMES ITS MEMBER. The attribution a plate usually
+          shows lives inside the wrapped card — so a row whose post is missing
+          (an older ledger row, one posted from outside the app, or one whose
+          post this caller cannot read) was an anonymous number on a board of
+          other people's records. */}
+      {!a && rec.name && (
+        <div style={{ marginTop: 6, padding: `0 14px 0 ${newest ? 22 : 15}px`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BSFacetAvatar size={26} c={bsTierColor(bsPostTier({ who: rec.name }))} initial={bsInitials(rec.name) || '?'} photo={rec.avatarUrl || undefined} showRank={false} />
+          <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.name}</span>
+        </div>
+      )}
+      {a && (
+        <div>
+          {/* pagePad 0 + isLast: the card's media strip bleeds 12px, which stays
+              inside this plate's 14px inset, and the trailing feed rule would
+              draw a second line under a frame that already has an edge. */}
+          <BSActivityCard a={a} ctx={ctx.feedCtx} isLast pagePad={0} variant="wall" recordNote={recordNote} />
+        </div>
+      )}
+      {a && !stamped && (
+        <div style={{ marginTop: 2, padding: '0 14px 0 15px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+          {tr('feed:wall.notStamped', { defaultValue: 'Not yet stamped' })}
+        </div>
+      )}
+    </BSPlate>
+  );
+}
+
+// Post a PR — for a lift set somewhere the app was not watching. The RPC is the
+// authority on whether it lands: it re-checks the profile is public and that
+// the value beats the member's own best, and this sheet reports back whichever
+// answer it gives rather than claiming success.
+function BSWallPostSheet({ onClose, onPosted, seed = null }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [lift, setLift] = useStateBSC(seed ? seed.lift || '' : '');
+  const [value, setValue] = useStateBSC(seed ? seed.value || '' : '');
+  const [unit, setUnit] = useStateBSC(seed && seed.unit === 'kg' ? 'kg' : 'lb');
+  const [reps, setReps] = useStateBSC(seed ? seed.reps || '' : '');
+  const [busy, setBusy] = useStateBSC(false);
+  const ready = !!lift.trim() && Number(value) > 0 && !busy;
+  const submit = async () => {
+    if (!ready) return;
+    setBusy(true);
+    let res = null;
+    try {
+      res = await (window.ShapePRWall && window.ShapePRWall.post
+        ? window.ShapePRWall.post({ lift: lift.trim(), value: Number(value), unit, reps: reps ? Number(reps) : null })
+        : null);
+    } catch (e) { res = null; }
+    setBusy(false);
+    const reason = (res && res.reason) || (res && res.ok ? 'ok' : 'error');
+    if (res && res.ok) {
+      window.__bsToast?.(tr('feed:wall.posted', { defaultValue: 'On the wall.' }), 'ok');
+      onPosted && onPosted();
+      onClose && onClose();
+      return;
+    }
+    // Every refusal has a reason the member can act on, so none of them are
+    // reported as a generic failure.
+    if (reason === 'not_public') window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info');
+    else if (reason === 'not_a_pr') window.__bsToast?.(tr('feed:wall.notAPR', { defaultValue: 'That does not beat your best for this lift yet.' }), 'info');
+    else window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error');
+  };
+  const field = { height: 40, width: '100%', boxSizing: 'border-box', background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 8, padding: '0 12px', fontFamily: t.BODY, fontSize: 15, color: t.INK, outline: 'none' };
+  const lab = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 };
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('feed:wall.postPRTitle', { defaultValue: 'Post a record' })}
+        style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `16px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.45)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('feed:wall.newBest', { defaultValue: 'New best' })}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', margin: '3px 0 14px' }}>{tr('feed:wall.postPRTitle', { defaultValue: 'Post a record' })}</div>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <label style={{ display: 'block' }}>
+            <span style={lab}>{tr('feed:wall.lift', { defaultValue: 'Lift' })}</span>
+            <input value={lift} onChange={(e) => setLift(e.target.value)} placeholder={tr('feed:wall.liftPlaceholder', { defaultValue: 'Back squat' })} style={field} />
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 88px 88px', gap: 10 }}>
+            <label style={{ display: 'block', minWidth: 0 }}>
+              <span style={lab}>{tr('feed:wall.value', { defaultValue: 'Value' })}</span>
+              <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" style={{ ...field, fontVariantNumeric: 'tabular-nums' }} />
+            </label>
+            <label style={{ display: 'block', minWidth: 0 }}>
+              <span style={lab}>{tr('feed:wall.unit', { defaultValue: 'Unit' })}</span>
+              <select value={unit} onChange={(e) => setUnit(e.target.value)} style={{ ...field, appearance: 'none', WebkitAppearance: 'none' }}>
+                {BS_WALL_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'block', minWidth: 0 }}>
+              <span style={lab}>{tr('feed:wall.reps', { defaultValue: 'Reps' })}</span>
+              <input value={reps} onChange={(e) => setReps(e.target.value)} inputMode="numeric" style={{ ...field, fontVariantNumeric: 'tabular-nums' }} />
+            </label>
+          </div>
+        </div>
+        <button onClick={submit} disabled={!ready}
+          style={{ marginTop: 16, width: '100%', minHeight: 46, border: 0, borderRadius: 10, background: ready ? teal : t.SURFACE, color: ready ? '#031f1c' : t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: ready ? 'pointer' : 'default' }}>
+          {busy ? tr('feed:wall.posting', { defaultValue: 'Posting…' }) : tr('feed:wall.postPR', { defaultValue: 'Post a PR' })}
+        </button>
+      </div>
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+  );
+}
+
+// The Wall segment. Mounted from BSClientFeed's tab branch, so the masthead,
+// the online rail and its hide/show control are already above it — the owner's
+// "make sure the wall concept includes the hide/show option for who is online"
+// is met by WHERE this sits, not by anything in here.
+function BSWall({ ctx }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const { loggedIn, myRole, bsSubTab, hair, muted, cardInk } = ctx;
+  const isCoach = myRole === 'trainer' || myRole === 'nutritionist';
+  // ⚠ "PREVIEWING" IS NOT THE SAME QUESTION AS "SIGNED OUT", AND THE WALL READ
+  // THE WRONG ONE. Someone who taps PREVIEW THE APP FIRST from the paywall may
+  // well be signed in — they are simply not a member — and for them the live
+  // read returns an honest, empty board: the one surface in Chat that shows a
+  // prospect nothing. `window.ShapeCanChat` is the shell's own member signal
+  // (`memberAllowed`), already used for exactly this ("hidden only when
+  // memberAllowed is explicitly false — i.e. preview"), and it defaults to
+  // allow, so a member is never mistaken for a prospect.
+  //
+  // ⚠ A REAL MEMBER WITH AN EMPTY WALL STILL GETS THE EMPTY STATE. The feed
+  // falls back to its demo cast whenever the live read comes back empty, which
+  // shows a paying member a cast of strangers with nothing saying so; this does
+  // not copy that. The sample board is for people who cannot have a wall yet.
+  const canChat = useBSCanChat();
+  const previewing = !loggedIn || canChat === false;
+  const [scope, setScope] = useStateBSC('everyone');
+  const [lift, setLift] = useStateBSC('all');
+  // Three states, kept apart on purpose: null = still reading, [] = read and
+  // genuinely empty, { error } = could not read. An empty wall is the positive
+  // claim "nobody has set a record", and a surface that cannot tell that from
+  // "the read failed" will say the first when the truth is the second.
+  const [rows, setRows] = useStateBSC(null);
+  const [mine, setMine] = useStateBSC(null);
+  // `sheet` is false, true (a blank Post-a-PR), or a seed object taken from a
+  // Your-best row — so tapping the button beside a record fills the form with
+  // the record rather than asking the member to retype what the app already
+  // knows.
+  const [sheet, setSheet] = useStateBSC(false);
+  const [nonce, setNonce] = useStateBSC(0);
+
+  // ⚠ THE SIGNED-OUT BOARD IS DERIVED AT RENDER, NOT SET BY AN EFFECT. A preview
+  // visitor has nothing to fetch, so routing them through a loading state would
+  // paint "Reading the wall…" at somebody who will never see a wall — and it
+  // would make the preview's content depend on an effect having run, which is
+  // exactly the shape that cannot be driven.
+  React.useEffect(() => {
+    if (previewing) return undefined;
+    let dead = false;
+    setRows(null);
+    const list = window.ShapePRWall && window.ShapePRWall.list;
+    if (!list) { setRows({ error: true }); return undefined; }
+    Promise.resolve(list({ limit: 40, scope }))
+      .then((res) => {
+        if (dead) return;
+        if (!res || res.stored !== 'supabase') { setRows({ error: true }); return; }
+        setRows((res.data || []).map((r) => ({
+          key: `${r.userId}-${r.liftKey}-${r.postedAt}`,
+          userId: r.userId,
+          name: r.name,
+          liftKey: r.liftKey,
+          liftLabel: r.liftLabel,
+          best: r.best,
+          prev: r.prev,
+          unit: r.unit,
+          reps: r.reps,
+          ago: bsAgoShort(r.postedAt) || '',
+          // A row whose post the caller cannot read (or that never had one)
+          // renders as a bare record: the number is still true, it just has no
+          // evidence attached, and there is nothing to react to.
+          act: r.post ? bsActivityFromPost(r.post) : null,
+        })));
+      })
+      .catch(() => { if (!dead) setRows({ error: true }); });
+    return () => { dead = true; };
+  }, [previewing, scope, nonce]);
+
+  React.useEffect(() => {
+    if (previewing) return undefined;
+    let dead = false;
+    const fn = window.ShapePRWall && window.ShapePRWall.mine;
+    const lifts = window.ShapePRWall && window.ShapePRWall.bestLifts;
+    if (!fn) { setMine({ error: true }); return undefined; }
+    // Their ledger and their own training data, together — the box is about the
+    // difference between the two, so one without the other says nothing.
+    // ⚠ A FAILED LOGGED-LIFTS READ IS NOT A FAILED SECTION: the ledger alone
+    // still tells them what is on the wall. It degrades to "no gap known",
+    // never to an error over the whole block.
+    Promise.all([
+      Promise.resolve(fn()).catch(() => null),
+      lifts ? Promise.resolve(lifts()).catch(() => null) : Promise.resolve(null),
+    ])
+      .then(([ledger, logged]) => {
+        if (dead) return;
+        if (!ledger || ledger.stored !== 'supabase') { setMine({ error: true }); return; }
+        const loggedRows = (logged && logged.stored === 'supabase') ? (logged.data || []) : [];
+        setMine(bsWallYourBest(loggedRows, ledger.data || []));
+      })
+      .catch(() => { if (!dead) setMine({ error: true }); });
+    return () => { dead = true; };
+  }, [previewing, nonce]);
+
+  // Previewing: the sample board, every render, no effect involved. A member:
+  // whatever the read has resolved to so far.
+  const rowsEff = previewing ? bsWallDemoRows() : rows;
+  const mineEff = previewing ? [] : mine;
+  const loading = rowsEff === null;
+  const failed = !!(rowsEff && rowsEff.error);
+  const all = Array.isArray(rowsEff) ? rowsEff : [];
+  const lifts = bsWallLifts(all);
+  // ⚠ A SELECTION THE NEW ROWS DO NOT CARRY IS DROPPED, NOT HONOURED. The
+  // comment here used to claim the filter "can never produce an empty board out
+  // of a stale option" and the code did not do that: the choice survived a
+  // scope change, so picking Deadlift on Everyone and switching to Following
+  // painted "No records on the wall yet." over rows that existed — and when the
+  // new scope carries one lift or none the <select> is not rendered at all, so
+  // there was no way back. Clamping is the fix; the state is left alone so the
+  // selection returns if the member switches back.
+  const liftEff = lifts.some((l) => l.key === lift) ? lift : 'all';
+  const shown = liftEff === 'all' ? all : all.filter((r) => r.liftKey === liftEff);
+
+  const scopes = [
+    { key: 'everyone', label: tr('feed:wall.scopeEveryone', { defaultValue: 'Everyone' }) },
+    { key: 'following', label: tr('feed:wall.scopeFollowing', { defaultValue: 'Following' }) },
+    { key: 'coach', label: isCoach ? tr('feed:wall.scopeMyClients', { defaultValue: 'My clients' }) : tr('feed:wall.scopeCoach', { defaultValue: "Coach's clients" }) },
+  ];
+
+  // ⚠ THE PAGE GUTTER IS ON THE CONTROLS, NOT ON THE LIST. The community feed
+  // renders its cards in a container with no horizontal padding (`4px 0 84px`),
+  // so a Wall that indented the plates would hand the same card a narrower box
+  // than it gets one segment over — and the card would lay out differently on
+  // two surfaces showing the same activity.
+  const gutter = { padding: `0 ${t.padX}px` };
+  return (
+    <div style={{ padding: '7px 0 90px' }}>
+      <div style={gutter}>
+      {/* ⚠ THE SCOPE TABS ARE SIGNED-IN ONLY. They are answered by the caller's
+          own follows and coach links, which a preview visitor does not have —
+          three tabs that highlight and change nothing are worse than no tabs,
+          and filtering the sample cast by an invented "following" would be a
+          fabrication. The lift filter stays: it genuinely narrows the sample
+          board. */}
+      {/* ⚠ THIS ROW WRAPS, AND IT HAS TO. Measured in a browser at 430px: the
+          three scope tabs plus the lift filter want 271px of a 213px row, and
+          with `nowrap` + `overflow: visible` the third tab simply ran past the
+          edge with nothing saying so — the same "it does not fit and never said
+          so" class as the availability grid the 09-09 round transposed. Wrapping
+          drops the filter to its own line when the tabs need the width, which is
+          the V3 precedent; the tabs wrap among themselves on a narrower phone
+          still. `marginLeft: auto` keeps the filter right-aligned in both. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, rowGap: 2 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
+          {!previewing && scopes.map((s) => bsSubTab({ key: s.key, on: scope === s.key, color: teal, onClick: () => setScope(s.key), label: s.label }))}
+        </div>
+        {lifts.length > 1 && (
+          <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, marginLeft: 'auto' }}>
+            <select value={liftEff} onChange={(e) => setLift(e.target.value)} aria-label={tr('feed:wall.liftFilterAria', { defaultValue: 'Filter by lift' })}
+              style={{ appearance: 'none', WebkitAppearance: 'none', background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '7px 22px 7px 9px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, cursor: 'pointer', maxWidth: 140 }}>
+              <option value="all">{tr('feed:wall.liftAll', { defaultValue: 'All lifts' })}</option>
+              {lifts.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+            </select>
+            <span aria-hidden style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: teal, pointerEvents: 'none' }}>▾</span>
+          </span>
+        )}
+      </div>
+      </div>
+
+      {previewing && (
+        <div style={{ margin: '8px 0 2px', ...gutter, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
+          {tr('feed:wall.demoNote', { defaultValue: 'Sample records · sign in for the live wall' })}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        {loading && (
+          <div style={{ padding: `28px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>
+            {tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}
+          </div>
+        )}
+        {failed && (
+          <div style={{ padding: `26px ${t.padX}px` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: cardInk, letterSpacing: '-0.01em' }}>{tr('feed:wall.unreadable', { defaultValue: "Couldn't read the wall just now." })}</div>
+            <button onClick={() => setNonce((n) => n + 1)} style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('feed:wall.retry', { defaultValue: 'Try again →' })}</button>
+          </div>
+        )}
+        {!loading && !failed && !shown.length && (
+          <div style={{ padding: `30px ${t.padX}px` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: cardInk, letterSpacing: '-0.01em' }}>{tr('feed:wall.empty', { defaultValue: 'No records on the wall yet.' })}</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 600 }}>{tr('feed:wall.emptySub', { defaultValue: 'Set one and it lands here' })}</div>
+          </div>
+        )}
+        {shown.map((rec, i) => <BSWallPlate key={rec.key} rec={rec} ctx={ctx} newest={i === 0} />)}
+      </div>
+
+      {/* Your best — pinned under the board, read from the member's own ledger.
+          It shows even for a private member, whose records never reach the wall
+          above: they are still their records. */}
+      <div style={{ marginTop: 18, borderTop: `1px solid ${hair}`, padding: `14px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('feed:wall.yourBest', { defaultValue: 'Your best' })}</div>
+          {!previewing && (
+            <button onClick={() => setSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0 6px 12px', minHeight: 40, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>
+              {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })} <span aria-hidden>＋</span>
+            </button>
+          )}
+        </div>
+        {/* ⚠ TWO DIFFERENT PEOPLE, TWO DIFFERENT SENTENCES. A prospect who
+            reached the preview from the paywall IS signed in — telling them to
+            sign in is the same defect the radio ask-gate shipped in #2005, and
+            it names the one step they have already taken. */}
+        {previewing && (
+          <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>
+            {loggedIn
+              ? tr('feed:wall.joinForBest', { defaultValue: 'Join Shape to put your own records here.' })
+              : tr('feed:wall.signInForBest', { defaultValue: 'Sign in to keep your own records here.' })}
+          </div>
+        )}
+        {!previewing && mineEff === null && <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}</div>}
+        {!previewing && mineEff && mineEff.error && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.bestUnreadable', { defaultValue: "Couldn't read your records just now." })}</div>}
+        {!previewing && Array.isArray(mineEff) && !mineEff.length && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.noBestYet', { defaultValue: 'No records yet. Log a lift, or post one you set elsewhere.' })}</div>}
+        {/* ⚠ A ROW WITH AN UNPOSTED RECORD IS A DIFFERENT OBJECT FROM ONE
+            WITHOUT. The first is an action — a best sitting in their own logs
+            that the wall has never seen, with exactly how much of a gap and a
+            button to close it. The second is a fact: this is on the wall, set
+            then. Giving both the same treatment is how a call to action turns
+            into a list nobody reads. */}
+        {/* Displayed in the reader's unit. The figure and the gap are converted
+            TOGETHER from the row's own unit — converting one without the other
+            is how "+20 lb to the wall" ends up under a kilogram figure. The gap
+            is only ever non-null when both sides were already the same unit
+            (bsWallYourBest refuses to invent one across a conversion), so this
+            rescales a comparison that was valid rather than creating one. */}
+        {!previewing && Array.isArray(mineEff) && mineEff
+          .map((r) => { const u = bsWallTargetUnit(r.unit, { weight: t.weightUnit, distance: t.distanceUnit }); return { ...r, unit: u, best: bsWallToUnit(r.best, r.unit, u), gap: bsWallToUnit(r.gap, r.unit, u) }; })
+          .map((m) => (
+          <div key={m.liftKey} style={{ marginTop: 9, padding: m.unposted ? '10px 12px' : '9px 0', borderRadius: m.unposted ? 8 : 0, border: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : 0, background: m.unposted ? bsTHexA(teal, 0.08) : 'transparent', borderBottom: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : `1px solid ${hair}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.unposted ? teal : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {tr('feed:wall.yourBest', { defaultValue: 'Your best' })} · {m.liftLabel}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{bsWallNum(m.best)}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.unit}</span>
+                {m.unposted ? (
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.AMBER || '#e0b15a', fontVariantNumeric: 'tabular-nums' }}>
+                    {m.gap != null
+                      ? tr('feed:wall.toTheWall', { defaultValue: '{gain} {unit} to the wall', gain: bsWallNum(m.gap), unit: m.unit })
+                      : tr('feed:wall.notOnWall', { defaultValue: 'not on the wall yet' })}
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsAgoShort(m.postedAt) || ''}</span>
+                )}
+              </div>
+            </div>
+            {m.unposted && (
+              <button onClick={() => setSheet({ lift: m.liftLabel, value: String(m.best), unit: m.unit, reps: m.reps != null ? String(m.reps) : '' })}
+                style={{ flexShrink: 0, minHeight: 34, padding: '0 14px', border: 0, borderRadius: 6, background: teal, color: '#031f1c', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>
+                {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {sheet && <BSWallPostSheet seed={sheet && typeof sheet === 'object' ? sheet : null} onClose={() => setSheet(false)} onPosted={() => setNonce((n) => n + 1)} />}
+    </div>
+  );
+}
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
@@ -18012,6 +18988,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
       openChannelNow(openRequest.channel);
+      return;
+    }
+    // Deep-link to the Wall (Home's "On the wall" card).
+    if (openRequest.wall) {
+      setTab('wall');
+      setOpenChat(null);
       return;
     }
     // Deep-link to Nora (universal search → the Support tab's concierge thread).
@@ -18602,6 +19584,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
+  // What the Wall segment needs beyond the card's own ctx. It renders inside
+  // this page, so the masthead and the online rail (with its Hide × / Show)
+  // are already above it — the Wall inherits that control rather than owning
+  // a second copy of it.
+  const wallCtx = { feedCtx, loggedIn, myRole, bsSubTab, hair, muted, cardInk };
+
   const Pill = ({ on, onClick, children, badge = 0 }) => (
     <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 4px', minHeight: 26, borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
@@ -18733,7 +19721,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
             <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
-              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
+              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'wall' ? tr('feed:masthead.titleWall', { defaultValue: 'The Wall' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
             </h1>
           </div>
           {/* The feed's viewing lens rides the title row, right-aligned (owner
@@ -18830,8 +19818,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
+          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['wall', tr('feed:tab.wall', { defaultValue: 'Wall' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -18978,6 +19966,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           };
           // Channels — its own top-level tab (Signal v2). Same wired channel
           // list/create/search as before, lifted out of the Team selector.
+          // The Wall — a record board, not a conversation. It sits ahead of the
+          // Channels branch so the shared chrome above (masthead, online rail,
+          // pills) is the only thing between it and the page.
+          if (tab === 'wall') return <BSWall ctx={wallCtx} />;
           if (tab === 'channels') {
             const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
@@ -21198,7 +22190,30 @@ function bsGoalIsoFromWeeks(w) { const d = new Date(); d.setDate(d.getDate() + (
 function bsGoalDaysUntil(iso) { if (!iso) return null; const ms = new Date(iso).getTime() - Date.now(); return Math.max(0, Math.round(ms / 86400000)); }
 // Live body-comp helpers — derive "now" + the trend series from logged weigh-ins.
 function bsGoalWeighIns(overall) { return (overall && Array.isArray(overall.weighIns)) ? overall.weighIns.slice().filter(x => x && Number.isFinite(Number(x.kg))) : []; }
-function bsGoalNow(overall) { const wi = bsGoalWeighIns(overall); return wi.length ? Number(wi[wi.length - 1].kg) : (Number(overall && overall.now) || 0); }
+// ⚠ THE GOAL DOCUMENT'S OWN NUMBERS ARE IN `overall.unit`; THE WEIGH-IN SERIES
+// IS IN KILOGRAMS. `client_weigh_ins` is canonical kg (shapeBackend), and a
+// signed-out member's series lives in the same `.kg` field of the user_goals
+// doc — but `start`, `target` and `now` are whatever the member typed under
+// `overall.unit`. Subtracting one from the other without this conversion is how
+// "12 lb to go" becomes "-70 kg to go" the moment a pound-using member logs a
+// weigh-in. Everything downstream of these two helpers is kilograms.
+const BS_GOAL_LB_TO_KG = 0.45359237;
+function bsGoalUnitIsLb(overall) { return /^(lb|lbs|pound)/i.test(String((overall && overall.unit) || 'kg').trim()); }
+function bsGoalDocKg(v, overall) {
+  // An unset goal field is '' in the document (the editor writes '' for blank),
+  // and `Number('')` is a finite 0 — so without this guard "no target yet"
+  // renders as a target of zero and the whole progress bar reads as overshot.
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return bsGoalUnitIsLb(overall) ? n * BS_GOAL_LB_TO_KG : n;
+}
+function bsGoalNow(overall) {
+  const wi = bsGoalWeighIns(overall);
+  if (wi.length) return Number(wi[wi.length - 1].kg);
+  // `overall.now` is a document field, so it carries the document's unit.
+  return bsGoalDocKg(overall && overall.now, overall) || 0;
+}
 
 // Full-page add/edit flow with a categorized template picker (filtered to the
 // active tab's group) + the same fields as the website's GoalEditModal.
@@ -21364,8 +22379,14 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const start = Number(overall.start) || 0, now = bsGoalNow(overall), target = Number(overall.target) || 0;
-  const unit = overall.unit || 'kg';
+  // Every figure below is KILOGRAMS; `dsp` is the only thing that turns one into
+  // a number the member reads, and `unit` is their Settings preference rather
+  // than the goal document's stored unit. Before this the page rendered the raw
+  // stored number under the document's own unit, so flipping Settings to Metric
+  // changed the label and not the figure — a 178 that now said "kg".
+  const start = bsGoalDocKg(overall.start, overall) || 0, now = bsGoalNow(overall), target = bsGoalDocKg(overall.target, overall) || 0;
+  const unit = t.weightUnit;
+  const dsp = (kg) => (kg == null || !Number.isFinite(Number(kg)) ? null : Math.round(t.kgToDisplay(Number(kg)) * 10) / 10);
   const down = +(now - start).toFixed(1);
   const range = +(start - target).toFixed(1);
   const toGo = +(now - target).toFixed(1);
@@ -21413,7 +22434,12 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     if (st === 'stale') return { c: t.AMBER, v: tr('goal:eta.refresh', { defaultValue: 'Refresh' }), sub: tr('goal:eta.refreshSub', { defaultValue: 'log to update' }) };
     return unread;
   })();
-  const verdict = bsGoalVerdict({ start, now, target, unit, proj: goalProj, tr });
+  // ⚠ PRESENTATION GETS DISPLAY UNITS; PROJECTIONS KEEP KILOGRAMS. bsGoalVerdict
+  // formats all three figures and their differences against `unit`, so handing
+  // it kilograms under an 'lb' label printed kilogram-sized progress amounts as
+  // pounds. `goalProj` is deliberately NOT converted — it contributes a date
+  // label and a slip in DAYS, no weights.
+  const verdict = bsGoalVerdict({ start: dsp(start), now: dsp(now), target: dsp(target), unit, proj: goalProj, tr });
   const toneColor = { good: t.GREEN, warn: t.AMBER, bad: t.RUST, neutral: t.INK }[verdict.tone] || t.INK;
   // The house treatment gives the lead's FINAL STOP the tier heat. The shipped
   // expression was `verdict.lead.slice(0, -1)` + a hardcoded '.', which is wrong
@@ -21470,7 +22496,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
     if (!hasGoal) return [];
-    const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
+    // `v` and `w` are kilograms (milestones are derived from start/range); the
+    // comparison stays in kg and only the label converts.
+    const fmt = (v) => `${dsp(v)} ${unit}`;
     const reached = (w) => range > 0 ? now <= w + 0.05 : now >= w - 0.05;
     const defs = [
       { w: start, t: tr('goal:terms.mBaseline', { defaultValue: 'Baseline set' }), sub: tr('goal:terms.mBaselineSub', { defaultValue: 'plans live' }) },
@@ -21535,7 +22563,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // the lift rows, which is the honest answer; the demo set is signed-out only.
   // (Pointing livePrs at the route that actually serves PRs is registered.)
   const prRows = livePrs
-    ? livePrs.slice(0, 4).map((p) => ({ t: p.lift, w: `${p.value} ${p.unit}`, d: p.deltaPct != null ? `+${Number(p.deltaPct).toFixed(1)}%` : 'held' }))
+    ? livePrs.slice(0, 4).map((p) => { const m = t.uMeasure(p.value, p.unit); return { t: p.lift, w: `${m.value} ${m.unit}`, d: p.deltaPct != null ? `+${Number(p.deltaPct).toFixed(1)}%` : 'held' }; })
     : null;
   const liftRows = prRows || (signedIn ? [] : [
     { t: 'Bench Press', w: '90 kg', d: '+5.0' },
@@ -21705,9 +22733,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
           <div aria-hidden style={{ marginTop: 13, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 62%, transparent)`, transformOrigin: 'left', transform: (bsSdReduced() || readSeen) ? 'none' : 'scaleX(0)', transition: 'transform .7s cubic-bezier(.2,.7,.2,1)' }} />
           <div style={{ marginTop: 14, display: 'flex' }}>
             {[
-              { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: now, u: unit, sub: tr('goal:cover.statCurrentSub', { defaultValue: 'latest' }) },
-              { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: toGo, u: unit, sub: tr('goal:cover.statToGoSub', { defaultValue: 'of {range}', range }) },
-              { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? paceVal : null, u: paceVal != null ? `${unit}/wk` : '', sub: tr('goal:cover.statPaceSub', { defaultValue: 'per week' }) },
+              { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: dsp(now), u: unit, sub: tr('goal:cover.statCurrentSub', { defaultValue: 'latest' }) },
+              { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: dsp(toGo), u: unit, sub: tr('goal:cover.statToGoSub', { defaultValue: 'of {range}', range: dsp(range) }) },
+              { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? dsp(paceVal) : null, u: paceVal != null ? `${unit}/wk` : '', sub: tr('goal:cover.statPaceSub', { defaultValue: 'per week' }) },
               { l: tr('goal:cover.statEta', { defaultValue: 'ETA' }), raw: `${etaStat.v}${etaStat.u || ''}`, rawColor: etaStat.c, sub: etaStat.sub },
             ].map((r, i) => (
               <div key={r.l + i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.14)}` : 0, paddingLeft: i ? 10 : 0 }}>
@@ -21761,14 +22789,32 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [g, setG] = useStateBSC({ ...overall });
+  // ⚠ THE THREE FIGURES ARE EDITED IN THE MEMBER'S UNIT AND STORED IN KILOGRAMS.
+  // This sheet used to carry a FREE-TEXT unit box beside them, which is where
+  // the mixed-unit documents came from: a member could type "lbs" here while
+  // the weigh-in table was filling with kilograms, and nothing reconciled the
+  // two. The unit now follows Settings and is shown, not typed.
+  const [g, setG] = useStateBSC(() => {
+    const out = (v) => { const kg = bsGoalDocKg(v, overall); const d = kg == null ? null : t.kgToDisplay(kg); return d == null ? '' : String(Math.round(d * 10) / 10); };
+    return { ...overall, start: out(overall.start), now: out(overall.now), target: out(overall.target) };
+  });
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
   // Zero-box underline fields — the Open Ledger form grammar (.bs-uline focus →
   // accent underline via --bs-accent).
   const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
   // Keep the raw string while editing (so decimals like 76.8 type cleanly);
   // numeric fields are coerced to Number on save (`saveGoal`).
-  const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
+  const saveGoal = () => {
+    const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? Math.round(t.displayToKg(x) * 1000) / 1000 : ''; };
+    // ⚠ THE EMBEDDED SERIES CONVERTS IN THE SAME STEP AS THE FIGURES. `...g`
+    // carries `weighIns` forward untouched, and the legacy path stored a
+    // member-entered POUND number in a property named `kg` — so stamping the
+    // document 'kg' without converting them left a {kg: 185} point that
+    // bsGoalNow then read as 185 kilograms. Same rule as logWeighIn.
+    const wasLb = bsGoalUnitIsLb(overall);
+    const series = bsGoalWeighIns(g).map((x) => (wasLb ? { ...x, kg: Number(x.kg) * BS_GOAL_LB_TO_KG } : x));
+    onSave({ ...g, unit: 'kg', start: n(g.start), now: n(g.now), target: n(g.target), ...(series.length ? { weighIns: series } : {}) });
+  };
   const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? tr('goal:overall.fieldStart', { defaultValue: 'Start' }) : k === 'now' ? tr('goal:overall.fieldNow', { defaultValue: 'Now' }) : tr('goal:sheet.fieldTarget', { defaultValue: 'Target' })}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>;
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
@@ -21790,7 +22836,7 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
         <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTitle', { defaultValue: 'Title' })}</span><input className="bs-uline" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder={tr('goal:overall.titlePlaceholder', { defaultValue: 'e.g. Lean by August' })} style={field} /></label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
           <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTargetDate', { defaultValue: 'Target date' })}</span><input className="bs-uline" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
-          <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:overall.fieldUnit', { defaultValue: 'Unit' })}</span><input className="bs-uline" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
+          <div><span style={lbl}>{tr('goal:overall.fieldUnit', { defaultValue: 'Unit' })}</span><div style={{ ...field, display: 'flex', alignItems: 'center', minHeight: 34, fontVariantNumeric: 'tabular-nums' }}>{t.weightUnit}</div><div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:overall.unitFromSettings', { defaultValue: 'Settings · Units' })}</div></div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>{num('start')}{num('now')}{num('target')}</div>
         <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:terms.whyHead', { defaultValue: 'Your why' })}</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 2, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
@@ -22200,12 +23246,21 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const unit = overall.unit || 'kg';
-  const [kg, setKg] = useStateBSC(String(bsGoalNow(overall) || ''));
+  const unit = t.weightUnit;
+  // ⚠ THE FIELD IS THE MEMBER'S UNIT; `onSave` HANDS BACK KILOGRAMS. Seeding it
+  // from bsGoalNow (canonical kg) while labelling it 'lb' put an 80.8 kg member
+  // in front of "80.8" above the word "lb", and saving without editing filed
+  // 80.8 lb — 36.7 kg — over today's canonical row. The seed converts out, the
+  // save converts back, and the only place a pound exists is the input itself.
+  const [kg, setKg] = useStateBSC(() => {
+    const d = t.kgToDisplay(bsGoalNow(overall));
+    return d ? String(Math.round(d * 10) / 10) : '';
+  });
   const [bf, setBf] = useStateBSC('');
   const inputRef = React.useRef(null);
   React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
-  const val = parseFloat(kg);
+  const typed = parseFloat(kg);
+  const val = Number.isFinite(typed) ? t.displayToKg(typed) : NaN;   // kilograms — what onSave stores
   const bfVal = parseFloat(bf);
   const ok = Number.isFinite(val) && val > 0;
   const sheet = (
@@ -22226,7 +23281,7 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
           <input value={bf} onChange={(e) => setBf(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', textAlign: 'right', fontVariantNumeric: 'tabular-nums', padding: '2px 0 8px' }} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50 }}>%</span>
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('goal:weighIn.note', { defaultValue: 'Updates your trend + progress · start {start} · target {target}', start: Number(overall.start).toLocaleString(bsDateLocale()), target: Number(overall.target).toLocaleString(bsDateLocale()) })}</div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('goal:weighIn.note', { defaultValue: 'Updates your trend + progress · start {start} · target {target}', start: `${Math.round(t.kgToDisplay(bsGoalDocKg(overall.start, overall) || 0) * 10) / 10} ${unit}`, target: `${Math.round(t.kgToDisplay(bsGoalDocKg(overall.target, overall) || 0) * 10) / 10} ${unit}` })}</div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</span></button>
           <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: ok ? teal : t.RULE, color: ok ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:weighIn.save', { defaultValue: 'Save weigh-in' })}</button>
@@ -22939,6 +23994,81 @@ function BSHomeBulletin({ label, detail, onOpen }) {
       <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{detail}</span>
       <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0 }}>›</span>
     </button>
+  );
+}
+
+// ON THE WALL — Home's entry point into the Wall (review 2026-09-10 §7:
+// "a Home masthead card 'On the wall' with the latest co-signed PR").
+//
+// ⚠ IT SELF-GATES TO NOTHING, WHICH IS WHY IT CAN LIVE BESIDE THE OTHER TWO
+// BULLETINS WITHOUT BREAKING THE MAX-2 RULE. It renders only when a co-signed
+// record is actually there to point at: signed out, still reading, a failed
+// read and a wall with no stamped record all render null. A bulletin is an
+// urgency line — one that stood there permanently saying nothing new would be
+// chrome, and the block's own comment says urgency earns the height.
+//
+// The co-sign is the filter on purpose: an unstamped record is the member's,
+// and Home already carries their own training. A COACH putting their name on
+// somebody's number is the thing worth leaving the page for.
+// Which record the Home line points at: the latest co-signed one when the
+// window holds one, else simply the latest.
+//
+// ⚠ THE CO-SIGN IS A PREFERENCE, NOT A REQUIREMENT, BECAUSE THE READ IS A
+// WINDOW. The wall comes back newest-first and capped, so once enough
+// unstamped records are newer than the latest stamped one, a strict filter
+// finds nothing in the prefix and the Home line VANISHES even though a
+// co-signed record exists. Answering it strictly means filtering server-side
+// or paging until one turns up, and neither is worth a round trip for one row
+// of text — the line names the member, the lift and the number, never the
+// stamp, so it reads the same either way. Found by Codex on #2024.
+function bsWallBulletinPick(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  return list.find((r) => r && r.post && r.post.cosign && r.post.cosign.name) || list[0] || null;
+}
+
+// ⚠ THE READ IS CACHED PER ACCOUNT FOR FIVE MINUTES. Home remounts on every
+// tab return, and this line costs a definer RPC plus a `community_posts` fetch
+// carrying its likes and comments joins — a real round trip to decide one row
+// of text that changes when somebody's coach stamps a record, i.e. rarely.
+// Keyed by uid so a sign-out or an account switch cannot show the previous
+// account's record.
+let _bsWallBulletinCache = { uid: null, at: 0, rec: null };
+function BSHomeWallBulletin() {
+  const tr = useShapeTr();
+  const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const [rec, setRec] = React.useState(() => (_bsWallBulletinCache.uid === uid ? _bsWallBulletinCache.rec : null));
+  React.useEffect(() => {
+    if (!uid) { setRec(null); return undefined; }
+    const fresh = _bsWallBulletinCache.uid === uid && (Date.now() - _bsWallBulletinCache.at) < 300000;
+    if (fresh) { setRec(_bsWallBulletinCache.rec); return undefined; }
+    let dead = false;
+    const list = window.ShapePRWall && window.ShapePRWall.list;
+    if (!list) return undefined;
+    Promise.resolve(list({ limit: 6 }))
+      .then((res) => {
+        if (dead || !res || res.stored !== 'supabase') return;
+        const hit = bsWallBulletinPick(res.data);
+        // ⚠ The cache is stamped with the uid the READ started under, and only
+        // adopted when that is still the current account — an account switch
+        // mid-flight must not publish A's record onto B's Home.
+        if (uid === (window.ShapeAuth?.getCachedState?.()?.user?.id || null)) {
+          _bsWallBulletinCache = { uid, at: Date.now(), rec: hit };
+          setRec(hit);
+        }
+      })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [uid]);
+  if (!rec) return null;
+  return (
+    <BSHomeBulletin
+      label={tr('home:bulletin.onTheWall', { defaultValue: 'On the wall' })}
+      detail={tr('home:bulletin.onTheWallDetail', {
+        defaultValue: '{name} · {lift} {value} {unit}',
+        name: rec.name, lift: rec.liftLabel, value: bsWallNum(rec.best), unit: rec.unit,
+      })}
+      onOpen={() => { try { window.dispatchEvent(new CustomEvent('shape:goWall')); } catch (e) {} }}
+    />
   );
 }
 
@@ -23701,7 +24831,7 @@ function BSStrengthHistory({ onClose, focusKey = null }) {
               {vals.length >= 2 && <BSStrengthSpark vals={vals} color={sm.color} />}
               {top && (
                 <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 8, letterSpacing: '0.04em' }}>
-                  top set {top.load}×{top.reps}{top.rpe != null ? ` @ RPE ${top.rpe}` : ''} · best {Math.round(l.bestE1rm)} {l.unit}
+                  top set {t.uText(top.load)}×{top.reps}{top.rpe != null ? ` @ RPE ${top.rpe}` : ''} · best {t.uText(`${Math.round(l.bestE1rm)} ${l.unit}`)}
                 </div>
               )}
             </div>
@@ -23952,13 +25082,58 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   }, [loggedIn, bsGoalProgram.detail, bsGoalProgram.trainingPhase, bsGoalProgram.nutritionPhase]);
   const logWeighIn = (kg, bodyFat = null) => {
     const today = new Date().toISOString().slice(0, 10);
-    const prev = bsGoalWeighIns(overall);
+    // ⚠ THE DOCUMENT CANONICALISES ITSELF TO KILOGRAMS ON EVERY SAVE, START,
+    // TARGET AND BACK SERIES TOGETHER. `kg` arrives in kilograms from the sheet,
+    // so writing it into a document still stamped `unit: 'lb'` would have made
+    // `bsGoalDocKg` convert it a SECOND time on the next read — an 81 kg
+    // weigh-in reading back as 37. Converting the whole document in one step is
+    // the only version where start, target and the series can never disagree
+    // about which unit they are in; a member who prefers pounds still sees
+    // pounds, because display is `t`'s job and no longer the document's.
+    const wasLb = bsGoalUnitIsLb(overall);
+    const prev = bsGoalWeighIns(overall).map(x => (wasLb ? { ...x, kg: Number(x.kg) * BS_GOAL_LB_TO_KG } : x));
     const wi = (prev.length && prev[prev.length - 1].d === today) ? [...prev.slice(0, -1), { d: today, kg }] : [...prev, { d: today, kg }];
-    const nextOverall = { ...overall, weighIns: wi, now: kg };
+    const nextOverall = {
+      ...overall,
+      unit: 'kg',
+      start: bsGoalDocKg(overall.start, overall),
+      target: bsGoalDocKg(overall.target, overall),
+      weighIns: wi,
+      now: kg,
+    };
     if (loggedIn && window.ShapeWeighIns?.log) {
-      setData(d => ({ ...d, overall: nextOverall }));          // optimistic; table is the source of truth
-      window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg', bodyFat })
-        .then(() => window.ShapeGoalAwards?.check?.())         // credit any newly reached milestone
+      // ⚠ THE CANONICAL DOCUMENT IS PERSISTED BEFORE THE AWARDS RPC RUNS, AND
+      // THE ORDER IS THE WHOLE FIX. `award_my_goal_milestones` reads start and
+      // target VERBATIM from user_goals and the latest weight VERBATIM from
+      // client_weigh_ins — it normalises neither. Writing 185 lb as 83.9 kg
+      // while a 200 -> 180 LB goal was still on the server made 83.9 look far
+      // past a 180 target, so every milestone fired at once for a member who
+      // had reached none of them. Persisting first means both operands are
+      // kilograms by the time the RPC compares them.
+      // ⚠ THE WEIGH-IN ALWAYS LANDS; THE AWARDS CHECK IS CONDITIONAL. The RPC
+      // compares the persisted goal against the persisted weight and normalises
+      // neither, so it may only run once the canonical (kilogram-stamped)
+      // document is CONFIRMED written. An unconfirmed write — a failure, or a
+      // missing backend — means the server may still hold a pound goal, and
+      // comparing 83.9 kg against a 180 lb target awards every milestone at
+      // once. Skipping the check costs a member a toast until their next
+      // weigh-in, which is recoverable; awarding points they have not earned is
+      // not. The member's own measurement is never withheld for this.
+      persist({ ...data, overall: nextOverall })
+        // ⚠ A REJECTED GOAL WRITE MUST NOT WITHHOLD THE WEIGH-IN. `saveUserGoals`
+        // resolves `{ error }` rather than throwing on a PostgREST failure, but
+        // it awaits a network call, so a rejection is not impossible — and
+        // without this the chain would skip straight to `.catch` and the
+        // member's own measurement would never be logged at all. Before the
+        // ordering fix the log ran unconditionally; degrading to "not canonical"
+        // keeps that true. Found by reviewing my own fix batch: the comment
+        // below already CLAIMED this invariant and the code did not have it.
+        .catch(() => null)
+        .then((res) => {
+          const canonical = !!(res && res.ok);
+          return window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat })
+            .then(() => (canonical ? window.ShapeGoalAwards?.check?.() : null));
+        })
         .then((awards) => (awards || []).forEach(a => window.__bsToast?.(tr('goal:award.toast', { defaultValue: '+{points} pts · {milestone}', points: a.points, milestone: a.milestone }), 'ok')))
         .catch(() => {});
     } else {
@@ -24002,14 +25177,26 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           m.work = Array.isArray(doc.work) ? doc.work : prev.work;
         }
         if (Array.isArray(weigh) && weigh.length) {
-          m.overall = { ...m.overall, weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+          // Same canonicalisation as the profile's signals loader: adopting a
+          // kilogram series into a document still stamped `lb` is the
+          // double-conversion this whole change exists to remove.
+          m.overall = { ...m.overall, unit: 'kg', start: bsGoalDocKg(m.overall.start, m.overall), target: bsGoalDocKg(m.overall.target, m.overall), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
         }
         return m;
       });
     })();
     return () => { alive = false; };
   }, [loggedIn]);
-  const persist = (next) => { setData(next); try { window.shapeDb?.saveUserGoals?.('client_goals', next); } catch (e) {} };
+  // ⚠ RETURNS THE WRITE, SO A CALLER CAN WAIT FOR IT. `saveUserGoals` is async
+  // and resolves `{ ok }` or `{ error }` (it never throws), but this used to
+  // discard the promise — so "persist before the RPC" established CALL order
+  // and not COMPLETION order, and the awards check could still race a slower
+  // user_goals upsert and read the legacy pound goal. Every existing caller
+  // ignores the return value, so this is additive.
+  const persist = (next) => {
+    setData(next);
+    try { return Promise.resolve(window.shapeDb?.saveUserGoals?.('client_goals', next)); } catch (e) { return Promise.resolve({ error: e }); }
+  };
   const overall = data.overall || (loggedIn ? BS_GOALS_EMPTY.overall : BS_GOALS_DEFAULT.overall);
   const trainingMeta = data.trainingMeta || (loggedIn ? BS_GOALS_EMPTY.trainingMeta : BS_GOALS_DEFAULT.trainingMeta);
   const nutritionMeta = data.nutritionMeta || (loggedIn ? BS_GOALS_EMPTY.nutritionMeta : BS_GOALS_DEFAULT.nutritionMeta);
@@ -24214,7 +25401,10 @@ function BSMeGoalCard({ onOpen }) {
   const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   if (bsGoalSignedIn && !g) return null;
   const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
-  const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
+  // Kilograms in, the member's unit out — the same contract as the Goal page.
+  // Reading `ov.unit` here rendered the DOCUMENT's unit, so a member on Metric
+  // saw their goal quoted in pounds on Home and in kilograms one tap away.
+  const start = bsGoalDocKg(ov.start, ov) || 0, now = bsGoalDocKg(ov.now, ov) || 0, target = bsGoalDocKg(ov.target, ov) || 0, unit = t.weightUnit;
   const range = start - target;
   const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
   const toGo = +(now - target).toFixed(1);
@@ -24225,7 +25415,7 @@ function BSMeGoalCard({ onOpen }) {
   // at-or-past target reads as HIT — never a false "to go" when over-achieved.
   const hasRange = range > 0 && isFinite(toGo) && !!unit;
   const goalHit = hasRange && toGo <= 0.05;
-  const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, toGo).toFixed(1), unit }) : '—';
+  const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, t.kgToDisplay(toGo)).toFixed(1), unit }) : '—';
   return (
     <BSShelfDoor tourId="hero-goal" c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
   );
@@ -27950,7 +29140,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
             <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{tr('session:player.suggested')}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{_bsSug.load} {_bsSug.unit}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{t.uText(`${_bsSug.load} ${_bsSug.unit}`)}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>{tr('session:player.use')}</span>
             </span>
@@ -31953,8 +33143,14 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   // ---------- OVERALL ----------
   const kpis = O.kpis || {};
   const wc = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v)) + ' lb';
-  const activeTrend = BSPROG_TREND_TABS.find((x) => x.k === trend) || BSPROG_TREND_TABS[0];
-  const trendVals = bsProgSeriesVals(O.series[activeTrend.k]);
+  // ⚠ THE SERIES AND ITS LABEL CONVERT TOGETHER OR NOT AT ALL. The tabs declare
+  // their native unit — 'lb' for Weight and Strength, and a non-convertible
+  // token ('bpm', '%', 'h', '/10') for the rest, which `uMeasure`/`uLabel` pass
+  // through untouched. Converting the heading alone would plot pounds under a
+  // "kg" label, which is the one outcome worse than not converting at all.
+  const activeTrendRaw = BSPROG_TREND_TABS.find((x) => x.k === trend) || BSPROG_TREND_TABS[0];
+  const activeTrend = { ...activeTrendRaw, unit: t.uLabel(activeTrendRaw.unit) };
+  const trendVals = bsProgSeriesVals(O.series[activeTrend.k]).map((v) => (v == null ? v : t.uMeasure(v, activeTrendRaw.unit).value));
   const latest = trendVals.length ? trendVals[trendVals.length - 1] : null;
   const first = trendVals.length ? trendVals[0] : null;
   const delta = latest != null && first != null ? latest - first : null;
@@ -32000,10 +33196,10 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         <div key={i} role="button" tabIndex={0} onClick={() => setStrengthOpen({})} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStrengthOpen({}); } }} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0, cursor: 'pointer' }}>
         <span style={{ minWidth: 0 }}>
           <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{p.move}</span>
-          {p.e1rm != null && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3, letterSpacing: '0.04em' }}>≈ {Math.round(p.e1rm)} {p.unit} e1RM</span>}
+          {p.e1rm != null && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3, letterSpacing: '0.04em' }}>≈ {t.uMeasure(Math.round(p.e1rm), p.unit).value} {t.uMeasure(p.e1rm, p.unit).unit} e1RM</span>}
         </span>
         {leader}
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Math.round(p.best)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{p.unit}</span></span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uMeasure(Math.round(p.best), p.unit).value} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{t.uMeasure(p.best, p.unit).unit}</span></span>
         {p.bestReps != null && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap' }}>× {p.bestReps}</span>}
       </div>
       )) : <BSTRedact INK={t.INK} label="Lifts · not on record" />)}
@@ -32018,12 +33214,15 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         });
         const label = { waist: 'Waist', hips: 'Hips', chest: 'Chest', arm: 'Upper arm', thigh: 'Thigh', calf: 'Calf', neck: 'Neck', shoulders: 'Shoulders' };
         return [...bySite.entries()].map(([site, e], i) => {
-          const delta = +(Number(e.last.value) - Number(e.first.value)).toFixed(1);
+          // Convert both ends BEFORE subtracting, so the delta is in the same
+          // unit as the figure it sits beside.
+          const lastM = t.uMeasure(e.last.value, e.last.unit), firstM = t.uMeasure(e.first.value, e.first.unit);
+          const delta = +(Number(lastM.value) - Number(firstM.value)).toFixed(1);
           return (
             <div key={site} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '9px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{label[site] || site}</span>
               {leader}
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(e.last.value)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{e.last.unit}</span></span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(lastM.value)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{lastM.unit}</span></span>
               <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : bsTHexA(t.INK, 0.7), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{delta === 0 ? '—' : <><span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: delta < 0 ? heat : undefined }}>{delta < 0 ? '▾' : '▴'}</span> {Math.abs(delta)}</>}</span>
             </div>
           );
