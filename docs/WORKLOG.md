@@ -495,6 +495,52 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — The second Codex round: a fix that established the wrong ordering, and a migration that broke a consumer the moment it was applied
+
+- **Codex reviewed the fix round on `747433a` and returned two more P1s. Both real, and the second was
+  LIVE IN PRODUCTION** — the owner had run the migrations between the push and the review.
+- ⚠ **"PERSIST BEFORE THE RPC" ESTABLISHED CALL ORDER, NOT COMPLETION ORDER.** The previous round's
+  fix moved `persist(...)` above `ShapeWeighIns.log(...)` so the milestone RPC would compare two
+  kilogram operands — but `persist` is `(next) => { setData(next); try { saveUserGoals(...) } catch {} }`
+  and **discards the promise**. `saveUserGoals` is async, so a slower `user_goals` upsert (or one that
+  resolves `{ error }`) leaves the server holding the legacy **pound** goal when the awards check
+  fires, and the false-milestone bug the fix was for **remains, race-dependent**. *A fix for an
+  ordering bug that does not await is not an ordering fix.*
+- **`persist` returns the write now**, and the chain gates on it: the **weigh-in always lands** —
+  it is the member's own measurement and is never withheld — while the **awards check runs only when
+  the canonical document is confirmed written** (`res.ok`). Skipping the check costs a member a toast
+  until their next weigh-in, which is recoverable; awarding points they have not earned is not. Every
+  existing `persist` caller ignores the return value, so the change is additive.
+- ⚠ **AND THE COACH MIGRATION BROKE A WEB CONSUMER THE INSTANT IT WAS APPLIED.**
+  `2026-09-10-coach-lift-units.sql` normalises `get_client_lifts` to canonical pounds;
+  `/api/clients/[id]/shared-overview` forwards the payload unchanged; and
+  `public/newdesign/coachClientDetail.jsx:624` **hardcoded `kg`** for both `best` and `e1rm`. So a
+  client's 100 kg lift arrives as **220.5 and rendered as "220.5 kg"** on the Trainer/Nutritionist web
+  case file. It reads the row's stated unit now, falling back to what the RPC actually emits rather
+  than to `kg`.
+- ⚠ **THE LESSON IS ABOUT SEQUENCING, NOT ABOUT THE CODE.** A migration and its consumers ship in one
+  PR, but a migration is applied by a **human, whenever they choose** — here, while the branch was
+  still unmerged. So for a window the database spoke pounds and the deployed website still said kg.
+  *When a migration changes what a function RETURNS, every consumer must be able to read the new
+  answer BEFORE it is applied — the two are not one deploy, and the gap is whatever the owner's
+  hands take.* Registered as the rule, not just the fix.
+- **Every consumer of both RPCs was then swept rather than assumed:** the coach app
+  (`iosAppBroadsheetPros.jsx`, converts via `t.uMeasure`), the web case file (fixed here),
+  `/api/client/profile-stats` (appends the unit, and emits the bare number pre-migration rather than
+  a defaulted one), and `shapeBackend.getClientLifts` (forwards the payload untouched, so the unit
+  survives). Four consumers, all covered.
+- **Verified:** `npm test` **2898/2898** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
+  the newdesign precompile check · and **both migrations confirmed live on production**: `pg_temp`
+  pinned, `anon` cannot execute either, the `norm` CTE and the kg factor present, `unit` stated,
+  `avgRpe` and `disciplines` preserved, and both **execute** (returning null as service role, which
+  is the correct gated answer). ⚠ `get_client_lifts` reports no `disciplines` and that is **correct,
+  not a regression** — the original never had it; checked against the 2026-06-25 source rather than
+  assumed.
+- ⚠ **NOTHING IN PRODUCTION EXERCISES ANY OF THIS YET.** Measured: **0** `workout_set_logs` and **0**
+  `client_weigh_ins` rows. So the mixed-unit fix corrects nothing retroactively, the migrations were
+  safe to apply with nothing to backfill, and **the on-account pass is still owed** — the first real
+  member logging a lift in kilograms is the actual test.
+
 ### 2026-09-10 — The Codex round on the units wave: five findings, all real, three of them mine to have caught
 
 - **Codex reviewed `2076bbd` and returned 3× P1 + 2× P2. Every one was a defect the units change had

@@ -25110,9 +25110,21 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       // past a 180 target, so every milestone fired at once for a member who
       // had reached none of them. Persisting first means both operands are
       // kilograms by the time the RPC compares them.
-      persist({ ...data, overall: nextOverall });
-      window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat })
-        .then(() => window.ShapeGoalAwards?.check?.())         // credit any newly reached milestone
+      // ⚠ THE WEIGH-IN ALWAYS LANDS; THE AWARDS CHECK IS CONDITIONAL. The RPC
+      // compares the persisted goal against the persisted weight and normalises
+      // neither, so it may only run once the canonical (kilogram-stamped)
+      // document is CONFIRMED written. An unconfirmed write — a failure, or a
+      // missing backend — means the server may still hold a pound goal, and
+      // comparing 83.9 kg against a 180 lb target awards every milestone at
+      // once. Skipping the check costs a member a toast until their next
+      // weigh-in, which is recoverable; awarding points they have not earned is
+      // not. The member's own measurement is never withheld for this.
+      persist({ ...data, overall: nextOverall })
+        .then((res) => {
+          const canonical = !!(res && res.ok);
+          return window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat })
+            .then(() => (canonical ? window.ShapeGoalAwards?.check?.() : null));
+        })
         .then((awards) => (awards || []).forEach(a => window.__bsToast?.(tr('goal:award.toast', { defaultValue: '+{points} pts · {milestone}', points: a.points, milestone: a.milestone }), 'ok')))
         .catch(() => {});
     } else {
@@ -25166,7 +25178,16 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
     })();
     return () => { alive = false; };
   }, [loggedIn]);
-  const persist = (next) => { setData(next); try { window.shapeDb?.saveUserGoals?.('client_goals', next); } catch (e) {} };
+  // ⚠ RETURNS THE WRITE, SO A CALLER CAN WAIT FOR IT. `saveUserGoals` is async
+  // and resolves `{ ok }` or `{ error }` (it never throws), but this used to
+  // discard the promise — so "persist before the RPC" established CALL order
+  // and not COMPLETION order, and the awards check could still race a slower
+  // user_goals upsert and read the legacy pound goal. Every existing caller
+  // ignores the return value, so this is additive.
+  const persist = (next) => {
+    setData(next);
+    try { return Promise.resolve(window.shapeDb?.saveUserGoals?.('client_goals', next)); } catch (e) { return Promise.resolve({ error: e }); }
+  };
   const overall = data.overall || (loggedIn ? BS_GOALS_EMPTY.overall : BS_GOALS_DEFAULT.overall);
   const trainingMeta = data.trainingMeta || (loggedIn ? BS_GOALS_EMPTY.trainingMeta : BS_GOALS_DEFAULT.trainingMeta);
   const nutritionMeta = data.nutritionMeta || (loggedIn ? BS_GOALS_EMPTY.nutritionMeta : BS_GOALS_DEFAULT.nutritionMeta);
