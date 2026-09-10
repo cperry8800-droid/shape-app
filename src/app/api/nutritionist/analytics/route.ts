@@ -251,13 +251,22 @@ export async function GET() {
   if (purchasesRes.error) {
     console.warn('[shape-app] nutritionist analytics: trajectory purchases read failed — one-time revenue omitted:', purchasesRes.error.message);
   }
+  // ⚠ A FAILED PURCHASES READ IS CARRIED, NOT COERCED TO ZERO (CodeRabbit, #2030).
+  // `purchasesRes.data ?? []` makes every week's one-time revenue 0, and the CSV export
+  // then writes `0.00` into a coach's accounting file — turning an RLS change, a schema
+  // drift or a timeout into the financial claim that no one-time revenue existed. The
+  // warning above already knew; the payload did not say so, and a consumer cannot
+  // distinguish "none" from "not read" without being told.
   const trajectory = subsAllRes.error
     ? null
-    : buildTrajectory({
+    : {
+      oneTimeUnknown: !!purchasesRes.error,
+      ...buildTrajectory({
         subs: subsAllRes.data ?? [],
         purchases: purchasesRes.data ?? [],
         cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
-      });
+      }),
+    };
 
   const stripeSummary = await loadStripe(
     nutriRow.stripe_account_id ?? null,
