@@ -486,6 +486,79 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — R6: the programming queue leaves one browser, and stops calling a tick a publish
+
+- **P1-D off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
+  The Today page's queue marked *"Write plan"* in **ONE BROWSER'S localStorage**, and that was
+  wrong twice. A queue that lives in one browser is not a queue — a coach who programs on
+  their laptop and checks on their phone saw two different lists, and clearing site data
+  emptied the week. **And a tick is not a publish**: the row read *"✓ Plan written"* whether or
+  not a single session had been assigned, while a week genuinely published from the Assign
+  flow left the queue looking untouched.
+- **Two sources now, kept apart, because they are different claims.** **PUBLISHED** comes from
+  `coach_week_publishes`, the ledger the week-shaped publish boundary writes — a fact, so it
+  offers no Undo. **MARKED** is the coach's own note that they handled someone another way —
+  an account-level `user_goals` document, so it follows them between devices, and undoable
+  because they made it.
+- **New route `GET /api/coach/week-publishes`.** ⚠ **RLS on that table is deliberately
+  deny-all with no policies**, so the route runs the **SERVICE ROLE** — which makes the
+  `coach_user_id` filter, taken from the authenticated user and **never from a parameter**,
+  the entire security argument. An unreadable ledger is a **502, never `{ published: {} }`**,
+  because an empty map is the positive claim *"you have not programmed anyone"*.
+- ⚠ **THIRTEEN FINDINGS FROM THE REVIEW ROUND, AND THE FIRST WAS THE ROUTE ANSWERING A
+  DIFFERENT QUESTION THAN THE QUEUE ASKS.** It filtered `week_start >= this Monday`, which
+  matches a week published **LAST** Monday **FOR** this week — i.e. last week's work. A client
+  programmed a week ago dropped out of *"ready to program"* on Friday **while the plan for the
+  coming week did not exist**, and the route's own comment claimed the opposite (*"an OLD
+  publish can never mark this week's row done"*). The window is `created_at` now: who the
+  coach has programmed during THIS office week. *A comment asserting an invariant is not the
+  invariant.*
+- ⚠ **AND A FAILED MARK STAYED ON SCREEN AS SAVED, THEN TOOK THE NEXT ONE WITH IT.** The
+  optimistic paint was never rolled back **and** a new mark flipped the state from `error` back
+  to `ready`, hiding the notice — two small wrongs that combined into a silent data loss: the
+  lane re-read the **SERVER** document, which had never received the first mark, merged only
+  the second, and wrote that. The screen claimed two marks and a healthy save; the row
+  reloaded with one. The paint rolls back onto the server copy now, and **only a successful
+  write clears the error**.
+- ⚠ **THE LEDGER IS TRAINER-ONLY, AND THAT IS A PROPERTY OF THE TABLE.** `coach_week_publishes`
+  has **no role column** and its only writer is the trainer week route — so a nutritionist's
+  fetch is a service-role round trip that answers nothing, and for a **DUAL-ROLE coach**, who
+  is one auth user id, a training publish would have rendered as *delivered* on the
+  **nutritionist** queue. That is the cross-role misattribution the R4 round fixed in
+  `coach-client-legs`, arriving from a different direction.
+- **The rest, each fixed:** the ledger effect **froze its `since`** across a Monday boundary,
+  so a tab left open overnight read the new week's marks against last week's publishes; a tick
+  in the signed-out/unreadable state **did nothing at all, silently**, where the removed
+  `localStorage` at least kept the week's work (it ticks locally now and says so — the Week
+  view's own precedent); *"Sign in to keep your marks"* was said to a coach who **may already
+  be signed in**, since `getUserGoals` returns null for a failed read too; a ledger error
+  **masked** a marks error, so a coach marking rows offline watched each one paint and was
+  never told the writes were failing; the empty-queue branch **returned above the notices** and
+  asserted *"No one in the queue"* before any roster read had resolved; the Template link was a
+  raw legacy href costing two page loads from inside the shell (the R19 sweep, one panel it
+  missed); and the marks document grew **a bucket a week forever** under a blind whole-document
+  upsert.
+- ⚠ **ONE FINDING IS ANSWERED BY WRITING IT DOWN RATHER THAN BY CODE.** `useCoachDoc` is the
+  **THIRD** copy of this store — `dashWeek.jsx` and `coachClientDetail.jsx` each carry their own
+  line-for-line equivalent — and an earlier draft of its comment claimed all three shared it.
+  Migrating them is **registered, not done**, and the comment now says exactly that: *a fix
+  believed to have landed in three places when it landed in one is worse than an honest
+  duplicate.*
+- ⚠ **AND THE TEST HALF HAD TO BE REWRITTEN BECAUSE IT PINNED SPELLINGS — THE THIRD TIME IN
+  THIS WAVE.** The panel's assertions matched source text like `/if \(isPublished\(id\)\) return;/`,
+  which **passes on a `toggle` that calls the store before the bail** and **fails on a correct
+  rewrite that renames a variable**. The row's state, the notices and the marks merge are pure
+  functions now and are **executed**. Measured, not argued: a source check that the prune's
+  cutoff is *computed* stayed green while the comparison applying it was deleted.
+- **Verified:** `npm test` **2736/2736** · `tsc --noEmit` 0 · JSX parse on both changed modules
+  · the newdesign precompile check · **26 mutations killed across two rounds**, each **proven to
+  land** — and *two of the three survivors were no-op mutations of mine*, which is the same
+  broken-instrument lesson this file keeps paying for · headless renders of both Today tabs at
+  1440, 1024 and 390px with zero page errors. Route registered in the War Room. No migration.
+- ⚠ **STILL A SIMULATED LIVE STATE.** Every "live" check in this wave stubs the API responses.
+  An on-account pass is owed before the queue, the Week, the trajectory and the roster columns
+  are trusted in the field.
+
 ### 2026-09-10 — P1-C: the roster learns tenure and revenue, and the Goal page stops showing numbers you typed in March
 
 - **R10 — the roster could never say how long anyone had been a client.** `coach-roster.ts`
