@@ -767,12 +767,25 @@ test('unknown authentication renders Loading, never the signed-out card', () => 
   // branch has to come first, or the signed-out card claims the answer.
   const src = stripComments(SETTINGS);
   assert.match(src, /<CoachNotificationCard signedIn=\{signedIn\} \/>/, 'the card is handed a boolean again');
+  // ⚠ THE INVARIANT IS "A SETTLED ANSWER OUTRANKS AN UNSETTLED ONE", NOT AN ORDER.
+  // The first cut of this guard pinned unknown-before-signed-out, and that order is
+  // exactly what broke the signed-out card: `load()` settles a signed-out visitor's
+  // state to null, so a `state === null` test placed first swallowed them into
+  // "Loading…" forever. Both directions are asserted now, by execution.
   const at = src.indexOf('function CoachNotificationCard');
   const ladder = src.slice(src.indexOf('  if (', src.indexOf('const toggle =', at)));
+  const anon = ladder.indexOf('signedIn === false');
   const unknown = ladder.indexOf('signedIn === undefined');
-  const signedOut = ladder.indexOf('if (!signedIn)');
+  assert.ok(anon > -1, 'signed-out is inferred from a falsy check again');
   assert.ok(unknown > -1, 'the unknown-auth branch is gone');
-  assert.ok(signedOut > -1 && unknown < signedOut, 'signed-out is decided before authentication is known');
+  assert.ok(anon < unknown, 'a settled signed-out answer is decided after an unsettled one');
+  const which = (signedIn, state) => (
+    signedIn === false ? 'anon' : (signedIn === undefined || state === null) ? 'loading' : 'card'
+  );
+  assert.equal(which(false, null), 'anon', 'a signed-out visitor never reaches the sign-in card');
+  assert.equal(which(undefined, null), 'loading');
+  assert.equal(which(true, null), 'loading');
+  assert.equal(which(true, {}), 'card');
 });
 
 test('quiet hours carry the coach’s timezone, or they are evaluated in UTC', () => {

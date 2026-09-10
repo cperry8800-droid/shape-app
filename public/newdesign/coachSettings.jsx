@@ -492,23 +492,26 @@ function CoachNotificationCard({ signedIn }) {
     } catch (e) { if (!stale()) failMatrix(base.matrix, keys, "Couldn't save " + what + " just now."); }
   });
 
-  // ⚠ UNKNOWN AUTHENTICATION IS NOT SIGNED OUT. `useSignedIn` starts undefined, so
-  // collapsing it to a boolean at the call site told every authenticated coach to sign
-  // in for the whole auth round trip — the same conflation the load path above was
-  // fixed for, one frame earlier and on the other side of the same question.
+  // ⚠ THE KNOWN ANSWER IS DECIDED FIRST, AND GETTING THAT ORDER WRONG COST A ROUND.
+  // `useSignedIn` starts undefined, so collapsing it to a boolean told every
+  // authenticated coach to sign in for the whole auth round trip. Fixing that by
+  // testing `signedIn === undefined || state === null` FIRST created the opposite
+  // regression: `load()` settles a signed-out visitor's state to null, so they sat on
+  // "Loading…" forever and never reached the sign-in card. Signed out is a SETTLED
+  // answer — it outranks a null state, which for them is not a load in progress.
+  if (signedIn === false) {
+    return cstCard(
+      <React.Fragment>
+        <span className="dash-eyebrow">Notifications</span>
+        <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Sign in to set which of your notifications reach you.</div>
+      </React.Fragment>
+    );
+  }
   if (signedIn === undefined || state === null) {
     return cstCard(
       <React.Fragment>
         <span className="dash-eyebrow">Notifications</span>
         <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Loading…</div>
-      </React.Fragment>
-    );
-  }
-  if (!signedIn) {
-    return cstCard(
-      <React.Fragment>
-        <span className="dash-eyebrow">Notifications</span>
-        <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Sign in to set which of your notifications reach you.</div>
       </React.Fragment>
     );
   }
