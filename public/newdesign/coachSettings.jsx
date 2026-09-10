@@ -122,6 +122,19 @@ function cstSerial(fn) {
   return next;
 }
 
+// A notice that names the field it is about: a bare "Couldn't save that just now."
+// over a panel that has already rolled the change back tells a coach nothing about
+// WHICH of their changes did not land.
+const CST_FIELD_NAMES = { muted: "the mute switch", quiet_start: "quiet hours", quiet_end: "quiet hours", daily_cap: "the daily cap" };
+function cstFieldName(keys) {
+  const seen = [];
+  (keys || []).forEach((k) => { const n = CST_FIELD_NAMES[k] || k; if (seen.indexOf(n) < 0) seen.push(n); });
+  return seen.length ? seen.join(" and ") : "that";
+}
+function cstTypeName(type) {
+  const row = CST_COACH_TYPES.filter((r) => r[0] === type)[0];
+  return row ? row[1] : type;
+}
 function cstTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } }
 function cstLabel(text) {
   return <div style={{ fontFamily: CST_MONO, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: CST_INK50 }}>{text}</div>;
@@ -330,78 +343,151 @@ function CoachNotificationCard({ signedIn }) {
   // whose RPC failed must not be shown a switch panel built from invented defaults,
   // because every control on it would then be a claim about settings nobody read.
   const unreadable = { settings: null, matrix: {} };
+  // What the server last CONFIRMED. It is the rollback target and the base a queued
+  // write merges its patch into — never a render closure, which carries optimistic
+  // paints nothing has accepted yet.
+  const confirmedRef = React.useRef({ settings: null, matrix: {} });
+  // key → the notice that key's failure raised. ⚠ A SUCCESS CLEARS ONLY ITS OWN.
+  // `setErr("")` on any success let a change that saved fine hide the notice belonging
+  // to one that did not, and leaving the newest text up let the banner go on
+  // describing a failure that had since been retried successfully.
+  const failedRef = React.useRef(new Map());
+  const genRef = React.useRef(0);
 
   const load = React.useCallback(async () => {
-    if (!signedIn || !(window.shapeDb && window.shapeDb.client)) { setState(unreadable); return; }
+    const gen = (genRef.current += 1);
+    const settle = (v) => {
+      if (gen !== genRef.current) return;
+      confirmedRef.current = v || { settings: null, matrix: {} };
+      setState(v);
+      failedRef.current = new Map();
+      setErr("");
+    };
+    // ⚠ NOT SIGNED IN IS NOT UNREADABLE, AND CONFLATING THEM PUT A FALSE NOTICE ON
+    // EVERY HEALTHY LOAD. `useSignedIn` resolves asynchronously, so this runs once
+    // with signedIn=false on every mount; settling `unreadable` there left
+    // `settings: null` behind, and the moment auth resolved the ladder below rendered
+    // "Couldn't read your notification settings — reload to try again" at a coach
+    // whose settings had not been asked for yet.
+    if (!signedIn) { settle(null); return; }
+    if (!(window.shapeDb && window.shapeDb.client)) { settle(unreadable); return; }
+    settle(null); // a re-read is LOADING, not still the last read's answer
     try {
       // The cookie-session bridge first: getUser()/rpc off a cookie-only session
       // reads as anon otherwise, and the coach is told they are signed out.
       try { if (window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* the cookie still carries it */ }
       const c = window.shapeDb.client;
       const { data, error } = await c.rpc("get_notification_center");
-      if (error || !data) { setState(unreadable); return; }
+      if (error || !data) { settle(unreadable); return; }
       const m = {};
       (Array.isArray(data.prefs) ? data.prefs : []).forEach((p) => { (m[p.type] = m[p.type] || {})[p.channel] = p.enabled; });
-      const s = data.settings || {};
-      setState({
+      const st = data.settings || {};
+      settle({
         settings: {
-          muted: s.muted === true,
-          quiet_start: Number.isFinite(s.quiet_start) ? s.quiet_start : 22,
-          quiet_end: Number.isFinite(s.quiet_end) ? s.quiet_end : 7,
-          daily_cap: Number.isFinite(s.daily_cap) ? s.daily_cap : 4,
+          muted: st.muted === true,
+          quiet_start: Number.isFinite(st.quiet_start) ? st.quiet_start : 22,
+          quiet_end: Number.isFinite(st.quiet_end) ? st.quiet_end : 7,
+          daily_cap: Number.isFinite(st.daily_cap) ? st.daily_cap : 4,
         },
         matrix: m,
       });
-    } catch (e) { setState(unreadable); }
+    } catch (e) { settle(unreadable); }
   }, [signedIn]);
   React.useEffect(() => { load(); }, [load]);
 
-  // ⚠ A FAILED WRITE IS ROLLED BACK, AND A LATER SUCCESS DOES NOT HIDE IT. Painting
-  // optimistically and leaving the paint on a failure is how a coach ends up looking
-  // at "Muted" over an unmuted row — and clearing the error on the NEXT successful
-  // write then claims saving is healthy while the failed change is still on screen.
-  // This is the defect useCoachDoc was post-mortemed for on 2026-09-10, one file over.
-  const failSettings = (before, msg) => { setState((s) => ({ ...s, settings: before })); setErr(msg); };
-  const failMatrix = (before, msg) => { setState((s) => ({ ...s, matrix: before })); setErr(msg); };
-  const saveSettings = (next) => cstSerial(async () => {
-    const before = state.settings;
+  const noteFail = (keys, msg) => { keys.forEach((k) => failedRef.current.set(k, msg)); setErr(msg); };
+  const noteOk = (keys) => {
+    keys.forEach((k) => failedRef.current.delete(k));
+    const rest = Array.from(failedRef.current.values());
+    setErr(rest.length ? rest[rest.length - 1] : "");
+  };
+  // ⚠ A FAILED WRITE IS ROLLED BACK ONTO THE CONFIRMED COPY. Painting optimistically
+  // and leaving the paint on a failure is how a coach ends up looking at "Muted" over
+  // an unmuted row — the defect useCoachDoc was post-mortemed for on 2026-09-10.
+  const failSettings = (before, keys, msg) => { setState((s) => ({ ...s, settings: before })); noteFail(keys, msg); };
+  const failMatrix = (before, keys, msg) => { setState((s) => ({ ...s, matrix: before })); noteFail(keys, msg); };
+
+  const authUid = async (c) => {
+    const u = await c.auth.getUser();
+    return (u && u.data && u.data.user && u.data.user.id) || null;
+  };
+
+  // `patch` is the CHANGE, never the whole row.
+  const saveSettings = (patch) => cstSerial(async () => {
+    const base = confirmedRef.current;
+    if (!base.settings) return;
+    const next = { ...base.settings, ...patch };
+    const keys = Object.keys(patch);
+    const what = cstFieldName(keys);
+    // ⚠ A READ THAT SETTLES WHILE THIS IS IN FLIGHT REPLACES confirmedRef, and it is
+    // the newer claim: a rollback fired after it would paint a state nobody holds any
+    // more, under a notice about a change that is no longer on screen. Identity is the
+    // check rather than a counter, because what this write must not clobber is the
+    // exact object it derived `before` from.
+    const stale = () => confirmedRef.current !== base;
     setState((s) => ({ ...s, settings: next }));
     try {
       const c = window.shapeDb.client;
-      const u = await c.auth.getUser();
-      const uid = u && u.data && u.data.user && u.data.user.id;
-      if (!uid) { failSettings(before, "Couldn't confirm your account — nothing was saved."); return; }
+      const uid = await authUid(c);
+      if (stale()) return;
+      if (!uid) { failSettings(base.settings, keys, "Couldn't confirm your account — " + what + " wasn't saved."); return; }
+      // ⚠ ONLY THE PATCH IS SENT, AND THAT IS THE ROOT FIX RATHER THAN A STYLE CALL.
+      // Upserting all four columns from a snapshot taken at page load silently reverts
+      // whatever another surface changed since: the mobile app's `saveNotifySettings`
+      // and the member panel's own `saveSettings` both send only their patch, and a
+      // coach who set quiet hours on their phone had them thrown back to this page's
+      // stale copy by an unrelated tap on Mute. The column defaults (false/22/7/4) are
+      // byte-for-byte what this panel invents when the row is absent, so a partial
+      // upsert that CREATES the row lands exactly what is already on screen.
       // ⚠ `tz` TRAVELS WITH IT. The column defaults to 'UTC' and this panel is the
       // first place a coach ever writes the row, so omitting it evaluated quiet hours
       // in UTC: a coach in Los Angeles setting 22 → 7 was silenced 15:00–00:00 local
       // and pushed at 3 a.m. `inQuietHours` resolves the hour through prefs.tz.
       const { error } = await c.from("notification_settings")
-        .upsert({ user_id: uid, ...next, tz: cstTz(), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-      if (error) { failSettings(before, "Couldn't save that just now."); return; }
-      setErr("");
-    } catch (e) { failSettings(before, "Couldn't save that just now."); }
+        .upsert({ user_id: uid, ...patch, tz: cstTz(), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+      if (stale()) return;
+      if (error) { failSettings(base.settings, keys, "Couldn't save " + what + " just now."); return; }
+      confirmedRef.current = { ...base, settings: next };
+      noteOk(keys);
+    } catch (e) { if (!stale()) failSettings(base.settings, keys, "Couldn't save " + what + " just now."); }
   });
+
   const toggle = (type, channel, on) => cstSerial(async () => {
-    const before = state.matrix;
-    setState((s) => ({ ...s, matrix: { ...s.matrix, [type]: { ...(s.matrix[type] || {}), [channel]: on } } }));
+    const base = confirmedRef.current;
+    // The same guard as the settings half: an unreadable read leaves `matrix` at `{}`,
+    // which is truthy — writing from it would drop every stored override off the
+    // mirror and then confirm the emptied copy on the next success.
+    if (!base.settings) return;
+    const isDefault = on === CST_DEFAULT_CHANNELS[channel];
+    // The confirmed copy mirrors what is STORED, so a switch returning to the house
+    // default drops its key rather than pinning today's default as an override.
+    const row = { ...(base.matrix[type] || {}) };
+    if (isDefault) delete row[channel]; else row[channel] = on;
+    const next = { ...base.matrix, [type]: row };
+    const keys = [type + "\u00b7" + channel];
+    const what = cstTypeName(type) + " · " + channel;
+    const stale = () => confirmedRef.current !== base;
+    setState((s) => ({ ...s, matrix: next }));
     try {
       const c = window.shapeDb.client;
-      const u = await c.auth.getUser();
-      const uid = u && u.data && u.data.user && u.data.user.id;
-      if (!uid) { failMatrix(before, "Couldn't confirm your account — nothing was saved."); return; }
+      const uid = await authUid(c);
+      if (stale()) return;
+      if (!uid) { failMatrix(base.matrix, keys, "Couldn't confirm your account — " + what + " wasn't saved."); return; }
       // ⚠ AN OVERRIDE THAT RETURNS TO THE HOUSE DEFAULT IS DELETED, NOT STORED.
       // notification_preferences holds OVERRIDES only (its migration says so, and the
       // client panel deletes for the same reason): writing today's default freezes it
       // into the coach's data, so a later change to house policy silently exempts
       // every coach who ever touched that switch. The same rule the thresholds above
       // follow — it has to apply to both halves of this panel or to neither.
-      const q = on === CST_DEFAULT_CHANNELS[channel]
+      const q = isDefault
         ? c.from("notification_preferences").delete().eq("user_id", uid).eq("type", type).eq("channel", channel)
         : c.from("notification_preferences").upsert({ user_id: uid, type, channel, enabled: on }, { onConflict: "user_id,type,channel" });
       const { error } = await q;
-      if (error) { failMatrix(before, "Couldn't save that just now."); return; }
-      setErr("");
-    } catch (e) { failMatrix(before, "Couldn't save that just now."); }
+      if (stale()) return;
+      if (error) { failMatrix(base.matrix, keys, "Couldn't save " + what + " just now."); return; }
+      confirmedRef.current = { ...base, matrix: next };
+      noteOk(keys);
+    } catch (e) { if (!stale()) failMatrix(base.matrix, keys, "Couldn't save " + what + " just now."); }
   });
 
   if (!signedIn) {
@@ -450,7 +536,7 @@ function CoachNotificationCard({ signedIn }) {
       {err ? <div style={{ marginTop: 8, fontSize: 11.5, color: CST_AMBER }}>{err}</div> : null}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-        <button type="button" onClick={() => saveSettings({ ...s, muted: !s.muted })} style={{ ...cstChip(s.muted), minHeight: 30 }}>
+        <button type="button" onClick={() => saveSettings({ muted: !s.muted })} style={{ ...cstChip(s.muted), minHeight: 30 }}>
           {s.muted ? "Muted — turn back on" : "Mute everything"}
         </button>
       </div>
@@ -460,17 +546,17 @@ function CoachNotificationCard({ signedIn }) {
           {cstLabel("Quiet hours")}
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
             <CstNumber value={s.quiet_start} min={0} max={23} step={1} label="Quiet hours start"
-              onCommit={(n) => saveSettings({ ...s, quiet_start: n })} />
+              onCommit={(n) => saveSettings({ quiet_start: n })} />
             <span style={{ fontFamily: CST_MONO, fontSize: 10, color: CST_INK50 }}>to</span>
             <CstNumber value={s.quiet_end} min={0} max={23} step={1} label="Quiet hours end"
-              onCommit={(n) => saveSettings({ ...s, quiet_end: n })} />
+              onCommit={(n) => saveSettings({ quiet_end: n })} />
           </div>
         </div>
         <div>
           {cstLabel("Most per day")}
           <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
             {CST_CAPS.map((n) => (
-              <button key={n} type="button" onClick={() => saveSettings({ ...s, daily_cap: n })} style={{ ...cstChip(s.daily_cap === n), minHeight: 30, padding: "7px 10px" }}>{n}</button>
+              <button key={n} type="button" onClick={() => saveSettings({ daily_cap: n })} style={{ ...cstChip(s.daily_cap === n), minHeight: 30, padding: "7px 10px" }}>{n}</button>
             ))}
           </div>
         </div>

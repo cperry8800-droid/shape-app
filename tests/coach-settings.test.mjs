@@ -384,22 +384,345 @@ test('a number field commits on blur and refuses an empty value', () => {
   assert.equal((src.match(/<CstNumber/g) || []).length, 3, 'a raw number input is back');
 });
 
-test('a notification write that fails is rolled back, and a later success cannot hide it', () => {
+// ── the notification write lane, DRIVEN ──────────────────────────────────────
+// The handlers are brace-matched out of the SHIPPED component and executed against a
+// stubbed React + supabase, so an equivalent rewrite passes and a real regression
+// fails. A source pin could tell neither apart — and the previous version of this
+// guard broke on a correct refactor for exactly that reason.
+function driveNotificationCard(seed, run) {
+  const a = SETTINGS.indexOf('function CoachNotificationCard({ signedIn }) {');
+  const b = SETTINGS.indexOf('\n  if (!signedIn) {', a);
+  assert.ok(a > 0 && b > a, 'CoachNotificationCard moved');
+  const prelude = SETTINGS.slice(a + 'function CoachNotificationCard({ signedIn }) {'.length, b);
+  // The notice-wording helpers and the type table are SHIPPED code too — reimplementing
+  // them here would guard a copy nobody runs.
+  const deps = ['const CST_COACH_TYPES =', 'const CST_FIELD_NAMES =', 'function cstFieldName(', 'function cstTypeName(']
+    .map((decl) => {
+      const at = SETTINGS.indexOf(decl);
+      assert.ok(at > 0, decl + ' moved');
+      let d = 0, seen = false, k = at;
+      for (; k < SETTINGS.length; k++) {
+        const ch = SETTINGS[k];
+        if (ch === '{' || ch === '[') { d++; seen = true; }
+        else if (ch === '}' || ch === ']') { d--; }
+        else if (ch === ';' && d === 0) { k++; break; }
+        if (seen && d === 0 && (ch === '}' || ch === ']')) { if (SETTINGS[k + 1] === ';') k++; k++; break; }
+      }
+      return SETTINGS.slice(at, k);
+    }).join('\n');
+
+  const cells = [];
+  let cursor = 0;
+  const React = {
+    useState(init) {
+      const i = cursor++;
+      if (cells.length <= i) cells[i] = { v: typeof init === 'function' ? init() : init };
+      const cell = cells[i];
+      return [cell.v, (nv) => { cell.v = typeof nv === 'function' ? nv(cell.v) : nv; }];
+    },
+    useRef(init) { const i = cursor++; if (cells.length <= i) cells[i] = { current: init }; return cells[i]; },
+    // `useEffect(() => { load(); })` discards load's promise, exactly as the shipped
+    // component does — so the harness tracks it here or `flushEffects` returns before
+    // the read it fired has settled, and every assertion after it reads a stale cell.
+    useCallback: (fn) => (...args) => { const r = fn(...args); if (r && typeof r.then === 'function') pending.push(r); return r; },
+    useEffect: (fn) => { effects.push(fn); },
+  };
+  const effects = [];
+  const pending = [];
+  let lane = Promise.resolve();
+  const cstSerial = (fn) => { const next = lane.then(fn, fn); lane = next.then(() => {}, () => {}); return next; };
+  const CST_DEFAULT_CHANNELS = { inapp: true, push: true, email: false };
+  const cstTz = () => 'America/Los_Angeles';
+  const win = { shapeDb: seed.db };
+  const make = new Function(
+    'React', 'cstSerial', 'CST_DEFAULT_CHANNELS', 'cstTz', 'window', 'signedIn',
+    deps + '\n' + prelude + '\n  return { load, saveSettings, toggle, read: () => ({ state, err }) };'
+  );
+  // the body re-runs on every "render", exactly as React would
+  const render = () => { cursor = 0; return make(React, cstSerial, CST_DEFAULT_CHANNELS, cstTz, win, seed.signedIn !== false); };
+  let api = render();
+  // The handlers write through the setState cells; the `state` binding a render
+  // closed over is stale by construction, so reading it means rendering again —
+  // which is exactly what React does and what the fix has to survive.
+  const snap = () => { api = render(); return api.read(); };
+  const flushEffects = async () => {
+    const q = effects.splice(0);
+    for (const fn of q) await fn();
+    while (pending.length) await Promise.all(pending.splice(0));
+  };
+  return run({ render: () => (api = render()), api: () => api, snap, flushEffects, setSignedIn: (v) => { seed.signedIn = v; } });
+}
+
+// ⚠ THE WRITE BEHAVIOUR IS A PARAMETER, NOT A STATIC ON THE FACTORY. A mutable
+// `okDb.nextUpsert` that no test reset let the last fixture's injected failure leak
+// into every test written after it — which fails, or passes, for a reason it does not
+// care about. `del` is thenable so the DELETE branch can be made to fail too.
+const okDb = (rows, write) => {
+  const w = write || (async () => ({ error: null }));
+  const builder = {
+    auth: { getUser: async () => ({ data: { user: { id: 'coach-1' } } }) },
+    rpc: async () => ({ data: rows, error: null }),
+    from() { return this; },
+    upsert: async (row) => w('upsert', row),
+    delete() { this._del = true; return this; },
+    eq() { return this; },
+    then(res, rej) { const p = this._del ? (this._del = false, w('delete', null)) : Promise.resolve({ error: null }); return Promise.resolve(p).then(res, rej); },
+  };
+  return { getSession: async () => ({}), client: builder };
+};
+// one failure then successes, the interleave every resurrection test needs
+const failFirst = (gate) => {
+  let n = 0;
+  return async () => { n += 1; if (n > 1) return { error: null }; if (gate) await gate; return { error: { message: 'nope' } }; };
+};
+
+test('a queued notification write is built from the CONFIRMED state, not a render snapshot', async () => {
+  // ⚠ CODEX ROUND 5. A second change made while the first is in flight used to carry
+  // the first one's optimistic value in its payload — React had re-rendered, so the
+  // handler closed over a state that had not been confirmed by anything. When the
+  // first failed, its rollback was undone the moment the second started: the whole-row
+  // upsert RESURRECTED the change the server had just refused, and the second one's
+  // success cleared the notice.
+  //
+  // ⚠ THE RE-RENDER BETWEEN THE TWO CLICKS IS THE WHOLE FIXTURE. Without it both
+  // handlers read the same pre-paint closure and the defect cannot reproduce — the
+  // first cut of this guard omitted it and the mutation SURVIVED.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await driveNotificationCard(
+    { signedIn: true, db: okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] }, failFirst(gate)) },
+    async (h) => {
+      await h.api().load();
+      h.render();
+      const first = h.api().saveSettings({ muted: true });        // in flight, will fail
+      for (let k = 0; k < 6; k++) await Promise.resolve();        // its optimistic paint lands
+      h.render();                                                 // React repaints with muted: true
+      const second = h.api().saveSettings({ daily_cap: 6 });      // queued behind it
+      release();
+      await Promise.all([first, second]);
+      const { state, err } = h.snap();
+      assert.equal(state.settings.muted, false, 'the refused change was resurrected by the next write');
+      assert.equal(state.settings.daily_cap, 6, 'the later write did not land');
+      assert.ok(err, 'a success on another field hid the notice for the one that failed');
+    }
+  );
+});
+
+test('a settings write sends ONLY its patch, so another surface is never reverted', async () => {
+  // ⚠ THE ROOT CAUSE, not a workaround for it. Upserting all four columns from a copy
+  // read at page load silently reverted whatever the coach changed on their phone or
+  // in another tab. Both siblings — mobile `saveNotifySettings` and the member panel's
+  // own — send the patch alone, and the column defaults are byte-for-byte what this
+  // panel invents, so a partial upsert that CREATES the row lands what is on screen.
+  const sent = [];
+  await driveNotificationCard(
+    { signedIn: true, db: okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] }, async (op, row) => { sent.push([op, row]); return { error: null }; }) },
+    async (h) => {
+      await h.api().load();
+      h.render();
+      await h.api().saveSettings({ daily_cap: 6 });
+      assert.equal(sent.length, 1);
+      const [, row] = sent[0];
+      assert.deepEqual(Object.keys(row).sort(), ['daily_cap', 'tz', 'updated_at', 'user_id']);
+      assert.equal(row.daily_cap, 6);
+      assert.ok(!('quiet_start' in row) && !('muted' in row), 'the whole row was sent over another surface');
+    }
+  );
+});
+
+test('every saveSettings call site passes a PATCH — the contract the handlers cannot see', () => {
+  // ⚠ PROVEN BY MUTATION, NOT ASSUMED. The driven harness slices the prelude only, so
+  // reverting a button to `saveSettings({ ...s, muted: !s.muted })` — which fully
+  // reinstates the resurrection defect — left the whole driven suite green. The
+  // contract lives at the JSX call sites, so a guard has to read them.
   const src = stripComments(SETTINGS);
-  assert.match(src, /const failSettings = \(before, msg\)/);
-  assert.match(src, /const failMatrix = \(before, msg\)/);
-  assert.ok(!/\bfail\(before/.test(src), 'the two rollback paths are conflated again');
-  // the optimistic paint is captured BEFORE the write, or there is nothing to restore
-  for (const name of ['saveSettings', 'toggle']) {
-    // Anchored on the declaration, not on `= async`: the write now goes through a
-    // serial lane, so the arrow's shape changed and an assertion about ROLLBACK broke
-    // for a reason it does not care about.
-    const at = src.indexOf('const ' + name + ' =');
-    assert.ok(at > 0, name + ' moved');
-    const body = src.slice(at, src.indexOf('\n  });', at));
-    assert.ok(body.indexOf('const before =') >= 0 && body.indexOf('setState(') >= 0, name + ': expected a snapshot and a paint');
-    assert.ok(body.indexOf('const before =') < body.indexOf('setState('), name + ' paints before it snapshots');
-  }
+  const calls = src.match(/saveSettings\(\{[^}]*\}\)/g) || [];
+  assert.ok(calls.length >= 4, 'the settings call sites moved (' + calls.length + ' found)');
+  for (const c of calls) assert.ok(!/\.\.\./.test(c), 'a call site spreads a render snapshot instead of passing a patch: ' + c);
+  // and the third argument of a toggle is the value, never a row
+  const toggles = src.match(/toggle\([^)]*\)/g) || [];
+  assert.ok(toggles.some((t) => /!isOn\(/.test(t)), 'the toggle call site moved');
+});
+
+test('a success clears only its own notice, and the surviving text is a live failure', async () => {
+  const results = [{ error: { message: 'nope' } }, { error: null }, { error: null }];
+  await driveNotificationCard(
+    { signedIn: true, db: okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] }, async () => results.shift() || { error: null }) },
+    async (h) => {
+      await h.api().load();
+      h.render();
+      await h.api().saveSettings({ muted: true });   // fails
+      const first = h.snap().err;
+      assert.match(first, /mute switch/, 'the notice did not name the field that failed');
+      await h.api().saveSettings({ daily_cap: 6 });  // a DIFFERENT field succeeds
+      assert.equal(h.snap().err, first, 'another field succeeding cleared the failed one\u2019s notice');
+      await h.api().saveSettings({ muted: true });   // the retry succeeds
+      const { state, err } = h.snap();
+      assert.equal(state.settings.muted, true);
+      assert.equal(err, '', 'the notice outlived the write that cleared it');
+    }
+  );
+});
+
+test('a failed channel toggle is not resurrected by the next one either', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await driveNotificationCard(
+    { signedIn: true, db: okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] }, failFirst(gate)) },
+    async (h) => {
+      await h.api().load();
+      h.render();
+      // ⚠ THE TWO TOGGLES SHARE A TYPE ON PURPOSE. Across two types the mutated base
+      // resolves to the same empty row and the resurrection is invisible — measured:
+      // a first cut used client_red then client_amber and the mutation SURVIVED.
+      const first = h.api().toggle('client_red', 'email', true);   // in flight, will fail
+      for (let k = 0; k < 6; k++) await Promise.resolve();
+      h.render();
+      const second = h.api().toggle('client_red', 'push', false);  // queued behind it
+      release();
+      await Promise.all([first, second]);
+      const { state, err } = h.snap();
+      const row = h.snap().state.matrix.client_red || {};
+      assert.notEqual(row.email, true, 'the refused override came back');
+      assert.equal(row.push, false, 'the later toggle did not land');
+      assert.ok(err, 'the failed toggle lost its notice');
+    }
+  );
+});
+
+test('a failed toggle is not carried into a write on a DIFFERENT type either', async () => {
+  // ⚠ THE SAME DEFECT AT THE OTHER LEVEL, AND IT NEEDS ITS OWN FIXTURE. The row for
+  // the type being written and the map the write spreads are two separate reads of the
+  // base: within one type only the row can leak, across types only the map can, so a
+  // single scenario leaves one of the two mutations alive. Measured, both ways.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await driveNotificationCard(
+    { signedIn: true, db: okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] }, failFirst(gate)) },
+    async (h) => {
+      await h.api().load();
+      h.render();
+      const first = h.api().toggle('client_red', 'email', true);    // in flight, will fail
+      for (let k = 0; k < 6; k++) await Promise.resolve();
+      h.render();
+      const second = h.api().toggle('client_amber', 'email', true); // a different type
+      release();
+      await Promise.all([first, second]);
+      const { state } = h.snap();
+      assert.notEqual(state.matrix.client_red && state.matrix.client_red.email, true, 'the refused override rode along on another type\u2019s write');
+      assert.equal(state.matrix.client_amber.email, true);
+    }
+  );
+});
+
+test('a toggle back to the house default deletes the row, and a refused DELETE rolls back', async () => {
+  // The confirmed copy mirrors what is STORED: notification_preferences holds
+  // overrides only, so a switch returning to the default must leave no row behind —
+  // and the in-memory mirror must agree, or the next queued write re-adds it.
+  const rows = { settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [{ type: 'client_red', channel: 'push', enabled: false }] };
+  const ops = [];
+  let deleteFails = false;
+  const db = okDb(rows, async (op) => { ops.push(op); return deleteFails && op === 'delete' ? { error: { message: 'rls' } } : { error: null }; });
+  await driveNotificationCard({ signedIn: true, db }, async (h) => {
+    await h.api().load();
+    h.render();
+    assert.equal(h.snap().state.matrix.client_red.push, false, 'the stored override was not read');
+    await h.api().toggle('client_red', 'push', true); // back to the house default
+    assert.deepEqual(ops, ['delete'], 'returning to the default did not DELETE the override');
+    const row = h.snap().state.matrix.client_red;
+    assert.ok(!row || !('push' in row), 'the default was frozen back in as an override');
+    // and the DELETE branch's failure is a rollback, not a silent success
+    deleteFails = true;
+    await h.api().toggle('client_red', 'inapp', true); // inapp default is true → a delete
+    const after = h.snap();
+    assert.ok(after.err, 'a refused DELETE reported nothing');
+    assert.equal(after.state.matrix.client_red && after.state.matrix.client_red.push !== undefined, false);
+  });
+});
+
+test('a read landing mid-write wins, and the rollback behind it is dropped', async () => {
+  // The server\u2019s own answer is newer than any optimistic paint. A rollback that
+  // fires after a fresh read would paint a state nobody is claiming any more, and
+  // raise a notice about a change that is no longer on screen.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await driveNotificationCard(
+    { signedIn: true, db: okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] }, async () => { await gate; return { error: { message: 'nope' } }; }) },
+    async (h) => {
+      await h.api().load();
+      h.render();
+      const w = h.api().saveSettings({ daily_cap: 6 });
+      for (let k = 0; k < 6; k++) await Promise.resolve(); // the write reaches its await
+      await h.api().load();  // a fresh read lands while it is still in flight
+      release();
+      await w;
+      const { state, err } = h.snap();
+      assert.equal(state.settings.daily_cap, 4, 'a stale rollback painted over a fresh read');
+      assert.equal(err, '', 'a stale failure raised a notice about a state that is gone');
+    }
+  );
+});
+
+test('a coach whose auth has not resolved yet is never told their settings are unreadable', async () => {
+  // ⚠ A FALSE NOTICE ON EVERY HEALTHY LOAD. `useSignedIn` resolves asynchronously, so
+  // the card mounts with signedIn=false; settling `unreadable` there left settings
+  // null, and the instant auth resolved the ladder rendered "Couldn't read your
+  // notification settings — reload to try again" at a coach nobody had asked about.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const db = okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] });
+  db.getSession = async () => { await gate; return {}; };
+  await driveNotificationCard({ signedIn: false, db }, async (h) => {
+    await h.flushEffects();                       // the mount effect, at signedIn=false
+    assert.equal(h.snap().state, null, 'a signed-out mount was recorded as an unreadable read');
+    h.setSignedIn(true);
+    h.render();
+    const p = h.flushEffects();                   // the re-read, still in flight
+    assert.equal(h.snap().state, null, 'the card claims the read failed while it is still running');
+    release();
+    await p;
+    assert.equal(h.snap().state.settings.daily_cap, 4);
+  });
+});
+
+test('neither half of the panel writes from a read that never came back', async () => {
+  // ⚠ THE SAME GUARD ON BOTH HALVES OR ON NEITHER. `matrix` is `{}` when the read
+  // failed — truthy, so `toggle` had no bail: it wrote a preference row to the server
+  // and replaced the mirror with one that had LOST every stored override, which the
+  // next success would then confirm.
+  const ops = [];
+  const db = okDb(null, async (op) => { ops.push(op); return { error: null }; });
+  db.client.rpc = async () => ({ data: null, error: { message: 'rls' } });
+  await driveNotificationCard({ signedIn: true, db }, async (h) => {
+    await h.api().load();
+    assert.equal(h.snap().state.settings, null, 'an unreadable read was not recorded as one');
+    await h.api().toggle('client_red', 'email', true);
+    await h.api().saveSettings({ daily_cap: 6 });
+    assert.deepEqual(ops, [], 'the panel wrote from settings nobody read');
+    assert.equal(h.snap().err, '', 'a write that never ran raised a notice');
+  });
+});
+
+test('a re-read shows LOADING, not the answer it is about to replace', async () => {
+  // A settled read left on screen while the next one runs is a claim about state the
+  // panel is in the middle of discarding — and if that next read fails, the coach was
+  // shown live-looking controls the whole time.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let gated = false;
+  const db = okDb({ settings: { muted: false, quiet_start: 22, quiet_end: 7, daily_cap: 4 }, prefs: [] });
+  const raw = db.getSession;
+  db.getSession = async () => { if (gated) await gate; return raw(); };
+  await driveNotificationCard({ signedIn: true, db }, async (h) => {
+    await h.api().load();
+    assert.equal(h.snap().state.settings.daily_cap, 4);
+    gated = true;
+    const p = h.api().load();
+    assert.equal(h.snap().state, null, 'the last read stayed on screen while the next one ran');
+    release();
+    await p;
+    assert.equal(h.snap().state.settings.daily_cap, 4);
+  });
 });
 
 test('quiet hours carry the coach’s timezone, or they are evaluated in UTC', () => {
