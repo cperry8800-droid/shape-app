@@ -1,6 +1,6 @@
 # Third-party recipe import — the ingest ladder, the two breakdowns, and what an imported recipe may never claim
 
-**Date:** 2026-09-10 · **Status:** DRAFT, unbuilt · reviewed (§0) · **Migrations:** ONE — a
+**Date:** 2026-09-10 · **Status:** DRAFT, unbuilt · reviewed (§0) · surveyed (§0b) · **Migrations:** ONE — a
 `recipe-imports` storage bucket (§4.2); no schema change · **Owner decisions taken 2026-09-10:** private
 to the member · AI draft allowed, labelled + member-reviewed · paste + photo in v1, URL
 fetch deferred (§10) · **Authoritative prior record:** the Cook Mode wave (#1804–#1809) and
@@ -104,6 +104,122 @@ plan.
 
 **What the pass did not find:** anything wrong with §7.1. The binding constraint, the
 hand-curated overlay and the four guard tests read exactly as the draft describes them.
+
+---
+
+## 0b. Second review — the implementation-readiness survey, 2026-09-10
+
+Six parallel readers mapped the write lane, the library render path, the test harness, the
+cookable contract, i18n, and every surface a `myrecipe:` pointer reaches; a completeness
+critic then checked what they missed and which gate a naive PR 1 would actually trip.
+**153 findings, 78 hazards, 13 gaps, 6 contradictions, 9 build-breakers, and 10 corrections
+to THIS document.** Each correction is applied in the section it names.
+
+⚠ **0b.1 — §3.2's STATED REASON WAS FALSE, AND IT CONTRADICTED THIS DOCUMENT'S OWN §5.3.**
+The claim was *"there is no path from a string to a window"*. There is:
+`bsCookableFromRecipe` applies a caller-supplied parallel `stepMeta` overlay **onto
+plain-string steps** (`cookable.mjs:745-746`), and that is precisely how the catalog's
+hand-curated windows attach (`shapeKitchenData.js:1169`). §5.3 already said as much
+(*"honours structured steps and a `stepMeta` overlay"*) — the two sections disagreed inside
+one document, and the §0 pass did not catch it. **The invariant is not structural at the
+adapter; it is held by the wrapper deleting the key.** And `stepMeta: []` is **not**
+equivalent to an absent key: `Array.isArray([])` is true, so an empty array becomes the
+overlay. *Corrected in §3.2, §5.3, §7.1.*
+
+⚠ **0b.2 — §9's TEST 6 GUARDED THE WRONG THING, AND ITS SMALLEST FIXTURE PASSES ON BROKEN
+CODE.** Two compounding errors. It asserted on structured **steps** when the real leak is
+the **overlay** (0b.1) — and `finishCookable:714-722` drops a **terminal** passive
+non-`'off'` window to plain meta, so the obvious two-step fixture with the window on step 1
+goes green even if the wrapper deletes nothing. The fixture must carry a `stepMeta` key with
+the window on a **non-terminal** step. *Corrected in §9.*
+
+⚠ **0b.3 — "THE CATALOGUE" WAS AMBIGUOUS, AND THE WRONG READING IS A PRODUCTION CRASH.**
+It is **`BSClientLibrary`**, settled by `warroom.ts:1237` (the #1628 redesign, verbatim), not
+`BSRecipeBox`. The distinction is not cosmetic: appending a member recipe to `BSRecipeBox`'s
+`recipes` prop throws on first render — `iosAppBroadsheetClient.jsx:6574` reads
+`{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}` **unguarded** and
+the §3.2 document carries no `macros` key. `BSKitchenCard` **is**
+null-safe there, so a card-level render test misses it, and nothing in CI would catch it.
+*Corrected in §3.1.*
+
+⚠ **0b.4 — TWO FALSE-PROVENANCE STRINGS GREET A MEMBER'S OWN RECIPE.** `BSLibraryDetail:1801`
+renders *"Saved {kind} from your coach. Open it on its source page to start, swap, or log."*
+as its **default** body, and the Catalogue's empty state at `:1903` reads *"Save your
+coaches' workouts, meals, recipes…"*. Both are untrue of a recipe the member typed
+themselves; both sit in the i18n UNCOVERED baseline, so correcting either moves the ratchet.
+*Corrected in §3.1; budgeted in §13.*
+
+⚠ **0b.5 — THE i18n RATCHET IS THE REAL BUDGET, AND TWO PLACES ARE INVISIBLE TO IT.** Five
+gates fire on UI copy (`i18n-surface-inventory` equality + baseline-direction assertions,
+`i18n-default-resolution` byte-identical defaults, `i18n-catalog-complete` ×13 locales). The
+**cheap** path is a fully-keyed NEW component — it moves only two `>=` floors. The expensive
+one is touching a baseline string inside an UNCOVERED component (0b.4). ⚠ And the ratchet's
+file scan is a **non-recursive `readdirSync` over `broadsheet/*.jsx`**, so a subdirectory, a
+`.mjs`, or anything under `services/` ships English to 13 locales with the suite fully green.
+*Recorded in §9 and §13.*
+
+⚠ **0b.6 — THE GDPR EXPORT WAS MAPPED BY NOBODY, AND IT NEEDS A RULING.**
+`src/app/api/account/export/route.ts:16` exports the **whole** `user_goals` table under the
+key `health_screening_and_goals`, and its `SENSITIVE_KEYS` scrub matches **none** of §3.2's
+fields. So `client_recipes` — member-typed `sourceNote`, `photoPath` — is exported the day
+PR 1 ships, under a health-screening label. Portability is correct; the label is not.
+Deletion is already covered (`delete/route.ts:34`). *Owner question §10.6.*
+
+⚠ **0b.7 — THERE IS NO ROW DELETE FOR THIS KIND, BY DESIGN.** `user_goals` carries no
+user-facing DELETE policy (the only one is kind-scoped and GUC-gated, for `cycle_settings`).
+So *"delete my recipe"* is an upsert with the key removed, and *"delete them all"* is an
+upsert of `{v:1, items:{}}` — never a row delete. The table also has **no check constraint on
+`kind`** and no allow-list anywhere, which is the evidence behind §3's "no migration".
+*Corrected in §3.3.*
+
+⚠ **0b.8 — CI HAS FOUR JOBS, NOT THREE.** `Tests (unit + mount)` is its own job, installs
+**both** `node_modules` trees, and is the **only** one that executes a React component — so
+PR 1's render assertions run there and nowhere else. And the `mobile` job's name still says
+*"public/m sync"* although `public/m` is gitignored (`.gitignore:26`, zero tracked files) and
+no sync check exists; `ci.yml`'s own header says the name is kept so branch protection keeps
+matching. The auto-loaded `AGENTS.md` convention to `cp -r mobile-app/dist public/m` produces
+nothing committable. *Corrected in §13.*
+
+⚠ **0b.9 — PR 1 NEEDS A SYNCHRONOUS LOCAL MIRROR, AND THAT PULLS IN A THREE-FILE EDIT.**
+Measured rather than argued: `drive(BSClientLibrary)` renders **today** under
+`tests/helpers/broadsheet-mount.mjs` — but only a **synchronous** seed is visible; an
+effect-only load renders nothing and the test passes **vacuously**. A localStorage mirror
+means adding the key to **three** `localScrub` inventories (`public/newdesign/localScrub.mjs`,
+`pageShell.jsx`, `public/supabase.js`) or `tests/local-scrub-sync.test.mjs` goes red in both
+directions — and a member's private recipes left on a shared device after sign-out is exactly
+the harm that inventory exists to prevent. ⚠ Mobile is **not** one of the three edit sites:
+`mobile-app/src/services/localScrub.mjs` is a re-export shim, and the suite asserts that.
+*Recorded in §3.3 and §13.*
+
+⚠ **0b.10 — THE POINTER ARRAY HAS ZERO TEST COVERAGE TODAY.** `bsLibWrite`, `bsLibToggle`,
+`useBSLibrary` and `BS_LIB_KINDS` return **no hits** across `tests/`. There is no guard to
+extend and no regression net: every assertion about pointer behaviour is new code PR 1
+writes. *Recorded in §9.*
+
+**Two smaller corrections.** §0.3 says the step-less catalog resolution is by *"exact
+title"* — `bsCookableFromMeal` matches on **`bsCookSlug`** (`cookable.mjs:784-789`), which
+lowercases and collapses every non-alphanumeric run, so punctuation and case collide too;
+the prep picker (`:7956`) is the narrower trim+lowercase form. A collision test written for
+one proves nothing about the other. And §9's test 1 expected `fromPlan: true` from the
+stored-document path, which is unreachable — `bsCookableFromRecipe` hardcodes
+`fromPlan: false` (`cookable.mjs:755`).
+
+**What survived.** §7.1's binding constraint, again — nothing in the survey dented it. But
+0b.1 moves **where** it is enforced, which makes the wrapper's `delete stepMeta` load-bearing
+rather than belt-and-braces.
+
+⚠ **TWO OF THE SURVEY'S CITATIONS WERE CHECKED AND ONE WAS OFF BY A LINE** — the unguarded
+macros read is `:6574`, not `:6573`. ⚠ **And the check that found it nearly produced a false
+refutation of its own:** the Catalogue's empty-state copy at `:1903` is **raw JSX text**
+(`<>Nothing saved yet. Save your coaches&rsquo; workouts…</>`), not a quoted literal, so a
+scan for `'…'` reports the line as containing only *"No matches"* and *"None in here yet."*
+and the finding reads as invented. It is real. *A string that is not a literal is invisible to
+a literal scan* — which is also worth knowing before trusting any grep-based count of UI copy
+in this file.
+
+⚠ **AND A MEASUREMENT NOTE FOR ANYONE RUNNING A HARNESS HERE.** This container has **4
+CPUs**, so a workflow's concurrency cap is **2**. Six readers do not run six-wide; they run
+two at a time. Fan-out width buys independence and coverage, never wall-clock.
 
 ---
 
@@ -224,7 +340,23 @@ member's typed-in recipe is gone with nothing to re-derive it from.
 
 **So: bodies live in their own kind, `client_recipes`. The library keeps holding pointers**
 — `{ id: 'myrecipe:<uuid>', kind: 'recipe', title, meta, coach: null, mine: true }` — which
-means the existing Catalogue surface lists member recipes with no change to its write path.
+means the **list** renders member recipes with no change to its write path.
+
+⚠ **"The Catalogue" is `BSClientLibrary`, NOT `BSRecipeBox`** (settled by `warroom.ts:1237`,
+the #1628 redesign recorded verbatim). The distinction is a production crash, not a naming
+preference: appending a member recipe to `BSRecipeBox`'s `recipes` prop — mounted with
+`SHAPE_KITCHEN_RECIPES` at `iosAppBroadsheetClient.jsx:10418` — throws on first render, because
+`:6574` reads `{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}`
+**unguarded** and the §3.2 document has no `macros` key. `BSKitchenCard` is null-safe at that field, so a card-level render test misses
+it, and no CI job catches it. **A member recipe never enters `SHAPE_KITCHEN_RECIPES`.**
+
+⚠ **And the screens AROUND the list tell a member their own recipe came from a coach.**
+`BSLibraryDetail:1801` renders *"Saved {kind} from your coach. Open it on its source page to
+start, swap, or log."* as its **default** body (nothing in the tree sets `item.preview`), and
+the Catalogue's empty state at `:1903` reads *"Save your coaches' workouts, meals, recipes,
+and grocery lists here."* Both are false for a member-authored recipe. Both are baseline
+strings in an i18n-UNCOVERED component, so correcting them is a ratchet cost §13 budgets
+rather than a free edit.
 
 ### 3.2 Document shape
 
@@ -254,17 +386,45 @@ means the existing Catalogue surface lists member recipes with no change to its 
 `normalizeIngredients` (`cookable.mjs:109`) and `bsMergeMise` accept it with no adapter.
 `k` is a **string** (`"330 kcal"`), matching `shapeKitchenData.js` — not a number.
 
-⚠ **`steps` are plain strings, never structured `{t, min, passive, station}` objects.** A
-structured step is how a passive window enters the system (`splitSteps`,
-`cookable.mjs:84`), and §7 forbids that for imports. Writing plain strings makes the rule
-*structural* rather than a thing the writer has to remember: `splitSteps` gives a plain
-string `plainStepMeta()` — `{min: null, passive: false, station: null}` — and there is no
-path from a string to a window.
+⚠ **`steps` are plain strings, never structured `{t, min, passive, station}` objects — AND
+the document must never carry a `stepMeta` key at all.** A structured step is one way a
+passive window enters the system (`splitSteps`, `cookable.mjs:84`); **the parallel `stepMeta`
+overlay is the other, and it attaches to plain strings** (`bsCookableFromRecipe`,
+`cookable.mjs:745-746` — which is exactly how the catalog's curated windows attach,
+`shapeKitchenData.js:1169`).
+
+⚠ **So this is NOT structural at the adapter, and an earlier draft of this spec claimed it
+was** (0b.1). The invariant is held at exactly one place: **`bsCookableFromMemberRecipe`
+deletes `stepMeta` before calling through** (§5.3). Writing plain strings is necessary and
+not sufficient. ⚠ **`stepMeta: []` is not equivalent to an absent key** — `Array.isArray([])`
+is true, so an empty array *becomes* the overlay; the wrapper must `delete`, never
+`= []`.
 
 ### 3.3 The write lane
 
 `client_recipes` is a whole-document upsert, so it takes the same discipline
-`client_settings` already has (WORKLOG 2026-09-01, `bsSettingsWriteSerial`):
+`client_settings` already has (WORKLOG 2026-09-01, `bsSettingsWriteSerial`).
+
+⚠ **Copy the two SAFE precedents by name, because the file's dominant idiom is the unsafe
+one.** Twelve mobile writers blind-overwrite the whole document, and two of the three
+read-merge writers (`bsSaveIdentity:165`, `bsLoadFoodRecents:2041`) collapse a null read with
+`|| {}` and clobber. The models are **`bsOnlineRailPersist`**
+(`iosAppBroadsheetClient.jsx:23191-23210` — which also inspects `res.error`) and
+**`useCoachDoc`** (`public/newdesign/dashData.jsx:664-706`). The two nearest-looking
+newdesign copies, `dashWeek.jsx:83-118` and `coachClientDetail.jsx:385-403`, are two fixes
+behind — do not copy those.
+
+⚠ **`saveUserGoals` RESOLVES `{error}` rather than throwing** (`shapeBackend.js:4114-4121`),
+so a bare `await` inside a `try` can never see a failed write. Inspect the return value.
+
+⚠ **And there is no row DELETE for this kind** (0b.7): `user_goals` carries no user-facing
+delete policy, so *"delete my recipe"* is an upsert with the key removed and *"delete them
+all"* is an upsert of `{v:1, items:{}}`. The table also has **no check constraint on `kind`**
+and no allow-list anywhere (`supabase-migrations/2026-04-20-user-goals.sql`) — which is the
+evidence behind §3's "no schema migration", and the answer to a reviewer asking where the
+kind is registered: nowhere, by design.
+
+The discipline:
 
 1. **Serial lane.** Concurrent saves read-merge-write through one promise chain; two saves
    racing must not lose the first.
@@ -394,8 +554,10 @@ Two adapters exist and neither fits the stored document alone:
 `cookable.mjs`** — a thin wrapper, tested in `tests/cookable.test.mjs`, that:
 
 1. copies `doc` with `steps` coerced to plain strings (an object step keeps only its `t`) and
-   `stepMeta` **deleted** — the §7.1 invariant enforced at the choke point, not by hoping the
-   store never holds an object;
+   `stepMeta` **deleted with `delete`, never set to `[]`** — ⚠ this line is the **only** place
+   the §7.1 invariant is enforced (0b.1: the overlay attaches to plain strings, so writing
+   strings is necessary and not sufficient), and `Array.isArray([])` is true, so an empty
+   array would *become* the overlay;
 2. calls `bsCookableFromRecipe` on that copy;
 3. overrides on the result: `mealId: doc.id` · `sourceKind: 'member'` · `recipeTitle: null` ·
    `coach: null` · `allergenNotes: null`.
@@ -416,8 +578,14 @@ Why each override:
 
 ⚠ **Never through `bsCookable(source)`.** The dispatcher (`cookable.mjs:863-869`) routes a
 source without a `macros` object to `bsCookableFromMeal`, which resolves a step-less source
-by exact title against the catalog and adopts the catalog's method — §0.3. Every shipped
-caller names its adapter; this one does too.
+against the catalog and adopts the catalog's method — §0.3. Every shipped caller names its
+adapter; this one does too.
+
+⚠ **And that resolution is by SLUG, not by exact title** (`cookable.mjs:784-789`, via
+`bsCookSlug`, which lowercases and collapses every non-alphanumeric run) — so *"Greek Yogurt
+Power-Bowl!"* collides with *"Greek yogurt power bowl"*. The prep-session picker (`:7956`) is
+a **different, narrower** match (trim + `toLowerCase` only) and does not. A collision test
+written against one proves nothing about the other; §9 tests both.
 
 ### 5.4 The review screen, and why the label is permanent
 
@@ -586,16 +754,23 @@ rewrite and passes on a broken one.
 
 **`tests/recipe-import.test.mjs`** (new):
 
-1. A paste with numbered steps → tier 1/2 with every step carried, `fromPlan: true`.
+1. **The PASTE path** (`bsCookableFromText`): numbered steps → every step carried,
+   `fromPlan: true`. ⚠ Name the adapter — this is unreachable through the stored document,
+   because `bsCookableFromRecipe` hardcodes `fromPlan: false` (`cookable.mjs:755`) and that
+   field is the only thing separating tier 1 from tier 2 (`finishCookable:724`).
 2. A paste with a marketing lead and no markers → the lead does **not** become a step
    (`bsSplitMethodProse`'s instructional filter).
 3. Ingredients only → tier 3 MISE, `steps: []`.
 4. Title only → tier 4 QUICK.
 5. **Every step of an imported cookable has `passive: false`, `station: null`, `min: null`** —
    the §7 invariant, asserted structurally over the emitted `stepMeta`.
-6. **An import carrying attacker-shaped structured steps** (`{t, min: 30, passive: true,
-   station: 'oven'}`) **still emits plain meta**, because §3.2 stores strings. This is the
-   mutation that matters: it fails if a later change starts persisting structured steps.
+6. **A stored document carrying a `stepMeta` OVERLAY still emits plain meta** — the mutation
+   that matters, and the one an earlier draft of this spec got wrong (0b.2). ⚠ **The fixture
+   must put the window on a NON-TERMINAL step** (or use station `'off'`): `finishCookable`
+   (`cookable.mjs:714-722`) drops a *terminal* passive non-`'off'` window to plain meta by
+   itself, so the obvious two-step fixture with the window on step 1 goes green **even if the
+   wrapper deletes nothing**. Assert the overlay case AND the structured-step case; the
+   overlay is the real leak, because it attaches to plain strings.
 7. `bsOrchestrate` over one catalog recipe with windows + one imported recipe returns a plan
    in which **no detour is hosted inside the import**, and a two-import session returns
    `reason: BS_SERIAL_REASON.NO_WINDOW` — the field is `reason`
@@ -619,6 +794,23 @@ rewrite and passes on a broken one.
     never mounts `BSMealLogged` (§6.3).
 15. `bsSplitPaste` (§4.1): a heading-led paste, a heading-less paste with quantity lines, and
     a paste that is method only — each lands the right lines on the right side.
+16. **A member recipe never enters `SHAPE_KITCHEN_RECIPES`** (0b.3), and `BSRecipeBox` is
+    driven with a `macros`-less row to pin that `:6574` would throw — the assertion documents
+    why the boundary exists rather than trusting a comment.
+17. **The two collision widths are distinct** (§5.3): a title differing only in punctuation
+    or case collides through `bsCookSlug` and does **not** through the prep picker's
+    trim+lowercase. One fixture, two expectations.
+18. **The store**: a `null` read declines the write; `{}` is merged into (a real, empty
+    document); a uid change between read and write discards; `saveUserGoals` resolving
+    `{error}` is surfaced, not swallowed.
+
+⚠ **THE POINTER ARRAY HAS NO EXISTING COVERAGE** (0b.10) — `bsLibWrite`, `bsLibToggle`,
+`useBSLibrary` and `BS_LIB_KINDS` return zero hits across `tests/`. There is no guard to
+extend; all of it is new code.
+
+⚠ **AND THE MOUNT HARNESS ONLY SEES A SYNCHRONOUS SEED** (0b.9). `drive(BSClientLibrary)`
+renders today, but an effect-only load renders nothing and the test **passes vacuously** —
+which is why PR 1 needs the local mirror, and why that mirror needs its `localScrub` entries.
 
 **Mutation-test every new guard.** The house rule, paid for repeatedly: *a guard that reports
 a pass is a broken instrument until the mutation is proven to have landed.* Verify the edit
@@ -653,6 +845,24 @@ between members, published, or shown to a coach — i.e. §10.1 and any future s
 ⚠ **This is a legal question with a business answer, not an engineering one**, and it should
 be settled before the share path is built rather than after.
 
+**10.6 The GDPR export label — a ruling, not a default** (0b.6).
+`src/app/api/account/export/route.ts:16` exports the whole `user_goals` table under the key
+`health_screening_and_goals`, and its `SENSITIVE_KEYS` scrub matches none of §3.2's fields.
+So the day PR 1 ships, a member's typed recipes — including `sourceNote` and `photoPath` —
+are exported under a health-screening label with no scrub. Portability is right; the label is
+wrong. Options: rename the key, split `client_recipes` into its own export section, or record
+that the label is known-inaccurate. ⚠ **Actionable in PR 1**, because PR 1 is what creates the
+first member-authored freeform *content* kind in that table. Default if unanswered: **split
+it into its own section**, since renaming the existing key changes the shape of every prior
+export.
+
+**10.7 Does PR 1 accept a test-only render half?** (0b.9, §13.) PR 1 as specified ships **no
+writer**, so *"a member recipe appears in the Catalogue"* is true only under a test fixture —
+the path is dead in production until PR 2, and the house's on-device `manual` pass cannot be
+performed. Options: accept it and say so in the WORKLOG entry, or add a dev-only seed — which,
+if it lives in a `broadsheet/*.jsx`, becomes ratchet-visible copy. Default if unanswered:
+**accept, and state it in the entry**; a dev seed is a second thing to remember to remove.
+
 **10.5 Does an imported recipe belong in the grocery builder and the meal plan?**
 Default: **yes to grocery** (it is `bsMergeMise` output like anything else, and the aisle
 classifier works on ingredient names), **no to the coach's meal plan** — a nutritionist's
@@ -671,6 +881,8 @@ plan claims.
 - Recipe photos as *food* photography (the frontispiece follow-up, WORKLOG "PR E
   FOLLOW-UPS"). §4.2's photo is the **source document**, not a plated shot.
 - Nutrition-label OCR. Different problem, different validator.
+- Renaming the GDPR export key. It is **registered as §10.6**, not deferred silently — the
+  data rides out correctly today; only its section label is wrong.
 - The website. `public/newdesign/recipes.jsx` carries a content-parity copy of the catalog
   (`recipe-web-mobile-parity.test.mjs` enforces it); member recipes are mobile-only in v1 and
   **must not** be added to that parity check.
@@ -706,9 +918,34 @@ Four PRs, each independently mergeable, each green before the next. The house ga
 on the final head and not a draft, `/code-review` before pushing, and an explicit
 `@codex review` on the PR (WORKLOG, owner 2026-09-10).
 
-**PR 1 — the store and the pointer.** `client_recipes` kind, serial write lane, uid binding,
-null-read decline. A member recipe appears in the Catalogue and opens a detail screen. No
-ingest yet — seeded by a test fixture. *Ships the risky part first, with no UI pressure on it.*
+⚠ **CI HAS FOUR JOBS, NOT THE THREE THE AUTO-LOADED CONVENTIONS NAME** (0b.8): `web`,
+**`Tests (unit + mount)`**, `mobile`, `secrets`. The tests job installs **both**
+`node_modules` trees and is the **only** one that executes a React component — so every
+render assertion in §9 runs there and nowhere else. ⚠ And the `mobile` job's name still says
+*"public/m sync"* although `public/m` is gitignored with zero tracked files and no sync check
+exists; copying a build into it produces nothing committable.
+
+⚠ **What a PR-1 `git commit` actually costs**, measured: `mobile-app/src/*` sets
+`mobile_changed` + `code_changed`, so the hook runs a babel parse-check of every staged JS
+file, the **full `VITE_BASE=/m/ npm run build`**, and the **whole suite** (2858 tests, ~50s at
+the time of writing). **`tsc` does NOT run** — nothing under `src/*.ts` is staged — so a
+reader assuming typecheck covers this change is wrong. A missing root `node_modules` is a hard
+**fail**, not a warning.
+
+**PR 1 — the store and the pointer.** `client_recipes` kind, its own serial write lane, uid
+binding, null-read decline, `res.error` inspected. A member recipe appears in
+**`BSClientLibrary`** (0b.3) and opens a detail screen. No ingest yet — seeded by a test
+fixture (§10.7).
+
+⚠ **Its real cost is four things the first draft did not budget:** a **synchronous local
+mirror** (0b.9 — without it the mount test passes vacuously), which drags in the **three
+`localScrub` inventory edits**; the **two false-provenance strings** (0b.4), which are
+baseline strings in an i18n-UNCOVERED component and therefore move the ratchet; **all-new
+pointer tests**, since that array has zero coverage today (0b.10); and the i18n budget for
+whatever copy the detail screen adds — where a **fully-keyed new component** is the cheap path
+and editing a baseline string is the expensive one (0b.5). ⚠ Keep new UI copy out of a
+`broadsheet/` subdirectory, out of `.mjs`, and out of `services/`: the ratchet's scan is
+non-recursive and top-level-only, so English would ship to 13 locales with the suite green.
 
 **PR 2 — paste ingest + cook.** The paste sheet with the structural split (§4.1), the review
 screen, `bsCookableFromMemberRecipe` (§5.3), the prep picker's `myrecipe:` resolution (§0.4)

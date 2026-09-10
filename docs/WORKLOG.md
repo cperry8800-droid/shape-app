@@ -1387,6 +1387,86 @@ Append new entries at the top, under this note.
   → **reload → the tab comes back lit** → choose the defaults back → `{}`.
 - ⚠ **STILL A SIMULATED LIVE STATE.** The account above is a stubbed `shapeDb` over
   localStorage. An on-account pass is owed.
+### 2026-09-10 — The recipe-import spec surveyed before a line was written: ten corrections, and the one I had contradicted myself about
+
+- **Records only — an implementation-readiness survey, not a build.** Before starting PR 1 of
+  [`2026-09-10-third-party-recipe-import-design.md`](superpowers/specs/2026-09-10-third-party-recipe-import-design.md),
+  six parallel readers mapped the write lane, the library render path, the test harness, the
+  cookable contract, i18n and every `myrecipe:` pointer surface; a completeness critic then
+  checked what they missed and which gate a naive PR 1 would trip. **153 findings · 78
+  hazards · 13 gaps · 6 contradictions · 9 build-breakers · 10 corrections to the spec.**
+  The spec's new §0b is the record. **No code changed, no migration, no PR.**
+- ⚠ **THE HEADLINE FINDING IS A CLAIM I WROTE THAT WAS FALSE — AND IT CONTRADICTED MY OWN
+  §5.3 IN THE SAME DOCUMENT.** §3.2 argued that storing plain-string steps made the
+  no-passive-windows rule *structural*, *"there is no path from a string to a window"*. There
+  is: `bsCookableFromRecipe` applies a caller-supplied parallel `stepMeta` overlay **onto
+  plain-string steps** (`cookable.mjs:745-746`), which is exactly how the catalog's curated
+  windows attach (`shapeKitchenData.js:1169`) — and §5.3 already said so. **I had read that
+  line during the draft and quoted it, then wrote its opposite two sections earlier**, and the
+  Fable pass did not catch it either. The invariant is held at ONE place: the wrapper's
+  `delete stepMeta`. ⚠ And `stepMeta: []` is **not** an absent key — `Array.isArray([])` is
+  true, so an empty array *becomes* the overlay. *Two sections of one document disagreeing is
+  a defect the reader inherits, not a wording problem.*
+- ⚠ **AND THE GUARD I WROTE FOR THAT INVARIANT WOULD HAVE PASSED ON BROKEN CODE.** §9's test 6
+  asserted on structured **steps** when the real leak is the **overlay** — and
+  `finishCookable:714-722` drops a *terminal* passive non-`'off'` window to plain meta by
+  itself, so the obvious two-step fixture with the window on the last step goes green **even
+  if the wrapper deletes nothing**. The fixture must carry a `stepMeta` key with the window on
+  a **non-terminal** step. *A guard aimed at the wrong mechanism is decoration; one whose
+  smallest fixture is rescued by unrelated code is worse.*
+- ⚠ **"THE CATALOGUE" WAS AMBIGUOUS IN THE SPEC, AND THE WRONG READING IS A PRODUCTION
+  CRASH.** It is `BSClientLibrary` (settled by `warroom.ts:1237`), not `BSRecipeBox`.
+  Appending a member recipe to the latter's `recipes` prop throws on first render:
+  `iosAppBroadsheetClient.jsx:6574` reads
+  `{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F` **unguarded** and the stored
+  document has no `macros` key. `BSKitchenCard` **is** null-safe at that field, so a
+  card-level render test misses it, and **no CI job would catch it**.
+- ⚠ **THE GDPR EXPORT WAS MAPPED BY NOBODY, INCLUDING ME.**
+  `src/app/api/account/export/route.ts:16` exports the **whole** `user_goals` table under the
+  key `health_screening_and_goals`, with a `SENSITIVE_KEYS` scrub matching **none** of the new
+  document's fields — so member-typed `sourceNote` and `photoPath` would be exported under a
+  health-screening label the day the store ships. Portability is right; the label is not.
+  Deletion is already covered. **Registered as an owner ruling (§10.6), not defaulted
+  silently.** ⚠ Related: `user_goals` has **no user-facing DELETE policy**, so *"delete my
+  recipe"* is an upsert with the key removed — which is also the evidence behind the spec's
+  "no migration" (the table has no check constraint on `kind` and no allow-list anywhere).
+- ⚠ **CI HAS FOUR JOBS, NOT THE THREE THE AUTO-LOADED CONVENTIONS NAME.** `Tests (unit +
+  mount)` is its own job, installs **both** `node_modules` trees, and is the **only** one that
+  executes a React component — so every render assertion runs there and nowhere else. And the
+  `mobile` job's name still says *"public/m sync"* although **`public/m` is gitignored
+  (`.gitignore:26`) with zero tracked files** and no sync check exists; `ci.yml`'s own header
+  says the name is kept so branch protection keeps matching. The convention bullet telling you
+  to `cp -r mobile-app/dist public/m` produces nothing committable. **Corrected in the spec;
+  the conventions at the head of THIS file still carry the stale version.**
+- **The costs PR 1's first draft did not budget:** a **synchronous** local mirror (measured —
+  `drive(BSClientLibrary)` renders today, but an effect-only load renders nothing and the test
+  passes **vacuously**), which drags in **three `localScrub` inventory edits**; two
+  **false-provenance strings** that tell a member their own typed recipe came from a coach
+  (`:1801`, `:1903`), both baseline strings in an i18n-UNCOVERED component and therefore
+  ratchet-moving; and **all-new pointer tests**, since `bsLibWrite`/`bsLibToggle`/
+  `useBSLibrary`/`BS_LIB_KINDS` return **zero hits** across `tests/`.
+- ⚠ **TWO PLACES SHIP ENGLISH TO 13 LOCALES WITH THE SUITE FULLY GREEN.** The i18n ratchet's
+  file scan is a **non-recursive `readdirSync` over `broadsheet/*.jsx`**, so a subdirectory, a
+  `.mjs`, or anything under `services/` is invisible to it while `i18n-default-resolution`
+  still gates the keys. Recorded so PR 1 keeps its copy where the ratchet can see it.
+- ⚠ **AND MY OWN VERIFICATION NEARLY MANUFACTURED A FALSE REFUTATION.** Checking the survey's
+  citations, one was off by a line (the macros read is `:6574`, not `:6573`) — but the other
+  looked invented: a scan for `'…'` on `:1903` returned only *"No matches"* and *"None in here
+  yet."*, with no sign of the coach-provenance copy. It is there, as **raw JSX text**
+  (`<>Nothing saved yet. Save your coaches&rsquo; workouts…</>`). *A string that is not a
+  literal is invisible to a literal scan* — which also means any grep-based count of UI copy in
+  this file undercounts.
+- ⚠ **AND A MEASUREMENT FOR ANYONE SIZING A HARNESS ON THIS BOX: 4 CPUs, so a workflow's
+  concurrency cap is 2.** Six readers ran two at a time. Fan-out width buys independence and
+  coverage; it does **not** buy wall-clock here, so a 20-agent harness costs 10× the time for
+  the same parallelism.
+- **Verified:** docs-only · **92 of 99 citations machine-resolved** and the 7 the resolver
+  cannot path-match verified by hand · the survey's own new citations spot-checked against the
+  source rather than trusted (which is what caught the `:6573` slip) · LF, zero CR, zero NUL,
+  12 line-start fences (even), no CJK, sections `0 · 0b · 1…13` in order, no `§` reference to a
+  section that does not exist · baselines re-measured before any edit: `npm test` **2858/2858**,
+  `tsc --noEmit` **0**.
+
 ### 2026-09-10 — Third-party recipe import, specced: the seam was already built, and the interleave is the thing it may never claim
 
 - **Records only — a spec, not a build.** Owner: *"how can we create the ability to upload
