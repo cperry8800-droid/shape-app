@@ -5559,6 +5559,35 @@ window.ShapeMarketPlans = { list: listMarketPlans, buy: buyCoachPlan };
 
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.
+// ⚠ THE `weight` COLUMN HELD BOTH POUNDS AND KILOGRAMS, AND THE READ CALLED
+// EVERY ROW `kg`. Two writers put rows in this table — the Goal page's weigh-in
+// sheet, which sent the GOAL document's unit, and the weekly check-in, which
+// sent the member's Settings unit (`t.isMetric ? 'kg' : 'lb'`) — so an Imperial
+// member's 180 lb was stored as 180 and then read back as 180 KG. That is not a
+// display bug: `bsGoalNow` feeds the trend line, the weekly pace and the
+// distance-to-target, so one check-in moved a member's whole body-composition
+// chart by a factor of 2.2 and the goal read as overshot.
+//
+// The column is CANONICAL KILOGRAMS from here on: the write converts before it
+// upserts and always stamps `unit: 'kg'`, and the read converts any legacy row
+// by ITS OWN `unit` value, so history written in pounds repairs itself without a
+// migration. `.kg` is therefore honestly kilograms, which is what every consumer
+// already assumed it was.
+const LB_TO_KG_BACKEND = 0.45359237;
+function _weighInToKg(value, unit) {
+  // ⚠ `Number(null)` AND `Number('')` ARE BOTH 0, AND BOTH ARE FINITE, so a bare
+  // Number() guard turns an absent weigh-in into a confident 0 kg — which then
+  // renders as a real data point on the member's trend line.
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  // Anything that is not explicitly a pound unit is taken as kilograms — the
+  // column's default and the only value the app writes now. Guessing from the
+  // MAGNITUDE (">120 must be pounds") was considered and rejected: it is wrong
+  // for a 130 kg lifter and for a 100 lb client, and a silent wrong answer here
+  // is worse than trusting the column that exists.
+  return /^(lb|lbs|pound)/i.test(String(unit || '').trim()) ? n * LB_TO_KG_BACKEND : n;
+}
 async function listWeighIns() {
   if (!supabase || !state.user?.id) return null;
   const { data, error } = await supabase
@@ -5567,15 +5596,17 @@ async function listWeighIns() {
     .eq('user_id', state.user.id)
     .order('logged_on', { ascending: true });
   if (error) return null;
-  return (data || []).map(r => ({ d: r.logged_on, kg: Number(r.weight), unit: r.unit || 'kg' }));
+  return (data || [])
+    .map(r => ({ d: r.logged_on, kg: _weighInToKg(r.weight, r.unit), unit: 'kg', storedUnit: r.unit || 'kg' }))
+    .filter(r => r.kg != null);
 }
 async function logWeighIn({ weight, unit = 'kg', bodyFat = null } = {}) {
   if (!supabase || !state.user?.id) return null;
-  const w = Number(weight);
+  const w = _weighInToKg(weight, unit);
   if (!Number.isFinite(w)) return null;
   const today = _localDate();
   const bf = Number(bodyFat);
-  const row = { user_id: state.user.id, logged_on: today, weight: w, unit };
+  const row = { user_id: state.user.id, logged_on: today, weight: w, unit: 'kg' };
   if (Number.isFinite(bf) && bf > 0 && bf < 75) row.body_fat_pct = bf;
   let { data, error } = await supabase
     .from('client_weigh_ins')

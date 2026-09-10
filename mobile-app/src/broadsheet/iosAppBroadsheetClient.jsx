@@ -14291,7 +14291,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       if (!alive) return;
       const o = (doc && doc.overall && typeof doc.overall === 'object') ? { ...doc.overall } : null;
       let merged = o;
-      if (Array.isArray(weigh) && weigh.length) merged = { ...(o || {}), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+      // The live series is kilograms, so the document it is merged into must say
+      // so — otherwise `bsGoalDocKg` converts these figures a second time.
+      if (Array.isArray(weigh) && weigh.length) {
+        const base = o || {};
+        merged = { ...base, unit: 'kg', start: bsGoalDocKg(base.start, base), target: bsGoalDocKg(base.target, base), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+      }
       if (merged && (merged.start != null || merged.target != null || merged.now != null)) setRealGoal(merged);
       if (climb && climb.source) setClimbSource(climb.source);
       if (climb && Array.isArray(climb.shown) && climb.shown.length) setClimbShown(climb.shown.filter((k) => CLIMB_SOURCES.some((s) => s.key === k)));
@@ -18184,8 +18189,53 @@ function bsWallNum(v) {
 // from the JSX so the reading can be driven by a test: `first` and `gain` are
 // mutually exclusive by construction, so no plate can ever claim both a first
 // record and an improvement on it.
-function bsWallHeader(rec) {
-  const gain = bsWallGain(rec && rec.best, rec && rec.prev);
+// A wall record carries the unit it was SET in — a member who lifts in pounds
+// posts pounds — but the reader sees it in the unit THEY chose in Settings.
+// Converting is display only: the ledger keeps the record as it was set.
+const BS_WALL_LB_TO_KG = 0.45359237;
+const BS_WALL_MI_TO_KM = 1.609344;
+// ⚠ THE WALL CARRIES MORE THAN BARBELLS — A LONGEST RUN IS A RECORD TOO, AND
+// ITS UNIT IS A DISTANCE. The first cut of this resolved every unit onto the
+// weight pair, which turned an 18.2 mi record into "18.2 lb" the moment a
+// reader's preference was applied. So the FAMILY is resolved first, a unit is
+// only ever converted within its own family, and anything outside these two
+// (a rep count, a duration, a unit a future record type invents) is passed
+// through untouched rather than guessed at.
+function bsWallUnitFamily(u) {
+  const v = String(u == null ? '' : u).trim();
+  if (/^(kg|kilo)/i.test(v)) return { family: 'weight', key: 'kg' };
+  if (/^(lb|lbs|pound)/i.test(v)) return { family: 'weight', key: 'lb' };
+  if (/^(km|kilomet)/i.test(v)) return { family: 'distance', key: 'km' };
+  if (/^(mi|mile)/i.test(v)) return { family: 'distance', key: 'mi' };
+  return { family: null, key: v };
+}
+// `prefs` is { weight, distance } — the reader's two Settings units. A record
+// whose family has no preference, or whose preference names another family,
+// keeps the unit it was set in.
+function bsWallTargetUnit(srcUnit, prefs) {
+  const src = bsWallUnitFamily(srcUnit);
+  const fallback = src.key || 'lb';
+  if (!src.family || !prefs) return fallback;
+  const want = bsWallUnitFamily(src.family === 'weight' ? prefs.weight : prefs.distance);
+  return want.family === src.family ? want.key : fallback;
+}
+function bsWallToUnit(value, from, to) {
+  // `Number(null)` and `Number('')` are both a finite 0, so an absent figure
+  // has to be rejected before the arithmetic, not by Number.isFinite after it.
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const f = bsWallUnitFamily(from), d = bsWallUnitFamily(to);
+  if (!f.family || f.family !== d.family || f.key === d.key) return n;
+  if (f.family === 'weight') return d.key === 'kg' ? n * BS_WALL_LB_TO_KG : n / BS_WALL_LB_TO_KG;
+  return d.key === 'km' ? n * BS_WALL_MI_TO_KM : n / BS_WALL_MI_TO_KM;
+}
+// `toUnit` omitted keeps the record's own unit — the signature stays additive so
+// a caller that has no theme in hand is unchanged.
+function bsWallHeader(rec, prefs) {
+  const srcUnit = (rec && rec.unit != null && String(rec.unit).trim()) ? String(rec.unit).trim() : 'lb';
+  const unit = bsWallTargetUnit(srcUnit, prefs);
+  const gain = bsWallToUnit(bsWallGain(rec && rec.best, rec && rec.prev), srcUnit, unit);
   // ⚠ "FIRST" IS WHETHER A PREVIOUS BEST EXISTS — NOT WHETHER A GAIN COULD BE
   // COMPUTED FROM IT. Deriving it from `gain == null` meant any record whose
   // improvement failed to produce a number (a rounding edge, a malformed stored
@@ -18195,8 +18245,8 @@ function bsWallHeader(rec) {
   const prev = rec && rec.prev;
   return {
     label: String((rec && (rec.liftLabel || rec.liftKey)) || '').trim(),
-    figure: bsWallNum(rec && rec.best),
-    unit: String((rec && rec.unit) || 'lb'),
+    figure: bsWallNum(bsWallToUnit(rec && rec.best, srcUnit, unit)),
+    unit,
     reps: (rec && Number.isFinite(Number(rec.reps)) && Number(rec.reps) > 1) ? Number(rec.reps) : null,
     gain,
     first: prev == null || prev === '',
@@ -18314,7 +18364,7 @@ function BSWallPlate({ rec, ctx, newest }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const h = bsWallHeader(rec);
+  const h = bsWallHeader(rec, { weight: t.weightUnit, distance: t.distanceUnit });
   const a = rec.act;
   // A stamped record is one a coach has co-signed — either already, or by this
   // viewing coach a moment ago (the optimistic co-sign the card itself reads).
@@ -18696,7 +18746,15 @@ function BSWall({ ctx }) {
             button to close it. The second is a fact: this is on the wall, set
             then. Giving both the same treatment is how a call to action turns
             into a list nobody reads. */}
-        {!previewing && Array.isArray(mineEff) && mineEff.map((m) => (
+        {/* Displayed in the reader's unit. The figure and the gap are converted
+            TOGETHER from the row's own unit — converting one without the other
+            is how "+20 lb to the wall" ends up under a kilogram figure. The gap
+            is only ever non-null when both sides were already the same unit
+            (bsWallYourBest refuses to invent one across a conversion), so this
+            rescales a comparison that was valid rather than creating one. */}
+        {!previewing && Array.isArray(mineEff) && mineEff
+          .map((r) => { const u = bsWallTargetUnit(r.unit, { weight: t.weightUnit, distance: t.distanceUnit }); return { ...r, unit: u, best: bsWallToUnit(r.best, r.unit, u), gap: bsWallToUnit(r.gap, r.unit, u) }; })
+          .map((m) => (
           <div key={m.liftKey} style={{ marginTop: 9, padding: m.unposted ? '10px 12px' : '9px 0', borderRadius: m.unposted ? 8 : 0, border: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : 0, background: m.unposted ? bsTHexA(teal, 0.08) : 'transparent', borderBottom: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : `1px solid ${hair}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.unposted ? teal : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -22103,7 +22161,30 @@ function bsGoalIsoFromWeeks(w) { const d = new Date(); d.setDate(d.getDate() + (
 function bsGoalDaysUntil(iso) { if (!iso) return null; const ms = new Date(iso).getTime() - Date.now(); return Math.max(0, Math.round(ms / 86400000)); }
 // Live body-comp helpers — derive "now" + the trend series from logged weigh-ins.
 function bsGoalWeighIns(overall) { return (overall && Array.isArray(overall.weighIns)) ? overall.weighIns.slice().filter(x => x && Number.isFinite(Number(x.kg))) : []; }
-function bsGoalNow(overall) { const wi = bsGoalWeighIns(overall); return wi.length ? Number(wi[wi.length - 1].kg) : (Number(overall && overall.now) || 0); }
+// ⚠ THE GOAL DOCUMENT'S OWN NUMBERS ARE IN `overall.unit`; THE WEIGH-IN SERIES
+// IS IN KILOGRAMS. `client_weigh_ins` is canonical kg (shapeBackend), and a
+// signed-out member's series lives in the same `.kg` field of the user_goals
+// doc — but `start`, `target` and `now` are whatever the member typed under
+// `overall.unit`. Subtracting one from the other without this conversion is how
+// "12 lb to go" becomes "-70 kg to go" the moment a pound-using member logs a
+// weigh-in. Everything downstream of these two helpers is kilograms.
+const BS_GOAL_LB_TO_KG = 0.45359237;
+function bsGoalUnitIsLb(overall) { return /^(lb|lbs|pound)/i.test(String((overall && overall.unit) || 'kg').trim()); }
+function bsGoalDocKg(v, overall) {
+  // An unset goal field is '' in the document (the editor writes '' for blank),
+  // and `Number('')` is a finite 0 — so without this guard "no target yet"
+  // renders as a target of zero and the whole progress bar reads as overshot.
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return bsGoalUnitIsLb(overall) ? n * BS_GOAL_LB_TO_KG : n;
+}
+function bsGoalNow(overall) {
+  const wi = bsGoalWeighIns(overall);
+  if (wi.length) return Number(wi[wi.length - 1].kg);
+  // `overall.now` is a document field, so it carries the document's unit.
+  return bsGoalDocKg(overall && overall.now, overall) || 0;
+}
 
 // Full-page add/edit flow with a categorized template picker (filtered to the
 // active tab's group) + the same fields as the website's GoalEditModal.
@@ -22269,8 +22350,14 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const start = Number(overall.start) || 0, now = bsGoalNow(overall), target = Number(overall.target) || 0;
-  const unit = overall.unit || 'kg';
+  // Every figure below is KILOGRAMS; `dsp` is the only thing that turns one into
+  // a number the member reads, and `unit` is their Settings preference rather
+  // than the goal document's stored unit. Before this the page rendered the raw
+  // stored number under the document's own unit, so flipping Settings to Metric
+  // changed the label and not the figure — a 178 that now said "kg".
+  const start = bsGoalDocKg(overall.start, overall) || 0, now = bsGoalNow(overall), target = bsGoalDocKg(overall.target, overall) || 0;
+  const unit = t.weightUnit;
+  const dsp = (kg) => (kg == null || !Number.isFinite(Number(kg)) ? null : Math.round(t.kgToDisplay(Number(kg)) * 10) / 10);
   const down = +(now - start).toFixed(1);
   const range = +(start - target).toFixed(1);
   const toGo = +(now - target).toFixed(1);
@@ -22375,7 +22462,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
     if (!hasGoal) return [];
-    const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
+    // `v` and `w` are kilograms (milestones are derived from start/range); the
+    // comparison stays in kg and only the label converts.
+    const fmt = (v) => `${dsp(v)} ${unit}`;
     const reached = (w) => range > 0 ? now <= w + 0.05 : now >= w - 0.05;
     const defs = [
       { w: start, t: tr('goal:terms.mBaseline', { defaultValue: 'Baseline set' }), sub: tr('goal:terms.mBaselineSub', { defaultValue: 'plans live' }) },
@@ -22611,8 +22700,8 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
           <div style={{ marginTop: 14, display: 'flex' }}>
             {[
               { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: now, u: unit, sub: tr('goal:cover.statCurrentSub', { defaultValue: 'latest' }) },
-              { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: toGo, u: unit, sub: tr('goal:cover.statToGoSub', { defaultValue: 'of {range}', range }) },
-              { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? paceVal : null, u: paceVal != null ? `${unit}/wk` : '', sub: tr('goal:cover.statPaceSub', { defaultValue: 'per week' }) },
+              { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: dsp(toGo), u: unit, sub: tr('goal:cover.statToGoSub', { defaultValue: 'of {range}', range: dsp(range) }) },
+              { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? dsp(paceVal) : null, u: paceVal != null ? `${unit}/wk` : '', sub: tr('goal:cover.statPaceSub', { defaultValue: 'per week' }) },
               { l: tr('goal:cover.statEta', { defaultValue: 'ETA' }), raw: `${etaStat.v}${etaStat.u || ''}`, rawColor: etaStat.c, sub: etaStat.sub },
             ].map((r, i) => (
               <div key={r.l + i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.14)}` : 0, paddingLeft: i ? 10 : 0 }}>
@@ -22666,14 +22755,22 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [g, setG] = useStateBSC({ ...overall });
+  // ⚠ THE THREE FIGURES ARE EDITED IN THE MEMBER'S UNIT AND STORED IN KILOGRAMS.
+  // This sheet used to carry a FREE-TEXT unit box beside them, which is where
+  // the mixed-unit documents came from: a member could type "lbs" here while
+  // the weigh-in table was filling with kilograms, and nothing reconciled the
+  // two. The unit now follows Settings and is shown, not typed.
+  const [g, setG] = useStateBSC(() => {
+    const out = (v) => { const kg = bsGoalDocKg(v, overall); const d = kg == null ? null : t.kgToDisplay(kg); return d == null ? '' : String(Math.round(d * 10) / 10); };
+    return { ...overall, start: out(overall.start), now: out(overall.now), target: out(overall.target) };
+  });
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
   // Zero-box underline fields — the Open Ledger form grammar (.bs-uline focus →
   // accent underline via --bs-accent).
   const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
   // Keep the raw string while editing (so decimals like 76.8 type cleanly);
   // numeric fields are coerced to Number on save (`saveGoal`).
-  const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
+  const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? Math.round(t.displayToKg(x) * 1000) / 1000 : ''; }; onSave({ ...g, unit: 'kg', start: n(g.start), now: n(g.now), target: n(g.target) }); };
   const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? tr('goal:overall.fieldStart', { defaultValue: 'Start' }) : k === 'now' ? tr('goal:overall.fieldNow', { defaultValue: 'Now' }) : tr('goal:sheet.fieldTarget', { defaultValue: 'Target' })}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>;
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
@@ -22695,7 +22792,7 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
         <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTitle', { defaultValue: 'Title' })}</span><input className="bs-uline" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder={tr('goal:overall.titlePlaceholder', { defaultValue: 'e.g. Lean by August' })} style={field} /></label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
           <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTargetDate', { defaultValue: 'Target date' })}</span><input className="bs-uline" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
-          <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:overall.fieldUnit', { defaultValue: 'Unit' })}</span><input className="bs-uline" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
+          <div><span style={lbl}>{tr('goal:overall.fieldUnit', { defaultValue: 'Unit' })}</span><div style={{ ...field, display: 'flex', alignItems: 'center', minHeight: 34, fontVariantNumeric: 'tabular-nums' }}>{t.weightUnit}</div><div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:overall.unitFromSettings', { defaultValue: 'Settings · Units' })}</div></div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>{num('start')}{num('now')}{num('target')}</div>
         <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:terms.whyHead', { defaultValue: 'Your why' })}</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 2, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
@@ -23105,12 +23202,13 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const unit = overall.unit || 'kg';
+  const unit = t.weightUnit;
   const [kg, setKg] = useStateBSC(String(bsGoalNow(overall) || ''));
   const [bf, setBf] = useStateBSC('');
   const inputRef = React.useRef(null);
   React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
-  const val = parseFloat(kg);
+  const typed = parseFloat(kg);
+  const val = Number.isFinite(typed) ? t.displayToKg(typed) : NaN;   // kilograms — what onSave stores
   const bfVal = parseFloat(bf);
   const ok = Number.isFinite(val) && val > 0;
   const sheet = (
@@ -23131,7 +23229,7 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
           <input value={bf} onChange={(e) => setBf(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', textAlign: 'right', fontVariantNumeric: 'tabular-nums', padding: '2px 0 8px' }} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50 }}>%</span>
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('goal:weighIn.note', { defaultValue: 'Updates your trend + progress · start {start} · target {target}', start: Number(overall.start).toLocaleString(bsDateLocale()), target: Number(overall.target).toLocaleString(bsDateLocale()) })}</div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('goal:weighIn.note', { defaultValue: 'Updates your trend + progress · start {start} · target {target}', start: `${Math.round(t.kgToDisplay(bsGoalDocKg(overall.start, overall) || 0) * 10) / 10} ${unit}`, target: `${Math.round(t.kgToDisplay(bsGoalDocKg(overall.target, overall) || 0) * 10) / 10} ${unit}` })}</div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</span></button>
           <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: ok ? teal : t.RULE, color: ok ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:weighIn.save', { defaultValue: 'Save weigh-in' })}</button>
@@ -24932,12 +25030,28 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   }, [loggedIn, bsGoalProgram.detail, bsGoalProgram.trainingPhase, bsGoalProgram.nutritionPhase]);
   const logWeighIn = (kg, bodyFat = null) => {
     const today = new Date().toISOString().slice(0, 10);
-    const prev = bsGoalWeighIns(overall);
+    // ⚠ THE DOCUMENT CANONICALISES ITSELF TO KILOGRAMS ON EVERY SAVE, START,
+    // TARGET AND BACK SERIES TOGETHER. `kg` arrives in kilograms from the sheet,
+    // so writing it into a document still stamped `unit: 'lb'` would have made
+    // `bsGoalDocKg` convert it a SECOND time on the next read — an 81 kg
+    // weigh-in reading back as 37. Converting the whole document in one step is
+    // the only version where start, target and the series can never disagree
+    // about which unit they are in; a member who prefers pounds still sees
+    // pounds, because display is `t`'s job and no longer the document's.
+    const wasLb = bsGoalUnitIsLb(overall);
+    const prev = bsGoalWeighIns(overall).map(x => (wasLb ? { ...x, kg: Number(x.kg) * BS_GOAL_LB_TO_KG } : x));
     const wi = (prev.length && prev[prev.length - 1].d === today) ? [...prev.slice(0, -1), { d: today, kg }] : [...prev, { d: today, kg }];
-    const nextOverall = { ...overall, weighIns: wi, now: kg };
+    const nextOverall = {
+      ...overall,
+      unit: 'kg',
+      start: bsGoalDocKg(overall.start, overall),
+      target: bsGoalDocKg(overall.target, overall),
+      weighIns: wi,
+      now: kg,
+    };
     if (loggedIn && window.ShapeWeighIns?.log) {
       setData(d => ({ ...d, overall: nextOverall }));          // optimistic; table is the source of truth
-      window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg', bodyFat })
+      window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat })
         .then(() => window.ShapeGoalAwards?.check?.())         // credit any newly reached milestone
         .then((awards) => (awards || []).forEach(a => window.__bsToast?.(tr('goal:award.toast', { defaultValue: '+{points} pts · {milestone}', points: a.points, milestone: a.milestone }), 'ok')))
         .catch(() => {});
@@ -24982,7 +25096,10 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           m.work = Array.isArray(doc.work) ? doc.work : prev.work;
         }
         if (Array.isArray(weigh) && weigh.length) {
-          m.overall = { ...m.overall, weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+          // Same canonicalisation as the profile's signals loader: adopting a
+          // kilogram series into a document still stamped `lb` is the
+          // double-conversion this whole change exists to remove.
+          m.overall = { ...m.overall, unit: 'kg', start: bsGoalDocKg(m.overall.start, m.overall), target: bsGoalDocKg(m.overall.target, m.overall), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
         }
         return m;
       });
@@ -25194,7 +25311,10 @@ function BSMeGoalCard({ onOpen }) {
   const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   if (bsGoalSignedIn && !g) return null;
   const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
-  const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
+  // Kilograms in, the member's unit out — the same contract as the Goal page.
+  // Reading `ov.unit` here rendered the DOCUMENT's unit, so a member on Metric
+  // saw their goal quoted in pounds on Home and in kilograms one tap away.
+  const start = bsGoalDocKg(ov.start, ov) || 0, now = bsGoalDocKg(ov.now, ov) || 0, target = bsGoalDocKg(ov.target, ov) || 0, unit = t.weightUnit;
   const range = start - target;
   const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
   const toGo = +(now - target).toFixed(1);
@@ -25205,7 +25325,7 @@ function BSMeGoalCard({ onOpen }) {
   // at-or-past target reads as HIT — never a false "to go" when over-achieved.
   const hasRange = range > 0 && isFinite(toGo) && !!unit;
   const goalHit = hasRange && toGo <= 0.05;
-  const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, toGo).toFixed(1), unit }) : '—';
+  const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, t.kgToDisplay(toGo)).toFixed(1), unit }) : '—';
   return (
     <BSShelfDoor tourId="hero-goal" c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
   );

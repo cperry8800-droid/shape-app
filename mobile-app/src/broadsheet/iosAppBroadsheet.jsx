@@ -374,6 +374,15 @@ function bsUnitFormatters(system) {
     // Format a native Imperial value with the active unit appended.
     fmtWeight: (lb, digits = 0, sep = ' ') => (lb == null ? '' : `${num(metric ? lb * LB_TO_KG : lb, digits)}${sep}${metric ? 'kg' : 'lb'}`),
     fmtDistance: (mi, digits = 1, sep = ' ') => (mi == null ? '' : `${num(metric ? mi * MI_TO_KM : mi, digits)}${sep}${metric ? 'km' : 'mi'}`),
+    // ⚠ BODY WEIGHT IS KILOGRAM-NATIVE, WHICH IS THE OPPOSITE OF THE PAIR
+    // ABOVE, AND THE TWO ARE NOT INTERCHANGEABLE. `client_weigh_ins.weight` is
+    // canonicalised to kg (shapeBackend `listWeighIns`/`logWeighIn`), while a
+    // LIFT is stored in pounds — so a body weight passed to convWeight() is
+    // read as pounds and a 80 kg member renders as "36 kg". Keeping both pairs
+    // named for what they take is the only thing that stops that swap.
+    kgToDisplay: (kg) => (kg == null ? null : (metric ? Number(kg) : Number(kg) / LB_TO_KG)),
+    displayToKg: (v) => (v == null ? null : (metric ? Number(v) : Number(v) * LB_TO_KG)),
+    fmtBodyWeight: (kg, digits = 1, sep = ' ') => (kg == null ? '' : `${num(metric ? Number(kg) : Number(kg) / LB_TO_KG, digits)}${sep}${metric ? 'kg' : 'lb'}`),
   };
 }
 

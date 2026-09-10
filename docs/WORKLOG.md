@@ -495,6 +495,78 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — Units: the kg/lb switch reached the labels and not the numbers, and one column held both
+
+- **Owner: *"make sure in settings the user has the ability to change metrics from U.S. to
+  Imperial system"* → *"make sure that measuring changes apply to KGs and lLBs"*.** The
+  control already existed — Settings → **Units · Imperial `lb / mi` · Metric `kg / km`**,
+  shared by the client app and both coach shells (`BSSettings`), with a `ShapeUnits` store and
+  a `bsUnitFormatters` pair on the theme. **What was missing is that almost nothing read it**,
+  so flipping it changed a handful of labels and left the figures where they were.
+- ⚠ **AND UNDERNEATH IT WAS A DATA DEFECT, NOT A DISPLAY ONE: `client_weigh_ins.weight` HELD
+  BOTH POUNDS AND KILOGRAMS AND THE READ CALLED EVERY ROW `kg`.** Two writers filled that
+  column — the Goal page's weigh-in sheet, which sent the **goal document's** unit, and the
+  weekly check-in, which sent the member's **Settings** unit (`t.isMetric ? 'kg' : 'lb'`) —
+  and `listWeighIns` mapped every row to a field literally named `kg` while converting
+  nothing. An Imperial member's **180 lb was read back as 180 kg**. That is not cosmetic:
+  `bsGoalNow` feeds the trend line, the weekly pace and the distance-to-target, so a single
+  check-in moved a member's whole body-composition chart by a factor of **2.2** and their goal
+  read as overshot.
+- **The column is canonical kilograms now, repaired from both ends.** The write converts
+  before it upserts and stamps `unit: 'kg'`; the read converts any legacy row **by its own
+  `unit` value**, so pound history repairs itself with **no migration**. ⚠ The conversion is
+  never guessed from magnitude — *">120 must be pounds"* is wrong for a 130 kg lifter and for
+  a 100 lb client alike, and a silent wrong answer about someone's body weight is worse than
+  trusting the column that exists.
+- ⚠ **THE THEME NEEDED A SECOND CONVERTER PAIR, BECAUSE BODY WEIGHT AND A LIFT ARE NATIVE IN
+  OPPOSITE UNITS.** `convWeight`/`fmtWeight` take **pounds** (a lift); body weight is
+  kilograms. Passing one to the other renders an 80 kg member as **36 kg**. `kgToDisplay` ·
+  `displayToKg` · `fmtBodyWeight` are named for what they take, and a test asserts the two
+  pairs are **not** interchangeable — that swap is the whole failure mode.
+- **The goal document canonicalises itself.** `start`, `target`, `now` and the weigh-in series
+  are converted together in one step and the document is stamped `kg`; converting the figures
+  while leaving the stamp would have made the next read convert them a **second** time. The
+  Goal page, the Home goal card, the weigh-in sheet and the target editor all display through
+  `t` now, so a member sees their own unit and the document no longer has an opinion.
+- ⚠ **AND THE FREE-TEXT UNIT BOX IS GONE, BECAUSE IT IS WHERE THE MIXED DOCUMENTS CAME FROM.**
+  The target editor let a member type *"lbs"* beside figures the weigh-in table was filling in
+  kilograms, with nothing reconciling the two. The unit follows Settings and is shown, not
+  typed.
+- **The Wall reads in the reader's unit.** A record keeps the unit it was **set** in — a
+  member who lifts in pounds posts pounds — and the board converts for whoever is looking, the
+  figure and the gain **together**, so "+10 lb over last best" can never arrive under a
+  kilogram number.
+- ⚠ **THE FIRST CUT OF THAT TURNED AN 18.2 MI RECORD INTO "18.2 LB", AND MY OWN SUITE CAUGHT
+  IT.** The wall carries longest runs as well as barbells, and resolving every unit onto the
+  weight pair is a category error. Conversion is **family-aware** now (weight ↔ weight,
+  distance ↔ distance), a preference naming the wrong family cannot cross-convert, and a unit
+  outside both families passes through untouched rather than being guessed at.
+- ⚠ **TWO NULL-COERCION DEFECTS, BOTH MINE, BOTH FOUND BY THE TESTS BEFORE ANY REVIEW.**
+  `Number(null)` and `Number('')` are **both 0 and both finite**, so `Number.isFinite` alone
+  cannot see them: an absent weigh-in became a confident **0 kg** data point on the trend, and
+  an unset goal field became a **target of zero** that read as permanently overshot. The same
+  class this file post-mortems on the Wall's own helpers, re-earned in the fix for it.
+- **i18n**: one new `goal:overall.unitFromSettings` ×13, each composed from **that locale's
+  own two words** (`settings:head.title` · `settings:pref.units` — the house's existing kicker
+  pattern: *Einstellungen · Einheiten*, *Настройки · Единицы*, *Cài đặt · Đơn vị*). A pure
+  append, **1 insertion / 0 deletions per file**.
+- **Verified:** `npm test` **2883/2883** (2860 + 23 new) · `tsc --noEmit` 0 · JSX parse on both
+  changed modules · **14 mutations killed, each proven to land before its run**, 0 survivors
+  (a lb row left unconverted · the upsert not stamping kg · the goal doc ignoring its stored
+  unit · both empty-value guards · the free-text unit box restored · the kg pair collapsed
+  onto the lb pair · the inverse broken · the wall gain converted without its figure · the
+  wall conversion inverted · the family fallback removed) · and the app **driven in headless
+  Chromium**, flipping `ShapeUnits` live: the weight tile **178.2LB → 80.8KG**, the goal card
+  **7.1 lb to go → 3.2 kg to go**, the Wall pill **10 LB → 4.5 KG** and **1.8 MI → 2.9 KM**,
+  zero page errors. No migration.
+- ⚠ **REGISTERED, NOT FIXED — THE EVIDENCE CARD UNDER A WALL PLATE.** A record's own figures
+  (hero, pill, gain) are numbers and convert; the wrapped `BSActivityCard` beneath it renders
+  **pre-formatted strings** (`stats: [['Top set', '245 lb']]`, breakdown rows), so its stat
+  grid stays in the unit it was written in. Converting it means moving where the feed formats
+  units — a bigger change than this one, and half-doing it would put two units on one plate.
+  **The coach app is the same story:** it shares the Settings pane but has **zero** unit
+  consumers of its own, so a coach flipping the toggle changes nothing on their own screens.
+
 ### 2026-09-10 — The site's app tour is re-shot against the Wall, and gains it as a tenth screen
 
 - **Owner: *"well make sure the new screenshots include the new chat design"*.** The nine
