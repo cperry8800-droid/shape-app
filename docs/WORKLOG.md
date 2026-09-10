@@ -1451,13 +1451,53 @@ Append new entries at the top, under this note.
   (`SIGNED_URL_TTL`, `meal-note/route.ts:22`) so a coach can open an attachment, and a recipe
   photo with no coach recipient must not inherit a year-long public link. The document stores
   the **path** and mints a short-lived URL on demand.
+- ⚠ **THE ADVERSARIAL PASS RAN IN-SESSION ON FABLE 5.1 AND FOUND THE SEAM HALF-WRONG.** The
+  owner switched the session model rather than spawning a cold agent — independence traded
+  for the loaded context, deliberately — and every finding was re-derived from the source,
+  not from the draft (§0 of the spec is the record). `bsCookableFromText` is the seam for the
+  raw PASTE only: it takes a blob and splits it. The STORED document already carries
+  member-reviewed `steps[]` in the catalog's own grammar, and feeding it back through the
+  text adapter would re-split what the member had just confirmed. It goes through a thin
+  `bsCookableFromMemberRecipe` wrapper over `bsCookableFromRecipe` instead — which also
+  closes the gap that §5.3 had asked to *"pass the uuid as `mealId`"* to a function that
+  **takes no such argument**. *A seam is only the seam for the shape it accepts.*
+- ⚠ **AND THREE WAYS A MEMBER RECIPE WOULD HAVE BECOME A CATALOG RECIPE, SILENTLY.** The
+  `bsCookable` dispatcher routes a source without `macros` to `bsCookableFromMeal`, which
+  resolves a step-less source **by exact title** and adopts the catalog's method — so a
+  member's ingredients-only "Greek yogurt power bowl" walks the catalog's steps under the
+  member's title. The prep-session picker resolves library pointers **by exact catalog title
+  only** (`iosAppBroadsheetClient.jsx:7953-7961`), so a member recipe can never join a
+  session, and a title-colliding one resolves to the catalog dish. And three surfaces slug
+  `cookable.recipeTitle` into a `recipeId` the Kitchen Card resolves against the catalog
+  (`:6755,7104,8189`) — a collision would credit the member's dish, via
+  `bsRecipeAttribution`, **to a named nutritionist**. The wrapper sets `recipeTitle: null`,
+  the picker learns `myrecipe:` pointers, and the dispatcher is never called. *An exact-title
+  match is a claim about identity, and a member can type any title.*
+- ⚠ **ONE FINDING REFUTED AT THE WRITE AND CONFIRMED AT THE DISPLAY.** The macro-less member
+  recipe the spec's own partial-coverage rule creates reaches the plated stage in a state no
+  shipped cookable has ever reached. The write is honest — `logIt` omits the log when
+  `kcal == null`, *"never posted as fabricated 0s"* (`:6826-6836`). The confirmation is not:
+  `BSMealLogged kcal={m.kcal ?? 0}` (`:7103`) prints **0** at 46px (`:5638`) under a logged
+  stamp while nothing was written. So *"cook mode needs no changes"* is corrected to *"the
+  walkthrough needs none; the plated stage owes one honest state."* *A guard at the write
+  says nothing about the screen that follows it.*
+- **Also corrected by the pass:** the header's *"Migrations: NONE"* against §4.2's own
+  bucket; the no-AI paste path, which claimed to work *"with zero AI"* without saying how one
+  textarea becomes ingredients AND a method (a structural split rule now, corrected on the
+  review screen rather than persisted); `serialReason`, a field the orchestrator does not have
+  (`reason`, `cookOrchestrator.mjs:518-521`); *"both"* routes for one; and where the
+  `draftedByAI` label renders — the cookable has no such field, so the detail screen and the
+  library card, never cook mode's `From the plan`, which names a coach's plan. **§7.1, the
+  binding constraint, survived the pass untouched.**
 - **Verified:** docs-only (the pre-commit hook skips the code gates) · **every `path:line`
   citation machine-checked** by a script that resolves each one and prints the line it lands
   on — 54 line references resolved automatically, the 4 it could not path-resolve verified by
   hand — which caught **eighteen** that had drifted: most by a few lines, one
   (`bsSplitMethodProse`) by five hundred, and three ranges whose end fell on a blank line.
   Reading would have found none of them. LF, zero CR, zero NUL, 12 line-start fences (even),
-  no CJK. *A citation nobody re-derived is a claim, not a reference.*
+  no CJK — and the pass's own citations re-run through the same script, with the bare
+  `:NNNN` forms it cannot resolve printed and read by hand. *A citation nobody re-derived is
+  a claim, not a reference.*
 
 ### 2026-09-10 — P1-E: the weekly readout on the web, and eight cards that were never on it
 

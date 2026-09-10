@@ -1,7 +1,7 @@
 # Third-party recipe import — the ingest ladder, the two breakdowns, and what an imported recipe may never claim
 
-**Date:** 2026-09-10 · **Status:** DRAFT, unbuilt · **Migrations:** NONE — the store is
-`user_goals`, which needs no schema change · **Owner decisions taken 2026-09-10:** private
+**Date:** 2026-09-10 · **Status:** DRAFT, unbuilt · reviewed (§0) · **Migrations:** ONE — a
+`recipe-imports` storage bucket (§4.2); no schema change · **Owner decisions taken 2026-09-10:** private
 to the member · AI draft allowed, labelled + member-reviewed · paste + photo in v1, URL
 fetch deferred (§10) · **Authoritative prior record:** the Cook Mode wave (#1804–#1809) and
 [`2026-08-19-cook-together-serve-time-design.md`](2026-08-19-cook-together-serve-time-design.md)
@@ -29,6 +29,84 @@ verified are in §12 — read that section before trusting the photo path.
 
 ---
 
+## 0. Review record — the adversarial pass, 2026-09-10
+
+Run after the draft was complete, in-session on Claude Fable 5.1 — the owner switched the
+session model rather than spawning a cold agent, trading independence for the loaded
+context, deliberately. The bar was finding claims that are **wrong**, so every finding below
+was re-derived from the source, not from the draft. Each is corrected in the section named,
+or refuted and left standing.
+
+**0.1 — The seam was half-identified.** The draft framed `bsCookableFromText` as *the* seam.
+It is the seam for the raw **paste** — a blob it splits into a draft. The **stored** document
+(§3.2) already carries reviewed `steps[]` and `{n,m,k}` ingredients, which is the RECIPE
+shape; feeding it to the text adapter would join and re-split what the member just confirmed.
+The stored document goes through a thin `bsCookableFromMemberRecipe` wrapper over
+`bsCookableFromRecipe`. *Corrected in §1, §2, §5.3, §13.*
+
+**0.2 — The identity plan was unbuildable as written.** §5.3 said "pass the uuid as
+`mealId`" and §13 said `bsCookableFromText` is "wired with `mealId: uuid`" — the function
+takes no such argument (`cookable.mjs:841`: `{ title, text, ingredients, macros, coach }`),
+and neither does `bsCookableFromRecipe`. The wrapper sets it. *Corrected in §5.3.*
+
+**0.3 — The dispatcher would have cooked the wrong dish.** `bsCookable(source)`
+(`cookable.mjs:863-869`) routes anything without a `macros` object to `bsCookableFromMeal`
+(`cookable.mjs:776`), which resolves a **step-less** source by exact title against the
+catalog and adopts the catalog's method and ingredients — its own comment: *"the catalog base
+still serves step-less meals"*. A member's ingredients-only "Greek yogurt power bowl" would
+walk the catalog's method under the member's title, silently. Every shipped caller names a
+specific adapter, never the dispatcher (`iosAppBroadsheetClient.jsx:5890,7947,7958,8727`);
+the spec now requires the same. *Corrected in §5.3; test 11 in §9.*
+
+**0.4 — The prep-session picker cannot see a member recipe, and would substitute a catalog
+one.** `BSPrepSession`'s candidate list resolves library `kind: 'recipe'` pointers by exact
+catalog title (`iosAppBroadsheetClient.jsx:7953-7961` — *"exact catalog match only"*): a
+member recipe with its own title is dropped, so it can never join a prep session; one whose
+title matches a catalog title resolves to the **catalog** recipe. The draft listed
+`BSPrepSession` as untouched. The board and the orchestration stay untouched; the picker
+learns `myrecipe:` pointers. *Corrected in §11, §13; test 12 in §9.*
+
+**0.5 — A title collision would have credited the member's dish to a named nutritionist.**
+Three surfaces derive `recipeId` from `cookable.recipeTitle`
+(`iosAppBroadsheetClient.jsx:6755,7104,8189`), and `bsCookableFromRecipe` sets
+`recipeTitle: title`. A member recipe titled like a catalog recipe would emit that slug into
+the live-progress push, the share card and the prep ledger — where *"Kitchen Card attribution
+is true for both sources"* (`:7098-7099`) resolves it to the catalog recipe and, through
+`bsRecipeAttribution`, to its author. The wrapper sets `recipeTitle: null`. *Corrected in
+§5.3, §7.3; test 13 in §9.*
+
+**0.6 — The "logged" screen would show a 46-pixel zero.** Refuted at the write, real at the
+display. §6.2's rule (no total until every row carries macros) creates a cookable with
+`macros.kcal === null` that a member actually **cooks** — a state no shipped cookable reaches,
+because every catalog recipe and plan meal carries kcal. The write is honest: `logIt`
+(`iosAppBroadsheetClient.jsx:6826-6836`) omits the log entirely when `kcal == null` — *"never
+posted as fabricated 0s"*. The confirmation that follows is not: it mounts
+`<BSMealLogged kcal={m.kcal ?? 0}>` (`:7103`), and that component prints `{kcal}` as a 46px
+teal figure (`:5638`) — the member sees **0** under a logged stamp while nothing was written.
+One honest state is owed at the plated stage, which dents §1's *"needs no changes"*: the
+walkthrough needs none; the plated stage needs one state it has never had to show.
+*Corrected in §1, §6.3, §11; test 14 in §9.*
+
+**0.7 — The no-AI paste path was hand-waved.** §4.1 claimed paste "works today with zero AI"
+without saying how one textarea becomes ingredients **and** a method. It does not, without a
+rule. *Corrected in §4.1.*
+
+**0.8 — Smaller corrections.** The header declared *"Migrations: NONE"* while §4.2 owed a
+bucket migration — fixed at the header. §8 said "both" routes for one route. §9 test 7 named
+a `serialReason` field that does not exist — the orchestrator's field is `reason`
+(`cookOrchestrator.mjs:518-521`). `bsCookableFromText` omits `allergenNotes` (undefined, not
+the `null` §7.3 claimed); every consumer coalesces with `|| []`
+(`iosAppBroadsheetClient.jsx:7183,8011`), so it is harmless, and the wrapper sets `null` for
+shape uniformity anyway. And the draft said `draftedByAI` "drives the on-screen label"
+without saying where — the cookable carries no such field, so it is the detail screen and
+the library card, never cook mode's `From the plan` marker (`:7436`), which names a coach's
+plan.
+
+**What the pass did not find:** anything wrong with §7.1. The binding constraint, the
+hand-curated overlay and the four guard tests read exactly as the draft describes them.
+
+---
+
 ## 1. Problem
 
 Shape can cook the ~100 recipes compiled into the app. It cannot cook the recipe on the
@@ -36,8 +114,9 @@ back of a packet, in a member's grandmother's handwriting, or on the website the
 reading this morning. The ask: let a member bring a recipe in, have its ingredients broken
 down, and walk it in the cooking tutorial that already exists.
 
-**The cooking tutorial needs no changes.** That is the central finding of this spec, and it
-determines the whole shape of the work: everything below is upstream of `BSCookMode`.
+**The walkthrough needs no changes; the plated stage owes one honest state (§6.3).** That is
+the central finding of this spec, and it determines the shape of the work: everything below
+is upstream of `BSCookMode`, and the one thing inside it is a new branch, not a changed one.
 
 ### 1.1 What already exists, verified
 
@@ -60,7 +139,9 @@ determines the whole shape of the work: everything below is upstream of `BSCookM
 ```
 
 It is exercised only by `tests/cookable.test.mjs:201-205`. **The seam was built and never
-connected.** This feature connects it.
+connected.** This feature connects it — for the raw paste (§4.1). ⚠ It is **not** the adapter
+for the stored document: that carries reviewed `steps[]` in the catalog's own grammar and takes
+a thin wrapper over `bsCookableFromRecipe` (§5.3, §0.1).
 
 ### 1.2 The catalog is code, which is why storage is a real question
 
@@ -89,10 +170,14 @@ quality.** A bad import degrades to tier 3 and says so. It does not invent a met
 in the build should add a "best effort" step-generation path that defeats this — the tier is
 the honest report of what the ingest actually got.
 
-**`fromPlan` drives the label.** `bsCookableFromText` sets `fromPlan: !!prose`
-(`cookable.mjs:853`), so a prose-split import renders as tier 2 and carries the FROM THE
-PLAN marker in cook mode. An import must never set `fromPlan: false` on steps it derived
-rather than received — that would present a split as authored.
+**`fromPlan` marks a split the app made on the member's behalf, and it applies to the DRAFT.**
+`bsCookableFromText` sets `fromPlan: !!prose` (`cookable.mjs:853`), so the paste draft the
+review screen shows is tier 2 — a split the member has not yet approved. Once confirmed and
+stored as `steps[]`, the cookable is tier 1: the member is the author of record for the split
+they approved. The provenance that survives is `draftedByAI` (§5.4), shown on the detail screen
+and the library card — **not** cook mode's `From the plan` marker
+(`iosAppBroadsheetClient.jsx:7436`), which names a coach's plan and would mislabel a member's
+own recipe.
 
 ### 2.1 `bsSplitMethodProse`, exactly
 
@@ -207,6 +292,23 @@ path works with `bsSplitMethodProse` and the quantity parser alone, and it is th
 floor of the feature. It is also the fallback whenever `hasOpenAIKey()` is false or the
 parse route fails; the member can always fix a bad extraction by editing text.
 
+**How one textarea becomes ingredients AND a method with no model** (§0.7 — the draft had
+not said):
+
+1. A section heading wins. A line matching `/^(ingredients|method|directions|instructions|steps)\b/i`
+   splits the paste: the block under the ingredients heading is the list, the rest is the
+   method.
+2. Otherwise, per line: it is an ingredient when `bsQtyParse` (`mealPrep.mjs:27`) succeeds on
+   it, **or** it is short (≤ 6 words) and matches nothing in `COOK_VERBS`
+   (`cookable.mjs:134`). `"2 cloves garlic"` and `"salt to taste"` are ingredients; `"Serve
+   warm."` is method. Consecutive ingredient lines form the list; everything else joins the
+   method blob.
+3. The method blob goes to `bsSplitMethodProse`. Its `null` is tier 3.
+
+The member sees the split on the review screen and moves lines between the two lists — a
+heuristic that guesses wrong is corrected there, never persisted silently. A pure function
+(`bsSplitPaste`) so §9 can drive it.
+
 ### 4.2 Photo
 
 FormData upload of a `File`, exactly as `meal-note` does
@@ -277,17 +379,45 @@ The prompt must state three things the extraction may not do:
   own sentences. This is what makes the tier honest.
 - **Do not emit `min`, `passive`, or `station` on any step.** §7.
 
-### 5.3 Identity
+### 5.3 Building the cookable — one new adapter, and never the dispatcher
 
-`bsCookKey` (`cookable.mjs:45-54`) resolves `mealId → title slug → char-code hash`. A member
-recipe has no `mealId` and its title may be non-Latin, in which case `bsCookSlug` returns
-`''` and every such recipe collides on one hash bucket — breaking cook-resume across
-recipes.
+Two adapters exist and neither fits the stored document alone:
 
-**Pass the uuid as `mealId` when building the cookable.** It is the first branch, it is
-stable across renames, and it needs no change to `bsCookKey`. Two member recipes titled
-"Dinner" then keep separate resume state, as does a member recipe titled identically to a
-catalog one.
+- `bsCookableFromText` (`cookable.mjs:841`) takes a text **blob** and splits it. Right for the
+  raw paste → draft (§4.1). Wrong for the stored document, whose `steps[]` the member has
+  already reviewed — it would join and re-split them (§0.1).
+- `bsCookableFromRecipe` (`cookable.mjs:732`) takes the **recipe** shape — which §3.2 is. But
+  it sets `recipeTitle: title` (§0.5), honours structured steps and a `stepMeta` overlay
+  (§7.1), and sets no `mealId` (§0.2).
+
+**So the stored document goes through a new `bsCookableFromMemberRecipe(doc)` in
+`cookable.mjs`** — a thin wrapper, tested in `tests/cookable.test.mjs`, that:
+
+1. copies `doc` with `steps` coerced to plain strings (an object step keeps only its `t`) and
+   `stepMeta` **deleted** — the §7.1 invariant enforced at the choke point, not by hoping the
+   store never holds an object;
+2. calls `bsCookableFromRecipe` on that copy;
+3. overrides on the result: `mealId: doc.id` · `sourceKind: 'member'` · `recipeTitle: null` ·
+   `coach: null` · `allergenNotes: null`.
+
+Why each override:
+
+- **`mealId: doc.id`** — `bsCookKey` (`cookable.mjs:45-54`) checks it first, so resume state is
+  per-recipe and survives a rename. Without it a non-Latin title slugs to `''` and every such
+  recipe shares one hash bucket; two same-titled recipes share one resume slot.
+- **`sourceKind: 'member'`** — never `'meal'`: `sourceKind === 'meal'` is what stamps a log
+  *"As planned · From {coach}'s plan"* (`iosAppBroadsheetClient.jsx:7096-7104`). `'member'` is
+  a new value; that strict equality is its only consumer, so it is safe, and it lets a later
+  surface tell a member recipe from a catalog one.
+- **`recipeTitle: null`** — §0.5. Three surfaces slug it into a `recipeId` the Kitchen Card
+  resolves against the catalog.
+- **`coach: null`** and **`allergenNotes: null`** — §7.3; the doc carries neither, but explicit
+  beats implicit, and `null` keeps the shape uniform with the catalog path.
+
+⚠ **Never through `bsCookable(source)`.** The dispatcher (`cookable.mjs:863-869`) routes a
+source without a `macros` object to `bsCookableFromMeal`, which resolves a step-less source
+by exact title against the catalog and adopts the catalog's method — §0.3. Every shipped
+caller names its adapter; this one does too.
 
 ### 5.4 The review screen, and why the label is permanent
 
@@ -344,6 +474,20 @@ exist and no total until every row carries one; below that, the honest string is
 ⚠ **`/api/nutrition/food-search` requires auth and burns provider quota.** It 401s before any
 provider fetch precisely so a limiter fault cannot fan out. Never call it in a loop over
 every ingredient on import — it is user-initiated, per row.
+
+### 6.3 The plated stage with no kcal — one honest state, owed
+
+§6.2 creates a cookable with `macros.kcal === null` that a member actually cooks. No shipped
+cookable reaches the plated stage in that state — every catalog recipe and plan meal carries
+kcal — so cook mode has never had to display it. What it does today (§0.6): the **write** is
+honest (`logIt` omits the log, `iosAppBroadsheetClient.jsx:6826-6836`); the **confirmation**
+is not (`<BSMealLogged kcal={m.kcal ?? 0}>`, `:7103`, printing **0** at 46px, `:5638`).
+
+The state: when `cookable.macros.kcal == null`, the plated stage offers **Done** in place of
+**Log it**, with one line — *"No macros on this recipe yet, so nothing was added to your day.
+Add them from the recipe to log it next time."* — and never mounts `BSMealLogged`. `onLogged`
+is not fired, because nothing was logged. This is the one change inside `BSCookMode` this spec
+asks for, and it is a new branch on a condition no existing cookable meets.
 
 ---
 
@@ -412,6 +556,10 @@ place that decides how an unattributed recipe is credited"*. A member recipe pas
 `coach: null` — the member's own `sourceNote` is a free-text provenance line shown on the
 detail screen, not a byline, and not a credit the app asserts.
 
+⚠ **And `recipeTitle` must be null** (§0.5, §5.3). Three surfaces slug it into a `recipeId`
+the Kitchen Card resolves against the catalog (`iosAppBroadsheetClient.jsx:6755,7104,8189`),
+so a title collision would credit the member's dish to the catalog recipe's author.
+
 ---
 
 ## 8. Routes
@@ -420,7 +568,7 @@ detail screen, not a byline, and not a credit the app asserts.
 |---|---|---|
 | `/api/nutrition/recipe-parse` | POST | §5.1. FormData `text` \| `photo`. Own auth. |
 
-One new route. Both must be registered in `RAW_ROUTES` (`src/lib/warroom.ts:190`) — the
+One new route. It must be registered in `RAW_ROUTES` (`src/lib/warroom.ts:190`) — the
 War Room is the go-live board and an unregistered route is invisible to it. `groupOf`
 (`warroom.ts:354`) will file `/api/nutrition/*` under its existing group; no new group
 needed.
@@ -450,12 +598,27 @@ rewrite and passes on a broken one.
    mutation that matters: it fails if a later change starts persisting structured steps.
 7. `bsOrchestrate` over one catalog recipe with windows + one imported recipe returns a plan
    in which **no detour is hosted inside the import**, and a two-import session returns
-   `BS_SERIAL_REASON.NO_WINDOW`.
+   `reason: BS_SERIAL_REASON.NO_WINDOW` — the field is `reason`
+   (`cookOrchestrator.mjs:518-521`), not `serialReason` as the draft had it.
 8. `bsCookKey` on two same-titled member recipes returns **different** keys (§5.3), and on a
    non-Latin title returns the uuid branch rather than `cook:h…`.
 9. The store: a `null` read declines the write; a uid change between read and write discards
    it; two concurrent saves both survive.
 10. Macro totals are absent while any ingredient lacks `k` (§6.2).
+11. `bsCookableFromMemberRecipe` on a doc titled **identically to a catalog recipe**, with no
+    steps, yields tier 3 with the **doc's** ingredients — never the catalog's method (§0.3).
+    Pinned against the real dispatcher: the same doc through `bsCookable(doc)` is shown to
+    adopt the catalog's steps, so the test documents why the dispatcher is forbidden rather
+    than asserting it from memory.
+12. The prep-session candidate builder (extracted as a pure function and driven) includes a
+    `myrecipe:` pointer resolved from `client_recipes`, and does **not** resolve a
+    title-colliding member recipe to the catalog (§0.4).
+13. For a member recipe titled like a catalog recipe: `recipeTitle` is null, the derived
+    `recipeId` is `''`, and `sourceKind !== 'meal'` (§0.5, §5.3).
+14. A headless render of the plated stage with `kcal == null` shows the no-macros state and
+    never mounts `BSMealLogged` (§6.3).
+15. `bsSplitPaste` (§4.1): a heading-led paste, a heading-less paste with quantity lines, and
+    a paste that is method only — each lands the right lines on the right side.
 
 **Mutation-test every new guard.** The house rule, paid for repeatedly: *a guard that reports
 a pass is a broken instrument until the mutation is proven to have landed.* Verify the edit
@@ -500,7 +663,10 @@ plan claims.
 
 ## 11. Out of scope
 
-- Any change to `BSCookMode`, `BSPrepSession`, `cookOrchestrator.mjs`, or `_KITCHEN_STEP_META`.
+- Any change to `BSCookMode`'s walkthrough phases, to `BSPrepSession`'s board or wait gate,
+  to `cookOrchestrator.mjs`, or to `_KITCHEN_STEP_META`. Two named, additive exceptions are
+  **in** scope: the plated stage's no-kcal state (§6.3) and the prep picker's `myrecipe:`
+  resolution (§0.4).
 - Editing a **catalog** recipe. Members import their own; the catalog stays code-resident.
 - Recipe photos as *food* photography (the frontispiece follow-up, WORKLOG "PR E
   FOLLOW-UPS"). §4.2's photo is the **source document**, not a plated shot.
@@ -544,9 +710,10 @@ on the final head and not a draft, `/code-review` before pushing, and an explici
 null-read decline. A member recipe appears in the Catalogue and opens a detail screen. No
 ingest yet — seeded by a test fixture. *Ships the risky part first, with no UI pressure on it.*
 
-**PR 2 — paste ingest + cook.** The paste sheet, the review screen, `bsCookableFromText`
-wired with `mealId: uuid`. **This is the PR where the feature becomes real, and it needs no
-AI and no new route.** Tests 1–8 of §9.
+**PR 2 — paste ingest + cook.** The paste sheet with the structural split (§4.1), the review
+screen, `bsCookableFromMemberRecipe` (§5.3), the prep picker's `myrecipe:` resolution (§0.4)
+and the plated stage's no-kcal state (§6.3). **This is the PR where the feature becomes real,
+and it needs no AI and no new route.** Tests 1–8 and 11–15 of §9.
 
 **PR 3 — macros.** Per-row food-search mapping on the review screen, partial-coverage
 display rule. Test 10.
