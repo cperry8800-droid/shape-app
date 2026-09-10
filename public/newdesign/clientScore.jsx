@@ -94,6 +94,18 @@ function ClientCommitmentCard() {
   );
 }
 
+// The header actions, one shape for three buttons — the primary one filled, the rest
+// outlined, and a pressed one tinted so the view you are in is visible from the chrome.
+function csScoreAction(on, primary) {
+  return {
+    background: on ? "rgba(10,197,168,0.14)" : primary ? INK : "transparent",
+    color: on ? TEAL_BRIGHT : primary ? PAPER : INK,
+    border: on ? "1px solid " + TEAL_BRIGHT : primary ? 0 : "1px solid rgba(242,237,228,0.25)",
+    padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13,
+    fontWeight: primary && !on ? 500 : 400, cursor: "pointer", minHeight: 24,
+  };
+}
+
 function ClientScorePage() {
   // 5-tier monthly-points reward structure.
   // [name, threshold (number), display "PTS / N+", benefit copy]
@@ -175,6 +187,14 @@ function ClientScorePage() {
     { when: "Mon · 6:15 AM",       what: "Squat PR · +5 lb",              delta: 32 },
     { when: "Mon · 6:00 PM",       what: "Community reactions · 4 received",  delta: 4  },
   ];
+  // ⚠ THE THREE ACTIONS ON THIS PAGE ALL DID NOTHING. "VIEW FULL LEDGER →" was
+  // href="#", and both header buttons had no onClick at all — while
+  // /api/client/score-record and /api/leaderboard had been shipped and consumed by
+  // nothing. A button that does nothing costs more trust than an absent one (R18), so
+  // each one now opens the surface it names. They are VIEWS of this tab rather than
+  // new routes: the sidebar has no entry for them, and a tab that cannot be navigated
+  // to from the nav is exactly the orphan this review opened with.
+  const [view, setView] = React.useState("standing");
   const ledger = live && Array.isArray(live.recent) && live.recent.length
     ? live.recent.slice(0, 8).map(r => ({
         when: fmtWhen(r.earned_at),
@@ -336,7 +356,7 @@ function ClientScorePage() {
         </div>
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)" }}>
           <span>SHOWING LAST 8 ENTRIES</span>
-          <a href="#" style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>VIEW FULL LEDGER →</a>
+          <button type="button" onClick={() => setView("record")} style={{ background: "transparent", border: 0, padding: "5px 0", minHeight: 24, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", cursor: "pointer" }}>VIEW FULL LEDGER →</button>
         </div>
       </Card>
     ) },
@@ -352,11 +372,22 @@ function ClientScorePage() {
         ? `You're in ${currentTier[0]} — but your score has slipped ${(tierFloor - myPoints).toLocaleString()} below the line. Earn it back to stay clear of the cutoff.`
         : `You're in ${currentTier[0]}. ${ptsToNext.toLocaleString()} points to ${nextTier ? nextTier[0] : "the top"} — that's about ${nextTier ? Math.ceil(ptsToNext / 36) : 0} weeks at your current pace.`}
       actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
+        {view !== "standing"
+          ? <button type="button" onClick={() => setView("standing")} style={csScoreAction(false)}>← Standing</button>
+          : null}
+        <button type="button" onClick={() => setView(view === "how" ? "standing" : "how")} aria-pressed={view === "how"} style={csScoreAction(view === "how")}>How it works</button>
+        <button type="button" onClick={() => setView(view === "board" ? "standing" : "board")} aria-pressed={view === "board"} style={csScoreAction(view === "board", true)}>Leaderboard</button>
       </>}
     >
-      <DashGrid role="client" tab="score" widgets={scoreWidgets} />
+      {/* ⚠ THE GRID IS UNMOUNTED, NOT HIDDEN. DashGrid portals React content into
+          GridStack-managed nodes and persists placement on every change; leaving it
+          mounted behind a panel would keep a live grid reacting to resizes nobody can
+          see. A remount re-reads the saved layout, which is what a returning member
+          expects anyway. */}
+      {view === "record" ? <ClientScoreRecord />
+        : view === "board" ? <ClientLeaderboard />
+        : view === "how" ? <ClientScoreHowItWorks tiers={tiers} currentTier={currentTier[0]} />
+        : <DashGrid role="client" tab="score" widgets={scoreWidgets} />}
     </DashPage>
   );
 }

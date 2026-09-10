@@ -277,6 +277,103 @@ const CK_RATINGS = [
 ];
 const CK_SITES = [["waist", "Waist"], ["hips", "Hips"], ["chest", "Chest"], ["arm", "Upper arm"], ["thigh", "Thigh"], ["calf", "Calf"]];
 
+// ── CHECK-IN HISTORY (review 2026-09-09, C1/R17) ────────────────────────────
+// The check-in was WRITE-ONLY on the web: a member filled in six ratings, their wins,
+// their struggles and a question for their coach every week, pressed send, and could
+// never see any of it again. The coach reads all of it (the roster drawer, and the Week
+// view since 2026-09-09); the person who wrote it could not.
+//
+// ⚠ NO NEW ROUTE AND NO NEW FETCH. /api/client/checkin-kit has always returned the
+// LAST EIGHT check-ins (`.order('week_of').limit(8)`) and this page has always thrown
+// seven of them away — it took `.find(week_of === weekOf)` for the form and dropped the
+// rest. This is the same payload, read.
+//
+// ⚠ AND THERE IS NO COACH REPLY HERE, BECAUSE THERE IS NOWHERE FOR ONE TO LIVE.
+// `client_checkins` is owner-write with a coach-READ policy and carries no reply
+// column, so a reply needs a migration and a coach-side write. Registered, not faked:
+// showing an empty "your coach hasn't replied" would promise a channel that does not
+// exist. The question a member asks still travels — the coach sees it on their Week.
+function DprCheckinRating({ label, value, tone }) {
+  const v = Number(value);
+  if (!Number.isFinite(v)) return null;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(90px, 150px) 1fr 28px", gap: 10, alignItems: "center", padding: "4px 0" }}>
+      <span style={{ fontSize: 12, color: "rgba(242,237,228,0.72)" }}>{label}</span>
+      <span style={{ height: 5, borderRadius: 3, background: "rgba(242,237,228,0.07)", overflow: "hidden", display: "block" }}>
+        <span style={{ display: "block", width: Math.max(4, Math.min(100, v * 10)) + "%", height: "100%", background: tone }} />
+      </span>
+      <span style={{ fontFamily: DPR_MONO, fontSize: 11.5, color: tone, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{v}</span>
+    </div>
+  );
+}
+
+// ⚠ WHICH WEEKS APPEAR IS A PURE FUNCTION SO IT CAN BE DRIVEN. Everything that can be
+// wrong about this list — the current week showing twice (the form already has it),
+// the order, a member with one check-in getting an empty card — is decided here.
+function dprCheckinHistoryRows(kit) {
+  return (kit && Array.isArray(kit.checkins) ? kit.checkins : [])
+    .filter((c) => c && String(c.week_of) !== String(kit && kit.weekOf))
+    .slice()
+    // The route orders by week_of descending, but a client must not depend on a
+    // server's ordering to render a history in the right direction.
+    .sort((a, b) => (String(a.week_of) < String(b.week_of) ? 1 : -1));
+}
+
+function DprCheckinHistory({ kit }) {
+  const [open, setOpen] = React.useState(null);
+  const rows = dprCheckinHistoryRows(kit);
+  // One check-in means the form already shows everything there is — an empty
+  // "what you've sent before" card would be a promise of history nobody has yet.
+  if (!rows.length) return null;
+  const wk = (iso) => {
+    // ⚠ LOCAL, NOT UTC — `new Date("2026-09-08")` is the previous day west of UTC, and
+    // a member would read every week of their own history off by one.
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+    const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
+    return isNaN(d.getTime()) ? String(iso || "") : d.toLocaleDateString([], { month: "short", day: "numeric" });
+  };
+  const lbl = { fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
+  return (
+    <Card style={{ marginTop: 14 }}>
+      <SectionTitle right={rows.length + (rows.length === 1 ? " WEEK" : " WEEKS") + " ON FILE"}>What you've sent before</SectionTitle>
+      <div>
+        {rows.map((c) => {
+          const key = String(c.week_of);
+          const isOpen = open === key;
+          const said = [c.wins, c.struggles, c.question].filter(Boolean).length;
+          return (
+            <div key={key} style={{ borderTop: "1px solid rgba(242,237,228,0.07)" }}>
+              <button type="button" onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}
+                style={{ width: "100%", display: "flex", alignItems: "baseline", gap: 12, justifyContent: "space-between",
+                  background: "transparent", border: 0, padding: "11px 2px", minHeight: 24, cursor: "pointer", textAlign: "left", color: INK }}>
+                <span style={{ fontFamily: DPR_MONO, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)" }}>Week of {wk(c.week_of)}</span>
+                <span style={{ fontFamily: DPR_MONO, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
+                  {c.weight != null ? Number(c.weight).toLocaleString() + " " + (c.unit || "kg") + " · " : ""}
+                  {said ? said + (said === 1 ? " note" : " notes") : "ratings only"} {isOpen ? "×" : "→"}
+                </span>
+              </button>
+              {isOpen ? (
+                <div style={{ padding: "2px 2px 14px" }}>
+                  <div style={lbl}>How the week felt</div>
+                  {CK_RATINGS.map(([k, label, tone]) => <DprCheckinRating key={k} label={label} value={(c.ratings || {})[k]} tone={tone} />)}
+                  {[["Wins", c.wins], ["Struggles", c.struggles], ["You asked your coach", c.question]].map(([label, text]) => (
+                    text ? (
+                      <div key={label} style={{ marginTop: 12 }}>
+                        <div style={lbl}>{label}</div>
+                        <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(242,237,228,0.82)", whiteSpace: "pre-wrap" }}>{text}</div>
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 function DprCheckinForm({ kit, onSaved }) {
   const cur = (kit.checkins || []).find((c) => String(c.week_of) === kit.weekOf);
   const [ratings, setRatings] = React.useState((cur && cur.ratings) || {});
@@ -1177,7 +1274,14 @@ function ClientProgressPage() {
     ) },
 
     { key: "checkin", title: "Weekly check-in", size: "full", empty: !kit, render: () => (
-      <DprCheckinForm kit={kit} onSaved={() => setReloadKey((k) => k + 1)} />
+      // ⚠ ONE WRAPPER, NOT TWO SIBLINGS. DashGrid refits an item to its content by
+      // observing `content.firstElementChild` — the card — so a SECOND card beside it
+      // is unobserved: expanding a history row would grow past the fitted height and
+      // be clipped by item-content's overflow:hidden, silently.
+      <div>
+        <DprCheckinForm kit={kit} onSaved={() => setReloadKey((k) => k + 1)} />
+        <DprCheckinHistory kit={kit} />
+      </div>
     ) },
 
     { key: "phototimeline", title: "Photo timeline", size: "full", empty: !(live && (photos || []).length > 0), render: () => (
