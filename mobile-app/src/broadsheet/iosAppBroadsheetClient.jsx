@@ -25120,6 +25120,15 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       // weigh-in, which is recoverable; awarding points they have not earned is
       // not. The member's own measurement is never withheld for this.
       persist({ ...data, overall: nextOverall })
+        // ⚠ A REJECTED GOAL WRITE MUST NOT WITHHOLD THE WEIGH-IN. `saveUserGoals`
+        // resolves `{ error }` rather than throwing on a PostgREST failure, but
+        // it awaits a network call, so a rejection is not impossible — and
+        // without this the chain would skip straight to `.catch` and the
+        // member's own measurement would never be logged at all. Before the
+        // ordering fix the log ran unconditionally; degrading to "not canonical"
+        // keeps that true. Found by reviewing my own fix batch: the comment
+        // below already CLAIMED this invariant and the code did not have it.
+        .catch(() => null)
         .then((res) => {
           const canonical = !!(res && res.ok);
           return window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat })
