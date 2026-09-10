@@ -141,3 +141,48 @@ test('the web case file renders no dangling separator when the unit is unknown',
   assert.equal(render(225, 'lb', null), '225 lb');
   assert.equal(render(225, 'lb', 240), '225 lb · 240 e1RM');
 });
+
+// ── The Wall ledger's side effects must follow the write ────────────────────
+// ⚠ THIS DEFECT WAS INTRODUCED BY THE FIX ABOVE IT. Guarding the upsert made
+// the statement able to affect ZERO rows — and nothing downstream knew. The
+// losing side of a race had its ledger write correctly refused and then posted
+// "new PR" to the channel and returned ok:true anyway. Proven with two real
+// psql sessions rather than argued: without the witness, session B posting
+// 150 lb while A commits 300 lb returns
+//   {"ok": true, "body": "150 lb Press — new PR", "prev": 100}
+// and the channel carries TWO messages while the ledger holds 300. With it, B
+// returns not_a_pr and exactly one message is posted.
+//
+// No unit test here can stand up a Postgres, so this pins the shape that makes
+// the guarantee: a RETURNING witness, and a bail before any side effect.
+const WALL = 'supabase-migrations/2026-09-10-pr-wall-units.sql';
+
+test('the PR Wall upsert reports whether it actually wrote', () => {
+  const sql = readFileSync(WALL, 'utf8');
+  const at = sql.indexOf('insert into public.pr_wall_posts');
+  assert.notEqual(at, -1, 'the ledger upsert is gone');
+
+  // The guarded upsert must end in a RETURNING that captures the stored best.
+  const stmt = sql.slice(at, sql.indexOf(';', at) + 1);
+  assert.match(stmt, /on conflict \(user_id, lift_key\)/, 'no longer an upsert');
+  assert.match(stmt, /\bwhere\b/, 'the concurrency guard is gone — a losing write can lower the best');
+  assert.match(stmt, /returning\s+best_value\s+into\s+(\w+)/,
+    'the statement can affect zero rows and does not report it');
+
+  const witness = stmt.match(/returning\s+best_value\s+into\s+(\w+)/)[1];
+
+  // ⚠ THE BAIL MUST PRECEDE EVERY SIDE EFFECT, not merely exist. A check placed
+  // after the channel insert would satisfy a "does the file mention it" test
+  // and change nothing, so the ORDER is what is asserted.
+  const bail = sql.indexOf(`if ${witness} is null then`);
+  assert.notEqual(bail, -1, `nothing tests ${witness}`);
+  for (const [what, needle] of [
+    ['the channel message', 'insert into public.channel_messages'],
+    ['the channel bump', 'update public.channels set last_message'],
+    ['the ok:true return', "'ok', true"],
+  ]) {
+    const site = sql.indexOf(needle);
+    assert.notEqual(site, -1, `${what} is gone`);
+    assert.ok(bail < site, `${what} runs before the write is confirmed`);
+  }
+});

@@ -50,6 +50,7 @@ declare
   v_prev_lb numeric;
   v_post uuid;
   v_body text;
+  v_written numeric;   -- the best actually stored; null = the guard refused the write
 begin
   if v_uid is null then return jsonb_build_object('ok', false, 'reason', 'auth'); end if;
   if v_lift is null or p_value is null or p_value <= 0 then
@@ -127,7 +128,24 @@ begin
       -- it and the later writer would win regardless of size. Comparing in
       -- pounds inside the statement makes the guard atomic and unit-safe.
       where (case when lower(excluded.unit) like '%kg%' then excluded.best_value / 0.45359237 else excluded.best_value end)
-          > (case when lower(coalesce(pr_wall_posts.unit, 'lb')) like '%kg%' then pr_wall_posts.best_value / 0.45359237 else pr_wall_posts.best_value end);
+          > (case when lower(coalesce(pr_wall_posts.unit, 'lb')) like '%kg%' then pr_wall_posts.best_value / 0.45359237 else pr_wall_posts.best_value end)
+    returning best_value into v_written;
+
+  -- ⚠ AND EVERY SIDE EFFECT BELOW HANGS OFF THAT WRITE ACTUALLY HAPPENING.
+  -- The guard above made the statement able to affect ZERO rows, and until this
+  -- check the announcement did not know that: the losing side of a race had its
+  -- ledger write correctly refused and then posted "new PR" to the channel and
+  -- returned ok:true anyway — a record message for a value that is not the
+  -- record. The guard was mine, so the inconsistency was mine to close: before
+  -- it, the upsert always wrote and the message was always true.
+  --
+  -- `best_value` is NOT NULL, so a null witness can only mean "no row" — and in
+  -- plpgsql a RETURNING that matches nothing leaves the target null rather than
+  -- raising. It is the same answer the pre-statement gate gives, because it IS
+  -- the same question asked at the only moment it cannot go stale.
+  if v_written is null then
+    return jsonb_build_object('ok', false, 'reason', 'not_a_pr');
+  end if;
 
   v_body := round(p_value)::text || ' ' || v_unit || ' ' || v_lift
             || case when p_reps is not null and p_reps > 1 then ' × ' || p_reps::text else '' end
