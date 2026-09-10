@@ -1049,6 +1049,58 @@ test('useSignedIn resolves an ACCOUNT, subscribes to changes, and keeps unreadab
   assert.equal(await drive(async () => ({ id: 'coach-a' }), sub).then(() => 'ok'), 'ok');
   run.cleanup();
   assert.equal(unsubscribed, 1, 'the auth subscription leaks');
+
+  // ⚠ AND AN EVENT BEATS THE READ THAT WAS ALREADY IN FLIGHT. The initial getUser() and
+  // the subscription race: a read that observed A, resolving AFTER B signs in, put A
+  // back — remounting A's settings under B's session and refusing B's own writes until
+  // another event or a reload repaired the identity. The exact sequence CodeRabbit
+  // named is driven here: initial read pending on A -> SIGNED_IN for B -> the read
+  // resolves A -> the hook must still be B.
+  let releaseA;
+  const slowA = new Promise((r) => { releaseA = r; });
+  let cell2, handler2 = null;
+  const React2 = {
+    useState: (init) => [cell2 === undefined ? (cell2 = init) : cell2, (v) => { cell2 = v; }],
+    useRef: (v) => ({ current: v }),
+    useEffect: (f) => { f(); },
+  };
+  const win2 = { shapeDb: {
+    getUser: async () => { await slowA; return { id: 'coach-a' }; },
+    client: { auth: { onAuthStateChange: (fn) => { handler2 = fn; return { data: { subscription: { unsubscribe() {} } } }; } } },
+  } };
+  new Function('React', 'window', 'dashDocBridge', SIGNED_IN_SRC + '\nreturn useSignedIn;')(
+    React2, win2, async () => {}
+  )();
+  for (let k = 0; k < 4; k++) await Promise.resolve();
+  handler2('SIGNED_IN', { user: { id: 'coach-b' } });
+  assert.equal(cell2, 'coach-b', 'the auth event did not take effect');
+  releaseA();
+  for (let k = 0; k < 8; k++) await Promise.resolve();
+  assert.equal(cell2, 'coach-b', 'a stale initial read overwrote a newer auth event');
+
+  // ⚠ AND A STALE *FAILED* READ IS THE SAME DEFECT WITH A WORSE ENDING: it would wipe
+  // a confirmed account back to unresolved, disabling the panel for a coach who is
+  // signed in. Measured — a mutation of only the catch arm survived without this.
+  let rejectC;
+  const slowC = new Promise((_r, rej) => { rejectC = rej; });
+  let cell3, handler3 = null;
+  const React3 = {
+    useState: (init) => [cell3 === undefined ? (cell3 = init) : cell3, (v) => { cell3 = v; }],
+    useRef: (v) => ({ current: v }),
+    useEffect: (f) => { f(); },
+  };
+  const win3 = { shapeDb: {
+    getUser: async () => { await slowC; return { id: 'coach-a' }; },
+    client: { auth: { onAuthStateChange: (fn) => { handler3 = fn; return { data: { subscription: { unsubscribe() {} } } }; } } },
+  } };
+  new Function('React', 'window', 'dashDocBridge', SIGNED_IN_SRC + '\nreturn useSignedIn;')(
+    React3, win3, async () => {}
+  )();
+  for (let k = 0; k < 4; k++) await Promise.resolve();
+  handler3('SIGNED_IN', { user: { id: 'coach-b' } });
+  rejectC(new Error('offline'));
+  for (let k = 0; k < 8; k++) await Promise.resolve();
+  assert.equal(cell3, 'coach-b', 'a stale FAILED read wiped a confirmed account back to unresolved');
 });
 
 test('a write refuses an account that is not the one the panel is rendering', () => {

@@ -303,11 +303,19 @@ function dashInvalidateCoachSettings() {
 //   "<uid>"   — signed in as this account.
 function useSignedIn() {
   const [uid, setUid] = React.useState(undefined);
+  // ⚠ AN AUTH EVENT IS ALWAYS NEWER THAN THE READ THAT WAS ALREADY IN FLIGHT. The
+  // initial `getUser()` and the subscription race: if the read observed A, B signs in,
+  // and the read THEN resolves, it put A back. The write-time check still refused the
+  // cross-account write — but the page remounted A's settings under B's session, and
+  // refused B's own writes until another event or a reload repaired the identity. So a
+  // stale answer is dropped rather than merely out-voted.
+  const authGenRef = React.useRef(0);
   React.useEffect(() => {
     let on = true;
     const resolve = async () => {
+      const gen = authGenRef.current;
       const db = window.shapeDb;
-      if (!db || !db.getUser) { if (on) setUid(null); return; }
+      if (!db || !db.getUser) { if (on && gen === authGenRef.current) setUid(null); return; }
       await dashDocBridge();
       // ⚠ `dashDocUid` SWALLOWS ITS FAILURE and returns null, so a transient network or
       // bridge fault is indistinguishable from a signed-out visitor at that layer. The
@@ -315,9 +323,9 @@ function useSignedIn() {
       // that THROWS leaves the answer unresolved rather than answering "signed out".
       try {
         const u = await db.getUser();
-        if (on) setUid(u && u.id ? u.id : null);
+        if (on && gen === authGenRef.current) setUid(u && u.id ? u.id : null);
       } catch (e) {
-        if (on) setUid(undefined);
+        if (on && gen === authGenRef.current) setUid(undefined);
       }
     };
     resolve().catch(() => { if (on) setUid(undefined); });
@@ -329,6 +337,8 @@ function useSignedIn() {
       if (db && db.client && db.client.auth && db.client.auth.onAuthStateChange) {
         sub = db.client.auth.onAuthStateChange((_event, session) => {
           if (!on) return;
+          // Bump FIRST: an in-flight read that resolves after this must not win.
+          authGenRef.current += 1;
           const next = session && session.user && session.user.id ? session.user.id : null;
           setUid(next);
         });
