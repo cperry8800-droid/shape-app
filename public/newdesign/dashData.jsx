@@ -287,20 +287,59 @@ function dashInvalidateCoachSettings() {
 // settings edit tab-only and told a signed-in coach to sign in, while the settings
 // backend was perfectly healthy. Authentication is its own question and gets its own
 // answer.
+// ⚠ IT RESOLVES AN IDENTITY, NOT A BOOLEAN, AND IT SUBSCRIBES. A one-shot `true` is
+// the cross-account defect this file has now paid for five times: if account B signs in
+// from another same-origin tab, A's open Settings tab keeps its `true`, keeps A's
+// document on screen, and the write paths — which resolve `getUser()` at CLICK time —
+// upsert the displayed change under B's id. The account is the thing the callers need,
+// so it is the thing this returns.
+//
+// Four answers, three values:
+//   undefined — still resolving, OR the read FAILED. Both mean "do not let an edit
+//               land yet". Collapsing an unreadable read into `false` showed an
+//               authenticated coach the preview UI with live controls, and their edits
+//               went to a tab-local copy and disappeared.
+//   null      — confirmed signed out.
+//   "<uid>"   — signed in as this account.
 function useSignedIn() {
-  const [signedIn, setSignedIn] = React.useState(undefined);
+  const [uid, setUid] = React.useState(undefined);
   React.useEffect(() => {
     let on = true;
-    (async () => {
+    const resolve = async () => {
       const db = window.shapeDb;
-      if (!db || !db.getUser) { if (on) setSignedIn(false); return; }
+      if (!db || !db.getUser) { if (on) setUid(null); return; }
       await dashDocBridge();
-      const uid = await dashDocUid();
-      if (on) setSignedIn(!!uid);
-    })().catch(() => { if (on) setSignedIn(false); });
-    return () => { on = false; };
+      // ⚠ `dashDocUid` SWALLOWS ITS FAILURE and returns null, so a transient network or
+      // bridge fault is indistinguishable from a signed-out visitor at that layer. The
+      // session is asked directly: a session that reads back carries an id, and a read
+      // that THROWS leaves the answer unresolved rather than answering "signed out".
+      try {
+        const u = await db.getUser();
+        if (on) setUid(u && u.id ? u.id : null);
+      } catch (e) {
+        if (on) setUid(undefined);
+      }
+    };
+    resolve().catch(() => { if (on) setUid(undefined); });
+    // The same capability guard dashProgress uses — this runs on pages whose supabase
+    // client may not be present at all.
+    let sub = null;
+    try {
+      const db = window.shapeDb;
+      if (db && db.client && db.client.auth && db.client.auth.onAuthStateChange) {
+        sub = db.client.auth.onAuthStateChange((_event, session) => {
+          if (!on) return;
+          const next = session && session.user && session.user.id ? session.user.id : null;
+          setUid(next);
+        });
+      }
+    } catch (e) { /* no subscription is a stale tab, not a broken one */ }
+    return () => {
+      on = false;
+      try { if (sub && sub.data && sub.data.subscription) sub.data.subscription.unsubscribe(); } catch (e) {}
+    };
   }, []);
-  return signedIn;
+  return uid;
 }
 
 function useCoachThresholds(role) {
@@ -571,7 +610,9 @@ function dashDocSerial(fn) { const run = _dashDocLane.p.then(fn, fn); _dashDocLa
 // `merge(doc)` returns the next whole document. It runs TWICE on purpose: once
 // against the rendered copy for the optimistic paint, and once against the
 // freshly-read server copy inside the lane, which is the copy that is written.
-function useCoachDoc(goalKind, live) {
+// `accountId` is optional and exists for one reason: a document read for account A must
+// be re-read when B signs in, or A's settings stay on screen under B's session.
+function useCoachDoc(goalKind, live, accountId) {
   const [state, setState] = React.useState({ kind: "loading", doc: {} });
   // The write path must read the CURRENT kind, not the one captured when the
   // handler was created: a change made during the load would otherwise take the
@@ -601,7 +642,7 @@ function useCoachDoc(goalKind, live) {
       setState(doc == null ? { kind: "signedout", doc: {} } : { kind: "ready", doc: doc || {} });
     })();
     return () => { on = false; };
-  }, [goalKind, live]);
+  }, [goalKind, live, accountId]);
   // ⚠ THE OPTIMISTIC PAINT IS ROLLED BACK WHEN THE WRITE FAILS, and it does NOT
   // clear an existing error. An earlier cut did both wrong, and the two combined
   // into a silent data loss: a failed mark stayed on screen as saved, the next

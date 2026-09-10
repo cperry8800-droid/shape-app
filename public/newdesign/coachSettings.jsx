@@ -165,9 +165,15 @@ function CoachSettingsPage({ role }) {
   // coach to sign in while the settings backend was healthy. It decided the DEMO BAND
   // too — and on a page that renders no roster data, the honest band is simply whether
   // this is someone's own account.
-  const signedIn = useSignedIn();
+  // ⚠ THE HOOK RESOLVES AN ACCOUNT, NOT A FLAG. undefined = still resolving or
+  // unreadable (both mean "no edit may land yet"), null = confirmed signed out, a
+  // string = signed in as that account. Everything below keys on the account so a
+  // sign-in from another tab cannot leave this one showing — or writing — the previous
+  // coach's settings.
+  const acct = useSignedIn();
+  const signedIn = acct === undefined ? undefined : acct !== null;
   const live = signedIn === true;
-  const store = useCoachDoc("coach_settings", live);
+  const store = useCoachDoc("coach_settings", live, acct);
   const doc = store.doc || {};
   // Every tunable, for every role: see the note on TUNABLES — the engine routes flags
   // by ownership rather than evaluating a different rule set, so a threshold hidden
@@ -324,7 +330,10 @@ function CoachSettingsPage({ role }) {
 
         {/* ── notifications ───────────────────────────────────────────────── */}
         <div style={{ marginTop: 16 }}>
-          <CoachNotificationCard signedIn={signedIn} />
+          {/* ⚠ KEYED ON THE ACCOUNT. A remount is the whole reload — the card's own
+              read effect keys on `signedIn`, which does not change when one signed-in
+              coach is replaced by another. */}
+          <CoachNotificationCard key={acct || "anon"} signedIn={signedIn} acct={acct} />
         </div>
       </DashPage>
     </React.Fragment>
@@ -337,7 +346,7 @@ function CoachSettingsPage({ role }) {
 // component rather than a parameter on the client's: that one also owns habit
 // reminders, which a coach does not have, and the two type lists come from
 // different halves of the registry.
-function CoachNotificationCard({ signedIn }) {
+function CoachNotificationCard({ signedIn, acct }) {
   const [state, setState] = React.useState(null); // null = loading
   const [err, setErr] = React.useState("");
   // ⚠ THREE STATES, NOT TWO. `state === null` is still loading; `settings === null`
@@ -409,9 +418,16 @@ function CoachNotificationCard({ signedIn }) {
   const failSettings = (before, keys, msg) => { setState((s) => ({ ...s, settings: before })); noteFail(keys, msg); };
   const failMatrix = (before, keys, msg) => { setState((s) => ({ ...s, matrix: before })); noteFail(keys, msg); };
 
+  // ⚠ AND THE WRITE IS BOUND TO THE ACCOUNT THE PANEL WAS OPENED FOR. Resolving the
+  // user at click time is what let a switch in another tab upsert A's displayed change
+  // under B's id. The click-time id must MATCH the one this card is rendering; an id
+  // that does not, or will not resolve, refuses the write rather than guessing.
   const authUid = async (c) => {
     const u = await c.auth.getUser();
-    return (u && u.data && u.data.user && u.data.user.id) || null;
+    const now = (u && u.data && u.data.user && u.data.user.id) || null;
+    if (!now) return null;
+    if (acct && now !== acct) return null;
+    return now;
   };
 
   // `patch` is the CHANGE, never the whole row.

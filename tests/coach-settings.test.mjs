@@ -390,12 +390,12 @@ test('a number field commits on blur and refuses an empty value', () => {
 // fails. A source pin could tell neither apart — and the previous version of this
 // guard broke on a correct refactor for exactly that reason.
 function driveNotificationCard(seed, run) {
-  const a = SETTINGS.indexOf('function CoachNotificationCard({ signedIn }) {');
+  const a = SETTINGS.indexOf('function CoachNotificationCard({ signedIn, acct }) {');
   // The prelude ends where the render ladder begins — anchored on the LAST handler
   // rather than on the first `if`, which moved the moment a branch was added above it.
   const b = SETTINGS.indexOf('\n  });', SETTINGS.indexOf('const toggle =', a)) + '\n  });'.length;
   assert.ok(a > 0 && b > a, 'CoachNotificationCard moved');
-  const prelude = SETTINGS.slice(a + 'function CoachNotificationCard({ signedIn }) {'.length, b);
+  const prelude = SETTINGS.slice(a + 'function CoachNotificationCard({ signedIn, acct }) {'.length, b);
   // The notice-wording helpers and the type table are SHIPPED code too — reimplementing
   // them here would guard a copy nobody runs.
   const deps = ['const CST_COACH_TYPES =', 'const CST_FIELD_NAMES =', 'function cstFieldName(', 'function cstTypeName(']
@@ -437,11 +437,11 @@ function driveNotificationCard(seed, run) {
   const cstTz = () => 'America/Los_Angeles';
   const win = { shapeDb: seed.db };
   const make = new Function(
-    'React', 'cstSerial', 'CST_DEFAULT_CHANNELS', 'cstTz', 'window', 'signedIn',
+    'React', 'cstSerial', 'CST_DEFAULT_CHANNELS', 'cstTz', 'window', 'signedIn', 'acct',
     deps + '\n' + prelude + '\n  return { load, saveSettings, toggle, read: () => ({ state, err }) };'
   );
   // the body re-runs on every "render", exactly as React would
-  const render = () => { cursor = 0; return make(React, cstSerial, CST_DEFAULT_CHANNELS, cstTz, win, seed.signedIn !== false); };
+  const render = () => { cursor = 0; return make(React, cstSerial, CST_DEFAULT_CHANNELS, cstTz, win, seed.signedIn !== false, seed.acct === undefined ? 'coach-1' : seed.acct); };
   let api = render();
   // The handlers write through the setState cells; the `state` binding a render
   // closed over is stale by construction, so reading it means rendering again —
@@ -766,7 +766,7 @@ test('unknown authentication renders Loading, never the signed-out card', () => 
   // whole auth round trip. The ORDER of the ladder is the invariant — the unknown
   // branch has to come first, or the signed-out card claims the answer.
   const src = stripComments(SETTINGS);
-  assert.match(src, /<CoachNotificationCard signedIn=\{signedIn\} \/>/, 'the card is handed a boolean again');
+  assert.match(src, /<CoachNotificationCard key=\{acct \|\| "anon"\} signedIn=\{signedIn\} acct=\{acct\} \/>/, 'the card is handed a boolean, or is not remounted per account');
   // ⚠ THE INVARIANT IS "A SETTLED ANSWER OUTRANKS AN UNSETTLED ONE", NOT AN ORDER.
   // The first cut of this guard pinned unknown-before-signed-out, and that order is
   // exactly what broke the signed-out card: `load()` settles a signed-out visitor's
@@ -974,8 +974,21 @@ test('persistence keys on AUTHENTICATION, not on the roster fetch', () => {
   // and tell a signed-in coach to sign in while the settings backend was healthy — and
   // an edit made during the pending window was dropped once the roster resolved.
   const src = stripComments(SETTINGS);
-  assert.match(src, /const signedIn = useSignedIn\(\);/, 'the panel still infers auth from the roster');
+  // ⚠ THE HOOK RESOLVES AN ACCOUNT NOW, not a flag — a one-shot boolean is the
+  // cross-account defect. The invariant is that auth comes from it and not from the
+  // roster, and that `live` still means "confirmed signed in".
+  assert.match(src, /const acct = useSignedIn\(\);/, 'the panel still infers auth from the roster');
+  assert.match(src, /const signedIn = acct === undefined \? undefined : acct !== null;/);
   assert.match(src, /const live = signedIn === true;/);
+  assert.match(src, /useCoachDoc\("coach_settings", live, acct\)/, 'the document is not re-read when the account changes');
+  // ⚠ AND THE HOOK MUST READ IT. Passing an argument a hook ignores is a fix that
+  // looks applied and is not — measured: dropping it from the deps SURVIVED a guard
+  // that only checked the call site.
+  const dd = stripComments(DATA);
+  assert.match(dd, /function useCoachDoc\(goalKind, live, accountId\)/);
+  const hydrate = dd.slice(dd.indexOf('function useCoachDoc'));
+  assert.match(hydrate.slice(0, hydrate.indexOf('const apply =')), /\}, \[goalKind, live, accountId\]\);/,
+    'the document hydrate ignores the account it was handed');
   assert.ok(!/const live = source === "live"/.test(src), 'live is derived from the roster again');
   // an unknown answer is settling, or an early edit is routed before it is known
   assert.match(src, /const settling = signedIn === undefined \|\| \(live && store\.kind === "loading"\)/);
@@ -984,12 +997,70 @@ test('persistence keys on AUTHENTICATION, not on the roster fetch', () => {
   // someone's own account". Pinned in its own guard beside the pipeline check.
 });
 
-test('useSignedIn resolves independently and has three states', () => {
+test('useSignedIn resolves an ACCOUNT, subscribes to changes, and keeps unreadable apart', async () => {
+  // ⚠ A ONE-SHOT BOOLEAN IS THE CROSS-ACCOUNT DEFECT. If B signs in from another
+  // same-origin tab, A's open Settings tab keeps its `true`, keeps A's document on
+  // screen, and the write paths — which resolve getUser() at CLICK time — upsert the
+  // displayed change under B's id. And `dashDocUid` swallows its failure and returns
+  // null, so collapsing that to `false` showed an authenticated coach the preview UI
+  // with live controls whose edits then vanished.
   const src = stripComments(DATA);
-  const fn = src.slice(src.indexOf('function useSignedIn'));
-  const body = fn.slice(0, fn.indexOf('\n  return signedIn;') + 20);
+  const at = src.indexOf('function useSignedIn');
+  const body = src.slice(at, src.indexOf('\nfunction ', at + 10));
+  const SIGNED_IN_SRC = body;
   assert.match(body, /React\.useState\(undefined\)/, 'the unknown state is missing');
   assert.match(body, /await dashDocBridge\(\)/, 'a cookie-only session reads as anon');
-  assert.match(body, /await dashDocUid\(\)/);
-  assert.ok(!/useDashboard|source/.test(body), 'the auth answer depends on the roster again');
+  assert.match(body, /sub = db\.client\.auth\.onAuthStateChange\(/, 'a sign-in from another tab is never noticed');
+  assert.match(body, /unsubscribe/, 'the auth subscription leaks');
+  assert.ok(!/useDashboard|\bsource\b/.test(body), 'the auth answer depends on the roster again');
+  // an identity, not a flag: nothing here may publish a boolean
+  assert.ok(!/setUid\(!!/.test(body) && !/setUid\(true\)/.test(body), 'the hook publishes a boolean again');
+  // ⚠ AND THE SHIPPED HOOK IS EXECUTED, NOT A LOCAL RESTATEMENT OF IT. The first cut
+  // of this guard reimplemented the try/catch here and asserted against its own copy —
+  // so a mutation that made the real catch resolve `null` SURVIVED. A guard that runs
+  // its own version of the code under test is measuring nothing.
+  const drive = async (getUser, onAuth) => {
+    let cell, cleanup;
+    const React = {
+      useState: (init) => [cell === undefined ? (cell = init) : cell, (v) => { cell = v; }],
+      useRef: (v) => ({ current: v }),
+      useEffect: (f) => { cleanup = f(); },
+    };
+    const win = { shapeDb: { getUser, client: { auth: { onAuthStateChange: onAuth } } } };
+    const hook = new Function('React', 'window', 'dashDocBridge', SIGNED_IN_SRC + '\nreturn useSignedIn;')(
+      React, win, async () => {}
+    );
+    hook();
+    for (let k = 0; k < 8; k++) await Promise.resolve();
+    return { value: cell, cleanup };
+  };
+  const noop = () => ({ data: { subscription: { unsubscribe() {} } } });
+  assert.equal((await drive(async () => ({ id: 'coach-1' }), noop)).value, 'coach-1');
+  assert.equal((await drive(async () => null, noop)).value, null, 'a confirmed signed-out visitor is not null');
+  assert.equal((await drive(async () => { throw new Error('offline'); }, noop)).value, undefined,
+    'an unreadable auth read is reported as signed out');
+  // the subscription is really taken, and a later event moves the answer
+  let handler = null, unsubscribed = 0;
+  const sub = (fn) => { handler = fn; return { data: { subscription: { unsubscribe() { unsubscribed += 1; } } } }; };
+  const run = await drive(async () => ({ id: 'coach-a' }), sub);
+  assert.equal(run.value, 'coach-a');
+  assert.ok(handler, 'onAuthStateChange is named but never called');
+  handler('SIGNED_IN', { user: { id: 'coach-b' } });
+  assert.equal(await drive(async () => ({ id: 'coach-a' }), sub).then(() => 'ok'), 'ok');
+  run.cleanup();
+  assert.equal(unsubscribed, 1, 'the auth subscription leaks');
+});
+
+test('a write refuses an account that is not the one the panel is rendering', () => {
+  // ⚠ THE CROSS-ACCOUNT WRITE ITSELF. Resolving the user at click time is what let a
+  // switch in another tab upsert A's displayed change under B's id.
+  const src = stripComments(SETTINGS);
+  const at = src.indexOf('const authUid =');
+  const body = src.slice(at, src.indexOf('\n  const saveSettings', at));
+  assert.match(body, /if \(acct && now !== acct\) return null;/, 'the write no longer checks whose account it is for');
+  assert.match(body, /if \(!now\) return null;/, 'an unresolvable account is treated as a pass');
+  // and both write paths route through it rather than reading getUser themselves
+  const writes = src.slice(src.indexOf('const saveSettings'), src.indexOf('\n  if (signedIn === false)'));
+  assert.equal((writes.match(/await authUid\(c\)/g) || []).length, 2, 'a write path resolves the user itself');
+  assert.ok(!/c\.auth\.getUser\(\)/.test(writes), 'a write path reads getUser directly again');
 });
