@@ -579,11 +579,31 @@ Append new entries at the top, under this note.
   across three rounds**, each proven to land and restored in a `finally` · both new migrations applied
   twice on a real Postgres 16 and driven through fixtures (20/20 and 5/5) with old-vs-new controls on
   identical state, plus the two-session race above · CI green on all required checks.
-- ⚠ **TWO MIGRATIONS ARE UNAPPLIED AND THERE IS STILL NO ON-ACCOUNT PASS.** Production has **0**
-  `workout_set_logs` and **0** `client_weigh_ins` rows, so nothing in this wave is exercised by real
-  data; the first real member logging a lift in kilograms is the actual test. The War Room item was
-  corrected in the same pass — it had been telling the owner to apply a migration they had **already
-  run** while saying nothing about the two that genuinely are pending.
+- **ALL FOUR MIGRATIONS ARE APPLIED, verified against the LIVE CATALOG rather than assumed.** The
+  owner ran the last two the same evening. Checked on production: every one is a definer pinning
+  `pg_temp` last, **zero** anon/PUBLIC execute grants and `authenticated` intact on all four; exactly
+  **one** `post_my_pr_to_wall` signature; `pr_wall_posts` carries `prev_value`/`reps`/`post_id`; all
+  three RPCs **execute** (`post_my_pr_to_wall` answers `{"ok": false, "reason": "auth"}` as service
+  role, which is the correct gated answer); and — the check worth keeping — the live bodies of
+  `get_my_lifts` and `get_client_lifts` are **byte-identical in their load selector and unit sniff**,
+  which is the property that keeps a member and their coach seeing the same best.
+  ⚠ **THE RAW FIELD SEQUENCES DIFFER AND THAT IS CORRECT, WHICH IS WHY THE FIRST COMPARISON WAS THE
+  WRONG ONE.** A whole-body `regexp_matches` over `payload->>'…'` returns 13 fields for `get_my_lifts`
+  and 19 for `get_client_lifts` — because the coach RPC has an **e1RM load selector and a reps
+  selector** the member's does not. Diffing the whole sequence would have reported a divergence that
+  is not one. The invariant is per-CONSTRUCT, and that is how both the live check and
+  `tests/lift-rpc-source-parity.test.mjs` ask it.
+- ⚠ **AND THE RECORDS PASS ONE COMMIT EARLIER HAD TO BE CORRECTED IN THE OPPOSITE DIRECTION, WHICH IS
+  THE SAME DEFECT.** It fixed a War Room item that told the owner to apply a migration they had
+  already run — and then asserted two others were pending, which the owner made false within the
+  hour. **A migration's status is a claim with a shelf life measured in minutes, and it belongs to
+  the database, not to the file that describes it.** Both the board and this entry are now written
+  from a live catalog query, and that is the only form of the claim worth making.
+- ⚠ **STILL NO ON-ACCOUNT PASS, AND THAT IS UNCHANGED BY THE APPLY.** Re-measured the same evening:
+  **0** `workout_set_logs`, **0** `client_weigh_ins`, **0** `pr_wall_posts`. So every RPC in this
+  wave is live and **nothing has ever called one with real data** — the mixed-unit fix corrects no
+  history because there is no history, and the first real member logging a lift in kilograms remains
+  the actual test.
 
 ### 2026-09-10 — The second Codex round: a fix that established the wrong ordering, and a migration that broke a consumer the moment it was applied
 
@@ -705,6 +725,11 @@ Append new entries at the top, under this note.
   verdict reads *"2.7 lb down"* / *"1.2 kg down"* — which cross-check exactly (174.6 lb = 79.2 kg).
 - ⚠ **THE TWO MIGRATIONS ARE NOT APPLIED.** They are owed on Supabase, and until they run the route
   keeps sending the bare unitless number it always did.
+  ⚠ **APPLIED LATER THE SAME DAY — this bullet was true for about an hour.** Both are live and
+  verified against the catalog; `get_my_lifts` was superseded again that evening by
+  `2026-09-10-my-lifts-source.sql`. Marked rather than rewritten, because a dated entry says what
+  was true on its date — but this file is auto-loaded, so an unmarked "not applied" reads as the
+  current state to whoever lands on it.
 
 ### 2026-09-10 — Units, part two: the switch now reaches every measurement, because most of them are TEXT
 
@@ -1040,6 +1065,10 @@ Append new entries at the top, under this note.
 - ⚠ **NO ON-ACCOUNT PASS.** Every live path here is stubbed or driven signed-out; the migration is
   **owed on Supabase before the segment is trusted**, and the route's fallback exists precisely
   because that window is real.
+  ⚠ **THE MIGRATION WAS APPLIED THE SAME DAY** (and superseded that evening by
+  `2026-09-10-pr-wall-units.sql`, also applied). **The no-on-account-pass half of this bullet still
+  stands** and is the part to carry forward: production holds 0 `pr_wall_posts`, so the segment has
+  still never rendered a real record.
 
 ### 2026-09-10 — P1-E: the weekly readout on the web, and eight cards that were never on it
 
