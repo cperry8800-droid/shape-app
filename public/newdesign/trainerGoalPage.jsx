@@ -51,7 +51,8 @@ function Field({ label, value, onChange, type }) {
   );
 }
 
-function GoalEditModal({ goal, onClose, onSave, onDelete }) {
+function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
+  const METRICS = goalMetricsFor(role);
   const [g, setG] = React.useState(goal || { t: "", cur: 0, tgt: 100, sub: "", money: false, pct: false });
   return (
     <ModalShell
@@ -65,15 +66,36 @@ function GoalEditModal({ goal, onClose, onSave, onDelete }) {
       </>}
     >
       <Field label="TITLE" value={g.t} onChange={v => setG({ ...g, t: v })} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="CURRENT" type="number" value={g.cur} onChange={v => setG({ ...g, cur: v })} />
+      {/* ⚠ CURRENT DISAPPEARS ONCE THE GOAL IS BOUND. The card reads the live
+          figure and ignores `cur` entirely, so leaving the input on screen was
+          a control that accepted a number and silently discarded it. */}
+      <div style={{ display: "grid", gridTemplateColumns: g.metric ? "1fr" : "1fr 1fr", gap: 12 }}>
+        {!g.metric && <Field label="CURRENT" type="number" value={g.cur} onChange={v => setG({ ...g, cur: v })} />}
         <Field label="TARGET" type="number" value={g.tgt} onChange={v => setG({ ...g, tgt: v })} />
       </div>
-      <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
-      <div style={{ display: "flex", gap: 18, marginTop: 4, color: INK, fontSize: 13 }}>
-        <label style={{ display: "flex", gap: 8, cursor: "pointer" }}><input type="checkbox" checked={!!g.money} onChange={e => setG({ ...g, money: e.target.checked, pct: e.target.checked ? false : g.pct })} /> Money ($)</label>
-        <label style={{ display: "flex", gap: 8, cursor: "pointer" }}><input type="checkbox" checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked, money: e.target.checked ? false : g.money })} /> Percent (%)</label>
+      <div style={{ marginTop: 2 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>CURRENT READS FROM</div>
+        {/* ⚠ THE UNIT COMES WITH THE METRIC. The card formats through `g.money`
+            and `g.pct`, so changing only `metric` rendered MRR as a bare 12000,
+            adherence as a bare 88, or an active-client count as `$12` on a goal
+            that had been a revenue one. */}
+        <select value={g.metric || ""} onChange={e => {
+          const metric = e.target.value || undefined;
+          setG({ ...g, metric, ...(metric ? goalMetricUnit(metric) : {}) });
+        }}
+          style={{ width: "100%", background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "9px 11px", fontFamily: sans, fontSize: 13 }}>
+          {METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612" }}>{label}</option>)}
+        </select>
       </div>
+      <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
+      {/* Locked while a metric is bound: the unit is then a property of the
+          measurement, not a preference, and a control that accepts a change the
+          card overrides is the same dead input the CURRENT field was. */}
+      <div style={{ display: "flex", gap: 18, marginTop: 4, color: INK, fontSize: 13, opacity: g.metric ? 0.5 : 1 }}>
+        <label style={{ display: "flex", gap: 8, cursor: g.metric ? "default" : "pointer" }}><input type="checkbox" disabled={!!g.metric} checked={!!g.money} onChange={e => setG({ ...g, money: e.target.checked, pct: e.target.checked ? false : g.pct })} /> Money ($)</label>
+        <label style={{ display: "flex", gap: 8, cursor: g.metric ? "default" : "pointer" }}><input type="checkbox" disabled={!!g.metric} checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked, money: e.target.checked ? false : g.money })} /> Percent (%)</label>
+      </div>
+      {g.metric && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Unit set by the metric</div>}
     </ModalShell>
   );
 }
@@ -131,7 +153,11 @@ function TrainerGoalPage() {
   const [toast, setToast] = React.useState(null);
   const [editGoalIdx, setEditGoalIdx] = React.useState(null); // number | 'new' | null
   const [editCalc, setEditCalc] = React.useState(false);
+  // Holds the ROWS to edit (or false) — the modal is seeded with whatever the
+  // card is showing, so opening it on a computed card adopts those figures as
+  // the coach's own starting point rather than a blank grid.
   const [editMomentum, setEditMomentum] = React.useState(false);
+  const live = useCoachLiveFigures("trainer");
 
   React.useEffect(() => {
     (async () => {
@@ -184,21 +210,43 @@ function TrainerGoalPage() {
   const weekly = monthly / 4.33;
   const quarterly = monthly * 3;
   const annual = monthly * 12;
-  const fmt = n => "$" + Math.round(n).toLocaleString();
-  const currentNet = currentWeekly * (1 - PLATFORM_FEE_RATE);
+  // ⚠ The sign goes OUTSIDE the currency symbol. This read `"$" + n` and every
+  // caller happened to pass a positive, so a shortfall rendered "$-6,007" — and
+  // binding the pace to real subscriptions is exactly what starts producing
+  // negatives (a coach whose calculator is still zeroed is now BELOW their
+  // actual pace rather than level with a typed 0).
+  const fmt = n => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString();
+  // ⚠ THE PACE THE CALCULATOR COMPARES AGAINST WAS A NUMBER THE COACH TYPED.
+  // "vs $4,620 current pace" was `calc.currentWeekly`, entered once and never
+  // revisited — so the whole comparison drifted quietly out of date. When the
+  // coach has not set one and the practice can answer, use the real weekly net
+  // from their subscriptions and SAY which it is; a typed figure still wins,
+  // because a coach who set one is asserting something the subscriptions do
+  // not know (cash work, a rate change landing next month).
+  const liveWeeklyNet = live && live.kind === "live" && live.weeklyNetCents != null ? live.weeklyNetCents / 100 : null;
+  const paceIsLive = !Number(currentWeekly) && liveWeeklyNet != null;
+  const currentNet = paceIsLive ? liveWeeklyNet : currentWeekly * (1 - PLATFORM_FEE_RATE);
   const paceDelta = weekly - currentNet;
 
   // Each card below becomes a draggable/resizable DashGrid widget (role=trainer, tab=goal),
   // mirroring the Score refactor. The DashPage hero (title/actions) stays as the page header;
   // only the card stack is gridded. Each goal is a half-width widget; calc + momentum are full.
   const widgets = goals.map((g, i) => ({ key: "goal-" + (g.id || i), title: g.t || "Goal", size: "half", render: () => {
-    const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
-    const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
+    // A bound goal reads its CURRENT from the practice; undefined means the
+    // goal is not bound (use the typed number), null means it IS bound and the
+    // figure could not be read — which shows "—", never the stale typed one.
+    const bound = goalLiveValue(g.metric, live);
+    const pending = bound === "loading";
+    const liveCur = bound === undefined ? Number(g.cur) || 0 : bound;
+    const unreadable = bound === null;
+    const pct = (unreadable || pending) ? 0 : Math.min((Number(liveCur)||0) / (Number(g.tgt)||1), 1);
+    const curF = (unreadable || pending) ? "—" : g.money ? `$${Number(liveCur).toLocaleString()}` : g.pct ? `${liveCur}%` : liveCur;
     const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
+    const metricLabel = (goalMetricsFor("trainer").find(([v]) => v === g.metric) || [])[1];
     return (
       <Card style={{ padding: 26, position: "relative" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {(unreadable || pending) ? "—" : Math.round(pct*100) + "%"}</div>
           <Chip onClick={() => setEditGoalIdx(i)}>EDIT</Chip>
         </div>
         <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
@@ -209,6 +257,11 @@ function TrainerGoalPage() {
           <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
         </div>
         <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
+        {g.metric && (
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginTop: 10 }}>
+            {pending ? "Reading…" : unreadable ? "Couldn't read " + (metricLabel || "this figure").toLowerCase() : "Live · " + (metricLabel || g.metric)}
+          </div>
+        )}
       </Card>
     );
   } })).concat([
@@ -244,7 +297,15 @@ function TrainerGoalPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
             {[
-              ["WEEKLY TAKE-HOME", fmt(weekly), `vs ${fmt(currentNet)} current pace · ${fmt(grossWeekly)} gross`, paceDelta],
+              // ⚠ NO DELTA AGAINST A LIVE PACE. The target includes session work and
+              // one-time sales; the live figure is SUBSCRIPTION revenue only (both
+              // analytics routes sum `subscriptions` and nothing else). Subtracting
+              // one from the other produced a coloured "+$745 surplus" for a trainer
+              // already past target on session income. The figure is worth showing;
+              // the difference between them is not a number.
+              ["WEEKLY TAKE-HOME", fmt(weekly), paceIsLive
+                ? `subscriptions today: ${fmt(currentNet)} · ${fmt(grossWeekly)} gross target`
+                : `vs ${fmt(currentNet)} current pace · ${fmt(grossWeekly)} gross`, paceIsLive ? null : paceDelta],
               ["MONTHLY TAKE-HOME", fmt(monthly), `${fmt(grossWeekly * 4.33)} gross · 4.33 weeks avg`, null],
               ["QUARTERLY TAKE-HOME", fmt(quarterly), `${fmt(grossWeekly * 4.33 * 3)} gross · 3 months`, null],
               ["ANNUAL TAKE-HOME", fmt(annual), `${fmt(grossWeekly * 4.33 * 12)} gross · 12 months`, null],
@@ -264,14 +325,23 @@ function TrainerGoalPage() {
         </div>
       </Card>
     ) },
-    { key: "momentum", title: "Momentum", size: "full", render: () => (
+    { key: "momentum", title: "Momentum", size: "full", render: () => {
+      // ⚠ COMPUTED ONLY WHERE THERE IS NOTHING TO OVERWRITE. A signed-in coach
+      // with no saved goals gets `momentum: []` — an empty card — and that is
+      // exactly the gap the trajectory can fill. A coach who HAS typed rows
+      // keeps them: silently replacing someone's own reading of their quarter
+      // with a computed one is not a fix, it is data loss with a nicer label.
+      const computed = momentum.length ? null : coachLiveMomentum(live);
+      const rows = computed || momentum;
+      const isComputed = !!computed;
+      return (
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
-          <Chip onClick={() => setEditMomentum(true)}>EDIT</Chip>
+          <SectionTitle right={isComputed ? "MEASURED" : "THIS QUARTER"}>Momentum</SectionTitle>
+          <Chip onClick={() => setEditMomentum(rows)}>EDIT</Chip>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>
-          {momentum.map((m,i)=>(
+          {rows.map((m,i)=>(
             <div key={i}>
               <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
               <div style={{ fontSize: 12.5, marginTop: 8 }}>{m[1]}</div>
@@ -279,8 +349,14 @@ function TrainerGoalPage() {
             </div>
           ))}
         </div>
+        {isComputed && (
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
+            From your own subscriptions · edit to write your own
+          </div>
+        )}
       </Card>
-    ) },
+      );
+    } },
   ]);
 
   return (
@@ -300,6 +376,7 @@ function TrainerGoalPage() {
       {editGoalIdx != null && (
         <GoalEditModal
           goal={editGoalIdx === "new" ? null : goals[editGoalIdx]}
+          role="trainer"
           onClose={() => setEditGoalIdx(null)}
           onSave={saveGoal}
           onDelete={editGoalIdx === "new" ? null : deleteGoal}
@@ -315,7 +392,9 @@ function TrainerGoalPage() {
       )}
       {editMomentum && (
         <MomentumEditModal
-          momentum={momentum}
+          // Seeded with what the CARD is showing: on a computed card that means
+          // the coach starts from the measured figures rather than a blank grid.
+          momentum={Array.isArray(editMomentum) ? editMomentum : momentum}
           onClose={() => setEditMomentum(false)}
           onSave={m => { setEditMomentum(false); persist({ ...state, momentum: m }); }}
         />

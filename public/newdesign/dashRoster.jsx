@@ -88,6 +88,33 @@ function dashContactLabel(rec, role) {
   const d = dashDaysSince(ts);
   return { text: d === 0 ? "Today" : d + "d ago", warn: d >= 5 };
 }
+function dashRevenueLabel(rec) {
+  // What this client is worth per month, from the subscription rows the roster
+  // route already sums. 0 is a REAL answer (a client on no paid plan), so it is
+  // rendered as $0 rather than dimmed away; only a missing payments leg is
+  // "not shared".
+  const p = rec.payments;
+  if (!p || p.mrrCents == null) return { text: "Not shared", dim: true };
+  const dollars = p.mrrCents / 100;
+  // ⚠ NOT dim. `dashCellText` renders dim in italic 40% ink — the exact
+  // treatment of "Not shared" — so dimming $0 made "this client pays me
+  // nothing" indistinguishable from "we do not know what they pay", which
+  // is the distinction the comment above exists to keep.
+  return { text: "$" + (dollars >= 1000 ? (dollars / 1000).toFixed(1) + "k" : Math.round(dollars).toLocaleString()) + "/mo" };
+}
+function dashTenureLabel(rec) {
+  // How long they have been a client, from their earliest subscription.
+  const at = rec.payments && rec.payments.joinedAt;
+  if (!at) return { text: "Not shared", dim: true };
+  const d = dashDaysSince(at);
+  // ⚠ Number.isFinite, not `== null`: dashDaysSince runs an unparseable date
+  // through Math.max(0, NaN) and returns NaN, which passes a null check and
+  // then renders "NaNd".
+  if (!Number.isFinite(d)) return { text: "Not shared", dim: true };
+  if (d < 31) return { text: d + "d" };
+  const months = Math.floor(d / 30.44);
+  return months < 12 ? { text: months + "mo" } : { text: (d / 365.25).toFixed(1) + "y" };
+}
 function dashScoreCell(rec) {
   // DashSignals.scoreWeekReading is the ONE definition of this delta — it
   // compares the two newest COMPLETE weeks, so an in-progress current week
@@ -105,29 +132,33 @@ function dashScoreCell(rec) {
 // ── Role-configured columns ──────────────────────────────────────────────────
 const DASH_ROSTER_VIEWS = {
   nutritionist: {
-    cols: "2fr 110px 110px 110px 120px",
-    minWidth: 640,
-    heads: ["LAST FOOD LOG", "COMPLIANCE · 7D", "GOAL PHASE", "LAST CONSULT"],
+    cols: "2fr 110px 110px 110px 120px 92px 74px",
+    minWidth: 806,
+    heads: ["LAST FOOD LOG", "COMPLIANCE · 7D", "GOAL PHASE", "LAST CONSULT", "REVENUE", "TENURE"],
     cells: (rec, role) => [
       dashCellText(dashLastLogLabel(rec)),
       dashCellText(dashComplianceLabel(rec)),
       dashCellText(dashPhaseLabel(rec)),
       dashCellText(dashConsultLabel(rec)),
+      dashCellText(dashRevenueLabel(rec)),
+      dashCellText(dashTenureLabel(rec)),
     ],
   },
   trainer: {
     // PROGRAM is flexible with a floor: a fixed 170px let "Strength Block 3 ·
     // Wk 6/12" run into STREAK at 1440px (review 2026-09-09, V1); the cell
     // also ellipsises now, with the full text on hover.
-    cols: "1.6fr 104px 92px minmax(180px, 1fr) 64px 100px",
-    minWidth: 760,
-    heads: ["SCORE · WK", "ADHERENCE", "PROGRAM", "STREAK", "LAST CONTACT"],
+    cols: "1.6fr 104px 92px minmax(180px, 1fr) 64px 100px 92px 74px",
+    minWidth: 926,
+    heads: ["SCORE · WK", "ADHERENCE", "PROGRAM", "STREAK", "LAST CONTACT", "REVENUE", "TENURE"],
     cells: (rec, role) => [
       dashScoreCell(rec),
       dashCellText(dashAdherenceLabel(rec)),
       dashCellText(dashProgramLabel(rec)),
       dashCellText(dashStreakLabel(rec)),
       dashCellText(dashContactLabel(rec, role)),
+      dashCellText(dashRevenueLabel(rec)),
+      dashCellText(dashTenureLabel(rec)),
     ],
   },
 };

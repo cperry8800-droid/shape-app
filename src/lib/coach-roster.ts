@@ -11,6 +11,14 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS } from '@/lib/time';
 
+// `.toISOString()` throws on an invalid date; every caller here wants "no
+// answer" rather than a 500 that takes the whole roster down with it.
+function isoOrNull(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
 type ClientEntry = {
   id: string | null;
   name: string;
@@ -45,12 +53,24 @@ export async function coachClientsResponse(
     return NextResponse.json({ [roleKey]: false, clients: [], totals: { active: 0, mrrCents: 0 } });
   }
 
-  const { data: subRows } = await supabase
+  // ⚠ THE ERROR IS KEPT, because dropping it turns "we could not read what
+  // this client pays" into the measured claim "$0/mo". A transient failure, an
+  // RLS change or a schema drift would otherwise have every row on the roster
+  // confidently reporting zero revenue — the same collapse of "no data" into
+  // "a measured zero" this review round has already fixed twice elsewhere.
+  const { data: subRows, error: subErr } = await supabase
     .from('subscriptions')
     .select('client_id, price_cents, status, created_at')
     .eq('provider_role', role)
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);
+  if (subErr) {
+    console.warn(
+      `[shape-app] ${role} roster: subscriptions read failed — REVENUE and TENURE render "Not shared" rather than $0:`,
+      subErr.message
+    );
+  }
+  const subsUnknown = !!subErr;
 
   const { data: sessRows } = await supabase
     .from('sessions')
@@ -103,18 +123,36 @@ export async function coachClientsResponse(
         id: e.id,
         name: e.name,
         sessions: e.sessions,
-        mrrCents: e.mrrCents,
+        // null, not 0, when the subscriptions read failed: the roster renders
+        // "Not shared" for null and a real "$0" for zero.
+        mrrCents: subsUnknown ? null : e.mrrCents,
+        // The earliest subscription start — already computed above for `isNew`
+        // and then thrown away, so the roster could never show how long anyone
+        // had been a client (review 2026-09-09, R10).
+        //
+        // ⚠ GUARDED, because `.toISOString()` THROWS on an invalid date while
+        // the `isNew` read above only yields NaN. An unparseable created_at
+        // would 500 the whole roster route, `_dashJson` would throw, and
+        // `useDashboard` falls through to the DEMO cast — so one bad row would
+        // show a signed-in coach a fabricated roster with nothing saying so.
+        //
+        // ⚠ AND THIS IS THE START OF THE CURRENT RUN, NOT LIFETIME TENURE: the
+        // query above reads active/trialing rows only, so a client who left and
+        // came back dates from their return. The Goal page's median tenure is
+        // computed over EVERY span by `buildTrajectory`, which is the lifetime
+        // reading; the two answer different questions on purpose.
+        joinedAt: isoOrNull(e.joinedAt),
         lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null,
         isNew,
         status,
       };
     });
 
-  const mrrCents = clients.reduce((sum, c) => sum + c.mrrCents, 0);
+  const mrrCents = clients.reduce((sum, c) => sum + (c.mrrCents ?? 0), 0);
 
   return NextResponse.json({
     [roleKey]: true,
     clients,
-    totals: { active: clients.length, mrrCents },
+    totals: { active: clients.length, mrrCents: subsUnknown ? null : mrrCents },
   });
 }

@@ -106,6 +106,14 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
       end: end != null && end < start ? start : end, // a close before its open is a data error; treat as a zero-length span
       price: Number(r.price_cents) || 0,
       net: cutCents(Number(r.price_cents) || 0, r.fee_bps == null ? null : r.fee_bps),
+      // ⚠ A SPAN IS A SUBSCRIPTION ROW; A CLIENT IS A PERSON. Nothing in the
+      // schema stops one client holding several rows under one provider (a plan
+      // change, a re-subscribe, a duplicated checkout), so counting rows and
+      // labelling them "clients" inflates the headcount against the roster,
+      // which groups by client_id. Every count below that says "client" is
+      // taken over this key. A row with no client_id cannot be grouped, so it
+      // becomes its own identity rather than merging with another row's.
+      client: r && r.client_id != null ? 'c:' + String(r.client_id) : 'row:' + spans.length,
     });
   }
   const paid = [];
@@ -119,7 +127,26 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
   }
 
   const openAt = (t) => spans.filter((s) => s.start <= t && (s.end == null || s.end > t));
-  const activeAt = (t) => openAt(t).length;
+  const clientsOpenAt = (t) => new Set(openAt(t).map((s) => s.client));
+  const activeAt = (t) => clientsOpenAt(t).size;
+  // A client JOINED in [from, to) if a span of theirs opens inside it and they
+  // were not already a client the instant before. A mid-membership plan change
+  // opens a second row and must not read as a new person.
+  const joinedIn = (from, to) => {
+    const before = clientsOpenAt(from - 1);
+    const out = new Set();
+    for (const s of spans) if (s.start >= from && s.start < to && !before.has(s.client)) out.add(s.client);
+    return out.size;
+  };
+  // A client LEFT in [from, to) if a span of theirs closes inside it and they
+  // hold no open span at the end of it — so cancelling one row while another
+  // stays open is not a departure.
+  const leftIn = (from, to) => {
+    const after = clientsOpenAt(to - 1);
+    const out = new Set();
+    for (const s of spans) if (s.end != null && s.end >= from && s.end < to && !after.has(s.client)) out.add(s.client);
+    return out.size;
+  };
 
   const thisMonday = mondayUTC(now);
   const firstMonday = thisMonday - (weeks - 1) * WEEK_MS;
@@ -134,9 +161,9 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
     for (const p of paid) if (p.at >= start && p.at < end) { oneTime += p.price; oneTimeNet += p.net; }
     out.push({
       weekOf: new Date(start).toISOString().slice(0, 10),
-      active: open.length,
-      added: spans.filter((s) => s.start >= start && s.start < end).length,
-      ended: spans.filter((s) => s.end != null && s.end >= start && s.end < end).length,
+      active: new Set(open.map((s) => s.client)).size,
+      added: joinedIn(start, end),
+      ended: leftIn(start, end),
       mrrGrossCents: gross,
       mrrNetCents: net,
       oneTimeCents: oneTime,
@@ -147,7 +174,7 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
   const d30 = now - 30 * DAY_MS;
   const monthStart = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), 1);
   const active30dAgo = activeAt(d30);
-  const ended30d = spans.filter((s) => s.end != null && s.end >= d30 && s.end <= now).length;
+  const ended30d = leftIn(d30, now + 1);
   const tenures = spans.map((s) => ((s.end == null ? now : s.end) - s.start) / DAY_MS).filter((n) => n >= 0);
   const firstStart = spans.length ? Math.min(...spans.map((s) => s.start)) : null;
 
@@ -157,12 +184,18 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
     summary: {
       activeNow: activeAt(now),
       active30dAgo,
-      addsThisMonth: spans.filter((s) => s.start >= monthStart && s.start <= now).length,
-      endedThisMonth: spans.filter((s) => s.end != null && s.end >= monthStart && s.end <= now).length,
+      addsThisMonth: joinedIn(monthStart, now + 1),
+      endedThisMonth: leftIn(monthStart, now + 1),
       churnRate30dPct: active30dAgo > 0 ? Math.round((ended30d / active30dAgo) * 100) : null,
       medianTenureDays: tenures.length ? Math.round(median(tenures)) : null,
       oneTime30dCents: paid.filter((p) => p.at >= d30 && p.at <= now).reduce((s, p) => s + p.price, 0),
-      totalEverSubscribed: spans.length,
+      // People, not rows — so it is comparable with the roster's client count.
+      totalEverSubscribed: new Set(spans.map((s) => s.client)).size,
+      // ⚠ AND THE SPAN COUNT KEPT SEPARATELY, because `medianTenureDays` is
+      // measured over SPANS on purpose ("how long does a membership last") and a
+      // card that quotes it beside a people count would be describing a
+      // different denominator than the one it prints.
+      totalSpans: spans.length,
     },
   };
 }

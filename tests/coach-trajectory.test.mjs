@@ -131,3 +131,87 @@ test('a custom fee cut is used for net MRR', () => {
   const t = buildTrajectory({ subs: [sub({ created_at: iso(DAY), price_cents: 10000, fee_bps: 2000 })], now: NOW, weeks: 2, cutCents: (p, bps) => p - Math.round(p * bps / 10000) });
   assert.equal(t.weeks[1].mrrNetCents, 8000);
 });
+
+// ── Headcounts are people, not rows (Codex review on #2020) ─────────────────
+// Nothing in the schema stops one client holding several subscription rows
+// under one provider — a plan change, a re-subscribe, a duplicated checkout.
+// Counting rows and labelling them "clients" inflated every headcount against
+// the roster, which groups by client_id, so the two disagreed on one screen.
+
+test('two concurrent rows for one client are one active client', () => {
+  const t = buildTrajectory({
+    subs: [
+      sub({ client_id: 'u1', created_at: iso(90 * DAY) }),
+      sub({ client_id: 'u1', created_at: iso(40 * DAY) }), // a plan change, same person
+      sub({ client_id: 'u2', created_at: iso(30 * DAY) }),
+    ],
+    now: NOW,
+  });
+  assert.equal(t.summary.activeNow, 2, 'two people, three rows');
+  assert.equal(t.summary.totalEverSubscribed, 2, 'people');
+  assert.equal(t.summary.totalSpans, 3, 'and the span count kept separately');
+  assert.equal(t.weeks[t.weeks.length - 1].active, 2);
+});
+
+test('a mid-membership plan change is not a new client', () => {
+  const t = buildTrajectory({
+    subs: [
+      sub({ client_id: 'u1', created_at: iso(200 * DAY) }),
+      sub({ client_id: 'u1', created_at: iso(3 * DAY) }), // opened this month, already a client
+    ],
+    now: NOW,
+  });
+  assert.equal(t.summary.addsThisMonth, 0, 'they were already a client the instant before');
+  assert.equal(t.summary.activeNow, 1);
+});
+
+test('closing one row while another stays open is not a departure', () => {
+  const t = buildTrajectory({
+    subs: [
+      // the old row ended three days ago…
+      sub({ client_id: 'u1', status: 'canceled', created_at: iso(200 * DAY), current_period_end: iso(3 * DAY) }),
+      // …because this one replaced it a week ago
+      sub({ client_id: 'u1', created_at: iso(7 * DAY) }),
+    ],
+    now: NOW,
+  });
+  assert.equal(t.summary.endedThisMonth, 0, 'they hold an open span at the end of the window');
+  assert.equal(t.summary.activeNow, 1);
+});
+
+test('a genuine departure still counts once, however many rows closed', () => {
+  const t = buildTrajectory({
+    subs: [
+      sub({ client_id: 'u1', status: 'canceled', created_at: iso(200 * DAY), current_period_end: iso(4 * DAY) }),
+      sub({ client_id: 'u1', status: 'canceled', created_at: iso(100 * DAY), current_period_end: iso(4 * DAY) }),
+    ],
+    now: NOW,
+  });
+  assert.equal(t.summary.endedThisMonth, 1, 'one person left, not two');
+  assert.equal(t.summary.activeNow, 0);
+});
+
+test('a row with no client_id is its own identity, never merged', () => {
+  const t = buildTrajectory({
+    subs: [
+      sub({ client_id: null, created_at: iso(30 * DAY) }),
+      sub({ client_id: undefined, created_at: iso(20 * DAY) }),
+    ],
+    now: NOW,
+  });
+  assert.equal(t.summary.activeNow, 2, 'two ungroupable rows are two, not one');
+});
+
+test('median tenure is still measured over spans, and totalSpans is its denominator', () => {
+  const t = buildTrajectory({
+    subs: [
+      sub({ client_id: 'u1', status: 'canceled', created_at: iso(100 * DAY), current_period_end: iso(90 * DAY) }),
+      sub({ client_id: 'u1', created_at: iso(10 * DAY) }),
+    ],
+    now: NOW,
+  });
+  assert.equal(t.summary.totalEverSubscribed, 1, 'one person');
+  assert.equal(t.summary.totalSpans, 2, 'two memberships');
+  // Two spans of ~10 days each — a per-PERSON reading would have been ~100.
+  assert.ok(t.summary.medianTenureDays <= 12, `spans, not people: ${t.summary.medianTenureDays}`);
+});

@@ -26,7 +26,8 @@
 //     coachNotes: [{ on: 'YYYY-MM-DD', text }] | null,         // trainer console notes
 //     milestones: [{ key, kind: 'pr'|'workout_count'|'streak'|'goal', label, hitAt? }] | null,
 //     totals:    { workouts: n } | null,                       // lifetime counts
-//     payments:  { mrrCents, status?, lastSessionAt? } | null,  // lastSessionAt = last consult/session
+//     payments:  { mrrCents, status?, lastSessionAt?, joinedAt? } | null,
+//                // lastSessionAt = last consult/session; joinedAt = earliest subscription
 //     recentLogs: [{ on: 'YYYY-MM-DD', kcal, protein }] | null,  // newest first, ≤3 (drawer)
 //     goals:     [{ id, label, metric?, unit?, target, start?, startedOn?,
 //                   setBy?, now?, history: [{on, value}] }] | null,
@@ -756,7 +757,7 @@
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(12) },
         ],
         totals: { workouts: 64 },
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(2) },
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(2), joinedAt: ago(400) },
         recentLogs: [
           { on: ago(0), kcal: 2105, protein: 148 },
           { on: ago(1), kcal: 2210, protein: 139 },
@@ -791,7 +792,7 @@
       // been flat for weeks: stalled BOTH weeks, so there was never an ETA to
       // slip — the card shows the honest "no ETA" state without a flag.
       person(2, "Marcus T.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(6) },
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(6), joinedAt: ago(96) },
         streaks: { current: 0, best: 12, lastActiveOn: ago(4) },
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 3 },
         shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 63]),
@@ -819,7 +820,7 @@
       }),
       // red — no food logs in 4 days + no contact in 7
       person(4, "Sam R.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(9) },
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(9), joinedAt: ago(730) },
         recentLogs: [],
         program: { name: "Foundations", week: 4, weeks: 8 },
         foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 },
@@ -837,7 +838,7 @@
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(20) },
         ],
         nutrition: { avgCalories: 1840, targetCalories: 1900, avgProtein: 96, targetProtein: 150 },
-        payments: { mrrCents: 22000, status: "active", lastSessionAt: ago(1) },
+        payments: { mrrCents: 22000, status: "active", lastSessionAt: ago(1), joinedAt: ago(210) },
         recentLogs: [
           { on: ago(0), kcal: 1815, protein: 92 },
           { on: ago(1), kcal: 1870, protein: 101 },
@@ -851,7 +852,7 @@
       // amber for the trainer (food gap); RED on the nutritionist feed — the
       // logs that do exist average 21% over the calorie target
       person(7, "Deandre K.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(4) },
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(4), joinedAt: ago(45) },
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 4 },
         nutrition: { avgCalories: 2540, targetCalories: 2100, avgProtein: 138, targetProtein: 150 },
         recentLogs: [
@@ -862,7 +863,7 @@
       }),
       // red — three weeks without a check-in (red on its own)
       person(8, "Jonah W.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(13) },
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(13), joinedAt: ago(18) },
         checkIn: { lastWeekOf: mondaysAgo(3) },
         trainingAdherence: { pct: 71, done: 10, planned: 14 },
       }),
@@ -871,7 +872,7 @@
       // one" state.
       person(9, "Tess B.", {
         profile: { id: "demo-9", name: "Tess B.", isNew: true, status: "new" },
-        payments: { mrrCents: 16000, status: "active", lastSessionAt: ago(1) },
+        payments: { mrrCents: 16000, status: "active", lastSessionAt: ago(1), joinedAt: ago(5) },
         goal: { target: 150, unit: "lb", now: 158 },
         trainingAdherence: { pct: 100, done: 2, planned: 2 },
         foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 3 },

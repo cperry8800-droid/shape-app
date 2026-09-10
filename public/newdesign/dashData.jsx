@@ -161,7 +161,10 @@ function _dashRecordFromLive(row, ov, notesByClient) {
       : notesRead ? [] : notesPending ? undefined : null,
     recentLogs: logs ? logs.recent : logsKnown ? [] : null,
     milestones: null,
-    payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null },
+    // ⚠ `?? null`, NEVER `|| 0`. The roster route sends mrrCents: null when its
+    // subscriptions read FAILED; `|| 0` would relabel that as a measured $0/mo
+    // on every row. 0 stays 0 — a client on no paid plan is a real answer.
+    payments: { mrrCents: row.mrrCents ?? null, status: "active", lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null },
   };
 }
 
@@ -303,8 +306,140 @@ function useDashboard(role) {
   return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source };
 }
 
+// ── The coach's own live figures (review 2026-09-09, R9) ────────────────────
+// The Goal page's numbers were ALL typed: `cur` on every goal, the calculator's
+// "current pace", and every row of the momentum card. A coach who set them in
+// March was still being shown March in September, under headings that read as
+// measurements. This binds the ones the practice can answer for itself.
+//
+// Shares `_dashJson`'s 60s cache, so a page that already read /analytics for a
+// chart pays nothing here.
+//
+// `kind` is the honest three-way: "live" when the payload came back for this
+// role, "demo" when the viewer is signed out or is not this role (the page's
+// own sample state), and "unknown" when the read FAILED — which must not be
+// rendered as a zero, because "you have no clients" and "we could not ask" are
+// different sentences.
+function useCoachLiveFigures(role) {
+  const [state, setState] = React.useState({ kind: "loading" });
+  React.useEffect(() => {
+    let on = true;
+    const roleKey = role === "trainer" ? "isTrainer" : "isNutritionist";
+    (async () => {
+      let a = null;
+      try { a = await _dashJson("/api/" + role + "/analytics"); }
+      catch (e) { if (on) setState({ kind: "unknown" }); return; }
+      if (!on) return;
+      if (!a || !a[roleKey]) return setState({ kind: "demo" });
+      const m = a.metrics || {};
+      const net = m.mrrNetCents;
+      setState({
+        kind: "live",
+        activeClients: m.activeClients != null ? m.activeClients : null,
+        mrrNetCents: net != null ? net : null,
+        // 4.33 weeks/month — the same divisor the Goal page's own calculator
+        // uses, so the pace it compares against is on its scale.
+        weeklyNetCents: net != null ? Math.round(net / 4.33) : null,
+        // ⚠ THE TWO ROLES MEASURE DIFFERENT THINGS AND NAME THEM DIFFERENTLY.
+        // The trainer route returns `avgAdherencePct` (sessions completed vs
+        // planned); the nutritionist route returns `proteinAdherencePct` and has
+        // no avgAdherencePct at all — so reading one field for both roles left
+        // the nutritionist binding permanently unreadable.
+        adherencePct: (() => {
+          const cp = a.clientProgress || {};
+          const v = role === "trainer" ? cp.avgAdherencePct : cp.proteinAdherencePct;
+          return v == null ? null : v;
+        })(),
+        trajectory: a.trajectory || null,
+      });
+    })();
+    return () => { on = false; };
+  }, [role]);
+  return state;
+}
+
+// ── What a goal's CURRENT can be bound to (review 2026-09-09, R9) ──────────
+// ⚠ PER ROLE, because the two analytics routes measure different things: the
+// trainer has session adherence, the nutritionist has protein adherence. One
+// shared list offered the nutritionist a binding their own payload can never
+// answer, so the goal read "Couldn't read…" forever.
+//
+// Defined HERE rather than in each Goal page: the two pages are near-identical
+// and were drifting a copy each.
+// The unit a bound metric intrinsically carries. The goal CARD formats through
+// `g.money` / `g.pct`, so binding a metric without setting these renders the
+// live figure in the wrong unit: MRR as a bare `12000`, adherence as a bare
+// `88`, or an active-client count as `$12` on a goal that used to be revenue.
+// A bound goal's unit is not a free choice — it is a property of the thing
+// being measured.
+function goalMetricUnit(metric) {
+  if (metric === "mrrNetMonthly") return { money: true, pct: false };
+  if (metric === "adherencePct") return { money: false, pct: true };
+  if (metric === "activeClients") return { money: false, pct: false };
+  return {};
+}
+function goalMetricsFor(role) {
+  return [
+    ["", "Type it in"],
+    ["activeClients", "Active clients"],
+    ["mrrNetMonthly", "MRR · net per month"],
+    ["adherencePct", role === "trainer" ? "Avg session adherence %" : "Avg protein adherence %"],
+  ];
+}
+// undefined = not bound (use the typed number) · null = bound but unreadable
+// (show "—", NEVER the stale typed value) · a number = live.
+//
+// ⚠ "loading" IS NOT "unreadable". Returning null while the fetch is still in
+// flight painted "Couldn't read active clients" on every page load until
+// /analytics came back — a false failure message on a healthy account.
+function goalLiveValue(metric, live) {
+  if (!metric || !live) return undefined;
+  if (live.kind === "loading") return "loading";
+  if (live.kind !== "live") return null;
+  if (metric === "activeClients") return live.activeClients;
+  if (metric === "mrrNetMonthly") return live.mrrNetCents == null ? null : Math.round(live.mrrNetCents / 100);
+  if (metric === "adherencePct") return live.adherencePct;
+  return null;
+}
+
+// The momentum card's four rows, computed from the trajectory R8 already
+// ships. Returns null when there is nothing measured to say — an empty card is
+// better than four rows of zeroes that read as a flat quarter.
+function coachLiveMomentum(live) {
+  if (!live || live.kind !== "live" || !live.trajectory || !live.trajectory.summary) return null;
+  const s = live.trajectory.summary;
+  // ⚠ GUARD ON HAVING MEASURED SOMETHING, not on the fields being present.
+  // `buildTrajectory` always returns a summary — for a coach with no
+  // subscriptions every field is a legitimate 0, all of them pass a `!= null`
+  // check, and the card renders "+0 net new · 0 active" under a MEASURED
+  // eyebrow for someone who has never had a client. That is the exact "four
+  // rows of zeroes that read as a flat quarter" this function promises to
+  // suppress.
+  if (!s.totalEverSubscribed) return null;
+  const rows = [];
+  const net = (s.addsThisMonth || 0) - (s.endedThisMonth || 0);
+  if (s.addsThisMonth != null && s.endedThisMonth != null) {
+    rows.push([(net >= 0 ? "+" : "") + net, "Net new · this month", s.addsThisMonth + " joined · " + s.endedThisMonth + " left"]);
+  }
+  if (s.activeNow != null && s.active30dAgo != null) {
+    const d = s.activeNow - s.active30dAgo;
+    rows.push([String(s.activeNow), "Active clients", (d >= 0 ? "+" : "") + d + " vs 30d ago"]);
+  }
+  if (s.churnRate30dPct != null) rows.push([s.churnRate30dPct + "%", "Churn · 30d", "of " + s.active30dAgo + " active a month ago"]);
+  if (s.medianTenureDays != null) {
+    const t = s.medianTenureDays;
+    // ⚠ QUOTES THE SPAN COUNT, NOT THE CLIENT COUNT. `medianTenureDays` is
+    // measured over every membership span; `totalEverSubscribed` now counts
+    // people, so pairing the two would print a median beside a denominator it
+    // was not taken over.
+    const spans = s.totalSpans != null ? s.totalSpans : s.totalEverSubscribed;
+    rows.push([t < 62 ? t + "d" : Math.round(t / 30.44) + "mo", "Median tenure · per membership", "across " + spans + " ever started"]);
+  }
+  return rows.length ? rows : null;
+}
+
 // `dashJson` is exposed so other modules on the page share this 60s cache
 // rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
 // wants the same /api/{role}/dashboard payload the page hook already asks for;
 // without the shared cache that is a second round trip on every dashboard load.
-Object.assign(window, { useDashboard, dashJson: _dashJson });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue });
