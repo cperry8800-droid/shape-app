@@ -451,6 +451,10 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
+- **The Wall in the app — owner ask 2026-09-10, NEXT TASK after the homepage pick.** Promote
+  the PR Wall from a chat channel to a surface: a public definer read over `pr_wall_posts` +
+  `post_id` + reactions (one migration), a fourth Community segment on `BSPlate`, a Home card,
+  a coach Stamp. Preview: the board's W tab; plan: `REVIEW-2026-09-10-index-page.md` §7.
 - **Design-system pass — Phase 1 SHIPPED 2026-06-11** (`BSPlate` shared
   primitive in the chrome, window-exposed; AgendaCard + weekly-totals tiles
   refactored onto it; converted: Train hero, coach-adjust banner, home
@@ -493,11 +497,14 @@ Append new entries at the top, under this note.
   more alive"* · *"if you have recommendations and new design ideas, i want to see previews of
   them"*. The review is
   [`docs/REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md); the previews are
-  a **live concept board** — https://claude.ai/code/artifact/adc4c3d3-2922-4735-b379-f3640e12c016 — six tabs: the shipped page (real captures),
-  four directions rendered as proportional, animated hero folds (**A · The Floor**, the product
-  running in a phone · **B · Pulse**, the fold breathing at the station's BPM · **C · Daylight**,
-  a white page that moves · **D · Electrified broadsheet**, the same sky and serif with a
-  cursor-reactive constellation, a kinetic headline and three live plates), and a **Pick** tab
+  a **live concept board** — https://claude.ai/code/artifact/adc4c3d3-2922-4735-b379-f3640e12c016 — nine tabs after the same-day second
+  revision: the shipped page (real captures) · **Type** · five directions each rendered as a
+  **whole animated page**, fold and everything under it (**A · The Floor**, the product running
+  in a phone · **B · Pulse**, the fold breathing at the station's BPM · **C · Daylight**, a
+  white page that moves · **D · Electrified broadsheet**, the sky with a cursor-reactive
+  constellation, a kinetic headline and three live plates · **E · The Climb**, the product's
+  own ridge-and-summit metaphor drawn as breathing, cursor-parallaxed terrain with a route
+  that climbs while the Shape Score counts) · **W · the Wall in the app** · and a **Pick** tab
   with the page map and the recommendation. **No code on the page changed, no migration, no PR
   beyond the records.**
 - ⚠ **PHONES NEVER SEE THE PAGE.** `index.html:6` redirects every viewport under 760 px to
@@ -519,10 +526,40 @@ Append new entries at the top, under this note.
   six mono eyebrows above the fold, hairlines and corner brackets on every card, static PNGs in
   a cream-bezel phone, and a sky where 16 of 346 stars twinkle and nothing reacts to the
   visitor. **Keep:** the journey's point cloud, the splash's self-drawing mark, the teal.
-- **Recommendation: D this sprint, on the way to A.** D ships the structure, honesty and mobile
-  fixes with the cursor sky, the kinetic headline and the three live plates, and every piece
-  carries into A when the serif leaves the fold; B's beat goes into the radio band the day the
-  station is really broadcasting; C is parked until the app has a light default.
+- ⚠ **THE TYPE IS THE BRAND'S OWN NOW — owner: *"make the font very unique, something that
+  doesn't look AI generated and particular to shape"*.** Fraunces 300, Space Grotesk and
+  JetBrains Mono are the three most common faces in generated sites this year, and the
+  design skill's own list names all three. Nine candidates were **installed and rendered as a
+  specimen sheet** and judged from the glyphs, not from memory. The system: **Anybody**
+  (display; a width axis from 50 to 150, so ONE family is B's condensed stack, A's and D's
+  headline, C's and E's wide setting and the 150-wide wordmark — type that changes shape, for a
+  company called Shape), **Doto** (numerals and the wire; a dot-matrix scoreboard face with a
+  roundness axis, so a measured figure looks like a reading — Handjet was tried for its
+  triangle elements, which do not resolve at any size), and **Schibsted Grotesk** (body; a
+  grotesk born in a newspaper group for its editorial screens — the broadsheet DNA without the
+  magazine serif). One Google Fonts link, three variable files. ⚠ *Never put a blurred
+  `text-shadow` on the dot-matrix face*: it stacks on every dot and the glyph turns into a pale
+  block; one `drop-shadow` on the element instead. Measured on the board, then fixed.
+- **Recommendation, revised with E on the board: E this sprint with the type system; D the
+  fallback; A where both grow.** E is the only direction that could not be another company's
+  homepage — the terrain, summit and score are already every member profile's own drawing.
+  Same structure, honesty and mobile fixes as D at one canvas more effort; B's beat goes into
+  the radio band the day the station is really broadcasting; C is parked until the app has a
+  light default. All five share one rendered page below the fold: the wire → three
+  auto-playing moments → coaches → a one-screen journey with the point cloud → radio → price →
+  footer, about seven screens against today's 24.
+- ⚠ **NEXT TASK, REGISTERED — THE WALL IN THE APP.** Owner: *"the wall concept … showing on the
+  app, we don't currently have that on the app but i like it. How could that be incorporated
+  … Add that to next task. I want to see a preview"*. The app HAS the wall as **chat** — the
+  system PR Wall channel (`2026-06-14-pr-wall.sql`), the public-only beats-your-best
+  `post_my_pr_to_wall`, auto-announce from the set logger, coach co-signs, +12 score per PR —
+  and lacks a **surface**. Plan (review §7, preview on the board's W tab): one migration (a
+  public definer read over the already-structured `pr_wall_posts` ledger honouring the
+  leaderboard opt-out · a `post_id` on the row so the plate carries the co-sign · reactions),
+  one `BSPlate` screen as a fourth Community segment (Feed · Team · Channels · **Wall**) with
+  filters and *your best* pinned, a Home *"On the wall"* card, a one-tap coach **Stamp**; the
+  same read feeds the homepage's *"A PR lands"* honestly. Public members only; a signed-in
+  wall never shows the demo cast. Recorded under Open work below.
 - ⚠ **THE FIRST RENDER PASS HAD THE WRONG FONTS AND WAS THROWN AWAY.** The container's proxy
   404s `fonts.gstatic.com`, so the page rendered in Times New Roman through its metrics-matched
   fallbacks — a typography review of the wrong typeface. The families were installed from

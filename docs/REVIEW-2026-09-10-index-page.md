@@ -4,11 +4,15 @@
 alternative designs to make look better"* · *"less analog, make it look more alive"* ·
 *"If you have recommendations and new design ideas, i want to see previews of them."*
 
-**The previews:** a live concept board, one tab per direction, each a proportional hero
-fold that animates the way the real page would —
-**https://claude.ai/code/artifact/adc4c3d3-2922-4735-b379-f3640e12c016**. Tab **00** is the shipped page (real captures); **A–D** are the four
-directions; **Pick** is the side-by-side and the recommendation. The board is the design
-deliverable; this file is the written review with file and line references.
+**The previews:** a live concept board —
+**https://claude.ai/code/artifact/adc4c3d3-2922-4735-b379-f3640e12c016**. Tab **00** is the
+shipped page (real captures); **Type** is the type system; **A–E** are five directions, each
+rendered as a **whole page** (the fold, then everything under it, animated); **W** is the Wall
+as an app screen (the next task, §7); **Pick** is the side-by-side and the recommendation.
+The board is the design deliverable; this file is the written review with file and line
+references. Second revision, 2026-09-10 (owner: *"what does the rest of the page look like"*,
+*"make the font very unique … particular to shape"*, *"one more design idea"*, *"the wall
+concept … how could that be incorporated on the app? … I want to see a preview"*).
 
 **Records only.** No code on the page changed. No migration, no route.
 
@@ -35,11 +39,30 @@ deliverable; this file is the written review with file and line references.
   cream-bezel phone, and a night sky where **16 of 346 stars** twinkle and nothing reacts to
   the visitor. **What is already alive:** the journey's point cloud, the splash's
   self-drawing mark, the teal-on-dark palette. Keep those.
-- **Recommendation: build direction D (Electrified broadsheet) this sprint, on the way
-  to A (The Floor).** D ships every structural, honesty and mobile fix with a cursor-reactive
-  sky, a kinetic headline and three live plates, and every piece carries into A when the
-  serif leaves the fold. Take B's beat for the radio band the day Shape Radio is really
-  broadcasting. Park C (Daylight) until the app has a light default.
+- **The type is the brand's own now.** Fraunces, Space Grotesk and JetBrains Mono are the
+  three most common faces in generated sites this year. They are replaced across every
+  concept by **Anybody** (display; a variable **width axis** from 50 to 150, so one family goes
+  from a condensed athletic stack to an ultra-wide wordmark: type that changes shape),
+  **Doto** (numerals and the wire; a dot-matrix face with a roundness axis, so every measured
+  figure reads like a scoreboard), and **Schibsted Grotesk** (body; a grotesk born inside a
+  newspaper group for its editorial screens, the broadsheet DNA without the magazine serif).
+  Chosen from a rendered specimen of nine candidates, not from memory; see §5.
+- **A fifth direction, E · The Climb,** builds the fold from the product's own metaphor: the
+  ridge, the summit flag and the Shape Score that every member profile already draws. Four
+  layers of contour-lined terrain that breathe and follow the cursor, a route that climbs to
+  the summit while the score counts with it. It is the only direction that could not be
+  another company's homepage.
+- **Recommendation: build direction E, with the type system, this sprint; D is the
+  fallback; A is where both grow.** E and D share the same structure below the fold (now rendered on the board for all five:
+  the wire, three auto-playing moments, coaches, a one-screen journey with the point cloud,
+  radio, price, footer, about seven screens), so the pick is about the fold: E's terrain is
+  one canvas more work than D's sky and it is Shape's own drawing. Take B's beat for the radio
+  band the day Shape Radio is really broadcasting. Park C (Daylight) until the app has a light
+  default.
+- **Next task, registered: the Wall in the app** (§7). The app already has a PR Wall channel,
+  a public-only, beats-your-best posting RPC, auto-announce from the set logger, coach
+  co-signs and a +12 score award per PR; what it lacks is a surface. One migration (a public
+  read, a `post_id` on the ledger row, reactions) and one screen.
 
 ---
 
@@ -236,29 +259,55 @@ Severity: **P0** fix regardless of direction · **P1** part of the redesign · *
 
 ---
 
-## 5. The four directions (the board has the live previews)
+## 5. The type system, then the five directions (the board has the live previews)
 
-| | Thesis | Type | What moves | Live today | Effort | Risk |
+### 5a. Type: unique, and Shape's
+
+Owner: *"make the font very unique, something that doesn't look AI generated and particular
+to shape."* Nine candidates were installed and rendered as a specimen sheet (Anybody,
+Handjet, Doto, Schibsted Grotesk, Familjen Grotesk, Newsreader, Geologica, Young Serif,
+Gloock) beside the current three, and judged from the glyphs. The pick:
+
+| Role | Face | Why it is Shape's | Settings |
+|---|---|---|---|
+| Display | **Anybody** (variable: wdth 50–150, wght 100–900, italic) | One family that changes shape: condensed (62) it is B's athletic stack, regular (100) it is A's and D's headline, wide (118–125) it is C's and E's, ultra-wide (150) it is the wordmark. The headline's words widen in on load: the page finds its shape on arrival. It is not in the generated-site canon. | 800 for headlines; never under 40 px when condensed below 65 |
+| Numerals · the wire · labels | **Doto** (variable: ROND 0–100, wght 100–900) | A dot-matrix scoreboard face with a roundness axis. Every measured figure (score, BPM, price, the ticker) reads like a reading, which is the honest-data doctrine made typographic. Handjet was tried for its triangle elements; they do not resolve at any size. | 700–800; ROND 30 at rest, 60 on hero figures; never under 13 px; never running text |
+| Body · UI | **Schibsted Grotesk** (variable: wght 400–900, italic) | Born inside a newspaper group for its editorial products: crisp, slightly narrow, unfussy. Keeps the broadsheet in the DNA without the magazine serif. | 400/500 body, 700 labels and buttons; replaces every mono eyebrow |
+
+Shipping it is one Google Fonts link and three variable files, replacing the current three
+in `index.html`'s font link and CSS variables. The mobile app's DISPLAY and MONO tokens can
+take the same pair so the phone and the website read as one product. ⚠ **One rule learned
+while building the board:** never put a blurred `text-shadow` on the dot-matrix face; the
+shadow stacks on every dot and the glyph turns into a pale block. Use one `drop-shadow` on
+the element instead.
+
+### 5b. The five directions
+
+| | Thesis | Display setting | What moves | Live today | Effort | Risk |
 |---|---|---|---|---|---|---|
-| **A · The Floor** | The product is the hero, running in front of you | Space Grotesk 700 display; Fraunces only inside the phone | aurora ground; a phone cycling three real app states every 12 s; the wire; words rise on load | coach count (pill + wire) | high | furthest from the site's serif |
-| **B · Pulse** | The station is the front door; the fold breathes at the track's BPM | Big Shoulders Display 900 stack; Fraunces for the track title | mark, dot, ring and floor flash on one 60/124 s clock; light steps down TRAIN · EAT · SCORE · BELONG; waveform | now-playing, **only once the station is off the mock** | medium | a gimmick until Radio is real |
-| **C · Daylight** | Energy from light, not neon: a white page that moves | Bricolage Grotesque 800 | breathing teal sun, rust stripe, floating cards, a dial that fills | coach count | high (site-wide) | biggest brand swing; the app is dark-first |
-| **D · Electrified broadsheet** | Keep the sky and the serif; change the tempo | Fraunces **500** opsz 144 (was 300); one eyebrow | cursor-reactive constellation; the second headline line cycles four words; three live plates (ledger · rest timer · PR) in BSPlate grammar; the wire | coach count | low | still a serif on a night sky |
+| **A · The Floor** | The product is the hero, running in front of you | Anybody 800 · wdth 100 | aurora ground; a phone cycling three real app states every 12 s; the wire; words widen in | coach count (pill + wire) | high | furthest from the site's current look |
+| **B · Pulse** | The station is the front door; the fold breathes at the track's BPM | Anybody 900 · wdth 62, the stack | mark, dot, ring and floor flash on one 60/124 s clock; light steps down TRAIN · EAT · SCORE · BELONG; waveform | now-playing, **only once the station is off the mock** | medium | a gimmick until Radio is real |
+| **C · Daylight** | Energy from light, not neon: a white page that moves | Anybody 800 · wdth 125 | breathing teal sun, rust stripe, floating cards, a dial that fills | coach count | high (site-wide) | biggest brand swing; the app is dark-first |
+| **D · Electrified broadsheet** | Keep the sky; change the tempo | Anybody 800 · wdth 100 | cursor-reactive constellation; the second line cycles four words; three live plates in BSPlate grammar | coach count | low | still a night sky |
+| **E · The Climb** | The product's own metaphor becomes the homepage | Anybody 800 · wdth 118, widening from 62 as the route starts | four contour-lined ridges that breathe and parallax to the cursor; a route that draws to the summit in 3.6 s while the Shape Score counts with it; a warm summit glow; the flag is the mark | coach count (camps + wire); the score is labelled an example | medium | the terrain must match the profile page's ridge closely enough to read as one product |
 
-All four keep the brand line *"Different goals. One community."* so the comparison is
-about design, not copy; the copy is the owner's call. All four share the same structure
-below the fold: the wire → three moments (auto-playing) → coaches → a 3-screen journey with
-the existing point cloud → radio → price → footer (~8 screens).
-
----
+All five keep the brand line *"Different goals. One community."* so the comparison is
+about design, not copy; the copy is the owner's call. **All five now render the whole page**
+below the fold, themed per concept from one structure: the wire → three moments
+(auto-playing: the ledger ticks, a set logs, a PR lands) → the marketplace (four profiles,
+labelled examples until real ones render) → the member journey on one screen, with the
+point cloud gathering into the mark behind the rail → radio, with the ON AIR card playing →
+price, in the scoreboard face → footer. About seven screens against today's 24.
 
 ## 6. Recommendation and roadmap
 
-**Pick:** **D now, A next.** D is the lowest-risk way to ship the P0 set with a fold that
-is visibly alive, and nothing in it is thrown away: the wire, the plates, the compressed
-journey and the cursor sky carry straight into A when the serif retires from the fold and
-the sibling pages are ready to follow. B's beat belongs in the radio band the day the
-station is on the http provider. C stays on the board as the answer to "what if bright".
+**Pick:** **E now, with the type system; D is the fallback; A is where both grow.** E is the
+only direction that could not be another company's homepage: the terrain, the summit and
+the score are already Shape's own drawing on every member profile. It ships the same
+structure, honesty and mobile fixes as D at one canvas more effort, and everything below its
+fold is shared with A if the running phone is wanted later. B's beat belongs in the radio
+band the day the station is on the http provider. C stays on the board as the answer to
+"what if bright".
 
 **P0 — with any direction**
 1. H1 phones get the homepage (drop the redirect; stack the fold).
@@ -267,9 +316,9 @@ station is on the http provider. C stays on the board as the answer to "what if 
 4. H2–H4 journey → ~300vh, loop → auto strip, "See how it works" → the strip, splash → load-in.
 5. H19 the three footer links.
 
-**P1 — the redesign (D)**
-6. The fold: Fraunces 500, one eyebrow, one-sentence sub, three live plates, the wire.
-7. The cursor-reactive sky (canvas, ~120 lines) replacing the twinkle + parallax.
+**P1 — the redesign (E; D differs only in the sky and the plates)**
+6. The type system: one font link, three variable files, the CSS variables (§5a).
+7. The fold: the terrain canvas (~120 lines), the route and summit score, the camps, the wire.
 8. The moments strip built as UI states (shared with the plates).
 9. Nav trimmed to six; the index bar reconciled with the shared header (H14–H15).
 10. Images sized (H16); cards visible at rest (H17).
@@ -284,8 +333,58 @@ station is on the http provider. C stays on the board as the answer to "what if 
 
 ---
 
-## 7. Method notes, limits, renders
+## 7. Next task: the Wall in the app
 
+Owner, 2026-09-10: *"the wall concept that you have on the floor page that is showing on the
+app, we don't currently have that on the app but i like it. How could that be incorporated on
+the app? Add that to next task. I want to see a preview of that as well."* The preview is the
+board's **W** tab: a phone-sized, live Wall screen in the app's plate grammar (records land,
+the co-sign is the stamp, reactions tick, your own best pinned at the bottom).
+
+**What the app already has** (read, not assumed): a system **PR Wall channel** that
+auto-collects every public member's new best (`supabase-migrations/2026-06-14-pr-wall.sql`);
+`post_my_pr_to_wall`, a definer that posts only when the caller is public and the value beats
+their own prior best in the `pr_wall_posts` ledger; **auto-announce** from the set logger
+(`announcePRsFromSetLogs`, `mobile-app/src/services/shapeBackend.js:3218–3292`, capped);
+**coach co-signs** on community posts (`post_coach_cosign` stamps `metrics.cosign`,
+`2026-06-14-coach-cosign.sql`); a **+12 Shape Score** award per wall PR (`source_kind
+'pr_wall'`); and the channel pinned in The Channels directory
+(`iosAppBroadsheetClient.jsx:18906–18929`). So the wall exists as **chat**. What it lacks is a
+**surface**.
+
+**How it is incorporated**
+
+1. **Data (one migration).** A public read `shape_pr_wall(limit, lift, scope)` (SECURITY
+   DEFINER, public members only, honouring the leaderboard opt-out, the same shape as
+   `shape_leaderboard`) over `pr_wall_posts`, which is already structured (`lift_key`,
+   `lift_label`, `best_value`, `unit`, `posted_at`) but owner-read only today. A `post_id` on
+   the ledger row so the plate carries the post's co-sign. A small reactions table (or the
+   existing `community_likes` via that `post_id`).
+2. **Community → Wall.** A fourth segment beside Feed · Team · Channels in the client app
+   (`iosAppBroadsheetClient.jsx`), one `BSPlate` per record: gem, name, tier, the lift, the
+   number in the scoreboard face, the delta over their last best, the co-sign as the foot
+   line (unsigned plates read *"not yet stamped"* so a stamp is worth something), ▲ cheer.
+   Filters: everyone · following · my coach's clients · by lift. **Your best** pinned at the
+   bottom from the member's own ledger with the gap to their next wall post; **Post a PR** for
+   lifts logged outside the app (the existing `ShapePRWall.post`).
+3. **Entry points.** A Home masthead card *"On the wall"* with the latest co-signed PR; in the
+   coach apps, a client's PR lands in the Today rail with a one-tap **Stamp** (the existing
+   co-sign RPC), so co-signing takes two seconds.
+4. **The website.** The same public read feeds the homepage's *"A PR lands"* moment and the
+   wire honestly, which retires that item from the illustrative list.
+
+**Honesty.** Public members only; a signed-in wall never shows the demo cast; the signed-out
+preview shows sample plates labelled demo, as the app already does elsewhere. **Effort** about
+two PRs; no new data is collected. **Order:** the migration and public read first (it also
+serves the homepage), then the segment and the Home card, then the coach Stamp.
+
+## 8. Method notes, limits, renders
+
+- **Second revision.** Nine typefaces installed from `@fontsource` and rendered as a specimen
+  sheet with the real glyphs (a zoomed pass on the dot-matrix candidates settled Doto over
+  Handjet); every concept rebuilt as a whole page and captured full-length at 1440 px; the
+  Wall tab captured after six seconds of records landing; a 400 px pass with zero horizontal
+  overflow. Still one look and one fix pass per revision, not a test loop.
 - **Renders.** The shipped page at 1440×900 (splash at 1.1 s and 2.3 s, the hero, all five
   journey stages, the marketplace and a hover, all five loop beats, the radio band, price,
   footer, an open dropdown), the hero at 1920, 1280, 1024 and 390 (`?desktop`), `GetApp.html`
