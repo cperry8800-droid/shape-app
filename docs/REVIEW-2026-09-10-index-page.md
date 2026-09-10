@@ -365,9 +365,24 @@ their own prior best in the `pr_wall_posts` ledger; **auto-announce** from the s
    the ledger row so the plate carries the post's co-sign. A small reactions table (or the
    existing `community_likes` via that `post_id`).
 2. **Community → Wall.** A fourth segment beside Feed · Team · Channels in the client app
-   (`iosAppBroadsheetClient.jsx`), one `BSPlate` per record: gem, name, tier, the lift, the
-   number in the scoreboard face, the delta over their last best, the co-sign as the foot
-   line (unsigned plates read *"not yet stamped"* so a stamp is worth something), ▲ cheer.
+   (`iosAppBroadsheetClient.jsx`), one `BSPlate` per record. ⚠ **Owner, same day: *"make sure
+   each activity that is logged on the wall displays the stats that is already implemented.
+   I want all of the information that is currently displayed incorporated in the new
+   design."*** So a plate is the whole activity record the feed already renders
+   (`COMMUNITY_ACTIVITIES` and `communityPostFromRow`), not a headline number: who (avatar,
+   name, tier, role), when and where (`ago`, `city`), the category tag, the record stamp, the
+   title, the hero figure with its facts (`load` · `topset` · `e1rm` for a lift; `distance` ·
+   `pace` · `duration` · `elev` for a run), the **full `stats` grid** (Avg HR, Max HR,
+   Calories, Volume, Cadence, Stride, Ground, Training effect, Avg/Max power, Avg/Max speed,
+   SWOLF, Sleep, HRV, Readiness — whatever the kind carries), the **`zones`** bar and the
+   `trace` sparkline, the **`breakdown`** rows (working sets, mile or 500 m splits, intervals)
+   with the record row marked, the member's `body` note, the *Session details · full
+   activity* link, the coach `cosign` as the foot line (unsigned plates read *"not yet
+   stamped"* so a stamp is worth something), the `likers` row (*Jordan + 2 you follow
+   reacted*), and the reaction bar with the typed `kudos` (Beast for lifts, Respect for runs
+   and rides, Gliding for swims, Spot for sessions), `replies`, share, send, repost. Every
+   kind of record lands the same way: a longest run, a fastest 500, a max-power ride, each
+   with its own stat set. The preview uses the app's demo records verbatim.
    Filters: everyone · following · my coach's clients · by lift. **Your best** pinned at the
    bottom from the member's own ledger with the gap to their next wall post; **Post a PR** for
    lifts logged outside the app (the existing `ShapePRWall.post`). **Who's online** (owner,

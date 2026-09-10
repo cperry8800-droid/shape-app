@@ -518,6 +518,15 @@ Append new entries at the top, under this note.
   with meal-log notes, photos and voice memos arriving as messages); Channels are the rooms,
   #PR Wall among them; the proposed Wall is the record board. The one duplication to rule on
   is whether #PR Wall stays as the room about PRs once the Wall ships.
+- ⚠ **OWNER, ON THE WALL: *"make sure each activity that is logged on the wall displays the stats
+  that is already implemented. I want all of the information that is currently displayed
+  incorporated."*** A plate is the whole activity record the feed renders today, drawn from the
+  app's own demo data verbatim: identity, when and where, tag, record stamp, title, the hero
+  figure and its facts, the full `stats` grid, HR `zones` and `trace`, the `breakdown` rows with
+  the record row marked, the note, the session link, the co-sign, who reacted, the typed
+  reaction count, comments, share, send, repost — and every kind of record (a longest run, a
+  fastest 500, a max-power ride) lands the same way. Nothing a member logs is lost on the way
+  to the wall. Review §7 carries the field list.
 - **And three board changes on owner notes the same afternoon:** thinner display weights
   (Anybody 500/600, the Wall at 400), the original logo artwork restored wherever the concepts
   show it (the nav and footer use the real `shape-logo-nav-*.png` files; the Radio wordmark is
