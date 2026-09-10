@@ -495,6 +495,79 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — Two Codex rounds on the units wave: five findings, all real, and two were defects in my own fix
+
+- **Owner: *"run codex if you can"* → *"run codex on head again"*.** Codex's last completed review was
+  `747433a`, so everything after it was unreviewed. Two rounds followed — **`6cc2ebf` (1×P1 + 2×P2) and
+  `61ec662` (2×P2)** — and **every one of the five was real**. The second round is the one worth
+  recording, because both of its findings were defects *the first round's fix had introduced*.
+  ⚠ **A review round produces a new diff, and that diff has not been reviewed** — this file's own rule,
+  earned again twice in one evening.
+- ⚠ **P1 — THE WEBSITE GOAL PAGE HAD THE EXACT DEFECT I HAD ALREADY FIXED IN THE APP, ON THE SAME DAY.**
+  `persistDoc` is async and was called **bare**, so the canonical **kilogram** `client_weigh_ins` row
+  landed without waiting for the goal document. A slow or failed `saveUserGoals` left the server holding
+  the legacy **pound** goal beside an 83.9 kg weigh-in; `award_my_goal_milestones` reads both operands
+  verbatim and the mobile Goals page invokes it on open, so the next visit awarded **every milestone**
+  to a member who had reached none. This is the same "call order is not completion order" finding Codex
+  raised on `iosAppBroadsheetClient.jsx` hours earlier. *A fix that lands on one surface is not a fix* —
+  and I had written that sentence myself, in this file, about a different pair of surfaces.
+- ⚠ **AND THE FIX FOR IT RAN AND CONVERTED NOTHING.** `DashSignals.weightSeriesIn` normalises every
+  series to `{ on, value }` and `goalSeries` reads `value` first; I converted `h.v`. So on the shape
+  production actually emits, the target, start and unit became pounds while the **history stayed
+  kilograms** — an 86 kg point reads as 86 lb and can mark a 180 lb target **achieved**.
+  ⚠ **MY OWN TEST USED `{ on, v }`, A SHAPE PRODUCTION NEVER PRODUCES, WHICH IS EXACTLY WHY IT PASSED.**
+  *A fixture that invents a shape tests the test, not the code* — the same lesson this file recorded for
+  the `canceled_at` fixture, re-paid. The suite now **derives the shape from `dashSignals.js`** and
+  asserts the normalisation contract it depends on, so a change there fails loudly instead of silently
+  invalidating the converter.
+- ⚠ **AND THE DISPLAY-UNIT FIX HELPED ALMOST NOBODY.** `displayUnit` was written by the **website
+  alone**; four mobile paths stamp `unit: 'kg'` without it, and mobile is the primary app — so an
+  Imperial member who canonicalised there still saw kilograms, and changing the mobile preference left
+  an existing stamp stale. Fixed at the **source of truth** rather than by teaching four more writers:
+  `client_settings.units` is the store both surfaces already share (the app's Settings writes it,
+  `ShapeUnits` reads it). The document stamp survives only as a fallback for a member whose settings
+  cannot be read. **When a value has four writers, the fix belongs where it is read, not where it is
+  written.**
+- **The third finding was a race the earlier `RETURNING` witness did not cover.** `prev_value` was
+  carried from the **pre-statement read**. Reproduced on Postgres 16 rather than argued: from 100 lb,
+  concurrent 200 and 300 both read 100, the 200 lands first, the 300 then passes the atomic guard and
+  stored `prev = 100` — so the Wall skipped the already-announced 200 and would render *"+200 over last
+  best"* instead of *"+100"*. Old vs new on identical seeded state: **`prev=100` before, `prev=200`
+  after**. ⚠ **The witness proved the WRITE happened and said nothing about whether the value carried
+  INTO it was still current** — two different questions that look like one.
+- ⚠ **AND THE APPLIED FILE'S OWN COMMENT ASSERTED THE FIX IT DID NOT MAKE.** It read *"`prev_value` is
+  taken from the row being replaced, not from `v_prev`"* directly above `prev_value =
+  excluded.prev_value`, which **is** `v_prev`. *A comment asserting an invariant is not the invariant* —
+  the R6 lesson, one layer down.
+- **`2026-09-10-pr-wall-prev-race.sql`**, generated from the applied file by targeted replacement of
+  four hunks and shipped as a **new file** — silently editing an applied migration leaves the repo
+  claiming something the database does not do. ⚠ **APPLIED THE SAME EVENING AND VERIFIED AGAINST THE
+  LIVE CATALOG**: the stale `excluded.prev_value` is **gone**, both conflict-row conversion branches are
+  present, the response reads the written prev, exactly **one** signature (an overload would make every
+  five-argument PostgREST call ambiguous), `anon` cannot execute, `pg_temp` pinned last, and it executes
+  — answering `{"ok": false, "reason": "auth"}` as service role, which is the correct gated answer.
+- ⚠ **TWO MUTATIONS SURVIVED MY FIRST PASS AND BOTH WERE REAL GAPS, of the same shape twice.** An
+  **inverted** metric/imperial mapping (which would have shown every Metric member pounds) and
+  `prefUnit` never reaching `src` (which makes the whole conversion inert). **Asserting that a read
+  EXISTS says nothing about which way it maps, and a correct read with a correct consumer is still dead
+  if the value never crosses between them.** Both are driven now, not grepped.
+- ⚠ **AND ONE SURVIVOR WAS A GENUINE NO-OP, so it was DELETED rather than tested around.** A redundant
+  outer `src.overall.unit` guard sat beside the per-goal one that does the real work. *Untested
+  redundancy reads as a safety net that is not holding anything.*
+- ⚠ **THE TEST HARNESS NEEDED THE REAL `dgoConvPoint` LIFTED FROM SOURCE.** Without it the missing
+  helper threw from **inside** the expression under test and read as a failure of the code, not as an
+  incomplete harness — the same lesson `_liftToLb` paid for in this wave.
+- ⚠ **CAUGHT IN MY OWN FIX BEFORE IT SHIPPED:** `dgoKgToDisp` closed over `dgoLbToKg`, declared **below**
+  the point where `goals` is derived — a `const` read before its initializer, and there is **no error
+  boundary anywhere in `public/newdesign`**, so it renders as a **blank page**. Hoisted to module scope
+  and pinned by a test.
+- **Verified:** `npm test` **3001/3001** (14 new) · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **24 mutations killed across two rounds**, each proven to land and restored in a
+  `finally`, including the Codex defect itself replayed to prove the suite now catches it · the
+  migration driven on a real Postgres 16 through the race plus 6 fixtures, re-applied idempotently.
+- ⚠ **STILL NO ON-ACCOUNT PASS, re-measured after the apply: 0 `pr_wall_posts`, 0 `workout_set_logs`,
+  0 `client_weigh_ins`.** Every RPC in this wave is live and none has ever been called with real data.
+
 ### 2026-09-10 — A four-month-old migration was applied on my recommendation and opened an anon hole
 
 - **The owner asked *"do i need to run other migrations?"*, so the whole corpus was diffed against the
