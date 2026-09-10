@@ -17769,6 +17769,60 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
             </div>
           )}
+          {/* ── THE WALL'S PREVIEW ────────────────────────────────────────
+              A record is a claim, and on a board of other people's claims the
+              evidence has to be visible without a tap — so the plate previews
+              what Session details holds: the stat set, the time in each HR
+              zone, and the heart-rate trace. Session details still opens the
+              WHOLE activity (splits, every trace, the route); this is the
+              front of it, not a replacement.
+
+              ⚠ EVERY BLOCK IS DRAWN FROM WHAT THE ACTIVITY ACTUALLY CARRIES,
+              which is what makes a ride's plate look different from a lift's
+              without a single per-kind branch here: `detailStats` is already
+              derived per activity type upstream, so a ride brings avg/max
+              power and speed, a lift brings top set, reps and volume, a swim
+              brings SWOLF, and a rest day brings three rows and no zones. An
+              activity with no zones or no trace renders neither — never an
+              empty axis. */}
+          {isWall && detailStats.length > 0 && (
+            <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '11px 10px' }}>
+              {detailStats.slice(0, 6).map(([k, v], i) => (
+                <div key={`${k}-${i}`} style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.85), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {isWall && (a.zones || a.trace) && (
+            <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: a.zones && a.trace ? '1fr 1fr' : '1fr', gap: 12, alignItems: 'end' }}>
+              {a.zones && (
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{tr('feed:card.hrZones', { defaultValue: 'HR zones' })}</div>
+                  {/* One bar, each zone's share of the session by width. The
+                      shares are the activity's own percentages, so the bar is
+                      full only because they sum to the session. */}
+                  <div style={{ display: 'flex', gap: 2, marginTop: 5, height: 9, borderRadius: 2, overflow: 'hidden' }}>
+                    {a.zones.map(([z, pct], i) => (
+                      <div key={z} title={`${z} ${pct}%`} style={{ flex: Math.max(pct, 0.5), background: bsTHexA(heat, 0.25 + (i * 0.17)) }} />
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    {a.zones.map(([z, pct]) => (
+                      <span key={z} style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.5), fontVariantNumeric: 'tabular-nums' }}>{z} {pct}%</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {a.trace && (
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{tr('session:chart.heartRate', { defaultValue: 'Heart rate' })}</div>
+                  <div style={{ marginTop: 5 }}>{bsWallTrace(a.trace, heat)}</div>
+                </div>
+              )}
+            </div>
+          )}
           {/* The card stays a glance — the full metric readout lives on the
               Session-details page (this link / tapping the hero opens it).
               Ink text + heat underline/chevron only (graft) — no borderTop
@@ -17995,6 +18049,24 @@ const BS_DOT_ROWS = 7;
 // cell: a silent gap in a number reads as a different number.
 function bsDotChars(text) {
   return String(text == null ? '' : text).split('').filter((ch) => ch === ' ' || BS_DOT_GLYPHS[ch]);
+}
+
+// The heart-rate trace as a plain polyline. Scaled to its OWN min/max, because
+// a fixed 0–200 axis flattens every real session into the same shallow ripple —
+// the shape of the effort is the point, and the figures beside it carry the
+// absolute numbers.
+function bsWallTrace(points, color, w = 128, h = 30) {
+  const nums = (Array.isArray(points) ? points : []).map(Number).filter(Number.isFinite);
+  if (nums.length < 2) return null;
+  const lo = Math.min(...nums);
+  const hi = Math.max(...nums);
+  const span = hi - lo || 1;
+  const d = nums.map((n, i) => `${(i / (nums.length - 1)) * w},${h - ((n - lo) / span) * (h - 2) - 1}`).join(' ');
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+      <polyline points={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
 }
 
 function BSDotNumber({ text, size = 34, color, dim, gap = 1, title }) {

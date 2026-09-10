@@ -24,10 +24,11 @@ globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
 const {
   BSWall, BSWallPlate, BSActivityCard, bsActivityKey, bsWallGain, bsWallNum, bsWallHeader,
   bsWallLifts, bsWallDemoRows, bsWallBulletinPick, BS_WALL_DEMO, BS_WALL_UNITS,
+  bsWallTrace, COMMUNITY_ACTIVITIES,
 } = await loadBroadsheet([
   'BSWall', 'BSWallPlate', 'BSActivityCard', 'bsActivityKey', 'bsWallGain', 'bsWallNum',
   'bsWallHeader', 'bsWallLifts', 'bsWallDemoRows', 'bsWallBulletinPick', 'BS_WALL_DEMO',
-  'BS_WALL_UNITS',
+  'BS_WALL_UNITS', 'bsWallTrace', 'COMMUNITY_ACTIVITIES',
 ]);
 
 const src = readFileSync(SRC, 'utf8');
@@ -670,4 +671,73 @@ test("Home's record line prefers a stamped record but never vanishes without one
   assert.equal(bsWallBulletinPick([{ name: 'c', post: null }]).name, 'c', 'a bare record still counts');
   assert.equal(bsWallBulletinPick([]), null, 'an empty wall has no line');
   assert.equal(bsWallBulletinPick(null), null, 'and neither does an unreadable one');
+});
+
+// ── the plate's preview of the session ──────────────────────────────────────
+
+const cardText = (act, variant) =>
+  drive(BSActivityCard, { a: act, ctx: feedCtx(), isLast: true, pagePad: 0, variant }).text;
+
+const demoBy = (who) => COMMUNITY_ACTIVITIES.find((a) => a.who === who);
+
+test('the preview is the WALL variant only — the feed card is untouched', () => {
+  // The variant exists so the two surfaces cannot drift; if the feed started
+  // rendering the preview, that promise is broken in the other direction.
+  const priya = demoBy('Priya Shah');
+  assert.match(cardText(priya, 'wall'), /HR zones/i, 'the wall previews the session');
+  assert.doesNotMatch(cardText(priya, 'feed'), /HR zones/i, 'the feed still does not');
+  assert.doesNotMatch(cardText(priya, 'feed'), /New PR ·/i, 'and carries no record pill');
+});
+
+test('the preview shows what the activity carries, not a fixed set of rows', () => {
+  // ⚠ THIS IS THE "depending on the workout, these plates appear" PROMISE, and
+  // it holds with no per-kind branch in the plate: the stat set is derived
+  // upstream per activity type, so the plate just renders what came.
+  const ride = cardText(demoBy('Marcus Bell'), 'wall');
+  assert.match(ride, /Avg power/i);
+  assert.match(ride, /Max power/i);
+  const lift = cardText(demoBy('Priya Shah'), 'wall');
+  assert.match(lift, /Volume/i);
+  assert.doesNotMatch(lift, /Avg power/i, 'a lift brings no power figures');
+  const swim = cardText(demoBy('Lena Fischer'), 'wall');
+  assert.match(swim, /Avg pace/i, 'and a swim brings its own');
+  assert.doesNotMatch(swim, /Volume/i);
+  // ⚠ THE PREVIEW IS THE FIRST SIX, WHICH IS THE POINT OF IT BEING A PREVIEW.
+  // The swim carries SWOLF eighth, so it is NOT here — it is behind Session
+  // details, with everything else the activity holds. An assertion that looked
+  // for it would be asking the preview to be the whole readout.
+  assert.doesNotMatch(swim, /SWOLF/i, 'the eighth stat is behind Session details');
+  assert.equal(
+    drive(BSActivityCard, { a: demoBy('Lena Fischer'), ctx: feedCtx(), isLast: true, pagePad: 0, variant: 'wall' })
+      .nodes().filter((n) => n.type === 'div' && n.props.style && n.props.style.gridTemplateColumns === 'repeat(3, minmax(0, 1fr))').length,
+    1, 'one preview grid, three across',
+  );
+});
+
+test('an activity with no zones and no trace renders neither, never an empty axis', () => {
+  // Theo's rest day carries three stats and nothing else.
+  const rest = demoBy('Theo Nakamura');
+  assert.ok(rest && !rest.zones && !rest.trace, 'the fixture is the honest-empty one');
+  const text = cardText(rest, 'wall');
+  assert.doesNotMatch(text, /HR zones/i);
+  assert.doesNotMatch(text, /Heart rate/i);
+  assert.match(text, /Readiness/i, 'but what it does carry is previewed');
+});
+
+test('the trace scales to its own range, and refuses to draw a line from one point', () => {
+  // A fixed 0-200 axis flattens every real session into the same ripple; the
+  // shape of the effort is the point, and the figures beside it carry the
+  // absolute numbers.
+  assert.equal(bsWallTrace([140], '#0f766e'), null, 'one point is not a line');
+  assert.equal(bsWallTrace([], '#0f766e'), null);
+  assert.equal(bsWallTrace(null, '#0f766e'), null);
+  const svg = bsWallTrace([100, 150, 100], '#0f766e', 100, 30);
+  const pts = svg.props.children.props.points.split(' ').map((s) => s.split(',').map(Number));
+  assert.equal(pts.length, 3);
+  assert.ok(pts[1][1] < pts[0][1], 'the peak sits above the floor');
+  assert.ok(Math.abs(pts[0][1] - pts[2][1]) < 0.01, 'equal values sit at the same height');
+  // a flat trace must not divide by zero
+  const flat = bsWallTrace([120, 120, 120], '#0f766e', 100, 30);
+  assert.ok(flat, 'a flat session still draws');
+  assert.ok(flat.props.children.props.points.split(' ').every((s) => Number.isFinite(Number(s.split(',')[1]))));
 });
