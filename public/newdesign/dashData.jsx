@@ -366,6 +366,123 @@ function useCoachLiveFigures(role) {
 //
 // Defined HERE rather than in each Goal page: the two pages are near-identical
 // and were drifting a copy each.
+// ── A coach's own whole-doc store ────────────────────────────────
+// ONE `user_goals` document per coach, read before every write so a change to
+// one key never clobbers another, bound to the account that made the change, and
+// declined when the read cannot be trusted.
+//
+// ⚠ THIS IS THE THIRD COPY OF THIS SHAPE, AND SAYING SO IS THE POINT.
+// `useWeekReviews` (dashWeek.jsx) and `CKCoachNote` (coachClientDetail.jsx) each
+// carry their own line-for-line equivalent. This one is written here, where both
+// could reach it, but neither has been migrated — so a fix made here (the failed
+// -write rollback below is already one) does NOT reach them. Migrating those two
+// onto this hook is registered work, not something this comment may claim has
+// happened: an earlier draft of it said all three shared this, which would have
+// left the next reader believing a fix had landed in three places when it landed
+// in one.
+//
+// ⚠ getSession() BEFORE getUserGoals, ALWAYS. `getUserGoals` resolves the user
+// through `client.auth.getUser()`, which does NOT bootstrap the Next.js
+// cookie-session bridge — a coach signed in that way with nothing in
+// localStorage reads as ANON, `getUserGoals` returns null, and the surface tells
+// a signed-in coach their work will not be kept while silently discarding it.
+async function dashDocBridge() {
+  try { if (window.shapeDb && window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* fall through as anon */ }
+}
+async function dashDocUid() {
+  try { const u = await window.shapeDb.getUser(); return u && u.id ? u.id : null; } catch (e) { return null; }
+}
+const _dashDocLane = { p: Promise.resolve() };
+function dashDocSerial(fn) { const run = _dashDocLane.p.then(fn, fn); _dashDocLane.p = run.catch(() => {}); return run; }
+
+// `merge(doc)` returns the next whole document. It runs TWICE on purpose: once
+// against the rendered copy for the optimistic paint, and once against the
+// freshly-read server copy inside the lane, which is the copy that is written.
+function useCoachDoc(goalKind, live) {
+  const [state, setState] = React.useState({ kind: "loading", doc: {} });
+  // The write path must read the CURRENT kind, not the one captured when the
+  // handler was created: a change made during the load would otherwise take the
+  // stale "loading" branch, skip the write, and then be erased by the load.
+  const kindRef = React.useRef("loading");
+  kindRef.current = state.kind;
+  const uidRef = React.useRef(null);
+  // How many writes are still in the lane. A success reconciles the document to
+  // what it wrote only when this reaches 0 — otherwise it would erase the paint
+  // of a write queued behind it that has not run yet.
+  const pendingRef = React.useRef(0);
+  React.useEffect(() => {
+    let on = true;
+    kindRef.current = "loading";
+    pendingRef.current = 0;
+    if (!live) { setState({ kind: "demo", doc: {} }); return undefined; }
+    setState({ kind: "loading", doc: {} });
+    (async () => {
+      const db = window.shapeDb;
+      if (!db || !db.getUserGoals) { if (on) setState({ kind: "unavailable", doc: {} }); return; }
+      await dashDocBridge();
+      if (!on) return;
+      uidRef.current = await dashDocUid();
+      let doc = null;
+      try { doc = await db.getUserGoals(goalKind); } catch (e) { doc = null; }
+      if (!on) return;
+      setState(doc == null ? { kind: "signedout", doc: {} } : { kind: "ready", doc: doc || {} });
+    })();
+    return () => { on = false; };
+  }, [goalKind, live]);
+  // ⚠ THE OPTIMISTIC PAINT IS ROLLED BACK WHEN THE WRITE FAILS, and it does NOT
+  // clear an existing error. An earlier cut did both wrong, and the two combined
+  // into a silent data loss: a failed mark stayed on screen as saved, the next
+  // mark flipped the state back to "ready" (hiding the notice), and the lane
+  // then re-read the SERVER document — which never received the first mark —
+  // merged only the second, and wrote that. The screen claimed two marks and
+  // saving was healthy; the row reloaded with one. A surface that keeps painting
+  // a write it knows failed is worse than one that never accepted it.
+  const apply = (merge) => {
+    if (kindRef.current !== "ready" && kindRef.current !== "error") return Promise.resolve(false);
+    setState((s) => ({ ...s, doc: merge(s.doc) }));
+    pendingRef.current += 1;
+    return dashDocSerial(async () => {
+      const db = window.shapeDb;
+      // ⚠ BOUND TO THE ACCOUNT THAT ACTED, AND AN UNKNOWN ACCOUNT IS NOT A PASS.
+      // getUserGoals and saveUserGoals each resolve the user independently at
+      // their own call time, and the save REPLACES the whole document — so an
+      // account switch between them would upsert coach A's blob into B's row.
+      // An earlier cut skipped the comparison when the INITIATING id had not
+      // resolved (`startUid && …`), which is exactly the case that cannot be
+      // checked: a transient failure of the hydrate's own uid read left every
+      // later write unguarded. It is resolved here when it is missing, and the
+      // comparison is unconditional; an id that still will not resolve refuses
+      // the write rather than guessing whose row it belongs in.
+      let startUid = uidRef.current;
+      if (!startUid) { startUid = await dashDocUid(); uidRef.current = startUid; }
+      if (!startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
+      let doc = null;
+      try { doc = await db.getUserGoals(goalKind); } catch (e) { doc = null; }
+      // The read is the last known truth. When it succeeds, a failed save can be
+      // rolled back onto it exactly; when it fails there is nothing to roll back
+      // TO, so the paint is left standing and the caller is told it is unsaved.
+      if (doc == null) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
+      const nowUid = await dashDocUid();
+      if (!nowUid || nowUid !== startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, doc, kind: "error" })); return false; }
+      const written = merge(doc);
+      let res = null;
+      try { res = await db.saveUserGoals(goalKind, written); } catch (e) { res = null; }
+      pendingRef.current -= 1;
+      if (!res || res.error) { setState((s) => ({ ...s, doc, kind: "error" })); return false; }
+      // ⚠ A SUCCESS RECONCILES; IT DOES NOT SIMPLY CLEAR THE ERROR. An earlier
+      // write whose READ failed leaves its optimistic paint standing (there was
+      // nothing to roll back to), so flipping the state to "ready" on a LATER
+      // write's success would show both as saved while the server holds only the
+      // second — and the first would vanish on reload. The document is set to
+      // what was actually written, and only once the lane is empty, so a write
+      // still queued behind this one does not have its own paint erased.
+      setState((s) => (pendingRef.current === 0 ? { ...s, doc: written, kind: "ready" } : { ...s, kind: "ready" }));
+      return true;
+    });
+  };
+  return { ...state, apply };
+}
+
 // The unit a bound metric intrinsically carries. The goal CARD formats through
 // `g.money` / `g.pct`, so binding a metric without setting these renders the
 // live figure in the wrong unit: MRR as a bare `12000`, adherence as a bare
@@ -442,4 +559,4 @@ function coachLiveMomentum(live) {
 // rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
 // wants the same /api/{role}/dashboard payload the page hook already asks for;
 // without the shared cache that is a second round trip on every dashboard load.
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc });

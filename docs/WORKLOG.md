@@ -486,6 +486,133 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — R6: the programming queue leaves one browser, and stops calling a tick a publish
+
+- **P1-D off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
+  The Today page's queue marked *"Write plan"* in **ONE BROWSER'S localStorage**, and that was
+  wrong twice. A queue that lives in one browser is not a queue — a coach who programs on
+  their laptop and checks on their phone saw two different lists, and clearing site data
+  emptied the week. **And a tick is not a publish**: the row read *"✓ Plan written"* whether or
+  not a single session had been assigned, while a week genuinely published from the Assign
+  flow left the queue looking untouched.
+- **Two sources now, kept apart, because they are different claims.** **PUBLISHED** comes from
+  `coach_week_publishes`, the ledger the week-shaped publish boundary writes — a fact, so it
+  offers no Undo. **MARKED** is the coach's own note that they handled someone another way —
+  an account-level `user_goals` document, so it follows them between devices, and undoable
+  because they made it.
+- **New route `GET /api/coach/week-publishes`.** ⚠ **RLS on that table is deliberately
+  deny-all with no policies**, so the route runs the **SERVICE ROLE** — which makes the
+  `coach_user_id` filter, taken from the authenticated user and **never from a parameter**,
+  the entire security argument. An unreadable ledger is a **502, never `{ published: {} }`**,
+  because an empty map is the positive claim *"you have not programmed anyone"*.
+- ⚠ **THIRTEEN FINDINGS FROM THE REVIEW ROUND, AND THE FIRST WAS THE ROUTE ANSWERING A
+  DIFFERENT QUESTION THAN THE QUEUE ASKS.** It filtered `week_start >= this Monday`, which
+  matches a week published **LAST** Monday **FOR** this week — i.e. last week's work. A client
+  programmed a week ago dropped out of *"ready to program"* on Friday **while the plan for the
+  coming week did not exist**, and the route's own comment claimed the opposite (*"an OLD
+  publish can never mark this week's row done"*). The window is `created_at` now: who the
+  coach has programmed during THIS office week. *A comment asserting an invariant is not the
+  invariant.*
+- ⚠ **AND A FAILED MARK STAYED ON SCREEN AS SAVED, THEN TOOK THE NEXT ONE WITH IT.** The
+  optimistic paint was never rolled back **and** a new mark flipped the state from `error` back
+  to `ready`, hiding the notice — two small wrongs that combined into a silent data loss: the
+  lane re-read the **SERVER** document, which had never received the first mark, merged only
+  the second, and wrote that. The screen claimed two marks and a healthy save; the row
+  reloaded with one. The paint rolls back onto the server copy now, and **only a successful
+  write clears the error**.
+- ⚠ **THE LEDGER IS TRAINER-ONLY, AND THAT IS A PROPERTY OF THE TABLE.** `coach_week_publishes`
+  has **no role column** and its only writer is the trainer week route — so a nutritionist's
+  fetch is a service-role round trip that answers nothing, and for a **DUAL-ROLE coach**, who
+  is one auth user id, a training publish would have rendered as *delivered* on the
+  **nutritionist** queue. That is the cross-role misattribution the R4 round fixed in
+  `coach-client-legs`, arriving from a different direction.
+- **The rest, each fixed:** the ledger effect **froze its `since`** across a Monday boundary,
+  so a tab left open overnight read the new week's marks against last week's publishes; a tick
+  in the signed-out/unreadable state **did nothing at all, silently**, where the removed
+  `localStorage` at least kept the week's work (it ticks locally now and says so — the Week
+  view's own precedent); *"Sign in to keep your marks"* was said to a coach who **may already
+  be signed in**, since `getUserGoals` returns null for a failed read too; a ledger error
+  **masked** a marks error, so a coach marking rows offline watched each one paint and was
+  never told the writes were failing; the empty-queue branch **returned above the notices** and
+  asserted *"No one in the queue"* before any roster read had resolved; the Template link was a
+  raw legacy href costing two page loads from inside the shell (the R19 sweep, one panel it
+  missed); and the marks document grew **a bucket a week forever** under a blind whole-document
+  upsert.
+- ⚠ **ONE FINDING IS ANSWERED BY WRITING IT DOWN RATHER THAN BY CODE.** `useCoachDoc` is the
+  **THIRD** copy of this store — `dashWeek.jsx` and `coachClientDetail.jsx` each carry their own
+  line-for-line equivalent — and an earlier draft of its comment claimed all three shared it.
+  Migrating them is **registered, not done**, and the comment now says exactly that: *a fix
+  believed to have landed in three places when it landed in one is worse than an honest
+  duplicate.*
+- ⚠ **AND THE TEST HALF HAD TO BE REWRITTEN BECAUSE IT PINNED SPELLINGS — THE THIRD TIME IN
+  THIS WAVE.** The panel's assertions matched source text like `/if \(isPublished\(id\)\) return;/`,
+  which **passes on a `toggle` that calls the store before the bail** and **fails on a correct
+  rewrite that renames a variable**. The row's state, the notices and the marks merge are pure
+  functions now and are **executed**. Measured, not argued: a source check that the prune's
+  cutoff is *computed* stayed green while the comparison applying it was deleted.
+- ⚠ **AND THE CODEX ROUND ON THE FIXED HEAD FOUND A SILENT LOSS THAT MY OWN PREVIOUS FIX
+  HAD OPENED.** The round above added a **rollback** for a failed save — which made the
+  `error` state genuinely reachable while leaving one arm **unrollbackable** (a failed
+  *read* has nothing to roll back TO), and nothing reconciled it. So: mark A's read fails,
+  its paint stays and the state goes `error`; mark B reads and saves fine; a bare
+  `kind: "ready"` then showed **both as saved while the server held only B**, and A vanished
+  on reload. A success now sets the document to **what it actually wrote**, and only once
+  the lane is empty — reconciling mid-lane would erase the optimistic paint of a write still
+  queued behind it. *A fix that makes a state reachable owes that state a definition.*
+- ⚠ **AND AN UNKNOWN INITIATING ACCOUNT WAS TREATED AS A PASS.** The guard read
+  `startUid && nowUid !== startUid`, which **skips the comparison in exactly the case that
+  cannot be checked**: a transient failure of the hydrate's own uid read left every later
+  whole-document write unguarded, so an account switch mid-flight could upsert coach A's
+  blob into B's row — the cross-account class this file has now paid for four times. It is
+  resolved late when missing (so one bad read does not disable writes forever) and compared
+  **unconditionally**; an id that still will not resolve refuses the write.
+- ⚠ **AND THE WEEK KEY NEEDED A CLOCK, NOT JUST A DEPENDENCY.** Computing it during render
+  **does not cause a render**, so a dashboard left open and idle across local Monday midnight
+  kept showing last week's marks and last week's ledger indefinitely — the dependency added
+  in the round above is necessary and **not sufficient**. It polls rather than scheduling one
+  timeout to the boundary, because a timeout is wrong after a laptop sleeps through it or the
+  clock moves; the comparison only sets state when the key has actually changed, so an idle
+  panel re-renders 52 times a year.
+- ⚠ **AND MY OWN GUARD BROKE ON THE CORRECT FIX FOR THE FOURTH TIME IN THIS WAVE.** The
+  account-binding test pinned the exact text of four branches, so making three of them
+  **stricter** failed a test about something else entirely. Re-anchored on the invariants it
+  cares about. **Two of my own new assertions were wrong on their first run too**: one
+  compared the bridge against `getUserGoals`'s FIRST occurrence — which is the capability
+  check `if (!db || !db.getUserGoals)`, sitting *before* it — and one used `[^}]*` across a
+  span containing a closing brace. Both would have failed correct code. *A guard is code, and
+  it gets the same scrutiny or it is decoration.*
+- ⚠ **AND THE SECOND CODEX ROUND REFUTED A JUSTIFICATION I HAD WRITTEN INTO THE ROUTE.**
+  Its comment said the local-date window was harmless because *"it can only ever include a
+  publish, never hide one"* — and that is true only **WEST of UTC**. PostgREST reads a bare
+  `YYYY-MM-DD` at UTC midnight, so a coach at **UTC+10** publishing at their local Monday
+  08:00 writes a `created_at` of **Sunday 22:00Z**, which is strictly less than Monday 00:00Z:
+  the row is **EXCLUDED** and the queue reports an already-programmed client as still ready.
+  Measured in both directions rather than reasoned about. The caller sends the **UTC instant
+  of its own local Monday midnight** now, and the route requires an explicit offset — a bare
+  date is refused, because a timezone-free string is exactly the ambiguity it was carrying.
+  *A justification that only holds in one hemisphere is not a justification.*
+- ⚠ **AND THE WEEK CLOCK THE LAST ROUND ADDED GAVE THE DEVICE-ONLY MARKS A NEW WAY TO LIE.**
+  Those marks (the fallback when the store cannot keep one) lived in an **unkeyed** `Set`, so
+  once `weekKey` started advancing on its own across Monday midnight, an open dashboard
+  carried **every one of last week's marks into the new queue** and reported those clients as
+  already handled. Bucketed by week now — as are the failed-write intents below, which belong
+  to the week they were made in. *A fix that makes something move gives everything downstream
+  of it a new state to be wrong in.*
+- ⚠ **AND THE NOTICE SAID "TAP IT AGAIN TO RETRY" WHILE THE HANDLER DID THE OPPOSITE.** When
+  a write's own read fails there is nothing to roll back to, so the optimistic mark **stays
+  painted** — and the toggle derived its next value from that paint, computing `on = false`.
+  A recovered read would then have saved a **DELETION of the mark the coach was trying to
+  keep**, under a message telling them to tap it. The intent is held until a write for it
+  actually succeeds, and the button says **Retry** rather than calling it an Undo.
+- **Verified:** `npm test` **2742/2742** · `tsc --noEmit` 0 · JSX parse on both changed modules
+  · the newdesign precompile check · **48 mutations killed across four rounds**, each **proven
+  to land** — and *three of the four survivors were no-op mutations of mine*, which is the same
+  broken-instrument lesson this file keeps paying for · headless renders of both Today tabs at
+  1440, 1024 and 390px with zero page errors. Route registered in the War Room. No migration.
+- ⚠ **STILL A SIMULATED LIVE STATE.** Every "live" check in this wave stubs the API responses.
+  An on-account pass is owed before the queue, the Week, the trajectory and the roster columns
+  are trusted in the field.
+
 ### 2026-09-10 — P1-C: the roster learns tenure and revenue, and the Goal page stops showing numbers you typed in March
 
 - **R10 — the roster could never say how long anyone had been a client.** `coach-roster.ts`
