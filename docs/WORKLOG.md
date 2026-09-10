@@ -606,6 +606,54 @@ Append new entries at the top, under this note.
   It parsed and it worked — and it is exactly the kind of thing an editor or a formatter
   silently eats, after which every export opens as mojibake with nothing in the diff to
   explain it. Made explicit, and the mutation that removes it is proven to fail the guard.
+
+### 2026-09-10 — R13's own review round: a zero that was never measured, in five more places
+
+- **CodeRabbit on #2028, and it found exactly the failure mode the PR was opened to fix,
+  in the widgets I had not converted.** `clientScore.jsx` resolves to one of four states
+  and `myPoints` is **0** in the unread and settling ones — a value every tier derivation
+  below it reads as a real rank. Three widgets were still presenting it, and a sweep for
+  the class found two more.
+- ⚠ **THE LADDER MARKED "RAW" AS *YOU ARE HERE* AND PRINTED A BARE `0` UNDER IT**, with a
+  progress bar drawn from the same zero — which at 0 points is not merely unknown, it
+  reads as *"you have earned nothing"*. **The shortest-path card promised** *"750 points
+  stand between you and Tempo"* as a measurement of a standing nobody had read. **The
+  week's-gains card rendered a fabricated `+36`** with an invented activity breakdown
+  (4 workouts · Squat PR · Community reactions), because its gate was `!live` — which
+  covers **three** states and only one of them may see invented figures. And the
+  how-it-works panel highlighted the first rung as the member's own.
+- **One named gate now: `standingKnown = !!live || demo`.** Not `live`, because the
+  signed-out preview *may* show invented figures and a member with a failed read may not
+  — that distinction is the whole three-audience split, and every one of these five sites
+  had collapsed it back to two.
+- ⚠ **THE LADDER ITSELF STAYS.** The tiers are a fact about the product; where the member
+  stands on them is a fact about the member. Only the second is withheld.
+- ⚠ **AND THE SWEEP IS WHAT CLOSES THE CLASS, NOT THE FIVE FIXES.** A new guard walks
+  every line that reads `myPoints` / `ptsToNext` / `progressPct` / `currentIdx` /
+  `currentTier` and requires an audience gate somewhere in its enclosing widget — a
+  hypothetical new widget that prints `myPoints` raw fails it. **My first cut demanded the
+  gate on the same LINE and flagged three correct sites**, because the gate legitimately
+  sits on an enclosing expression; the window is the widget scope now, and the comment
+  says out loud that it is a heuristic net whose real proof is the render below.
+- ⚠ **AND A GUARD FROM #2025 PINNED THE EXACT PROP EXPRESSION**
+  `currentTier={currentTier[0]}` — so gating that prop on whether the standing had been
+  read **failed a test about dead controls**. Re-anchored on what it cares about: the
+  panel is mounted and is handed the ladder and a current tier. *A guard that pins a
+  spelling pins whatever that spelling is wrong about* — the seventh time in this wave,
+  and the second in the same file.
+- **Verified:** `npm test` green · `tsc --noEmit` 0 · JSX parse · the newdesign precompile
+  check · **12/12 mutations killed, sanity green at both ends** · and all four Score states
+  rendered headless with the fabrications named explicitly: **the failed read leaks none
+  of them** (`1,284` · `+36` · `4 workouts logged` · `Squat PR` · `Community reactions` ·
+  `YOU ARE HERE` · `points stand between`) and carries *Couldn't read your score just now*
+  · *Standing couldn't be read* · *no distance to quote*, while the signed-out preview
+  still shows all of them — the control that proves the check is looking for the right
+  strings. Zero page errors.
+- ⚠ **A BRAND-NEW MEMBER STILL SEES `0`, *YOU ARE HERE* ON RAW AND *750 POINTS TO
+  TEMPO*, AND THAT IS CORRECT.** Their zero is **measured**; the unread one is derived
+  from a read that never happened. Telling those two apart is the entire change, and the
+  render harness cannot — which is why the fabrication list, not the digit, is what it
+  checks.
 ### 2026-09-10 — Two Codex rounds on the units wave: five findings, all real, and two were defects in my own fix
 
 - **Owner: *"run codex if you can"* → *"run codex on head again"*.** Codex's last completed review was

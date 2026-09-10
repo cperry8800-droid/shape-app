@@ -198,6 +198,14 @@ function Card({ children, style }) {
 // eyebrow to its own line when even that will not fit, and `marginLeft: auto`
 // keeps it right-aligned in both cases (which is what space-between was for).
 // Shared by 48 call sites, so this is the one place to fix it.
+// ⚠ THE QUARTER IS COMPUTED, NOT TYPED (review 2026-09-09, V3). This eyebrow read
+// "YOUR GOALS · Q2 2026" in September — a page about the current quarter naming a
+// quarter that had ended, on the same screen as goals dated from today.
+function goalQuarterLabel(now) {
+  const at = now instanceof Date ? now : new Date();
+  return "YOUR GOALS · Q" + (Math.floor(at.getMonth() / 3) + 1) + " " + at.getFullYear();
+}
+
 function SectionTitle({ children, right }) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
@@ -671,4 +679,4 @@ function DashExportButton({ kind, build, live, label }) {
   );
 }
 
-Object.assign(window, { DashShell, DashPage, DashSidebar, Sparkline, Card, SectionTitle, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });
+Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashSidebar, Sparkline, Card, SectionTitle, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });
