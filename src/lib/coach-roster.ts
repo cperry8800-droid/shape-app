@@ -53,12 +53,24 @@ export async function coachClientsResponse(
     return NextResponse.json({ [roleKey]: false, clients: [], totals: { active: 0, mrrCents: 0 } });
   }
 
-  const { data: subRows } = await supabase
+  // ⚠ THE ERROR IS KEPT, because dropping it turns "we could not read what
+  // this client pays" into the measured claim "$0/mo". A transient failure, an
+  // RLS change or a schema drift would otherwise have every row on the roster
+  // confidently reporting zero revenue — the same collapse of "no data" into
+  // "a measured zero" this review round has already fixed twice elsewhere.
+  const { data: subRows, error: subErr } = await supabase
     .from('subscriptions')
     .select('client_id, price_cents, status, created_at')
     .eq('provider_role', role)
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);
+  if (subErr) {
+    console.warn(
+      `[shape-app] ${role} roster: subscriptions read failed — REVENUE and TENURE render "Not shared" rather than $0:`,
+      subErr.message
+    );
+  }
+  const subsUnknown = !!subErr;
 
   const { data: sessRows } = await supabase
     .from('sessions')
@@ -111,7 +123,9 @@ export async function coachClientsResponse(
         id: e.id,
         name: e.name,
         sessions: e.sessions,
-        mrrCents: e.mrrCents,
+        // null, not 0, when the subscriptions read failed: the roster renders
+        // "Not shared" for null and a real "$0" for zero.
+        mrrCents: subsUnknown ? null : e.mrrCents,
         // The earliest subscription start — already computed above for `isNew`
         // and then thrown away, so the roster could never show how long anyone
         // had been a client (review 2026-09-09, R10).
@@ -134,11 +148,11 @@ export async function coachClientsResponse(
       };
     });
 
-  const mrrCents = clients.reduce((sum, c) => sum + c.mrrCents, 0);
+  const mrrCents = clients.reduce((sum, c) => sum + (c.mrrCents ?? 0), 0);
 
   return NextResponse.json({
     [roleKey]: true,
     clients,
-    totals: { active: clients.length, mrrCents },
+    totals: { active: clients.length, mrrCents: subsUnknown ? null : mrrCents },
   });
 }

@@ -177,10 +177,79 @@ test('a coach who has never had a client gets no momentum card at all', () => {
 });
 
 test('the momentum rows name their own window, since the card cannot', () => {
-  // Net-new is calendar month-to-date and median tenure is lifetime; a single
-  // "MEASURED · 30D" eyebrow over both was wrong about two of four rows.
-  const summary = { activeNow: 21, active30dAgo: 18, addsThisMonth: 5, endedThisMonth: 2, churnRate30dPct: 11, medianTenureDays: 96, totalEverSubscribed: 34 };
+  // Net-new is calendar month-to-date, churn is 30d and median tenure is taken
+  // over every membership ever; a single "MEASURED · 30D" eyebrow over all of
+  // them was wrong about three of four rows.
+  //
+  // ⚠ PINS THE INVARIANT, NOT THE WORDING. This first read `match(/lifetime/i)`
+  // and failed the moment that row was RE-LABELLED CORRECTLY — the denominator
+  // moved from people to memberships and the label followed. What the card
+  // actually promises is that no row leaves its period to the eyebrow to state.
+  const summary = { activeNow: 21, active30dAgo: 18, addsThisMonth: 5, endedThisMonth: 2, churnRate30dPct: 11, medianTenureDays: 96, totalEverSubscribed: 34, totalSpans: 37 };
   const rows = coachLiveMomentum({ kind: 'live', trajectory: { summary } });
+  const PERIOD = /this month|30d|month ago|per membership|lifetime|ever|all time/i;
+  for (const [, label, sub] of rows) {
+    assert.ok(PERIOD.test(label) || PERIOD.test(sub), `row "${label}" names no period: ${sub}`);
+  }
   assert.match(rows[0][1], /this month/i);
-  assert.match(rows[3][1], /lifetime/i);
+  // The tenure row quotes the SPAN count, never the people count — the median
+  // it sits beside is taken over spans.
+  const tenure = rows.find(([, label]) => /tenure/i.test(label));
+  assert.match(tenure[2], /\b37\b/);
+  assert.ok(!/\b34\b/.test(tenure[2]), 'tenure subtext must not quote the client count');
+});
+
+// ── A failed subscriptions read must not read as $0 (Codex review on #2020) ──
+// `coachClientsResponse` dropped its subscriptions error and emitted
+// session-derived clients with mrrCents 0, and `_dashRecordFromLive` coerced
+// that through `|| 0`, so a transient/RLS/schema failure was reported to the
+// coach as measured zero revenue on every row.
+
+const { goalMetricUnit } = load(DATA, ['goalMetricUnit']);
+
+test('revenue: null (the read failed) is "Not shared", never $0', () => {
+  assert.deepEqual(dashRevenueLabel({ payments: { mrrCents: null } }), { text: 'Not shared', dim: true });
+  // and the two states stay distinguishable
+  assert.notDeepEqual(
+    dashRevenueLabel({ payments: { mrrCents: null } }),
+    dashRevenueLabel({ payments: { mrrCents: 0 } })
+  );
+});
+
+test('the live record preserves a null mrrCents instead of coercing it to 0', () => {
+  // ⚠ Pins the OPERATOR, because `|| 0` and `?? null` are indistinguishable on
+  // every input except the one that matters.
+  const line = DATA.split('\n').find((l) => l.includes('payments: { mrrCents:'));
+  assert.ok(line, 'the payments leg moved');
+  assert.match(line, /mrrCents:\s*row\.mrrCents\s*\?\?\s*null/);
+  assert.ok(!/mrrCents:\s*row\.mrrCents\s*\|\|\s*0/.test(line), '`|| 0` relabels an unreadable leg as a measured zero');
+});
+
+test('a bound metric carries its own unit, so the card cannot format it wrongly', () => {
+  // Binding changed only `metric` while the card formats through money/pct:
+  // MRR rendered as a bare 12000, adherence as a bare 88, and active clients
+  // as `$12` on a goal that had been a revenue one.
+  assert.deepEqual(goalMetricUnit('mrrNetMonthly'), { money: true, pct: false });
+  assert.deepEqual(goalMetricUnit('adherencePct'), { money: false, pct: true });
+  assert.deepEqual(goalMetricUnit('activeClients'), { money: false, pct: false });
+  assert.deepEqual(goalMetricUnit(undefined), {}, 'unbinding leaves the typed goal’s own unit alone');
+  assert.deepEqual(goalMetricUnit(''), {});
+  // Every metric the modal offers has a unit — a new one added without one
+  // would silently inherit whatever the goal was last formatted as.
+  const { goalMetricsFor } = load(DATA, ['goalMetricsFor']);
+  for (const role of ['trainer', 'nutritionist']) {
+    for (const [value] of goalMetricsFor(role)) {
+      if (!value) continue;
+      assert.equal(Object.keys(goalMetricUnit(value)).length, 2, `${value} declares no unit`);
+    }
+  }
+});
+
+test('both Goal modals apply the metric’s unit when the binding changes', () => {
+  for (const f of ['trainerGoalPage', 'nutritionistGoalPage']) {
+    const src = readFileSync(new URL(`../public/newdesign/${f}.jsx`, import.meta.url), 'utf8');
+    assert.match(src, /setG\(\{\s*\.\.\.g,\s*metric,\s*\.\.\.\(metric \? goalMetricUnit\(metric\) : \{\}\)\s*\}\)/, f);
+    // and the unit checkboxes stop accepting input the card would override
+    assert.match(src, /disabled=\{!!g\.metric\}/, `${f}: the unit checkboxes stay live while bound`);
+  }
 });

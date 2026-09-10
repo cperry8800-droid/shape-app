@@ -75,16 +75,27 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
       </div>
       <div style={{ marginTop: 2 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>CURRENT READS FROM</div>
-        <select value={g.metric || ""} onChange={e => setG({ ...g, metric: e.target.value || undefined })}
+        {/* ⚠ THE UNIT COMES WITH THE METRIC. The card formats through `g.money`
+            and `g.pct`, so changing only `metric` rendered MRR as a bare 12000,
+            adherence as a bare 88, or an active-client count as `$12` on a goal
+            that had been a revenue one. */}
+        <select value={g.metric || ""} onChange={e => {
+          const metric = e.target.value || undefined;
+          setG({ ...g, metric, ...(metric ? goalMetricUnit(metric) : {}) });
+        }}
           style={{ width: "100%", background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "9px 11px", fontFamily: sans, fontSize: 13 }}>
           {METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612" }}>{label}</option>)}
         </select>
       </div>
       <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
-      <div style={{ display: "flex", gap: 18, marginTop: 4, color: INK, fontSize: 13 }}>
-        <label style={{ display: "flex", gap: 8, cursor: "pointer" }}><input type="checkbox" checked={!!g.money} onChange={e => setG({ ...g, money: e.target.checked, pct: e.target.checked ? false : g.pct })} /> Money ($)</label>
-        <label style={{ display: "flex", gap: 8, cursor: "pointer" }}><input type="checkbox" checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked, money: e.target.checked ? false : g.money })} /> Percent (%)</label>
+      {/* Locked while a metric is bound: the unit is then a property of the
+          measurement, not a preference, and a control that accepts a change the
+          card overrides is the same dead input the CURRENT field was. */}
+      <div style={{ display: "flex", gap: 18, marginTop: 4, color: INK, fontSize: 13, opacity: g.metric ? 0.5 : 1 }}>
+        <label style={{ display: "flex", gap: 8, cursor: g.metric ? "default" : "pointer" }}><input type="checkbox" disabled={!!g.metric} checked={!!g.money} onChange={e => setG({ ...g, money: e.target.checked, pct: e.target.checked ? false : g.pct })} /> Money ($)</label>
+        <label style={{ display: "flex", gap: 8, cursor: g.metric ? "default" : "pointer" }}><input type="checkbox" disabled={!!g.metric} checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked, money: e.target.checked ? false : g.money })} /> Percent (%)</label>
       </div>
+      {g.metric && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Unit set by the metric</div>}
     </ModalShell>
   );
 }
@@ -332,7 +343,7 @@ function NutritionistGoalPage() {
       return (
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <SectionTitle right={isComputed ? "MEASURED · 30D" : "THIS QUARTER"}>Momentum</SectionTitle>
+          <SectionTitle right={isComputed ? "MEASURED" : "THIS QUARTER"}>Momentum</SectionTitle>
           <Chip onClick={() => setEditMomentum(rows)}>EDIT</Chip>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>

@@ -38,13 +38,27 @@ export async function GET() {
 
   const providerId = trainerRow.id;
 
-  const { data: subRows } = await supabase
+  // ⚠ THE ERROR IS KEPT. Dropped, a failed read collapses into `subs = []`
+  // and the route still answers with a role-valid payload reporting ZERO active
+  // clients and ZERO MRR — which the Goal page then shows under a LIVE label,
+  // and the revenue calculator adopts as a $0 pace. "You have no clients" and
+  // "we could not ask" are different sentences; the subscription-derived
+  // figures go null so the card can say which one it is.
+  const { data: subRows, error: subErr } = await supabase
     .from('subscriptions')
     .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
     .eq('provider_role', 'trainer')
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);
+  if (subErr) {
+    console.warn(
+      '[shape-app] trainer analytics: subscriptions read failed — MRR and active clients render "could not be read":',
+      subErr.message
+    );
+  }
+  const subsUnknown = !!subErr;
   const subs = subRows ?? [];
+  const activeClients = subsUnknown ? null : subs.length;
 
   // Churn (Business page): canceled subscriptions, newest first. There is no
   // cancellation survey yet, so exit reasons are always null — the UI says so
@@ -312,15 +326,15 @@ export async function GET() {
     byOrigin,
     trajectory,
     metrics: {
-      mrrGrossCents: grossCents,
-      mrrNetCents: netCents,
-      activeClients: subs.length,
+      mrrGrossCents: subsUnknown ? null : grossCents,
+      mrrNetCents: subsUnknown ? null : netCents,
+      activeClients,
       totalSessions: sessions.length,
       completedSessions,
       upcomingSessions,
     },
     clientProgress: {
-      activeClients: subs.length,
+      activeClients,
       workouts30d: totalWorkouts30d,
       workouts7d: totalWorkouts7d,
       prs30d: totalPrs30d,
@@ -333,7 +347,7 @@ export async function GET() {
     ticker: {
       bookedToday,
       upcomingSessions,
-      activeClients: subs.length,
+      activeClients,
       programsCount: programsCount ?? 0,
       workouts7d: totalWorkouts7d,
       avgAdherencePct,

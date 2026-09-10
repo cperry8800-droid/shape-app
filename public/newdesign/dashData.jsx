@@ -161,7 +161,10 @@ function _dashRecordFromLive(row, ov, notesByClient) {
       : notesRead ? [] : notesPending ? undefined : null,
     recentLogs: logs ? logs.recent : logsKnown ? [] : null,
     milestones: null,
-    payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null },
+    // ⚠ `?? null`, NEVER `|| 0`. The roster route sends mrrCents: null when its
+    // subscriptions read FAILED; `|| 0` would relabel that as a measured $0/mo
+    // on every row. 0 stays 0 — a client on no paid plan is a real answer.
+    payments: { mrrCents: row.mrrCents ?? null, status: "active", lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null },
   };
 }
 
@@ -363,6 +366,18 @@ function useCoachLiveFigures(role) {
 //
 // Defined HERE rather than in each Goal page: the two pages are near-identical
 // and were drifting a copy each.
+// The unit a bound metric intrinsically carries. The goal CARD formats through
+// `g.money` / `g.pct`, so binding a metric without setting these renders the
+// live figure in the wrong unit: MRR as a bare `12000`, adherence as a bare
+// `88`, or an active-client count as `$12` on a goal that used to be revenue.
+// A bound goal's unit is not a free choice — it is a property of the thing
+// being measured.
+function goalMetricUnit(metric) {
+  if (metric === "mrrNetMonthly") return { money: true, pct: false };
+  if (metric === "adherencePct") return { money: false, pct: true };
+  if (metric === "activeClients") return { money: false, pct: false };
+  return {};
+}
 function goalMetricsFor(role) {
   return [
     ["", "Type it in"],
@@ -413,7 +428,12 @@ function coachLiveMomentum(live) {
   if (s.churnRate30dPct != null) rows.push([s.churnRate30dPct + "%", "Churn · 30d", "of " + s.active30dAgo + " active a month ago"]);
   if (s.medianTenureDays != null) {
     const t = s.medianTenureDays;
-    rows.push([t < 62 ? t + "d" : Math.round(t / 30.44) + "mo", "Median tenure · lifetime", "across " + s.totalEverSubscribed + " ever subscribed"]);
+    // ⚠ QUOTES THE SPAN COUNT, NOT THE CLIENT COUNT. `medianTenureDays` is
+    // measured over every membership span; `totalEverSubscribed` now counts
+    // people, so pairing the two would print a median beside a denominator it
+    // was not taken over.
+    const spans = s.totalSpans != null ? s.totalSpans : s.totalEverSubscribed;
+    rows.push([t < 62 ? t + "d" : Math.round(t / 30.44) + "mo", "Median tenure · per membership", "across " + spans + " ever started"]);
   }
   return rows.length ? rows : null;
 }
@@ -422,4 +442,4 @@ function coachLiveMomentum(live) {
 // rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
 // wants the same /api/{role}/dashboard payload the page hook already asks for;
 // without the shared cache that is a second round trip on every dashboard load.
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalLiveValue });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue });
