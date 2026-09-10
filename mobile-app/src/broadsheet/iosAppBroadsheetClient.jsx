@@ -18203,6 +18203,57 @@ function bsWallHeader(rec) {
   };
 }
 
+// YOUR BEST — one row per lift the member has, merging what their own training
+// data says with what the wall carries.
+//
+// ⚠ TWO DIFFERENT NUMBERS, AND THE DIFFERENCE BETWEEN THEM IS THE POINT.
+// `logged` is their best from their own set logs — a PR the moment they lift
+// it, whether or not it ever reached the wall. `posted` is the ledger's value,
+// i.e. what everyone else can see. When the first is higher they are sitting on
+// an unposted record, and the gap is exactly how much: "20 lb to the wall".
+//
+// A lift they have posted but never logged in-app still shows (they set it
+// elsewhere and posted it by hand), with no gap — there is nothing to compare
+// it against.
+function bsWallYourBest(logged, posted) {
+  const rows = new Map();
+  for (const p of (Array.isArray(posted) ? posted : [])) {
+    if (!p || !p.liftKey) continue;
+    rows.set(p.liftKey, {
+      liftKey: p.liftKey, liftLabel: p.liftLabel || p.liftKey,
+      posted: Number(p.best), postedUnit: p.unit || 'lb', postedAt: p.postedAt || null,
+      logged: null, unit: p.unit || 'lb', reps: null, gap: null,
+    });
+  }
+  for (const l of (Array.isArray(logged) ? logged : [])) {
+    if (!l || !l.liftKey) continue;
+    const row = rows.get(l.liftKey) || {
+      liftKey: l.liftKey, liftLabel: l.liftLabel || l.liftKey,
+      posted: null, postedUnit: null, postedAt: null,
+    };
+    row.liftLabel = l.liftLabel || row.liftLabel;
+    row.logged = Number(l.best);
+    row.unit = l.unit || row.postedUnit || 'lb';
+    row.reps = l.reps;
+    rows.set(l.liftKey, row);
+  }
+  for (const row of rows.values()) {
+    // ⚠ THE GAP IS ONLY COMPARABLE IN ONE UNIT. A lift logged in kg against a
+    // ledger row in lb is two different numbers, and subtracting them would
+    // invent a gap out of the conversion. Left null; the row still shows both.
+    const comparable = row.posted != null && row.logged != null
+      && (!row.postedUnit || row.postedUnit === row.unit);
+    row.gap = comparable ? bsWallGain(row.logged, row.posted) : null;
+    row.unposted = row.logged != null && (row.posted == null || (comparable && row.gap != null));
+    row.best = row.logged != null ? row.logged : row.posted;
+  }
+  return [...rows.values()].sort((a, b) => {
+    // An unposted record is the actionable row, so it leads.
+    if (a.unposted !== b.unposted) return a.unposted ? -1 : 1;
+    return (b.best || 0) - (a.best || 0);
+  });
+}
+
 // The lifts actually present in the loaded rows — the filter must never offer a
 // lift the wall cannot show, and must never hide one it can.
 function bsWallLifts(rows) {
@@ -18346,14 +18397,14 @@ function BSWallPlate({ rec, ctx, newest }) {
 // authority on whether it lands: it re-checks the profile is public and that
 // the value beats the member's own best, and this sheet reports back whichever
 // answer it gives rather than claiming success.
-function BSWallPostSheet({ onClose, onPosted }) {
+function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [lift, setLift] = useStateBSC('');
-  const [value, setValue] = useStateBSC('');
-  const [unit, setUnit] = useStateBSC('lb');
-  const [reps, setReps] = useStateBSC('');
+  const [lift, setLift] = useStateBSC(seed ? seed.lift || '' : '');
+  const [value, setValue] = useStateBSC(seed ? seed.value || '' : '');
+  const [unit, setUnit] = useStateBSC(seed && seed.unit === 'kg' ? 'kg' : 'lb');
+  const [reps, setReps] = useStateBSC(seed ? seed.reps || '' : '');
   const [busy, setBusy] = useStateBSC(false);
   const ready = !!lift.trim() && Number(value) > 0 && !busy;
   const submit = async () => {
@@ -18453,6 +18504,10 @@ function BSWall({ ctx }) {
   // "the read failed" will say the first when the truth is the second.
   const [rows, setRows] = useStateBSC(null);
   const [mine, setMine] = useStateBSC(null);
+  // `sheet` is false, true (a blank Post-a-PR), or a seed object taken from a
+  // Your-best row — so tapping the button beside a record fills the form with
+  // the record rather than asking the member to retype what the app already
+  // knows.
   const [sheet, setSheet] = useStateBSC(false);
   const [nonce, setNonce] = useStateBSC(0);
 
@@ -18496,9 +18551,23 @@ function BSWall({ ctx }) {
     if (previewing) return undefined;
     let dead = false;
     const fn = window.ShapePRWall && window.ShapePRWall.mine;
+    const lifts = window.ShapePRWall && window.ShapePRWall.bestLifts;
     if (!fn) { setMine({ error: true }); return undefined; }
-    Promise.resolve(fn())
-      .then((res) => { if (!dead) setMine(!res || res.stored !== 'supabase' ? { error: true } : (res.data || [])); })
+    // Their ledger and their own training data, together — the box is about the
+    // difference between the two, so one without the other says nothing.
+    // ⚠ A FAILED LOGGED-LIFTS READ IS NOT A FAILED SECTION: the ledger alone
+    // still tells them what is on the wall. It degrades to "no gap known",
+    // never to an error over the whole block.
+    Promise.all([
+      Promise.resolve(fn()).catch(() => null),
+      lifts ? Promise.resolve(lifts()).catch(() => null) : Promise.resolve(null),
+    ])
+      .then(([ledger, logged]) => {
+        if (dead) return;
+        if (!ledger || ledger.stored !== 'supabase') { setMine({ error: true }); return; }
+        const loggedRows = (logged && logged.stored === 'supabase') ? (logged.data || []) : [];
+        setMine(bsWallYourBest(loggedRows, ledger.data || []));
+      })
       .catch(() => { if (!dead) setMine({ error: true }); });
     return () => { dead = true; };
   }, [previewing, nonce]);
@@ -18621,22 +18690,43 @@ function BSWall({ ctx }) {
         {!previewing && mineEff === null && <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}</div>}
         {!previewing && mineEff && mineEff.error && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.bestUnreadable', { defaultValue: "Couldn't read your records just now." })}</div>}
         {!previewing && Array.isArray(mineEff) && !mineEff.length && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.noBestYet', { defaultValue: 'No records yet. Log a lift, or post one you set elsewhere.' })}</div>}
-        {!previewing && Array.isArray(mineEff) && mineEff.map((m) => {
-          const g = bsWallGain(m.best, m.prev);
-          return (
-            <div key={`${m.liftKey}-${m.postedAt}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'baseline', padding: '9px 0', borderBottom: `1px solid ${hair}` }}>
-              <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.liftLabel}</span>
-              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsWallNum(m.best)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.unit}</span></span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: g != null ? teal : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{g != null ? `+${bsWallNum(g)}` : tr('feed:wall.firstShort', { defaultValue: 'First' })}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsAgoShort(m.postedAt) || ''}</span>
-              </span>
+        {/* ⚠ A ROW WITH AN UNPOSTED RECORD IS A DIFFERENT OBJECT FROM ONE
+            WITHOUT. The first is an action — a best sitting in their own logs
+            that the wall has never seen, with exactly how much of a gap and a
+            button to close it. The second is a fact: this is on the wall, set
+            then. Giving both the same treatment is how a call to action turns
+            into a list nobody reads. */}
+        {!previewing && Array.isArray(mineEff) && mineEff.map((m) => (
+          <div key={m.liftKey} style={{ marginTop: 9, padding: m.unposted ? '10px 12px' : '9px 0', borderRadius: m.unposted ? 8 : 0, border: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : 0, background: m.unposted ? bsTHexA(teal, 0.08) : 'transparent', borderBottom: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : `1px solid ${hair}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.unposted ? teal : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {tr('feed:wall.yourBest', { defaultValue: 'Your best' })} · {m.liftLabel}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{bsWallNum(m.best)}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.unit}</span>
+                {m.unposted ? (
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.AMBER || '#e0b15a', fontVariantNumeric: 'tabular-nums' }}>
+                    {m.gap != null
+                      ? tr('feed:wall.toTheWall', { defaultValue: '{gain} {unit} to the wall', gain: bsWallNum(m.gap), unit: m.unit })
+                      : tr('feed:wall.notOnWall', { defaultValue: 'not on the wall yet' })}
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsAgoShort(m.postedAt) || ''}</span>
+                )}
+              </div>
             </div>
-          );
-        })}
+            {m.unposted && (
+              <button onClick={() => setSheet({ lift: m.liftLabel, value: String(m.best), unit: m.unit, reps: m.reps != null ? String(m.reps) : '' })}
+                style={{ flexShrink: 0, minHeight: 34, padding: '0 14px', border: 0, borderRadius: 6, background: teal, color: '#031f1c', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>
+                {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })}
+              </button>
+            )}
+          </div>
+        ))}
       </div>
 
-      {sheet && <BSWallPostSheet onClose={() => setSheet(false)} onPosted={() => setNonce((n) => n + 1)} />}
+      {sheet && <BSWallPostSheet seed={sheet && typeof sheet === 'object' ? sheet : null} onClose={() => setSheet(false)} onPosted={() => setNonce((n) => n + 1)} />}
     </div>
   );
 }

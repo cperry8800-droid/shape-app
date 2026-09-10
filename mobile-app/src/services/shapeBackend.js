@@ -3406,11 +3406,117 @@ async function myPRLedger() {
   };
 }
 
+// The member's own personal bests, out of their OWN training data — not the
+// wall. Owner-scoped by RLS on both tables, so this needs no definer and no
+// coach link: it is the member reading their own work.
+//
+// ⚠ A PR IS NOT ONLY A LIFT. Owner, 2026-09-10: "this should apply to all
+// workouts where a PR happens, not just deadlift, etc." So two sources:
+//   • `workout_set_logs` → the heaviest completed set per move (strength)
+//   • `activities`       → the longest distance per activity type (run, ride,
+//                          swim, row, walk — whatever they actually did)
+// Distance is a COLUMN on activities, which is why it is the endurance record
+// here. Pace and power records are a follow-up, not an oversight: they live in
+// the provider-shaped `metrics` jsonb under keys that differ per provider, so
+// picking a best across them would be guesswork dressed as a number.
+//
+// ⚠ THIS IS WHAT MAKES A PR A PR, AND IT IS DELIBERATELY NOT THE LEDGER.
+// Owner, 2026-09-10: "PR is best on their last logged weight. irrelevant if it
+// was posted on wall or not. it is a PR that is being tracked in their own data
+// by coach and current workout plan." So a member who has been lifting has a
+// best whether or not they ever posted it, and the gap between that and what
+// the wall carries is the thing the Post-a-PR box exists to show.
+//
+// Completed sets only, and only ones carrying a load: a skipped set is not a
+// lift, and a bodyweight move has no weight to be a record.
+async function myBestLifts() {
+  const uid = state.user?.id;
+  if (!supabase || !uid) return { stored: 'local', data: [] };
+  const { data, error } = await supabase
+    .from('workout_set_logs')
+    .select('move_name, actual_load, actual_reps, load_unit, finished_at, created_at')
+    .eq('client_id', uid)
+    .eq('completed', true)
+    .not('actual_load', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(2000);
+  // Same three-state contract as every other read here: an empty list is the
+  // claim "you have logged no loaded sets", never "we could not look".
+  if (error) return { stored: 'local', data: [], error };
+
+  const best = new Map();
+  for (const row of (data || [])) {
+    const lift = String(row.move_name || '').trim();
+    const load = Number(row.actual_load);
+    if (!lift || !Number.isFinite(load) || load <= 0) continue;
+    const key = lift.toLowerCase();
+    const prev = best.get(key);
+    // ⚠ HEAVIEST WINS, NOT MOST RECENT. A "best" that tracked the last session
+    // would fall every time they deloaded — and a deload week is not a lost PR.
+    if (!prev || load > prev.best) {
+      best.set(key, {
+        liftKey: key,
+        liftLabel: lift,
+        kind: 'lift',
+        best: load,
+        reps: Number.isFinite(Number(row.actual_reps)) ? Number(row.actual_reps) : null,
+        unit: String(row.load_unit || 'lb').toLowerCase().includes('kg') ? 'kg' : 'lb',
+        loggedAt: row.finished_at || row.created_at || null,
+      });
+    }
+  }
+  const lifts = [...best.values()];
+
+  // ── Endurance: the longest one of each thing they do ────────────────────
+  // A failed read here does NOT fail the whole answer — their lifts are still
+  // true. It degrades to "no endurance records known", which is what an empty
+  // list from this table would mean anyway.
+  let endurance = [];
+  try {
+    const { data: acts, error: actErr } = await supabase
+      .from('activities')
+      .select('activity_type, title, distance_km, started_at, created_at')
+      .eq('user_id', uid)
+      .not('distance_km', 'is', null)
+      .order('distance_km', { ascending: false })
+      .limit(500);
+    if (!actErr) {
+      const byType = new Map();
+      for (const row of (acts || [])) {
+        const type = String(row.activity_type || '').trim().toLowerCase();
+        const km = Number(row.distance_km);
+        if (!type || !Number.isFinite(km) || km <= 0) continue;
+        const key = `distance:${type}`;
+        const prev = byType.get(key);
+        if (!prev || km > prev.best) {
+          byType.set(key, {
+            liftKey: key,
+            // "Longest run" reads as the record it is; the raw type does not.
+            liftLabel: `Longest ${type}`,
+            best: Math.round(km * 100) / 100,
+            reps: null,
+            unit: 'km',
+            kind: 'endurance',
+            loggedAt: row.started_at || row.created_at || null,
+          });
+        }
+      }
+      endurance = [...byType.values()];
+    }
+  } catch (e) { /* their lifts still stand */ }
+
+  return {
+    stored: 'supabase',
+    data: [...lifts, ...endurance].sort((a, b) => b.best - a.best),
+  };
+}
+
 window.ShapePRWall = {
   post: postPRToWall,
   announce: announcePRsFromSetLogs,
   list: listPRWall,
   mine: myPRLedger,
+  bestLifts: myBestLifts,
 };
 
 function privacyToDb(value) {

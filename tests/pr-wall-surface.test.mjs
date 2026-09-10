@@ -24,11 +24,11 @@ globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
 const {
   BSWall, BSWallPlate, BSActivityCard, bsActivityKey, bsWallGain, bsWallNum, bsWallHeader,
   bsWallLifts, bsWallDemoRows, bsWallBulletinPick, BS_WALL_DEMO, BS_WALL_UNITS,
-  bsWallTrace, COMMUNITY_ACTIVITIES,
+  bsWallTrace, COMMUNITY_ACTIVITIES, bsWallYourBest,
 } = await loadBroadsheet([
   'BSWall', 'BSWallPlate', 'BSActivityCard', 'bsActivityKey', 'bsWallGain', 'bsWallNum',
   'bsWallHeader', 'bsWallLifts', 'bsWallDemoRows', 'bsWallBulletinPick', 'BS_WALL_DEMO',
-  'BS_WALL_UNITS', 'bsWallTrace', 'COMMUNITY_ACTIVITIES',
+  'BS_WALL_UNITS', 'bsWallTrace', 'COMMUNITY_ACTIVITIES', 'bsWallYourBest',
 ]);
 
 const src = readFileSync(SRC, 'utf8');
@@ -740,4 +740,182 @@ test('the trace scales to its own range, and refuses to draw a line from one poi
   const flat = bsWallTrace([120, 120, 120], '#0f766e', 100, 30);
   assert.ok(flat, 'a flat session still draws');
   assert.ok(flat.props.children.props.points.split(' ').every((s) => Number.isFinite(Number(s.split(',')[1]))));
+});
+
+// ── Your best: their own logged record against what the wall carries ────────
+
+test('an unposted record is the difference between their logs and the wall', () => {
+  // ⚠ THE TWO NUMBERS ARE DIFFERENT THINGS. Owner: "PR is best on their last
+  // logged weight. irrelevant if it was posted on wall or not." So a member who
+  // has lifted 245 while the wall carries 225 is sitting on a 20 lb record, and
+  // that gap is what the box exists to show.
+  const rows = bsWallYourBest(
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 245, unit: 'lb', reps: 3 }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 225, unit: 'lb', postedAt: '2026-09-01T00:00:00Z' }],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].best, 245, 'their own best leads');
+  assert.equal(rows[0].posted, 225);
+  assert.equal(rows[0].gap, 20);
+  assert.equal(rows[0].unposted, true);
+});
+
+test('a record already on the wall is a fact, not an action', () => {
+  const rows = bsWallYourBest(
+    [{ liftKey: 'squat', liftLabel: 'Squat', best: 315, unit: 'lb' }],
+    [{ liftKey: 'squat', liftLabel: 'Squat', best: 315, unit: 'lb', postedAt: '2026-09-01T00:00:00Z' }],
+  );
+  assert.equal(rows[0].gap, null, 'nothing to close');
+  assert.equal(rows[0].unposted, false);
+});
+
+test('a lift logged but never posted is unposted, with no gap to quote', () => {
+  const rows = bsWallYourBest([{ liftKey: 'bench', liftLabel: 'Bench', best: 185, unit: 'lb' }], []);
+  assert.equal(rows[0].unposted, true, 'it belongs on the wall');
+  assert.equal(rows[0].gap, null, 'but there is no previous value to measure against');
+  assert.equal(rows[0].posted, null);
+});
+
+test('a lift posted but never logged in-app still shows, and asks for nothing', () => {
+  // They set it elsewhere and posted it by hand; there is no log to compare.
+  const rows = bsWallYourBest([], [{ liftKey: 'clean', liftLabel: 'Clean', best: 135, unit: 'lb', postedAt: 'x' }]);
+  assert.equal(rows[0].best, 135);
+  assert.equal(rows[0].unposted, false);
+  assert.equal(rows[0].gap, null);
+});
+
+test('a gap is never computed across units', () => {
+  // ⚠ THE NUMBERS HAVE TO BE THE WRONG WAY ROUND FOR THIS TO TEST ANYTHING.
+  // A first version used 100 kg against 225 lb, where the naive subtraction is
+  // negative and yields null anyway — so it passed with the unit check removed.
+  // 250 kg against 225 lb is the case that matters: unguarded it would announce
+  // a confident "25 lb to the wall" out of a conversion that never happened.
+  const rows = bsWallYourBest(
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 250, unit: 'kg' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 225, unit: 'lb', postedAt: 'x' }],
+  );
+  assert.equal(rows[0].gap, null, 'no cross-unit arithmetic');
+  assert.equal(rows[0].unposted, false, 'and no claim that it beats the wall');
+  // the same pair in ONE unit is a real gap, so the guard is not just refusing
+  assert.equal(bsWallYourBest(
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 250, unit: 'lb' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 225, unit: 'lb', postedAt: 'x' }],
+  )[0].gap, 25);
+});
+
+// ── the member's own logged best, out of their set logs ─────────────────────
+
+function bestLifts({ rows = [], error = null, acts = [], actError = null, uid = 'me' } = {}) {
+  const calls = [];
+  const make = (data, err) => {
+    const q = {
+      select: (...a) => { calls.push(['select', ...a]); return q; },
+      eq: (...a) => { calls.push(['eq', ...a]); return q; },
+      not: (...a) => { calls.push(['not', ...a]); return q; },
+      order: (...a) => { calls.push(['order', ...a]); return q; },
+      limit: () => ({ data, error: err }),
+    };
+    return q;
+  };
+  const supabase = { from: (tbl) => { calls.push(['from', tbl]); return tbl === 'activities' ? make(acts, actError) : make(rows, error); } };
+  const body = [extractFn('async function myBestLifts('), 'return { myBestLifts, calls };'].join('\n');
+  // eslint-disable-next-line no-new-func
+  const mod = new Function('supabase', 'state', 'calls', body)(supabase, { user: { id: uid } }, calls);
+  return { run: mod.myBestLifts, calls };
+}
+
+test('the best is the HEAVIEST completed set, not the most recent', () => {
+  // A "best" that tracked the last session would fall every time they deloaded,
+  // and a deload week is not a lost PR.
+  const { run } = bestLifts({ rows: [
+    { move_name: 'Deadlift', actual_load: 205, actual_reps: 5, load_unit: 'lb', created_at: '2026-09-09' },
+    { move_name: 'Deadlift', actual_load: 245, actual_reps: 3, load_unit: 'lb', created_at: '2026-09-02' },
+    { move_name: 'deadlift', actual_load: 225, actual_reps: 3, load_unit: 'lb', created_at: '2026-08-26' },
+  ] });
+  return run().then((res) => {
+    assert.equal(res.stored, 'supabase');
+    assert.equal(res.data.length, 1, 'one row per lift, however it was capitalised');
+    assert.equal(res.data[0].best, 245);
+    assert.equal(res.data[0].reps, 3, 'the reps of the heaviest set, not of the latest');
+  });
+});
+
+test('a set with no load is not a lift, and a failed read is not an empty log', () => {
+  const { run } = bestLifts({ rows: [
+    { move_name: 'Plank', actual_load: null, load_unit: 'lb', created_at: 'x' },
+    { move_name: 'Squat', actual_load: 0, load_unit: 'lb', created_at: 'x' },
+    { move_name: 'Squat', actual_load: 315, load_unit: 'kg', created_at: 'x' },
+  ] });
+  return run().then((res) => {
+    assert.deepEqual(res.data.map((r) => r.liftKey), ['squat']);
+    assert.equal(res.data[0].unit, 'kg', 'the unit comes off the row');
+    return bestLifts({ error: { message: 'boom' } }).run();
+  }).then((res) => {
+    assert.equal(res.stored, 'local');
+    assert.deepEqual(res.data, []);
+    assert.ok(res.error, 'an empty list would claim they have logged nothing');
+  });
+});
+
+test('the read is scoped to the caller and to completed sets', () => {
+  const { run, calls } = bestLifts({ rows: [] });
+  return run().then(() => {
+    assert.ok(calls.some((c) => c[0] === 'from' && c[1] === 'workout_set_logs'));
+    assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'client_id' && c[2] === 'me'), 'their own rows');
+    assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'completed' && c[2] === true), 'completed sets only');
+  });
+});
+
+test('the actionable rows lead', () => {
+  const rows = bsWallYourBest(
+    [{ liftKey: 'row', liftLabel: 'Row', best: 135, unit: 'lb' }],
+    [{ liftKey: 'squat', liftLabel: 'Squat', best: 405, unit: 'lb', postedAt: 'x' }],
+  );
+  assert.equal(rows[0].liftKey, 'row', 'the unposted 135 outranks the posted 405');
+});
+
+test('a PR is not only a lift — every activity type brings its own record', () => {
+  // Owner: "this should apply to all workouts where a PR happens, not just
+  // deadlift, etc." Strength comes from the set logs, endurance from the
+  // activities table's distance column.
+  const { run } = bestLifts({
+    rows: [{ move_name: 'Deadlift', actual_load: 245, actual_reps: 3, load_unit: 'lb', created_at: 'x' }],
+    acts: [
+      { activity_type: 'run', distance_km: 18.2, started_at: 'a' },
+      { activity_type: 'run', distance_km: 12.0, started_at: 'b' },
+      { activity_type: 'ride', distance_km: 40.4, started_at: 'c' },
+      { activity_type: 'swim', distance_km: 2.0, started_at: 'd' },
+    ],
+  });
+  return run().then((res) => {
+    const by = Object.fromEntries(res.data.map((r) => [r.liftKey, r]));
+    assert.equal(by['deadlift'].kind, 'lift');
+    assert.equal(by['distance:run'].best, 18.2, 'the longest run, not the latest');
+    assert.equal(by['distance:run'].liftLabel, 'Longest run');
+    assert.equal(by['distance:run'].unit, 'km');
+    assert.equal(by['distance:ride'].best, 40.4);
+    assert.equal(by['distance:swim'].best, 2);
+    assert.equal(Object.keys(by).length, 4, 'one record per move and per activity type');
+  });
+});
+
+test('a failed endurance read does not take the lifts down with it', () => {
+  // Their lifts are still true; the answer degrades to "no endurance records
+  // known", which is what an empty activities table would mean anyway.
+  const { run } = bestLifts({
+    rows: [{ move_name: 'Squat', actual_load: 315, load_unit: 'lb', created_at: 'x' }],
+    actError: { message: 'boom' },
+  });
+  return run().then((res) => {
+    assert.equal(res.stored, 'supabase');
+    assert.deepEqual(res.data.map((r) => r.liftKey), ['squat']);
+  });
+});
+
+test('an activity with no distance is not a distance record', () => {
+  const { run } = bestLifts({ rows: [], acts: [
+    { activity_type: 'yoga', distance_km: null, started_at: 'a' },
+    { activity_type: 'run', distance_km: 0, started_at: 'b' },
+  ] });
+  return run().then((res) => assert.deepEqual(res.data, []));
 });
