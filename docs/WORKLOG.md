@@ -550,9 +550,40 @@ Append new entries at the top, under this note.
   rewrite that renames a variable**. The row's state, the notices and the marks merge are pure
   functions now and are **executed**. Measured, not argued: a source check that the prune's
   cutoff is *computed* stayed green while the comparison applying it was deleted.
-- **Verified:** `npm test` **2736/2736** · `tsc --noEmit` 0 · JSX parse on both changed modules
-  · the newdesign precompile check · **26 mutations killed across two rounds**, each **proven to
-  land** — and *two of the three survivors were no-op mutations of mine*, which is the same
+- ⚠ **AND THE CODEX ROUND ON THE FIXED HEAD FOUND A SILENT LOSS THAT MY OWN PREVIOUS FIX
+  HAD OPENED.** The round above added a **rollback** for a failed save — which made the
+  `error` state genuinely reachable while leaving one arm **unrollbackable** (a failed
+  *read* has nothing to roll back TO), and nothing reconciled it. So: mark A's read fails,
+  its paint stays and the state goes `error`; mark B reads and saves fine; a bare
+  `kind: "ready"` then showed **both as saved while the server held only B**, and A vanished
+  on reload. A success now sets the document to **what it actually wrote**, and only once
+  the lane is empty — reconciling mid-lane would erase the optimistic paint of a write still
+  queued behind it. *A fix that makes a state reachable owes that state a definition.*
+- ⚠ **AND AN UNKNOWN INITIATING ACCOUNT WAS TREATED AS A PASS.** The guard read
+  `startUid && nowUid !== startUid`, which **skips the comparison in exactly the case that
+  cannot be checked**: a transient failure of the hydrate's own uid read left every later
+  whole-document write unguarded, so an account switch mid-flight could upsert coach A's
+  blob into B's row — the cross-account class this file has now paid for four times. It is
+  resolved late when missing (so one bad read does not disable writes forever) and compared
+  **unconditionally**; an id that still will not resolve refuses the write.
+- ⚠ **AND THE WEEK KEY NEEDED A CLOCK, NOT JUST A DEPENDENCY.** Computing it during render
+  **does not cause a render**, so a dashboard left open and idle across local Monday midnight
+  kept showing last week's marks and last week's ledger indefinitely — the dependency added
+  in the round above is necessary and **not sufficient**. It polls rather than scheduling one
+  timeout to the boundary, because a timeout is wrong after a laptop sleeps through it or the
+  clock moves; the comparison only sets state when the key has actually changed, so an idle
+  panel re-renders 52 times a year.
+- ⚠ **AND MY OWN GUARD BROKE ON THE CORRECT FIX FOR THE FOURTH TIME IN THIS WAVE.** The
+  account-binding test pinned the exact text of four branches, so making three of them
+  **stricter** failed a test about something else entirely. Re-anchored on the invariants it
+  cares about. **Two of my own new assertions were wrong on their first run too**: one
+  compared the bridge against `getUserGoals`'s FIRST occurrence — which is the capability
+  check `if (!db || !db.getUserGoals)`, sitting *before* it — and one used `[^}]*` across a
+  span containing a closing brace. Both would have failed correct code. *A guard is code, and
+  it gets the same scrutiny or it is decoration.*
+- **Verified:** `npm test` **2739/2739** · `tsc --noEmit` 0 · JSX parse on both changed modules
+  · the newdesign precompile check · **39 mutations killed across three rounds**, each **proven
+  to land** — and *three of the four survivors were no-op mutations of mine*, which is the same
   broken-instrument lesson this file keeps paying for · headless renders of both Today tabs at
   1440, 1024 and 390px with zero page errors. Route registered in the War Room. No migration.
 - ⚠ **STILL A SIMULATED LIVE STATE.** Every "live" check in this wave stubs the API responses.
