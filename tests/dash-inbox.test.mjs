@@ -14,12 +14,25 @@ const SHELL = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.m
 const CLIENT_APP = readFileSync(new URL('../public/newdesign/ClientApp.html', import.meta.url), 'utf8');
 const CLEAN = stripComments(SHELL);
 
+// ⚠ THE BODY STARTS AFTER THE PARAMETER LIST, AND THIS DID NOT. Counting braces from
+// `function NAME(` makes a DESTRUCTURED parameter — `function DashInbox({ signedIn })` —
+// open and close the count on its own, so `grab` returned the 44-character signature and
+// nothing else. Every assertion made against it was vacuously true: a mutation that put
+// a second `fetch` back inside the component SURVIVED, because the guard was reading a
+// string that could not contain one. Caught by the mutation round, not by reading.
+// Skip to the `)` that closes the parameters first; the body's `{` is the next one.
 function grab(name) {
   const at = CLEAN.indexOf('function ' + name + '(');
   assert.ok(at > 0, name + ' moved');
-  let d = 0, seen = false, k = at;
+  let p = 0, k = CLEAN.indexOf('(', at);
+  for (; k < CLEAN.length; k++) { const c = CLEAN[k]; if (c === '(') p++; else if (c === ')') { p--; if (!p) { k++; break; } } }
+  let d = 0, seen = false;
   for (; k < CLEAN.length; k++) { const c = CLEAN[k]; if (c === '{') { d++; seen = true; } else if (c === '}') { d--; if (seen && !d) { k++; break; } } }
-  return CLEAN.slice(at, k);
+  const body = CLEAN.slice(at, k);
+  // A signature with no body is the failure above, silently.
+  assert.ok(body.length > name.length + 40 && /\{[\s\S]*\breturn\b|\{[\s\S]{40,}/.test(body),
+    'grab(' + name + ') returned ' + body.length + ' chars — it stopped at the parameter list');
+  return body;
 }
 const ROUTES_SRC = CLEAN.slice(CLEAN.indexOf('const DASH_INBOX_ROUTES'), CLEAN.indexOf('function dashInboxHref'));
 const api = (win, shellHref) => new Function('window', 'dashShellHref',
