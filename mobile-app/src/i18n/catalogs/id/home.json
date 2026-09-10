@@ -16,6 +16,8 @@
   "aria.today": "hari ini",
   "bulletin.checkin": "Check-in tertunda",
   "bulletin.checkinDetail": "Energi · tidur · 30 dtk",
+  "bulletin.onTheWall": "Ada di dinding",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Check-in mingguan tertunda",
   "bulletin.weeklyCheckinDetail": "2 mnt",
   "card.training": "Latihan",

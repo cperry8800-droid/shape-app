@@ -16,6 +16,8 @@
   "aria.today": "сегодня",
   "bulletin.checkin": "Нужен чек-ин",
   "bulletin.checkinDetail": "Энергия · сон · 30 сек",
+  "bulletin.onTheWall": "На стене",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Нужен недельный чек-ин",
   "bulletin.weeklyCheckinDetail": "2 мин",
   "card.training": "Тренировка",

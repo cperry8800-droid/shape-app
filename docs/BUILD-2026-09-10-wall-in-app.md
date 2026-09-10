@@ -1,5 +1,12 @@
 # Build brief — the Wall in the app (2026-09-10)
 
+> ⚠ **BUILT 2026-09-10.** The migration, the public read, the Wall segment, *Your best*,
+> *Post a PR* and the Home entry point all shipped — see the WORKLOG entry of the same date for
+> what changed against this plan (the Home card registry this brief points at turned out to be dead
+> code; a session's PRs are deliberately not linked to the session post). **The migration is owed on
+> Supabase.** What remains from §7: the coach Today-rail one-tap Stamp, and the website's use of the
+> same read (on hold with the website).
+
 **Spec:** [`REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md) §7, approved by the
 owner (*"looks good i like it"*), then *"yes lets implement the new chat/wall look on app"* and
 *"lets put the website update on hold for now"*. **Scope of this build: the app only** — the

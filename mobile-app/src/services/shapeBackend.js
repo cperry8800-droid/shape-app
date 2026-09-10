@@ -3248,21 +3248,31 @@ async function saveWorkoutSessionLog({
   };
 }
 
+// A post id is only ever forwarded when it LOOKS like one. The RPC is the
+// authority (it re-checks ownership), but sending a non-uuid would make
+// PostgREST reject the whole call and lose the record itself.
+const BS_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // PR Wall — announce a new personal record to the community PR Wall channel.
 // post_my_pr_to_wall re-checks the caller is a PUBLIC profile and that the value
 // beats their last posted best for that lift (dedupe ledger), so this is safe to
 // over-call. Applies to every role.
-async function postPRToWall({ lift, value, unit = 'lb', reps = null } = {}) {
+async function postPRToWall({ lift, value, unit = 'lb', reps = null, postId = null } = {}) {
   if (!supabase || !state.user?.id) return { ok: false };
   const name = String(lift || '').trim();
   const v = Number(value);
   if (!name || !Number.isFinite(v) || v <= 0) return { ok: false };
+  // The post this record IS, so the Wall plate can carry its stats, breakdown,
+  // co-sign and reactions. Only a uuid is forwarded — the RPC re-checks the
+  // caller wrote that post, so a wrong id degrades to a bare record, never to
+  // somebody else's activity under this member's name.
+  const pid = BS_UUID_RE.test(String(postId || '')) ? String(postId) : null;
   try {
     const res = await fetch(`${apiBaseUrl || ''}/api/community/pr-wall`, {
       method: 'POST',
       headers: { ...sessionsAuthHeaders(), 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ lift: name, value: v, unit, reps: reps != null ? Number(reps) : null }),
+      body: JSON.stringify({ lift: name, value: v, unit, reps: reps != null ? Number(reps) : null, postId: pid }),
     });
     return res.ok ? await res.json().catch(() => ({ ok: false })) : { ok: false };
   } catch (e) { return { ok: false }; }
@@ -3277,19 +3287,124 @@ async function announcePRsFromSetLogs(setLogs = []) {
     for (const e of (setLogs || [])) {
       if (!e || e.completed === false) continue;
       const lift = String(e.moveName || e.move || e.exercise || '').trim();
-      const load = parseFloat(String(e.actualLoad ?? e.load ?? e.actual_load ?? '').replace(/[^0-9.]/g, ''));
+      const rawLoad = String(e.actualLoad ?? e.load ?? e.actual_load ?? '');
+      const load = parseFloat(rawLoad.replace(/[^0-9.]/g, ''));
       if (!lift || !Number.isFinite(load) || load <= 0) continue;
+      // ⚠ THE UNIT IS READ, NOT ASSUMED. This hardcoded 'lb' until 2026-09-10,
+      // which was invisible while a PR was only a line of chat text — the Wall
+      // prints the unit beside the number and computes a delta against the
+      // stored best, so a kg lifter's 100 kg was headlined "100 lb" and could
+      // produce a cross-unit "↑ +110 lb over last best". Same detection the
+      // community composer uses (`/kg/i` on the entered load).
+      const unit = /kg/i.test(rawLoad) ? 'kg' : 'lb';
       const reps = parseInt(String(e.actualReps ?? e.reps ?? e.actual_reps ?? ''), 10);
       const prev = best.get(lift);
-      if (!prev || load > prev.load) best.set(lift, { load, reps: Number.isFinite(reps) ? reps : null });
+      if (!prev || load > prev.load) best.set(lift, { load, unit, reps: Number.isFinite(reps) ? reps : null });
     }
-    for (const [lift, { load, reps }] of [...best.entries()].slice(0, 6)) {
-      await postPRToWall({ lift, value: load, unit: 'lb', reps });
+    // ⚠ NO postId. A session can contain several PRs and there is ONE feed post
+    // for the whole session, so linking it to each would point every one of
+    // those ledger rows at the same activity: the Wall would render the same
+    // card two or three times, and — because the card files reactions,
+    // comments and open-state under the post's id — tapping comment on one
+    // plate would open the composer on all of them. It is also the wrong
+    // evidence: that post's hero is the SESSION (sets, rest, elapsed), not this
+    // lift's record. Session-detected PRs therefore land as bare records, and a
+    // per-lift record post is registered as follow-up.
+    for (const [lift, { load, unit, reps }] of [...best.entries()].slice(0, 6)) {
+      await postPRToWall({ lift, value: load, unit, reps });
     }
   } catch (e) { /* best-effort */ }
 }
 
-window.ShapePRWall = { post: postPRToWall, announce: announcePRsFromSetLogs };
+// ── The Wall ────────────────────────────────────────────────────────────────
+// One ledger row per member per lift, newest first, with the community post
+// that IS the record attached when there is one.
+//
+// ⚠ A FAILED READ RETURNS `{ stored: 'local', data: [], error }`, NEVER A BARE
+// EMPTY LIST. An empty wall is the positive claim "nobody has set a record",
+// and a surface that cannot tell that apart from "we could not read" will say
+// the first when the truth is the second.
+//
+// ⚠ THE POSTS ARE FETCHED SEPARATELY, UNDER THE CALLER'S OWN RLS. The definer
+// returns a post ID, not a post: whether the caller may SEE that post is
+// `community_posts`' policy to decide, not this function's. A post the caller
+// cannot read simply comes back missing and the row renders as a bare record —
+// which is why a missing post is not an error here.
+function bsPRWallRow(r, byId) {
+  return {
+    userId: r.user_id,
+    name: r.full_name || 'Shape member',
+    avatarUrl: r.avatar_url || '',
+    role: r.role || 'client',
+    liftKey: r.lift_key,
+    liftLabel: r.lift_label || r.lift_key,
+    best: Number(r.best_value),
+    prev: r.prev_value == null ? null : Number(r.prev_value),
+    unit: r.unit || 'lb',
+    reps: r.reps == null ? null : Number(r.reps),
+    postedAt: r.posted_at,
+    postId: r.post_id || null,
+    post: (r.post_id && byId[r.post_id]) || null,
+  };
+}
+
+async function listPRWall({ limit = 40, lift = '', scope = 'everyone' } = {}) {
+  if (!supabase) return { stored: 'local', data: [] };
+  const cleanLift = String(lift || '').trim();
+  const { data, error } = await supabase.rpc('shape_pr_wall', {
+    p_limit: Math.max(1, Math.min(Number(limit) || 40, 200)),
+    p_lift: cleanLift && cleanLift.toLowerCase() !== 'all' ? cleanLift : null,
+    p_scope: scope || 'everyone',
+  });
+  if (error) return { stored: 'local', data: [], error };
+
+  const rows = data || [];
+  const postIds = [...new Set(rows.map((r) => r.post_id).filter(Boolean))];
+  const byId = {};
+  if (postIds.length) {
+    // A failed POST read is not a failed WALL read — the records are still
+    // true, they just lose their evidence. Degrade to bare rows.
+    const { data: posts, error: postErr } = await supabase
+      .from('community_posts').select(COMMUNITY_POST_SELECT).in('id', postIds);
+    if (!postErr) for (const row of (posts || [])) byId[row.id] = communityPostFromRow(row);
+  }
+  return { stored: 'supabase', data: rows.map((r) => bsPRWallRow(r, byId)) };
+}
+
+// The caller's own ledger — "Your best". Read under the owner policy on
+// pr_wall_posts, so it needs no definer and shows a private member their own
+// records even though the wall itself will never carry them.
+async function myPRLedger() {
+  const uid = state.user?.id;
+  if (!supabase || !uid) return { stored: 'local', data: [] };
+  const { data, error } = await supabase
+    .from('pr_wall_posts')
+    .select('lift_key, lift_label, best_value, prev_value, unit, reps, posted_at, post_id')
+    .eq('user_id', uid)
+    .order('posted_at', { ascending: false })
+    .limit(50);
+  if (error) return { stored: 'local', data: [], error };
+  return {
+    stored: 'supabase',
+    data: (data || []).map((r) => ({
+      liftKey: r.lift_key,
+      liftLabel: r.lift_label || r.lift_key,
+      best: Number(r.best_value),
+      prev: r.prev_value == null ? null : Number(r.prev_value),
+      unit: r.unit || 'lb',
+      reps: r.reps == null ? null : Number(r.reps),
+      postedAt: r.posted_at,
+      postId: r.post_id || null,
+    })),
+  };
+}
+
+window.ShapePRWall = {
+  post: postPRToWall,
+  announce: announcePRsFromSetLogs,
+  list: listPRWall,
+  mine: myPRLedger,
+};
 
 function privacyToDb(value) {
   const clean = String(value || '').toLowerCase();
@@ -3427,7 +3542,6 @@ async function createCommunityPost({
         mergedMetrics.delta = `+${gain} ${_unit}${when}`;
       }
     } catch (e) { /* delta is best-effort */ }
-    try { if (window.ShapePRWall && window.ShapePRWall.post) window.ShapePRWall.post({ lift: _lift, value: _loadNum, unit: _unit }); } catch (e) {}
   }
   const payload = {
     author_id: state.user.id,
@@ -3472,6 +3586,21 @@ async function createCommunityPost({
   // backs this up server-side for the web route).
   if (data?.id && !autoShare && !skipAward) {
     try { await supabase.rpc('award_community_post', { p_post_id: data.id }); invalidateClientMetrics(); } catch (e) {}
+  }
+
+  // Announce the PR — AFTER the insert, so the ledger row can carry the post
+  // that IS the record. The Wall reads that link to render the plate's stats,
+  // breakdown, co-sign and reactions; announcing before the insert (as this
+  // did until 2026-09-10) leaves every ledger row pointing at nothing, and a
+  // failed insert would have advanced the ledger for a record that was never
+  // posted. The RPC re-gates on public + genuine-best, so it stays safe to
+  // over-call. Best-effort: never blocks or fails the post.
+  if (state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
+    try {
+      if (window.ShapePRWall && window.ShapePRWall.post) {
+        window.ShapePRWall.post({ lift: _lift, value: _loadNum, unit: _unit, postId: data?.id || null });
+      }
+    } catch (e) {}
   }
 
   return { stored: 'supabase', data: communityPostFromRow(data) };

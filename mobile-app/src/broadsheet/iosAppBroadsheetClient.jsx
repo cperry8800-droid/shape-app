@@ -663,6 +663,19 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
 
+  // Chat → The Wall. Same shape as goCommunity, but it carries a request the
+  // chat page's openRequest effect reads, so the segment is chosen by the
+  // caller rather than by whatever tab the page was last left on.
+  React.useEffect(() => {
+    const open = () => {
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setChatRequest({ wall: true, nonce: Date.now() }); setTab('chat');
+    };
+    window.addEventListener('shape:goWall', open);
+    return () => window.removeEventListener('shape:goWall', open);
+  }, []);
+
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
   React.useEffect(() => {
@@ -3864,6 +3877,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
+      {/* ⚠ THE WALL BULLETIN YIELDS TO THE WEEKLY CHECK-IN, so the block keeps
+          its documented max of two. BSTodayNudge above self-gates on whether
+          today's check-in is logged, and the weekly one on `checkinDue` — this
+          third line renders only when the weekly one is not, which bounds the
+          block at two however those two resolve. It is the lowest-priority of
+          the three: somebody else's record is worth leaving the page for, but
+          never ahead of the member's own overdue check-in. */}
+      {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
 
       {/* ★ THE LEAD renders INSIDE the slate's rail now (concept B) — see
           _leadBlock above. Timed leads (workout / meal) thread at their slot;
@@ -17345,6 +17366,18 @@ function useBSCardSheets() {
 // community feed builds it once per render, the profile builds a slim version
 // (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
 // `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
+// The identity a reaction, a co-sign and a local comment are filed under. Real
+// posts carry a stable `key` (`post-<id>`); demo cards have none, so they fall
+// back to who-and-when.
+//
+// ⚠ ONE COPY, BECAUSE TWO SURFACES READ THE SAME MAPS WITH IT. The Wall plate
+// derived its own `a.key` and got `undefined` for every demo card — so a coach
+// co-signing one would have left the plate still reading "not yet stamped"
+// under the co-sign line the card had already drawn.
+function bsActivityKey(a) {
+  return (a && a.key) || `${a && a.who}|${a && a.ago}`;
+}
+
 function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0 }) {
   const tr = useShapeTr();
   const {
@@ -17362,7 +17395,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : (a.tier || bsPostTier({ who: a.who }));
     const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
     const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
-    const key = a.key || `${a.who}|${a.ago}`;
+    const key = bsActivityKey(a);
     // Dispatch rail heat — role color, NOT tier (tier stays on the avatar ring
     // only). Spec §1's literals: client teal + nutritionist gold are LIGHT/DARK
     // pairs (the older roleColor() helper elsewhere in this file carries only
@@ -17842,6 +17875,495 @@ const COMMUNITY_ACTIVITIES = [
   { kind: 'workout', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '5d', body: 'Everything moved well. RPE 8 across the board, no missed reps.', title: 'Lower push · Block 2', duration: '48 min', exercises: 5, rpe: 8, kudos: 11, replies: 1, stats: [['Top set', '245 lb'], ['Total sets', '18'], ['Avg HR', '136 bpm'], ['Max HR', '159 bpm'], ['Calories', '440'], ['Volume', '9,120 lb']], zones: [['Z1', 32], ['Z2', 36], ['Z3', 22], ['Z4', 8], ['Z5', 2]], trace: [102, 116, 130, 118, 108, 122, 138, 126, 112, 124, 144, 132, 116, 128, 148, 136, 118, 130, 150, 138, 120, 132, 146, 134, 114, 126, 142, 128, 110, 106], breakdown: { label: 'Working sets', rows: [['Back squat', '4 × 5 @ 245', 'RPE 8'], ['RDL', '3 × 8 @ 185', 'RPE 8'], ['Leg press', '3 × 12', 'RPE 7'], ['Accessories', '2 circuits', 'RPE 6']] } },
 ];
 
+// ── The Wall ────────────────────────────────────────────────────────────────
+// A record board, not a conversation (review 2026-09-10 §7). Every plate is a
+// new best out of `pr_wall_posts`: the number, the delta over that member's own
+// last best, and — when the record was posted from the app — the WHOLE activity
+// record the feed already renders. The owner's words: "make sure each activity
+// that is logged on the wall displays the stats that is already implemented. I
+// want all of the information that is currently displayed incorporated in the
+// new design."
+//
+// ⚠ THE PLATE DOES NOT RE-IMPLEMENT THE RECORD — IT WRAPS `BSActivityCard`.
+// The stats grid, the zones, the trace, the breakdown with the record row
+// marked, "Session details · full activity", the coach's co-sign, the
+// followed-liker facepile, the typed reactions, comments, share, send and
+// repost are all that component's, and they arrive here by rendering it. So
+// anything the feed learns to show, the Wall shows the same day, and one
+// activity can never read two different ways on two surfaces.
+
+// The gain over the member's OWN previous best. Null when there is nothing to
+// be better than (their first record for that lift), which the plate then says
+// in words — printing "↑ +245" against no prior best would be a claim about a
+// comparison that never happened.
+function bsWallGain(best, prev) {
+  // ⚠ THE null/undefined TEST COMES FIRST, AND IT IS NOT REDUNDANT WITH
+  // isFinite: `Number(null)` is 0, which IS finite — so a member's FIRST record
+  // for a lift, whose prev_value is null by definition, computed a gain of the
+  // whole number and rendered "↑ +245 lb over last best" against a best that
+  // never existed. Caught by the guard, not by reading.
+  if (best == null || prev == null || best === '' || prev === '') return null;
+  const b = Number(best);
+  const p = Number(prev);
+  if (!Number.isFinite(b) || !Number.isFinite(p)) return null;
+  const raw = b - p;
+  if (!(raw > 0)) return null;
+  // ⚠ A REAL IMPROVEMENT MUST NEVER ROUND AWAY TO NOTHING. The RPC accepts any
+  // value strictly greater than the stored best, so 245 → 245.02 IS a new
+  // record — and at one decimal place its gain rounded to 0, which the plate
+  // then read as "no gain". Fall through to finer places rather than reporting
+  // a beaten best as no change.
+  const r1 = Math.round(raw * 10) / 10;
+  if (r1 > 0) return r1;
+  const r2 = Math.round(raw * 100) / 100;
+  return r2 > 0 ? r2 : raw;
+}
+
+// 245, not 245.0 — but 18.2 stays 18.2. A record board reads as numbers, and a
+// trailing zero is noise on every one of them.
+function bsWallNum(v) {
+  // Same trap as bsWallGain: `Number(null)` is 0, so an absent figure rendered a
+  // confident "0" where it should render nothing at all.
+  if (v == null || v === '') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  // ⚠ THE FEWEST DECIMALS THAT DO NOT PRINT A REAL NUMBER AS ZERO. A record
+  // board reads as whole numbers — 245, not 245.0 — but a genuine gain of
+  // 0.02 kg formatted at one decimal place became "+0", which says the
+  // opposite of what happened. Widen only as far as the value needs.
+  for (const places of [1, 2, 3, 4]) {
+    const f = Math.pow(10, places);
+    const r = Math.round(n * f) / f;
+    if (r !== 0 || n === 0) return String(r);
+  }
+  return String(n);
+}
+
+// The ONE place that decides what a record's header states. Kept pure and apart
+// from the JSX so the reading can be driven by a test: `first` and `gain` are
+// mutually exclusive by construction, so no plate can ever claim both a first
+// record and an improvement on it.
+function bsWallHeader(rec) {
+  const gain = bsWallGain(rec && rec.best, rec && rec.prev);
+  // ⚠ "FIRST" IS WHETHER A PREVIOUS BEST EXISTS — NOT WHETHER A GAIN COULD BE
+  // COMPUTED FROM IT. Deriving it from `gain == null` meant any record whose
+  // improvement failed to produce a number (a rounding edge, a malformed stored
+  // value) was announced as the member's first on the wall while the ledger
+  // held a prior best. The two are different questions and they are asked
+  // separately now.
+  const prev = rec && rec.prev;
+  return {
+    label: String((rec && (rec.liftLabel || rec.liftKey)) || '').trim(),
+    figure: bsWallNum(rec && rec.best),
+    unit: String((rec && rec.unit) || 'lb'),
+    reps: (rec && Number.isFinite(Number(rec.reps)) && Number(rec.reps) > 1) ? Number(rec.reps) : null,
+    gain,
+    first: prev == null || prev === '',
+  };
+}
+
+// The lifts actually present in the loaded rows — the filter must never offer a
+// lift the wall cannot show, and must never hide one it can.
+function bsWallLifts(rows) {
+  const seen = new Map();
+  for (const r of (rows || [])) {
+    if (!r || !r.liftKey || seen.has(r.liftKey)) continue;
+    seen.set(r.liftKey, r.liftLabel || r.liftKey);
+  }
+  return [...seen.entries()].map(([key, label]) => ({ key, label }));
+}
+
+// Sample records for the SIGNED-OUT preview only. Each one is matched to a demo
+// activity in COMMUNITY_ACTIVITIES by name, so the preview's plate carries that
+// record's real demo stats, zones, trace and breakdown rather than a second,
+// disagreeing copy of them.
+//
+// ⚠ Quinn Harper's carries NO `prev` and Priya Shah's is the only co-signed
+// one, both on purpose: the preview has to show the "first on the wall" state
+// and an unstamped plate, because those are states a real wall spends most of
+// its time in. The co-sign is read from the demo activity itself — inventing
+// one here would make the same record read differently on the Wall and the
+// Feed, which is exactly what wrapping the card exists to prevent.
+// lb / kg are unit SYMBOLS, not copy — no locale renames them, and keying them
+// would ship thirteen identical values a translator must not touch. Held as a
+// constant so the select never carries a literal for the i18n walk to find.
+const BS_WALL_UNITS = ['lb', 'kg'];
+
+const BS_WALL_DEMO = [
+  { who: 'Priya Shah',    liftKey: 'deadlift',   liftLabel: 'Deadlift',    best: 245,  prev: 235,  unit: 'lb', reps: 3 },
+  { who: 'Drew Oyelaran', liftKey: 'long run',   liftLabel: 'Long run',    best: 18.2, prev: 16.4, unit: 'mi', reps: null },
+  { who: 'Lena Fischer',  liftKey: 'pool swim',  liftLabel: 'Pool swim',   best: 2000, prev: 1600, unit: 'm',  reps: null },
+  { who: 'Devon Wells',   liftKey: 'bench press', liftLabel: 'Bench Press', best: 225, prev: 215,  unit: 'lb', reps: 5 },
+  { who: 'Marcus Bell',   liftKey: 'peak power', liftLabel: 'Peak power',  best: 612,  prev: 588,  unit: 'W',  reps: null },
+  { who: 'Quinn Harper',  liftKey: 'back squat', liftLabel: 'Back Squat',  best: 247,  prev: null, unit: 'lb', reps: 3 },
+];
+
+function bsWallDemoRows() {
+  return BS_WALL_DEMO.map((d) => {
+    const act = COMMUNITY_ACTIVITIES.find((a) => a.who === d.who) || null;
+    return {
+      key: `demo-${d.liftKey}-${d.who}`,
+      userId: null,
+      name: d.who,
+      liftKey: d.liftKey,
+      liftLabel: d.liftLabel,
+      best: d.best,
+      prev: d.prev,
+      unit: d.unit,
+      reps: d.reps,
+      ago: (act && act.ago) || '',
+      act,
+    };
+  }).filter((r) => r.act);
+}
+
+// One record. The header is the Wall's; everything under it is the feed's card.
+function BSWallPlate({ rec, ctx, newest }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const h = bsWallHeader(rec);
+  const a = rec.act;
+  // A stamped record is one a coach has co-signed — either already, or by this
+  // viewing coach a moment ago (the optimistic co-sign the card itself reads).
+  // Anything else says so, because a stamp nobody withholds is worth nothing.
+  const stamped = !!(a && (a.cosign || (ctx.feedCtx.actCoSign && ctx.feedCtx.actCoSign[bsActivityKey(a)])));
+  return (
+    // ⚠ THE PLATE ADDS NO SIDE INSET, AND THE HEADER PADS ITSELF INSTEAD.
+    // The card is built for the page's own width — the community feed renders
+    // it inside a container with NO horizontal padding at all — so every pixel
+    // a frame takes off the sides is a pixel its author row loses. Measured at
+    // 375px with a 14px inset: Drew Oyelaran's row ran 12px past the frame with
+    // `overflow: visible` (silently), and Priya's `PEAK · CLIENT` collided with
+    // the STRENGTH tag while the same card on the Feed had room for both. With
+    // no inset the card gets exactly the width it gets on the Feed, and the
+    // 3px spine reads as the frame's left edge rather than eating into it.
+    <BSPlate c={teal} tick={!!newest} pad="12px 0 10px" style={{ marginBottom: 12 }}>
+      {/* BSPlate draws the live tick at left:8, 6px wide — so on the newest
+          plate the eyebrow needs the room or it reads as one glyph joined to
+          the mark. */}
+      <div style={{ padding: `0 14px 0 ${newest ? 22 : 15}px` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {tr('feed:wall.newBest', { defaultValue: 'New best' })}{h.label ? ` · ${h.label}` : ''}
+        </div>
+        {rec.ago && <div style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{rec.ago}</div>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{h.figure}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{h.unit}</span>
+        {h.reps != null && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>× {h.reps}</span>}
+      </div>
+      {(h.first || h.gain != null) && (
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: h.first ? t.INK50 : teal }}>
+          {h.first
+            ? tr('feed:wall.first', { defaultValue: 'First on the wall' })
+            : tr('feed:wall.over', { defaultValue: '↑ +{gain} {unit} over last best', gain: bsWallNum(h.gain), unit: h.unit })}
+        </div>
+      )}
+      </div>
+      {/* ⚠ A BARE RECORD STILL NAMES ITS MEMBER. The attribution a plate usually
+          shows lives inside the wrapped card — so a row whose post is missing
+          (an older ledger row, one posted from outside the app, or one whose
+          post this caller cannot read) was an anonymous number on a board of
+          other people's records. */}
+      {!a && rec.name && (
+        <div style={{ marginTop: 6, padding: `0 14px 0 ${newest ? 22 : 15}px`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BSFacetAvatar size={26} c={bsTierColor(bsPostTier({ who: rec.name }))} initial={bsInitials(rec.name) || '?'} photo={rec.avatarUrl || undefined} showRank={false} />
+          <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.name}</span>
+        </div>
+      )}
+      {a && (
+        <div style={{ marginTop: 8, borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}` }}>
+          {/* pagePad 0 + isLast: the card's media strip bleeds 12px, which stays
+              inside this plate's 14px inset, and the trailing feed rule would
+              draw a second line under a frame that already has an edge. */}
+          <BSActivityCard a={a} ctx={ctx.feedCtx} isLast pagePad={0} />
+        </div>
+      )}
+      {a && !stamped && (
+        <div style={{ marginTop: 2, padding: '0 14px 0 15px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+          {tr('feed:wall.notStamped', { defaultValue: 'Not yet stamped' })}
+        </div>
+      )}
+    </BSPlate>
+  );
+}
+
+// Post a PR — for a lift set somewhere the app was not watching. The RPC is the
+// authority on whether it lands: it re-checks the profile is public and that
+// the value beats the member's own best, and this sheet reports back whichever
+// answer it gives rather than claiming success.
+function BSWallPostSheet({ onClose, onPosted }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [lift, setLift] = useStateBSC('');
+  const [value, setValue] = useStateBSC('');
+  const [unit, setUnit] = useStateBSC('lb');
+  const [reps, setReps] = useStateBSC('');
+  const [busy, setBusy] = useStateBSC(false);
+  const ready = !!lift.trim() && Number(value) > 0 && !busy;
+  const submit = async () => {
+    if (!ready) return;
+    setBusy(true);
+    let res = null;
+    try {
+      res = await (window.ShapePRWall && window.ShapePRWall.post
+        ? window.ShapePRWall.post({ lift: lift.trim(), value: Number(value), unit, reps: reps ? Number(reps) : null })
+        : null);
+    } catch (e) { res = null; }
+    setBusy(false);
+    const reason = (res && res.reason) || (res && res.ok ? 'ok' : 'error');
+    if (res && res.ok) {
+      window.__bsToast?.(tr('feed:wall.posted', { defaultValue: 'On the wall.' }), 'ok');
+      onPosted && onPosted();
+      onClose && onClose();
+      return;
+    }
+    // Every refusal has a reason the member can act on, so none of them are
+    // reported as a generic failure.
+    if (reason === 'not_public') window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info');
+    else if (reason === 'not_a_pr') window.__bsToast?.(tr('feed:wall.notAPR', { defaultValue: 'That does not beat your best for this lift yet.' }), 'info');
+    else window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error');
+  };
+  const field = { height: 40, width: '100%', boxSizing: 'border-box', background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 8, padding: '0 12px', fontFamily: t.BODY, fontSize: 15, color: t.INK, outline: 'none' };
+  const lab = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 };
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('feed:wall.postPRTitle', { defaultValue: 'Post a record' })}
+        style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `16px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.45)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('feed:wall.newBest', { defaultValue: 'New best' })}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', margin: '3px 0 14px' }}>{tr('feed:wall.postPRTitle', { defaultValue: 'Post a record' })}</div>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <label style={{ display: 'block' }}>
+            <span style={lab}>{tr('feed:wall.lift', { defaultValue: 'Lift' })}</span>
+            <input value={lift} onChange={(e) => setLift(e.target.value)} placeholder={tr('feed:wall.liftPlaceholder', { defaultValue: 'Back squat' })} style={field} />
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 88px 88px', gap: 10 }}>
+            <label style={{ display: 'block', minWidth: 0 }}>
+              <span style={lab}>{tr('feed:wall.value', { defaultValue: 'Value' })}</span>
+              <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" style={{ ...field, fontVariantNumeric: 'tabular-nums' }} />
+            </label>
+            <label style={{ display: 'block', minWidth: 0 }}>
+              <span style={lab}>{tr('feed:wall.unit', { defaultValue: 'Unit' })}</span>
+              <select value={unit} onChange={(e) => setUnit(e.target.value)} style={{ ...field, appearance: 'none', WebkitAppearance: 'none' }}>
+                {BS_WALL_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'block', minWidth: 0 }}>
+              <span style={lab}>{tr('feed:wall.reps', { defaultValue: 'Reps' })}</span>
+              <input value={reps} onChange={(e) => setReps(e.target.value)} inputMode="numeric" style={{ ...field, fontVariantNumeric: 'tabular-nums' }} />
+            </label>
+          </div>
+        </div>
+        <button onClick={submit} disabled={!ready}
+          style={{ marginTop: 16, width: '100%', minHeight: 46, border: 0, borderRadius: 10, background: ready ? teal : t.SURFACE, color: ready ? '#031f1c' : t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: ready ? 'pointer' : 'default' }}>
+          {busy ? tr('feed:wall.posting', { defaultValue: 'Posting…' }) : tr('feed:wall.postPR', { defaultValue: 'Post a PR' })}
+        </button>
+      </div>
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+  );
+}
+
+// The Wall segment. Mounted from BSClientFeed's tab branch, so the masthead,
+// the online rail and its hide/show control are already above it — the owner's
+// "make sure the wall concept includes the hide/show option for who is online"
+// is met by WHERE this sits, not by anything in here.
+function BSWall({ ctx }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const { loggedIn, myRole, bsSubTab, hair, muted, cardInk } = ctx;
+  const isCoach = myRole === 'trainer' || myRole === 'nutritionist';
+  const [scope, setScope] = useStateBSC('everyone');
+  const [lift, setLift] = useStateBSC('all');
+  // Three states, kept apart on purpose: null = still reading, [] = read and
+  // genuinely empty, { error } = could not read. An empty wall is the positive
+  // claim "nobody has set a record", and a surface that cannot tell that from
+  // "the read failed" will say the first when the truth is the second.
+  const [rows, setRows] = useStateBSC(null);
+  const [mine, setMine] = useStateBSC(null);
+  const [sheet, setSheet] = useStateBSC(false);
+  const [nonce, setNonce] = useStateBSC(0);
+
+  // ⚠ THE SIGNED-OUT BOARD IS DERIVED AT RENDER, NOT SET BY AN EFFECT. A preview
+  // visitor has nothing to fetch, so routing them through a loading state would
+  // paint "Reading the wall…" at somebody who will never see a wall — and it
+  // would make the preview's content depend on an effect having run, which is
+  // exactly the shape that cannot be driven.
+  React.useEffect(() => {
+    if (!loggedIn) return undefined;
+    let dead = false;
+    setRows(null);
+    const list = window.ShapePRWall && window.ShapePRWall.list;
+    if (!list) { setRows({ error: true }); return undefined; }
+    Promise.resolve(list({ limit: 40, scope }))
+      .then((res) => {
+        if (dead) return;
+        if (!res || res.stored !== 'supabase') { setRows({ error: true }); return; }
+        setRows((res.data || []).map((r) => ({
+          key: `${r.userId}-${r.liftKey}-${r.postedAt}`,
+          userId: r.userId,
+          name: r.name,
+          liftKey: r.liftKey,
+          liftLabel: r.liftLabel,
+          best: r.best,
+          prev: r.prev,
+          unit: r.unit,
+          reps: r.reps,
+          ago: bsAgoShort(r.postedAt) || '',
+          // A row whose post the caller cannot read (or that never had one)
+          // renders as a bare record: the number is still true, it just has no
+          // evidence attached, and there is nothing to react to.
+          act: r.post ? bsActivityFromPost(r.post) : null,
+        })));
+      })
+      .catch(() => { if (!dead) setRows({ error: true }); });
+    return () => { dead = true; };
+  }, [loggedIn, scope, nonce]);
+
+  React.useEffect(() => {
+    if (!loggedIn) return undefined;
+    let dead = false;
+    const fn = window.ShapePRWall && window.ShapePRWall.mine;
+    if (!fn) { setMine({ error: true }); return undefined; }
+    Promise.resolve(fn())
+      .then((res) => { if (!dead) setMine(!res || res.stored !== 'supabase' ? { error: true } : (res.data || [])); })
+      .catch(() => { if (!dead) setMine({ error: true }); });
+    return () => { dead = true; };
+  }, [loggedIn, nonce]);
+
+  // Signed out: the sample board, every render, no effect involved. Signed in:
+  // whatever the read has resolved to so far.
+  const rowsEff = loggedIn ? rows : bsWallDemoRows();
+  const mineEff = loggedIn ? mine : [];
+  const loading = rowsEff === null;
+  const failed = !!(rowsEff && rowsEff.error);
+  const all = Array.isArray(rowsEff) ? rowsEff : [];
+  const lifts = bsWallLifts(all);
+  // ⚠ A SELECTION THE NEW ROWS DO NOT CARRY IS DROPPED, NOT HONOURED. The
+  // comment here used to claim the filter "can never produce an empty board out
+  // of a stale option" and the code did not do that: the choice survived a
+  // scope change, so picking Deadlift on Everyone and switching to Following
+  // painted "No records on the wall yet." over rows that existed — and when the
+  // new scope carries one lift or none the <select> is not rendered at all, so
+  // there was no way back. Clamping is the fix; the state is left alone so the
+  // selection returns if the member switches back.
+  const liftEff = lifts.some((l) => l.key === lift) ? lift : 'all';
+  const shown = liftEff === 'all' ? all : all.filter((r) => r.liftKey === liftEff);
+
+  const scopes = [
+    { key: 'everyone', label: tr('feed:wall.scopeEveryone', { defaultValue: 'Everyone' }) },
+    { key: 'following', label: tr('feed:wall.scopeFollowing', { defaultValue: 'Following' }) },
+    { key: 'coach', label: isCoach ? tr('feed:wall.scopeMyClients', { defaultValue: 'My clients' }) : tr('feed:wall.scopeCoach', { defaultValue: "Coach's clients" }) },
+  ];
+
+  // ⚠ THE PAGE GUTTER IS ON THE CONTROLS, NOT ON THE LIST. The community feed
+  // renders its cards in a container with no horizontal padding (`4px 0 84px`),
+  // so a Wall that indented the plates would hand the same card a narrower box
+  // than it gets one segment over — and the card would lay out differently on
+  // two surfaces showing the same activity.
+  const gutter = { padding: `0 ${t.padX}px` };
+  return (
+    <div style={{ padding: '7px 0 90px' }}>
+      <div style={gutter}>
+      {/* ⚠ THE SCOPE TABS ARE SIGNED-IN ONLY. They are answered by the caller's
+          own follows and coach links, which a preview visitor does not have —
+          three tabs that highlight and change nothing are worse than no tabs,
+          and filtering the sample cast by an invented "following" would be a
+          fabrication. The lift filter stays: it genuinely narrows the sample
+          board. */}
+      {/* ⚠ THIS ROW WRAPS, AND IT HAS TO. Measured in a browser at 430px: the
+          three scope tabs plus the lift filter want 271px of a 213px row, and
+          with `nowrap` + `overflow: visible` the third tab simply ran past the
+          edge with nothing saying so — the same "it does not fit and never said
+          so" class as the availability grid the 09-09 round transposed. Wrapping
+          drops the filter to its own line when the tabs need the width, which is
+          the V3 precedent; the tabs wrap among themselves on a narrower phone
+          still. `marginLeft: auto` keeps the filter right-aligned in both. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, rowGap: 2 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
+          {loggedIn && scopes.map((s) => bsSubTab({ key: s.key, on: scope === s.key, color: teal, onClick: () => setScope(s.key), label: s.label }))}
+        </div>
+        {lifts.length > 1 && (
+          <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, marginLeft: 'auto' }}>
+            <select value={liftEff} onChange={(e) => setLift(e.target.value)} aria-label={tr('feed:wall.liftFilterAria', { defaultValue: 'Filter by lift' })}
+              style={{ appearance: 'none', WebkitAppearance: 'none', background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '7px 22px 7px 9px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, cursor: 'pointer', maxWidth: 140 }}>
+              <option value="all">{tr('feed:wall.liftAll', { defaultValue: 'All lifts' })}</option>
+              {lifts.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+            </select>
+            <span aria-hidden style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: teal, pointerEvents: 'none' }}>▾</span>
+          </span>
+        )}
+      </div>
+      </div>
+
+      {!loggedIn && (
+        <div style={{ margin: '8px 0 2px', ...gutter, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
+          {tr('feed:wall.demoNote', { defaultValue: 'Sample records · sign in for the live wall' })}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        {loading && (
+          <div style={{ padding: `28px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>
+            {tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}
+          </div>
+        )}
+        {failed && (
+          <div style={{ padding: `26px ${t.padX}px` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: cardInk, letterSpacing: '-0.01em' }}>{tr('feed:wall.unreadable', { defaultValue: "Couldn't read the wall just now." })}</div>
+            <button onClick={() => setNonce((n) => n + 1)} style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('feed:wall.retry', { defaultValue: 'Try again →' })}</button>
+          </div>
+        )}
+        {!loading && !failed && !shown.length && (
+          <div style={{ padding: `30px ${t.padX}px` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: cardInk, letterSpacing: '-0.01em' }}>{tr('feed:wall.empty', { defaultValue: 'No records on the wall yet.' })}</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 600 }}>{tr('feed:wall.emptySub', { defaultValue: 'Set one and it lands here' })}</div>
+          </div>
+        )}
+        {shown.map((rec, i) => <BSWallPlate key={rec.key} rec={rec} ctx={ctx} newest={i === 0} />)}
+      </div>
+
+      {/* Your best — pinned under the board, read from the member's own ledger.
+          It shows even for a private member, whose records never reach the wall
+          above: they are still their records. */}
+      <div style={{ marginTop: 18, borderTop: `1px solid ${hair}`, padding: `14px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('feed:wall.yourBest', { defaultValue: 'Your best' })}</div>
+          {loggedIn && (
+            <button onClick={() => setSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0 6px 12px', minHeight: 40, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>
+              {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })} <span aria-hidden>＋</span>
+            </button>
+          )}
+        </div>
+        {!loggedIn && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.signInForBest', { defaultValue: 'Sign in to keep your own records here.' })}</div>}
+        {loggedIn && mineEff === null && <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}</div>}
+        {loggedIn && mineEff && mineEff.error && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.bestUnreadable', { defaultValue: "Couldn't read your records just now." })}</div>}
+        {loggedIn && Array.isArray(mineEff) && !mineEff.length && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.noBestYet', { defaultValue: 'No records yet. Log a lift, or post one you set elsewhere.' })}</div>}
+        {loggedIn && Array.isArray(mineEff) && mineEff.map((m) => {
+          const g = bsWallGain(m.best, m.prev);
+          return (
+            <div key={`${m.liftKey}-${m.postedAt}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'baseline', padding: '9px 0', borderBottom: `1px solid ${hair}` }}>
+              <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.liftLabel}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsWallNum(m.best)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.unit}</span></span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: g != null ? teal : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{g != null ? `+${bsWallNum(g)}` : tr('feed:wall.firstShort', { defaultValue: 'First' })}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsAgoShort(m.postedAt) || ''}</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {sheet && <BSWallPostSheet onClose={() => setSheet(false)} onPosted={() => setNonce((n) => n + 1)} />}
+    </div>
+  );
+}
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -18012,6 +18534,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
       openChannelNow(openRequest.channel);
+      return;
+    }
+    // Deep-link to the Wall (Home's "On the wall" card).
+    if (openRequest.wall) {
+      setTab('wall');
+      setOpenChat(null);
       return;
     }
     // Deep-link to Nora (universal search → the Support tab's concierge thread).
@@ -18602,6 +19130,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
+  // What the Wall segment needs beyond the card's own ctx. It renders inside
+  // this page, so the masthead and the online rail (with its Hide × / Show)
+  // are already above it — the Wall inherits that control rather than owning
+  // a second copy of it.
+  const wallCtx = { feedCtx, loggedIn, myRole, bsSubTab, hair, muted, cardInk };
+
   const Pill = ({ on, onClick, children, badge = 0 }) => (
     <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 4px', minHeight: 26, borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
@@ -18733,7 +19267,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
             <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
-              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
+              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'wall' ? tr('feed:masthead.titleWall', { defaultValue: 'The Wall' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
             </h1>
           </div>
           {/* The feed's viewing lens rides the title row, right-aligned (owner
@@ -18830,8 +19364,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
+          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['wall', tr('feed:tab.wall', { defaultValue: 'Wall' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -18978,6 +19512,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           };
           // Channels — its own top-level tab (Signal v2). Same wired channel
           // list/create/search as before, lifted out of the Team selector.
+          // The Wall — a record board, not a conversation. It sits ahead of the
+          // Channels branch so the shared chrome above (masthead, online rail,
+          // pills) is the only thing between it and the page.
+          if (tab === 'wall') return <BSWall ctx={wallCtx} />;
           if (tab === 'channels') {
             const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
@@ -22939,6 +23477,65 @@ function BSHomeBulletin({ label, detail, onOpen }) {
       <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{detail}</span>
       <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0 }}>›</span>
     </button>
+  );
+}
+
+// ON THE WALL — Home's entry point into the Wall (review 2026-09-10 §7:
+// "a Home masthead card 'On the wall' with the latest co-signed PR").
+//
+// ⚠ IT SELF-GATES TO NOTHING, WHICH IS WHY IT CAN LIVE BESIDE THE OTHER TWO
+// BULLETINS WITHOUT BREAKING THE MAX-2 RULE. It renders only when a co-signed
+// record is actually there to point at: signed out, still reading, a failed
+// read and a wall with no stamped record all render null. A bulletin is an
+// urgency line — one that stood there permanently saying nothing new would be
+// chrome, and the block's own comment says urgency earns the height.
+//
+// The co-sign is the filter on purpose: an unstamped record is the member's,
+// and Home already carries their own training. A COACH putting their name on
+// somebody's number is the thing worth leaving the page for.
+// ⚠ THE READ IS CACHED PER ACCOUNT FOR FIVE MINUTES. Home remounts on every
+// tab return, and this line costs a definer RPC plus a `community_posts` fetch
+// carrying its likes and comments joins — a real round trip to decide one row
+// of text that changes when somebody's coach stamps a record, i.e. rarely.
+// Keyed by uid so a sign-out or an account switch cannot show the previous
+// account's record.
+let _bsWallBulletinCache = { uid: null, at: 0, rec: null };
+function BSHomeWallBulletin() {
+  const tr = useShapeTr();
+  const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const [rec, setRec] = React.useState(() => (_bsWallBulletinCache.uid === uid ? _bsWallBulletinCache.rec : null));
+  React.useEffect(() => {
+    if (!uid) { setRec(null); return undefined; }
+    const fresh = _bsWallBulletinCache.uid === uid && (Date.now() - _bsWallBulletinCache.at) < 300000;
+    if (fresh) { setRec(_bsWallBulletinCache.rec); return undefined; }
+    let dead = false;
+    const list = window.ShapePRWall && window.ShapePRWall.list;
+    if (!list) return undefined;
+    Promise.resolve(list({ limit: 6 }))
+      .then((res) => {
+        if (dead || !res || res.stored !== 'supabase') return;
+        const hit = (res.data || []).find((r) => r.post && r.post.cosign && r.post.cosign.name) || null;
+        // ⚠ The cache is stamped with the uid the READ started under, and only
+        // adopted when that is still the current account — an account switch
+        // mid-flight must not publish A's record onto B's Home.
+        if (uid === (window.ShapeAuth?.getCachedState?.()?.user?.id || null)) {
+          _bsWallBulletinCache = { uid, at: Date.now(), rec: hit };
+          setRec(hit);
+        }
+      })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [uid]);
+  if (!rec) return null;
+  return (
+    <BSHomeBulletin
+      label={tr('home:bulletin.onTheWall', { defaultValue: 'On the wall' })}
+      detail={tr('home:bulletin.onTheWallDetail', {
+        defaultValue: '{name} · {lift} {value} {unit}',
+        name: rec.name, lift: rec.liftLabel, value: bsWallNum(rec.best), unit: rec.unit,
+      })}
+      onOpen={() => { try { window.dispatchEvent(new CustomEvent('shape:goWall')); } catch (e) {} }}
+    />
   );
 }
 

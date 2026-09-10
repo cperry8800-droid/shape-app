@@ -495,6 +495,121 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — The Wall: the PR ledger becomes a surface, and the plate is the feed's own card
+
+- **The review's §7, built for the app only** ([`REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md)
+  §7 · [`BUILD-2026-09-10-wall-in-app.md`](BUILD-2026-09-10-wall-in-app.md)). Owner: *"the wall
+  concept … we don't currently have that on the app but i like it"* → *"looks good i like it"* →
+  *"yes lets implement the new chat/wall look on app"* · *"lets put the website update on hold"* ·
+  *"i only want to build the wall-in-app now"*. Chat gains a **fifth segment** — Feed · **Wall** ·
+  Team · Channels · Support — reading `pr_wall_posts` as a record board: the number, the delta over
+  that member's **own** last best, and the whole activity record underneath.
+- ⚠ **THE PLATE DOES NOT RE-IMPLEMENT THE RECORD — IT WRAPS `BSActivityCard`.** The owner's ask was
+  *"make sure each activity that is logged on the wall displays the stats that is already
+  implemented. I want all of the information that is currently displayed incorporated"*, and the
+  way that stays true as the feed grows is to render the same component: the stats grid, zones,
+  trace, the breakdown with the record row marked, *Session details · full activity*, the coach
+  co-sign, the followed-liker facepile, the typed reactions, comments, share, send and repost all
+  arrive for free. One activity can never read two ways on two surfaces.
+- **The online rail needed no code at all.** It renders above the pills on **every** Chat tab, so
+  the owner's *"make sure the wall concept includes the hide/show option for who is online"* is met
+  by **where the segment sits** — same rail, same per-account `client_settings.onlineRail`
+  preference, hiding it on the Feed hides it on the Wall.
+- **Migration `2026-09-10-pr-wall-surface.sql`** — `prev_value` · `reps` · `post_id` on the ledger,
+  and `shape_pr_wall(limit, lift, scope)`, a definer modelled on `shape_leaderboard`: public
+  profiles only, the leaderboard opt-out honoured, **no anon grant**. `p_scope 'coach'` answers
+  *both* directions from the caller's own links — a coach sees `is_coach_on_client`, a member sees
+  the other clients of the coaches they share.
+- ⚠ **THE 4-ARG `post_my_pr_to_wall` IS DROPPED, NOT LEFT BESIDE THE NEW ONE** — the new signature
+  adds `p_post_id` with a default, so an overload would make every four-argument PostgREST call
+  ambiguous and the client's existing call would start failing the moment the migration ran. And
+  **`p_post_id` is honoured only when `community_posts.author_id = auth.uid()`**: the function runs
+  as its owner, so an unchecked id would render a stranger's activity, photo and comments under the
+  caller's name. A bad link degrades to a bare record, never to a leak.
+- ⚠ **AND THE ROUTE FALLS BACK, BECAUSE DEPLOY ORDER OTHERWISE DECIDES WHETHER RECORDS POST.**
+  Between a deploy and an apply — in either order — one of the two signatures is wrong, and
+  PostgREST answers an unknown one with PGRST202, which `postPRToWall` surfaces as a silent
+  `{ ok: false }`: the member's record simply would not land, with nothing tying it to a pending
+  migration. The id is omitted when there is none and the call is retried without it on that error.
+- ⚠ **THE PR IS NOW ANNOUNCED AFTER THE INSERT, CARRYING THE POST'S ID.** It fired *before* it
+  (`createCommunityPost`, since 2026-06-14), which left every ledger row pointing at nothing — and
+  a failed insert advanced the ledger for a record that was never posted.
+- ⚠ **BUT A SESSION'S PRs ARE DELIBERATELY *NOT* LINKED TO THE SESSION POST.** A session can hold
+  several, and there is one post for the whole session: linking it to each would point two or three
+  ledger rows at the same activity, so the Wall would render that card repeatedly — and because the
+  card files reactions, comments and open-state under the post's id, tapping *comment* on one plate
+  would open the composer on all of them. It is also the wrong evidence: that post's hero is the
+  **session** (sets, rest, elapsed), not this lift's record. Session PRs land as bare records; a
+  per-lift record post is registered, not built.
+- ⚠ **AND `announcePRsFromSetLogs` HAD HARDCODED `unit: 'lb'` SINCE IT WAS WRITTEN.** Invisible
+  while a PR was only a line of chat text; the Wall prints the unit beside the number and computes
+  a delta against the stored best, so a kg lifter's 100 kg was headlined **100 lb** and could
+  produce a cross-unit *"↑ +110 lb over last best"*. It reads the unit off the logged load now, the
+  same `/kg/i` detection the community composer already used. **The RPC's own comparison is still
+  unit-blind — registered, not fixed.**
+- ⚠ **`/code-review` RETURNED NINE FINDINGS ON THE FIXED TREE AND EVERY ONE WAS REAL.** Besides the
+  three above: a bare record was an **anonymous number** on a cross-member board (the attribution
+  lives inside the wrapped card, so a row with no readable post had none); the lift filter
+  **survived a scope change**, painting *"No records on the wall yet."* over rows that existed —
+  and with one lift or none in the new scope the `<select>` is not rendered, so there was no way
+  back, while the comment on that line asserted the opposite; the Home bulletin made Home carry
+  **three** bulletins against its documented max of two, and re-ran a definer RPC plus a
+  posts-with-joins fetch **on every Home mount** to decide one line of text; and signed out, three
+  scope tabs highlighted and **changed nothing**, because they are answered by follows and coach
+  links a preview visitor does not have.
+- ⚠ **THE SHARPEST ONE WAS A GUARD OF MINE THAT PINNED THE DEFECT.** `first: gain == null` made any
+  record whose improvement failed to produce a number announce itself as the member's **first on
+  the wall** while the ledger held a prior best — reachable because the RPC accepts any value
+  strictly greater than the stored best, so 245 → 245.02 is a record whose gain rounded to 0 at one
+  decimal place. **And my test asserted `first === (gain == null)`**, so a correct fix would have
+  failed it. *"Is there a previous best"* and *"can a gain be computed from it"* are different
+  questions; they are asked separately now, and the formatter widens to the fewest decimals that do
+  not print a real gain as zero.
+- ⚠ **TWO NULL-COERCION DEFECTS WERE CAUGHT BY THE TESTS BEFORE ANY REVIEW.** `Number(null)` is
+  **0, which is finite** — so `bsWallGain(245, null)` returned **245** and a member's first record
+  rendered *"↑ +245 lb over last best"* against a best that never existed, and `bsWallNum(null)`
+  rendered a confident **"0"** for an absent figure. `Number.isFinite` alone cannot see either.
+- ⚠ **AND ONE OF MY OWN RENDER TESTS PASSED FOR THE WRONG REASON.** It asserted the board's text
+  contained every sample lift label — and it passed **with the plates rendering nothing**, because
+  the labels it matched came from the lift-filter `<option>` list a few lines above them. Proven by
+  a mutation (`rows || bsWallDemoRows()`, leaking the demo cast to a signed-in account) that
+  **survived**. The suite counts plate elements now. *A guard that reports a pass is a broken
+  instrument until you know which line satisfied it.*
+- ⚠ **THE PLATE'S OWN FRAME WAS SQUEEZING THE CARD, AND ONLY A BROWSER SAID SO.** The community
+  feed renders its cards in a container with **no horizontal padding**, so a page gutter plus a 14px
+  plate inset handed the same card 48px less: measured at 375px, Drew Oyelaran's author row ran
+  12px past the frame with `overflow: visible` — silently — and Priya's `PEAK · CLIENT` collided
+  with the STRENGTH tag while the identical card one segment over had room for both. The gutter is
+  on the controls now and the plates run edge to edge, so the Wall's overflow profile is **identical
+  to the untouched Feed's** at both widths. The scope row also overran its own line at 430px (271px
+  of a 213px row) and wraps now, the V3 precedent.
+- **35 `feed:wall.*` keys + `home:bulletin.onTheWall*`, ×13 locales — 481 values**, each authored
+  from that catalog's **own existing wording** (es reuses `card.cosigned`'s *referendado* for the
+  stamp; pt-BR the same; every failure line follows the file's own *"Não foi possível…"* register).
+  `lb`/`kg` are held as a constant rather than keyed — thirteen identical values a translator must
+  not touch, and hardcoding them in JSX would have landed the sheet in the ratchet's PARTIAL set.
+- ⚠ **THE HOME CARD REGISTRY THE BRIEF POINTED AT IS DEAD CODE.** `BSHomeCards` / `BS_CARD_TYPES` /
+  `_bsBuildCard` (`iosAppBroadsheetClient.jsx:998–1400`) are **rendered by nothing** — no call site
+  anywhere in `mobile-app/src`, no window export. Registering a `wall` card there would have shipped
+  an invisible feature. The entry point is a `BSHomeBulletin` instead, which is live, translated and
+  self-gating. **Registered, not fixed: the dead registry, and `WPR`** (the *PRs* home widget), which
+  renders **hardcoded** Deadlift 405 / Squat 315 / Bench 245 to any signed-in member — a fabrication
+  of exactly the class the review's §8 catalogues, and now trivially fixable against `myPRLedger()`.
+- **Verified:** `npm test` **2832/2832** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
+  the newdesign precompile check · **25 mutations killed across two rounds, each proven to land**
+  (two survivors in the first round were real guard gaps and are closed) · the migration
+  **driven on a real Postgres 16** through 47 fixture assertions (a private member and a
+  leaderboard opt-out are both off the wall · `prev_value` holds the beaten record · a foreign
+  `p_post_id` is dropped · following counts only accepted follows · the coach scope answers from
+  both sides and a cancelled membership severs it · exactly one `post_my_pr_to_wall` signature ·
+  both functions pin `pg_temp` last · anon can execute neither) **and re-applied idempotently** ·
+  and the Wall **driven in headless Chromium at 375 and 430px** through the real entry flow: the
+  masthead reads *The Wall*, the plates carry NEW BEST · the figure · the delta · the wrapped card ·
+  the co-sign, *Not yet stamped* on the unstamped ones, and **zero page errors**.
+- ⚠ **NO ON-ACCOUNT PASS.** Every live path here is stubbed or driven signed-out; the migration is
+  **owed on Supabase before the segment is trusted**, and the route's fallback exists precisely
+  because that window is real.
+
 ### 2026-09-10 — P1-E: the weekly readout on the web, and eight cards that were never on it
 
 - **R5 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
