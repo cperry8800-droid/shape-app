@@ -47,13 +47,44 @@ function csrDay(iso) {
 // signed-in NON-member with 402 — so a marketing visitor pressing these buttons on the
 // demo Score page was told their record "couldn't be read just now" and invited to
 // reload, which can never work. Three different answers, three different sentences.
-function csrRead(url) {
+//
+// ⚠ AND A 2xx BODY IS NOT AUTOMATICALLY AN ANSWER. Accepting any parseable JSON as
+// `ready` let a body that does not satisfy the route's contract — a truncated proxy
+// response, a route rewritten, a gateway's own JSON error page — render through the
+// panel's EMPTY branches: `{lifetime: 9}` drew "Nothing on the ledger yet", which is
+// the exact empty-versus-unreadable distinction this reader exists to keep. Each
+// caller says what its payload must contain, and a body that does not is unreadable.
+function csrRead(url, shaped) {
   return fetch(url, { credentials: "same-origin" }).then(function (r) {
     if (r.status === 401) return { kind: "anon" };
     if (r.status === 402) return { kind: "gated" };
     if (!r.ok) return { kind: "error" };
-    return r.json().then(function (d) { return { kind: "ready", data: d }; }, function () { return { kind: "error" }; });
+    return r.json().then(function (d) {
+      if (typeof shaped === "function" && !shaped(d)) return { kind: "error" };
+      return { kind: "ready", data: d };
+    }, function () { return { kind: "error" }; });
   }, function () { return { kind: "error" }; });
+}
+// `bsScoreRecord` fills every range key on every call, so a payload missing one is not
+// a member with no history — it is a body that did not come from that function.
+function csrRecordShaped(d) {
+  if (!d || typeof d !== "object") return false;
+  if (typeof d.lifetime !== "number" || !Array.isArray(d.history)) return false;
+  if (!d.ranges || typeof d.ranges !== "object") return false;
+  for (var i = 0; i < CSR_RANGES.length; i++) {
+    var r = d.ranges[CSR_RANGES[i][0]];
+    if (!r || typeof r !== "object" || !Array.isArray(r.series)) return false;
+  }
+  return true;
+}
+// `me` is legitimately null for an unranked member, so its ABSENCE is what fails and
+// its null-ness does not. An explicit `"me" in d` check was here and is gone: with the
+// key absent `d.me` is undefined, which the final line already refuses, so the check
+// was provably a no-op — measured, when a mutation deleting it changed nothing.
+function csrBoardShaped(d) {
+  if (!d || typeof d !== "object") return false;
+  if (!Array.isArray(d.entries)) return false;
+  return d.me === null || typeof d.me === "object";
 }
 // The sentence each non-ready state gets. `null` means "this state renders data".
 function csrStateNote(kind, what) {
@@ -122,7 +153,7 @@ function ClientScoreRecord() {
     let on = true;
     // ⚠ A FAILED READ IS NOT AN EMPTY LEDGER. Rendering zeroes here would tell a member
     // with a long history that they have earned nothing.
-    csrRead("/api/client/score-record").then((r) => { if (on) setState(r); });
+    csrRead("/api/client/score-record", csrRecordShaped).then((r) => { if (on) setState(r); });
     return () => { on = false; };
   }, []);
 
@@ -245,7 +276,7 @@ function ClientLeaderboard() {
   React.useEffect(() => {
     let on = true;
     setState({ kind: "loading" });
-    csrRead("/api/leaderboard?period=" + encodeURIComponent(period) + "&limit=50")
+    csrRead("/api/leaderboard?period=" + encodeURIComponent(period) + "&limit=50", csrBoardShaped)
       .then((r) => { if (on) setState(r); });
     return () => { on = false; };
   }, [period]);
@@ -342,4 +373,4 @@ function ClientScoreHowItWorks({ tiers, currentTier }) {
   );
 }
 
-Object.assign(window, { ClientScoreRecord, ClientLeaderboard, ClientScoreHowItWorks, csrLineGeometry, csrStateNote });
+Object.assign(window, { ClientScoreRecord, ClientLeaderboard, ClientScoreHowItWorks, csrLineGeometry, csrStateNote, csrRecordShaped, csrBoardShaped });

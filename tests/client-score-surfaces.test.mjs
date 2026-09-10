@@ -170,8 +170,10 @@ test('signed out is not "it broke", and neither is a membership gate', async () 
     status, ok: status >= 200 && status < 300,
     json: () => (body === undefined ? Promise.reject(new Error('bad json')) : Promise.resolve(body)),
   });
-  const read = (r) => fn(CSR, 'csrRead', { fetch: () => (r instanceof Error ? Promise.reject(r) : Promise.resolve(r)) })('/x');
+  const read = (r, shaped) => fn(CSR, 'csrRead', { fetch: () => (r instanceof Error ? Promise.reject(r) : Promise.resolve(r)) })('/x', shaped);
   assert.deepEqual(await read(reply(200, { lifetime: 9 })), { kind: 'ready', data: { lifetime: 9 } });
+  assert.deepEqual(await read(reply(200, { lifetime: 9 }), () => false), { kind: 'error' },
+    'a body its caller refuses is still rendered as data');
   assert.deepEqual(await read(reply(401)), { kind: 'anon' });
   assert.deepEqual(await read(reply(402)), { kind: 'gated' });
   assert.deepEqual(await read(reply(500)), { kind: 'error' }, 'a server error reads as an empty ledger');
@@ -227,6 +229,38 @@ test('a failed leaderboard read is never published as an empty board', () => {
   // and the consumer maps a non-2xx to its own "couldn't read" state, not to data
   const read = fn(CSR, 'csrRead', { fetch: () => Promise.resolve({ status: 502, ok: false, json: () => Promise.resolve({}) }) });
   return read('/x').then((r) => assert.deepEqual(r, { kind: 'error' }));
+});
+
+test('a 2xx body that is not the route\u2019s payload is unreadable, not empty', () => {
+  // \u26a0 CODERABBIT. `csrRead` accepted any parseable 2xx JSON as `ready`, so a truncated
+  // proxy response, a rewritten route or a gateway's own JSON error page rendered through
+  // the panels' EMPTY branches \u2014 `{lifetime: 9}` drew "Nothing on the ledger yet". That
+  // is exactly the empty-versus-unreadable distinction this reader exists to keep, and an
+  // earlier cut of the test above ENSHRINED it by asserting that body was ready.
+  const rec = fn(CSR, 'csrRecordShaped', { CSR_RANGES: [['1w'], ['1m'], ['3m'], ['all']] });
+  const board = fn(CSR, 'csrBoardShaped');
+  const ranges = (keys) => keys.reduce((o, k) => { o[k] = { series: [] }; return o; }, {});
+  const full = { lifetime: 0, history: [], ranges: ranges(['1w', '1m', '3m', 'all']) };
+  assert.equal(rec(full), true, 'a real empty record is refused');
+  assert.equal(rec(Object.assign({}, full, { lifetime: 1840, history: [{ date: 'x', rows: [] }] })), true);
+  assert.equal(rec({ lifetime: 9 }), false, 'the body CodeRabbit named still reads as an empty ledger');
+  assert.equal(rec(Object.assign({}, full, { ranges: ranges(['1w', '1m', '3m']) })), false, 'a missing range key reads as no history');
+  assert.equal(rec(Object.assign({}, full, { ranges: { '1w': {}, '1m': {}, '3m': {}, all: {} } })), false, 'a range with no series is accepted');
+  assert.equal(rec(Object.assign({}, full, { history: null })), false);
+  assert.equal(rec(Object.assign({}, full, { lifetime: '0' })), false);
+  for (const bad of [null, undefined, 'text', 42, []]) assert.equal(rec(bad), false, 'accepted ' + JSON.stringify(bad));
+
+  // `me` is legitimately null for an unranked member, so its ABSENCE is what fails
+  assert.equal(board({ period: 'month', entries: [], me: null }), true, 'an unranked member is refused');
+  assert.equal(board({ period: 'month', entries: [{ userId: 'a' }], me: { rank: 1 } }), true);
+  assert.equal(board({ period: 'month', entries: [] }), false, 'a body with no `me` reads as unranked');
+  assert.equal(board({ period: 'month', me: null }), false, 'a body with no entries reads as an empty board');
+  for (const bad of [null, undefined, 'text', []]) assert.equal(board(bad), false, 'accepted ' + JSON.stringify(bad));
+
+  // and each caller actually passes its validator \u2014 a checker nobody calls checks nothing
+  const src = stripComments(CSR);
+  assert.match(src, /csrRead\("\/api\/client\/score-record", csrRecordShaped\)/);
+  assert.match(src, /csrRead\("\/api\/leaderboard\?period=[\s\S]{0,90}csrBoardShaped\)/);
 });
 
 test('the period labels name the windows the RPCs actually rank', () => {
