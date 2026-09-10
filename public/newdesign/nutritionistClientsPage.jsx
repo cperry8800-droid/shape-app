@@ -1,10 +1,20 @@
 
+// The roster filter set, hoisted so its KEYS can be derived rather than typed out a
+// second time at the useRememberedChoice call below: a filter added here is
+// remembered without anyone having to notice a second list exists.
+const NCP_FILTERS = (n) => [["eyes", "Needs eyes · " + n, true], ["all", "All"], ["new", "New"], ["ontrack", "On track"]];
+const NCP_FILTER_KEYS = NCP_FILTERS(0).map((f) => f[0]);
+
 function NutritionistClientsPage() {
   const { loading, clients, triage, today: liveToday, source } = useDashboard("nutritionist");
-  const [tab, setTab] = React.useState("all");
   const [sharedBadge, setSharedBadge] = React.useState(0);
+  // ⚠ THE SEARCH BOX IS DELIBERATELY NOT REMEMBERED. A filter is a standing preference
+  // about how you read your roster; a half-typed name is a moment. Restoring one would
+  // show a coach a roster mysteriously narrowed to "pri" a week later.
   const [q, setQ] = React.useState("");
-  const [flt, setFlt] = React.useState("all");
+  const prefs = useRememberedChoices(source === "live");
+  const [tab, setTab] = useRememberedChoice(prefs, "clientsTab", ["all", "shared"], "all");
+  const [flt, setFlt] = useRememberedChoice(prefs, "rosterFilter", NCP_FILTER_KEYS, "all");
 
   const activeCount = clients.length;
   const mrrCents = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
@@ -14,7 +24,7 @@ function NutritionistClientsPage() {
   const tabStyle = (on) => ({ background: on ? "rgba(46,224,196,0.14)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.65)", border: on ? "1px solid rgba(46,224,196,0.35)" : "1px solid rgba(242,237,228,0.12)", padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, fontWeight: 500, cursor: "pointer", letterSpacing: "0.02em" });
   const fltStyle = (on, warn) => ({ background: on ? (warn ? "rgba(216,162,58,0.16)" : "rgba(46,224,196,0.14)") : "transparent", color: on ? (warn ? "#d8a23a" : "#2ee0c4") : warn ? "rgba(216,162,58,0.85)" : "rgba(242,237,228,0.7)", border: on ? (warn ? "1px solid rgba(216,162,58,0.4)" : "1px solid rgba(46,224,196,0.35)") : "1px solid rgba(242,237,228,0.12)", padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" });
   // Needs Eyes leads — it's the signal-engine severity now, not a stale-sessions guess.
-  const FILTERS = [["eyes", "Needs eyes · " + eyesCount, true], ["all", "All"], ["new", "New"], ["ontrack", "On track"]];
+  const FILTERS = NCP_FILTERS(eyesCount);
 
   return (
     <React.Fragment>
