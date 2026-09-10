@@ -354,55 +354,224 @@ function ExpandableSchedule({ schedule, clients, role }) {
 }
 
 // Programming queue (step 4.2) — who needs next week's plan, from the hook's
-// checkIn-derived queue. "Write plan" marks the item done for this week
-// (localStorage, keyed by the week's Monday, so it survives reloads and
-// resets cleanly next week).
-function dashQueueWeekKey() {
-  const m = DashSignals._internals.mondayOf(new Date());
-  return "shape.dashQueueDone." + m.getFullYear() + "-" + String(m.getMonth() + 1).padStart(2, "0") + "-" + String(m.getDate()).padStart(2, "0");
+// checkIn-derived queue.
+//
+// ⚠ THE "DONE" MARK USED TO LIVE IN ONE BROWSER'S localStorage, AND IT WAS
+// WRONG TWICE (review 2026-09-09, R6). A queue that lives in one browser is not
+// a queue — a coach who programs on their laptop and checks on their phone saw
+// two different lists, and clearing site data emptied the week's work. And a
+// tick is not a publish: the row read "✓ Plan written" whether or not a single
+// session had been assigned, while a week genuinely published from the Assign
+// flow left the queue looking untouched.
+//
+// So the panel now reads TWO sources and keeps them apart, because they are
+// different claims:
+//   PUBLISHED — `coach_week_publishes`, the server-side ledger the week-shaped
+//     publish boundary writes. This is a fact about the system, so it cannot be
+//     undone from here.
+//   MARKED — the coach's own note that they handled someone outside the Assign
+//     flow. An account-level `user_goals` document, so it follows them between
+//     devices. Undoable, because it is a claim they made.
+// A failed read of either says so rather than rendering the client as
+// unprogrammed — "we could not check" is not "nobody has been programmed".
+function dashQueueMonday() {
+  return DashSignals._internals.mondayOf(new Date());
 }
-function ProgrammingQueuePanel({ queue, role }) {
-  const [done, setDone] = React.useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(dashQueueWeekKey()) || "[]")); } catch (e) { return new Set(); }
-  });
-  const toggle = (id) => setDone((prev) => {
-    const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
-    try { localStorage.setItem(dashQueueWeekKey(), JSON.stringify([...next])); } catch (e) {}
-    return next;
-  });
+function dashQueueKeyOf(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function dashQueueWeekKey() { return dashQueueKeyOf(dashQueueMonday()); }
+// How many weeks of marks the document keeps. Only the current bucket is ever
+// read; the rest are kept briefly so a clock skew or a late tap cannot land in a
+// bucket that was just pruned.
+const DASH_QUEUE_KEEP_WEEKS = 6;
+function dashQueueWeekKeyAgo(weeks) {
+  const m = dashQueueMonday();
+  m.setDate(m.getDate() - weeks * 7);
+  return dashQueueKeyOf(m);
+}
+
+// The ledger, scoped to the caller by the route.
+//
+// ⚠ TRAINER ONLY, AND THAT IS A PROPERTY OF THE TABLE. `coach_week_publishes`
+// has no role column and its ONLY writer is the trainer week-publish route, so
+// for a nutritionist it can never hold anything — a fetch there is a service-role
+// round trip that answers nothing and blocks the Mark button behind `settling`
+// while it resolves. Worse for a DUAL-ROLE coach, who is one auth user id: a
+// training week published for a client would render as delivered on the
+// NUTRITIONIST queue, which is the cross-role misattribution the R4 round fixed
+// in coach-client-legs. A nutritionist's queue is marks-only until the meal-plan
+// side grows a ledger of its own.
+//
+// ⚠ KEYED ON THE WEEK, NOT JUST ON `live`. `weekKey` is recomputed every render
+// but an effect keyed only on `live` freezes its `since` — so a tab left open
+// across Sunday midnight would read the NEW week's marks against the OLD week's
+// ledger, and every client programmed last week would render as done for a week
+// nobody had started. It also means a week published from the phone during the
+// office day reaches the panel on the next week roll rather than never.
+function useWeekPublishes(live, weekKey, role) {
+  const [state, setState] = React.useState({ kind: "loading", published: {} });
+  React.useEffect(() => {
+    let on = true;
+    if (!live) { setState({ kind: "demo", published: {} }); return undefined; }
+    if (role !== "trainer") { setState({ kind: "none", published: {} }); return undefined; }
+    setState({ kind: "loading", published: {} });
+    (async () => {
+      let j = null;
+      try { j = await dashJson("/api/coach/week-publishes?since=" + weekKey); }
+      catch (e) { if (on) setState({ kind: "error", published: {} }); return; }
+      if (!on) return;
+      setState({ kind: "ready", published: (j && j.published) || {} });
+    })();
+    return () => { on = false; };
+  }, [live, weekKey, role]);
+  return state;
+}
+
+// ⚠ THE ROW'S STATE IS A PURE FUNCTION, so it can be driven rather than grepped.
+// An earlier test pinned the SPELLING of these branches and would have passed a
+// `toggle` that called the store before the published bail — the same class of
+// hollow guard this wave has now paid for three times.
+//   published — a fact the server recorded. Not undoable from here.
+//   marked    — the coach's own note that they handled someone another way.
+//   local     — the same note, kept on this device because it cannot be stored.
+function dashQueueRowState(id, ctx) {
+  const published = !!(ctx.published && ctx.published[id]);
+  const marked = ctx.storeKind === "ready" || ctx.storeKind === "error"
+    ? !!(ctx.marked && ctx.marked[id])
+    : ctx.localMarks.has(id);
+  return {
+    published,
+    marked,
+    done: published || marked,
+    // Only a stored mark is undoable through the store; a local one toggles
+    // locally; a publish is neither.
+    canToggle: !published,
+    pill: published ? "\u2713 Week published" : (published || marked) ? "\u2713 Marked written" : null,
+  };
+}
+
+// ⚠ PRUNED, because `saveUserGoals` is a blind WHOLE-DOCUMENT upsert and
+// nothing else ever drops a bucket: a year of office days would put ~52 weeks ×
+// a roster of marks in one JSONB, re-downloaded and re-uploaded to change a
+// single key. Only `doc[weekKey]` is ever read, so anything older than the
+// retention window is dead weight.
+//
+// Pure, and separate from the handler, so the prune can be DRIVEN. A source
+// check that the cutoff is computed says nothing about whether it is applied —
+// measured: deleting the `k >= cutoff` comparison left every assertion green.
+function dashQueueMergeMarks(doc, weekKey, id, on, cutoff, nowISO) {
+  const wk = { ...((doc && doc[weekKey]) || {}) };
+  if (on) wk[id] = { markedAt: nowISO };
+  else delete wk[id];
+  const next = { [weekKey]: wk };
+  for (const k of Object.keys(doc || {})) if (k >= cutoff && k !== weekKey) next[k] = doc[k];
+  return next;
+}
+
+// ⚠ EVERY UNREADABLE STATE IS NAMED, AND THEY DO NOT MASK EACH OTHER. An
+// exclusive chain showed only the ledger's failure when BOTH reads had failed,
+// so a coach marking rows offline watched each one paint and was never told the
+// marks were not saving — the notice that actually costs them work.
+function dashQueueNotices(ledgerKind, storeKind) {
+  const out = [];
+  if (ledgerKind === "loading" || storeKind === "loading") out.push("Checking what\u2019s already been published\u2026");
+  if (ledgerKind === "error") out.push("Couldn\u2019t check what\u2019s already been published \u2014 rows may look unprogrammed");
+  // ⚠ "Not signed in" and "the read failed" are ONE state here whether we like
+  // it or not: getUserGoals returns null for both. So the sentence must be true
+  // of both, which "Sign in to keep your marks" is not — it tells a signed-in
+  // coach with a transient read error to do something that will not help.
+  if (storeKind === "signedout" || storeKind === "unavailable") out.push("Marks are kept on this device only \u2014 sign in, or check back, to carry them across devices");
+  if (storeKind === "error") out.push("That mark didn\u2019t save \u2014 tap it again to retry");
+  return out;
+}
+
+function ProgrammingQueuePanel({ queue, role, live }) {
+  const weekKey = dashQueueWeekKey();
+  const ledger = useWeekPublishes(live, weekKey, role);
+  // { [weekOf]: { [clientId]: { markedAt } } } — one document per coach.
+  const marks = useCoachDoc("coach_week_plans", live);
+  const marked = (marks.doc && marks.doc[weekKey]) || {};
+  // ⚠ A TICK THE STORE CANNOT KEEP STILL HAS TO DO SOMETHING. Signed out, or
+  // when the doc could not be read, `apply` refuses before any paint — so an
+  // enabled button did nothing at all, silently, where the localStorage this
+  // change removed at least kept the week's work. It ticks locally now, with the
+  // notice above saying so. Same precedent as the Week view.
+  const [localMarks, setLocalMarks] = React.useState(() => new Set());
+  const storeKind = marks.kind;
+  const rowState = (id) => dashQueueRowState(id, { published: ledger.published, marked, storeKind, localMarks });
+
+  const toggle = (id) => {
+    const st = rowState(id);
+    if (!st.canToggle) return; // a publish is a fact, not a preference
+    if (storeKind !== "ready" && storeKind !== "error") {
+      setLocalMarks((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+      return;
+    }
+    const on = !marked[id];
+    const cutoff = dashQueueWeekKeyAgo(DASH_QUEUE_KEEP_WEEKS);
+    marks.apply((doc) => dashQueueMergeMarks(doc, weekKey, id, on, cutoff, new Date().toISOString()));
+  };
+
   const ink50 = "rgba(242,237,228,0.55)";
+  const notices = dashQueueNotices(ledger.kind, storeKind);
+  const settling = ledger.kind === "loading" || storeKind === "loading";
+  const noticeBlock = notices.length ? (
+    <div style={{ fontSize: 11.5, fontStyle: "italic", color: ink50, marginBottom: 10 }}>
+      {notices.map((n, i) => <div key={i}>{n}</div>)}
+    </div>
+  ) : null;
   const rows = [...queue].sort((a, b) => {
-    const da = done.has(a.client.profile.id) ? 1 : 0, db = done.has(b.client.profile.id) ? 1 : 0;
+    const da = rowState(a.client.profile.id).done ? 1 : 0, db = rowState(b.client.profile.id).done ? 1 : 0;
     return da - db; // done items sink; the queue's ready→blocked order holds otherwise
   });
-  if (!rows.length) return <div style={{ fontSize: 13, color: ink50 }}>No one in the queue — check-in data will populate it.</div>;
-  const remaining = rows.filter((r) => !done.has(r.client.profile.id) && r.state === "ready").length;
+  // ⚠ THE EMPTY BRANCH CARRIES THE NOTICES TOO. It used to return above them,
+  // so the panel asserted "No one in the queue" on the very first paint — before
+  // any roster read had resolved — and again after one had failed. That is the
+  // one place the panel says the most, and it was the one place it could not say
+  // it did not know.
+  if (!rows.length) {
+    return (
+      <div>
+        {noticeBlock}
+        <div style={{ fontSize: 13, color: ink50 }}>
+          {settling ? "Loading your roster\u2026" : "No one in the queue \u2014 check-in data will populate it."}
+        </div>
+      </div>
+    );
+  }
+  const remaining = rows.filter((r) => !rowState(r.client.profile.id).done && r.state === "ready").length;
   return (
     <div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50, marginBottom: 10 }}>
-        {remaining} ready to program · week of {dashQueueWeekKey().slice(-10)}
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50, marginBottom: notices.length ? 5 : 10 }}>
+        {settling ? "\u2014" : remaining} ready to program · week of {weekKey}
       </div>
+      {noticeBlock}
       {rows.map((r, i) => {
         const id = r.client.profile.id;
-        const isDone = done.has(id);
+        const st = rowState(id);
         const blocked = r.state === "blocked";
-        const c = isDone ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : "#2ee0c4";
+        const c = st.done ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : "#2ee0c4";
+        const pillText = st.pill || (blocked ? "Waiting on check-in" : "Ready");
         return (
-          <div key={id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", opacity: isDone ? 0.6 : 1 }}>
+          <div key={id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", opacity: st.done ? 0.6 : 1 }}>
             <span style={{ width: 7, height: 7, borderRadius: 2, background: c }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13.5, fontWeight: 500, textDecoration: isDone ? "line-through" : "none" }}>{r.client.profile.name}</span>
-                <DashPill c={c}>{isDone ? "✓ Plan written" : blocked ? "Waiting on check-in" : "Ready"}</DashPill>
+                <span style={{ fontSize: 13.5, fontWeight: 500, textDecoration: st.done ? "line-through" : "none" }}>{r.client.profile.name}</span>
+                <DashPill c={c}>{pillText}</DashPill>
               </div>
-              <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.05em", color: ink50 }}>{r.reason}</div>
+              <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.05em", color: ink50 }}>
+                {st.published ? "Week of " + ledger.published[id].weekStart + " · delivered" : r.reason}
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              <a href={role === "nutritionist" ? "NutritionistPlans.html" : "TrainerPrograms.html"} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 11px", textDecoration: "none" }}>Template</a>
-              <button onClick={() => toggle(id)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: isDone ? "rgba(242,237,228,0.55)" : "#06231f", background: isDone ? "transparent" : "#2ee0c4", border: isDone ? "1px solid rgba(242,237,228,0.18)" : "0", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
-                {isDone ? "Undo" : "Write plan"}
-              </button>
+              <a href={dashShellHref(role === "nutritionist" ? "NutritionistPlans.html" : "TrainerPrograms.html")} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 11px", textDecoration: "none" }}>Template</a>
+              {st.canToggle && (
+                <button onClick={() => toggle(id)} disabled={settling} style={{ opacity: settling ? 0.45 : 1, cursor: settling ? "default" : "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: st.done ? "rgba(242,237,228,0.55)" : "#06231f", background: st.done ? "transparent" : "#2ee0c4", border: st.done ? "1px solid rgba(242,237,228,0.18)" : "0", borderRadius: 4, padding: "7px 11px" }}>
+                  {st.done ? "Undo" : "Mark written"}
+                </button>
+              )}
             </div>
           </div>
         );
@@ -806,7 +975,7 @@ function CoachDashboardPage({ role }) {
     { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis) },
     { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
     { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} />) },
-    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} />) }] : []),
+    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "wins", title: "Client wins", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
     ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
     { key: "business", title: "Business", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
@@ -840,7 +1009,7 @@ function CoachDashboardPage({ role }) {
       extraSections={[
         ...(cfg.programmingQueue ? [{
           title: "Programming queue",
-          render: () => <ProgrammingQueuePanel queue={queue} role={role} />,
+          render: () => <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />,
         }] : []),
         {
           title: "Client wins",
@@ -862,4 +1031,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
