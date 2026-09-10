@@ -218,6 +218,36 @@ function dashShellHref(href) {
 // ⚠ AND IT IS THE HEADER, NOT A DASHBOARD CARD, because a notification is not about the
 // page you happen to be on.
 const DASH_INBOX_TEAL = "#2ee0c4";
+const DASH_INBOX_W = 340;
+const DASH_INBOX_GUTTER = 12;
+
+// Where the panel goes, given the bell's box and the viewport width. Pure, so it can be
+// driven rather than read: the invariant it owes is that the resulting box is fully on
+// screen at EVERY width, which is a claim about arithmetic and not about a stylesheet.
+//
+// `right` is measured from the bell's right edge (the panel is absolutely positioned
+// inside the bell's wrapper), so a NEGATIVE value pushes the panel further right and a
+// positive one pulls it left. Both directions are needed and the first cut only had one:
+// a `Math.min(0, …)` clamp read as "never move it right of where it already was", which
+// is correct for a bell set in from the edge and WRONG for one hard against it — the
+// guard below caught the panel spilling 12px past the right gutter at 320px, in the same
+// function whose comment claimed it could not overflow "by construction".
+//
+// The honest construction is an interval. Cap the width at the two gutters first, then
+// `right` must satisfy both edges at once:
+//     viewRight = bellRight − right   ≤ innerWidth − gut   →   right ≥ bellRight − innerWidth + gut
+//     left      = viewRight − w       ≥ gut                →   right ≤ bellRight − w − gut
+// The interval is non-empty exactly when `w ≤ innerWidth − 2·gut`, which the width cap
+// guarantees — so a value always exists. 0 (the plain right-aligned panel a desktop has
+// always had) is preferred and only clamped when it falls outside.
+function dashInboxPanelBox(bellRight, innerWidth) {
+  const gut = DASH_INBOX_GUTTER;
+  const w = Math.min(DASH_INBOX_W, Math.max(120, innerWidth - gut * 2));
+  const lo = Math.round(bellRight - innerWidth + gut);
+  const hi = Math.round(bellRight - w - gut);
+  const right = Math.max(lo, Math.min(hi, 0));
+  return { w: w, right: right, left: Math.round(bellRight - right - w), viewRight: Math.round(bellRight - right) };
+}
 
 // The API's routes are the MOBILE app's slugs. Only the ones with a real website
 // destination are turned into links.
@@ -294,12 +324,22 @@ function dashInboxWhen(iso, now) {
   try { return new Date(t).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; }
 }
 
-function DashInbox({ signedIn, role }) {
-  const [open, setOpen] = React.useState(false);
+// ⚠ THE FEED IS LIFTED OUT OF THE BELL, AND THAT IS BECAUSE THE BELL HAS TO RENDER
+// TWICE. `.shape-nav-auth` — the cluster the bell lived in — is `display: none` at
+// 1200px and below, so the first cut of this feature was measured in a browser as a
+// 33×30 box at 1440px and a ZERO-SIZED one at 1024 and 390: present in the DOM,
+// painting nothing, unreachable on every phone and tablet and on any laptop narrower
+// than 1200. R20 is about a member seeing on the web what their phone already told
+// them, so a bell a phone cannot reach is the feature not shipping.
+//
+// Two render sites, ONE fetch and ONE source of truth: a second `DashInbox` with its
+// own state would spend a second request per page and could disagree with the first
+// after a mark. Only one of the two is ever visible (the CSS is exclusive), so their
+// open/closed states cannot conflict.
+function useDashInboxFeed(signedIn) {
   // undefined = not read yet · null = the read FAILED · an object = read
   const [feed, setFeed] = React.useState(undefined);
   const [busy, setBusy] = React.useState(false);
-  const boxRef = React.useRef(null);
 
   React.useEffect(() => {
     if (!signedIn) { setFeed(undefined); return undefined; }
@@ -310,21 +350,6 @@ function DashInbox({ signedIn, role }) {
       .then((j) => { if (on) setFeed(dashInboxShape(j)); });
     return () => { on = false; };
   }, [signedIn]);
-
-  // Click-away and Escape, because a panel pinned to a fixed header cannot be
-  // dismissed by scrolling past it.
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
-    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
-  }, [open]);
-
-  if (!signedIn) return null;
-  const rows = feed && feed.rows ? feed.rows : [];
-  const unread = feed ? feed.unread : 0;
 
   // ⚠ OPTIMISTIC, WITH A ROLLBACK, and the rollback is the part that matters: a bell
   // that clears itself on a write that failed tells a member they have seen something
@@ -342,11 +367,60 @@ function DashInbox({ signedIn, role }) {
       .catch(() => setFeed(before))
       .then(() => setBusy(false));
   };
-  const markAll = () => mark({ all: true }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 }));
-  const markOne = (id) => mark({ id: id }, (f) => {
-    const next = f.rows.map((r) => (r.id === id ? { ...r, read: true } : r));
-    return { rows: next, unread: next.filter((r) => !r.read).length };
-  });
+  return {
+    feed: feed, busy: busy,
+    markAll: () => mark({ all: true }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 })),
+    markOne: (id) => mark({ id: id }, (f) => {
+      const next = f.rows.map((r) => (r.id === id ? { ...r, read: true } : r));
+      return { rows: next, unread: next.filter((r) => !r.read).length };
+    }),
+  };
+}
+
+function DashInbox({ signedIn, role, inbox }) {
+  const [open, setOpen] = React.useState(false);
+  const boxRef = React.useRef(null);
+  const [shift, setShift] = React.useState(null);
+
+  // ⚠ THE PANEL IS ANCHORED TO THE BELL, AND ON A PHONE THE BELL IS NOT AT THE EDGE.
+  // Right-anchored to a bell whose right edge sits ~83px in from the viewport, a 340px
+  // panel starts at −33px on a 390px screen and −51px on a 360px one — both measured in
+  // a browser — and LEFT overflow creates no scrollbar, so the first 33–51px of every
+  // row is silently clipped. `maxWidth: calc(100vw - 32px)` cannot fix it: that caps the
+  // WIDTH while the RIGHT edge stays pinned to the bell.
+  //
+  // So the offset is computed from the bell's own box rather than tuned — see
+  // `dashInboxPanelBox`, which owns the arithmetic and the invariant.
+  React.useLayoutEffect(() => {
+    if (!open) { setShift(null); return undefined; }
+    const place = () => {
+      const el = boxRef.current;
+      if (!el || typeof window === "undefined") return;
+      setShift(dashInboxPanelBox(el.getBoundingClientRect().right, window.innerWidth));
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
+
+  // Click-away and Escape, because a panel pinned to a fixed header cannot be
+  // dismissed by scrolling past it.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+
+  if (!signedIn || !inbox) return null;
+  const feed = inbox.feed;
+  const busy = inbox.busy;
+  const markAll = inbox.markAll;
+  const markOne = inbox.markOne;
+  const rows = feed && feed.rows ? feed.rows : [];
+  const unread = feed ? feed.unread : 0;
 
   const badge = unread > 9 ? "9+" : String(unread);
   return (
@@ -368,7 +442,8 @@ function DashInbox({ signedIn, role }) {
         )}
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 8, width: 340, maxWidth: "calc(100vw - 32px)", zIndex: 70 }}>
+        <div style={{ position: "absolute", top: "100%", right: shift ? shift.right : 0, marginTop: 8,
+                      width: shift ? shift.w : DASH_INBOX_W, maxWidth: "calc(100vw - " + (DASH_INBOX_GUTTER * 2) + "px)", zIndex: 70 }}>
           <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)",
                         borderRadius: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
@@ -708,6 +783,8 @@ function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [authUser, setAuthUser] = React.useState(null);
   const [roleMenuOpen, setRoleMenuOpen] = React.useState(false);
+  // One read of the inbox for the whole header, shared by the two bell render sites.
+  const inbox = useDashInboxFeed(!!authUser);
   React.useEffect(() => {
     let cancelled = false;
     fetch('/api/me', { credentials: 'same-origin' })
@@ -790,9 +867,17 @@ function Header({ active }) {
             : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
           )}
         </nav>
+        {/* ⚠ ONE ALWAYS-VISIBLE THIRD COLUMN, so the bell has somewhere to be on a
+            phone. `.shape-nav-auth` collapses at 1200px and everything inside it goes
+            with it — which is why the bell measured 0×0 there. Wrapping it with the
+            burger keeps the header at exactly THREE grid children at every width, so
+            the desktop cluster still right-aligns where it always did; what moves is
+            the burger, from the middle 1fr column (measured x=182 at 1024px) to the
+            right edge, where a burger belongs. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 13, justifyContent: "flex-end", flexShrink: 0, minWidth: 0 }}>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 13, flexShrink: 0 }}>
           <SiteSearch signedIn={!!authUser} />
-          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} />
+          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
           {authUser ? (
             <>
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
@@ -831,10 +916,16 @@ function Header({ active }) {
             </>
           )}
         </div>
+        {/* The mobile render site. Exclusive with the one above — exactly one of the
+            two is displayed at any width — so the shared feed can never be shown twice. */}
+        <div className="shape-nav-bell" style={{ display: "none", alignItems: "center" }}>
+          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
+        </div>
         <button className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
           style={{ display: "none", background: "transparent", border: 0, color: INK, width: 40, height: 40, padding: 0, cursor: "pointer", alignItems: "center", justifyContent: "center" }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </button>
+        </div>
       </div>
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
@@ -919,6 +1010,7 @@ function ShapeMobileStyles() {
         .shape-header-inner { padding: 12px 28px !important; gap: 14px !important; }
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
+        .shape-nav-bell { display: inline-flex !important; }
         .shape-nav-burger { display: inline-flex !important; }
       }
       @media (max-width: 900px) {
@@ -930,6 +1022,7 @@ function ShapeMobileStyles() {
 
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
+        .shape-nav-bell { display: inline-flex !important; }
         .shape-nav-burger { display: inline-flex !important; }
 
         /* Dashboard layout (240px sidebar + main): collapse to one column and

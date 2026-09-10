@@ -149,8 +149,13 @@ test('the age is coarse, and an unparseable one renders as nothing', () => {
 const COMP = CLEAN.slice(CLEAN.indexOf('function DashInbox('), CLEAN.indexOf('function navGroupsFor('));
 
 test('the bell does not exist for a signed-out visitor', () => {
-  assert.match(COMP, /if \(!signedIn\) return null;/);
-  assert.match(COMP, /if \(!signedIn\) \{ setFeed\(undefined\); return undefined; \}/,
+  // ⚠ RE-ANCHORED when the feed was lifted into `useDashInboxFeed` so two render sites
+  // could share one read: the reset lives in the hook now and the render gate in the
+  // component. Pinning both spellings in one blob failed the correct refactor — the
+  // third time this suite has had to learn that a guard pins the invariant, not the
+  // address. What is asserted is that BOTH still happen, wherever they live.
+  assert.match(COMP, /if \(!signedIn[^)]*\) return null;/, 'the bell renders for a signed-out visitor');
+  assert.match(grab('useDashInboxFeed'), /if \(!signedIn\) \{ setFeed\(undefined\); return undefined; \}/,
     'signing out leaves the previous account\'s notifications in the panel');
 });
 
@@ -167,26 +172,97 @@ test('the panel has FOUR states and the unreadable one says so', () => {
 test('marking read is optimistic AND rolls back', () => {
   // ⚠ A BELL THAT CLEARS ITSELF ON A WRITE THAT FAILED tells a member they have seen
   // something they have not, and the row is gone from the list to prove it.
-  const m = COMP.slice(COMP.indexOf('const mark ='), COMP.indexOf('const markAll ='));
+  // ⚠ `mark` lives in the hook now, not the component — see the note above.
+  const HOOK = grab('useDashInboxFeed');
+  const m = HOOK.slice(HOOK.indexOf('const mark ='), HOOK.indexOf('return {'));
   assert.match(m, /const before = feed;/);
   assert.match(m, /setFeed\(applyLocal\(feed\)\);/);
   assert.match(m, /if \(!r\.ok\) setFeed\(before\);/, 'a rejected write is not rolled back');
   assert.match(m, /\.catch\(\(\) => setFeed\(before\)\)/, 'a network failure is not rolled back');
   // and the badge follows the rows rather than being decremented separately
-  assert.match(COMP, /unread: next\.filter\(\(r\) => !r\.read\)\.length/);
+  assert.match(HOOK, /unread: next\.filter\(\(r\) => !r\.read\)\.length/);
 });
 
 test('the bell is mounted in the shared header, signed-in only', () => {
-  assert.match(CLEAN, /<DashInbox signedIn=\{!!authUser\} role=\{authUser && authUser\.role\} \/>/);
+  // ⚠ NOT A SPELLING. This pinned one exact JSX string, so adding the SECOND render site
+  // — the whole fix for a bell no phone could reach — failed a test about module layout.
+  for (const site of CLEAN.match(/<DashInbox[^/]*\/>/g) || []) {
+    assert.match(site, /signedIn=\{!!authUser\}/, 'a bell renders without the signed-in gate: ' + site);
+    assert.match(site, /role=\{authUser && authUser\.role\}/, 'a bell renders without a role: ' + site);
+  }
   // ⚠ IN THIS FILE, NOT A NEW MODULE: pageShell is the chrome every newdesign page
   // already loads, so there is no script tag to add to 69 files and no load order to get
   // wrong. A new module would fail this.
   assert.ok(!/dashInbox\.jsx/.test(readFileSync(new URL('../public/newdesign/ClientApp.html', import.meta.url), 'utf8')),
     'the inbox became its own module — every page now needs a script tag');
-  assert.match(CLEAN, /function DashInbox\(\{ signedIn, role \}\)/);
+  assert.match(CLEAN, /function DashInbox\(\{[^}]*signedIn[^}]*\}\)/);
 });
 
 test('the tap target clears the documented 24px floor', () => {
   // This repo's own WCAG 2.5.8 AA floor, recorded 2026-09-02.
   assert.match(COMP, /minHeight: 30, minWidth: 30/);
+});
+
+// ── THE BELL HAS TO BE REACHABLE, AND ON A PHONE IT WAS NOT ─────────────────
+// The first cut rendered the bell inside `.shape-nav-auth`, which every collapsed
+// breakpoint hides outright. Measured in a browser: a 33×30 box at 1440px and a
+// ZERO-SIZED one at 1024 and 390 — present in the DOM, painting nothing, unreachable on
+// every phone, tablet and narrow laptop. R20 is about a member seeing on the web what
+// their phone already told them, so a bell a phone cannot reach is the feature not
+// shipping.
+test('every breakpoint that hides the auth cluster shows the mobile bell', () => {
+  // Derived from the source: a breakpoint added later is covered without anyone
+  // remembering this test exists.
+  const blocks = SHELL.split(/@media\s*\(max-width:\s*\d+px\)\s*\{/).slice(1);
+  const hiding = blocks.filter((b) => /\.shape-nav-auth\s*\{[^}]*display:\s*none/.test(b));
+  assert.ok(hiding.length >= 2, 'expected the collapsed-header breakpoints, found ' + hiding.length);
+  for (const b of hiding) {
+    assert.match(b, /\.shape-nav-bell\s*\{[^}]*display:\s*inline-flex/,
+      'a breakpoint hides .shape-nav-auth without showing .shape-nav-bell — the bell is invisible there');
+  }
+});
+
+test('the two bell render sites share ONE feed, so they cannot disagree', () => {
+  // Two <DashInbox> in the header; both take `inbox`, and the fetch lives in the hook.
+  const sites = CLEAN.match(/<DashInbox[^/]*\/>/g) || [];
+  assert.equal(sites.length, 2, 'expected exactly two render sites, got ' + sites.length);
+  for (const s of sites) assert.match(s, /inbox=\{inbox\}/, 'a bell renders without the shared feed: ' + s);
+  // The fetch must NOT be inside the component — that is what a second copy would spend.
+  assert.ok(!/fetch\("\/api\/notifications"/.test(grab('DashInbox')), 'DashInbox fetches its own feed again');
+  assert.match(grab('useDashInboxFeed'), /fetch\("\/api\/notifications"/, 'the hook stopped owning the read');
+  assert.equal((CLEAN.match(/useDashInboxFeed\(/g) || []).length, 2, 'the hook is declared once and called once');
+});
+
+// ── the panel is anchored to the bell, and on a phone the bell is not at the edge ──
+const PANEL = new Function(
+  'const DASH_INBOX_W = ' + /const DASH_INBOX_W = (\d+)/.exec(CLEAN)[1] + ';' +
+  'const DASH_INBOX_GUTTER = ' + /const DASH_INBOX_GUTTER = (\d+)/.exec(CLEAN)[1] + ';' +
+  grab('dashInboxPanelBox') + '\nreturn dashInboxPanelBox;')();
+
+test('the panel is fully on screen at every width — driven, not asserted about CSS', () => {
+  // ⚠ LEFT OVERFLOW CREATES NO SCROLLBAR, so the defect this closes was silent: at 390px
+  // the panel started at −33 and at 360 at −51, clipping the first third of every row
+  // with nothing on screen saying so. `maxWidth: calc(100vw - Npx)` cannot fix it — that
+  // caps the WIDTH while the RIGHT edge stays pinned to the bell.
+  const G = Number(/const DASH_INBOX_GUTTER = (\d+)/.exec(CLEAN)[1]);
+  for (const vw of [320, 360, 375, 390, 414, 600, 700, 768, 900, 1024, 1200, 1440, 1920]) {
+    // The bell sits ~83px in from the right edge on a collapsed header (the burger plus
+    // the flex gap), and hard against the auth cluster on a wide one.
+    for (const inset of [0, 12, 46, 83, 140]) {
+      const bellRight = vw - inset;
+      const b = PANEL(bellRight, vw);
+      assert.ok(b.left >= G - 1, `vw=${vw} inset=${inset}: left ${b.left} is inside the gutter`);
+      assert.ok(b.viewRight <= vw - G + 1, `vw=${vw} inset=${inset}: right ${b.viewRight} past ${vw - G}`);
+      assert.ok(b.w > 0 && b.w <= 340, `vw=${vw} inset=${inset}: width ${b.w}`);
+    }
+  }
+});
+
+test('a desktop bell keeps the plain right-aligned panel it always had', () => {
+  // The offset must be a no-op wherever there is room: this is a fix for narrow
+  // viewports, not a re-layout of the desktop header.
+  assert.equal(PANEL(967, 1440).right, 0);
+  assert.equal(PANEL(967, 1440).w, 340);
+  // ...and it must NOT be a no-op where there is not.
+  assert.ok(PANEL(307, 390).right < 0, 'a phone bell still right-aligns the panel off screen');
 });
