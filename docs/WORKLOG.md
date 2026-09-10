@@ -533,8 +533,28 @@ Append new entries at the top, under this note.
   tracks**. The array is parsed now. Its invariant — tracks === heads + 1 — was right all
   along; how the heads are spelled was never the invariant. *A guard that pins a spelling
   pins whatever that spelling is wrong about* — the sixth time in this wave.
-- **Verified:** `npm test` **2900/2900** · `tsc --noEmit` 0 · JSX parse on all three changed
-  modules · the newdesign precompile check · **18/18 mutations killed, sanity green at
+- ⚠ **AND THE REVIEW ROUND FOUND A TWO-MONTH-OLD "NaNd ago" ON THE ROSTER, WITH THE
+  EXPLANATION ALREADY WRITTEN ONE CELL OVER.** `dashDaysSince` returned `null` for a
+  falsy input and **NaN** for an unparseable one — `Math.max(0, Math.floor(NaN))` is NaN —
+  so each caller had to remember the second case, and **three of the four did not**:
+  `dashLastLogLabel`, `dashContactLabel` and `dashConsultLabel` interpolated it and a
+  malformed date rendered as **"NaNd ago"**. `dashTenureLabel` had the guard **and a
+  comment explaining exactly this defect**, which is the tell: *a lesson written at one
+  call site is not a fix for the other three.* The source has one shape for "no answer"
+  now, so `d == null` is the whole of it, and the four comparators dropped their own
+  `Number.isFinite` because the value can no longer be NaN.
+- ⚠ **AND "No consults yet" / "Never" ARE THE WRONG EMPTIES FOR AN UNREADABLE STAMP.** A
+  date we cannot parse means the thing **did** happen and we cannot say when; saying it
+  never happened is a different claim. Both cells keep their honest empty for the case
+  they are actually about and fall to *Not shared* for this one.
+- ⚠ **AND MY OWN TEST WAS RUNNING A RESTATEMENT OF THE FUNCTION UNDER TEST.** It injected
+  a one-line local `dashDaysSince` into the lifted comparators, so after the shipped one
+  was fixed the suite went on asserting against a version nobody ships — it failed on the
+  *correct* code. The real function is extracted and injected now, and the fixtures moved
+  from a frozen date to relative ones. *A guard that runs its own version of the code is
+  measuring nothing* — recorded on 2026-09-09 against `useSignedIn`, paid for again here.
+- **Verified:** `npm test` **2903/2903** · `tsc --noEmit` 0 · JSX parse on all three changed
+  modules · the newdesign precompile check · **24/24 mutations killed, sanity green at
   both ends**, plus the re-anchored column guard re-proven against a dropped grid track ·
   and driven in Chromium against a simulated account with three kinds of row (real money,
   a measured zero, an unreadable one): **PROGRAM renders as a `SPAN` and every other head

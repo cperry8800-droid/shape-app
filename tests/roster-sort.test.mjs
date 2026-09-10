@@ -11,7 +11,6 @@ import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
 const SRC = readFileSync(new URL('../public/newdesign/dashRoster.jsx', import.meta.url), 'utf8');
-const NOW = Date.parse('2026-09-10T12:00:00Z');
 
 function fn(name) {
   const at = SRC.indexOf('function ' + name + '(');
@@ -23,7 +22,12 @@ function fn(name) {
 const CONSTS = SRC.slice(SRC.indexOf('const DASH_ROSTER_SORTS'), SRC.indexOf('// A stable, unknown-last comparator'));
 // A minimal stand-in for the two collaborators, so the SHIPPED comparators run.
 const DashSignals = { scoreWeekReading: (h) => (Array.isArray(h) && h.length ? { points: h[h.length - 1].points } : null) };
-const dashDaysSince = (d) => Math.max(0, Math.floor((NOW - Date.parse(d)) / 86400000));
+// ⚠ THE REAL `dashDaysSince`, NOT A RESTATEMENT OF IT. This was a one-line local copy
+// — `Math.max(0, Math.floor((NOW - Date.parse(d)) / 86400000))` — and it kept returning
+// NaN for an unreadable date after the shipped one was fixed to return null, so the
+// suite was asserting against a function nobody ships. A guard that runs its own version
+// of the code under test is measuring nothing.
+const dashDaysSince = new Function('return ' + fn('dashDaysSince').replace('function dashDaysSince', 'function') + ';')();
 const { DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted } = new Function(
   'DashSignals', 'dashDaysSince',
   CONSTS + '\n' + fn('dashRosterSorted') + '\nreturn { DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted };'
@@ -69,10 +73,11 @@ test('comparators read the VALUE, never the rendered label', () => {
   const money = [rec('k', pay({ mrrCents: 120000 })), rec('hundreds', pay({ mrrCents: 99900 }))];
   assert.deepEqual(names(dashRosterSorted(money, 'revenue', 'desc')), ['k', 'hundreds']);
   // "9mo" vs "2.0y": text puts 9mo first descending.
-  const tenure = [rec('nine-months', pay({ joinedAt: '2025-12-15' })), rec('two-years', pay({ joinedAt: '2024-09-01' }))];
+  const day = (n) => new Date(Date.now() - n * 86400000).toISOString();
+  const tenure = [rec('nine-months', pay({ joinedAt: day(270) })), rec('two-years', pay({ joinedAt: day(730) }))];
   assert.deepEqual(names(dashRosterSorted(tenure, 'tenure', 'desc')), ['two-years', 'nine-months']);
   // "9d" vs "30d": text puts 9d first descending.
-  const stale = [rec('nine', pay({ lastSessionAt: '2026-09-01' })), rec('thirty', pay({ lastSessionAt: '2026-08-11' }))];
+  const stale = [rec('nine', pay({ lastSessionAt: day(9) })), rec('thirty', pay({ lastSessionAt: day(30) }))];
   assert.deepEqual(names(dashRosterSorted(stale, 'consult', 'desc')), ['thirty', 'nine']);
 });
 
@@ -82,16 +87,18 @@ test('"Never contacted" is the STALEST, not an unknown', () => {
   // inbox — and it is exactly the client the sort is meant to surface. Filing them
   // with the unreadable rows would bury them.
   const rows = [
-    rec('recent', { lastContact: { trainer: '2026-09-09' } }),
+    rec('recent', { lastContact: { trainer: new Date(Date.now() - 86400000).toISOString() } }),
     rec('never', { lastContact: { trainer: null } }),
     rec('no-thread', {}),
-    rec('old', { lastContact: { trainer: '2026-08-01' } }),
+    rec('old', { lastContact: { trainer: new Date(Date.now() - 40 * 86400000).toISOString() } }),
   ];
   assert.deepEqual(names(dashRosterSorted(rows, 'contact', 'desc')), ['never', 'old', 'recent', 'no-thread']);
   assert.deepEqual(names(dashRosterSorted(rows, 'contact', 'asc')), ['recent', 'old', 'never', 'no-thread']);
   // and the role decides which leg is read
-  const both = [rec('n', { lastContact: { trainer: '2026-09-09', nutritionist: '2026-07-01' } }),
-                rec('t', { lastContact: { trainer: '2026-07-01', nutritionist: '2026-09-09' } })];
+  const near = new Date(Date.now() - 86400000).toISOString();
+  const far = new Date(Date.now() - 70 * 86400000).toISOString();
+  const both = [rec('n', { lastContact: { trainer: near, nutritionist: far } }),
+                rec('t', { lastContact: { trainer: far, nutritionist: near } })];
   assert.deepEqual(names(dashRosterSorted(both, 'contact', 'desc', 'trainer')), ['t', 'n']);
   assert.deepEqual(names(dashRosterSorted(both, 'contact', 'desc', 'nutritionist')), ['n', 't']);
 });
@@ -141,6 +148,60 @@ test('every value column has a comparator and every comparator answers null for 
     assert.ok(v == null || typeof v === 'string', k + ' invented a value for an empty record: ' + v);
   }
   assert.ok(checked >= 8, 'only ' + checked + ' comparators were checked');
+});
+
+// ── a date we cannot read (CodeRabbit, #2031) ───────────────────────────
+test('dashDaysSince has ONE shape for "no answer" — null, never NaN', () => {
+  // ⚠ IT USED TO HAVE TWO: null for a falsy input and NaN for an unparseable one,
+  // because `Math.max(0, Math.floor(NaN))` is NaN. Every caller then had to remember the
+  // second case separately and three of the four did not, so a malformed date rendered
+  // as **"NaNd ago"** on the roster. `dashTenureLabel` had the guard, with a comment
+  // explaining exactly this — which is the tell: a lesson written at one call site is
+  // not a fix for the other three.
+  const since = new Function('return ' + fn('dashDaysSince').replace('function dashDaysSince', 'function') + ';')();
+  for (const bad of [null, undefined, '', 'not-a-date', 'garbage', {}, [], NaN]) {
+    assert.equal(since(bad), null, JSON.stringify(bad) + ' produced ' + since(bad));
+  }
+  assert.equal(typeof since(new Date().toISOString()), 'number');
+  assert.equal(since(new Date(Date.now() - 3 * 86400000).toISOString()), 3);
+});
+
+test('every date cell renders an honest empty rather than the arithmetic that failed', () => {
+  // Driven through the shipped label functions, so a NaN anywhere shows up as text.
+  const labels = new Function(
+    fn('dashDaysSince') + '\n' + fn('dashLastLogLabel') + '\n' + fn('dashConsultLabel') + '\n' +
+    fn('dashContactLabel') + '\n' + fn('dashTenureLabel') +
+    '\nreturn { dashLastLogLabel, dashConsultLabel, dashContactLabel, dashTenureLabel };')();
+  const BAD = 'not-a-date';
+  const cases = [
+    ['lastLog', labels.dashLastLogLabel({ foodLogs: { lastLoggedOn: BAD, daysLogged7d: null } })],
+    ['consult', labels.dashConsultLabel({ payments: { lastSessionAt: BAD } })],
+    ['contact', labels.dashContactLabel({ lastContact: { trainer: BAD } }, 'trainer')],
+    ['tenure', labels.dashTenureLabel({ payments: { joinedAt: BAD } })],
+  ];
+  for (const [name, v] of cases) {
+    assert.ok(v && typeof v.text === 'string', name + ' returned no label');
+    assert.ok(!/NaN|null|undefined/.test(v.text), name + ' rendered "' + v.text + '"');
+    assert.equal(v.text, 'Not shared', name + ' rendered "' + v.text + '"');
+    assert.equal(v.dim, true, name + ' is not marked as an unknown');
+  }
+  // ⚠ AND "No consults yet" / "Never" ARE THE WRONG EMPTIES FOR AN UNREADABLE STAMP.
+  // A stamp we cannot parse means the thing DID happen and we cannot say when; saying
+  // it never happened is a different claim, and the wrong one. Both keep their honest
+  // empty for the case they are actually about.
+  assert.equal(labels.dashConsultLabel({ payments: { lastSessionAt: null } }).text, 'No consults yet');
+  assert.equal(labels.dashContactLabel({ lastContact: { trainer: null } }, 'trainer').text, 'Never');
+  assert.equal(labels.dashContactLabel({}, 'trainer').text, 'Not shared');
+  // and a readable date still reads
+  const today = new Date().toISOString();
+  assert.equal(labels.dashConsultLabel({ payments: { lastSessionAt: today } }).text, 'Today');
+  assert.equal(labels.dashLastLogLabel({ foodLogs: { lastLoggedOn: today } }).text, 'Today');
+});
+
+test('an unreadable date still sorts LAST, through the same one shape', () => {
+  const rows = [rec('good', pay({ lastSessionAt: new Date(Date.now() - 5 * 86400000).toISOString() })), rec('bad', pay({ lastSessionAt: 'not-a-date' }))];
+  assert.deepEqual(names(dashRosterSorted(rows, 'consult', 'desc')), ['good', 'bad']);
+  assert.deepEqual(names(dashRosterSorted(rows, 'consult', 'asc')), ['good', 'bad']);
 });
 
 // ── the wiring ──────────────────────────────────────────────────────────────

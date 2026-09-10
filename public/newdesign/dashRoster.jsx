@@ -13,11 +13,21 @@
 
 const DASH_ROSTER_INK50 = "rgba(242,237,228,0.55)";
 
+// ⚠ ONE SHAPE FOR "NO ANSWER", AND IT USED TO HAVE TWO (CodeRabbit, #2031). This
+// returned `null` for a falsy input and `NaN` for an UNPARSEABLE one —
+// `Math.max(0, Math.floor(NaN))` is NaN — so every caller had to remember the second
+// case separately, and three of the four did not: `dashLastLogLabel`,
+// `dashContactLabel` and `dashConsultLabel` interpolated it and a malformed date
+// rendered as **"NaNd ago"** on the roster. `dashTenureLabel` had the guard and its
+// comment explains exactly this, which is the tell: a lesson written at one call site
+// is not a fix for the other three. It is null for both now, so `d == null` is the
+// whole of "we could not read this date".
 function dashDaysSince(isoStr) {
   if (!isoStr) return null;
   try {
     const d = new Date(String(isoStr).length === 10 ? isoStr + "T00:00:00" : isoStr);
-    return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+    return Number.isFinite(days) ? days : null;
   } catch (e) { return null; }
 }
 function dashRelShort(isoStr) {
@@ -36,7 +46,9 @@ function dashLastLogLabel(rec) {
   if (!f) return { text: "Not shared", dim: true };
   if (f.lastLoggedOn) {
     const d = dashDaysSince(f.lastLoggedOn);
-    return { text: d === 0 ? "Today" : d === 1 ? "Yesterday" : d + "d ago", warn: d >= 3 };
+    // A date we cannot read is not a date: it falls through to the honest empty below
+    // rather than rendering the arithmetic that failed on it.
+    if (d != null) return { text: d === 0 ? "Today" : d === 1 ? "Yesterday" : d + "d ago", warn: d >= 3 };
   }
   if (f.daysLogged7d != null) return { text: f.daysLogged7d + "/7 this wk", warn: f.daysLogged7d === 0 };
   return { text: "Not shared", dim: true };
@@ -54,6 +66,10 @@ function dashConsultLabel(rec) {
   const at = rec.payments && rec.payments.lastSessionAt;
   if (!at) return { text: "No consults yet", dim: true };
   const d = dashDaysSince(at);
+  // ⚠ "No consults yet" IS THE WRONG EMPTY HERE. A stamp we cannot parse means a
+  // consult DID happen and we cannot say when — saying there has never been one is a
+  // different claim, and the wrong one.
+  if (d == null) return { text: "Not shared", dim: true };
   return { text: d === 0 ? "Today" : d + "d", warn: d >= 14 };
 }
 function dashAdherenceLabel(rec) {
@@ -86,6 +102,8 @@ function dashContactLabel(rec, role) {
   const ts = role === "nutritionist" ? lc.nutritionist : lc.trainer;
   if (!ts) return { text: "Never", warn: true };
   const d = dashDaysSince(ts);
+  // Same distinction as the consult cell: an unreadable stamp is not "Never".
+  if (d == null) return { text: "Not shared", dim: true };
   return { text: d === 0 ? "Today" : d + "d ago", warn: d >= 5 };
 }
 function dashRevenueLabel(rec) {
@@ -107,10 +125,11 @@ function dashTenureLabel(rec) {
   const at = rec.payments && rec.payments.joinedAt;
   if (!at) return { text: "Not shared", dim: true };
   const d = dashDaysSince(at);
-  // ⚠ Number.isFinite, not `== null`: dashDaysSince runs an unparseable date
-  // through Math.max(0, NaN) and returns NaN, which passes a null check and
-  // then renders "NaNd".
-  if (!Number.isFinite(d)) return { text: "Not shared", dim: true };
+  // ⚠ THIS COMMENT USED TO EXPLAIN A NaN THAT `dashDaysSince` NO LONGER RETURNS. It
+  // was right, and being right in ONE place is what let three sibling cells render
+  // "NaNd ago" for two months — so the fix moved to the source and this is now the
+  // ordinary null check every one of them makes.
+  if (d == null) return { text: "Not shared", dim: true };
   if (d < 31) return { text: d + "d" };
   const months = Math.floor(d / 30.44);
   return months < 12 ? { text: months + "mo" } : { text: (d / 365.25).toFixed(1) + "y" };
@@ -168,22 +187,17 @@ const DASH_ROSTER_SORTS = {
     const f = r.client.foodLogs;
     if (!f) return null;
     if (!f.lastLoggedOn) return f.daysLogged7d != null ? Infinity : null;
-    const d = dashDaysSince(f.lastLoggedOn);
-    return Number.isFinite(d) ? d : null;
+    return dashDaysSince(f.lastLoggedOn);
   } },
   contact: { label: "LAST CONTACT", dir: "desc", of: (r, role) => {
     const lc = r.client.lastContact;
     if (!lc) return null;
     const ts = role === "nutritionist" ? lc.nutritionist : lc.trainer;
     if (!ts) return Infinity;                       // "Never" — known, and the stalest
-    const d = dashDaysSince(ts);
-    return Number.isFinite(d) ? d : null;
+    return dashDaysSince(ts);
   } },
   consult: { label: "LAST CONSULT", dir: "desc", of: (r) => {
-    const at = r.client.payments && r.client.payments.lastSessionAt;
-    if (!at) return null;
-    const d = dashDaysSince(at);
-    return Number.isFinite(d) ? d : null;
+    return dashDaysSince(r.client.payments && r.client.payments.lastSessionAt);
   } },
   streak: { label: "STREAK", dir: "asc", of: (r) => {
     const st = r.client.streaks;
@@ -194,10 +208,7 @@ const DASH_ROSTER_SORTS = {
     return p && p.mrrCents != null ? p.mrrCents : null;
   } },
   tenure: { label: "TENURE", dir: "desc", of: (r) => {
-    const at = r.client.payments && r.client.payments.joinedAt;
-    if (!at) return null;
-    const d = dashDaysSince(at);
-    return Number.isFinite(d) ? d : null;
+    return dashDaysSince(r.client.payments && r.client.payments.joinedAt);
   } },
 };
 const DASH_ROSTER_SORT_KEYS = Object.keys(DASH_ROSTER_SORTS);
