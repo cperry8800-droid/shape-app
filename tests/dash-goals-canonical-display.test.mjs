@@ -21,15 +21,25 @@ const kgToDispSrc = grab(/const dgoKgToDisp = \(v\) => \{[\s\S]*?\n  \};/, 'dgoK
 const goalsSrc = grab(/const goals = \(dgoDispUnit[\s\S]*?: goalsRaw;/, 'goals');
 
 const kgToDisp = new Function('dgoLbToKg', kgToDispSrc.replace('const dgoKgToDisp =', 'return '))(LB_TO_KG);
+
+// ⚠ THE HARNESS CARRIES THE REAL HELPERS, LIFTED FROM SOURCE. A harness that is
+// missing one does not report "incomplete harness" — it throws from inside the
+// expression under test and reads as a failure of the code. Same lesson the
+// `_liftToLb` harness in this wave paid for.
+const ptFieldsSrc = grab(/const DGO_PT_FIELDS = \[[^\]]*\];/, 'DGO_PT_FIELDS');
+const convPtSrc = grab(/const dgoConvPoint = \(h\) => \{[\s\S]*?\n  \};/, 'dgoConvPoint');
+const convPoint = new Function('dgoKgToDisp',
+  `${ptFieldsSrc}\n${convPtSrc.replace('const dgoConvPoint =', 'return ')}`)(kgToDisp);
+
 const runGoals = (dispUnit, src, goalsRaw) =>
-  new Function('dgoDispUnit', 'src', 'goalsRaw', 'dgoKgToDisp', 'dgoLbToKg',
-    goalsSrc.replace('const goals =', 'return '))(dispUnit, src, goalsRaw, kgToDisp, LB_TO_KG);
+  new Function('dgoDispUnit', 'src', 'goalsRaw', 'dgoKgToDisp', 'dgoLbToKg', 'dgoConvPoint',
+    goalsSrc.replace('const goals =', 'return '))(dispUnit, src, goalsRaw, kgToDisp, LB_TO_KG, convPoint);
 
 const near = (a, b, label) => assert.ok(Math.abs(Number(a) - Number(b)) <= 0.15, `${label}: ${a} != ${b}`);
 
 test('an Imperial member sees pounds even though the document is canonical kilograms', () => {
   const src = { overall: { unit: 'kg', displayUnit: 'lb', start: 200 * LB_TO_KG, target: 180 * LB_TO_KG, now: 190 * LB_TO_KG } };
-  const raw = [{ id: 'overall', metric: 'weight', unit: 'kg', start: src.overall.start, target: src.overall.target, now: src.overall.now, history: [{ on: '2026-09-01', v: 195 * LB_TO_KG }] }];
+  const raw = [{ id: 'overall', metric: 'weight', unit: 'kg', start: src.overall.start, target: src.overall.target, now: src.overall.now, history: [{ on: '2026-09-01', value: 195 * LB_TO_KG }] }];
   const g = runGoals('lb', src, raw)[0];
   assert.equal(g.unit, 'lb', 'the unit label must follow the member');
   // ⚠ THE FIGURES AND THE LABEL MOVE TOGETHER. A label-only conversion prints
@@ -37,7 +47,70 @@ test('an Imperial member sees pounds even though the document is canonical kilog
   near(g.start, 200, 'start');
   near(g.target, 180, 'target');
   near(g.now, 190, 'now');
-  near(g.history[0].v, 195, 'history point');
+  near(g.history[0].value, 195, 'history point');
+});
+
+test('history is converted in the shape goalsFromDoc actually emits', () => {
+  // ⚠ THE FIXTURE THAT MADE THIS PASS WHILE BROKEN. `weightSeriesIn` normalises
+  // every series to `{ on, value }` and `goalSeries` reads `value` first — so an
+  // earlier version of this test using `{ on, v }` tested a shape production never
+  // produces, and the conversion of `v` alone converted nothing. Derived from the
+  // engine rather than assumed: the field precedence is read out of dashSignals.js.
+  const ENGINE = fs.readFileSync(new URL('../public/newdesign/dashSignals.js', import.meta.url), 'utf8');
+  assert.match(ENGINE, /pts\.map\(function \(p\) \{ return \{ on: iso\(p\.on\), value: p\.value \}; \}\)/,
+    'weightSeriesIn must still normalise to {on, value} — if this changed, the converter below must change with it');
+
+  const src = { overall: { unit: 'kg', displayUnit: 'lb' } };
+  for (const field of ['value', 'v', 'weight', 'kg']) {
+    const raw = [{ id: 'overall', metric: 'weight', unit: 'kg', target: 81.6466, start: 90.71847, now: 86.18248,
+                   history: [{ on: '2026-09-01', [field]: 88.4505 }] }];
+    const g = runGoals('lb', src, raw)[0];
+    near(g.history[0][field], 195, `history point carried as .${field}`);
+  }
+});
+
+test('a point carrying two numeric fields leaves no stale kilogram twin', () => {
+  const src = { overall: { unit: 'kg', displayUnit: 'lb' } };
+  const raw = [{ id: 'overall', metric: 'weight', unit: 'kg', target: 81.6466, start: 90.71847, now: 86.18248,
+                 history: [{ on: '2026-09-01', value: 88.4505, kg: 88.4505 }] }];
+  const g = runGoals('lb', src, raw)[0];
+  near(g.history[0].value, 195, 'value converted');
+  near(g.history[0].kg, 195, 'the sibling field must not be left in kilograms');
+});
+
+test('the display unit comes from the shared settings store, not only the document', () => {
+  // ⚠ `displayUnit` is written by THIS FILE ALONE; four mobile paths stamp
+  // `unit: 'kg'` without it, and mobile is the primary app. `client_settings.units`
+  // is the store both surfaces share, so it is authoritative and cannot go stale
+  // when the member changes their preference.
+  const load = grab(/let prefUnit = null;[\s\S]*?\n      \} catch \(e\) \{\}/, 'prefUnit read');
+  assert.match(load, /getUserGoals\("client_settings"\)/, 'it must read the shared settings doc');
+  assert.match(load, /metric/i, 'and map the stored label to a unit');
+  const pick = grab(/const dgoDispUnit = [^\n]*/, 'dgoDispUnit');
+  assert.ok(pick.indexOf('prefUnit') < pick.indexOf('displayUnit'),
+    'settings must be preferred over the document stamp, which is only a fallback');
+});
+
+test('the stored settings label maps to the right unit', () => {
+  // ⚠ ASSERTING THAT THE READ EXISTS SAYS NOTHING ABOUT WHICH WAY IT MAPS. A
+  // mutation that swapped kg and lb survived the whole suite until this test —
+  // it would have shown every Metric member pounds. The expression is EXECUTED
+  // against the exact labels the app stores in PREF_OPTIONS.units.
+  const expr = grab(/\/metric\/i\.test\(String\(u\)\)[^;]*/, 'unit mapping');
+  const mapUnit = new Function('u', `return ${expr};`);
+  assert.equal(mapUnit('Metric · kg / km'), 'kg', 'Metric must map to kg');
+  assert.equal(mapUnit('Imperial · lb / mi'), 'lb', 'Imperial must map to lb');
+  assert.equal(mapUnit('something else'), null, 'an unrecognised label must not guess');
+});
+
+test('prefUnit is actually wired into the state the page reads', () => {
+  // ⚠ THE READ AND THE CONSUMER CAN BOTH BE CORRECT AND THE FIX STILL INERT if
+  // the value never reaches `src`. A mutation dropping it from setSrc survived
+  // until this test; the whole conversion silently stopped running.
+  const load = grab(/setSrc\(\{[\s\S]*?share: doc\.share !== false,\s*\}\);/, 'setSrc payload');
+  assert.match(load, /\bprefUnit\b/, 'the resolved preference must be put into src');
+  const consumer = grab(/const dgoDispUnit = [^\n]*/, 'dgoDispUnit');
+  assert.match(consumer, /src\.prefUnit/, 'and the consumer must read it off src');
 });
 
 test('converted figures are rounded for display, not raw floats', () => {

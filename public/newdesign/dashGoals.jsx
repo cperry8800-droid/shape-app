@@ -332,6 +332,20 @@ function ClientGoalsPage() {
         try { remote = await window.shapeDb.getUserGoals("client"); } catch (e) {}
       }
       // Coach-set goals (own client_programs row) + live weigh-in series.
+      // ⚠ THE MEMBER'S UNIT COMES FROM THEIR SETTINGS, NOT FROM THE GOAL DOCUMENT.
+      // The first cut of this fix read `overall.displayUnit`, which only the website
+      // writes — four mobile paths stamp `unit: 'kg'` without it, and mobile is the
+      // primary app, so an Imperial member who canonicalised there still saw
+      // kilograms here. `client_settings.units` is the one store both surfaces
+      // already share (the app's Settings → Units writes it and `ShapeUnits` reads
+      // it), so it is also the only place that cannot go stale when the member
+      // changes their preference. Found by Codex on `61ec662`.
+      let prefUnit = null;
+      try {
+        const st = await window.shapeDb.getUserGoals("client_settings");
+        const u = st && st.units;
+        if (u) prefUnit = /metric/i.test(String(u)) ? "kg" : /imperial/i.test(String(u)) ? "lb" : null;
+      } catch (e) {}
       let coach = null, weighIns = [];
       try {
         const { data } = await window.shapeDb.client.from("client_programs").select("detail").eq("user_id", user.id).maybeSingle();
@@ -357,6 +371,7 @@ function ClientGoalsPage() {
         nutrition: Array.isArray(doc.nutrition) ? doc.nutrition : null,
         work: Array.isArray(doc.work) ? doc.work : null,
         weighIns,
+        prefUnit,
         share: doc.share !== false,
       });
       setSource("live");
@@ -370,11 +385,28 @@ function ClientGoalsPage() {
   // together. Converting the label alone would print kilograms under "lb", which is
   // strictly worse than showing the wrong unit. Only the weight goal is touched:
   // strength/endurance goals carry their own units and are not canonicalised.
-  const dgoDispUnit = (src.overall && src.overall.displayUnit) || null;
+  // Settings first (authoritative, and shared with the app), the document's own
+  // stamp only as a fallback for a member whose settings could not be read.
+  const dgoDispUnit = src.prefUnit || (src.overall && src.overall.displayUnit) || null;
   const dgoKgToDisp = (v) => {
     const n = Number(v);
     if (v == null || v === "" || !Number.isFinite(n)) return v;
     return Math.round((n / dgoLbToKg) * 10) / 10;
+  };
+  // The field precedence `weightSeriesIn` and `goalSeries` both use. Every one that
+  // is present is converted, so whichever the engine reads is in the display unit
+  // and no stale kilogram twin is left behind on the same point.
+  const DGO_PT_FIELDS = ["value", "v", "weight", "kg", "w"];
+  const dgoConvPoint = (h) => {
+    if (!h || typeof h !== "object") return h;
+    let out = h, touched = false;
+    for (const f of DGO_PT_FIELDS) {
+      if (h[f] != null && Number.isFinite(Number(h[f]))) {
+        if (!touched) { out = { ...h }; touched = true; }
+        out[f] = dgoKgToDisp(h[f]);
+      }
+    }
+    return out;
   };
   const goalsRaw = DashSignals.goalsFromDoc(src);
   // ⚠ THE PER-GOAL `/kg/i.test(g.unit)` BELOW IS THE REAL GUARD, and an outer
@@ -387,7 +419,14 @@ function ClientGoalsPage() {
     ? goalsRaw.map((g) => (g && g.metric === "weight" && /kg/i.test(String(g.unit || "")) ? {
         ...g, unit: dgoDispUnit,
         target: dgoKgToDisp(g.target), start: dgoKgToDisp(g.start), now: dgoKgToDisp(g.now),
-        history: Array.isArray(g.history) ? g.history.map((h) => (h && h.v != null ? { ...h, v: dgoKgToDisp(h.v) } : h)) : g.history,
+        // ⚠ `goalsFromDoc` NORMALISES ITS SERIES TO `{ on, value }`, and `projectGoal`
+        // reads `value` — so converting `v` alone converted NOTHING on the real
+        // shape: target and unit became pounds while the history stayed kilograms,
+        // and an 86 kg point read as 86 lb, marking a 180 lb target achieved. My own
+        // test used `{ on, v }`, a shape production never produces, which is exactly
+        // why it passed. Every numeric field `weightSeriesIn`/`goalSeries` can read
+        // is converted, in the same precedence they read it.
+        history: Array.isArray(g.history) ? g.history.map(dgoConvPoint) : g.history,
       } : g))
     : goalsRaw;
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
