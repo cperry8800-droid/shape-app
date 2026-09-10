@@ -17870,7 +17870,7 @@ const COMMUNITY_ACTIVITIES = [
   { kind: 'pr', who: 'Devon Wells', role: 'Client', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
   { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3, stats: [['Distance', '5.1 mi'], ['Avg pace', '9:30/mi'], ['Best pace', '8:58/mi'], ['Time', '48:27'], ['Avg HR', '141 bpm'], ['Max HR', '158 bpm'], ['Cadence', '168 spm'], ['Elevation', '180 ft'], ['Calories', '590'], ['Stride', '1.04 m'], ['Ground', '268 ms'], ['Training', '2.1 · LO']], zones: [['Z1', 22], ['Z2', 58], ['Z3', 16], ['Z4', 4], ['Z5', 0]], trace: [128, 134, 138, 136, 140, 142, 139, 144, 141, 138, 143, 145, 142, 139, 144, 146, 143, 140, 145, 147, 144, 141, 146, 148, 145, 142, 147, 149, 152, 138], cadenceTrace: [162, 165, 167, 168, 166, 169, 168, 170, 169, 167, 170, 171, 169, 167, 170, 172, 170, 168, 171, 172, 171, 169, 172, 173, 171, 170, 172, 174, 173, 168], elevTrace: [60, 64, 70, 78, 74, 68, 76, 84, 80, 72, 80, 92, 88, 80, 76, 84, 96, 90, 82, 88, 98, 92, 86, 94, 102, 96, 88, 80, 72, 64], paceTrace: [600, 588, 582, 590, 578, 585, 575, 583, 590, 580, 572, 581, 588, 574, 582, 570, 579, 586, 572, 580, 588, 575, 583, 590, 576, 584, 578, 586, 572, 580], breakdown: { label: 'Mile splits', rows: [['Mile 1', '9:42/mi', 'Warm-up'], ['Miles 2–3', '9:30/mi', 'Steady'], ['Miles 4–5', '9:24/mi', 'Smooth'], ['Last 0.1', '8:58/mi', 'Strides']] } },
   { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9, stats: [['Top set', '185 lb'], ['Total sets', '24'], ['Avg HR', '132 bpm'], ['Max HR', '158 bpm'], ['Calories', '510'], ['Volume', '12,400 lb']], zones: [['Z1', 34], ['Z2', 38], ['Z3', 20], ['Z4', 7], ['Z5', 1]], trace: [104, 118, 132, 120, 110, 124, 140, 128, 114, 126, 146, 134, 118, 130, 150, 138, 120, 132, 152, 140, 122, 134, 148, 136, 116, 128, 144, 130, 112, 108], breakdown: { label: 'Working sets', rows: [['Back squat', '5 × 5 @ 185', 'RPE 7'], ['Bench', '5 × 5 @ 145', 'RPE 7'], ['Row', '4 × 8 @ 135', 'RPE 8'], ['Accessories', '3 circuits', 'RPE 6']] } },
-  { kind: 'pr', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '2d', body: 'Six weeks ago this was a hard triple at 225. Bar speed stayed crisp through the last rep.', lift: 'Back Squat', topset: '1×3', load: '247 lb', e1rm: '271 lb', kudos: 24, replies: 3, likers: [{ name: 'Maya Okafor', role: 'Trainer' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Maya Okafor', text: 'That last rep was the cleanest yet — progress is showing.', follows: true }], stats: [['Top set', '247 lb'], ['Reps', '3'], ['Est. 1RM', '271 lb'], ['Avg HR', '141 bpm'], ['Max HR', '168 bpm'], ['Calories', '380'], ['Volume', '6,240 lb']], zones: [['Z1', 30], ['Z2', 32], ['Z3', 26], ['Z4', 10], ['Z5', 2]], trace: [98, 110, 132, 120, 106, 118, 148, 130, 112, 124, 152, 136, 118, 128, 158, 138, 116, 130, 162, 140, 118, 132, 156, 136, 112, 126, 150, 132, 108, 104], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '236 lb × 3', 'RPE 8'], ['Set 3', '247 lb × 3', 'RPE 9 · PR']] } },
+  { kind: 'pr', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '2d', body: 'Six weeks ago this was a hard triple at 225. Bar speed stayed crisp through the last rep.', lift: 'Back Squat', topset: '1×3', load: '247 lb', e1rm: '271 lb', kudos: 24, replies: 3, cosign: { name: 'Maya Okafor', role: 'trainer' }, likers: [{ name: 'Maya Okafor', role: 'Trainer' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Maya Okafor', text: 'That last rep was the cleanest yet — progress is showing.', follows: true }], stats: [['Top set', '247 lb'], ['Reps', '3'], ['Est. 1RM', '271 lb'], ['Avg HR', '141 bpm'], ['Max HR', '168 bpm'], ['Calories', '380'], ['Volume', '6,240 lb']], zones: [['Z1', 30], ['Z2', 32], ['Z3', 26], ['Z4', 10], ['Z5', 2]], trace: [98, 110, 132, 120, 106, 118, 148, 130, 112, 124, 152, 136, 118, 128, 158, 138, 116, 130, 162, 140, 118, 132, 156, 136, 112, 126, 150, 132, 108, 104], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '236 lb × 3', 'RPE 8'], ['Set 3', '247 lb × 3', 'RPE 9 · PR']] } },
   { kind: 'run', who: 'Quinn Harper', role: 'Client', city: 'Prospect Park · NYC', tier: 'TEMPO', ago: '3d', body: '5.2 km easy. Legs felt springy after yesterday’s pulls.', distance: '3.2 mi', pace: '7:58/mi', duration: '25:31', elev: '120 ft', route: true, kudos: 15, replies: 2, likers: [{ name: 'Sofia Park', role: 'Nutritionist' }], comments: [{ who: 'Sofia Park', text: 'Perfect easy-day effort.', follows: true }], stats: [['Distance', '3.2 mi'], ['Avg pace', '7:58/mi'], ['Best pace', '7:31/mi'], ['Time', '25:31'], ['Avg HR', '148 bpm'], ['Max HR', '164 bpm'], ['Cadence', '172 spm'], ['Elevation', '120 ft'], ['Calories', '410'], ['Stride', '1.12 m'], ['Ground', '250 ms'], ['Training', '2.4 · MO']], zones: [['Z1', 12], ['Z2', 52], ['Z3', 28], ['Z4', 7], ['Z5', 1]], trace: [124, 132, 138, 141, 139, 145, 143, 148, 146, 142, 149, 152, 149, 145, 150, 154, 151, 147, 152, 156, 153, 149, 154, 158, 155, 150, 156, 160, 164, 146], cadenceTrace: [166, 169, 171, 172, 170, 173, 172, 174, 173, 171, 174, 175, 173, 171, 174, 176, 174, 172, 175, 176, 175, 173, 176, 177, 175, 173, 176, 178, 177, 171], elevTrace: [50, 56, 64, 72, 68, 62, 70, 80, 76, 68, 76, 88, 84, 76, 70, 80, 92, 86, 78, 84, 94, 88, 80, 88, 98, 90, 82, 74, 66, 58], paceTrace: [508, 496, 502, 490, 498, 486, 494, 480, 490, 500, 478, 488, 496, 476, 486, 474, 484, 492, 472, 482, 490, 470, 480, 488, 468, 478, 484, 466, 476, 484], breakdown: { label: 'Mile splits', rows: [['Mile 1', '8:12/mi', 'Warm-up'], ['Mile 2', '7:58/mi', 'Steady'], ['Last 1.2', '7:39/mi', 'Strides']] } },
   { kind: 'workout', who: 'Quinn Harper', role: 'Client', city: 'Shape · Brooklyn', tier: 'TEMPO', ago: '5d', body: 'Everything moved well. RPE 8 across the board, no missed reps.', title: 'Lower push · Block 2', duration: '48 min', exercises: 5, rpe: 8, kudos: 11, replies: 1, stats: [['Top set', '245 lb'], ['Total sets', '18'], ['Avg HR', '136 bpm'], ['Max HR', '159 bpm'], ['Calories', '440'], ['Volume', '9,120 lb']], zones: [['Z1', 32], ['Z2', 36], ['Z3', 22], ['Z4', 8], ['Z5', 2]], trace: [102, 116, 130, 118, 108, 122, 138, 126, 112, 124, 144, 132, 116, 128, 148, 136, 118, 130, 150, 138, 120, 132, 146, 134, 114, 126, 142, 128, 110, 106], breakdown: { label: 'Working sets', rows: [['Back squat', '4 × 5 @ 245', 'RPE 8'], ['RDL', '3 × 8 @ 185', 'RPE 8'], ['Leg press', '3 × 12', 'RPE 7'], ['Accessories', '2 circuits', 'RPE 6']] } },
 ];
@@ -18178,6 +18178,21 @@ function BSWall({ ctx }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const { loggedIn, myRole, bsSubTab, hair, muted, cardInk } = ctx;
   const isCoach = myRole === 'trainer' || myRole === 'nutritionist';
+  // ⚠ "PREVIEWING" IS NOT THE SAME QUESTION AS "SIGNED OUT", AND THE WALL READ
+  // THE WRONG ONE. Someone who taps PREVIEW THE APP FIRST from the paywall may
+  // well be signed in — they are simply not a member — and for them the live
+  // read returns an honest, empty board: the one surface in Chat that shows a
+  // prospect nothing. `window.ShapeCanChat` is the shell's own member signal
+  // (`memberAllowed`), already used for exactly this ("hidden only when
+  // memberAllowed is explicitly false — i.e. preview"), and it defaults to
+  // allow, so a member is never mistaken for a prospect.
+  //
+  // ⚠ A REAL MEMBER WITH AN EMPTY WALL STILL GETS THE EMPTY STATE. The feed
+  // falls back to its demo cast whenever the live read comes back empty, which
+  // shows a paying member a cast of strangers with nothing saying so; this does
+  // not copy that. The sample board is for people who cannot have a wall yet.
+  const canChat = useBSCanChat();
+  const previewing = !loggedIn || canChat === false;
   const [scope, setScope] = useStateBSC('everyone');
   const [lift, setLift] = useStateBSC('all');
   // Three states, kept apart on purpose: null = still reading, [] = read and
@@ -18195,7 +18210,7 @@ function BSWall({ ctx }) {
   // would make the preview's content depend on an effect having run, which is
   // exactly the shape that cannot be driven.
   React.useEffect(() => {
-    if (!loggedIn) return undefined;
+    if (previewing) return undefined;
     let dead = false;
     setRows(null);
     const list = window.ShapePRWall && window.ShapePRWall.list;
@@ -18223,10 +18238,10 @@ function BSWall({ ctx }) {
       })
       .catch(() => { if (!dead) setRows({ error: true }); });
     return () => { dead = true; };
-  }, [loggedIn, scope, nonce]);
+  }, [previewing, scope, nonce]);
 
   React.useEffect(() => {
-    if (!loggedIn) return undefined;
+    if (previewing) return undefined;
     let dead = false;
     const fn = window.ShapePRWall && window.ShapePRWall.mine;
     if (!fn) { setMine({ error: true }); return undefined; }
@@ -18234,12 +18249,12 @@ function BSWall({ ctx }) {
       .then((res) => { if (!dead) setMine(!res || res.stored !== 'supabase' ? { error: true } : (res.data || [])); })
       .catch(() => { if (!dead) setMine({ error: true }); });
     return () => { dead = true; };
-  }, [loggedIn, nonce]);
+  }, [previewing, nonce]);
 
-  // Signed out: the sample board, every render, no effect involved. Signed in:
+  // Previewing: the sample board, every render, no effect involved. A member:
   // whatever the read has resolved to so far.
-  const rowsEff = loggedIn ? rows : bsWallDemoRows();
-  const mineEff = loggedIn ? mine : [];
+  const rowsEff = previewing ? bsWallDemoRows() : rows;
+  const mineEff = previewing ? [] : mine;
   const loading = rowsEff === null;
   const failed = !!(rowsEff && rowsEff.error);
   const all = Array.isArray(rowsEff) ? rowsEff : [];
@@ -18286,7 +18301,7 @@ function BSWall({ ctx }) {
           still. `marginLeft: auto` keeps the filter right-aligned in both. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, rowGap: 2 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
-          {loggedIn && scopes.map((s) => bsSubTab({ key: s.key, on: scope === s.key, color: teal, onClick: () => setScope(s.key), label: s.label }))}
+          {!previewing && scopes.map((s) => bsSubTab({ key: s.key, on: scope === s.key, color: teal, onClick: () => setScope(s.key), label: s.label }))}
         </div>
         {lifts.length > 1 && (
           <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, marginLeft: 'auto' }}>
@@ -18301,7 +18316,7 @@ function BSWall({ ctx }) {
       </div>
       </div>
 
-      {!loggedIn && (
+      {previewing && (
         <div style={{ margin: '8px 0 2px', ...gutter, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
           {tr('feed:wall.demoNote', { defaultValue: 'Sample records · sign in for the live wall' })}
         </div>
@@ -18334,17 +18349,27 @@ function BSWall({ ctx }) {
       <div style={{ marginTop: 18, borderTop: `1px solid ${hair}`, padding: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('feed:wall.yourBest', { defaultValue: 'Your best' })}</div>
-          {loggedIn && (
+          {!previewing && (
             <button onClick={() => setSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0 6px 12px', minHeight: 40, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>
               {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })} <span aria-hidden>＋</span>
             </button>
           )}
         </div>
-        {!loggedIn && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.signInForBest', { defaultValue: 'Sign in to keep your own records here.' })}</div>}
-        {loggedIn && mineEff === null && <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}</div>}
-        {loggedIn && mineEff && mineEff.error && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.bestUnreadable', { defaultValue: "Couldn't read your records just now." })}</div>}
-        {loggedIn && Array.isArray(mineEff) && !mineEff.length && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.noBestYet', { defaultValue: 'No records yet. Log a lift, or post one you set elsewhere.' })}</div>}
-        {loggedIn && Array.isArray(mineEff) && mineEff.map((m) => {
+        {/* ⚠ TWO DIFFERENT PEOPLE, TWO DIFFERENT SENTENCES. A prospect who
+            reached the preview from the paywall IS signed in — telling them to
+            sign in is the same defect the radio ask-gate shipped in #2005, and
+            it names the one step they have already taken. */}
+        {previewing && (
+          <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>
+            {loggedIn
+              ? tr('feed:wall.joinForBest', { defaultValue: 'Join Shape to put your own records here.' })
+              : tr('feed:wall.signInForBest', { defaultValue: 'Sign in to keep your own records here.' })}
+          </div>
+        )}
+        {!previewing && mineEff === null && <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}</div>}
+        {!previewing && mineEff && mineEff.error && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.bestUnreadable', { defaultValue: "Couldn't read your records just now." })}</div>}
+        {!previewing && Array.isArray(mineEff) && !mineEff.length && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13, color: muted }}>{tr('feed:wall.noBestYet', { defaultValue: 'No records yet. Log a lift, or post one you set elsewhere.' })}</div>}
+        {!previewing && Array.isArray(mineEff) && mineEff.map((m) => {
           const g = bsWallGain(m.best, m.prev);
           return (
             <div key={`${m.liftKey}-${m.postedAt}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'baseline', padding: '9px 0', borderBottom: `1px solid ${hair}` }}>

@@ -350,9 +350,50 @@ test('signed in, the sample cast never appears', () => {
   assert.ok(!d.text.includes('Sample records'), 'and no preview note');
 });
 
-test('Post a PR is offered to an account, never to a preview visitor', () => {
+test('Post a PR is offered to a member, never to a preview visitor', () => {
   assert.ok(!drive(BSWall, { ctx: wallCtx() }).text.includes('Post a PR'));
   assert.ok(drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text.includes('Post a PR'));
+  assert.ok(!previewingSignedIn(() => drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text).includes('Post a PR'));
+});
+
+// A prospect who tapped PREVIEW THE APP FIRST from the paywall: signed in, and
+// not a member. `window.ShapeCanChat` is the shell's own member signal.
+function previewingSignedIn(fn) {
+  const prev = globalThis.window.ShapeCanChat;
+  globalThis.window.ShapeCanChat = false;
+  try { return fn(); } finally { globalThis.window.ShapeCanChat = prev; }
+}
+
+test('a signed-in prospect previewing the app still sees the sample board', () => {
+  // ⚠ THE WALL ASKED "SIGNED IN?" WHEN THE QUESTION IS "IS THIS A MEMBER?".
+  // Someone previewing from the paywall may well be signed in, and for them the
+  // live read comes back honest and EMPTY — leaving the one surface in Chat
+  // that shows a prospect nothing at all.
+  const live = drive(BSWall, { ctx: wallCtx({ loggedIn: true }) });
+  assert.equal(live.nodes().filter((n) => n.type === BSWallPlate).length, 0, 'a member waits on the read');
+
+  const d = previewingSignedIn(() => drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }));
+  assert.equal(d.nodes().filter((n) => n.type === BSWallPlate).length, BS_WALL_DEMO.length, 'a prospect sees the board');
+  assert.ok(d.text.includes('Sample records'), 'labelled as samples');
+  assert.ok(!d.text.includes('No records on the wall yet'), 'and never an empty claim');
+});
+
+test('a signed-in prospect is invited to join, not told to sign in', () => {
+  // Naming the one step they have already taken is the #2005 defect.
+  const out = previewingSignedIn(() => drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text);
+  assert.ok(out.includes('Join Shape'), 'invited to join');
+  assert.ok(!out.includes('Sign in'), 'never told to sign in');
+  const signedOut = drive(BSWall, { ctx: wallCtx() }).text;
+  assert.ok(signedOut.includes('Sign in'), 'a genuinely signed-out visitor still is');
+});
+
+test('a member whose wall is empty is told so, not shown strangers', () => {
+  // The feed falls back to its demo cast whenever its live read is empty, which
+  // shows a paying member a cast of strangers with nothing saying so. This does
+  // not copy that: the sample board is for people who cannot have a wall yet.
+  const src = bare.slice(bare.indexOf('function BSWall({ ctx })'));
+  assert.match(src, /const rowsEff = previewing \? bsWallDemoRows\(\) : rows;/,
+    'the sample board is gated on previewing, never on the read coming back empty');
 });
 
 test('the unit choice carries no translatable copy', () => {

@@ -583,7 +583,7 @@ Append new entries at the top, under this note.
   on the controls now and the plates run edge to edge, so the Wall's overflow profile is **identical
   to the untouched Feed's** at both widths. The scope row also overran its own line at 430px (271px
   of a 213px row) and wraps now, the V3 precedent.
-- **35 `feed:wall.*` keys + `home:bulletin.onTheWall*`, ×13 locales — 481 values**, each authored
+- **36 `feed:wall.*` keys + `home:bulletin.onTheWall*`, ×13 locales — 494 values**, each authored
   from that catalog's **own existing wording** (es reuses `card.cosigned`'s *referendado* for the
   stamp; pt-BR the same; every failure line follows the file's own *"Não foi possível…"* register).
   `lb`/`kg` are held as a constant rather than keyed — thirteen identical values a translator must
@@ -595,8 +595,48 @@ Append new entries at the top, under this note.
   self-gating. **Registered, not fixed: the dead registry, and `WPR`** (the *PRs* home widget), which
   renders **hardcoded** Deadlift 405 / Squat 315 / Bench 245 to any signed-in member — a fabrication
   of exactly the class the review's §8 catalogues, and now trivially fixable against `myPRLedger()`.
-- **Verified:** `npm test` **2832/2832** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
-  the newdesign precompile check · **25 mutations killed across two rounds, each proven to land**
+- ⚠ **AND THE PREVIEW — THE WHOLE POINT OF THE SAMPLE BOARD — WAS THE ONE STATE THAT COULD STILL
+  COME UP EMPTY.** Owner: *"make sure the wall is not empty on demo mode so people previewing app
+  can see what it would look like."* The segment gated its sample board on `loggedIn`, and that is
+  **the wrong question**: someone who taps **PREVIEW THE APP FIRST** on the paywall is very often
+  signed in — they are simply not a member — so they took the live path, the read came back honest
+  and **empty**, and the Wall became the one surface in Chat that shows a prospect nothing. It reads
+  `window.ShapeCanChat` now (the shell's own `memberAllowed`, already used for exactly this on the
+  chat composer, and defaulting to allow so a member is never mistaken for a prospect).
+- ⚠ **BUT IT DOES NOT COPY THE FEED'S FALLBACK, DELIBERATELY.** The feed re-shows its demo cast
+  whenever its live read comes back empty (`setPostsLive(false)`), which means a **paying member**
+  with a quiet community is shown a cast of strangers with nothing saying so. The Wall's sample
+  board is gated on *previewing*, never on *the read being empty*: a member with no records gets
+  *"No records on the wall yet."*, which is true.
+- ⚠ **AND THE INVITATION HAD TO STOP NAMING THE ONE STEP THEY HAD ALREADY TAKEN.** *"Sign in to
+  keep your own records here"* is exactly wrong for a signed-in prospect — the #2005 defect, where
+  a coach who was already signed in was told to sign in. A second line, `wall.joinForBest`, invites
+  them to join instead; the sign-in line survives for a genuinely signed-out visitor. **Authored by
+  hand from each catalog's own two sentences** — its `today.joinToSave` ("Join Shape to…") crossed
+  with its `wall.signInForBest` — rather than by a translation round, because a sibling of a
+  sentence already translated thirteen times is a copy job, not a translation job. (pt-BR needed
+  the `login.eyebrowJoin` form: its own sign-in verb *Entre* doubles as *join*, so the obvious
+  frame would have said the same thing twice.)
+- **And the preview now matches the board the owner approved:** Quinn Harper's demo record carries
+  the co-sign from Maya Okafor that the concept board's W tab showed. It had been left off on the
+  reasoning that the app's demo array was the source of truth — but Maya is already in that card's
+  likers **as a Trainer**, and a coach reacting on their own client's card *is* the co-sign by the
+  app's own rule, so the array was the thing that was inconsistent. Two stamped plates and four
+  unstamped, so the preview still shows both states.
+- ⚠ **ONE PROCESS DEFECT, MINE, WORTH WRITING DOWN.** The mutation runner copied the file to
+  `.bak`, applied a mutation, ran the suite and restored — **without a `finally`**. An interrupted
+  round therefore left a *deliberate* defect in the working tree and its backup on disk, and the
+  symptom was that one of my own edits appeared to have silently failed to apply. Fifteen minutes
+  went into "why did that replacement not take" before the `.bak` timestamp explained it. It
+  restores in a `finally` now. *An instrument that edits the tree owes it a guaranteed restore.*
+- ⚠ **AND A "FAILING" TEST IN THE SAME WINDOW WAS THE SAME INSTRUMENT.** A full-suite run reported
+  `the About page holds no hardcoded copy but the founder's name` failing; it passed in isolation
+  and on every clean re-run. The cause was a background mutation round **rewriting
+  `iosAppBroadsheetClient.jsx` underneath the test process**. Recorded rather than shrugged off,
+  because this file's own rule is that a flake is not a root cause — here the root cause was two of
+  my own jobs sharing one file.
+- **Verified:** `npm test` **2835/2835** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
+  the newdesign precompile check · **29 mutations killed across three rounds, each proven to land**
   (two survivors in the first round were real guard gaps and are closed) · the migration
   **driven on a real Postgres 16** through 47 fixture assertions (a private member and a
   leaderboard opt-out are both off the wall · `prev_value` holds the beaten record · a foreign
