@@ -539,7 +539,12 @@ Append new entries at the top, under this note.
   grotesk born in a newspaper group for its editorial screens — the broadsheet DNA without the
   magazine serif). One Google Fonts link, three variable files. ⚠ *Never put a blurred
   `text-shadow` on the dot-matrix face*: it stacks on every dot and the glyph turns into a pale
-  block; one `drop-shadow` on the element instead. Measured on the board, then fixed.
+  block, and a `drop-shadow` filter fails the same way once its blur is wider than the dot
+  spacing — a large dot-matrix figure gets a dark backing plate, not a glow. Measured on the
+  board, then fixed twice. ⚠ **Same day, owner: *"thinner font for the headers"* and *"thinner
+  font for the wall"*** — every concept headline went from Anybody 800 to **500** (smaller
+  headings 600, B's stack 500 with a touch of tracking), and the Wall's headline to 400 with
+  its Doto numerals at 500. The width axis carries the character, so the weight can stay light.
 - **Recommendation, revised with E on the board: E this sprint with the type system; D the
   fallback; A where both grow.** E is the only direction that could not be another company's
   homepage — the terrain, summit and score are already every member profile's own drawing.
@@ -559,7 +564,11 @@ Append new entries at the top, under this note.
   one `BSPlate` screen as a fourth Community segment (Feed · Team · Channels · **Wall**) with
   filters and *your best* pinned, a Home *"On the wall"* card, a one-tap coach **Stamp**; the
   same read feeds the homepage's *"A PR lands"* honestly. Public members only; a signed-in
-  wall never shows the demo cast. Recorded under Open work below.
+  wall never shows the demo cast. Owner, same day: *"make sure the wall concept includes the
+  hide/show option for who is online"* — the Wall carries the feed's online-now rail unchanged
+  (Realtime presence count and avatars, `useBSOnlineRailPref` → `client_settings.onlineRail`
+  for the Hide/Show, one preference for both surfaces); the preview's rail toggles. Recorded
+  under Open work below.
 - ⚠ **THE FIRST RENDER PASS HAD THE WRONG FONTS AND WAS THROWN AWAY.** The container's proxy
   404s `fonts.gstatic.com`, so the page rendered in Times New Roman through its metrics-matched
   fallbacks — a typography review of the wrong typeface. The families were installed from

@@ -97,8 +97,11 @@ that carries information — a number that ticks, a set that logs, a PR that lan
   Nothing else on the page reads an endpoint. `/api/radio/now-playing` exists and is public,
   but returns the **mock provider** (`src/lib/radio/mock.ts`: *"Tempo Lift / Shape Radio"*)
   unless `radio_station.provider = 'http'`; `/api/community/feed` GET is public for
-  `public`/`community` posts; there is **no presence endpoint** (the census counter was
-  removed on 2026-07-31 for exactly that reason).
+  `public`/`community` posts; there is **no presence route for the website** (the census
+  counter was removed on 2026-07-31 because the website had no source). ⚠ The **app** keeps a
+  live presence set through Supabase Realtime (`ShapePresence`,
+  `iosAppBroadsheetClient.jsx:200–247`), which drives its "online now" rail; a homepage census
+  could subscribe to the same channel rather than wait for a route.
 - **Assets on the critical path:** the radio band's background (line 335) is a **1.7 MB
   JPEG with a `.png` extension** (2752×1536) loaded eagerly as a CSS background; the nav
   logo (line 658) is **3696×1782 / 226 KB** rendered at **124×60**; five 600×1387 PNG
@@ -221,7 +224,8 @@ Severity: **P0** fix regardless of direction · **P1** part of the redesign · *
 - **H13.** The board's "wire" ticker is designed so it can only carry real endpoints: today
   that is the coach count; now-playing once the station is real; the public community feed
   for co-signed PRs (`/api/community/feed` GET is public for `public`/`community` posts).
-  No presence, no "training now", until an endpoint exists.
+  No presence, no "training now", until the website subscribes to the app's Realtime
+  presence channel or gets a route of its own.
 
 ### 4.7 Navigation — P1
 
@@ -270,26 +274,26 @@ Gloock) beside the current three, and judged from the glyphs. The pick:
 
 | Role | Face | Why it is Shape's | Settings |
 |---|---|---|---|
-| Display | **Anybody** (variable: wdth 50–150, wght 100–900, italic) | One family that changes shape: condensed (62) it is B's athletic stack, regular (100) it is A's and D's headline, wide (118–125) it is C's and E's, ultra-wide (150) it is the wordmark. The headline's words widen in on load: the page finds its shape on arrival. It is not in the generated-site canon. | 800 for headlines; never under 40 px when condensed below 65 |
-| Numerals · the wire · labels | **Doto** (variable: ROND 0–100, wght 100–900) | A dot-matrix scoreboard face with a roundness axis. Every measured figure (score, BPM, price, the ticker) reads like a reading, which is the honest-data doctrine made typographic. Handjet was tried for its triangle elements; they do not resolve at any size. | 700–800; ROND 30 at rest, 60 on hero figures; never under 13 px; never running text |
+| Display | **Anybody** (variable: wdth 50–150, wght 100–900, italic) | One family that changes shape: condensed (62) it is B's athletic stack, regular (100) it is A's and D's headline, wide (118–125) it is C's and E's, ultra-wide (150) it is the wordmark. The headline's words widen in on load: the page finds its shape on arrival. It is not in the generated-site canon. | **500** for headlines and 600 for smaller headings (owner, same day: *"thinner font for the headers"*, and *"thinner font for the wall"*; the width axis carries the character, so the weight can stay light); never under 40 px when condensed below 65 |
+| Numerals · the wire · labels | **Doto** (variable: ROND 0–100, wght 100–900) | A dot-matrix scoreboard face with a roundness axis. Every measured figure (score, BPM, price, the ticker) reads like a reading, which is the honest-data doctrine made typographic. Handjet was tried for its triangle elements; they do not resolve at any size. | 700 for labels and the wire, 500 for the large figures (the Wall's numerals included); ROND 30 at rest, 60 on hero figures; never under 13 px; never running text |
 | Body · UI | **Schibsted Grotesk** (variable: wght 400–900, italic) | Born inside a newspaper group for its editorial products: crisp, slightly narrow, unfussy. Keeps the broadsheet in the DNA without the magazine serif. | 400/500 body, 700 labels and buttons; replaces every mono eyebrow |
 
 Shipping it is one Google Fonts link and three variable files, replacing the current three
 in `index.html`'s font link and CSS variables. The mobile app's DISPLAY and MONO tokens can
 take the same pair so the phone and the website read as one product. ⚠ **One rule learned
 while building the board:** never put a blurred `text-shadow` on the dot-matrix face; the
-shadow stacks on every dot and the glyph turns into a pale block. Use one `drop-shadow` on
-the element instead.
+shadow stacks on every dot and the glyph turns into a pale block. A `drop-shadow` filter fails the same way once its blur is wider
+than the dot spacing. Give a large dot-matrix figure a dark backing plate instead of a glow.
 
 ### 5b. The five directions
 
 | | Thesis | Display setting | What moves | Live today | Effort | Risk |
 |---|---|---|---|---|---|---|
-| **A · The Floor** | The product is the hero, running in front of you | Anybody 800 · wdth 100 | aurora ground; a phone cycling three real app states every 12 s; the wire; words widen in | coach count (pill + wire) | high | furthest from the site's current look |
-| **B · Pulse** | The station is the front door; the fold breathes at the track's BPM | Anybody 900 · wdth 62, the stack | mark, dot, ring and floor flash on one 60/124 s clock; light steps down TRAIN · EAT · SCORE · BELONG; waveform | now-playing, **only once the station is off the mock** | medium | a gimmick until Radio is real |
-| **C · Daylight** | Energy from light, not neon: a white page that moves | Anybody 800 · wdth 125 | breathing teal sun, rust stripe, floating cards, a dial that fills | coach count | high (site-wide) | biggest brand swing; the app is dark-first |
-| **D · Electrified broadsheet** | Keep the sky; change the tempo | Anybody 800 · wdth 100 | cursor-reactive constellation; the second line cycles four words; three live plates in BSPlate grammar | coach count | low | still a night sky |
-| **E · The Climb** | The product's own metaphor becomes the homepage | Anybody 800 · wdth 118, widening from 62 as the route starts | four contour-lined ridges that breathe and parallax to the cursor; a route that draws to the summit in 3.6 s while the Shape Score counts with it; a warm summit glow; the flag is the mark | coach count (camps + wire); the score is labelled an example | medium | the terrain must match the profile page's ridge closely enough to read as one product |
+| **A · The Floor** | The product is the hero, running in front of you | Anybody 500 · wdth 100 | aurora ground; a phone cycling three real app states every 12 s; the wire; words widen in | coach count (pill + wire) | high | furthest from the site's current look |
+| **B · Pulse** | The station is the front door; the fold breathes at the track's BPM | Anybody 500 · wdth 62, the stack | mark, dot, ring and floor flash on one 60/124 s clock; light steps down TRAIN · EAT · SCORE · BELONG; waveform | now-playing, **only once the station is off the mock** | medium | a gimmick until Radio is real |
+| **C · Daylight** | Energy from light, not neon: a white page that moves | Anybody 500 · wdth 125 | breathing teal sun, rust stripe, floating cards, a dial that fills | coach count | high (site-wide) | biggest brand swing; the app is dark-first |
+| **D · Electrified broadsheet** | Keep the sky; change the tempo | Anybody 500 · wdth 100 | cursor-reactive constellation; the second line cycles four words; three live plates in BSPlate grammar | coach count | low | still a night sky |
+| **E · The Climb** | The product's own metaphor becomes the homepage | Anybody 500 · wdth 118, widening from 62 as the route starts | four contour-lined ridges that breathe and parallax to the cursor; a route that draws to the summit in 3.6 s while the Shape Score counts with it; a warm summit glow; the flag is the mark | coach count (camps + wire); the score is labelled an example | medium | the terrain must match the profile page's ridge closely enough to read as one product |
 
 All five keep the brand line *"Different goals. One community."* so the comparison is
 about design, not copy; the copy is the owner's call. **All five now render the whole page**
@@ -366,7 +370,14 @@ their own prior best in the `pr_wall_posts` ledger; **auto-announce** from the s
    line (unsigned plates read *"not yet stamped"* so a stamp is worth something), ▲ cheer.
    Filters: everyone · following · my coach's clients · by lift. **Your best** pinned at the
    bottom from the member's own ledger with the gap to their next wall post; **Post a PR** for
-   lifts logged outside the app (the existing `ShapePRWall.post`).
+   lifts logged outside the app (the existing `ShapePRWall.post`). **Who's online** (owner,
+   same day: *"make sure the wall concept includes the hide/show option for who is online"*):
+   the feed's online-now rail sits at the top of the Wall, unchanged — the live count and
+   avatars from Realtime presence, the pulsing ring for online, the corner dot for activity
+   (teal in a workout, amber cooking), and the same **Hide ×** / **Show** control backed by the
+   same per-account preference (`useBSOnlineRailPref` → `client_settings.onlineRail`,
+   mirrored per uid in localStorage), so hiding it on the feed hides it on the Wall too. The
+   preview's rail toggles.
 3. **Entry points.** A Home masthead card *"On the wall"* with the latest co-signed PR; in the
    coach apps, a client's PR lands in the Today rail with a one-tap **Stamp** (the existing
    co-sign RPC), so co-signing takes two seconds.
