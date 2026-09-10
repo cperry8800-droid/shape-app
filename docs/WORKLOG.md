@@ -1164,6 +1164,11 @@ Append new entries at the top, under this note.
   public definer read over the already-structured `pr_wall_posts` ledger honouring the
   leaderboard opt-out · a `post_id` on the row so the plate carries the co-sign · reactions),
   one `BSPlate` screen as a fourth Community segment (Feed · Team · Channels · **Wall**) with
+  — ⚠ **IT SHIPPED THE SAME DAY AS A FIFTH: Feed · Wall · Team · Channels · Support.** This
+  bullet is the PLAN, and the Chat contract had four segments when it was written; the entry
+  above it is what was built. Marked rather than rewritten, because a dated entry says what
+  was true on its date — but this file is auto-loaded, so an unmarked stale count reads as
+  the current contract to the next reader. —
   filters and *your best* pinned, a Home *"On the wall"* card, a one-tap coach **Stamp**; the
   same read feeds the homepage's *"A PR lands"* honestly. Public members only; a signed-in
   wall never shows the demo cast. Owner, same day: *"make sure the wall concept includes the

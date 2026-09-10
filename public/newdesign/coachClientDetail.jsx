@@ -626,9 +626,13 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
     // and once 2026-09-10-coach-lift-units.sql normalised that RPC to canonical
     // POUNDS the guess became wrong by a factor of 2.2: a client's 100 kg lift
     // arrives as 220.5 and this row would have read "220.5 kg". The RPC states
-    // its unit now; the fallback is the unit it actually emits, not kg.
-    const liftUnit = (typeof L.unit === "string" && L.unit.trim()) ? L.unit.trim() : "lb";
-    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta), e1 = ckNum(x.e1rm); const u = (typeof x.unit === "string" && x.unit.trim()) ? x.unit.trim() : liftUnit; const v = b != null ? (e1 != null ? `${b} ${u} · ${Math.round(e1)} e1RM` : `${b} ${u}`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
+    // its unit now; where it does not, the figure is UNLABELLED rather than
+    // guessed. ⚠ "lb" was the same mistake as the "kg" above one step on: the
+    // RPC only states a unit once that migration is APPLIED, and until then it
+    // returns a bare max taken ACROSS mixed units — a number whose unit is
+    // genuinely unknown. Stamping one on it turns that into a claim.
+    const liftUnit = (typeof L.unit === "string" && L.unit.trim()) ? L.unit.trim() : "";
+    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta), e1 = ckNum(x.e1rm); const u = (typeof x.unit === "string" && x.unit.trim()) ? x.unit.trim() : liftUnit; const v = b != null ? (e1 != null ? `${b}${u ? " " + u : ""} · ${Math.round(e1)} e1RM` : `${b}${u ? " " + u : ""}`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
   })() : [];
   // Targets are not in the overview yet — the drawer says "no target set" for
   // the same reason — so the row shows the average the client actually logged

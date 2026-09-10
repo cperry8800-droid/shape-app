@@ -610,7 +610,15 @@ test('a set-logged PR records the unit it was lifted in', () => {
   // text. The Wall prints the unit beside the number and computes a delta
   // against the stored best, so a kg lifter's 100 kg was headlined "100 lb".
   const posted = [];
+  // ⚠ `_liftToLb` IS LIFTED FROM THE SOURCE, NOT STUBBED — and its absence was
+  // INVISIBLE rather than loud: `announcePRsFromSetLogs` wraps its whole body
+  // in a best-effort catch, so a ReferenceError for a missing helper announced
+  // nothing at all and the assertion failed as "no such lift" instead of as
+  // "the harness is incomplete". A scope that omits part of the unit under
+  // test is a broken instrument, and a swallowing catch hides which one it is.
   const body = [
+    'const LB_TO_KG_BACKEND = 0.45359237;',
+    extractFn('function _liftToLb('),
     extractFn('async function announcePRsFromSetLogs('),
     'return announcePRsFromSetLogs;',
   ].join('\n');
@@ -628,8 +636,15 @@ test('a set-logged PR records the unit it was lifted in', () => {
     { moveName: 'Bench press', actualLoad: '225 lb', actualReps: 5, completed: true },
     { moveName: 'Back squat', actualLoad: 90, unit: 'kg', actualReps: 5, completed: true },
     { moveName: 'Front squat', actualLoad: '80', loadUnit: 'kg', actualReps: 3, completed: true },
+    // ⚠ ONE MOVE, TWO UNITS IN ONE SESSION — the case `_liftToLb` exists for.
+    // 100 kg is 220.5 lb, so it is the heavier set; comparing the bare numbers
+    // put it BEHIND the 200 lb one and announced the lighter lift as the PR.
+    { moveName: 'Deadlift', actualLoad: 200, unit: 'lb', actualReps: 1, completed: true },
+    { moveName: 'Deadlift', actualLoad: 100, unit: 'kg', actualReps: 1, completed: true },
   ]).then(() => {
     const by = Object.fromEntries(posted.map((x) => [x.lift, x]));
+    assert.equal(by['Deadlift'].value, 100, 'the 100 kg set is the heavier one');
+    assert.equal(by['Deadlift'].unit, 'kg', 'and it is announced in the unit it was lifted in');
     assert.equal(by['Back squat'].unit, 'kg', 'the explicit field wins');
     assert.equal(by['Back squat'].value, 100, 'the heaviest completed set of that move');
     assert.equal(by['Front squat'].unit, 'kg', 'under any of its spellings');
@@ -818,7 +833,16 @@ function bestLifts({ rows = [], error = null, acts = [], actError = null, uid = 
     return q;
   };
   const supabase = { from: (tbl) => { calls.push(['from', tbl]); return tbl === 'activities' ? make(acts, actError) : make(rows, error); } };
-  const body = [extractFn('async function myBestLifts('), 'return { myBestLifts, calls };'].join('\n');
+  // ⚠ `_liftToLb` IS PART OF THE UNIT OF CODE UNDER TEST, so it is lifted from
+  // the source too rather than stubbed. `myBestLifts` compares sets in POUNDS
+  // via that helper (a 100 kg set must beat a 200 lb one), and a stub here
+  // would be testing the stub's arithmetic instead of the shipped conversion.
+  const body = [
+    'const LB_TO_KG_BACKEND = 0.45359237;',
+    extractFn('function _liftToLb('),
+    extractFn('async function myBestLifts('),
+    'return { myBestLifts, calls };',
+  ].join('\n');
   // eslint-disable-next-line no-new-func
   const mod = new Function('supabase', 'state', 'calls', body)(supabase, { user: { id: uid } }, calls);
   return { run: mod.myBestLifts, calls };

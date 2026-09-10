@@ -4687,11 +4687,24 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       // coach's Settings say. The delta is a difference in the same unit, so it
       // converts the same way; `p` stays in the row's own unit because it is a
       // ratio against `mx` and a ratio has no unit.
-      const srcU = x.unit || L.unit || 'lb';
+      // ⚠ NO UNIT MEANS NO UNIT — NOT POUNDS. This defaulted to 'lb', which is
+      // the same mistake as the hardcoded "kg" described above, one guess
+      // swapped for another: `get_client_lifts` only states `unit` once
+      // 2026-09-10-coach-lift-units.sql is APPLIED, and a migration is applied
+      // by a human whenever they choose. In that window the RPC returns a bare
+      // max taken ACROSS mixed units, so the number is already unknown — and
+      // stamping 'lb' on it turns "we don't know" into a claim, then converts
+      // it, so a metric coach is shown a confidently wrong kilogram figure.
+      // `bsSdMeasure` returns an unknown unit's value untouched, so an
+      // unlabelled figure stays an unlabelled figure.
+      const srcU = x.unit || L.unit || '';
       const bM = t.uMeasure(b, srcU);
       const dM = dl != null ? t.uMeasure(dl, srcU) : null;
+      // The catalog strings interpolate `{load} {unit}`, so an empty unit would
+      // leave a trailing (or, with e1RM, a doubled) space in every locale.
+      const tidy = (s) => String(s).replace(/\s+/g, ' ').trim();
       const v = b != null
-        ? (e1 != null
+        ? tidy(e1 != null
             ? tr('coach:case.liftE1rm', { defaultValue: '{load} {unit} · {e1rm} e1RM', load: bM.value, unit: bM.unit, e1rm: Math.round(t.uMeasure(e1, srcU).value) })
             : tr('coach:case.liftLoad', { defaultValue: '{load} {unit}', load: bM.value, unit: bM.unit }))
         : '—';

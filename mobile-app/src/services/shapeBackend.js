@@ -3306,7 +3306,12 @@ async function announcePRsFromSetLogs(setLogs = []) {
       const unit = _setLogUnit(e);
       const reps = parseInt(String(e.actualReps ?? e.reps ?? e.actual_reps ?? ''), 10);
       const prev = best.get(lift);
-      if (!prev || load > prev.load) best.set(lift, { load, unit, reps: Number.isFinite(reps) ? reps : null });
+      // ⚠ COMPARE IN ONE UNIT, KEEP THE SET'S OWN. `load > prev.load` put a
+      // 100 kg set behind a 200 lb one and announced the lighter lift as the
+      // day's best.
+      const lb = _liftToLb(load, unit);
+      if (lb == null) continue;
+      if (!prev || lb > prev.lb) best.set(lift, { load, unit, lb, reps: Number.isFinite(reps) ? reps : null });
     }
     // ⚠ NO postId. A session can contain several PRs and there is ONE feed post
     // for the whole session, so linking it to each would point every one of
@@ -3451,16 +3456,23 @@ async function myBestLifts() {
     if (!lift || !Number.isFinite(load) || load <= 0) continue;
     const key = lift.toLowerCase();
     const prev = best.get(key);
-    // ⚠ HEAVIEST WINS, NOT MOST RECENT. A "best" that tracked the last session
-    // would fall every time they deloaded — and a deload week is not a lost PR.
-    if (!prev || load > prev.best) {
+    const rowUnit = String(row.load_unit || 'lb').toLowerCase().includes('kg') ? 'kg' : 'lb';
+    // ⚠ HEAVIEST WINS, NOT MOST RECENT — AND "HEAVIEST" IS DECIDED IN ONE UNIT.
+    // A "best" that tracked the last session would fall every time they
+    // deloaded, and a deload week is not a lost PR. But comparing the raw
+    // numbers across mixed `load_unit` rows made a 100 kg set lose to a 200 lb
+    // one, so the row kept is the lighter lift under a heavier-looking number.
+    const lb = _liftToLb(load, rowUnit);
+    if (lb == null) continue;
+    if (!prev || lb > prev.lb) {
       best.set(key, {
         liftKey: key,
         liftLabel: lift,
         kind: 'lift',
         best: load,
+        lb,
         reps: Number.isFinite(Number(row.actual_reps)) ? Number(row.actual_reps) : null,
-        unit: String(row.load_unit || 'lb').toLowerCase().includes('kg') ? 'kg' : 'lb',
+        unit: rowUnit,
         loggedAt: row.finished_at || row.created_at || null,
       });
     }
@@ -5574,6 +5586,20 @@ window.ShapeMarketPlans = { list: listMarketPlans, buy: buyCoachPlan };
 // migration. `.kg` is therefore honestly kilograms, which is what every consumer
 // already assumed it was.
 const LB_TO_KG_BACKEND = 0.45359237;
+// ⚠ A LIFT IS CANONICAL POUNDS, WHICH IS THE OPPOSITE OF BODY WEIGHT. Both
+// migrations of 2026-09-10 normalise `max(load)` to pounds before comparing,
+// because a member who logs some sessions in kilograms and some in pounds had
+// 100 (kg) lose to 200 (lb) and their "best" was the LIGHTER lift — 100 kg is
+// 220 lb. The JS paths below did exactly the same thing and were NOT fixed in
+// that pass: the SQL learned the rule and the three callers that compare loads
+// in this file did not. Caught by CodeRabbit on #2024. One helper now, so a
+// fourth caller cannot re-invent the bug.
+function _liftToLb(value, unit) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return String(unit || '').toLowerCase().includes('kg') ? n / LB_TO_KG_BACKEND : n;
+}
 function _weighInToKg(value, unit) {
   // ⚠ `Number(null)` AND `Number('')` ARE BOTH 0, AND BOTH ARE FINITE, so a bare
   // Number() guard turns an absent weigh-in into a confident 0 kg — which then

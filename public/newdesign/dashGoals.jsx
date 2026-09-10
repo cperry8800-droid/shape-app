@@ -332,7 +332,13 @@ function ClientGoalsPage() {
       } catch (e) {}
       try {
         const { data } = await window.shapeDb.client.from("client_weigh_ins").select("logged_on, weight, unit").eq("user_id", user.id).order("logged_on", { ascending: true }).limit(104);
-        if (Array.isArray(data)) weighIns = data.map((w) => ({ on: w.logged_on, weight: w.weight, unit: w.unit }));
+        // Legacy rows may be pounds; normalise by the row's OWN unit so the
+        // series is one unit, the same repair the app's listWeighIns does.
+        if (Array.isArray(data)) weighIns = data.map((w) => {
+          const n = Number(w.weight);
+          const kgv = Number.isFinite(n) ? (/^(lb|lbs|pound)/i.test(String(w.unit || "kg").trim()) ? n * 0.45359237 : n) : null;
+          return { on: w.logged_on, weight: kgv, unit: "kg" };
+        }).filter((w) => w.weight != null);
       } catch (e) {}
       if (!on) return;
       const doc = remote && Object.keys(remote).length ? remote : {};
@@ -368,22 +374,46 @@ function ClientGoalsPage() {
     setSrc({ ...src, share: nextShare });
     persistDoc({ ...(rawDoc || {}), share: nextShare });
   };
+  // ⚠ BODY WEIGHT IS CANONICAL KILOGRAMS, ON THIS SURFACE TOO. The app was
+  // canonicalised on 2026-09-10 and this website path was not, which left two
+  // real holes: it wrote a POUND number into a field literally named `kg` (both
+  // in the goal document and, via `unit`, into `client_weigh_ins`), and
+  // `award_my_goal_milestones` reads that column verbatim — so a pound row
+  // compared against a kilogram goal awards every milestone at once. Nothing
+  // about `{ kg: 185 }` tells the next reader it might be a pound.
+  //
+  // The contract is the app's, restated here: convert on the way in, stamp the
+  // document `kg`, and convert the whole document in ONE step so start, target
+  // and the series can never disagree about which unit they are in. The member
+  // still SEES their own unit — display is the caller's job, not the document's.
+  const dgoLbToKg = 0.45359237;
+  const dgoToKg = (v, u) => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    return /^(lb|lbs|pound)/i.test(String(u || "kg").trim()) ? n * dgoLbToKg : n;
+  };
   const logWeighIn = async (value, unit) => {
     setLogOpen(false);
     const today = dgoIso(new Date());
     const doc = rawDoc || {};
-    const prev = (doc.overall && Array.isArray(doc.overall.weighIns)) ? doc.overall.weighIns.filter((x) => x) : [];
+    const kg = dgoToKg(value, unit);
+    if (kg == null) return;
+    const wasLb = /^(lb|lbs|pound)/i.test(String((doc.overall && doc.overall.unit) || "kg").trim());
+    const conv = (v) => { const n = Number(v); return Number.isFinite(n) && v !== "" && v != null ? (wasLb ? n * dgoLbToKg : n) : v; };
+    const prev = ((doc.overall && Array.isArray(doc.overall.weighIns)) ? doc.overall.weighIns.filter((x) => x) : [])
+      .map((x) => (wasLb ? { ...x, kg: conv(x.kg) } : x));
     const wi = prev.length && prev[prev.length - 1].d === today
-      ? prev.slice(0, -1).concat([{ d: today, kg: value }])
-      : prev.concat([{ d: today, kg: value }]);
-    const nextDoc = { ...doc, overall: { ...(doc.overall || {}), weighIns: wi, now: value } };
-    const nextSeries = (src.weighIns || []).filter((w) => w.on !== today).concat([{ on: today, weight: value, unit }]);
+      ? prev.slice(0, -1).concat([{ d: today, kg }])
+      : prev.concat([{ d: today, kg }]);
+    const nextDoc = { ...doc, overall: { ...(doc.overall || {}), unit: "kg", start: conv(doc.overall && doc.overall.start), target: conv(doc.overall && doc.overall.target), weighIns: wi, now: kg } };
+    const nextSeries = (src.weighIns || []).filter((w) => w.on !== today).concat([{ on: today, weight: kg, unit: "kg" }]);
     setSrc({ ...src, overall: nextDoc.overall, weighIns: nextSeries });
     persistDoc(nextDoc);
     if (signedIn && window.shapeDb) {
       try {
         await window.shapeDb.client.from("client_weigh_ins").upsert(
-          { user_id: (await window.shapeDb.getUser()).id, logged_on: today, weight: value, unit },
+          { user_id: (await window.shapeDb.getUser()).id, logged_on: today, weight: kg, unit: "kg" },
           { onConflict: "user_id,logged_on" }
         );
       } catch (e) {}
