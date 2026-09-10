@@ -817,61 +817,9 @@ function useWeekClock(compute) {
   return value;
 }
 
-// ── THE PREVIEW'S MONEY, DERIVED FROM ONE NUMBER (review 2026-09-09, V5) ─────
-// The signed-out preview is what a prospective coach evaluates the product on, and it
-// used to contradict itself on a single screen: the sidebar said "$18,420 · Month to
-// date" while the practice strip beside it said "$1,820 monthly recurring" — from the
-// SAME ten demo clients — and the payouts strip said "$4,192 this month". Three answers
-// to one question, none of them derived from the roster on the page.
-//
-// ⚠ AND EVERY PAYOUT DATE WAS FROZEN IN APRIL, under a dateline that renders today.
-// "PAYOUT APR 30", "Apr 21", "in 3 days" — the last of which was fixed text, so it was
-// wrong even in April on every day but one.
-//
-// Everything now falls out of the roster's own MRR. Each figure means something
-// DIFFERENT, or it would just be the same number wearing four labels:
-//   monthly     Σ of what the demo clients pay — the anchor
-//   net         after the 15% platform fee, the rate dashToday already applies
-//   thisMonth   net accrued month-to-date
-//   balance     the settled part: accrued up to the 7-day holding period
-//   lifetime    net × the months since the LONGEST-TENURED client joined
-function dashDemoPayouts(clients, now) {
-  const at = now instanceof Date ? now : new Date();
-  const rows = Array.isArray(clients) ? clients : [];
-  const monthlyCents = rows.reduce((sum, c) => sum + ((c && c.payments && c.payments.mrrCents) || 0), 0);
-  const netCents = Math.round(monthlyCents * 0.85);
-
-  const daysInMonth = new Date(at.getFullYear(), at.getMonth() + 1, 0).getDate();
-  const dayOfMonth = at.getDate();
-  const thisMonthCents = Math.round((netCents * dayOfMonth) / daysInMonth);
-  // The holding period is why a balance is not simply "this month": a payout processor
-  // settles on a lag. Seven days, floored at zero for the first week of a month.
-  const settledDays = Math.max(0, dayOfMonth - 7);
-  const balanceCents = Math.round((netCents * settledDays) / daysInMonth);
-
-  // Payouts land on the last day of the month, which is where "PAYOUT <date>" comes from.
-  const payoutOn = new Date(at.getFullYear(), at.getMonth() + 1, 0);
-  const daysToPayout = Math.max(0, Math.round((payoutOn - new Date(at.getFullYear(), at.getMonth(), dayOfMonth)) / 86400000));
-
-  // ⚠ LIFETIME IS MEASURED, NOT PICKED. The demo roster carries joinedAt, so the
-  // practice's age is a fact about the data on the page rather than a bigger-looking
-  // number. A roster with no dates yields one month, never a fabricated history.
-  let oldest = null;
-  for (const c of rows) {
-    const j = c && c.payments && c.payments.joinedAt ? new Date(c.payments.joinedAt) : null;
-    if (j && !isNaN(j.getTime()) && (oldest == null || j < oldest)) oldest = j;
-  }
-  const months = oldest
-    ? Math.max(1, (at.getFullYear() - oldest.getFullYear()) * 12 + (at.getMonth() - oldest.getMonth()))
-    : 1;
-  const lifetimeCents = netCents * months;
-
-  return {
-    monthlyCents, netCents, thisMonthCents, balanceCents, lifetimeCents,
-    months, daysToPayout,
-    payoutLabel: payoutOn.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase(),
-    payoutShort: payoutOn.toLocaleDateString([], { month: "short", day: "numeric" }),
-  };
-}
-
-Object.assign(window, { useDashboard, dashDemoPayouts, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });
+// ⚠ `dashDemoPayouts` MOVED TO `dashSignals.js` on 2026-09-10 as `DashSignals.demoPayouts`.
+// It derives from `buildMockClients`, which lives there, and the sidebar's payout card is
+// rendered on pages that load NEITHER this file nor `dashToday.jsx` — so keeping the
+// derivation here made the card's own getters throw on ten of them and report the failure
+// as an em-dash. A pure derivation belongs with the data it derives from.
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });

@@ -49,7 +49,7 @@ function dashDemoCalendar(rows, now) {
   const monday = new Date(at.getFullYear(), at.getMonth(), at.getDate());
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const shiftDays = Math.round((monday - base) / 86400000);
-  const p = dashDemoPayouts(DashSignals.buildMockClients(at), at);
+  const p = DashSignals.demoPayouts(DashSignals.buildMockClients(at), at);
   const v = (rows || []).map((e) => {
     const d = e.date.split("-").map(Number);
     const moved = new Date(d[0], d[1] - 1, d[2] + shiftDays);
@@ -75,7 +75,7 @@ function dashDemoKpis(now) {
   // roster each time to reach a figure that only moves at midnight is waste.
   const key = at.toDateString();
   if (_dashDemoKpis && _dashDemoKpis.key === key) return _dashDemoKpis.v;
-  const p = dashDemoPayouts(DashSignals.buildMockClients(at), at);
+  const p = DashSignals.demoPayouts(DashSignals.buildMockClients(at), at);
   const v = [
     { k: dashMoney(p.balanceCents), l: "Current balance", sub: "settled · 7-day hold" },
     { k: p.payoutShort, l: "Next payout", sub: p.daysToPayout === 0 ? "today" : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s") },

@@ -10,7 +10,7 @@
 // DRIVES the derivation rather than pinning the numbers it happens to produce.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { stripComments } from './helpers/strip-comments.mjs';
 
@@ -29,7 +29,10 @@ function fn(src, name, deps) {
   const names = Object.keys(deps || {});
   return new Function(...names, src.slice(at, k) + '\nreturn ' + name + ';')(...names.map((n) => deps[n]));
 }
-const payouts = fn(DATA, 'dashDemoPayouts');
+// ⚠ REQUIRED, NOT EXTRACTED. `dashDemoPayouts` moved out of dashData.jsx into the pure
+// engine on 2026-09-10 (CodeRabbit, #2027), which is the point of the move: it is now
+// the SHIPPED function under a real require(), not a brace-matched copy of one.
+const payouts = DS.demoPayouts;
 const roster = (now) => DS.buildMockClients(now);
 const mrrOf = (cs) => cs.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
 
@@ -42,6 +45,17 @@ test('every preview money figure derives from the roster on the page', () => {
   // month-to-date and the settled balance are FRACTIONS of the month, in order
   assert.ok(p.thisMonthCents > 0 && p.thisMonthCents < p.netCents, 'month-to-date is not inside the month');
   assert.ok(p.balanceCents <= p.thisMonthCents, 'more is settled than has been earned');
+  // ⚠ AND THE FRACTION IS OF **NET**, WHICH THE ORDERING ABOVE CANNOT SEE. Measured:
+  // recomputing month-to-date off GROSS survived every assertion here, because ten
+  // thirtieths of gross is still comfortably less than net. What the coach is owed is
+  // what is left after the platform fee, so the identity is pinned, not the ordering.
+  const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  assert.equal(p.thisMonthCents, Math.round((p.netCents * now.getDate()) / days),
+    'month-to-date is a slice of gross, so the preview promises money the fee has taken');
+  assert.equal(p.balanceCents, Math.round((p.netCents * Math.max(0, now.getDate() - 7)) / days),
+    'the settled balance ignores the holding period it exists to represent');
+  // and on the first week of a month nothing has settled yet
+  assert.equal(payouts(cs, new Date('2026-09-04T12:00:00')).balanceCents, 0);
   // lifetime is measured from the roster's own joinedAt, never picked
   assert.equal(p.lifetimeCents, p.netCents * p.months);
   assert.ok(p.months >= 1, 'a practice with no dated clients invents a history');
@@ -175,4 +189,77 @@ test('Business shows the same practice as Today', () => {
   // and the trajectory is lazy for the same read-time reason as the card
   assert.match(biz, /function dbzDemoTrajectory\(\)/);
   assert.ok(!/const DBZ_DEMO_TRAJECTORY = \(\(\) =>/.test(biz), 'the trajectory is built at module load again');
+});
+
+// ── the card's dependency actually reaches every page that renders it ────────
+// ⚠ THIS IS THE GUARD THAT WAS MISSING, AND THE DEFECT IT CLOSES WAS INVISIBLE BY
+// DESIGN. `coachDemoPayoutCard` catches and returns "PAYOUTS · —", which is the right
+// answer for "nothing to derive from" and the WRONG one for "this page never loaded the
+// script" — the two are indistinguishable on screen. Ten pages were in the second state.
+// A page is checked by what it DOES (renders a coach payout card, directly or through a
+// module it loads), never by its name.
+test('every page that renders a coach payout card loads the engine at all', () => {
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const names = readdirSync(dir).filter((f) => f.endsWith('.html'));
+  assert.ok(names.length > 40, 'the sweep found no pages to scan');
+
+  // which shared modules reference the card at all — derived, not listed
+  const jsx = readdirSync(dir).filter((f) => f.endsWith('.jsx'));
+  const cardModules = jsx.filter((f) =>
+    /\b(trainerPayoutCard|nutriPayoutCard|coachPayoutCardDemo)\b/.test(
+      stripComments(readFileSync(new URL(f, dir), 'utf8'))));
+  assert.ok(cardModules.length > 3, 'no module references the payout card — the sweep is looking for the wrong name');
+
+  let renders = 0, stubs = 0;
+  for (const f of names) {
+    const raw = readFileSync(new URL(f, dir), 'utf8');
+    if (!raw.includes('coachNav.jsx')) continue;
+    // a redirect stub navigates away in <head> and renders nothing
+    const head = raw.slice(0, raw.toLowerCase().indexOf('</head>') + 7 || 2000);
+    if (/location\.replace\(/.test(head)) { stubs += 1; continue; }
+    const inline = /\b(trainerPayoutCard|nutriPayoutCard)\b/.test(raw);
+    const viaModule = cardModules.some((m) => raw.includes(m));
+    if (!inline && !viaModule) continue;
+    renders += 1;
+    // ⚠ PRESENCE, NOT ORDER — AND MY FIRST CUT OF THIS GUARD ASSERTED ORDER AND FAILED
+    // CORRECT CODE. All three shells load `dashSignals.js` AFTER `coachNav.jsx` and are
+    // right to: the card's properties are GETTERS, so nothing is read until render, by
+    // which time every tag has run. Ordering is not even well defined here — the engine
+    // is a plain <script> and coachNav is `type="text/babel"`, which @babel/standalone
+    // defers, so the babel module runs last whatever the file says. What the page must
+    // have is the script; the laziness that makes that sufficient is pinned below.
+    assert.ok(raw.includes('dashSignals.js'), f + ' renders a coach payout card but never loads dashSignals.js');
+  }
+  assert.ok(renders >= 8, 'only ' + renders + ' payout-card pages were checked — the sweep scanned nothing');
+  assert.ok(stubs > 0, 'no redirect stubs were recognised — the classifier stopped working');
+});
+
+test('the card reaches into ONE module, so one script tag is the whole dependency', () => {
+  const nav = stripComments(NAV);
+  const body = nav.slice(nav.indexOf('function coachDemoPayoutCard'), nav.indexOf('const coachPayoutCardDemo'));
+  assert.match(body, /DashSignals\.demoPayoutCard\(now\)/);
+  // the three-module reach that caused the defect must not come back
+  assert.ok(!/dashDemoPayouts|dashMoney|buildMockClients/.test(body),
+    'the payout card reached back into dashData.jsx or dashToday.jsx');
+  // and the derivation really is in the engine, require()-able
+  assert.equal(typeof DS.demoPayoutCard, 'function');
+  // ⚠ AND THE CARD'S PROPERTIES MUST STAY GETTERS. Evaluating them at module scope
+  // would read `DashSignals` before it exists on all three shells — which is what makes
+  // presence, rather than order, the right requirement one test up.
+  const decl = nav.slice(nav.indexOf('const coachPayoutCardDemo'), nav.indexOf('const trainerPayoutCard'));
+  for (const k of ['label', 'amount', 'sub']) {
+    assert.match(decl, new RegExp('get ' + k + '\\(\\) \\{ return coachDemoPayoutCard\\(\\)\\.' + k),
+      'the payout card evaluates ' + k + ' at module scope');
+  }
+  assert.match(decl, /demo: true/, 'the demo marker is gone — a clone would show invented money to a live coach');
+  assert.ok(!/function dashDemoPayouts\(/.test(stripComments(DATA)), 'dashDemoPayouts is back in dashData.jsx');
+  const card = DS.demoPayoutCard(new Date('2026-09-10T12:00:00'));
+  assert.match(card.label, /^PAYOUT [A-Z]{3} \d{1,2}$/);
+  assert.match(card.amount, /^\$[\d,]+$/);
+  assert.match(card.sub, /^Month to date · (pays out today|in \d+ days?)$/);
+  // it agrees with the strip beside it: month-to-date is a slice of net, never of gross
+  const now = new Date('2026-09-10T12:00:00');
+  const p = DS.demoPayouts(DS.buildMockClients(now), now);
+  assert.ok(p.thisMonthCents < p.netCents && p.netCents < p.monthlyCents);
+  assert.equal(card.amount, '$' + Math.round(p.thisMonthCents / 100).toLocaleString());
 });

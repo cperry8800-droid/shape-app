@@ -37,8 +37,16 @@ function trainerNavItems(active) {
 //
 // ⚠ LAZY, BECAUSE THIS FILE LOADS BEFORE THE ENGINE IT DERIVES FROM. coachNav.jsx is
 // script #55 and dashSignals.js is #56, so a module-scope call would read undefined.
-// Getters evaluate at render, by which time both are up; a spread copies the evaluated
+// Getters evaluate at render, by which time it is up; a spread copies the evaluated
 // values, so `{...card}` still behaves exactly as it did.
+//
+// ⚠ AND IT REACHES INTO EXACTLY ONE MODULE NOW, WHICH IS THE WHOLE POINT. The first
+// cut of this card called `DashSignals.buildMockClients` AND `dashDemoPayouts`
+// (dashData.jsx) AND `dashMoney` (dashToday.jsx) — and TEN pages that render this card
+// load none of the three. The getters threw, the catch below turned a missing script
+// into "PAYOUTS · —", and a page that was simply built wrong reported itself as a page
+// with nothing to show. The whole derivation lives in `dashSignals.js` now, which is a
+// plain <script> those pages can afford; the catch is back to meaning what it says.
 let _coachDemoPayout = null;
 function coachDemoPayoutCard() {
   const now = new Date();
@@ -48,12 +56,7 @@ function coachDemoPayoutCard() {
   if (_coachDemoPayout && _coachDemoPayout.key === key) return _coachDemoPayout.v;
   let v;
   try {
-    const p = dashDemoPayouts(DashSignals.buildMockClients(now), now);
-    v = {
-      label: "PAYOUT " + p.payoutLabel,
-      amount: dashMoney(p.thisMonthCents),
-      sub: "Month to date · " + (p.daysToPayout === 0 ? "pays out today" : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s")),
-    };
+    v = DashSignals.demoPayoutCard(now);
   } catch (e) {
     // Nothing to derive from yet — say so rather than falling back to an invented figure.
     v = { label: "PAYOUTS", amount: "—", sub: "Month to date" };
