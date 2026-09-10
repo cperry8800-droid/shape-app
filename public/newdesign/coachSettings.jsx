@@ -47,7 +47,6 @@ const CST_CAPS = [2, 3, 4, 6, 8];
 const CST_COACH_TYPES = [
   ["client_red", "Client went red", "A client you act on crossed into red"],
   ["client_amber", "Client went amber", "A client moved to amber — worth a look, not an alarm"],
-  ["checkin_submitted", "Check-in filed", "A client submitted their weekly check-in"],
   // ⚠ GOVERNED BY THE MATRIX, AND ABSENT FROM THE REGISTRY — so a list derived from
   // NOTIFY_TYPES alone silently dropped it. `waitlist_join` is sent by
   // src/app/api/waitlist/join/route.ts through `createPreferredNotification`, which
@@ -60,7 +59,14 @@ const CST_COACH_TYPES = [
 ];
 // The registry's coach types, which this panel must cover in full — the extra entries
 // above are preference-gated sends that never become candidates.
-const CST_REGISTRY_COACH_TYPES = ["client_red", "client_amber", "checkin_submitted"];
+// ⚠ `checkin_submitted` IS IN THE REGISTRY AND IS NOT HERE, BECAUSE NOTHING SENDS IT.
+// `coachCandidates` emits only client_red / client_amber, and a repo-wide search finds
+// no event-driven creator either — so all three of its switches were inert while the
+// panel presented them as governed controls, which is the exact failure this file's
+// header rails against. Registered rather than wired: giving check-in submissions a
+// notification is a feature, not a settings fix. (The MOBILE coach settings still list
+// it — same inert row, registered too.)
+const CST_REGISTRY_COACH_TYPES = ["client_red", "client_amber"];
 
 function cstCard(children, extra) {
   return (
@@ -148,7 +154,10 @@ function CoachSettingsPage({ role }) {
   const live = signedIn === true;
   const store = useCoachDoc("coach_settings", live);
   const doc = store.doc || {};
-  const tunables = (DashSignals.TUNABLES || []).filter((t) => !t.role || t.role === role);
+  // Every tunable, for every role: see the note on TUNABLES — the engine routes flags
+  // by ownership rather than evaluating a different rule set, so a threshold hidden
+  // from a role still moved what that role saw.
+  const tunables = DashSignals.TUNABLES || [];
   const landing = cstLandingOptions(role);
   const [localDemo, setLocalDemo] = React.useState(null); // preview edits — this tab only
   // ⚠ "READY OR ERROR" IS NOT THE SAME QUESTION AS "MAY I EDIT". An edit made while
@@ -503,6 +512,8 @@ function CoachNotificationCard({ signedIn }) {
             something they did not. */}
         These are the notifications this panel governs. Credential-expiry and payment
         alerts are sent outside the preference matrix and arrive whatever is set here.
+        {" "}Quiet hours and the daily cap apply to the client alerts above;
+        waiting-list requests are delivered as they happen.
       </div>
     </React.Fragment>
   );

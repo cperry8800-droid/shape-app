@@ -91,34 +91,35 @@
   // them to 0 would be manufacturing flags out of no data. A tuning knob that lets you
   // fabricate evidence is not a preference.
   //
-  // `role` marks whose feed the threshold actually drives, so the panel can avoid
-  // offering a trainer a knob that only moves nutritionist rules. `null` = both.
+  // ⚠ EVERY TUNABLE IS SHOWN TO EVERY ROLE, AND THE `role` FIELD THAT USED TO SCOPE
+  // THEM IS GONE BECAUSE IT WAS A FICTION. The engine does not evaluate different rules
+  // per role so much as ROUTE their flags: `ruleSleepRecovery` fires outside every
+  // `disciplineForRole` branch, and `readOnlyFlags` deliberately runs `ruleLedgerBlown`,
+  // `ruleProteinUnder` and `ruleHungerHigh` for the NON-nutrition role so a trainer
+  // keeps full visibility of the under-fuelling read as routed context (dashToday
+  // renders it). So all three "role-scoped" thresholds were read by both roles, and
+  // hiding a row from one of them meant that role ran on a setting its panel could
+  // neither display nor reset — twice, found one at a time. A threshold a role's
+  // evaluation can move must be visible to that role.
   var TUNABLES = [
-    { key: "FOOD_GAP_DAYS",      label: "Food-log gap",        unit: "days",  min: 1,  max: 14, step: 1,   role: null,
+    { key: "FOOD_GAP_DAYS",      label: "Food-log gap",        unit: "days",  min: 1,  max: 14, step: 1,
       help: "Flag a client after this many days with no food log." },
-    { key: "CONTACT_GAP_DAYS",   label: "Contact gap",         unit: "days",  min: 1,  max: 30, step: 1,   role: null,
+    { key: "CONTACT_GAP_DAYS",   label: "Contact gap",         unit: "days",  min: 1,  max: 30, step: 1,
       help: "Flag when neither of you has written for this long." },
-    { key: "CHECKIN_GRACE_DAYS", label: "Check-in grace",      unit: "days",  min: 0,  max: 6,  step: 1,   role: null,
+    { key: "CHECKIN_GRACE_DAYS", label: "Check-in grace",      unit: "days",  min: 0,  max: 6,  step: 1,
       help: "Days into the week before an unfiled check-in is called due." },
-    { key: "CHECKIN_RED_WEEKS",  label: "Check-ins missed",    unit: "weeks", min: 1,  max: 8,  step: 1,   role: null,
+    { key: "CHECKIN_RED_WEEKS",  label: "Check-ins missed",    unit: "weeks", min: 1,  max: 8,  step: 1,
       help: "Consecutive missed check-ins that go red on their own." },
-    { key: "SCORE_DROP_PTS",     label: "Score drop",          unit: "pts",   min: 1,  max: 50, step: 1,   role: null,
+    { key: "SCORE_DROP_PTS",     label: "Score drop",          unit: "pts",   min: 1,  max: 50, step: 1,
       help: "Week-over-week Shape Score fall that flags." },
-    { key: "GOAL_SLIP_DAYS",     label: "Goal slip",           unit: "days",  min: 1,  max: 60, step: 1,   role: null,
+    { key: "GOAL_SLIP_DAYS",     label: "Goal slip",           unit: "days",  min: 1,  max: 60, step: 1,
       help: "How far a projected goal date may move later before it flags." },
-    // ⚠ BOTH ROLES, BECAUSE `ruleSleepRecovery` IS NOT DISCIPLINE-GATED. It fires in
-    // `evaluateClient` outside every `disciplineForRole` branch, so a nutritionist's
-    // roster reads this threshold too. Marking it trainer-only hid it from the
-    // nutritionist panel while still driving their severities — a dual-role coach who
-    // tuned it as a trainer then ran their nutritionist roster on a setting that panel
-    // could neither show nor reset. A `role` here is a claim about which rules read the
-    // threshold, and it has to match what the engine does.
-    { key: "SLEEP_DEFICIT_H",    label: "Sleep deficit",       unit: "hours", min: 0.5, max: 4, step: 0.5, role: null,
+    { key: "SLEEP_DEFICIT_H",    label: "Sleep deficit",       unit: "hours", min: 0.5, max: 4, step: 0.5,
       help: "7-day average sleep this far under target reads as a severe deficit." },
-    { key: "LEDGER_OVER_PCT",    label: "Calories over",       unit: "%",     min: 1,  max: 50, step: 1,   role: "nutritionist",
-      help: "Average intake this far above target counts the ledger blown." },
-    { key: "PROTEIN_UNDER_PCT",  label: "Protein under",       unit: "%",     min: 1,  max: 50, step: 1,   role: "nutritionist",
-      help: "Average protein this far below target flags." },
+    { key: "LEDGER_OVER_PCT",    label: "Calories over",       unit: "%",     min: 1,  max: 50, step: 1,
+      help: "Average intake this far above target counts the ledger blown. A trainer sees this as routed context." },
+    { key: "PROTEIN_UNDER_PCT",  label: "Protein under",       unit: "%",     min: 1,  max: 50, step: 1,
+      help: "Average protein this far below target flags. A trainer sees this as routed context." },
   ];
   var TUNABLE_BY_KEY = {};
   for (var _i = 0; _i < TUNABLES.length; _i++) TUNABLE_BY_KEY[TUNABLES[_i].key] = TUNABLES[_i];

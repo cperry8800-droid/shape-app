@@ -112,7 +112,7 @@ test('every tunable names a real threshold, with a usable range', () => {
     const d = DEFAULT_THRESHOLDS[t.key];
     assert.ok(d >= t.min && d <= t.max, t.key + ': the house default sits outside the range the panel offers');
     assert.ok(t.label && t.unit && t.help, t.key + ' is unlabelled');
-    assert.ok(t.role === null || t.role === 'trainer' || t.role === 'nutritionist', t.key + ' has a bogus role');
+    assert.ok(!('role' in t), t.key + ' is role-scoped — a hidden row still moves that role');
   }
 });
 
@@ -226,12 +226,24 @@ test('the coach matrix matches the registry’s coach-audience types exactly', (
   // equality check therefore quietly required the panel to omit a switch a coach needs,
   // while the card's own footer claimed only credential-expiry and payment were
   // ungoverned. Every registry coach type must appear; extras must be justified below.
+  // ⚠ A REGISTRY TYPE IS OFFERED ONLY IF SOMETHING SENDS IT. `checkin_submitted` is in
+  // the registry, default-on, and NOTHING emits it — `coachCandidates` produces only
+  // client_red / client_amber and no event-driven creator exists — so its three switches
+  // were inert while the panel presented them as governed controls, which is exactly the
+  // failure this panel's own header rails against.
+  const cc = readFileSync(new URL('../src/lib/ai/notifications.mjs', import.meta.url), 'utf8');
+  const ccBody = cc.slice(cc.indexOf('export function coachCandidates'));
+  const emitted = new Set([...ccBody.slice(0, ccBody.indexOf('\n}')).matchAll(/'(client_[a-z]+)'/g)].map((m) => m[1]));
+  assert.ok(emitted.size > 0, 'coachCandidates emits nothing — this guard is vacuous');
   for (const k of fromRegistry) {
-    assert.ok(inPanel.includes(k), 'the panel dropped the registry coach type ' + k);
+    if (emitted.has(k)) assert.ok(inPanel.includes(k), 'the panel dropped the registry coach type ' + k);
+    else assert.ok(!inPanel.includes(k), k + ' is offered as a switch but nothing sends it');
   }
   const registryInPanel = new Function('return ' + /const CST_REGISTRY_COACH_TYPES = (\[[^\]]*\]);/.exec(SETTINGS)[1])().sort();
-  assert.deepEqual(registryInPanel, fromRegistry,
-    'CST_REGISTRY_COACH_TYPES has drifted from the registry');
+  // The constant names the registry types this panel COVERS — i.e. the ones something
+  // actually sends — not every coach-audience entry.
+  assert.deepEqual(registryInPanel, fromRegistry.filter((k) => emitted.has(k)),
+    'CST_REGISTRY_COACH_TYPES has drifted from the types coachCandidates emits');
   // …and every EXTRA is a preference-gated send: it must be routed through
   // createPreferredNotification somewhere, or the switch governs nothing.
   const extras = inPanel.filter((k) => !fromRegistry.includes(k));
@@ -253,6 +265,12 @@ test('the panel says which notifications it does NOT govern', () => {
   const src = stripComments(SETTINGS);
   assert.ok(!/"credential_expiry"|"payment"/.test(src), 'a notification the matrix cannot govern is offered as a toggle');
   assert.match(src, /Credential-expiry and payment/, 'the card does not say what it leaves out');
+  // ⚠ AND THE QUIET-HOURS / CAP CONTROLS DO NOT REACH waitlist_join.
+  // `createPreferredNotification` reads only `muted` — never quiet_start, quiet_end, tz
+  // or daily_cap — so listing that type beneath those controls made them misleading for
+  // it. Said on the card rather than left for a coach to discover at 3 a.m.
+  assert.match(src, /Quiet hours and the daily cap apply to the client alerts above/,
+    'the card does not say which notifications the quiet hours and cap actually cover');
 });
 
 test('an unset switch reads the GATE\u2019s default for that channel, not simply ON', () => {
@@ -529,57 +547,38 @@ test('an older threshold load cannot overwrite a newer one', () => {
 });
 
 // ── a role never runs on a threshold its panel cannot show ───────────────────
-test('a role-scoped tunable is invisible to the OTHER role\u2019s rules — driven', () => {
-  // ⚠ THE `role` FIELD IS A CLAIM ABOUT WHICH RULES READ THE THRESHOLD, and it was
-  // WRONG for SLEEP_DEFICIT_H: `ruleSleepRecovery` fires in evaluateClient outside
-  // every `disciplineForRole` branch, so a nutritionist's roster read it while the
-  // nutritionist panel filtered it out. A dual-role coach who tuned it as a trainer
-  // then ran their nutritionist roster on a setting that panel could neither show nor
-  // reset. Driven rather than reasoned about: if tuning it changes the other role's
-  // verdict, the marking is a lie.
-  //
-  // ⚠ AND THE FIXTURE PROVES ITSELF FIRST. The first cut sat at +50% over a 50-max
-  // threshold, so the rule fired at BOTH ends, the two evaluations matched, and the
-  // guard passed while testing nothing — it survived a mutation that ungated the
-  // nutritionist rules for everyone. Each threshold is asserted to CHANGE its own
-  // role's verdict before its absence from the other role's means anything.
+test('every tunable is visible to every role whose evaluation it can move', () => {
+  // ⚠ THE `role` FIELD WAS A FICTION AND IT COST TWO ROUNDS, ONE THRESHOLD AT A TIME.
+  // The engine does not evaluate a different rule set per role so much as ROUTE the
+  // flags: `ruleSleepRecovery` fires outside every `disciplineForRole` branch, and
+  // `readOnlyFlags` deliberately runs the nutrition rules for the NON-nutrition role so
+  // a trainer keeps the under-fuelling read as routed context — which dashToday renders
+  // (`r.readOnly`). So a "nutritionist-only" threshold moved what a TRAINER saw, and the
+  // previous guard missed it by comparing only `.flags`. This drives BOTH surfaces.
   const ROLES = ['trainer', 'nutritionist'];
   const rec = {
-    // +25% over target: inside the 1–50 range, so the min fires and the max does not.
-    // 55% under would fire at both ends and prove nothing.
+    // +25% over / 25% under: inside the 1–50 ranges, so the min trips the rule and the
+    // max does not. A fixture at the boundary fires at both ends and proves nothing.
     nutrition: { avgCalories: 2500, targetCalories: 2000, avgProtein: 135, targetProtein: 180 },
+    sleep: { avg7dHours: 5.5, targetHours: 8 },
   };
-  const keys = (r, t) => evaluateClient(rec, NOW, r, t).flags.map((f) => f.key).sort();
-  let checked = 0;
+  assert.ok(TUNABLES.every((t) => !('role' in t)),
+    'a tunable is role-scoped again — a hidden row still moves that role, see TUNABLES');
+  // Everything a role can SEE: its own flags plus the routed read-only ones.
+  const seen = (r, t) => {
+    const row = DS.getTriageFeed(r, [{ profile: { id: 'c1', name: 'A' }, userId: 'c1', ...rec }], NOW, t)[0];
+    return (row.flags || []).map((f) => f.key)
+      .concat(((row && row.readOnly) || []).map((f) => f.key)).sort().join(',');
+  };
+  let moved = 0;
   for (const t of TUNABLES) {
-    if (!t.role) continue;                       // claims both roles — nothing to check
-    const other = ROLES.find((r) => r !== t.role);
-    assert.ok(other, t.key + ' names a role that is not a coach role');
     const lo = tuned({ [t.key]: t.min });
     const hi = tuned({ [t.key]: t.max });
-    // the fixture must be able to trip this rule, or the comparison below is vacuous
-    assert.notDeepEqual(keys(t.role, lo), keys(t.role, hi),
-      t.key + ': the fixture cannot trip its own rule — this guard would pass on anything');
-    assert.deepEqual(keys(other, lo), keys(other, hi),
-      t.key + ' is marked ' + t.role + '-only but changes what a ' + other + ' sees — ' +
-      'that role runs on a setting its panel does not show');
-    checked += 1;
+    for (const r of ROLES) if (seen(r, lo) !== seen(r, hi)) moved += 1;
   }
-  assert.ok(checked > 0, 'no tunable is role-scoped — this guard is vacuous');
-});
-
-test('the sleep threshold is offered to both roles, because both read it', () => {
-  const sleep = TUNABLES.find((t) => t.key === 'SLEEP_DEFICIT_H');
-  assert.ok(sleep, 'SLEEP_DEFICIT_H left the tunables');
-  assert.equal(sleep.role, null, 'SLEEP_DEFICIT_H is role-scoped again while its rule is not');
-  // …and the rule really is ungated, which is WHY it must be null
-  const engine = readFileSync(new URL('../public/newdesign/dashSignals.js', import.meta.url), 'utf8');
-  const fn = engine.slice(engine.indexOf('function evaluateClient'));
-  const body = fn.slice(0, fn.indexOf('\n  function '));
-  const sleepAt = body.indexOf('ruleSleepRecovery(c)');
-  const firstGate = body.indexOf('disciplineForRole(role)');
-  assert.ok(sleepAt > 0 && firstGate > 0, 'evaluateClient moved');
-  assert.ok(sleepAt < firstGate, 'ruleSleepRecovery is discipline-gated now — re-check the role marking');
+  // ⚠ THE FIXTURE PROVES ITSELF, or a fixture that trips nothing passes silently — the
+  // exact way the previous cut of this guard survived a mutation.
+  assert.ok(moved >= 4, 'the fixture moves too few role/threshold pairs (' + moved + ') to test anything');
 });
 
 // ── the panel asks the right question about being signed in ──────────────────
