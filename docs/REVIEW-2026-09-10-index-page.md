@@ -382,7 +382,8 @@ their own prior best in the `pr_wall_posts` ledger; **auto-announce** from the s
    reacted*), and the reaction bar with the typed `kudos` (Beast for lifts, Respect for runs
    and rides, Gliding for swims, Spot for sessions), `replies`, share, send, repost. Every
    kind of record lands the same way: a longest run, a fastest 500, a max-power ride, each
-   with its own stat set. The preview uses the app's demo records verbatim.
+   with its own stat set. The preview uses the app's demo records verbatim. **Owner,
+   2026-09-10, on this plate: *"looks good i like it"* — approved as the spec for the build.**
    Filters: everyone · following · my coach's clients · by lift. **Your best** pinned at the
    bottom from the member's own ledger with the gap to their next wall post; **Post a PR** for
    lifts logged outside the app (the existing `ShapePRWall.post`). **Who's online** (owner,

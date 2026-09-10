@@ -619,7 +619,8 @@ Append new entries at the top, under this note.
   the record row marked, the note, the session link, the co-sign, who reacted, the typed
   reaction count, comments, share, send, repost — and every kind of record (a longest run, a
   fastest 500, a max-power ride) lands the same way. Nothing a member logs is lost on the way
-  to the wall. Review §7 carries the field list.
+  to the wall. Review §7 carries the field list. **Owner, on the full-record plate: *"looks
+  good i like it"* — this is the approved spec for the build.**
 - **And three board changes on owner notes the same afternoon:** thinner display weights
   (Anybody 500/600, the Wall at 400), the original logo artwork restored wherever the concepts
   show it (the nav and footer use the real `shape-logo-nav-*.png` files; the Radio wordmark is
