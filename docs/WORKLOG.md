@@ -1141,6 +1141,133 @@ Append new entries at the top, under this note.
   stands** and is the part to carry forward: production holds 0 `pr_wall_posts`, so the segment has
   still never rendered a real record.
 
+### 2026-09-10 — R16: the dashboard remembers how you read it, and V4 turns out to have been a measurement of the instrument
+
+- **R16 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
+  The dashboard remembered a member's card **layout** and nothing else. A coach who filters
+  their roster to *needs eyes*, a coach who works the **week** grid rather than the month, a
+  member who tracks **sleep** rather than weight — every one of them said so again on every
+  visit. Four controls across four pages now persist per **account** in
+  `user_goals('dashboard_prefs')`, so they follow the member between devices. No migration.
+- ⚠ **IT IS BUILT ON `useCoachDoc` RATHER THAN BESIDE IT, ON PURPOSE.** That store already
+  carries the account binding, the serial write lane, the optimistic paint and its rollback,
+  and the three read states — nine review rounds' worth — and this file already post-mortems
+  having **three line-for-line copies** of it. A fourth would have been the same mistake with
+  a new name. `useRememberedChoices(live)` opens the document **once per page** and
+  `useRememberedChoice(store, key, allowed, fallback)` reads one control out of it: measured
+  in a browser, a page with two remembered controls makes **exactly one** `dashboard_prefs`
+  read (the three other reads on that boot are different goal kinds).
+- ⚠ **THE WRITE IS A RECONCILIATION, NOT A CLICK HANDLER, AND THAT IS THE WHOLE DESIGN.**
+  `useDashboard` reads demo until its fetch resolves, so a coach who clicks **Week** in the
+  first moment of a page load has nowhere to put it — a handler would have dropped it in
+  silence and the preference simply would not have been there next time. Stating the goal
+  (*the document should say what they chose*) instead of the action (*write on click*) makes
+  the store becoming writable retry it for free. Driven: choose while the store reads demo,
+  flip it live, and the write lands with no second click.
+- ⚠ **AND THAT DESIGN OPENS AN INFINITE WRITE LOOP THAT THE ROLLBACK ITSELF CAUSES.**
+  `apply` paints optimistically and rolls the paint back when the save fails — so the stored
+  value moves to the wanted value and then back, which is a dependency change, which re-runs
+  the effect, which writes again, forever, against Supabase. Keying the attempt on the
+  **choice** rather than on the document is the only thing standing between the two: one
+  attempt per choice, a failure leaves the preference in force for the session and simply
+  unsaved, which is exactly what the page did before it remembered anything. Measured as a
+  **count** rather than argued — the test driver runs a fixed 25 rounds and asserts one save.
+- ⚠ **A STORED VALUE IS VALIDATED AGAINST WHAT EXISTS TODAY, AND CHOOSING THE DEFAULT
+  DELETES THE KEY.** A filter retired since the coach chose it would otherwise select nothing
+  and the roster would look **empty for a reason they cannot see**; an unrecognised value is
+  ignored and **left in the document** rather than tidied away, because a key this build does
+  not know may belong to a build that does. And storing today's default would pin it: a member
+  who explicitly chose the default could never receive a changed one. Verified end to end in
+  Chromium — choosing both defaults back leaves the row at `{}`.
+- **The search box is deliberately NOT remembered.** A filter is a standing preference about
+  how you read your roster; a half-typed name is a moment. Restoring it would show a coach a
+  roster mysteriously narrowed to *"pri"* a week later.
+- ⚠ **R16 ASKS FOR ROSTER SORT AND THERE IS NO SORT CONTROL TO REMEMBER — MEASURED, NOT
+  ASSUMED.** `dashRoster.jsx` carries a filter (all · needs eyes · new · on track) and a
+  search, and **no ordering control of any kind**. A default for a control that does not
+  exist is a preference for a feature that does not exist, so the sort is registered against
+  **R15**, where the control belongs, and its memory follows it there. Corrected at the source
+  in the review rather than only here.
+- ⚠ **AND `dashProgress.jsx` REFERENCED NOTHING FROM `dashData.jsx` BEFORE THIS CHANGE,
+  WHICH MADE THE NEW REFERENCE A REFERENCEERROR ON ONE PAGE.** These are classic scripts, so a
+  bare global has to have been defined by an earlier tag — and `ClientProgress.html` loaded
+  `dashProgress.jsx` **without** `dashData.jsx`, alone among the eight host pages (the four
+  other stubs and all three shells load it). Added, and the load order of all eight is now
+  asserted by a guard that **fails if the map ever stops describing the pages**.
+- ⚠ **V4 DOES NOT REPRODUCE, AND THE REVIEW'S OWN HEDGE WAS THE RIGHT ONE.** It recorded
+  trainer Score at **2,496px** *"with roughly a third of it empty"* and client Score at
+  **3,234px** *"with 150–300px gaps between every card"*. Re-measured in Chromium at 1440px,
+  reading each grid item's box against its content box: trainer Score **1,480px** / 5 items,
+  client Score **1,200px** / 6, client Progress **1,264px** / 8, trainer Today **2,180px** / 7
+  — **zero inter-row gaps on all four**, and a per-item slack of a constant **18–20px**, which
+  is the `item-content` inset, i.e. the design.
+- ⚠ **AND THE SETTLE TRACE SAYS WHERE THE ORIGINAL FIGURES CAME FROM.** At **1.5 s every one
+  of these grids reports `n=0` items and a height of 660px** — the fit has not run. A capture
+  taken in that window measures an empty grid and a placeholder height, so *"a third of it
+  empty"* was a measurement of the instrument; from 3 s onward every figure is stable across
+  three further samples. The measured heights are **40–63% smaller** than the recorded ones,
+  which is the shape a too-early capture produces, not the shape a packing bug produces. *A
+  render harness is an instrument, and an instrument reports on itself unless it is made to
+  settle first.* **The second clause of V4 is NOT closed by this** — whether the fit can lose
+  a race against content that resizes after it runs is a different question and nothing here
+  tests it.
+- ⚠ **AND THE REVIEW ROUND FOUND THE ONE THING I HAD FLAGGED AS A QUESTION AND NOT
+  ANSWERED: THE STORE WAS BOUND TO `live` AND NOT TO THE ACCOUNT.** `useCoachDoc`'s
+  hydrate deps are `[goalKind, live, accountId]`, and `useRememberedChoices` passed no
+  account — so an A→B switch that leaves `live` true never re-runs it. **The second half
+  is the worse one:** the same hydrate sets `uidRef`, so every write B makes resolves
+  `startUid` as **A**, fails the unconditional identity comparison inside `apply`, and is
+  **refused**. B's own preferences become silently unsaveable until a reload. The guard
+  did its job — A's document is never upserted into B's row — it just left B unable to
+  save. The account is a dependency now.
+- ⚠ **AND RE-HYDRATING THE STORE IS NOT ENOUGH ON ITS OWN**, because `chosen` outranks
+  the document by design: A's session choice would have gone on governing B's screen, and
+  `askedRef` would have suppressed B's first write of that same value. Both reset — **but
+  only between two KNOWN accounts**, tracked as the last *known* one rather than the last
+  value seen. `useSignedIn` publishes `undefined` for "not resolved" and `null` for
+  "confirmed signed out", so resetting on every change would discard a choice made during
+  the load, which is the one case the reconciliation effect exists to keep; and tracking
+  the last known account also closes **A → signed out → B** on a shared browser, which a
+  plain previous-value comparison waves through. The reset happens **during render**, not
+  in an effect — an effect resets a frame late, and that frame is the one that shows B
+  the control A left behind.
+- ⚠ **AND THE STORE NOW STAYS SHUT UNTIL THE ACCOUNT IS KNOWN, which is one read rather
+  than two and is the same rule the fix is about.** Opening on `live` alone hydrated once
+  for an unresolved account and again for the real one — a wasted round trip, and a read
+  of a per-account document before knowing whose it is. An account that never resolves
+  degrades to remembering nothing, which is the honest failure.
+- ⚠ **AND THE LIVE RENDER HARNESS THEN REPORTED THE FEATURE BROKEN, AND IT WAS THE
+  HARNESS TELLING TWO STORIES.** It stubbed `getUser()` as signed in and left the REAL
+  supabase auth channel in place — which truthfully fired `INITIAL_SESSION` with a null
+  session. `useSignedIn` correctly let that event beat the in-flight read (its generation
+  guard, added for exactly the cross-account case), the account resolved to signed-OUT for
+  the whole run, and the store never opened. **The code disbelieved a half-finished lie,
+  which is what it is supposed to do.** It also polled for `window.shapeDb` on an interval
+  while `useSignedIn` resolves at mount, so the stub arrived after the read it was meant
+  to serve; it patches on assignment now. *An instrument that fakes half of a contract
+  measures the half it faked.*
+- ⚠ **AND MY MUTATION HARNESS WAS ITSELF A BROKEN INSTRUMENT, WHICH IS THE FOURTH TIME
+  THIS FILE HAS PAID FOR THAT RULE.** Its restore list omitted `nutritionistClientsPage.jsx`,
+  so the one mutation aimed at that file **stayed applied for every mutation after it** — and
+  they all then reported dying to the same unrelated test. The count was right and the
+  attribution was worthless, which is worse than a red run: it says a guard is working when
+  what killed the mutant was a file left broken three rounds earlier. The harness now runs
+  the suite **before the first mutation and after the last restore**, and refuses to start on
+  a dirty tree — so it reports on itself before it reports on the code.
+- **Verified:** `npm test` **2879/2879** · `tsc --noEmit` 0 · JSX parse on all five changed
+  modules · the newdesign precompile check · **18/18 mutations killed, each proven to land,
+  sanity green at both ends** — and **two survived the first pass, both real gaps in my
+  guards rather than no-op mutations**: reversing the read/choice precedence survived because a healthy write repairs
+  it one tick later (it is pinned now where the save FAILS, which is the only place
+  precedence is load-bearing), and deleting the already-says-it check survived because
+  nothing asserted that clicking the filter you are already on writes nothing. · Headless
+  renders of all four surfaces in the signed-out preview: zero page errors, zero horizontal
+  overflow, every control still moves, and **zero preference writes** · and the whole cycle
+  driven against a simulated account: choose → `{"rosterFilter":"new","clientsTab":"shared"}`
+  → **reload → the tab comes back lit** → choose the defaults back → `{}`.
+- ⚠ **STILL A SIMULATED LIVE STATE.** The account above is a stubbed `shapeDb` over
+  localStorage. An on-account pass is owed.
+
 ### 2026-09-10 — P1-E: the weekly readout on the web, and eight cards that were never on it
 
 - **R5 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**

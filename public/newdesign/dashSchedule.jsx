@@ -299,7 +299,10 @@ function CoachSchedulePage({ role }) {
   const { triage, today: live, source } = useDashboard(role);
   const [events, setEvents] = React.useState(null);
   const [avail, setAvail] = React.useState(null);
-  const [view, setView] = React.useState("month"); // month | week
+  // Month or week, remembered: a coach who works the week grid should not have to
+  // choose it again on every visit to their own calendar.
+  const prefs = useRememberedChoices(source === "live");
+  const [view, setView] = useRememberedChoice(prefs, "scheduleView", ["month", "week"], "month");
   const [cursor, setCursor] = React.useState(() => new Date());
   const [drawerRow, setDrawerRow] = React.useState(null);
   const [sheetEv, setSheetEv] = React.useState(null);
