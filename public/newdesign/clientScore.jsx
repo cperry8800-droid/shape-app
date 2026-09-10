@@ -160,6 +160,14 @@ function ClientScorePage() {
   const unread = state.kind === "error";
   const settling = state.kind === "loading";
   const myPoints = live ? live.points_total : demo ? 1284 : 0;
+  // ⚠ THE ONE GATE FOR "WE KNOW THIS MEMBER'S STANDING", and it exists because
+  // `myPoints` is 0 in the unread and settling states — a value every tier derivation
+  // below then reads as a real rank. CodeRabbit found three widgets still presenting it:
+  // the ladder marked **Raw** as "YOU ARE HERE" and printed a bare `0` under it, the
+  // shortest-path card promised "750 points stand between you and Tempo", and the
+  // week's-gains card rendered a fabricated **+36** with an invented activity breakdown.
+  // A zero under a "Shape Score" heading is a measurement; it has to read as a failure.
+  const standingKnown = !!live || demo;
   const atRisk = !!(live && live.at_risk);
   // Displayed tier is high-water-marked: prefer the API's current_tier (the
   // highest the rank has ever reached) so penalties dent the number but never
@@ -335,7 +343,9 @@ function ClientScorePage() {
         </div>
         <div style={{ marginTop: 12 }}>
           {tiers.map(([t, , r, d], i) => {
-            const isCurrent = i === currentIdx;
+            // The ladder itself is a fact about the product and stays; where the member
+            // stands ON it is a fact about them, and is not known here.
+            const isCurrent = standingKnown && i === currentIdx;
             return (
               <div key={t} style={{
                 display: "grid", gridTemplateColumns: "100px 1fr auto", gap: 24, alignItems: "center",
@@ -359,12 +369,16 @@ function ClientScorePage() {
           })}
         </div>
         <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace" }}>
-          <span>{myPoints.toLocaleString()}</span>
-          {nextTier && <span>{nextTier[0].toUpperCase()} AT {nextTier[1].toLocaleString()}</span>}
+          <span>{standingKnown ? myPoints.toLocaleString() : settling ? "Reading your standing…" : "Standing couldn't be read"}</span>
+          {standingKnown && nextTier && <span>{nextTier[0].toUpperCase()} AT {nextTier[1].toLocaleString()}</span>}
         </div>
-        <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
-          <div style={{ height: "100%", width: `${progressPct}%`, background: TEAL, borderRadius: 999 }} />
-        </div>
+        {/* A progress bar drawn from an unknown standing is a picture of a measurement
+            that was never taken — and at 0 points it reads as "you have earned nothing". */}
+        {standingKnown && (
+          <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
+            <div style={{ height: "100%", width: `${progressPct}%`, background: TEAL, borderRadius: 999 }} />
+          </div>
+        )}
       </Card>
       </div>
     ) },
@@ -400,9 +414,16 @@ function ClientScorePage() {
     { key: "gains", title: "This week's gains", size: "half", render: () => (
       <Card>
         <SectionTitle>This week's gains</SectionTitle>
-        <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>+{live ? live.week_gain : 36}</div>
-        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>{live ? "last 7 days" : "vs 28 last week"}</div>
-        {!live && (
+        {/* ⚠ `!live` COVERED THREE STATES AND ONLY ONE OF THEM MAY SEE THIS. The bare
+            `36` and the workout/PR/community rows below are the signed-out preview's
+            invented week; on a failed read they told a member they had earned +36. */}
+        <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>
+          {live ? "+" + live.week_gain : demo ? "+36" : "—"}
+        </div>
+        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
+          {live ? "last 7 days" : demo ? "vs 28 last week" : settling ? "Reading this week…" : "Couldn't read this week just now."}
+        </div>
+        {demo && (
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 8, fontSize: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>4 workouts logged</span><span>+32</span></div>
             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+12</span></div>
@@ -414,8 +435,16 @@ function ClientScorePage() {
 
     { key: "path", title: "Shortest path", size: "half", render: () => (
       <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH TO {nextTier ? nextTier[0].toUpperCase() : "—"}</div>
-        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>{nextTier ? `${ptsToNext.toLocaleString()} points stand between you and ${nextTier[0]}. Lock 4 workouts + the habit checklist this week and you're inside ${Math.ceil(ptsToNext / 36)} weeks.` : "You're at the top tier. Keep the streak alive."}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH{standingKnown && nextTier ? " TO " + nextTier[0].toUpperCase() : ""}</div>
+        {/* ⚠ THE DISTANCE IS DERIVED FROM `myPoints`, which is 0 when the read failed —
+            so this card promised a member "750 points stand between you and Tempo" as a
+            measurement of a standing nobody had read. */}
+        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>
+          {!standingKnown
+            ? (settling ? "Reading your standing…" : "Your standing couldn't be read just now, so there's no distance to quote. Reload to try again.")
+            : nextTier ? `${ptsToNext.toLocaleString()} points stand between you and ${nextTier[0]}. Lock 4 workouts + the habit checklist this week and you're inside ${Math.ceil(ptsToNext / 36)} weeks.`
+              : "You're at the top tier. Keep the streak alive."}
+        </div>
       </Card>
     ) },
 
@@ -476,7 +505,11 @@ function ClientScorePage() {
           expects anyway. */}
       {view === "record" ? <ClientScoreRecord />
         : view === "board" ? <ClientLeaderboard />
-        : view === "how" ? <ClientScoreHowItWorks tiers={tiers} currentTier={currentTier[0]} />
+        // ⚠ `currentTier[0]` IS "Raw" WHEN THE STANDING IS UNKNOWN, and the panel
+        // highlights whatever it is handed — so a failed read marked the first rung as
+        // the member's own. `null` is the honest answer, and the panel already treats it
+        // as "highlight nothing".
+        : view === "how" ? <ClientScoreHowItWorks tiers={tiers} currentTier={standingKnown ? currentTier[0] : null} />
         : <DashGrid role="client" tab="score" widgets={scoreWidgets} />}
     </DashPage>
   );

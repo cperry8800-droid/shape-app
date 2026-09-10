@@ -92,3 +92,107 @@ test('an empty breakdown and an empty ledger say which kind of empty they are', 
   // the hero distinguishes a measured zero from an unread one
   assert.match(src, /\(!demo && myPoints === 0\) \? "Your first logged workout/);
 });
+
+// ── the derived zero (CodeRabbit, #2028) ────────────────────────────────────
+// ⚠ `myPoints` IS 0 IN THE UNREAD AND SETTLING STATES, and every tier derivation below
+// it reads that as a real rank: the ladder marked **Raw** as "YOU ARE HERE" and printed
+// a bare `0`, the shortest-path card promised "750 points stand between you and Tempo",
+// the week's-gains card rendered a fabricated **+36** with an invented activity
+// breakdown, and the how-it-works panel highlighted the first rung as the member's own.
+// A zero under a "Shape Score" heading is a measurement; it has to read as a failure.
+//
+// The three-audience split is `live` (their own numbers) · `demo` (the signed-out
+// preview, honestly labelled) · everything else (nothing). These guards pin that EVERY
+// site derived from `myPoints` asks whether the standing is known, not whether it is
+// live — because `demo` may show invented figures and `unread` may not.
+const CLEAN_SCORE = stripComments(SCORE);
+const between = (a, b) => CLEAN_SCORE.slice(CLEAN_SCORE.indexOf(a), CLEAN_SCORE.indexOf(b, CLEAN_SCORE.indexOf(a)));
+
+test('there is ONE named gate for "we know this member\'s standing"', () => {
+  assert.match(CLEAN_SCORE, /const standingKnown = !!live \|\| demo;/,
+    'the gate is gone, or is spelled in a way each site can drift from');
+});
+
+test('the tier ladder shows the member no position it has not read', () => {
+  const ladder = between('const isCurrent =', 'This week\'s gains');
+  // "YOU ARE HERE" is only ever drawn on a known standing
+  assert.match(ladder, /const isCurrent = standingKnown && i === currentIdx;/);
+  // the points readout says what happened instead of printing 0
+  assert.match(ladder, /standingKnown \? myPoints\.toLocaleString\(\)/);
+  assert.ok(!/<span>\{myPoints\.toLocaleString\(\)\}<\/span>/.test(ladder), 'the bare points readout is back');
+  // ⚠ AND THE PROGRESS BAR IS NOT DRAWN AT ALL. At 0 points a bar is not merely
+  // unknown — it reads as "you have earned nothing".
+  assert.match(ladder, /\{standingKnown && \(\s*<div style=\{\{ height: 6/);
+});
+
+test("this week's gains is the preview's invented week, and only the preview sees it", () => {
+  const gains = between("{ key: \"gains\"", '{ key: "path"');
+  assert.match(gains, /live \? "\+" \+ live\.week_gain : demo \? "\+36" : "—"/,
+    'a failed read still shows a fabricated weekly gain');
+  // the workout / PR / community rows are demo-only, not "not live"
+  assert.match(gains, /\{demo && \(/, 'the fabricated activity rows are gated on !live again');
+  assert.ok(!/\{!live && \(/.test(gains), '`!live` covers three states and only one of them may see this');
+});
+
+test('the shortest path quotes no distance from a standing nobody read', () => {
+  const path = between('{ key: "path"', '{ key: "ledger"');
+  assert.match(path, /!standingKnown/, 'the distance is computed regardless of whether the standing is known');
+  // and the eyebrow does not name a tier it cannot place the member below
+  assert.match(path, /SHORTEST PATH\{standingKnown && nextTier \? " TO "/);
+});
+
+test('the how-it-works panel highlights nothing when the standing is unknown', () => {
+  assert.match(CLEAN_SCORE, /<ClientScoreHowItWorks tiers=\{tiers\} currentTier=\{standingKnown \? currentTier\[0\] : null\} \/>/);
+  // and the panel itself already treats null as "highlight nothing" — it lives in
+  // clientScoreRecord.jsx, so the claim is checked THERE rather than assumed
+  const RECORD = stripComments(readFileSync(new URL('../public/newdesign/clientScoreRecord.jsx', import.meta.url), 'utf8'));
+  assert.match(RECORD, /function ClientScoreHowItWorks\(\{ tiers, currentTier \}\)/);
+  assert.match(RECORD, /const here = currentTier && t\[0\] === currentTier;/);
+});
+
+test('the hero reports the failure BEFORE it reports a zero', () => {
+  // ⚠ ORDER IS THE WHOLE GUARD HERE. `(!demo && myPoints === 0)` renders "Your first
+  // logged workout … opens this" — a claim that the member has earned nothing — and it
+  // is true of an unread member too. It must sit AFTER the settling and unread arms.
+  const sub = between('subtitle={settling ?', 'actions={');
+  const iSettling = sub.indexOf('settling ?');
+  const iUnread = sub.indexOf('unread ?');
+  const iZero = sub.indexOf('myPoints === 0');
+  assert.ok(iSettling >= 0 && iUnread > iSettling && iZero > iUnread,
+    'a member whose score could not be read is told they have never earned a point');
+  assert.match(CLEAN_SCORE, /title=\{settling \? "—" : unread \? "—" : myPoints\.toLocaleString\(\)\}/);
+});
+
+test('every site that reads a tier derivation is gated — swept, not enumerated', () => {
+  // ⚠ CODERABBIT FOUND THREE OF THESE AND A SWEEP FOUND TWO MORE. Enumerating the sites
+  // that were wrong on the day is not the same as knowing the class is closed, so this
+  // walks every line that reads one of the derivations and requires it to be inside a
+  // guarded expression. A new widget that prints `myPoints` raw fails here.
+  //
+  // ⚠ IT IS A HEURISTIC NET, AND SAYING SO IS THE POINT. The gate legitimately sits on
+  // an ENCLOSING expression rather than on the line that reads the value — my first cut
+  // demanded it on the same line and flagged three correct sites. The window is the
+  // enclosing widget (or the hero), which is the scope a gate actually governs. The real
+  // proof is the headless render of the unread state; this catches it at authoring time.
+  const DERIVED = ['myPoints', 'ptsToNext', 'progressPct', 'currentIdx', 'currentTier'];
+  const GATE = /standingKnown|\bdemo\b|\blive\b|\bunread\b|\bsettling\b/;
+  const lines = CLEAN_SCORE.split('\n');
+  const declEnd = lines.findIndex((l) => l.includes('const staticBreakdown'));
+  assert.ok(declEnd > 0, 'the derivation block moved');
+  // widget boundaries: each `{ key: "…"` starts a new render scope
+  const starts = [declEnd];
+  lines.forEach((l, i) => { if (i > declEnd && /^\s*\{ key: "/.test(l)) starts.push(i); });
+  assert.ok(starts.length >= 5, 'only ' + (starts.length - 1) + ' widget scopes found');
+  const scopeStart = (i) => { let s = declEnd; for (const k of starts) if (k <= i) s = k; return s; };
+  let checked = 0; const bad = [];
+  for (let i = declEnd; i < lines.length; i++) {
+    const l = lines[i];
+    if (!DERIVED.some((d) => new RegExp('\\b' + d + '\\b').test(l))) continue;
+    checked += 1;
+    const window = lines.slice(scopeStart(i), i + 1).join('\n');
+    if (GATE.test(window)) continue;
+    bad.push((i + 1) + ': ' + l.trim().slice(0, 110));
+  }
+  assert.ok(checked >= 8, 'the sweep scanned only ' + checked + ' lines');
+  assert.deepEqual(bad, [], 'these read a tier derivation with no audience gate anywhere in their widget:\n  ' + bad.join('\n  '));
+});
