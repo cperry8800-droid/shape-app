@@ -346,8 +346,13 @@ test('a notification write that fails is rolled back, and a later success cannot
   assert.ok(!/\bfail\(before/.test(src), 'the two rollback paths are conflated again');
   // the optimistic paint is captured BEFORE the write, or there is nothing to restore
   for (const name of ['saveSettings', 'toggle']) {
-    const fn = src.slice(src.indexOf('const ' + name + ' = async'));
-    const body = fn.slice(0, fn.indexOf('\n  };'));
+    // Anchored on the declaration, not on `= async`: the write now goes through a
+    // serial lane, so the arrow's shape changed and an assertion about ROLLBACK broke
+    // for a reason it does not care about.
+    const at = src.indexOf('const ' + name + ' =');
+    assert.ok(at > 0, name + ' moved');
+    const body = src.slice(at, src.indexOf('\n  });', at));
+    assert.ok(body.indexOf('const before =') >= 0 && body.indexOf('setState(') >= 0, name + ': expected a snapshot and a paint');
     assert.ok(body.indexOf('const before =') < body.indexOf('setState('), name + ' paints before it snapshots');
   }
 });
@@ -402,4 +407,54 @@ test('no dead locals read as live inputs', () => {
   // The repo swept exactly this shape on 2026-09-02 rather than leaving it to be
   // mistaken for a saved-vs-unsaved comparison the panel does not make.
   assert.ok(!/const saved = \(doc\.thresholds/.test(SETTINGS), 'the dead `saved` local is back');
+});
+
+// ── the two notify routes are different handlers ─────────────────────────────
+test('the app-driven notify route is session-authed and is NOT the cron handler', () => {
+  // ⚠ THIS GUARD EXISTS BECAUSE A TOOLING BUG SILENTLY OVERWROTE ONE WITH THE OTHER.
+  // A mutation harness backed its files up by BASENAME, and both of these are called
+  // `route.ts` — so the cron's copy clobbered the live route's backup and the restore
+  // wrote the cron handler over both paths. `tsc` passed (both files are valid) and no
+  // test covered the live route's auth, so it reached a PR: the mobile app posts here
+  // with the signed-in user's bearer token and would have received 401 on every call,
+  // evaluating no notifications and persisting no snapshot for the cron to re-run.
+  const live = stripComments(readFileSync(new URL('../src/app/api/ai/notify/route.ts', import.meta.url), 'utf8'));
+  const cron = stripComments(readFileSync(new URL('../src/app/api/ai/notify/cron/route.ts', import.meta.url), 'utf8'));
+  assert.notEqual(live, cron, 'the two notify routes are the same handler');
+  // the live one authenticates a USER; it must never gate on the cron secret
+  assert.match(live, /resolveActor\(/, 'the app-driven route no longer resolves a signed-in actor');
+  assert.ok(!/NOTIFY_CRON_SECRET/.test(live), 'the app-driven route now requires the cron secret');
+  assert.match(live, /writeUserGoal\([\s\S]{0,120}notify_snapshot/, 'the live route no longer persists the snapshot the cron re-runs');
+  // …and the cron one is the opposite
+  assert.match(cron, /NOTIFY_CRON_SECRET/, 'the cron route no longer gates on its secret');
+  assert.ok(!/resolveActor\(/.test(cron), 'the cron route now expects a user session');
+  // both carry the R14 tuning, which is the thing this PR added to each
+  for (const [label, src] of [['live', live], ['cron', cron]]) {
+    assert.match(src, /loadCoachThresholds\(/, label + ' route does not load the coach tuning');
+  }
+});
+
+test('a refused override is not counted as tuned', () => {
+  // Otherwise the header says "1 tuned" while the row beneath says "not used" and both
+  // the roster and the server run the house default — the card contradicting itself for
+  // exactly the untrusted-document case the validation exists to handle.
+  const src = stripComments(SETTINGS);
+  assert.match(src, /const tunedCount = tunables\.filter\(\(t\) => effThresholds\[t\.key\] != null && !refused\.has\(t\.key\)\)/);
+});
+
+test('whole-row notification writes are serialized', () => {
+  // ⚠ `notification_settings` is upserted as a WHOLE ROW. Two quick changes raced: if
+  // the earlier request finished last, its older snapshot overwrote the newer change —
+  // and an earlier FAILURE could roll the panel back over an edit already made.
+  const src = stripComments(SETTINGS);
+  assert.match(src, /function cstSerial\(fn\)/);
+  for (const name of ['saveSettings', 'toggle']) {
+    const at = src.indexOf('const ' + name + ' =');
+    assert.ok(at > 0, name + ' moved');
+    assert.match(src.slice(at, at + 140), /cstSerial\(async \(\) => \{/, name + ' writes outside the lane');
+  }
+  // the lane survives a rejection, or one failed write wedges every later one
+  const lane = src.slice(src.indexOf('function cstSerial'));
+  assert.match(lane.slice(0, 220), /_cstLane\.then\(fn, fn\)/, 'a failed write skips the next one');
+  assert.match(lane.slice(0, 220), /\.then\(\(\) => \{\}, \(\) => \{\}\)/, 'a rejection wedges the lane');
 });

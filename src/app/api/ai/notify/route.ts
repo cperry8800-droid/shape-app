@@ -1,97 +1,99 @@
-// Proactive notification CRON — reaches CLOSED apps. Server-to-server (no user
-// session): a scheduler (Vercel Cron / Supabase cron) hits this on an interval.
-// For each active user it re-runs the SAME engine + decision layer over the
-// snapshot their app last sent (/api/ai/notify stores it). The engine's
-// TIME-BASED rules recompute against now, so a check-in that has since gone
-// overdue, or a goal whose ETA has slipped, fires as a genuinely-new real event
-// — with dedup preventing re-nags, and prefs/quiet-hours fully honored.
+// Proactive notification evaluator (app-driven). Runs the SAME engine (AI2
+// buildDirective / AI4 getTriageFeed) over the caller's REAL current data, then
+// the pure decision layer (dedup, caps, quiet hours, opt-out, never-shaming),
+// and delivers via the existing notifications table (→ in-app bell + push
+// webhook). It also PERSISTS the verified snapshot so the cron can re-evaluate
+// time-based triggers later, reaching a closed app. Prefs + state + snapshot
+// live in user_goals (no migration). NOTHING about the record is changed.
 //
-// Auth: header `x-notify-secret: <NOTIFY_CRON_SECRET>` OR Vercel Cron's
-// `Authorization: Bearer <CRON_SECRET>`. Runs as the service role (acts for many
-// users); reads/writes are explicitly user-scoped. Excluded from the membership
-// gate + rate limiter in the proxy. NOTHING about any record is changed.
+// POST /api/ai/notify
+//   client (role=client): { record }               — your own unified record
+//   coach  (role=trainer|nutritionist): { clients } — your roster's records
+// → { ok, sent, digest, suppressed }
 //
-// GET|POST /api/ai/notify/cron  → { ok, evaluated, delivered }
+// ROLE-SCOPED: a client only evaluates themselves; a coach only their own
+// clients (each clientId re-checked via is_coach_on_client). Signed-out → 401.
 
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { dbError } from '@/lib/request-utils';
+import { readJson } from '@/lib/request-utils';
+import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ACTIVE_WINDOW_MS = 14 * 86400000; // only users whose app checked in ≤14d ago
-const BATCH = 500;
+export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
+  const actor = await resolveActor(request);
+  if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-// Constant-time, length-safe compare so the shared secret can't be probed by
-// timing the response.
-function safeEqual(a: string, b: string): boolean {
-  const x = Buffer.from(String(a || ''));
-  const y = Buffer.from(String(b || ''));
-  return x.length === y.length && timingSafeEqual(x, y);
-}
-function authorized(request: Request): boolean {
-  const secret = process.env.NOTIFY_CRON_SECRET || process.env.CRON_SECRET || '';
-  if (!secret) return false;
-  const hdr = request.headers.get('x-notify-secret') || '';
-  const auth = request.headers.get('authorization') || '';
-  return safeEqual(hdr, secret) || safeEqual(auth, `Bearer ${secret}`);
-}
+  const parsed = await readJson<{ record?: Record<string, unknown>; clients?: unknown[] }>(request, { allowEmpty: true });
+  if (!parsed.ok) return parsed.response;
 
-async function run(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  // THE preference center is the single source of truth.
+  const prefs = await loadPrefs(actor.supabase, actor.user.id);
+  // ⚠ SPEC §3D — the same opt-out the cron honours. This route recomputes from the
+  // same snapshot, so gating only the cron would have left the live path nudging a
+  // member who had turned Daily check-in off. Absence of the setting reads as opted IN.
+  const [last, settings] = await Promise.all([
+    readUserGoal(actor.supabase, actor.user.id, 'notify_state'),
+    readUserGoal(actor.supabase, actor.user.id, 'client_settings'),
+  ]);
+  const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
+  const now = new Date();
+  const tone = prefs.tone;
+  const isCoach = isCoachRole(actor.role);
 
-  const admin = createAdminClient();
-  // The snapshots the apps last sent (one row per user, kind 'notify_snapshot').
-  const { data: rows, error } = await admin
-    .from('user_goals')
-    .select('user_id, data')
-    .eq('kind', 'notify_snapshot')
-    .limit(BATCH);
-  if (error) return dbError(error, 'ai notify cron read', 500);
-
-  const cutoff = Date.now() - ACTIVE_WINDOW_MS;
-  let evaluated = 0;
-  let delivered = 0;
-
-  for (const row of rows ?? []) {
-    const snapshot = (row as { data?: unknown }).data as Snapshot | undefined;
-    const userId = (row as { user_id?: string }).user_id;
-    if (!snapshot || typeof snapshot !== 'object' || !userId) continue;
-    if (typeof snapshot.at === 'number' && snapshot.at < cutoff) continue; // inactive → skip
-
-    const prefs = await loadPrefs(admin, userId);      // the preference center
-    if (prefs.muted) continue;                          // honor master mute
-    // ⚠ Read alongside `notify_state` rather than in a second round trip: this loop
-    // runs for up to BATCH users, so an extra sequential query per user is real cost.
-    const [last, settings] = await Promise.all([
-      readUserGoal(admin, userId, 'notify_state'),
-      readUserGoal(admin, userId, 'client_settings'),
-    ]);
-    // ⚠ SPEC §3D. Turning Daily check-in off stopped the Home bulletin and nothing
-    // else: the stored snapshot keeps its check-in state, so this cron kept nudging a
-    // member who had opted out and never reopened the app. Absence reads as opted IN.
-    const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
-    const now = new Date();
-    const isCoach = isCoachRole(snapshot.role);  // trainer | nutritionist | dietitian
-    const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
-    // The coach's own office-settings tuning (R14), so the cron's alerts agree with
-    // the roster the same thresholds produce on their dashboard.
-    const thresholds = isCoach ? await loadCoachThresholds(admin, userId) : null;
-
-    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds });
-    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut });
-    const items = digest ? [...send, digest] : send;
-    if (items.length) { await deliver(admin, userId, items); delivered += items.length; }
-    await writeUserGoal(admin, userId, 'notify_state', nextState);
-    evaluated += 1;
+  // Build the snapshot of REAL data, role-scoped.
+  const snapshot: Snapshot = { role: actor.role, tz: prefs.tz, at: +now };
+  let habitContext: HabitContext | undefined;
+  if (isCoach) {
+    const clients = Array.isArray(parsed.data.clients) ? parsed.data.clients.slice(0, 100) : [];
+    // Re-check coach scope for every client in PARALLEL — sequential RPCs for up
+    // to 100 clients inflate latency and timeout risk.
+    const checks = await Promise.all(
+      clients.map(async (c) => {
+        const id = (c as { userId?: string; id?: string })?.userId || (c as { id?: string })?.id;
+        if (!id || typeof id !== 'string') return null; // demo/no-id → skip (honest)
+        const { data: ok, error: scopeErr } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: id });
+        // Fail CLOSED on a scope-check error (never include an unverified client),
+        // but log it so a backend outage isn't silently dropping the whole roster.
+        if (scopeErr) { console.warn('[shape-ai] notify scope-check failed for client', id, scopeErr.message); return null; }
+        return ok === true ? c : null;
+      })
+    );
+    snapshot.clients = checks.filter((c): c is unknown => c !== null);
+  } else {
+    const record = parsed.data.record;
+    if (!record || typeof record !== 'object') {
+      return NextResponse.json({ error: 'record is required.' }, { status: 400 });
+    }
+    snapshot.record = record;
+    habitContext = await loadHabitContext(actor.supabase, actor.user.id, now, prefs.tz);
   }
 
-  return NextResponse.json({ ok: true, evaluated, delivered });
-}
+  // The coach's office-settings tuning drives the same engine these candidates come
+  // from, so the alerts agree with the roster that produced them (R14).
+  const thresholds = isCoach ? await loadCoachThresholds(actor.supabase, actor.user.id) : null;
+  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds });
+  const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut });
 
-export async function GET(request: Request) { return run(request); }
-export async function POST(request: Request) { return run(request); }
+  // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one
+  // transaction, so we must choose a failure direction: writing state first means
+  // a delivery failure at worst SKIPS a nudge (safe), whereas delivering first and
+  // then failing the state write would let a retry RESEND the same nudges (spam).
+  // For proactive, never-shaming notifications, fail toward under-delivery.
+  await writeUserGoal(actor.supabase, actor.user.id, 'notify_state', nextState);
+
+  const admin = createAdminClient();
+  await deliver(admin, actor.user.id, digest ? [...send, digest] : send);
+
+  // The snapshot is only read later by the cron to re-evaluate — order-independent.
+  await writeUserGoal(actor.supabase, actor.user.id, 'notify_snapshot', snapshot);
+
+  return NextResponse.json({ ok: true, sent: send.length, digest: digest ? 1 : 0, suppressed });
+}

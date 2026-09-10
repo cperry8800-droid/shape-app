@@ -91,6 +91,19 @@ function CstNumber({ value, min, max, step, label, disabled, onCommit }) {
   );
 }
 
+// ⚠ WHOLE-ROW WRITES ARE SERIALIZED, BECAUSE COMPLETION ORDER MUST NOT DECIDE THE
+// RESULT. `notification_settings` is upserted as a whole row, so two quick changes —
+// blurring a quiet-hours field and immediately picking a daily cap — raced: if the
+// earlier request finished last its older snapshot overwrote the newer change, and an
+// earlier FAILURE could roll the panel back over an edit the coach had already made.
+// One lane, so each write sees the result of the one before it.
+let _cstLane = Promise.resolve();
+function cstSerial(fn) {
+  const next = _cstLane.then(fn, fn);
+  _cstLane = next.then(() => {}, () => {});
+  return next;
+}
+
 function cstTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } }
 function cstLabel(text) {
   return <div style={{ fontFamily: CST_MONO, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: CST_INK50 }}>{text}</div>;
@@ -173,7 +186,11 @@ function CoachSettingsPage({ role }) {
     : store.kind === "error" ? "Couldn't save — your last change didn't stick, try again"
     : store.kind === "signedout" || store.kind === "unavailable" ? "Couldn't read your settings just now — changes won't be kept"
     : "Saved to your account";
-  const tunedCount = tunables.filter((t) => effThresholds[t.key] != null).length;
+  // ⚠ A REFUSED OVERRIDE IS NOT A TUNING, AND COUNTING IT MAKES THE CARD CONTRADICT
+  // ITSELF: the header said "1 tuned" while the row beneath it said "not used" and both
+  // the roster and the server ran the house default — for exactly the untrusted-document
+  // case the validation exists to handle.
+  const tunedCount = tunables.filter((t) => effThresholds[t.key] != null && !refused.has(t.key)).length;
 
   return (
     <React.Fragment>
@@ -316,7 +333,7 @@ function CoachNotificationCard({ signedIn }) {
   // This is the defect useCoachDoc was post-mortemed for on 2026-09-10, one file over.
   const failSettings = (before, msg) => { setState((s) => ({ ...s, settings: before })); setErr(msg); };
   const failMatrix = (before, msg) => { setState((s) => ({ ...s, matrix: before })); setErr(msg); };
-  const saveSettings = async (next) => {
+  const saveSettings = (next) => cstSerial(async () => {
     const before = state.settings;
     setState((s) => ({ ...s, settings: next }));
     try {
@@ -333,8 +350,8 @@ function CoachNotificationCard({ signedIn }) {
       if (error) { failSettings(before, "Couldn't save that just now."); return; }
       setErr("");
     } catch (e) { failSettings(before, "Couldn't save that just now."); }
-  };
-  const toggle = async (type, channel, on) => {
+  });
+  const toggle = (type, channel, on) => cstSerial(async () => {
     const before = state.matrix;
     setState((s) => ({ ...s, matrix: { ...s.matrix, [type]: { ...(s.matrix[type] || {}), [channel]: on } } }));
     try {
@@ -355,7 +372,7 @@ function CoachNotificationCard({ signedIn }) {
       if (error) { failMatrix(before, "Couldn't save that just now."); return; }
       setErr("");
     } catch (e) { failMatrix(before, "Couldn't save that just now."); }
-  };
+  });
 
   if (!signedIn) {
     return cstCard(
