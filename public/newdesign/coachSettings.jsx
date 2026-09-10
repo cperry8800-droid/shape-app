@@ -138,7 +138,14 @@ function CoachSettingsPage({ role }) {
   // "what did the engine make of the stored overrides" are already resolved — and
   // `tuning.refused` is the half this panel cannot do without (below).
   const { source, tuning } = useDashboard(role);
-  const live = source === "live";
+  // ⚠ PERSISTENCE KEYS ON AUTHENTICATION, NOT ON THE ROSTER. `source` is about DATA:
+  // null while the roster request is in flight, and "demo" when that request FAILS.
+  // Keying on it meant a roster outage made every edit tab-only and told a signed-in
+  // coach to sign in while the settings backend was healthy — and an edit made during
+  // the pending window was dropped the moment the roster resolved. `source` still
+  // decides the DEMO BAND, which is a statement about the data on screen.
+  const signedIn = useSignedIn();
+  const live = signedIn === true;
   const store = useCoachDoc("coach_settings", live);
   const doc = store.doc || {};
   const tunables = (DashSignals.TUNABLES || []).filter((t) => !t.role || t.role === role);
@@ -150,7 +157,9 @@ function CoachSettingsPage({ role }) {
   // `doc` — with the header meanwhile claiming "Preview — changes stay on this tab",
   // which was false in both halves. dashWeek was fixed for exactly this on 2026-09-09.
   // The controls are disabled until the store has an answer.
-  const settling = live && store.kind === "loading";
+  // Unknown authentication is settling too: enabling the controls before that answer
+  // lands is exactly how an early edit gets routed to the wrong place and then lost.
+  const settling = signedIn === undefined || (live && store.kind === "loading");
   const canPersist = store.kind === "ready" || store.kind === "error";
   const persisting = live && canPersist;
   const effective = persisting ? doc : (localDemo || (live ? {} : doc));
@@ -192,7 +201,7 @@ function CoachSettingsPage({ role }) {
   // is impossible. Saying it anyway is the conflation corrected on 2026-09-10 one
   // module over. `loading` also covers the frame before `source` resolves, so the
   // sign-in line cannot flash on a healthy load.
-  const storeLine = !live && source === null ? "Loading…"
+  const storeLine = signedIn === undefined ? "Loading…"
     : !live ? "Preview — changes stay on this tab"
     : store.kind === "loading" ? "Loading your settings…"
     : store.kind === "error" ? "Couldn't save — your last change didn't stick, try again"

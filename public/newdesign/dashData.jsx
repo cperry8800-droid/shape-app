@@ -280,6 +280,29 @@ function dashInvalidateCoachSettings() {
   _dashCoachSettingsFlight = null;   // the next caller re-reads rather than joining a stale flight
 }
 
+// Is there a signed-in account? `undefined` while unknown, then true/false.
+// ⚠ NOT DERIVED FROM THE ROSTER, AND THAT IS THE POINT. `useDashboard`'s `source` is
+// about DATA — it is null while the roster request is in flight and "demo" when that
+// request FAILS — so keying persistence on it meant a roster outage turned every
+// settings edit tab-only and told a signed-in coach to sign in, while the settings
+// backend was perfectly healthy. Authentication is its own question and gets its own
+// answer.
+function useSignedIn() {
+  const [signedIn, setSignedIn] = React.useState(undefined);
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      const db = window.shapeDb;
+      if (!db || !db.getUser) { if (on) setSignedIn(false); return; }
+      await dashDocBridge();
+      const uid = await dashDocUid();
+      if (on) setSignedIn(!!uid);
+    })().catch(() => { if (on) setSignedIn(false); });
+    return () => { on = false; };
+  }, []);
+  return signedIn;
+}
+
 function useCoachThresholds(role) {
   const [resolved, setResolved] = React.useState(null);
   // ⚠ AND THE CONSUMER NEEDS ITS OWN GENERATION, because the read it awaits may not be
@@ -743,4 +766,4 @@ function useWeekClock(compute) {
   return value;
 }
 
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });

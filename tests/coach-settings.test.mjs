@@ -328,7 +328,12 @@ test('an edit made while the document is still loading is refused, not swallowed
   // read resolved — under a header claiming "Preview — changes stay on this tab",
   // which was false in both halves. dashWeek was fixed for this on 2026-09-09.
   const src = stripComments(SETTINGS);
-  assert.match(src, /const settling = live && store\.kind === "loading";/);
+  // ⚠ ANCHORED ON WHAT `settling` DOES, NOT ON ITS EXPRESSION — the fourth time in this
+  // PR that pinning a spelling failed a test about something else. Widening it to cover
+  // an unresolved AUTH answer broke this assertion, which cares only that an edit made
+  // before the panel can persist is refused rather than painted and lost.
+  assert.match(src, /const settling = /, 'the settling gate is gone');
+  assert.match(src, /store\.kind === "loading"/, 'a loading store no longer counts as settling');
   const patch = src.slice(src.indexOf('const patch = (mut)'));
   assert.match(patch.slice(0, 200), /if \(settling\) return Promise\.resolve\(false\);/,
     'an edit during the load still reaches the store');
@@ -521,4 +526,84 @@ test('an older threshold load cannot overwrite a newer one', () => {
   const guardAt = body.indexOf('if (gen !== genRef.current) return;');
   const setAt = body.indexOf('setResolved(dashResolveCoachThresholds(doc))');
   assert.ok(awaitAt < guardAt && guardAt < setAt, 'the generation check does not sit between the read and the write');
+});
+
+// ── a role never runs on a threshold its panel cannot show ───────────────────
+test('a role-scoped tunable is invisible to the OTHER role\u2019s rules — driven', () => {
+  // ⚠ THE `role` FIELD IS A CLAIM ABOUT WHICH RULES READ THE THRESHOLD, and it was
+  // WRONG for SLEEP_DEFICIT_H: `ruleSleepRecovery` fires in evaluateClient outside
+  // every `disciplineForRole` branch, so a nutritionist's roster read it while the
+  // nutritionist panel filtered it out. A dual-role coach who tuned it as a trainer
+  // then ran their nutritionist roster on a setting that panel could neither show nor
+  // reset. Driven rather than reasoned about: if tuning it changes the other role's
+  // verdict, the marking is a lie.
+  //
+  // ⚠ AND THE FIXTURE PROVES ITSELF FIRST. The first cut sat at +50% over a 50-max
+  // threshold, so the rule fired at BOTH ends, the two evaluations matched, and the
+  // guard passed while testing nothing — it survived a mutation that ungated the
+  // nutritionist rules for everyone. Each threshold is asserted to CHANGE its own
+  // role's verdict before its absence from the other role's means anything.
+  const ROLES = ['trainer', 'nutritionist'];
+  const rec = {
+    // +25% over target: inside the 1–50 range, so the min fires and the max does not.
+    // 55% under would fire at both ends and prove nothing.
+    nutrition: { avgCalories: 2500, targetCalories: 2000, avgProtein: 135, targetProtein: 180 },
+  };
+  const keys = (r, t) => evaluateClient(rec, NOW, r, t).flags.map((f) => f.key).sort();
+  let checked = 0;
+  for (const t of TUNABLES) {
+    if (!t.role) continue;                       // claims both roles — nothing to check
+    const other = ROLES.find((r) => r !== t.role);
+    assert.ok(other, t.key + ' names a role that is not a coach role');
+    const lo = tuned({ [t.key]: t.min });
+    const hi = tuned({ [t.key]: t.max });
+    // the fixture must be able to trip this rule, or the comparison below is vacuous
+    assert.notDeepEqual(keys(t.role, lo), keys(t.role, hi),
+      t.key + ': the fixture cannot trip its own rule — this guard would pass on anything');
+    assert.deepEqual(keys(other, lo), keys(other, hi),
+      t.key + ' is marked ' + t.role + '-only but changes what a ' + other + ' sees — ' +
+      'that role runs on a setting its panel does not show');
+    checked += 1;
+  }
+  assert.ok(checked > 0, 'no tunable is role-scoped — this guard is vacuous');
+});
+
+test('the sleep threshold is offered to both roles, because both read it', () => {
+  const sleep = TUNABLES.find((t) => t.key === 'SLEEP_DEFICIT_H');
+  assert.ok(sleep, 'SLEEP_DEFICIT_H left the tunables');
+  assert.equal(sleep.role, null, 'SLEEP_DEFICIT_H is role-scoped again while its rule is not');
+  // …and the rule really is ungated, which is WHY it must be null
+  const engine = readFileSync(new URL('../public/newdesign/dashSignals.js', import.meta.url), 'utf8');
+  const fn = engine.slice(engine.indexOf('function evaluateClient'));
+  const body = fn.slice(0, fn.indexOf('\n  function '));
+  const sleepAt = body.indexOf('ruleSleepRecovery(c)');
+  const firstGate = body.indexOf('disciplineForRole(role)');
+  assert.ok(sleepAt > 0 && firstGate > 0, 'evaluateClient moved');
+  assert.ok(sleepAt < firstGate, 'ruleSleepRecovery is discipline-gated now — re-check the role marking');
+});
+
+// ── the panel asks the right question about being signed in ──────────────────
+test('persistence keys on AUTHENTICATION, not on the roster fetch', () => {
+  // ⚠ `source` is about DATA: null while the roster is in flight, "demo" when that
+  // request FAILS. Keying on it made a roster outage turn every settings edit tab-only
+  // and tell a signed-in coach to sign in while the settings backend was healthy — and
+  // an edit made during the pending window was dropped once the roster resolved.
+  const src = stripComments(SETTINGS);
+  assert.match(src, /const signedIn = useSignedIn\(\);/, 'the panel still infers auth from the roster');
+  assert.match(src, /const live = signedIn === true;/);
+  assert.ok(!/const live = source === "live"/.test(src), 'live is derived from the roster again');
+  // an unknown answer is settling, or an early edit is routed before it is known
+  assert.match(src, /const settling = signedIn === undefined \|\| \(live && store\.kind === "loading"\)/);
+  // …and `source` still decides the demo band, which IS a statement about the data
+  assert.match(src, /source === "demo" && <DashDemoBand \/>/);
+});
+
+test('useSignedIn resolves independently and has three states', () => {
+  const src = stripComments(DATA);
+  const fn = src.slice(src.indexOf('function useSignedIn'));
+  const body = fn.slice(0, fn.indexOf('\n  return signedIn;') + 20);
+  assert.match(body, /React\.useState\(undefined\)/, 'the unknown state is missing');
+  assert.match(body, /await dashDocBridge\(\)/, 'a cookie-only session reads as anon');
+  assert.match(body, /await dashDocUid\(\)/);
+  assert.ok(!/useDashboard|source/.test(body), 'the auth answer depends on the roster again');
 });

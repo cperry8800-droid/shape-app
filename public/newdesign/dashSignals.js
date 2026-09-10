@@ -106,7 +106,14 @@
       help: "Week-over-week Shape Score fall that flags." },
     { key: "GOAL_SLIP_DAYS",     label: "Goal slip",           unit: "days",  min: 1,  max: 60, step: 1,   role: null,
       help: "How far a projected goal date may move later before it flags." },
-    { key: "SLEEP_DEFICIT_H",    label: "Sleep deficit",       unit: "hours", min: 0.5, max: 4, step: 0.5, role: "trainer",
+    // ⚠ BOTH ROLES, BECAUSE `ruleSleepRecovery` IS NOT DISCIPLINE-GATED. It fires in
+    // `evaluateClient` outside every `disciplineForRole` branch, so a nutritionist's
+    // roster reads this threshold too. Marking it trainer-only hid it from the
+    // nutritionist panel while still driving their severities — a dual-role coach who
+    // tuned it as a trainer then ran their nutritionist roster on a setting that panel
+    // could neither show nor reset. A `role` here is a claim about which rules read the
+    // threshold, and it has to match what the engine does.
+    { key: "SLEEP_DEFICIT_H",    label: "Sleep deficit",       unit: "hours", min: 0.5, max: 4, step: 0.5, role: null,
       help: "7-day average sleep this far under target reads as a severe deficit." },
     { key: "LEDGER_OVER_PCT",    label: "Calories over",       unit: "%",     min: 1,  max: 50, step: 1,   role: "nutritionist",
       help: "Average intake this far above target counts the ledger blown." },
