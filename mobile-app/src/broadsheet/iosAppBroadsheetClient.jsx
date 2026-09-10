@@ -14478,9 +14478,15 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
   };
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
-    const unit = realGoal.unit || 'kg';
-    const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
-    const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
+    // ⚠ CANONICAL KILOGRAMS IN, THE MEMBER'S UNIT OUT. The merge above stamps
+    // this document 'kg', so reading `realGoal.unit` for DISPLAY printed "80.8
+    // kg" to a member whose Settings say pounds. The figures stay kilograms for
+    // the span/percentage arithmetic below and only the labels convert.
+    const unit = tTheme.weightUnit;
+    const s = bsGoalDocKg(realGoal.start, realGoal), tg = bsGoalDocKg(realGoal.target, realGoal);
+    const nRaw = realGoal.now != null ? bsGoalDocKg(realGoal.now, realGoal) : s;
+    const n = nRaw == null ? s : nRaw;
+    const fmt = (v) => `${Math.round(tTheme.kgToDisplay(v) * 10) / 10} ${unit}`;
     const span = Math.abs(tg - s);
     return { arc: [[realGoal.startMonth || tr('profile:ridge.start', { defaultValue: 'Start' }), fmt(s), 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), fmt(n), 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), fmt(tg), 'target']], pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)), summit: realGoal.title || fmt(tg) };
   })() : null;
@@ -22428,7 +22434,12 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     if (st === 'stale') return { c: t.AMBER, v: tr('goal:eta.refresh', { defaultValue: 'Refresh' }), sub: tr('goal:eta.refreshSub', { defaultValue: 'log to update' }) };
     return unread;
   })();
-  const verdict = bsGoalVerdict({ start, now, target, unit, proj: goalProj, tr });
+  // ⚠ PRESENTATION GETS DISPLAY UNITS; PROJECTIONS KEEP KILOGRAMS. bsGoalVerdict
+  // formats all three figures and their differences against `unit`, so handing
+  // it kilograms under an 'lb' label printed kilogram-sized progress amounts as
+  // pounds. `goalProj` is deliberately NOT converted — it contributes a date
+  // label and a slip in DAYS, no weights.
+  const verdict = bsGoalVerdict({ start: dsp(start), now: dsp(now), target: dsp(target), unit, proj: goalProj, tr });
   const toneColor = { good: t.GREEN, warn: t.AMBER, bad: t.RUST, neutral: t.INK }[verdict.tone] || t.INK;
   // The house treatment gives the lead's FINAL STOP the tier heat. The shipped
   // expression was `verdict.lead.slice(0, -1)` + a hardcoded '.', which is wrong
@@ -22722,7 +22733,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
           <div aria-hidden style={{ marginTop: 13, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 62%, transparent)`, transformOrigin: 'left', transform: (bsSdReduced() || readSeen) ? 'none' : 'scaleX(0)', transition: 'transform .7s cubic-bezier(.2,.7,.2,1)' }} />
           <div style={{ marginTop: 14, display: 'flex' }}>
             {[
-              { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: now, u: unit, sub: tr('goal:cover.statCurrentSub', { defaultValue: 'latest' }) },
+              { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: dsp(now), u: unit, sub: tr('goal:cover.statCurrentSub', { defaultValue: 'latest' }) },
               { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: dsp(toGo), u: unit, sub: tr('goal:cover.statToGoSub', { defaultValue: 'of {range}', range: dsp(range) }) },
               { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? dsp(paceVal) : null, u: paceVal != null ? `${unit}/wk` : '', sub: tr('goal:cover.statPaceSub', { defaultValue: 'per week' }) },
               { l: tr('goal:cover.statEta', { defaultValue: 'ETA' }), raw: `${etaStat.v}${etaStat.u || ''}`, rawColor: etaStat.c, sub: etaStat.sub },
@@ -22793,7 +22804,17 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
   // Keep the raw string while editing (so decimals like 76.8 type cleanly);
   // numeric fields are coerced to Number on save (`saveGoal`).
-  const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? Math.round(t.displayToKg(x) * 1000) / 1000 : ''; }; onSave({ ...g, unit: 'kg', start: n(g.start), now: n(g.now), target: n(g.target) }); };
+  const saveGoal = () => {
+    const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? Math.round(t.displayToKg(x) * 1000) / 1000 : ''; };
+    // ⚠ THE EMBEDDED SERIES CONVERTS IN THE SAME STEP AS THE FIGURES. `...g`
+    // carries `weighIns` forward untouched, and the legacy path stored a
+    // member-entered POUND number in a property named `kg` — so stamping the
+    // document 'kg' without converting them left a {kg: 185} point that
+    // bsGoalNow then read as 185 kilograms. Same rule as logWeighIn.
+    const wasLb = bsGoalUnitIsLb(overall);
+    const series = bsGoalWeighIns(g).map((x) => (wasLb ? { ...x, kg: Number(x.kg) * BS_GOAL_LB_TO_KG } : x));
+    onSave({ ...g, unit: 'kg', start: n(g.start), now: n(g.now), target: n(g.target), ...(series.length ? { weighIns: series } : {}) });
+  };
   const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? tr('goal:overall.fieldStart', { defaultValue: 'Start' }) : k === 'now' ? tr('goal:overall.fieldNow', { defaultValue: 'Now' }) : tr('goal:sheet.fieldTarget', { defaultValue: 'Target' })}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>;
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
@@ -23226,7 +23247,15 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const unit = t.weightUnit;
-  const [kg, setKg] = useStateBSC(String(bsGoalNow(overall) || ''));
+  // ⚠ THE FIELD IS THE MEMBER'S UNIT; `onSave` HANDS BACK KILOGRAMS. Seeding it
+  // from bsGoalNow (canonical kg) while labelling it 'lb' put an 80.8 kg member
+  // in front of "80.8" above the word "lb", and saving without editing filed
+  // 80.8 lb — 36.7 kg — over today's canonical row. The seed converts out, the
+  // save converts back, and the only place a pound exists is the input itself.
+  const [kg, setKg] = useStateBSC(() => {
+    const d = t.kgToDisplay(bsGoalNow(overall));
+    return d ? String(Math.round(d * 10) / 10) : '';
+  });
   const [bf, setBf] = useStateBSC('');
   const inputRef = React.useRef(null);
   React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
@@ -25073,7 +25102,15 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       now: kg,
     };
     if (loggedIn && window.ShapeWeighIns?.log) {
-      setData(d => ({ ...d, overall: nextOverall }));          // optimistic; table is the source of truth
+      // ⚠ THE CANONICAL DOCUMENT IS PERSISTED BEFORE THE AWARDS RPC RUNS, AND
+      // THE ORDER IS THE WHOLE FIX. `award_my_goal_milestones` reads start and
+      // target VERBATIM from user_goals and the latest weight VERBATIM from
+      // client_weigh_ins — it normalises neither. Writing 185 lb as 83.9 kg
+      // while a 200 -> 180 LB goal was still on the server made 83.9 look far
+      // past a 180 target, so every milestone fired at once for a member who
+      // had reached none of them. Persisting first means both operands are
+      // kilograms by the time the RPC compares them.
+      persist({ ...data, overall: nextOverall });
       window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat })
         .then(() => window.ShapeGoalAwards?.check?.())         // credit any newly reached milestone
         .then((awards) => (awards || []).forEach(a => window.__bsToast?.(tr('goal:award.toast', { defaultValue: '+{points} pts · {milestone}', points: a.points, milestone: a.milestone }), 'ok')))

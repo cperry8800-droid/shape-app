@@ -4678,8 +4678,24 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const mx = best.length ? Math.max(...best) : 1;
     return L.keyLifts.map(x => {
       const b = lnum(x.best), dl = lnum(x.delta), e1 = lnum(x.e1rm);
-      const v = b != null ? (e1 != null ? tr('coach:case.liftE1rm', { defaultValue: '{load} kg · {e1rm} e1RM', load: b, e1rm: Math.round(e1) }) : tr('coach:case.liftLoad', { defaultValue: '{load} kg', load: b })) : '—';
-      return { n: x.name || tr('coach:case.liftFallback', { defaultValue: 'Lift' }), v, d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
+      // ⚠ THE UNIT COMES FROM THE ROW NOW, NOT FROM THE SENTENCE. These strings
+      // hardcoded "kg" in all thirteen catalogs while the RPC sent a number with
+      // no unit at all — a guess presented as a fact, and wrong for every client
+      // who lifts in pounds. `get_client_lifts` states `unit` as of
+      // 2026-09-10-coach-lift-units.sql (canonical pounds, normalised before the
+      // comparison that picks `best`), so the figures convert to whatever this
+      // coach's Settings say. The delta is a difference in the same unit, so it
+      // converts the same way; `p` stays in the row's own unit because it is a
+      // ratio against `mx` and a ratio has no unit.
+      const srcU = x.unit || L.unit || 'lb';
+      const bM = t.uMeasure(b, srcU);
+      const dM = dl != null ? t.uMeasure(dl, srcU) : null;
+      const v = b != null
+        ? (e1 != null
+            ? tr('coach:case.liftE1rm', { defaultValue: '{load} {unit} · {e1rm} e1RM', load: bM.value, unit: bM.unit, e1rm: Math.round(t.uMeasure(e1, srcU).value) })
+            : tr('coach:case.liftLoad', { defaultValue: '{load} {unit}', load: bM.value, unit: bM.unit }))
+        : '—';
+      return { n: x.name || tr('coach:case.liftFallback', { defaultValue: 'Lift' }), v, d: dM != null ? `${dM.value >= 0 ? '+' : ''}${dM.value}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
     });
   })() : null;
 

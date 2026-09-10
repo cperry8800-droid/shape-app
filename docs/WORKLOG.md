@@ -495,6 +495,81 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — The Codex round on the units wave: five findings, all real, three of them mine to have caught
+
+- **Codex reviewed `2076bbd` and returned 3× P1 + 2× P2. Every one was a defect the units change had
+  INTRODUCED**, and the round is worth recording in full because the class is the same each time:
+  canonicalising storage moves a boundary, and everything that used to sit on the old side of it is
+  now wrong.
+- ⚠ **P1 — THE MILESTONE RPC WAS COMPARING KILOGRAMS AGAINST POUNDS, AND AWARDING EVERYTHING.**
+  `logWeighIn` put the kg-stamped document into React state and called `ShapeGoalAwards.check()`
+  **without persisting it**. `award_my_goal_milestones` reads `start`/`target` verbatim from
+  `user_goals` and the latest weight verbatim from `client_weigh_ins` — it normalises neither. So
+  logging 185 lb stored **83.9 kg** and compared it against a persisted **200 → 180 lb** goal: 83.9
+  is far past 180, and every milestone fired at once for a member who had reached none of them. The
+  canonical document is persisted **before** the RPC now, so both operands are kilograms by the time
+  it compares them.
+- ⚠ **P1 — AND THE WEIGH-IN SHEET WAS THE EDIT I BELIEVED I HAD MADE.** The field seeded from
+  `bsGoalNow` (canonical kg) while labelled `t.weightUnit`, so an 80.8 kg member on Imperial saw
+  **"80.8" above the word "lb"**, and saving without editing filed 80.8 lb — **36.7 kg** — over
+  today's canonical row. **The cause is a process failure, not a reasoning one:** the script that was
+  to make this edit died on a later assertion *before writing the file*, and it had already printed
+  the modified string, so I read my own intended change back out of memory and moved on. Every edit
+  in the fix round is now re-read **from disk** after writing. *A patch you have not seen in the file
+  is a patch you have not made.*
+- ⚠ **P1 — HALF THE GOAL COVER WAS KILOGRAMS UNDER A POUND LABEL.** `dsp` was applied at three sites
+  and `bsGoalVerdict` was not — it formats all three figures and their differences against `unit`, so
+  it printed kilogram-sized progress as pounds ("1.2 lb down" for a 2.7 lb move), and the Current
+  register rendered raw `now`. Presentation gets display units now; `goalProj` deliberately does not,
+  because it contributes a **date** and a slip in **days**, no weights.
+- ⚠ **P2 ×2 — the profile's weight climb** formatted `realGoal.start/now/target` against the document's
+  own stamped `kg` rather than the member's preference, so that surface stayed metric for a pound
+  user; and **`saveGoal` carried `weighIns` forward untouched** while stamping the document `kg`, so
+  editing a legacy pound goal left a `{kg: 185}` point that `bsGoalNow` then read as 185 kilograms.
+  Both fixed; the second now converts the series in the same step as the figures, exactly as
+  `logWeighIn` does.
+- **And the owner's outstanding ask, done: the unit now travels with a lift.** Two migrations,
+  **`2026-09-10-lift-units.sql`** (`get_my_lifts`) and **`2026-09-10-coach-lift-units.sql`**
+  (`get_client_lifts`, the coach-gated twin).
+- ⚠ **BOTH RPCs WERE COMPARING BARE NUMBERS ACROSS MIXED UNITS, WHICH IS A WRONG ANSWER AND NOT
+  MERELY AN UNLABELLED ONE.** Each pulled the digits out of the load with a regex and then took
+  `max(load)` per move — so a member logging some sessions in kilograms and some in pounds had
+  **100 (kg) lose to 200 (lb)** and their "best" was the **lighter** lift. 100 kg is 220 lb. It is
+  not cosmetic: `best` feeds the PR count, the strength discipline score and the coach's rollup, and
+  on the coach side the estimated 1RM was computed on the same mixed numbers. Every set is
+  normalised to **pounds** — the app's canonical unit for a LIFT, the opposite of body weight — before
+  any comparison, and every row states its unit.
+- ⚠ **THE UNIT RULE IS `_setLogUnit`'s, RESTATED IN SQL, AND IT HAD TO BE.** Explicit field first
+  (three spellings), string sniff only as a fallback — because the live logger stores the number in
+  `load` and the unit in a separate field, so sniffing alone files every metric set as pounds. That
+  is the same P1 Codex caught on this wave's first round; writing the rule down twice is the cost of
+  the RPC not being able to call the function.
+- ⚠ **AND MY FIRST DRAFT OF THE MIGRATION WOULD HAVE SILENTLY DROPPED HALF THE PAYLOAD.** A
+  `CREATE OR REPLACE` carrying only the lifts CTE deletes `avgRpe`, `workoutsLogged42d` and the entire
+  `disciplines` block — a regression far worse than the bug being fixed. Both migrations are now
+  **generated from the original file by targeted replacement**, with an assertion that every returned
+  key survives. *Re-stating a function from memory is how a function loses a field.*
+- ⚠ **AND THE CHECK THAT SAID "APPLIED" SAID IT AFTER A SYNTAX ERROR.** `psql … | tail -4 && echo
+  "APPLIED"` reports the exit status of `tail`, so a failed migration printed its error and then
+  announced success. Fixed to grep the log. *A check that cannot fail is worse than no check.*
+- **The route stops guessing, and does not start guessing the other way.**
+  `/api/client/profile-stats` emits `[name, "245 lb"]` when the RPC states a unit and the **bare
+  number it always sent** when it does not — appending a defaulted `lb` pre-migration would assert
+  something nobody measured, which is the exact defect being fixed. The coach's `case.liftE1rm` /
+  `case.liftLoad` gain a `{unit}` placeholder across all 13 locales, replacing a hardcoded `kg`
+  (`кг` in ru/uk). ⚠ **ru and uk therefore lose a localised unit symbol** — they now read the same
+  Latin token every other surface in the app already shows them. Per-locale unit symbols are an
+  app-wide change, not a change to this one key; registered.
+- **Verified:** `npm test` **2898/2898** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
+  both migrations **applied twice on a real Postgres 16** and driven through fixtures that prove the
+  point (a 100 kg set now beats a 200 lb set at **220.5**; the explicit `loadUnit` field beats a
+  `"100"` string; the sniff still works from `"180 kg"`; every original payload key present; `anon`
+  cannot execute either; `search_path` pins `pg_temp`) · and the Goal page **driven in a browser in
+  both systems**: the sheet prefills **174.6 under "LB"** where it used to show a raw 79.2, and the
+  verdict reads *"2.7 lb down"* / *"1.2 kg down"* — which cross-check exactly (174.6 lb = 79.2 kg).
+- ⚠ **THE TWO MIGRATIONS ARE NOT APPLIED.** They are owed on Supabase, and until they run the route
+  keeps sending the bare unitless number it always did.
+
 ### 2026-09-10 — Units, part two: the switch now reaches every measurement, because most of them are TEXT
 
 - **Owner: *"i want it so when you flip either imperial or metric, it changes everywhere on that app
