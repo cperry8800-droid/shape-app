@@ -12,6 +12,7 @@
 // be touched.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { bsSdUnitizeText, bsSdUnitizeLabel, bsSdMeasure, bsSdConvertValue } from '../mobile-app/src/services/sessionLedger.mjs';
 
 const KG = { weight: 'kg', distance: 'km', length: 'cm' };
@@ -128,4 +129,65 @@ test('THE TEXT PATH CANNOT CONVERT A LENGTH, WHATEVER THE PREFS SAY', () => {
   }
   // ...while the STRUCTURED path, where the unit is a field, converts it fine.
   assert.deepEqual(bsSdMeasure(32, 'in', KG), { value: 81.3, unit: 'cm' });
+});
+
+// ── The coach case file's body-weight series ────────────────────────────────
+// ⚠ `weighIns[].kg` is canonical KILOGRAMS and the demo series is kilograms
+// too, so BODY rendered `79.2kg` and `-1.2 kg · 8 weeks` to a coach whose
+// Settings say Imperial. The units wave reached the member's own surfaces and
+// stopped at the coach's case file — an outside-the-diff finding, which is
+// exactly the kind a diff-scoped review does not have to catch.
+test('the coach body chart converts the series before deriving anything from it', () => {
+  const src = readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', 'utf8');
+
+  // The converter is a pure function of (bwUnit, t) — lifted and driven, so an
+  // equivalent rewrite passes and a wrong converter fails.
+  const line = src.split('\n').find((l) => l.includes('String(bwUnit).toLowerCase().includes(') && l.includes('kgToDisplay'));
+  assert.ok(line, 'the doc-unit-aware converter is gone');
+
+  const LB_TO_KG = 0.45359237;
+  const theme = (metric) => ({
+    kgToDisplay: (kg) => (kg == null ? null : (metric ? Number(kg) : Number(kg) / LB_TO_KG)),
+    convWeight: (lb) => (lb == null ? null : (metric ? lb * LB_TO_KG : lb)),
+    weightUnit: metric ? 'kg' : 'lb',
+  });
+  const pick = (bwUnit, t) => (v) => (v == null ? null
+    : (String(bwUnit).toLowerCase().includes('kg') ? t.kgToDisplay(v) : t.convWeight(v)));
+
+  // A canonical kg doc, read by an Imperial coach: 79.2 kg is 174.6 lb.
+  assert.equal(Math.round(pick('kg', theme(false))(79.2) * 10) / 10, 174.6);
+  // ...and by a metric coach, untouched.
+  assert.equal(pick('kg', theme(true))(79.2), 79.2);
+  // ⚠ A LEGACY doc still stating `lb` holds POUNDS in a field named `kg`, so
+  // the stated unit picks the converter. Handing pounds to `kgToDisplay` is the
+  // 2.2x mistake this whole wave exists to remove.
+  assert.equal(pick('lb', theme(false))(174.6), 174.6, 'a pound doc shown to a pound coach is untouched');
+  assert.equal(Math.round(pick('lb', theme(true))(174.6) * 10) / 10, 79.2, 'and converts for a metric coach');
+
+  // ⚠ THE INVARIANT, NOT TWO SPELLINGS OF IT. Pinning the two template forms
+  // let `unit: bwUnit` — the delta's tr() argument — survive a mutation, and
+  // a guard that names the shapes a defect can wear only catches those shapes.
+  // `bwUnit` is the DOCUMENT's unit: it may pick a converter and nothing else.
+  // Anywhere else it reaches a reader, who has their own preference.
+  const bwUnitLines = src.split('\n')
+    .map((l, i) => [i + 1, l])
+    .filter(([, l]) => /\bbwUnit\b/.test(l));
+  assert.equal(bwUnitLines.length, 2,
+    `bwUnit should appear exactly twice — its declaration and the converter — got:\n${bwUnitLines.map(([n, l]) => `${n}: ${l.trim()}`).join('\n')}`);
+  assert.match(bwUnitLines[0][1], /const bwUnit =/, 'the first use is not the declaration');
+  assert.match(bwUnitLines[1][1], /kgToDisplay|convWeight/, 'the second use is not the converter selector');
+
+  // ⚠ AND THE DISPLAY SERIES MUST ACTUALLY BE CONVERTED. Replacing the map with
+  // a copy left every downstream source assertion true — they name
+  // `bwSeriesDisp`, which still exists — so the series has to be pinned to the
+  // converter that produces it.
+  assert.match(src, /const bwSeriesDisp = bwSeries\.map\(bwToDisplay\)/,
+    'the display series is no longer derived from the converter');
+
+  // And the CHART must plot the converted series — a converted delta over an
+  // unconverted series would draw kilograms under a pound label.
+  assert.match(src, /const vals = bwSeriesDisp\.map\(Number\)/,
+    'the chart still reads the unconverted series');
+  assert.match(src, /const bwWeeks = bwSeriesDisp\.length/,
+    'the week count is taken over a different series than the figures');
 });

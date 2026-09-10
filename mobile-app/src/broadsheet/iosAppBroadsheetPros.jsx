@@ -4648,10 +4648,28 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const bwSeries = liveW.length >= 2 ? liveW : (clientUid ? [] : (isNutri
     ? [80.4, 80.1, 79.9, 79.7, 79.6, 79.4, 79.3, 79.2]
     : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]));
-  const bwHasData = bwSeries.length >= 2;
-  const bwNow = bwHasData ? bwSeries[bwSeries.length - 1] : null;
-  const bwDelta = bwHasData ? +(bwNow - bwSeries[0]).toFixed(1) : null;
-  const bwWeeks = bwSeries.length;
+  // ⚠ THE BODY-WEIGHT SERIES IS KILOGRAM-NATIVE, SO AN IMPERIAL COACH WAS BEING
+  // SHOWN KILOGRAMS. `weighIns[].kg` is canonical kg (2026-09-10) and the demo
+  // series is kg too, so BODY rendered `79.2kg` and `-1.2 kg · 8 weeks` to a
+  // coach whose Settings say Imperial — the units wave reached the member's own
+  // surfaces and stopped at the coach's case file.
+  //
+  // ⚠ AND THE DOC'S OWN `unit` DECIDES WHICH CONVERTER APPLIES, because a
+  // client who has not re-saved since the canonicalisation can still be sharing
+  // a legacy doc whose `kg` field holds POUNDS. `convWeight` takes pounds and
+  // `kgToDisplay` takes kilograms — passing one to the other is the 2.2×
+  // mistake this whole wave exists to remove, so the stated unit picks.
+  const bwToDisplay = (v) => (v == null ? null
+    : (String(bwUnit).toLowerCase().includes('kg') ? t.kgToDisplay(v) : t.convWeight(v)));
+  // ⚠ CONVERT THE SERIES, THEN DERIVE. A delta is a difference, so converting
+  // it separately would be right by luck (the scale is linear with no offset)
+  // — but the CHART reads `bwSeries` directly, so a converted delta over an
+  // unconverted series would plot kilograms under a pound label.
+  const bwSeriesDisp = bwSeries.map(bwToDisplay).filter((x) => x != null);
+  const bwHasData = bwSeriesDisp.length >= 2;
+  const bwNow = bwHasData ? +bwSeriesDisp[bwSeriesDisp.length - 1].toFixed(1) : null;
+  const bwDelta = bwHasData ? +(bwSeriesDisp[bwSeriesDisp.length - 1] - bwSeriesDisp[0]).toFixed(1) : null;
+  const bwWeeks = bwSeriesDisp.length;
 
   // ---- live KPIs (get_client_stats; null fields → demo fallback) ----
   const S = cStats || {};
@@ -4784,7 +4802,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const sDoneShow = sDone != null ? sDone : (clientUid ? 0 : 38);
   const sPlanShow = sPlan != null ? sPlan : (clientUid ? 0 : 41);
   const bigCard = isNutri
-    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged${bwHasData ? ` · ${bwDelta} ${bwUnit}` : ''}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
+    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged${bwHasData ? ` · ${bwDelta} ${t.weightUnit}` : ''}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
     : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attBig, small: '%', sub: `${sDoneShow}/${sPlanShow} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
   // Real clients with no strength rollup → empty (empty-state); demo rows keep
   // the example lifts.
@@ -5074,14 +5092,14 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.body', { defaultValue: 'BODY' })} />}
         {bwHasData && (
           <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
-            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={tr('coach:case.weight', { defaultValue: 'WEIGHT' })} value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{tr('coach:case.weightDelta', { defaultValue: '{delta} {unit} · {weeks} weeks', delta: bwDelta, unit: bwUnit, weeks: bwWeeks })}</div>
+            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={tr('coach:case.weight', { defaultValue: 'WEIGHT' })} value={`${bwNow}${t.weightUnit}`} seen={bodyStatsSeen} figSize={26} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{tr('coach:case.weightDelta', { defaultValue: '{delta} {unit} · {weeks} weeks', delta: bwDelta, unit: t.weightUnit, weeks: bwWeeks })}</div>
             <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? tr('coach:case.history', { defaultValue: 'HISTORY' }) : tr('coach:case.log', { defaultValue: 'LOG' })}</span>
           </div>
         )}
         <div ref={bodyRef} style={{ marginTop: 10 }}>
           {(() => {
-            const vals = bwSeries.map(Number).filter(Number.isFinite);
+            const vals = bwSeriesDisp.map(Number).filter(Number.isFinite);
             if (vals.length < 2) return window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.weightRedact', { defaultValue: 'WEIGHT · NOT ON RECORD' })} /> : null;
             const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 320, H = 46;
             const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 6 - ((v - mn) / span) * (H - 16)]);

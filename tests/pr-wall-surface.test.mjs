@@ -820,15 +820,35 @@ test('a gap is never computed across units', () => {
 
 // ── the member's own logged best, out of their set logs ─────────────────────
 
-function bestLifts({ rows = [], error = null, acts = [], actError = null, uid = 'me' } = {}) {
+function bestLifts({ rows = [], error = null, kgError = null, lbError = null, acts = [], actError = null, uid = 'me' } = {}) {
   const calls = [];
+  // ⚠ THE SET-LOG READ IS SPLIT BY `load_unit`, so the stub has to FILTER — two
+  // pages that both return every row would hand the code each set twice and
+  // make a duplicate-tolerant max look like a passing test of a split it never
+  // performed. `ilike` selects the metric page; `not(..., 'ilike', ...)` the
+  // imperial one, matching the shipped query.
+  const isKg = (r) => /kg/i.test(String(r.load_unit || 'lb'));
   const make = (data, err) => {
+    let rowFilter = null;
     const q = {
       select: (...a) => { calls.push(['select', ...a]); return q; },
       eq: (...a) => { calls.push(['eq', ...a]); return q; },
-      not: (...a) => { calls.push(['not', ...a]); return q; },
+      ilike: (...a) => { calls.push(['ilike', ...a]); rowFilter = isKg; return q; },
+      not: (...a) => {
+        calls.push(['not', ...a]);
+        if (a[1] === 'ilike') rowFilter = (r) => !isKg(r);
+        return q;
+      },
       order: (...a) => { calls.push(['order', ...a]); return q; },
-      limit: () => ({ data, error: err }),
+      limit: (n) => {
+        const rowsOut = rowFilter ? (data || []).filter(rowFilter) : data;
+        // ⚠ A PER-PAGE ERROR IS THE CASE THE FIX IS ABOUT. With one shared
+        // error both pages fail together and `||` and `&&` are indistinguishable
+        // — which is exactly how the "swallow a failed page" mutation survived.
+        const pageErr = err
+          || (rowFilter === isKg ? kgError : (rowFilter ? lbError : null));
+        return { data: rowsOut && rowsOut.slice(0, n), error: pageErr };
+      },
     };
     return q;
   };
@@ -888,6 +908,71 @@ test('the read is scoped to the caller and to completed sets', () => {
     assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'client_id' && c[2] === 'me'), 'their own rows');
     assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'completed' && c[2] === true), 'completed sets only');
   });
+});
+
+test('the best is not decided by a recency cap', () => {
+  // ⚠ THE READ ORDERED BY `created_at` AND CAPPED AT 2000, so a member past
+  // that many completed loaded sets lost every older row and a heavier set
+  // logged before the window vanished from "Your best". The cap is a property
+  // of the query, so it has to be asserted on the query.
+  const { run, calls } = bestLifts({ rows: [] });
+  return run().then(() => {
+    const orders = calls.filter((c) => c[0] === 'order');
+    const setLogOrders = orders.filter((c) => c[1] === 'actual_load' || c[1] === 'created_at');
+    assert.ok(setLogOrders.length, 'the set-log read does not order at all');
+    for (const o of setLogOrders) {
+      assert.equal(o[1], 'actual_load',
+        'a capped read that answers a MAXIMUM must be ordered by the value it maximises, not by recency');
+      assert.equal(o[2] && o[2].ascending, false, 'descending, or the cap keeps the lightest sets');
+    }
+  });
+});
+
+test('the capped read is split by unit, so kg rows are not truncated first', () => {
+  // Ordering by a raw `actual_load` that mixes lb and kg puts a 100 kg set
+  // (220.5 lb) BELOW a 150 lb one, so a metric member's heaviest rows are the
+  // first ones the cap discards — the unit blindness, moved into the sort.
+  const { run, calls } = bestLifts({ rows: [] });
+  return run().then(() => {
+    const metric = calls.filter((c) => c[0] === 'ilike' && c[1] === 'load_unit');
+    const imperial = calls.filter((c) => c[0] === 'not' && c[1] === 'load_unit' && c[2] === 'ilike');
+    assert.equal(metric.length, 1, 'no metric page');
+    assert.equal(imperial.length, 1, 'no imperial page');
+    assert.match(String(metric[0][2]), /kg/i);
+    assert.match(String(imperial[0][3]), /kg/i);
+  });
+});
+
+test('a heavier OLD set still wins, and a kg page is read alongside the lb one', () => {
+  // Driven rather than asserted on the query: the heavier set is the OLDEST
+  // row and is in the other unit, which is both failure modes at once.
+  const { run } = bestLifts({ rows: [
+    { move_name: 'Deadlift', actual_load: 225, actual_reps: 1, load_unit: 'lb', created_at: '2026-09-09' },
+    { move_name: 'Deadlift', actual_load: 105, actual_reps: 1, load_unit: 'kg', created_at: '2024-01-01' },
+  ] });
+  return run().then((res) => {
+    const dl = res.data.find((r) => r.liftKey === 'deadlift');
+    assert.equal(dl.best, 105, '105 kg is 231.5 lb — heavier than 225 lb and years older');
+    assert.equal(dl.unit, 'kg', 'and it keeps the unit it was lifted in');
+  });
+});
+
+test('a failed page fails the whole answer rather than half of it', () => {
+  // Merging one good page with one missing one would report a confident best
+  // taken over half the member's log — so EACH page is failed on its own, not
+  // both together.
+  const rows = [
+    { move_name: 'Deadlift', actual_load: 225, actual_reps: 1, load_unit: 'lb', created_at: 'a' },
+    { move_name: 'Deadlift', actual_load: 105, actual_reps: 1, load_unit: 'kg', created_at: 'b' },
+  ];
+  const only = (opts) => bestLifts({ rows, ...opts }).run();
+  return Promise.all([only({ kgError: { message: 'kg page down' } }), only({ lbError: { message: 'lb page down' } })])
+    .then(([kgDown, lbDown]) => {
+      for (const [label, res] of [['metric page', kgDown], ['imperial page', lbDown]]) {
+        assert.ok(res.error, `${label} failed and the error was swallowed`);
+        assert.deepEqual(res.data, [], `${label} failed and a partial best was still emitted`);
+      }
+    });
 });
 
 test('the actionable rows lead', () => {

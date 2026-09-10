@@ -3437,16 +3437,44 @@ async function myPRLedger() {
 async function myBestLifts() {
   const uid = state.user?.id;
   if (!supabase || !uid) return { stored: 'local', data: [] };
-  const { data, error } = await supabase
-    .from('workout_set_logs')
-    .select('move_name, actual_load, actual_reps, load_unit, finished_at, created_at')
-    .eq('client_id', uid)
-    .eq('completed', true)
-    .not('actual_load', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(2000);
+  // ⚠ THE ROW CAP MUST NOT BE DECIDED ON RECENCY, BECAUSE THE ANSWER IS A
+  // MAXIMUM. This read ordered by `created_at` desc and capped at 2000, so a
+  // member past that many completed loaded sets — roughly five months at five
+  // sessions a week — silently lost every older row, and a heavier set logged
+  // before the window simply vanished from "Your best". The comment below says
+  // heaviest wins; the QUERY decided which sets that comparison could even see,
+  // and it decided on recency.
+  //
+  // ⚠ AND ORDERING BY `actual_load` ALONE WOULD RE-BREAK IT ACROSS UNITS. The
+  // column mixes lb and kg rows, so a 100 kg set (a real 220 lb) sorts BELOW a
+  // 150 lb one and a metric member's heavy rows are the first truncated — the
+  // same unit blindness this wave is removing, moved into the sort. So the read
+  // is split by `load_unit`: within one unit the ordering is true, and the two
+  // pages are normalised and compared afterwards. `load_unit` is NOT NULL
+  // DEFAULT 'lb', and the `%kg%` test matches `_setLogUnit`'s own rule.
+  //
+  // ⚠ REGISTERED, NOT CLOSED: this bounds the loss to a member's LIGHTEST
+  // moves. A per-MOVE maximum is still not guaranteed under a row cap — a
+  // member with 2000 sets heavier than their best overhead press can still lose
+  // that one — and closing it properly needs a `max() group by move_name`
+  // aggregate, i.e. an RPC and a migration. Named here rather than implied.
+  const page = (metric) => {
+    let q = supabase
+      .from('workout_set_logs')
+      .select('move_name, actual_load, actual_reps, load_unit, finished_at, created_at')
+      .eq('client_id', uid)
+      .eq('completed', true)
+      .not('actual_load', 'is', null);
+    q = metric ? q.ilike('load_unit', '%kg%') : q.not('load_unit', 'ilike', '%kg%');
+    return q.order('actual_load', { ascending: false }).limit(2000);
+  };
+  const [metricRes, imperialRes] = await Promise.all([page(true), page(false)]);
+  const error = metricRes.error || imperialRes.error;
+  const data = [...(metricRes.data || []), ...(imperialRes.data || [])];
   // Same three-state contract as every other read here: an empty list is the
-  // claim "you have logged no loaded sets", never "we could not look".
+  // claim "you have logged no loaded sets", never "we could not look". ⚠ EITHER
+  // leg failing fails the whole answer — merging one good page with one missing
+  // one would report a confident best taken over half the member's log.
   if (error) return { stored: 'local', data: [], error };
 
   const best = new Map();
