@@ -495,6 +495,67 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — A four-month-old migration was applied on my recommendation and opened an anon hole
+
+- **The owner asked *"do i need to run other migrations?"*, so the whole corpus was diffed against the
+  LIVE CATALOG** — 215 migrations, 191 functions, 98 tables, 99 added columns. All 99 columns present;
+  `radio_station` absent **deliberately** (gated on the Radio.co signup, routes fall through to mock);
+  four trigger functions absent but **not** an unapplied migration (their tables all exist, so those
+  migrations ran and the functions were dropped outside one — impact checked and nil).
+- **The one real find: `2026-05-31-shape-league.sql` had NEVER been applied.** `league_members`,
+  `league_week_score` and `league_standings` were all missing.
+  ⚠ **AND THE HALF THAT HAD LANDED IS WHY IT HID FOR FOUR MONTHS.** `league_assign_cohort` was live —
+  from the **later** `2026-06-29-league-cohort-atomic.sql`, which *was* applied — and its body
+  references `league_members`, so the one live League function was failing too and `/api/league` was
+  broken end to end. **A partially-applied feature is invisible to any check that asks "does this
+  function exist" one function at a time**: the presence of `league_assign_cohort` is exactly what made
+  the League look present. Nobody was affected — the route has no caller anywhere, not even in the
+  built `public/m` bundle — and it throws rather than degrading.
+- ⚠ **THE OWNER APPLIED IT ON MY RECOMMENDATION, AND THAT PUT TWO ANON-EXECUTABLE `SECURITY DEFINER`
+  FUNCTIONS INTO PRODUCTION. THE ERROR IS MINE.** I verified the migration was *absent* and never read
+  its grant block. It was written in **May**, before the rule
+  `2026-06-30-rpc-authz-hardening.sql` wrote down, and ends in
+  `revoke all on function … from public` — which strips only the **implicit** PUBLIC grant. Supabase
+  ships `ALTER DEFAULT PRIVILEGES` granting EXECUTE on every new function in `public` **explicitly** to
+  `anon` and `authenticated`, and those two survive untouched.
+- **Measured on production, not inferred** (`pg_proc.proacl`): both functions `anon=X authenticated=X`,
+  both `search_path=public` with **no `pg_temp`**, and a `set local role anon` probe **executed both
+  without permission denied**. `league_week_score(p_user, p_week)` takes an **arbitrary user id** and
+  sums `score_ledger` — owner-scoped RLS the same anon probe could **not** read directly, bypassed by
+  the definer — so any harvested uuid returns that member's private weekly score.
+  `league_standings` returns `user_id` + `full_name` + `avatar_url` + `score` + `rank` for a cohort with
+  **no visibility gate at all**, unlike `shape_leaderboard`.
+- ⚠ **NOTHING LEAKED, AND THAT IS LUCK RATHER THAN DESIGN.** `score_ledger` and `league_members` are
+  both **empty** (measured, 0 rows); the hole starts returning real numbers on the first earned point.
+- **`2026-09-10-league-grant-lockdown.sql` closes it, asymmetrically and on purpose:**
+  `league_week_score` → **`service_role` only** (its sole caller is `league_standings`, a definer
+  running as owner, so nothing breaks, and no app code calls it — a function that takes someone else's
+  uuid and returns their private total should not be client-reachable at all); `league_standings` →
+  **`authenticated`** (the route calls it user-scoped). Both pin `pg_temp` last.
+- ⚠ **AND THE FIRST PROBE RUN PROVED THE WRONG THING.** It reported *"permission denied for **schema**
+  public"* — the local stub lacked Supabase's `grant usage on schema public to anon`, so the refusal
+  never reached the FUNCTION grant being tested. With the schema granted and a **positive control**
+  (anon reading `profiles` first), the refusals land where they belong: *permission denied for function*
+  on both, `authenticated` refused on the helper, `authenticated` still reading standings. **6/6 guard
+  mutations abort**, so the DO block cannot pass vacuously.
+- ⚠ **THE LESSON THE PREVIOUS TWO INCIDENTS DID NOT COVER.** This is the **third** time the repo has
+  shipped this class — `league_assign_cohort` (self-promote, 2026-06-29) and the four 2026-06-18 score
+  functions (2026-08-02) — and both of those were about *writing* a migration. This one was about
+  *applying* one: **an unapplied migration is not dormant, it is UN-AUDITED.** Its grant block reflects
+  the rules of the day it was written, and applying it years later imports those rules wholesale.
+  **Age is a reason to re-read a migration, not a reason to trust it** — and "it was already in the
+  repo" is not review.
+- ⚠ **AND MY OWN RECORDS WENT STALE TWICE IN ONE EVENING, IN BOTH DIRECTIONS.** The War Room told the
+  owner to apply a migration they had already run; the correction then asserted two others were pending,
+  which they made false within the hour; and the League section said NEVER APPLIED after they applied
+  it. **A migration's status is a claim with a shelf life measured in minutes, and it belongs to the
+  database, not to the file describing it.** Every status line in this wave is now written from a
+  catalog query.
+- **Still owed, and both are the owner's call:** run the lockdown, and decide `/api/league` —
+  apply-and-build, or delete the route and its `RAW_ROUTES` entry. ⚠ `league_standings`' missing privacy
+  gate belongs **with that decision**, not inside a lockdown migration; registered rather than silently
+  redesigned.
+
 ### 2026-09-10 — The CodeRabbit round on the units wave: nine findings, and the one I answered with the wrong finding
 
 - **Owner: *"run it through coderabbit on the PR"*.** It returned **nine findings on `2bb923c` — eight
