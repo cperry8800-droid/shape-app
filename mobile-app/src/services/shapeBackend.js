@@ -3248,21 +3248,31 @@ async function saveWorkoutSessionLog({
   };
 }
 
+// A post id is only ever forwarded when it LOOKS like one. The RPC is the
+// authority (it re-checks ownership), but sending a non-uuid would make
+// PostgREST reject the whole call and lose the record itself.
+const BS_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // PR Wall — announce a new personal record to the community PR Wall channel.
 // post_my_pr_to_wall re-checks the caller is a PUBLIC profile and that the value
 // beats their last posted best for that lift (dedupe ledger), so this is safe to
 // over-call. Applies to every role.
-async function postPRToWall({ lift, value, unit = 'lb', reps = null } = {}) {
+async function postPRToWall({ lift, value, unit = 'lb', reps = null, postId = null } = {}) {
   if (!supabase || !state.user?.id) return { ok: false };
   const name = String(lift || '').trim();
   const v = Number(value);
   if (!name || !Number.isFinite(v) || v <= 0) return { ok: false };
+  // The post this record IS, so the Wall plate can carry its stats, breakdown,
+  // co-sign and reactions. Only a uuid is forwarded — the RPC re-checks the
+  // caller wrote that post, so a wrong id degrades to a bare record, never to
+  // somebody else's activity under this member's name.
+  const pid = BS_UUID_RE.test(String(postId || '')) ? String(postId) : null;
   try {
     const res = await fetch(`${apiBaseUrl || ''}/api/community/pr-wall`, {
       method: 'POST',
       headers: { ...sessionsAuthHeaders(), 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ lift: name, value: v, unit, reps: reps != null ? Number(reps) : null }),
+      body: JSON.stringify({ lift: name, value: v, unit, reps: reps != null ? Number(reps) : null, postId: pid }),
     });
     return res.ok ? await res.json().catch(() => ({ ok: false })) : { ok: false };
   } catch (e) { return { ok: false }; }
@@ -3279,17 +3289,275 @@ async function announcePRsFromSetLogs(setLogs = []) {
       const lift = String(e.moveName || e.move || e.exercise || '').trim();
       const load = parseFloat(String(e.actualLoad ?? e.load ?? e.actual_load ?? '').replace(/[^0-9.]/g, ''));
       if (!lift || !Number.isFinite(load) || load <= 0) continue;
+      // ⚠ THE UNIT IS READ FROM THE FIELD THAT HOLDS IT, VIA THE FUNCTION THAT
+      // ALREADY KNOWS HOW. This hardcoded 'lb' until 2026-09-10 — invisible
+      // while a PR was only a line of chat text, but the Wall prints the unit
+      // beside the number and computes a delta against the stored best, so a
+      // kg lifter's 100 kg was headlined "100 lb".
+      //
+      // ⚠ AND THE FIRST FIX SNIFFED `/kg/i` OFF THE LOAD STRING, WHICH IS THE
+      // FALLBACK HALF OF THE RULE AND MISSES THE COMMON CASE. The live set
+      // logger stores the number in `actualLoad` and the unit SEPARATELY, so a
+      // metric session hands this `{ actualLoad: 100, unit: 'kg' }` — the
+      // string carries no "kg" to find, and every metric set was still filed
+      // as lb. `_setLogUnit` (defined in this file for the write path) reads
+      // the explicit field first and only then sniffs; using it is also one
+      // copy of the rule instead of two. Found by Codex on #2024.
+      const unit = _setLogUnit(e);
       const reps = parseInt(String(e.actualReps ?? e.reps ?? e.actual_reps ?? ''), 10);
       const prev = best.get(lift);
-      if (!prev || load > prev.load) best.set(lift, { load, reps: Number.isFinite(reps) ? reps : null });
+      // ⚠ COMPARE IN ONE UNIT, KEEP THE SET'S OWN. `load > prev.load` put a
+      // 100 kg set behind a 200 lb one and announced the lighter lift as the
+      // day's best.
+      const lb = _liftToLb(load, unit);
+      if (lb == null) continue;
+      if (!prev || lb > prev.lb) best.set(lift, { load, unit, lb, reps: Number.isFinite(reps) ? reps : null });
     }
-    for (const [lift, { load, reps }] of [...best.entries()].slice(0, 6)) {
-      await postPRToWall({ lift, value: load, unit: 'lb', reps });
+    // ⚠ NO postId. A session can contain several PRs and there is ONE feed post
+    // for the whole session, so linking it to each would point every one of
+    // those ledger rows at the same activity: the Wall would render the same
+    // card two or three times, and — because the card files reactions,
+    // comments and open-state under the post's id — tapping comment on one
+    // plate would open the composer on all of them. It is also the wrong
+    // evidence: that post's hero is the SESSION (sets, rest, elapsed), not this
+    // lift's record. Session-detected PRs therefore land as bare records, and a
+    // per-lift record post is registered as follow-up.
+    for (const [lift, { load, unit, reps }] of [...best.entries()].slice(0, 6)) {
+      await postPRToWall({ lift, value: load, unit, reps });
     }
   } catch (e) { /* best-effort */ }
 }
 
-window.ShapePRWall = { post: postPRToWall, announce: announcePRsFromSetLogs };
+// ── The Wall ────────────────────────────────────────────────────────────────
+// One ledger row per member per lift, newest first, with the community post
+// that IS the record attached when there is one.
+//
+// ⚠ A FAILED READ RETURNS `{ stored: 'local', data: [], error }`, NEVER A BARE
+// EMPTY LIST. An empty wall is the positive claim "nobody has set a record",
+// and a surface that cannot tell that apart from "we could not read" will say
+// the first when the truth is the second.
+//
+// ⚠ THE POSTS ARE FETCHED SEPARATELY, UNDER THE CALLER'S OWN RLS. The definer
+// returns a post ID, not a post: whether the caller may SEE that post is
+// `community_posts`' policy to decide, not this function's. A post the caller
+// cannot read simply comes back missing and the row renders as a bare record —
+// which is why a missing post is not an error here.
+function bsPRWallRow(r, byId) {
+  return {
+    userId: r.user_id,
+    name: r.full_name || 'Shape member',
+    avatarUrl: r.avatar_url || '',
+    role: r.role || 'client',
+    liftKey: r.lift_key,
+    liftLabel: r.lift_label || r.lift_key,
+    best: Number(r.best_value),
+    prev: r.prev_value == null ? null : Number(r.prev_value),
+    unit: r.unit || 'lb',
+    reps: r.reps == null ? null : Number(r.reps),
+    postedAt: r.posted_at,
+    postId: r.post_id || null,
+    post: (r.post_id && byId[r.post_id]) || null,
+  };
+}
+
+async function listPRWall({ limit = 40, lift = '', scope = 'everyone' } = {}) {
+  if (!supabase) return { stored: 'local', data: [] };
+  const cleanLift = String(lift || '').trim();
+  const { data, error } = await supabase.rpc('shape_pr_wall', {
+    p_limit: Math.max(1, Math.min(Number(limit) || 40, 200)),
+    p_lift: cleanLift && cleanLift.toLowerCase() !== 'all' ? cleanLift : null,
+    p_scope: scope || 'everyone',
+  });
+  if (error) return { stored: 'local', data: [], error };
+
+  const rows = data || [];
+  const postIds = [...new Set(rows.map((r) => r.post_id).filter(Boolean))];
+  const byId = {};
+  if (postIds.length) {
+    // A failed POST read is not a failed WALL read — the records are still
+    // true, they just lose their evidence. Degrade to bare rows.
+    const { data: posts, error: postErr } = await supabase
+      .from('community_posts').select(COMMUNITY_POST_SELECT).in('id', postIds);
+    if (!postErr) for (const row of (posts || [])) byId[row.id] = communityPostFromRow(row);
+  }
+  return { stored: 'supabase', data: rows.map((r) => bsPRWallRow(r, byId)) };
+}
+
+// The caller's own ledger — "Your best". Read under the owner policy on
+// pr_wall_posts, so it needs no definer and shows a private member their own
+// records even though the wall itself will never carry them.
+async function myPRLedger() {
+  const uid = state.user?.id;
+  if (!supabase || !uid) return { stored: 'local', data: [] };
+  const { data, error } = await supabase
+    .from('pr_wall_posts')
+    .select('lift_key, lift_label, best_value, prev_value, unit, reps, posted_at, post_id')
+    .eq('user_id', uid)
+    .order('posted_at', { ascending: false })
+    .limit(50);
+  if (error) return { stored: 'local', data: [], error };
+  return {
+    stored: 'supabase',
+    data: (data || []).map((r) => ({
+      liftKey: r.lift_key,
+      liftLabel: r.lift_label || r.lift_key,
+      best: Number(r.best_value),
+      prev: r.prev_value == null ? null : Number(r.prev_value),
+      unit: r.unit || 'lb',
+      reps: r.reps == null ? null : Number(r.reps),
+      postedAt: r.posted_at,
+      postId: r.post_id || null,
+    })),
+  };
+}
+
+// The member's own personal bests, out of their OWN training data — not the
+// wall. Owner-scoped by RLS on both tables, so this needs no definer and no
+// coach link: it is the member reading their own work.
+//
+// ⚠ A PR IS NOT ONLY A LIFT. Owner, 2026-09-10: "this should apply to all
+// workouts where a PR happens, not just deadlift, etc." So two sources:
+//   • `workout_set_logs` → the heaviest completed set per move (strength)
+//   • `activities`       → the longest distance per activity type (run, ride,
+//                          swim, row, walk — whatever they actually did)
+// Distance is a COLUMN on activities, which is why it is the endurance record
+// here. Pace and power records are a follow-up, not an oversight: they live in
+// the provider-shaped `metrics` jsonb under keys that differ per provider, so
+// picking a best across them would be guesswork dressed as a number.
+//
+// ⚠ THIS IS WHAT MAKES A PR A PR, AND IT IS DELIBERATELY NOT THE LEDGER.
+// Owner, 2026-09-10: "PR is best on their last logged weight. irrelevant if it
+// was posted on wall or not. it is a PR that is being tracked in their own data
+// by coach and current workout plan." So a member who has been lifting has a
+// best whether or not they ever posted it, and the gap between that and what
+// the wall carries is the thing the Post-a-PR box exists to show.
+//
+// Completed sets only, and only ones carrying a load: a skipped set is not a
+// lift, and a bodyweight move has no weight to be a record.
+async function myBestLifts() {
+  const uid = state.user?.id;
+  if (!supabase || !uid) return { stored: 'local', data: [] };
+  // ⚠ THE ROW CAP MUST NOT BE DECIDED ON RECENCY, BECAUSE THE ANSWER IS A
+  // MAXIMUM. This read ordered by `created_at` desc and capped at 2000, so a
+  // member past that many completed loaded sets — roughly five months at five
+  // sessions a week — silently lost every older row, and a heavier set logged
+  // before the window simply vanished from "Your best". The comment below says
+  // heaviest wins; the QUERY decided which sets that comparison could even see,
+  // and it decided on recency.
+  //
+  // ⚠ AND ORDERING BY `actual_load` ALONE WOULD RE-BREAK IT ACROSS UNITS. The
+  // column mixes lb and kg rows, so a 100 kg set (a real 220 lb) sorts BELOW a
+  // 150 lb one and a metric member's heavy rows are the first truncated — the
+  // same unit blindness this wave is removing, moved into the sort. So the read
+  // is split by `load_unit`: within one unit the ordering is true, and the two
+  // pages are normalised and compared afterwards. `load_unit` is NOT NULL
+  // DEFAULT 'lb', and the `%kg%` test matches `_setLogUnit`'s own rule.
+  //
+  // ⚠ REGISTERED, NOT CLOSED: this bounds the loss to a member's LIGHTEST
+  // moves. A per-MOVE maximum is still not guaranteed under a row cap — a
+  // member with 2000 sets heavier than their best overhead press can still lose
+  // that one — and closing it properly needs a `max() group by move_name`
+  // aggregate, i.e. an RPC and a migration. Named here rather than implied.
+  const page = (metric) => {
+    let q = supabase
+      .from('workout_set_logs')
+      .select('move_name, actual_load, actual_reps, load_unit, finished_at, created_at')
+      .eq('client_id', uid)
+      .eq('completed', true)
+      .not('actual_load', 'is', null);
+    q = metric ? q.ilike('load_unit', '%kg%') : q.not('load_unit', 'ilike', '%kg%');
+    return q.order('actual_load', { ascending: false }).limit(2000);
+  };
+  const [metricRes, imperialRes] = await Promise.all([page(true), page(false)]);
+  const error = metricRes.error || imperialRes.error;
+  const data = [...(metricRes.data || []), ...(imperialRes.data || [])];
+  // Same three-state contract as every other read here: an empty list is the
+  // claim "you have logged no loaded sets", never "we could not look". ⚠ EITHER
+  // leg failing fails the whole answer — merging one good page with one missing
+  // one would report a confident best taken over half the member's log.
+  if (error) return { stored: 'local', data: [], error };
+
+  const best = new Map();
+  for (const row of (data || [])) {
+    const lift = String(row.move_name || '').trim();
+    const load = Number(row.actual_load);
+    if (!lift || !Number.isFinite(load) || load <= 0) continue;
+    const key = lift.toLowerCase();
+    const prev = best.get(key);
+    const rowUnit = String(row.load_unit || 'lb').toLowerCase().includes('kg') ? 'kg' : 'lb';
+    // ⚠ HEAVIEST WINS, NOT MOST RECENT — AND "HEAVIEST" IS DECIDED IN ONE UNIT.
+    // A "best" that tracked the last session would fall every time they
+    // deloaded, and a deload week is not a lost PR. But comparing the raw
+    // numbers across mixed `load_unit` rows made a 100 kg set lose to a 200 lb
+    // one, so the row kept is the lighter lift under a heavier-looking number.
+    const lb = _liftToLb(load, rowUnit);
+    if (lb == null) continue;
+    if (!prev || lb > prev.lb) {
+      best.set(key, {
+        liftKey: key,
+        liftLabel: lift,
+        kind: 'lift',
+        best: load,
+        lb,
+        reps: Number.isFinite(Number(row.actual_reps)) ? Number(row.actual_reps) : null,
+        unit: rowUnit,
+        loggedAt: row.finished_at || row.created_at || null,
+      });
+    }
+  }
+  const lifts = [...best.values()];
+
+  // ── Endurance: the longest one of each thing they do ────────────────────
+  // A failed read here does NOT fail the whole answer — their lifts are still
+  // true. It degrades to "no endurance records known", which is what an empty
+  // list from this table would mean anyway.
+  let endurance = [];
+  try {
+    const { data: acts, error: actErr } = await supabase
+      .from('activities')
+      .select('activity_type, title, distance_km, started_at, created_at')
+      .eq('user_id', uid)
+      .not('distance_km', 'is', null)
+      .order('distance_km', { ascending: false })
+      .limit(500);
+    if (!actErr) {
+      const byType = new Map();
+      for (const row of (acts || [])) {
+        const type = String(row.activity_type || '').trim().toLowerCase();
+        const km = Number(row.distance_km);
+        if (!type || !Number.isFinite(km) || km <= 0) continue;
+        const key = `distance:${type}`;
+        const prev = byType.get(key);
+        if (!prev || km > prev.best) {
+          byType.set(key, {
+            liftKey: key,
+            // "Longest run" reads as the record it is; the raw type does not.
+            liftLabel: `Longest ${type}`,
+            best: Math.round(km * 100) / 100,
+            reps: null,
+            unit: 'km',
+            kind: 'endurance',
+            loggedAt: row.started_at || row.created_at || null,
+          });
+        }
+      }
+      endurance = [...byType.values()];
+    }
+  } catch (e) { /* their lifts still stand */ }
+
+  return {
+    stored: 'supabase',
+    data: [...lifts, ...endurance].sort((a, b) => b.best - a.best),
+  };
+}
+
+window.ShapePRWall = {
+  post: postPRToWall,
+  announce: announcePRsFromSetLogs,
+  list: listPRWall,
+  mine: myPRLedger,
+  bestLifts: myBestLifts,
+};
 
 function privacyToDb(value) {
   const clean = String(value || '').toLowerCase();
@@ -3427,7 +3695,6 @@ async function createCommunityPost({
         mergedMetrics.delta = `+${gain} ${_unit}${when}`;
       }
     } catch (e) { /* delta is best-effort */ }
-    try { if (window.ShapePRWall && window.ShapePRWall.post) window.ShapePRWall.post({ lift: _lift, value: _loadNum, unit: _unit }); } catch (e) {}
   }
   const payload = {
     author_id: state.user.id,
@@ -3472,6 +3739,21 @@ async function createCommunityPost({
   // backs this up server-side for the web route).
   if (data?.id && !autoShare && !skipAward) {
     try { await supabase.rpc('award_community_post', { p_post_id: data.id }); invalidateClientMetrics(); } catch (e) {}
+  }
+
+  // Announce the PR — AFTER the insert, so the ledger row can carry the post
+  // that IS the record. The Wall reads that link to render the plate's stats,
+  // breakdown, co-sign and reactions; announcing before the insert (as this
+  // did until 2026-09-10) leaves every ledger row pointing at nothing, and a
+  // failed insert would have advanced the ledger for a record that was never
+  // posted. The RPC re-gates on public + genuine-best, so it stays safe to
+  // over-call. Best-effort: never blocks or fails the post.
+  if (state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
+    try {
+      if (window.ShapePRWall && window.ShapePRWall.post) {
+        window.ShapePRWall.post({ lift: _lift, value: _loadNum, unit: _unit, postId: data?.id || null });
+      }
+    } catch (e) {}
   }
 
   return { stored: 'supabase', data: communityPostFromRow(data) };
@@ -5317,6 +5599,49 @@ window.ShapeMarketPlans = { list: listMarketPlans, buy: buyCoachPlan };
 
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.
+// ⚠ THE `weight` COLUMN HELD BOTH POUNDS AND KILOGRAMS, AND THE READ CALLED
+// EVERY ROW `kg`. Two writers put rows in this table — the Goal page's weigh-in
+// sheet, which sent the GOAL document's unit, and the weekly check-in, which
+// sent the member's Settings unit (`t.isMetric ? 'kg' : 'lb'`) — so an Imperial
+// member's 180 lb was stored as 180 and then read back as 180 KG. That is not a
+// display bug: `bsGoalNow` feeds the trend line, the weekly pace and the
+// distance-to-target, so one check-in moved a member's whole body-composition
+// chart by a factor of 2.2 and the goal read as overshot.
+//
+// The column is CANONICAL KILOGRAMS from here on: the write converts before it
+// upserts and always stamps `unit: 'kg'`, and the read converts any legacy row
+// by ITS OWN `unit` value, so history written in pounds repairs itself without a
+// migration. `.kg` is therefore honestly kilograms, which is what every consumer
+// already assumed it was.
+const LB_TO_KG_BACKEND = 0.45359237;
+// ⚠ A LIFT IS CANONICAL POUNDS, WHICH IS THE OPPOSITE OF BODY WEIGHT. Both
+// migrations of 2026-09-10 normalise `max(load)` to pounds before comparing,
+// because a member who logs some sessions in kilograms and some in pounds had
+// 100 (kg) lose to 200 (lb) and their "best" was the LIGHTER lift — 100 kg is
+// 220 lb. The JS paths below did exactly the same thing and were NOT fixed in
+// that pass: the SQL learned the rule and the three callers that compare loads
+// in this file did not. Caught by CodeRabbit on #2024. One helper now, so a
+// fourth caller cannot re-invent the bug.
+function _liftToLb(value, unit) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return String(unit || '').toLowerCase().includes('kg') ? n / LB_TO_KG_BACKEND : n;
+}
+function _weighInToKg(value, unit) {
+  // ⚠ `Number(null)` AND `Number('')` ARE BOTH 0, AND BOTH ARE FINITE, so a bare
+  // Number() guard turns an absent weigh-in into a confident 0 kg — which then
+  // renders as a real data point on the member's trend line.
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  // Anything that is not explicitly a pound unit is taken as kilograms — the
+  // column's default and the only value the app writes now. Guessing from the
+  // MAGNITUDE (">120 must be pounds") was considered and rejected: it is wrong
+  // for a 130 kg lifter and for a 100 lb client, and a silent wrong answer here
+  // is worse than trusting the column that exists.
+  return /^(lb|lbs|pound)/i.test(String(unit || '').trim()) ? n * LB_TO_KG_BACKEND : n;
+}
 async function listWeighIns() {
   if (!supabase || !state.user?.id) return null;
   const { data, error } = await supabase
@@ -5325,15 +5650,17 @@ async function listWeighIns() {
     .eq('user_id', state.user.id)
     .order('logged_on', { ascending: true });
   if (error) return null;
-  return (data || []).map(r => ({ d: r.logged_on, kg: Number(r.weight), unit: r.unit || 'kg' }));
+  return (data || [])
+    .map(r => ({ d: r.logged_on, kg: _weighInToKg(r.weight, r.unit), unit: 'kg', storedUnit: r.unit || 'kg' }))
+    .filter(r => r.kg != null);
 }
 async function logWeighIn({ weight, unit = 'kg', bodyFat = null } = {}) {
   if (!supabase || !state.user?.id) return null;
-  const w = Number(weight);
+  const w = _weighInToKg(weight, unit);
   if (!Number.isFinite(w)) return null;
   const today = _localDate();
   const bf = Number(bodyFat);
-  const row = { user_id: state.user.id, logged_on: today, weight: w, unit };
+  const row = { user_id: state.user.id, logged_on: today, weight: w, unit: 'kg' };
   if (Number.isFinite(bf) && bf > 0 && bf < 75) row.body_fat_pct = bf;
   let { data, error } = await supabase
     .from('client_weigh_ins')

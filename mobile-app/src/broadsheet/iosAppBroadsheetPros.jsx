@@ -534,7 +534,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
             <div style={{ marginTop: 16 }}>
               {setLogs.length ? setLogs.map((entry, index) => {
                 const name = `${entry.movement_name || entry.moveName || tr('coach:review.movementFallback', { defaultValue: 'Movement' })} #${entry.set_number || entry.setNumber || index + 1}`;
-                const target = `${entry.target_reps || entry.targetReps || tr('coach:review.targetFallback', { defaultValue: 'target' })} · ${entry.target_load || entry.targetLoad || tr('coach:review.loadFallback', { defaultValue: 'load' })}`;
+                const target = t.uText(`${entry.target_reps || entry.targetReps || tr('coach:review.targetFallback', { defaultValue: 'target' })} · ${entry.target_load || entry.targetLoad || tr('coach:review.loadFallback', { defaultValue: 'load' })}`);
                 return (
                   <div key={entry.id || index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -560,7 +560,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                   <div key={sample.id || index} style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.type || tr('coach:review.metricFallback', { defaultValue: 'metric' })).replace(/_/g, ' ')}</div>
                     <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                      {pending ? '—' : sample.value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{sample.unit}</span> : null}
+                      {pending ? '—' : t.uMeasure(sample.value, sample.unit).value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{t.uMeasure(sample.value, sample.unit).unit}</span> : null}
                     </div>
                   </div>
                 );
@@ -879,7 +879,7 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{m.name}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{tr('coach:live.moveMeta', { defaultValue: '{scheme} · {rest} rest · {done}/{total} sets', scheme: m.scheme, rest: m.rest, done: m.done, total: m.sets })}</div>
               </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{m.load}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{t.uText(m.load)}</span>
             </div>
           );
         })}
@@ -4648,10 +4648,28 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const bwSeries = liveW.length >= 2 ? liveW : (clientUid ? [] : (isNutri
     ? [80.4, 80.1, 79.9, 79.7, 79.6, 79.4, 79.3, 79.2]
     : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]));
-  const bwHasData = bwSeries.length >= 2;
-  const bwNow = bwHasData ? bwSeries[bwSeries.length - 1] : null;
-  const bwDelta = bwHasData ? +(bwNow - bwSeries[0]).toFixed(1) : null;
-  const bwWeeks = bwSeries.length;
+  // ⚠ THE BODY-WEIGHT SERIES IS KILOGRAM-NATIVE, SO AN IMPERIAL COACH WAS BEING
+  // SHOWN KILOGRAMS. `weighIns[].kg` is canonical kg (2026-09-10) and the demo
+  // series is kg too, so BODY rendered `79.2kg` and `-1.2 kg · 8 weeks` to a
+  // coach whose Settings say Imperial — the units wave reached the member's own
+  // surfaces and stopped at the coach's case file.
+  //
+  // ⚠ AND THE DOC'S OWN `unit` DECIDES WHICH CONVERTER APPLIES, because a
+  // client who has not re-saved since the canonicalisation can still be sharing
+  // a legacy doc whose `kg` field holds POUNDS. `convWeight` takes pounds and
+  // `kgToDisplay` takes kilograms — passing one to the other is the 2.2×
+  // mistake this whole wave exists to remove, so the stated unit picks.
+  const bwToDisplay = (v) => (v == null ? null
+    : (String(bwUnit).toLowerCase().includes('kg') ? t.kgToDisplay(v) : t.convWeight(v)));
+  // ⚠ CONVERT THE SERIES, THEN DERIVE. A delta is a difference, so converting
+  // it separately would be right by luck (the scale is linear with no offset)
+  // — but the CHART reads `bwSeries` directly, so a converted delta over an
+  // unconverted series would plot kilograms under a pound label.
+  const bwSeriesDisp = bwSeries.map(bwToDisplay).filter((x) => x != null);
+  const bwHasData = bwSeriesDisp.length >= 2;
+  const bwNow = bwHasData ? +bwSeriesDisp[bwSeriesDisp.length - 1].toFixed(1) : null;
+  const bwDelta = bwHasData ? +(bwSeriesDisp[bwSeriesDisp.length - 1] - bwSeriesDisp[0]).toFixed(1) : null;
+  const bwWeeks = bwSeriesDisp.length;
 
   // ---- live KPIs (get_client_stats; null fields → demo fallback) ----
   const S = cStats || {};
@@ -4678,8 +4696,37 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const mx = best.length ? Math.max(...best) : 1;
     return L.keyLifts.map(x => {
       const b = lnum(x.best), dl = lnum(x.delta), e1 = lnum(x.e1rm);
-      const v = b != null ? (e1 != null ? tr('coach:case.liftE1rm', { defaultValue: '{load} kg · {e1rm} e1RM', load: b, e1rm: Math.round(e1) }) : tr('coach:case.liftLoad', { defaultValue: '{load} kg', load: b })) : '—';
-      return { n: x.name || tr('coach:case.liftFallback', { defaultValue: 'Lift' }), v, d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
+      // ⚠ THE UNIT COMES FROM THE ROW NOW, NOT FROM THE SENTENCE. These strings
+      // hardcoded "kg" in all thirteen catalogs while the RPC sent a number with
+      // no unit at all — a guess presented as a fact, and wrong for every client
+      // who lifts in pounds. `get_client_lifts` states `unit` as of
+      // 2026-09-10-coach-lift-units.sql (canonical pounds, normalised before the
+      // comparison that picks `best`), so the figures convert to whatever this
+      // coach's Settings say. The delta is a difference in the same unit, so it
+      // converts the same way; `p` stays in the row's own unit because it is a
+      // ratio against `mx` and a ratio has no unit.
+      // ⚠ NO UNIT MEANS NO UNIT — NOT POUNDS. This defaulted to 'lb', which is
+      // the same mistake as the hardcoded "kg" described above, one guess
+      // swapped for another: `get_client_lifts` only states `unit` once
+      // 2026-09-10-coach-lift-units.sql is APPLIED, and a migration is applied
+      // by a human whenever they choose. In that window the RPC returns a bare
+      // max taken ACROSS mixed units, so the number is already unknown — and
+      // stamping 'lb' on it turns "we don't know" into a claim, then converts
+      // it, so a metric coach is shown a confidently wrong kilogram figure.
+      // `bsSdMeasure` returns an unknown unit's value untouched, so an
+      // unlabelled figure stays an unlabelled figure.
+      const srcU = x.unit || L.unit || '';
+      const bM = t.uMeasure(b, srcU);
+      const dM = dl != null ? t.uMeasure(dl, srcU) : null;
+      // The catalog strings interpolate `{load} {unit}`, so an empty unit would
+      // leave a trailing (or, with e1RM, a doubled) space in every locale.
+      const tidy = (s) => String(s).replace(/\s+/g, ' ').trim();
+      const v = b != null
+        ? tidy(e1 != null
+            ? tr('coach:case.liftE1rm', { defaultValue: '{load} {unit} · {e1rm} e1RM', load: bM.value, unit: bM.unit, e1rm: Math.round(t.uMeasure(e1, srcU).value) })
+            : tr('coach:case.liftLoad', { defaultValue: '{load} {unit}', load: bM.value, unit: bM.unit }))
+        : '—';
+      return { n: x.name || tr('coach:case.liftFallback', { defaultValue: 'Lift' }), v, d: dM != null ? `${dM.value >= 0 ? '+' : ''}${dM.value}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
     });
   })() : null;
 
@@ -4755,7 +4802,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const sDoneShow = sDone != null ? sDone : (clientUid ? 0 : 38);
   const sPlanShow = sPlan != null ? sPlan : (clientUid ? 0 : 41);
   const bigCard = isNutri
-    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged${bwHasData ? ` · ${bwDelta} ${bwUnit}` : ''}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
+    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged${bwHasData ? ` · ${bwDelta} ${t.weightUnit}` : ''}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
     : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attBig, small: '%', sub: `${sDoneShow}/${sPlanShow} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
   // Real clients with no strength rollup → empty (empty-state); demo rows keep
   // the example lifts.
@@ -5045,14 +5092,14 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.body', { defaultValue: 'BODY' })} />}
         {bwHasData && (
           <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
-            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={tr('coach:case.weight', { defaultValue: 'WEIGHT' })} value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{tr('coach:case.weightDelta', { defaultValue: '{delta} {unit} · {weeks} weeks', delta: bwDelta, unit: bwUnit, weeks: bwWeeks })}</div>
+            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={tr('coach:case.weight', { defaultValue: 'WEIGHT' })} value={`${bwNow}${t.weightUnit}`} seen={bodyStatsSeen} figSize={26} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{tr('coach:case.weightDelta', { defaultValue: '{delta} {unit} · {weeks} weeks', delta: bwDelta, unit: t.weightUnit, weeks: bwWeeks })}</div>
             <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? tr('coach:case.history', { defaultValue: 'HISTORY' }) : tr('coach:case.log', { defaultValue: 'LOG' })}</span>
           </div>
         )}
         <div ref={bodyRef} style={{ marginTop: 10 }}>
           {(() => {
-            const vals = bwSeries.map(Number).filter(Number.isFinite);
+            const vals = bwSeriesDisp.map(Number).filter(Number.isFinite);
             if (vals.length < 2) return window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.weightRedact', { defaultValue: 'WEIGHT · NOT ON RECORD' })} /> : null;
             const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 320, H = 46;
             const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 6 - ((v - mn) / span) * (H - 16)]);
@@ -5557,7 +5604,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{m.site}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{String(m.measured_on).slice(5)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(m.value)} {m.unit}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uMeasure(m.value, m.unit).value} {t.uMeasure(m.value, m.unit).unit}</span>
             </div>
           ))}
         </div>

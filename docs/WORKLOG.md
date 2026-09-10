@@ -451,6 +451,15 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
+- **The Wall in the app — owner go-ahead 2026-09-10 (*"yes lets implement the new chat/wall look
+  on app"*); THE CURRENT BUILD. The website update is ON HOLD (owner, same day).** Promote
+  the PR Wall from a chat channel to a surface: a public definer read over `pr_wall_posts` +
+  `post_id` + reactions (one migration), a fifth Chat segment (Feed · **Wall** · Team · Channels ·
+  Support) rendering the feed's own `BSActivityCard` inside a `BSPlate` record frame, *Your best*
+  + *Post a PR*, a Home card; a coach's reaction on a client's plate is already the Stamp.
+  Preview: the board's W tab; spec: `REVIEW-2026-09-10-index-page.md` §7; **code-level build
+  brief: [`BUILD-2026-09-10-wall-in-app.md`](BUILD-2026-09-10-wall-in-app.md)** — read it before
+  touching the code; every line reference in it was verified against `main` = `7d23eb8`.
 - **Design-system pass — Phase 1 SHIPPED 2026-06-11** (`BSPlate` shared
   primitive in the chrome, window-exposed; AgendaCard + weekly-totals tiles
   refactored onto it; converted: Train hero, coach-adjust banner, home
@@ -485,6 +494,725 @@ several are marked SHIPPED in their own text.
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-09-10 — Two Codex rounds on the units wave: five findings, all real, and two were defects in my own fix
+
+- **Owner: *"run codex if you can"* → *"run codex on head again"*.** Codex's last completed review was
+  `747433a`, so everything after it was unreviewed. Two rounds followed — **`6cc2ebf` (1×P1 + 2×P2) and
+  `61ec662` (2×P2)** — and **every one of the five was real**. The second round is the one worth
+  recording, because both of its findings were defects *the first round's fix had introduced*.
+  ⚠ **A review round produces a new diff, and that diff has not been reviewed** — this file's own rule,
+  earned again twice in one evening.
+- ⚠ **P1 — THE WEBSITE GOAL PAGE HAD THE EXACT DEFECT I HAD ALREADY FIXED IN THE APP, ON THE SAME DAY.**
+  `persistDoc` is async and was called **bare**, so the canonical **kilogram** `client_weigh_ins` row
+  landed without waiting for the goal document. A slow or failed `saveUserGoals` left the server holding
+  the legacy **pound** goal beside an 83.9 kg weigh-in; `award_my_goal_milestones` reads both operands
+  verbatim and the mobile Goals page invokes it on open, so the next visit awarded **every milestone**
+  to a member who had reached none. This is the same "call order is not completion order" finding Codex
+  raised on `iosAppBroadsheetClient.jsx` hours earlier. *A fix that lands on one surface is not a fix* —
+  and I had written that sentence myself, in this file, about a different pair of surfaces.
+- ⚠ **AND THE FIX FOR IT RAN AND CONVERTED NOTHING.** `DashSignals.weightSeriesIn` normalises every
+  series to `{ on, value }` and `goalSeries` reads `value` first; I converted `h.v`. So on the shape
+  production actually emits, the target, start and unit became pounds while the **history stayed
+  kilograms** — an 86 kg point reads as 86 lb and can mark a 180 lb target **achieved**.
+  ⚠ **MY OWN TEST USED `{ on, v }`, A SHAPE PRODUCTION NEVER PRODUCES, WHICH IS EXACTLY WHY IT PASSED.**
+  *A fixture that invents a shape tests the test, not the code* — the same lesson this file recorded for
+  the `canceled_at` fixture, re-paid. The suite now **derives the shape from `dashSignals.js`** and
+  asserts the normalisation contract it depends on, so a change there fails loudly instead of silently
+  invalidating the converter.
+- ⚠ **AND THE DISPLAY-UNIT FIX HELPED ALMOST NOBODY.** `displayUnit` was written by the **website
+  alone**; four mobile paths stamp `unit: 'kg'` without it, and mobile is the primary app — so an
+  Imperial member who canonicalised there still saw kilograms, and changing the mobile preference left
+  an existing stamp stale. Fixed at the **source of truth** rather than by teaching four more writers:
+  `client_settings.units` is the store both surfaces already share (the app's Settings writes it,
+  `ShapeUnits` reads it). The document stamp survives only as a fallback for a member whose settings
+  cannot be read. **When a value has four writers, the fix belongs where it is read, not where it is
+  written.**
+- **The third finding was a race the earlier `RETURNING` witness did not cover.** `prev_value` was
+  carried from the **pre-statement read**. Reproduced on Postgres 16 rather than argued: from 100 lb,
+  concurrent 200 and 300 both read 100, the 200 lands first, the 300 then passes the atomic guard and
+  stored `prev = 100` — so the Wall skipped the already-announced 200 and would render *"+200 over last
+  best"* instead of *"+100"*. Old vs new on identical seeded state: **`prev=100` before, `prev=200`
+  after**. ⚠ **The witness proved the WRITE happened and said nothing about whether the value carried
+  INTO it was still current** — two different questions that look like one.
+- ⚠ **AND THE APPLIED FILE'S OWN COMMENT ASSERTED THE FIX IT DID NOT MAKE.** It read *"`prev_value` is
+  taken from the row being replaced, not from `v_prev`"* directly above `prev_value =
+  excluded.prev_value`, which **is** `v_prev`. *A comment asserting an invariant is not the invariant* —
+  the R6 lesson, one layer down.
+- **`2026-09-10-pr-wall-prev-race.sql`**, generated from the applied file by targeted replacement of
+  four hunks and shipped as a **new file** — silently editing an applied migration leaves the repo
+  claiming something the database does not do. ⚠ **APPLIED THE SAME EVENING AND VERIFIED AGAINST THE
+  LIVE CATALOG**: the stale `excluded.prev_value` is **gone**, both conflict-row conversion branches are
+  present, the response reads the written prev, exactly **one** signature (an overload would make every
+  five-argument PostgREST call ambiguous), `anon` cannot execute, `pg_temp` pinned last, and it executes
+  — answering `{"ok": false, "reason": "auth"}` as service role, which is the correct gated answer.
+- ⚠ **TWO MUTATIONS SURVIVED MY FIRST PASS AND BOTH WERE REAL GAPS, of the same shape twice.** An
+  **inverted** metric/imperial mapping (which would have shown every Metric member pounds) and
+  `prefUnit` never reaching `src` (which makes the whole conversion inert). **Asserting that a read
+  EXISTS says nothing about which way it maps, and a correct read with a correct consumer is still dead
+  if the value never crosses between them.** Both are driven now, not grepped.
+- ⚠ **AND ONE SURVIVOR WAS A GENUINE NO-OP, so it was DELETED rather than tested around.** A redundant
+  outer `src.overall.unit` guard sat beside the per-goal one that does the real work. *Untested
+  redundancy reads as a safety net that is not holding anything.*
+- ⚠ **THE TEST HARNESS NEEDED THE REAL `dgoConvPoint` LIFTED FROM SOURCE.** Without it the missing
+  helper threw from **inside** the expression under test and read as a failure of the code, not as an
+  incomplete harness — the same lesson `_liftToLb` paid for in this wave.
+- ⚠ **CAUGHT IN MY OWN FIX BEFORE IT SHIPPED:** `dgoKgToDisp` closed over `dgoLbToKg`, declared **below**
+  the point where `goals` is derived — a `const` read before its initializer, and there is **no error
+  boundary anywhere in `public/newdesign`**, so it renders as a **blank page**. Hoisted to module scope
+  and pinned by a test.
+- **Verified:** `npm test` **3001/3001** (14 new) · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **24 mutations killed across two rounds**, each proven to land and restored in a
+  `finally`, including the Codex defect itself replayed to prove the suite now catches it · the
+  migration driven on a real Postgres 16 through the race plus 6 fixtures, re-applied idempotently.
+- ⚠ **STILL NO ON-ACCOUNT PASS, re-measured after the apply: 0 `pr_wall_posts`, 0 `workout_set_logs`,
+  0 `client_weigh_ins`.** Every RPC in this wave is live and none has ever been called with real data.
+
+### 2026-09-10 — A four-month-old migration was applied on my recommendation and opened an anon hole
+
+- **The owner asked *"do i need to run other migrations?"*, so the whole corpus was diffed against the
+  LIVE CATALOG** — 215 migrations, 191 functions, 98 tables, 99 added columns. All 99 columns present;
+  `radio_station` absent **deliberately** (gated on the Radio.co signup, routes fall through to mock);
+  four trigger functions absent but **not** an unapplied migration (their tables all exist, so those
+  migrations ran and the functions were dropped outside one — impact checked and nil).
+- **The one real find: `2026-05-31-shape-league.sql` had NEVER been applied.** `league_members`,
+  `league_week_score` and `league_standings` were all missing.
+  ⚠ **AND THE HALF THAT HAD LANDED IS WHY IT HID FOR FOUR MONTHS.** `league_assign_cohort` was live —
+  from the **later** `2026-06-29-league-cohort-atomic.sql`, which *was* applied — and its body
+  references `league_members`, so the one live League function was failing too and `/api/league` was
+  broken end to end. **A partially-applied feature is invisible to any check that asks "does this
+  function exist" one function at a time**: the presence of `league_assign_cohort` is exactly what made
+  the League look present. Nobody was affected — the route has no caller anywhere, not even in the
+  built `public/m` bundle — and it throws rather than degrading.
+- ⚠ **THE OWNER APPLIED IT ON MY RECOMMENDATION, AND THAT PUT TWO ANON-EXECUTABLE `SECURITY DEFINER`
+  FUNCTIONS INTO PRODUCTION. THE ERROR IS MINE.** I verified the migration was *absent* and never read
+  its grant block. It was written in **May**, before the rule
+  `2026-06-30-rpc-authz-hardening.sql` wrote down, and ends in
+  `revoke all on function … from public` — which strips only the **implicit** PUBLIC grant. Supabase
+  ships `ALTER DEFAULT PRIVILEGES` granting EXECUTE on every new function in `public` **explicitly** to
+  `anon` and `authenticated`, and those two survive untouched.
+- **Measured on production, not inferred** (`pg_proc.proacl`): both functions `anon=X authenticated=X`,
+  both `search_path=public` with **no `pg_temp`**, and a `set local role anon` probe **executed both
+  without permission denied**. `league_week_score(p_user, p_week)` takes an **arbitrary user id** and
+  sums `score_ledger` — owner-scoped RLS the same anon probe could **not** read directly, bypassed by
+  the definer — so any harvested uuid returns that member's private weekly score.
+  `league_standings` returns `user_id` + `full_name` + `avatar_url` + `score` + `rank` for a cohort with
+  **no visibility gate at all**, unlike `shape_leaderboard`.
+- ⚠ **NOTHING LEAKED, AND THAT IS LUCK RATHER THAN DESIGN.** `score_ledger` and `league_members` are
+  both **empty** (measured, 0 rows); the hole starts returning real numbers on the first earned point.
+- **`2026-09-10-league-grant-lockdown.sql` closes it, asymmetrically and on purpose:**
+  `league_week_score` → **`service_role` only** (its sole caller is `league_standings`, a definer
+  running as owner, so nothing breaks, and no app code calls it — a function that takes someone else's
+  uuid and returns their private total should not be client-reachable at all); `league_standings` →
+  **`authenticated`** (the route calls it user-scoped). Both pin `pg_temp` last.
+- ⚠ **AND THE FIRST PROBE RUN PROVED THE WRONG THING.** It reported *"permission denied for **schema**
+  public"* — the local stub lacked Supabase's `grant usage on schema public to anon`, so the refusal
+  never reached the FUNCTION grant being tested. With the schema granted and a **positive control**
+  (anon reading `profiles` first), the refusals land where they belong: *permission denied for function*
+  on both, `authenticated` refused on the helper, `authenticated` still reading standings. **6/6 guard
+  mutations abort**, so the DO block cannot pass vacuously.
+- ⚠ **THE LESSON THE PREVIOUS TWO INCIDENTS DID NOT COVER.** This is the **third** time the repo has
+  shipped this class — `league_assign_cohort` (self-promote, 2026-06-29) and the four 2026-06-18 score
+  functions (2026-08-02) — and both of those were about *writing* a migration. This one was about
+  *applying* one: **an unapplied migration is not dormant, it is UN-AUDITED.** Its grant block reflects
+  the rules of the day it was written, and applying it years later imports those rules wholesale.
+  **Age is a reason to re-read a migration, not a reason to trust it** — and "it was already in the
+  repo" is not review.
+- ⚠ **AND MY OWN RECORDS WENT STALE TWICE IN ONE EVENING, IN BOTH DIRECTIONS.** The War Room told the
+  owner to apply a migration they had already run; the correction then asserted two others were pending,
+  which they made false within the hour; and the League section said NEVER APPLIED after they applied
+  it. **A migration's status is a claim with a shelf life measured in minutes, and it belongs to the
+  database, not to the file describing it.** Every status line in this wave is now written from a
+  catalog query.
+- ⚠ **THE LOCKDOWN IS APPLIED — the owner ran it the same evening, and it is VERIFIED LIVE rather than
+  assumed.** Re-queried `pg_proc` after the apply: `league_week_score` is **`service_role` only**
+  (anon ✗, authenticated ✗), `league_standings` is **`authenticated` + `service_role`** (anon ✗), and
+  **both now pin `search_path=public, pg_temp`** while remaining definers. Then probed **by role on
+  production behind a POSITIVE CONTROL** — anon reads `public.profiles` first, so a refusal is proven to
+  land on the FUNCTION grant and not on schema usage, which is exactly what the first probe of this
+  migration got wrong. anon refused on both; `authenticated` refused on the helper; `authenticated`
+  **still executes `league_standings`**, so the route is intact. ⚠ **And a NEGATIVE CONTROL was run
+  after it** — asserting the opposite raised — because *a guard that reports a pass is a broken
+  instrument until it is proven able to fail*. This file's own rule, and the reason the pass is worth
+  writing down.
+- **Still owed, and it is the owner's call:** decide `/api/league` — apply-and-build, or delete the
+  route and its `RAW_ROUTES` entry. ⚠ `league_standings`' missing privacy gate belongs **with that
+  decision**, not inside a lockdown migration; registered rather than silently redesigned.
+
+### 2026-09-10 — The CodeRabbit round on the units wave: nine findings, and the one I answered with the wrong finding
+
+- **Owner: *"run it through coderabbit on the PR"*.** It returned **nine findings on `2bb923c` — eight
+  real, one refuted** (and CodeRabbit itself withdrew the refuted one). PR #2024, still **unmerged**.
+- ⚠ **IT FOUND A BLIND SPOT THE CODEX ROUNDS HAD NOT: I FIXED CROSS-UNIT COMPARISON IN SQL AND LEFT
+  THE IDENTICAL BUG IN THREE JAVASCRIPT PATHS.** `announcePRsFromSetLogs` and `myBestLifts` compared
+  bare numbers, so a member logging 200 lb and 100 kg on the same lift had the **lighter** set
+  recorded as the PR (100 kg is 220.5 lb) — and `myBestLifts` is the member's *standing* record, read
+  by the Wall's *Your best*. `_liftToLb` normalises both to pounds for the comparison while each row
+  keeps the unit it was lifted in. *A lesson applied at the bottom of a file is not applied at the
+  top of it* — this file's own rule, earned again one layer over.
+- ⚠ **AND `dashGoals.jsx` WAS REFILLING THE MIXED-UNIT COLUMN FROM THE OTHER END.** The web Goal page
+  writes the same `client_weigh_ins` the mobile logger canonicalised, and it wrote in the goal
+  document's unit — so an Imperial member logging from a browser put `180` into a column the rest of
+  the app now reads as kilograms. **Canonicalising a column is not done until every WRITER is found;
+  I went looking for readers.**
+- **Two new migrations, both OWED ON SUPABASE.** ⚠ Shipped as **new files** rather than edits to the
+  applied ones: silently changing an applied migration leaves the repo claiming something the
+  database does not do, and the outstanding apply becomes invisible.
+  - **`2026-09-10-pr-wall-units.sql`** — `post_my_pr_to_wall` compared `p_value` against the stored
+    best with each side in whatever unit it carried, and stored `prev_value` verbatim while `unit`
+    became the new post's. Driven on Postgres 16, an old-vs-new control on **identical seeded state**:
+    a 100 kg lift after a 200 lb record went `not_a_pr` → **posted**; a 210 lb lift after a 100 kg
+    record went **accepted** → `not_a_pr`.
+  - **`2026-09-10-my-lifts-source.sql`** — the two lift RPCs **disagreed about which field IS the
+    lift**. Measured: a set logged `{actualLoad: 225}` against a prescribed `185 lb` reported **185 —
+    the prescription** on the member's own card, and a set whose only load string was
+    `{actualLoad: "100 kg"}` produced a null `raw_load` and **vanished entirely** while the coach
+    could see it. The applied file's own comment claimed its unit rule *"MIRRORS `_setLogUnit`
+    EXACTLY"*; it sniffed a different field than the value came from.
+- ⚠ **I ANSWERED A THREAD WITH THE WRONG FINDING AND RESOLVED IT, AND THE REVIEWER ACCEPTED THAT.**
+  The comment on `shapeBackend.js:3442` is about the **2000-row recency window**; I replied about
+  cross-unit comparison — the sibling finding at `:3309` — and marked it addressed. The fix I
+  described was real and needed; it simply was not what that thread asked. **A reviewer confirming
+  your reply is not evidence that you answered the finding.** Found only by draining the notification
+  queue and re-reading each finding against its own anchor.
+- **The recency window itself:** `myBestLifts` ordered by `created_at` desc, capped at 2000, then took
+  a **maximum** — so a member past ~5 months of training silently lost every older row and a heavier
+  old set vanished from *Your best*. ⚠ **The proposed fix re-breaks it across units**, which
+  CodeRabbit flagged itself: `actual_load` mixes lb and kg, so a 100 kg set sorts *below* a 150 lb one
+  and a metric member's heavy rows truncate first. The read is **split by `load_unit`** instead —
+  within one unit the ordering is true. ⚠ **REGISTERED, NOT CLOSED, at the call site:** a per-MOVE
+  maximum is still not guaranteed under a row cap; that needs a `max() group by move_name` aggregate.
+  The cap predates this PR, so it is registered rather than fixed — **fix what this PR introduced,
+  register what predates it.**
+- ⚠ **AND ONE FINDING WAS OUTSIDE THE DIFF, WHICH IS THE KIND A DIFF-SCOPED REVIEW NEED NOT CATCH.**
+  The coach case file's body-weight series is kilogram-native (`weighIns[].kg` is canonical kg and the
+  demo series is kg) and nothing converted it, so BODY rendered `79.2kg` and `-1.2 kg · 8 weeks` to a
+  coach whose Settings say Imperial. The units wave reached the member's own surfaces and stopped at
+  the coach's file. ⚠ The **document's** stated unit picks the converter, because a client who has not
+  re-saved can still be sharing a legacy doc whose `kg` field holds POUNDS — `convWeight` takes pounds
+  and `kgToDisplay` takes kilograms, and passing one to the other is the 2.2× mistake being removed.
+- ⚠ **GUARDING THE UPSERT INTRODUCED A DEFECT OF ITS OWN, AND IT WAS MINE TO CLOSE.** The guard made
+  the statement able to affect **zero rows** — and nothing downstream knew, so the losing side of a
+  race had its ledger write correctly refused and then posted *"new PR"* to the channel and returned
+  `ok:true` anyway. **Proven as a real race, not asserted:** two psql sessions, A commits 300 lb while
+  B posts 150 lb concurrently — without the witness B returns `{"ok": true, "body": "150 lb Press —
+  new PR"}` and the channel carries **two** messages against a ledger holding 300; with
+  `returning best_value into v_written` and a bail before every side effect, B returns `not_a_pr` and
+  **one** message is posted. *A fix that makes a state reachable owes that state a definition.*
+- ⚠ **FIVE OF MY OWN NEW GUARDS WERE HOLLOW ON THEIR FIRST MUTATION ROUND.** Two `'lb'`-fallback
+  reverts survived with no test at all; the per-page error case was **untestable** because the stub
+  gave both pages one shared error, so `||` and `&&` were indistinguishable; `bwSeriesDisp =
+  bwSeries.slice()` survived because every assertion named a variable that still existed; and pinning
+  two *template spellings* of the unit label let `unit: bwUnit` — the same defect as a `tr()` argument
+  — walk through. The last one is the recurring shape: **a guard that names the forms a defect can
+  wear only catches those forms**, so it asserts the invariant instead (`bwUnit` is the document's
+  unit: it may pick a converter and nothing else, so it may appear exactly twice in the file).
+- ⚠ **AND THE TEST HARNESS HID A REFERENCE ERROR BEHIND A BEST-EFFORT CATCH.** Adding `_liftToLb`
+  broke `announcePRsFromSetLogs`'s eval scope, and that function wraps its whole body in
+  `catch { /* best-effort */ }` — so the ReferenceError announced nothing and the assertion failed as
+  *"no such lift"* rather than *"the harness is incomplete"*. It lifts the real helper from the source
+  now. **A swallowing catch hides which of the two you are looking at.**
+- **Refuted, and left in the record:** CodeRabbit asked for the French `wall.lift*` keys to move from
+  *Soulevé* to *Exercice*. Linguistically defensible, but *Soulevé* is the **pre-existing** French
+  convention across ten strings in `fr/profile.json` **on `main`**; changing only the five Wall keys
+  would say *Exercice* on the Wall and *Soulevé* on the profile for one concept, on adjacent screens.
+  Retranslating the French lift vocabulary is a translator's call, not a side effect of shipping a
+  Wall. **CodeRabbit withdrew the finding.**
+- **Verified:** `npm test` **2976/2976** · `tsc --noEmit` 0 · JSX/JS parse on every changed module ·
+  the newdesign precompile check · mobile build + `public/m` republished · **19 mutations killed
+  across three rounds**, each proven to land and restored in a `finally` · both new migrations applied
+  twice on a real Postgres 16 and driven through fixtures (20/20 and 5/5) with old-vs-new controls on
+  identical state, plus the two-session race above · CI green on all required checks.
+- **ALL FOUR MIGRATIONS ARE APPLIED, verified against the LIVE CATALOG rather than assumed.** The
+  owner ran the last two the same evening. Checked on production: every one is a definer pinning
+  `pg_temp` last, **zero** anon/PUBLIC execute grants and `authenticated` intact on all four; exactly
+  **one** `post_my_pr_to_wall` signature; `pr_wall_posts` carries `prev_value`/`reps`/`post_id`; all
+  three RPCs **execute** (`post_my_pr_to_wall` answers `{"ok": false, "reason": "auth"}` as service
+  role, which is the correct gated answer); and — the check worth keeping — the live bodies of
+  `get_my_lifts` and `get_client_lifts` are **byte-identical in their load selector and unit sniff**,
+  which is the property that keeps a member and their coach seeing the same best.
+  ⚠ **THE RAW FIELD SEQUENCES DIFFER AND THAT IS CORRECT, WHICH IS WHY THE FIRST COMPARISON WAS THE
+  WRONG ONE.** A whole-body `regexp_matches` over `payload->>'…'` returns 13 fields for `get_my_lifts`
+  and 19 for `get_client_lifts` — because the coach RPC has an **e1RM load selector and a reps
+  selector** the member's does not. Diffing the whole sequence would have reported a divergence that
+  is not one. The invariant is per-CONSTRUCT, and that is how both the live check and
+  `tests/lift-rpc-source-parity.test.mjs` ask it.
+- ⚠ **AND THE RECORDS PASS ONE COMMIT EARLIER HAD TO BE CORRECTED IN THE OPPOSITE DIRECTION, WHICH IS
+  THE SAME DEFECT.** It fixed a War Room item that told the owner to apply a migration they had
+  already run — and then asserted two others were pending, which the owner made false within the
+  hour. **A migration's status is a claim with a shelf life measured in minutes, and it belongs to
+  the database, not to the file that describes it.** Both the board and this entry are now written
+  from a live catalog query, and that is the only form of the claim worth making.
+- ⚠ **STILL NO ON-ACCOUNT PASS, AND THAT IS UNCHANGED BY THE APPLY.** Re-measured the same evening:
+  **0** `workout_set_logs`, **0** `client_weigh_ins`, **0** `pr_wall_posts`. So every RPC in this
+  wave is live and **nothing has ever called one with real data** — the mixed-unit fix corrects no
+  history because there is no history, and the first real member logging a lift in kilograms remains
+  the actual test.
+
+### 2026-09-10 — The second Codex round: a fix that established the wrong ordering, and a migration that broke a consumer the moment it was applied
+
+- **Codex reviewed the fix round on `747433a` and returned two more P1s. Both real, and the second was
+  LIVE IN PRODUCTION** — the owner had run the migrations between the push and the review.
+- ⚠ **"PERSIST BEFORE THE RPC" ESTABLISHED CALL ORDER, NOT COMPLETION ORDER.** The previous round's
+  fix moved `persist(...)` above `ShapeWeighIns.log(...)` so the milestone RPC would compare two
+  kilogram operands — but `persist` is `(next) => { setData(next); try { saveUserGoals(...) } catch {} }`
+  and **discards the promise**. `saveUserGoals` is async, so a slower `user_goals` upsert (or one that
+  resolves `{ error }`) leaves the server holding the legacy **pound** goal when the awards check
+  fires, and the false-milestone bug the fix was for **remains, race-dependent**. *A fix for an
+  ordering bug that does not await is not an ordering fix.*
+- **`persist` returns the write now**, and the chain gates on it: the **weigh-in always lands** —
+  it is the member's own measurement and is never withheld — while the **awards check runs only when
+  the canonical document is confirmed written** (`res.ok`). Skipping the check costs a member a toast
+  until their next weigh-in, which is recoverable; awarding points they have not earned is not. Every
+  existing `persist` caller ignores the return value, so the change is additive.
+- ⚠ **AND THE COACH MIGRATION BROKE A WEB CONSUMER THE INSTANT IT WAS APPLIED.**
+  `2026-09-10-coach-lift-units.sql` normalises `get_client_lifts` to canonical pounds;
+  `/api/clients/[id]/shared-overview` forwards the payload unchanged; and
+  `public/newdesign/coachClientDetail.jsx:624` **hardcoded `kg`** for both `best` and `e1rm`. So a
+  client's 100 kg lift arrives as **220.5 and rendered as "220.5 kg"** on the Trainer/Nutritionist web
+  case file. It reads the row's stated unit now, falling back to what the RPC actually emits rather
+  than to `kg`.
+- ⚠ **THE LESSON IS ABOUT SEQUENCING, NOT ABOUT THE CODE.** A migration and its consumers ship in one
+  PR, but a migration is applied by a **human, whenever they choose** — here, while the branch was
+  still unmerged. So for a window the database spoke pounds and the deployed website still said kg.
+  *When a migration changes what a function RETURNS, every consumer must be able to read the new
+  answer BEFORE it is applied — the two are not one deploy, and the gap is whatever the owner's
+  hands take.* Registered as the rule, not just the fix.
+- **Every consumer of both RPCs was then swept rather than assumed:** the coach app
+  (`iosAppBroadsheetPros.jsx`, converts via `t.uMeasure`), the web case file (fixed here),
+  `/api/client/profile-stats` (appends the unit, and emits the bare number pre-migration rather than
+  a defaulted one), and `shapeBackend.getClientLifts` (forwards the payload untouched, so the unit
+  survives). Four consumers, all covered.
+- **Verified:** `npm test` **2898/2898** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
+  the newdesign precompile check · and **both migrations confirmed live on production**: `pg_temp`
+  pinned, `anon` cannot execute either, the `norm` CTE and the kg factor present, `unit` stated,
+  `avgRpe` and `disciplines` preserved, and both **execute** (returning null as service role, which
+  is the correct gated answer). ⚠ `get_client_lifts` reports no `disciplines` and that is **correct,
+  not a regression** — the original never had it; checked against the 2026-06-25 source rather than
+  assumed.
+- ⚠ **NOTHING IN PRODUCTION EXERCISES ANY OF THIS YET.** Measured: **0** `workout_set_logs` and **0**
+  `client_weigh_ins` rows. So the mixed-unit fix corrects nothing retroactively, the migrations were
+  safe to apply with nothing to backfill, and **the on-account pass is still owed** — the first real
+  member logging a lift in kilograms is the actual test.
+
+### 2026-09-10 — The Codex round on the units wave: five findings, all real, three of them mine to have caught
+
+- **Codex reviewed `2076bbd` and returned 3× P1 + 2× P2. Every one was a defect the units change had
+  INTRODUCED**, and the round is worth recording in full because the class is the same each time:
+  canonicalising storage moves a boundary, and everything that used to sit on the old side of it is
+  now wrong.
+- ⚠ **P1 — THE MILESTONE RPC WAS COMPARING KILOGRAMS AGAINST POUNDS, AND AWARDING EVERYTHING.**
+  `logWeighIn` put the kg-stamped document into React state and called `ShapeGoalAwards.check()`
+  **without persisting it**. `award_my_goal_milestones` reads `start`/`target` verbatim from
+  `user_goals` and the latest weight verbatim from `client_weigh_ins` — it normalises neither. So
+  logging 185 lb stored **83.9 kg** and compared it against a persisted **200 → 180 lb** goal: 83.9
+  is far past 180, and every milestone fired at once for a member who had reached none of them. The
+  canonical document is persisted **before** the RPC now, so both operands are kilograms by the time
+  it compares them.
+- ⚠ **P1 — AND THE WEIGH-IN SHEET WAS THE EDIT I BELIEVED I HAD MADE.** The field seeded from
+  `bsGoalNow` (canonical kg) while labelled `t.weightUnit`, so an 80.8 kg member on Imperial saw
+  **"80.8" above the word "lb"**, and saving without editing filed 80.8 lb — **36.7 kg** — over
+  today's canonical row. **The cause is a process failure, not a reasoning one:** the script that was
+  to make this edit died on a later assertion *before writing the file*, and it had already printed
+  the modified string, so I read my own intended change back out of memory and moved on. Every edit
+  in the fix round is now re-read **from disk** after writing. *A patch you have not seen in the file
+  is a patch you have not made.*
+- ⚠ **P1 — HALF THE GOAL COVER WAS KILOGRAMS UNDER A POUND LABEL.** `dsp` was applied at three sites
+  and `bsGoalVerdict` was not — it formats all three figures and their differences against `unit`, so
+  it printed kilogram-sized progress as pounds ("1.2 lb down" for a 2.7 lb move), and the Current
+  register rendered raw `now`. Presentation gets display units now; `goalProj` deliberately does not,
+  because it contributes a **date** and a slip in **days**, no weights.
+- ⚠ **P2 ×2 — the profile's weight climb** formatted `realGoal.start/now/target` against the document's
+  own stamped `kg` rather than the member's preference, so that surface stayed metric for a pound
+  user; and **`saveGoal` carried `weighIns` forward untouched** while stamping the document `kg`, so
+  editing a legacy pound goal left a `{kg: 185}` point that `bsGoalNow` then read as 185 kilograms.
+  Both fixed; the second now converts the series in the same step as the figures, exactly as
+  `logWeighIn` does.
+- **And the owner's outstanding ask, done: the unit now travels with a lift.** Two migrations,
+  **`2026-09-10-lift-units.sql`** (`get_my_lifts`) and **`2026-09-10-coach-lift-units.sql`**
+  (`get_client_lifts`, the coach-gated twin).
+- ⚠ **BOTH RPCs WERE COMPARING BARE NUMBERS ACROSS MIXED UNITS, WHICH IS A WRONG ANSWER AND NOT
+  MERELY AN UNLABELLED ONE.** Each pulled the digits out of the load with a regex and then took
+  `max(load)` per move — so a member logging some sessions in kilograms and some in pounds had
+  **100 (kg) lose to 200 (lb)** and their "best" was the **lighter** lift. 100 kg is 220 lb. It is
+  not cosmetic: `best` feeds the PR count, the strength discipline score and the coach's rollup, and
+  on the coach side the estimated 1RM was computed on the same mixed numbers. Every set is
+  normalised to **pounds** — the app's canonical unit for a LIFT, the opposite of body weight — before
+  any comparison, and every row states its unit.
+- ⚠ **THE UNIT RULE IS `_setLogUnit`'s, RESTATED IN SQL, AND IT HAD TO BE.** Explicit field first
+  (three spellings), string sniff only as a fallback — because the live logger stores the number in
+  `load` and the unit in a separate field, so sniffing alone files every metric set as pounds. That
+  is the same P1 Codex caught on this wave's first round; writing the rule down twice is the cost of
+  the RPC not being able to call the function.
+- ⚠ **AND MY FIRST DRAFT OF THE MIGRATION WOULD HAVE SILENTLY DROPPED HALF THE PAYLOAD.** A
+  `CREATE OR REPLACE` carrying only the lifts CTE deletes `avgRpe`, `workoutsLogged42d` and the entire
+  `disciplines` block — a regression far worse than the bug being fixed. Both migrations are now
+  **generated from the original file by targeted replacement**, with an assertion that every returned
+  key survives. *Re-stating a function from memory is how a function loses a field.*
+- ⚠ **AND THE CHECK THAT SAID "APPLIED" SAID IT AFTER A SYNTAX ERROR.** `psql … | tail -4 && echo
+  "APPLIED"` reports the exit status of `tail`, so a failed migration printed its error and then
+  announced success. Fixed to grep the log. *A check that cannot fail is worse than no check.*
+- **The route stops guessing, and does not start guessing the other way.**
+  `/api/client/profile-stats` emits `[name, "245 lb"]` when the RPC states a unit and the **bare
+  number it always sent** when it does not — appending a defaulted `lb` pre-migration would assert
+  something nobody measured, which is the exact defect being fixed. The coach's `case.liftE1rm` /
+  `case.liftLoad` gain a `{unit}` placeholder across all 13 locales, replacing a hardcoded `kg`
+  (`кг` in ru/uk). ⚠ **ru and uk therefore lose a localised unit symbol** — they now read the same
+  Latin token every other surface in the app already shows them. Per-locale unit symbols are an
+  app-wide change, not a change to this one key; registered.
+- **Verified:** `npm test` **2898/2898** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
+  both migrations **applied twice on a real Postgres 16** and driven through fixtures that prove the
+  point (a 100 kg set now beats a 200 lb set at **220.5**; the explicit `loadUnit` field beats a
+  `"100"` string; the sniff still works from `"180 kg"`; every original payload key present; `anon`
+  cannot execute either; `search_path` pins `pg_temp`) · and the Goal page **driven in a browser in
+  both systems**: the sheet prefills **174.6 under "LB"** where it used to show a raw 79.2, and the
+  verdict reads *"2.7 lb down"* / *"1.2 kg down"* — which cross-check exactly (174.6 lb = 79.2 kg).
+- ⚠ **THE TWO MIGRATIONS ARE NOT APPLIED.** They are owed on Supabase, and until they run the route
+  keeps sending the bare unitless number it always did.
+  ⚠ **APPLIED LATER THE SAME DAY — this bullet was true for about an hour.** Both are live and
+  verified against the catalog; `get_my_lifts` was superseded again that evening by
+  `2026-09-10-my-lifts-source.sql`. Marked rather than rewritten, because a dated entry says what
+  was true on its date — but this file is auto-loaded, so an unmarked "not applied" reads as the
+  current state to whoever lands on it.
+
+### 2026-09-10 — Units, part two: the switch now reaches every measurement, because most of them are TEXT
+
+- **Owner: *"i want it so when you flip either imperial or metric, it changes everywhere on that app
+  for that user."*** The previous round fixed the goal/weigh-in path and the Wall record — the places
+  where a NUMBER was still in hand. This one covers the rest, and the rest is most of it.
+- ⚠ **THE REASON ALMOST NOTHING RESPONDED TO THE SETTING IS THAT THE APP BAKES UNITS INTO DISPLAY
+  STRINGS.** A session's stats, its breakdown rows, a feed card's hero and its title all arrive as
+  text — `'245 lb'`, `'8,150 lb'`, `'3.2 mi'`, `'245 lb × 3'`, `'9:30/mi'` — from demo arrays and
+  from live builders alike. There is no number left to convert by the time a card renders one, so a
+  preference could only ever have **relabelled** them. That is worse than doing nothing: *a 245 that
+  says "kg" is a lie, where a 245 that says "lb" is merely the wrong unit for that reader.*
+- **So conversion happens on the text, at the last moment before it is drawn** —
+  `bsSdUnitizeText` in `sessionLedger.mjs` (pure, dependency-free, already the home of the ledger's
+  unit splitter), surfaced on the theme as **`t.uText`**. Three rules keep it safe: a strict
+  whitelist (`lb` · `lbs` · `kg` · `mi` · `km` and the `/mi` · `/km` pace forms — `bpm`, `%`, `spm`,
+  `kcal`, `min`, `reps` and everything else pass through); the trailing guard is `(?![\w-])` rather
+  than `\b`, which matches inside `km-split`; and a value already in the target unit is returned
+  untouched, so a string can pass through render repeatedly without drifting.
+- ⚠ **PACE INVERTS, AND GETTING THAT WRONG WOULD HAVE MADE EVERY RUNNER 60% FASTER.** `9:30/mi` is a
+  per-unit TIME, so the distance conversion applies to the denominator: seconds-per-mile →
+  seconds-per-kilometre is a **division** by 1.609, not a multiplication. It round-trips exactly, so
+  flipping back and forth is not a slow drift.
+- ⚠ **`in` IS DELIBERATELY NOT A UNIT IN FREE TEXT.** It is the commonest English word in this
+  corpus (*"3 in a row"*, *"+60 lb in 14 weeks"*), and no height string is worth the false
+  positives. Inches convert through a SECOND path — **`t.uMeasure`**, for a number plus a separate
+  unit FIELD, where there is no prose to be careful about — which also covers `cm ↔ in` on
+  measurements. ⚠ A mutation admitting `in` to the text path's unit table **SURVIVED, and it is a
+  no-op rather than a gap**: the text path only ever resolves a weight or a distance target, and
+  `bsSdConvertValue` refuses to cross families, so defeating the property needs **three** coordinated
+  edits. Recorded as a test rather than chased.
+- **Converted, in one place each so two surfaces cannot disagree:** `BSActivityCard`'s stat row,
+  its detail-page stats, its breakdown rows, its wall facts and its **title** — which covers the
+  Feed, the Wall and Session details at once; the Train deck's move loads and the session player's;
+  the profile's lift rows and PR ledger; the **trend station**, where the series and its unit label
+  convert together (converting the heading alone would plot pounds under a "kg" label — the one
+  outcome worse than not converting); measurements, where both ends convert **before** the delta is
+  subtracted; and on the coach side the live-session move loads, the session-review target line and
+  the structured sample/measurement readouts.
+- ⚠ **A MEMBER'S OWN NOTE IS NOT CONVERTED, ON PURPOSE.** The card's title is app-formatted
+  (*"Tempo ride · 25 mi"*) and converts; `a.body` is the member's own writing. Rewriting someone's
+  words is a different act from converting a figure the app itself composed, and it is not what a
+  unit preference asks for.
+- ⚠ **AND ONE FIX HAD TO MOVE OUT OF AN EFFECT TO WORK AT ALL.** The Terrain profile's lift rows
+  were converted inside a `useEffect` keyed on `[isSelf]`, so the unit would have frozen at mount
+  and a Settings flip would not have reached the row until a remount. The effect stores the record's
+  own unit now and the conversion happens at **render**.
+- ⚠ **THE MOUNT HARNESS'S THEME STUB IS A `Proxy` THAT ANSWERS EVERY UNKNOWN KEY WITH A COLOUR**, so
+  a missing `uText` did not read as absent — it read as the string `'#000'` and threw
+  *"t.uText is not a function"* from inside a render. The stub carries the **real** converters now,
+  pinned to imperial to match its own `isMetric: false`, so suites written against `'245 lb'` keep
+  asserting on the unit they were written for.
+- ⚠ **AND MY OWN HYPHEN TEST WAS HOLLOW — a mutation proved it.** It asked for `'12 km-split'` under
+  METRIC prefs, where `km` is already the target and the function returns early, so it passed with
+  the guard removed. Every case is now checked against the prefs that would actually convert it,
+  plus an un-hyphenated control so the guard cannot pass by refusing everything.
+- **Verified:** `npm test` **2898/2898** · `tsc --noEmit` 0 · JSX parse on all three changed modules
+  · **7 mutations killed** on the new converters (pace not inverted · separator dropped · hyphen
+  guard weakened · same-unit no longer a no-op · length inverted · label ignoring the preference ·
+  the structured null guard), one survivor proven to be a no-op · and the app **swept in headless
+  Chromium across Home, Feed and Wall in both systems**: Home 3 lb → 3 kg, Feed 5 lb → 5 kg and
+  6 mi → 7 km, Wall 11 lb → 11 kg, 7 mi → 7 km and **4 `/mi` paces → 4 `/km`** — with **zero
+  imperial tokens surviving in metric mode on any tab** and zero page errors. No migration.
+- ⚠ **STILL NOT COVERED, AND NAMED RATHER THAN GLOSSED.** `/api/client/profile-stats` **drops the
+  unit** from `keyLifts` (`[name, "245"]`), so the coach's client-lift rollup labels an
+  unknown-unit number `kg` in its own i18n string. Converting a number whose unit is unknown would
+  be a fabrication, so it is left and registered: the fix is to carry the unit through
+  `get_my_lifts` → the route → the coach app. Recipe and food quantities keep their own household
+  logic. And **no on-account pass** — every check here is signed-out preview.
+
+### 2026-09-10 — Units: the kg/lb switch reached the labels and not the numbers, and one column held both
+
+- **Owner: *"make sure in settings the user has the ability to change metrics from U.S. to
+  Imperial system"* → *"make sure that measuring changes apply to KGs and lLBs"*.** The
+  control already existed — Settings → **Units · Imperial `lb / mi` · Metric `kg / km`**,
+  shared by the client app and both coach shells (`BSSettings`), with a `ShapeUnits` store and
+  a `bsUnitFormatters` pair on the theme. **What was missing is that almost nothing read it**,
+  so flipping it changed a handful of labels and left the figures where they were.
+- ⚠ **AND UNDERNEATH IT WAS A DATA DEFECT, NOT A DISPLAY ONE: `client_weigh_ins.weight` HELD
+  BOTH POUNDS AND KILOGRAMS AND THE READ CALLED EVERY ROW `kg`.** Two writers filled that
+  column — the Goal page's weigh-in sheet, which sent the **goal document's** unit, and the
+  weekly check-in, which sent the member's **Settings** unit (`t.isMetric ? 'kg' : 'lb'`) —
+  and `listWeighIns` mapped every row to a field literally named `kg` while converting
+  nothing. An Imperial member's **180 lb was read back as 180 kg**. That is not cosmetic:
+  `bsGoalNow` feeds the trend line, the weekly pace and the distance-to-target, so a single
+  check-in moved a member's whole body-composition chart by a factor of **2.2** and their goal
+  read as overshot.
+- **The column is canonical kilograms now, repaired from both ends.** The write converts
+  before it upserts and stamps `unit: 'kg'`; the read converts any legacy row **by its own
+  `unit` value**, so pound history repairs itself with **no migration**. ⚠ The conversion is
+  never guessed from magnitude — *">120 must be pounds"* is wrong for a 130 kg lifter and for
+  a 100 lb client alike, and a silent wrong answer about someone's body weight is worse than
+  trusting the column that exists.
+- ⚠ **THE THEME NEEDED A SECOND CONVERTER PAIR, BECAUSE BODY WEIGHT AND A LIFT ARE NATIVE IN
+  OPPOSITE UNITS.** `convWeight`/`fmtWeight` take **pounds** (a lift); body weight is
+  kilograms. Passing one to the other renders an 80 kg member as **36 kg**. `kgToDisplay` ·
+  `displayToKg` · `fmtBodyWeight` are named for what they take, and a test asserts the two
+  pairs are **not** interchangeable — that swap is the whole failure mode.
+- **The goal document canonicalises itself.** `start`, `target`, `now` and the weigh-in series
+  are converted together in one step and the document is stamped `kg`; converting the figures
+  while leaving the stamp would have made the next read convert them a **second** time. The
+  Goal page, the Home goal card, the weigh-in sheet and the target editor all display through
+  `t` now, so a member sees their own unit and the document no longer has an opinion.
+- ⚠ **AND THE FREE-TEXT UNIT BOX IS GONE, BECAUSE IT IS WHERE THE MIXED DOCUMENTS CAME FROM.**
+  The target editor let a member type *"lbs"* beside figures the weigh-in table was filling in
+  kilograms, with nothing reconciling the two. The unit follows Settings and is shown, not
+  typed.
+- **The Wall reads in the reader's unit.** A record keeps the unit it was **set** in — a
+  member who lifts in pounds posts pounds — and the board converts for whoever is looking, the
+  figure and the gain **together**, so "+10 lb over last best" can never arrive under a
+  kilogram number.
+- ⚠ **THE FIRST CUT OF THAT TURNED AN 18.2 MI RECORD INTO "18.2 LB", AND MY OWN SUITE CAUGHT
+  IT.** The wall carries longest runs as well as barbells, and resolving every unit onto the
+  weight pair is a category error. Conversion is **family-aware** now (weight ↔ weight,
+  distance ↔ distance), a preference naming the wrong family cannot cross-convert, and a unit
+  outside both families passes through untouched rather than being guessed at.
+- ⚠ **TWO NULL-COERCION DEFECTS, BOTH MINE, BOTH FOUND BY THE TESTS BEFORE ANY REVIEW.**
+  `Number(null)` and `Number('')` are **both 0 and both finite**, so `Number.isFinite` alone
+  cannot see them: an absent weigh-in became a confident **0 kg** data point on the trend, and
+  an unset goal field became a **target of zero** that read as permanently overshot. The same
+  class this file post-mortems on the Wall's own helpers, re-earned in the fix for it.
+- **i18n**: one new `goal:overall.unitFromSettings` ×13, each composed from **that locale's
+  own two words** (`settings:head.title` · `settings:pref.units` — the house's existing kicker
+  pattern: *Einstellungen · Einheiten*, *Настройки · Единицы*, *Cài đặt · Đơn vị*). A pure
+  append, **1 insertion / 0 deletions per file**.
+- **Verified:** `npm test` **2883/2883** (2860 + 23 new) · `tsc --noEmit` 0 · JSX parse on both
+  changed modules · **14 mutations killed, each proven to land before its run**, 0 survivors
+  (a lb row left unconverted · the upsert not stamping kg · the goal doc ignoring its stored
+  unit · both empty-value guards · the free-text unit box restored · the kg pair collapsed
+  onto the lb pair · the inverse broken · the wall gain converted without its figure · the
+  wall conversion inverted · the family fallback removed) · and the app **driven in headless
+  Chromium**, flipping `ShapeUnits` live: the weight tile **178.2LB → 80.8KG**, the goal card
+  **7.1 lb to go → 3.2 kg to go**, the Wall pill **10 LB → 4.5 KG** and **1.8 MI → 2.9 KM**,
+  zero page errors. No migration.
+- ⚠ **REGISTERED, NOT FIXED — THE EVIDENCE CARD UNDER A WALL PLATE.** A record's own figures
+  (hero, pill, gain) are numbers and convert; the wrapped `BSActivityCard` beneath it renders
+  **pre-formatted strings** (`stats: [['Top set', '245 lb']]`, breakdown rows), so its stat
+  grid stays in the unit it was written in. Converting it means moving where the feed formats
+  units — a bigger change than this one, and half-doing it would put two units on one plate.
+  **The coach app is the same story:** it shares the Settings pane but has **zero** unit
+  consumers of its own, so a coach flipping the toggle changes nothing on their own screens.
+
+### 2026-09-10 — The site's app tour is re-shot against the Wall, and gains it as a tenth screen
+
+- **Owner: *"well make sure the new screenshots include the new chat design"*.** The nine
+  `getapp-*.png` the website shows were refreshed this morning (`ea72dfc`) — *before* the Wall
+  existed — so `getapp-community-v2.png` showed a **four-across** pill row (Feed · Team ·
+  Channels · Support) while the app now ships **five**. Re-captured from the build in
+  `public/m`, and the Wall joins the walkthrough as **step 10 of 10** —
+  `getapp-wall-v1.png`, new.
+- **The geometry is the site's, not a choice.** Every image the pages show is **600×1387**,
+  which is 375×867 at `deviceScaleFactor: 1.6`; the clock is pinned to **Friday 2026-09-11
+  09:30 New York** so the demo member is on a strength day, matching the rest of the set.
+  `is-native-app` is set from an init script (the class `main.jsx` adds under Capacitor and
+  `isNativeBSApp()` reads), so there is no desktop bezel to crop.
+- ⚠ **THE TWO SCREENS ARE REACHED BY THE APP'S OWN DEEP LINKS, BECAUSE THE TAB BAR HAS NO
+  TEXT TO CLICK.** The footer is icon-only, so a label-driven walker gets into the app and
+  then stops. `shape:goCommunity` and `shape:goWall` are the events the shell already listens
+  for — the second is what the Home bulletin fires — so driving them captures the screens
+  *and* exercises that wiring. The entry flow itself stays adaptive (a stored locale skips the
+  picker, so a fixed script is the wrong shape).
+- ⚠ **AND THE DEMO BANNER IS DISMISSED BY `aria-label`, NOT BY ITS TEXT.** `BSPreviewBanner`'s
+  close button renders the glyph **✕** and carries `aria-label="Dismiss"`, so a walker reading
+  `innerText || aria-label` sees the glyph and never the word — the first run captured both
+  screens with *PREVIEW · DEMO DATA* sitting over the plate. Every other image on the site is
+  taken with it dismissed.
+- ⚠ **THE `?v=` BUMP IS REQUIRED HERE, WHICH IS NOT THE CASE FOR A `.jsx`.**
+  `scripts/build-newdesign.mjs` rewrites **script tags only** — it never touches an image ref —
+  so a same-named PNG's hand-written `?v` is the only cache key it has. `getapp-community-v2`
+  goes to `?v=20260910b` on both pages that show it; the eight unchanged files keep theirs.
+- **The homepage's five-beat loop is deliberately left at five.** Adding a sixth means
+  `.loopbeats{height:525vh}` → 630vh — a page a fifth longer, which is a design call the owner
+  has not made. Beat 04 carries the refreshed Community capture; the Wall is on the
+  walkthrough, where the carousel is derived from `STEPS.length` and a tenth entry costs
+  nothing.
+- **Verified:** `npm test` **2860/2860** · `tsc --noEmit` 0 · the newdesign precompile check ·
+  both PNGs re-measured at **600×1387** · and headless renders of `GetApp.html` at 1440 and
+  390px (step 10 of 10, kind *THE WALL*, the Wall image on screen at its natural size, no
+  horizontal overflow, no 4xx, no page errors) and of `index.html` (all five beat images load
+  at 600×1387, beat 04 carrying the new cache key). No migration.
+
+### 2026-09-10 — The Wall: the PR ledger becomes a surface, and the plate is the feed's own card
+
+- **The review's §7, built for the app only** ([`REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md)
+  §7 · [`BUILD-2026-09-10-wall-in-app.md`](BUILD-2026-09-10-wall-in-app.md)). Owner: *"the wall
+  concept … we don't currently have that on the app but i like it"* → *"looks good i like it"* →
+  *"yes lets implement the new chat/wall look on app"* · *"lets put the website update on hold"* ·
+  *"i only want to build the wall-in-app now"*. Chat gains a **fifth segment** — Feed · **Wall** ·
+  Team · Channels · Support — reading `pr_wall_posts` as a record board: the number, the delta over
+  that member's **own** last best, and the whole activity record underneath.
+- ⚠ **THE PLATE DOES NOT RE-IMPLEMENT THE RECORD — IT WRAPS `BSActivityCard`.** The owner's ask was
+  *"make sure each activity that is logged on the wall displays the stats that is already
+  implemented. I want all of the information that is currently displayed incorporated"*, and the
+  way that stays true as the feed grows is to render the same component: the stats grid, zones,
+  trace, the breakdown with the record row marked, *Session details · full activity*, the coach
+  co-sign, the followed-liker facepile, the typed reactions, comments, share, send and repost all
+  arrive for free. One activity can never read two ways on two surfaces.
+- **The online rail needed no code at all.** It renders above the pills on **every** Chat tab, so
+  the owner's *"make sure the wall concept includes the hide/show option for who is online"* is met
+  by **where the segment sits** — same rail, same per-account `client_settings.onlineRail`
+  preference, hiding it on the Feed hides it on the Wall.
+- **Migration `2026-09-10-pr-wall-surface.sql`** — `prev_value` · `reps` · `post_id` on the ledger,
+  and `shape_pr_wall(limit, lift, scope)`, a definer modelled on `shape_leaderboard`: public
+  profiles only, the leaderboard opt-out honoured, **no anon grant**. `p_scope 'coach'` answers
+  *both* directions from the caller's own links — a coach sees `is_coach_on_client`, a member sees
+  the other clients of the coaches they share.
+- ⚠ **THE 4-ARG `post_my_pr_to_wall` IS DROPPED, NOT LEFT BESIDE THE NEW ONE** — the new signature
+  adds `p_post_id` with a default, so an overload would make every four-argument PostgREST call
+  ambiguous and the client's existing call would start failing the moment the migration ran. And
+  **`p_post_id` is honoured only when `community_posts.author_id = auth.uid()`**: the function runs
+  as its owner, so an unchecked id would render a stranger's activity, photo and comments under the
+  caller's name. A bad link degrades to a bare record, never to a leak.
+- ⚠ **AND THE ROUTE FALLS BACK, BECAUSE DEPLOY ORDER OTHERWISE DECIDES WHETHER RECORDS POST.**
+  Between a deploy and an apply — in either order — one of the two signatures is wrong, and
+  PostgREST answers an unknown one with PGRST202, which `postPRToWall` surfaces as a silent
+  `{ ok: false }`: the member's record simply would not land, with nothing tying it to a pending
+  migration. The id is omitted when there is none and the call is retried without it on that error.
+- ⚠ **THE PR IS NOW ANNOUNCED AFTER THE INSERT, CARRYING THE POST'S ID.** It fired *before* it
+  (`createCommunityPost`, since 2026-06-14), which left every ledger row pointing at nothing — and
+  a failed insert advanced the ledger for a record that was never posted.
+- ⚠ **BUT A SESSION'S PRs ARE DELIBERATELY *NOT* LINKED TO THE SESSION POST.** A session can hold
+  several, and there is one post for the whole session: linking it to each would point two or three
+  ledger rows at the same activity, so the Wall would render that card repeatedly — and because the
+  card files reactions, comments and open-state under the post's id, tapping *comment* on one plate
+  would open the composer on all of them. It is also the wrong evidence: that post's hero is the
+  **session** (sets, rest, elapsed), not this lift's record. Session PRs land as bare records; a
+  per-lift record post is registered, not built.
+- ⚠ **AND `announcePRsFromSetLogs` HAD HARDCODED `unit: 'lb'` SINCE IT WAS WRITTEN.** Invisible
+  while a PR was only a line of chat text; the Wall prints the unit beside the number and computes
+  a delta against the stored best, so a kg lifter's 100 kg was headlined **100 lb** and could
+  produce a cross-unit *"↑ +110 lb over last best"*. It reads the unit off the logged load now, the
+  same `/kg/i` detection the community composer already used. **The RPC's own comparison is still
+  unit-blind — registered, not fixed.**
+- ⚠ **`/code-review` RETURNED NINE FINDINGS ON THE FIXED TREE AND EVERY ONE WAS REAL.** Besides the
+  three above: a bare record was an **anonymous number** on a cross-member board (the attribution
+  lives inside the wrapped card, so a row with no readable post had none); the lift filter
+  **survived a scope change**, painting *"No records on the wall yet."* over rows that existed —
+  and with one lift or none in the new scope the `<select>` is not rendered, so there was no way
+  back, while the comment on that line asserted the opposite; the Home bulletin made Home carry
+  **three** bulletins against its documented max of two, and re-ran a definer RPC plus a
+  posts-with-joins fetch **on every Home mount** to decide one line of text; and signed out, three
+  scope tabs highlighted and **changed nothing**, because they are answered by follows and coach
+  links a preview visitor does not have.
+- ⚠ **THE SHARPEST ONE WAS A GUARD OF MINE THAT PINNED THE DEFECT.** `first: gain == null` made any
+  record whose improvement failed to produce a number announce itself as the member's **first on
+  the wall** while the ledger held a prior best — reachable because the RPC accepts any value
+  strictly greater than the stored best, so 245 → 245.02 is a record whose gain rounded to 0 at one
+  decimal place. **And my test asserted `first === (gain == null)`**, so a correct fix would have
+  failed it. *"Is there a previous best"* and *"can a gain be computed from it"* are different
+  questions; they are asked separately now, and the formatter widens to the fewest decimals that do
+  not print a real gain as zero.
+- ⚠ **TWO NULL-COERCION DEFECTS WERE CAUGHT BY THE TESTS BEFORE ANY REVIEW.** `Number(null)` is
+  **0, which is finite** — so `bsWallGain(245, null)` returned **245** and a member's first record
+  rendered *"↑ +245 lb over last best"* against a best that never existed, and `bsWallNum(null)`
+  rendered a confident **"0"** for an absent figure. `Number.isFinite` alone cannot see either.
+- ⚠ **AND ONE OF MY OWN RENDER TESTS PASSED FOR THE WRONG REASON.** It asserted the board's text
+  contained every sample lift label — and it passed **with the plates rendering nothing**, because
+  the labels it matched came from the lift-filter `<option>` list a few lines above them. Proven by
+  a mutation (`rows || bsWallDemoRows()`, leaking the demo cast to a signed-in account) that
+  **survived**. The suite counts plate elements now. *A guard that reports a pass is a broken
+  instrument until you know which line satisfied it.*
+- ⚠ **THE PLATE'S OWN FRAME WAS SQUEEZING THE CARD, AND ONLY A BROWSER SAID SO.** The community
+  feed renders its cards in a container with **no horizontal padding**, so a page gutter plus a 14px
+  plate inset handed the same card 48px less: measured at 375px, Drew Oyelaran's author row ran
+  12px past the frame with `overflow: visible` — silently — and Priya's `PEAK · CLIENT` collided
+  with the STRENGTH tag while the identical card one segment over had room for both. The gutter is
+  on the controls now and the plates run edge to edge, so the Wall's overflow profile is **identical
+  to the untouched Feed's** at both widths. The scope row also overran its own line at 430px (271px
+  of a 213px row) and wraps now, the V3 precedent.
+- **36 `feed:wall.*` keys + `home:bulletin.onTheWall*`, ×13 locales — 494 values**, each authored
+  from that catalog's **own existing wording** (es reuses `card.cosigned`'s *referendado* for the
+  stamp; pt-BR the same; every failure line follows the file's own *"Não foi possível…"* register).
+  `lb`/`kg` are held as a constant rather than keyed — thirteen identical values a translator must
+  not touch, and hardcoding them in JSX would have landed the sheet in the ratchet's PARTIAL set.
+- ⚠ **THE HOME CARD REGISTRY THE BRIEF POINTED AT IS DEAD CODE.** `BSHomeCards` / `BS_CARD_TYPES` /
+  `_bsBuildCard` (`iosAppBroadsheetClient.jsx:998–1400`) are **rendered by nothing** — no call site
+  anywhere in `mobile-app/src`, no window export. Registering a `wall` card there would have shipped
+  an invisible feature. The entry point is a `BSHomeBulletin` instead, which is live, translated and
+  self-gating. **Registered, not fixed: the dead registry, and `WPR`** (the *PRs* home widget), which
+  renders **hardcoded** Deadlift 405 / Squat 315 / Bench 245 to any signed-in member — a fabrication
+  of exactly the class the review's §8 catalogues, and now trivially fixable against `myPRLedger()`.
+- ⚠ **AND THE PREVIEW — THE WHOLE POINT OF THE SAMPLE BOARD — WAS THE ONE STATE THAT COULD STILL
+  COME UP EMPTY.** Owner: *"make sure the wall is not empty on demo mode so people previewing app
+  can see what it would look like."* The segment gated its sample board on `loggedIn`, and that is
+  **the wrong question**: someone who taps **PREVIEW THE APP FIRST** on the paywall is very often
+  signed in — they are simply not a member — so they took the live path, the read came back honest
+  and **empty**, and the Wall became the one surface in Chat that shows a prospect nothing. It reads
+  `window.ShapeCanChat` now (the shell's own `memberAllowed`, already used for exactly this on the
+  chat composer, and defaulting to allow so a member is never mistaken for a prospect).
+- ⚠ **BUT IT DOES NOT COPY THE FEED'S FALLBACK, DELIBERATELY.** The feed re-shows its demo cast
+  whenever its live read comes back empty (`setPostsLive(false)`), which means a **paying member**
+  with a quiet community is shown a cast of strangers with nothing saying so. The Wall's sample
+  board is gated on *previewing*, never on *the read being empty*: a member with no records gets
+  *"No records on the wall yet."*, which is true.
+- ⚠ **AND THE INVITATION HAD TO STOP NAMING THE ONE STEP THEY HAD ALREADY TAKEN.** *"Sign in to
+  keep your own records here"* is exactly wrong for a signed-in prospect — the #2005 defect, where
+  a coach who was already signed in was told to sign in. A second line, `wall.joinForBest`, invites
+  them to join instead; the sign-in line survives for a genuinely signed-out visitor. **Authored by
+  hand from each catalog's own two sentences** — its `today.joinToSave` ("Join Shape to…") crossed
+  with its `wall.signInForBest` — rather than by a translation round, because a sibling of a
+  sentence already translated thirteen times is a copy job, not a translation job. (pt-BR needed
+  the `login.eyebrowJoin` form: its own sign-in verb *Entre* doubles as *join*, so the obvious
+  frame would have said the same thing twice.)
+- **And the preview now matches the board the owner approved:** Quinn Harper's demo record carries
+  the co-sign from Maya Okafor that the concept board's W tab showed. It had been left off on the
+  reasoning that the app's demo array was the source of truth — but Maya is already in that card's
+  likers **as a Trainer**, and a coach reacting on their own client's card *is* the co-sign by the
+  app's own rule, so the array was the thing that was inconsistent. Two stamped plates and four
+  unstamped, so the preview still shows both states.
+- ⚠ **ONE PROCESS DEFECT, MINE, WORTH WRITING DOWN.** The mutation runner copied the file to
+  `.bak`, applied a mutation, ran the suite and restored — **without a `finally`**. An interrupted
+  round therefore left a *deliberate* defect in the working tree and its backup on disk, and the
+  symptom was that one of my own edits appeared to have silently failed to apply. Fifteen minutes
+  went into "why did that replacement not take" before the `.bak` timestamp explained it. It
+  restores in a `finally` now. *An instrument that edits the tree owes it a guaranteed restore.*
+- ⚠ **AND A "FAILING" TEST IN THE SAME WINDOW WAS THE SAME INSTRUMENT.** A full-suite run reported
+  `the About page holds no hardcoded copy but the founder's name` failing; it passed in isolation
+  and on every clean re-run. The cause was a background mutation round **rewriting
+  `iosAppBroadsheetClient.jsx` underneath the test process**. Recorded rather than shrugged off,
+  because this file's own rule is that a flake is not a root cause — here the root cause was two of
+  my own jobs sharing one file.
+- **Verified:** `npm test` **2835/2835** · `tsc --noEmit` 0 · JSX parse on both changed modules ·
+  the newdesign precompile check · **29 mutations killed across three rounds, each proven to land**
+  (two survivors in the first round were real guard gaps and are closed) · the migration
+  **driven on a real Postgres 16** through 47 fixture assertions (a private member and a
+  leaderboard opt-out are both off the wall · `prev_value` holds the beaten record · a foreign
+  `p_post_id` is dropped · following counts only accepted follows · the coach scope answers from
+  both sides and a cancelled membership severs it · exactly one `post_my_pr_to_wall` signature ·
+  both functions pin `pg_temp` last · anon can execute neither) **and re-applied idempotently** ·
+  and the Wall **driven in headless Chromium at 375 and 430px** through the real entry flow: the
+  masthead reads *The Wall*, the plates carry NEW BEST · the figure · the delta · the wrapped card ·
+  the co-sign, *Not yet stamped* on the unstamped ones, and **zero page errors**.
+- ⚠ **NO ON-ACCOUNT PASS.** Every live path here is stubbed or driven signed-out; the migration is
+  **owed on Supabase before the segment is trusted**, and the route's fallback exists precisely
+  because that window is real.
+  ⚠ **THE MIGRATION WAS APPLIED THE SAME DAY** (and superseded that evening by
+  `2026-09-10-pr-wall-units.sql`, also applied). **The no-on-account-pass half of this bullet still
+  stands** and is the part to carry forward: production holds 0 `pr_wall_posts`, so the segment has
+  still never rendered a real record.
 
 ### 2026-09-10 — R16: the dashboard remembers how you read it, and V4 turns out to have been a measurement of the instrument
 
@@ -705,6 +1433,150 @@ Append new entries at the top, under this note.
   horizontal overflow. No migration.
 - ⚠ **STILL A SIMULATED LIVE STATE.** Every "live" check here stubs the API responses. An
   on-account pass is owed.
+
+### 2026-09-10 — The website's app screenshots refreshed to the app as built today; the board's phones show real screens
+
+- **Owner: *"make sure the app screens that are showing on website are matching what is actually
+  live on the app currently."*** They did not. The nine `getapp-*.png` files the site shows
+  (five in `index.html`'s loop, nine in `GetApp.html`) were captured on 2026-07-10/15; the app
+  has since shipped the Home masthead dateline (09-01), the feed's online-rail **Hide ×** and
+  typed-reaction bar, the profile's cover photo and *training for* line (08-31), the grocery
+  list's collapsed aisles and action bar, and a sign-in-gated radio that reads paused with no
+  track for a visitor. **All nine replaced, same filenames, `?v=20260910`** in both pages.
+- **Method, so it can be repeated:** the app built from `main` and served locally; Playwright
+  at 375×867 at 1.6× (= the site's 600×1387) in the signed-out preview (language → paywall →
+  *Preview the app first* → *Step inside*, the demo banner dismissed); the `is-native-app` class
+  so no desktop bezel renders; the clock **pinned to Friday 2026-09-11 09:30 New York** so the
+  example member is on a strength day like the existing images; `/api/radio/now-playing`
+  fulfilled with what production answers. Fourteen screens captured and compared side by side
+  with the files on the site; the six that differed are in the review's §8.
+- ⚠ **THE BOARD'S PHONES WERE MY DRAWINGS, AND NOW THEY ARE NOT.** Concept A's phone cycles
+  three real screens (Eat, the live session player, the feed's PR post) and the moment cards on
+  every concept are windows onto the real captures with the live element ringed, labelled
+  *the app today*. The Wall preview keeps its proposed content but takes the app's actual Chat
+  chrome. A preview of "the app" built from invented UI is the demo-data class one step
+  removed; the owner caught it.
+- **Also answered, in the review's §7:** Feed vs Wall vs Team, read from the built app — the
+  Feed is everything members post with typed reactions and co-signs; Team is the 1:1 coach
+  and friend threads (the client ↔ trainer / nutritionist chat, mirrored in the coach apps,
+  with meal-log notes, photos and voice memos arriving as messages); Channels are the rooms,
+  #PR Wall among them; the proposed Wall is the record board. The one duplication to rule on
+  is whether #PR Wall stays as the room about PRs once the Wall ships.
+- ⚠ **OWNER, ON THE WALL: *"make sure each activity that is logged on the wall displays the stats
+  that is already implemented. I want all of the information that is currently displayed
+  incorporated."*** A plate is the whole activity record the feed renders today, drawn from the
+  app's own demo data verbatim: identity, when and where, tag, record stamp, title, the hero
+  figure and its facts, the full `stats` grid, HR `zones` and `trace`, the `breakdown` rows with
+  the record row marked, the note, the session link, the co-sign, who reacted, the typed
+  reaction count, comments, share, send, repost — and every kind of record (a longest run, a
+  fastest 500, a max-power ride) lands the same way. Nothing a member logs is lost on the way
+  to the wall. Review §7 carries the field list. **Owner, on the full-record plate: *"looks
+  good i like it"* — this is the approved spec for the build.**
+- **And three board changes on owner notes the same afternoon:** thinner display weights
+  (Anybody 500/600, the Wall at 400), the original logo artwork restored wherever the concepts
+  show it (the nav and footer use the real `shape-logo-nav-*.png` files; the Radio wordmark is
+  built the way the live site builds it), and E's climb redrawn as a **monotone rising score
+  line** to the summit with a soft fill beneath it — the ridge silhouette it followed before
+  went down as well as up, which a climb must not.
+- Verified: nine PNGs at 600×1387 (`stat`), refs bumped in both pages, no other page references
+  the files; the board rebuilt, each changed tab captured once; the pre-commit gate on the HTML
+  change (`npm test`, the newdesign precompile check) below.
+
+### 2026-09-10 — Homepage review: "less analog, more alive", with a live concept board
+
+- **Records only — a review, not a build.** Owner: *"full review of new design index page …
+  any improvements or alternative designs to make look better"* · *"less analog, make it look
+  more alive"* · *"if you have recommendations and new design ideas, i want to see previews of
+  them"*. The review is
+  [`docs/REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md); the previews are
+  a **live concept board** — https://claude.ai/code/artifact/adc4c3d3-2922-4735-b379-f3640e12c016 — nine tabs after the same-day second
+  revision: the shipped page (real captures) · **Type** · five directions each rendered as a
+  **whole animated page**, fold and everything under it (**A · The Floor**, the product running
+  in a phone · **B · Pulse**, the fold breathing at the station's BPM · **C · Daylight**, a
+  white page that moves · **D · Electrified broadsheet**, the sky with a cursor-reactive
+  constellation, a kinetic headline and three live plates · **E · The Climb**, the product's
+  own ridge-and-summit metaphor drawn as breathing, cursor-parallaxed terrain with a route
+  that climbs while the Shape Score counts) · **W · the Wall in the app** · and a **Pick** tab
+  with the page map and the recommendation. **No code on the page changed, no migration, no PR
+  beyond the records.**
+- ⚠ **PHONES NEVER SEE THE PAGE.** `index.html:6` redirects every viewport under 760 px to
+  `GetApp.html`, a cream paper walkthrough — so on a phone the homepage is the most analog
+  surface the site has. P0 whatever direction wins.
+- ⚠ **24.4 SCREENS OF SCROLL FOR EIGHT SCREENS OF CONTENT.** `.jtrack{height:1500vh}` pins the
+  member journey for 15 of them and `.loopbeats{height:525vh}` five more; "See how it works"
+  anchors to `#loop`, which sits *after* the journey, so with `scroll-behavior:smooth` the
+  button smooth-scrolls through all 15,600 px.
+- ⚠ **ONE LIVE NUMBER, THREE ILLUSTRATIVE ONES DRESSED AS LIVE.** Only the coach count reads an
+  endpoint. The radio card says **LIVE** over `@keyframes eq` bars and the nav's **ON AIR** chip
+  is permanent while `/api/radio/now-playing` answers from the **mock provider**; the eight
+  "Expert Marketplace" coaches are `coachDirectory.js`'s **AI-generated portraits** with
+  fictional session counts, under an eyebrow that becomes a real count — the preview-cast
+  question the 09-02 entry registered as **OWNER RULING NEEDED**, now on the homepage; and the
+  journey counts a Shape Score to 847. The brand plan's own rule: *no demo data presented as
+  live members.*
+- **What "analog" is, measured:** Fraunces at weight **300** at 106 px, cream on paper-brown,
+  six mono eyebrows above the fold, hairlines and corner brackets on every card, static PNGs in
+  a cream-bezel phone, and a sky where 16 of 346 stars twinkle and nothing reacts to the
+  visitor. **Keep:** the journey's point cloud, the splash's self-drawing mark, the teal.
+- ⚠ **THE TYPE IS THE BRAND'S OWN NOW — owner: *"make the font very unique, something that
+  doesn't look AI generated and particular to shape"*.** Fraunces 300, Space Grotesk and
+  JetBrains Mono are the three most common faces in generated sites this year, and the
+  design skill's own list names all three. Nine candidates were **installed and rendered as a
+  specimen sheet** and judged from the glyphs, not from memory. The system: **Anybody**
+  (display; a width axis from 50 to 150, so ONE family is B's condensed stack, A's and D's
+  headline, C's and E's wide setting and the 150-wide wordmark — type that changes shape, for a
+  company called Shape), **Doto** (numerals and the wire; a dot-matrix scoreboard face with a
+  roundness axis, so a measured figure looks like a reading — Handjet was tried for its
+  triangle elements, which do not resolve at any size), and **Schibsted Grotesk** (body; a
+  grotesk born in a newspaper group for its editorial screens — the broadsheet DNA without the
+  magazine serif). One Google Fonts link, three variable files. ⚠ *Never put a blurred
+  `text-shadow` on the dot-matrix face*: it stacks on every dot and the glyph turns into a pale
+  block, and a `drop-shadow` filter fails the same way once its blur is wider than the dot
+  spacing — a large dot-matrix figure gets a dark backing plate, not a glow. Measured on the
+  board, then fixed twice. ⚠ **Same day, owner: *"thinner font for the headers"* and *"thinner
+  font for the wall"*** — every concept headline went from Anybody 800 to **500** (smaller
+  headings 600, B's stack 500 with a touch of tracking), and the Wall's headline to 400 with
+  its Doto numerals at 500. The width axis carries the character, so the weight can stay light.
+- **Recommendation, revised with E on the board: E this sprint with the type system; D the
+  fallback; A where both grow.** E is the only direction that could not be another company's
+  homepage — the terrain, summit and score are already every member profile's own drawing.
+  Same structure, honesty and mobile fixes as D at one canvas more effort; B's beat goes into
+  the radio band the day the station is really broadcasting; C is parked until the app has a
+  light default. All five share one rendered page below the fold: the wire → three
+  auto-playing moments → coaches → a one-screen journey with the point cloud → radio → price →
+  footer, about seven screens against today's 24.
+- ⚠ **NEXT TASK, REGISTERED — THE WALL IN THE APP.** Owner: *"the wall concept … showing on the
+  app, we don't currently have that on the app but i like it. How could that be incorporated
+  … Add that to next task. I want to see a preview"*. The app HAS the wall as **chat** — the
+  system PR Wall channel (`2026-06-14-pr-wall.sql`), the public-only beats-your-best
+  `post_my_pr_to_wall`, auto-announce from the set logger, coach co-signs, +12 score per PR —
+  and lacks a **surface**. Plan (review §7, preview on the board's W tab): one migration (a
+  public definer read over the already-structured `pr_wall_posts` ledger honouring the
+  leaderboard opt-out · a `post_id` on the row so the plate carries the co-sign · reactions),
+  one `BSPlate` screen as a fourth Community segment (Feed · Team · Channels · **Wall**) with
+  — ⚠ **IT SHIPPED THE SAME DAY AS A FIFTH: Feed · Wall · Team · Channels · Support.** This
+  bullet is the PLAN, and the Chat contract had four segments when it was written; the entry
+  above it is what was built. Marked rather than rewritten, because a dated entry says what
+  was true on its date — but this file is auto-loaded, so an unmarked stale count reads as
+  the current contract to the next reader. —
+  filters and *your best* pinned, a Home *"On the wall"* card, a one-tap coach **Stamp**; the
+  same read feeds the homepage's *"A PR lands"* honestly. Public members only; a signed-in
+  wall never shows the demo cast. Owner, same day: *"make sure the wall concept includes the
+  hide/show option for who is online"* — the Wall carries the feed's online-now rail unchanged
+  (Realtime presence count and avatars, `useBSOnlineRailPref` → `client_settings.onlineRail`
+  for the Hide/Show, one preference for both surfaces); the preview's rail toggles. Recorded
+  under Open work below.
+- ⚠ **THE FIRST RENDER PASS HAD THE WRONG FONTS AND WAS THROWN AWAY.** The container's proxy
+  404s `fonts.gstatic.com`, so the page rendered in Times New Roman through its metrics-matched
+  fallbacks — a typography review of the wrong typeface. The families were installed from
+  `@fontsource-variable` and served locally with the Google Fonts CSS request rewritten to them
+  (React, ReactDOM and Babel likewise, since unpkg is blocked too), and `document.fonts`
+  confirmed the load before any capture was used. *A render is evidence only of what actually
+  rendered.*
+- Verified: docs-only (the pre-commit hook skips the code gates) · every cited line re-read from
+  the source · contrast computed, not eyeballed (`--cream-3` at 0.40 alpha = **3.46:1** on four
+  label styles) · 31 captures kept in the session scratchpad, not committed · the board's script
+  parse-checked and each tab rendered once at 1440 and 400 px with zero page errors.
 
 ### 2026-09-10 — R6: the programming queue leaves one browser, and stops calling a tick a publish
 

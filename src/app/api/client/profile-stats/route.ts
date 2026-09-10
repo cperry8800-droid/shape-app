@@ -36,14 +36,28 @@ export async function GET(request: Request) {
 
   const d = data as Record<string, unknown>;
 
-  // Key lifts → [[name, "245"], …] (the shape the profile renders).
+  // Key lifts → [[name, "245 lb"], …] (the shape the profile renders).
+  //
+  // ⚠ THE UNIT TRAVELS WITH THE FIGURE, AND IS NEVER INVENTED WHEN IT IS ABSENT.
+  // This route used to emit a bare `"245"`, so every consumer downstream had to
+  // guess — and the coach app guessed "kg" in its own copy, presenting a guess
+  // as a fact. `get_my_lifts` states the unit as of
+  // 2026-09-10-lift-units.sql (canonical pounds, normalised before the
+  // comparison that picks `best`).
+  //
+  // Before that migration runs the RPC carries no unit, and the honest answer is
+  // then the bare number this route has always sent — NOT a defaulted "lb".
+  // Appending a unit we did not read would make the pre-migration payload assert
+  // something nobody measured, which is the exact defect being fixed.
   const keyLifts = Array.isArray(d.keyLifts) ? (d.keyLifts as Array<Record<string, unknown>>) : [];
+  const payloadUnit = typeof d.unit === 'string' && d.unit.trim() ? d.unit.trim() : '';
   const lifts = keyLifts
     .filter((l) => l && typeof l.name === 'string' && l.best != null)
     .map((l) => {
       const best = Number(l.best);
-      const val = Number.isFinite(best) ? String(Math.round(best * 10) / 10) : String(l.best);
-      return [String(l.name), val] as [string, string];
+      const unit = typeof l.unit === 'string' && l.unit.trim() ? l.unit.trim() : payloadUnit;
+      const num = Number.isFinite(best) ? String(Math.round(best * 10) / 10) : String(l.best);
+      return [String(l.name), unit ? `${num} ${unit}` : num] as [string, string];
     });
 
   // Disciplines → [["Strength", 0.7], …]; only the ones with a real signal.

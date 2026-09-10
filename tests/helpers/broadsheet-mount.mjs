@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { bsSdUnitizeText, bsSdUnitizeLabel, bsSdMeasure } from '../../mobile-app/src/services/sessionLedger.mjs';
 
 const require_ = createRequire(import.meta.url);
 const babel = require_('next/dist/compiled/babel/core');
@@ -27,6 +28,8 @@ export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx');
 const SRC_DIR = dirname(SRC);
 
+const IMPERIAL_PREFS = { weight: 'lb', distance: 'mi', length: 'in' };
+
 // Total theme map — these components read a long tail of tokens and these suites
 // are about what RENDERS, not about the palette; an enumerated stub would fail for
 // a reason unrelated to the code under test. The listed values are the ones a test
@@ -36,6 +39,17 @@ export const THEME = new Proxy({
   INK50: '#777', INK70: '#555', RULE: '#ccc', HAIR: '#ddd', ACCENT: '#0f766e',
   GREEN: '#2f7d32', padX: 18, isLight: true, isMetric: false,
   W: { display: 800, displayHeavy: 800 },
+  // ⚠ THE UNIT CONVERTERS ARE THE REAL ONES, NOT STUBS, and they must be listed
+  // explicitly: the Proxy below answers every unknown key with a COLOUR, so a
+  // missing function here does not read as absent — it reads as the string
+  // '#000' and throws "t.uText is not a function" from inside a render, which
+  // is a confusing way to learn that a fixture drifted from the theme.
+  // Pinned to IMPERIAL to match `isMetric: false` above, so a suite asserting on
+  // '245 lb' keeps asserting on the unit it was written for.
+  unitPrefs: IMPERIAL_PREFS,
+  uText: (text) => bsSdUnitizeText(text, IMPERIAL_PREFS),
+  uLabel: (unit) => bsSdUnitizeLabel(unit, IMPERIAL_PREFS),
+  uMeasure: (value, unit) => bsSdMeasure(value, unit, IMPERIAL_PREFS),
 }, { get: (t, k) => (k in t ? t[k] : '#000'), has: () => true });
 
 // ⚠ This is PROCESS-GLOBAL and permanent, which is a fair thing to flag: a module that

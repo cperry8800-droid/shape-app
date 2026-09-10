@@ -16,6 +16,8 @@
   "aria.today": "сьогодні",
   "bulletin.checkin": "Потрібен чек-ін",
   "bulletin.checkinDetail": "Енергія · сон · 30 с",
+  "bulletin.onTheWall": "На стіні",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Потрібен тижневий чек-ін",
   "bulletin.weeklyCheckinDetail": "2 хв",
   "card.training": "Тренування",

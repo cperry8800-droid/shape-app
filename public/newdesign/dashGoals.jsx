@@ -89,6 +89,13 @@ function dgoStateView(p) {
 }
 
 // ── The goal card (shared: client page + the pro drawer) ─────────────────────
+// Pounds→kilograms. ⚠ MODULE SCOPE ON PURPOSE: it is read by the presentation
+// converter that runs while `goals` is being derived, which is ABOVE the point
+// where this used to be declared inside the component — a `const` read before its
+// initializer is a ReferenceError, and there is no error boundary anywhere in
+// public/newdesign, so that renders as a blank page rather than a broken card.
+const dgoLbToKg = 0.45359237;
+
 function DashGoalCard({ goal, now, editable, onEdit, compact }) {
   const nowD = now || new Date();
   const p = DashSignals.projectGoal(goal, nowD);
@@ -325,6 +332,20 @@ function ClientGoalsPage() {
         try { remote = await window.shapeDb.getUserGoals("client"); } catch (e) {}
       }
       // Coach-set goals (own client_programs row) + live weigh-in series.
+      // ⚠ THE MEMBER'S UNIT COMES FROM THEIR SETTINGS, NOT FROM THE GOAL DOCUMENT.
+      // The first cut of this fix read `overall.displayUnit`, which only the website
+      // writes — four mobile paths stamp `unit: 'kg'` without it, and mobile is the
+      // primary app, so an Imperial member who canonicalised there still saw
+      // kilograms here. `client_settings.units` is the one store both surfaces
+      // already share (the app's Settings → Units writes it and `ShapeUnits` reads
+      // it), so it is also the only place that cannot go stale when the member
+      // changes their preference. Found by Codex on `61ec662`.
+      let prefUnit = null;
+      try {
+        const st = await window.shapeDb.getUserGoals("client_settings");
+        const u = st && st.units;
+        if (u) prefUnit = /metric/i.test(String(u)) ? "kg" : /imperial/i.test(String(u)) ? "lb" : null;
+      } catch (e) {}
       let coach = null, weighIns = [];
       try {
         const { data } = await window.shapeDb.client.from("client_programs").select("detail").eq("user_id", user.id).maybeSingle();
@@ -332,7 +353,13 @@ function ClientGoalsPage() {
       } catch (e) {}
       try {
         const { data } = await window.shapeDb.client.from("client_weigh_ins").select("logged_on, weight, unit").eq("user_id", user.id).order("logged_on", { ascending: true }).limit(104);
-        if (Array.isArray(data)) weighIns = data.map((w) => ({ on: w.logged_on, weight: w.weight, unit: w.unit }));
+        // Legacy rows may be pounds; normalise by the row's OWN unit so the
+        // series is one unit, the same repair the app's listWeighIns does.
+        if (Array.isArray(data)) weighIns = data.map((w) => {
+          const n = Number(w.weight);
+          const kgv = Number.isFinite(n) ? (/^(lb|lbs|pound)/i.test(String(w.unit || "kg").trim()) ? n * 0.45359237 : n) : null;
+          return { on: w.logged_on, weight: kgv, unit: "kg" };
+        }).filter((w) => w.weight != null);
       } catch (e) {}
       if (!on) return;
       const doc = remote && Object.keys(remote).length ? remote : {};
@@ -344,6 +371,7 @@ function ClientGoalsPage() {
         nutrition: Array.isArray(doc.nutrition) ? doc.nutrition : null,
         work: Array.isArray(doc.work) ? doc.work : null,
         weighIns,
+        prefUnit,
         share: doc.share !== false,
       });
       setSource("live");
@@ -351,46 +379,153 @@ function ClientGoalsPage() {
     return () => { on = false; };
   }, []);
 
-  const goals = DashSignals.goalsFromDoc(src);
+  // ⚠ PRESENTATION BOUNDARY. `goalsFromDoc` copies the document's `unit`, `start`,
+  // `target` and `now` verbatim, and the document is canonical kilograms — so the
+  // weight goal is converted back into the member's own unit HERE, figures and unit
+  // together. Converting the label alone would print kilograms under "lb", which is
+  // strictly worse than showing the wrong unit. Only the weight goal is touched:
+  // strength/endurance goals carry their own units and are not canonicalised.
+  // Settings first (authoritative, and shared with the app), the document's own
+  // stamp only as a fallback for a member whose settings could not be read.
+  const dgoDispUnit = src.prefUnit || (src.overall && src.overall.displayUnit) || null;
+  const dgoKgToDisp = (v) => {
+    const n = Number(v);
+    if (v == null || v === "" || !Number.isFinite(n)) return v;
+    return Math.round((n / dgoLbToKg) * 10) / 10;
+  };
+  // The field precedence `weightSeriesIn` and `goalSeries` both use. Every one that
+  // is present is converted, so whichever the engine reads is in the display unit
+  // and no stale kilogram twin is left behind on the same point.
+  const DGO_PT_FIELDS = ["value", "v", "weight", "kg", "w"];
+  const dgoConvPoint = (h) => {
+    if (!h || typeof h !== "object") return h;
+    let out = h, touched = false;
+    for (const f of DGO_PT_FIELDS) {
+      if (h[f] != null && Number.isFinite(Number(h[f]))) {
+        if (!touched) { out = { ...h }; touched = true; }
+        out[f] = dgoKgToDisp(h[f]);
+      }
+    }
+    return out;
+  };
+  const goalsRaw = DashSignals.goalsFromDoc(src);
+  // ⚠ THE PER-GOAL `/kg/i.test(g.unit)` BELOW IS THE REAL GUARD, and an outer
+  // `src.overall.unit` check beside it was redundant: a legacy pound document
+  // yields pound-unit goals, which that test already declines to convert. It was
+  // removed rather than left, because a mutation proved it could be deleted with
+  // no observable change — untested redundancy reads as a safety net that is not
+  // holding anything.
+  const goals = (dgoDispUnit && /^(lb|lbs|pound)/i.test(dgoDispUnit))
+    ? goalsRaw.map((g) => (g && g.metric === "weight" && /kg/i.test(String(g.unit || "")) ? {
+        ...g, unit: dgoDispUnit,
+        target: dgoKgToDisp(g.target), start: dgoKgToDisp(g.start), now: dgoKgToDisp(g.now),
+        // ⚠ `goalsFromDoc` NORMALISES ITS SERIES TO `{ on, value }`, and `projectGoal`
+        // reads `value` — so converting `v` alone converted NOTHING on the real
+        // shape: target and unit became pounds while the history stayed kilograms,
+        // and an 86 kg point read as 86 lb, marking a 180 lb target achieved. My own
+        // test used `{ on, v }`, a shape production never produces, which is exactly
+        // why it passed. Every numeric field `weightSeriesIn`/`goalSeries` can read
+        // is converted, in the same precedence they read it.
+        history: Array.isArray(g.history) ? g.history.map(dgoConvPoint) : g.history,
+      } : g))
+    : goalsRaw;
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
+  // ⚠ REPORTS WHETHER THE WRITE LANDED. Callers that go on to write something
+  // DERIVED from this document (the canonical weigh-in row) need completion, not
+  // just invocation — see `logWeighIn`. Every existing caller ignores the return
+  // value, so this is additive.
   const persistDoc = async (nextDoc) => {
     setRawDoc(nextDoc);
     if (signedIn && window.shapeDb && window.shapeDb.saveUserGoals) {
       const res = await window.shapeDb.saveUserGoals("client_goals", nextDoc);
-      showToast(res && res.error ? (res.error.message || "Save failed") : "Saved.");
-    } else {
-      showToast("Sample view — sign in to save.");
+      const failed = !!(res && res.error);
+      showToast(failed ? ((res.error && res.error.message) || "Save failed") : "Saved.");
+      return { ok: !failed };
     }
+    showToast("Sample view — sign in to save.");
+    // Not signed in: there is no server document to disagree with, so a local-only
+    // weigh-in is not a hazard. Reported as ok so the sample view still behaves.
+    return { ok: true };
   };
   const toggleShare = () => {
     const nextShare = !(src.share !== false);
     setSrc({ ...src, share: nextShare });
     persistDoc({ ...(rawDoc || {}), share: nextShare });
   };
+  // ⚠ BODY WEIGHT IS CANONICAL KILOGRAMS, ON THIS SURFACE TOO. The app was
+  // canonicalised on 2026-09-10 and this website path was not, which left two
+  // real holes: it wrote a POUND number into a field literally named `kg` (both
+  // in the goal document and, via `unit`, into `client_weigh_ins`), and
+  // `award_my_goal_milestones` reads that column verbatim — so a pound row
+  // compared against a kilogram goal awards every milestone at once. Nothing
+  // about `{ kg: 185 }` tells the next reader it might be a pound.
+  //
+  // The contract is the app's, restated here: convert on the way in, stamp the
+  // document `kg`, and convert the whole document in ONE step so start, target
+  // and the series can never disagree about which unit they are in. The member
+  // still SEES their own unit — display is the caller's job, not the document's.
+  const dgoToKg = (v, u) => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    return /^(lb|lbs|pound)/i.test(String(u || "kg").trim()) ? n * dgoLbToKg : n;
+  };
   const logWeighIn = async (value, unit) => {
     setLogOpen(false);
     const today = dgoIso(new Date());
     const doc = rawDoc || {};
-    const prev = (doc.overall && Array.isArray(doc.overall.weighIns)) ? doc.overall.weighIns.filter((x) => x) : [];
+    const kg = dgoToKg(value, unit);
+    if (kg == null) return;
+    const wasLb = /^(lb|lbs|pound)/i.test(String((doc.overall && doc.overall.unit) || "kg").trim());
+    const conv = (v) => { const n = Number(v); return Number.isFinite(n) && v !== "" && v != null ? (wasLb ? n * dgoLbToKg : n) : v; };
+    const prev = ((doc.overall && Array.isArray(doc.overall.weighIns)) ? doc.overall.weighIns.filter((x) => x) : [])
+      .map((x) => (wasLb ? { ...x, kg: conv(x.kg) } : x));
     const wi = prev.length && prev[prev.length - 1].d === today
-      ? prev.slice(0, -1).concat([{ d: today, kg: value }])
-      : prev.concat([{ d: today, kg: value }]);
-    const nextDoc = { ...doc, overall: { ...(doc.overall || {}), weighIns: wi, now: value } };
-    const nextSeries = (src.weighIns || []).filter((w) => w.on !== today).concat([{ on: today, weight: value, unit }]);
+      ? prev.slice(0, -1).concat([{ d: today, kg }])
+      : prev.concat([{ d: today, kg }]);
+    // ⚠ THE DOCUMENT GOES CANONICAL; THE MEMBER'S UNIT IS KEPT BESIDE IT. Stamping
+    // `unit: "kg"` without this permanently flipped an Imperial member's whole page
+    // to kilograms after one save — the storage/display split this file's header
+    // promises, half-implemented: the write was canonicalised and the read was not.
+    // There is no units preference on the website at all, so the document is the
+    // only place the member's choice can survive. Found by Codex on `6cc2ebf`.
+    const dispUnit = (doc.overall && doc.overall.displayUnit) || (wasLb ? "lb" : "kg");
+    const nextDoc = { ...doc, overall: { ...(doc.overall || {}), unit: "kg", displayUnit: dispUnit, start: conv(doc.overall && doc.overall.start), target: conv(doc.overall && doc.overall.target), weighIns: wi, now: kg } };
+    const nextSeries = (src.weighIns || []).filter((w) => w.on !== today).concat([{ on: today, weight: kg, unit: "kg" }]);
     setSrc({ ...src, overall: nextDoc.overall, weighIns: nextSeries });
-    persistDoc(nextDoc);
+    // ⚠ AWAITED, AND THE WEIGH-IN ROW HANGS OFF IT. `persistDoc` is async; calling
+    // it bare established CALL order and not COMPLETION order, so a slow or failed
+    // `saveUserGoals` left the server holding the legacy POUND goal while this
+    // upsert had already stored the converted KILOGRAM weight. `award_my_goal_milestones`
+    // reads both operands verbatim and the mobile Goals page invokes it on open, so
+    // the next visit awarded every milestone for a member who had reached none —
+    // an 83.9 kg weigh-in is "past" a 180 lb target on any numeric comparison.
+    //
+    // This is the SAME defect Codex caught in the app's own `logWeighIn` on this
+    // date, fixed there and not carried here. A fix that lands on one surface is
+    // not a fix; found by Codex on `6cc2ebf`.
+    const saved = await persistDoc(nextDoc);
     if (signedIn && window.shapeDb) {
+      // ⚠ THE CANONICAL DOCUMENT MUST BE CONFIRMED WRITTEN FIRST. Skipping the row
+      // costs the member one data point they can re-enter; writing it against a
+      // stale pound goal awards points they have not earned, which is not
+      // recoverable. When the document cannot be trusted, the row is not written.
+      if (saved && saved.ok === false) return;
       try {
         await window.shapeDb.client.from("client_weigh_ins").upsert(
-          { user_id: (await window.shapeDb.getUser()).id, logged_on: today, weight: value, unit },
+          { user_id: (await window.shapeDb.getUser()).id, logged_on: today, weight: kg, unit: "kg" },
           { onConflict: "user_id,logged_on" }
         );
       } catch (e) {}
     }
   };
 
-  const unit = (goals[0] && goals[0].metric === "weight" && goals[0].unit) || (src.overall && src.overall.unit) || "lb";
+  // ⚠ `goals[0].unit` is already the DISPLAY unit after the conversion above, so the
+  // weigh-in modal prefills and labels in the member's own unit — and `logWeighIn`
+  // converts whatever it is handed back to kilograms. `displayUnit` is preferred over
+  // the document's canonical `unit`, which is always "kg" once canonicalised.
+  const unit = (goals[0] && goals[0].metric === "weight" && goals[0].unit) || dgoDispUnit || (src.overall && src.overall.unit) || "lb";
   const share = src.share !== false;
   const why = src.overall && src.overall.why;
   const accentFor = (g) => {

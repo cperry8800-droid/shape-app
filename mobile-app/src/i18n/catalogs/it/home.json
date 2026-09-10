@@ -16,6 +16,8 @@
   "aria.today": "oggi",
   "bulletin.checkin": "Check-in da fare",
   "bulletin.checkinDetail": "Energia · sonno · 30 sec",
+  "bulletin.onTheWall": "In bacheca",
+  "bulletin.onTheWallDetail": "{name} · {lift} {value} {unit}",
   "bulletin.weeklyCheckin": "Check-in settimanale da fare",
   "bulletin.weeklyCheckinDetail": "2 min",
   "card.training": "Allenamento",
