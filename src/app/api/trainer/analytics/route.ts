@@ -250,7 +250,10 @@ export async function GET() {
   // with the nutritionist route so the mapping can't drift.
   const byOrigin = await buildOriginFeed(supabase, 'trainer', providerId, subs, activeNames);
 
-  const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : 0;
+  // ⚠ NULL, NOT 0, WHEN THERE IS NOTHING TO MEASURE. A goal bound to this
+  // figure renders 0 as a measurement — "0% of 95%" under a "Live" label — for
+  // a coach who simply has no planned sessions yet.
+  const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : null;
 
   // The practice trajectory (review 2026-09-09, R8): every subscription this
   // trainer has ever had, any status, plus paid one-time purchases — bucketed by

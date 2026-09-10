@@ -51,30 +51,8 @@ function Field({ label, value, onChange, type }) {
   );
 }
 
-// ── Live metric bindings for a goal (review 2026-09-09, R9) ────────────────
-// A goal's CURRENT was always a number the coach typed, so "34 of 50 active
-// clients" stayed 34 while the roster moved. Binding it names a figure the
-// practice can answer for itself, and the card then reads a measurement.
-//
-// ⚠ A BOUND GOAL WHOSE FIGURE CANNOT BE READ SHOWS "—", NOT THE STORED NUMBER.
-// Falling back to the last typed value is exactly how a stale figure gets
-// presented as current — the thing this binding exists to stop.
-const GOAL_METRICS = [
-  ["", "Type it in"],
-  ["activeClients", "Active clients"],
-  ["mrrNetMonthly", "MRR · net per month"],
-  ["avgAdherencePct", "Avg client adherence %"],
-];
-function goalLiveValue(metric, live) {
-  if (!metric || !live) return undefined;
-  if (live.kind !== "live") return null;          // can't read → "—"
-  if (metric === "activeClients") return live.activeClients;
-  if (metric === "mrrNetMonthly") return live.mrrNetCents == null ? null : Math.round(live.mrrNetCents / 100);
-  if (metric === "avgAdherencePct") return live.avgAdherencePct;
-  return null;
-}
-
-function GoalEditModal({ goal, onClose, onSave, onDelete }) {
+function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
+  const METRICS = goalMetricsFor(role);
   const [g, setG] = React.useState(goal || { t: "", cur: 0, tgt: 100, sub: "", money: false, pct: false });
   return (
     <ModalShell
@@ -88,15 +66,18 @@ function GoalEditModal({ goal, onClose, onSave, onDelete }) {
       </>}
     >
       <Field label="TITLE" value={g.t} onChange={v => setG({ ...g, t: v })} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="CURRENT" type="number" value={g.cur} onChange={v => setG({ ...g, cur: v })} />
+      {/* ⚠ CURRENT DISAPPEARS ONCE THE GOAL IS BOUND. The card reads the live
+          figure and ignores `cur` entirely, so leaving the input on screen was
+          a control that accepted a number and silently discarded it. */}
+      <div style={{ display: "grid", gridTemplateColumns: g.metric ? "1fr" : "1fr 1fr", gap: 12 }}>
+        {!g.metric && <Field label="CURRENT" type="number" value={g.cur} onChange={v => setG({ ...g, cur: v })} />}
         <Field label="TARGET" type="number" value={g.tgt} onChange={v => setG({ ...g, tgt: v })} />
       </div>
       <div style={{ marginTop: 2 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>CURRENT READS FROM</div>
         <select value={g.metric || ""} onChange={e => setG({ ...g, metric: e.target.value || undefined })}
           style={{ width: "100%", background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "9px 11px", fontFamily: sans, fontSize: 13 }}>
-          {GOAL_METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612" }}>{label}</option>)}
+          {METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612" }}>{label}</option>)}
         </select>
       </div>
       <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
@@ -249,16 +230,17 @@ function NutritionistGoalPage() {
     // goal is not bound (use the typed number), null means it IS bound and the
     // figure could not be read — which shows "—", never the stale typed one.
     const bound = goalLiveValue(g.metric, live);
+    const pending = bound === "loading";
     const liveCur = bound === undefined ? Number(g.cur) || 0 : bound;
     const unreadable = bound === null;
-    const pct = unreadable ? 0 : Math.min((Number(liveCur)||0) / (Number(g.tgt)||1), 1);
-    const curF = unreadable ? "—" : g.money ? `$${Number(liveCur).toLocaleString()}` : g.pct ? `${liveCur}%` : liveCur;
+    const pct = (unreadable || pending) ? 0 : Math.min((Number(liveCur)||0) / (Number(g.tgt)||1), 1);
+    const curF = (unreadable || pending) ? "—" : g.money ? `$${Number(liveCur).toLocaleString()}` : g.pct ? `${liveCur}%` : liveCur;
     const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
-    const metricLabel = (GOAL_METRICS.find(([v]) => v === g.metric) || [])[1];
+    const metricLabel = (goalMetricsFor("nutritionist").find(([v]) => v === g.metric) || [])[1];
     return (
       <Card style={{ padding: 26, position: "relative" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {unreadable ? "—" : Math.round(pct*100) + "%"}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {(unreadable || pending) ? "—" : Math.round(pct*100) + "%"}</div>
           <Chip onClick={() => setEditGoalId(g.id)}>EDIT</Chip>
         </div>
         <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
@@ -271,7 +253,7 @@ function NutritionistGoalPage() {
         <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
         {g.metric && (
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginTop: 10 }}>
-            {unreadable ? "Couldn't read " + (metricLabel || "this figure").toLowerCase() : "Live · " + (metricLabel || g.metric)}
+            {pending ? "Reading…" : unreadable ? "Couldn't read " + (metricLabel || "this figure").toLowerCase() : "Live · " + (metricLabel || g.metric)}
           </div>
         )}
       </Card>
@@ -310,7 +292,15 @@ function NutritionistGoalPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
             {[
-              ["WEEKLY TAKE-HOME", fmt(weekly), `vs ${fmt(currentNet)} ${paceIsLive ? "from your subscriptions" : "current pace"} · ${fmt(grossWeekly)} gross`, paceDelta],
+              // ⚠ NO DELTA AGAINST A LIVE PACE. The target includes session work and
+              // one-time sales; the live figure is SUBSCRIPTION revenue only (both
+              // analytics routes sum `subscriptions` and nothing else). Subtracting
+              // one from the other produced a coloured "+$745 surplus" for a trainer
+              // already past target on session income. The figure is worth showing;
+              // the difference between them is not a number.
+              ["WEEKLY TAKE-HOME", fmt(weekly), paceIsLive
+                ? `subscriptions today: ${fmt(currentNet)} · ${fmt(grossWeekly)} gross target`
+                : `vs ${fmt(currentNet)} current pace · ${fmt(grossWeekly)} gross`, paceIsLive ? null : paceDelta],
               ["MONTHLY TAKE-HOME", fmt(monthly), `${fmt(grossWeekly * 4.33)} gross · 4.33 weeks avg`, null],
               ["QUARTERLY TAKE-HOME", fmt(quarterly), `${fmt(grossWeekly * 4.33 * 3)} gross · 3 months`, null],
               ["ANNUAL TAKE-HOME", fmt(annual), `${fmt(grossWeekly * 4.33 * 12)} gross · 12 months`, null],
@@ -381,6 +371,7 @@ function NutritionistGoalPage() {
       {editGoalId != null && (
         <GoalEditModal
           goal={editGoalId === "new" ? null : goals.find(x => x.id === editGoalId)}
+          role="nutritionist"
           onClose={() => setEditGoalId(null)}
           onSave={saveGoal}
           onDelete={editGoalId === "new" ? null : deleteGoal}

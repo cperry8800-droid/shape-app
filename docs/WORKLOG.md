@@ -141,12 +141,23 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-08-24, AND THE ONLY VERSION THAT
-  BINDS.** Owner, 2026-08-24: *"no more coderabbit"*. **THERE IS NO REVIEWER.** The
-  merge gate is **CI green on the final head AND not a draft** — nothing else. Layer
-  (a), your own adversarial self-review before pushing, is now the ONLY layer that reads
-  a diff for *intent*; CI checks that the code builds and typechecks, which is a
-  different question.
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-10, AND THE ONLY VERSION THAT BINDS.**
+  Owner, 2026-09-10: *"i just want the tasks completed as we said we were with proper
+  reviews for each PR"* + *"trigging a codex review on each PR as well moving forward"*.
+  **EVERY PR GETS TWO REVIEW LAYERS: `/code-review` before pushing, and an explicit
+  `@codex review` comment on the PR.**
+  ⚠ **THIS REVERSES THE STANDING "NEVER TRIGGER CODEX" RULING** (owner, 2026-08-21),
+  whose stated premise — no credits — measurement had already refuted on 2026-08-29 while
+  the ruling itself stood. The owner has now revised it directly, which is theirs to do
+  and mine to record HERE rather than in a handoff nobody auto-reads.
+  ⚠ **AND ONE ROUND PER PR, NOT A FAN-OUT.** Owner, 2026-09-10, on an 8-dimension ×
+  3-refuter review workflow: *"is this overkill?" … "then dont do it"*. The maximal
+  adversarial harness is for migrations, money and persistence — not for every diff. Run
+  `/code-review` once, work its findings, trigger Codex, merge on CI green.
+  ⚠ **THE MERGE GATE ITSELF IS UNCHANGED: CI green on the final head AND not a draft.**
+  Codex advises; it does not close the gate — the 2026-08-26 post-mortem below explains
+  why naming a reviewer IN the gate has now broken `/console` twice, and that lesson is
+  not reopened by this ruling.
   ⚠ **EVERYTHING BELOW THIS LINE THAT NAMES A GATING REVIEWER IS HISTORY, KEPT ON
   PURPOSE.** It is not deleted, because two of its rules turned out to be about reviewers
   in general rather than about CodeRabbit: **a verdict is only about the head it names**,
@@ -474,6 +485,74 @@ several are marked SHIPPED in their own text.
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-09-10 — P1-C: the roster learns tenure and revenue, and the Goal page stops showing numbers you typed in March
+
+- **R10 — the roster could never say how long anyone had been a client.** `coach-roster.ts`
+  computed each client's earliest subscription date for its `isNew` flag and then **threw it
+  away**. It returns `joinedAt` now, and both coach roles gain **REVENUE** and **TENURE**
+  columns. A client on no paid plan reads **$0** — a real answer about a real client; only a
+  missing payments leg is *"not shared"*.
+- **R9 — every number on the coach Goal page was one the coach had typed**: `cur` on each
+  goal, the calculator's *"current pace"*, and every row of the momentum card. A goal can now
+  bind its CURRENT to a live figure; the calculator's pace reads real subscription revenue
+  when the coach set none; momentum computes from the trajectory when the coach has no saved
+  rows. ⚠ **A bound goal whose figure cannot be read shows "—", never the stale typed value** —
+  falling back to it is precisely how March gets presented as today. And a coach who HAS typed
+  rows keeps them: replacing someone's own reading of their quarter with a computed one is
+  data loss with a nicer label.
+- ⚠ **AND THE REVIEW ROUND FOUND FIFTEEN THINGS, INCLUDING ONE THAT WOULD HAVE SHOWN A
+  SIGNED-IN COACH THE DEMO CAST.** `new Date(e.joinedAt).toISOString()` **throws** on an
+  unparseable date where the pre-existing `.getTime()` read only yields NaN — so one bad
+  `created_at` would 500 the roster route, `_dashJson` would throw, and `useDashboard` falls
+  through to `demo(today)`: a real coach shown Jordan M. and Marcus T. with nothing saying so.
+  Guarded at an `isoOrNull` helper. *A new call on an old value is a new failure mode.*
+- ⚠ **THE NUTRITIONIST'S ADHERENCE BINDING WAS DEAD ON ARRIVAL, AND MY OWN TEST LOCKED IT
+  THAT WAY.** The trainer route returns `avgAdherencePct`; the nutritionist route returns
+  `proteinAdherencePct` and has **no** `avgAdherencePct` at all — so the shared metric list
+  offered nutritionists a binding their own payload can never answer, rendering *"Couldn't
+  read…"* forever. Worse, the test I wrote asserted the two roles' lists were **identical**,
+  which would have failed anyone fixing it. `goalMetricsFor(role)` now lives in `dashData.jsx`
+  and names what each role actually measures; the test pins the same metric KEYS with
+  role-appropriate LABELS. *A guard that enforces a symmetry the data does not have is a guard
+  against the fix.*
+- ⚠ **"LOADING" IS NOT "COULD NOT BE READ".** `goalLiveValue` returned null while the fetch
+  was still in flight, so every bound goal painted *"Couldn't read active clients"* on every
+  page load until `/analytics` came back — and `/analytics` makes three Stripe round trips. A
+  false failure message on a healthy account, and my test had **enshrined** it. Third state now.
+- ⚠ **A MEASURED 0 AND "NOTHING TO MEASURE" WERE COLLAPSED IN BOTH ANALYTICS ROUTES.** Each
+  returned `0` when its denominator was zero, so a coach with no planned sessions saw a goal
+  read *"0% of 95%"* under a **Live** label — a measurement that was never taken. Both return
+  `null` now. The same class one layer up: `coachLiveMomentum` guarded on fields being
+  *present* rather than on anything having been *measured*, so a coach who has never had a
+  client got *"+0 net new · 0 active"* under a MEASURED eyebrow — the exact "four rows of
+  zeroes that read as a flat quarter" its own comment promises to suppress.
+- ⚠ **AND THE LIVE PACE WAS NOT COMPARABLE TO THE TARGET IT WAS SUBTRACTED FROM.** The
+  calculator's target includes session work and one-time sales; the live figure is
+  **subscription revenue only** (both routes sum `subscriptions` and nothing else). A trainer
+  earning $1,200/wk in sessions against a $1,000 target saw a teal **+$745 surplus**. The
+  figure is worth showing; the difference between the two is not a number, so the coloured
+  delta is suppressed when the pace is live.
+- **The rest, each fixed:** `$0/mo` was rendered `dim`, which is the italic 40%-ink treatment
+  of *"Not shared"* — making "pays me nothing" indistinguishable from "we don't know"; the
+  momentum eyebrow claimed **30D** over a month-to-date row and a lifetime one (the rows name
+  their own window now); the goal modal kept a CURRENT input that the card **ignores** once
+  bound (hidden when bound); a demo persona carried a **"New" pill beside a 1.5y tenure**; and
+  `GOAL_METRICS`/`goalLiveValue` were duplicated byte-for-byte into both Goal pages with a test
+  written to *police* the duplication rather than remove it — they live in `dashData.jsx` now.
+- ⚠ **TENURE AND MEDIAN TENURE ANSWER DIFFERENT QUESTIONS ON THE SAME DASHBOARD, ON PURPOSE
+  AND IN WRITING.** The roster's TENURE is the start of the client's **current** run (the
+  roster query reads active/trialing rows only, so a client who left and returned dates from
+  their return); the Goal page's median tenure is computed over **every** span ever. Recorded
+  at the source rather than reconciled, because a coach asking "how long has this client been
+  with me" and "how long do my clients last" want different numbers.
+- ⚠ **NEW REVIEWER RULING, RECORDED AT THE HEAD OF THIS FILE.** Owner, 2026-09-10: every PR
+  gets `/code-review` **and** an explicit `@codex review` — which reverses the standing
+  "never trigger Codex" ruling. And one round per PR, not a fan-out: an 8-dimension ×
+  3-refuter review workflow was called *"overkill"* and stopped. The merge gate is unchanged.
+- **Verified:** `npm test` · `tsc --noEmit` 0 · JSX parse on every changed module · the
+  newdesign precompile check · headless renders of the roster and the Goal tab in both live
+  and demo state. No migration.
 
 ### 2026-09-09 — P1-B: the phone layout that was never switched on, and the layout-destroying bug switching it on would have released
 

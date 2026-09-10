@@ -205,7 +205,8 @@ export async function GET() {
   // with the trainer route so the mapping can't drift.
   const byOrigin = await buildOriginFeed(supabase, 'nutritionist', providerId, subs, activeNames);
 
-  const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : 0;
+  // ⚠ NULL, NOT 0, WHEN THERE IS NOTHING TO MEASURE — see the trainer route.
+  const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : null;
   const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
 
   // The practice trajectory (review 2026-09-09, R8) — the same series the trainer

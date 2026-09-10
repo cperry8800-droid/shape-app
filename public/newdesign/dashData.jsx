@@ -337,7 +337,16 @@ function useCoachLiveFigures(role) {
         // 4.33 weeks/month — the same divisor the Goal page's own calculator
         // uses, so the pace it compares against is on its scale.
         weeklyNetCents: net != null ? Math.round(net / 4.33) : null,
-        avgAdherencePct: (a.clientProgress && a.clientProgress.avgAdherencePct != null) ? a.clientProgress.avgAdherencePct : null,
+        // ⚠ THE TWO ROLES MEASURE DIFFERENT THINGS AND NAME THEM DIFFERENTLY.
+        // The trainer route returns `avgAdherencePct` (sessions completed vs
+        // planned); the nutritionist route returns `proteinAdherencePct` and has
+        // no avgAdherencePct at all — so reading one field for both roles left
+        // the nutritionist binding permanently unreadable.
+        adherencePct: (() => {
+          const cp = a.clientProgress || {};
+          const v = role === "trainer" ? cp.avgAdherencePct : cp.proteinAdherencePct;
+          return v == null ? null : v;
+        })(),
         trajectory: a.trajectory || null,
       });
     })();
@@ -346,16 +355,56 @@ function useCoachLiveFigures(role) {
   return state;
 }
 
+// ── What a goal's CURRENT can be bound to (review 2026-09-09, R9) ──────────
+// ⚠ PER ROLE, because the two analytics routes measure different things: the
+// trainer has session adherence, the nutritionist has protein adherence. One
+// shared list offered the nutritionist a binding their own payload can never
+// answer, so the goal read "Couldn't read…" forever.
+//
+// Defined HERE rather than in each Goal page: the two pages are near-identical
+// and were drifting a copy each.
+function goalMetricsFor(role) {
+  return [
+    ["", "Type it in"],
+    ["activeClients", "Active clients"],
+    ["mrrNetMonthly", "MRR · net per month"],
+    ["adherencePct", role === "trainer" ? "Avg session adherence %" : "Avg protein adherence %"],
+  ];
+}
+// undefined = not bound (use the typed number) · null = bound but unreadable
+// (show "—", NEVER the stale typed value) · a number = live.
+//
+// ⚠ "loading" IS NOT "unreadable". Returning null while the fetch is still in
+// flight painted "Couldn't read active clients" on every page load until
+// /analytics came back — a false failure message on a healthy account.
+function goalLiveValue(metric, live) {
+  if (!metric || !live) return undefined;
+  if (live.kind === "loading") return "loading";
+  if (live.kind !== "live") return null;
+  if (metric === "activeClients") return live.activeClients;
+  if (metric === "mrrNetMonthly") return live.mrrNetCents == null ? null : Math.round(live.mrrNetCents / 100);
+  if (metric === "adherencePct") return live.adherencePct;
+  return null;
+}
+
 // The momentum card's four rows, computed from the trajectory R8 already
 // ships. Returns null when there is nothing measured to say — an empty card is
 // better than four rows of zeroes that read as a flat quarter.
 function coachLiveMomentum(live) {
   if (!live || live.kind !== "live" || !live.trajectory || !live.trajectory.summary) return null;
   const s = live.trajectory.summary;
+  // ⚠ GUARD ON HAVING MEASURED SOMETHING, not on the fields being present.
+  // `buildTrajectory` always returns a summary — for a coach with no
+  // subscriptions every field is a legitimate 0, all of them pass a `!= null`
+  // check, and the card renders "+0 net new · 0 active" under a MEASURED
+  // eyebrow for someone who has never had a client. That is the exact "four
+  // rows of zeroes that read as a flat quarter" this function promises to
+  // suppress.
+  if (!s.totalEverSubscribed) return null;
   const rows = [];
   const net = (s.addsThisMonth || 0) - (s.endedThisMonth || 0);
   if (s.addsThisMonth != null && s.endedThisMonth != null) {
-    rows.push([(net >= 0 ? "+" : "") + net, "Net new clients", s.addsThisMonth + " joined · " + s.endedThisMonth + " left"]);
+    rows.push([(net >= 0 ? "+" : "") + net, "Net new · this month", s.addsThisMonth + " joined · " + s.endedThisMonth + " left"]);
   }
   if (s.activeNow != null && s.active30dAgo != null) {
     const d = s.activeNow - s.active30dAgo;
@@ -364,7 +413,7 @@ function coachLiveMomentum(live) {
   if (s.churnRate30dPct != null) rows.push([s.churnRate30dPct + "%", "Churn · 30d", "of " + s.active30dAgo + " active a month ago"]);
   if (s.medianTenureDays != null) {
     const t = s.medianTenureDays;
-    rows.push([t < 62 ? t + "d" : Math.round(t / 30.44) + "mo", "Median tenure", "across " + s.totalEverSubscribed + " ever subscribed"]);
+    rows.push([t < 62 ? t + "d" : Math.round(t / 30.44) + "mo", "Median tenure · lifetime", "across " + s.totalEverSubscribed + " ever subscribed"]);
   }
   return rows.length ? rows : null;
 }
@@ -373,4 +422,4 @@ function coachLiveMomentum(live) {
 // rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
 // wants the same /api/{role}/dashboard payload the page hook already asks for;
 // without the shared cache that is a second round trip on every dashboard load.
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalLiveValue });

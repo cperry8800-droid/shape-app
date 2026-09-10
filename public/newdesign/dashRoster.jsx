@@ -96,7 +96,11 @@ function dashRevenueLabel(rec) {
   const p = rec.payments;
   if (!p || p.mrrCents == null) return { text: "Not shared", dim: true };
   const dollars = p.mrrCents / 100;
-  return { text: "$" + (dollars >= 1000 ? (dollars / 1000).toFixed(1) + "k" : Math.round(dollars).toLocaleString()) + "/mo", dim: p.mrrCents === 0 };
+  // ⚠ NOT dim. `dashCellText` renders dim in italic 40% ink — the exact
+  // treatment of "Not shared" — so dimming $0 made "this client pays me
+  // nothing" indistinguishable from "we do not know what they pay", which
+  // is the distinction the comment above exists to keep.
+  return { text: "$" + (dollars >= 1000 ? (dollars / 1000).toFixed(1) + "k" : Math.round(dollars).toLocaleString()) + "/mo" };
 }
 function dashTenureLabel(rec) {
   // How long they have been a client, from their earliest subscription.

@@ -28,7 +28,9 @@ const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
 
 test('revenue: a client on no paid plan is $0, not "not shared"', () => {
   // 0 is a real answer about a real client; only a missing leg is unknown.
-  assert.deepEqual(dashRevenueLabel({ payments: { mrrCents: 0 } }), { text: "$0/mo", dim: true });
+  // ⚠ NOT dim — dim is rendered in the same italic 40% ink as "Not shared",
+  // so dimming a real $0 made it indistinguishable from an unknown.
+  assert.deepEqual(dashRevenueLabel({ payments: { mrrCents: 0 } }), { text: "$0/mo" });
   assert.equal(dashRevenueLabel({ payments: { mrrCents: 18000 } }).text, "$180/mo");
   assert.equal(dashRevenueLabel({ payments: { mrrCents: 249900 } }).text, "$2.5k/mo", 'four figures read in thousands');
   assert.equal(dashRevenueLabel({ payments: null }).dim, true);
@@ -51,7 +53,7 @@ test('live momentum is computed only from figures that exist', () => {
   const summary = { activeNow: 21, active30dAgo: 18, addsThisMonth: 5, endedThisMonth: 2, churnRate30dPct: 11, medianTenureDays: 96, totalEverSubscribed: 34 };
   const rows = coachLiveMomentum({ kind: 'live', trajectory: { summary } });
   assert.equal(rows.length, 4);
-  assert.deepEqual(rows[0], ['+3', 'Net new clients', '5 joined · 2 left']);
+  assert.deepEqual(rows[0], ['+3', 'Net new · this month', '5 joined · 2 left']);
   assert.deepEqual(rows[1], ['21', 'Active clients', '+3 vs 30d ago']);
   assert.equal(rows[2][0], '11%');
   assert.equal(rows[3][0], '3mo');
@@ -74,8 +76,9 @@ test('momentum is null — never a row of zeroes — when there is nothing measu
   assert.equal(coachLiveMomentum({ trajectory: { summary } }), null, 'no kind at all is not live');
   assert.equal(coachLiveMomentum({ kind: 'live', trajectory: null }), null, 'a failed subscriptions read is not a flat quarter');
   assert.equal(coachLiveMomentum({ kind: 'live', trajectory: { summary: {} } }), null);
-  // A partially-answerable summary yields only the rows it can support.
-  const partial = coachLiveMomentum({ kind: 'live', trajectory: { summary: { activeNow: 4, active30dAgo: 4 } } });
+  // A partially-answerable summary yields only the rows it can support — but
+  // only once the coach has actually had a subscriber to measure.
+  const partial = coachLiveMomentum({ kind: 'live', trajectory: { summary: { activeNow: 4, active30dAgo: 4, totalEverSubscribed: 6 } } });
   assert.equal(partial.length, 1);
   assert.deepEqual(partial[0], ['4', 'Active clients', '+0 vs 30d ago']);
 });
@@ -103,28 +106,57 @@ test('both roster views carry the two columns, and their track counts line up', 
 // ── R9: a goal bound to a live metric ───────────────────────────────────────
 const GOAL = readFileSync(new URL('../public/newdesign/trainerGoalPage.jsx', import.meta.url), 'utf8');
 const NUTRI_GOAL = readFileSync(new URL('../public/newdesign/nutritionistGoalPage.jsx', import.meta.url), 'utf8');
-const { goalLiveValue } = load(GOAL, ['goalLiveValue'], GOAL.slice(GOAL.indexOf('const GOAL_METRICS'), GOAL.indexOf('];', GOAL.indexOf('const GOAL_METRICS')) + 2) + '\n');
+const { goalLiveValue, goalMetricsFor } = load(DATA, ['goalMetricsFor', 'goalLiveValue']);
 
-test('a bound goal reads the practice; an UNREADABLE one is null, never the stale typed value', () => {
-  const live = { kind: 'live', activeClients: 21, mrrNetCents: 2601000, avgAdherencePct: 88 };
+test('a bound goal reads the practice; unreadable is null, loading is neither', () => {
+  const live = { kind: 'live', activeClients: 21, mrrNetCents: 2601000, adherencePct: 88 };
   assert.equal(goalLiveValue('activeClients', live), 21);
   assert.equal(goalLiveValue('mrrNetMonthly', live), 26010, 'cents → dollars');
-  assert.equal(goalLiveValue('avgAdherencePct', live), 88);
-  // undefined = "this goal is not bound, use the number the coach typed".
+  assert.equal(goalLiveValue('adherencePct', live), 88);
+  // undefined = not bound; use the number the coach typed.
   assert.equal(goalLiveValue('', live), undefined);
   assert.equal(goalLiveValue(undefined, live), undefined);
-  // ⚠ null = "bound, but we could not read it" → the card shows "—". Returning
-  // the stored `cur` here is exactly how a figure from March gets presented as
-  // today's, which is the drift this binding exists to end.
+  // ⚠ null = bound but unreadable → the card shows "—". Returning the stored
+  // `cur` here is how a figure from March gets presented as today's.
   assert.equal(goalLiveValue('activeClients', { kind: 'demo' }), null);
   assert.equal(goalLiveValue('activeClients', { kind: 'unknown' }), null);
-  assert.equal(goalLiveValue('activeClients', { kind: 'loading' }), null);
   assert.equal(goalLiveValue('mrrNetMonthly', { kind: 'live', mrrNetCents: null }), null);
-  assert.equal(goalLiveValue('nonsense', live), null, 'an unknown metric is unreadable, not the typed value');
+  assert.equal(goalLiveValue('nonsense', live), null);
+  // ⚠ "loading" IS NOT a failure. Treating it as one painted "Couldn't read
+  // active clients" on every page load until /analytics returned.
+  assert.equal(goalLiveValue('activeClients', { kind: 'loading' }), 'loading');
+});
+
+test('the two roles are offered bindings their OWN payload can answer', () => {
+  // The trainer route returns avgAdherencePct; the nutritionist route returns
+  // proteinAdherencePct and has no avgAdherencePct at all — one shared list
+  // offered the nutritionist a binding that could never resolve.
+  const t = goalMetricsFor('trainer'), n = goalMetricsFor('nutritionist');
+  assert.deepEqual(t.map(([v]) => v), n.map(([v]) => v), 'the same metric KEYS');
+  assert.notEqual(t[3][1], n[3][1], 'but named for what each role actually measures');
+  assert.match(t[3][1], /session/i);
+  assert.match(n[3][1], /protein/i);
+});
+
+test('the Goal pages consume the shared helpers rather than each keeping a copy', () => {
+  for (const src of [GOAL, NUTRI_GOAL]) {
+    assert.doesNotMatch(src, /const GOAL_METRICS = \[/, 'the metric list belongs in dashData.jsx');
+    assert.doesNotMatch(src, /function goalLiveValue/, 'goalLiveValue belongs in dashData.jsx');
+    assert.match(src, /goalMetricsFor\(/);
+    assert.match(src, /useCoachLiveFigures\("(trainer|nutritionist)"\)/);
+    assert.match(src, /coachLiveMomentum\(live\)/);
+  }
+});
+
+test('no coloured delta is drawn against a subscriptions-only pace', () => {
+  // The target includes session and one-time income; the live figure is
+  // subscription revenue only. Subtracting them showed a surplus that isn't one.
+  for (const [name, src] of [['trainer', GOAL], ['nutritionist', NUTRI_GOAL]]) {
+    assert.match(src, /paceIsLive \? null : paceDelta/, name + ' must suppress the delta when the pace is live');
+  }
 });
 
 test('both Goal pages format a negative as -$n, not $-n', () => {
-  // Binding the pace to real subscriptions is what starts producing negatives.
   for (const [name, src] of [['trainer', GOAL], ['nutritionist', NUTRI_GOAL]]) {
     const { fmt } = new Function(/const fmt = [^;]+;/.exec(src)[0] + '\nreturn { fmt };')();
     assert.equal(fmt(-6007), '-$6,007', name);
@@ -133,14 +165,22 @@ test('both Goal pages format a negative as -$n, not $-n', () => {
   }
 });
 
-test('both Goal pages share the same live bindings', () => {
-  // They are near-identical files; a metric added to one and not the other is
-  // how the two roles quietly stop agreeing about what a goal can read.
-  const list = (src) => /const GOAL_METRICS = \[([\s\S]*?)\];/.exec(src)[1].replace(/\s+/g, '');
-  assert.equal(list(GOAL), list(NUTRI_GOAL));
-  for (const src of [GOAL, NUTRI_GOAL]) {
-    assert.match(src, /useCoachLiveFigures\("(trainer|nutritionist)"\)/);
-    assert.match(src, /coachLiveMomentum\(live\)/);
-    assert.match(src, /paceIsLive/);
-  }
+test('a coach who has never had a client gets no momentum card at all', () => {
+  // buildTrajectory always returns a summary; for no subscriptions every field
+  // is a legitimate 0, all pass a != null check, and the card would render
+  // "+0 net new · 0 active" under a MEASURED eyebrow.
+  const empty = { activeNow: 0, active30dAgo: 0, addsThisMonth: 0, endedThisMonth: 0, churnRate30dPct: null, medianTenureDays: null, totalEverSubscribed: 0 };
+  assert.equal(coachLiveMomentum({ kind: 'live', trajectory: { summary: empty } }), null);
+  // One ever-subscribed client is enough to have something to say.
+  const one = { ...empty, totalEverSubscribed: 1, activeNow: 1, active30dAgo: 1 };
+  assert.equal(coachLiveMomentum({ kind: 'live', trajectory: { summary: one } }).length, 2);
+});
+
+test('the momentum rows name their own window, since the card cannot', () => {
+  // Net-new is calendar month-to-date and median tenure is lifetime; a single
+  // "MEASURED · 30D" eyebrow over both was wrong about two of four rows.
+  const summary = { activeNow: 21, active30dAgo: 18, addsThisMonth: 5, endedThisMonth: 2, churnRate30dPct: 11, medianTenureDays: 96, totalEverSubscribed: 34 };
+  const rows = coachLiveMomentum({ kind: 'live', trajectory: { summary } });
+  assert.match(rows[0][1], /this month/i);
+  assert.match(rows[3][1], /lifetime/i);
 });

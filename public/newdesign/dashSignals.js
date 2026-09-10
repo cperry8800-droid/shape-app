@@ -872,7 +872,7 @@
       // one" state.
       person(9, "Tess B.", {
         profile: { id: "demo-9", name: "Tess B.", isNew: true, status: "new" },
-        payments: { mrrCents: 16000, status: "active", lastSessionAt: ago(1), joinedAt: ago(540) },
+        payments: { mrrCents: 16000, status: "active", lastSessionAt: ago(1), joinedAt: ago(5) },
         goal: { target: 150, unit: "lb", now: 158 },
         trainingAdherence: { pct: 100, done: 2, planned: 2 },
         foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 3 },

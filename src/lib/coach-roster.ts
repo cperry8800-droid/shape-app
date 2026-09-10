@@ -11,6 +11,14 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS } from '@/lib/time';
 
+// `.toISOString()` throws on an invalid date; every caller here wants "no
+// answer" rather than a 500 that takes the whole roster down with it.
+function isoOrNull(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
 type ClientEntry = {
   id: string | null;
   name: string;
@@ -107,7 +115,19 @@ export async function coachClientsResponse(
         // The earliest subscription start — already computed above for `isNew`
         // and then thrown away, so the roster could never show how long anyone
         // had been a client (review 2026-09-09, R10).
-        joinedAt: e.joinedAt ? new Date(e.joinedAt).toISOString() : null,
+        //
+        // ⚠ GUARDED, because `.toISOString()` THROWS on an invalid date while
+        // the `isNew` read above only yields NaN. An unparseable created_at
+        // would 500 the whole roster route, `_dashJson` would throw, and
+        // `useDashboard` falls through to the DEMO cast — so one bad row would
+        // show a signed-in coach a fabricated roster with nothing saying so.
+        //
+        // ⚠ AND THIS IS THE START OF THE CURRENT RUN, NOT LIFETIME TENURE: the
+        // query above reads active/trialing rows only, so a client who left and
+        // came back dates from their return. The Goal page's median tenure is
+        // computed over EVERY span by `buildTrajectory`, which is the lifetime
+        // reading; the two answer different questions on purpose.
+        joinedAt: isoOrNull(e.joinedAt),
         lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null,
         isNew,
         status,
