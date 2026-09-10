@@ -81,7 +81,8 @@ type TriageRow = { client: { userId?: string; id?: string; profile?: { name?: st
 const engine = DashSignals as unknown as {
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
   evaluateClient: (record: unknown, now?: Date, role?: string) => { flags: Flag[]; severity: string };
-  getTriageFeed: (role: string, clients: unknown[], now?: Date) => TriageRow[];
+  getTriageFeed: (role: string, clients: unknown[], now?: Date, thresholds?: Record<string, number>) => TriageRow[];
+  resolveThresholds: (o: unknown) => { thresholds: Record<string, number>; applied: Record<string, number>; refused: { key: string; why: string }[] };
 };
 
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
@@ -96,12 +97,21 @@ export function candidatesFor(
     now: Date;
     habitContext?: HabitContext;
     checkinOptedOut?: boolean;
+    // ⚠ THE COACH'S OWN TUNING (review 2026-09-09, R14), AND WITHOUT IT THIS FILE
+    // CONTRADICTS THE PANEL THAT SETS IT. The office settings page tunes the same
+    // engine this module imports — but the module carries house defaults compiled
+    // in, so a trainer who raises the food-log gap 3 → 6 watched their roster stop
+    // flagging while this cron went on pushing "needs you" alerts for exactly those
+    // clients. Passed as a VALUE, per call: the engine is a singleton in this Node
+    // process, and a global would let one coach's tuning decide another's alerts.
+    // A caller that omits it gets house policy, which is the safe default.
+    thresholds?: Record<string, number> | null;
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[] } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
     const clients = Array.isArray(snapshot.clients) ? snapshot.clients : [];
-    const rows = engine.getTriageFeed(role, clients, opts.now).map((r) => ({
+    const rows = engine.getTriageFeed(role, clients, opts.now, opts.thresholds || undefined).map((r) => ({
       clientId: (r.client.userId || r.client.id) as string,
       clientName: (r.client.profile && r.client.profile.name) || 'A client',
       severity: r.severity,
@@ -173,6 +183,21 @@ export async function readUserGoal(client: SupabaseClient, userId: string, kind:
     return blob && typeof blob === 'object' ? blob : {};
   } catch { return {}; }
 }
+// The coach's own signal tuning, resolved against the engine's ranges. Returns null
+// for every non-answer — not a coach, nothing tuned, unreadable — so the caller runs
+// on house policy, which is what every other coach gets.
+// ⚠ THE STORED DOCUMENT IS RE-VALIDATED HERE, not trusted. It is written by a
+// browser panel, so an out-of-range or non-numeric entry must be refused server-side
+// too; `resolveThresholds` drops those back to the house value rather than clamping.
+export async function loadCoachThresholds(
+  client: SupabaseClient, userId: string,
+): Promise<Record<string, number> | null> {
+  const doc = await readUserGoal(client, userId, 'coach_settings');
+  const t = doc && typeof doc.thresholds === 'object' ? doc.thresholds : null;
+  if (!t) return null;
+  try { return engine.resolveThresholds(t).thresholds; } catch { return null; }
+}
+
 export async function writeUserGoal(client: SupabaseClient, userId: string, kind: string, value: unknown): Promise<void> {
   try {
     await client.from('user_goals').upsert({ user_id: userId, kind, data: value ?? {} }, { onConflict: 'user_id,kind' });

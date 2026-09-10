@@ -86,7 +86,20 @@ test('one stamp, not two — the duplication P1-C already removed once', () => {
   // claim has to land once or they disagree about the same row.
   assert.ok(!/function dwkReadoutStamp/.test(WEEK));
   assert.ok(!/function dprReadoutStamp/.test(PROG));
-  assert.match(DATA, /readoutStamp, readoutWeekKey, useWeekClock \}\);/);
+  // ⚠ ANCHORED ON THE INVARIANT, NOT ON THE EXPORT LINE. This asserted the exact
+  // tail of dashData's window export — so adding an UNRELATED export to that line
+  // failed a test about stamp duplication, which is the "a guard that pins an
+  // expression pins whatever that expression is wrong about" class this repo keeps
+  // paying for. What it cares about is that both helpers are exported from the one
+  // module and defined in no other.
+  const exported = DATA.slice(DATA.indexOf('Object.assign(window, { useDashboard'));
+  for (const name of ['readoutStamp', 'readoutWeekKey']) {
+    assert.match(exported, new RegExp('\\b' + name + '\\b'), name + ' is no longer exported from dashData');
+    assert.equal((DATA.match(new RegExp('function ' + name + '\\(', 'g')) || []).length, 1);
+    for (const [label, src] of [['dashWeek', WEEK], ['dashProgress', PROG]]) {
+      assert.ok(!new RegExp('function ' + name + '\\(').test(src), name + ' was re-defined in ' + label);
+    }
+  }
 });
 
 // ── The week key matches the ROUTE's, not the browser's calendar ─────────────

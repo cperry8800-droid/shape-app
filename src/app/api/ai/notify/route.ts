@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { requireMembership } from '@/lib/require-membership';
 
@@ -76,7 +76,10 @@ export async function POST(request: Request) {
     habitContext = await loadHabitContext(actor.supabase, actor.user.id, now, prefs.tz);
   }
 
-  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut });
+  // The coach's office-settings tuning drives the same engine these candidates come
+  // from, so the alerts agree with the roster that produced them (R14).
+  const thresholds = isCoach ? await loadCoachThresholds(actor.supabase, actor.user.id) : null;
+  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds });
   const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut });
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one

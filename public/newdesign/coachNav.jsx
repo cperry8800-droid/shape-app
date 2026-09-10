@@ -17,6 +17,7 @@ function trainerNavItems(active) {
     { label: "Goal",      slug: "goal" },
     { label: "Score",     slug: "score" },
     { label: "Profile",   slug: "profile" },
+    { label: "Settings",  slug: "settings" },  // the office panel (review 2026-09-09, R14)
   ];
   // Treat Console as part of Clients for sidebar highlight.
   const map = { console: 'Clients' }; // 'business' matches its own item now
@@ -44,6 +45,7 @@ function nutriNavItems(active) {
     { label: "Goal",      slug: "goal" },
     { label: "Score",     slug: "score" },
     { label: "Profile",   slug: "profile" },
+    { label: "Settings",  slug: "settings" },  // the office panel (review 2026-09-09, R14)
   ];
   const map = { console: 'Clients' }; // 'business' matches its own item now
   const norm = map[active.toLowerCase()] || active;
