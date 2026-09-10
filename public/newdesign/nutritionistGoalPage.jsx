@@ -369,7 +369,7 @@ function NutritionistGoalPage() {
     <DashPage
       navItems={nutriNavItems("goal")}
       payoutCard={nutriPayoutCard}
-      eyebrow="YOUR GOALS · Q2 2026"
+      eyebrow={goalQuarterLabel()}
       title="Goal"
       subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
       actions={<>

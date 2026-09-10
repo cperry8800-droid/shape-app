@@ -100,7 +100,12 @@ test('none of the Score page’s three actions is dead any more', () => {
   }
   assert.match(src, /<ClientScoreRecord \/>/);
   assert.match(src, /<ClientLeaderboard \/>/);
-  assert.match(src, /<ClientScoreHowItWorks tiers=\{tiers\} currentTier=\{currentTier\[0\]\}/);
+  // ⚠ THE SAME LESSON, ONE LINE LOWER, AND IT BIT AGAIN. This pinned the exact prop
+  // expression `currentTier={currentTier[0]}` — so gating that prop on whether the
+  // member's standing had been READ failed a test about dead controls. What this guard
+  // cares about is that the panel is MOUNTED and is handed the ladder and a current
+  // tier; which tier, and whether it is known, belongs to client-score-honesty.
+  assert.match(src, /<ClientScoreHowItWorks\s+tiers=\{tiers\}\s+currentTier=\{/);
   // the grid is REPLACED, not hidden behind a panel: a mounted GridStack keeps
   // reacting to resizes and persisting placement nobody can see
   const body = src.slice(src.indexOf('view === "record"'));
