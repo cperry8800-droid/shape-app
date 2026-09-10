@@ -704,11 +704,23 @@ function ClientWorkoutsPage() {
   // header; only the card stack is gridded. The Tonight session hero is its own full widget;
   // the program by week is one cohesive full widget; consistency + session history pair as halves.
   const widgets = [
-    tonight ? { key: "tonight", title: "Tonight's session", size: "full", render: () => (
+    // ⚠ `empty`, NEVER `tonight ? {…} : null`. DashGrid's boot effect has deps
+    // `[role, tab]`, so an omitted entry was absent when the portal hosts were
+    // created and this card never mounted for anyone — `tonight` is null on the
+    // first render, before the fetch. An `empty` entry stays in the list and the
+    // grid adds its item the moment there is a session to show.
+    //
+    // ⚠ THIS BODY READS `tonight` WITH NO NULL GUARD, AND WHAT MAKES THAT SAFE IS ONE
+    // LINE IN dashGrid.jsx: `chrome()` returns null for a widget whose entry declares
+    // `empty`. It has to, because `empty` reaches the grid through an EFFECT — on the
+    // frame where a session disappears the host still exists and this portal still
+    // renders. Remove that guard and `dtrToCard(tonight.day.workout, …)` throws
+    // during render, which blanks the page (there is no error boundary here).
+    { key: "tonight", title: "Tonight's session", size: "full", empty: !tonight, render: () => (
       <div data-tour="hero-workouts" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
         <DashWorkoutCard workout={{ ...dtrToCard(tonight.day.workout, coach), time: tonight.when === "Tonight" ? dtrToCard(tonight.day.workout, coach).time : tonight.when }} interactive={false} maxRows={99} />
       </div>
-    ) } : null,
+    ) },
 
     { key: "program", title: "The program, by week", size: "full", render: () => (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
@@ -761,9 +773,9 @@ function ClientWorkoutsPage() {
 
     // Self-serve builder — renders only for an authenticated member (the GET
     // 401s signed-out); coach-assigned weeks above always win the page lead.
-    selfData && selfData.ok ? { key: "builder", title: "Build your week", size: "full", render: () => (
+    { key: "builder", title: "Build your week", size: "full", empty: !(selfData && selfData.ok), render: () => (
       <DtrBuilder self={selfData} onChanged={reloadAll} />
-    ) } : null,
+    ) },
 
     { key: "consistency", title: "Consistency", size: "half", render: () => (
       <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_GREEN, paddingLeft: 24 }}>

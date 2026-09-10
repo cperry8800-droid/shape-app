@@ -32,6 +32,22 @@ export function stripComments(src) {
       continue;
     }
     if (t.startsWith('//') || t.startsWith('*')) continue;
+    // ⚠ A JSX COMMENT CONTAINER OPENS WITH A BRACE, so none of the line rules above
+    // can see it — `{/* … */}` reached every caller as source. Measured: a guard
+    // forbidding the string "No read on record" in dashWeek.jsx passed only because
+    // a BROKEN local stripper was deleting that comment (along with 1,271 characters
+    // of real code); swapping it for this one made the same guard fail on the
+    // documentation of the rule it enforces. Handled here rather than in the caller,
+    // because the whole point of this file is that there is one implementation.
+    //
+    // ⚠ `{/*` IS A SAFE OPENER IN A WAY THAT `/*` IS NOT. The bare form matched
+    // `accept="image/*"` and ran to the next `*/` hundreds of lines later; a brace
+    // immediately followed by `/*` cannot occur inside a string like that, and in JS
+    // it can only ever start a comment.
+    if (t.startsWith('{/*')) {
+      if (!t.includes('*/')) inBlock = true;
+      continue;
+    }
     out.push(line);
   }
   return out.join('\n');

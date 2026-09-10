@@ -610,6 +610,216 @@ function DprCycleCard() {
     </div>
   );
 }
+// ── THE READ · the weekly readout (review 2026-09-09, R5) ─────────────────
+// `/api/ai/weekly-readout` was consumed by NO website surface — the mobile
+// Progress hub was its only entry point. This is the web's, and it carries the
+// mobile card's rules rather than re-deciding them:
+//
+// ⚠ THE SIGNED-OUT PREVIEW RENDERS NOTHING, which departs from every other card
+// on this page. A demo weight trend teaches the layout and misleads nobody; a
+// READOUT is a claim about a specific person's own body, written in the second
+// person, from correlations computed over their own logged days. A demo one is a
+// fabricated health insight presented as a finding — exactly what the evidence
+// layer beneath it spends a false-discovery-rate correction to avoid.
+//
+// ⚠ AND A FAILED FETCH RENDERS NOTHING TOO. The route already carries an honest
+// EMPTY readout for a member without enough overlap to say anything — that is a
+// real answer and it renders. A network failure is not an answer.
+//
+// ⚠ IT POSTS, AND THAT IS CORRECT HERE AND WRONG ON THE COACH SIDE. The route
+// enforces ONE model call per member per week in the database
+// (`claim_weekly_readout`), so a member opening their own Progress page is
+// exactly who should spend it — and a second surface in the same week is served
+// the cached row. The Week view reads the cache directly and never POSTs,
+// because opening a tab must not spend an AI call per client on a coach's behalf.
+const DPR_READOUT_WINDOW = 28;
+// ⚠ THE READOUT'S DATA LIVES ON THE PAGE, NOT IN THE CARD, AND THE REASON IS A
+// DEADLOCK RATHER THAN A PREFERENCE. DashGrid skips a widget that declares
+// `empty: true` — it creates no portal host for it — so a card that can only
+// discover it has something to show BY MOUNTING AND FETCHING could never report
+// itself non-empty: it would be skipped forever. Every other conditional card on
+// this page is gated on a value the page already holds (`live`, `kit`, `photos`),
+// which is why they can simply declare `empty`. This one had to be hoisted to
+// join them. The card below is now pure: it is handed the answer and draws it.
+function useDprWeeklyReadout(live) {
+  // ⚠ THE POST IS NOT GATED ON A SUPABASE-JS UID, AND AN EARLIER CUT WAS.
+  // `/api/ai/weekly-readout` authenticates off the SAME cookie session that made
+  // `live` true — while `shapeDb.getUser()` is a live round trip that returns null
+  // on any blip. Requiring it meant one transient auth read failure silently
+  // removed this card while every other card on the page stayed live, with no
+  // message. The response carries the authoritative `user_id`, so the subject is
+  // taken FROM the answer rather than made a precondition of the question.
+  const [held, setHeld] = React.useState(null);
+  // The account signed in NOW, against which a held readout's own subject is
+  // checked. `undefined` means not yet resolved — which is not the same as "no
+  // account", and must not hide a card the cookie session is entitled to.
+  const [whoNow, setWhoNow] = React.useState(undefined);
+  // A tick that changes whenever the signed-in account actually has. `live` is a
+  // one-way latch — `source` is set once by the mount fetch and never returns to
+  // "demo" — so keying the fetch on it alone means the subject is resolved once
+  // and the account-switch comparison below can never fire.
+  const [authTick, setAuthTick] = React.useState(0);
+  // The last subject an auth event reported, so the callback can tell a real
+  // account change from the several same-user events supabase also emits.
+  const lastAuthUidRef = React.useRef(undefined); // undefined = no event seen yet
+  // ⚠ AND WHETHER A SUBJECT WAS EVER ESTABLISHED, WHICH IS NOT THE SAME QUESTION.
+  // On a cookie-only load supabase has nothing in localStorage, so it emits
+  // INITIAL_SESSION with a NULL session — and `shapeDb.getSession()` then bridges
+  // the cookie by calling `setSession()` (public/supabase.js), which emits
+  // SIGNED_IN for the account that was signed in all along. Reading `null` as an
+  // established baseline makes that arrival look like an account switch: it
+  // cancels the POST already in flight and starts a second, which LOSES the
+  // weekly claim the first still holds and is served the deterministic fallback.
+  // The member is then shown "Computed, not written" for a week whose AI readout
+  // was generated and thrown away — the exact defect the same-user check fixed,
+  // arriving through null instead of through a repeat.
+  //
+  // A subject is established only by a NON-NULL id. That keeps sign-out → sign-in
+  // a real switch (the flag stays true once set), while the bridge's late arrival
+  // is initialization.
+  const authEstablishedRef = React.useRef(false);
+  React.useEffect(() => {
+    const db = window.shapeDb;
+    if (!db || !db.client || !db.client.auth || !db.client.auth.onAuthStateChange) return undefined;
+    let sub = null;
+    try {
+      sub = db.client.auth.onAuthStateChange((_event, session) => {
+        const id = (session && session.user && session.user.id) || null;
+        // ⚠ NOT EVERY AUTH EVENT IS AN ACCOUNT SWITCH, AND TREATING THEM ALIKE
+        // COSTS THE MEMBER THEIR WEEKLY READOUT. supabase-js emits
+        // INITIAL_SESSION the moment this subscribes (verified in the installed
+        // 2.112.4), plus SIGNED_IN and TOKEN_REFRESHED for the SAME user — and
+        // `getSession()` bridging the cookie emits one too. Ticking on those
+        // cancels the POST already in flight and starts a second, which then
+        // LOSES the weekly claim the first is still holding: the route's
+        // `mayGenerate = !claim || claim.outcome === 'claimed'` serves that
+        // caller `fallbackReadout` instead, so the member is shown "Computed,
+        // not written" for a week whose AI readout was generated and discarded.
+        if (!authEstablishedRef.current) {
+          lastAuthUidRef.current = id;
+          if (id != null) authEstablishedRef.current = true;
+          return;   // still establishing a subject — not a switch
+        }
+        if (id === lastAuthUidRef.current) return;
+        lastAuthUidRef.current = id;
+        // ⚠ CLEARED SYNCHRONOUSLY, BEFORE THE RE-FETCH. Bumping the tick alone
+        // leaves the NEXT render holding the previous account's readout and the
+        // previous account's `whoNow` — so `mismatched` is false and A's private
+        // health summary is committed under B's session until an async getUser()
+        // round trip resolves. A readout is a claim about one person's own body;
+        // rendering one under another account is the worst thing this card can
+        // do, and this repo treats it as a defect class rather than a race.
+        setHeld(null);
+        setWhoNow(id);
+        setAuthTick((n) => n + 1);
+      });
+    } catch (e) { sub = null; }
+    return () => { try { if (sub && sub.data && sub.data.subscription) sub.data.subscription.unsubscribe(); } catch (e) {} };
+  }, []);
+  React.useEffect(() => {
+    if (!live) { setHeld(null); return undefined; }
+    let on = true;
+    (async () => {
+      let d = null;
+      try {
+        // The cookie-session bridge, so a member signed in that way is not read
+        // as anon by anything downstream. Its failure is not fatal here.
+        try { if (window.shapeDb && window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* the cookie still carries the request */ }
+        const res = await fetch("/api/ai/weekly-readout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          body: JSON.stringify({ window_days: DPR_READOUT_WINDOW }),
+        });
+        d = res.ok ? await res.json() : null;
+      } catch (e) { d = null; }
+      // ⚠ A FAILED FETCH HOLDS NOTHING, rather than a stale or partial station.
+      // The route already carries an honest EMPTY readout for a member without
+      // enough overlap to say anything — that is a real answer and it renders. A
+      // network failure is not an answer.
+      if (on) setHeld(d && d.readout && d.user_id ? d : null);
+    })();
+    return () => { on = false; };
+  }, [live, authTick]);
+
+  // ⚠ THE READOUT CARRIES ITS SUBJECT AND THE RENDER CHECKS IT AGAINST THE
+  // ACCOUNT SIGNED IN NOW. A readout is a claim about a specific person's own
+  // body, written in the second person; painting one under a different account is
+  // the worst thing this card can do. The subject is the response's `user_id`;
+  // `whoNow` is set fast by the auth callback above and confirmed here.
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      let id = null;
+      try {
+        if (window.shapeDb && window.shapeDb.getSession) await window.shapeDb.getSession();
+        const u = window.shapeDb && window.shapeDb.getUser ? await window.shapeDb.getUser() : null;
+        id = u && u.id ? u.id : null;
+      } catch (e) { id = null; }
+      if (on) setWhoNow(id);
+    })();
+    return () => { on = false; };
+  }, [authTick]);
+
+  // ⚠ AN UNRESOLVED IDENTITY DOES NOT BLOCK THE CARD — that would re-create the
+  // defect above, where a failed auth read hides a readout the cookie session was
+  // perfectly entitled to. It blocks only a MISMATCH: a subject we can positively
+  // say is not the account signed in now.
+  const mismatched = whoNow != null && held && held.user_id && held.user_id !== whoNow;
+  // ⚠ AND `live` STAYS IN THIS GUARD for the frame the effect cannot cover:
+  // React runs effects AFTER the commit, so a sign-out leaves exactly one render
+  // where `live` is already false and the held readout is still the old session's.
+  // There is no demo readout, ever — a fabricated health insight presented as a
+  // finding is exactly what the evidence layer beneath it spends a
+  // false-discovery-rate correction to avoid.
+  return { held, shown: !(!live || !held || !held.readout || mismatched) };
+}
+
+// ⚠ AND THE CARD KEEPS ITS OWN GUARD, WHICH IS NOT BELT-AND-BRACES. `empty` reaches
+// the grid through an EFFECT, which runs after the commit — so on the sign-out frame
+// the item still exists and this component still renders. This line is what makes it
+// blank on that frame; the grid removes the item immediately after.
+function DprWeeklyReadout({ shown, held }) {
+  if (!shown || !held || !held.readout) return null;
+  const insights = Array.isArray(held.readout.insights) ? held.readout.insights : [];
+  const stamp = readoutStamp(held, false);
+  return (
+    <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
+      <span className="dash-eyebrow">The read · this week</span>
+      <div style={{ marginTop: 12, fontFamily: "Fraunces, serif", fontSize: 17, letterSpacing: "-0.015em", lineHeight: 1.35 }}>
+        {held.readout.summary}
+      </div>
+      {insights.length === 0 ? (
+        // Not a failure — the honest output of a member who has not yet logged
+        // enough overlapping days for any pair to clear the gate. The summary
+        // above already says so in the route's own words; this marks it as an
+        // empty state rather than letting it read as a finding.
+        <div style={{ marginTop: 10, fontSize: 12.5, fontStyle: "italic", color: DPR_INK50 }}>No pattern on record yet.</div>
+      ) : (
+        <div style={{ marginTop: 12 }}>
+          {/* ⚠ KEYED BY INDEX AS WELL AS BY CORRELATION. The route filters model
+              insights by `validKeys.has(correlation_key)` — membership only, no
+              dedupe — so two insights citing the same pair carry the same key,
+              and React would reconcile the two rows as one. */}
+          {insights.map((ins, i) => (
+            <div key={(ins.correlation_key || "i") + "@" + i} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(242,237,228,0.08)" : 0 }}>
+              <div style={{ fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.8)" }}>{ins.headline}</div>
+              <div style={{ marginTop: 4, fontSize: 12.5, lineHeight: 1.45, color: "rgba(242,237,228,0.72)" }}>{ins.detail}</div>
+              {ins.recommendation ? (
+                <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9, lineHeight: 1.5, letterSpacing: "0.03em", color: "rgba(242,237,228,0.5)" }}>{ins.recommendation}</div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {stamp ? (
+        <div style={{ marginTop: 11, paddingTop: 9, borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: DPR_MONO, fontSize: 8, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", fontVariantNumeric: "tabular-nums" }}>{stamp}</div>
+      ) : null}
+    </div>
+  );
+}
+
 function ClientProgressPage() {
   const [progress, setProgress] = React.useState(null);
   const [kit, setKit] = React.useState(null);
@@ -638,6 +848,20 @@ function ClientProgressPage() {
     return () => { on = false; };
   }, [reloadKey]);
   const live = source === "live";
+  // Hoisted out of the card so the widget below can declare its own emptiness —
+  // see the note on useDprWeeklyReadout.
+  //
+  // ⚠ AND IT COSTS ONE THING, WRITTEN DOWN RATHER THAN LEFT TO BE DISCOVERED. While
+  // the fetch lived inside the card, hiding that card meant DashGrid never created a
+  // host, the card never mounted, and no POST was made. At page scope it runs
+  // regardless — and `/api/ai/weekly-readout` opens with `claim_weekly_readout`, the
+  // database's one-generation-per-member-per-week gate, so a member who hid the card
+  // still spends that week's generation on their first Progress visit. The readout is
+  // stored and is there if they unhide it, so nothing is lost; it is a model call made
+  // for a card nobody asked to see. DashGrid's `hidden` list is not visible to this
+  // page, so closing it properly needs a channel that does not exist yet:
+  // REGISTERED, NOT FIXED.
+  const readout = useDprWeeklyReadout(live);
 
   // THE CROSSOVER (spec 2026-07-13) — mobile parity: assemble pre-bucketed
   // days from the progress series (trained = workout minutes that day; sleep
@@ -760,10 +984,21 @@ function ClientProgressPage() {
   // + milestones (right column) become individual widgets; the check-in kit + photo timeline are
   // conditional fulls.
   const progressWidgets = [
+    // ⚠ `empty`, NEVER `cond ? {…} : null`. DashGrid's boot effect has deps
+    // `[role, tab]`, so the widget array it resolved a layout from was the one
+    // captured on the FIRST render — where `source` is still null and `live` is
+    // false. A `live ? {…} : null` entry was therefore absent when the portal hosts
+    // were created, no target was ever made for it, and the card never mounted at
+    // all. Measured: this readout was invisible to every signed-in member, and five
+    // more cards across this file and dashTrain.jsx with it. An `empty` entry stays
+    // in the list and the grid adds or removes its item as the flag flips — and an
+    // empty widget gets no item, where the old unconditional workaround left an
+    // 18px slot in the signed-out preview.
+    { key: "readout", title: "The read · this week", size: "full", empty: !readout.shown, render: () => <DprWeeklyReadout shown={readout.shown} held={readout.held} /> },
     // THE CROSSOVER — conditional: exists only when the shared read fired
     // (work habits + enough data past the statistical floors). Slate accent
     // (#7aa7dc), the work domain's color.
-    crossover ? { key: "crossover", title: "The crossover · work × body", size: "half", render: () => (
+    { key: "crossover", title: "The crossover · work × body", size: "half", empty: !crossover, render: () => (
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#7aa7dc", paddingLeft: 24 }}>
         <span className="dash-eyebrow" style={{ color: "#7aa7dc" }}>The crossover · work × body</span>
         <div style={{ marginTop: 12 }}>
@@ -777,12 +1012,12 @@ function ClientProgressPage() {
           ))}
         </div>
       </div>
-    ) } : null,
+    ) },
     // THE CYCLE — member card + calendar + opt-in/out (spec 2026-07-19). Shows
     // for any signed-in member (the opt-in prompt or the card); DprCycleCard
     // self-manages settings/starts + the GUC-gated RPC writes. Absence for the
     // signed-out demo (gated on `live`).
-    live ? { key: "cycle", title: "The cycle", size: "half", render: () => <DprCycleCard /> } : null,
+    { key: "cycle", title: "The cycle", size: "half", empty: !live, render: () => <DprCycleCard /> },
     { key: "weight", title: "Weight · then vs today", size: "half", render: () => (
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
@@ -941,11 +1176,11 @@ function ClientProgressPage() {
       </div>
     ) },
 
-    kit ? { key: "checkin", title: "Weekly check-in", size: "full", render: () => (
+    { key: "checkin", title: "Weekly check-in", size: "full", empty: !kit, render: () => (
       <DprCheckinForm kit={kit} onSaved={() => setReloadKey((k) => k + 1)} />
-    ) } : null,
+    ) },
 
-    (live && (photos || []).length > 0) ? { key: "phototimeline", title: "Photo timeline", size: "full", render: () => (
+    { key: "phototimeline", title: "Photo timeline", size: "full", empty: !(live && (photos || []).length > 0), render: () => (
       <Card>
         <SectionTitle right="PRIVATE · YOU + YOUR COACHES">Photo timeline</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
@@ -957,7 +1192,7 @@ function ClientProgressPage() {
           ))}
         </div>
       </Card>
-    ) } : null,
+    ) },
   ].filter(Boolean);
 
   return (
@@ -976,4 +1211,4 @@ function ClientProgressPage() {
   );
 }
 
-Object.assign(window, { ClientProgressPage, DprMilestoneTimeline, DprChart, DprCheckinForm });
+Object.assign(window, { ClientProgressPage, DprMilestoneTimeline, DprChart, DprCheckinForm, DprWeeklyReadout });

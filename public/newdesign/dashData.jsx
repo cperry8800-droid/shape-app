@@ -366,6 +366,51 @@ function useCoachLiveFigures(role) {
 //
 // Defined HERE rather than in each Goal page: the two pages are near-identical
 // and were drifting a copy each.
+// ── The weekly readout, shared by both surfaces ───────────────────────
+// The member's own card and the coach's Week row read the SAME payload shape, so
+// the stamp lives here rather than being written twice — the pattern P1-C removed
+// for `GOAL_METRICS`, with a test written to police the duplication rather than
+// end it. A future change to what the stamp may claim (the next `source` value,
+// say) has to land once, or the two surfaces disagree about the same row.
+//
+// `dense` is the coach's row, which sits inside a line of running text; the
+// member's card gets the full sentence.
+function readoutStamp(r, dense) {
+  const bits = [
+    r && r.window_days != null ? r.window_days + (dense ? "d window" : "-day window") : null,
+    r && r.sample_size != null ? r.sample_size + " days logged" : null,
+    // ⚠ THE DETERMINISTIC READOUT SAYS SO. It is real evidence, honestly
+    // rendered — but it is not the AI reading of it, and a reader who cannot tell
+    // the two apart has been told something untrue about where the words came from.
+    r && r.source === "fallback" ? (dense ? "computed, not written" : "Computed, not written") : null,
+  ].filter(Boolean);
+  return bits.join(" \u00b7 ");
+}
+
+// ⚠ THE ROUTE KEYS A READOUT BY THE **UTC** DATE'S MONDAY, NOT THE MEMBER'S OWN.
+// `weeklyReadoutWeekStart` floors `new Date(ts).toISOString().slice(0,10)`, so a
+// member at UTC+10 generating on their local Monday 08:00 files the row under the
+// PREVIOUS Monday — UTC is still Sunday. A surface that queries by a LOCAL Monday
+// therefore misses that row on the week it belongs to and finds it on the week
+// before, which is a readout attributed to a week it was not run in.
+//
+// So a consumer must key the way the route keys: this week's UTC Monday, stepped
+// back a whole number of weeks. The offset is taken in weeks (not by re-flooring a
+// local date), because that is the only part both calendars agree on.
+//
+// ⚠ `nowMs` IS AN INPUT SO THIS CAN BE DRIVEN, exactly as the route's own
+// `weeklyReadoutWeekStart` takes one. Without it the only clock is the test
+// runner's, and this container runs UTC — where a LOCAL-calendar rewrite of this
+// function is indistinguishable from a correct one. Measured: that mutation
+// survived a suite that looked right, because the two calendars coincide here.
+function readoutWeekKey(weeksBack, nowMs) {
+  const utcToday = new Date(typeof nowMs === "number" && Number.isFinite(nowMs) ? nowMs : Date.now())
+    .toISOString().slice(0, 10);
+  const d = new Date(utcToday + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - (Number(weeksBack) || 0) * 7);
+  return d.toISOString().slice(0, 10);
+}
+
 // ── A coach's own whole-doc store ────────────────────────────────
 // ONE `user_goals` document per coach, read before every write so a change to
 // one key never clobbers another, bound to the account that made the change, and
@@ -559,4 +604,38 @@ function coachLiveMomentum(live) {
 // rather than re-fetching the same endpoint. DashSidebar (trainerDashboard.jsx)
 // wants the same /api/{role}/dashboard payload the page hook already asks for;
 // without the shared cache that is a second round trip on every dashboard load.
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc });
+// ⚠ A KEY DERIVED FROM THE CLOCK NEEDS A CLOCK, NOT JUST A DEPENDENCY. Computing
+// one during render does not CAUSE a render — so a page left open and idle across
+// the week boundary keeps querying last week's key indefinitely, and a dependency
+// on it only helps once something unrelated re-renders. This polls rather than
+// scheduling a single timeout to the boundary, because a timeout is wrong after a
+// laptop sleeps through it or the system clock moves; a comparison that costs a
+// string a minute is self-correcting either way.
+//
+// The value is computed during RENDER and returned fresh, so it also tracks an
+// ordinary dependency change (a coach paging to the previous week) in the same
+// commit; the state tick exists only to force a render when the boundary moves,
+// and only fires when the key has ACTUALLY changed — an idle page re-renders 52
+// times a year.
+//
+// ⚠ dashToday.jsx's `useQueueWeekKey` is the same pattern over the LOCAL Monday.
+// Converging the two is REGISTERED, NOT DONE — a fix believed to have landed in
+// two places when it landed in one is worse than an honest duplicate.
+function useWeekClock(compute) {
+  const [, force] = React.useState(0);
+  const fnRef = React.useRef(compute); fnRef.current = compute;
+  const lastRef = React.useRef(null);
+  const value = compute();
+  lastRef.current = value;
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      let next = null;
+      try { next = fnRef.current(); } catch (e) { return; }
+      if (next !== lastRef.current) force((n) => n + 1);
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+  return value;
+}
+
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock });

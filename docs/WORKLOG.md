@@ -490,6 +490,99 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — P1-E: the weekly readout on the web, and eight cards that were never on it
+
+- **R5 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
+  `/api/ai/weekly-readout` was consumed by no website surface. The member's Progress tab
+  now carries **The read · this week**, and the coach's Week view shows each client's
+  summary beside their check-in. ⚠ **THE ASYMMETRY IS LOAD-BEARING:** the coach's hook
+  **READS `ai_weekly_readouts` and never POSTs**, because the route opens with
+  `claim_weekly_readout` — the database's one-generation-per-member-per-week gate — so a
+  coach paging their roster would spend their clients' calls. It selects
+  `summary:readout->>summary` alone, not the whole JSONB: 3–5 insights of a member's
+  private reading of their own body, none of which that page renders.
+- ⚠ **AND THE CARD WAS INVISIBLE TO EVERY SIGNED-IN MEMBER, WHICH TURNED OUT TO BE A
+  DASHGRID DEFECT WITH EIGHT VICTIMS.** `DashGrid`'s boot effect has deps `[role, tab]`,
+  so the widget array it resolved a layout from was **the one captured on the FIRST
+  render** — where every "is it loaded / is it live" flag is still false. Eight entries
+  across five pages were written `flag ? { key, … } : null`, and every one was **absent
+  when the portal hosts were created**: no host, no mount, no card, silently. Measured in
+  a browser at 1440px: Progress live went **9 → 11 items** (`cycle`, `checkin`) and Train
+  live **4 → 5** (`builder`). The readout shipped **unconditional as a workaround**, which
+  cost an empty **18px** slot in the signed-out preview (h=1 × cellHeight 2 + 16px inset).
+- **The contract is `empty: true`.** The entry stays in the array; a new sync effect adds
+  and removes its item as the flag flips, honouring a remembered or saved position so a
+  returning card lands where the member left it. **The decision is a pure function**
+  (`planGridSync`) so it can be driven — the effect only applies it, and what it talks to
+  (GridStack, React portals) no unit test here can stand up.
+- ⚠ **THE READOUT'S DATA HAD TO LEAVE THE CARD, AND IT IS A DEADLOCK RATHER THAN A
+  PREFERENCE.** DashGrid creates no host for a widget that declares `empty`, so a card
+  that can only learn it has something to show **by mounting and fetching** would be
+  skipped forever. Every other conditional card is gated on a value the page already
+  holds; this one was not, so it joined them. **The cost is written at the call site, not
+  discovered later:** the POST now runs even for a member who hid the card, spending that
+  week's generation on a card nobody asked to see. **REGISTERED, NOT FIXED** — closing it
+  needs a channel from DashGrid's `hidden` list to the page that does not exist.
+- ⚠ **`/code-review` RETURNED EIGHT FINDINGS AND THE FIRST WAS A CRASH I HAD JUST
+  INTRODUCED.** `chrome()` read `if (!w) return null`, which caught the old shape **by
+  accident** — `byKey[key]` was undefined. An `empty` entry is still in `byKey`, and the
+  item is torn down by an **effect**, so on the frame a widget flips to empty its host
+  still exists and `render()` runs **on exactly the state it was declared empty for**.
+  Reproduced in the browser rather than argued: `clientScore`'s momentum body reads
+  `momentum.value`, throws `Cannot read properties of null`, and with **no error boundary
+  anywhere in `public/newdesign`** the page renders **0 grid items**. *A guard that was
+  right by accident stops being right when you change what it guards.*
+- ⚠ **AND `persistFromGrid` HAD HELD RENDER 1'S `hidden` — AN EMPTY ARRAY — FOR THE LIFE
+  OF THE PAGE.** It is wired into GridStack's change/dragstop handlers inside the boot
+  effect, so hiding a card and then dragging **any** card wrote `hidden: []`: the member's
+  hide was discarded on their next interaction. Found while wiring the same stale-closure
+  class the whole change is about. It reads a ref now — **assigned BEFORE the grid
+  mutation**, because `removeWidget`/`addWidget` fire `change` synchronously and the
+  first of two back-to-back upserts was carrying the stale list.
+- **The rest of the round, each fixed:** `grid.save()` only reports items that exist, so
+  writing it verbatim **deleted the placement of every card that happened to be empty** —
+  declared keys are carried forward, retired ones dropped; `hidden` is filtered against
+  **declared** keys rather than visible ones, so an empty spell no longer forgets a hide;
+  `lastPos` captured the **collapsed one-column projection** that `persistFromGrid`
+  explicitly refuses to write, and `planGridSync` prefers it over the saved placement;
+  gating the whole hidden bar on the filtered chips **took `Reset layout` away with
+  them**; `restore()` always auto-positioned while `mergeLayoutItems` was busy preserving
+  the x/y it ignored; a comment asserted an invariant the code did not yet have; and the
+  merge rationale had drifted onto the **wrong function** in the inlined mirror.
+- ⚠ **TWO CODEX FINDINGS ON THE READOUT, BOTH VERIFIED IN THE SOURCE BEFORE ACTING.** On a
+  cookie-only load supabase emits `INITIAL_SESSION` with a **null** session and
+  `getSession()` then bridges the cookie with `setSession()` — which emits `SIGNED_IN` for
+  the account that was signed in all along. Reading that null as a baseline made the
+  bridge look like an **account switch**: it cancelled the POST in flight and started a
+  second, which **lost the weekly claim the first still held** and was served the
+  deterministic fallback. A subject is established only by a **non-null** id — keying it
+  on the last value being null, the obvious fix, would have swallowed the sign-in *after*
+  a sign-out. And the **UTC week can turn while the page's own week does not** (Sydney's
+  Monday morning, Los Angeles' Sunday afternoon), with nothing re-running the query: the
+  key is on a clock now, the same class as R6's.
+- ⚠ **AND A BROKEN INSTRUMENT, MINE, FROM THE ROUND BEFORE.** The local comment stripper I
+  wrote in the readout suite opened a lazy `/* … */` span on **`accept="image/*"`** and
+  deleted **4,038 characters of `dashProgress.jsx`** and 1,271 of `dashWeek.jsx` before the
+  assertions read them — **the fourth copy** of a defect `tests/helpers/strip-comments.mjs`
+  post-mortems **by name**, written after the warning. Importing the shared one immediately
+  failed a guard that had been passing **only because the broken stripper was deleting the
+  comment it tripped on**, so the shared helper gained a rule for JSX comment containers
+  (`{/*` is a safe opener in a way that bare `/*` is not). *A guard cannot report on source
+  it has silently removed.*
+- **Verified:** `npm test` **2788/2788** · `tsc --noEmit` 0 · JSX parse on all seven changed
+  modules · the newdesign precompile check · **32 mutations killed, each proven to land** —
+  **two survivors were no-op mutations of mine** (the mutated expression computed the same
+  value), and **one was a real guard gap**: a regression that unfiltered the hidden bar's
+  `.length` while leaving its `.map` alone survived, because my assertion matched the copy
+  it had not touched. *A guard that pins an expression pins whatever that expression is
+  wrong about* — so the list is named once now. An **AST sweep over every DashGrid page**
+  fails on a ninth conditional entry and **asserts it scanned a corpus**, because a sweep
+  that scans nothing passes. Headless renders of Progress, Train and Score at 1440px in
+  both states, **stable across two runs**: zero empty slots, zero page errors, no
+  horizontal overflow. No migration.
+- ⚠ **STILL A SIMULATED LIVE STATE.** Every "live" check here stubs the API responses. An
+  on-account pass is owed.
+
 ### 2026-09-10 — The website's app screenshots refreshed to the app as built today; the board's phones show real screens
 
 - **Owner: *"make sure the app screens that are showing on website are matching what is actually
