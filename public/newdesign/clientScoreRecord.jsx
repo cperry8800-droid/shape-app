@@ -17,7 +17,12 @@ const CSR_MONO = "'JetBrains Mono', monospace";
 const CSR_DIM = "rgba(242,237,228,0.5)";
 const CSR_RED = "#e0463c";
 const CSR_RANGES = [["1w", "1W"], ["1m", "1M"], ["3m", "3M"], ["all", "ALL"]];
-const CSR_PERIODS = [["week", "This week"], ["month", "This month"], ["all", "All time"]];
+// ⚠ "week" IS A ROLLING WINDOW, NOT A CALENDAR WEEK. Both RPCs define it as
+// `now() - interval '7 days'`, so early on a Tuesday it is mostly LAST week's activity
+// — calling it "This week" describes a boundary the ranking does not use. "month" IS a
+// calendar month (`date_trunc('month', now())`) and "all" is since 1970, so those two
+// labels are accurate and stay.
+const CSR_PERIODS = [["week", "Last 7 days"], ["month", "This month"], ["all", "All time"]];
 
 function csrLabel(text) {
   return <div style={{ fontFamily: CSR_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: CSR_DIM }}>{text}</div>;
@@ -265,10 +270,13 @@ function ClientLeaderboard() {
   return (
     <Card>
       {head}
-      {/* ⚠ THE BOARD IS OPT-IN, so an absence here is a SETTING and not a score. The
-          RPC filters out anyone who opted out — including the reader — and telling a
-          member they are unranked when they have simply opted out would be a lie about
-          their standing. */}
+      {/* ⚠ `me === null` HAS TWO CAUSES AND THIS COPY MUST NOT PICK ONE.
+          `shape_leaderboard_me` filters `having sum(delta) > 0`, so a member who earned
+          nothing in the window gets no row — and the RPC also drops anyone whose
+          `client_privacy_prefs.leaderboard` is 'off'. An earlier draft told them to
+          "turn it on in Settings", which is wrong twice: it asserts the opt-out as the
+          cause, and NOTHING IN THIS REPOSITORY WRITES THAT KEY — not the website, not
+          the app — so it is advice nobody can follow. It states the fact instead. */}
       {me
         ? <div style={{ marginTop: 12, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "baseline" }}>
             <div>{csrLabel("Your rank")}<div style={{ fontFamily: serif, fontSize: 28, color: INK, fontVariantNumeric: "tabular-nums" }}>#{csrNum(me.rank)}</div></div>
@@ -276,8 +284,8 @@ function ClientLeaderboard() {
             <div>{csrLabel("Your points")}<div style={{ fontFamily: CSR_MONO, fontSize: 16, color: TEAL_BRIGHT, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{csrNum(me.points)}</div></div>
           </div>
         : <div style={{ marginTop: 10, fontSize: 12.5, color: CSR_DIM, lineHeight: 1.5 }}>
-            You're not on this board. The leaderboard is opt-in — turn it on in Settings,
-            and points earned in this window will place you.
+            You're not ranked in this window. The board counts points earned inside it —
+            log something and you'll place.
           </div>}
       <div style={{ marginTop: 14 }}>
         {entries.length ? entries.map((e) => (

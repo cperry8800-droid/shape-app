@@ -16,6 +16,8 @@ const PROGRESS = readFileSync(new URL('../public/newdesign/dashProgress.jsx', im
 const APP = readFileSync(new URL('../public/newdesign/ClientApp.html', import.meta.url), 'utf8');
 const KIT = readFileSync(new URL('../src/app/api/client/checkin-kit/route.ts', import.meta.url), 'utf8');
 const MIG = readFileSync(new URL('../supabase-migrations/2026-06-12-checkin-kit.sql', import.meta.url), 'utf8');
+const LB_ROUTE = readFileSync(new URL('../src/app/api/leaderboard/route.ts', import.meta.url), 'utf8');
+const LB_SQL = readFileSync(new URL('../supabase-migrations/2026-05-31-score-and-leaderboard.sql', import.meta.url), 'utf8');
 
 // Pull a top-level `function NAME(` out of a module and evaluate it.
 function fn(src, name, deps) {
@@ -210,6 +212,50 @@ test('every new control clears the 24px tap-target floor', () => {
       assert.ok(ok, label + ': a control declares no 24px floor -> ' + b.slice(0, 150));
     }
   }
+});
+
+test('a failed leaderboard read is never published as an empty board', () => {
+  // ⚠ THE ROUTE ANSWERED 200 WITH `{entries: [], me: null}` ON AN RPC ERROR, and every
+  // consumer reads that as settled — so an outage told members nobody had earned points
+  // and that they were not ranked. Both are positive claims the route cannot make.
+  // BOTH reads are covered: `me: null` is its own claim, one call further down.
+  const src = stripComments(LB_ROUTE);
+  assert.ok(!/if \(error\) return NextResponse\.json\(\{ period, entries: \[\], me: null \}\)/.test(src), 'the board read still swallows its error');
+  const errs = src.match(/if \(\w*[eE]rror\) return NextResponse\.json\([^;]*\);/g) || [];
+  assert.equal(errs.length, 2, 'one of the two RPC reads drops its error: ' + errs.join(' | '));
+  for (const e of errs) assert.match(e, /status: 502/, 'a failed read answers 2xx: ' + e);
+  // and the consumer maps a non-2xx to its own "couldn't read" state, not to data
+  const read = fn(CSR, 'csrRead', { fetch: () => Promise.resolve({ status: 502, ok: false, json: () => Promise.resolve({}) }) });
+  return read('/x').then((r) => assert.deepEqual(r, { kind: 'error' }));
+});
+
+test('the period labels name the windows the RPCs actually rank', () => {
+  // ⚠ "week" IS ROLLING. Both RPCs define it as now() - interval '7 days', so early in
+  // a calendar week the result is mostly the PREVIOUS one. "month" is a real calendar
+  // month and "all" is since 1970 — those two labels were already accurate.
+  assert.match(LB_SQL, /p_period = 'week' then now\(\) - interval '7 days'/);
+  assert.match(LB_SQL, /else date_trunc\('month', now\(\)\)/);
+  const src = stripComments(CSR);
+  const periods = /const CSR_PERIODS = \[([\s\S]*?)\];/.exec(src);
+  assert.ok(periods, 'CSR_PERIODS moved');
+  assert.ok(!/"week", "This week"/.test(periods[1]), 'a rolling 7-day window is labelled as a calendar week');
+  assert.match(periods[1], /"week", "Last 7 days"/);
+  assert.match(periods[1], /"month", "This month"/);
+});
+
+test('an unranked member is not told a cause the data cannot establish', () => {
+  // ⚠ `me === null` HAS TWO CAUSES. `shape_leaderboard_me` filters
+  // `having sum(delta) > 0`, so a member who earned nothing in the window gets no row —
+  // and the RPC also drops anyone opted out. An earlier draft asserted the opt-out and
+  // sent them to Settings, which is wrong twice: NOTHING in this repository writes
+  // `client_privacy_prefs`, on any surface, so it was advice nobody could follow.
+  assert.match(LB_SQL, /having sum\(l\.delta\) > 0/, 'the zero-score filter is gone — re-check the copy');
+  assert.match(LB_SQL, /client_privacy_prefs/);
+  const src = stripComments(CSR);
+  const at = src.indexOf('function ClientLeaderboard(');
+  const body = src.slice(at, src.indexOf('\nfunction ', at + 10));
+  assert.ok(!/opt-in|opt out|opted out/i.test(body), 'the copy asserts an opt-out it cannot establish');
+  assert.ok(!/Settings/.test(body), 'the copy points at a control that exists on no surface');
 });
 
 test('the check-in history reads the weeks the route already sent', () => {
