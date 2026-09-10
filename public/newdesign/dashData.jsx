@@ -217,6 +217,65 @@ function _dashRecordFromSelf(dash, kit) {
   };
 }
 
+// ── the coach's own tuning of the signal engine (review 2026-09-09, R14) ─────
+// ⚠ THE TUNING TRAVELS AS A VALUE; NOTHING IS EVER GLOBALLY SET. dashSignals.js is a
+// singleton, and `src/lib/ai/notify-core.ts` imports the SAME file server-side to
+// build client_red / client_amber — so a mutable effective set would be one Node
+// process shared by every coach. `resolveThresholds` returns a new object and the
+// three entry points take it per call.
+function dashResolveCoachThresholds(doc) {
+  const t = (doc && doc.thresholds && typeof doc.thresholds === "object") ? doc.thresholds : null;
+  try { return t ? DashSignals.resolveThresholds(t) : null; } catch (e) { return null; }
+}
+const DASH_THRESHOLDS_EVENT = "shape:coach-thresholds";
+
+// Returns the resolved set to hand the engine, or null for house policy — which is
+// every non-answer: signed out, unreadable, the client role, nothing tuned.
+// ⚠ A NULL READ IS "SIGNED OUT OR UNREADABLE", NOT "TUNED NOTHING", and both land on
+// house policy here deliberately. Running a coach's roster on a half-remembered
+// tuning nobody could confirm is worse than running it on the policy every other
+// coach gets; the panel is where the difference is stated.
+// ⚠ ONE READ PER TAB SWITCH, NOT THREE. Every coach route component remounts on a
+// hash change, so `useDashboard` — and therefore this hook — re-ran on every tab, and
+// the Settings page adds two more reads of the same document (the shell's landing-tab
+// resolve and useCoachDoc). It changes only from one page, so a short cache in the
+// same shape as `_dashCache` collapses them. `dashInvalidateCoachSettings` is what the
+// save path calls, so a write is never read back stale.
+let _dashCoachSettings = null;   // { at, doc }
+async function dashReadCoachSettings() {
+  if (_dashCoachSettings && Date.now() - _dashCoachSettings.at < DASH_CACHE_TTL) return _dashCoachSettings.doc;
+  const db = window.shapeDb;
+  if (!db || !db.getUserGoals) return null;
+  await dashDocBridge();
+  let doc = null;
+  try { doc = await db.getUserGoals("coach_settings"); } catch (e) { doc = null; }
+  // ⚠ ONLY A SUCCESSFUL READ IS CACHED. Caching a null would pin "we could not read
+  // it" for a minute, so a coach who signs in mid-session runs on house policy until
+  // the entry expires — and the panel would say their settings are unreadable.
+  if (doc != null) _dashCoachSettings = { at: Date.now(), doc };
+  return doc;
+}
+function dashInvalidateCoachSettings() { _dashCoachSettings = null; }
+
+function useCoachThresholds(role) {
+  const [resolved, setResolved] = React.useState(null);
+  const load = React.useCallback(async () => {
+    // ⚠ THE CLIENT ROLE NEVER READS THIS. A member's own pages load DashSignals too,
+    // and on a DUAL-ROLE account the coach's roster tuning would otherwise decide how
+    // their own data reads back to them.
+    if (role === "client") { setResolved(null); return; }
+    setResolved(dashResolveCoachThresholds(await dashReadCoachSettings()));
+  }, [role]);
+  React.useEffect(() => { let on = true; load().catch(() => { if (on) setResolved(null); }); return () => { on = false; }; }, [load]);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onChange = () => { dashInvalidateCoachSettings(); load().catch(() => {}); };
+    window.addEventListener(DASH_THRESHOLDS_EVENT, onChange);
+    return () => window.removeEventListener(DASH_THRESHOLDS_EVENT, onChange);
+  }, [load]);
+  return resolved;
+}
+
 function useDashboard(role) {
   const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null });
 
@@ -291,19 +350,35 @@ function useDashboard(role) {
     return () => { on = false; };
   }, [role]);
 
+  // ⚠ THE FEED DEPENDS ON THE TUNING, or a coach changes a threshold and their roster
+  // goes on showing the flags the old one produced until something unrelated
+  // re-renders. The dependency is a SIGNATURE of the resolved set rather than the
+  // object, so an identical re-read does not invalidate the memo.
+  const tuning = useCoachThresholds(role);
+  const thresholds = tuning ? tuning.thresholds : null;
+  const thresholdSig = tuning ? JSON.stringify(tuning.applied) : "";
   const triage = React.useMemo(
-    () => DashSignals.getTriageFeed(role, state.clients),
-    [role, state.clients]
+    () => DashSignals.getTriageFeed(role, state.clients, undefined, thresholds || undefined),
+    // eslint-disable-next-line
+    [role, state.clients, thresholdSig]
   );
   const queue = React.useMemo(
     () => DashSignals.buildProgrammingQueue(state.clients),
     [state.clients]
   );
+  // ⚠ THIS ONE READS THE TUNING TOO, and less obviously: `findJointAttention` calls
+  // `evaluateClient` internally. `buildProgrammingQueue` and `buildMilestones` do not
+  // — checked rather than assumed, because adding a dependency that changes nothing is
+  // cheap and MISSING one leaves a panel quietly showing the old thresholds' output.
   const joint = React.useMemo(
-    () => (role === "client" ? [] : DashSignals.findJointAttention(state.clients)),
-    [role, state.clients]
+    () => (role === "client" ? [] : DashSignals.findJointAttention(state.clients, undefined, thresholds || undefined)),
+    // eslint-disable-next-line
+    [role, state.clients, thresholdSig]
   );
-  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source };
+  // `tuning.refused` is carried out, not swallowed: a stored override the engine
+  // rejected must not render in the panel as an active tuning while the roster runs
+  // on the house default — which is exactly what refuse-don't-clamp exists to prevent.
+  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning };
 }
 
 // ── The coach's own live figures (review 2026-09-09, R9) ────────────────────
@@ -638,4 +713,4 @@ function useWeekClock(compute) {
   return value;
 }
 
-Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock });
+Object.assign(window, { useDashboard, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });
