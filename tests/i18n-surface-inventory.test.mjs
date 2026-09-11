@@ -330,7 +330,7 @@ const UNCOVERED = new Set([
   'Client::BSActivityBody', 'Client::BSActivityLogCta',
   'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan',
   'Client::BSCardSheetHost', 'Client::BSChatThread',
-  'Client::BSClientLibrary', 'Client::BSClientNextPlate',
+  'Client::BSClientNextPlate',
   'Client::BSClientProgress', 'Client::BSCoachAdjustBanner',
   'Client::BSCodeOfConductPage',
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
@@ -339,7 +339,7 @@ const UNCOVERED = new Set([
   'Client::BSHealthIntake',
   'Client::BSHelpPage',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
-  'Client::BSLibraryDetail', 'Client::BSLogActivity',
+  'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile', 'Client::BSNoraProposal',
   'Client::BSNotifications', 'Client::BSNotifyPrefs',
@@ -380,7 +380,14 @@ const UNCOVERED = new Set([
 
 /** Has a translator AND still hardcodes copy — a partial rollout, not a missed one. */
 const PARTIAL = new Set([
+  // ⚠ BSClientLibrary + BSLibraryDetail MOVED HERE FROM UNCOVERED 2026-09-10 —
+  // recipe import wired a translator into both (the "＋ Add your own recipe"
+  // door, the member-recipe rows, the provenance line, the delete). NOTHING NEW
+  // WAS HARDCODED: the same 25 strings simply changed bucket, which is why
+  // partStrings rose by exactly what noneStrings fell by. The rest of the
+  // Catalogue's copy is still English and is the next cut on these two.
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
+  'Client::BSClientLibrary', 'Client::BSLibraryDetail',
   'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSClientTrain',
   'Client::BSCookMode',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
@@ -712,10 +719,26 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // daily_health_snapshot instead of the trainer's workout_sessions — moves the
   // measurement by ZERO, because a source swap is not a string. Fifteen keys
   // were authored against a ratchet that can only move by two.
-  assert.equal(partStrings, 168, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(noneStrings, 818, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 96, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ MOVED 2026-09-10 BY THE RECIPE IMPORT, AND THE TWO NUMBERS RECONCILE BY
+  // CONSTRUCTION: partStrings 168 -> 193 and noneStrings 818 -> 793 are the SAME
+  // 25 strings, because BSClientLibrary and BSLibraryDetail gained a translator
+  // and changed bucket. part 34 -> 36 / none 96 -> 94 is those two components.
+  // Nothing on either surface started hardcoding: had it, the deltas would not
+  // have cancelled, which is the only reason this pair of equalities is worth
+  // having at all.
+  assert.equal(partStrings, 193, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
+  // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
+  // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
+  // deliberately posted NOTHING, because "absent macros are omitted, never
+  // posted as fabricated 0s". Member-imported recipes carry no macros by
+  // construction, so the recipe import is what made that screen reachable. The
+  // honest states cost `—`, `No macros on this one` and a `Cooked` stamp. Three
+  // English strings on an uncovered surface is the price of not lying about a
+  // number; keying the whole component is its own cut.
+  assert.equal(noneStrings, 796, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 36, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 94, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

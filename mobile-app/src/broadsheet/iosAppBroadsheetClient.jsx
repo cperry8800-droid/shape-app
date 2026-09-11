@@ -25,7 +25,8 @@ import { bsCookResumeStamp, bsCookResumeValid } from '../services/cookResume.mjs
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
-import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsCookableFromMemberRecipe, bsStepTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSplitPaste, bsNewRecipeId, bsMyRecipeIdFrom, bsIsMyRecipeId } from '../services/clientRecipes.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
@@ -1724,6 +1725,341 @@ function useBSLibrary() {
   return items;
 }
 
+// ── A member's OWN recipes (user_goals `client_recipes`) ────────────────────
+// Bodies live in their own kind; the Library holds only pointers. See
+// services/clientRecipes.mjs for why (bsLibWrite is a blind whole-array write).
+const bsMyRecipesStore = () => bsRecipesStore({
+  db: typeof window !== 'undefined' ? window.shapeDb : null,
+  storage: typeof window !== 'undefined' ? window.localStorage : null,
+});
+function bsMyRecipesPing() { try { window.dispatchEvent(new Event('bs-myrecipes')); } catch (e) {} }
+
+// → { doc, state } where state is 'loading' | 'ok' | 'unreadable'.
+// ⚠ THE STATE IS NOT DECORATION. A null document has three causes — still
+// loading, read and empty, or could-not-be-read — and the Library's behaviour
+// has to differ: dropping the member's own pointers is right for "known empty"
+// and is silent data loss on screen for the other two.
+function useBSMyRecipes() {
+  // Seed SYNCHRONOUSLY off the per-uid mirror: an effect-only load paints an
+  // empty Library on every open, and leaves a member with no recipes offline.
+  const [st, setSt] = useStateBSC(() => {
+    const uid = bsRecipesUidSync();
+    const doc = (uid && bsMyRecipesStore().readMirror(uid)) || null;
+    return { doc, state: doc ? 'ok' : 'loading' };
+  });
+  React.useEffect(() => {
+    let on = true;
+    const reseed = () => {
+      const uid = bsRecipesUidSync();
+      const doc = (uid && bsMyRecipesStore().readMirror(uid)) || null;
+      if (on) setSt((prev) => ({ doc, state: doc ? 'ok' : prev.state }));
+    };
+    // ⚠ AND IT RE-RUNS ON IDENTITY. On a cold launch the cached session is not
+    // resolved yet, so the first hydrate fails closed with 'signed-out'; without
+    // a re-run the member's recipes stay missing for the life of the mount. The
+    // radio module's ask-gate is keyed the same way for the same reason.
+    const run = () => bsMyRecipesStore().hydrate().then((r) => {
+      if (!on) return;
+      if (r && r.ok && r.doc) setSt({ doc: r.doc, state: 'ok' });
+      else if (r && r.reason === 'unreadable') setSt((prev) => ({ doc: prev.doc, state: 'unreadable' }));
+      else setSt((prev) => ({ doc: prev.doc, state: prev.doc ? 'ok' : 'loading' }));
+    }).catch(() => {});
+    // Guarded: this hook runs inside three components, and the cook-session
+    // harness mounts one of them against a partial `window`. A missing listener
+    // API costs a re-sync, never a crash on a screen a member is looking at.
+    const w = typeof window !== 'undefined' && typeof window.addEventListener === 'function' ? window : null;
+    if (w) { w.addEventListener('bs-myrecipes', reseed); w.addEventListener('shape:identity', run); }
+    run();
+    return () => {
+      on = false;
+      if (w) { w.removeEventListener('bs-myrecipes', reseed); w.removeEventListener('shape:identity', run); }
+    };
+  }, []);
+  return st;
+}
+
+// The store's five reasons, in ONE mapping. Both handlers were spelling three
+// of them out inline in near-identical nested ternaries, which is how the sixth
+// reason gets threaded through one site and missed in the other — and how
+// 'unreadable' came to be unnamed on both, under a comment promising that "we
+// could not read your recipes" was a separate sentence. The account line is a
+// PARAMETER because the two flows need different words: a delete that was
+// refused can be reopened, a save that was refused has nothing to reopen and
+// the draft on screen is the only copy.
+function bsMyRecipeErrText(tr, reason, accountText, fallbackText, fallbackKey) {
+  if (reason === 'signed-out') return tr('nutrition:myRecipe.errSignedOut', { defaultValue: 'Sign in to keep your recipes.' });
+  if (reason === 'account-changed') return accountText;
+  if (reason === 'unreadable') return tr('nutrition:myRecipe.errUnreadable', { defaultValue: "Couldn't read your recipes just now. Try again." });
+  // 'contended' (every CAS attempt lost the race) and 'write-failed' both mean
+  // exactly "try again" — nothing was written and nothing was lost.
+  return tr(fallbackKey, { defaultValue: fallbackText });
+}
+
+// Paste a recipe in, check what we made of it, keep it.
+//
+// TWO READERS, one screen. /api/nutrition/recipe-parse reads the paste with a
+// model when a key is configured; bsSplitPaste splits it structurally when the
+// route cannot answer, offline included. ⚠ EITHER WAY the result is a DRAFT the
+// member sees and edits before a byte is stored — the "labelled AI draft, human
+// confirmed" rule cookable.mjs's own header already sets, and the reason nothing
+// here writes on the model's say-so.
+function BSMyRecipeSheet({ onClose, onSaved }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [title, setTitle] = useStateBSC('');
+  const [paste, setPaste] = useStateBSC('');
+  const [stage, setStage] = useStateBSC('write'); // write | review
+  const [draft, setDraft] = useStateBSC(null);
+  const [busy, setBusy] = useStateBSC(false);
+  const [err, setErr] = useStateBSC(null);
+  // ⚠ THE ACCOUNT THIS DRAFT BELONGS TO, captured when the sheet opened and
+  // passed to the write. Every uid check inside the store is resolved at call
+  // time, so they close the window inside one write and say nothing about the
+  // one before it: without this, a save refused for an account change leaves
+  // the draft on screen and one more tap writes it into whoever is signed in
+  // now. A null here (session not resolved yet) degrades to the store's own
+  // write-time binding rather than blocking the save.
+  const ownerUid = React.useRef(null);
+  if (ownerUid.current == null) ownerUid.current = bsRecipesUidSync();
+
+  // Split it STRUCTURALLY — no model. This is the floor: it always works, it
+  // works offline, and it is what the review screen shows when the parse route
+  // is unavailable.
+  const splitLocally = () => {
+    // ⚠ THE SPLITTER RETURNS STEPS, NOT A BLOB. Re-splitting a joined method on
+    // `[.!?]` before an ASCII capital destroyed the structure the member pasted:
+    // a numbered method with no full stops collapsed into ONE step, and no
+    // non-Latin script ever split at all.
+    const split = bsSplitPaste(paste);
+    return { ingredients: split.ingredients, steps: split.steps, servings: null, byAI: false };
+  };
+
+  // Ask the parse route first — a model reads a messy paste far better than a
+  // line classifier can. ⚠ Its draft is a DRAFT: the member sees and edits it
+  // here before anything is stored, and a route that cannot answer degrades to
+  // the structural split rather than to an empty screen.
+  const toReview = async () => {
+    if (busy) return;
+    setBusy(true); setErr(null);
+    let next = null;
+    try {
+      // ⚠ THROUGH THE BACKEND CLIENT, NEVER A ROOT-RELATIVE FETCH. On the native
+      // build `/api/...` resolves to the WebView's own origin, which is not the
+      // backend and carries no session cookie — and since this call degrades to
+      // the structural split, that failure is SILENT: the AI reader would never
+      // run on iOS or Android with nothing on screen saying so. shapeBackend's
+      // parse client sends apiBaseUrl + the Bearer session (Codex on this PR;
+      // the same shape transcribeVoice was fixed for in #1805).
+      const api = window.ShapeRecipeImport && window.ShapeRecipeImport.parse;
+      const r = api ? await api(paste) : null;
+      const d = r && r.ok ? r.draft : null;
+      if (d && ((d.ingredients && d.ingredients.length) || (d.steps && d.steps.length))) {
+        next = { ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true };
+        // The model may read a title out of the paste; never overwrite one the
+        // member typed themselves.
+        if (!title.trim() && d.title) setTitle(d.title);
+      }
+    } catch (e) { /* falls through to the structural split */ }
+    setDraft(next || splitLocally());
+    setStage('review');
+    setBusy(false);
+  };
+
+  // The review screen's copy says "fix anything wrong", so every field is a real
+  // input. ⚠ Edits are held on the DRAFT, never written through — nothing is
+  // stored until Keep it.
+  const editIng = (i, key, val) =>
+    setDraft((d) => ({ ...d, ingredients: d.ingredients.map((g, j) => (j === i ? { ...g, [key]: val } : g)) }));
+  const editStep = (i, val) => setDraft((d) => ({ ...d, steps: d.steps.map((x, j) => (j === i ? val : x)) }));
+
+  const save = async () => {
+    if (busy) return;
+    // ⚠ A TITLE-LESS ITEM DOES NOT NORMALIZE, so bsRecipesPut would return the
+    // document unchanged and the store would still report ok — a silent loss
+    // dressed as a save. Refuse it here instead. (Unreachable through the write
+    // stage's own gate today; the guard is against that gate moving.)
+    if (!title.trim()) {
+      setErr(tr('nutrition:myRecipe.errNoName', { defaultValue: 'Give it a name first.' }));
+      setStage('write');
+      return;
+    }
+    setBusy(true); setErr(null);
+    const now = Date.now();
+    const item = {
+      // ⚠ THE FALLBACK NEEDS REAL ENTROPY. `now % 9973` is a pure function of
+      // `now`, so the old suffix added none and two saves in the same
+      // millisecond minted the SAME id — which bsRecipesPut replaces by, so the
+      // first recipe vanished silently. getRandomValues where it exists, Math
+      // .random otherwise; the id only has to be unique within one member's own
+      // document.
+      id: bsNewRecipeId(now),
+      title: title.trim(),
+      ingredients: (draft && draft.ingredients) || [],
+      steps: (draft && draft.steps) || [],
+      // Carried so the prep session can scale the mise — without it `mult` is
+      // pinned at 1 and a member recipe can never be cooked for a different
+      // number of people.
+      servings: (draft && draft.servings) ?? null,
+      sourceKind: 'paste',
+      // Provenance, never cleared — a member editing every field does not change
+      // where the draft came from (spec §5.4).
+      ...(draft && draft.byAI ? { draftedByAI: true } : {}),
+      createdAt: now, updatedAt: now,
+    };
+    const res = await bsMyRecipesStore().save(item, ownerUid.current).catch(() => ({ ok: false, reason: 'write-failed' }));
+    setBusy(false);
+    if (!res || !res.ok) {
+      // Name the state rather than a generic failure — "sign in" and "we could
+      // not read your recipes" are different sentences and only one is the
+      // member's to act on.
+      // ⚠ THE ACCOUNT LINE HERE MUST NOT SAY "REOPEN THIS RECIPE" — the delete
+      // flow's wording, and a lie in this one. Nothing was saved, so there is
+      // nothing to reopen: the draft in this sheet is the only copy of what the
+      // member typed, and closing the sheet to follow that instruction destroys
+      // it. The draft stays; signing back in makes the same tap work, because
+      // the write is bound to ownerUid rather than to a sentence.
+      setErr(bsMyRecipeErrText(
+        tr, res && res.reason,
+        tr('nutrition:myRecipe.errAccountSave', { defaultValue: "The signed-in account changed, so this wasn't saved. Sign back in and keep it." }),
+        "Couldn't save just now. Try again.", 'nutrition:myRecipe.errSave',
+      ));
+      return;
+    }
+    // The pointer rides in the Library so the Catalogue lists it with no change
+    // to its own write path.
+    try { const ptr = bsRecipePointer(item); if (ptr) bsLibWrite([ptr, ...bsLibRead().filter((x) => x.id !== ptr.id)]); } catch (e) {}
+    bsMyRecipesPing();
+    try { window.__bsToast && window.__bsToast(tr('nutrition:myRecipe.saved', { defaultValue: 'Saved to your library' }), 'ok'); } catch (e) {}
+    onSaved && onSaved(item);
+    onClose();
+  };
+
+  const canNext = title.trim().length > 0 && paste.trim().length > 0;
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
+
+  // ⚠ PORTALED INTO #bs-phone-surface, not rendered in place. BSPage's scroller
+  // IS the containing block for an absolutely-positioned child, so an in-place
+  // sheet is laid out at SCROLL ORIGIN: on a Library scrolled past one screen it
+  // opens above the viewport — a dimmed screen with the sheet out of sight — and
+  // BSPage's pinned masthead paints over it. The house rule in AGENTS.md, and
+  // what every sibling sheet in this file already does.
+  const sheet = (
+    <div onClick={() => !busy && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', overflowY: 'auto', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>
+          {tr('nutrition:myRecipe.eyebrow', { defaultValue: 'Your recipe' })}
+        </div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>
+          {stage === 'write'
+            ? tr('nutrition:myRecipe.title', { defaultValue: 'Bring a recipe in.' })
+            : tr('nutrition:myRecipe.reviewTitle', { defaultValue: 'Check what we made of it.' })}
+        </div>
+        <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+
+        {stage === 'write' ? (
+          <>
+            <label style={{ display: 'block' }}>
+              <span style={lbl}>{tr('nutrition:myRecipe.name', { defaultValue: 'Name' })}</span>
+              <input className="bs-uline" value={title} onChange={(e) => setTitle(e.target.value)}
+                placeholder={tr('nutrition:myRecipe.namePlaceholder', { defaultValue: "Nana's lemon chicken" })}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+            </label>
+            <label style={{ display: 'block', marginTop: 16 }}>
+              <span style={lbl}>{tr('nutrition:myRecipe.paste', { defaultValue: 'Paste the recipe' })}</span>
+              <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={9}
+                placeholder={tr('nutrition:myRecipe.pastePlaceholder', { defaultValue: 'Ingredients and method — paste it however it comes.' })}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, outline: 'none', resize: 'vertical' }} />
+            </label>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.5 }}>
+              {tr('nutrition:myRecipe.privacy', { defaultValue: 'Private to you. Your coaches do not see it.' })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ marginBottom: 14, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50, lineHeight: 1.5 }}>
+              {draft && draft.byAI
+                ? tr('nutrition:myRecipe.byAI', { defaultValue: 'Read by Shape from your paste — check it, fix anything wrong, then keep it.' })
+                : tr('nutrition:myRecipe.bySplit', { defaultValue: 'Split from your paste — check it, fix anything wrong, then keep it.' })}
+            </div>
+            <div style={lbl}>{tr('nutrition:myRecipe.ingredients', { defaultValue: 'Ingredients' })}</div>
+            {(draft && draft.ingredients.length) ? draft.ingredients.map((g, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+                <input value={g.n || ''} onChange={(e) => editIng(i, 'n', e.target.value)}
+                  aria-label={tr('nutrition:myRecipe.qty', { defaultValue: 'Amount' })}
+                  placeholder={tr('nutrition:myRecipe.qtyPlaceholder', { defaultValue: 'amount' })}
+                  style={{ width: 66, minWidth: 66, boxSizing: 'border-box', padding: '8px 0', border: 0, background: 'transparent', fontFamily: t.MONO, fontSize: 10, color: teal, fontWeight: 700, outline: 'none' }} />
+                <input value={g.m || ''} onChange={(e) => editIng(i, 'm', e.target.value)}
+                  aria-label={tr('nutrition:myRecipe.ingredient', { defaultValue: 'Ingredient' })}
+                  style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '8px 0', border: 0, background: 'transparent', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' }} />
+                <button type="button" aria-label={tr('nutrition:myRecipe.remove', { defaultValue: 'Remove' })}
+                  onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })}
+                  style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontFamily: t.MONO, fontSize: 13, minHeight: 30, padding: '0 6px' }}>×</button>
+              </div>
+            )) : <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>{tr('nutrition:myRecipe.noIngredients', { defaultValue: 'No ingredients found — you can still keep the method.' })}</div>}
+            <button type="button" onClick={() => setDraft({ ...draft, ingredients: [...(draft.ingredients || []), { n: '', m: '' }] })}
+              style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 34, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>
+              {tr('nutrition:myRecipe.addIngredient', { defaultValue: '＋ Add an ingredient' })}
+            </button>
+
+            <label style={{ display: 'block', marginTop: 18 }}>
+              {/* ⚠ THE MODEL'S SERVING COUNT IS SHOWN, OR IT IS NOT KEPT. Prep
+                  uses it as the DENOMINATOR when scaling every ingredient, so a
+                  misread yield silently rescales the whole mise — and a value
+                  the member cannot see is not one they reviewed. */}
+              <span style={lbl}>{tr('nutrition:myRecipe.servings', { defaultValue: 'Serves' })}</span>
+              <input className="bs-uline" inputMode="numeric" value={draft && draft.servings != null ? String(draft.servings) : ''}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
+                  const n = raw ? Number(raw) : null;
+                  setDraft((d) => ({ ...d, servings: n != null && n > 0 ? n : null }));
+                }}
+                placeholder={tr('nutrition:myRecipe.servingsPlaceholder', { defaultValue: 'how many it feeds' })}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+            </label>
+
+            <div style={{ ...lbl, marginTop: 18 }}>{tr('nutrition:myRecipe.method', { defaultValue: 'Method' })}</div>
+            {(draft && draft.steps.length) ? draft.steps.map((st, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '4px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+                <span style={{ minWidth: 20, paddingTop: 10, fontFamily: t.MONO, fontSize: 10, color: teal, fontWeight: 700 }}>{i + 1}</span>
+                <textarea value={st} onChange={(e) => editStep(i, e.target.value)} rows={2}
+                  aria-label={tr('nutrition:myRecipe.step', { defaultValue: 'Step' })}
+                  style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '8px 0', border: 0, background: 'transparent', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, lineHeight: 1.45, outline: 'none', resize: 'vertical' }} />
+                <button type="button" aria-label={tr('nutrition:myRecipe.remove', { defaultValue: 'Remove' })}
+                  onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, j) => j !== i) })}
+                  style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontFamily: t.MONO, fontSize: 13, minHeight: 30, padding: '0 6px' }}>×</button>
+              </div>
+            )) : <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>{tr('nutrition:myRecipe.noMethod', { defaultValue: 'No method found — the ingredients are still yours to keep.' })}</div>}
+            <button type="button" onClick={() => setDraft({ ...draft, steps: [...(draft.steps || []), ''] })}
+              style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 34, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>
+              {tr('nutrition:myRecipe.addStep', { defaultValue: '＋ Add a step' })}
+            </button>
+          </>
+        )}
+
+        {err && <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9.5, color: '#c0533b' }}>{err}</div>}
+
+        <div style={{ display: 'flex', gap: 12, marginTop: 18, alignItems: 'center' }}>
+          <button type="button" onClick={() => (stage === 'review' ? setStage('write') : onClose())} disabled={busy}
+            style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>
+            <span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>
+              {stage === 'review' ? tr('nutrition:myRecipe.back', { defaultValue: 'Back' }) : tr('nutrition:myRecipe.cancel', { defaultValue: 'Cancel' })}
+            </span>
+          </button>
+          <button type="button" onClick={() => (stage === 'write' ? toReview() : save())} disabled={busy || (stage === 'write' && !canNext)}
+            style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: (busy || (stage === 'write' && !canNext)) ? bsTHexA(t.INK, 0.18) : teal, color: t.isLight ? '#fff' : '#04201d', cursor: busy ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+            {busy
+              ? (stage === 'write' ? tr('nutrition:myRecipe.reading', { defaultValue: 'Reading…' }) : tr('nutrition:myRecipe.saving', { defaultValue: 'Saving…' }))
+              : stage === 'write' ? tr('nutrition:myRecipe.next', { defaultValue: 'Next →' })
+              : tr('nutrition:myRecipe.save', { defaultValue: 'Keep it →' })}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+  return createPortal(sheet, (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null));
+}
+
 // Reusable "Save to library" toggle — reflects saved state live.
 function BSSaveButton({ item, full = false }) {
   const t = useBS();
@@ -1751,12 +2087,29 @@ const BS_LIB_KINDS = {
   grocery: { label: 'Groceries', color: '#3b74b8' },
 };
 
-function BSLibraryDetail({ item, onBack }) {
+function BSLibraryDetail({ item, onBack, myDoc = null }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const km = BS_LIB_KINDS[item.kind] || { label: item.kind || 'Saved', color: t.INK50 };
   const lib = useBSLibrary();
   const saved = lib.some(x => x.id === item.id);
+  // A member's OWN recipe: the pointer names it, the document IS it.
+  // ⚠ THE NAMESPACE DECIDES, NOT `item.mine`. The pointer array is member-
+  // writable data that round-trips through localStorage, so a `mine: true` on a
+  // coach's row would otherwise reach the "your own recipe" branch. Only a
+  // `myrecipe:` id can name a member document, and bsRecipePointer is the only
+  // thing that mints one.
+  // ⚠ THE DOCUMENT COMES FROM THE PARENT, which has already hydrated it. Calling
+  // the hook here fired a `client_recipes` round trip on EVERY library item —
+  // a saved coach workout, a grocery list, a purchased plan — for data those
+  // screens cannot use.
+  const mineId = bsIsMyRecipeId(item && item.id) ? bsMyRecipeIdFrom(item.id) : null;
+  const mine = (mineId && myDoc && myDoc.items && Object.prototype.hasOwnProperty.call(myDoc.items, mineId))
+    ? myDoc.items[mineId] : null;
+  const isMine = mineId != null;
+  const [cooking, setCooking] = useStateBSC(false);
+  const mineCookable = React.useMemo(() => (mine ? bsCookableFromMemberRecipe(mine) : null), [mine]);
   // A PURCHASED training plan can be scheduled onto the calendar (Start-this-plan).
   const canStart = !!(item.owned && item.kind === 'plan' && item.planKind !== 'meal_plan' && item.planId != null && window.ShapeSelfTraining?.startPurchasedPlan);
   const [startSheet, setStartSheet] = useStateBSC(false);
@@ -1782,6 +2135,21 @@ function BSLibraryDetail({ item, onBack }) {
   })();
   const [starting, setStarting] = useStateBSC(false);
   const [startErr, setStartErr] = useStateBSC('');
+  const [removing, setRemoving] = useStateBSC(false);
+  const [removeErr, setRemoveErr] = useStateBSC('');
+  // The account this screen is reading `myDoc` under — see the sheet's copy of
+  // this for why a write has to be bound to it rather than to whoever is signed
+  // in when the button is tapped.
+  const ownerUid = React.useRef(null);
+  if (ownerUid.current == null) ownerUid.current = bsRecipesUidSync();
+  // ⚠ EVERY HOOK IN THIS COMPONENT IS ABOVE THIS LINE, AND THIS EARLY RETURN MUST
+  // STAY BELOW THEM ALL. Cook mode is a full-screen takeover, so it returns
+  // early — and on the frame `cooking` flips true every hook after the return
+  // goes uncalled, which React throws on ("rendered fewer hooks than expected").
+  // A hook added later belongs ABOVE this line, never after it.
+  // tests/recipe-import-render.test.mjs enforces the rule across every component
+  // in this module, so the invariant does not depend on this comment.
+  if (cooking && mineCookable) return <BSCookMode cookable={mineCookable} onClose={() => setCooking(false)} />;
   const doStart = async () => {
     if (starting) return;
     setStarting(true); setStartErr('');
@@ -1811,9 +2179,17 @@ function BSLibraryDetail({ item, onBack }) {
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <div style={{ borderLeft: `3px solid ${km.color}`, padding: '2px 0 2px 12px' }}>
           <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK, lineHeight: 1.5 }}>
-            {item.preview || `Saved ${km.label.toLowerCase()} from your coach. Open it on its source page to start, swap, or log.`}
+            {/* ⚠ "from your coach" is FALSE for a recipe the member typed themselves. */}
+            {isMine
+              ? tr('nutrition:myRecipe.yours', { defaultValue: 'Your own recipe. Private to you — your coaches do not see it.' })
+              : (item.preview || `Saved ${km.label.toLowerCase()} from your coach. Open it on its source page to start, swap, or log.`)}
           </div>
         </div>
+        {isMine && mine && mine.draftedByAI ? (
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>
+            {tr('nutrition:myRecipe.draftedTag', { defaultValue: 'Read by Shape from your paste, checked by you' })}
+          </div>
+        ) : null}
         {item.savedAt ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved {new Date(item.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div> : null}
       </div>
       {canStart && (
@@ -1822,8 +2198,103 @@ function BSLibraryDetail({ item, onBack }) {
           <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>Schedules the program onto your Train calendar as your own — edit any day.</div>
         </div>
       )}
+      {isMine && mine ? (
+        <>
+          {mine.ingredients.length ? (
+            <div style={{ padding: `18px ${t.padX}px 0` }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+                {tr('nutrition:myRecipe.ingredients', { defaultValue: 'Ingredients' })}
+              </div>
+              {mine.ingredients.map((g, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+                  <span style={{ minWidth: 62, fontFamily: t.MONO, fontSize: 10, color: teal, fontWeight: 700 }}>{g.n || '—'}</span>
+                  <span style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{g.m}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {mine.steps.length ? (
+            <div style={{ padding: `18px ${t.padX}px 0` }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+                {tr('nutrition:myRecipe.method', { defaultValue: 'Method' })}
+              </div>
+              {mine.steps.map((st, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+                  <span style={{ minWidth: 20, fontFamily: t.MONO, fontSize: 10, color: teal, fontWeight: 700 }}>{i + 1}</span>
+                  <span style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, lineHeight: 1.45 }}>{st}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {mineCookable && mineCookable.steps.length ? (
+            <div style={{ padding: `16px ${t.padX}px 0` }}>
+              <button type="button" onClick={() => setCooking(true)} style={{ width: '100%', padding: '15px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+                {tr('cook:cta', { defaultValue: 'Cook this' })} →
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button type="button" onClick={() => { bsLibToggle(item); onBack(); }} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${saved ? bsTHexA(t.INK, 0.35) : teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
+        {isMine ? (
+          <>
+          <button type="button" disabled={removing} onClick={async () => {
+            // A member recipe is removed from the DOCUMENT, not just the pointer
+            // — dropping the pointer alone would orphan the body forever.
+            // ⚠ AND IT IS CONFIRMED FIRST. This body cannot be reconstructed —
+            // that is the entire premise for storing it apart from the pointer
+            // array — so a single mis-tap destroying it permanently is the one
+            // outcome this screen must not allow. bsAskConfirm fails CLOSED when
+            // no host is mounted, so the gate cannot be skipped by a race.
+            if (!mineId || removing) return;
+            // A new attempt starts clean — the sibling save flow opens the same
+            // way. Without this a failure stays on screen through the next
+            // confirm (and through a Cancel), describing an attempt that is no
+            // longer happening.
+            setRemoveErr('');
+            const okToDelete = await (window.bsAskConfirm ? window.bsAskConfirm({
+              title: tr('nutrition:myRecipe.deleteTitle', { defaultValue: 'Delete this recipe?' }),
+              name: (mine && mine.title) || item.title,
+              message: tr('nutrition:myRecipe.deleteMessage', { defaultValue: 'This is your own recipe — nothing can bring it back.' }),
+              confirmLabel: tr('nutrition:myRecipe.delete', { defaultValue: 'Delete this recipe' }),
+            }) : Promise.resolve(false));
+            if (!okToDelete) return;
+            setRemoving(true);
+            const res = await bsMyRecipesStore().remove(mineId, ownerUid.current).catch(() => ({ ok: false, reason: 'write-failed' }));
+            setRemoving(false);
+            if (!res || !res.ok) {
+              // ⚠ AN ACCOUNT CHANGE IS NOT A RETRY — and the store refuses it
+              // now rather than this sentence doing the work. Here "reopen this
+              // recipe" is honest: the recipe still exists in the member's own
+              // document, so there is something to come back to.
+              setRemoveErr(bsMyRecipeErrText(
+                tr, res && res.reason,
+                tr('nutrition:myRecipe.errAccount', { defaultValue: 'The signed-in account changed. Reopen this recipe.' }),
+                "Couldn't delete just now. Try again.", 'nutrition:myRecipe.errDelete',
+              ));
+              return;
+            }
+            try { bsLibWrite(bsLibRead().filter((x) => x.id !== item.id)); } catch (e) {}
+            bsMyRecipesPing();
+            onBack();
+          }} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>
+            {removing
+              ? tr('nutrition:myRecipe.deleting', { defaultValue: 'Deleting…' })
+              : tr('nutrition:myRecipe.delete', { defaultValue: 'Delete this recipe' })}
+          </button>
+          {/* ⚠ THE FAILURE HAS TO BE ON SCREEN. Setting removeErr and rendering
+              it nowhere made the previous round's fix half a fix: instead of a
+              delete that falsely reported success, the member got a button that
+              returned to its idle label while the recipe stayed — no worse, but
+              not the honest failure it was changed to be. The save flow in this
+              same sheet already renders its error this way. */}
+          {removeErr ? (
+            <div role="alert" style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.5, color: '#c0533b' }}>{removeErr}</div>
+          ) : null}
+          </>
+        ) : (
+          <button type="button" onClick={() => { bsLibToggle(item); onBack(); }} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${saved ? bsTHexA(t.INK, 0.35) : teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
+        )}
       </div>
       <BSFooter right="Library" />
       {startSheet && (
@@ -1862,15 +2333,38 @@ function BSLibraryDetail({ item, onBack }) {
 
 function BSClientLibrary({ onBack, goMarket = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const items = useBSLibrary();
+  const saved = useBSLibrary();
+  const { doc: myDoc, state: myState } = useBSMyRecipes();
+  const [sheet, setSheet] = useStateBSC(false);
+  // The member's own recipes are derived from `client_recipes`, NOT trusted from
+  // the pointer array: the pointer is a convenience, the document is the record.
+  // A pointer whose body is gone (another device removed it) drops out here
+  // rather than opening a detail screen with nothing behind it.
+  //
+  // ⚠ BUT ONLY ONCE THE DOCUMENT IS KNOWN. While it is loading, or when the read
+  // failed, dropping every `myrecipe:` pointer makes the member's own recipes
+  // VANISH from their Library with nothing said — and the pointers being
+  // stripped are the only things left that could name them. So an unresolved
+  // document keeps the pointers instead, and the notice below says why the
+  // bodies are not there yet.
+  const items = React.useMemo(() => {
+    const known = myState === 'ok';
+    const mine = known ? bsRecipesList(myDoc).map(bsRecipePointer).filter(Boolean) : [];
+    const mineIds = new Set(mine.map((x) => x.id));
+    const rest = saved.filter((x) => known
+      ? !(bsIsMyRecipeId(x && x.id) || mineIds.has(x && x.id))
+      : !mineIds.has(x && x.id));
+    return [...mine, ...rest].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  }, [saved, myDoc, myState]);
   const [filter, setFilter] = useStateBSC('all');
   const [query, setQuery] = useStateBSC('');
   const [open, setOpen] = useStateBSC(null);
   const kindMeta = BS_LIB_KINDS;
   if (open) {
     const live = items.find(x => x.id === open.id) || open;
-    return <BSLibraryDetail item={live} onBack={() => setOpen(null)} />;
+    return <BSLibraryDetail item={live} onBack={() => setOpen(null)} myDoc={myDoc} />;
   }
   const q = query.trim().toLowerCase();
   const list = items
@@ -1902,6 +2396,17 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
         })}
       </div>
 
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <button type="button" onClick={() => setSheet(true)} style={{ width: '100%', minHeight: 44, padding: '13px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          {tr('nutrition:myRecipe.add', { defaultValue: '＋ Add your own recipe' })}
+        </button>
+      </div>
+
+      {myState === 'unreadable' ? (
+        <div style={{ padding: `10px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.5 }}>
+          {tr('nutrition:myRecipe.errRead', { defaultValue: "Couldn't read your own recipes just now — they're still saved." })}
+        </div>
+      ) : null}
       <div style={{ padding: `0 ${t.padX}px 16px` }}>
         <input
           value={query}
@@ -1913,7 +2418,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
 
       {list.length === 0 ? (
         <div style={{ padding: `20px ${t.padX}px`, textAlign: 'center' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>{q ? 'No matches — try a different search.' : (filter === 'all' ? <>Nothing saved yet. Save your coaches&rsquo; workouts, meals, recipes, and grocery lists here — tap <b>Save</b> on any of them.</> : 'None in here yet.')}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>{q ? 'No matches — try a different search.' : (filter === 'all' ? <>Nothing saved yet. Tap <b>Save</b> on your coaches&rsquo; workouts, meals, recipes and grocery lists to keep them here — or add a recipe of your own above.</> : 'None in here yet.')}</div>
           {!q ? <button type="button" onClick={() => goMarket()} style={{ marginTop: 16, minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Browse marketplace →</button> : null}
         </div>
       ) : (
@@ -1934,6 +2439,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
         </div>
       )}
       <BSFooter right="Library" />
+      {sheet && <BSMyRecipeSheet onClose={() => setSheet(false)} />}
     </BSPage>
   );
 }
@@ -5587,9 +6093,21 @@ function _bsScrollTopOnMount() {
 // `p` has NO default: an omitted prop must stay undefined so the stamp renders
 // an honest "—" (a `= 0` default would fabricate "0P" for unknown protein —
 // the Number(null)/?? 0 zero-fabrication class). `p || 0` guards the arithmetic.
-function BSMealLogged({ kcal = 0, p, time = '12:40 PM', onDone = () => {}, onUndo = () => {}, share = null }) {
+function BSMealLogged({ kcal = null, p, time = '12:40 PM', logged = null, onDone = () => {}, onUndo = () => {}, share = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // ⚠ AN UNKNOWN CALORIE COUNT IS NOT ZERO, AND `Logged ✓` OVER IT IS A CLAIM
+  // NOTHING BACKED. The cook's own logIt OMITS the log entirely when kcal is
+  // null ("never posted as fabricated 0s"), so this screen was printing a 46px
+  // teal 0 under a filed stamp while the ledger had received nothing. Reachable
+  // for the first time by member-imported recipes, which carry no macros by
+  // construction. The `—` is the idiom already sitting beside it for protein.
+  // ⚠ INFERENCE IS THE DEFAULT, NOT THE RULE. Cook mode's logIt skips the post
+  // when kcal is null, so there `kcal != null` IS whether a row was written —
+  // but the plan-meal path posts unconditionally, and a screen that denied a
+  // log the app had just made would put two surfaces in disagreement about the
+  // same meal. A caller that knows says so.
+  const didLog = logged == null ? kcal != null : !!logged;
   // Share-by-choice (spec 2026-07-12): a deliberate per-meal action, default
   // off, never auto. The created postId persists here so Undo can retract the
   // post; the button disables while pending (no double-posts). Signed-in only
@@ -5653,11 +6171,11 @@ function BSMealLogged({ kcal = 0, p, time = '12:40 PM', onDone = () => {}, onUnd
         <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <button onClick={handleUndo} disabled={shareBusy} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: shareBusy ? 'default' : 'pointer', opacity: shareBusy ? 0.5 : 1, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>Undo</button>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Meal · Filed {time}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Meal · {didLog ? 'Filed' : 'Cooked'} {time}</span>
         </div>
         <div style={{ position: 'relative', textAlign: 'center', marginTop: 28 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{kcal}</div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {p == null ? '—' : p}P · Logged ✓</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{didLog ? kcal : '—'}</div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {p == null ? '—' : p}P · {didLog ? 'Logged ✓' : 'No macros on this one'}</div>
         </div>
         {!loggedIn && (
           <div style={{ position: 'relative', marginTop: 22, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 12 }}>
@@ -5923,7 +6441,7 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
   // macros stay the logged truth), an unmapped one walks what it carries.
   if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} onLogged={() => { try { onFiled?.(); } catch (e) {} }} onUnlogged={() => { try { onUnfiled?.(); } catch (e) {} }} />;
   if (justLogged) {
-    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => { setJustLogged(false); try { onUnfiled?.(); } catch (e) {} }}
+    return <BSMealLogged kcal={meal.kcal} p={meal.p} logged time={fmt12(schedTime)} onDone={onBack} onUndo={() => { setJustLogged(false); try { onUnfiled?.(); } catch (e) {} }}
       share={{ name: meal.title, kcal: meal.kcal, p: meal.p, c: meal.c, f: meal.f, planned: true, recipeId: meal.recipeId || '', coach: meal.coach || '' }} />;
   }
 
@@ -6756,7 +7274,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       try {
         const entries = await window.ShapeMealPrep?.entries?.();
         if (!on || !entries) return;
-        const hit = bsPrepMatch(entries, { mealId: cookable.mealId, title: cookable.title }, Date.now());
+        // ⚠ NO TITLE FOR A MEMBER RECIPE. bsPrepMatch also matches on mealTitle /
+        // recipeTitle, and a member's title is arbitrary — prepping the catalog's
+        // "Sheet-pan salmon" on Sunday would otherwise open THEIR dish of that name
+        // on Tuesday with every ingredient pre-checked under a Prepped ✓ stamp for
+        // work never done on it. Their id is a uuid, so it identifies on its own.
+        const hit = bsPrepMatch(entries, cookable.sourceKind === 'member'
+          ? { mealId: cookable.mealId }
+          : { mealId: cookable.mealId, title: cookable.title }, Date.now());
         if (!hit) return;
         setPreppedStamp(hit);
         setChecked((m) => {
@@ -7121,7 +7646,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     const fromPlanMeal = cookable.sourceKind === 'meal';
     // Undo reverses the parent's logged mark too (onUnlogged), or Home would
     // keep showing the meal filed after the member undid it (CodeRabbit).
-    return <BSMealLogged kcal={m.kcal ?? 0} p={m.p} time={''} onDone={onClose} onUndo={() => { setLoggedState(false); try { onUnlogged(); } catch (e) {} }}
+    return <BSMealLogged kcal={m.kcal ?? null} p={m.p} time={''} onDone={onClose} onUndo={() => { setLoggedState(false); try { onUnlogged(); } catch (e) {} }}
       share={{ name: cookable.title, kcal: m.kcal, p: m.p, c: m.c, f: m.f, planned: fromPlanMeal, recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '', coach: fromPlanMeal ? ((cookable.coach && cookable.coach.name) || '') : '' }} />;
   }
 
@@ -7929,6 +8454,11 @@ function BSPrepSession({ program, onClose }) {
   const primaryBtn = { border: 0, borderRadius: 5, background: heat, color: '#04211c', cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', padding: '13px 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 };
   const quietBtn = { background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 };
 
+  // The member's own recipes, so a `myrecipe:` pointer resolves against THEIR
+  // document instead of falling through to an exact catalog title match. An
+  // unresolved document simply contributes no candidates — never a catalog dish
+  // wearing the member's title.
+  const { doc: myDoc } = useBSMyRecipes();
   const [stage, setStage] = useStateBSC('picker'); // picker | mise | transition | cook | wrap
   const [sel, setSel] = useStateBSC({});           // key -> servings (number)
   const [miseChecked, setMiseChecked] = useStateBSC({});
@@ -7971,7 +8501,33 @@ function BSPrepSession({ program, onClose }) {
     }));
     const seen = new Set(out.map((x) => String(x.cookable.title || '').trim().toLowerCase()));
     try {
+      const libGroup = tr('cook:prep.libGroup', { defaultValue: 'Your library' });
+      // ⚠ MEMBER RECIPES COME FROM THE DOCUMENT, NOT FROM THE POINTER ARRAY.
+      // `bsLibRead()` is the DEVICE-LOCAL `shape.library` mirror, whose cloud
+      // copy is fetched when BSClientLibrary mounts — so on a fresh install or a
+      // second device, opening Prep before ever visiting the Library showed NO
+      // member recipes at all, while `myDoc` had already hydrated them. The
+      // bodies are the record; the pointers are a convenience for the Library's
+      // own list. (Codex, this PR.)
+      //
+      // They are also resolved BEFORE the title dedupe, which has no authority
+      // over a dish identified by a uuid: running it first dropped the member's
+      // recipe whenever their arbitrary title matched a program meal or a saved
+      // catalog dish — the collision case this branch exists for, lost from the
+      // other direction. Two dishes that merely share a title are two dishes.
+      bsRecipesList(myDoc).forEach((doc) => {
+        const mc = bsCookableFromMemberRecipe(doc);
+        if (!mc || !mc.steps.length) return;
+        out.push({ key: 'lib-my-' + doc.id, cookable: mc, group: libGroup, mealId: mc.mealId, mealTitle: null, mine: true });
+      });
+      // A CATALOG pointer still resolves by exact title, and still dedupes on
+      // it — two library rows naming the same catalog dish are one dish.
+      // ⚠ A `myrecipe:` pointer is SKIPPED here rather than falling through:
+      // this lookup would hand someone who typed "One-pan chicken and rice" the
+      // catalog's method, macros and a named nutritionist's byline under their
+      // own title. An exact-title match is a claim about identity.
       (bsLibRead() || []).filter((it) => it.kind === 'recipe').forEach((it) => {
+        if (bsIsMyRecipeId(it && it.id)) return;
         const title = String(it.title || '').trim();
         if (!title || seen.has(title.toLowerCase())) return;
         const r = SHAPE_KITCHEN_RECIPES.find((x) => String(x.title || '').trim().toLowerCase() === title.toLowerCase());
@@ -7979,11 +8535,11 @@ function BSPrepSession({ program, onClose }) {
         const c = bsCookableFromRecipe(r);
         if (!c || !c.steps.length) return;
         seen.add(title.toLowerCase());
-        out.push({ key: 'lib-' + bsCookSlug(title), cookable: c, group: tr('cook:prep.libGroup', { defaultValue: 'Your library' }) });
+        out.push({ key: 'lib-' + bsCookSlug(title), cookable: c, group: libGroup });
       });
     } catch (e) {}
     return out;
-  }, [program]);
+  }, [program, myDoc]);
 
   const selected = React.useMemo(() => candidates
     .filter((x) => sel[x.key] != null)
@@ -8202,11 +8758,16 @@ function BSPrepSession({ program, onClose }) {
   const firstAt = (o) => (o.timeline.length ? Math.min(...o.timeline.map((e) => e.at)) : 0);
 
   const writeEntry = (it) => {
+    // ⚠ A MEMBER RECIPE PUBLISHES NO TITLE ON ITS PREP RECORD. recipeTitle and
+    // mealTitle are bsPrepMatch's MATCHING fields, not display fields, so a
+    // member dish sharing a catalog title would otherwise stamp Prepped ✓ on the
+    // catalog dish (and vice versa). Its uuid mealId identifies it exactly.
+    const isMember = it.cookable.sourceKind === 'member';
     const entry = {
       weekKey: bsPrepWeekKey(new Date()),
       dayIdx: it.dayIdx, slot: it.slot,
-      recipeTitle: it.cookable.recipeTitle || it.cookable.title,
-      mealTitle: it.cookable.title,
+      recipeTitle: isMember ? undefined : (it.cookable.recipeTitle || it.cookable.title),
+      mealTitle: isMember ? undefined : it.cookable.title,
       recipeId: it.cookable.recipeTitle ? bsCookSlug(it.cookable.recipeTitle) : undefined,
       mealId: it.mealId, servings: it.servings,
       preppedAt: Date.now(),
