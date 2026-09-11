@@ -718,6 +718,57 @@ test('a backend with no CAS still writes — the degradation is honest, not a re
   assert.equal(db.calls.saveUserGoals[0][1].rev, 1);
 });
 
+test('⚠ THE CAS WRITE CARRIES THE INITIATING UID, OR IT CAN LAND IN ANOTHER ACCOUNT', async () => {
+  // saveUserGoalsIfRev resolves the user ITSELF, so a switch after our own
+  // re-resolve targets the NEW account — and on a fresh row (both revisions
+  // absent) the CAS SUCCEEDS and this member's whole document is written into
+  // someone else's row, reporting success. Narrowing the window at the caller
+  // cannot close it; only the writer can. Third appearance of this class on the
+  // recipe import, each one a layer deeper.
+  const seen = [];
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async (_k, _d, _rev, expectedUid) => { seen.push(expectedUid); return { ok: true }; },
+  };
+  const res = await bsRecipesStore({ db, storage: memStorage() }).save({ id: 'a', title: 'A' });
+  assert.equal(res.ok, true);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0], 'u1', 'the write must name the account that initiated it');
+});
+
+test('a writer that refuses on a changed account is surfaced, not swallowed', async () => {
+  // What the bound writer returns when the account moved under it.
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async () => ({ error: { message: 'Account changed' } }),
+  };
+  const storage = memStorage();
+  const res = await bsRecipesStore({ db, storage }).save({ id: 'a', title: 'A' });
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, 'write-failed');
+  // ⚠ and the mirror is NOT advanced over a write that went somewhere else.
+  assert.equal(storage.getItem(bsRecipesMirrorKey('u1')), null);
+});
+
+test('⚠ A MIXED FRACTION IS KEPT WHOLE RATHER THAN HALF-PARSED', () => {
+  // bsQtyParse stops at the whole number, so "1 1/2 cups flour" came back as
+  // n "1" / m "1/2 cups flour" — an ingredient literally named "1/2 cups
+  // flour", which Prep then scales as one. Mixed fractions are ordinary in
+  // recipes, and a confidently wrong amount is worse than an unsplit line the
+  // member fixes on the review screen.
+  for (const line of ['1 1/2 cups flour', '2 1/4 tsp salt', '3 1/2 oz chocolate']) {
+    assert.deepEqual(bsSplitPaste('Ingredients\n' + line).ingredients, [{ n: '', m: line }], line);
+  }
+  // ⚠ And the ordinary cases still split, or this "fix" would be a regression
+  // that stopped parsing quantities at all.
+  assert.deepEqual(bsSplitPaste('Ingredients\n1/2 cup milk').ingredients, [{ n: '1/2 cup', m: 'milk' }]);
+  assert.deepEqual(bsSplitPaste('Ingredients\n1 cup flour').ingredients, [{ n: '1 cup', m: 'flour' }]);
+  assert.deepEqual(bsSplitPaste('Ingredients\n200 g pasta').ingredients, [{ n: '200 g', m: 'pasta' }]);
+  assert.deepEqual(bsSplitPaste('Ingredients\n2 eggs').ingredients, [{ n: '2', m: 'eggs' }]);
+});
+
 test('the CAS token sent is the one the read saw, not a re-derived number', async () => {
   // A document whose rev is junk from another build must still be writable: the
   // filter reproduces the raw value rather than a normalised one.

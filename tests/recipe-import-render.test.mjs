@@ -393,3 +393,87 @@ test('⚠ DELETING A MEMBER RECIPE IS CONFIRMED FIRST, AND THE ORDER IS ASK → 
   // still drop the row from the Library and orphan the body.
   assert.ok(handler.indexOf('bsLibWrite(') > bailAt, 'the pointer write must also sit behind the confirm');
 });
+
+test('⚠ A FAILED DELETE IS RENDERED, NOT JUST STORED IN STATE', () => {
+  // The previous round added removeErr and rendered it nowhere, which made that
+  // fix half a fix: instead of a delete that falsely reported success, the
+  // member got a button returning to its idle label while the recipe stayed.
+  const src = readFileSync(SRC, 'utf8');
+  const decl = src.indexOf('const [removeErr, setRemoveErr]');
+  assert.ok(decl > 0, 'removeErr is gone — this guard is reading nothing');
+  // Set in the failure branch AND read in the render, not merely declared.
+  assert.match(src, /setRemoveErr\(/, 'the failure must set it');
+  const reads = src.split('{removeErr}').length - 1;
+  assert.ok(reads >= 1, 'removeErr is never rendered — the member is told nothing');
+  // And it sits inside the member-recipe arm, after the destructive button.
+  // ⚠ Anchored on the button's OWN busy label, not on the delete string — that
+  // also appears in the confirm dialog's confirmLabel, several hundred
+  // characters earlier, which is what the first version of this assertion
+  // measured from and failed on correct code.
+  const btn = src.indexOf("nutrition:myRecipe.deleting");
+  assert.ok(btn > 0, 'the delete button moved — this guard is reading nothing');
+  const at = src.indexOf('{removeErr}');
+  assert.ok(at > btn, 'the error must render after the button it describes');
+  const arm = src.slice(btn, at);
+  assert.ok(!arm.includes('</BSPage>'), 'the error must stay inside the member-recipe arm');
+});
+
+test('⚠ THE WRITER ITSELF HONOURS THE EXPECTED UID — not just the caller passing it', async () => {
+  // Mutation-found gap: deleting the uid check inside saveUserGoalsIfRev left
+  // every test green, because the store's guards only proved the CALLER sends
+  // the uid. A guard aimed at the caller says nothing about the writer, and the
+  // writer is the only place that can close this race.
+  const backend = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const at = backend.indexOf('async saveUserGoalsIfRev');
+  assert.ok(at > 0, 'saveUserGoalsIfRev is gone from shapeBackend.js');
+  const open = backend.indexOf('(', at);
+  let pd = 0, afterParams = -1;
+  for (let j = open; j < backend.length; j += 1) {
+    if (backend[j] === '(') pd += 1;
+    else if (backend[j] === ')') { pd -= 1; if (pd === 0) { afterParams = j + 1; break; } }
+  }
+  const i = backend.indexOf('{', afterParams);
+  let depth = 0, end = -1;
+  for (let j = i; j < backend.length; j += 1) {
+    if (backend[j] === '{') depth += 1;
+    else if (backend[j] === '}') { depth -= 1; if (depth === 0) { end = j + 1; break; } }
+  }
+  const body = backend.slice(at, end);
+  assert.ok(body.length > 600, `lifted ${body.length} chars — that is a signature, not a body`);
+
+  // A minimal PostgREST double: update(...).eq().eq().eq()/.is().select() and insert().
+  const make = (signedInAs, rows) => {
+    const calls = { updates: 0, inserts: 0 };
+    const chain = {
+      update() { calls.updates += 1; return chain; },
+      eq() { return chain; },
+      is() { return chain; },
+      async select() { return { data: rows, error: null }; },
+      async insert() { calls.inserts += 1; return { error: null }; },
+    };
+    const supabase = { from: () => chain };
+    const win = { shapeDb: { getUser: async () => ({ id: signedInAs }) } };
+    const fn = new Function('supabase', 'window', 'console', `${body.replace(/^async /, 'return async function ')}`)(
+      supabase, win, { warn() {} },
+    );
+    return { fn, calls };
+  };
+
+  // Same account → the write goes through.
+  const okCase = make('u1', [{ kind: 'client_recipes' }]);
+  assert.deepEqual(await okCase.fn('client_recipes', { items: {} }, '1', 'u1'), { ok: true });
+  assert.equal(okCase.calls.updates, 1);
+
+  // ⚠ DIFFERENT account → refused, and NOTHING is written. Without this the
+  // member's whole document lands in someone else's row, reporting success.
+  const badCase = make('u2', [{ kind: 'client_recipes' }]);
+  const refused = await badCase.fn('client_recipes', { items: {} }, '1', 'u1');
+  assert.ok(refused.error, 'a changed account must refuse');
+  assert.match(String(refused.error.message), /account/i);
+  assert.equal(badCase.calls.updates, 0, 'nothing may be written for the wrong account');
+  assert.equal(badCase.calls.inserts, 0);
+
+  // No expectation given → unchanged behaviour (the helper is general).
+  const openCase = make('u9', [{ kind: 'client_recipes' }]);
+  assert.deepEqual(await openCase.fn('client_recipes', { items: {} }, '1'), { ok: true });
+});

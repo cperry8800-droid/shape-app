@@ -4423,10 +4423,21 @@ window.shapeDb = window.shapeDb || {
   // that matches zero rows as an error, so without asking for the affected rows
   // back a lost race reports success — the exact defect /api/me/age-public
   // shipped and was fixed for.
-  async saveUserGoalsIfRev(kind, data, expectedRev) {
+  async saveUserGoalsIfRev(kind, data, expectedRev, expectedUid) {
     if (!supabase) return { error: { message: 'No backend' } };
     const u = await window.shapeDb.getUser();
     if (!u) return { error: { message: 'Not logged in' } };
+    // ⚠ BOUND TO THE CALLER'S ACCOUNT, NOT TO WHOEVER IS SIGNED IN NOW. This
+    // helper resolves the user ITSELF, so without this check an account switch
+    // after the caller's own uid check targets the NEW account — and when that
+    // account happens to carry a matching revision (both absent is the common
+    // case, on a fresh row), the CAS SUCCEEDS and account A's whole document is
+    // written into B's row, reporting success. Narrowing the window at the
+    // caller cannot close it; only the writer can. (Codex, PR #2033 — the third
+    // appearance of this class on that PR, each one a layer deeper.)
+    if (expectedUid != null && String(u.id) !== String(expectedUid)) {
+      return { error: { message: 'Account changed' } };
+    }
     const row = { user_id: u.id, kind, data: data || {} };
     const q = () => supabase.from('user_goals').update({ data: row.data }).eq('user_id', u.id).eq('kind', kind);
     // An absent rev means "the document has never been written by a CAS-aware

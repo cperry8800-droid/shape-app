@@ -2198,6 +2198,7 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
       ) : null}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         {isMine ? (
+          <>
           <button type="button" disabled={removing} onClick={async () => {
             // A member recipe is removed from the DOCUMENT, not just the pointer
             // — dropping the pointer alone would orphan the body forever.
@@ -2231,6 +2232,16 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
               ? tr('nutrition:myRecipe.deleting', { defaultValue: 'Deleting…' })
               : tr('nutrition:myRecipe.delete', { defaultValue: 'Delete this recipe' })}
           </button>
+          {/* ⚠ THE FAILURE HAS TO BE ON SCREEN. Setting removeErr and rendering
+              it nowhere made the previous round's fix half a fix: instead of a
+              delete that falsely reported success, the member got a button that
+              returned to its idle label while the recipe stayed — no worse, but
+              not the honest failure it was changed to be. The save flow in this
+              same sheet already renders its error this way. */}
+          {removeErr ? (
+            <div role="alert" style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.5, color: '#c0533b' }}>{removeErr}</div>
+          ) : null}
+          </>
         ) : (
           <button type="button" onClick={() => { bsLibToggle(item); onBack(); }} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${saved ? bsTHexA(t.INK, 0.35) : teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
         )}

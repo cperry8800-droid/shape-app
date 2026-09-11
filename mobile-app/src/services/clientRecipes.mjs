@@ -293,8 +293,17 @@ export function bsRecipesStore({ db, storage } = {}) {
   // the cross-device race below is open. Refusing to write at all would be
   // worse: a member on a build whose shapeDb predates the CAS could not save a
   // recipe.
-  const writeDoc = async (next, expectedRev) => {
-    if (db && db.saveUserGoalsIfRev) return db.saveUserGoalsIfRev(BS_RECIPES_KIND, next, expectedRev);
+  const writeDoc = async (next, expectedRev, expectedUid) => {
+    // ⚠ THE UID GOES INTO THE WRITER. saveUserGoalsIfRev resolves the user
+    // itself, so a switch after our own re-resolve would target the NEW account
+    // — and on a fresh row (both revisions absent) the CAS would SUCCEED and put
+    // this member's whole document in someone else's row. Re-resolving here only
+    // narrows that window; the writer is the only place that can close it.
+    if (db && db.saveUserGoalsIfRev) return db.saveUserGoalsIfRev(BS_RECIPES_KIND, next, expectedRev, expectedUid);
+    // ⚠ The fallback CANNOT be bound — saveUserGoals takes no uid and resolves
+    // its own. The re-resolve immediately above is all there is, so a switch
+    // inside that window is an open (pre-existing) hole on this path. Stated
+    // rather than discovered; it closes when no shipped client lacks the CAS.
     if (db && db.saveUserGoals) return db.saveUserGoals(BS_RECIPES_KIND, next);
     return { error: { message: 'No backend' } };
   };
@@ -338,7 +347,7 @@ export function bsRecipesStore({ db, storage } = {}) {
 
       let res = null;
       try {
-        res = await writeDoc(next, bsRecipesRevToken(cloud));
+        res = await writeDoc(next, bsRecipesRevToken(cloud), uid0);
       } catch (e) {
         return { ok: false, reason: 'write-failed', doc: base };
       }
@@ -461,6 +470,14 @@ export function bsSplitPaste(text) {
       if (cut <= 0 || cut > l.length || (cut < l.length && !/\s/.test(l[cut - 1]))) return { n: '', m: l };
       const n = String(l.slice(0, cut)).trim();
       const m = (p.rest || p.unit || '').trim();
+      // ⚠ AND A MIXED FRACTION IS REFUSED RATHER THAN HALF-PARSED. bsQtyParse
+      // stops at the whole number, so "1 1/2 cups flour" comes back as n "1" /
+      // m "1/2 cups flour" — an ingredient literally named "1/2 cups flour",
+      // scaled by Prep as one. Mixed fractions are ordinary in recipes, and a
+      // confidently wrong amount is worse than an unsplit line the member can
+      // fix on the review screen. Widening bsQtyParse itself would reach the
+      // whole grocery and mise stack, which is not this change's to move.
+      if (/^\d+\s*\/\s*\d/.test(m) || /^\d/.test(m)) return { n: '', m: l };
       // A quantity with nothing after it is not an ingredient row on its own —
       // keep the line verbatim rather than emitting an empty name.
       return m ? { n, m } : { n: '', m: l };
