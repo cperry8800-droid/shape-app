@@ -191,24 +191,40 @@ test('the member-zone read goes through RLS, not the service role', async () => 
   assert.match(src, /timeZoneName: 'short' as const/, 'the fallback no longer names its zone');
 });
 
-test('the availability write rolls the zone back when a later step fails', async () => {
+test('the availability write is ordered so that no failure needs undoing', async () => {
   const { readFileSync } = await import('node:fs');
   const src = stripComments(readFileSync(new URL('../src/app/api/my-availability/route.ts', import.meta.url), 'utf8'));
-  // ⚠ TWO TABLES, ONE MEANING, NO TRANSACTION. The sharp case is the DELETE failing after the
-  // stamp landed: a coach's EXISTING hours are then read in the new zone — a silent three-hour
-  // shift on a New York -> Los Angeles move, while the save reports failure.
-  assert.match(src, /const unstamp = async \(\) => \{/, 'the compensating rollback is gone');
-  assert.match(src, /\.update\(\{ timezone: priorZone \}\)/, 'the rollback does not restore the prior zone');
-  // BOTH failure paths must compensate — a rollback wired to one of two exits is half a fix.
-  const delFail = src.indexOf('delete availability failed');
-  const insFail = src.indexOf('insert availability failed');
-  assert.ok(delFail > 0 && insFail > 0, 'the failure branches moved');
-  for (const [name, at] of [['delete', delFail], ['insert', insFail]]) {
-    const window = src.slice(at, at + 200);
-    assert.match(window, /await unstamp\(\)/, `the ${name} failure path does not roll the stamp back`);
+  // \u26a0 TWO TABLES, ONE MEANING, NO TRANSACTION \u2014 so the ORDER is the whole guarantee.
+  // delete \u2192 stamp \u2192 insert makes every single-step failure self-consistent:
+  //   delete fails \u2192 nothing stamped; the old hours keep the old zone.
+  //   stamp fails  \u2192 the hours are gone, the old zone stands; no hours to misread.
+  //   insert fails \u2192 the hours are gone, the new zone stands; no hours to misread.
+  // "No hours" is always safe; hours read in the wrong zone is the defect this change removes.
+  const del = src.indexOf('.delete()');
+  const stamp = src.indexOf('.update({ timezone: sentZone })');
+  const ins = src.indexOf('.insert(rows)');
+  assert.ok(del > 0 && stamp > 0 && ins > 0, 'one of the three write steps moved or was renamed');
+  assert.ok(del < stamp, 'the zone is stamped before the old hours are deleted');
+  assert.ok(stamp < ins, 'the new hours are inserted before the zone is stamped');
+
+  // \u26a0 AND THERE IS NO COMPENSATING ROLLBACK, BY DESIGN. An earlier cut stamped first and
+  // restored the prior zone on failure \u2014 which was itself a wrong-time bug (CodeRabbit's P1 on
+  // #2053): the restore filtered on `id` alone, so A's rollback could overwrite B's successful
+  // save and B's just-stored hours would be read hours out. The editor POSTs on every cell
+  // toggle with no debounce, so concurrent saves from one coach are ordinary. Asserted as an
+  // ABSENCE because re-introducing it is the regression, not the fix.
+  assert.doesNotMatch(src, /unstamp/, 'a compensating rollback is back');
+  assert.doesNotMatch(src, /priorZone/, 'the write restores a prior zone again');
+
+  // Every step FAILS THE SAVE rather than pressing on \u2014 a step that continues after a failed
+  // stamp writes hours under a zone we could not commit to, which is hours nothing can place.
+  for (const marker of ['delete availability failed', 'stamp availability timezone failed', 'insert availability failed']) {
+    const at = src.indexOf(marker);
+    assert.ok(at > 0, `the ${marker} branch moved`);
+    const window = src.slice(at, at + 220);
+    assert.match(window, /return NextResponse\.json\(\{ error: 'save_failed' \}, \{ status: 500 \}\)/,
+      `the "${marker}" path does not fail the save`);
   }
-  // And it only fires when a stamp actually happened, or it would clobber a zone nobody changed.
-  assert.match(src, /if \(!stamped\) return;/, 'the rollback fires even when nothing was stamped');
 });
 
 test('the marketplace profile hides hours it cannot place, and the CTA with them', async () => {

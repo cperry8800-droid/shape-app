@@ -107,56 +107,33 @@ export async function POST(req: NextRequest) {
 
   // ── Two tables, one meaning, and no transaction between them ────────────────
   //
-  // ⚠ THE ZONE AND THE HOURS ARE ONE FACT SPLIT ACROSS TWO WRITES, so a failure between
-  // them leaves stored hours whose meaning has silently moved. Flagged by CodeRabbit on
-  // #2053, and the sharp case is the DELETE failing after the stamp landed: a coach who
-  // moved New York → Los Angeles then has their EXISTING 9am-Eastern hours read as
-  // 9am-Pacific — a three-hour shift, published to members, while the save reports failure
-  // and the coach believes nothing changed.
+  // ⚠ THE ORDER IS DELETE → STAMP → INSERT, AND IT IS CHOSEN SO THAT NOTHING NEEDS UNDOING.
+  // The zone and the hours are one fact split across two tables, so a failure between them
+  // can leave stored hours whose meaning has silently moved. Every single-step failure in
+  // THIS order is self-consistent:
   //
-  // PostgREST gives no cross-table transaction, and an RPC would mean a second migration
-  // for the owner to run. So the stamp is COMPENSATED instead: it goes first (hours are
-  // never written under a zone we have not committed to), and any later failure restores
-  // the zone the row had before. That makes both failure modes safe —
-  //   delete fails  → zone restored, old hours keep their old meaning;
-  //   insert fails  → zone restored and the slots are gone, so the coach has no hours
-  //                   rather than misread ones, and the editor already says the save failed.
-  const priorZone: string | null = owned.timezone;
-  const stamped = !!sentZone && sentZone !== priorZone;
-  if (stamped) {
-    const { error: tzError } = await supabase
-      .from(table)
-      .update({ timezone: sentZone })
-      .eq('id', owned.id);
-    // ⚠ FAIL THE SAVE, do not press on. If the stamp did not land, the hours about to
-    // be written are unreadable for exactly the reason above — and pre-migration this
-    // is the branch that reports the column is missing instead of writing orphan hours.
-    if (tzError) {
-      console.error('[shape-app] stamp availability timezone failed', tzError);
-      return NextResponse.json({ error: 'save_failed' }, { status: 500 });
-    }
-  }
-
-  // Undo the stamp when a later write fails, so a half-applied save cannot change what
-  // the coach's stored hours MEAN. Best-effort by necessity — if the compensating write
-  // also fails there is nothing left to try — so it is logged loudly rather than silently
-  // swallowed, because that is the one path that can leave the two tables disagreeing.
-  const unstamp = async () => {
-    if (!stamped) return;
-    const { error } = await supabase
-      .from(table)
-      .update({ timezone: priorZone })
-      .eq('id', owned.id);
-    if (error) {
-      console.error(
-        '[shape-app] CRITICAL: could not roll back availability timezone — stored hours may now be read in the wrong zone',
-        { providerRole: role, providerId: owned.id, priorZone, sentZone, error }
-      );
-    }
-  };
-
-  // Simple strategy: delete all existing slots and re-insert. Small row
-  // count per provider so this is fine.
+  //   delete fails  → nothing stamped; the old hours keep the old zone.
+  //   stamp fails   → the hours are gone, the old zone stands; no hours to misread.
+  //   insert fails  → the hours are gone, the new zone stands; no hours to misread.
+  //
+  // "No hours" is always safe — every reader renders it as "no open hours set" — whereas
+  // hours read in the wrong zone is the exact defect this whole change exists to remove.
+  //
+  // ⚠ AN EARLIER CUT STAMPED FIRST AND ROLLED THE STAMP BACK ON FAILURE, AND THE ROLLBACK
+  // WAS ITSELF A WRONG-TIME BUG — CodeRabbit's P1 on #2053. It restored the prior zone on
+  // `id` alone, so: request A stamps Los Angeles and its insert fails; request B then saves
+  // successfully under Los Angeles; A's rollback restores New York and B's just-saved hours
+  // are read three hours out. The editor POSTs on EVERY cell toggle with no debounce, so
+  // concurrent saves from one coach are ordinary rather than exotic. Reordering deletes the
+  // rollback instead of trying to make it safe — there is nothing to undo.
+  //
+  // ⚠ AND A CONCURRENT SAVE CANNOT REOPEN IT, because both requests carry the SAME resolved
+  // browser zone: if A is changing the zone then B is changing it to the same value, so
+  // whichever lands, the stored zone matches both requests' intent. The one residual is a
+  // coach saving from two machines in different zones at the same instant, which is
+  // inherently ambiguous rather than a bug in this ordering. Full atomicity would need an
+  // RPC, i.e. a second migration for the owner to run; it is registered as belt-and-braces
+  // rather than required, because no single failure here can produce a wrong time.
   const { error: delError } = await supabase
     .from('provider_availability')
     .delete()
@@ -164,8 +141,23 @@ export async function POST(req: NextRequest) {
     .eq('provider_id', owned.id);
   if (delError) {
     console.error('[shape-app] delete availability failed', delError);
-    await unstamp();
     return NextResponse.json({ error: 'save_failed' }, { status: 500 });
+  }
+
+  // Stamp only on a real change: the coach moved, or this is the first save. An
+  // unconditional write would touch the row on every toggle for no reason.
+  if (sentZone && sentZone !== owned.timezone) {
+    const { error: tzError } = await supabase
+      .from(table)
+      .update({ timezone: sentZone })
+      .eq('id', owned.id);
+    // ⚠ FAIL THE SAVE, do not press on. Hours written under a zone we could not commit to
+    // are hours nothing can place — and pre-migration this is the branch that reports the
+    // column is missing instead of writing orphan hours.
+    if (tzError) {
+      console.error('[shape-app] stamp availability timezone failed', tzError);
+      return NextResponse.json({ error: 'save_failed' }, { status: 500 });
+    }
   }
 
   if (clean.length === 0) {
@@ -195,7 +187,6 @@ export async function POST(req: NextRequest) {
   const { error: insError } = await supabase.from('provider_availability').insert(rows);
   if (insError) {
     console.error('[shape-app] insert availability failed', insError);
-    await unstamp();
     return NextResponse.json({ error: 'save_failed' }, { status: 500 });
   }
   return NextResponse.json({ ok: true, count: rows.length, timezone: zone });
