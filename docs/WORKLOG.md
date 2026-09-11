@@ -855,12 +855,36 @@ Append new entries at the top, under this note.
   stamped BEFORE the slots were replaced**, so a delete failure left a coach's **existing** hours
   reinterpreted under the new zone — a silent three-hour shift on a New York → Los Angeles move, while
   the save reported failure. (4) The editor's zone label went stale after a save.
-- ⚠ **THE STAMP IS COMPENSATED RATHER THAN TRANSACTIONAL, AND THE REASON IS WRITTEN AT THE SITE.**
-  PostgREST has no cross-table transaction and an RPC would mean a **second migration for the owner to
-  run**, so the stamp goes first and any later failure **rolls it back** — which makes both failure modes
-  safe (a failed delete restores the old meaning; a failed insert leaves no hours rather than misread
-  ones). The residual is the compensating write itself failing, which is logged as CRITICAL rather than
-  swallowed, because it is the one path that can leave the two tables disagreeing.
+- ⚠ **THE STAMP WAS COMPENSATED RATHER THAN TRANSACTIONAL, AND THAT FIX WAS ITSELF A WRONG-TIME BUG —
+  CORRECTED THE SAME EVENING BY A THIRD ROUND (`832a2ea`).** PostgREST has no cross-table transaction and
+  an RPC would mean a **second migration for the owner to run**, so the first cut stamped the zone and
+  **rolled it back** on any later failure. That rollback restored the prior zone on **`id` alone**, with no
+  compare-and-set: request A stamps Los Angeles and its insert fails; request B then saves successfully
+  under Los Angeles; A's rollback restores New York and **B's just-saved hours are read three hours out**.
+  The editor POSTs on **every cell toggle with no debounce**, so concurrent saves from one coach are
+  ordinary rather than exotic. *The defect this whole PR exists to remove, re-introduced inside the fix
+  for it.*
+- ⚠ **THE ANSWER IS AN ORDER, NOT A SAFER ROLLBACK: `delete → stamp → insert`, CHOSEN SO THAT NOTHING
+  NEEDS UNDOING.** Every single-step failure is then self-consistent — *delete fails* → nothing stamped,
+  the old hours keep the old zone; *stamp fails* → the hours are gone and the old zone stands; *insert
+  fails* → the hours are gone and the new zone stands. **"No hours" is always safe** (every reader renders
+  it as *no open hours set*) where hours read in the wrong zone is the silent shift. So the rollback is
+  **deleted rather than made compare-and-set** — the race is unrepresentable instead of narrowed. ⚠ And a
+  concurrent save cannot reopen it, because **both requests carry the same resolved browser zone**: if A is
+  changing the zone then B is changing it to the same value, so whichever lands matches both requests'
+  intent. The residual is a coach saving from two machines in different zones at the same instant, which is
+  inherently ambiguous rather than a bug in this ordering.
+- ⚠ **THE RPC IS REGISTERED AS BELT-AND-BRACES, NOT BUILT, AND THE TRADE IS STATED AT THE CALL SITE.**
+  The reviewer's remedy — one transaction over both tables — is right in principle, and it is **a second
+  migration the owner has to run by hand**. After the reorder no single failure here can produce a wrong
+  time, and the costs are asymmetric: a wrong-time bug is worth a migration, a transient *"no hours until
+  you tap save again"* is not.
+- ⚠ **AND MY OWN GUARD PINNED THE ROLLBACK'S SPELLING, SO THE CORRECT FIX BROKE A TEST ABOUT
+  ATOMICITY.** It matched `const unstamp = async () => {` and `.update({ timezone: priorZone })` — i.e. it
+  asserted the presence of the thing that turned out to be the bug. Re-anchored on the invariant: the three
+  write steps are **ordered**, **no** rollback machinery exists (asserted as an **absence**, because
+  re-introducing it is the regression), and every failure branch fails the save. *A guard that pins a
+  spelling pins whatever that spelling is wrong about* — and this one was wrong within the hour.
 - ⚠ **AND THREE OF THAT ROUND'S SIX COMMENTS WERE ALREADY FIXED WHEN IT POSTED — the head-pinning trap
   this file documents by name.** The submitted review's own coverage payload reads
   `sourceCommitId = coveredCommitId = 5a8feb3`, the **first** head, so its mobile-`at`,
@@ -868,10 +892,12 @@ Append new entries at the top, under this note.
   is only about the head it names* — and the re-review of `5a8feb3 → 9fd1d74` returned **"no new defects
   in the fix diff"**, confirming each fix individually. Recorded because the two outputs arrived
   together and reading the review alone would have sent me round the same three fixes twice.
-- **Verified on the final head:** `npm test` **3502/3502** · `tsc --noEmit` 0 · JSX + JS parse · the
-  newdesign precompile check · **13/13 mutations killed**, each one **replaying one of the three findings**
-  so the suite is proven to catch them rather than merely to be green after the fix · mobile build clean
-  with all three links confirmed in the emitted bundle
+- **Verified on the final head:** `npm test` **3506/3506** · `tsc --noEmit` 0 · JSX + JS parse · the
+  newdesign precompile check · **18/18 mutations killed across two rounds** (13 on the first two review
+  rounds, 5 on the reorder), each proven to land, sanity green at both ends, the tree restored in a
+  `finally` — and each one **replaying one of the findings**, the third round's P1 included (the stamp moved
+  back above the delete), so the suite is proven to catch them rather than merely to be green after the fix
+  · mobile build clean with all three links confirmed in the emitted bundle
   (`Number(e.at);if(Number.isFinite(t)&&t>0)return new Date(t).toISOString()` · `getMonth()],at:e.at` ·
   `slot:{…,iso:i,at:s}`) · and all four required checks green.
 ### 2026-09-11 — The Instrument Board: Session details opens as a panel, and the numbers land in tables
