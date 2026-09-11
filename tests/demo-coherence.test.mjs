@@ -263,3 +263,87 @@ test('the card reaches into ONE module, so one script tag is the whole dependenc
   assert.ok(p.thisMonthCents < p.netCents && p.netCents < p.monthlyCents);
   assert.equal(card.amount, '$' + Math.round(p.thisMonthCents / 100).toLocaleString());
 });
+
+// ── The payouts block on Business (V5's tail) ───────────────────────────────
+// ⚠ IT WAS FOUR UNANCHORED LITERALS AND IT DISAGREED WITH ITS OWN PAGE BY AN ORDER OF
+// MAGNITUDE: a $1,840 balance and $15,740 over four weekly payouts, beside a strip
+// reading $1,820 monthly recurring from the same ten demo clients. Measured, the balance
+// was 9× the derived one and the history 12× the practice. Same defect as the sidebar
+// payout card, one page over, and it survived that fix.
+test('the payout history is derived from who had joined, not picked', () => {
+  const now = new Date();
+  const cs = roster(now);
+  const hist = DS.demoPayoutHistory(cs, now, 4);
+  assert.ok(hist.length >= 1 && hist.length <= 4, 'expected up to four months, got ' + hist.length);
+
+  // Newest first, one row per month, each on a month END.
+  for (let i = 1; i < hist.length; i++) {
+    assert.ok(hist[i].arrivalDate < hist[i - 1].arrivalDate, 'the history is not newest-first');
+  }
+  for (const r of hist) {
+    const d = new Date(r.arrivalDate);
+    const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    assert.equal(new Date(next - 86400000).getDate(), d.getDate(), 'a payout is not on a month end');
+    assert.equal(r.status, 'paid');
+  }
+
+  // ⚠ THE SIZE CHECK IS THE POINT. Every month's payout is the NET of the clients who had
+  // joined by then, so no row may exceed the current month's net — the literals it
+  // replaced were nearly three times it, each.
+  const net = payouts(cs, now).netCents;
+  for (const r of hist) {
+    assert.ok(r.amountCents > 0, 'a zero payout claims a run that paid nothing');
+    assert.ok(r.amountCents <= net, 'a past payout ($' + (r.amountCents / 100).toFixed(0) +
+      ') exceeds the current net ($' + (net / 100).toFixed(0) + ') on a roster that only grew');
+  }
+});
+
+test('a month before anyone joined yields NO row, not a zero', () => {
+  // A $0 payout is the claim that a payout ran and paid nothing, which a processor does
+  // not do. An absent month is the honest shape.
+  const now = new Date();
+  const future = [{ payments: { mrrCents: 18000, joinedAt: new Date(now.getTime() + 400 * 86400000).toISOString().slice(0, 10) } }];
+  assert.deepEqual(DS.demoPayoutHistory(future, now, 4), []);
+  assert.deepEqual(DS.demoPayoutHistory([], now, 4), []);
+  assert.deepEqual(DS.demoPayoutHistory(null, now, 4), []);
+  // a client with no joinedAt cannot date a payout and is left out rather than guessed at
+  assert.deepEqual(DS.demoPayoutHistory([{ payments: { mrrCents: 18000 } }], now, 4), []);
+  // ⚠ AND A FALSY-BUT-PARSEABLE JOIN DATE IS THE ONE THAT MATTERS, because it is the case
+  // the explicit `!pay.joinedAt` check exists for: `new Date(0)` is 1970, a perfectly valid
+  // instant that precedes every month — so without that check the client is counted at
+  // full MRR in EVERY payout, and the date guard below can never catch it (it only rejects
+  // what does not parse). The same `Number(null)` class this log post-mortems on the Wall's
+  // helpers, arriving through a date.
+  assert.deepEqual(DS.demoPayoutHistory([{ payments: { mrrCents: 18000, joinedAt: 0 } }], now, 4), []);
+});
+
+test('Business quotes ONE cadence, and it is the one the sidebar card states', () => {
+  // ⚠ IT SAID "weekly · Fridays" WHILE `demoPayouts` PUTS THE PAYOUT ON THE LAST DAY OF
+  // THE MONTH and every coach tab's sidebar card reads "PAYOUT SEP 30". One preview
+  // cannot have two schedules.
+  const biz = stripComments(BIZ);
+  assert.doesNotMatch(biz, /weeklyAnchor:\s*"friday"/, 'the demo schedule is weekly again');
+  const decl = /schedule: \{ interval: "([a-z]+)"([^}]*)\}/.exec(biz);
+  assert.ok(decl, 'the demo schedule declaration moved');
+  assert.equal(decl[1], 'monthly');
+  // no day anchor: the rows carry their own dates, and an anchor is a claim about a
+  // processor nobody has connected
+  assert.doesNotMatch(decl[2], /Anchor/, 'the demo schedule claims a day anchor');
+
+  // and the literals are gone from the file entirely
+  for (const lit of ['184000', '412500', '386000', '401500', '374000']) {
+    assert.ok(!biz.includes(lit), 'the literal ' + lit + ' is still in dashBusiness.jsx');
+  }
+});
+
+test('the Business payouts block is lazy and day-keyed, like its neighbours', () => {
+  // It reads the roster and `new Date()`, so a module-scope build reads at LOAD while the
+  // outcomes plate reads at RENDER, and a tab left open overnight quotes yesterday.
+  const biz = stripComments(BIZ);
+  assert.match(biz, /let _dbzDemoPayouts = null;/);
+  assert.match(biz, /const key = now\.toDateString\(\);/);
+  assert.match(biz, /if \(_dbzDemoPayouts && _dbzDemoPayouts\.key === key\) return _dbzDemoPayouts\.v;/);
+  // an unreadable engine says nothing rather than inventing a figure
+  assert.match(biz, /balanceCents: null, schedule: null, payouts: \[\]/);
+  assert.match(biz, /const data = live \? stripe : dbzDemoPayouts\(\);/);
+});

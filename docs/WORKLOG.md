@@ -495,6 +495,53 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — V5's tail: the Business payouts block was twelve times the practice on its own page
+
+- **The last unanchored literals from [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md)
+  §8.** The sidebar payout card was derived from the demo roster on 2026-09-10; the
+  **payouts panel on Business was not**, and it was the larger lie. No migration.
+- ⚠ **IT DISAGREED WITH THE PRACTICE ON ITS OWN PAGE BY AN ORDER OF MAGNITUDE.** It
+  declared a **$1,840** balance and four weekly payouts of $4,125 / $3,860 / $4,015 /
+  $3,740 — **$15,740 over 24 days**, i.e. roughly **$19,700 a month** — beside a strip
+  reading **$1,820 monthly recurring** from the same ten demo clients. Measured against the
+  derived figures rather than eyeballed: the balance was **9×** and the history **12.7×**.
+  That is the same tenfold disagreement the sidebar card was fixed for, one page over,
+  still live after that fix.
+- ⚠ **AND IT DESCRIBED A DIFFERENT SCHEDULE THAN THE REST OF THE PREVIEW.** This said
+  *"weekly · Fridays"*; `demoPayouts` puts the payout on the **last day of the month** and
+  every coach tab's sidebar card reads *"PAYOUT SEP 30"*. **One preview cannot have two
+  cadences.** It is monthly now, with **no day anchor** — the rows carry their own month-end
+  dates, and an anchor would be a claim about a processor nobody has connected.
+- **The history is DERIVED FROM WHO HAD JOINED BY EACH MONTH**, which is the only way a
+  series of past payouts can exist without inventing one. All ten demo clients carry
+  `joinedAt` (2024-09-11 → 2026-09-06), so *"what did this practice bill in June"* is a fact
+  about the data on the page. Measured after: **$952 → $1,105 → $1,258 → $1,411**, a rising
+  series landing just under the current month's net of **$1,547** — the growth is a real
+  consequence of the join dates rather than a shape that looked plausible.
+- ⚠ **A MONTH WITH NOBODY YET JOINED YIELDS NO ROW, NOT A ZERO.** A $0 payout is the
+  positive claim that a payout ran and paid nothing, which a processor does not do.
+- ⚠ **AND THE ONE SURVIVING MUTATION WAS A REAL DISTINCTION, NOT A NO-OP.** Deleting the
+  explicit `!pay.joinedAt` check survived, because `new Date(undefined)` is NaN and the date
+  guard below catches it — but **`joinedAt: 0` is falsy AND parseable**: `new Date(0)` is
+  1970, a valid instant preceding every month, so the client would be counted at full MRR in
+  **every** payout and the date guard could never see it. The same `Number(null)` class this
+  log post-mortems on the Wall's helpers, arriving through a date. Pinned by that case.
+- **It is lazy and day-keyed**, the pattern `dbzDemoTrajectory` already establishes on this
+  page: the derivation reads `new Date()`, so a module-scope build leaves a tab open
+  overnight quoting yesterday's balance, and an IIFE would read the roster at **load** while
+  the outcomes plate reads it at **render** — two read times for one number is the
+  disagreement the whole change is about. An unreadable engine says **nothing** rather than
+  falling back to a figure.
+- **Verified:** `npm test` **3095/3095** · `tsc --noEmit` 0 · JSX parse · `dashSignals.js`
+  `require()`s clean · the newdesign precompile check · **12/12 mutations killed**, each
+  proven to land, sanity green at both ends · and the panel driven in Chromium on the
+  signed-out preview: **$206 available · $206 next · $4,726 paid over the last 4**, *"Paid
+  out monthly · 7-day rolling delay"*, and Aug 31 $1,411 / Jul 31 $1,258 / Jun 30 $1,105 /
+  May 31 $952. Zero page errors.
+- ⚠ **AND THE HARNESS STUBBED A CLIENT ACCOUNT ON A TRAINER PAGE**, which threw on
+  `firstName` before the block rendered at all — so the first run reported the panel absent.
+  It serves signed-out now, which is the state the demo payouts are actually for.
+
 ### 2026-09-10 — R20's half: the notifications the app has had all along reach the web
 
 - **`/api/notifications` has been live since the 2026-05-30 migration and the mobile app

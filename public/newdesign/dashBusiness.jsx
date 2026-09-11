@@ -37,14 +37,47 @@ function dbzMonthsBetween(a, b) {
 }
 
 // ── Demo datasets — shown ONLY under the demo band ───────────────────────────
-const DBZ_DEMO_PAYOUTS = {
-  balanceCents: 184000,
-  schedule: { interval: "weekly", weeklyAnchor: "friday", delayDays: 2 },
-  payouts: [3, 10, 17, 24].map((d, i) => ({
-    id: "demo-po-" + i, amountCents: [412500, 386000, 401500, 374000][i],
-    status: "paid", arrivalDate: Date.now() - d * 86400000, created: Date.now() - (d + 2) * 86400000,
-  })),
-};
+//
+// ⚠ THE PAYOUTS BLOCK WAS FOUR UNANCHORED LITERALS, AND IT DISAGREED WITH THE PRACTICE
+// ON ITS OWN PAGE BY AN ORDER OF MAGNITUDE (review 2026-09-09, V5's tail). It claimed a
+// $1,840 balance and four weekly payouts of $4,125 / $3,860 / $4,015 / $3,740 — $15,740
+// over 24 days, i.e. roughly $19,700 a month — beside a strip reading **$1,820 monthly
+// recurring** from the same ten demo clients. Measured against the derived figures: the
+// balance was 9× and the history 12×. That is the same tenfold disagreement the sidebar
+// payout card was fixed for, still live one page over.
+//
+// ⚠ AND IT DESCRIBED A DIFFERENT SCHEDULE THAN THE REST OF THE PREVIEW. This said
+// "weekly · Fridays"; `demoPayouts` states the payout lands on the last day of the month
+// and every coach tab's sidebar card says "PAYOUT SEP 30". One preview cannot have two
+// cadences. It is monthly here now, with **no day anchor** — the rows carry their own
+// month-end dates and an anchor would be a claim about a processor nobody has connected.
+//
+// ⚠ LAZY AND DAY-KEYED, the pattern `dbzDemoTrajectory` below already establishes: the
+// derivation reads `new Date()`, so a module-scope build leaves a tab open overnight
+// quoting yesterday's balance, and an IIFE would read the roster at LOAD while the
+// outcomes plate reads it at RENDER — two read times for one number is the disagreement
+// this whole change is about.
+let _dbzDemoPayouts = null;
+function dbzDemoPayouts() {
+  const now = new Date();
+  const key = now.toDateString();
+  if (_dbzDemoPayouts && _dbzDemoPayouts.key === key) return _dbzDemoPayouts.v;
+  let v;
+  try {
+    const clients = DashSignals.buildMockClients(now);
+    const p = DashSignals.demoPayouts(clients, now);
+    v = {
+      balanceCents: p.balanceCents,
+      schedule: { interval: "monthly", delayDays: 7 },   // the holding period demoPayouts models
+      payouts: DashSignals.demoPayoutHistory(clients, now, 4),
+    };
+  } catch (e) {
+    // dashSignals not up on this page — say nothing rather than inventing a figure.
+    v = { balanceCents: null, schedule: null, payouts: [] };
+  }
+  _dbzDemoPayouts = { key, v };
+  return v;
+}
 const DBZ_DEMO_CHURN = [
   { name: "Devon Sharpe", startedAt: new Date(Date.now() - 210 * 86400000).toISOString(), endedAt: new Date(Date.now() - 9 * 86400000).toISOString(), priceCents: 18000, reason: "Budget — coming back in the fall" },
   { name: "Mara Ellison", startedAt: new Date(Date.now() - 460 * 86400000).toISOString(), endedAt: new Date(Date.now() - 31 * 86400000).toISOString(), priceCents: 22000, reason: "Hit her goal — graduated to self-managed" },
@@ -125,7 +158,7 @@ function dbzScheduleLine(s) {
 
 function DbzPayoutsZone({ live, stripe, providerId, role }) {
   const [linking, setLinking] = React.useState(false);
-  const data = live ? stripe : DBZ_DEMO_PAYOUTS;
+  const data = live ? stripe : dbzDemoPayouts();
   const connected = live ? !!(stripe && stripe.connected && stripe.status !== "error") : true;
   const startOnboarding = async () => {
     if (!providerId || linking) return;
