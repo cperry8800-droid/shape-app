@@ -4658,6 +4658,57 @@ window.ShapeFoodSearch = { search: searchFoods, barcode: lookupFoodBarcode };
 // Resolves { ok, draft, reason } — it never throws, because the caller's
 // fallback is a real answer rather than an error state.
 const BS_RECIPE_PASTE_MAX = 12000;   // must match MAX_TEXT in the route
+// ⚠ A REQUEST WITH NO DEADLINE TRAPS THE MEMBER, and the sheet is why. It
+// disables its own Cancel AND its backdrop dismissal while a read runs, so a
+// stalled upload — a mobile handoff where the connection opens and then goes
+// silent, which never rejects on its own — leaves `busy` true forever with no
+// control on screen that does anything. The only way out is to quit the app,
+// which destroys everything they had typed. Both readers go through here.
+//
+// ⚠ AND THE TIMER IS CLEARED AFTER THE BODY IS READ, NOT AFTER THE HEADERS.
+// `fetch` resolves on headers, so racing it alone bounds the connection and
+// nothing else — a 200 followed by a stalled body is unwatched. That lesson is
+// already written into this file for the AI draft path; it applies identically
+// here, so the deadline is released in a `finally` past the JSON parse.
+//
+// ⚠ 75s IS DELIBERATELY LONGER THAN THE SERVER'S OWN CEILING. The photo route
+// declares maxDuration 60 and gives the provider 55, so a shorter client deadline
+// would abort a request that was about to come back with a NAMED reason
+// ("we couldn't read that photo", "no recipe in it") and replace it with a
+// generic failure. This deadline is for a dead network, not a slow server.
+// REGISTERED, NOT BUILT: the better answer is a live Cancel during a read, which
+// needs the sheet to tell a read apart from a save — `busy` covers both today,
+// and closing mid-save is a different and worse bug.
+const BS_RECIPE_REQUEST_MS = 75_000;
+
+async function bsRecipePost(path, body, signal) {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(() => { try { if (ctrl) ctrl.abort(); } catch (e) {} }, BS_RECIPE_REQUEST_MS);
+  // A caller-supplied signal still works: it is forwarded into the same
+  // controller so either source can end the request.
+  if (signal && ctrl) {
+    if (signal.aborted) { try { ctrl.abort(); } catch (e) {} }
+    else { try { signal.addEventListener('abort', () => { try { ctrl.abort(); } catch (e) {} }, { once: true }); } catch (e) {} }
+  }
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}${path}`, {
+      method: 'POST',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+      signal: ctrl ? ctrl.signal : signal,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
+    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
+    return { ok: true, draft: payload.draft, reason: null };
+  } catch (e) {
+    return { ok: false, draft: null, reason: 'unavailable' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function parseRecipeText(text, { signal } = {}) {
   const body = String(text || '');
   if (body.trim().length < 20) return { ok: false, draft: null, reason: 'too_short' };
@@ -4666,23 +4717,303 @@ async function parseRecipeText(text, { signal } = {}) {
   // saves sending a paste that can only be refused; the route still enforces it,
   // because a client-side bound is a convenience, never the rule.
   if (body.length > BS_RECIPE_PASTE_MAX) return { ok: false, draft: null, reason: 'too_long' };
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/recipe-parse`, {
-      method: 'POST',
-      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-      credentials: 'same-origin',
-      body: JSON.stringify({ text: body }),
-      signal,
-    });
-    const payload = await res.json().catch(() => null);
-    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
-    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
-    return { ok: true, draft: payload.draft, reason: null };
-  } catch (e) {
-    return { ok: false, draft: null, reason: 'unavailable' };
-  }
+  return bsRecipePost('/api/nutrition/recipe-parse', { text: body }, signal);
 }
-window.ShapeRecipeImport = { parse: parseRecipeText };
+// The PHOTO half (/api/nutrition/recipe-photo). Same contract, same never-throws
+// rule, same reasons — the caller treats both identically once it has an answer.
+//
+// ⚠ THE DOWNSCALE IS NOT A NICETY, IT IS WHAT MAKES THE REQUEST POSSIBLE. readJson
+// caps a body at 1 MB and base64 inflates bytes by 4/3, so a straight-from-camera
+// photo (3–8 MB) is refused before the route ever sees it — as a bare 413 the
+// member cannot act on. So the image is re-encoded on the device first, and the
+// quality is stepped DOWN until it fits a byte budget rather than guessed at
+// once: a dense page of text at q0.8 can be several times the size of a sparse
+// one, so a single fixed quality either fails on the dense photo or needlessly
+// destroys the sparse one.
+//
+// ⚠ AND THE LONG EDGE IS 1600, NOT THE 256 THE AVATAR PATH USES. This image is
+// read as TEXT by the model; 256px is a thumbnail and a recipe at that size is
+// illegible, which would come back as a confidently wrong transcription rather
+// than as a failure. Aspect ratio is preserved for the same reason — the square
+// centre-crop the avatar helper does would cut the ingredients off a portrait
+// photo of a page.
+// ⚠ THE LADDER STEPS RESOLUTION AS WELL AS QUALITY, and that is a fix for a
+// dead end rather than a refinement. Stepping quality alone, a dense high-noise
+// page (textured paper, mixed light) can still exceed the budget at the quality
+// floor — and the member was then told to take a CLEARER photo "filling the
+// frame", which produces a sharper, busier image that encodes BIGGER. The advice
+// made the next attempt fail harder. Dropping the long edge is the recovery they
+// cannot perform themselves.
+const BS_RECIPE_PHOTO_EDGES = [1600, 1200, 900];
+const BS_RECIPE_PHOTO_QUALITIES = [0.82, 0.72, 0.62, 0.5, 0.4];
+const BS_RECIPE_PHOTO_BUDGET = 640_000;   // encoded bytes, under the route's 700_000
+// ⚠ A CEILING ON THE RAW FILE, BEFORE IT IS EVER READ. readAsDataURL on a 48MP
+// library shot materialises a ~60 MB JavaScript string and `img.src` then decodes
+// the full bitmap (~190 MB RGBA) — all BEFORE any scale is computed. On a
+// mid-range Android WebView that is an out-of-memory kill of the whole app, not a
+// handled failure, and the member loses the sheet and everything they had typed.
+// The repo's own precedent never does this: the meal logger hands the raw File
+// straight to a multipart upload and never base64s it.
+const BS_RECIPE_PHOTO_MAX_FILE = 25_000_000;
+// ⚠ AND THE BYTE CEILING ABOVE DOES NOT BOUND THE DECODE, WHICH IS WHAT THE
+// COMMENT BESIDE IT CLAIMS TO PREVENT. Compressed size and decoded size are only
+// loosely related: an ordinary 48 MP phone JPEG is ~6–12 MB on disk — comfortably
+// under 25 MB — and expands to **~190 MB of RGBA** the instant it is assigned to
+// `img.src`, before a single line of the scaling code below runs. So the guard
+// waved through precisely the file it was written for. Pixels are what has to be
+// bounded, and they are readable from the HEADER without decoding anything.
+// 25 MP is ~100 MB decoded, which a mid-range WebView survives; past it the image
+// is decoded through `createImageBitmap`'s resize options, which downsample
+// DURING decode so the full bitmap is never materialised.
+const BS_RECIPE_PHOTO_MAX_PIXELS = 25_000_000;
+// Enough of the front of the file to reach a JPEG's SOF marker past its EXIF,
+// ICC and thumbnail segments; PNG/GIF/WebP all carry their size in the first 32
+// bytes. ⚠ GENEROUS ON PURPOSE, BECAUSE UNMEASURABLE IS NOW A REFUSAL. At
+// 256 KiB a real photo carrying a large chunked ICC profile could fall off the
+// end of the window and be turned away; 2 MiB is past anything a camera or an
+// editor emits, and the read itself is trivial beside the 640 KB this function
+// is about to put on the wire. The cost of widening it is a couple of
+// megabytes; the cost of leaving it narrow is refusing someone's cookbook.
+const BS_RECIPE_PHOTO_HEADER_BYTES = 2 * 1024 * 1024;
+
+// Width and height out of an image's HEADER — no decode, no bitmap, no canvas.
+// Returns null when the format is not one of the four the route accepts or the
+// header is truncated; the caller treats null as "unknown" rather than as a
+// refusal, because a format we cannot measure is not the same as one we know is
+// too large.
+function bsImageHeaderDims(buf) {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const be16 = (i) => (b[i] << 8) | b[i + 1];
+  const be32 = (i) => (((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0);
+  const le32 = (i) => ((b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0);
+  // PNG — 8-byte signature, then IHDR's width/height at 16/20.
+  // ⚠ THE CHUNK TYPE IS CHECKED, NOT ASSUMED. The spec requires IHDR first, but
+  // this function now decides whether an image is decoded at all, so a file that
+  // merely starts with the PNG signature must not be able to hand back whatever
+  // happens to sit at those offsets — a fabricated small size is a full decode of
+  // something arbitrarily large.
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47
+      && b[12] === 0x49 && b[13] === 0x48 && b[14] === 0x44 && b[15] === 0x52) {
+    return { w: be32(16), h: be32(20) };
+  }
+  // GIF — little-endian logical screen size at 6/8.
+  if (b.length > 10 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) {
+    return { w: b[6] | (b[7] << 8), h: b[8] | (b[9] << 8) };
+  }
+  // JPEG — walk the marker chain to a start-of-frame. ⚠ The chain must be
+  // walked rather than scanned for 0xFFC0: those two bytes occur constantly
+  // inside EXIF and thumbnail payloads, and a scan lands on one of them and
+  // reports a thumbnail's size as the photo's.
+  if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xff) return null;            // out of sync: refuse to guess
+      const m = b[i + 1];
+      if (m === 0xff) { i += 1; continue; }      // fill byte
+      if (m === 0x01 || (m >= 0xd0 && m <= 0xd9)) { i += 2; continue; }  // standalone
+      if (m === 0xda) return null;               // scan data: no SOF before it
+      const len = be16(i + 2);
+      if (len < 2) return null;
+      // SOF0-SOF15, excluding DHT (c4), DAC (c8) and DNL (cc), which share the range.
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        // ⚠ THE SEGMENT MUST BE BIG ENOUGH TO CONTAIN WHAT WE ARE ABOUT TO READ.
+        // A frame header is length(2) + precision(1) + height(2) + width(2) +
+        // components(1) = 8 bytes minimum, and without that check a hostile file
+        // can declare a two-byte SOF while planting small values at the offsets
+        // below — dimensions that are not inside the segment at all. They would
+        // pass the pixel budget and send the file to the full decode, where a
+        // permissive decoder skips the bogus frame, finds the real one, and
+        // recreates exactly the unbounded decode this whole guard exists to stop.
+        // The declared segment must also fit in the buffer, so a truncated file
+        // cannot have its tail read as a dimension.
+        if (len < 8 || i + 2 + len > b.length) return null;
+        return { h: be16(i + 5), w: be16(i + 7) };
+      }
+      i += 2 + len;
+    }
+    return null;
+  }
+  // WebP — RIFF container, three body formats, each with its own size encoding.
+  if (b.length > 30 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
+      && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
+    const fmt = String.fromCharCode(b[12], b[13], b[14], b[15]);
+    // ⚠ The lossy branch checks VP8's 3-byte sync code (9d 01 2a) before reading
+    // the size after it — same reason as PNG's IHDR: without it a truncated or
+    // hostile RIFF hands back two arbitrary bytes as a dimension.
+    if (fmt === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) {
+      return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+    }
+    if (fmt === 'VP8L') { const n = le32(21); return { w: (n & 0x3fff) + 1, h: ((n >> 14) & 0x3fff) + 1 }; }
+    if (fmt === 'VP8X') {
+      return { w: (b[24] | (b[25] << 8) | (b[26] << 16)) + 1, h: (b[27] | (b[28] << 8) | (b[29] << 16)) + 1 };
+    }
+  }
+  return null;
+}
+// ⚠ AND A DECODE THAT NEVER SETTLES MUST NOT LOCK THE SHEET. The sheet disables
+// its backdrop and its Cancel while a read is in flight, so a promise that never
+// resolves leaves the member force-quitting the app. An <img> handed a HEIC or a
+// truncated file on some Android WebViews fires NEITHER load nor error, so this
+// cannot be left to the events alone.
+const BS_RECIPE_PHOTO_DECODE_MS = 20_000;
+
+// Resolves a JPEG data URL under the byte budget, or null. ⚠ `null` is
+// deliberately one value for several causes — the caller turns it into a reason
+// it can say something useful about, and only the byte-budget case has advice
+// worth giving.
+function bsRecipePhotoDataUrl(file) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let bitmap = null;
+    // An ImageBitmap holds its pixels OUTSIDE the JS heap until it is closed, so
+    // any path that walks away from one leaks the very memory this function
+    // exists to bound — and it is not one path but two. `done` covers the
+    // ordinary one; the other is a decode that lands AFTER the timeout has
+    // already resolved, where `bitmap` is assigned to a promise nobody is
+    // waiting for and `done` is never reached at all.
+    const closeBitmap = () => {
+      if (bitmap && typeof bitmap.close === 'function') { try { bitmap.close(); } catch (e) {} }
+      bitmap = null;
+    };
+    const done = (v) => {
+      if (settled) return;
+      settled = true;
+      closeBitmap();
+      resolve(v);
+    };
+    const timer = setTimeout(() => done(null), BS_RECIPE_PHOTO_DECODE_MS);
+    const finish = (v) => { clearTimeout(timer); done(v); };
+
+    // The byte ladder, run against anything drawable — an <img> or an
+    // ImageBitmap, both of which drawImage accepts and both of which carry
+    // .width/.height.
+    const ladder = (src) => {
+      try {
+        for (const edge of BS_RECIPE_PHOTO_EDGES) {
+          const scale = Math.min(1, edge / Math.max(src.width, src.height));
+          const w = Math.max(1, Math.round(src.width * scale));
+          const h = Math.max(1, Math.round(src.height * scale));
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          const ctx = cv.getContext('2d');
+          if (!ctx) { finish(null); return; }
+          ctx.drawImage(src, 0, 0, w, h);
+          // The quality floor is deliberate: below ~0.4 the artefacts are
+          // heavy enough that the text stops being reliable, and an
+          // unreadable photo should fail as one rather than be sent anyway.
+          for (const q of BS_RECIPE_PHOTO_QUALITIES) {
+            const url = cv.toDataURL('image/jpeg', q);
+            const b64 = url.slice(url.indexOf(',') + 1);
+            if (Math.floor((b64.length * 3) / 4) <= BS_RECIPE_PHOTO_BUDGET) { finish(url); return; }
+          }
+        }
+        finish('too-big');
+      } catch (e) { finish(null); }
+    };
+
+    // The ordinary path: let the browser decode the whole thing, then scale.
+    const viaImage = () => {
+      const reader = new FileReader();
+      reader.onerror = () => finish(null);
+      reader.onload = () => {
+        // ⚠ EVERY LATE CALLBACK CHECKS `settled` BEFORE IT DOES WORK, not just
+        // before it reports. `finish` is already a no-op once the deadline has
+        // resolved — but the expensive part is the decode and the canvas ladder
+        // that run BEFORE it, so a timed-out import went on materialising a 25 MP
+        // bitmap and encoding it several times for an answer nobody could
+        // receive. Cheap to check, and it is the difference between a timeout
+        // that stops and one that only stops reporting.
+        if (settled) return;
+        const img = new Image();
+        img.onerror = () => finish(null);
+        img.onload = () => { if (settled) return; ladder(img); };
+        img.src = String(reader.result || '');
+      };
+      reader.readAsDataURL(file);
+    };
+
+    (async () => {
+      try {
+        if (!file || !/^image\//.test(file.type || '')) { finish(null); return; }
+        if (typeof file.size === 'number' && file.size > BS_RECIPE_PHOTO_MAX_FILE) { finish('too-big'); return; }
+
+        // ⚠ MEASURE THE PIXELS BEFORE DECODING THEM. This is the whole point of
+        // the header read: the compressed ceiling above says nothing about the
+        // decode, and the decode is what kills the WebView.
+        let dims = null;
+        try {
+          const head = await file.slice(0, BS_RECIPE_PHOTO_HEADER_BYTES).arrayBuffer();
+          dims = bsImageHeaderDims(head);
+        } catch (e) { dims = null; }
+        // The header read is itself awaited, so the deadline can land during it.
+        if (settled) return;
+
+        const measured = dims && dims.w > 0 && dims.h > 0 ? dims : null;
+
+        // ⚠ AN IMAGE WE CANNOT MEASURE IS REFUSED, AND IT TOOK TWO WRONG ANSWERS
+        // TO GET HERE. The first sent it to the full decode — a guard failing OPEN
+        // on its own uncertainty, which bounds something other than the hazard.
+        // The second capped only the WIDTH and let the decoder scale the height
+        // proportionally, which sounds bounded and is not: a 1200×20000 scan comes
+        // back as 1600×26667, **42 MP / ~171 MB** — so the "fix" made a tall image
+        // consume MORE memory than leaving it alone. Naming both axes instead
+        // bounds it and distorts the page, which is the one thing a transcription
+        // cannot survive.
+        // There is no fit-inside-a-box mode in the API, so the honest move is to
+        // decline: with the header window at 2 MiB, an image whose size cannot be
+        // read is corrupt or truncated — which would not have decoded anyway — and
+        // the member is told we could not use it rather than being handed a
+        // distorted read or an out-of-memory kill.
+        if (!measured) { finish(null); return; }
+
+        // Measured, and comfortably inside the budget: decode it the ordinary way.
+        if (measured.w * measured.h <= BS_RECIPE_PHOTO_MAX_PIXELS) { viaImage(); return; }
+
+        // Past the budget, so the full bitmap must never exist. createImageBitmap's
+        // resize options downsample DURING decode; without them there is no way to
+        // get these pixels safely, and refusing with advice the member can act on
+        // beats an out-of-memory kill that takes their half-typed sheet with it.
+        if (typeof createImageBitmap !== 'function') { finish('too-big'); return; }
+        // BOTH axes, always, from measured dimensions, so the aspect ratio is kept
+        // and the result is bounded on every side.
+        // ⚠ `Math.min(1, …)` IS BELT-AND-BRACES AND IS PROVEN TO BE SO, rather than
+        // left to read as a live guard. This branch is only reached past the pixel
+        // budget, and an image over 25 MP cannot have a long edge under 1600 — the
+        // short edge would have to exceed 15,625 — so the ratio is necessarily
+        // below 1 already. A mutation dropping the clamp correctly SURVIVES; the
+        // arithmetic behind that is driven in recipe-photo-decode rather than
+        // asserted here, so a future change to the budget cannot quietly make an
+        // upscale reachable while this comment still claims it cannot.
+        const scale = Math.min(1, BS_RECIPE_PHOTO_EDGES[0] / Math.max(measured.w, measured.h));
+        try {
+          bitmap = await createImageBitmap(file, {
+            resizeWidth: Math.max(1, Math.round(measured.w * scale)),
+            resizeHeight: Math.max(1, Math.round(measured.h * scale)),
+            resizeQuality: 'high',
+          });
+        } catch (e) { finish('too-big'); return; }
+        // ⚠ THE TIMEOUT WON THE RACE, AND THE PIXELS STILL ARRIVED. `done` has
+        // already resolved and will not run again, so this is the only place
+        // that can release them; returning without it is a native-memory leak
+        // that compounds with every slow decode.
+        if (settled) { closeBitmap(); return; }
+        ladder(bitmap);
+      } catch (e) { finish(null); }
+    })();
+  });
+}
+
+async function parseRecipePhoto(file, { signal } = {}) {
+  const dataUrl = await bsRecipePhotoDataUrl(file);
+  // ⚠ TOO-BIG AND WILL-NOT-DECODE ARE DIFFERENT SENTENCES. Collapsing them sent
+  // a member whose photo was merely large the advice for a photo that would not
+  // decode — "take a clearer one, filling the frame" — which makes the file
+  // bigger and the next attempt fail identically.
+  if (dataUrl === 'too-big') return { ok: false, draft: null, reason: 'too_large' };
+  if (!dataUrl) return { ok: false, draft: null, reason: 'bad_image' };
+  return bsRecipePost('/api/nutrition/recipe-photo', { image: dataUrl }, signal);
+}
+window.ShapeRecipeImport = { parse: parseRecipeText, photo: parseRecipePhoto };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }

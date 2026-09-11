@@ -12,8 +12,22 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // Tables the user owns, with the column that scopes a row to them.
+//
+// ⚠ EVERY OTHER KEY HERE NAMES ITS CONTENT EXACTLY; `user_goals` CANNOT, AND THE
+// KEY MUST NOT PRETEND OTHERWISE. That table is a per-account document store
+// keyed on (user_id, kind), and the export hands back ALL of a member's rows
+// under one key. Measured against the shipped callers, 26 distinct kinds can be
+// written to it — goals, health-screening answers, onboarding state, app and
+// dashboard preferences, saved library items and typed-in recipes, grocery
+// lists, and a coach's own notes on their clients — of which exactly TWO
+// (`health_profile`, `client_goals`) are health screening or goals. The old key
+// `health_screening_and_goals` therefore delivered a member's saved recipe, or a
+// coach's private notes, under a health-screening label. Portability and
+// deletion were always correct; only the label lied. Each row carries its own
+// `kind`, which is what actually says what that document is — the note below
+// points a reader at it.
 const OWNED: { key: string; table: string; col: string }[] = [
-  { key: 'health_screening_and_goals', table: 'user_goals', col: 'user_id' },
+  { key: 'goals_health_and_app_data', table: 'user_goals', col: 'user_id' },
   { key: 'weigh_ins', table: 'client_weigh_ins', col: 'user_id' },
   { key: 'measurements', table: 'client_measurements', col: 'user_id' },
   { key: 'weekly_checkins', table: 'client_checkins', col: 'user_id' },
@@ -86,7 +100,10 @@ export async function GET(request: Request) {
         'This file contains the personal and health data Shape holds about you. ' +
         'Authentication tokens are excluded for security. Media files (progress ' +
         'photos, voice notes) are referenced by path in the rows above; to receive ' +
-        'copies of those files, email privacy@theshapecommunity.com.',
+        'copies of those files, email privacy@theshapecommunity.com. Rows under ' +
+        '"goals_health_and_app_data" each carry a "kind" field naming what that ' +
+        'document is — for example "health_profile", "client_goals", ' +
+        '"client_recipes" or "client_settings".',
     },
     data,
   };

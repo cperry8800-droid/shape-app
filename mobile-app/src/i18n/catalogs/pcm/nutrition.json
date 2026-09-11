@@ -306,6 +306,7 @@
   "myRecipe.save": "Keep am →",
   "myRecipe.yours": "Na your own recipe. Your own alone — your coaches no dey see am.",
   "myRecipe.draftedTag": "Shape read am from wetin you paste, you check am",
+  "myRecipe.draftedTagPhoto": "Shape read am from your photo, you check am",
   "myRecipe.delete": "Delete dis recipe",
   "myRecipe.add": "＋ Add your own recipe",
   "myRecipe.qty": "How much",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Na your own recipe — nothing fit bring am back.",
   "myRecipe.errAccount": "The account wey sign in don change. Open dis recipe again.",
   "myRecipe.errAccountSave": "The account wey sign in don change, so e no save. Sign in again make you keep am.",
-  "myRecipe.errUnreadable": "E no fit read your recipes just now. Try am again."
+  "myRecipe.errUnreadable": "E no fit read your recipes just now. Try am again.",
+  "myRecipe.orPhoto": "Or snap am",
+  "myRecipe.photoCta": "＋ Photo of recipe",
+  "myRecipe.photoNote": "We dey send di photo make dem read am, den we comot am — Shape no dey keep am.",
+  "myRecipe.byPhoto": "Shape read am from your photo — check am against di page, correct wetin no correct, den keep am.",
+  "myRecipe.errPhotoTooBig": "Dat photo too big make we read am. Crop am to di recipe for your photos, den try again.",
+  "myRecipe.errPhotoUnclear": "We no fit use dat image. Try clearer photo wey full di frame.",
+  "myRecipe.errPhotoType": "Dat file type no dey work. Photo from your camera or gallery go work.",
+  "myRecipe.errPhotoNoRecipe": "We no see recipe for dat photo. Try di page wey get di ingredients and di method.",
+  "myRecipe.errPhotoOff": "Reading photo no dey work for dis build. Paste or type di recipe instead.",
+  "myRecipe.errPhotoRead": "We no fit read dat photo. Paste or type di recipe instead — dat one dey always work."
 }

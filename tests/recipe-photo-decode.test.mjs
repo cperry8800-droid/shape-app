@@ -1,0 +1,548 @@
+// The photo import's DECODE BOUND, driven rather than grepped.
+//
+// ⚠ WHY THIS FILE EXISTS. The guard it covers was wrong in a way that reads as
+// right: a 25 MB ceiling on the COMPRESSED file, under a comment explaining that
+// a 48 MP shot decodes to ~190 MB of RGBA and kills the WebView. Those two facts
+// do not meet — an ordinary 48 MP JPEG is 6–12 MB on disk and sails through —
+// so the guard waved through precisely the file it was written for. Only the
+// PIXELS bound the decode, and pixels come out of the header.
+//
+// Both functions are lifted from the shipped source and EXECUTED. A source scan
+// could not tell a header walk from a byte scan, and the difference between
+// those two is a thumbnail's dimensions reported as the photo's.
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SRC = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+
+// Brace-match a top-level function out of the source.
+// ⚠ IT SKIPS THE PARAMETER LIST AND ASSERTS IT GOT A BODY. Counting braces from
+// `function NAME(` returns the SIGNATURE when a parameter is destructured — the
+// defect that made a 47-character string pass every assertion written against it
+// in #2032 and again one PR later. These parameters are plain, so the naive form
+// would work; the assertion is what keeps that true.
+function lift(name) {
+  // ⚠ THE `async` KEYWORD IS PART OF THE FUNCTION. Anchoring on `function NAME(`
+  // lifts the body without it, and the result is a non-async function whose
+  // `await`s are a SyntaxError — which reads as "the code is broken" rather than
+  // "the instrument truncated it". The sibling suite got away with this only
+  // because nothing it lifts is async.
+  let at = SRC.indexOf(`function ${name}(`);
+  assert.notEqual(at, -1, `no function ${name} in shapeBackend.js`);
+  if (SRC.slice(Math.max(0, at - 6), at) === 'async ') at -= 6;
+  const open = SRC.indexOf('{', SRC.indexOf(')', at));
+  let depth = 0;
+  for (let i = open; i < SRC.length; i += 1) {
+    if (SRC[i] === '{') depth += 1;
+    else if (SRC[i] === '}') { depth -= 1; if (depth === 0) {
+      const body = SRC.slice(at, i + 1);
+      assert.ok(body.length > 200, `lifted ${name} is ${body.length} chars — that is a signature, not a body`);
+      return body;
+    } }
+  }
+  throw new Error(`unbalanced braces reading ${name}`);
+}
+
+const constOf = (name) => {
+  const m = SRC.match(new RegExp(`^const ${name} = ([^;]+);`, 'm'));
+  assert.ok(m, `no const ${name}`);
+  return m[1];
+};
+
+// ── the header reader ──────────────────────────────────────────────────────
+
+const bsImageHeaderDims = new Function(`${lift('bsImageHeaderDims')}; return bsImageHeaderDims;`)();
+
+const png = (w, h) => {
+  const b = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0);
+  b.write('IHDR', 12, 'latin1');
+  b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
+  return b;
+};
+const gif = (w, h) => {
+  const b = Buffer.alloc(14);
+  b.write('GIF89a', 0, 'latin1');
+  b.writeUInt16LE(w, 6); b.writeUInt16LE(h, 8);
+  return b;
+};
+// A JPEG with `segments` before its SOF. Each segment is [marker, payload].
+const jpeg = (w, h, segments = [], sof = 0xc0) => {
+  const parts = [Buffer.from([0xff, 0xd8])];
+  for (const [marker, payload] of segments) {
+    const head = Buffer.alloc(4);
+    head[0] = 0xff; head[1] = marker; head.writeUInt16BE(payload.length + 2, 2);
+    parts.push(head, payload);
+  }
+  const f = Buffer.alloc(11);
+  f[0] = 0xff; f[1] = sof; f.writeUInt16BE(9, 2); f[4] = 8;
+  f.writeUInt16BE(h, 5); f.writeUInt16BE(w, 7);
+  parts.push(f, Buffer.alloc(64));
+  return Buffer.concat(parts);
+};
+const webpVP8 = (w, h, sync = true) => {
+  const b = Buffer.alloc(40);
+  b.write('RIFF', 0, 'latin1'); b.write('WEBP', 8, 'latin1'); b.write('VP8 ', 12, 'latin1');
+  if (sync) { b[23] = 0x9d; b[24] = 0x01; b[25] = 0x2a; }   // the VP8 sync code
+  b.writeUInt16LE(w & 0x3fff, 26); b.writeUInt16LE(h & 0x3fff, 28);
+  return b;
+};
+const webpVP8X = (w, h) => {
+  const b = Buffer.alloc(40);
+  b.write('RIFF', 0, 'latin1'); b.write('WEBP', 8, 'latin1'); b.write('VP8X', 12, 'latin1');
+  b.writeUIntLE(w - 1, 24, 3); b.writeUIntLE(h - 1, 27, 3);
+  return b;
+};
+
+test('the header reader measures every format the route accepts', () => {
+  assert.deepEqual(bsImageHeaderDims(png(4032, 3024)), { w: 4032, h: 3024 });
+  assert.deepEqual(bsImageHeaderDims(gif(640, 480)), { w: 640, h: 480 });
+  assert.deepEqual(bsImageHeaderDims(jpeg(8000, 6000)), { w: 8000, h: 6000 });
+  assert.deepEqual(bsImageHeaderDims(webpVP8(1200, 1600)), { w: 1200, h: 1600 });
+  assert.deepEqual(bsImageHeaderDims(webpVP8X(5000, 4000)), { w: 5000, h: 4000 });
+  // It takes a Uint8Array or an ArrayBuffer — the caller hands it the latter.
+  assert.deepEqual(bsImageHeaderDims(new Uint8Array(png(10, 20)).buffer), { w: 10, h: 20 });
+});
+
+test('⚠ IT WALKS THE MARKER CHAIN — a 0xFFC0 inside EXIF is not the photo size', () => {
+  // The failure this pins: scanning for the SOF bytes lands inside an EXIF or
+  // thumbnail payload, and the member's 48 MP photo is measured as a 160×120
+  // thumbnail — which passes the pixel budget, so the decode that kills the
+  // WebView proceeds with the guard reporting green.
+  const exif = Buffer.alloc(600);
+  exif.write('Exif\0\0', 0, 'latin1');
+  exif[100] = 0xff; exif[101] = 0xc0;              // the trap
+  exif.writeUInt16BE(9, 102); exif[104] = 8;
+  exif.writeUInt16BE(120, 105); exif.writeUInt16BE(160, 107);
+  const buf = jpeg(8000, 6000, [[0xe1, exif]]);
+  assert.deepEqual(bsImageHeaderDims(buf), { w: 8000, h: 6000 });
+  // And the trap really is in the bytes — otherwise this test proves nothing.
+  let found = false;
+  for (let i = 0; i < buf.length - 1; i += 1) if (buf[i] === 0xff && buf[i + 1] === 0xc0) { found = true; break; }
+  assert.ok(found, 'the fixture must actually contain a stray 0xFFC0');
+});
+
+test('a progressive JPEG is measured, and DHT is not mistaken for a frame', () => {
+  assert.deepEqual(bsImageHeaderDims(jpeg(4000, 3000, [], 0xc2)), { w: 4000, h: 3000 });
+  // 0xc4 (DHT) shares SOF's marker range and must be skipped, not read.
+  assert.deepEqual(bsImageHeaderDims(jpeg(4000, 3000, [[0xc4, Buffer.alloc(40)]])), { w: 4000, h: 3000 });
+});
+
+test('an unreadable header is UNKNOWN, never a guess', () => {
+  assert.equal(bsImageHeaderDims(Buffer.alloc(8)), null, 'too short');
+  assert.equal(bsImageHeaderDims(Buffer.from('not an image at all, really', 'latin1')), null);
+  assert.equal(bsImageHeaderDims(Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(200)])), null,
+    'a JPEG whose chain goes out of sync must not be guessed at');
+});
+
+test('⚠ AND A DESYNCED CHAIN REFUSES RATHER THAN RESYNCING ONTO THE FIRST PLAUSIBLE FRAME', () => {
+  // ⚠ MUTATION-FOUND GAP, and the fixture above is why it was needed. Turning
+  // the out-of-sync bail into `i += 1; continue;` — a scan, rather than a walk —
+  // SURVIVED every other assertion in this file: a well-formed chain never
+  // reaches that branch, and the zero-filled fixture above finds no 0xFF to
+  // resync onto, so both versions returned null for the same uninteresting
+  // reason. The hazard only shows when the garbage CONTAINS something that looks
+  // like a frame header, which is exactly what a corrupt file or an unusual
+  // container carries.
+  const junk = Buffer.alloc(80);                        // no 0xFF: the chain is lost here
+  const decoy = Buffer.alloc(11);                       // ...and a thumbnail-sized SOF after it
+  decoy[0] = 0xff; decoy[1] = 0xc0; decoy.writeUInt16BE(9, 2); decoy[4] = 8;
+  decoy.writeUInt16BE(120, 5); decoy.writeUInt16BE(160, 7);
+  const buf = Buffer.concat([Buffer.from([0xff, 0xd8]), junk, decoy, Buffer.alloc(64)]);
+
+  // The fixture has to be able to fool a scanner, or this test proves nothing.
+  let scanned = null;
+  for (let i = 2; i < buf.length - 8; i += 1) {
+    if (buf[i] === 0xff && buf[i + 1] === 0xc0) { scanned = { w: buf.readUInt16BE(i + 7), h: buf.readUInt16BE(i + 5) }; break; }
+  }
+  assert.deepEqual(scanned, { w: 160, h: 120 }, 'the fixture must be able to fool a byte scan');
+
+  assert.equal(bsImageHeaderDims(buf), null,
+    'a lost chain is unknown — reporting 160×120 would pass the pixel budget and let the killing decode proceed');
+});
+
+// ── the guard that uses it ─────────────────────────────────────────────────
+
+const MAX_PIXELS = Number(constOf('BS_RECIPE_PHOTO_MAX_PIXELS').replace(/_/g, ''));
+const MAX_FILE = Number(constOf('BS_RECIPE_PHOTO_MAX_FILE').replace(/_/g, ''));
+// Evaluated rather than parsed: it is written as an expression, and a test that
+// hardcodes its own copy of a constant stops testing the shipped one.
+const HEADER_BYTES = Number(new Function(`return (${constOf('BS_RECIPE_PHOTO_HEADER_BYTES')});`)());
+
+// Drives the REAL bsRecipePhotoDataUrl against a stubbed browser. `calls`
+// records which decode path was taken, which is the whole question.
+function drivePhoto({ bytes, size = 1_000_000, type = 'image/jpeg', bitmap = true, imageDecode = true }) {
+  const calls = { img: 0, bitmap: 0, resize: null, closed: 0 };
+  const env = {
+    BS_RECIPE_PHOTO_EDGES: [1600, 1200, 900],
+    BS_RECIPE_PHOTO_QUALITIES: [0.82, 0.5],
+    BS_RECIPE_PHOTO_BUDGET: 640000,
+    BS_RECIPE_PHOTO_MAX_FILE: MAX_FILE,
+    BS_RECIPE_PHOTO_MAX_PIXELS: MAX_PIXELS,
+    BS_RECIPE_PHOTO_HEADER_BYTES: HEADER_BYTES,
+    BS_RECIPE_PHOTO_DECODE_MS: 20000,
+    bsImageHeaderDims,
+    setTimeout, clearTimeout,
+    document: {
+      createElement: () => ({
+        width: 0, height: 0,
+        getContext: () => ({ drawImage() {} }),
+        toDataURL: () => 'data:image/jpeg;base64,' + 'A'.repeat(400),
+      }),
+    },
+    FileReader: class {
+      readAsDataURL() {
+        calls.img += 1;
+        setTimeout(() => { this.result = 'data:image/jpeg;base64,AAAA'; this.onload && this.onload(); }, 0);
+      }
+    },
+    Image: class {
+      set src(_v) {
+        setTimeout(() => {
+          if (!imageDecode) { this.onerror && this.onerror(); return; }
+          this.width = 4000; this.height = 3000; this.onload && this.onload();
+        }, 0);
+      }
+    },
+    createImageBitmap: bitmap
+      ? async (_f, opts) => { calls.bitmap += 1; calls.resize = opts;
+          return { width: opts.resizeWidth, height: opts.resizeHeight, close() { calls.closed += 1; } }; }
+      : undefined,
+  };
+  const file = {
+    size, type,
+    slice: () => ({ arrayBuffer: async () => new Uint8Array(bytes).buffer }),
+  };
+  const names = Object.keys(env);
+  const fn = new Function(...names, `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`)(
+    ...names.map((n) => env[n]),
+  );
+  return fn(file).then((url) => ({ url, calls }));
+}
+
+test('⚠ A PHOTO PAST THE PIXEL BUDGET IS DOWNSAMPLED DURING DECODE, NEVER MATERIALISED', async () => {
+  // 8000×6000 = 48 MP ≈ 190 MB of RGBA, in a 6 MB file that clears every byte
+  // ceiling in the module. The <img> path must not be taken.
+  const { url, calls } = await drivePhoto({ bytes: jpeg(8000, 6000), size: 6_000_000 });
+  assert.ok(String(url).startsWith('data:image/jpeg;base64,'), 'it still produces an image');
+  assert.equal(calls.img, 0, 'the full-decode path must not run for a 48 MP source');
+  assert.equal(calls.bitmap, 1, 'it must decode through the resizing decoder');
+  assert.equal(calls.resize.resizeWidth, 1600, 'capped on the long edge');
+  assert.equal(calls.resize.resizeHeight, 1200, 'and the aspect ratio is kept');
+  assert.equal(calls.closed, 1, 'the bitmap is closed — its pixels live outside the JS heap');
+});
+
+test('an ordinary photo still takes the plain path', async () => {
+  const { url, calls } = await drivePhoto({ bytes: jpeg(4032, 3024), size: 3_000_000 });   // 12 MP
+  assert.ok(String(url).startsWith('data:image/jpeg;base64,'));
+  assert.equal(calls.bitmap, 0, 'no need to reach for the resizing decoder under the budget');
+  assert.equal(calls.img, 1);
+});
+
+test('⚠ AN IMAGE WHOSE SIZE CANNOT BE READ IS DECLINED — two wrong answers came first', async () => {
+  // Codex, across two rounds. The first cut sent an unmeasurable header to the
+  // FULL DECODE, reasoning that refusing what we cannot measure would refuse
+  // images that decode fine — a guard failing OPEN on its own uncertainty, which
+  // bounds something other than the hazard.
+  //
+  // ⚠ THE SECOND CUT CAPPED ONLY THE WIDTH, WHICH IS WORSE THAN IT SOUNDS: with
+  // the height left to scale proportionally, a 1200×20000 scan comes back as
+  // 1600×26667 — 42 MP, ~171 MB — so the "fix" made a tall image consume MORE
+  // memory than leaving it alone. Naming both axes bounds it and distorts the
+  // page, which is the one thing a transcription cannot survive, and the API has
+  // no fit-inside-a-box mode. So it declines.
+  const { url, calls } = await drivePhoto({ bytes: Buffer.from('mystery', 'latin1') });
+  assert.equal(url, null, 'unreadable, and said so — the sheet maps this to "couldn\'t use that image"');
+  assert.equal(calls.img, 0, 'an unmeasurable header must never reach the full decode');
+  assert.equal(calls.bitmap, 0, 'nor an unbounded resize');
+});
+
+test('the width-only resize really would have blown the budget — the arithmetic, not the claim', () => {
+  // The refusal above is only justified if the alternative is genuinely unsafe,
+  // so the number is derived rather than asserted.
+  const [w, h] = [1200, 20000];
+  const outW = 1600;                                     // resizeWidth, no height
+  const outH = Math.round(h * (outW / w));               // the spec scales it proportionally
+  assert.equal(outH, 26667);
+  assert.ok(outW * outH > MAX_PIXELS * 1.5,
+    `a width-only cap yields ${outW * outH} px, past the ${MAX_PIXELS} budget it was meant to enforce`);
+});
+
+test('a REAL JPEG carrying a large chunked ICC profile is still MEASURED, not turned away', () => {
+  // ⚠ THE HEADER WINDOW HAD TO GROW WHEN UNMEASURABLE BECAME A REFUSAL. At
+  // 256 KiB this photo — a perfectly ordinary one with a big colour profile —
+  // fell off the end of the window and would now be declined. The window is 2 MiB.
+  //
+  // ⚠ IT TAKES SIX SEGMENTS, NOT ONE, AND THE FORMAT IS WHY. A JPEG segment
+  // carries a 16-bit length, so no single marker can exceed 65,535 bytes — the
+  // first fixture asked for one 300 KiB APP2 and Buffer refused to write the
+  // length. Real encoders chunk a large ICC profile across consecutive APP2
+  // markers for exactly that reason, which is also how a start-of-frame comes to
+  // sit a third of a megabyte into a perfectly ordinary photo.
+  const icc = Array.from({ length: 6 }, () => [0xe2, Buffer.alloc(65_000)]);
+  const big = jpeg(8000, 6000, icc);
+  assert.ok(big.length > 256 * 1024, 'the metadata must actually outrun the OLD window');
+  assert.equal(bsImageHeaderDims(big.subarray(0, 256 * 1024)), null, 'and it did fall off that one');
+  assert.deepEqual(bsImageHeaderDims(big.subarray(0, HEADER_BYTES)), { w: 8000, h: 6000 },
+    'the window in force must reach it');
+  assert.ok(HEADER_BYTES >= 1024 * 1024, 'a narrow window turns real photos away');
+});
+
+test('and a huge MEASURED image is refused when there is no resizing decoder', async () => {
+  const { url, calls } = await drivePhoto({ bytes: jpeg(8000, 6000), size: 6_000_000, bitmap: false });
+  assert.equal(url, 'too-big');
+  assert.equal(calls.img, 0);
+});
+
+test('⚠ WITHOUT A RESIZING DECODER A HUGE PHOTO IS REFUSED, NOT ATTEMPTED', async () => {
+  // The refusal is the point: `too-big` reaches the member as "crop it to the
+  // recipe and try again", which is a thing they can do. An out-of-memory kill
+  // takes the whole sheet, and everything they had typed, with no message.
+  const { url, calls } = await drivePhoto({ bytes: jpeg(8000, 6000), size: 6_000_000, bitmap: false });
+  assert.equal(url, 'too-big');
+  assert.equal(calls.img, 0, 'it must not fall back to decoding the whole bitmap');
+});
+
+test('a resizing decoder that throws is a refusal too, not a full decode', async () => {
+  // Built inline rather than through drivePhoto, because this stub has to REJECT.
+  const calls = { img: 0 };
+  const fn = new Function(
+    'BS_RECIPE_PHOTO_EDGES', 'BS_RECIPE_PHOTO_QUALITIES', 'BS_RECIPE_PHOTO_BUDGET',
+    'BS_RECIPE_PHOTO_MAX_FILE', 'BS_RECIPE_PHOTO_MAX_PIXELS', 'BS_RECIPE_PHOTO_HEADER_BYTES',
+    'BS_RECIPE_PHOTO_DECODE_MS', 'bsImageHeaderDims', 'setTimeout', 'clearTimeout',
+    'document', 'FileReader', 'Image', 'createImageBitmap',
+    `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`,
+  )(
+    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, HEADER_BYTES, 20000, bsImageHeaderDims,
+    setTimeout, clearTimeout,
+    { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,AAAA' }) },
+    class { readAsDataURL() { calls.img += 1; } },
+    class { set src(_v) {} },
+    async () => { throw new Error('decode failed'); },
+  );
+  const url = await fn({
+    size: 6_000_000, type: 'image/jpeg',
+    slice: () => ({ arrayBuffer: async () => new Uint8Array(jpeg(8000, 6000)).buffer }),
+  });
+  assert.equal(url, 'too-big');
+  assert.equal(calls.img, 0, 'a failed resize must not become a full decode');
+});
+
+test('the compressed ceiling still refuses an enormous file outright', async () => {
+  const { url } = await drivePhoto({ bytes: jpeg(1000, 1000), size: MAX_FILE + 1 });
+  assert.equal(url, 'too-big');
+});
+
+test('the pixel budget is a real bound, not a rounding of the byte one', () => {
+  // ⚠ The two ceilings answer different questions, and collapsing them is the
+  // defect. 25 MP ≈ 100 MB decoded; the byte ceiling cannot express that.
+  assert.ok(MAX_PIXELS >= 12_000_000, 'an ordinary 12 MP phone photo must not be refused');
+  assert.ok(MAX_PIXELS <= 40_000_000, 'and a 48 MP one must not sail through');
+});
+
+test('⚠ A DECODE THAT LANDS AFTER THE TIMEOUT STILL RELEASES ITS PIXELS', async () => {
+  // Codex, P2 on the fix round. When the decode outruns the deadline the timer
+  // has already resolved, so `done` will not run again — which made the early
+  // return the ONLY place those pixels could be released, and it released
+  // nothing. An ImageBitmap's pixels live outside the JS heap, so every slow
+  // decode retained a full frame until GC happened to notice.
+  let closed = 0;
+  let resolveBitmap;
+  const pending = new Promise((r) => { resolveBitmap = r; });
+  const fn = new Function(
+    'BS_RECIPE_PHOTO_EDGES', 'BS_RECIPE_PHOTO_QUALITIES', 'BS_RECIPE_PHOTO_BUDGET',
+    'BS_RECIPE_PHOTO_MAX_FILE', 'BS_RECIPE_PHOTO_MAX_PIXELS', 'BS_RECIPE_PHOTO_HEADER_BYTES',
+    'BS_RECIPE_PHOTO_DECODE_MS', 'bsImageHeaderDims', 'setTimeout', 'clearTimeout',
+    'document', 'FileReader', 'Image', 'createImageBitmap',
+    `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`,
+  )(
+    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, HEADER_BYTES,
+    5,                                              // a 5 ms deadline the decode will miss
+    bsImageHeaderDims, setTimeout, clearTimeout,
+    { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,AAAA' }) },
+    class { readAsDataURL() {} },
+    class { set src(_v) {} },
+    () => pending,
+  );
+  const url = await fn({
+    size: 6_000_000, type: 'image/jpeg',
+    slice: () => ({ arrayBuffer: async () => new Uint8Array(jpeg(8000, 6000)).buffer }),
+  });
+  assert.equal(url, null, 'the deadline resolves it as unreadable');
+  assert.equal(closed, 0, 'nothing to close yet — the decode has not landed');
+
+  // Now the decode lands, on a promise nobody is waiting for.
+  resolveBitmap({ width: 1600, height: 1200, close() { closed += 1; } });
+  for (let i = 0; i < 6; i += 1) await new Promise((r) => setTimeout(r, 0));
+  assert.equal(closed, 1, 'a late bitmap must still be closed');
+});
+
+test('⚠ THE UPSCALE CLAMP IS UNREACHABLE, AND THAT IS DERIVED RATHER THAN ASSUMED', () => {
+  // A mutation dropping `Math.min(1, …)` from the resize scale SURVIVED the
+  // round, and the honest answer is that it is a no-op rather than a gap: that
+  // branch is only reached past the pixel budget, and an image over the budget
+  // cannot have a long edge under the resize target. Left at that it would be a
+  // claim in a comment, so it is checked against the shipped constants — if the
+  // budget is ever lowered below EDGES[0]², an upscale becomes reachable and
+  // this fails, which is exactly when someone needs to know.
+  const edge = Number(new Function(`return (${constOf('BS_RECIPE_PHOTO_EDGES')});`)()[0]);
+  const minShortEdge = MAX_PIXELS / edge;
+  assert.ok(minShortEdge > edge,
+    `an image past ${MAX_PIXELS} px with a long edge of ${edge} would need a short edge of ${minShortEdge}`);
+  assert.equal(MAX_PIXELS > edge * edge, true, 'the budget must exceed a square at the resize target');
+
+  // And the clamp is still there, so the invariant does not rest on the comment.
+  assert.match(SRC, /Math\.min\(1, BS_RECIPE_PHOTO_EDGES\[0\] \/ Math\.max\(measured\.w, measured\.h\)\)/);
+});
+
+test('⚠ A FILE THAT ONLY LOOKS LIKE AN IMAGE CANNOT FABRICATE A SMALL SIZE', () => {
+  // This function now decides whether an image is decoded AT ALL, so a wrong
+  // answer is no longer a missed optimisation: a fabricated small size sends an
+  // arbitrarily large image to the full decode, which is the failure the whole
+  // guard exists to prevent. Structure is verified before offsets are trusted.
+  const fakePng = Buffer.alloc(40);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(fakePng, 0);
+  fakePng.write('tEXt', 12, 'latin1');                 // not IHDR
+  fakePng.writeUInt32BE(8, 16); fakePng.writeUInt32BE(8, 20);
+  assert.equal(bsImageHeaderDims(fakePng), null, 'the chunk type must be checked, not assumed');
+
+  assert.equal(bsImageHeaderDims(webpVP8(64, 64, false)), null, 'a VP8 body with no sync code is not measured');
+  assert.deepEqual(bsImageHeaderDims(webpVP8(64, 64)), { w: 64, h: 64 }, 'and a real one still is');
+});
+
+test('a hostile JPEG chain cannot spin or read off the end', () => {
+  // Every branch of the walk must advance `i`, and every read must sit inside the
+  // buffer — a length field of 0 or 1 is the classic way to make a parser loop.
+  for (const len of [0, 1, 2, 3, 0xffff]) {
+    const b = Buffer.alloc(64);
+    b[0] = 0xff; b[1] = 0xd8; b[2] = 0xff; b[3] = 0xe1;
+    b.writeUInt16BE(len, 4);
+    assert.doesNotThrow(() => bsImageHeaderDims(b), `length ${len} must not throw`);
+  }
+  // Truncated right where the size would be read.
+  for (let n = 0; n < 24; n += 1) {
+    assert.doesNotThrow(() => bsImageHeaderDims(jpeg(100, 100).subarray(0, n)), `truncated at ${n}`);
+  }
+});
+
+test('⚠ A HOSTILE SOF CANNOT PLANT DIMENSIONS OUTSIDE ITS OWN SEGMENT', () => {
+  // Codex, P1. A frame header is length(2) + precision(1) + height(2) + width(2)
+  // + components(1) = 8 bytes minimum. Without that check a file can declare a
+  // TWO-byte SOF while planting small values at the offsets the reader uses —
+  // dimensions that are not inside the segment at all. They pass the pixel budget
+  // and send the file to the full decode, where a permissive decoder skips the
+  // bogus frame, finds the real one, and recreates exactly the unbounded decode
+  // this guard exists to stop.
+  const b = Buffer.alloc(64);
+  b[0] = 0xff; b[1] = 0xd8;
+  b[2] = 0xff; b[3] = 0xc0;
+  b.writeUInt16BE(2, 4);                 // a segment declaring no payload at all
+  b[6] = 8;
+  b.writeUInt16BE(120, 7); b.writeUInt16BE(160, 9);   // ...with a small size planted after it
+  assert.equal(bsImageHeaderDims(b), null, 'a segment too short to hold a size must not yield one');
+
+  // ⚠ AND A SOF WHOSE DECLARED SEGMENT RUNS PAST THE BUFFER IS REFUSED TOO — a
+  // separate check, and the first fixture for it proved nothing: an 8-byte slice
+  // fails the loop's own bounds test, so it returned null for an unrelated
+  // reason and a mutation dropping the buffer check SURVIVED. This one declares a
+  // legal 17-byte frame and then stops short of it, with enough bytes after the
+  // marker for the loop to reach the read.
+  // The window is narrow and both ends matter: the marker sits at i=2, so the
+  // loop needs more than 11 bytes to reach the read at all, while the declared
+  // segment ends at 4 + 17 = 21. Sixteen sits inside both.
+  const trunc = Buffer.alloc(16);
+  trunc[0] = 0xff; trunc[1] = 0xd8;
+  trunc[2] = 0xff; trunc[3] = 0xc0;
+  trunc.writeUInt16BE(17, 4);                          // a full three-component frame...
+  trunc[6] = 8;
+  trunc.writeUInt16BE(120, 7); trunc.writeUInt16BE(160, 9);
+  assert.ok(trunc.length > 2 + 9, 'the loop must be able to reach the read');
+  assert.ok(trunc.length < 4 + 17, 'and the fixture must stop short of its own declared segment');
+  assert.equal(bsImageHeaderDims(trunc), null, 'a segment that runs past the buffer must not be read');
+
+  // And a well-formed one still reads, so the bound is not just refusing everything.
+  assert.deepEqual(bsImageHeaderDims(jpeg(4000, 3000)), { w: 4000, h: 3000 });
+});
+
+// Drives the real bsRecipePhotoDataUrl with the deadline landing in a chosen
+// stage, counting the work each guard is supposed to prevent.
+//
+// ⚠ THE THREE GUARDS ARE A CHAIN, AND MEASURING ONLY THE LAST STAGE PROVES
+// NOTHING ABOUT THE FIRST TWO. The first version of this counted `drawImage`
+// alone — so removing the header-await guard was caught by the FileReader guard,
+// removing the FileReader guard was caught by the image guard, and two mutations
+// survived a green suite. Each guard closes a window the next one cannot see, so
+// each test asserts that the stage IMMEDIATELY AFTER its stall never started.
+function driveLateStage(stall) {
+  const ran = { reader: 0, image: 0, drew: 0 };
+  const gate = {};
+  const later = (k) => new Promise((r) => { gate[k] = r; });
+  const fn = new Function(
+    'BS_RECIPE_PHOTO_EDGES', 'BS_RECIPE_PHOTO_QUALITIES', 'BS_RECIPE_PHOTO_BUDGET',
+    'BS_RECIPE_PHOTO_MAX_FILE', 'BS_RECIPE_PHOTO_MAX_PIXELS', 'BS_RECIPE_PHOTO_HEADER_BYTES',
+    'BS_RECIPE_PHOTO_DECODE_MS', 'bsImageHeaderDims', 'setTimeout', 'clearTimeout',
+    'document', 'FileReader', 'Image', 'createImageBitmap',
+    `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`,
+  )(
+    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, HEADER_BYTES,
+    5,                                          // a deadline every stall will miss
+    bsImageHeaderDims, setTimeout, clearTimeout,
+    { createElement: () => ({ getContext: () => ({ drawImage() { ran.drew += 1; } }), toDataURL: () => 'data:image/jpeg;base64,AAAA' }) },
+    class {
+      readAsDataURL() {
+        ran.reader += 1;                        // the read was STARTED — what the header guard prevents
+        const fire = () => { this.result = 'data:image/jpeg;base64,AAAA'; this.onload && this.onload(); };
+        if (stall === 'reader') later('reader').then(fire); else setTimeout(fire, 0);
+      }
+    },
+    class {
+      set src(_v) {
+        ran.image += 1;                         // the decode was STARTED — what the reader guard prevents
+        const fire = () => { this.width = 100; this.height = 100; this.onload && this.onload(); };
+        if (stall === 'image') later('image').then(fire); else setTimeout(fire, 0);
+      }
+    },
+    undefined,
+  );
+  const headerBuf = new Uint8Array(jpeg(1000, 1000)).buffer;
+  const url = fn({
+    size: 1_000_000, type: 'image/jpeg',
+    slice: () => ({ arrayBuffer: () => (stall === 'header' ? later('header').then(() => headerBuf) : Promise.resolve(headerBuf)) }),
+  });
+  return { url, ran, release: () => { Object.values(gate).forEach((r) => r && r()); } };
+}
+
+// stall -> [the stage that must never start, its counter]
+const NEXT_STAGE = {
+  header: ['the file read', 'reader'],
+  reader: ['the decode', 'image'],
+  image: ['the canvas ladder', 'drew'],
+};
+
+for (const [stall, [label, counter]] of Object.entries(NEXT_STAGE)) {
+  test(`⚠ A TIMED-OUT IMPORT STOPS WORKING — deadline during the ${stall} stage`, async () => {
+    // `finish` is already a no-op once the deadline has resolved, but the
+    // expensive part is the work that runs BEFORE it. A timed-out import went on
+    // materialising a bitmap and encoding it several times for an answer nobody
+    // could receive.
+    const h = driveLateStage(stall);
+    assert.equal(await h.url, null, 'the deadline resolves it as unreadable');
+    h.release();
+    for (let i = 0; i < 12; i += 1) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(h.ran[counter], 0, `${label} must not start after the deadline (stalled at ${stall})`);
+  });
+}
+
+test('the control: an import that BEATS the deadline still does its work', () => {
+  // Without this, every assertion above passes on a function that never draws
+  // anything at all.
+  return drivePhoto({ bytes: jpeg(1000, 1000) }).then(({ url, calls }) => {
+    assert.ok(String(url).startsWith('data:image/jpeg;base64,'));
+    assert.equal(calls.img, 1, 'the ordinary path really does run the decode');
+  });
+});

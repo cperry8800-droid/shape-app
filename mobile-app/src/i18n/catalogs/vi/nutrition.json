@@ -306,6 +306,7 @@
   "myRecipe.save": "Giữ lại →",
   "myRecipe.yours": "Công thức của riêng bạn. Riêng tư — huấn luyện viên không thấy.",
   "myRecipe.draftedTag": "Shape đọc từ nội dung bạn dán, bạn đã kiểm tra",
+  "myRecipe.draftedTagPhoto": "Shape đọc từ ảnh của bạn, bạn đã kiểm tra",
   "myRecipe.delete": "Xoá công thức này",
   "myRecipe.add": "＋ Thêm công thức của bạn",
   "myRecipe.qty": "Số lượng",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Đây là công thức của bạn — không thể khôi phục.",
   "myRecipe.errAccount": "Tài khoản đã thay đổi. Hãy mở lại công thức này.",
   "myRecipe.errAccountSave": "Tài khoản đã thay đổi nên chưa lưu được. Hãy đăng nhập lại và lưu nhé.",
-  "myRecipe.errUnreadable": "Chưa đọc được công thức của bạn. Thử lại nhé."
+  "myRecipe.errUnreadable": "Chưa đọc được công thức của bạn. Thử lại nhé.",
+  "myRecipe.orPhoto": "Hoặc chụp ảnh",
+  "myRecipe.photoCta": "＋ Ảnh công thức",
+  "myRecipe.photoNote": "Ảnh được gửi đi để đọc rồi xoá — Shape không bao giờ lưu lại.",
+  "myRecipe.byPhoto": "Shape đọc từ ảnh của bạn — đối chiếu với trang sách, sửa lại rồi giữ.",
+  "myRecipe.errPhotoTooBig": "Ảnh đó quá lớn để đọc. Hãy cắt còn phần công thức trong thư viện ảnh rồi thử lại.",
+  "myRecipe.errPhotoUnclear": "Không dùng được ảnh đó. Hãy thử ảnh rõ hơn, lấp đầy khung hình.",
+  "myRecipe.errPhotoType": "Không hỗ trợ loại tệp đó. Ảnh từ máy ảnh hoặc thư viện thì được.",
+  "myRecipe.errPhotoNoRecipe": "Chúng tôi không tìm thấy công thức trong ảnh đó. Hãy thử trang có nguyên liệu và cách làm.",
+  "myRecipe.errPhotoOff": "Bản này chưa đọc được ảnh. Hãy dán hoặc gõ công thức.",
+  "myRecipe.errPhotoRead": "Chúng tôi không đọc được ảnh đó. Hãy dán hoặc gõ công thức — cách đó luôn được."
 }
