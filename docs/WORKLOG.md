@@ -549,8 +549,8 @@ Append new entries at the top, under this note.
   them. The guard **derives** the capped queries from the route rather than naming them, so
   a third one added later is covered. *A lesson applied at the bottom of a file is not
   applied at the top of it* — the same sentence this log wrote on 2026-09-10.
-- **Verified:** `npm test` **3069/3069** · `tsc --noEmit` 0 · JSX parse on both changed
-  modules · the newdesign precompile check · **25/25 mutations killed**, each proven to
+- **Verified:** `npm test` **3107/3107** · `tsc --noEmit` 0 · JSX parse on both changed
+  modules · the newdesign precompile check · **26/26 mutations killed**, each proven to
   land, sanity green at both ends · and the whole control driven in Chromium: nine cards and
   one gear, ALL → 90D → 30D → 7D plotting **41 → 19 → 7 → 2** points with the eyebrow and the
   delta following, back to ALL, and the choice surviving a reload as
@@ -589,6 +589,16 @@ Append new entries at the top, under this note.
   — which reporting the cap required — left it silently checking **one** of the three
   queries and still passing. *A guard that derives its corpus has to accept every spelling
   that corpus can legitimately take.*
+- ⚠ **AND A DST TRANSITION DROPPED THE BOUNDARY DAY, TWICE A YEAR, IN EVERY DST REGION.**
+  Subtracting `days × 86400000` from a local midnight assumes every day is 24 hours; the
+  autumn fall-back day is **25**. Reproduced under `America/New_York` on a daily series
+  ending 2026-11-06 before it was fixed: the 7D window returned **seven** points (oldest
+  Oct 31) where UTC returned **eight** (oldest Oct 30). The window counts **calendar days**
+  now — each point's local Y/M/D mapped onto `Date.UTC`, an ordinal where every day is
+  exactly 24h by construction — and UTC · New York · London · Sydney now return the same
+  eight points. The guard runs **a child process per zone**, because V8 caches the timezone
+  and re-assigning `process.env.TZ` mid-run does not reliably move it: *a guard that thinks
+  it changed zone and did not is a guard that tested UTC four times.*
 - ⚠ **STILL A SIMULATED LIVE STATE.** The account above is a stubbed `shapeDb` over an
   in-page object. An on-account pass is owed.
 

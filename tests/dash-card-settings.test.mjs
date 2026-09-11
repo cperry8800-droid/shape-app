@@ -8,6 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { stripComments } from './helpers/strip-comments.mjs';
 
 const GRID = stripComments(readFileSync(new URL('../public/newdesign/dashGrid.jsx', import.meta.url), 'utf8'));
@@ -117,6 +118,38 @@ test('a narrower window keeps strictly fewer or equal points, and never reorders
   }
   assert.equal(prev, pts.length, 'the widest window dropped points');
   assert.equal(windowed(pts, 7).length, 2);
+});
+
+test('a DST transition does not drop the boundary day', () => {
+  // ⚠ CODERABBIT ON THIS PR, AND IT REPRODUCES. Subtracting `days * 86400000` from a local
+  // midnight assumes every day is 24 hours; the autumn fall-back day is 25. Measured under
+  // America/New_York on a daily series ending 2026-11-06, the 7D window returned SEVEN
+  // points (oldest Oct 31) where UTC returned EIGHT (oldest Oct 30) — the boundary day
+  // silently dropped, twice a year, for every member in a DST region.
+  //
+  // The window counts CALENDAR DAYS now: each point's local Y/M/D is mapped onto `Date.UTC`,
+  // an ordinal where every day is exactly 24h by construction.
+  //
+  // ⚠ IT RUNS IN A CHILD PROCESS PER ZONE, because V8 caches the timezone and re-assigning
+  // `process.env.TZ` mid-run does not reliably move it — a guard that thinks it changed zone
+  // and did not is a guard that tested UTC four times.
+  const days = [];
+  for (let i = 0; i < 14; i++) days.unshift(new Date(Date.UTC(2026, 10, 6 - i)).toISOString().slice(0, 10));
+  const script =
+    'const f=' + body(PROG, 'dprWindowed').replace(/^function dprWindowed/, 'function') + ';' +
+    'const pts=' + JSON.stringify(days.map((date, i) => ({ date, value: 100 + i }))) + ';' +
+    'process.stdout.write(JSON.stringify(f(pts,7).map((p)=>p.date)));';
+  const seen = {};
+  for (const tz of ['UTC', 'America/New_York', 'Europe/London', 'Australia/Sydney']) {
+    const out = execFileSync(process.execPath, ['-e', script], { env: { ...process.env, TZ: tz } }).toString();
+    seen[tz] = JSON.parse(out);
+  }
+  // Eight points — the newest plus seven days back — in every zone, and the SAME eight.
+  for (const tz of Object.keys(seen)) {
+    assert.equal(seen[tz].length, 8, tz + ' kept ' + seen[tz].length + ' points: ' + seen[tz].join(','));
+    assert.equal(seen[tz][0], '2026-10-30', tz + ' lost the boundary day (oldest ' + seen[tz][0] + ')');
+  }
+  assert.deepEqual(seen['America/New_York'], seen.UTC, 'a DST zone disagrees with UTC');
 });
 
 test('rows with no usable date or value are dropped, and an undated series is not windowed away', () => {

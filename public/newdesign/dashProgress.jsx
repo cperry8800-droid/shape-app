@@ -181,7 +181,18 @@ function dprDeltaLabel(delta, tab, win, capped) {
 function dprWindowed(points, days) {
   const rows = (points || []).filter((p) => p && p.date != null && isFinite(Number(p.value)));
   if (days == null || rows.length === 0) return rows;
-  const at = (p) => new Date(String(p.date).length === 10 ? p.date + "T00:00:00" : p.date).getTime();
+  // ⚠ THE WINDOW IS COUNTED IN CALENDAR DAYS, NOT IN MILLISECONDS, AND A DST TRANSITION IS
+  // WHY. Subtracting `days * 86400000` from a local midnight assumes every day is 24 hours;
+  // the autumn fall-back day is 25. Measured under America/New_York on a daily series ending
+  // 2026-11-06: the 7D window returned SEVEN points (oldest Oct 31) where UTC returned EIGHT
+  // (oldest Oct 30) — the boundary day silently dropped, twice a year, for every member in a
+  // DST region. Mapping each point's LOCAL calendar day onto `Date.UTC` gives an ordinal
+  // where every day is exactly 24h by construction, so the subtraction is exact.
+  const at = (p) => {
+    const d = new Date(String(p.date).length === 10 ? p.date + "T00:00:00" : p.date);
+    const t = d.getTime();
+    return isFinite(t) ? Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) : NaN;
+  };
   let newest = -Infinity;
   for (const p of rows) { const t = at(p); if (isFinite(t) && t > newest) newest = t; }
   if (!isFinite(newest)) return rows;                 // undated rows: a window cannot be applied
