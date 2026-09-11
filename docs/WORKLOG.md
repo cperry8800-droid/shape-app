@@ -12,6 +12,16 @@ changelog whenever something ships.
   retroactively change existing emoji or colors** already in the app/website
   (especially on profiles) — leave current ones as-is. Rule applies to new emoji
   only.
+- **The changelog entry comes AFTER the PR, not before — owner, 2026-09-11:** *"new rule, do
+  worklog after PR is completed"*. Write the dated entry once the PR is done, so it can record
+  what the review round actually found and what the final head actually was. ⚠ **THE REASON IS
+  MEASURED, ON THE PR THAT PROMPTED THE RULING.** #2053's entry was written before its review
+  round and said the fix was verified and complete; CodeRabbit then found a **P1 the entry had
+  no way to know about** — the timezone fix was correct everywhere a member LOOKED and still
+  wrong where the booking was STORED. An entry written early is not merely incomplete, it is a
+  **false claim in a file every session auto-loads**: the next reader would have believed the
+  write path was always right. Keep the *verification* numbers for last too — a suite count
+  from before the review round is a count for a tree that no longer exists.
 - **Migrations: just post the raw GitHub SQL link.** When a migration is
   created, reply with only the `raw.githubusercontent.com/.../supabase-migrations/<file>.sql`
   link — the user runs it on Supabase. Don't paste the SQL body or long explanations.
@@ -787,6 +797,43 @@ Append new entries at the top, under this note.
   projection still does not expand a collapsed block into hourly starts the way the website does; and
   `shapeBackend.saveProviderAvailability` / `listProviderAvailability` are **dead exports** that would write
   zone-less hours if a caller ever appeared.
+- ⚠ **AND THEN THE REVIEW ROUND FOUND THE FIX WAS RIGHT AT THE DISPLAY AND WRONG AT THE WRITE.** Owner:
+  *"when you open PR, run a initial round of coderabbit for review"* + *"just one round for now"*. It
+  returned **three findings and every one was real** — nothing refuted — and the first is the one that
+  matters: **the whole slot-projection suite was green while the booking WRITE discarded the resolved
+  instant.** `projSlotRow` carried a projected slot to the confirm sheet and dropped `at`, and
+  `scheduledAtFromSlot` rebuilt `scheduled_at` from `date`/`month`/`time` — the MEMBER's display fields — so
+  a New York coach's 09:00 was stored as the member's 09:00. ⚠ **And the rebuilt string carried NO ZONE AT
+  ALL** (`2026-09-17T09:00:00`), so the instant Postgres kept depended on the **database's** timezone rather
+  than on anybody's intent. *Being right about the instant says nothing about what gets stored* — which is
+  why `tests/booking-write-path.test.mjs` exists and why every entry above it was insufficient.
+- ⚠ **THE SECOND FINDING WAS A HOLE THE FIX ITSELF OPENED, AND IT IS THE THIRD TIME IN THIS PR.**
+  `/api/consultation` took the client's `scheduledAt` as authoritative — replacing *"read a wall clock as
+  UTC"* with *"believe whatever instant the caller sends"* — and that branch ran **before** the no-zone
+  refusal, so a caller could also book against a coach whose hours cannot be placed at all. The server
+  derives the appointment itself now and a sent instant is only ever a **cross-check**; the refusal guards
+  every path.
+- ⚠ **AND THE REVIEWER'S OWN REMEDY WOULD HAVE 409'd EVERY BOOKING, WHICH IS WHY A FINDING IS VERIFIED
+  RATHER THAN APPLIED.** It asked for `scheduledAt` to be rejected unless it equals `date`+`time` resolved
+  in the coach's zone — correct, except the page was sending the **member's** wall clock, so the two
+  disagree for every member outside the coach's zone. The wire format moved to the coach's clock, and the
+  agreement is **proven rather than reasoned**: 180 combinations across 6 zones × 5 dates, page → server,
+  zero mismatches, now a permanent guard.
+- **The third: the confirmation mail read `9:00 AM EDT UTC`.** `niceDate` already carries its own
+  `timeZoneName` and seven call sites appended a literal ` UTC`. ⚠ The duplication **predates this PR**
+  (it read `UTC UTC`); moving the zone to the coach's turned a redundancy into a contradiction — *a change
+  that makes an existing sloppiness visible owns it.*
+- ⚠ **TWO OF MY OWN NEW GUARDS WERE WRONG BEFORE THEY WERE RIGHT, BOTH CAUGHT BY MUTATION RATHER THAN BY
+  READING.** The round-trip sweep **never reached a DST gap** — its minutes skipped 02:00–03:00 — caught by
+  its own vacuity assertion; and a file-wide ban on the member-local pair matched the **localStorage** copy,
+  where member-local is **correct**, and failed the clean tree. Scoped to the request body. *A guard that
+  pins a spelling pins whatever that spelling is wrong about*, for the second time in one PR.
+- **Verified on the final head:** `npm test` **3502/3502** · `tsc --noEmit` 0 · JSX + JS parse · the
+  newdesign precompile check · **13/13 mutations killed**, each one **replaying one of the three findings**
+  so the suite is proven to catch them rather than merely to be green after the fix · mobile build clean
+  with all three links confirmed in the emitted bundle
+  (`Number(e.at);if(Number.isFinite(t)&&t>0)return new Date(t).toISOString()` · `getMonth()],at:e.at` ·
+  `slot:{…,iso:i,at:s}`) · and all four required checks green.
 ### 2026-09-11 — The Instrument Board: Session details opens as a panel, and the numbers land in tables
 
 - **The owner's pick, built** ([`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md)
