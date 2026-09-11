@@ -789,8 +789,21 @@ Append new entries at the top, under this note.
 ### 2026-09-11 — One column, three readings: the booking chain learns what a coach's "9am" means
 
 - **The registered booking-timezone item, built — and the OWNER RULING it was waiting on dissolved rather
-  than being made.** ⚠ **OWNER RUNS
-  [`supabase-migrations/2026-09-11-provider-timezone.sql`](../supabase-migrations/2026-09-11-provider-timezone.sql).**
+  than being made.**
+  [`supabase-migrations/2026-09-11-provider-timezone.sql`](../supabase-migrations/2026-09-11-provider-timezone.sql)
+  is **APPLIED — the owner ran it 2026-09-11, and it is VERIFIED AGAINST THE LIVE CATALOG rather than taken
+  on report**: `trainers.timezone` and `nutritionists.timezone` both present, `text`, **nullable, no
+  default**; both column comments landed; and **21 trainers / 22 nutritionists with ZERO zones set**, so
+  nothing was backfilled and nothing was guessed, which is the whole of what the file promises to do.
+  ⚠ **AND THE "no backfill needed" PREMISE WAS RE-MEASURED AFTER THE APPLY RATHER THAN CARRIED ACROSS IT** —
+  `provider_availability` **0**, `sessions` **0**, still. *A migration's status belongs to the database, not
+  to the file describing it, and neither does the reason it was safe.*
+  ⚠ **AND THE ONE CLAIM THE MIGRATION MAKES THAT IS NOT ABOUT ITSELF WAS CHECKED TOO, because the
+  signed-out booking path depends on it.** Its header asserts both coach tables are public-read, which is
+  what lets the consultation page label an instant for an **anonymous** visitor; confirmed on production —
+  `trainers public read`, `nutritionists public read` and `public_read_availability` are all
+  `SELECT` to `{anon,authenticated}` with `using(true)`. Had that been wrong the zone would have read null
+  for every signed-out visitor and the surface would have offered no slots, honestly and uselessly.
   The ruling existed because existing rows were ambiguous: they MEAN the coach's wall clock and were READ as
   UTC, so calling them either one is a claim about bookings that already exist. **Measured on production
   rather than assumed — as `postgres`, so RLS is bypassed and the zeros are real: `provider_availability`
