@@ -656,6 +656,99 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The Instrument Board: Session details opens as a panel, and the numbers land in tables
+
+- **The owner's pick, built** ([`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md)
+  §3 — *"i like the instrument board"*, then *"yes do what we agreed"*). `BSActivityDetail` — the
+  full-screen page behind **Session details · full activity** on a Wall post — now opens as a board:
+  the record, **six instrument tiles**, the scalars that do not fit them as dot-leader rows, **one
+  zone bar**; then the charts; then **set-by-set and split-by-split tables**; then a **sticky action
+  bar**. It stays its own page with its own masthead and back row, and the Wall post is untouched.
+  Mobile only. **No migration, no route.**
+- **Steps 1, 3 and 4 of the review's build order; step 2 shipped an hour earlier.** The wearable
+  heart-rate paths (§4a), the in-app strap and the morning tiles are steps 5–7 and are **not in
+  this PR** — every tile is gated on its value existing, which is what lets the page ship against
+  today's data and get richer as those land.
+- ⚠ **A TILE, A COLUMN AND A SEGMENT ARE CLAIMS, AND THAT IS ONE RULE WEARING THREE HATS.** A grid
+  padded to six, a **PLAN** heading over five empty cells and a dial drawn for a set nobody rated
+  are the same defect. So: a session with four readable stats gets **four** tiles; every optional
+  column asks the rows whether it exists; an em-dash is never a reading. All three are driven, not
+  eyeballed — a blank tile costs a phone a sixth of its board, and a PLAN column a fifth of its width.
+- **The ranking is `bsSdRankStats`' and not a second opinion.** That function has decided which of a
+  session's scalars lead since the open-ledger spec; a new order here would mean one session had two
+  ideas about which of its numbers matter.
+- ⚠ **THE TWO-REGISTER LEDGER IS DELETED RATHER THAN LEFT BESIDE ITS REPLACEMENT.** `BSSdLedger` had
+  exactly one call site, and the tiles take it. Its needle, its ghost trace and its dot-leader rows
+  all **moved** — nothing retired — so what would have been left standing is a component nothing
+  renders. `bsSdRankStats`' import went with it, since its only consumer is now the rules module.
+- ⚠ **THE NEEDLE STATES ITS ENDPOINTS ONCE, UNDERNEATH.** A tick two-thirds along a band says nothing
+  until you know the band runs from the session's slowest sample to its fastest — it is a picture of
+  a claim, and at ~107px a tile cannot carry the claim as well. The line reads
+  *AVG PACE BAND · 9:08 SLOWEST → 8:20 FASTEST* and appears only when a tile actually draws one.
+- ⚠ **THE LABELLED ZONE CELLS STAY, AND THE DUPLICATION IS THE POINT.** The bar with the tiles is read
+  in a second and cannot be read precisely; the cells in the Heart rate section are read precisely and
+  cost a scroll. Deleting either to avoid "showing zones twice" costs the page one of the two readings
+  a board exists to give. ⚠ And a zone with no time keeps a **0.5 sliver** of the bar: five segments in
+  one order is what makes two sessions comparable, and a collapsed zone makes the bar a different
+  chart each time.
+- ⚠ **THE TABLE IS A GRID AND NOT A `<table>`, FOR ONE REASON.** The row's bar spans every column, which
+  in a table means a colspan cell in an extra row per set and a second set of borders to suppress.
+- ⚠ **AND THE PRESCRIPTION FINALLY HAS A COLUMN, SO THE ROW FINALLY CARRIES IT.** `targetLoad` /
+  `targetReps` have been stamped on every published set since the live logger shipped and were
+  registered as *"needs a column"* an hour ago. The breakdown row gains a **fourth element** rather
+  than a wider tuple: `BSSdBars`, the Terrain profile and the Cadence section all read r[0]·r[1]·r[2],
+  so changing what the first three mean would reach four surfaces to serve one. The table reads the
+  meta when it is there and **parses the note when it is not** — which is how the hand-written demo
+  posts render the same table as a live session.
+- ⚠ **AND THE BROWSER FOUND THAT THE PAGE NEVER RECEIVED IT.** `BSActivityCard` hands the detail page
+  its rows through `uStats`, the unit converter, which maps `t.uText` over every cell past the first —
+  so the structured fourth element arrived as **`"[object Object]"`**: the columns were destroyed in
+  silence and the table fell back to parsing the note. It is converted **field by field** now (`plan`
+  carries a load and is converted; `rest`, `dur` and `rpe` are not text for a unit converter). *A
+  reading pass would not have found this; only the render did* — and the mutation that reinstates it
+  **survived the first round**, because nothing in the suite drove that seam.
+- ⚠ **AND THE LINK UNDER THE SPLIT TABLE CLAIMED A COUNT IT WAS NOT TRUNCATING.** Measured on the demo
+  run: the splitter bucketed 18.2 miles into **three** splits, so the table showed all three under
+  *"All 3 splits ›"* — an invitation to see what was already on the screen. Truncated, the count is the
+  point; whole, the Splits page is still worth the tap for its own columns, and its own name is what
+  to offer.
+- ⚠ **AND BACK HAD BECOME A TRAP THE MOMENT THE BAR COULD TURN THE PAGE.** The comment count switches
+  the page to the comments, and Back closed the whole thing — throwing away the board a member had
+  scrolled through to get there, with no way back but reopening the post. Back closes only when the
+  page is still showing the face it was **opened** on. Found by reading my own diff, which is the only
+  review layer the house has left.
+- **i18n: 10 new `session:board.*` keys × 13 locales**, each authored from that catalog's **own**
+  vocabulary rather than invented — `player.colSet` for SET, `train.plan` for PLAN (fr `Prévu` and vi
+  `Dự kiến`, because their existing word means *schedule*), `train.restChip` for REST, and fr
+  **`Soulevé`** for LIFTED, which is the French lift convention this log already records. The zone
+  bar's label is **`feed:card.hrZones`, which exists in all 13** — a second key for one label is
+  thirteen more values a translator has to keep in step. ⚠ And the Splits page's hardcoded **`HR`**
+  now reads the same new key, so the two tables cannot disagree and that column stops shipping English
+  to twelve locales.
+- **Verified:** `npm test` **3363/3363** (26 new) · `tsc --noEmit` 0 · JSX parse · the rules module
+  imports clean · mobile build 0 with the new strings and their de/ru/vi values confirmed **in the
+  emitted bundle** behind a positive control · **29/29 mutations killed**, each **proven to land**,
+  sanity green at both ends, the tree restored in a `finally` · and the page **driven in Chromium**
+  through the real entry flow at **375 and 430px**, in the desktop frame and in the native full-bleed
+  render, on both a strength record and a run: 5 and 6 tiles at 107px, the needle legend, a five-segment
+  zone bar, the set table with **SET · LIFTED · RPE** and a bar under each row with the PR row in heat,
+  the split table with the full-breakdown link, the sticky bar reading *BEAST · 41 · 6 ›* — **zero
+  horizontal overflow and zero page errors** at every width.
+- ⚠ **AND THE RENDER HARNESS REPORTED THE FEATURE BROKEN THREE TIMES BEFORE IT REPORTED ON THE CODE.**
+  It tapped before the language picker existed; it clicked a **text node's parent** rather than the
+  control, which on a scrolling feed landed on whatever was painted at those coordinates — the paywall
+  on one build and the Eat page on another, so the same instrument "proved" two different regressions
+  that did not exist; and it measured the **desktop phone frame**, which is narrower than a real phone,
+  so a layout check there measures a surface nobody ships. The decisive step was building `main` in a
+  worktree and running the identical script against it: the bounce reproduced there too, which is how
+  the instrument was ruled out rather than the change. *A control is the only thing that separates "I
+  broke it" from "it was already like this."*
+- ⚠ **THE PLAN AND REST COLUMNS ARE PROVEN BY TEST, NOT BY THE BROWSER.** Every demo post in the repo
+  is a hand-written 3-tuple with no structured meta, so the browser run exercised the columns' ABSENCE
+  (correctly — they do not render). The live shape is driven through the shipped builder, the shipped
+  converter and the shipped parser in the suite. **An on-account pass with a real logged session is
+  owed**, and it is the same one this log has been owing since the units wave.
+
 ### 2026-09-11 — The RPE a member taps in the live logger finally reaches their own set rows
 
 - **The second of the two defects the session-details review found (§4, defect 2), fixed.** Owner

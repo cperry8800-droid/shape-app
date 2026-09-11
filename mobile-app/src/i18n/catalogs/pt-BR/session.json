@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Triatlo",
   "build.exp.beginner": "Iniciante",
   "build.exp.intermediate": "Intermediário",
-  "build.exp.advanced": "Avançado"
+  "build.exp.advanced": "Avançado",
+  "board.colSet": "Série",
+  "board.colPlan": "Plano",
+  "board.colLifted": "Levantado",
+  "board.colRpe": "RPE",
+  "board.colRest": "Descanso",
+  "board.colHr": "FC",
+  "board.setBySet": "Série a série",
+  "board.splitBySplit": "Parcial a parcial",
+  "board.allSplits": "Todas as {n} parciais ›",
+  "board.needleBand": "Faixa de {label} · {lo} mais lento → {hi} mais rápido"
 }

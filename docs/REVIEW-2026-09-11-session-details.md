@@ -77,7 +77,9 @@ page). **C** if the coach's ten-second review outranks the member's own reading;
 bar can be borrowed by B later.
 
 **Build order for C** (re-ordered 2026-09-11 on the owner's heart-rate ruling — see §4a; the
-wearable paths come first, the in-app strap rides along):
+wearable paths come first, the in-app strap rides along). ⚠ **STEPS 1–4 SHIPPED 2026-09-11** — the
+front, the per-set RPE with plan and rest, both tables and the sticky bar are live; steps 5–7 are
+still open, and every tile is gated on its value existing so the page gets richer as they land:
 
 1. **The page's front** — the record header (`bsWallHeader` already exists), six instrument tiles with
    the ghost trace and the pace needle, the remaining scalars as dot-leader rows, the single zone bar

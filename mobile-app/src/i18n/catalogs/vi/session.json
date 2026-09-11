@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Ba môn phối hợp",
   "build.exp.beginner": "Mới bắt đầu",
   "build.exp.intermediate": "Trung bình",
-  "build.exp.advanced": "Nâng cao"
+  "build.exp.advanced": "Nâng cao",
+  "board.colSet": "Hiệp",
+  "board.colPlan": "Dự kiến",
+  "board.colLifted": "Đã nâng",
+  "board.colRpe": "RPE",
+  "board.colRest": "Nghỉ",
+  "board.colHr": "Nhịp",
+  "board.setBySet": "Từng hiệp",
+  "board.splitBySplit": "Từng chặng",
+  "board.allSplits": "Tất cả {n} chặng ›",
+  "board.needleBand": "Dải {label} · {lo} chậm nhất → {hi} nhanh nhất"
 }

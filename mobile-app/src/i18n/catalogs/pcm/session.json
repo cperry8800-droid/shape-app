@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Triathlon",
   "build.exp.beginner": "Beginner",
   "build.exp.intermediate": "Intermediate",
-  "build.exp.advanced": "Advanced"
+  "build.exp.advanced": "Advanced",
+  "board.colSet": "Set",
+  "board.colPlan": "Plan",
+  "board.colLifted": "Lifted",
+  "board.colRpe": "RPE",
+  "board.colRest": "Rest",
+  "board.colHr": "HR",
+  "board.setBySet": "Set by set",
+  "board.splitBySplit": "Split by split",
+  "board.allSplits": "All {n} splits ›",
+  "board.needleBand": "{label} band · {lo} slowest → {hi} fastest"
 }

@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Wasanni uku",
   "build.exp.beginner": "Sabon fara",
   "build.exp.intermediate": "Matsakaici",
-  "build.exp.advanced": "Gogaggen"
+  "build.exp.advanced": "Gogaggen",
+  "board.colSet": "Saiti",
+  "board.colPlan": "Shiri",
+  "board.colLifted": "An ɗaga",
+  "board.colRpe": "RPE",
+  "board.colRest": "Hutu",
+  "board.colHr": "Bugu",
+  "board.setBySet": "Saiti bayan saiti",
+  "board.splitBySplit": "Sashe bayan sashe",
+  "board.allSplits": "Duk sassa {n} ›",
+  "board.needleBand": "Kewayon {label} · {lo} mafi jinkiri → {hi} mafi sauri"
 }
