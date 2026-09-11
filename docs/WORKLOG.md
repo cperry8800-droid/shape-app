@@ -529,6 +529,94 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — R20's other half: "Book session" stops opening the chat, and the booking chain turns out to be an hour wrong per timezone
+
+- **R20 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,
+  the half the notification bell left open.** `/api/availability` and the RLS-pinned
+  `sessions` insert the mobile app uses were both live and **no website surface called
+  either**. The client Team page can request a session now: open times projected from the
+  coach's weekly pattern, picked, written as `requested`. **No migration, no new route.**
+- ⚠ **IT WAS NOT A DEAD CONTROL, IT WAS A MISLABELLED ONE, WHICH IS WORSE.**
+  `clientTeam.jsx:64` read **Book session →** and called `ctOpenChat(c.name)` — byte for
+  byte the same handler as the **Message** button beside it. A member tapped a button that
+  named an outcome, got a different one, and nothing on screen said the booking had not
+  happened. R18's rule is that a control leading nowhere costs trust; one that leads
+  somewhere *else* spends it.
+- ⚠ **AND BUILDING IT FOUND THE BOOKING CHAIN IS AN HOUR-PER-ZONE WRONG, LIVE, TODAY.**
+  `provider_availability` has **no timezone column**; the coach's Schedule editor stores a
+  bare wall-clock hour (`dashSchedule.jsx:124` — toggle the cell marked *9a*, `540` is
+  written); and `consultation.html`'s `isoForSlot` turns 540 into **`Date.UTC(…,9,0)`**.
+  Measured rather than reasoned about: a coach who opens **9am** has clients booking
+  **5:00 AM** in New York, **2:00 AM** in Los Angeles, **7:00 PM** in Sydney — while both
+  parties are shown the string *"9:00 AM"*, which is nobody's actual time.
+  **REGISTERED, NOT FIXED** — it needs a timezone on the provider plus a backfill, i.e. a
+  migration and the owner's call, and it spans the editor, the API, the consultation page
+  and the mobile app.
+- ⚠ **SO THE MEMBER IS NEVER LIED TO, AND THE STORED INSTANT IS UNCHANGED.** The sheet
+  labels every slot from the **real instant in the viewer's own zone**, so what they pick
+  is what their calendar gets; the instant itself is built with the **same `Date.UTC`
+  construction** the consultation page uses. That second half is load-bearing rather than
+  stylistic: `/api/availability` answers `booked` with the raw `scheduled_at` of every
+  requested/confirmed row, so spelling the instant any other way makes this surface unable
+  to see what that one booked — two members on one hour, with the database's partial
+  unique index the first thing to notice. Driven in Chromium: New York reads **2:00 AM**
+  and Sydney **4:00 PM** for the *identical* stored `2026-09-12T06:00:00.000Z`.
+- ⚠ **A COLLAPSED BLOCK IS EXPANDED INTO HOURLY STARTS, because the editor collapses and
+  the consultation page never re-expands.** Opening 6a·7a·8a·9a stores ONE row
+  (`{start 360, duration 240}`), and `consultation.html` offers only `start_minute` — so a
+  coach who opened four hours could be booked in the first one alone, three quarters of
+  their declared availability unreachable. Every whole hour that **fits** is offered, so a
+  session can never run past the hours the coach actually set; a block shorter than a
+  session still offers its own start, or every 15- and 30-minute slot in the table would
+  vanish.
+- ⚠ **`booked` IS MATCHED ON THE INSTANT, NOT THE STRING.** Postgres hands back
+  `…T08:00:00+00:00` where this builds `…T08:00:00.000Z` — one moment, two spellings — so
+  a Set of raw strings misses it and offers the slot to a second member. Compared as epoch
+  ms the spelling cannot matter.
+- ⚠ **AND `23505` GETS ITS OWN SENTENCE.** That is `sessions_no_conflict_idx`, the partial
+  unique index: the slot was open when the list was built and somebody took it in between.
+  *"Something went wrong"* would send the member back to the same dead time; the sheet says
+  **"Somebody just took that time"** and stays open on the remaining slots.
+- ⚠ **AN UNREADABLE PATTERN IS NOT AN EMPTY ONE.** *"This coach has no open hours"* is a
+  claim about the coach; a failed read is a claim about us. Three states, and the third one
+  says so. The **signed-out preview** cannot book at all — the demo coaches have no provider
+  row, so there is nothing to read availability for and nothing a write could be made
+  against — and the control renders **disabled, saying "live only"**, the roster-CSV call.
+  Driven: zero inserts on a forced click.
+- ⚠ **A REQUEST IS NOT A SESSION, SO IT GETS ITS OWN REGISTER.** NEXT has always meant a
+  session that is happening; the new row reads **REQUESTED** and deliberately does not
+  touch `hasNext`, which drives *SESSIONS COMING UP* — counting an unconfirmed request
+  there would inflate a figure that means confirmed sessions.
+- ⚠ **TWO NULL-COERCION DEFECTS, BOTH MINE, BOTH CAUGHT BY THE TESTS RATHER THAN BY
+  READING.** `Number(null)` is **0 and finite**, so a row with no `start_minute` became a
+  bookable **midnight** slot and a row with no `weekday` became **Sunday** — 0 is a
+  perfectly good minute and a perfectly good weekday. `Number.isFinite` alone cannot see
+  either. The same class this log post-mortems on the Wall's helpers and on the demo payout
+  history's `joinedAt: 0`, walked into again in the module written after both.
+- ⚠ **AND THE SINGLE MOST LOAD-BEARING ASSERTION IN THE SUITE WAS VACUOUS.** *"the instant
+  is built with `Date.UTC`"* **passed with the construction changed to local time**, because
+  the test process — and CI — run in **UTC**, where the two are identical. It runs **a child
+  process per zone** now (V8 caches the timezone; re-assigning `process.env.TZ` mid-run does
+  not reliably move it), across five zones. ⚠ **And the first version of THAT still let two
+  mutations through**, because its fixture was **midday UTC**, where the local and UTC
+  calendar dates agree everywhere — so swapping `getUTCDay` for `getDay` changed nothing.
+  It straddles UTC midnight now (`23:00Z`: already tomorrow in Sydney, still today in Los
+  Angeles), which is the only shape that separates them. *A guard that thinks it changed
+  zone and did not is a guard that tested UTC four times* — this file's own sentence, and
+  the fixture is half of what it is about.
+- **Verified:** `npm test` **3229/3229** · `tsc --noEmit` 0 · JSX parse · `bookingSlots.js`
+  `require()`s clean · the newdesign precompile check · **19/19 mutations killed**, each
+  proven to land, sanity green at both ends, with the one survivor **proven to be a no-op**
+  (the unreadable-clock early return is a fast path — deleting it still yields `[]`, because
+  `utcDateStr(NaN)` is null and every day is skipped) · and the whole flow driven in
+  Chromium across six states: live (83 slots, picked, written as
+  `{client_id, status:"requested", scheduled_at:"2026-09-12T06:00:00.000Z", duration_min:60}`,
+  REQUESTED landing on the station), a second timezone on the same instant, a 23505
+  collision, an unreadable pattern, a coach with no hours, and the signed-out preview
+  (disabled · *live only* · **0 inserts**). Zero page errors throughout.
+- ⚠ **STILL NO ON-ACCOUNT PASS.** Every live path here is a stubbed `shapeDb` over an
+  in-page object; the insert has never run against real RLS.
+
 ### 2026-09-11 — V5's tail: the Business payouts block was twelve times the practice on its own page
 
 - **The last unanchored literals from [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md)
@@ -713,7 +801,12 @@ Append new entries at the top, under this note.
   — signed-in only, unread badge, mark-one and mark-all — on every newdesign page.
   **Booking, R20's other half, is NOT shipped**: `/api/availability` and `/api/sessions`
   both exist and the client Team page's *"Book session"* is still one of R18's dead
-  controls. No migration, no new route.
+  controls.
+  ⚠ **SHIPPED 2026-09-11 — see the entry at the top of this changelog.** Marked rather
+  than rewritten, because a dated entry says what was true on its date; but this file is
+  auto-loaded, so an unmarked *"is NOT shipped"* reads as the current state to whoever
+  lands on it. ⚠ And the control was **mislabelled rather than dead** — it called
+  `ctOpenChat`, the Message button's own handler. No migration, no new route.
 - ⚠ **IT LIVES IN `pageShell.jsx` RATHER THAN IN ITS OWN MODULE.** That file is the
   chrome every newdesign page already loads, so there is no script tag to add to 69 files
   — the churn this log post-mortems — and no load-order question on any of them. It is

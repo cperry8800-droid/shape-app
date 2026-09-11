@@ -43,8 +43,190 @@ function CtLeader({ label, value, valueColor }) {
   );
 }
 
+// ── Booking (review 2026-09-09, R20's other half) ──────────────────────────
+//
+// ⚠ "BOOK SESSION" USED TO OPEN THE CHAT. Not a dead control — a MISLABELLED one,
+// which is worse: a member tapped a button that named an outcome and got a different
+// one, with nothing saying the booking had not happened. Both halves of the API it
+// needed were already live (`/api/availability` to read the coach's open hours, the
+// RLS-pinned `sessions` insert the mobile app uses to request one), and no website
+// surface called either.
+//
+// ⚠ THE TIMES ARE LABELLED IN THE MEMBER'S OWN ZONE, DELIBERATELY. `start_minute` is
+// a bare wall-clock minute with no timezone — the coach toggles the cell marked "9a"
+// and 540 is stored — and the booking chain reads it as 09:00 UTC. So the string "9:00
+// AM" is the coach's intent, not an instant, and for a coach in New York the session
+// actually lands at 5:00 AM. `BookingSlots.slotLabel` formats the REAL instant, so what
+// a member picks is what their calendar gets. The coach-side fix needs a timezone
+// column on the provider and a backfill — registered, not quietly redefined here.
+// 14, because that is what the table's own migration says the client UI does:
+// "Client UI generates the next 14 days of concrete slots by projecting these rows
+// against each date." Matching the documented intent rather than picking a number.
+const CT_BOOK_DAYS = 14;
+const CT_SESSION_MIN = 60;    // the editor's own grid is hourly, so an hour is the unit
+
+function ctSupabase() {
+  const db = typeof window !== "undefined" ? window.shapeDb : null;
+  return (db && db.client) || null;
+}
+
+function CtBookSheet({ coach, onClose, onBooked }) {
+  const accent = ctRoleColor(coach);
+  const [state, setState] = React.useState("loading");  // loading | ready | none | unreadable
+  const [slots, setSlots] = React.useState([]);
+  const [pick, setPick] = React.useState(null);
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const [done, setDone] = React.useState(null);
+
+  React.useEffect(() => {
+    let on = true;
+    const pid = coach && coach.provider_id;
+    const role = coach && coach.provider_role === "nutritionist" ? "nutritionist" : "trainer";
+    if (!pid) { setState("unreadable"); return undefined; }
+    fetch("/api/availability?role=" + encodeURIComponent(role) + "&id=" + encodeURIComponent(pid), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!on) return;
+        // ⚠ AN UNREADABLE PATTERN IS NOT AN EMPTY ONE. "This coach has no open hours"
+        // is a claim about the coach; a failed read is a claim about us.
+        if (!j || !Array.isArray(j.slots)) { setState("unreadable"); return; }
+        const built = window.BookingSlots.buildSlots({
+          slots: j.slots, booked: j.booked, now: new Date(), days: CT_BOOK_DAYS, sessionMin: CT_SESSION_MIN,
+        });
+        setSlots(built);
+        setState(built.length ? "ready" : "none");
+      })
+      .catch(() => { if (on) setState("unreadable"); });
+    return () => { on = false; };
+  }, [coach]);
+
+  const groups = state === "ready" ? window.BookingSlots.groupByDay(slots) : [];
+
+  async function book() {
+    if (!pick || saving) return;
+    setSaving(true); setErr(null);
+    const c = ctSupabase();
+    if (!c) { setSaving(false); setErr("We couldn't reach the booking service. Try again in a moment."); return; }
+    try {
+      const { data: auth } = await c.auth.getUser();
+      const user = auth && auth.user;
+      if (!user) { setSaving(false); setErr("Sign in to book a session."); return; }
+      // Identity comes from the ACCOUNT, never from anything on screen — the same rule
+      // /api/consultation records, and the RLS policy pins client_id = auth.uid() anyway.
+      const name = (user.user_metadata && user.user_metadata.full_name) || (user.email || "").split("@")[0] || "Shape client";
+      const { error } = await c.from("sessions").insert({
+        client_id: user.id,
+        client_name: name,
+        client_email: user.email || null,
+        provider_id: coach.provider_id,
+        provider_role: coach.provider_role === "nutritionist" ? "nutritionist" : "trainer",
+        type: "video",
+        scheduled_at: pick.iso,
+        duration_min: pick.durationMin,
+        // Pinned by RLS too: a member may only ever write 'requested', so the coach
+        // still decides. Sending anything else is refused rather than honoured.
+        status: "requested",
+        topic: "Coaching session",
+      });
+      if (error) {
+        setSaving(false);
+        // ⚠ 23505 IS THE DOUBLE-BOOK INDEX, AND IT DESERVES ITS OWN SENTENCE. The slot
+        // was open when the list was built and somebody took it in between; telling the
+        // member "something went wrong" would send them back to the same dead time.
+        setErr(String(error.code) === "23505"
+          ? "Somebody just took that time. Pick another and we'll send the request."
+          : "We couldn't send that request. Nothing was booked — try again.");
+        return;
+      }
+      setSaving(false);
+      setDone(pick);
+      if (onBooked) onBooked(coach, pick);
+    } catch (e) {
+      setSaving(false);
+      setErr("We couldn't send that request. Nothing was booked — try again.");
+    }
+  }
+
+  const pill = (active) => ({
+    fontFamily: CT_MONO, fontSize: 11.5, letterSpacing: "0.04em", padding: "9px 12px", minHeight: 24,
+    borderRadius: 4, cursor: "pointer", fontVariantNumeric: "tabular-nums",
+    border: "1px solid " + (active ? accent : CT_HAIR),
+    background: active ? accent + "24" : "transparent",
+    color: active ? INK : CT_INK55,
+  });
+
+  return (
+    <div onClick={onClose} role="presentation"
+      style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={"Book a session with " + coach.name}
+        style={{ background: PAPER, border: `1px solid ${CT_HAIR}`, borderRadius: 14, padding: 26, width: "100%", maxWidth: 520, maxHeight: "84vh", overflowY: "auto" }}>
+        <div style={{ fontFamily: CT_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: accent }}>REQUEST A SESSION</div>
+        <div style={{ fontFamily: serif, fontSize: 27, letterSpacing: "-0.02em", margin: "6px 0 4px", color: INK }}>{coach.name}.</div>
+
+        {done ? (
+          <>
+            <div style={{ fontSize: 13.5, color: CT_INK55, lineHeight: 1.5, marginTop: 12 }}>
+              Requested for <b style={{ color: INK }}>{window.BookingSlots.dayLabel(done.iso)}</b> at{" "}
+              <b style={{ color: INK }}>{window.BookingSlots.slotLabel(done.iso)}</b>. {coach.name.split(" ")[0]} confirms it from their side — you'll see it under NEXT once they do.
+            </div>
+            <button type="button" onClick={onClose} style={{ marginTop: 20, background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 4, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Done</button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 12.5, color: CT_INK40, lineHeight: 1.5 }}>
+              Times are shown in your timezone. Your coach confirms before it's final.
+            </div>
+
+            {state === "loading" && <div style={{ fontFamily: CT_MONO, fontSize: 11.5, color: CT_INK40, marginTop: 18 }}>Loading open times…</div>}
+
+            {state === "unreadable" && (
+              <div style={{ fontSize: 13.5, color: CT_INK55, marginTop: 18, lineHeight: 1.5 }}>
+                We couldn't read {coach.name.split(" ")[0]}'s open times just now. Message them and they can set one up.
+              </div>
+            )}
+
+            {state === "none" && (
+              <div style={{ fontSize: 13.5, color: CT_INK55, marginTop: 18, lineHeight: 1.5 }}>
+                {coach.name.split(" ")[0]} has no open times in the next {CT_BOOK_DAYS} days. Message them and they can open one.
+              </div>
+            )}
+
+            {state === "ready" && (
+              <div style={{ marginTop: 18, display: "grid", gap: 16 }}>
+                {groups.map((g) => (
+                  <div key={g.day}>
+                    <div style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.14em", color: CT_INK55, marginBottom: 8 }}>{g.day.toUpperCase()}</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {g.slots.map((sl) => (
+                        <button key={sl.iso} type="button" onClick={() => { setPick(sl); setErr(null); }}
+                          aria-pressed={!!(pick && pick.iso === sl.iso)}
+                          style={pill(!!(pick && pick.iso === sl.iso))}>{window.BookingSlots.slotLabel(sl.iso)}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {err && <div style={{ fontSize: 13, color: RUST, marginTop: 16, lineHeight: 1.45 }}>{err}</div>}
+
+            <div style={{ display: "flex", gap: 12, marginTop: 22, flexWrap: "wrap" }}>
+              <button type="button" disabled={!pick || saving} onClick={book}
+                style={{ background: pick && !saving ? INK : "transparent", color: pick && !saving ? PAPER : CT_INK40, border: pick && !saving ? 0 : `1px solid ${CT_HAIR}`, padding: "10px 22px", borderRadius: 4, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: pick && !saving ? "pointer" : "default" }}>
+                {saving ? "Sending…" : "Request this time"}
+              </button>
+              <button type="button" onClick={onClose} style={{ background: "transparent", border: 0, padding: "10px 4px", color: CT_INK55, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // A zero-box coach station threaded on its role-colored spine.
-function CtStation({ c }) {
+function CtStation({ c, onBook, canBook }) {
   const accent = ctRoleColor(c);
   return (
     <div style={{ position: "relative", paddingLeft: 24 }}>
@@ -59,9 +241,23 @@ function CtStation({ c }) {
       <div aria-hidden style={{ height: 2, margin: "15px 0 6px", background: `linear-gradient(90deg, ${INK}, ${accent} 55%, transparent)`, opacity: 0.85, borderRadius: 1 }} />
       <CtLeader label="PLAN" value={c.plan} />
       <CtLeader label="NEXT" value={c.hasNext ? c.next : "No session booked"} valueColor={c.hasNext ? TEAL_BRIGHT : CT_INK40} />
+      {/* A request the coach has not confirmed is not a session yet, so it gets its own
+          register rather than being folded into NEXT. Its value is what the member was
+          shown in the sheet — the same instant, in the same zone — so the two cannot
+          disagree about when they asked for. */}
+      {c.requested && <CtLeader label="REQUESTED" value={c.requested} valueColor={accent} />}
       <div style={{ display: "flex", gap: 26, marginTop: 12 }}>
         <button type="button" onClick={() => ctOpenChat(c.name)} style={{ background: "transparent", border: 0, padding: "11px 0", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Message <span aria-hidden>→</span></button>
-        <button type="button" onClick={() => ctOpenChat(c.name)} style={{ background: "transparent", border: 0, padding: "11px 0", color: TEAL_BRIGHT, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Book session <span aria-hidden>→</span></button>
+        {/* ⚠ IN THE SIGNED-OUT PREVIEW THE CONTROL RENDERS AND SAYS WHY IT IS OFF, rather
+            than disappearing. The demo coaches have no provider row, so there is nothing
+            to read availability for and nothing a booking could be written against — but
+            a prospect still needs to see that booking exists. Same call as the roster CSV
+            export. What it must never do is what it did before: look like it worked. */}
+        <button type="button" disabled={!canBook} onClick={() => canBook && onBook(c)}
+          title={canBook ? undefined : "Sign in to book with your own coach"}
+          style={{ background: "transparent", border: 0, padding: "11px 0", color: canBook ? TEAL_BRIGHT : CT_INK40, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: canBook ? "pointer" : "default" }}>
+          Book session{canBook ? "" : " · live only"} <span aria-hidden>→</span>
+        </button>
       </div>
     </div>
   );
@@ -93,6 +289,7 @@ function CtNotice({ accent, eyebrow, title, body, cta }) {
 function ClientTeamPage() {
   const [coaches, setCoaches] = React.useState([]);
   const [state, setState] = React.useState("loading"); // loading | live | empty | preview | error
+  const [booking, setBooking] = React.useState(null);  // the coach whose sheet is open
 
   React.useEffect(() => {
     let alive = true;
@@ -111,6 +308,10 @@ function ClientTeamPage() {
             name: c.name,
             role: c.role,
             provider_role: c.provider_role,
+            // Carried so the booking sheet can ask /api/availability who this is. The
+            // page used to drop it, which is half the reason "Book session" went
+            // nowhere: there was nothing on screen that identified the coach to book.
+            provider_id: c.provider_id,
             since: c.since,
             plan: c.plan,
             next: c.next,
@@ -197,9 +398,30 @@ function ClientTeamPage() {
             <CtRegister label="SESSIONS COMING UP" value={upcoming} />
           </div>
           <div style={gridStyle}>
-            {coaches.map((c, i) => (<CtStation key={i} c={c} />))}
+            {coaches.map((c, i) => (
+              <CtStation key={i} c={c} canBook={state === "live" && !!c.provider_id} onBook={setBooking} />
+            ))}
           </div>
         </>
+      )}
+
+      {booking && (
+        <CtBookSheet
+          coach={booking}
+          onClose={() => setBooking(null)}
+          onBooked={(coach, slot) => {
+            // ⚠ THE STATION SHOWS THE REQUEST, AND SAYS IT IS ONE. NEXT has always meant
+            // a session that is happening; a request the coach has not confirmed is not
+            // that yet, so it is labelled rather than folded in silently. It also does not
+            // touch `hasNext`, which drives the "SESSIONS COMING UP" count — counting a
+            // request there would inflate a figure that means confirmed sessions.
+            setCoaches((prev) => prev.map((c) => (
+              c.provider_id === coach.provider_id && c.provider_role === coach.provider_role
+                ? { ...c, requested: window.BookingSlots.dayLabel(slot.iso) + " \u00b7 " + window.BookingSlots.slotLabel(slot.iso) }
+                : c
+            )));
+          }}
+        />
       )}
 
       <ChatWidget tabs={clientChatTabs} />
