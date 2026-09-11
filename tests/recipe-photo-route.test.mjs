@@ -52,6 +52,10 @@ function loadRoute({ user = { id: 'u1' }, denied = null, hasKey = true, aiResult
       ['@/lib/require-membership', { requireMembership: async () => denied }],
       ['@/lib/ai', {
         parseModelJson: ai.parseModelJson,
+        // The REAL resolver, not a stand-in: these tests assert which model the
+        // image request carries, and a local restatement would assert on a copy
+        // nobody ships. (The lesson this repo has paid for on dashDaysSince.)
+        aiVisionModel: ai.aiVisionModel,
         hasOpenAIKey: () => hasKey,
         callAI: async (payload, opts) => {
           calls.ai += 1; calls.lastArgs = { payload, opts };
@@ -318,4 +322,79 @@ test('⚠ THE IMAGE GUARD IS NOT EXPORTED FROM THE ROUTE, and it decodes nothing
   // whitespace-stripped payload, never echoed — the mime is attacker-controlled
   // text on its way into an outbound request.
   assert.equal(ok.dataUrl, IMAGE);
+});
+
+// ── the vision pin ────────────────────────────────────────────────────────────
+// Vision is a separate capability from text. Left on OPENAI_MODEL, a build whose
+// pinned model does not accept images fails EVERY photo import as
+// "we couldn't read your photo" — deployed, reachable and dead — and the only
+// fix would be a code change and a deploy.
+
+test('the image request carries the vision pin, which defaults to the text model', async () => {
+  const prevModel = process.env.OPENAI_MODEL;
+  const prevVision = process.env.OPENAI_VISION_MODEL;
+  try {
+    delete process.env.OPENAI_VISION_MODEL;
+    process.env.OPENAI_MODEL = 'pinned-text-model';
+    const { mod, calls } = await loadRoute();
+    await mod.POST(post({ image: IMAGE }));
+    assert.equal(calls.ai, 1);
+    // ⚠ THE DEFAULT IS A NO-OP, AND THAT IS THE POINT. Unset, the photo request
+    // must be byte-for-byte the model the build already used — no guessed name,
+    // no downgrade. Anything else would change behaviour for builds that work.
+    assert.equal(
+      calls.lastArgs.payload.model, 'pinned-text-model',
+      'unset, the vision pin must resolve to OPENAI_MODEL and change nothing',
+    );
+  } finally {
+    if (prevModel === undefined) delete process.env.OPENAI_MODEL; else process.env.OPENAI_MODEL = prevModel;
+    if (prevVision === undefined) delete process.env.OPENAI_VISION_MODEL; else process.env.OPENAI_VISION_MODEL = prevVision;
+  }
+});
+
+test('OPENAI_VISION_MODEL overrides the text pin for the image request', async () => {
+  const prevModel = process.env.OPENAI_MODEL;
+  const prevVision = process.env.OPENAI_VISION_MODEL;
+  try {
+    process.env.OPENAI_MODEL = 'pinned-text-model';
+    process.env.OPENAI_VISION_MODEL = 'a-model-that-sees';
+    const { mod, calls } = await loadRoute();
+    await mod.POST(post({ image: IMAGE }));
+    assert.equal(calls.ai, 1);
+    assert.equal(
+      calls.lastArgs.payload.model, 'a-model-that-sees',
+      'a build whose text model cannot read an image must be one env var from working',
+    );
+    // The request itself is unchanged — only the model moves. An override that
+    // also altered the prompt or the image part would be a second variable.
+    const parts = calls.lastArgs.payload.input[1].content;
+    assert.ok(parts.some((c) => c.type === 'input_image'), 'the image part must survive the override');
+  } finally {
+    if (prevModel === undefined) delete process.env.OPENAI_MODEL; else process.env.OPENAI_MODEL = prevModel;
+    if (prevVision === undefined) delete process.env.OPENAI_VISION_MODEL; else process.env.OPENAI_VISION_MODEL = prevVision;
+  }
+});
+
+test('a provider refusal names the model that refused, because that is the diagnosis', async () => {
+  const prevVision = process.env.OPENAI_VISION_MODEL;
+  const warned = [];
+  const realWarn = console.warn;
+  console.warn = (...a) => { warned.push(a.map(String).join(' ')); };
+  try {
+    process.env.OPENAI_VISION_MODEL = 'a-model-that-sees';
+    const { mod } = await loadRoute({
+      aiResult: { ok: false, reason: 'http_error', status: 400, detail: 'no image input', latencyMs: 1, promptId: 'p' },
+    });
+    const res = await mod.POST(post({ image: IMAGE }));
+    assert.deepEqual(await json(res), { draft: null, unavailable: true, reason: 'photo_unreadable' });
+    const line = warned.join('\n');
+    // A capability miss and a photo the provider dislikes reach the member as
+    // the same sentence; which model answered is the only thing that separates
+    // them, so the log has to carry it.
+    assert.match(line, /a-model-that-sees/, 'the log must name the model that refused');
+    assert.match(line, /OPENAI_VISION_MODEL/, 'and the variable that fixes it');
+  } finally {
+    console.warn = realWarn;
+    if (prevVision === undefined) delete process.env.OPENAI_VISION_MODEL; else process.env.OPENAI_VISION_MODEL = prevVision;
+  }
 });
