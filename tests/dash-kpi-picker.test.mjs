@@ -299,17 +299,24 @@ test('the away test asks the PANEL as well as the gear — a portal breaks `cont
 });
 
 test('the panel is inside both gutters at every width, including narrower than itself', () => {
-  // ⚠ THE SWEEP HAS TO REACH BELOW THE CAP'S BITE POINT, or it is not testing the cap.
-  // At 240px wide the panel plus two 12px gutters is exactly 264, so every width at or
-  // above that fits an uncapped panel and a mutation removing the cap SURVIVES — which
-  // is what it did on the first round, with 320 as the narrowest case. 240 and 264 are
-  // the widths where the clamp is the only thing holding.
-  for (const vw of [240, 264, 320, 360, 390, 430, 700, 900, 1024, 1200, 1440]) {
+  // ⚠ THE SWEEP HAS TO REACH BELOW EVERY CONSTANT'S BITE POINT, and it has now been
+  // short of one twice. At 264 the panel plus two gutters exactly fills the viewport, so
+  // above that an uncapped panel still fits and a mutation removing the cap SURVIVES —
+  // which it did on the first round, with 320 as the narrowest case. Extending it to 240
+  // caught that and still stopped short of **144**, where the old 120px minimum width
+  // made the two-gutter interval EMPTY: at vw 128 the panel ran 16px past the right
+  // gutter, growing as the viewport narrowed. A 640px phone at 500% zoom is 128 CSS px,
+  // so this is an accessibility path, not a hypothetical. (Codex, #2046.)
+  for (const vw of [40, 64, 100, 128, 144, 160, 200, 240, 264, 320, 360, 390, 430, 700, 900, 1024, 1200, 1440]) {
     for (const right of [24, 60, vw / 2, vw - 40, vw - 8, vw]) {
       const b = dgPanelBox(gearAt(right, 120), vw, 900);
+      assert.ok(b.width > 0, `zero-width panel at vw=${vw}`);
+      // Below 2× the gutter there is no interval at all, and the panel is 1px wide by
+      // construction — a viewport that narrow has no layout to be right about. Every
+      // width a browser can actually produce is above it.
+      if (vw <= 12 * 2) continue;
       assert.ok(b.left >= 12 - 0.001, `left gutter crossed at vw=${vw} right=${right}: ${b.left}`);
       assert.ok(b.left + b.width <= vw - 12 + 0.001, `right gutter crossed at vw=${vw} right=${right}: ${b.left + b.width}`);
-      assert.ok(b.width > 0);
     }
   }
 });

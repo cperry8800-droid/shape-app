@@ -714,11 +714,30 @@ Append new entries at the top, under this note.
   not see because **A never chose anything** — with `chosen` still null the values come from
   the document either way, so re-hydrating B's row produces the defaults on its own. The
   reset is about a choice outranking the document, so the test now makes one.
+- ⚠ **AND A SECOND CODEX ROUND FOUND THE SAME GAP ONE CONSTANT OVER: A MINIMUM WIDTH
+  OUTRANKING THE GUTTER CAP.** `Math.max(120, vw - GUT*2)` held a 120px floor, which makes
+  the two-gutter interval **empty** below **vw 144** — measured: at 128 the panel's right
+  edge landed **16px past the gutter**, and the overflow grows as the viewport narrows
+  (44px at 100, 80px at 64). A 640px phone at **500% zoom is 128 CSS px**, so this is an
+  accessibility path rather than a hypothetical, and the panel does not scroll sideways, so
+  those controls are simply unreachable.
+- ⚠ **AND THAT IS WHY THIS FLOOR GOES WHILE THE HEIGHT FLOOR STAYS** — the asymmetry is
+  real rather than an inconsistency. The panel scrolls **vertically**, so 80px of it
+  crossing the bottom gutter still reaches every control; it does not scroll horizontally,
+  so width past the right gutter puts controls where nothing can reach them. Written at the
+  site, because the next reader will otherwise see two floors treated differently.
+- ⚠ **AND MY SWEEP HAD NOW BEEN SHORT OF A BITE POINT TWICE.** Round one stopped at 320,
+  above the **cap's** bite at 264, and the cap mutation survived; extending it to 240 caught
+  that and still stopped short of the **floor's** bite at 144. It runs from **40** now, with
+  the sub-gutter degenerate case named rather than silently passing. *Extending a sweep to
+  the constant that just bit you is not the same as extending it past every constant in the
+  function.*
 - **Verified:** `npm test` **3354/3354** on the head merged with `main` · `tsc --noEmit` 0 ·
   JSX parse on all three changed modules · `dashSignals.js` `require()`s clean · the
-  newdesign precompile check · **21/21 + 16/16 mutations killed** across two rounds, each
-  proven to land, sanity green at both
-  ends · and the whole cycle driven in Chromium against a simulated live coach: **two
+  newdesign precompile check · **21/21 + 17/17 mutations killed** across two rounds — the
+  second including both Codex defects replayed as their own mutations, so the suite is
+  proven to catch them — each proven to land, sanity green at both ends · and the whole
+  cycle driven in Chromium against a simulated live coach: **two
   strips, two gears, four `<select>` groups of eleven** each carrying a painted chevron
   (`appearance: none` takes the native one with it), picking *Needs eyes* into the second
   slot → the strip follows and the document holds
@@ -726,8 +745,9 @@ Append new entries at the top, under this note.
   moved** — then the swap exchanges two slots, and a **reload brings the arrangement back**.
   The signed-out preview keeps the payout four with **zero gears on Overview**. Zero page
   errors throughout.
-- **And the fixed panel re-driven** in Chromium at **nine viewport sizes from 320×380 to
-  1440×1400**: portaled on every one, every slot inside both gutters, the panel capped and
+- **And the fixed panel re-driven** in Chromium at **fourteen viewport sizes from 128×420
+  to 1440×1400** (at 128 it sits at 12..116 — both gutters exactly, where before the fix
+  it ran to 132): portaled on every one, every slot inside both gutters, the panel capped and
   **scrolling** where the screen is too short for it, a pick from the fourth slot still
   landing, the swap reporting **one** write carrying both keys, and the Progress page's
   chips gear still stepping ALL → 90D → 30D → 7D → ALL at **43 → 21 → 9 → 4** segments with

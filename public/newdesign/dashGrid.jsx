@@ -172,7 +172,17 @@ const DG_PANEL_MIN_H = 160;
 // notification panel shipped that sentence as a because-clause and its own guard
 // refuted it the same hour.
 function dgPanelBox(gear, vw, vh) {
-  const w = Math.min(DG_PANEL_W, Math.max(120, vw - DG_GUT * 2));
+  // ⚠ THE GUTTER CAP WINS OVER ANY PREFERRED MINIMUM WIDTH, and the first cut had that
+  // backwards: `Math.max(120, …)` held a 120px floor, which makes the interval below
+  // EMPTY — at vw 128 (a 640px phone at 500% zoom, i.e. an accessibility path rather
+  // than a hypothetical) the panel's right edge landed 16px past the gutter and grew from
+  // there. It is capped at both gutters unconditionally now.
+  //
+  // ⚠ AND THAT IS WHY THIS FLOOR GOES WHILE THE HEIGHT FLOOR BELOW STAYS: the panel
+  // scrolls VERTICALLY (`overflowY: auto`), so 80px of it crossing the bottom gutter still
+  // reaches every control. It does not scroll horizontally, so a width past the right
+  // gutter puts controls where nothing can reach them. (Codex, #2046.)
+  const w = Math.max(1, Math.min(DG_PANEL_W, vw - DG_GUT * 2));
   const left = Math.max(DG_GUT, Math.min(gear.right - w, vw - DG_GUT - w));
   const below = vh - gear.bottom - 6 - DG_GUT;
   const above = gear.top - 6 - DG_GUT;
