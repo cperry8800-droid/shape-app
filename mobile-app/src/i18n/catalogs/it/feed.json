@@ -207,6 +207,7 @@
   "wall.notAPR": "Non batte ancora il tuo record per questo esercizio.",
   "wall.notOnWall": "non ancora in bacheca",
   "wall.notPublic": "Il tuo profilo è privato, quindi i record restano fuori dalla bacheca. Impostazioni → Privacy.",
+  "wall.notShared": "La condivisione dei dati di allenamento è disattivata, quindi i record restano fuori dalla bacheca. Impostazioni → Privacy.",
   "wall.notStamped": "Non ancora controfirmato",
   "wall.over": "↑ +{gain} {unit} sul record precedente",
   "wall.overShort": "+{gain} {unit}",

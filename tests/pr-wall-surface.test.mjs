@@ -914,13 +914,14 @@ test('the announce this sheet delegates is the one the post would have made', ()
 
 // The sheet's four collaborators, each recording what it was handed. Defaults
 // are the healthy path: a public, sharing member with no prior record.
-function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { data: { id: 'post-1' } }, verdict = { ok: true }, createThrows = false } = {}) {
+function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { stored: 'supabase', data: { id: 'post-1' } }, verdict = { ok: true }, createThrows = false, noStore = false } = {}) {
   const calls = { created: [], announced: [], toasts: [], posted: 0, closed: 0 };
   const prev = {
     shapeDb: globalThis.window.shapeDb, ws: globalThis.window.ShapeWorkoutShare,
     pr: globalThis.window.ShapePRWall, com: globalThis.window.ShapeCommunity, toast: globalThis.window.__bsToast,
   };
-  globalThis.window.shapeDb = { getUserGoals: async () => settings };
+  if (noStore) delete globalThis.window.shapeDb;
+  else globalThis.window.shapeDb = { getUserGoals: async () => settings };
   // The REAL rule, lifted from the module that ships it — a restatement here
   // would be a test of the restatement.
   globalThis.window.ShapeWorkoutShare = { rule: WORKOUT_SHARE_RULE };
@@ -1060,31 +1061,56 @@ test('Just friends is refused too, because the wall takes public profiles only',
   } finally { env.restore(); }
 });
 
-test('Share workout data off keeps the POST private and still puts the record up', async () => {
-  // ⚠ TWO SETTINGS, TWO QUESTIONS, AND EACH IS ANSWERED BY THE RULE THAT OWNS
-  // IT. Their profile is public, so the wall accepts the record — they pressed a
-  // button whose entire subject is the wall. Their share setting says do not
-  // publish their workout data, so the POST is theirs alone. Resolving both from
-  // one rule would either publish against their setting or refuse them the wall
-  // under a message about a profile that is not private.
+test('Share workout data off is refused, and the refusal names the setting that did it', async () => {
+  // ⚠ THIS REVERSES WHAT THIS SUITE ASSERTED ONE ROUND AGO, and the reversal is
+  // the finding. It used to require that the post be written 'private' and the
+  // record still announced — two settings each honoured on its own terms. The
+  // hole is that the WALL IS THE FEED, whose read filters to feed-visible
+  // privacy values, so a 'private' post renders nowhere while the RPC (which
+  // gates on profile visibility alone) accepts the record and the toast says
+  // "On the wall." A plate that cannot exist is the exact claim this sheet was
+  // rebuilt to stop making.
   const env = postSheet({ settings: { profileVisibility: 'Public', shareWorkoutData: 'Off' } });
   try {
     await submitSheet(SEED, env);
-    assert.equal(env.calls.created.length, 1);
-    assert.equal(env.calls.created[0].privacy, 'private', 'the post is not published');
-    assert.equal(env.calls.announced.length, 1, 'the record still reaches the wall');
+    assert.equal(env.calls.created.length, 0, 'nothing is published');
+    assert.equal(env.calls.announced.length, 0, 'and the ledger does not advance');
+    // ⚠ AND NOT THE "your profile is private" LINE — their profile is public.
+    assert.ok(env.calls.toasts.some((m) => /sharing workout data is off/i.test(m)));
+    assert.ok(!env.calls.toasts.some((m) => /profile is private/i.test(m)));
   } finally { env.restore(); }
 });
 
 test('a settings read we cannot trust never publishes, and never accuses', async () => {
-  // null is getUserGoals' can't-know answer. Fail CLOSED on the audience — a
-  // failed read must not publish. Fail OPEN on the wall gate — it must not
-  // accuse either, and the server re-checks visibility on its own authority.
+  // null is getUserGoals' can't-know answer, so the audience is unknown rather
+  // than known-private. Nothing is published — but the refusal must not name a
+  // setting nobody read, which is what the first cut of this guard did: it
+  // reported an unreadable document as "sharing workout data is off".
   const env = postSheet({ settings: null });
   try {
     await submitSheet(SEED, env);
-    assert.equal(env.calls.created.length, 1, 'the server is left to decide');
-    assert.equal(env.calls.created[0].privacy, 'private', 'but nothing is published on a read we could not make');
+    assert.equal(env.calls.created.length, 0, 'an unknown audience never publishes');
+    assert.equal(env.calls.announced.length, 0);
+    assert.ok(env.calls.toasts.some((m) => /could not post/i.test(m)), 'true, and retryable');
+    assert.ok(!env.calls.toasts.some((m) => /sharing workout data|profile is private/i.test(m)),
+      'and it claims nothing about settings it could not read');
+  } finally { env.restore(); }
+});
+
+test('no store to read is unknown too, and says nothing about their settings', async () => {
+  // ⚠ THE CAPABILITY BAIL IS A SECOND DOOR INTO "UNKNOWN", AND NO FIXTURE
+  // REACHED IT — a mutation returning 'private' from it survived the round.
+  // It is reachable in production: the radio module loads before the role
+  // bundle, and the preview has neither store nor rule. Answering it with a
+  // known-private verdict would tell a member their sharing is off on a read
+  // that never happened.
+  const env = postSheet({ noStore: true });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0, 'nothing is published');
+    assert.equal(env.calls.announced.length, 0);
+    assert.ok(env.calls.toasts.some((m) => /could not post/i.test(m)));
+    assert.ok(!env.calls.toasts.some((m) => /sharing workout data|profile is private/i.test(m)));
   } finally { env.restore(); }
 });
 
@@ -1096,17 +1122,48 @@ test('a healthy public member publishes to the feed', async () => {
   } finally { env.restore(); }
 });
 
-test('a failed post still writes the record, and the toast still tells the truth', async () => {
-  // The record IS the member's; a feed insert that fell over must not cost them
-  // the ledger row. It lands without its evidence link, which is what a bare
-  // record is anyway.
-  const env = postSheet({ createThrows: true });
+test('a post that did not persist never advances the ledger', async () => {
+  // ⚠ ALSO A REVERSAL, AND THE REASON IS THE RETRY. This suite used to assert
+  // that a failed feed insert must not cost the member their ledger row. That
+  // is backwards: `post_my_pr_to_wall` refuses any value that does not beat the
+  // stored best, so advancing the ledger for a post that never landed makes
+  // that record PERMANENTLY unpostable — the member taps again and is told it
+  // does not beat their best, by a row written for a plate nobody can see.
+  // Losing the row costs one retry; advancing it costs the record.
+  const thrown = postSheet({ createThrows: true });
   try {
-    await submitSheet(SEED, env);
-    assert.equal(env.calls.announced.length, 1);
-    assert.equal(env.calls.announced[0].postId, null, 'no post to point at');
-    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)));
-  } finally { env.restore(); }
+    await submitSheet(SEED, thrown);
+    assert.equal(thrown.calls.announced.length, 0, 'no ledger write behind a post that threw');
+    assert.ok(thrown.calls.toasts.some((m) => /could not post/i.test(m)));
+    assert.ok(!thrown.calls.toasts.some((m) => /on the wall/i.test(m)));
+  } finally { thrown.restore(); }
+
+  // ⚠ AND THE SILENT ARM IS THE ONE THAT MATTERS: `createCommunityPost` does
+  // NOT throw on an insert error, it returns a LOCAL record whose id is
+  // `local-<ts>` — not a uuid, so the announce would drop the link — under a
+  // toast promising a plate. Only a supabase-stored row is evidence.
+  const local = postSheet({ created: { stored: 'local', data: { id: 'local-123' }, error: { message: 'boom' } } });
+  try {
+    await submitSheet(SEED, local);
+    assert.equal(local.calls.created.length, 1, 'it was attempted');
+    assert.equal(local.calls.announced.length, 0, 'and not treated as a post');
+    assert.ok(!local.calls.toasts.some((m) => /on the wall/i.test(m)));
+  } finally { local.restore(); }
+});
+
+test('a record that lands refreshes the board, not just the strip', async () => {
+  // The Wall's cards are the PARENT's feed; `setNonce` reloads only the
+  // member's own ledger rows. Without a callback reaching the parent the toast
+  // said "On the wall" over a board that did not carry the record yet.
+  const src = readFileSync(SRC, 'utf8');
+  const bareSrc = stripComments(src);
+  assert.match(bareSrc, /function BSWallYourBest\(\{ loggedIn, onLogActivity, onPostedRecord \}\)/);
+  assert.match(bareSrc, /onPosted=\{\(\) => \{ setNonce\(\(n\) => n \+ 1\); onPostedRecord && onPostedRecord\(\); \}\}/);
+  const i = bareSrc.indexOf('<BSWallYourBest ');
+  assert.ok(i > 0, 'the strip is mounted');
+  const tag = bareSrc.slice(i, bareSrc.indexOf('/>', i));
+  assert.match(tag, /onPostedRecord=\{\(\) => setFeedNonce\(\(n\) => n \+ 1\)\}/,
+    'the mount hands it the parent feed nonce');
 });
 
 test("the server's refusal is reported, not overwritten by the post having succeeded", async () => {

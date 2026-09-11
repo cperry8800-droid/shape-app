@@ -207,6 +207,7 @@
   "wall.notAPR": "Mức đó chưa vượt kỷ lục của bạn ở bài nâng này.",
   "wall.notOnWall": "chưa lên bảng vàng",
   "wall.notPublic": "Hồ sơ của bạn đang riêng tư nên kỷ lục sẽ không lên bảng vàng. Cài đặt → Quyền riêng tư.",
+  "wall.notShared": "Chia sẻ dữ liệu tập luyện đang tắt nên kỷ lục sẽ không lên bảng vàng. Cài đặt → Quyền riêng tư.",
   "wall.notStamped": "Chưa có HLV xác nhận",
   "wall.over": "↑ +{gain} {unit} so với kỷ lục trước",
   "wall.overShort": "+{gain} {unit}",

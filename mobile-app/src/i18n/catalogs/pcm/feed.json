@@ -207,6 +207,7 @@
   "wall.notAPR": "Dat one never pass your best for dis lift.",
   "wall.notOnWall": "e never reach the wall",
   "wall.notPublic": "Your profile na private, so records no dey show for the wall. Settings → Privacy.",
+  "wall.notShared": "Share training data don off, so records no dey show for the wall. Settings → Privacy.",
   "wall.notStamped": "Coach never co-sign am",
   "wall.over": "↑ +{gain} {unit} pass last best",
   "wall.overShort": "+{gain} {unit}",

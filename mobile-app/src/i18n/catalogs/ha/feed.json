@@ -207,6 +207,7 @@
   "wall.notAPR": "Wannan bai wuce rikodinka na wannan ɗagawa ba tukuna.",
   "wall.notOnWall": "bai kai bango ba tukuna",
   "wall.notPublic": "Bayanan martabarka na sirri ne, don haka rikodi ba sa bayyana a bango. Saituna → Sirri.",
+  "wall.notShared": "An kashe raba bayanan motsa jiki, don haka rikodi ba sa bayyana a bango. Saituna → Sirri.",
   "wall.notStamped": "Babu sa hannun koci tukuna",
   "wall.over": "↑ +{gain} {unit} fiye da rikodin baya",
   "wall.overShort": "+{gain} {unit}",

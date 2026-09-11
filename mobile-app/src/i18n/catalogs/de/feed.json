@@ -207,6 +207,7 @@
   "wall.notAPR": "Das schlägt deine Bestleistung für diese Übung noch nicht.",
   "wall.notOnWall": "noch nicht an der Wand",
   "wall.notPublic": "Dein Profil ist privat, deshalb kommen Rekorde nicht an die Wand. Einstellungen → Privatsphäre.",
+  "wall.notShared": "Das Teilen von Trainingsdaten ist aus, deshalb kommen Rekorde nicht an die Wand. Einstellungen → Privatsphäre.",
   "wall.notStamped": "Noch nicht mitgezeichnet",
   "wall.over": "↑ +{gain} {unit} über der letzten Bestleistung",
   "wall.overShort": "+{gain} {unit}",

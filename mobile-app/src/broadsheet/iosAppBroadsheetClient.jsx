@@ -13791,6 +13791,23 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
   // Set the moment the member uses the control, so a settings read landing a
   // beat later can never overrule a choice they have already made.
   const visTouched = React.useRef(false);
+  // ⚠ PUBLISH WAITS FOR THE PRIVACY READ, BECAUSE AN OPTIMISTIC DEFAULT IS A
+  // RACE THE MEMBER CAN WIN. `vis` seeds 'public' and the read below tightens
+  // it — so on a slow or stalled `getUserGoals` a member whose profile is
+  // Private, or whose workout sharing is Off, could fill the form and publish
+  // before it settles, and the post goes out publicly against the setting they
+  // chose precisely to stop that. The window is small and the harm is not
+  // recoverable, which is the wrong way round for a race to be left open.
+  //
+  // ⚠ IT GATES THE BUTTON RATHER THAN SEEDING CLOSED, so the common case is
+  // unchanged: a sharing member still sees PUBLIC lit from the first frame and
+  // never watches the control move. Seeding 'private' and opening up would
+  // flicker every member for the sake of the few.
+  //
+  // An edit reads nothing (the effect bails), and neither does a state with no
+  // account, no store or no rule to read — the preview, where nothing real
+  // posts. Both are resolved from the start, or the button would never arm.
+  const [visResolved, setVisResolved] = useStateBSC(!!ed);
   // ⚠ THE DEFAULT FOLLOWS THE MEMBER'S OWN PRIVACY SETTINGS; THE PICKER STAYS
   // THEIRS. This seeded a hard 'public' for every new post, so a member whose
   // profile is Private — or who has turned Share workout data off — opened the
@@ -13819,11 +13836,11 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
     if (ed) return undefined;
     let on = true;
     try {
-      if (!window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule || !window.shapeDb?.getUserGoals) return undefined;
+      if (!window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule || !window.shapeDb?.getUserGoals) { setVisResolved(true); return undefined; }
       window.shapeDb.getUserGoals('client_settings')
-        .then((doc) => { if (on && !visTouched.current) setVis(bsComposerVisFor(doc)); })
-        .catch(() => { if (on && !visTouched.current) setVis(bsComposerVisFor(null)); });
-    } catch (e) {}
+        .then((doc) => { if (!on) return; if (!visTouched.current) setVis(bsComposerVisFor(doc)); setVisResolved(true); })
+        .catch(() => { if (!on) return; if (!visTouched.current) setVis(bsComposerVisFor(null)); setVisResolved(true); });
+    } catch (e) { setVisResolved(true); }
     return () => { on = false; };
   }, []);
   const photoRef = React.useRef(null), videoRef = React.useRef(null);
@@ -13854,7 +13871,9 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
     finally { setUpBusy(false); }
   };
 
-  const canPost = !busy && !upBusy && (
+  // `visResolved` is the privacy-read gate above: a new post cannot be published
+  // until the audience on screen is the member's own, not the optimistic seed.
+  const canPost = !busy && !upBusy && visResolved && (
     kind === 'note' ? !!(title.trim() || body.trim())
     : kind === 'photo' ? !!photoUrl
     : kind === 'video' ? !!videoUrl.trim()
@@ -14029,7 +14048,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
           <span style={label}>{tr('profile:log.field.visibility', { defaultValue: 'Visibility' })}</span>
           <div style={{ display: 'flex', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
             {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].map(([val, lab], i) => { const on = vis === val; return (
-              <button key={val} onClick={() => { visTouched.current = true; setVis(val); }} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('profile:log.vis.' + val, { defaultValue: lab })}</button>
+              <button key={val} onClick={() => { visTouched.current = true; setVisResolved(true); setVis(val); }} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('profile:log.vis.' + val, { defaultValue: lab })}</button>
             ); })}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5) }}>
@@ -19300,21 +19319,26 @@ function bsWallDisplayRows(rows, prefs) {
 // each is honoured on its own terms, and nothing is published that either one
 // refuses.
 //
-// ⚠ FAIL CLOSED ON THE AUDIENCE, OPEN ON THE GATE. A read we cannot trust must
-// not publish, so the post's audience falls to 'private'; it must not accuse
-// either, so the wall gate stays open and the SERVER decides — it re-checks
-// visibility on its own authority and refuses there.
+// ⚠ FAIL CLOSED ON THE AUDIENCE, OPEN ON THE GATE, AND SAY NOTHING WE DID NOT
+// READ. A read we cannot trust must not publish — so `privacy` is **null**
+// rather than 'private', and null is never feed-visible, which closes the
+// audience by construction. But null is also not a CLAIM: reporting an
+// unreadable read as "sharing workout data is off" would state a setting
+// nobody looked at, which is the same fabrication this sheet exists to stop,
+// wearing a refusal's clothes. The caller tells the three apart. The wall gate
+// stays open either way, so the SERVER re-checks visibility on its own
+// authority rather than this guessing on its behalf.
 async function bsWallShareState() {
   try {
     const db = window.shapeDb;
-    if (!db || !db.getUserGoals || !window.ShapeWorkoutShare || !window.ShapeWorkoutShare.rule) return { canWall: true, privacy: 'private' };
+    if (!db || !db.getUserGoals || !window.ShapeWorkoutShare || !window.ShapeWorkoutShare.rule) return { canWall: true, privacy: null };
     // `getUserGoals` resolves null for every can't-know case and {} for a row
     // that genuinely does not exist yet — only the second means "the defaults
     // apply", so only the second may open the audience.
     const doc = await db.getUserGoals('client_settings');
-    if (doc == null) return { canWall: true, privacy: 'private' };
+    if (doc == null) return { canWall: true, privacy: null };
     return { canWall: String(doc.profileVisibility || 'Public') === 'Public', privacy: window.ShapeWorkoutShare.rule(doc) };
-  } catch (e) { return { canWall: true, privacy: 'private' }; }
+  } catch (e) { return { canWall: true, privacy: null }; }
 }
 
 // Post a PR — for a lift set somewhere the app was not watching.
@@ -19353,6 +19377,21 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
     try {
       const share = await bsWallShareState();
       if (!share.canWall) { setBusy(false); window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
+      // ⚠ AN AUDIENCE THE WALL CANNOT READ IS A REFUSAL, NOT A QUIET SUCCESS.
+      // The Wall is the activity feed's sub-tab and that read filters to
+      // feed-visible privacy values, so a post written as 'private' — which is
+      // what the share rule returns for a PUBLIC profile with Share workout
+      // data OFF — renders nowhere, while the RPC (which gates on profile
+      // visibility alone) would happily accept the record and let this toast
+      // say "On the wall." Their two settings genuinely disagree; the honest
+      // answer is to say which one is keeping the record off, not to publish
+      // against one of them and not to claim a plate that cannot exist.
+      // A read we could not make is not a setting we can name. It is refused
+      // like any other failure — true, retryable, and making no claim about
+      // their privacy — while a read that DID resolve gets the sentence that
+      // says which setting kept the record off.
+      if (share.privacy == null) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
+      if (share.privacy !== 'public') { setBusy(false); window.__bsToast?.(tr('feed:wall.notShared', { defaultValue: 'Sharing workout data is off, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
 
       // Does this beat what the wall already carries? Compared in POUNDS, the
       // ledger's canonical unit — the row keeps the unit it was set in, so a
@@ -19386,6 +19425,21 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
       const loadStr = `${num} ${unit}`;
       const stats = [{ l: 'Load', v: loadStr }];
       if (repNum != null && Number.isFinite(repNum) && repNum > 0) stats.push({ l: 'Reps', v: String(repNum) });
+      // ⚠ THE LEDGER ONLY ADVANCES BEHIND A POST THAT ACTUALLY PERSISTED, AND
+      // THIS REVERSES WHAT I ARGUED ONE ROUND AGO. The earlier reasoning was
+      // that the record is the member's and a failed feed insert must not cost
+      // them the ledger row. That is wrong, and the reason is the RETRY:
+      // `post_my_pr_to_wall` refuses any value that does not beat the stored
+      // best, so advancing the ledger for a post that never landed makes that
+      // record permanently unpostable — the member taps again and is told it
+      // does not beat their best, by a row written for a plate nobody can see.
+      // Losing the ledger row costs one retry; advancing it costs the record.
+      //
+      // `createCommunityPost` does NOT throw on an insert error: it returns
+      // `{ stored: 'local', data: { id: 'local-…' } }`, whose id is not a uuid,
+      // so the announce would drop the link and the wall would carry a bare
+      // record under a toast promising a plate. Only a supabase-stored row with
+      // an id is evidence a post exists.
       let postId = null;
       try {
         const made = await window.ShapeCommunity?.createPost?.({
@@ -19393,8 +19447,9 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
           metrics: { kind: 'workout', workoutStats: stats, lift: name, load: loadStr },
           skipPRAnnounce: true,
         });
-        postId = (made && made.data && made.data.id) || null;
+        if (made && made.stored === 'supabase' && made.data && made.data.id) postId = made.data.id;
       } catch (e) { postId = null; }
+      if (!postId) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
 
       res = await (window.ShapePRWall && window.ShapePRWall.post
         ? window.ShapePRWall.post({ lift: name, value: num, unit, reps: repNum, postId })
@@ -19465,7 +19520,7 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
 // component whether or not anything renders it. A suite that cannot tell a
 // mounted surface from an unmounted one is why this needed a guard, not just a
 // fix; see 'the Wall's own controls are reachable from the sub-tab' there.
-function BSWallYourBest({ loggedIn, onLogActivity }) {
+function BSWallYourBest({ loggedIn, onLogActivity, onPostedRecord }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -19597,7 +19652,14 @@ function BSWallYourBest({ loggedIn, onLogActivity }) {
           </div>
         ))}
       </div>
-      {sheet && <BSWallPostSheet seed={sheet && typeof sheet === 'object' ? sheet : null} onClose={() => setSheet(false)} onPosted={() => setNonce((n) => n + 1)} />}
+      {/* ⚠ A RECORD THAT LANDS HAS TO REACH THE BOARD, NOT JUST THIS STRIP.
+          `setNonce` reloads the member's own ledger rows; the Wall's cards are
+          the PARENT's `activityFeed` and reload only when its own nonce moves.
+          Without the second call the toast said "On the wall" over a board that
+          did not carry the record until something else remounted it — the same
+          claim-without-the-thing this whole sheet was rebuilt to stop. The
+          activity composer one level up already does both. */}
+      {sheet && <BSWallPostSheet seed={sheet && typeof sheet === 'object' ? sheet : null} onClose={() => setSheet(false)} onPosted={() => { setNonce((n) => n + 1); onPostedRecord && onPostedRecord(); }} />}
     </>
   );
 }
@@ -21086,7 +21148,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   BSLogActivitySheet the composer's icon opens: one publisher, so
                   a session posted from here lands on the feed and the member's
                   profile exactly as one posted from there does. */}
-              <BSWallYourBest loggedIn={loggedIn} onLogActivity={() => setShowLog(true)} />
+              <BSWallYourBest loggedIn={loggedIn} onLogActivity={() => setShowLog(true)} onPostedRecord={() => setFeedNonce((n) => n + 1)} />
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>

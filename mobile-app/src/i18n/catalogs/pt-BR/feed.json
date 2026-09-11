@@ -207,6 +207,7 @@
   "wall.notAPR": "Isso ainda não supera o seu recorde neste exercício.",
   "wall.notOnWall": "ainda não está no mural",
   "wall.notPublic": "Seu perfil é privado, então os recordes ficam fora do mural. Configurações → Privacidade.",
+  "wall.notShared": "Compartilhar dados de treino está desativado, então os recordes ficam fora do mural. Configurações → Privacidade.",
   "wall.notStamped": "Ainda não referendado",
   "wall.over": "↑ +{gain} {unit} acima do recorde anterior",
   "wall.overShort": "+{gain} {unit}",

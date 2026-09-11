@@ -105,12 +105,70 @@ test('an edit keeps the privacy its author chose', () => {
 });
 
 test('a choice already made outranks a settings read that lands after it', () => {
-  // Both arms, or a rejection would quietly overrule a deliberate PUBLIC.
-  assert.equal((effect.match(/visTouched\.current/g) || []).length, 2, 'the resolve arm and the failure arm');
-  assert.match(effect, /setVis\(bsComposerVisFor\(doc\)\)/);
-  assert.match(effect, /catch\(\(\) => \{ if \(on && !visTouched\.current\) setVis\(bsComposerVisFor\(null\)\)/);
+  // ⚠ RE-ANCHORED. This pinned the exact text of both arms, so adding the
+  // publish gate — which had to touch both — failed a test about precedence.
+  // The invariant was never the spelling: it is that NEITHER arm may call
+  // setVis without first asking whether the member has already chosen. Their
+  // exact shape is pinned once, by the gate's own guard below.
+  const arms = effect.match(/setVis\(bsComposerVisFor\([a-z]+\)\)/g) || [];
+  assert.equal(arms.length, 2, 'a resolve arm and a failure arm');
+  for (const m of effect.matchAll(/setVis\(bsComposerVisFor\([a-z]+\)\)/g)) {
+    const before = effect.slice(0, m.index);
+    assert.match(before.slice(-60), /!visTouched\.current/, 'guarded by the member’s own choice');
+  }
 });
 
 test('using the control marks it used', () => {
-  assert.match(bare, /onClick=\{\(\) => \{ visTouched\.current = true; setVis\(val\); \}\}/);
+  // ⚠ RE-ANCHORED for the same reason: the handler grew the gate release, so a
+  // literal match failed a correct change. What it cares about is that the
+  // rung's own click is what sets the flag — asserted as an ordering inside
+  // the handler rather than as one spelling of it.
+  const m = bare.match(/onClick=\{\(\) => \{([^}]*)setVis\(val\)/);
+  assert.ok(m, 'the rung still sets the audience on click');
+  assert.match(m[1], /visTouched\.current = true;/, 'and marks the control used first');
+});
+
+// ── publish waits for the read ──────────────────────────────────────────────
+//
+// ⚠ A DEFAULT THAT ARRIVES LATE IS A RACE THE MEMBER CAN WIN. `vis` seeds
+// 'public' and the effect tightens it, so on a slow or stalled `getUserGoals`
+// a Private member could fill the form and publish before it settles. The
+// window is small; the post is not recoverable.
+
+const visEffect = (() => {
+  const i = bare.indexOf('const [visResolved');
+  assert.ok(i > 0, 'the composer still tracks whether the privacy read has settled');
+  const j = bare.indexOf('}, []);', i);
+  assert.ok(j > i, 'and the effect that resolves it is still there');
+  return bare.slice(i, j);
+})();
+
+test('publish is gated on the privacy read, not merely on the form', () => {
+  const i = bare.indexOf('const canPost =');
+  assert.ok(i > 0);
+  const expr = bare.slice(i, bare.indexOf(');', i));
+  assert.match(expr, /visResolved/, 'the button cannot arm before the audience is the member’s own');
+});
+
+test('every arm resolves the gate, or the button never arms at all', () => {
+  // Three ways out of that effect and all three have to release it: the bail
+  // (no account, no store, no rule — the preview, where nothing real posts),
+  // the resolve and the rejection. A missed arm is a composer that can never
+  // publish, which is a worse failure than the race it closes.
+  assert.match(visEffect, /setVisResolved\(true\); return undefined;/, 'the bail');
+  assert.equal((visEffect.match(/setVisResolved\(true\)/g) || []).length, 4,
+    'bail, resolve, reject, and the catch');
+  assert.match(visEffect, /\.then\(\(doc\) => \{ if \(!on\) return; if \(!visTouched\.current\) setVis\(bsComposerVisFor\(doc\)\); setVisResolved\(true\); \}\)/);
+  assert.match(visEffect, /\.catch\(\(\) => \{ if \(!on\) return; if \(!visTouched\.current\) setVis\(bsComposerVisFor\(null\)\); setVisResolved\(true\); \}\)/);
+});
+
+test('an edit needs no read, so it is resolved from the first frame', () => {
+  // The effect bails on an edit; seeding false would disable Publish forever.
+  assert.match(bare, /const \[visResolved, setVisResolved\] = useStateBSC\(!!ed\);/);
+});
+
+test('choosing an audience resolves the gate too', () => {
+  // An explicit choice is the answer the read was going to supply, so there is
+  // nothing left to wait for — and it keeps this a DEFAULT rather than a clamp.
+  assert.match(bare, /onClick=\{\(\) => \{ visTouched\.current = true; setVisResolved\(true\); setVis\(val\); \}\}/);
 });

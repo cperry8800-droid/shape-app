@@ -656,6 +656,92 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The Codex round on the Codex round: four findings, and two of them reversed what I had argued an hour earlier
+
+- **The retry is the story before the findings are.** `@codex review` was refused on `60ee182` at
+  18:39Z — *"You have reached your Codex usage limits for code reviews"*, within a minute — and a
+  **retry six minutes later was accepted** and returned 2×P1 + 2×P2, every one real. So the refusal
+  is a **rolling window**, not a state: #2036 measured the same limit lifting after ~11 hours, and
+  this one lifted in six minutes. ⚠ **A session that reads a refusal as final skips the one external
+  reviewer it has.** Retry before recording it as unavailable.
+- ⚠ **P1 — THE COMPOSER'S PRIVACY DEFAULT WAS A RACE THE MEMBER COULD WIN, INSIDE THE FIX FOR IT.**
+  `vis` seeds `'public'` and an async `getUserGoals` tightens it — so on a slow or stalled read a
+  member whose profile is Private, or whose *Share workout data* is Off, could fill the form and
+  publish **before the read settled**, sending the post publicly against the setting they chose
+  precisely to stop that. The window is small and the post is not recoverable, which is the wrong way
+  round for a race to be left open. **Publish is gated on the read now, rather than the default
+  seeding closed** — so the common case is unchanged (a sharing member still sees PUBLIC from the
+  first frame and never watches the control move), and seeding `'private'` would have flickered every
+  member for the sake of the few. ⚠ **All three exits release the gate** — the bail (no account, no
+  store, no rule: the preview, where nothing real posts), the resolve and the rejection — because a
+  missed arm is a composer that can **never** publish, a worse failure than the race it closes.
+- ⚠ **P1 — THE LEDGER COULD ADVANCE BEHIND A POST NOBODY CAN SEE, TWO WAYS.** The Wall **is** the
+  activity feed, whose read filters to feed-visible privacy values — so a post written `'private'`,
+  which is what the share rule returns for a **PUBLIC profile with Share workout data OFF**, renders
+  nowhere while the RPC (which gates on profile visibility alone) accepts the record and the toast
+  says *"On the wall."* And `createCommunityPost` **does not throw** on an insert error: it returns
+  `{ stored: 'local', data: { id: 'local-…' } }`, whose id is not a uuid, so the announce dropped the
+  link and the ledger advanced for a plate that does not exist.
+- ⚠ **AND THE FIX REVERSES WHAT I ARGUED ONE ROUND EARLIER, ON AN ARGUMENT I HAD MISSED.** That entry
+  says *"a feed insert that fell over must not cost them the ledger row"*, with a test asserting it.
+  **That is backwards, and the reason is the RETRY**: `post_my_pr_to_wall` refuses any value that does
+  not beat the stored best, so advancing the ledger for a post that never landed makes that record
+  **permanently unpostable** — the member taps again and is told it does not beat their best, by a row
+  written for a plate nobody can see. **Losing the row costs one retry; advancing it costs the
+  record.** Both the code and the test that enshrined the old reading are flipped, and the test says
+  in as many words that it is a reversal, so the next reader does not re-derive the weaker rule.
+- ⚠ **AND MY FIRST CUT OF THE SHARE-OFF REFUSAL NAMED A SETTING NOBODY HAD READ.** `bsWallShareState`
+  failed closed to `privacy: 'private'` on an unreadable document, so *"Sharing workout data is off"*
+  was shown for a read that never happened — the same fabrication this sheet exists to stop, wearing a
+  refusal's clothes. **Unknown is `null` now**, which is never feed-visible (so the audience is closed
+  by construction) and is never a claim: an unreadable read gets the generic, retryable *"Could not
+  post that record"*, and only a read that resolved gets the sentence naming which setting kept the
+  record off. Three states, three messages.
+- ⚠ **P2 — THE DELTA WAS UNIT-BLIND, AND IT IS WHAT THE WALL CARD PRINTS.** `createCommunityPost`
+  read `best_value` alone and compared and subtracted the raw digits, while `pr_wall_posts` keeps a
+  unit **per row** — so against a 100 kg record a 230 lb lift stamped **"+130 lb"** on a gain that is
+  really about 9.5, and a 100 kg lift after 200 lb stamped **nothing**, because 100 is not greater
+  than 200. A wrong number on the member's own record rather than a missing one. Both sides normalise
+  through `_liftToLb` now and the gain is expressed in the **post's own** unit, or the figure and its
+  unit disagree. It became reachable when the Post-a-PR sheet started routing through here, which is
+  why it is fixed rather than registered. ⚠ And `LB_TO_KG_BACKEND` moved **above every consumer**:
+  this made the delta the first reference in file order, and a module-scope `const` is not hoisted —
+  safe today only because nothing calls that function during evaluation, which is a fact about the
+  call graph rather than about the line.
+- ⚠ **P2 — A RECORD THAT LANDED REFRESHED THE STRIP AND NOT THE BOARD.** `onPosted` bumped only
+  `BSWallYourBest`'s own nonce; the Wall's cards are the PARENT's `activityFeed`. So the toast said
+  *"On the wall"* over a board that did not carry the record until something else remounted it — the
+  claim-without-the-thing this sheet was rebuilt to stop. The activity composer one level up already
+  did both.
+- ⚠ **TWO MUTATIONS SURVIVED THE FIRST ROUND AND BOTH WERE REAL FIXTURE GAPS, NOT NO-OPS.** No test
+  reached the **capability bail** at all — every fixture supplied a store, so a mutation answering
+  *"no store"* with a known-private verdict walked through; and the delta harness stubbed
+  `maybeSingle` to return the whole row **whatever the query selected**, so dropping `unit` from the
+  `.select()` — one half of the fix — was invisible. The stub projects through the select now, and
+  both are killed. *A fixture that ignores the query cannot see a change to the query.*
+- ⚠ **AND TWO OF MY OWN GUARDS FAILED THE CORRECT FIX AGAIN, BOTH BY PINNING A SPELLING.** The
+  precedence test pinned the exact text of both effect arms, so adding the publish gate — which had
+  to touch both — failed a test about precedence; it asserts the invariant now (neither arm may call
+  `setVis` without first asking whether the member has already chosen). The other pinned the picker's
+  `onClick` literal. *A guard that pins a spelling pins whatever that spelling is wrong about* — and
+  this file has now recorded that sentence more times than any other.
+- **i18n:** one new `feed:wall.notShared` × 13, each composed from **that catalog's own two
+  sources** — its `wall.notPublic` second clause verbatim and its own `settings:privacy.shareWorkout`
+  label — so the two refusals read as siblings rather than as one sentence translated thirteen times.
+  A pure append in sorted position: **1 insertion / 0 deletions per file**.
+- **Verified on the rebased head:** `npm test` **3349/3349** (12 new here; 3346 before rebasing onto
+  `a900dd3`) · `tsc --noEmit` 0 · JSX + JS parse · the newdesign
+  precompile check · **18/18 mutations killed** after the two fixture gaps were closed (16/18 on the
+  first pass), each proven to land, sanity green at both ends, tree restored in a `finally` · and all
+  four fixes confirmed in the emitted bundle in the minifier's **backtick form**, behind a negative
+  control (the old `best_value, posted_at` select reads **0** in both chunks): the delta's
+  `best_value, unit, posted_at` with `Xd(e.best_value,e.unit||\`lb\`)` and the kg conversion, the
+  `e.privacy!==\`public\`` refusal, the `t.stored===\`supabase\`&&t.data&&t.data.id` gate with its
+  `if(!d)` bail, and both effect arms releasing the publish gate behind the touched ref.
+- ⚠ **THE STANDING CAVEAT IS UNCHANGED AND NOW MATTERS MORE:** production holds **0**
+  `pr_wall_posts`, so none of this has run against real RLS. Every refusal, every gate and the delta
+  are argued from the source and driven against stubs.
+
 ### 2026-09-11 — Codex on the restored strip: a record that reached no wall, a run filed in pounds, and a composer that ignored the member's own privacy
 
 - **Two P1s on #2042, both real, plus the privacy question the owner asked while they were open.**
