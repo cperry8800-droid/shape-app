@@ -1,0 +1,118 @@
+// The client drilldown's sections, per lens (review 2026-09-09, R15).
+//
+// ⚠ THE DRAWER IS A 440px MODAL WITH SIX SECTIONS, and a coach who never reads Milestones
+// scrolls past it on every client, every day. The control lives IN the drawer rather than
+// on a card's ⚙ because the drawer opens from four places — the roster table, the pulse,
+// the schedule and the roster page — so any one card's gear would be the wrong home for a
+// preference about the drawer itself.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { stripComments } from './helpers/strip-comments.mjs';
+
+const ROSTER = readFileSync(new URL('../public/newdesign/dashRoster.jsx', import.meta.url), 'utf8');
+const SRC = stripComments(ROSTER);
+
+// Execute the shipped selector rather than describing it.
+function fn(src, name) {
+  const at = src.indexOf('function ' + name + '(');
+  assert.ok(at > 0, name + ' moved');
+  let d = 0, seen = false, k = at;
+  for (; k < src.length; k++) { const c = src[k]; if (c === '{') { d++; seen = true; } else if (c === '}') { d--; if (seen && !d) { k++; break; } } }
+  return new Function(src.slice(at, k) + '\nreturn ' + name + ';')();
+}
+const pick = fn(SRC, 'dashDrawerSections');
+const VIEW = { eyebrow: 'Client drilldown', sections: [['a', 'A', 1], ['b', 'B', 2], ['c', 'C', 3]] };
+const keys = (list) => list.map(([k]) => k);
+
+test('with nothing hidden the drawer is exactly the drawer it was', () => {
+  for (const h of [[], null, undefined, 'nope', [null, '', 7]]) {
+    const r = pick(VIEW, h);
+    assert.deepEqual(keys(r.shown), ['a', 'b', 'c']);
+    assert.equal(r.hiddenCount, 0);
+  }
+});
+
+test('a hidden section is dropped, and order is preserved', () => {
+  const r = pick(VIEW, ['b']);
+  assert.deepEqual(keys(r.shown), ['a', 'c'], 'hiding reordered the drawer');
+  assert.equal(r.hiddenCount, 1);
+  assert.deepEqual(keys(r.all), ['a', 'b', 'c'], 'the picker lost the section it has to offer back');
+});
+
+test('a key this build does not recognise changes nothing', () => {
+  // ⚠ IGNORED, NOT DROPPED FROM THE DOCUMENT. A section retired here may belong to a
+  // build that still has it — the same rule useRememberedChoice applies to a stale value.
+  const r = pick(VIEW, ['ghost', 'b']);
+  assert.deepEqual(keys(r.shown), ['a', 'c']);
+  assert.equal(r.hiddenCount, 1, 'an unknown key was counted as a hidden section');
+});
+
+test('hiding everything is allowed, and the drawer says so', () => {
+  const r = pick(VIEW, ['a', 'b', 'c']);
+  assert.deepEqual(r.shown, []);
+  assert.equal(r.hiddenCount, 3);
+  // ⚠ A control whose effect cannot be reversed from where you see it is the dead-control
+  // class from the other direction, so the empty drawer names the way back.
+  assert.match(SRC, /secs\.shown\.length === 0 &&/);
+  assert.match(SRC, /Every section is hidden\. Open ⚙ above to bring one back\./);
+});
+
+test('a malformed view yields nothing rather than throwing', () => {
+  // There is no error boundary anywhere in public/newdesign: a throw here blanks the page.
+  for (const v of [null, undefined, {}, { sections: 'no' }]) {
+    assert.doesNotThrow(() => pick(v, ['a']));
+    assert.deepEqual(pick(v, ['a']).shown, []);
+  }
+});
+
+test('every section carries a STABLE key, and the title is not it', () => {
+  // ⚠ Keying the hidden list on the title would mean rewording a heading silently
+  // un-hides that section for everyone who had hidden it.
+  const block = SRC.slice(SRC.indexOf('const DASH_DRAWER_VIEWS'), SRC.indexOf('function dashDrawerSections'));
+  const tuples = [...block.matchAll(/\[\s*"([a-z]+)"\s*,\s*"([^"]+)"\s*,\s*(DashSec\w+)\s*\]/g)];
+  assert.ok(tuples.length >= 11, 'the section tuples changed shape: ' + tuples.length);
+  for (const [, key, title] of tuples) {
+    assert.match(key, /^[a-z]+$/, 'a section key is not a plain slug: ' + key);
+    assert.notEqual(key, title, 'a section is keyed on its own title');
+  }
+  // the two lenses share `goals` deliberately — one concept, one key
+  const byRole = block.split('nutritionist:');
+  assert.match(byRole[0], /\["goals", /);
+  assert.match(byRole[1], /\["goals", /);
+});
+
+test('the drawer stores what is HIDDEN, per account and per role', () => {
+  // ⚠ POLARITY IS THE DESIGN. Storing the SHOWN list pins today's drawer into the coach's
+  // data: a section added next month would be missing for every coach who ever touched the
+  // control, with no way to know it existed.
+  assert.match(SRC, /useRememberedSet\(prefs, "drawerHidden:" \+ role, 12\)/);
+  assert.doesNotMatch(SRC, /drawerShown/, 'the drawer went back to storing the shown list');
+  // the store opens on the ACCOUNT, which is the check that matters here
+  assert.match(SRC, /useRememberedChoices\(true\)/);
+});
+
+test('the hooks run before the early return', () => {
+  // A drawer that closes would otherwise render fewer hooks than the one that opened —
+  // the rules-of-hooks class this repo already post-mortems, which no build step catches.
+  const at = SRC.indexOf('function DashClientDrawer(');
+  const body = SRC.slice(at, SRC.indexOf('\n}\n', at));
+  const bail = body.indexOf('if (!row) return null;');
+  assert.ok(bail > 0, 'the drawer early return moved');
+  for (const h of ['useRememberedChoices(true)', 'useRememberedSet(prefs', 'React.useState(false)']) {
+    const k = body.indexOf(h);
+    assert.ok(k > 0, h + ' moved');
+    assert.ok(k < bail, h + ' now runs AFTER the early return');
+  }
+});
+
+test('the gear is a real toggle and says when something is hidden', () => {
+  assert.match(SRC, /aria-label="Choose sections"/);
+  assert.match(SRC, /aria-expanded=\{showSettings\}/);
+  // lit when a section is hidden, so the drawer never quietly omits one
+  assert.match(SRC, /color: secs\.hiddenCount \? "#2ee0c4" : DASH_ROSTER_INK50/);
+  // and each chip is a pressed-state toggle over the FULL list, not just the shown one
+  assert.match(SRC, /\{secs\.all\.map\(\(\[key, title\]\) => \{/);
+  assert.match(SRC, /aria-pressed=\{on\}/);
+  assert.match(SRC, /onClick=\{\(\) => toggleSection\(key\)\}/);
+});

@@ -496,29 +496,58 @@ function DashSecGoals({ rec, role }) {
 }
 
 // Role section sets. The drawer is ONE component; the role decides the lens.
+//
+// ⚠ EVERY SECTION CARRIES A STABLE KEY, AND THE TITLE IS NOT IT (review 2026-09-09,
+// R15 — "choose the drawer's sections per lens"). A coach's hidden list is stored against
+// these keys, and a title is user-facing copy: keying on it would mean rewording a
+// heading silently un-hides that section for everyone who had hidden it, and renaming it
+// back re-hides it. The key never changes; the title is free to.
 const DASH_DRAWER_VIEWS = {
   trainer: {
     eyebrow: "Client drilldown",
     sections: [
-      ["Shape Score · 8 weeks", DashSecScore],
-      ["Goals · projections", DashSecGoals],
-      ["Session adherence", DashSecAdherence],
-      ["Coach notes", DashSecNotes],
-      ["Milestones", DashSecMilestones],
-      ["From the nutritionist side · read-only", DashSecNutritionSummary],
+      ["score", "Shape Score · 8 weeks", DashSecScore],
+      ["goals", "Goals · projections", DashSecGoals],
+      ["adherence", "Session adherence", DashSecAdherence],
+      ["notes", "Coach notes", DashSecNotes],
+      ["milestones", "Milestones", DashSecMilestones],
+      ["nutrition", "From the nutritionist side · read-only", DashSecNutritionSummary],
     ],
   },
   nutritionist: {
     eyebrow: "Quick consult",
     sections: [
-      ["Last 3 days · food logs", DashSecLogs],
-      ["Goals · projections", DashSecGoals],
-      ["Macros vs targets · 7d avg", DashSecMacros],
-      ["Weigh-in trend", DashSecWeighIns],
-      ["From the trainer side · read-only", DashSecTrainingContext],
+      ["logs", "Last 3 days · food logs", DashSecLogs],
+      ["goals", "Goals · projections", DashSecGoals],
+      ["macros", "Macros vs targets · 7d avg", DashSecMacros],
+      ["weighins", "Weigh-in trend", DashSecWeighIns],
+      ["training", "From the trainer side · read-only", DashSecTrainingContext],
     ],
   },
 };
+
+// Which sections a drawer draws, given the coach's hidden list.
+//
+// ⚠ THE SET STORES WHAT IS HIDDEN, NOT WHAT IS SHOWN, and the polarity is the whole
+// design. Storing the shown list pins today's drawer into the coach's own data: a section
+// added next month would be missing for every coach who had ever touched the control, and
+// they would have no way to know it existed. Hiding is the exception, so the exception is
+// what is written — the same reasoning as `useRememberedChoice` refusing to store a value
+// that equals the default.
+//
+// ⚠ AND A KEY THIS BUILD DOES NOT RECOGNISE IS IGNORED, NOT DROPPED from the document: a
+// section retired here may belong to a build that still has it.
+function dashDrawerSections(view, hidden) {
+  const all = (view && Array.isArray(view.sections)) ? view.sections : [];
+  // ⚠ NO FILTER ON THE HIDDEN LIST, AND THE CONTRAST WITH `pulseOrder` IS THE POINT.
+  // There a null in the pinned set genuinely matches, because the id reader returns null
+  // for a row with no profile id — so the filter is load-bearing and a mutation removing
+  // it fails. Here every section key is a slug from the table above, so nothing a
+  // corrupted document can carry (null, "", a number) can ever equal one, and a filter
+  // would be dead code reading as a guard. The same shape is not the same guard.
+  const off = new Set(Array.isArray(hidden) ? hidden : []);
+  return { all: all, shown: all.filter(([key]) => !off.has(key)), hiddenCount: all.filter(([key]) => off.has(key)).length };
+}
 
 function DashClientDrawer({ row, role, onClose }) {
   React.useEffect(() => {
@@ -526,9 +555,24 @@ function DashClientDrawer({ row, role, onClose }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+  // ⚠ THE CONTROL LIVES IN THE DRAWER, NOT ON A CARD'S ⚙, because the drawer opens from
+  // FOUR places — the roster table, the pulse, the schedule and the roster page — so any
+  // one card's gear would be the wrong home for a preference about the drawer itself.
+  // Written once here, it works from all four.
+  //
+  // ⚠ AND THE STORE OPENS UNCONDITIONALLY RATHER THAN ON A `live` FLAG, because the
+  // drawer has no idea whether the page behind it resolved live. `useRememberedChoices`
+  // already refuses to open until the ACCOUNT is known, which is the check that matters:
+  // a signed-out preview resolves to null and remembers nothing.
+  const prefs = useRememberedChoices(true);
+  const [hiddenSections, toggleSection] = useRememberedSet(prefs, "drawerHidden:" + role, 12);
+  const [showSettings, setShowSettings] = React.useState(false);
+  // Hooks run before the early return, or a drawer that closes renders fewer of them
+  // than the one that opened — the rules-of-hooks class this repo already post-mortems.
   if (!row) return null;
   const rec = row.client;
   const view = DASH_DRAWER_VIEWS[role] || DASH_DRAWER_VIEWS.trainer;
+  const secs = dashDrawerSections(view, hiddenSections);
   const sevColor = row.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[row.severity];
   const programLine = rec.program && rec.program.name
     ? dashProgramLabel(rec).text
@@ -543,7 +587,17 @@ function DashClientDrawer({ row, role, onClose }) {
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{view.eyebrow}</div>
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, letterSpacing: "-0.02em", marginTop: 5 }}>{rec.profile.name}</div>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: DASH_ROSTER_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+            <button
+              type="button"
+              aria-label="Choose sections"
+              aria-expanded={showSettings}
+              title="Choose which sections this drawer shows"
+              onClick={() => setShowSettings((v) => !v)}
+              style={{ background: "transparent", border: 0, color: secs.hiddenCount ? "#2ee0c4" : DASH_ROSTER_INK50, fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "4px 6px" }}
+            >⚙</button>
+            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: DASH_ROSTER_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+          </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 22 }}>
           <span style={{ width: 7, height: 7, borderRadius: 2, background: sevColor }} />
@@ -552,9 +606,42 @@ function DashClientDrawer({ row, role, onClose }) {
             : <DashPill c={sevColor}>{rec.profile.isNew ? "New" : "On track"}</DashPill>}
           {programLine && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{programLine}</span>}
         </div>
-        {view.sections.map(([title, Body], i) => (
-          <DashDrawerSection key={i} title={title}><Body rec={rec} role={role} /></DashDrawerSection>
+        {showSettings && (
+          <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_INK50}33`, borderRadius: 6, background: "rgba(242,237,228,0.03)" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginBottom: 9 }}>
+              Sections · {view.eyebrow}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {secs.all.map(([key, title]) => {
+                const on = !hiddenSections.includes(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleSection(key)}
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", padding: "7px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
+                      border: "1px solid " + (on ? "#2ee0c4" : DASH_ROSTER_INK50 + "33"),
+                      background: on ? "rgba(46,224,196,0.12)" : "transparent",
+                      color: on ? "#f2ede4" : DASH_ROSTER_INK50 }}
+                  >{on ? "\u2713 " : ""}{title}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {secs.shown.map(([key, title, Body]) => (
+          <DashDrawerSection key={key} title={title}><Body rec={rec} role={role} /></DashDrawerSection>
         ))}
+        {secs.shown.length === 0 && (
+          /* ⚠ AN EMPTY DRAWER SAYS WHY IT IS EMPTY AND HOW TO UNDO IT. A coach who hides
+             every section gets what they asked for — but a name and two buttons reads as
+             broken, and a control whose effect cannot be reversed from where you see it is
+             the dead-control class from the other direction. */
+          <div style={{ fontSize: 12.5, color: DASH_ROSTER_INK50, lineHeight: 1.5, marginBottom: 22 }}>
+            Every section is hidden. Open ⚙ above to bring one back.
+          </div>
+        )}
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
           <button onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
           {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
@@ -694,4 +781,4 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort })
   );
 }
 
-Object.assign(window, { DashRosterTable, DashClientDrawer, DashConsultDrawer, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });
+Object.assign(window, { DashRosterTable, DashClientDrawer, DashConsultDrawer, DASH_DRAWER_VIEWS, dashDrawerSections, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });

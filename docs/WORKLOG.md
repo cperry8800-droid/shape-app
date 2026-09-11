@@ -529,6 +529,67 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — R15's drawer: six sections become the ones this coach reads, keyed so a reworded heading cannot unhide one
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
+  *choose the drawer's sections per lens*. The client drilldown is a **440px modal with six
+  sections**, and a coach who never reads Milestones scrolls past it on every client, every
+  day. Each section is a toggle now, remembered per account and per role. No migration, no
+  new route. **The KPI picker for the stat strips is the last piece of R15.**
+- ⚠ **THE CONTROL LIVES IN THE DRAWER, NOT ON A CARD'S ⚙, and that is forced by where the
+  drawer opens from: FOUR places** — the roster table, the pulse, the schedule and the
+  roster page. Any one card's gear would be the wrong home for a preference about the
+  drawer itself, and three of the four would not carry it. Written once in the shared
+  component, it works from all four.
+- ⚠ **EVERY SECTION CARRIES A STABLE KEY, AND THE TITLE IS NOT IT.** The hidden list is
+  stored against those keys, and a title is user-facing copy: keying on it would mean
+  **rewording a heading silently un-hides that section** for everyone who had hidden it, and
+  renaming it back re-hides it. `["notes", "Coach notes", DashSecNotes]` — the key never
+  changes, the title is free to. The two lenses deliberately **share `goals`**: one concept,
+  one key, so a coach who hides it hides it in both.
+- ⚠ **THE SET STORES WHAT IS HIDDEN, NOT WHAT IS SHOWN, AND THE POLARITY IS THE DESIGN.**
+  Storing the shown list pins today's drawer into the coach's own data: a section added next
+  month would be **missing for every coach who had ever touched the control**, with no way
+  to know it existed. Hiding is the exception, so the exception is what is written — the
+  same reasoning as `useRememberedChoice` refusing to store a value equal to the default.
+- ⚠ **HIDING EVERYTHING IS ALLOWED, AND THE DRAWER SAYS SO.** A coach who hides all six
+  gets what they asked for — but a name and two buttons reads as broken, so the empty state
+  names the way back (*"Every section is hidden. Open ⚙ above to bring one back."*). A
+  control whose effect cannot be reversed from where you see it is the dead-control class
+  from the other direction. And the **gear itself lights teal** whenever anything is hidden,
+  so the drawer never quietly omits a section.
+- ⚠ **A KEY THIS BUILD DOES NOT RECOGNISE IS IGNORED, NOT DROPPED** from the document, and
+  it does **not** count toward the hidden tally — a section retired here may belong to a
+  build that still has it, and counting it would light the gear over a drawer that is whole.
+- ⚠ **THE HOOKS RUN ABOVE THE EARLY RETURN**, or a drawer that closes renders fewer hooks
+  than the one that opened — the rules-of-hooks class this file post-mortems, which neither
+  the build nor `tsc` nor the suite catches. Pinned by a guard that compares the **positions**
+  of the three hooks against the bail, and by a mutation that moves the bail above them.
+  ⚠ **My first attempt at that mutation moved nothing** (`0 || useRememberedChoices(true)`)
+  and "survived" — a no-op dressed as a test of ordering.
+- ⚠ **AND THE OTHER SURVIVOR WAS DEAD CODE, WHICH MAKES TWO IN TWO PRs — BUT THE CONTRAST
+  IS THE USEFUL PART.** A `.filter((x) => typeof x === "string" && x)` on the hidden list
+  survived removal, because every section key is a slug from the table above and nothing a
+  corrupted document can carry (`null`, `""`, a number) can ever equal one. **The
+  identically-shaped filter in `pulseOrder` is load-bearing** and its mutation fails, because
+  there a `null` genuinely matches: the id reader returns `null` for a row with no profile
+  id. *The same shape is not the same guard* — so one was deleted with the reasoning at the
+  site and the other kept with a pointer to why.
+- **Verified:** `npm test` **3247/3247** · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **13/13 mutations killed**, each proven to land, sanity green at both
+  ends · and driven in Chromium against a simulated live coach: six section heads and one
+  ⚙, the panel offering **all six** as pressed-state chips, hiding *Milestones* and *Coach
+  notes* → **four heads left in their original order**, the gear lit teal, stored as
+  `{"drawerHidden:trainer":["milestones","notes"]}` — the **keys**, not the titles — then a
+  **reload brings the same four back**, and hiding all six renders *"Every section is
+  hidden. Open ⚙ above to bring one back."* with zero heads. Zero page errors.
+- ⚠ **AND THE HARNESS CLICKED THE NAV BURGER FIRST.** `[aria-label^="Open "]` matches
+  `aria-label="Open menu"`, which is hidden at that width, so the run timed out on an
+  element that was never the target. The drilldown rows end in *"drilldown"*; the selector
+  says so now. *A prefix selector over a shared verb matches whatever else starts that way.*
+- ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; an on-account
+  pass is owed.
+
 ### 2026-09-11 — R15's pin: the pulse keeps the two people you are actually working with in front of you
 
 - **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
