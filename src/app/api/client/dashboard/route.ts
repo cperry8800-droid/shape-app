@@ -11,6 +11,11 @@ import { requireMembership } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
+// Both reads below are capped, and both are ordered NEWEST first so the cap keeps the
+// window nearest now. Named so the sweep in `tests/capped-reads.test.mjs` can see them.
+const BOOKED_CAP = 100;
+const WEIGH_IN_CAP = 104;
+
 function midnight(iso: string): number {
   const d = new Date(iso);
   d.setHours(0, 0, 0, 0);
@@ -80,10 +85,17 @@ export async function GET(request: Request) {
     .from('sessions')
     .select('scheduled_at, duration_min, type, status, topic, provider_id, provider_role')
     .eq('client_id', user.id)
-    .order('scheduled_at', { ascending: true })
-    .limit(100);
+    // ⚠ NEWEST FIRST, RE-SORTED ASCENDING ONCE BELOW. Ordering ascending made this cap
+    // keep a member's OLDEST 100 bookings — so past that, `upcoming` (which filters to the
+    // future) came back EMPTY however many sessions they had booked, and the calendar
+    // showed only sessions from years ago. Both consumers read ascending, so the order is
+    // restored here rather than in each of them.
+    .order('scheduled_at', { ascending: false })
+    .limit(BOOKED_CAP);
 
-  const bookedRows = bookedAll ?? [];
+  const bookedRows = (bookedAll ?? [])
+    .slice()
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
   // ---- Subscriptions -> coach team ---------------------------------------
   const { data: subs } = await supabase
@@ -162,8 +174,11 @@ export async function GET(request: Request) {
       .from('client_weigh_ins')
       .select('logged_on, weight, unit')
       .eq('user_id', user.id)
-      .order('logged_on', { ascending: true })
-      .limit(104),
+      // ⚠ NEWEST FIRST, RE-REVERSED BELOW — the same defect `/api/client/progress` was
+      // fixed for. Ascending kept the OLDEST 104 rows, which a daily logger passes in
+      // about three months, after which their goal trend never shows this year at all.
+      .order('logged_on', { ascending: false })
+      .limit(WEIGH_IN_CAP),
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
   const selfDoc = (goalsDoc?.data ?? {}) as Record<string, unknown>;
@@ -172,7 +187,7 @@ export async function GET(request: Request) {
     overall: selfDoc.overall ?? null,
     training: Array.isArray(selfDoc.training) ? selfDoc.training : null,
     nutrition: Array.isArray(selfDoc.nutrition) ? selfDoc.nutrition : null,
-    weighIns: (weighRows ?? []).map((w) => ({ on: w.logged_on, weight: w.weight, unit: w.unit })),
+    weighIns: (weighRows ?? []).slice().reverse().map((w) => ({ on: w.logged_on, weight: w.weight, unit: w.unit })),
   };
 
   // ---- Calendar events (workouts + booked sessions) -----------------------

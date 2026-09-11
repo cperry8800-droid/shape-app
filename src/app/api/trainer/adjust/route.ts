@@ -161,6 +161,8 @@ export async function POST(request: Request) {
     .eq('trainer_id', subscribedTrainerId as never)
     .eq('status', 'published')
     .or(`scheduled_date.is.null,scheduled_date.gt.${todayISO}`)
+    // capped-read-ok: ascending is correct because the `.or` above already bounds this to
+    // the FUTURE, so the cap keeps the nearest 400 upcoming plan rows — see the note above.
     .order('scheduled_date', { ascending: true, nullsFirst: true })
     .limit(400);
   if (readErr) {
