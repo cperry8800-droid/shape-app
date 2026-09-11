@@ -537,6 +537,84 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — Thirteen capped reads were ordered ascending, and nine of them kept the OLDEST rows
+
+- **Found while sizing R15's last piece, not by a report — and it is live today.** Derived
+  from the source rather than eyeballed: of **55** capped reads under `src/app/api/`,
+  **thirteen** order `ascending`, and **nine** of those are defects — the cap then keeps the
+  **oldest** N rows. Every one is invisible until a real account outgrows the cap, and then
+  it does not degrade, it **inverts**: the surface goes on working and shows the wrong end of
+  the member's history forever.
+- ⚠ **THE COACH DASHBOARD'S HEADLINE KPIs READ ZERO FOREVER PAST 500 SESSIONS.**
+  `sessionsThisWeek`, `upcomingSessions`, `today`, `calendar` and the client `pulse` are ALL
+  derived from one `sessions` read capped at 500 and ordered ascending — so a trainer past
+  that (about two years at five a week, under one for a full-time coach) is served their
+  **first** 500 sessions: *"Sessions this week"* and *"Upcoming sessions"* both read **0**,
+  the calendar shows rows from years ago, and the pulse lists clients who left. Same read,
+  same cap, same defect in the nutritionist route, and again in each route's shared-coach
+  leg — which also decides `myClientIds`, so the counterpart query goes looking at the wrong
+  clients.
+- ⚠ **AND A MEMBER'S "UPCOMING" CAME BACK EMPTY.** `/api/client/dashboard` caps bookings at
+  100 ascending and then filters to the future — past 100 bookings that filter has nothing
+  to find, however many sessions they have. Their **weigh-ins** are capped at 104 ascending,
+  which a daily logger passes in about **three months**, after which their goal trend never
+  shows this year at all. That is the same defect `/api/client/progress` was fixed for on
+  2026-09-11, two routes over, and its own comment records the lesson.
+- ⚠ **THE MANAGE SCREEN COULD NOT REACH A SESSION THAT NEEDED ACTION.** `/api/sessions/manage`
+  is where a session is confirmed, rescheduled or cancelled — always an upcoming one — and it
+  read the oldest 200.
+- ⚠ **AND A LONG COACH THREAD OPENED ON MESSAGES FROM A YEAR AGO.** `conversations/[id]/messages`
+  capped at 500 ascending, so past that the tail of the conversation was unreachable. **The
+  incremental poll keeps ascending and that is not an oversight:** the caller already holds
+  everything up to `since`, so the rows that close the gap are the **oldest** ones after it —
+  taking the newest 500 instead would leave a hole in the middle of the thread that no later
+  poll ever fills. Either way the response is ascending, which is the contract every client
+  reads.
+- ⚠ **AND THE CALENDAR RE-INTRODUCED A DEFECT ITS OWN COMMENT SAYS WAS FIXED.** Its plan read
+  has **no date filter**, caps at 200 ascending, and passes `nullsFirst: false` — so on a long
+  plan it kept the oldest dated rows and dropped **every undated workout**, which is precisely
+  the *"Home shows my plan but the calendar is empty"* case the note above that query
+  describes. The cap is what brought it back. Undated rows are never trimmed now
+  (`nullsFirst: true` on a descending read).
+- ⚠ **ASCENDING IS NOT ALWAYS WRONG, AND A BLANKET SWEEP WOULD HAVE BROKEN FIVE CORRECT
+  READS.** `radio/rooms` and `trainer/adjust` are already **bounded to the future** by their
+  own filters, so ascending keeps the NEXT N — flipping them would hide tonight's rooms and
+  the nearest sessions. `lead-boosts` and `stripe/connect-account` order by `id` ascending
+  with `limit(1)` to pick an account's **primary** provider row deterministically; flipping
+  either would silently attach a boost, or a Stripe account, to a different row. Each says so
+  at the site with a `capped-read-ok:` marker.
+- **`tests/capped-reads.test.mjs` DERIVES its corpus from the route files** — 55 capped reads
+  across every `.ts` under `src/app/api/` — so a query added later is covered with nobody
+  remembering the test exists. It asserts it **found** a corpus and that it can see **both**
+  spellings of a cap (a literal and a named constant), because a sweep that quietly stops
+  matching passes vacuously: that is the exact way the `/api/client/progress` guard lost two
+  thirds of its corpus the moment its cap was named.
+- ⚠ **AND THE EXEMPTION IS A MARKER, NOT AN ALLOWLIST THE GUARD ENFORCES.** A file-name
+  allowlist goes stale silently; requiring a `capped-read-ok:` note **at the query** puts the
+  reason where the next reader is. A separate assertion pins which five carry one today, so a
+  sixth is a decision somebody has to come here and make — and a mutation that sprinkles the
+  marker on an unchecked read is proven to fail it.
+- ⚠ **A CAPPED COUNT IS REPORTED AS CAPPED.** `totalSessions` / `totalConsults` are counts
+  taken over the capped window, i.e. a **floor**, so `totalCapped` rides beside them. R15's
+  KPI picker wanted to display one as *"all time"*, and a payload that does not say it is
+  capped cannot be checked by the consumer that labels it. Nothing displays them yet — this is
+  the precondition being paid before the label exists, not after.
+- ⚠ **AND ONE TWO-LINE COMMENT CAME OUT AS A 296-LINE DIFF.** `lead-boosts/route.ts` is the
+  one file in this set stored with **CRLF** line endings, and writing it back through a
+  text-mode rewrite silently normalised the whole file to LF — so a marker nobody needed to
+  review arrived as 147 deletions and 149 insertions, with the two real lines buried in it.
+  Re-applied **in binary**, against the file's own bytes: 2 insertions, 0 deletions.
+  *Rewriting a whole file is not a safe way to insert a line, and the diff is the only thing
+  that says so.*
+- **Verified:** `npm test` **3261/3261** · `tsc --noEmit` 0 · **17/17 mutations killed**, each
+  proven to land, sanity green at both ends — including two aimed at the **guard itself**
+  (a pattern that stops matching, and one that stops accepting a named cap, both caught by its
+  own vacuity checks) and three at the lifted comparators, which are **executed** over
+  vectors rather than pinned by spelling.
+- ⚠ **NO ON-ACCOUNT PASS, AND THIS ONE CANNOT HAVE A SIMULATED ONE.** Every defect here needs
+  an account that has outgrown a cap; the repo has none, so the fixes are argued from the
+  queries and proven at the comparators. The honest check is a coach past 500 sessions.
+
 ### 2026-09-11 — R15's drawer: six sections become the ones this coach reads, keyed so a reworded heading cannot unhide one
 
 - **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
