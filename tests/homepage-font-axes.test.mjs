@@ -133,7 +133,13 @@ function weightsOfFamilyWithUniqueAxis(html, byFamily, axis) {
   const owners = [...byFamily.entries()].filter(([, axes]) => axes.has(axis)).map(([f]) => f);
   if (owners.length !== 1) return null;
   const weights = new Set();
-  const re = new RegExp(`font-variation-settings\\s*:\\s*['"]${axis}['"]`);
+  // ⚠ THE AXIS MAY SIT ANYWHERE IN THE DECLARATION — CodeRabbit, #2045. Anchoring
+  // it immediately after the property name misses `'wght' 900,'ROND' 30`, which
+  // CSS allows and which this page could legitimately be written as tomorrow: the
+  // rule would not be recognised as that family's, its weight would never be
+  // collected, and an out-of-range weight would pass unseen. Blocks are already
+  // split on `}`, so `[^;}]*` cannot run past the declaration.
+  const re = new RegExp(`font-variation-settings\\s*:\\s*[^;}]*['"]${axis}['"]`);
   for (const block of html.split('}')) {
     if (!re.test(block)) continue;
     for (const m of block.matchAll(/font-weight\s*:\s*(\d{2,3})\b/g)) weights.add(Number(m[1]));
@@ -201,6 +207,22 @@ test('a range the parser cannot read is not recorded as a known range', () => {
   const doto = requestedAxes(synthetic).get('Doto');
   assert.ok(!doto.has('ROND'), 'an unparseable range must not be recorded as a known one');
   assert.deepEqual(doto.get('wght'), [100, 900], 'and the axes that DO parse are still recorded');
+});
+
+test('a rule is recognised whichever order its axes are listed in', () => {
+  // The regression CodeRabbit named: `wght` first, the family's own axis second.
+  // Without it this rule is invisible to the deriver and its 900 is never checked.
+  const byFamily = new Map([['Doto', new Map([['ROND', [0, 100]], ['wght', [100, 400]]])]]);
+  const html = ".x{font-family:var(--num);font-variation-settings:'wght' 900,'ROND' 30;font-weight:900}";
+  const got = weightsOfFamilyWithUniqueAxis(html, byFamily, 'ROND');
+  assert.ok(got, 'ROND is requested by exactly one family here, so this must resolve');
+  assert.deepEqual([...got.weights], [900], 'the axis-second rule must be collected');
+  // and the whole point: that weight is outside Doto's 100..400, so it must fail
+  assert.throws(
+    () => assertWeightsFit(byFamily, got, 'ROND'),
+    /font-weight 900/,
+    'an out-of-range weight in an axis-second rule must still be caught',
+  );
 });
 
 test('a family name containing a space is read as that family', () => {
