@@ -10,7 +10,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { drive, loadBroadsheet, pressable, SRC } from './helpers/broadsheet-mount.mjs';
+import { drive, loadBroadsheet, pressable, textOf, SRC, ROOT } from './helpers/broadsheet-mount.mjs';
+import { join } from 'node:path';
 
 const babelParser = createRequire(SRC)('@babel/parser');
 const MOD = await loadBroadsheet(['BSMealLogged']);
@@ -236,4 +237,120 @@ test('⚠ a member recipe titled like a catalog dish cooks THEIR method, not the
     // And no coach is credited anywhere on it.
     assert.doesNotMatch(s.text, new RegExp(COLLIDE.by.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
   });
+});
+
+test('⚠ a member recipe survives a title collision with a PROGRAM meal', () => {
+  // The title dedupe has no authority over a member recipe — it is identified by
+  // its uuid. Running the dedupe first dropped the member's dish whenever their
+  // arbitrary title matched something already in the picker, which is the
+  // collision case the namespace branch exists for, lost from the other side.
+  withMemberLibrary(() => {
+    const program = [{ meals: [{ id: 'm1', slot: 'Lunch', title: COLLIDE.title, kcal: 600, p: 45, c: 55, f: 18 }] }];
+    const s = drive(PREP.BSPrepSession, { program, onClose() {} });
+    const rows = s.nodes().filter((n) => n.type === 'button' && pressable(n)
+      && textOf(n).trim().toLowerCase().startsWith(COLLIDE.title.toLowerCase()));
+    // TWO offers: the program meal and the member's own dish of the same name.
+    assert.equal(rows.length, 2, `expected the program meal AND the member recipe, got ${rows.length}`);
+    // And the member's is grouped under their library, not silently merged.
+    assert.match(s.text, /Your library/);
+  });
+});
+
+test('a member recipe appears once even if the library holds two pointers to it', () => {
+  // Member recipes dedupe on their ID, not on a title anyone can retype.
+  const w = globalThis.window;
+  const prevLs = w.localStorage;
+  const prevAuth = w.ShapeAuth;
+  const ptr = bsRecipePointer(MINE);
+  const map = new Map([
+    ['shape.library', JSON.stringify([{ ...ptr, savedAt: 2 }, { ...ptr, savedAt: 1 }])],
+    ['shape.recipes.u1', JSON.stringify({ v: 1, items: { [MINE.id]: MINE } })],
+  ]);
+  w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: () => {}, removeItem: () => {} };
+  w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+  try {
+    const s = drive(PREP.BSPrepSession, { program: [], onClose() {} });
+    const rows = s.nodes().filter((n) => n.type === 'button' && pressable(n)
+      && textOf(n).trim().toLowerCase().startsWith(COLLIDE.title.toLowerCase()));
+    assert.equal(rows.length, 1);
+  } finally { w.localStorage = prevLs; w.ShapeAuth = prevAuth; }
+});
+
+// ── the parse call is native-safe ──────────────────────────────────────────
+//
+// ⚠ On the NATIVE build a root-relative `/api/...` resolves to the WebView's own
+// origin, which is not the backend and carries no session cookie. Because this
+// caller degrades to its offline structural split, that failure is SILENT: the
+// AI reader would never run on iOS or Android and nothing on screen would say
+// so. The repo has paid for this exact shape once already (transcribeVoice,
+// #1805), which is why it is guarded rather than remembered.
+
+test('⚠ the sheet never fetches the parse route root-relative', () => {
+  const src = readFileSync(SRC, 'utf8');
+  assert.equal(/fetch\(\s*['"`]\/api\/nutrition\/recipe-parse/.test(src), false,
+    'a root-relative fetch to the parse route is unreachable on native');
+  assert.match(src, /window\.ShapeRecipeImport/, 'the sheet must go through the backend client');
+});
+
+test('the backend parse client sends apiBaseUrl AND the Bearer session', async () => {
+  // The shipped function, brace-matched out of shapeBackend.js and DRIVEN — a
+  // source scan cannot tell an absolute URL from a relative one at call time.
+  const backend = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const at = backend.indexOf('async function parseRecipeText');
+  assert.ok(at > 0, 'parseRecipeText is not in shapeBackend.js');
+  // ⚠ SKIP THE PARAMETER LIST FIRST. This function's parameters are DESTRUCTURED
+  // (`{ signal } = {}`), so a matcher that starts counting at the first `{` after
+  // the name opens and closes on the parameters and hands back a 47-character
+  // signature — after which every assertion below is vacuously true. The repo
+  // has already paid for this exact shape once (`grab()`, #2032). The length
+  // assertion is what caught it here, and it stays for the next reader.
+  const open = backend.indexOf('(', at);
+  let pd = 0, afterParams = -1;
+  for (let j = open; j < backend.length; j += 1) {
+    if (backend[j] === '(') pd += 1;
+    else if (backend[j] === ')') { pd -= 1; if (pd === 0) { afterParams = j + 1; break; } }
+  }
+  assert.ok(afterParams > open, 'could not find the end of the parameter list');
+  const i = backend.indexOf('{', afterParams);
+  let depth = 0, end = -1;
+  for (let j = i; j < backend.length; j += 1) {
+    if (backend[j] === '{') depth += 1;
+    else if (backend[j] === '}') { depth -= 1; if (depth === 0) { end = j + 1; break; } }
+  }
+  assert.ok(end > i, 'could not brace-match the function body');
+  const body = backend.slice(at, end);
+  assert.ok(body.length > 400, `lifted ${body.length} chars — that is a signature, not a body`);
+
+  const calls = [];
+  const make = (res) => new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', `${body}; return parseRecipeText;`)(
+    'https://api.example.test',
+    (extra = {}) => ({ ...extra, Authorization: 'Bearer tok-123' }),
+    async (url, opts) => { calls.push({ url, opts }); return res; },
+  );
+
+  const ok = await make({ ok: true, json: async () => ({ draft: { title: 'T', ingredients: [{ n: '1', m: 'egg' }], steps: ['One.'] } }) })('x'.repeat(40));
+  assert.equal(ok.ok, true);
+  assert.equal(ok.draft.title, 'T');
+  assert.equal(calls.length, 1);
+  // ⚠ ABSOLUTE, not "/api/...". This is the whole finding.
+  assert.ok(calls[0].url.startsWith('https://api.example.test/api/nutrition/recipe-parse'), calls[0].url);
+  assert.equal(calls[0].opts.headers.Authorization, 'Bearer tok-123');
+  assert.equal(calls[0].opts.method, 'POST');
+  assert.equal(JSON.parse(calls[0].opts.body).text.length, 40);
+
+  // Short text never reaches the provider at all.
+  calls.length = 0;
+  assert.equal((await make({ ok: true, json: async () => ({}) })('eggs')).reason, 'too_short');
+  assert.equal(calls.length, 0);
+
+  // Every failure resolves — it never throws, because the caller's fallback is a
+  // real answer rather than an error state.
+  assert.equal((await make({ ok: false, json: async () => ({}) })('x'.repeat(40))).ok, false);
+  assert.equal((await make({ ok: true, json: async () => ({ draft: null, reason: 'no_key' }) })('x'.repeat(40))).reason, 'no_key');
+  const thrower = new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', `${body}; return parseRecipeText;`)(
+    '', () => ({}), async () => { throw new Error('offline'); },
+  );
+  const off = await thrower('x'.repeat(40));
+  assert.equal(off.ok, false);
+  assert.equal(off.draft, null);
 });

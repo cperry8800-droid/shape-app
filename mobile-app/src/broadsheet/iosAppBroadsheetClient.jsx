@@ -1818,19 +1818,21 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
     setBusy(true); setErr(null);
     let next = null;
     try {
-      const res = await fetch('/api/nutrition/recipe-parse', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text: paste }),
-      });
-      if (res.ok) {
-        const j = await res.json().catch(() => null);
-        if (j && j.draft && (j.draft.ingredients?.length || j.draft.steps?.length)) {
-          next = { ingredients: j.draft.ingredients || [], steps: j.draft.steps || [], servings: j.draft.servings ?? null, byAI: true };
-          // The model may read a title out of the paste; never overwrite one the
-          // member typed themselves.
-          if (!title.trim() && j.draft.title) setTitle(j.draft.title);
-        }
+      // ⚠ THROUGH THE BACKEND CLIENT, NEVER A ROOT-RELATIVE FETCH. On the native
+      // build `/api/...` resolves to the WebView's own origin, which is not the
+      // backend and carries no session cookie — and since this call degrades to
+      // the structural split, that failure is SILENT: the AI reader would never
+      // run on iOS or Android with nothing on screen saying so. shapeBackend's
+      // parse client sends apiBaseUrl + the Bearer session (Codex on this PR;
+      // the same shape transcribeVoice was fixed for in #1805).
+      const api = window.ShapeRecipeImport && window.ShapeRecipeImport.parse;
+      const r = api ? await api(paste) : null;
+      const d = r && r.ok ? r.draft : null;
+      if (d && ((d.ingredients && d.ingredients.length) || (d.steps && d.steps.length))) {
+        next = { ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true };
+        // The model may read a title out of the paste; never overwrite one the
+        // member typed themselves.
+        if (!title.trim() && d.title) setTitle(d.title);
       }
     } catch (e) { /* falls through to the structural split */ }
     setDraft(next || splitLocally());
@@ -8416,25 +8418,35 @@ function BSPrepSession({ program, onClose }) {
     const seen = new Set(out.map((x) => String(x.cookable.title || '').trim().toLowerCase()));
     try {
       const libGroup = tr('cook:prep.libGroup', { defaultValue: 'Your library' });
+      const seenMine = new Set();
       (bsLibRead() || []).filter((it) => it.kind === 'recipe').forEach((it) => {
-        const title = String(it.title || '').trim();
-        if (!title || seen.has(title.toLowerCase())) return;
-        // ⚠ A `myrecipe:` POINTER RESOLVES AGAINST THE MEMBER'S OWN DOCUMENT AND
-        // NOWHERE ELSE. Falling through to the exact-title lookup below would
-        // hand a member who typed "One-pan chicken and rice" the CATALOG dish —
-        // its method, its macros and a named nutritionist's byline — under their
-        // own title, which is the misattribution bsCookableFromMemberRecipe
-        // nulls recipeTitle and coach to prevent. An exact-title match is a
-        // claim about identity, and a member can type any title.
+        // ⚠ A `myrecipe:` POINTER IS RESOLVED BEFORE THE TITLE DEDUPE, NOT AFTER.
+        // A member recipe is identified by its uuid and by nothing else, so the
+        // title dedupe has no authority over it: running it first DROPPED the
+        // member's dish whenever their arbitrary title happened to match a
+        // program meal or a catalog recipe already saved to their library —
+        // which is the collision case this whole branch exists for, losing it
+        // silently from the other direction. Member recipes dedupe on their own
+        // ids; two dishes that merely share a title are two dishes.
         const myId = bsMyRecipeIdFrom(it.id);
         if (myId != null) {
+          if (seenMine.has(myId)) return;
           const doc = myDoc && myDoc.items ? myDoc.items[myId] : null;
           const mc = doc ? bsCookableFromMemberRecipe(doc) : null;
           if (!mc || !mc.steps.length) return;
-          seen.add(title.toLowerCase());
-          out.push({ key: 'lib-my-' + myId, cookable: mc, group: libGroup, mealId: mc.mealId, mealTitle: null });
+          seenMine.add(myId);
+          out.push({ key: 'lib-my-' + myId, cookable: mc, group: libGroup, mealId: mc.mealId, mealTitle: null, mine: true });
           return;
         }
+        // A CATALOG pointer still resolves by exact title, and still dedupes on
+        // it — two library rows naming the same catalog dish are one dish.
+        // ⚠ It must never fall through to this lookup for a member pointer: that
+        // would hand someone who typed "One-pan chicken and rice" the catalog's
+        // method, macros and a named nutritionist's byline under their own
+        // title. An exact-title match is a claim about identity, and a member
+        // can type any title.
+        const title = String(it.title || '').trim();
+        if (!title || seen.has(title.toLowerCase())) return;
         const r = SHAPE_KITCHEN_RECIPES.find((x) => String(x.title || '').trim().toLowerCase() === title.toLowerCase());
         if (!r) return;                            // exact catalog match only
         const c = bsCookableFromRecipe(r);

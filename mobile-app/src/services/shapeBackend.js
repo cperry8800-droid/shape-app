@@ -4562,6 +4562,42 @@ async function lookupFoodBarcode(code, { signal } = {}) {
   return await res.json();
 }
 window.ShapeFoodSearch = { search: searchFoods, barcode: lookupFoodBarcode };
+
+// Member recipe import — a paste in, a STRUCTURED DRAFT out (/api/nutrition/
+// recipe-parse). The draft is never persisted here: the review screen shows it
+// and the member edits every line before anything is stored.
+//
+// ⚠ apiBaseUrl + Bearer, NOT a root-relative fetch. On the NATIVE build the
+// WebView origin is not the backend and there is no session cookie, so a bare
+// `/api/...` call resolves to the WebView and 404s — and because the caller
+// degrades to its offline structural split, the failure is SILENT: the AI
+// reader would simply never run on iOS or Android and nothing would say so.
+// This repo has already paid for that exact shape once (Codex, PR #1805 — see
+// transcribeVoice above), which is why the pattern is copied rather than
+// re-invented.
+//
+// Resolves { ok, draft, reason } — it never throws, because the caller's
+// fallback is a real answer rather than an error state.
+async function parseRecipeText(text, { signal } = {}) {
+  const body = String(text || '');
+  if (body.trim().length < 20) return { ok: false, draft: null, reason: 'too_short' };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/recipe-parse`, {
+      method: 'POST',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ text: body }),
+      signal,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
+    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
+    return { ok: true, draft: payload.draft, reason: null };
+  } catch (e) {
+    return { ok: false, draft: null, reason: 'unavailable' };
+  }
+}
+window.ShapeRecipeImport = { parse: parseRecipeText };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }
