@@ -356,6 +356,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           'shape.chat.v2.', 'shape.dashGoals.', 'shape.habits.',
           'shape.dashQueueDone.', 'shape.dashMealLog.', 'shape.dashMealSwap.',
           'shape.dashNutriSwap.',
+          'shape.recipes.',
           // legacy role families (KEEP-list keys shapeGrocery*/shapeRecipes_v1
           // /shape-pwa-* don't match these prefixes)
           'shapeTrainer', 'shapeNutritionist', 'shapeClient'

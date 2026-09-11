@@ -4401,6 +4401,85 @@ window.shapeDb = window.shapeDb || {
     if (res.error) { console.warn('[shape] saveUserGoals error', res.error); return { error: res.error }; }
     return { ok: true };
   },
+
+  // COMPARE-AND-SET write for a whole-document kind. Resolves
+  // { ok } | { conflict: true } | { error }.
+  //
+  // ⚠ WHY THIS EXISTS. saveUserGoals is an UNCONDITIONAL upsert, so two devices
+  // that read the same document, each add something, and each write back leave
+  // only the later write — the earlier device's addition is gone with nothing
+  // reporting it. For a preference that is a shrug; for a recipe a member typed,
+  // it is unrecoverable, because nothing else in the system can re-derive it.
+  // The caller re-reads and re-applies its mutation on a conflict.
+  //
+  // ⚠ NO MIGRATION: the revision lives INSIDE the jsonb document the caller
+  // already owns, and `user_goals` is keyed on (user_id, kind) with its own
+  // insert and update policies. `expectedRev` is the RAW `data->>'rev'` string
+  // as it was read (null when the key is absent), never a re-derived number —
+  // it has to match what Postgres compares, junk value included, or a document
+  // written by some other build could never be written again.
+  //
+  // ⚠ AND THE `.select()` IS LOAD-BEARING. PostgREST does not treat an UPDATE
+  // that matches zero rows as an error, so without asking for the affected rows
+  // back a lost race reports success — the exact defect /api/me/age-public
+  // shipped and was fixed for.
+  async saveUserGoalsIfRev(kind, data, expectedRev, expectedUid) {
+    if (!supabase) return { error: { message: 'No backend' } };
+    const u = await window.shapeDb.getUser();
+    if (!u) return { error: { message: 'Not logged in' } };
+    // ⚠ BOUND TO THE CALLER'S ACCOUNT, NOT TO WHOEVER IS SIGNED IN NOW. This
+    // helper resolves the user ITSELF, so without this check an account switch
+    // after the caller's own uid check targets the NEW account — and when that
+    // account happens to carry a matching revision (both absent is the common
+    // case, on a fresh row), the CAS SUCCEEDS and account A's whole document is
+    // written into B's row, reporting success. Narrowing the window at the
+    // caller cannot close it; only the writer can. (Codex, PR #2033 — the third
+    // appearance of this class on that PR, each one a layer deeper.)
+    // ⚠ REQUIRED, NOT OPTIONAL. An `expectedUid != null &&` guard makes the
+    // unbound call the DEFAULT — and this primitive is registered as general,
+    // with ~15 other user_goals kinds queued to adopt it. A migration written by
+    // copying a three-argument call would compile, pass every test, and reopen
+    // exactly this race on a coach's notes. There is one caller today, so making
+    // it mandatory costs nothing and cannot be omitted by accident later.
+    //
+    // ⚠ AND THE TWO REFUSALS ARE DIFFERENT THINGS, SO THEY CARRY DIFFERENT
+    // MARKERS. An account switch is a runtime state a member can be told about;
+    // a missing expectedUid is a BUG IN THE CALLER, and the first draft of this
+    // guard returned 'No expected account' — prose a consumer sniffing for
+    // /account/i read as a switch, so the omission it exists to catch rendered
+    // as a plausible runtime message and shipped silently. The switch sets
+    // `accountChanged` (a flag, not a sentence — this message is free to be
+    // reworded or localized without breaking a consumer); the misuse is loud in
+    // the console and deliberately NOT marked, so it falls to the caller's
+    // generic failure rather than lying about whose account it is.
+    if (expectedUid == null) {
+      console.error('[shape] saveUserGoalsIfRev called without expectedUid — refusing the write', kind);
+      return { error: { message: 'saveUserGoalsIfRev requires expectedUid', code: 'missing_expected_uid' } };
+    }
+    if (String(u.id) !== String(expectedUid)) {
+      return { accountChanged: true, error: { message: 'Account changed', code: 'account_changed' } };
+    }
+    const row = { user_id: u.id, kind, data: data || {} };
+    const q = () => supabase.from('user_goals').update({ data: row.data }).eq('user_id', u.id).eq('kind', kind);
+    // An absent rev means "the document has never been written by a CAS-aware
+    // build". That is NOT the same as "no row exists" — getUserGoals returns {}
+    // for both — so the update is tried first and the insert is the fallback,
+    // never the other way round. Inserting first would conflict forever on a
+    // rev-less row that does exist.
+    const res = expectedRev == null
+      ? await q().is('data->>rev', null).select('kind')
+      : await q().eq('data->>rev', String(expectedRev)).select('kind');
+    if (res.error) { console.warn('[shape] saveUserGoalsIfRev error', res.error); return { error: res.error }; }
+    if (res.data && res.data.length) return { ok: true };
+    if (expectedRev != null) return { conflict: true };   // the row moved on
+    const ins = await supabase.from('user_goals').insert(row);
+    if (!ins.error) return { ok: true };
+    // 23505 unique_violation: another device created the row between the update
+    // and the insert. A conflict, not a failure — the caller re-reads.
+    if (ins.error.code === '23505') return { conflict: true };
+    console.warn('[shape] saveUserGoalsIfRev insert error', ins.error);
+    return { error: ins.error };
+  },
 };
 
 window.ShapeAuth = {
@@ -4562,6 +4641,48 @@ async function lookupFoodBarcode(code, { signal } = {}) {
   return await res.json();
 }
 window.ShapeFoodSearch = { search: searchFoods, barcode: lookupFoodBarcode };
+
+// Member recipe import — a paste in, a STRUCTURED DRAFT out (/api/nutrition/
+// recipe-parse). The draft is never persisted here: the review screen shows it
+// and the member edits every line before anything is stored.
+//
+// ⚠ apiBaseUrl + Bearer, NOT a root-relative fetch. On the NATIVE build the
+// WebView origin is not the backend and there is no session cookie, so a bare
+// `/api/...` call resolves to the WebView and 404s — and because the caller
+// degrades to its offline structural split, the failure is SILENT: the AI
+// reader would simply never run on iOS or Android and nothing would say so.
+// This repo has already paid for that exact shape once (Codex, PR #1805 — see
+// transcribeVoice above), which is why the pattern is copied rather than
+// re-invented.
+//
+// Resolves { ok, draft, reason } — it never throws, because the caller's
+// fallback is a real answer rather than an error state.
+const BS_RECIPE_PASTE_MAX = 12000;   // must match MAX_TEXT in the route
+async function parseRecipeText(text, { signal } = {}) {
+  const body = String(text || '');
+  if (body.trim().length < 20) return { ok: false, draft: null, reason: 'too_short' };
+  // The route refuses an over-length paste rather than truncating it (a prefix
+  // yields a draft that silently loses the tail). Short-circuiting here as well
+  // saves sending a paste that can only be refused; the route still enforces it,
+  // because a client-side bound is a convenience, never the rule.
+  if (body.length > BS_RECIPE_PASTE_MAX) return { ok: false, draft: null, reason: 'too_long' };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/recipe-parse`, {
+      method: 'POST',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ text: body }),
+      signal,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
+    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
+    return { ok: true, draft: payload.draft, reason: null };
+  } catch (e) {
+    return { ok: false, draft: null, reason: 'unavailable' };
+  }
+}
+window.ShapeRecipeImport = { parse: parseRecipeText };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }

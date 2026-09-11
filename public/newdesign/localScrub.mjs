@@ -110,6 +110,7 @@ export const SHAPE_SCRUB_PREFIXES = [
   'shape.dashMealLog.',   // today's meal-log ticks
   'shape.dashMealSwap.',  // today's meal swaps
   'shape.dashNutriSwap.', // nutritionist-side day swaps
+  'shape.recipes.',       // a member's OWN recipes, mirrored per uid
   // Legacy role families (profiles, client messages/check-ins, plans,
   // assigned content, widget libs — all account-scoped):
   'shapeTrainer', 'shapeNutritionist', 'shapeClient'
