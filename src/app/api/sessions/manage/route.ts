@@ -198,16 +198,31 @@ export async function POST(request: Request) {
       // guessed, because a labelled time a member has to convert is honest and a bare wrong
       // number is not. (client_profiles.timezone is captured opportunistically on app open,
       // so an account that has only ever used the website may not have one yet.)
+      //
+      // ⚠ READ THROUGH THE REQUEST-SCOPED CLIENT, NEVER THE SERVICE ROLE. An earlier cut used
+      // createAdminClient() here, which bypasses RLS to read another user's profile row inside
+      // a user-initiated request — flagged by CodeRabbit's security review on #2053, and
+      // correctly: this route uses the request client for everything else, so the admin client
+      // was the one place where RLS stopped being authoritative.
+      //
+      // ⚠ AND THE RLS OUTCOME IS EXACTLY THE RIGHT BEHAVIOUR, not a limitation to work around.
+      // `providers_read_subscriber_profiles` lets a coach read the profile of a client with an
+      // active or trialing subscription, and `client_profiles_read_own` covers nobody else. So
+      // a coach confirming a session for a paying client gets their real zone, and a coach
+      // confirming a FREE INTRO CONSULT for someone who is not their subscriber gets nothing —
+      // which is the correct answer, because we have no business reading a non-client's
+      // profile to format a sentence. That case falls to the named-zone branch below, which is
+      // what it did before this change anyway.
       let memberZone: string | null = null;
       try {
-        const { data: prof } = await createAdminClient()
+        const { data: prof } = await supabase
           .from('client_profiles')
           .select('timezone')
           .eq('user_id', session.client_id)
           .maybeSingle();
         memberZone = normalizeZone((prof as { timezone?: unknown } | null)?.timezone);
       } catch {
-        memberZone = null; // a failed read must not stop the notification
+        memberZone = null; // a refused or failed read must not stop the notification
       }
       const when = new Date(whenSource).toLocaleString('en-US', {
         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',

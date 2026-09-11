@@ -828,6 +828,31 @@ Append new entries at the top, under this note.
   its own vacuity assertion; and a file-wide ban on the member-local pair matched the **localStorage** copy,
   where member-local is **correct**, and failed the clean tree. Scoped to the request body. *A guard that
   pins a spelling pins whatever that spelling is wrong about*, for the second time in one PR.
+- ⚠ **AND A SECOND ROUND ON THE FIX DIFF FOUND FOUR MORE — the owner asked for it (*"Run coderabbit
+  again"*), and the round that reviews the fixes is the one that keeps finding things.** (1) **SECURITY:**
+  the member-zone read used the **service role** inside a user-initiated route, bypassing RLS on another
+  user's profile row. Request-scoped now — and the RLS outcome is the **right behaviour rather than a
+  limitation**: `providers_read_subscriber_profiles` lets a coach read a **paying** client's zone and
+  nothing lets them read a free-consult stranger's, which is correct, and that case falls to the
+  already-labelled fallback. (2) `livingDesktop`'s marketplace profile drew **unqualified wall-clock hours
+  AND a live "Book a consult" CTA** for a coach with no stored zone — two defects at once, because the
+  consultation route now **refuses** such a booking, so the control led to a dead end. (3) **The zone was
+  stamped BEFORE the slots were replaced**, so a delete failure left a coach's **existing** hours
+  reinterpreted under the new zone — a silent three-hour shift on a New York → Los Angeles move, while
+  the save reported failure. (4) The editor's zone label went stale after a save.
+- ⚠ **THE STAMP IS COMPENSATED RATHER THAN TRANSACTIONAL, AND THE REASON IS WRITTEN AT THE SITE.**
+  PostgREST has no cross-table transaction and an RPC would mean a **second migration for the owner to
+  run**, so the stamp goes first and any later failure **rolls it back** — which makes both failure modes
+  safe (a failed delete restores the old meaning; a failed insert leaves no hours rather than misread
+  ones). The residual is the compensating write itself failing, which is logged as CRITICAL rather than
+  swallowed, because it is the one path that can leave the two tables disagreeing.
+- ⚠ **AND THREE OF THAT ROUND'S SIX COMMENTS WERE ALREADY FIXED WHEN IT POSTED — the head-pinning trap
+  this file documents by name.** The submitted review's own coverage payload reads
+  `sourceCommitId = coveredCommitId = 5a8feb3`, the **first** head, so its mobile-`at`,
+  scheduledAt-equality and literal-`UTC` comments describe code `6eaec90` had already replaced. *A verdict
+  is only about the head it names* — and the re-review of `5a8feb3 → 9fd1d74` returned **"no new defects
+  in the fix diff"**, confirming each fix individually. Recorded because the two outputs arrived
+  together and reading the review alone would have sent me round the same three fixes twice.
 - **Verified on the final head:** `npm test` **3502/3502** · `tsc --noEmit` 0 · JSX + JS parse · the
   newdesign precompile check · **13/13 mutations killed**, each one **replaying one of the three findings**
   so the suite is proven to catch them rather than merely to be green after the fix · mobile build clean

@@ -120,7 +120,7 @@ function dscZoneLabel(live, storedZone) {
 function dscBrowserZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
 }
-function DscAvailability({ role, live, initial, storedZone }) {
+function DscAvailability({ role, live, initial, storedZone, onZone }) {
   // A Set of "weekday:hour" keys derived from the loaded slots (each slot
   // covers its duration in hourly cells).
   const seed = () => {
@@ -162,6 +162,15 @@ function DscAvailability({ role, live, initial, storedZone }) {
         body: JSON.stringify({ role, slots, timezone: dscBrowserZone() }),
       });
       setState(res.ok ? "saved" : "error");
+      // ⚠ ADOPT THE ZONE THE ROUTE ACTUALLY STORED, rather than assuming the one we sent
+      // landed. The label below is a claim about what members are booked in, so it has to
+      // come from the write's own answer — and a coach whose laptop changed zone would
+      // otherwise keep reading the previous one until a reload. Only on success: a failed
+      // save stored nothing, so the old label is still the true one.
+      if (res.ok && onZone) {
+        const j = await res.json().catch(() => null);
+        if (j && typeof j.timezone === "string" && j.timezone) onZone(j.timezone);
+      }
     } catch (e) { setState("error"); }
   };
   const toggle = (wd, h) => {
@@ -454,7 +463,7 @@ function CoachSchedulePage({ role }) {
           {/* Availability */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#d8a23a", paddingLeft: 22 }}>
-              <DscAvailability role={role} live={isLive} initial={availSlots} storedZone={availZone} />
+              <DscAvailability role={role} live={isLive} initial={availSlots} storedZone={availZone} onZone={setAvailZone} />
             </div>
             <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "14px 16px" }}>
               <div className="dash-eyebrow">How rescheduling works</div>

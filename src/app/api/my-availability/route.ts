@@ -103,10 +103,27 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  // Stamp only on a real change: the coach moved, or this is the first save. An
-  // unconditional write would touch the row on every toggle for no reason.
-  if (sentZone && sentZone !== owned.timezone) {
-    const table = role === 'trainer' ? 'trainers' : 'nutritionists';
+  const table = role === 'trainer' ? 'trainers' : 'nutritionists';
+
+  // ── Two tables, one meaning, and no transaction between them ────────────────
+  //
+  // ⚠ THE ZONE AND THE HOURS ARE ONE FACT SPLIT ACROSS TWO WRITES, so a failure between
+  // them leaves stored hours whose meaning has silently moved. Flagged by CodeRabbit on
+  // #2053, and the sharp case is the DELETE failing after the stamp landed: a coach who
+  // moved New York → Los Angeles then has their EXISTING 9am-Eastern hours read as
+  // 9am-Pacific — a three-hour shift, published to members, while the save reports failure
+  // and the coach believes nothing changed.
+  //
+  // PostgREST gives no cross-table transaction, and an RPC would mean a second migration
+  // for the owner to run. So the stamp is COMPENSATED instead: it goes first (hours are
+  // never written under a zone we have not committed to), and any later failure restores
+  // the zone the row had before. That makes both failure modes safe —
+  //   delete fails  → zone restored, old hours keep their old meaning;
+  //   insert fails  → zone restored and the slots are gone, so the coach has no hours
+  //                   rather than misread ones, and the editor already says the save failed.
+  const priorZone: string | null = owned.timezone;
+  const stamped = !!sentZone && sentZone !== priorZone;
+  if (stamped) {
     const { error: tzError } = await supabase
       .from(table)
       .update({ timezone: sentZone })
@@ -120,6 +137,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Undo the stamp when a later write fails, so a half-applied save cannot change what
+  // the coach's stored hours MEAN. Best-effort by necessity — if the compensating write
+  // also fails there is nothing left to try — so it is logged loudly rather than silently
+  // swallowed, because that is the one path that can leave the two tables disagreeing.
+  const unstamp = async () => {
+    if (!stamped) return;
+    const { error } = await supabase
+      .from(table)
+      .update({ timezone: priorZone })
+      .eq('id', owned.id);
+    if (error) {
+      console.error(
+        '[shape-app] CRITICAL: could not roll back availability timezone — stored hours may now be read in the wrong zone',
+        { providerRole: role, providerId: owned.id, priorZone, sentZone, error }
+      );
+    }
+  };
+
   // Simple strategy: delete all existing slots and re-insert. Small row
   // count per provider so this is fine.
   const { error: delError } = await supabase
@@ -129,10 +164,13 @@ export async function POST(req: NextRequest) {
     .eq('provider_id', owned.id);
   if (delError) {
     console.error('[shape-app] delete availability failed', delError);
+    await unstamp();
     return NextResponse.json({ error: 'save_failed' }, { status: 500 });
   }
 
   if (clean.length === 0) {
+    // Clearing every hour is a real intent, and the zone stays stamped: it describes the
+    // coach, not the rows, and it is what their next save will be read against.
     return NextResponse.json({ ok: true, count: 0, timezone: zone });
   }
 
@@ -157,6 +195,7 @@ export async function POST(req: NextRequest) {
   const { error: insError } = await supabase.from('provider_availability').insert(rows);
   if (insError) {
     console.error('[shape-app] insert availability failed', insError);
+    await unstamp();
     return NextResponse.json({ error: 'save_failed' }, { status: 500 });
   }
   return NextResponse.json({ ok: true, count: rows.length, timezone: zone });

@@ -168,3 +168,80 @@ test('a rebuilt fallback instant is only reachable for rows that have no instant
   assert.equal(fn({ at: 0, date: '17', month: 'Sep', time: '09:00' }), '2026-09-17T09:00:00');
   assert.equal(fn({ at: 'nope', date: '17', month: 'Sep', time: '09:00' }), '2026-09-17T09:00:00');
 });
+
+// ── Second review round (2026-09-11) ────────────────────────────────────────
+
+test('the member-zone read goes through RLS, not the service role', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = stripComments(readFileSync(new URL('../src/app/api/sessions/manage/route.ts', import.meta.url), 'utf8'));
+  // ⚠ THE ADMIN CLIENT MAY STILL WRITE THE NOTIFICATION (a different user than the actor,
+  // pre-existing and legitimate) but it may not READ another user's profile: this route uses
+  // the request client for everything else, so that was the one place RLS stopped being
+  // authoritative. Flagged by a security review on #2053.
+  assert.doesNotMatch(src, /createAdminClient\(\)\s*\n?\s*\.from\('client_profiles'\)/,
+    'the member zone is read with the service role, bypassing RLS');
+  assert.match(src, /await supabase\s*\n?\s*\.from\('client_profiles'\)\s*\n?\s*\.select\('timezone'\)/,
+    'the member zone is no longer read through the request-scoped client');
+  // The notification write stays on the admin client — asserted so a later "tidy-up" does not
+  // break the one cross-user write that is supposed to be privileged.
+  assert.match(src, /createNotification\(createAdminClient\(\)/,
+    'the notification write no longer uses the service role');
+  // A refused read must not stop the notice: the zone falls back and the zone is NAMED.
+  assert.match(src, /timeZone: memberZone \|\| 'UTC'/, 'the fallback zone is gone');
+  assert.match(src, /timeZoneName: 'short' as const/, 'the fallback no longer names its zone');
+});
+
+test('the availability write rolls the zone back when a later step fails', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = stripComments(readFileSync(new URL('../src/app/api/my-availability/route.ts', import.meta.url), 'utf8'));
+  // ⚠ TWO TABLES, ONE MEANING, NO TRANSACTION. The sharp case is the DELETE failing after the
+  // stamp landed: a coach's EXISTING hours are then read in the new zone — a silent three-hour
+  // shift on a New York -> Los Angeles move, while the save reports failure.
+  assert.match(src, /const unstamp = async \(\) => \{/, 'the compensating rollback is gone');
+  assert.match(src, /\.update\(\{ timezone: priorZone \}\)/, 'the rollback does not restore the prior zone');
+  // BOTH failure paths must compensate — a rollback wired to one of two exits is half a fix.
+  const delFail = src.indexOf('delete availability failed');
+  const insFail = src.indexOf('insert availability failed');
+  assert.ok(delFail > 0 && insFail > 0, 'the failure branches moved');
+  for (const [name, at] of [['delete', delFail], ['insert', insFail]]) {
+    const window = src.slice(at, at + 200);
+    assert.match(window, /await unstamp\(\)/, `the ${name} failure path does not roll the stamp back`);
+  }
+  // And it only fires when a stamp actually happened, or it would clobber a zone nobody changed.
+  assert.match(src, /if \(!stamped\) return;/, 'the rollback fires even when nothing was stamped');
+});
+
+test('the marketplace profile hides hours it cannot place, and the CTA with them', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = stripComments(readFileSync(new URL('../public/newdesign/livingDesktop.jsx', import.meta.url), 'utf8'));
+  // With a live read and no stored zone this drew unqualified wall-clock ranges AND a booking
+  // CTA — and /api/consultation now REFUSES that booking, so the control was a dead end.
+  assert.match(src, /const zoneOk = state === "demo" \|\| \(typeof zone === "string" && zone\.length > 0\)/,
+    'the zone check is gone');
+  assert.match(src, /const useSlots = state === "demo" \? demoSlots : \(zoneOk \? liveSlots : \[\]\)/,
+    'unplaceable hours are still rendered');
+  // ⚠ AND THE SUMMARY MUST NOT SAY "No open hours set" — the coach HAS hours; we cannot place
+  // them. Collapsing the two would blame the coach for a missing column of ours.
+  assert.match(src, /const unplaceable = state !== "demo" && !zoneOk && liveSlots\.length > 0/,
+    'the two empty states are collapsed');
+  assert.match(src, /unplaceable\s*\n?\s*\? "Open hours set/, 'the unplaceable summary is not rendered');
+  // The demo preview keeps its example hours — it is labelled and claims nothing about a coach.
+  // Asserted on the WORD, not the punctuation: the source carries a literal middot and an
+  // escape-sequence pin failed the correct file. A guard that pins a spelling pins whatever
+  // that spelling is wrong about — this file's own lesson, paid for a third time.
+  assert.match(src, /state === "demo" \? "[^"]*example"/, 'the demo preview no longer labels itself an example');
+});
+
+test('the editor adopts the zone the route actually stored', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = stripComments(readFileSync(new URL('../public/newdesign/dashSchedule.jsx', import.meta.url), 'utf8'));
+  // The label is a claim about what members are booked in, so it must come from the write's
+  // own answer rather than from the value we happened to send.
+  assert.match(src, /if \(res\.ok && onZone\)/, 'the stored zone is never adopted');
+  assert.match(src, /onZone\(j\.timezone\)/, 'the response timezone is not applied');
+  // ⚠ ONLY ON SUCCESS: a failed save stored nothing, so the old label is still the true one.
+  const at = src.indexOf('if (res.ok && onZone)');
+  assert.ok(at > 0);
+  assert.doesNotMatch(src.slice(0, at), /onZone\(/, 'the zone is adopted before the save is known to have landed');
+  assert.match(src, /onZone=\{setAvailZone\}/, 'the callback is never wired from the page');
+});
