@@ -1025,7 +1025,7 @@ Append new entries at the top, under this note.
   **programmatically from the JSX** so they are byte-identical to each call site's `defaultValue`,
   and each locale's wording **authored from its own existing `myRecipe.*` copy** rather than invented. The ratchet's own columns are unmoved by the
   review rounds — every string they added is keyed.
-- **Verified:** `npm test` **3189/3189** · `tsc --noEmit` 0 · mobile build 0 with every new string
+- **Verified:** `npm test` **3207/3207** on the merged head · `tsc --noEmit` 0 · mobile build 0 with every new string
   confirmed in the emitted bundle behind a positive control **and a negative one** · the newdesign
   precompile check · JSX parse on every edit · **87 mutations killed across ten rounds, each proven
   to land** — and **six of them were a round paying for itself**: the `hasOwnProperty` survivor
