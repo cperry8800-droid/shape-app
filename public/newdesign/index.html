@@ -73,12 +73,16 @@
     --disp:'Anybody','Anybody Fallback',system-ui,sans-serif;
     --num:'Doto','Doto Fallback',ui-monospace,monospace;
     --sans:'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif;
-    --w:105;            /* the display width axis. ⚠ THE ONE PLACE IT IS SET — the hero
+    --w:90;             /* the display width axis. ⚠ THE ONE PLACE IT IS SET — the hero
                            headline's reveal reads it back rather than restating it, because
                            this number used to live in four places (here, the .w default, the
                            animation's start, and its 62+56 arithmetic) and a change had to
-                           land in all four to be a change. Anybody's natural width is 100;
-                           above ~110 the glyphs read as stretched rather than wide. */
+                           land in all four to be a change. Anybody is requested at wdth@50..150
+                           and drawn at 100, so this is a genuinely CONDENSED setting rather
+                           than an un-stretched one. Measured on the font's own advance widths
+                           at 104px, the fold's longest line: 985px at 118 (the first cut),
+                           856px at 105, 708px here. The reveal still widens — it starts at 62,
+                           which stays below this. */
     --maxw:1440px;
   }
 
@@ -109,12 +113,27 @@
   nav{position:sticky;top:0;z-index:60;background:rgba(6,9,15,.72);backdrop-filter:blur(14px);
       border-bottom:1px solid var(--line-2)}
   .navr{display:flex;align-items:center;gap:26px;height:66px}
-  .nauth{margin-left:auto}
-  .brand img{height:26px;width:auto;display:block}
-  .nlinks{display:flex;align-items:center;gap:22px;margin-left:8px;flex:1}
+  /* ⚠ THE LINKS SIT ON THE BAR'S OWN MIDLINE, which is why the brand and the auth
+     cluster are equal-BASIS flex columns rather than natural-width items. They weigh
+     roughly 75px and 300px, so ANY rule that sizes them to their content lands the
+     middle group left of centre — `margin-left:auto` on the auth side (what this
+     row used to do) centres nothing, it just pushes. `flex:1 1 0` makes the two
+     shares equal, and the default `min-width:auto` still floors each at its own
+     content, so when the row runs out of room it gives up the centring rather than
+     overflowing. Below 860px .nlinks is display:none and none of this applies. */
+  .brand{flex:1 1 0}
+  /* ⚠ max-width:none defeats the global `img{max-width:100%}` FOR THIS ONE IMAGE,
+     and without it the logo is squashed rather than merely small. .brand is a
+     flex:1 1 0 column, and an image that may shrink to 100% of its parent has a
+     min-content width of ZERO — so the column collapses and takes the logo with it.
+     Measured at 880px before this line: 56x36 against an intrinsic 75x36, i.e. the
+     mark rendered 25% narrow with the height rule still satisfied. Pinned as
+     intrinsic, the column floors at the logo's real width instead. */
+  .brand img{height:36px;width:auto;max-width:none;display:block}
+  .nlinks{display:flex;align-items:center;justify-content:center;gap:22px;flex:0 1 auto}
   .nlinks a{font-size:13.5px;font-weight:500;color:var(--fg-2);transition:color .16s}
   .nlinks a:hover{color:var(--fg)}
-  .nauth{display:flex;align-items:center;gap:14px}
+  .nauth{flex:1 1 0;display:flex;align-items:center;justify-content:flex-end;gap:14px}
   .nauth .login{font-size:13.5px;font-weight:500;color:var(--fg-2)}
   .nauth .login:hover{color:var(--fg)}
   .ncta{font-family:var(--sans);font-weight:700;font-size:13.5px;background:var(--teal);color:#04110f;
@@ -138,8 +157,19 @@
   .ndrawer{display:none}
 
   /* ── the fold ────────────────────────────────────────────── */
+  /* ⚠ THE BOTTOM PADDING IS WHAT KEEPS THE CTAs OFF THE CAMPS, and without it they
+     collide. .camps is position:absolute (bottom:78px) so it takes part in no
+     layout at all, while .hcopy is vertically CENTRED in the fold — so on a short
+     laptop window the copy grows down into a strip nothing told it was occupied
+     and "Get started" is drawn straight over "$5/mo one platform fee". Nothing
+     reports it: both boxes are exactly where their own rules put them.
+     `align-items:center` centres inside the CONTENT box, so reserving the strip as
+     padding moves the copy up by the whole strip rather than by half of it, and
+     min-height still grows the fold if the copy will not fit. 78px to the camps,
+     ~44px of camp, ~26px of air. Below 760px .hero becomes a grid with its own
+     `padding:44px 0 0` and the camps are a real row, so this does not apply. */
   .hero{position:relative;min-height:calc(100vh - 66px);display:flex;align-items:center;overflow:hidden;
-        isolation:isolate}
+        isolation:isolate;padding-bottom:148px}
   #terrain{position:absolute;inset:0;width:100%;height:100%;z-index:0;display:block}
   /* The painted fallback: reduced-motion and no-JS both land here, so the fold is
      never an empty black box. Four bands echo the canvas's four ridges. */
@@ -218,10 +248,18 @@
   .mo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
   .mo{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px;overflow:hidden}
   .mo h3{font-size:20px;margin-top:6px}
-  .mo .shot{position:relative;margin-top:16px;border-radius:8px;overflow:hidden;aspect-ratio:1/1;
+  .mo .shot{position:relative;margin-top:16px;border-radius:8px;overflow:hidden;aspect-ratio:3/4;
             background:var(--ink-3);border:1px solid var(--line-2)}
-  /* --y is a % of the IMAGE's height, so a square window shows exactly 600 image
-     px of a 600x1387 capture — the crop is chosen per screen, not scaled. */
+  /* --y is a % of the IMAGE's height; the window is a 3:4 port onto a 600x1387
+     capture, so it shows 800 image px (a square one showed 600) — the crop is
+     chosen per screen, not scaled.
+     ⚠ THE ASPECT RATIO AND THE .hl RINGS ARE ONE NUMBER IN TWO PLACES. A ring's
+     top/height are a % of THIS WINDOW while --y offsets the image by a % of the
+     IMAGE, so changing the ratio alone slides every ring off the content it points
+     at — silently, because both values stay legal CSS and the ring still draws.
+     Widening from 1/1 to 3/4 is why each ring was multiplied by 600/800. The guard
+     in tests/homepage-climb.test.mjs pins each ring's position in IMAGE pixels, so
+     the next change to this line fails rather than drifts. */
   .mo .shot img{display:block;width:100%;height:auto;transform:translateY(calc(var(--y) * -1))}
   .mo .hl{position:absolute;left:5%;right:5%;border:1.5px solid var(--teal);border-radius:6px;
           box-shadow:0 0 0 3px rgba(var(--teal-rgb),.12);opacity:0;transition:opacity .5s}
@@ -246,6 +284,7 @@
           padding-top:14px;border-top:1px solid var(--line-2)}
   .co .rt span{font-size:12px;color:var(--fg-3)}
   .co .rt b{font-family:var(--num);font-weight:900;font-size:20px;font-variation-settings:'ROND' 100}
+  .co .rt b i{font-family:var(--sans);font-size:11px;color:var(--fg-3);font-style:normal;font-weight:400}
 
   /* ── the journey: five stages on ~300vh, not 1500 ────────── */
   .jtrack{height:320vh;position:relative}
@@ -288,7 +327,23 @@
   .air .hd{display:flex;align-items:center;justify-content:space-between;gap:14px}
   .air .wm{display:inline-flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:500;
            font-variation-settings:'wdth' 150;font-size:14px;text-transform:uppercase;letter-spacing:.02em}
-  .air .wm svg{width:11px;height:13px}
+  /* ⚠ THIS IS THE SITE'S LOCKUP, NOT A SECOND SPELLING OF IT. pageShell's
+     RadioWordmark — which ~70 live pages render — sets SHAPE, then the real
+     two-triangle mark, then RADIO in teal. This card used to put the mark in FRONT
+     of the words and run "Shape Radio" as one plain string, so the homepage
+     disagreed with every other page about what the Radio logo is.
+     ⚠ And width:11/height:13 was squashing the mark: the viewBox is 79x98
+     (ratio .806) and 11/13 is .846, so the artwork rendered ~5% wide. Height alone,
+     width auto, exactly as pageShell does it. */
+  .air .wm svg{height:15px;width:auto;flex:0 0 auto;display:block}
+  /* ⚠ The mark's fills stay LITERAL #34d6c5 (the value of --teal) rather than
+     var(--teal): a var() inside an SVG presentation ATTRIBUTE is not reliably
+     substituted across browsers, and the failure mode is an unpainted polygon with
+     nothing in the diff to explain it — the same shape as the rgba-plus-hex-alpha
+     border this repo already post-mortems. A real CSS rule like the one below
+     resolves tokens fine; an attribute is not a rule. pageShell's own wordmark
+     passes a literal for the same reason. */
+  .air .wm .r{color:var(--teal)}
   /* ⚠ The state chip says what is TRUE today: the station opens with the app. It
      is not a LIVE badge with the word changed — there is no equaliser and no dot,
      because both read as "something is playing right now". */
@@ -456,6 +511,7 @@
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Radio.html">Radio</a>
       <a href="/newdesign/Community.html">Community</a>
+      <a href="/newdesign/Score.html">Rewards</a>
       <a href="/newdesign/Pricing.html">Pricing</a>
       <a href="/newdesign/About.html">About</a>
     </div>
@@ -473,6 +529,7 @@
   <a href="/newdesign/GetApp.html">App</a>
   <a href="/newdesign/Radio.html">Radio</a>
   <a href="/newdesign/Community.html">Community</a>
+  <a href="/newdesign/Score.html">Rewards</a>
   <a href="/newdesign/Pricing.html">Pricing</a>
   <a href="/newdesign/About.html">About</a>
   <a href="/newdesign/Login.html">Log in</a>
@@ -538,19 +595,19 @@
     <div class="mo-grid" id="mo-grid">
       <div class="mo on">
         <div class="eb">Eat · the menu</div><h3>The ledger ticks.</h3>
-        <div class="shot"><img src="/newdesign/home-eat-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the day's calories against target, macros, and today's meals" style="--y:27%"><span class="hl" style="top:25%;height:24%"></span></div>
+        <div class="shot"><img src="/newdesign/home-eat-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the day's calories against target, macros, and today's meals" style="--y:27%"><span class="hl" style="top:18.75%;height:18%"></span></div>
       </div>
       <div class="mo">
         <div class="eb">Eat · the shop</div><h3>The list writes itself.</h3>
-        <div class="shot"><img src="/newdesign/home-grocery-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan sorted by aisle with Produce open" style="--y:24.5%"><span class="hl" style="top:52%;height:30%"></span></div>
+        <div class="shot"><img src="/newdesign/home-grocery-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan sorted by aisle with Produce open" style="--y:24.5%"><span class="hl" style="top:39%;height:22.5%"></span></div>
       </div>
       <div class="mo">
         <div class="eb">Train · in the session</div><h3>A set logs.</h3>
-        <div class="shot"><img src="/newdesign/home-session-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, the first set ticked" style="--y:15%"><span class="hl" style="top:17%;height:19%"></span></div>
+        <div class="shot"><img src="/newdesign/home-session-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, the first set ticked" style="--y:15%"><span class="hl" style="top:12.75%;height:14.25%"></span></div>
       </div>
       <div class="mo">
         <div class="eb">Community · the Wall</div><h3>A PR lands.</h3>
-        <div class="shot"><img src="/newdesign/home-feed-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Wall in Chat: a deadlift PR with the record stamped above the session's own stats" style="--y:28.5%"><span class="hl" style="top:45%;height:29%"></span></div>
+        <div class="shot"><img src="/newdesign/home-feed-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Wall in Chat: a deadlift PR with the record stamped above the session's own stats" style="--y:28.5%"><span class="hl" style="top:33.75%;height:21.75%"></span></div>
       </div>
     </div>
     <div style="margin-top:20px"><span class="exlabel">Example member · captured from the app's signed-out preview</span></div>
@@ -573,10 +630,14 @@
       <p>Certified trainers and nutritionists, filtered by speciality, city and rate. Read a coach's page, message them, and book before you commit to anything.</p>
     </div>
     <div class="co-grid">
-      <div class="co"><div class="gem"><b>MO</b></div><div class="nm">Maya Okafor</div><div class="ro">Trainer · Strength</div><div class="sm">Strength &amp; hypertrophy · Brooklyn · in person</div><div class="rt"><span>9 yrs</span><b>$120<i style="font-family:var(--sans);font-size:11px;color:var(--fg-3);font-style:normal">/session</i></b></div></div>
-      <div class="co"><div class="gem"><b>LM</b></div><div class="nm">Leo Martins</div><div class="ro">Trainer · Powerlifting</div><div class="sm">Powerlifting &amp; strength · Lisbon · in person</div><div class="rt"><span>8 yrs</span><b>$105<i style="font-family:var(--sans);font-size:11px;color:var(--fg-3);font-style:normal">/session</i></b></div></div>
-      <div class="co"><div class="gem nu"><b>RL</b></div><div class="nm">Rae Lindqvist</div><div class="ro nu">Nutritionist · RD</div><div class="sm">Sports performance &amp; hydration · Stockholm · remote</div><div class="rt"><span>11 yrs</span><b>$140<i style="font-family:var(--sans);font-size:11px;color:var(--fg-3);font-style:normal">/month</i></b></div></div>
-      <div class="co"><div class="gem"><b>DA</b></div><div class="nm">Diego Alvarez</div><div class="ro">Trainer · Endurance</div><div class="sm">Marathon &amp; VO2 · Austin · hybrid</div><div class="rt"><span>7 yrs</span><b>$95<i style="font-family:var(--sans);font-size:11px;color:var(--fg-3);font-style:normal">/session</i></b></div></div>
+      <div class="co"><div class="gem"><b>MO</b></div><div class="nm">Maya Okafor</div><div class="ro">Trainer · Strength</div><div class="sm">Strength &amp; hypertrophy · Brooklyn · in person</div><div class="rt"><span>9 yrs</span><b>$120<i>/session</i></b></div></div>
+      <div class="co"><div class="gem"><b>LM</b></div><div class="nm">Leo Martins</div><div class="ro">Trainer · Powerlifting</div><div class="sm">Powerlifting &amp; strength · Lisbon · in person</div><div class="rt"><span>8 yrs</span><b>$105<i>/session</i></b></div></div>
+      <div class="co"><div class="gem nu"><b>RL</b></div><div class="nm">Rae Lindqvist</div><div class="ro nu">Nutritionist · RD</div><div class="sm">Sports performance &amp; hydration · Stockholm · remote</div><div class="rt"><span>11 yrs</span><b>$140<i>/month</i></b></div></div>
+      <div class="co"><div class="gem"><b>DA</b></div><div class="nm">Diego Alvarez</div><div class="ro">Trainer · Endurance</div><div class="sm">Marathon &amp; VO2 · Austin · hybrid</div><div class="rt"><span>7 yrs</span><b>$95<i>/session</i></b></div></div>
+      <div class="co"><div class="gem"><b>NP</b></div><div class="nm">Nina Petrova</div><div class="ro">Trainer · Mobility</div><div class="sm">Mobility &amp; return-to-lift · Berlin · remote</div><div class="rt"><span>6 yrs</span><b>$85<i>/session</i></b></div></div>
+      <div class="co"><div class="gem nu"><b>SH</b></div><div class="nm">Samir Haddad</div><div class="ro nu">Nutritionist · RD</div><div class="sm">Body composition &amp; habits · Toronto · remote</div><div class="rt"><span>9 yrs</span><b>$120<i>/month</i></b></div></div>
+      <div class="co"><div class="gem"><b>GM</b></div><div class="nm">Grace Mwangi</div><div class="ro">Trainer · Conditioning</div><div class="sm">Conditioning &amp; field sport · Nairobi · hybrid</div><div class="rt"><span>5 yrs</span><b>$70<i>/session</i></b></div></div>
+      <div class="co"><div class="gem nu"><b>YT</b></div><div class="nm">Yuki Tanaka</div><div class="ro nu">Nutritionist · MS</div><div class="sm">Endurance fuelling &amp; recovery · Osaka · remote</div><div class="rt"><span>12 yrs</span><b>$115<i>/month</i></b></div></div>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:22px">
       <span class="exlabel">Example profiles until real ones render</span>
@@ -604,13 +665,18 @@
           <div class="jn"><div class="n">05</div><h4>Belong</h4><p>Your wins hit the wall, your coach and crew cheer them on. You're part of a community.</p></div>
         </div>
       </div>
-      <div class="jph">
+      <!-- ⚠ SEEDED ON STAGE 1, WHICH IS THE STATE REDUCED-MOTION AND NO-JS BOTH KEEP.
+           The rail advances Join -> Belong on scroll and the phone follows it, but
+           the script that does that returns early under `prefers-reduced-motion` and
+           never runs at all without JavaScript — in both cases the markup below IS
+           the finished render, so it has to be a real stage rather than a blank
+           frame. Stage 1 is Join and this is the living profile it describes. -->
+      <div class="jph" id="jph">
         <div class="appph">
           <span class="isl"></span>
-          <img src="/newdesign/home-habits-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The habit ledger: three banked today over a seven-day grid, the streak building" style="--y:0%">
-          <span class="hl" style="top:38%;height:23%"></span>
+          <img id="jph-img" src="/newdesign/home-profile-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A member's living profile: their tier, their streak, and the climb drawn across the terrain" style="--y:0%">
         </div>
-        <div class="phcap"><b>The habit ledger</b>Small things, daily — the part of the score you can bank before breakfast.</div>
+        <div class="phcap"><b id="jph-t">Your living profile</b><span id="jph-c">The tier, the streak and the climb — drawn from day one on the terrain that is yours.</span></div>
       </div>
     </div>
   </div>
@@ -640,7 +706,7 @@
       </div>
       <div class="air">
         <div class="hd">
-          <span class="wm"><svg aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="#eef3f0"/></svg>Shape Radio</span>
+          <span class="wm"><span>Shape</span><svg aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="rgba(238,243,240,.92)"/></svg><span class="r">Radio</span></span>
           <span class="oa"><i></i>On air</span>
         </div>
         <div class="trk">One channel, tuned to your session.</div>
@@ -668,7 +734,6 @@
         <div class="appph">
           <span class="isl"></span>
           <img src="/newdesign/home-score-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Shape Score page: the current standing, the tier, and the ladder from Raw to Legend" style="--y:0%">
-          <span class="hl" style="top:31%;height:27%"></span>
         </div>
         <div class="phcap"><b>The Shape Score</b>One number over everything you log, with the ladder it climbs.<span class="lbl-row"><span class="exlabel">Example member</span></span></div>
       </div>
@@ -687,6 +752,7 @@
         <a href="/newdesign/Marketplace.html">Marketplace</a>
         <a href="/newdesign/GetApp.html">The app</a>
         <a href="/newdesign/Score.html">Shape Score</a>
+        <a href="/newdesign/Store.html">Shape Store</a>
         <a href="/newdesign/Radio.html">Radio</a>
       </div>
       <div><h5>For coaches</h5>
@@ -748,6 +814,21 @@
      FRONT ridge and weakest on the far one, so the range has a real summit
      where the climb ends and still recedes with depth. */
   var PEAK=[.09,.15,.24,.36];
+  /* ⚠ WHERE THE RANGE PEAKS — ONE NUMBER, because the ridge envelope and the
+     summit search band have to agree or the route ends somewhere the mountain does
+     not. This is a RENAME, not a retune: 0.70 with a ±0.14/+0.16 band is exactly
+     what shipped, re-expressed so the relationship is visible instead of being
+     three literals that happen to line up.
+     ⚠ I FIRST MOVED IT TO 0.80 AND NARROWED THE ENVELOPE, ON A MEASUREMENT THAT WAS
+     WRONG. The climb REPLAYS on a loop, so a single sample of the drawn line is a
+     frame mid-animation, not the finished climb — I read 74% and concluded the peak
+     would not move. Sampling across a whole cycle and keeping the furthest the
+     summit ever reaches says it was already landing at 78.2%, and all that retuning
+     bought was 0.7 of a percentage point for a changed silhouette. Reverted. The
+     thing that actually answers "cluttered in the bottom left" is the route's START,
+     below. */
+  var SUMMIT_U=0.70;
+
   function ridge(u,L,tt){ var k=[1.15,2.7,6.0], a=[.58,.28,.14], y=0;
     for(var i=0;i<3;i++) y+=noise(u*k[i]*(1+L*.3)+L*11.3+tt*(0.012*(i+1)),L*7+i)*a[i];
     /* ⚠ SPREAD, not amplitude. Three octaves of value noise sum to about 0.5
@@ -755,7 +836,7 @@
        line up and down. Expanding about the midpoint is what gives the fold a
        skyline instead of a ripple; clamped so a peak cannot leave the canvas. */
     y=(y-0.5)*2.15+0.5;
-    var d=(u-0.70)/0.34; y+=PEAK[L]*Math.exp(-d*d);
+    var d=(u-SUMMIT_U)/0.34; y+=PEAK[L]*Math.exp(-d*d);
     return y<0?0:(y>1?1:y); }
 
   /* Each band is lighter than the one behind it, and the FAR band is lighter
@@ -799,8 +880,12 @@
     /* ⚠ On a phone the band has to sit further in: the summit block is ~150px
        wide and centred on sx, so a peak found at 0.86W put half the "SHAPE
        SCORE · EXAMPLE" label off the right edge — measured at 390px, clipped. */
-    var narrow=W<560, bA=narrow?0.42:0.56, bB=narrow?0.70:0.86;
-    var F=LAY.length-1, x0=W*0.06, y0=H*0.86, best=-1, sx=W*(narrow?0.58:0.72), xs;
+    var narrow=W<560, bA=narrow?0.42:SUMMIT_U-0.14, bB=narrow?0.70:SUMMIT_U+0.16;
+    /* ⚠ The route STARTS further in on a wide screen too. At 0.06 it launched from
+       the far-left corner, under the headline and through the CTAs — the "cluttered
+       in the bottom left" half of the same note. On a phone the terrain is its own
+       band under the copy, so nothing is behind it there and it keeps the full span. */
+    var F=LAY.length-1, x0=W*(narrow?0.06:0.20), y0=H*0.86, best=-1, sx=W*(narrow?0.58:SUMMIT_U), xs;
     for(xs=W*bA;xs<=W*bB;xs+=2){ var yy=edgeY(F,xs,par); if(best<0||yy<best){ best=yy; sx=xs; } }
     var sy=best, pts=[], q;
     for(q=0;q<prof.length;q++){ var u=q/(prof.length-1); pts.push([x0+(sx-x0)*u, y0-(y0-sy)*prof[q]]); }
@@ -854,10 +939,18 @@
      written here three times (the reduced-motion branch, the start, and the 62+56
      arithmetic) beside a fourth copy in the CSS, so narrowing the headline meant
      finding all four — and missing one leaves the words animating past the width
-     every other heading uses. A bad or absent value falls back to 105. */
+     every other heading uses.
+     ⚠ THE FALLBACK IS ANYBODY'S OWN DEFAULT, DELIBERATELY NOT A COPY OF --w. It
+     read 105 and was already stale the moment --w moved to 90 — a fifth copy of the
+     number, in the function written to stop there being copies of the number, and
+     invisible to the guard because nothing asserted on it. It is only reachable when
+     --w is missing or unparseable, in which case the CSS `var(--hw, var(--w))` has
+     nothing either, so the honest value is the width the typeface is drawn at rather
+     than whatever the design happened to be. It can never go stale again because it
+     is not tracking anything. */
   function headWidth(){
     var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--w'));
-    return (isFinite(v) && v > 0) ? v : 105;
+    return (isFinite(v) && v > 0) ? v : 100;
   }
   function reveal(){
     var ws=[].slice.call(document.querySelectorAll('.hero h1 .w')); if(!ws.length) return;
@@ -947,8 +1040,50 @@
   if(!track||!nodes.length) return;
 
   var n=nodes.length, curIdx=-1;
+
+  /* The phone follows the rail. One entry per stage, in rail order; entry 0 is
+     also what the MARKUP ships, so the reduced-motion and no-JS renders (which
+     never reach this code) are already showing stage 1 rather than a blank frame. */
+  var PH=[
+    ['/newdesign/home-profile-v1.jpg','Your living profile',
+     'The tier, the streak and the climb \u2014 drawn from day one on the terrain that is yours.',
+     "A member's living profile: their tier, their streak, and the climb drawn across the terrain"],
+    ['/newdesign/home-match-v1.jpg','Find a coach',
+     'Vetted trainers and RDs, browsed and messaged from inside the app before you commit.',
+     'The Eat screen carrying the find-a-nutritionist row: vetted RDs, one tap from the menu'],
+    ['/newdesign/home-session-v1.jpg','The live session',
+     'The plan lands written. You log the set and the app keeps the count.',
+     'The live session player: back squat, five sets of three, the first set ticked'],
+    ['/newdesign/home-score-v1.jpg','The Shape Score',
+     'One number over everything you log, with the ladder it climbs.',
+     'The Shape Score page: the current standing, the tier, and the ladder from Raw to Legend'],
+    ['/newdesign/home-feed-v1.jpg','The Wall',
+     'Your records land where your coach and your crew can see them.',
+     "The Wall in Chat: a deadlift PR with the record stamped above the session's own stats"]
+  ];
+  var phImg=document.getElementById('jph-img'), phT=document.getElementById('jph-t'),
+      phC=document.getElementById('jph-c'), phIdx=0;
+  /* Decoded up front so a stage change never shows an empty frame while the next
+     capture downloads — they are 43-62 KB each and the rail is several screens
+     below the fold by the time any of this runs. */
+  for(var pp=1;pp<PH.length;pp++){ var pi=new Image(); pi.src=PH[pp][0]; }
+
+  function setPhone(idx){
+    if(idx===phIdx||!PH[idx]||!phImg) return;
+    var mine=phIdx=idx, d=PH[idx], im=new Image();
+    /* ⚠ SWAP ON DECODE, AND ONLY IF THIS STAGE IS STILL THE CURRENT ONE. Setting
+       .src directly blanks the frame until the new file paints; a setTimeout fade
+       races the scroll, which can cross three stages in one flick and would land
+       whichever callback fired last. The guard makes a superseded swap a no-op. */
+    im.onload=function(){ if(phIdx!==mine) return;
+      phImg.src=d[0]; phImg.alt=d[3];
+      if(phT)phT.textContent=d[1]; if(phC)phC.textContent=d[2]; };
+    im.src=d[0];
+  }
+
   function setStage(idx){ if(idx===curIdx) return; curIdx=idx;
-    for(var i=0;i<n;i++) nodes[i].classList.toggle('on',i===idx); }
+    for(var i=0;i<n;i++) nodes[i].classList.toggle('on',i===idx);
+    setPhone(idx); }
 
   var still=false; try{ still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
   if(still) return;                        /* every stage renders open via CSS */

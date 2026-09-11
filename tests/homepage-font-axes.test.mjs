@@ -299,7 +299,18 @@ test('the display width axis is set in one place and the reveal reads it back', 
   const [lo, hi] = byFamily.get('Anybody').get('wdth');
   const from = Number(/var to=headWidth\(\), from=(\d+)/.exec(SRC)?.[1]);
   assert.ok(Number.isFinite(from), 'could not read the reveal start width');
-  for (const [label, v] of [['start', from], ['target', target]]) {
+
+  // ⚠ AND headWidth()'s OWN FALLBACK IS THE THIRD VALUE, because nothing used to
+  // check it and it went stale in exactly the way this test exists to prevent: it
+  // still read 105 after --w moved to 90, a copy of the number inside the function
+  // written to stop there being copies of the number. It is only reachable when --w
+  // is missing, so it is NOT asserted to equal --w — it is deliberately independent
+  // — but it still has to be a width the font was actually asked for, or the broken
+  // state renders through an axis value Google Fonts never delivered.
+  const fallback = Number(/return \(isFinite\(v\) && v > 0\) \? v : (\d+(?:\.\d+)?);/.exec(SRC)?.[1]);
+  assert.ok(Number.isFinite(fallback), "could not read headWidth()'s fallback width");
+
+  for (const [label, v] of [['start', from], ['target', target], ['fallback', fallback]]) {
     assert.ok(v >= lo && v <= hi, `the reveal ${label} width ${v} is outside Anybody's requested ${lo}..${hi}`);
   }
 });

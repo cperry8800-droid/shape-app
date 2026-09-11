@@ -9,7 +9,7 @@
 // design — they pin claims.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 const SRC = readFileSync(new URL('../public/newdesign/index.html', import.meta.url), 'utf8');
 
@@ -345,4 +345,97 @@ test('the marketplace route reports an unreadable count as null, never 0', async
   assert.match(route, /nutritionists\.error\s*\?\s*null/, 'a failed nutritionists query is not reported as unreadable');
   // a partial sum is a smaller claim wearing the same name
   assert.match(route, /total:\s*bothKnown\s*\?/, 'total is summed even when one half is unknown');
+});
+
+/** A ring's position expressed in the CAPTURE's own pixels — the only frame in
+ *  which it is stable. `--y` offsets the image by a % of the IMAGE's height while
+ *  a ring's top/height are a % of the WINDOW, so the two only agree at one aspect
+ *  ratio. Returns null for a shot with no ring. */
+function ringInImagePx(shotHtml, windowRatio) {
+  const IMG_W = 600, IMG_H = 1387;              // every capture on this page
+  const y = /style="--y:([\d.]+)%"/.exec(shotHtml);
+  const hl = /class="hl" style="top:([\d.]+)%;height:([\d.]+)%"/.exec(shotHtml);
+  if (!y) return null;
+  const visibleTop = (Number(y[1]) / 100) * IMG_H;
+  const visibleH = windowRatio * IMG_W;          // window height, in image px
+  if (!hl) return { visibleTop, visibleH, ring: null };
+  return {
+    visibleTop, visibleH,
+    ring: {
+      top: visibleTop + (Number(hl[1]) / 100) * visibleH,
+      height: (Number(hl[2]) / 100) * visibleH,
+    },
+  };
+}
+
+test('a moments ring points at the same pixels of the capture, whatever the window shape', () => {
+  // ⚠ THE ASPECT RATIO AND THE RINGS ARE ONE NUMBER IN TWO PLACES, and nothing
+  // else can report them disagreeing: change `aspect-ratio` alone and every ring
+  // slides off the content it was aimed at while still drawing a perfectly good
+  // teal box over whatever is now underneath it. Both values stay legal CSS, the
+  // page renders, the suite goes green, and the only symptom is a ring around the
+  // wrong row. So this asserts the one frame that cannot drift: where each ring
+  // sits in the CAPTURE's own 600x1387 pixels.
+  const ar = /\.mo \.shot\{[^}]*aspect-ratio:(\d+)\/(\d+)/.exec(SRC);
+  assert.ok(ar, 'could not read the moments shot aspect-ratio');
+  const ratio = Number(ar[2]) / Number(ar[1]);   // window height as a multiple of its width
+
+  const shots = [...SRC.matchAll(/<div class="shot">[\s\S]*?<\/div>/g)].map((m) => m[0]);
+  assert.equal(shots.length, 4, `expected the four moments shots, found ${shots.length}`);
+
+  // Measured on the shipped page when the window went from 1/1 to 3/4. A ring
+  // that moves in this frame is a ring pointing somewhere new.
+  const EXPECTED = [
+    { file: 'home-eat-v1.jpg', top: 524.5, height: 144 },
+    { file: 'home-grocery-v1.jpg', top: 651.8, height: 180 },
+    { file: 'home-session-v1.jpg', top: 310.05, height: 114 },
+    { file: 'home-feed-v1.jpg', top: 665.3, height: 174 },
+  ];
+
+  for (const [i, shot] of shots.entries()) {
+    const want = EXPECTED[i];
+    assert.ok(shot.includes(want.file), `moments shot ${i + 1} should be ${want.file}`);
+    const got = ringInImagePx(shot, ratio);
+    assert.ok(got && got.ring, `moments shot ${i + 1} lost its ring`);
+    assert.ok(Math.abs(got.ring.top - want.top) < 1.5,
+      `${want.file}: the ring moved to image px ${got.ring.top.toFixed(1)}, was ${want.top}`);
+    assert.ok(Math.abs(got.ring.height - want.height) < 1.5,
+      `${want.file}: the ring is now ${got.ring.height.toFixed(1)} image px tall, was ${want.height}`);
+
+    // And the window may never run off the bottom of the capture, or the card
+    // shows a strip of card background pretending to be part of the screen.
+    assert.ok(got.visibleTop + got.visibleH <= 1387,
+      `${want.file}: the window reaches image px ${(got.visibleTop + got.visibleH).toFixed(0)} of 1387`);
+  }
+});
+
+test('the journey phone has one capture per stage, and ships showing the first', () => {
+  // The rail advances five stages and the phone follows it. Under reduced motion
+  // and with no JavaScript the script never runs, so whatever the MARKUP holds is
+  // the finished render — it has to be a real stage, not a blank frame.
+  const stages = [...SRC.matchAll(/<div class="jn(?: on)?"><div class="n">/g)].length;
+  assert.equal(stages, 5, `expected five journey stages, found ${stages}`);
+
+  const table = /var PH=\[([\s\S]*?)\n  \];/.exec(SRC);
+  assert.ok(table, 'could not find the journey phone table');
+  const files = [...table[1].matchAll(/'(\/newdesign\/[\w.-]+\.jpg)'/g)].map((m) => m[1]);
+  assert.equal(files.length, stages,
+    `the phone has ${files.length} captures for ${stages} stages — a stage would keep the previous screen`);
+  assert.equal(new Set(files).size, files.length, 'two stages share a capture');
+
+  for (const f of files) {
+    assert.ok(existsSync(new URL('../public' + f, import.meta.url)), `${f} is referenced but not in the repo`);
+  }
+
+  // Entry 0 and the seeded markup must be the same screen, or the first thing a
+  // reduced-motion visitor sees is a stage the rail is not on.
+  const seeded = /<img id="jph-img" src="([^"]+)"/.exec(SRC);
+  assert.ok(seeded, 'the journey phone image lost its id');
+  assert.equal(seeded[1], files[0],
+    `the markup ships ${seeded[1]} but stage 1 is ${files[0]}`);
+
+  // A superseded swap must be a no-op — the rail can cross three stages in one
+  // flick of the wheel and the last callback to fire would otherwise win.
+  assert.match(SRC, /im\.onload=function\(\)\{ if\(phIdx!==mine\) return;/,
+    'the phone swap must drop a result whose stage is no longer current');
 });
