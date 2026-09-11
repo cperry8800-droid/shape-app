@@ -656,6 +656,71 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The RPE a member taps in the live logger finally reaches their own set rows
+
+- **The second of the two defects the session-details review found (§4, defect 2), fixed.** Owner
+  started the task from the review's own suggestion. `setLogs[].rpe` has been stamped on every
+  published session since the live logger shipped (`shapeBackend.js:3193`) and **never reached the
+  page**: the dial drew on every demo card and on no real set. Mobile only; **no migration, no route,
+  no i18n key** — the token is a number and a three-letter word the whole app already spells `RPE`.
+- ⚠ **THE NOTE COLUMN OF A BREAKDOWN ROW IS READ TWICE, AND THAT IS THE WHOLE DEFECT.** `BSSdBars`
+  lifts `RPE <n>` out of `row[2]` with its own regex to draw the dial and renders **whatever is left**
+  as the sub-label — which is exactly how the demo rows have always spelled it (`'RPE 9 · PR'`).
+  `bsBuildBreakdown` wrote `` `${setDurationSeconds}s` `` into that column **and nothing else**, so
+  the rating was not mislaid somewhere downstream; it was never put in the one place the renderer
+  looks. *A column that is parsed is a contract, and only one of its two authors knew.*
+- ⚠ **AND THE TOKEN HAS TO LEAD, WHICH IS A PROPERTY OF THE RENDERER RATHER THAN A STYLE CALL.** The
+  sub-label is built by cutting the token out and stripping **only a LEADING or TRAILING** separator,
+  so a token in the middle renders `42s ·  · rest 2:30` — two separators and a hole. Ordering is the
+  fix, so the **order** is what the guard asserts; the mutation that moves it is killed.
+- **Rest before the set rides along, and it was measured rather than assumed to fit.** The coach's own
+  review screen has shown `SET 42s · REST 90s` per set all along (`iosAppBroadsheetPros.jsx:543`); the
+  member's page showed neither. Replicating `BSSdBars`' exact styles in Chromium (MONO 6.5px / 800 /
+  0.04em / uppercase in a **76px** column), the longest realistic pair — `2:05 · 3:00 rest` — measures
+  **66.8px of 76**, so it does not need the ellipsis. **`SET` was dropped from the prefix**: the label
+  column one line up already says *Set 3*, and keeping it would have put the string at 18 characters,
+  hard against the budget.
+- ⚠ **THE DURATION IS SPELLED THE COACH'S WAY NOW, BECAUSE ONE SET MUST NOT PRINT TWO DURATIONS.** The
+  old expression emitted a bare `125s` where `formatReviewSeconds` — the coach's formatter for **the
+  same set** — emits `2:05`. The guard **lifts both functions and drives them against each other**
+  across 12 values rather than pinning either spelling, so a change to either side fails.
+- ⚠ **`> 0` IS THE GUARD AND `Number.isFinite` IS NOT** — the class this log has now post-mortemed on
+  the Wall's helpers, the demo payout history's `joinedAt: 0` and the booking sheet's `start_minute`.
+  `Number(null)`, `Number('')` and `Number([])` are **all 0 and all finite**, so a finiteness check
+  alone turns an unrated set into a confident **RPE 0 dial** and an absent duration into `0s`. It is
+  also the right answer for a *real* zero: the RPE scale starts at 1, and a 0-second rest before set 1
+  is the absence of a rest rather than a measurement of one. Driven over eight falsy and unparseable
+  values, not reasoned about.
+- ⚠ **AND THE FIRST CUT SHIPPED A DEAD GUARD THAT THE MUTATION ROUND EXPOSED.** Both helpers opened
+  with `if (v == null || v === '') return '';` — which reads as *the* null guard and **can never
+  fire**, because `Number(null)` and `Number('')` are both 0 and the `<= 0` line below already refuses
+  them. The mutation deleting it **survived**, correctly. Deleted rather than tested around, with the
+  reasoning left at the site so the next reader does not re-add it. *Dead code that reads as a guard is
+  worse than no guard* — this file's own sentence, earned again in the fix written after it.
+- **The suite drives the shipped code at both ends and never pins a spelling.** It brace-matches the
+  real `bsBuildBreakdown` and both helpers out of the source, lifts **the renderer's own two reads** of
+  the note column (the dial's parse and the sub-label's strip) rather than restating them, and then
+  **mounts the real `BSSdBars`** on the real builder's real output — the only question that finally
+  matters: *is there a dial on the set the member rated?* Measured: `aria-label` **`RPE 8`** on the
+  rated set, **none** on the unrated one beside it, sub-label `42s · rest 2:30`, and **no `RPE` in the
+  rendered text**, because the token was consumed by the dial rather than printed.
+- **Verified:** `npm test` **3267/3267** (14 new) · `tsc --noEmit` 0 · JSX parse · mobile build 0 with
+  the shipped expression confirmed **in the emitted bundle** — ``[qc(e.rpe),o,s&&`rest ${s}`]`` — behind
+  a positive control · **16/16 mutations killed across two rounds**, each **proven to land**, sanity
+  green at both ends, the tree restored in a `finally` · and the one survivor of the first round proven
+  to be the dead guard above rather than a gap.
+  ⚠ **A grep for `padStart(2,'0')` in the bundle read ZERO and that was the instrument** — the minifier
+  rewrites every quote to a backtick, so the check looked like a miss on code that is plainly there.
+  The trap this file already records, walked into again; the bundle check now reads the minified form.
+- ⚠ **PRESCRIBED-VS-LIFTED IS DELIBERATELY NOT IN THIS CHANGE.** `targetLoad` / `targetReps` are on the
+  same row and the value column is a single `load × reps` string — showing the plan beside it needs a
+  **column**, which is the C build's set-by-set table (review §3, step 3), not a fourth item crammed
+  into an 18-character sub-label. Registered there rather than half-done here.
+- ⚠ **`public/m` IS NOT REPUBLISHED AND THAT IS CORRECT, NOT AN OMISSION.** It is gitignored
+  (`.gitignore:26`) with **zero tracked files**, so the conventions bullet at the head of this file
+  telling you to `cp -r mobile-app/dist public/m` produces nothing committable — the correction the
+  2026-09-10 recipe-import entry already recorded.
+
 ### 2026-09-11 — Session details, three ways: a concept board, and two defects in the data path behind the page
 
 - **Records only — a design review with previews, not a build.** Owner: *"thoughts on redesigning the

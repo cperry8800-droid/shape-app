@@ -13447,6 +13447,34 @@ function bsMapActivityPosts(data) {
 // data: the in-app live session's set logs (load × reps per set) or a provider's
 // splits/laps (Strava etc.). Returns null when the post carries neither, so the
 // section is honestly absent rather than faked.
+// A set's seconds in the COACH REVIEW'S OWN SPELLING (`42s` under a minute, `2:05`
+// over it — `formatReviewSeconds`, iosAppBroadsheetPros.jsx), so the member's Session
+// details and the coach's review of the same set cannot print one duration two ways.
+// ⚠ `> 0` IS THE GUARD; `Number.isFinite` IS NOT. `Number(null)`, `Number('')` and
+// `Number([])` are all 0 and all FINITE, so a finiteness check alone turns an absent
+// duration into a confident `0s`. It is also the right answer for a genuine zero: a
+// 0-second rest before set 1 is the absence of a rest, not a measurement of one.
+// (An `if (v == null)` early return here would read as the guard and never fire —
+// `Number(null)` is 0, which this line already refuses.)
+function bsSetSeconds(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const secs = Math.round(n);
+  const min = Math.floor(secs / 60);
+  return min ? `${min}:${String(secs % 60).padStart(2, '0')}` : `${secs}s`;
+}
+// `RPE <n>` when the member actually rated the set, '' when they did not. ⚠ Same trap
+// as above and worse here: the RPE scale starts at 1, so a 0 is never a rating — an
+// unrated set must yield NO TOKEN AT ALL, or `BSSdBars` draws a dial for a number
+// nobody entered, which is the fabrication the honest-data rule exists to stop. One
+// decimal, because the logger accepts halves (8.5) and floating point should not print
+// nine. ⚠ The token goes FIRST in the note: the renderer cuts it out and strips only a
+// LEADING or TRAILING separator, so a token in the middle leaves `42s ·  · rest 2:30`.
+function bsSetRpeToken(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return `RPE ${Math.round(n * 10) / 10}`;
+}
 function bsBuildBreakdown(p) {
   const m = (p && p.rawMetrics) || {};
   const sl = Array.isArray(m.setLogs) ? m.setLogs.filter((s) => s && s.completed !== false) : [];
@@ -13458,7 +13486,17 @@ function bsBuildBreakdown(p) {
       const reps = s.actualReps || s.targetReps || '';
       const val = load && reps ? `${load} × ${reps}` : (load || reps || '—');
       const label = multi ? `${s.moveName} · Set ${s.setNumber}` : `Set ${s.setNumber}`;
-      const note = s.setDurationSeconds ? `${s.setDurationSeconds}s` : '';
+      // ⚠ THE NOTE COLUMN IS READ TWICE, AND THAT IS WHY THE RPE HAS TO RIDE IN IT.
+      // `BSSdBars` lifts `RPE <n>` out of this string for the dial and renders whatever
+      // is left as the sub-label — which is how the demo rows have always spelled it
+      // ('RPE 9 · PR'). This built `${setDurationSeconds}s` and nothing else, so a set
+      // the member had rated in the live logger reached the page with its rating
+      // dropped: the dial drew on every demo card and on no real set.
+      // Duration and rest keep their places beside it; measured in the browser, the
+      // longest real triple is 16 of the ~18 characters the 76px sub-label holds.
+      const dur = bsSetSeconds(s.setDurationSeconds);
+      const rest = bsSetSeconds(s.restBeforeSeconds);
+      const note = [bsSetRpeToken(s.rpe), dur, rest && `rest ${rest}`].filter(Boolean).join(' · ');
       return [label, String(val), String(note)];
     });
     return { label: multi ? 'Working sets' : `${moves[0] || 'Working'} · sets`, rows };
