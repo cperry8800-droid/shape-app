@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Триатлон",
   "build.exp.beginner": "Новичок",
   "build.exp.intermediate": "Средний",
-  "build.exp.advanced": "Продвинутый"
+  "build.exp.advanced": "Продвинутый",
+  "board.colSet": "Подход",
+  "board.colPlan": "План",
+  "board.colLifted": "Поднято",
+  "board.colRpe": "RPE",
+  "board.colRest": "Отдых",
+  "board.colHr": "Пульс",
+  "board.setBySet": "Подход за подходом",
+  "board.splitBySplit": "Отрезок за отрезком",
+  "board.allSplits": "Все отрезки ({n}) ›",
+  "board.needleBand": "Диапазон {label} · {lo} медленнейший → {hi} быстрейший"
 }

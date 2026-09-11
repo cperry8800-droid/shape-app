@@ -1,0 +1,467 @@
+// The Instrument Board — the Session details page the owner picked on 2026-09-11
+// ("i like the instrument board"), review §3.
+//
+// The page's promise is GLANCE FIRST, and every rule below is one rule wearing a
+// different hat: A TILE, A COLUMN AND A SEGMENT ARE CLAIMS, so none of them may
+// exist without a value behind it. A grid padded to six, a PLAN heading over five
+// empty cells and a dial drawn for a set nobody rated are the same defect.
+//
+// The pure rules are DRIVEN and the components are MOUNTED, so an equivalent
+// rewrite of either passes and a real regression fails. Nothing here pins a
+// spelling: this file has paid for that eight times in one wave.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { loadBroadsheet, drive, THEME } from './helpers/broadsheet-mount.mjs';
+import { bsIbTiles, bsIbTileKind, bsIbSetRow, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments } from '../mobile-app/src/services/instrumentBoard.mjs';
+
+const RUN_STATS = [['Avg pace', '7:58 /mi'], ['Duration', '25:31'], ['Avg HR', '161 bpm'],
+  ['Calories', '420'], ['Max HR', '178 bpm'], ['Elev gain', '120 ft'], ['Stride', '1.2 m']];
+
+test('the suite is running the shipped rules, not a restatement', () => {
+  for (const fn of [bsIbTiles, bsIbTileKind, bsIbSetRow, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments]) {
+    assert.equal(typeof fn, 'function');
+  }
+});
+
+// ── the six tiles ───────────────────────────────────────────────────────────
+
+test('six tiles at most, and everything past them keeps its dot-leader row', () => {
+  const { tiles, rest } = bsIbTiles(RUN_STATS);
+  assert.equal(tiles.length, 6);
+  assert.equal(rest.length, 1);
+  // Nothing is dropped on the way: the page shows every scalar it was handed.
+  assert.equal(tiles.length + rest.length, RUN_STATS.length);
+});
+
+test('a session with four readable stats gets four tiles — the grid is never padded', () => {
+  const { tiles, rest } = bsIbTiles(RUN_STATS.slice(0, 4));
+  assert.equal(tiles.length, 4);
+  assert.equal(rest.length, 0);
+  assert.equal(bsIbTiles([]).tiles.length, 0);
+});
+
+test('a stat with nothing in it is not an instrument reading nothing', () => {
+  // ⚠ An em-dash is this app's own way of writing "we could not read it", so a
+  // tile carrying one is an instrument drawn around an absence.
+  for (const blank of [null, undefined, '', '   ', '—', '-']) {
+    const { tiles } = bsIbTiles([['Avg HR', blank], ['Calories', '420']]);
+    assert.deepEqual(tiles.map((x) => x[0]), ['Calories'], `blank ${JSON.stringify(blank)} became a tile`);
+  }
+});
+
+test('the ranking is the ledger’s, so one session cannot have two ideas about which numbers lead', () => {
+  // pace / time / HR lead on a run, whatever order the provider listed them in.
+  const shuffled = [['Calories', '420'], ['Avg HR', '161 bpm'], ['Avg pace', '7:58 /mi'], ['Duration', '25:31']];
+  const { tiles } = bsIbTiles(shuffled, 3);
+  // ⚠ NO `.sort()` HERE. Sorting the result before comparing permits ANY order,
+  // so the assertion could not fail on the one thing it names — the ranking. The
+  // order below is `bsSdRankStats`' own, derived by running it rather than assumed.
+  assert.deepEqual(tiles.map((x) => x[0]), ['Avg HR', 'Avg pace', 'Duration']);
+});
+
+test('the needle outranks the ghost on a pace tile, and a plain stat stays plain', () => {
+  assert.equal(bsIbTileKind('Avg pace', { hasNeedle: true, hasGhost: true }), 'needle');
+  assert.equal(bsIbTileKind('Avg pace', { hasNeedle: false, hasGhost: true }), 'ghost');
+  assert.equal(bsIbTileKind('Avg pace', {}), 'plain');
+  assert.equal(bsIbTileKind('Avg HR', { hasGhost: true }), 'ghost');
+  // A series existing does not entitle every tile to draw one.
+  assert.equal(bsIbTileKind('Calories', { hasNeedle: true, hasGhost: true }), 'plain');
+});
+
+// ── the set-by-set table ────────────────────────────────────────────────────
+
+test('a live row reads its columns off the row; a demo row is parsed from its note', () => {
+  // ⚠ THE NOTE DELIBERATELY DISAGREES WITH THE METADATA. With both carrying
+  // RPE 7 and rest 2:30, an implementation that parsed the note FIRST passed this
+  // test unchanged — the fixture could not tell the two readers apart. The
+  // structured row is the authority, so the note here says something else.
+  const live = bsIbSetRow(['Set 1', '225 lb × 3', 'RPE 4 · 20s · rest 0:30', { rpe: 7, plan: '225 × 3', rest: '2:30', dur: '42s' }]);
+  assert.equal(live.plan, '225 × 3');
+  assert.equal(live.rpe, 7, 'the note\u2019s RPE beat the row\u2019s own');
+  assert.equal(live.rest, '2:30', 'the note\u2019s rest beat the row\u2019s own');
+  const demo = bsIbSetRow(['Set 3', '245 lb × 3', 'RPE 9 · PR']);
+  assert.equal(demo.rpe, 9);
+  assert.equal(demo.note, 'PR');
+  assert.equal(demo.plan, null, 'a demo row invented a prescription');
+});
+
+test('what the REST column takes, the note column gives up', () => {
+  // Otherwise one row prints `rest 2:30` twice and looks like two measurements.
+  const r = bsIbSetRow(['Set 1', '225 lb × 3', 'RPE 7 · 42s · rest 2:30']);
+  assert.equal(r.rest, '2:30');
+  assert.equal(r.note, '42s');
+  assert.doesNotMatch(String(r.note), /rest/i);
+});
+
+test('an unrated set gets no dial — 0 is not a rating and null is not a 0', () => {
+  for (const rpe of [null, undefined, '', 0, '0', 'n/a', NaN, false]) {
+    assert.equal(bsIbSetRow(['Set 1', '225 lb', '', { rpe }]).rpe, null, `rpe ${JSON.stringify(rpe)} drew a dial`);
+  }
+  assert.equal(bsIbSetRow(['Set 1', '225 lb', '', { rpe: 8.5 }]).rpe, 8.5);
+});
+
+test('an optional column exists only when a row has something to put in it', () => {
+  const bare = bsIbSetTable([['Set 1', '225 lb × 3', ''], ['Set 2', '245 lb × 3', '']]);
+  assert.deepEqual(bare.cols, { plan: false, rpe: false, rest: false, note: false });
+  const full = bsIbSetTable([['Set 1', '225 lb × 3', 'RPE 7', { plan: '225 × 3', rpe: 7, rest: '2:30' }]]);
+  assert.deepEqual(full.cols, { plan: true, rpe: true, rest: true, note: false });
+  // One row among many is enough for the column to exist — the others render empty.
+  const some = bsIbSetTable([['Set 1', '225 lb', ''], ['Set 2', '245 lb', '', { plan: '245 × 1' }]]);
+  assert.equal(some.cols.plan, true);
+});
+
+test('a lone set is not better than anything, and every bar is visible', () => {
+  assert.equal(bsIbSetTable([['Set 1', '225 lb × 3', '']]).bestIdx, -1);
+  const t = bsIbSetTable([['Set 1', '5 lb', ''], ['Set 2', '500 lb', '']]);
+  assert.equal(t.bestIdx, 1);
+  // The floor keeps a light set a bar rather than a sliver that reads as missing.
+  assert.ok(t.widths.every((w) => w >= 24 && w <= 100), JSON.stringify(t.widths));
+});
+
+test('a malformed row never throws — there is no error boundary in the app shell', () => {
+  for (const rows of [null, undefined, [null], [[]], [[null, null, null, null]], [['a']]]) {
+    assert.doesNotThrow(() => bsIbSetTable(rows), JSON.stringify(rows));
+  }
+  assert.doesNotThrow(() => bsIbTiles(null));
+  assert.doesNotThrow(() => bsIbZoneSegments(null));
+  assert.doesNotThrow(() => bsIbSplitTable(null));
+});
+
+// ── the zone bar and the split table ────────────────────────────────────────
+
+test('a zone with no time keeps a sliver of the bar and still reports zero', () => {
+  const segs = bsIbZoneSegments([['Z1', 32], ['Z2', 0], ['Z3', null]]);
+  assert.deepEqual(segs.map((s) => s.pct), [32, 0, 0]);
+  // Five segments in one order is what makes two sessions comparable; a collapsed
+  // zone would make the bar a different chart each time.
+  assert.ok(segs.every((s) => s.flex > 0), 'a zone collapsed to nothing');
+  assert.ok(segs[1].flex < 1, 'the sliver is big enough to be misread as time spent');
+});
+
+test('the split table truncates and says how many there really are', () => {
+  const splits = Array.from({ length: 12 }, (_, i) => ({ label: `Mile ${i + 1}`, hr: 150, cadence: null, elevDelta: null }));
+  const st = bsIbSplitTable(splits);
+  assert.equal(st.shown.length, 6);
+  assert.equal(st.total, 12);
+  assert.equal(st.truncated, true, 'a truncated table that does not say so is a page claiming to be the record');
+  assert.deepEqual(st.cols, { hr: true, cadence: false, elev: false });
+  assert.equal(bsIbSplitTable(splits.slice(0, 4)).truncated, false);
+});
+
+// ── the row on its way from the card to the page ────────────────────────────
+//
+// ⚠ THE DETAIL PAGE IS HANDED ITS ROWS BY THE CARD, THROUGH THE UNIT CONVERTER,
+// AND THE CONVERTER TAKES TEXT. Passing the structured fourth element to `uText`
+// turned it into "[object Object]" — the columns were destroyed in silence and
+// the table fell back to parsing the note, losing the prescription. Found in a
+// browser, not by reading, and the mutation that reinstates it SURVIVED the
+// first round because nothing here drove this seam.
+test('the unit converter carries the structured columns through, and converts the plan', () => {
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  const at = src.indexOf('const uMeta = (m) =>');
+  assert.ok(at > 0, 'uMeta moved');
+  const tail = ': rows);';
+  const end = src.indexOf(tail, at);
+  assert.ok(end > at, 'uStats no longer follows uMeta');
+  const body = src.slice(at, end + tail.length);
+  assert.ok(body.includes('uStats'), 'the lift missed uStats');
+  // A converter that shouts, so a cell that went through it is obvious.
+  const t = { uText: (x) => `«${String(x)}»` };
+  const { uStats } = new Function('t', `${body}\nreturn { uStats };`)(t);
+  const [row] = uStats([['Set 1', '225 lb × 3', 'RPE 7 · rest 2:30', { rpe: 7, plan: '225 lb × 3', rest: '2:30', dur: '42s' }]]);
+  assert.equal(typeof row[3], 'object', 'the meta was stringified');
+  assert.equal(row[3].rpe, 7, 'the rating went through a text converter');
+  assert.equal(row[3].rest, '2:30', 'a duration went through a unit converter');
+  assert.equal(row[3].plan, '«225 lb × 3»', 'the prescription carries a load and was NOT converted');
+  assert.equal(row[1], '«225 lb × 3»', 'the lifted value stopped being converted');
+  assert.equal(row[2], '«RPE 7 · rest 2:30»', 'the note stopped being converted');
+  // A row with no meta is untouched by the object branch.
+  assert.deepEqual(uStats([['Set 1', '225 lb', 'RPE 7']])[0], ['Set 1', '«225 lb»', '«RPE 7»']);
+  // And the parse on the far side still reads what came through.
+  assert.equal(bsIbSetRow(row).rpe, 7);
+  assert.equal(bsIbSetRow(row).plan, '«225 lb × 3»');
+});
+
+// ── the components, mounted ─────────────────────────────────────────────────
+
+const mod = await loadBroadsheet(['BSActivityDetail', 'BSIbTile', 'BSIbTiles', 'BSIbTable', 'BSIbZoneBar', 'bsBuildZones']);
+const svgsOf = (api, tag) => api.nodes().filter((n) => n.type === tag);
+
+test('a tile draws its ghost, its needle, or neither — never both', () => {
+  const base = { label: 'Avg HR', value: '161 bpm', heat: '#34d6c5', t: THEME };
+  const ghost = drive(mod.BSIbTile, { ...base, kind: 'ghost', ghostPath: 'M0 0 L100 100', needle: null });
+  assert.equal(svgsOf(ghost, 'path').length, 1);
+  assert.equal(svgsOf(ghost, 'line').length, 0);
+  const needle = drive(mod.BSIbTile, { ...base, label: 'Avg pace', kind: 'needle', ghostPath: 'M0 0 L100 100', needle: { frac: 0.62, lo: '9:10', hi: '7:02' } });
+  assert.equal(svgsOf(needle, 'path').length, 0, 'a needle tile also drew a ghost');
+  assert.equal(svgsOf(needle, 'line').length, 2, 'the needle band is a baseline and a mark');
+  const plain = drive(mod.BSIbTile, { ...base, kind: 'plain', ghostPath: 'M0 0 L100 100', needle: { frac: 0.5, lo: 'a', hi: 'b' } });
+  assert.equal(svgsOf(plain, 'path').length + svgsOf(plain, 'line').length, 0, 'a plain tile drew an instrument');
+  // The unit is typeset apart from the figure, so it is on the tile either way.
+  assert.match(ghost.text, /bpm/);
+});
+
+test('the needle states its endpoints once, because a tick mark alone claims nothing', () => {
+  const withNeedle = drive(mod.BSIbTiles, {
+    tiles: [['Avg pace', '7:58']], rest: [], heat: '#34d6c5', t: THEME,
+    ghostFor: () => null, paceTrace: [480, 500, 460, 520, 470], isRide: false,
+  });
+  assert.match(withNeedle.text, /slowest/i);
+  assert.match(withNeedle.text, /fastest/i);
+  const without = drive(mod.BSIbTiles, {
+    tiles: [['Calories', '420']], rest: [], heat: '#34d6c5', t: THEME,
+    ghostFor: () => null, paceTrace: null, isRide: false,
+  });
+  assert.doesNotMatch(without.text, /slowest/i, 'a band was described for a tile that draws none');
+});
+
+test('the zone bar draws one segment per zone and labels every one', () => {
+  const api = drive(mod.BSIbZoneBar, { zones: [['Z1', 32], ['Z2', 36], ['Z3', 22], ['Z4', 8], ['Z5', 2]], heat: '#34d6c5', t: THEME });
+  assert.equal(api.nodes().filter((n) => n.type === 'span' && n.props['aria-hidden']).length, 5);
+  for (const z of ['Z1 32%', 'Z2 36%', 'Z3 22%', 'Z4 8%', 'Z5 2%']) assert.ok(api.text.includes(z), z);
+  // No zones is no bar, not an empty one.
+  assert.equal(drive(mod.BSIbZoneBar, { zones: [], heat: '#34d6c5', t: THEME }).nodes().length, 0);
+});
+
+test('the table draws one heading per column, one bar per row, and marks one best', () => {
+  const head = [{ label: 'Set', w: 'auto' }, { label: 'Lifted', w: 'auto', right: true }];
+  const rows = [
+    { cells: [{ text: 'Set 1' }, { text: '225 lb × 3' }], width: 90, best: false },
+    { cells: [{ text: 'Set 2' }, { text: '245 lb × 3' }], width: 100, best: true },
+  ];
+  const api = drive(mod.BSIbTable, { head, rows, heat: '#34d6c5', t: THEME });
+  for (const s of ['Set', 'Lifted', 'Set 1', '225 lb × 3', 'Set 2', '245 lb × 3']) assert.ok(api.text.includes(s), s);
+  const bars = api.nodes().filter((n) => n.props.style && n.props.style.gridColumn === '1 / -1');
+  assert.equal(bars.length, rows.length, 'one bar per row');
+
+  // ⚠ A GRID OF `div`s IS NOT A TABLE UNTIL IT SAYS SO. Without these roles a
+  // screen reader meets a flat run of numbers with no column association, and both
+  // tables are columns of bare figures whose meaning IS their heading. The row
+  // wrappers carry `display: contents` so the ONE grid the full-width bar needs is
+  // untouched — the semantics are free, which is why there was no excuse.
+  const role = (r) => api.nodes().filter((n) => n.props && n.props.role === r);
+  assert.equal(role('table').length, 1, 'the table does not announce itself as one');
+  assert.equal(role('row').length, rows.length + 1, 'a heading row and one row per set');
+  assert.equal(role('columnheader').length, head.length, 'one column heading per column');
+  assert.equal(role('cell').length, rows.length * head.length, 'every data cell is a cell');
+  for (const w of role('row')) assert.equal(w.props.style.display, 'contents', 'a row wrapper broke the grid');
+  // The bar restates its row's number, so it stays out of the row and hidden.
+  for (const b of bars) assert.ok(b.props['aria-hidden'], 'the decorative bar is announced');
+  const heated = api.nodes().filter((n) => n.props.style && n.props.style.background === '#34d6c5');
+  assert.equal(heated.length, 1, 'the heat marks exactly one row');
+});
+
+// ── the page ────────────────────────────────────────────────────────────────
+
+const DETAIL = {
+  key: 'k1', focus: 'stats', tc: '#a07a2e', who: 'Quinn Harper', tierDisplay: 'TEMPO', role: 'Client',
+  roleKind: 'CLIENT', realTier: 'tempo', city: 'Brooklyn', ago: '2h', typeLabel: 'STRENGTH', verb: 'Respect',
+  title: 'Lower push · Block 2', body: 'Bar speed held.', avatarPhoto: null, coSign: null, showRoute: false,
+  heroStat: ['Top set', '245 lb'], prDelta: '+10 lb',
+  detailStats: [['Top set', '245 lb'], ['Total sets', '18'], ['Avg HR', '136 bpm'], ['Max HR', '159 bpm'], ['Calories', '440'], ['Volume', '9,120 lb'], ['Stride', '1.2 m']],
+  zones: [['Z1', 32], ['Z2', 36], ['Z3', 22], ['Z4', 8], ['Z5', 2]],
+  trace: [102, 116, 130, 118, 108, 122, 138, 126, 112, 124],
+  breakdown: { label: '', rows: [['Set 1', '225 lb × 3', 'RPE 7 · 42s · rest 2:30', { rpe: 7, plan: '225 × 3', rest: '2:30', dur: '42s' }], ['Set 2', '245 lb × 3', 'RPE 9 · PR', null]] },
+  followedLikers: [{ name: 'Maya Okafor' }], allLikers: [{ name: 'Maya Okafor' }],
+  a: { real: false, body: 'Bar speed held.', postId: null, created_at: null, userId: null },
+};
+const page = (over = {}) => drive(mod.BSActivityDetail, {
+  d: { ...DETAIL, ...(over.d || {}) }, liked: false, count: 12, myExpr: null,
+  comments: [{ who: 'A', text: 'nice' }], feedAvatars: {},
+  onClose() {}, onReact() {}, onProfile() {}, onOpenLikers() {}, draft: '', setDraft() {}, onSend() {},
+});
+const has = (api, type) => api.nodes().some((n) => n.type === type);
+
+test('the stats page is the board: tiles, the zone bar and the set table', () => {
+  const api = page();
+  assert.ok(has(api, mod.BSIbTiles), 'the tiles are not mounted');
+  assert.ok(has(api, mod.BSIbZoneBar), 'the zone bar is not mounted');
+  assert.ok(has(api, mod.BSIbTable), 'the set table is not mounted');
+  const tiles = api.nodes().find((n) => n.type === mod.BSIbTiles);
+  // The hero's own stat is never repeated as a tile.
+  assert.ok(!tiles.props.tiles.some(([k]) => /top set/i.test(k)), 'the hero stat came back as a tile');
+  assert.ok(tiles.props.tiles.length > 0 && tiles.props.tiles.length <= 6);
+});
+
+test('the comments page carries none of the board, and the board carries no composer', () => {
+  const stats = page(), cmts = page({ d: { focus: 'comments' } });
+  for (const type of [mod.BSIbTiles, mod.BSIbZoneBar, mod.BSIbTable]) {
+    assert.ok(!has(cmts, type), 'a board component rendered on the comments page');
+  }
+  assert.ok(cmts.nodes().some((n) => n.type === 'input'), 'the comments composer is missing');
+  assert.ok(!stats.nodes().some((n) => n.type === 'input'), 'the composer rendered on the stats page');
+  // ⚠ AND THE ACTION BAR IS NOT ON THE COMMENTS PAGE EITHER. That page already
+  // carries a reactions block at the top and the composer at the foot; a third
+  // bar between them stacks two controls on one edge and offers a second, worse
+  // way to do what the composer is for. This assertion is here because the
+  // mutation that puts it there SURVIVED the first round.
+  const cmtLabels = cmts.buttons().map((b) => b.label);
+  assert.ok(!cmtLabels.some((l) => /^\d+ ›$/.test(l)), `the action bar rendered on the comments page: ${JSON.stringify(cmtLabels)}`);
+});
+
+test('the sticky bar puts reactions, the comment count and the back-and-forth in reach', () => {
+  // ⚠ They were reachable only by scrolling to the END of the comments page, so
+  // on the longest sessions the controls were furthest from the reader.
+  const labels = page().buttons().map((b) => b.label);
+  assert.ok(labels.some((l) => /Respect · 12/.test(l)), `no reaction control: ${JSON.stringify(labels)}`);
+  assert.ok(labels.some((l) => /^1 ›$/.test(l)), `no comment count: ${JSON.stringify(labels)}`);
+});
+
+test('tapping the count turns the page to the comments, and the stats go with it', () => {
+  const api = page();
+  assert.ok(has(api, mod.BSIbTiles));
+  api.click('1 ›');
+  assert.ok(!has(api, mod.BSIbTiles), 'the board stayed up behind the comments');
+  assert.ok(api.nodes().some((n) => n.type === 'input'), 'the composer did not arrive');
+});
+
+test('the splits link says what is through it, which depends on truncation', () => {
+  // ⚠ Measured in a browser: the demo run bucketed into THREE splits, so the
+  // table showed all three under a link reading "All 3 splits ›" — an invitation
+  // to see what was already on the screen.
+  const many = Array.from({ length: 12 }, (_, i) => ({ label: `Mile ${i + 1}`, paceLabel: '8:30/mi', zone: 3, hFrac: 0.5 }));
+  const few = many.slice(0, 3);
+  const label = (splits) => {
+    const api = page({ d: { rawSplits: splits.map((x) => ({ label: x.label, pace: x.paceLabel })) } });
+    return api.buttons().map((b) => b.label).find((l) => /splits/i.test(l)) || '';
+  };
+  // ⚠ The harness's `tr` hands back the defaultValue without interpolating, so
+  // the COUNT is asserted in the browser and the CHOICE of sentence here. Which
+  // of the two sentences the link uses is the whole rule.
+  assert.match(label(many), /All \{n\} splits/i, 'a truncated table hid how many there are');
+  assert.doesNotMatch(label(few), /All \{n\} splits/i, 'a whole table offered a link to what is already on screen');
+  assert.match(label(few), /full breakdown/i, 'the Splits page lost its own name');
+});
+
+test('back undoes the last step, which is not always close', () => {
+  // ⚠ Once the bar can turn the page, a Back that always closed would throw away
+  // the board a member scrolled through to get to the comments.
+  let closed = 0;
+  const api = drive(mod.BSActivityDetail, {
+    d: { ...DETAIL }, liked: false, count: 12, myExpr: null, comments: [{ who: 'A', text: 'nice' }],
+    feedAvatars: {}, onClose() { closed += 1; }, onReact() {}, onProfile() {}, onOpenLikers() {},
+    draft: '', setDraft() {}, onSend() {},
+  });
+  api.click('1 ›');
+  assert.ok(api.nodes().some((n) => n.type === 'input'), 'the comments did not open');
+  api.click('←');
+  assert.equal(closed, 0, 'back closed the page instead of returning to the board');
+  assert.ok(has(api, mod.BSIbTiles), 'back did not bring the board back');
+  api.click('←');
+  assert.equal(closed, 1, 'back on the page it opened on did not close it');
+});
+
+test('a page OPENED on the comments closes on back, rather than stepping to a board nobody asked for', () => {
+  // ⚠ THE OTHER HALF OF THE SAME RULE. The test above walks stats → comments →
+  // stats → close, which never exercises a page whose opening face IS the comments
+  // — and "back undoes the last step" is only true if there was a step. Opened here,
+  // there is none, so back is a close.
+  let closed = 0;
+  const api = drive(mod.BSActivityDetail, {
+    d: { ...DETAIL, focus: 'comments' }, liked: false, count: 12, myExpr: null,
+    comments: [{ who: 'A', text: 'nice' }], feedAvatars: {},
+    onClose() { closed += 1; }, onReact() {}, onProfile() {}, onOpenLikers() {},
+    draft: '', setDraft() {}, onSend() {},
+  });
+  assert.ok(api.nodes().some((n) => n.type === 'input'), 'the page did not open on the comments');
+  api.click('←');
+  assert.equal(closed, 1, 'back on a page opened at the comments did not close it');
+});
+
+test('the RPE dial announces itself as an image, or its name is not read at all', () => {
+  // ⚠ AN `aria-label` ON A BARE <svg> IS NOT A NAME YOU CAN RELY ON. The implicit
+  // role of <svg> varies by browser and AT, and a name on a generic element may be
+  // dropped entirely — so the dial is the one thing carrying the rating in the set
+  // table, and a name nothing is obliged to read means the rating is not published
+  // at all. The same class as the table roles above, one element down.
+  // The dial is built by the PAGE and handed down as a cell node, so it lives in
+  // the table's props rather than in the page's rendered tree — walking the props
+  // is what drives the shipped construction rather than one restated here.
+  const api = page();
+  const tbl = api.nodes().find((n) => n.type === mod.BSIbTable);
+  assert.ok(tbl, 'the set table is not mounted — the fixture stopped driving this');
+  const els = [];
+  const walk = (v) => {
+    if (!v || typeof v !== 'object') return;
+    if (Array.isArray(v)) { v.forEach(walk); return; }
+    if (v.$$typeof && v.props) { els.push(v); walk(v.props.children); }
+  };
+  for (const r of tbl.props.rows) for (const c of (r.cells || [])) walk(c.node);
+  const dials = els.filter((n) => n.type === 'svg' && typeof n.props['aria-label'] === 'string'
+    && /^RPE /.test(n.props['aria-label']));
+  assert.ok(dials.length > 0, 'no RPE dial rendered — the fixture stopped driving this');
+  for (const d of dials) assert.equal(d.props.role, 'img', 'a dial carries a name nothing has to read');
+});
+
+test('the comment control carries a name, not just a number', () => {
+  // ⚠ THE COUNT IS NOT THE NAME. The bar’s three controls sat in three states: the
+  // react button carries visible text, share carries an `aria-label`, and the comment
+  // button carried neither — so a screen reader read “1 ›”, a bare number with nothing
+  // saying which control it is. The name must ALSO keep the count, because an
+  // `aria-label` REPLACES the accessible name rather than adding to it: naming it and
+  // dropping the figure would trade one omission for another.
+  const api = page();
+  const labels = api.nodes()
+    .filter((n) => n.type === 'button' && n.props && typeof n.props['aria-label'] === 'string')
+    .map((n) => n.props['aria-label']);
+  const named = labels.filter((l) => /comment/i.test(l));
+  assert.equal(named.length, 1, 'the comment control has no accessible name');
+  assert.match(named[0], /\b1\b/, 'the name replaced the count instead of carrying it');
+});
+
+test('a session with no zones gets no zone bar, and one with no sets gets no table', () => {
+  const noZones = page({ d: { zones: [] } });
+  assert.ok(!has(noZones, mod.BSIbZoneBar), 'a zone bar was drawn for a session with no zones');
+  assert.ok(has(noZones, mod.BSIbTiles), 'the tiles went with the zones');
+  const noSets = page({ d: { breakdown: null } });
+  assert.ok(!has(noSets, mod.BSIbTable), 'a table was drawn for a session with no sets');
+});
+
+// ── a zone nobody measured ─────────────────────────────────────────
+
+const ZK = ['zone_one_milli', 'zone_two_milli', 'zone_three_milli', 'zone_four_milli', 'zone_five_milli'];
+const zones = (o) => mod.bsBuildZones({ rawMetrics: { zoneDurations: o } });
+const full = (...v) => Object.fromEntries(ZK.map((k, i) => [k, v[i]]));
+
+test('a MEASURED zero keeps its zone; an UNMEASURED one costs the whole bar', () => {
+  // A real 0 is a reading: the member never entered Z5, and the segment stays so
+  // that five zones in one order remain comparable between two sessions.
+  const measured = zones(full(60000, 60000, 60000, 60000, 0));
+  assert.deepEqual(measured, [['Z1', 25], ['Z2', 25], ['Z3', 25], ['Z4', 25], ['Z5', 0]]);
+
+  // ⚠ An ABSENT key is not a zero. `Number(undefined) || 0` used to make these
+  // two indistinguishable, so a zone the provider never sent was published as a
+  // measured 0% — with the board's bar giving it a visible sliver.
+  const absent = full(60000, 60000, 60000, 60000, 0);
+  delete absent.zone_three_milli;
+  assert.equal(zones(absent), null, 'a zone that was never measured was reported as 0%');
+  assert.equal(zones(full(60000, 60000, null, 60000, 0)), null, 'a null zone was read as a measurement');
+  assert.equal(zones(full(60000, 60000, '', 60000, 0)), null, 'a blank zone was read as a measurement');
+  assert.equal(zones(full(60000, 60000, 'n/a', 60000, 0)), null, 'an unparseable zone was read as a measurement');
+});
+
+test('the WHOLE bar goes, because a short denominator inflates every other zone', () => {
+  // ⚠ THIS IS WHY THE MISSING ZONE IS NOT SIMPLY DROPPED. These are percentages
+  // of a sum, so omitting one zone shortens the denominator and every REMAINING
+  // segment is then reported larger than it was. The arithmetic below is the whole
+  // argument: with Z3's real 50,000 ms present, Z1 is 20%; drop Z3 and the same
+  // session reads 25%. Hiding one fabrication would have inflated the other four.
+  const truth = zones(full(50000, 50000, 50000, 50000, 50000));
+  assert.deepEqual(truth.map((z) => z[1]), [20, 20, 20, 20, 20]);
+
+  const short = { ...full(50000, 50000, 50000, 50000, 50000) };
+  delete short.zone_three_milli;
+  const dropped = ZK.filter((k) => short[k] != null).map((k) => short[k]);
+  const total = dropped.reduce((a, b) => a + b, 0);
+  assert.deepEqual(dropped.map((v) => Math.round((v / total) * 100)), [25, 25, 25, 25],
+    'the omit-the-zone fix would have left every surviving zone overstated');
+  assert.equal(zones(short), null, 'an incomplete distribution was published anyway');
+});
+
+test('an empty or unreadable zone document is still simply absent', () => {
+  assert.equal(zones(full(0, 0, 0, 0, 0)), null, 'a session with no time anywhere drew a bar');
+  assert.equal(mod.bsBuildZones({ rawMetrics: {} }), null);
+  assert.equal(mod.bsBuildZones({}), null);
+  assert.equal(mod.bsBuildZones(null), null);
+});
