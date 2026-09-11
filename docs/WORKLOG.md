@@ -542,6 +542,113 @@ Append new entries at the top, under this note.
   `firstName` before the block rendered at all — so the first run reported the panel absent.
   It serves signed-out now, which is the state the demo payouts are actually for.
 
+### 2026-09-11 — R15: a ⚙ on every card that has something to configure, and two queries that kept the oldest 400 rows
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
+  the gear and the per-chart **time window**. The KPI picker, pinning clients to Today's
+  pulse and the drawer's sections per lens are still open; this ships the mechanism all
+  three will use, plus the first real consumer. No migration.
+- **The gear is a declaration, not a special case.** A widget declares
+  `settings: [{ key, label, options, value, onPick }]` and `DashGrid` renders the ⚙ and the
+  popover. **The widget keeps the state**, which means it already has R16's per-account
+  store — a choice made here follows the member between devices with no second mechanism
+  invented for it.
+- ⚠ **A CARD WITH NOTHING TO CONFIGURE GETS NO ⚙** — R18's rule again: a control that opens
+  an empty panel costs more trust than an absent one. The gear's visibility and the panel's
+  contents read the **same named list** (`dgSettingGroups`), so they cannot disagree; that
+  is the failure mode this file already post-mortems on the hidden-cards bar, where the
+  bar's visibility and its contents were two different expressions. A group with **fewer
+  than two options is dropped** too: a picker with one choice is a label wearing a control.
+  Measured in a browser — nine cards on Progress, **exactly one ⚙**.
+- ⚠ **THE WINDOW IS A REAL FILTER OVER REAL DATES, and that is the only reason it may
+  exist.** `/api/client/progress` already serves every point with its `date`, and the card
+  threw the dates away on its way to the plot — so the control costs **no route change and
+  invents nothing**. Asking the server for *"the last 30 days"* of a series it does not
+  bucket that way would have been a number nobody measured. **ALL is the default**, so a
+  member who never opens the ⚙ sees exactly the chart they saw yesterday.
+- ⚠ **AND IT IS ANCHORED ON THE NEWEST POINT, NOT ON TODAY.** Anchored on today, a member
+  who stopped logging five weeks ago picks 30D and gets an **empty chart** — which reads as
+  *"you have no weight data"* rather than *"nothing in the last 30 days"*. Anchored on their
+  last entry, 30D means *"the last 30 days you logged"*, which is the question someone
+  looking at their own trend is actually asking. Three empty sentences, not one: a window
+  that excludes everything **says the window did it** and offers the ⚙ — telling a member
+  with two years of weigh-ins to log more, because they picked 7D, is the honest-data rule
+  pointed the wrong way. The eyebrow names the window so the chart is never silently
+  narrowed, and the **tab list is deliberately not windowed** (it is about what they have
+  ever logged, and hiding tabs would flicker them in and out as the window changes).
+- ⚠ **AND THE WINDOW MADE A LATENT RENDERING BUG COMMON.** The delta's **sign** came from
+  the raw value while its **magnitude** came through `fmt`, which rounds — so a real move of
+  −0.25 lb rendered **`−0`**: a sign attached to a zero, claiming a direction the number
+  beside it cannot support. Over ALL the raw delta is rarely small enough to round away;
+  over 7D it usually is. The sign is taken from the **formatted** magnitude now and a
+  rounded-away move reads *"no change"*. *A change that makes a state reachable owes that
+  state a definition.* It also names its span — *"since start"* meant the start of the
+  **series**, and under a window it is the start of the window.
+- ⚠ **AND BUILDING IT FOUND TWO QUERIES THAT KEPT THE OLDEST 400 ROWS.**
+  `daily_health_snapshot` and `client_weigh_ins` both ordered **ascending** and capped at
+  400, so a member past ~13 months of daily rows was served their **oldest** 400 days and
+  never this year's — on a page whose entire framing is *"eight weeks ago next to today"*,
+  which would have compared two points from over a year ago and labelled the later one
+  **today**. The sets query **in the same file** was fixed for exactly this and carries the
+  lesson in its own comment; these two never got it. A time window over a
+  truncated-to-the-oldest series renders empty for precisely the members who have logged the
+  most. Both are newest-first now and re-sorted ascending **once**, where the consumers need
+  them. The guard **derives** the capped queries from the route rather than naming them, so
+  a third one added later is covered. *A lesson applied at the bottom of a file is not
+  applied at the top of it* — the same sentence this log wrote on 2026-09-10.
+- **Verified:** `npm test` **3107/3107** · `tsc --noEmit` 0 · JSX parse on both changed
+  modules · the newdesign precompile check · **26/26 mutations killed**, each proven to
+  land, sanity green at both ends · and the whole control driven in Chromium: nine cards and
+  one gear, ALL → 90D → 30D → 7D plotting **41 → 19 → 7 → 2** points with the eyebrow and the
+  delta following, back to ALL, and the choice surviving a reload as
+  `{"progressTrendWindow":"30d"}`. Zero page errors.
+- ⚠ **AND THE HARNESS WAS WRONG THREE TIMES FIRST.** It looked for the gear **inside**
+  `.dash-plate` when DashGrid renders it as a **sibling**; it clicked the gear every
+  iteration, which **toggles**, so every other pick landed on a closed panel and read as
+  *"no chip"*; and it sampled at a fixed 6 s and reported the card absent one call before
+  finding it. *An instrument reports on itself unless it is made to settle first* — and a
+  regex that stops matching is indistinguishable from a feature that stopped working, which
+  is why its last reading is the plate's raw text.
+- ⚠ **AND AN OPEN PANEL FADED OUT FROM UNDER THE POINTER.** The popover lives inside
+  `.dash-wchrome`, which is `opacity: 0` until the grid item is `:hover` or
+  `:focus-within` — so a member who opens the gear and then moves **toward** the panel
+  (which hangs below the gear, often past the item's own box) leaves the hover area and
+  the panel they are reaching for disappears. Chromium happens to cover it, because
+  clicking a `<button>` focuses it; **Safari does not focus a button on click**, so the
+  whole control rested on a browser quirk. Pinned while open, restored on close —
+  otherwise every card whose gear was ever opened keeps its chrome lit for the life of the
+  page. **Measured A/B in a browser with focus blurred**, which is how Safari's behaviour
+  reproduces: with the pin the chrome computes `opacity: 1`, without it `0` — the panel
+  invisible while still open. *An A/B is the only way to tell a fix from a quirk that was
+  covering for its absence.*
+- ⚠ **AND THE REVIEW ROUND CAUGHT "ALL" CLAIMING TO BE ALL.** Both history reads behind
+  this page are capped at 400 rows, so for a member past that cap the earliest point on the
+  chart is the **server's cutoff** — and I shipped a control literally labelled **ALL** over
+  that window with a delta reading *"since start"*. The mislabel pre-dates the control; the
+  control is what made the claim **explicit**, and *a change that makes a claim explicit
+  owns it*. The cap is named once in the route (`HISTORY_CAP`) and **reported**
+  (`historyCapped`), because the client cannot check a claim the payload does not carry;
+  the ⚙ then offers **MAX** rather than ALL and the delta reads *"since the earliest
+  shown"*. Deliberately **not per-metric** — a conservative label on an uncapped series
+  costs a few words, a confident *"since start"* on a capped one is a lie.
+- ⚠ **AND MY OWN SWEEP DROPPED TWO THIRDS OF ITS CORPUS THE MOMENT THE CAP WAS NAMED.** The
+  capped-query guard matched `.limit(<digits>)` only, so replacing `400` with `HISTORY_CAP`
+  — which reporting the cap required — left it silently checking **one** of the three
+  queries and still passing. *A guard that derives its corpus has to accept every spelling
+  that corpus can legitimately take.*
+- ⚠ **AND A DST TRANSITION DROPPED THE BOUNDARY DAY, TWICE A YEAR, IN EVERY DST REGION.**
+  Subtracting `days × 86400000` from a local midnight assumes every day is 24 hours; the
+  autumn fall-back day is **25**. Reproduced under `America/New_York` on a daily series
+  ending 2026-11-06 before it was fixed: the 7D window returned **seven** points (oldest
+  Oct 31) where UTC returned **eight** (oldest Oct 30). The window counts **calendar days**
+  now — each point's local Y/M/D mapped onto `Date.UTC`, an ordinal where every day is
+  exactly 24h by construction — and UTC · New York · London · Sydney now return the same
+  eight points. The guard runs **a child process per zone**, because V8 caches the timezone
+  and re-assigning `process.env.TZ` mid-run does not reliably move it: *a guard that thinks
+  it changed zone and did not is a guard that tested UTC four times.*
+- ⚠ **STILL A SIMULATED LIVE STATE.** The account above is a stubbed `shapeDb` over an
+  in-page object. An on-account pass is owed.
+
 ### 2026-09-10 — R20's half: the notifications the app has had all along reach the web
 
 - **`/api/notifications` has been live since the 2026-05-30 migration and the mobile app
