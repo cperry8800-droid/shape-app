@@ -825,7 +825,52 @@
 
   function size(){ W=cv.clientWidth; H=cv.clientHeight;
     cv.width=Math.max(1,Math.round(W*DPR)); cv.height=Math.max(1,Math.round(H*DPR));
-    ctx.setTransform(DPR,0,0,DPR,0,0); }
+    ctx.setTransform(DPR,0,0,DPR,0,0); baseY=measureBase(); }
+
+  /* ⚠ THE TRAILHEAD IS PLACED AGAINST THE CAMPS' OWN BOX, NOT A FRACTION OF THE
+     FOLD — and the difference is a collision, not a nicety. It was H*0.86, i.e.
+     0.14H above the canvas floor, while .camps sits at bottom:78px with ~41px of
+     label, so the camps own 78..119px of that same floor. 0.14H lands INSIDE that
+     band for every canvas height from 558 to 850px — which is every ordinary
+     desktop window — so the route was drawn starting on top of the stats and
+     climbed out through "0 ads · Shape Radio, included". Measured before the fix
+     at 1657/1440/1280/1024/860: 83/12/52/83/6 sampled columns of the route inside
+     that camp's box, clearances of -12/-1/-15/-20/-1px, and 1..15px left over the
+     camp beside it. Because it is structural, a nudge fixes one window and breaks
+     the next: reading the camps' own top edge is what makes the clearance true at
+     every window, and it survives a reworded stat, a fourth camp or a font swap.
+     ⚠ THE CONSTRAINT IS "DO THE CAMPS OVERLAP THE CANVAS", NOT A WIDTH. Below
+     760px the terrain is its own band and the camps are a real grid row UNDER it,
+     so there is nothing over the canvas to clear — and the first cut asked `W<560`
+     instead, which is the script's summit-band threshold, not the CSS's. Measured
+     in the 560..760 gap between them (600x700, 760x900) that read as a desktop
+     fold, took the DOM path, computed a base past the canvas floor and was saved
+     only by the 0.92H clamp — the right answer for the wrong reason, which stops
+     being the right answer the day either number moves. Asking the two boxes
+     whether they actually overlap needs no threshold at all and cannot drift from
+     the stylesheet. No camps on the page is the same case — no camps, no
+     constraint — so the fallback is the fraction that shipped rather than a second
+     copy of the CSS's 78 and 148. */
+  /* ⚠ THE TWO BOUNDS ARE NOT SYMMETRIC, AND THE FIRST CUT'S LOWER ONE WAS A
+     GUARD THAT COULD CAUSE THE THING IT GUARDED. It read `Math.max(H*0.55, …)`,
+     and on a y axis `max` picks the point LOWER on the screen — so a camps box
+     tall enough to push the cleared trailhead above 0.55H would have been dragged
+     back DOWN, through the clearance, into the labels. Unreachable today (the
+     three stats measure ~523px against a ≥696px content box at every width where
+     they sit over the canvas at all, so they never wrap) — but it reads as the
+     floor that keeps the route on the mountain while being the one thing that can
+     undo the clearance, and this file has paid for guards that could not fire
+     before. The floor is the canvas top now: it can only ever move the trailhead
+     AWAY from the camps. The ceiling needs no such care — a camps box low enough
+     for 0.92H to bind is one the trailhead was already clearing by more than it
+     needed, so capping it moves the route up, not down. */
+  var CAMP_CLEAR=22, baseY=0;
+  function measureBase(){
+    var el=document.querySelector('.camps');
+    var cr=el?cv.getBoundingClientRect():null, er=el?el.getBoundingClientRect():null;
+    /* the camps constrain the route only where they are actually over the terrain */
+    var over=!!(er&&cr.height&&er.height&&er.top<cr.bottom&&er.bottom>cr.top);
+    return over?Math.min(H*0.92,Math.max(0,er.top-cr.top-CAMP_CLEAR)):H*0.86; }
 
   /* deterministic: no Math.random anywhere, so the ridge is the same mountain on
      every load and between two visitors looking at the same page */
@@ -908,8 +953,16 @@
     /* ⚠ The route STARTS further in on a wide screen too. At 0.06 it launched from
        the far-left corner, under the headline and through the CTAs — the "cluttered
        in the bottom left" half of the same note. On a phone the terrain is its own
-       band under the copy, so nothing is behind it there and it keeps the full span. */
-    var F=LAY.length-1, x0=W*(narrow?0.06:0.20), y0=H*0.86, best=-1, sx=W*(narrow?0.58:SUMMIT_U), xs;
+       band under the copy, so nothing is behind it there and it keeps the full span.
+       ⚠ THE SPAN IS THE ONE THAT SHIPPED, AND THAT IS THE OWNER'S RULING RATHER THAN
+       an oversight. A first cut also set the start back from the summit by the run a
+       declared pitch needed, which cleared the stats a second way and roughly doubled
+       the angle — and cost the route half its width, because the only rise available
+       is whatever the mountain leaves between the camps and the summit. Owner, on
+       that: "It just needs to be moved up a little so it's not overlapping the stats
+       at bottom." So the route is the length and the shape it always was; the ONE
+       thing that changed is where it starts vertically. */
+    var F=LAY.length-1, x0=W*(narrow?0.06:0.20), y0=baseY, best=-1, sx=W*(narrow?0.58:SUMMIT_U), xs;
     for(xs=W*bA;xs<=W*bB;xs+=2){ var yy=edgeY(F,xs,par); if(best<0||yy<best){ best=yy; sx=xs; } }
     var sy=best, pts=[], q;
     for(q=0;q<prof.length;q++){ var u=q/(prof.length-1); pts.push([x0+(sx-x0)*u, y0-(y0-sy)*prof[q]]); }
