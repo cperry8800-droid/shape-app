@@ -462,8 +462,20 @@ test('the activity sub-tab is labelled Wall and renders the wall design', () => 
   assert.match(card, /variant="wall"/, 'the activity feed must render the wall design');
 });
 
-test('the masthead title follows the Wall like every other segment', () => {
-  assert.ok(/tab === 'wall' \? tr\('feed:masthead\.titleWall'/.test(bare));
+test('there is no second Wall — the retired segment is gone from every path', () => {
+  // ⚠ REMOVING THE PILL WAS NOT ENOUGH. Home's "On the wall" card fires
+  // shape:goWall, which set tab='wall' — so a SECOND Wall stayed alive with no
+  // pill, reachable only from Home, carrying its own lift dropdown and scope
+  // chips. Owner: "don't need 2 wall tabs". The deep link lands on the activity
+  // sub-tab, which IS the Wall.
+  assert.ok(!/setTab\('wall'\)/.test(bare), 'nothing may route to a wall segment');
+  assert.ok(!/tab === 'wall'/.test(bare), 'no branch may render a wall segment');
+  // And the deep link still arrives somewhere real, rather than being dropped.
+  const idx = bare.indexOf('openRequest.wall');
+  assert.ok(idx > 0, "the Home deep-link branch was removed — it should RETARGET, not vanish");
+  const branch = bare.slice(idx, idx + 400);
+  assert.match(branch, /setTab\('feed'\)/, 'the wall deep link must land on the feed segment');
+  assert.match(branch, /setFilter\('COMMUNITY'\)/, 'and select the activity sub-tab, which is the Wall');
 });
 
 // ── the data layer ──────────────────────────────────────────────────────────

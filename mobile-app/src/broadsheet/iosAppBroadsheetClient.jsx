@@ -19552,8 +19552,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       return;
     }
     // Deep-link to the Wall (Home's "On the wall" card).
+    // ⚠ THE WALL IS THE ACTIVITY SUB-TAB, NOT A SEGMENT. This set `tab: 'wall'`
+    // while that segment existed; leaving it would have kept a SECOND Wall alive
+    // with no pill — reachable only from Home, carrying its own lift dropdown and
+    // scope chips. Owner: "don't need 2 wall tabs". It lands on the Feed segment
+    // with the activity filter selected, which IS the Wall.
     if (openRequest.wall) {
-      setTab('wall');
+      setTab('feed');
+      setFilter('COMMUNITY');
       setOpenChat(null);
       return;
     }
@@ -20286,7 +20292,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
             <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
-              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'wall' ? tr('feed:masthead.titleWall', { defaultValue: 'The Wall' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
+              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
             </h1>
           </div>
           {/* The feed's viewing lens rides the title row, right-aligned (owner
@@ -20534,7 +20540,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // The Wall — a record board, not a conversation. It sits ahead of the
           // Channels branch so the shared chrome above (masthead, online rail,
           // pills) is the only thing between it and the page.
-          if (tab === 'wall') return <BSWall ctx={wallCtx} />;
           if (tab === 'channels') {
             const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
