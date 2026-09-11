@@ -536,6 +536,203 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The two registered follow-ups: a GDPR key that named two of its twenty-six kinds, and a recipe you can photograph
+
+- **Owner: *"now do the GDPR export label rename, photo import"*** — the two items the
+  recipe-import PR (#2033) had explicitly registered as deferred, shipped as two commits
+  on one branch. **No migration on either**, and the photo half is the reason the second
+  clause is interesting: the spec said it needed a storage bucket, and it does not.
+- ⚠ **THE EXPORT KEY DESCRIBED TWO OF THE TWENTY-SIX THINGS IT HANDED BACK.**
+  `/api/account/export` returns a member's entire `user_goals` table under ONE key, and
+  that key was `health_screening_and_goals`. Measured against the shipped callers, **26
+  distinct kinds** can be written to that table and exactly **two** — `health_profile`
+  and `client_goals` — are health screening or goals; production holds **9 kinds across
+  14 rows** (measured, not carried from the spec's "~22"). So a member's typed-in recipe,
+  their grocery list, their dashboard layout and a **coach's private notes on a client**
+  were all delivered under a health-screening label. **Portability and deletion were
+  always correct; only the label lied** — which is why this was a rename and not a
+  migration. It is `goals_health_and_app_data`, and the export note points the reader at
+  each row's own **`kind`** field, because a single category key cannot do that job and
+  the rows have always carried the answer.
+- ⚠ **AND THE GDPR ARTIFACT HAD NO TESTS AT ALL.** It is the Art. 15/20 deliverable and
+  nothing drove it. Five now do, against a PostgREST double that records which tables were
+  asked for: every owned table reaches the file (**a silently dropped table is an
+  incomplete access request that errors nowhere**), the bucket key is not the name of any
+  single kind it holds, tokens are scrubbed at depth because jsonb nests, and an
+  unauthenticated request reads **no** table. The scrub test carries a **positive
+  control**, so it cannot pass on a route that exports nothing.
+- **The photo path: an image in, the same draft out, onto the same review screen.**
+  `POST /api/nutrition/recipe-photo`. The member photographs a page, Shape transcribes it,
+  and they check and edit every line before a byte is stored — the paste path's contract,
+  unchanged, which is why the cooking walkthrough needed no changes for this either.
+- ⚠ **THE PHOTO IS NEVER STORED, AND THAT DECISION DELETED A MIGRATION.** The spec reached
+  for a `recipe-imports` bucket because it assumed the saved document would keep a
+  `photoPath`. It does not need to: the member photographs a page, reviews the draft, and
+  what they keep is **the recipe**. Holding the image afterwards would mean a migration the
+  owner has to run, a second signed-URL surface, a new row in the export above, a deletion
+  obligation, and indefinite retention of what is very often **someone else's copyrighted
+  cookbook page**. The bytes live for one request. *The cheapest version of a feature is
+  sometimes the one that stops holding something.*
+- ⚠ **THE DOWNSCALE IS LOAD-BEARING, NOT AN OPTIMISATION.** `readJson` caps a body at
+  **1 MB** and base64 inflates by **4/3**, so a straight-from-camera photo is refused
+  before the route ever sees it — as a generic 413 the member cannot act on. The client
+  re-encodes to a 1600px long edge and steps quality down until it fits a **640 KB**
+  budget, under the route's own 700 KB bound. ⚠ **AND THE LADDER STEPS RESOLUTION AS WELL
+  AS QUALITY**, which is a fix for a dead end rather than a refinement: on a dense
+  high-noise page, stepping quality alone can still miss the budget at the floor — after
+  which the member was told to take a **clearer** photo *filling the frame*, which produces
+  a sharper, busier image that encodes **bigger**. The advice made the next attempt fail
+  harder. Dropping the long edge is the recovery they cannot perform themselves.
+- ⚠ **AND A PHOTO HAS NO STRUCTURAL FALLBACK THE WAY A PASTE DOES.** When the model cannot
+  read a paste, `splitLocally()` still produces a real draft from the member's own text.
+  There is no offline way to get words out of an image, so a failed photo has nothing to
+  fall back TO — which makes the one thing it must never do **fail quietly and look like a
+  button that does nothing**. It stays on the write stage, keeps everything they have
+  typed, and names what happened in terms they can act on.
+- ⚠ **`/code-review` RETURNED FOURTEEN FINDINGS AND THE FIRST ONE WAS A ONE-WAY DOOR.** A
+  successful transcription whose **title** came back empty — a recipe name set in a
+  typeface or a margin the reader could not lift, which is the ordinary case — was
+  **unrecoverable**. *Keep it* refused it for want of a name and bounced to the write
+  stage; that stage's *Next* wanted a paste; a photograph produces none; so *Next* was
+  permanently disabled and the only live control was **Cancel**. The sheet holds the only
+  copy of a transcription, so the member's page could be destroyed and could not be kept.
+- **The fix moves the Name onto the review screen, where it should always have been.** It
+  is part of what the member reviews — and until this, **the title the reader lifted off
+  the page was never shown to them at all**: it was written into a field on the previous
+  screen and carried silently into the record. That is the same rule the **serving count**
+  is already held to in this feature, *a value the member cannot see is not one they
+  reviewed*, arrived at from the other direction. Both fields bind to one piece of state,
+  so they cannot disagree; the write stage stops demanding a name (the reader usually finds
+  one, and demanding it first made members invent a name the page already carried, which
+  the model then could not overwrite); and the forward gate is **`paste || hasDraft`**, so
+  stepping *Back* from a transcription is no longer a trapdoor either.
+- ⚠ **AND THE LIBRARY TAG CALLED EVERY AI DRAFT A PASTE.** *"Read by Shape from your
+  paste, checked by you"* is the **only provenance a member sees months later**, on the
+  screen where they decide whether to trust a line — and it was shown for photo
+  transcriptions too. `sourceKind` is stamped at save for exactly this; reading it is not
+  a nicety.
+- ⚠ **AND "READ ONCE AND NEVER STORED" WAS A CLAIM ABOUT SHAPE THAT READ AS A CLAIM ABOUT
+  THE WORLD.** A member could fairly take it to mean the image never leaves their phone,
+  which is the opposite of what happens: it goes to an outside reader, and only then is it
+  discarded. The storage promise is real and is kept — it is just not the whole of what
+  someone is agreeing to, and **the half that was missing is the half they would want.**
+  The line says *sent* now.
+- ⚠ **AND `detail` IS SENT EXPLICITLY, BECAUSE ITS ABSENCE WOULD HAVE BEEN INVISIBLE.**
+  The Responses API's `input_image` part carries it and a schema rejection is a **400** —
+  which this route maps to `photo_unreadable`. So an omitted field would have presented as
+  *"we couldn't read your photo"* on **every import, forever**, while the server log blamed
+  the model's vision capability. *A failure mapped to a plausible cause is a failure nobody
+  will look for.* ⚠ And it is the **Responses** content-block shape, not Chat Completions' —
+  `ai.ts`'s own header warns against inferring one from the other, and the wrong one is a
+  400 through the same door.
+- ⚠ **HEIC CAME OFF THE ALLOW-LIST, WHICH IS THE OPPOSITE OF THE OBVIOUS MOVE.** iPhones
+  produce it and the provider refuses it — so admitting it **guaranteed** a 400 the route
+  could only report as *"we couldn't read your photo"* while its log blamed the model. **An
+  allow-list that admits what the next hop refuses is worse than one that refuses it here,
+  because only one of the two can say why.** The app re-encodes every pick to JPEG through
+  a canvas, so nothing a member does is blocked by this.
+- ⚠ **AND ONE FINDING WAS A BUILD ERROR WAITING TO HAPPEN.** `parseImageDataUrl` was
+  exported from the route file purely so a test could reach it — and an App Router route
+  exporting anything outside the handler set fails the webpack typegen path
+  (`checkFields<Diff<…>>`). It was **the only route in the repo doing it**. It lives beside
+  the validator now, where it is reachable without standing up the route and its five stubs.
+- **The rest of the round, each fixed:** a raw-file ceiling before anything is read
+  (`readAsDataURL` on a 48MP library shot materialises a ~60 MB string and then decodes
+  ~190 MB of RGBA **before any scale is computed** — on a mid-range Android WebView that is
+  an **out-of-memory kill of the whole app**, not a handled failure, and the member loses
+  the sheet and everything they typed); a decode timeout, because an `<img>` handed a HEIC
+  or a truncated file on some Android WebViews fires **neither** load nor error and the
+  sheet disables its own Cancel while a read is in flight; a `'too-big'` sentinel distinct
+  from `null`, since those two want different advice; the platform `maxDuration` declared,
+  because a platform kill runs **none** of the named failure handling and writes none of
+  the one diagnostic this feature ships; the file input cleared on pick, or picking the
+  **same** file twice after a failure fires no change event and the retry silently does
+  nothing; and a throwaway `Buffer.from` that decoded up to 700 KB purely to measure a
+  length the regex had already constrained.
+- ⚠ **AND A COMMENT DESCRIBED AN INPUT THIS IS NOT.** It claimed `accept + capture` were
+  *"the pair the meal logger already uses"*. The meal logger's pair is **two inputs behind
+  two buttons**, one of them carrying `capture`; this control has one input and no
+  `capture` — deliberately, because `capture` **forces the camera and takes the library
+  away**, which would refuse the likeliest member of all, the one who already photographed
+  the page. The attribute was never the pair.
+- ⚠ **AND THE ERROR MAP FOLDED BACK A SPLIT THE LAYER BELOW HAD JUST MADE.**
+  `shapeBackend` returns `too_large` distinct from `bad_image`, with a comment saying why;
+  `bsRecipePhotoErr` handed both the same sentence — the *"clearer photo, filling the
+  frame"* one, which is precisely the advice that makes a too-large file bigger. **Cropping
+  is the one recovery a member can actually perform**, and it is right whether the raw file
+  was enormous or the shrink ladder bottomed out. *A distinction is only made where it is
+  read, not where it is returned.*
+- ⚠ **A MEASUREMENT IN MY OWN PROMPT DID NOT REPRODUCE.** The unit rule cited *"277 of
+  334"* catalog amounts carrying their unit inside `n`. Re-derived from
+  `SHAPE_KITCHEN_RECIPES` rather than carried: it is **767 of 903** (108 of 120 distinct).
+  The rule it supports is unchanged and still right; the number was wrong in the prompt, in
+  the changelog and in the PR body, and is corrected in all three. *A measurement nobody
+  re-derives is a claim.*
+- ⚠ **AND TWO OF MY OWN NEW TESTS FAILED FOR REASONS THAT WERE THE TESTS.** An 800,000-byte
+  fixture meant to exercise the route's size guard **never reached it** — `readJson` refuses
+  at 1 MB and base64 had already inflated it past that, so the assertion was about a bound
+  the route does not own; it sits at 720,000 now, inside the band the route judges. And a
+  source scan for the word *"storage"* matched **the comment explaining its absence**, which
+  the shared `stripComments` helper exists for. ⚠ The extraction into `recipe-draft.ts` also
+  broke the paste route's 21 tests with `Cannot find module` — a harness gap, closed by
+  registering the **real** module, because a stub would have made two of those tests
+  vacuous.
+- ⚠ **AND TWO MUTATION SURVIVORS WERE REDUNDANT GUARDS RATHER THAN GAPS.** A pre- and a
+  post-decode size check did the same work; deleting the duplicate exposed that the
+  survivor's **stated justification was false** — it claimed to avoid a multi-MB decode,
+  which is impossible on the route path because `readJson` caps at 1 MB. It survives for a
+  different and true reason (the function is exported and reachable by other callers), and
+  the comment says that now. *A guard that cannot fire the way its comment says is
+  decoration until the reason is corrected.*
+- ⚠ **WHETHER THIS WORKS IN PRODUCTION DEPENDS ON A CAPABILITY THAT COULD NOT BE CONFIRMED
+  FROM THIS CONTAINER, AND THAT IS DESIGNED FOR RATHER THAN GUESSED AT.** There is no
+  `OPENAI_API_KEY` here and the pinned `OPENAI_MODEL` is set in Vercel, so nothing here can
+  ask whether it accepts image input — and `grep -rn "input_image\|image_url" src/` returned
+  **nothing** before this PR, so no vision call has ever existed in this repo. So the route
+  is written not to need the answer in advance: a provider 4xx on an image request comes
+  back as `photo_unreadable`, the sheet tells the member to type it in instead (**true
+  either way**, which is the only honest thing to say when the route cannot distinguish a
+  capability from a bad image), and the server log **names the model as a likely cause** so
+  it is one log line to settle. Registered on the board as an **OWNER CHECK NEEDED**, not as
+  a claim that it works.
+- ⚠ **AND THE REVIEW ROUND'S OWN FIXES THEN FAILED THREE OF MY TESTS, WHICH IS THE ROUND
+  WORKING.** Two had gone stale against the fixes themselves — one asserted `image/gif` was
+  refused, which stopped being true when the allow-list was corrected to what the provider
+  actually takes, and one asserted `parseImageDataUrl` was **exported from the route**, which
+  is the build error the same round removed. Both were re-pointed rather than relaxed, and
+  the allow-list test gained the **positive control** it had been missing: without one,
+  every *"this type is refused"* assertion passes on a route that refuses **everything**.
+  The third failed on `4002 !== 4000` and was the CODE: the byte estimate ignored base64
+  padding and overstated the size by up to two bytes. It changes no decision at a 700 KB
+  bound — but the field is returned under the name `bytes`, so it is exact now. *A field
+  that says bytes should be the number of bytes.*
+- ⚠ **AND MY OWN LAST READ OF THE DIFF FOUND TWO MORE, WHICH IS WHY IT IS READ.** The
+  `hasDraft` declaration had been wedged **between `toReview`'s comment and `toReview`**, so
+  a four-line explanation of the parse route sat above a boolean — the comment-drifted-onto
+  -the-wrong-function defect this file post-mortems on the grid-merge rationale, reproduced
+  the same way, by inserting rather than placing. And the new return path did not clear the
+  error: the error line renders on **both** stages, so a member refused for want of a name,
+  stepping Back and coming forward again, carried *"Give it a name first"* over a draft it
+  was no longer about. Both fixed, and the second is now pinned by three more mutations.
+- **Verified:** `npm test` **3262/3262** on the rebased head · `tsc --noEmit` 0 · JSX parse on the client module ·
+  the newdesign precompile check · the i18n ratchet **9/9 with every column unchanged** and
+  catalog parity **13/13 at 337 keys** · **13/13 mutations killed across two rounds, each
+  proven to land**, sanity green at both ends and the tree restored in a `finally` (the
+  one-way door replayed from both of its doors, the Name field removed from the review
+  screen, the forward gate reverted to every earlier form, the provenance tag folded back,
+  `too_large` re-collapsed into `bad_image`, and the return path stripped of its return, its
+  error-clear and itself) · and the mobile build clean with **all 39 translated values** (13 locales
+  × 3 keys) **confirmed in the emitted bundle behind a positive control AND a negative one**,
+  the negative being the retired *"read once and never stored"* line, which reads **0**.
+  **No migration.**
+- ⚠ **AND THE REVIEWER RULING MOVED AGAIN, AT THE SOURCE.** Owner, 2026-09-11: *"dont run
+  coderabbit moving forward"* — which retires the 2026-08-19 authorisation that was still
+  sitting in the auto-loaded conventions telling the next session it was allowed. Recorded
+  there rather than in a handoff. Codex also spent the session **refusing**
+  (*"You have reached your Codex usage limits for code reviews"*), which is the layer being
+  unavailable rather than skipped; it is triggered as the ruling requires and noted rather
+  than waited on.
+
 ### 2026-09-11 — R15's pin: the pulse keeps the two people you are actually working with in front of you
 
 - **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —

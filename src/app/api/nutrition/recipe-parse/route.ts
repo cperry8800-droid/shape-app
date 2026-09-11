@@ -22,6 +22,7 @@ import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey, parseModelJson } from '@/lib/ai';
+import { RECIPE_SYSTEM_TEXT, readModelText, shapeRecipeDraft } from '@/lib/recipe-draft';
 import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
@@ -29,72 +30,10 @@ export const dynamic = 'force-dynamic';
 
 const MAX_TEXT = 12000;
 
-// The model may not invent quantities, may not reword the method into a house
-// voice, and may not emit step metadata. The last one is not cosmetic: `passive`
-// + a station + a duration is how a step earns an interleave window on the prep
-// board, and an imported recipe may never have one (cookOrchestrator's binding
-// "no fabricated parallelism"). The wrapper drops it too — this is the belt.
-const SYSTEM = [
-  'You extract a recipe from pasted text into JSON. You are a parser, not an author.',
-  'Rules, all binding:',
-  '1. Carry the source\'s OWN words for each step. Do not reword, merge, summarise or add flourish.',
-  '2. Never invent a quantity. If an ingredient states no amount, use "" for n.',
-  '3. Never invent a step, an ingredient, a serving count or a title.',
-  // ⚠ THE UNIT BELONGS IN `n`, WITH THE NUMBER. Measured on the catalog, 277 of
-  // 334 amounts are written that way ("3/4 cup", "6 oz", "2 cloves"), and
-  // bsScaleQty reads the unit back out of that field — so a unitless `n` scales
-  // to a unitless quantity and the member's mise loses its units entirely. The
-  // first version of this rule used "1/2 cup" -> "1/2" to mean "do not convert
-  // the fraction", and taught exactly the wrong lesson.
-  '4. Emit ingredients as {"n": amount INCLUDING its unit, "m": the ingredient name}.',
-  '   "1/2 cup flour" is {"n": "1/2 cup", "m": "flour"} — the unit goes in n, never in m.',
-  '   Keep the amount as written: "1/2 cup", never "0.5 cup". An amount with no unit is fine ("2" eggs).',
-  '5. Steps are plain strings. Never emit timing, station or passive/hands-off metadata of any kind.',
-  '6. If the text is not a recipe, return empty arrays rather than guessing.',
-  'Return ONLY JSON: {"title": string, "servings": number|null, "ingredients": [{"n": string, "m": string}], "steps": [string]}',
-].join('\n');
-
-type Draft = {
-  title: string;
-  servings: number | null;
-  ingredients: { n: string; m: string }[];
-  steps: string[];
-};
-
-// The model's output becomes DATA, so it goes through a hand-written validator
-// after parseModelJson — never straight to the record.
-function shape(raw: unknown): Draft | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  const s = (v: unknown, max: number): string =>
-    typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '';
-  const ings: { n: string; m: string }[] = [];
-  if (Array.isArray(o.ingredients)) {
-    for (const g of o.ingredients.slice(0, 120)) {
-      if (!g || typeof g !== 'object') continue;
-      const row = g as Record<string, unknown>;
-      const m = s(row.m, 200);
-      if (!m) continue;
-      ings.push({ n: s(row.n, 60), m });
-    }
-  }
-  const steps: string[] = [];
-  if (Array.isArray(o.steps)) {
-    for (const st of o.steps.slice(0, 80)) {
-      // A structured step is dropped to its text — the route never passes
-      // min/passive/station through, whatever the model emitted.
-      const t = typeof st === 'object' && st !== null ? s((st as Record<string, unknown>).t, 1200) : s(st, 1200);
-      if (t) steps.push(t);
-    }
-  }
-  const servRaw = typeof o.servings === 'number' && Number.isFinite(o.servings) ? Math.floor(o.servings) : null;
-  return {
-    title: s(o.title, 160),
-    servings: servRaw !== null && servRaw > 0 && servRaw <= 99 ? servRaw : null,
-    ingredients: ings,
-    steps,
-  };
-}
+// The prompt, the Draft shape and the validator live in @/lib/recipe-draft,
+// shared with the photo route. They differ only in what they hand the model;
+// everything after that must be identical, because both write to the same store
+// and are cooked by the same walkthrough.
 
 export async function POST(request: Request) {
   const denied = await requireMembership(request);
@@ -124,7 +63,7 @@ export async function POST(request: Request) {
   const res = await callAI(
     {
       input: [
-        { role: 'system', content: SYSTEM },
+        { role: 'system', content: RECIPE_SYSTEM_TEXT },
         { role: 'user', content: text },
       ],
     },
@@ -133,20 +72,7 @@ export async function POST(request: Request) {
 
   if (!res.ok) return NextResponse.json({ draft: null, unavailable: true, reason: res.reason });
 
-  // The Responses API returns the text in output_text; fall back to walking the
-  // content blocks rather than assuming a shape.
-  const data = res.data as Record<string, unknown>;
-  let out = typeof data.output_text === 'string' ? data.output_text : '';
-  if (!out && Array.isArray(data.output)) {
-    for (const blk of data.output as Record<string, unknown>[]) {
-      const content = blk && Array.isArray(blk.content) ? (blk.content as Record<string, unknown>[]) : [];
-      for (const c of content) if (typeof c.text === 'string') out += c.text;
-    }
-  }
-  // Models fence JSON often enough that not stripping it is a self-inflicted
-  // parse failure.
-  const fenced = out.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const draft = shape(parseModelJson(fenced ? fenced[1] : out));
+  const draft = shapeRecipeDraft(parseModelJson(readModelText(res.data)));
 
   if (!draft || (!draft.ingredients.length && !draft.steps.length)) {
     return NextResponse.json({ draft: null, unavailable: true, reason: 'no_draft' });

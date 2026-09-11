@@ -306,6 +306,7 @@
   "myRecipe.save": "Simpan →",
   "myRecipe.yours": "Resepmu sendiri. Privat untukmu — pelatihmu tidak melihatnya.",
   "myRecipe.draftedTag": "Dibaca Shape dari tempelanmu, diperiksa olehmu",
+  "myRecipe.draftedTagPhoto": "Dibaca Shape dari fotomu, diperiksa olehmu",
   "myRecipe.delete": "Hapus resep ini",
   "myRecipe.add": "＋ Tambahkan resepmu",
   "myRecipe.qty": "Jumlah",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Ini resepmu sendiri — tidak bisa dikembalikan.",
   "myRecipe.errAccount": "Akun yang masuk berubah. Buka lagi resep ini.",
   "myRecipe.errAccountSave": "Akun yang masuk berubah, jadi ini belum tersimpan. Masuk lagi dan simpan.",
-  "myRecipe.errUnreadable": "Belum bisa membaca resepmu. Coba lagi."
+  "myRecipe.errUnreadable": "Belum bisa membaca resepmu. Coba lagi.",
+  "myRecipe.orPhoto": "Atau foto saja",
+  "myRecipe.photoCta": "＋ Foto resep",
+  "myRecipe.photoNote": "Foto dikirim untuk dibaca lalu dihapus — Shape tidak pernah menyimpannya.",
+  "myRecipe.byPhoto": "Dibaca Shape dari fotomu — cocokkan dengan halamannya, perbaiki, lalu simpan.",
+  "myRecipe.errPhotoTooBig": "Foto itu terlalu besar untuk dibaca. Pangkas sampai tinggal resepnya di galerimu, lalu coba lagi.",
+  "myRecipe.errPhotoUnclear": "Gambar itu tidak bisa dipakai. Coba foto yang lebih jelas dan memenuhi bingkai.",
+  "myRecipe.errPhotoType": "Tipe berkas itu tidak didukung. Foto dari kamera atau galeri bisa dipakai.",
+  "myRecipe.errPhotoNoRecipe": "Kami tidak menemukan resep di foto itu. Coba halaman dengan bahan dan caranya.",
+  "myRecipe.errPhotoOff": "Membaca foto tidak tersedia di versi ini. Tempel atau ketik resepnya saja.",
+  "myRecipe.errPhotoRead": "Kami tidak bisa membaca foto itu. Tempel atau ketik resepnya — itu selalu berhasil."
 }

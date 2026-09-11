@@ -4682,7 +4682,122 @@ async function parseRecipeText(text, { signal } = {}) {
     return { ok: false, draft: null, reason: 'unavailable' };
   }
 }
-window.ShapeRecipeImport = { parse: parseRecipeText };
+// The PHOTO half (/api/nutrition/recipe-photo). Same contract, same never-throws
+// rule, same reasons — the caller treats both identically once it has an answer.
+//
+// ⚠ THE DOWNSCALE IS NOT A NICETY, IT IS WHAT MAKES THE REQUEST POSSIBLE. readJson
+// caps a body at 1 MB and base64 inflates bytes by 4/3, so a straight-from-camera
+// photo (3–8 MB) is refused before the route ever sees it — as a bare 413 the
+// member cannot act on. So the image is re-encoded on the device first, and the
+// quality is stepped DOWN until it fits a byte budget rather than guessed at
+// once: a dense page of text at q0.8 can be several times the size of a sparse
+// one, so a single fixed quality either fails on the dense photo or needlessly
+// destroys the sparse one.
+//
+// ⚠ AND THE LONG EDGE IS 1600, NOT THE 256 THE AVATAR PATH USES. This image is
+// read as TEXT by the model; 256px is a thumbnail and a recipe at that size is
+// illegible, which would come back as a confidently wrong transcription rather
+// than as a failure. Aspect ratio is preserved for the same reason — the square
+// centre-crop the avatar helper does would cut the ingredients off a portrait
+// photo of a page.
+// ⚠ THE LADDER STEPS RESOLUTION AS WELL AS QUALITY, and that is a fix for a
+// dead end rather than a refinement. Stepping quality alone, a dense high-noise
+// page (textured paper, mixed light) can still exceed the budget at the quality
+// floor — and the member was then told to take a CLEARER photo "filling the
+// frame", which produces a sharper, busier image that encodes BIGGER. The advice
+// made the next attempt fail harder. Dropping the long edge is the recovery they
+// cannot perform themselves.
+const BS_RECIPE_PHOTO_EDGES = [1600, 1200, 900];
+const BS_RECIPE_PHOTO_QUALITIES = [0.82, 0.72, 0.62, 0.5, 0.4];
+const BS_RECIPE_PHOTO_BUDGET = 640_000;   // encoded bytes, under the route's 700_000
+// ⚠ A CEILING ON THE RAW FILE, BEFORE IT IS EVER READ. readAsDataURL on a 48MP
+// library shot materialises a ~60 MB JavaScript string and `img.src` then decodes
+// the full bitmap (~190 MB RGBA) — all BEFORE any scale is computed. On a
+// mid-range Android WebView that is an out-of-memory kill of the whole app, not a
+// handled failure, and the member loses the sheet and everything they had typed.
+// The repo's own precedent never does this: the meal logger hands the raw File
+// straight to a multipart upload and never base64s it.
+const BS_RECIPE_PHOTO_MAX_FILE = 25_000_000;
+// ⚠ AND A DECODE THAT NEVER SETTLES MUST NOT LOCK THE SHEET. The sheet disables
+// its backdrop and its Cancel while a read is in flight, so a promise that never
+// resolves leaves the member force-quitting the app. An <img> handed a HEIC or a
+// truncated file on some Android WebViews fires NEITHER load nor error, so this
+// cannot be left to the events alone.
+const BS_RECIPE_PHOTO_DECODE_MS = 20_000;
+
+// Resolves a JPEG data URL under the byte budget, or null. ⚠ `null` is
+// deliberately one value for several causes — the caller turns it into a reason
+// it can say something useful about, and only the byte-budget case has advice
+// worth giving.
+function bsRecipePhotoDataUrl(file) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    const timer = setTimeout(() => done(null), BS_RECIPE_PHOTO_DECODE_MS);
+    const finish = (v) => { clearTimeout(timer); done(v); };
+    try {
+      if (!file || !/^image\//.test(file.type || '')) { finish(null); return; }
+      if (typeof file.size === 'number' && file.size > BS_RECIPE_PHOTO_MAX_FILE) { finish('too-big'); return; }
+      const reader = new FileReader();
+      reader.onerror = () => finish(null);
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => finish(null);
+        img.onload = () => {
+          try {
+            for (const edge of BS_RECIPE_PHOTO_EDGES) {
+              const scale = Math.min(1, edge / Math.max(img.width, img.height));
+              const w = Math.max(1, Math.round(img.width * scale));
+              const h = Math.max(1, Math.round(img.height * scale));
+              const cv = document.createElement('canvas');
+              cv.width = w; cv.height = h;
+              const ctx = cv.getContext('2d');
+              if (!ctx) { finish(null); return; }
+              ctx.drawImage(img, 0, 0, w, h);
+              // The quality floor is deliberate: below ~0.4 the artefacts are
+              // heavy enough that the text stops being reliable, and an
+              // unreadable photo should fail as one rather than be sent anyway.
+              for (const q of BS_RECIPE_PHOTO_QUALITIES) {
+                const url = cv.toDataURL('image/jpeg', q);
+                const b64 = url.slice(url.indexOf(',') + 1);
+                if (Math.floor((b64.length * 3) / 4) <= BS_RECIPE_PHOTO_BUDGET) { finish(url); return; }
+              }
+            }
+            finish('too-big');
+          } catch (e) { finish(null); }
+        };
+        img.src = String(reader.result || '');
+      };
+      reader.readAsDataURL(file);
+    } catch (e) { finish(null); }
+  });
+}
+
+async function parseRecipePhoto(file, { signal } = {}) {
+  const dataUrl = await bsRecipePhotoDataUrl(file);
+  // ⚠ TOO-BIG AND WILL-NOT-DECODE ARE DIFFERENT SENTENCES. Collapsing them sent
+  // a member whose photo was merely large the advice for a photo that would not
+  // decode — "take a clearer one, filling the frame" — which makes the file
+  // bigger and the next attempt fail identically.
+  if (dataUrl === 'too-big') return { ok: false, draft: null, reason: 'too_large' };
+  if (!dataUrl) return { ok: false, draft: null, reason: 'bad_image' };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/recipe-photo`, {
+      method: 'POST',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ image: dataUrl }),
+      signal,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
+    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
+    return { ok: true, draft: payload.draft, reason: null };
+  } catch (e) {
+    return { ok: false, draft: null, reason: 'unavailable' };
+  }
+}
+window.ShapeRecipeImport = { parse: parseRecipeText, photo: parseRecipePhoto };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }

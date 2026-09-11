@@ -306,6 +306,7 @@
   "myRecipe.save": "Guardar →",
   "myRecipe.yours": "Sua própria receita. Privada — seus coaches não veem.",
   "myRecipe.draftedTag": "Lida pelo Shape do seu texto, conferida por você",
+  "myRecipe.draftedTagPhoto": "Lida pelo Shape da sua foto, conferida por você",
   "myRecipe.delete": "Excluir esta receita",
   "myRecipe.add": "＋ Adicione sua receita",
   "myRecipe.qty": "Quantidade",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Esta é a sua receita — não dá para recuperar.",
   "myRecipe.errAccount": "A conta conectada mudou. Abra esta receita de novo.",
   "myRecipe.errAccountSave": "A conta conectada mudou, então isto não foi salvo. Entre de novo e guarde.",
-  "myRecipe.errUnreadable": "Não deu para ler suas receitas agora. Tente de novo."
+  "myRecipe.errUnreadable": "Não deu para ler suas receitas agora. Tente de novo.",
+  "myRecipe.orPhoto": "Ou fotografe",
+  "myRecipe.photoCta": "＋ Foto de uma receita",
+  "myRecipe.photoNote": "A foto é enviada para ser lida e depois descartada — o Shape nunca a guarda.",
+  "myRecipe.byPhoto": "Lida pelo Shape da sua foto — confira com a página, corrija e guarde.",
+  "myRecipe.errPhotoTooBig": "Essa foto é grande demais para ler. Recorte só a receita nas suas fotos e tente de novo.",
+  "myRecipe.errPhotoUnclear": "Não deu para usar essa imagem. Tente uma foto mais nítida, preenchendo o quadro.",
+  "myRecipe.errPhotoType": "Esse tipo de arquivo não é aceito. Uma foto da câmera ou da galeria funciona.",
+  "myRecipe.errPhotoNoRecipe": "Não achamos uma receita nessa foto. Tente a página com os ingredientes e o modo de preparo.",
+  "myRecipe.errPhotoOff": "Ler fotos não está disponível nesta versão. Cole ou digite a receita.",
+  "myRecipe.errPhotoRead": "Não conseguimos ler essa foto. Cole ou digite a receita — isso sempre funciona."
 }

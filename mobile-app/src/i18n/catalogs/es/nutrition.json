@@ -306,6 +306,7 @@
   "myRecipe.save": "Guardarla →",
   "myRecipe.yours": "Tu propia receta. Privada para ti — tus coaches no la ven.",
   "myRecipe.draftedTag": "Leída por Shape de tu texto, revisada por ti",
+  "myRecipe.draftedTagPhoto": "Leída por Shape de tu foto, revisada por ti",
   "myRecipe.delete": "Eliminar esta receta",
   "myRecipe.add": "＋ Añade tu propia receta",
   "myRecipe.qty": "Cantidad",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Es tu propia receta: no se puede recuperar.",
   "myRecipe.errAccount": "La cuenta cambió. Vuelve a abrir esta receta.",
   "myRecipe.errAccountSave": "La cuenta cambió, así que esto no se guardó. Vuelve a iniciar sesión y guárdalo.",
-  "myRecipe.errUnreadable": "No se pudieron leer tus recetas ahora. Inténtalo de nuevo."
+  "myRecipe.errUnreadable": "No se pudieron leer tus recetas ahora. Inténtalo de nuevo.",
+  "myRecipe.orPhoto": "O fotografíala",
+  "myRecipe.photoCta": "＋ Foto de una receta",
+  "myRecipe.photoNote": "La foto se envía para leerla y luego se descarta — Shape nunca la guarda.",
+  "myRecipe.byPhoto": "Leída por Shape de tu foto — compárala con la página, corrige lo que falle y guárdala.",
+  "myRecipe.errPhotoTooBig": "Esa foto es demasiado grande para leerla. Recórtala a la receta en tus fotos e inténtalo de nuevo.",
+  "myRecipe.errPhotoUnclear": "No se pudo usar esa imagen. Prueba una foto más nítida que llene el encuadre.",
+  "myRecipe.errPhotoType": "Ese tipo de archivo no es compatible. Una foto de tu cámara o galería sí funciona.",
+  "myRecipe.errPhotoNoRecipe": "No encontramos una receta en esa foto. Prueba con la página de ingredientes y preparación.",
+  "myRecipe.errPhotoOff": "Leer fotos no está disponible en esta versión. Pega o escribe la receta.",
+  "myRecipe.errPhotoRead": "No pudimos leer esa foto. Pega o escribe la receta — eso siempre funciona."
 }

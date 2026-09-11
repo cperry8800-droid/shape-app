@@ -306,6 +306,7 @@
   "myRecipe.save": "Behalten →",
   "myRecipe.yours": "Dein eigenes Rezept. Privat für dich — deine Coaches sehen es nicht.",
   "myRecipe.draftedTag": "Von Shape aus deinem Text gelesen, von dir geprüft",
+  "myRecipe.draftedTagPhoto": "Von Shape aus deinem Foto gelesen, von dir geprüft",
   "myRecipe.delete": "Dieses Rezept löschen",
   "myRecipe.add": "＋ Eigenes Rezept hinzufügen",
   "myRecipe.qty": "Menge",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Das ist dein eigenes Rezept — es lässt sich nicht wiederherstellen.",
   "myRecipe.errAccount": "Das angemeldete Konto hat gewechselt. Öffne dieses Rezept erneut.",
   "myRecipe.errAccountSave": "Das angemeldete Konto hat gewechselt, das wurde also nicht gespeichert. Melde dich wieder an und behalte es.",
-  "myRecipe.errUnreadable": "Konnte deine Rezepte gerade nicht laden. Versuch es nochmal."
+  "myRecipe.errUnreadable": "Konnte deine Rezepte gerade nicht laden. Versuch es nochmal.",
+  "myRecipe.orPhoto": "Oder fotografier es",
+  "myRecipe.photoCta": "＋ Foto eines Rezepts",
+  "myRecipe.photoNote": "Das Foto wird zum Lesen gesendet und danach verworfen — Shape speichert es nie.",
+  "myRecipe.byPhoto": "Von Shape aus deinem Foto gelesen — vergleich es mit der Seite, korrigier Fehler, dann behalte es.",
+  "myRecipe.errPhotoTooBig": "Das Foto ist zu groß zum Lesen. Schneide es in deinen Fotos auf das Rezept zu und versuch es erneut.",
+  "myRecipe.errPhotoUnclear": "Das Bild ließ sich nicht nutzen. Versuch ein schärferes Foto, das die Seite ganz ausfüllt.",
+  "myRecipe.errPhotoType": "Dieser Dateityp wird nicht unterstützt. Ein Foto aus Kamera oder Galerie funktioniert.",
+  "myRecipe.errPhotoNoRecipe": "Auf dem Foto war kein Rezept zu finden. Nimm die Seite mit Zutaten und Zubereitung.",
+  "myRecipe.errPhotoOff": "Fotos lesen ist in dieser Version nicht verfügbar. Füg das Rezept stattdessen als Text ein.",
+  "myRecipe.errPhotoRead": "Wir konnten das Foto nicht lesen. Füg das Rezept als Text ein — das klappt immer."
 }

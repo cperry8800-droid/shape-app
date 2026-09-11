@@ -774,3 +774,187 @@ test('⚠ AND SO DOES THE DETAIL SCREEN — the same wiring, the same gap', asyn
     w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.bsAskConfirm = prev.confirm;
   }
 });
+
+// ── the photo draft's way out ───────────────────────────────────────────────
+//
+// ⚠ THESE ARE ABOUT A ONE-WAY DOOR, NOT ABOUT COPY. A photograph never passes
+// through the paste box, so every gate that asked for a paste was a gate a photo
+// import could not satisfy — and the sheet holds the ONLY copy of a
+// transcription, so a stage it cannot leave is a stage that destroys work.
+
+// The photo path, driven end to end: a fake pick, a stubbed reader, the review
+// screen, the save. `title` is deliberately EMPTY — a page whose recipe name is
+// in a typeface or a margin the reader could not lift is the ordinary case, and
+// it is the one that used to be unrecoverable.
+async function drivePhotoSheet(SHEET, { draft, onSaved = () => {}, db } = {}) {
+  const w = globalThis.window;
+  const map = new Map();
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+  w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+  w.shapeDb = db || {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async () => ({ ok: true }),
+  };
+  w.ShapeRecipeImport = { parse: null, photo: async () => ({ ok: true, draft }) };
+  const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved });
+  const drain = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); ed.render(); };
+  const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+  const values = () => inputs().map((n) => String(n.props.value || ''));
+  const nameField = () => inputs().find((n) => /lemon chicken/.test(String(n.props.placeholder || '')));
+  const pick = async () => {
+    const file = ed.nodes().find((n) => n.type === 'input' && n.props.type === 'file');
+    assert.ok(file, 'the photo control must render a file input');
+    file.props.onChange({ target: { files: [{ name: 'page.jpg', type: 'image/jpeg', size: 120_000 }], value: 'C:\\page.jpg' } });
+    await drain();
+  };
+  return { ed, drain, inputs, values, nameField, pick, restore() { w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp; } };
+}
+
+const PHOTO_DRAFT = { title: '', servings: null, ingredients: [{ n: '1 cup', m: 'flour' }], steps: ['Mix it well.'] };
+
+test('⚠ A PHOTO DRAFT WITH NO TITLE CAN STILL BE KEPT — the write stage was a one-way door', async () => {
+  // The trap, exactly: Keep it refused for want of a name and bounced to the
+  // write stage; that stage's Next wanted a paste; a photograph produces none;
+  // so Next was permanently disabled and the only live control was Cancel. The
+  // member's transcription could be destroyed and could not be kept.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const saved = [];
+  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT, onSaved: (it) => saved.push(it) });
+  try {
+    await h.pick();
+    assert.match(h.ed.text, /check it against the page/i, 'a read photo lands on the review screen');
+    assert.ok(h.values().some((v) => v.includes('flour')), 'with the transcription in hand');
+
+    h.ed.click('Keep it');
+    await h.drain();
+    assert.match(h.ed.text, /Give it a name first/i, 'an unnamed recipe is still refused');
+    assert.deepEqual(saved, [], 'and nothing is written');
+
+    // ⚠ AND THE REFUSAL LEAVES THEM ON THE SCREEN THAT HOLDS THE DRAFT. Both
+    // halves are asserted: the ingredient is still editable (so this is the
+    // review stage), and the paste box is nowhere (so it did not bounce).
+    assert.ok(h.values().some((v) => v.includes('flour')), 'the transcription is still on screen');
+    assert.doesNotMatch(h.ed.text, /Paste the recipe/, 'a refused save must not bounce to the write stage');
+
+    // The name is asked for HERE, and answering it keeps the recipe.
+    const name = h.nameField();
+    assert.ok(name, 'the Name field must be on the review screen');
+    name.props.onChange({ target: { value: 'Flatbread from the blue book' } });
+    h.ed.render();
+    h.ed.click('Keep it');
+    await h.drain();
+    assert.equal(saved.length, 1, 'naming it on this screen keeps it');
+    assert.equal(saved[0].title, 'Flatbread from the blue book');
+    assert.equal(saved[0].sourceKind, 'photo', 'and it is filed as a photo import');
+    assert.deepEqual(saved[0].ingredients, PHOTO_DRAFT.ingredients, 'with the transcription intact');
+  } finally { h.restore(); }
+});
+
+test('⚠ AND BACK IS NOT A TRAPDOOR EITHER — Next returns to a draft the paste box never held', async () => {
+  // The same dead end reached by the other door. Stepping Back from a photo
+  // review lands on the write stage with an empty paste box; if Next reads only
+  // the paste, the draft is on screen nowhere and reachable by nothing.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT });
+  try {
+    await h.pick();
+    h.ed.click('Back');
+    h.ed.render();
+    assert.match(h.ed.text, /Paste the recipe/, 'Back reaches the write stage');
+
+    const next = h.ed.buttons().find((b) => b.label.startsWith('Next'));
+    assert.ok(next, 'the forward control exists');
+    assert.equal(next.disabled, false, 'a draft in hand is a way forward, with or without a paste');
+
+    h.ed.click('Next');
+    h.ed.render();
+    // ⚠ AND IT RETURNS THE TRANSCRIPTION RATHER THAN RE-READING AN EMPTY BOX.
+    // Running the structural split over '' would replace a read page with an
+    // empty draft — the same loss, arrived at by looking like it worked.
+    assert.ok(h.values().some((v) => v.includes('flour')), 'the transcription comes back');
+    assert.ok(h.values().some((v) => v.includes('Mix it well')), 'method and all');
+
+    // ⚠ AND THE RETURN CLEARS THE LAST FAILURE, as every other path through this
+    // button does. The error line renders on BOTH stages, so a refusal carried
+    // forward sits a dead sentence over the draft it is no longer about.
+    h.ed.click('Keep it');
+    await h.drain();
+    assert.match(h.ed.text, /Give it a name first/i, 'unnamed is still refused');
+    h.ed.click('Back');
+    h.ed.render();
+    h.ed.click('Next');
+    h.ed.render();
+    assert.doesNotMatch(h.ed.text, /Give it a name first/i, 'a new pass at the draft starts clean');
+    assert.ok(h.values().some((v) => v.includes('flour')), 'and the draft is still the one on screen');
+  } finally { h.restore(); }
+});
+
+test('an EMPTY sheet still cannot go forward — the gate was narrowed, not removed', async () => {
+  // The guard against the fix above going too far: with no paste and no draft
+  // there is nothing to review, and Next must stay shut.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT });
+  try {
+    const next = h.ed.buttons().find((b) => b.label.startsWith('Next'));
+    assert.equal(next.disabled, true, 'an empty sheet has nothing to move forward to');
+  } finally { h.restore(); }
+});
+
+test('⚠ THE LIBRARY TAG SAYS WHICH READER IT WAS — a transcription is not a paste', async () => {
+  // This tag is the ONLY provenance a member sees months later, on the screen
+  // where they decide whether to trust a line — and "from your paste" was shown
+  // for every AI-drafted recipe including the ones read off a photograph.
+  // `sourceKind` is stamped at save for exactly this.
+  const DETAIL = await loadBroadsheet(['BSLibraryDetail']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb };
+  const seen = (rec) => {
+    const map = new Map([['shape.library', JSON.stringify([{ ...bsRecipePointer(rec), savedAt: 2 }])]]);
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({ v: 1, rev: 1, items: { [rec.id]: rec } }) };
+    const item = { ...bsRecipePointer(rec), savedAt: 2 };
+    return drive(DETAIL.BSLibraryDetail, { item, onBack() {}, myDoc: { v: 1, rev: 1, items: { [rec.id]: rec } } }).text;
+  };
+  try {
+    const fromPhoto = seen({ ...MINE, draftedByAI: true, sourceKind: 'photo' });
+    assert.match(fromPhoto, /from your photo/i, 'a transcription says so');
+    assert.doesNotMatch(fromPhoto, /from your paste/i, 'and does not claim to be a paste');
+
+    const fromPaste = seen({ ...MINE, draftedByAI: true, sourceKind: 'paste' });
+    assert.match(fromPaste, /from your paste/i, 'and the paste form survives');
+    assert.doesNotMatch(fromPaste, /from your photo/i);
+
+    // A typed-in recipe carries no AI provenance at all — the tag is about the
+    // reader, so a recipe with no reader has none.
+    const typed = seen({ ...MINE, sourceKind: 'paste' });
+    assert.doesNotMatch(typed, /Read by Shape/i);
+  } finally { w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; }
+});
+
+test('⚠ TOO-LARGE AND WILL-NOT-DECODE ARE DIFFERENT SENTENCES — the client split them and this map had folded them back', async () => {
+  // shapeBackend goes to the trouble of returning a `too_large` distinct from
+  // `bad_image`, with a comment saying why: a merely-large photo must not be
+  // sent back for a CLEARER one "filling the frame", because a sharper busier
+  // image encodes BIGGER and the next attempt fails harder. This mapper was
+  // handing both reasons that same sentence, undoing the split one layer up.
+  const MAP = await loadBroadsheet(['bsRecipePhotoErr']);
+  const tr = (k, o) => (o && o.defaultValue) || k;
+  const say = (reason) => MAP.bsRecipePhotoErr(tr, reason);
+  const reasons = ['too_large', 'bad_image', 'unsupported_type', 'no_draft', 'no_key', 'unavailable'];
+  const said = reasons.map(say);
+
+  assert.notEqual(say('too_large'), say('bad_image'),
+    'a photo that is too big and one that will not decode want different advice');
+  assert.doesNotMatch(say('too_large'), /clearer|filling the frame/i,
+    'telling them to fill the frame makes the file bigger');
+  assert.match(say('too_large'), /crop/i, 'cropping is the one recovery a member can perform');
+
+  // Every reason still gets a sentence of its own, and the fallback still
+  // answers a reason nobody enumerated.
+  assert.equal(new Set(said.slice(0, 5)).size, 5, `each named reason needs its own sentence (${JSON.stringify(said)})`);
+  assert.equal(say(undefined), say('unavailable'), 'an unknown reason falls to the generic line');
+  for (const s of said) assert.ok(s.length > 12 && !s.includes(':'), `a reason must resolve to a sentence, got ${JSON.stringify(s)}`);
+});
