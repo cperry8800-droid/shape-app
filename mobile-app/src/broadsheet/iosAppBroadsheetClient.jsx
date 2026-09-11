@@ -19422,7 +19422,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // (bsSubAnchorRef) — drives a shared `subHidden` flag; each sub-tab row
   // collapses via bsSubStyle().
   const [subHidden, setSubHidden] = useStateBSC(false);
-  React.useEffect(() => { const st = bsScroll.current; st.hidden = false; st.lockUntil = 0; setSubHidden(false); }, [tab]);
   // Attach the scroll-direction listener via a CALLBACK ref on the (always-
   // rendered) main tab row, so it re-attaches whenever the feed remounts — e.g.
   // after opening a DM/profile (which early-returns + unmounts the BSPage
@@ -19444,6 +19443,22 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     st.lockUntil = Date.now() + 420;
     setSubHidden(next);
   }, []);
+  // ⚠ A TAB CHANGE THAT REVEALS THE ROW IS ALSO A LAYOUT MOVE WE CAUSED, AND
+  // THE FIRST VERSION OF THIS CLEARED THE ONE THING STANDING IN ITS WAY.
+  // Switching to another sub-row-bearing tab while the row is hidden EXPANDS it;
+  // with the row above the viewport the browser RAISES scrollTop to compensate,
+  // the handler reads that as `dy > 6`, and the new tab's row is hidden again
+  // before it has been seen — the same self-generated toggle the guard above
+  // exists to suppress, re-created by an effect that set `lockUntil = 0`.
+  // Routing the reveal through bsSetSub arms the window instead; the reference
+  // is re-baselined first because the new tab may start at a different offset,
+  // and a stale `last` makes the first real scroll after the switch measure
+  // from wherever the previous tab happened to be.
+  React.useEffect(() => {
+    const st = bsScroll.current;
+    if (st.sc) st.last = st.sc.scrollTop;
+    bsSetSub(false);
+  }, [tab, bsSetSub]);
   const bsSubAnchorRef = React.useCallback((node) => {
     const st = bsScroll.current;
     if (st.sc && st.fn) { st.sc.removeEventListener('scroll', st.fn); st.sc = null; st.fn = null; }

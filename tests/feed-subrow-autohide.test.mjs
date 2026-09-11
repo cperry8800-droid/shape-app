@@ -59,12 +59,41 @@ test('the toggle arms a FUTURE deadline, so the compensation scroll cannot decid
     'bsSetSub must push the deadline into the future, not set it to a constant');
 });
 
-test('switching main tabs re-baselines the guard as well as the state', () => {
-  // The reveal-on-tab-change effect resets React state; if it leaves the ref
-  // mirror stale, the next toggle compares against the wrong value and silently
-  // does nothing.
-  const m = SRC.match(/React\.useEffect\(\(\) => \{[^}]*setSubHidden\(false\);[^}]*\}, \[tab\]\);/);
-  assert.ok(m, 'the tab-change reveal effect is still present');
-  assert.match(m[0], /hidden = false/, 'it must clear the ref mirror too');
-  assert.match(m[0], /lockUntil = 0/, 'and drop any armed deadline');
+test('switching main tabs reveals the row through the guarded setter', () => {
+  // ⚠ THIS TEST USED TO ASSERT THE DEFECT. It required the effect to set
+  // `lockUntil = 0`, which is precisely what makes the reveal unsafe: switching
+  // to another sub-row-bearing tab while the row is hidden EXPANDS it, the
+  // browser raises scrollTop to compensate for content growing above the
+  // viewport, the handler reads that as dy > 6 and hides the new tab's row
+  // before it has been seen. Clearing the deadline removed the only thing
+  // standing in the way, so a correct fix FAILED a test about something else.
+  // (Codex, #2043.) The invariant is that the effect does not decide for
+  // itself — it goes through the setter that arms the window.
+  // ⚠ A REGEX CANNOT DELIMIT THIS, AND THE FIRST TWO ATTEMPTS PROVED IT. Three
+  // effects in this file carry a `[tab...]` dep list; a lazy `[\s\S]*?` does not
+  // stop at the effect's own closing brace, it runs to the NEXT `}, [tab` found
+  // anywhere in 19k lines — the three matches measured 28KB, 1MB and 395KB, and
+  // every assertion against them was about unrelated code. Paren-match instead,
+  // then select by what the effect TOUCHES rather than by where it sits.
+  const effects = [];
+  for (let i = SRC.indexOf('React.useEffect('); i >= 0; i = SRC.indexOf('React.useEffect(', i + 1)) {
+    let d = 0;
+    for (let k = SRC.indexOf('(', i); k < SRC.length; k++) {
+      if (SRC[k] === '(') d++;
+      else if (SRC[k] === ')') { d--; if (d === 0) { effects.push(SRC.slice(i, k + 1)); break; } }
+    }
+  }
+  assert.ok(effects.length > 100, `the effect extractor found only ${effects.length} — it is not reading the module`);
+  const m = effects.filter((b) => b.includes('bsScroll.current'));
+  assert.equal(m.length, 1,
+    `expected exactly one effect touching the scroll guard, found ${m.length}`);
+  assert.match(m[0], /\}, \[tab[^\]]*\]\)$/, 'the scroll-guard effect is no longer keyed on the tab');
+  assert.match(m[0], /bsSetSub\(false\)/, 'the reveal must go through the guarded setter');
+  assert.equal(/lockUntil\s*=\s*0/.test(m[0]), false,
+    'the tab effect clears the settle deadline — the reveal can be undone by its own layout move');
+  assert.match(m[0], /st\.last\s*=\s*st\.sc\.scrollTop/,
+    'the scroll reference is not re-baselined, so the first scroll after a switch measures from the old tab');
+  // and nothing else may write the mirror behind the setter's back
+  assert.equal(/st\.hidden\s*=\s*(true|false)/.test(m[0]), false,
+    'the tab effect writes the ref mirror directly instead of through bsSetSub');
 });
