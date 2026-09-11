@@ -18212,12 +18212,21 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 <div>
                   <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
                   <div style={{ display: 'flex', alignItems: isWall ? 'flex-end' : 'baseline', gap: isWall ? 10 : 6, marginTop: 2, flexWrap: 'wrap' }}>
-                    {/* ⚠ THE WALL'S FIGURE IS DRAWN, THE FEED'S IS TYPESET, and
-                        the drawn one does NOT count up: BSSdCountUp animates a
-                        string through a font, which a dot matrix cannot do
-                        without redrawing 245 glyph grids a second for a number
-                        that is already the loudest thing on the plate. */}
-                    {isWall ? (
+                    {/* ⚠ THE WALL'S FIGURE IS DRAWN WHERE THE MATRIX CAN SPELL
+                        IT, AND TYPESET WHERE IT CANNOT — the fallback is not a
+                        nicety: `bsDotChars` DROPS an unknown character, so a
+                        compound value renders as a different, plausible-looking
+                        number (`8h 10m` → “8 10”) with nothing on screen
+                        saying so. The feed is always typeset.
+                        The DRAWN figure does not count up — BSSdCountUp animates
+                        a string through a font, which a dot matrix cannot do
+                        without redrawing 245 glyph grids a second. The typeset
+                        fallback behaves exactly like the feed's hero, count-up
+                        included: suppressing it on the wall was an invariant no
+                        test here can observe (`railSeen` is false in a shallow
+                        render), and an unguardable claim is worse than the
+                        inconsistency it was hiding. */}
+                    {isWall && bsDotRenderable(u.num) ? (
                       <BSDotNumber text={u.num} size={38} color={t.INK} title={`${u.num}${u.unit ? ' ' + u.unit : ''}`} />
                     ) : (
                       <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
@@ -18644,6 +18653,19 @@ const BS_DOT_ROWS = 7;
 // cell: a silent gap in a number reads as a different number.
 function bsDotChars(text) {
   return String(text == null ? '' : text).split('').filter((ch) => ch === ' ' || BS_DOT_GLYPHS[ch]);
+}
+
+// ⚠ CAN THE MATRIX SAY THIS VALUE AT ALL? Dropping is the right behaviour
+// for a stray character inside a figure the matrix mostly knows; it is the
+// WRONG behaviour for a value built out of letters, because the drop is
+// silent and the result still looks like a reading. `bsSdSplitUnit` only
+// lifts a trailing unit off a pure number (`245 lb`), so a compound value
+// keeps its letters in `num` — `8h 10m` would draw as “8 10” and
+// `2.4 · MO` as “2.4  0”. A caller asks first and typesets what the
+// matrix cannot spell. Empty is NOT renderable: an empty grid says nothing.
+function bsDotRenderable(text) {
+  const s = String(text == null ? '' : text);
+  return s.trim().length > 0 && s.split('').every((ch) => ch === ' ' || BS_DOT_GLYPHS[ch]);
 }
 
 // The heart-rate trace as a plain polyline. Scaled to its OWN min/max, because
