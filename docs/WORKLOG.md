@@ -537,6 +537,94 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — R15's last piece: the stat strips become the four figures this coach reads
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,
+  and it completes R15.** The two coach Today strips were eight fixed figures, the same eight
+  for every practice — so a coach with forty clients and one with three read the identical
+  dashboard. Each of the eight slots is a choice now, over a pool of **eleven** metrics,
+  remembered per account and **per role**. No migration, no new route.
+- ⚠ **EVERY METRIC RESOLVES FROM STATE TODAY ALREADY HOLDS, and that is the constraint that
+  decides what may be in the pool at all.** The dashboard payload, the roster, the triage
+  feed, the programming queue and today's schedule are all on the page before any of this
+  runs; a metric that needed a request would be a figure nobody on that screen had measured,
+  and fetching one would make a picker into a data feature. **Three** of the eleven are new
+  readings of data that was already there — *Needs eyes* (the pulse's own flagged count),
+  *New clients* and *Sessions logged* — and the rest are the eight that were already drawn.
+- ⚠ **AND `totalSessions` IS WHY THE CAPPED-READ PR HAD TO LAND FIRST.** It was computed,
+  shipped and displayed nowhere; putting it on a strip would have labelled a count taken over
+  a **capped window** as a total. It reads **"500+"** and says *"at least — the window is
+  capped"* whenever `totalCapped` is set, and its label is *Sessions logged* rather than
+  *all time*. The precondition was paid before the label existed, not after.
+- **The derivation is pure and lives in `dashSignals.js`; the FORMATTING stays in
+  `dashToday.jsx`.** Each metric returns `{ value, unit, sub, why }` — a raw number and a
+  unit, never a string — so the module can be `require()`d and driven in Node while
+  `dashMoney` and the strip's typography stay with the page that owns them. A pure module
+  that formatted currency would have to own a currency it knows nothing about.
+- ⚠ **A METRIC THAT CANNOT BE ANSWERED CARRIES ITS REASON, AND A MEASURED ZERO IS A VALUE.**
+  Three metrics are live-only and read *"live only"* under an em-dash in the preview; a
+  roster whose subscriptions read failed reads *"not shared"*; a client genuinely on no paid
+  plan is **$0**. `Number(null)` is 0 and finite, so `isFinite` alone cannot separate those
+  last two — the class this file post-mortems on the Wall's helpers and on the booking
+  slots, guarded at the one place that reads a figure.
+- ⚠ **AND MONTHLY RECURRING NOW SAYS HOW MANY ROWS ANSWERED.** The old strip summed
+  `(c.payments && c.payments.mrrCents) || 0`, so a client whose subscriptions read failed was
+  **silently counted as zero** and the practice reported smaller than it is, with nothing on
+  screen saying a row had been dropped. Unreadable rows are counted now and the sub reads
+  *"8 of 10 shared"*; a fully-readable roster still reads *"10 clients"*.
+- ⚠ **CHOOSING A METRIC ALREADY ON THE STRIP SWAPS THE TWO.** Allowing the duplicate would
+  print one figure twice in a four-wide row; filtering each slot's options to what is unused
+  would mean a coach could not move a metric from the fourth slot to the first without
+  clearing the first — two steps for one intent. A swap is one tap, can never duplicate, and
+  never loses the metric that was there. **Driven in a browser**, not argued: picking *Needs
+  eyes* into the first slot when it sits in the second exchanges them and the document holds
+  two keys.
+- ⚠ **THE OVERVIEW STRIP IS NOT CONFIGURABLE IN THE SIGNED-OUT PREVIEW, AND THAT IS R18's
+  RULE FROM THE OTHER SIDE.** With no live payload that strip is the payout card's own
+  preview — four figures that describe nobody — so a picker over them would let a visitor
+  rearrange invented numbers. It carries **no ⚙ at all** there. The practice strip derives
+  from the roster, the queue and the schedule, all of which the preview has, so its gear
+  works in both states (unsaved when signed out, exactly as every other remembered control
+  on the page). Measured: **two gears live, one in the preview.**
+- ⚠ **ELEVEN CHIPS IN A 240px POPOVER IS FIVE ROWS, FOUR TIMES OVER.** `DgCardSettings`
+  renders a group as a native `<select>` past a threshold and keeps the chips below it — the
+  chips read the current value at a glance, which is right for a two- or three-option window,
+  and a select holds any length in one line, is keyboard- and screen-reader-native, and opens
+  the platform picker on a phone. ⚠ **The select hands the widget back its OWN option value,
+  never `e.target.value`**: a select's value is always a string, so passing it through would
+  silently change a numeric or boolean option's type on the way to a widget that had used
+  chips — the two paths have to agree.
+- ⚠ **FOUR HOOKS PER STRIP, WRITTEN OUT RATHER THAN LOOPED**, so the count is fixed by
+  construction rather than by a constant somebody could later derive from data — the
+  rules-of-hooks class neither the build, `tsc`, nor the suite catches. And **one key per
+  slot rather than one array**, because `useRememberedChoice` validates a stored value
+  against the pool: a retired metric then costs that ONE slot its default, where a stored
+  array would have to be validated element by element or discarded whole.
+- ⚠ **AND THE ROLE CONFIG'S OWN LABELS ARE DELETED RATHER THAN LEFT.** `weekLabel` and
+  `upcomingLabel` had zero consumers the moment the catalog started naming every metric, and
+  a second spelling sitting in `DASH_TODAY_ROLES` is the copy the next reader edits — after
+  which the ⚙ and the strip disagree about what one figure is called. The continuity is
+  pinned instead: a guard asserts the catalog still says *Sessions this week* / *Consults
+  this week* and the six other headings the strips have always carried.
+- ⚠ **AND MY OWN HARNESS PICKED THE WRONG CARD — the shared-verb class, twice in one day.**
+  `/SESSIONS TODAY/i` over a card's `innerText` also matches the SCHEDULE card's *"No
+  sessions today"*, so the run clicked a gear that card does not have and timed out. It
+  identifies each strip by its four mono eyebrows now. *A case-insensitive match on a common
+  phrase matches whatever else contains it.*
+- **Verified:** `npm test` **3277/3277** · `tsc --noEmit` 0 · JSX parse on both changed
+  modules · `dashSignals.js` `require()`s clean · the newdesign precompile check · **21/21
+  mutations killed**, each proven to land, sanity green at both ends · and the whole cycle
+  driven in Chromium against a simulated live coach: **two strips, two gears, four `<select>`
+  groups of eleven** each carrying a painted chevron (`appearance: none` takes the native
+  one with it), picking *Needs eyes* into the second slot → the strip follows and the
+  document holds `{"kpi:trainer:practice:1":"needsEyes"}` — **one key, only the slot that
+  moved** — then the swap exchanges two slots, and a **reload brings the arrangement back**.
+  The signed-out preview keeps the payout four with **zero gears on Overview**. Zero page
+  errors throughout.
+- ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; the on-account
+  pass is owed, and it is now the only thing left on the review's P1/P2 roadmap besides the
+  booking-timezone ruling.
+
 ### 2026-09-11 — Thirteen capped reads were ordered ascending, and nine of them kept the OLDEST rows
 
 - **Found while sizing R15's last piece, not by a report — and it is live today.** Derived

@@ -152,6 +152,10 @@ function dgPatchGridStack() {
 // opens an empty panel costs more trust than an absent one. The chrome checks the array
 // is non-empty, not merely present, so a widget whose options are computed away at
 // runtime loses the gear rather than offering nothing.
+// Above this many options a group renders as a <select> rather than as chips — see the
+// note at the render below.
+const DG_SELECT_AT = 6;
+
 function DgCardSettings({ groups }) {
   const [open, setOpen] = React.useState(false);
   const boxRef = React.useRef(null);
@@ -197,6 +201,47 @@ function DgCardSettings({ groups }) {
           {groups.map((g) => (
             <div key={g.key} style={{ padding: "2px 6px 6px" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
+              {/* ⚠ CHIPS UNTIL THE LIST IS LONG, THEN A SELECT — and the threshold is the
+                  panel, not a preference. This popover is 176–240px wide, so a group of
+                  eleven options wraps to five rows of chips and four such groups fill the
+                  screen; a native select holds any length in one line, is keyboard- and
+                  screen-reader-native, and on a phone opens the platform picker. Short
+                  groups keep the chips, which read the current value at a glance. */}
+              {g.options.length > DG_SELECT_AT ? (
+                <select
+                  value={String(g.value)}
+                  aria-label={g.label}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  // ⚠ THE ORIGINAL VALUE IS HANDED BACK, NOT THE DOM STRING. A select's
+                  // value is always a string, so passing it through would silently change
+                  // a numeric or boolean option's type on its way to the widget — the
+                  // chips above hand back `o.v` untouched and this has to match them.
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const picked = g.options.filter((o) => String(o.v) === e.target.value)[0];
+                    if (picked) g.onPick(picked.v);
+                  }}
+                  style={{ width: "100%", padding: "6px 22px 6px 8px", borderRadius: 6, cursor: "pointer",
+                           border: "1px solid rgba(242,237,228,0.16)",
+                           // ⚠ `appearance: none` TAKES THE NATIVE ARROW WITH IT, so the chevron
+                           // is drawn back — otherwise the control reads as a plain box and
+                           // nothing on it says it opens. The colour is a background LAYER, so
+                           // it must be the FINAL one: a colour in any earlier layer voids the
+                           // whole declaration, which is how two page textures once made every
+                           // background transparent.
+                           backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'><path d='M1 1l3.5 3.5L8 1' fill='none' stroke='%23f2ede4' stroke-opacity='.55' stroke-width='1.4'/></svg>\")",
+                           backgroundRepeat: "no-repeat",
+                           backgroundPosition: "right 8px center",
+                           backgroundColor: "rgba(242,237,228,0.06)",
+                           color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                           letterSpacing: "0.04em", appearance: "none" }}>
+                  {g.options.map((o) => (
+                    // The option list is painted by the OS, which does not inherit the panel's
+                    // ink — an explicit dark color keeps it readable on a light platform menu.
+                    <option key={String(o.v)} value={String(o.v)} style={{ color: "#000" }}>{o.label}</option>
+                  ))}
+                </select>
+              ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {g.options.map((o) => {
                   const on = o.v === g.value;
@@ -210,6 +255,7 @@ function DgCardSettings({ groups }) {
                   );
                 })}
               </div>
+              )}
             </div>
           ))}
         </div>
