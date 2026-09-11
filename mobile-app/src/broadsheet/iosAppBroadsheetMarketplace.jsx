@@ -1937,7 +1937,15 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const [wl, setWl] = useStateBSM2(null);
   const wlBusy = React.useRef(false);
   React.useEffect(() => {
-    if (!atCapacity || !capProviderId || !window.ShapeWaitlist?.mine) { setWl(null); return undefined; }
+    // ⚠ CLEARED ON EVERY RUN, NOT ONLY ON THE BAIL — and keyed on the ACCOUNT below.
+    // The old deps held no identity, so an A→B switch did not re-run this effect at
+    // all: A's in-flight `mine()` resolved into B's mounted listing and showed B A's
+    // queue position and entry id. Keying on `bsmAuthUid` makes the switch a
+    // dependency change, so the cleanup discards A's answer; clearing here rather
+    // than only in the bail branch stops B seeing A's row in the window before the
+    // replacement lands. Same class, and the same fix, as the web profile in this PR.
+    setWl(null);
+    if (!atCapacity || !capProviderId || !bsmAuthUid || !window.ShapeWaitlist?.mine) return undefined;
     let on = true;
     (async () => {
       try {
@@ -1955,7 +1963,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       } catch (e) {}
     })();
     return () => { on = false; };
-  }, [atCapacity, capProviderId, saleProviderRole]);
+  }, [atCapacity, capProviderId, saleProviderRole, bsmAuthUid]);
   const wlJoin = async () => {
     if (wlBusy.current) return;
     if (window.bsRequireAccount && !window.bsRequireAccount('join the waiting list')) return;

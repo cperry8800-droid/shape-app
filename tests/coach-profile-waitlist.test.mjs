@@ -237,6 +237,43 @@ test('a same-mount coach swap cannot leak the previous coach\u2019s gate state',
   for (const s of ['setProw(null)', 'setCapSrv(false)', 'setBuyErr("")', 'setWlErr("")']) {
     assert.ok(m[1].includes(s), 'the per-coach reset no longer clears ' + s);
   }
+  // ⚠ AND ITS POSITION IS THE INVARIANT, NOT JUST ITS CONTENTS — the half this guard
+  // was missing. Below the readiness guard the reset is skipped exactly when `d.uid`
+  // is falsy or the client is not up, so a swap to such a coach keeps the PREVIOUS
+  // coach's prow/capSrv and renders them as paused. A complete statement list in the
+  // wrong place clears nothing on the path that matters.
+  const reset = WEB.indexOf('setOffer(null); setStudio([]);');
+  const ready = WEB.indexOf('if (!d.uid || !cl || !cl.from) return;');
+  assert.ok(reset > 0 && ready > 0, 'the reset or the readiness guard moved');
+  assert.ok(reset < ready,
+    'the per-coach reset runs AFTER the readiness guard — an early return then leaves the previous coach\u2019s capacity standing');
+});
+
+test('the APP\u2019s waitlist hydrate is keyed on the account too', () => {
+  // ⚠ THE SAME CLASS ON THE OTHER SURFACE. The marketplace listing's hydrate held no
+  // identity in its deps, so an A→B switch did not re-run it and A's in-flight mine()
+  // resolved into B's mounted listing — B shown A's queue position and entry id. The
+  // file already carries `bsmAuthUid` and already keys a sibling effect on it, so the
+  // fix is the identity this surface was already using, not a new mechanism.
+  const at = MKT.indexOf('window.ShapeWaitlist.mine()');
+  assert.ok(at > 0, 'the app hydrate moved');
+  const deps = /\}, \[([^\]]*)\]\);/.exec(MKT.slice(at));
+  assert.ok(deps, 'could not read the app hydrate deps');
+  assert.ok(deps[1].split(',').map((x) => x.trim()).includes('bsmAuthUid'),
+    'the app hydrate is not keyed on the account — an A\u2192B switch cannot discard the stale response');
+  // And it must clear UNCONDITIONALLY. ⚠ THE TEST IS "BEFORE THE `if`", NOT "BEFORE
+  // THE `return`" — a first version asked the weaker question and a mutation folding
+  // the clear back INTO the bail branch survived it, because `setWl(null); return
+  // undefined;` still puts the clear before the return. The guard was satisfied by the
+  // very site the mutation created; only the position relative to the CONDITIONAL
+  // separates an unconditional clear from one that never runs on an account change.
+  const head = MKT.lastIndexOf('React.useEffect(', at);
+  const body = MKT.slice(head, at);
+  const clear = body.indexOf('setWl(null)');
+  const cond = body.indexOf('if (!atCapacity');
+  assert.ok(clear > 0 && cond > 0, 'the app hydrate clear or its readiness guard moved');
+  assert.ok(clear < cond,
+    'the app hydrate clears INSIDE its bail branch \u2014 on an account change that still has capacity it never clears, so B sees A\u2019s entry until the replacement lands');
 });
 
 test('at capacity with no provider id never renders a control that cannot act', () => {

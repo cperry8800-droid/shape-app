@@ -623,6 +623,13 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const providerTable = listingRole === "nutritionist" ? "nutritionists" : "trainers";
   React.useEffect(() => {
     const cl = window.shapeDb && window.shapeDb.client;
+    // ⚠ THE RESET RUNS BEFORE THE READINESS GUARD, NOT AFTER IT. Below the guard it is
+    // skipped exactly when `d.uid` is falsy or the client is not up — and a same-mount
+    // swap to such a coach then KEEPS THE PREVIOUS COACH'S `prow` and `capSrv`, so the
+    // next coach renders as paused on the strength of a row belonging to someone else
+    // and their storefront never appears at all. Clearing first makes the stale state
+    // unreachable on every exit from this effect rather than on the happy one.
+    setOffer(null); setStudio([]); setProw(null); setCapSrv(false); setBuyErr(""); setWlErr("");
     if (!d.uid || !cl || !cl.from) return;
     let on = true;
     // Clear any prior coach's data first, so a same-mount profile swap can't
@@ -633,7 +640,6 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     // flag is exactly that kind of state, except worse: left standing it would
     // present the NEXT coach as paused on the strength of a refusal about someone
     // else, and their storefront would never render at all.
-    setOffer(null); setStudio([]); setProw(null); setCapSrv(false); setBuyErr(""); setWlErr("");
     cl.from(providerTable).select("id, monthly_offer, listing_media, at_capacity, capacity_resume_at").eq("owner_id", d.uid).maybeSingle()
       .then((r) => {
         if (!on || !r || r.error || !r.data) return;
