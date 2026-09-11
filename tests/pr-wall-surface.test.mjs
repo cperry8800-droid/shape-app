@@ -1,10 +1,15 @@
 // The Wall — the record board in the app's chat page (review 2026-09-10 §7).
 //
-// ⚠ THE SURFACE IS DRIVEN, NOT GREPPED. `BSWall` is mounted through the shared
-// broadsheet harness and its rendered text is what the assertions read, so an
-// equivalent rewrite passes and a real regression fails. A source-text pin
+// ⚠ THE SURFACE IS DRIVEN, NOT GREPPED. `BSWallYourBest` is mounted through the
+// shared broadsheet harness and its rendered text is what the assertions read,
+// so an equivalent rewrite passes and a real regression fails. A source-text pin
 // cannot tell those two apart — the lesson this repo has now paid for four
 // times in one wave.
+//
+// ⚠ AND DRIVING A COMPONENT IS NOT EVIDENCE THE APP RENDERS IT. `loadBroadsheet`
+// appends its own export to the source, so every test here passed for three
+// weeks against a Wall segment #2036 had already unmounted. See 'every Wall
+// component this suite drives is actually rendered by the app'.
 //
 // The data layer cannot be imported (shapeBackend.js is a classic browser
 // script), so its three Wall functions are brace-matched out of the shipped
@@ -12,24 +17,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { loadBroadsheet, drive, SHIM, THEME, SRC } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, drive, SHIM, THEME, SRC, textOf } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
+// The app's ONE share rule, imported rather than restated: a local copy would
+// make these tests agree with themselves instead of with what ships.
+import { bsWorkoutSharePrivacy as WORKOUT_SHARE_RULE } from '../mobile-app/src/services/workoutShare.mjs';
+// The real merge the repair patch goes through — restating it here would make
+// the repair test agree with itself rather than with what ships.
+import { mergePostPatch } from '../mobile-app/src/services/communityPostPatch.mjs';
 
 // BSPlate is destructured off `window` when the module evaluates, so the stub
 // has to stand before the load. It is a frame, and this suite is about what the
 // frame CONTAINS.
 globalThis.BSPlate = ({ children }) => SHIM.createElement('div', null, children);
 globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+// The sheets portal into the phone surface. `createPortal` is the identity in
+// this harness, so the target is never used — but the expression that PICKS it
+// still runs, and it ends in `|| document.body`.
+if (typeof globalThis.document === 'undefined') globalThis.document = { getElementById: () => null, body: {} };
 
 const {
-  BSWall, BSWallPlate, BSActivityCard, bsActivityKey, bsWallGain, bsWallNum, bsWallHeader,
-  bsWallLifts, bsWallDemoRows, bsWallBulletinPick, BS_WALL_DEMO, BS_WALL_UNITS,
-  bsWallTrace, COMMUNITY_ACTIVITIES, bsWallYourBest,
+  BSWallYourBest, BSActivityCard, bsActivityKey, bsWallGain, bsWallNum,
+  bsWallBulletinPick, BS_WALL_UNITS, bsWallTrace, COMMUNITY_ACTIVITIES, bsWallYourBest,
+  bsWallDisplayRows, BSWallPostSheet, bsActivityFromPost, bsFeedTypeMatch,
 } = await loadBroadsheet([
-  'BSWall', 'BSWallPlate', 'BSActivityCard', 'bsActivityKey', 'bsWallGain', 'bsWallNum',
-  'bsWallHeader', 'bsWallLifts', 'bsWallDemoRows', 'bsWallBulletinPick', 'BS_WALL_DEMO',
-  'BS_WALL_UNITS', 'bsWallTrace', 'COMMUNITY_ACTIVITIES', 'bsWallYourBest',
+  'BSWallYourBest', 'BSActivityCard', 'bsActivityKey', 'bsWallGain', 'bsWallNum',
+  'bsWallBulletinPick', 'BS_WALL_UNITS', 'bsWallTrace', 'COMMUNITY_ACTIVITIES',
+  'bsWallYourBest', 'bsWallDisplayRows', 'BSWallPostSheet',
+  'bsActivityFromPost', 'bsFeedTypeMatch',
 ]);
+
+const IMPERIAL = { weight: 'lb', distance: 'mi' };
+const METRIC = { weight: 'kg', distance: 'km' };
 
 const src = readFileSync(SRC, 'utf8');
 const bare = stripComments(src);
@@ -59,90 +78,6 @@ test('the figure drops a trailing zero and keeps a real decimal', () => {
   assert.equal(bsWallNum('x'), '');
 });
 
-test('"first" is whether a previous best exists, not whether a gain computed', () => {
-  // ⚠ THIS TEST USED TO ASSERT `first === (gain == null)`, WHICH PINNED A
-  // DEFECT: any record whose improvement failed to produce a number was then
-  // announced as the member's first while the ledger held a prior best. The
-  // two are different questions.
-  assert.equal(bsWallHeader({ best: 245, prev: null }).first, true);
-  assert.equal(bsWallHeader({ best: 245, prev: undefined }).first, true);
-  assert.equal(bsWallHeader({ best: 245, prev: 235 }).first, false);
-  assert.equal(bsWallHeader({ best: 245, prev: 245 }).first, false, 'a stored best is a stored best');
-  // A first record has nothing to be better than, so it can never carry a gain.
-  for (const rec of [{ best: 245, prev: null }, { best: 1, prev: undefined }]) {
-    assert.equal(bsWallHeader(rec).gain, null);
-  }
-});
-
-test('an improvement too small to round away is still reported as one', () => {
-  // The RPC accepts any value strictly greater than the stored best, so
-  // 245 → 245.02 IS a record. At one decimal place its gain rounded to 0 and
-  // the plate read it as no change at all.
-  const h = bsWallHeader({ best: 245.02, prev: 245 });
-  assert.equal(h.first, false, 'a previous best exists');
-  assert.ok(h.gain > 0, `a beaten best always reports a gain (got ${h.gain})`);
-  assert.equal(bsWallNum(h.gain), '0.02');
-});
-
-test('the header falls back to the lift KEY, never to an empty label', () => {
-  assert.equal(bsWallHeader({ liftKey: 'back squat', best: 247 }).label, 'back squat');
-  assert.equal(bsWallHeader({ liftKey: 'back squat', liftLabel: 'Back Squat', best: 247 }).label, 'Back Squat');
-});
-
-test('reps show only when they describe a set of more than one', () => {
-  // "245 lb × 1" is how every single is written down and reads as noise on a
-  // board; the number alone already says it.
-  assert.equal(bsWallHeader({ best: 245, reps: 3 }).reps, 3);
-  assert.equal(bsWallHeader({ best: 245, reps: 1 }).reps, null);
-  assert.equal(bsWallHeader({ best: 245, reps: null }).reps, null);
-  assert.equal(bsWallHeader({ best: 245 }).reps, null);
-});
-
-test('the lift filter offers each loaded lift once, in the order it appears', () => {
-  const rows = [
-    { liftKey: 'deadlift', liftLabel: 'Deadlift' },
-    { liftKey: 'squat', liftLabel: 'Squat' },
-    { liftKey: 'deadlift', liftLabel: 'Deadlift' },
-    { liftKey: '', liftLabel: 'nothing' },
-    null,
-  ];
-  assert.deepEqual(bsWallLifts(rows), [
-    { key: 'deadlift', label: 'Deadlift' },
-    { key: 'squat', label: 'Squat' },
-  ]);
-  assert.deepEqual(bsWallLifts(null), []);
-});
-
-// ── the demo board ──────────────────────────────────────────────────────────
-
-test('every sample record resolves to a real demo activity', () => {
-  // A row whose activity does not exist is dropped by bsWallDemoRows, so a
-  // typo'd name would silently shrink the preview rather than fail. Assert the
-  // count as well as the shape.
-  const rows = bsWallDemoRows();
-  assert.equal(rows.length, BS_WALL_DEMO.length, 'no sample record lost its activity');
-  for (const r of rows) {
-    assert.ok(r.act, `${r.name} has an activity`);
-    assert.equal(r.act.who, r.name);
-    assert.ok(r.ago, `${r.name} carries a time`);
-  }
-});
-
-test('the preview shows both a first record and one beaten', () => {
-  const rows = bsWallDemoRows();
-  assert.ok(rows.some((r) => bsWallGain(r.best, r.prev) == null), 'a first-on-the-wall plate');
-  assert.ok(rows.some((r) => bsWallGain(r.best, r.prev) != null), 'a beaten-best plate');
-});
-
-test('the preview shows a stamped record and an unstamped one', () => {
-  // ⚠ The co-sign is read from the demo ACTIVITY, never authored beside the
-  // record. Inventing one here would make the same record read differently on
-  // the Wall and the Feed, which is exactly what wrapping the card prevents.
-  const rows = bsWallDemoRows();
-  assert.ok(rows.some((r) => r.act.cosign), 'a co-signed plate');
-  assert.ok(rows.some((r) => !r.act.cosign), 'an unstamped plate');
-});
-
 // ── the rendered board ──────────────────────────────────────────────────────
 
 const feedCtx = () => ({
@@ -155,229 +90,36 @@ const feedCtx = () => ({
   feedApplyReaction() {},
 });
 
-// The real bsSubTab is a closure inside BSClientFeed, so the segment takes it as
-// ctx. The stub keeps the shape a driver needs: a keyed button carrying its own
-// label and handler.
-const subTab = ({ key, on, onClick, label }) =>
-  SHIM.createElement('button', { key, 'aria-pressed': !!on, onClick }, label);
+test('both ways to post are offered to a member, never to a preview visitor', () => {
+  // ⚠ TWO CONTROLS, AND THE SECOND IS THE ONE A WATCH-MISSED SESSION NEEDS.
+  // "Post a PR" writes one number to the ledger and the server refuses it unless
+  // it beats their stored best; "Post an activity" publishes a whole session to
+  // the feed and their profile and claims nothing. A member who ran without the
+  // app has no record to declare — they have a session — so offering only the
+  // first leaves them with a control that will reject them.
+  const out = drive(BSWallYourBest, { loggedIn: true, onLogActivity() {} }).text;
+  assert.ok(out.includes('Post a PR'), 'the record path');
+  assert.ok(out.includes('Post an activity'), 'the session path');
 
-const wallCtx = (over = {}) => ({
-  feedCtx: feedCtx(), loggedIn: false, myRole: 'client', bsSubTab: subTab,
-  hair: '#ddd', muted: '#777', cardInk: '#111', ...over,
+  const signedOut = drive(BSWallYourBest, { loggedIn: false, onLogActivity() {} }).text;
+  assert.ok(!signedOut.includes('Post a PR') && !signedOut.includes('Post an activity'));
+  const prospect = previewingSignedIn(() => drive(BSWallYourBest, { loggedIn: true, onLogActivity() {} }).text);
+  assert.ok(!prospect.includes('Post a PR') && !prospect.includes('Post an activity'),
+    'a signed-in prospect is not a member — neither control writes anything they own');
 });
 
-// Fill the defaultValue placeholders the way the shipped translator would, so a
-// delta line can be read as the member reads it. Substitutes only from params
-// the component actually passed — a placeholder it forgot still shows as {gain}
-// and the assertion fails rather than quietly matching.
-function withCopyValues(fn) {
-  const prev = globalThis.window.ShapeI18n;
-  globalThis.window.ShapeI18n = {
-    t(key, opts) {
-      const raw = opts && opts.defaultValue;
-      if (typeof raw !== 'string') return null;
-      return raw.replace(/\{(\w+)\}/g, (m, name) => (opts && opts[name] != null ? String(opts[name]) : m));
-    },
-  };
-  try { return fn(); } finally { globalThis.window.ShapeI18n = prev; }
-}
-
-test('signed out, the board renders every sample record without an effect', () => {
-  // The preview has nothing to fetch, so it must not depend on an effect having
-  // run — the harness no-ops effects, and this passing IS the evidence.
-  //
-  // ⚠ COUNT THE PLATES, DO NOT MATCH THE LIFT NAMES. An earlier version of this
-  // test asserted the rendered text contained every liftLabel, and it passed
-  // with the plates rendering NOTHING — the labels it was matching came from
-  // the lift-filter <option> list a few lines above them. A guard that reports
-  // a pass is a broken instrument until you know which line satisfied it.
-  const d = drive(BSWall, { ctx: wallCtx() });
-  assert.ok(!d.text.includes('Reading the wall'), 'a preview visitor never waits on a read');
-  const plates = d.nodes().filter((n) => n.type === BSWallPlate);
-  assert.equal(plates.length, BS_WALL_DEMO.length, 'one plate per sample record');
-  assert.deepEqual(plates.map((n) => n.props.rec.liftLabel), BS_WALL_DEMO.map((r) => r.liftLabel));
-  assert.deepEqual(plates.map((n) => !!n.props.newest), [true, false, false, false, false, false],
-    'only the newest record gets the live tick');
-});
-
-test('a plate wraps the feed\'s own card rather than re-implementing the record', () => {
-  // The owner asked for "all of the information that is currently displayed".
-  // The way that stays true as the feed grows is that the Wall renders the SAME
-  // component — so the assertion is that the element is there, with the record
-  // as its activity.
-  const rec = bsWallDemoRows()[0];
-  const card = drive(BSWallPlate, { rec, ctx: wallCtx(), newest: true })
-    .nodes().find((n) => n.type === BSActivityCard);
-  assert.ok(card, 'the plate renders BSActivityCard');
-  assert.equal(card.props.a, rec.act, 'with this record\'s activity');
-  assert.equal(card.props.isLast, true, 'no trailing feed rule inside a framed plate');
-  assert.equal(card.props.pagePad, 0, 'so its media bleed stays inside the plate');
-});
-
-test('a record with no linked post renders as a bare record', () => {
-  // Older ledger rows, and anything posted from outside the app, have no post.
-  // The number is still true; there is simply nothing to react to.
-  const rec = { ...bsWallDemoRows()[0], act: null };
-  const d = drive(BSWallPlate, { rec, ctx: wallCtx(), newest: false });
-  assert.equal(d.nodes().filter((n) => n.type === BSActivityCard).length, 0);
-  assert.ok(!d.text.includes('Not yet stamped'), 'nothing to stamp is not the same as unstamped');
-  assert.ok(d.text.includes(rec.liftLabel), 'but the record itself is still stated');
-});
-
-const plateText = (rec) => drive(BSWallPlate, { rec, ctx: wallCtx(), newest: false }).text;
-
-const byName = () => Object.fromEntries(bsWallDemoRows().map((r) => [r.name, r]));
-const cardOn = (rec) => drive(BSWallPlate, { rec, ctx: wallCtx(), newest: false })
-  .nodes().find((n) => n.type === BSActivityCard);
-
-test('a linked record is stated ONCE — the card carries it, the plate does not', () => {
-  // ⚠ THIS TEST USED TO ASSERT THE PLATE'S OWN HEADER, and that header was the
-  // bug: the plate said "NEW BEST · DEADLIFT / 245 LB / ↑ +10 LB" and then the
-  // card said the same three things again underneath. The approved board states
-  // the record once. What the header uniquely held — the gain — moved into the
-  // card's pill.
-  withCopyValues(() => {
-    const by = byName();
-    const text = plateText(by['Priya Shah']);
-    assert.doesNotMatch(text, /New best/i, 'no second record header above the card');
-    assert.doesNotMatch(text, /over last best/i, 'and no second delta line');
-    assert.equal(cardOn(by['Priya Shah']).props.recordNote, '+10 lb', "Priya's 245 over 235");
-    assert.equal(cardOn(by['Drew Oyelaran']).props.recordNote, '+1.8 mi', "Drew's 18.2 over 16.4");
-    assert.equal(cardOn(by['Quinn Harper']).props.recordNote, '', 'a first record has beaten nothing');
-  });
-});
-
-test('the plate renders the wall variant of the card, never the feed one', () => {
-  // The variant is the only thing separating the two surfaces; a plate that
-  // forgot to pass it would silently render the feed's typeset hero.
-  for (const rec of bsWallDemoRows()) {
-    assert.equal(cardOn(rec).props.variant, 'wall', `${rec.name}`);
-  }
-});
-
-test('a bare record still states its own figure and delta', () => {
-  // With no card there is nothing else to carry the reading, so the plate's
-  // header stands — and it is the ONLY place those words should now appear.
-  withCopyValues(() => {
-    const base = byName()['Priya Shah'];
-    const text = drive(BSWallPlate, { rec: { ...base, act: null }, ctx: wallCtx(), newest: false }).text;
-    assert.match(text, /New best/i);
-    assert.match(text, /245/);
-    assert.match(text, /↑ \+10 lb over last best/);
-    const first = byName()['Quinn Harper'];
-    assert.match(drive(BSWallPlate, { rec: { ...first, act: null }, ctx: wallCtx(), newest: false }).text,
-      /First on the wall/);
-  });
-});
-
-test('an unstamped record says so and a co-signed one does not', () => {
-  const rows = bsWallDemoRows();
-  const stamped = rows.filter((r) => r.act.cosign);
-  const unstamped = rows.filter((r) => !r.act.cosign);
-  assert.ok(stamped.length > 0 && unstamped.length > 0, 'the preview covers both states');
-  for (const r of stamped) assert.ok(!plateText(r).includes('Not yet stamped'), `${r.name} is stamped`);
-  for (const r of unstamped) assert.ok(plateText(r).includes('Not yet stamped'), `${r.name} is not`);
-});
-
-test('a coach co-signing in this session clears the plate\'s unstamped foot', () => {
-  // The card reads an optimistic co-sign out of ctx the moment the coach taps;
-  // a foot that kept saying "not yet stamped" underneath it would contradict
-  // the line right above it.
-  const rec = bsWallDemoRows().find((r) => !r.act.cosign);
-  const ctx = wallCtx();
-  assert.ok(drive(BSWallPlate, { rec, ctx, newest: false }).text.includes('Not yet stamped'));
-  // ⚠ THE KEY IS DERIVED, NOT READ OFF `.key`. A demo activity carries none, so
-  // an earlier version of this test wrote the map under `undefined` — and the
-  // plate, which also read `a.key`, found it there. Both were wrong together,
-  // which is exactly the shape a test cannot catch by agreeing with the code.
-  const k = bsActivityKey(rec.act);
-  assert.ok(k && k !== 'undefined|undefined', 'a demo card still has an identity');
-  ctx.feedCtx.actCoSign = { [k]: { name: 'You', role: 'trainer' } };
-  assert.ok(!drive(BSWallPlate, { rec, ctx, newest: false }).text.includes('Not yet stamped'));
-});
-
-test('choosing a lift narrows the board to that lift', () => {
-  // The filter was unguarded until a mutation that ignored it outright survived
-  // the suite — every other test looks at the unfiltered board.
-  const d = drive(BSWall, { ctx: wallCtx() });
-  const all = d.nodes().filter((n) => n.type === BSWallPlate).length;
-  assert.ok(all > 1, 'the preview has several lifts to narrow from');
-  const select = d.nodes().find((n) => n.type === 'select' && typeof n.props.onChange === 'function');
-  assert.ok(select, 'the board offers a lift filter');
-  select.props.onChange({ target: { value: 'deadlift' } });
-  d.render();
-  const shown = d.nodes().filter((n) => n.type === BSWallPlate);
-  assert.equal(shown.length, 1, 'one lift, one plate');
-  assert.equal(shown[0].props.rec.liftKey, 'deadlift');
-});
-
-test('the scope sub-tabs name the coach side by who is asking', () => {
-  const asMember = drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text;
-  const asCoach = drive(BSWall, { ctx: wallCtx({ loggedIn: true, myRole: 'trainer' }) }).text;
-  assert.ok(asMember.includes("Coach's clients") && !asMember.includes('My clients'));
-  assert.ok(asCoach.includes('My clients') && !asCoach.includes("Coach's clients"));
-});
-
-test('a preview visitor is offered no scope it cannot be answered on', () => {
-  // The scopes are resolved from the caller's own follows and coach links.
-  // Signed out there are none, so three tabs would highlight and change
-  // nothing — and filtering the sample cast by an invented "following" would
-  // be a fabrication.
-  const text = drive(BSWall, { ctx: wallCtx() }).text;
-  for (const label of ['Everyone', 'Following', "Coach's clients", 'My clients']) {
-    assert.ok(!text.includes(label), `${label} is not offered in the preview`);
-  }
-  assert.ok(text.includes('All lifts'), 'but the lift filter is, because it works');
-});
-
-test('a lift the loaded rows do not carry cannot empty the board', () => {
-  // Picking a lift on one scope and switching to another left the selection in
-  // place: the board went empty over rows that existed, and with one lift or
-  // none in the new scope the <select> is not rendered, so there was no way
-  // back.
-  const d = drive(BSWall, { ctx: wallCtx() });
-  const before = d.nodes().filter((n) => n.type === BSWallPlate).length;
-  const select = d.nodes().find((n) => n.type === 'select' && typeof n.props.onChange === 'function');
-  select.props.onChange({ target: { value: 'a-lift-nobody-has' } });
-  d.render();
-  assert.equal(d.nodes().filter((n) => n.type === BSWallPlate).length, before, 'the board is unchanged');
-  const after = d.nodes().find((n) => n.type === 'select');
-  assert.equal(after.props.value, 'all', 'and the control says so');
-});
-
-test('a bare record still names the member it belongs to', () => {
-  // The attribution a plate usually shows lives inside the wrapped card, so a
-  // row with no readable post was an anonymous number on a board of other
-  // people's records.
-  const rec = { ...bsWallDemoRows()[0], act: null };
-  const text = drive(BSWallPlate, { rec, ctx: wallCtx(), newest: false }).text;
-  assert.ok(text.includes(rec.name), 'the member is named');
-  assert.ok(text.includes(rec.liftLabel), 'beside their record');
-});
-
-test('signed in with the read still in flight, the board says it is reading', () => {
-  // Not an empty board: "no records" is the positive claim that nobody has set
-  // one, and a wall that says it while still loading is asserting something it
-  // has not read.
-  const text = drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text;
-  assert.ok(text.includes('Reading the wall'));
-  assert.ok(!text.includes('No records on the wall yet'));
-});
-
-test('signed in, the sample cast never appears', () => {
-  // ⚠ ASSERT ON THE PLATES, NOT ON THE TEXT. A demo name is only ever painted
-  // INSIDE a plate, and the driver does not render child components — so a text
-  // assertion here passed even with the demo board leaking to a signed-in
-  // account. Mutation-proven: `rows || bsWallDemoRows()` survived it.
-  const d = drive(BSWall, { ctx: wallCtx({ loggedIn: true }) });
-  assert.equal(d.nodes().filter((n) => n.type === BSWallPlate).length, 0, 'no plate before a read resolves');
-  assert.ok(!d.text.includes('Sample records'), 'and no preview note');
-});
-
-test('Post a PR is offered to a member, never to a preview visitor', () => {
-  assert.ok(!drive(BSWall, { ctx: wallCtx() }).text.includes('Post a PR'));
-  assert.ok(drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text.includes('Post a PR'));
-  assert.ok(!previewingSignedIn(() => drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text).includes('Post a PR'));
+test('the activity button calls the publisher, it does not open the PR sheet', () => {
+  // ⚠ DRIVEN, NOT GREPPED, because the two buttons sit side by side and wiring
+  // them to the same handler is the easy mistake: a member reaching for "my
+  // watch missed this run" would land in a form that asks for a lift and a
+  // one-rep max. The handler is the parent's — the SAME BSLogActivitySheet the
+  // composer's icon opens — so the session lands on the feed and the profile.
+  let opened = 0;
+  const d = drive(BSWallYourBest, { loggedIn: true, onLogActivity: () => { opened += 1; } });
+  const btn = d.nodes().find((n) => n.type === 'button' && textOf(n).includes('Post an activity'));
+  assert.ok(btn, 'the activity control is a button');
+  btn.props.onClick();
+  assert.equal(opened, 1, 'it calls the publisher the parent passed');
 });
 
 // A prospect who tapped PREVIEW THE APP FIRST from the paywall: signed in, and
@@ -388,36 +130,13 @@ function previewingSignedIn(fn) {
   try { return fn(); } finally { globalThis.window.ShapeCanChat = prev; }
 }
 
-test('a signed-in prospect previewing the app still sees the sample board', () => {
-  // ⚠ THE WALL ASKED "SIGNED IN?" WHEN THE QUESTION IS "IS THIS A MEMBER?".
-  // Someone previewing from the paywall may well be signed in, and for them the
-  // live read comes back honest and EMPTY — leaving the one surface in Chat
-  // that shows a prospect nothing at all.
-  const live = drive(BSWall, { ctx: wallCtx({ loggedIn: true }) });
-  assert.equal(live.nodes().filter((n) => n.type === BSWallPlate).length, 0, 'a member waits on the read');
-
-  const d = previewingSignedIn(() => drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }));
-  assert.equal(d.nodes().filter((n) => n.type === BSWallPlate).length, BS_WALL_DEMO.length, 'a prospect sees the board');
-  assert.ok(d.text.includes('Sample records'), 'labelled as samples');
-  assert.ok(!d.text.includes('No records on the wall yet'), 'and never an empty claim');
-});
-
 test('a signed-in prospect is invited to join, not told to sign in', () => {
   // Naming the one step they have already taken is the #2005 defect.
-  const out = previewingSignedIn(() => drive(BSWall, { ctx: wallCtx({ loggedIn: true }) }).text);
+  const out = previewingSignedIn(() => drive(BSWallYourBest, { loggedIn: true, onLogActivity() {} }).text);
   assert.ok(out.includes('Join Shape'), 'invited to join');
   assert.ok(!out.includes('Sign in'), 'never told to sign in');
-  const signedOut = drive(BSWall, { ctx: wallCtx() }).text;
+  const signedOut = drive(BSWallYourBest, { loggedIn: false, onLogActivity() {} }).text;
   assert.ok(signedOut.includes('Sign in'), 'a genuinely signed-out visitor still is');
-});
-
-test('a member whose wall is empty is told so, not shown strangers', () => {
-  // The feed falls back to its demo cast whenever its live read is empty, which
-  // shows a paying member a cast of strangers with nothing saying so. This does
-  // not copy that: the sample board is for people who cannot have a wall yet.
-  const src = bare.slice(bare.indexOf('function BSWall({ ctx })'));
-  assert.match(src, /const rowsEff = previewing \? bsWallDemoRows\(\) : rows;/,
-    'the sample board is gated on previewing, never on the read coming back empty');
 });
 
 test('the unit choice carries no translatable copy', () => {
@@ -447,6 +166,56 @@ test('the Wall is NOT a segment — it is the activity sub-tab', () => {
   const grid = bare.split('\n').find((l) => l.includes('gridTemplateColumns') && l.includes('1px solid ' + String.fromCharCode(36) + '{hair}') && l.includes('borderRadius: 12'));
   assert.ok(grid, 'the pill row container was not found');
   assert.match(grid, new RegExp('repeat\\(' + keys.length + ', 1fr\\)'));
+});
+
+test("every Wall component this suite drives is actually rendered by the app", () => {
+  // ⚠ THE GUARD THIS SUITE DID NOT HAVE, AND THE REASON IT NEEDS ONE.
+  // `loadBroadsheet` appends its OWN `export { … }` to the source and compiles
+  // it, so it reaches a component whether or not a single line of the app
+  // renders one. #2036 deleted the Wall segment's only mount and every test
+  // here kept passing — including one asserting that a signed-in member is
+  // offered "Post a PR", which for three weeks no member could see. A suite
+  // that cannot tell a mounted surface from an unmounted one is not reporting
+  // on the app; it is reporting on itself.
+  //
+  // The corpus is DERIVED from this file's own import list, so a component
+  // added to the drive set later is covered without anyone remembering this
+  // test exists — and a sweep that finds nothing to check fails rather than
+  // passing vacuously.
+  const imports = readFileSync(new URL(import.meta.url), 'utf8');
+  const list = imports.match(/await loadBroadsheet\(\[([\s\S]*?)\]\)/);
+  assert.ok(list, "this test cannot find the suite's own import list");
+  // COMPONENTS only: PascalCase, which by this file's convention means an
+  // initial capital AND a lowercase letter, no underscore. `BS_WALL_UNITS` and
+  // `COMMUNITY_ACTIVITIES` are constants — nothing renders a constant, and a
+  // guard that demanded it would be noise the next reader learns to ignore.
+  const driven = [...list[1].matchAll(/'([A-Z][A-Za-z0-9]*[a-z][A-Za-z0-9]*)'/g)].map((m) => m[1]);
+  assert.ok(driven.length >= 2, `expected the suite to drive several components, found ${driven.length}`);
+
+  for (const name of driven) {
+    // Rendered somewhere: as JSX (`<Name`) at a site that is not its own
+    // declaration. `bare` is the comment-stripped source, so a component named
+    // only in prose cannot satisfy this.
+    const mounted = new RegExp('<' + name + '[\\s/>]').test(bare);
+    assert.ok(mounted, `${name} is driven by this suite but nothing in the app renders it — either mount it or stop testing it as though it ships`);
+  }
+});
+
+test('every profile activity feed renders the wall design too', () => {
+  // Owner, 2026-09-11: "the new wall designs needs to match the profile activity
+  // feed as well". A record read on a profile and the same record read on the
+  // Wall must not be two different objects — so the variant is asserted at EVERY
+  // profile feed rather than at the two this change happened to touch.
+  //
+  // The corpus is derived: every BSActivityCard render that hands it the profile
+  // ctx is a profile feed by construction, so a third one added later is covered
+  // without anyone remembering this test exists.
+  const sites = bare.split('\n').filter((l) => l.includes('<BSActivityCard') && l.includes('ctx={profileCtx}'));
+  assert.ok(sites.length >= 2, `expected the member and coach profile feeds, found ${sites.length}`);
+  for (const line of sites) {
+    assert.match(line, /variant="wall"/,
+      'a profile activity feed is still rendering the old feed card: ' + line.trim().slice(0, 90));
+  }
 });
 
 test('the activity sub-tab is labelled Wall and renders the wall design', () => {
@@ -582,7 +351,11 @@ test('a null previous best survives the mapping as null, not as zero', () => {
   return b.listPRWall({}).then((res) => {
     assert.strictEqual(res.data[0].prev, null);
     assert.strictEqual(res.data[0].reps, null);
-    assert.equal(bsWallHeader(res.data[0]).first, true);
+    // ⚠ ASKED OF THE LIVE PRIMITIVE. The plate's own header formatter carried
+    // this check and died with the plate; `bsWallGain` is what the card's wall
+    // pill reads, so the question — "is there a previous best to improve on?" —
+    // is now asked of the code that actually runs.
+    assert.equal(bsWallGain(res.data[0].best, res.data[0].prev), null, 'no previous best, so no gain to quote');
   });
 });
 
@@ -838,23 +611,40 @@ test('a lift posted but never logged in-app still shows, and asks for nothing', 
   assert.equal(rows[0].gap, null);
 });
 
-test('a gap is never computed across units', () => {
-  // ⚠ THE NUMBERS HAVE TO BE THE WRONG WAY ROUND FOR THIS TO TEST ANYTHING.
-  // A first version used 100 kg against 225 lb, where the naive subtraction is
-  // negative and yields null anyway — so it passed with the unit check removed.
-  // 250 kg against 225 lb is the case that matters: unguarded it would announce
-  // a confident "25 lb to the wall" out of a conversion that never happened.
+test('a best is compared across units, not refused for having one', () => {
+  // ⚠ THIS REVERSES THE RULE THIS SUITE USED TO ASSERT, and the reversal is the
+  // finding. The old rule said a gap must never be computed across units,
+  // because "subtracting them would invent a gap out of the conversion" — which
+  // conflated INVENTING with CONVERTING. A conversion inside one family is
+  // exact, and refusing it had a cost the rule never named: a logged 100 kg
+  // over a posted 200 lb is the higher, UNPOSTED best, and the row drew it as a
+  // settled fact carrying the old post's date with no way to put it up.
   const rows = bsWallYourBest(
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 250, unit: 'kg' }],
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 225, unit: 'lb', postedAt: 'x' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 100, unit: 'kg' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 200, unit: 'lb', postedAt: 'x' }],
   );
-  assert.equal(rows[0].gap, null, 'no cross-unit arithmetic');
+  assert.equal(rows[0].unposted, true, '100 kg is 220.5 lb — it beats the wall');
+  assert.ok(rows[0].gap > 9 && rows[0].gap < 10, 'and the gap is real, quoted in the logged unit');
+
+  // A lift that genuinely does NOT beat the wall once converted stays a fact.
+  const held = bsWallYourBest(
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 90, unit: 'kg' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 200, unit: 'lb', postedAt: 'x' }],
+  );
+  assert.equal(held[0].unposted, false, '90 kg is 198.4 lb — under the record');
+  assert.equal(held[0].gap, null);
+});
+
+test('what the old rule was right about is the FAMILY', () => {
+  // A weight and a distance are genuinely not comparable, so a row whose two
+  // sides disagree about that keeps the conservative answer rather than
+  // crossing them — which is the half of the old rule that survives.
+  const rows = bsWallYourBest(
+    [{ liftKey: 'row', liftLabel: 'Row', best: 250, unit: 'kg' }],
+    [{ liftKey: 'row', liftLabel: 'Row', best: 5, unit: 'km', postedAt: 'x' }],
+  );
+  assert.equal(rows[0].gap, null, 'no cross-family arithmetic');
   assert.equal(rows[0].unposted, false, 'and no claim that it beats the wall');
-  // the same pair in ONE unit is a real gap, so the guard is not just refusing
-  assert.equal(bsWallYourBest(
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 250, unit: 'lb' }],
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 225, unit: 'lb', postedAt: 'x' }],
-  )[0].gap, 25);
 });
 
 // ── the member's own logged best, out of their set logs ─────────────────────
@@ -1066,4 +856,514 @@ test('an activity with no distance is not a distance record', () => {
     { activity_type: 'run', distance_km: 0, started_at: 'b' },
   ] });
   return run().then((res) => assert.deepEqual(res.data, []));
+});
+
+// ── the row the strip draws, and what it is allowed to offer ────────────────
+
+test('a distance record is shown as a record and is never offered the lift sheet', () => {
+  // ⚠ THE REGRESSION THIS EXISTS FOR: `myBestLifts` returns the longest of each
+  // activity type in KILOMETRES, `bsWallYourBest` marks a never-posted one
+  // `unposted`, and the row drew a Post a PR button whose sheet falls back to
+  // 'lb' for any unit it does not know — so an 18.2 km run was one tap from
+  // being published as an 18.2 LB personal record.
+  const [run] = bsWallDisplayRows(
+    bsWallYourBest([{ liftKey: 'distance:run', liftLabel: 'Longest run', best: 18.2, unit: 'km' }], []),
+    IMPERIAL,
+  );
+  assert.equal(run.unposted, true, 'it is genuinely not on the wall — that fact is unchanged');
+  assert.equal(run.postable, false, 'but this sheet cannot express it, so nothing offers to try');
+  assert.equal(run.unit, 'mi', 'and it is still converted into the reader’s own unit');
+});
+
+test('a lift is postable in either unit system, because the sheet can say both', () => {
+  const lift = [{ liftKey: 'bench', liftLabel: 'Bench', best: 185, unit: 'lb' }];
+  const imperial = bsWallDisplayRows(bsWallYourBest(lift, []), IMPERIAL)[0];
+  const metric = bsWallDisplayRows(bsWallYourBest(lift, []), METRIC)[0];
+  assert.equal(imperial.unit, 'lb');
+  assert.equal(metric.unit, 'kg');
+  // ⚠ THE METRIC HALF IS THE ONE THAT MATTERS. The gate reads the DISPLAY unit,
+  // so a guard written against the stored unit alone would withhold the button
+  // from every metric member's lifts — a fix that breaks the case it protects.
+  assert.ok(imperial.postable && metric.postable, 'both are weights this sheet can write');
+});
+
+test('a record already on the wall is postable by nobody, whatever its unit', () => {
+  const rows = bsWallDisplayRows(bsWallYourBest(
+    [{ liftKey: 'squat', liftLabel: 'Squat', best: 315, unit: 'lb' }],
+    [{ liftKey: 'squat', liftLabel: 'Squat', best: 315, unit: 'lb', postedAt: 'x' }],
+  ), IMPERIAL);
+  assert.equal(rows[0].unposted, false);
+  assert.equal(rows[0].postable, false, 'postable never outruns unposted');
+});
+
+test('the row draws on `postable`, never on `unposted` directly', () => {
+  // ⚠ THE PURE FUNCTION BEING RIGHT SAYS NOTHING ABOUT THE JSX. `unposted` is
+  // the DATA fact and `postable` is what may be drawn; a row that reads the
+  // first paints a teal call-to-action and a button over a record the sheet
+  // cannot write. Anchored on the row's own block so this is about that row and
+  // not about the whole file.
+  // ⚠ ANCHORED FROM THE WALL ROW, NOT FROM THE FIRST `.map` IN THE FILE. An
+  // earlier `seed.moves` map matches the same shape, so a bare search swept in
+  // unrelated source and the assertions below were about a block that merely
+  // CONTAINED the row.
+  const wall = bare.indexOf('bsWallDisplayRows(mineEff');
+  assert.ok(wall > 0, 'the Wall row source was not found');
+  const i = bare.indexOf('.map((m) => (', wall);
+  assert.ok(i > wall, 'the Wall row still maps its display rows');
+  const block = bare.slice(i, bare.indexOf('{sheet && <BSWallPostSheet', i));
+  assert.ok(block.length > 500, 'and the block found is the row, not a fragment');
+  assert.equal((block.match(/m\.unposted/g) || []).length, 0, 'the row presentation reads postable only');
+  assert.ok((block.match(/m\.postable/g) || []).length >= 5, 'frame, label, pill and button all turn on it');
+});
+
+test('every unit the sheet offers is a unit a row can be postable in', () => {
+  // Derived, so adding a unit to the select without teaching the row about it
+  // fails here rather than shipping a button that writes the wrong number.
+  for (const u of BS_WALL_UNITS) {
+    const [row] = bsWallDisplayRows([{ liftKey: 'x', liftLabel: 'X', best: 100, unit: u, gap: null, unposted: true }], u === 'kg' ? METRIC : IMPERIAL);
+    assert.equal(row.postable, true, `${u} is offered by the sheet, so a ${u} record must be postable`);
+  }
+  assert.ok(BS_WALL_UNITS.length > 0, 'and the list is not empty, so this cannot pass vacuously');
+});
+
+test('the announce this sheet delegates is the one the post would have made', () => {
+  // ⚠ THE SHEET ANNOUNCES THE RECORD ITSELF BECAUSE IT NEEDS THE VERDICT, so
+  // `createCommunityPost` must be able to stand down — and that stand-down has
+  // to be an opt-IN, or every ordinary workout post silently stops reaching the
+  // wall. Read out of the shipped backend, which is a classic browser script
+  // this suite cannot import.
+  const backend = stripComments(readFileSync(BACKEND, 'utf8'));
+  assert.match(backend, /skipPRAnnounce = false,/, 'default false: nothing stops announcing by accident');
+  assert.match(backend, /if \(!skipPRAnnounce && state\.user\?\.id && _lift/, 'and the announce is what it gates');
+});
+
+// ── posting a record by hand ────────────────────────────────────────────────
+
+// The sheet's four collaborators, each recording what it was handed. Defaults
+// are the healthy path: a public, sharing member with no prior record.
+function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { stored: 'supabase', data: { id: 'post-1' } }, verdict = { ok: true, prev: null }, createThrows = false, updateThrows = false, noStore = false } = {}) {
+  const calls = { created: [], announced: [], updated: [], toasts: [], posted: 0, closed: 0 };
+  const prev = {
+    shapeDb: globalThis.window.shapeDb, ws: globalThis.window.ShapeWorkoutShare,
+    pr: globalThis.window.ShapePRWall, com: globalThis.window.ShapeCommunity, toast: globalThis.window.__bsToast,
+  };
+  if (noStore) delete globalThis.window.shapeDb;
+  else globalThis.window.shapeDb = { getUserGoals: async () => settings };
+  // The REAL rule, lifted from the module that ships it — a restatement here
+  // would be a test of the restatement.
+  globalThis.window.ShapeWorkoutShare = { rule: WORKOUT_SHARE_RULE };
+  globalThis.window.ShapePRWall = {
+    mine: async () => ({ stored: ledgerStored, data: ledger }),
+    post: async (a) => { calls.announced.push(a); return verdict; },
+  };
+  globalThis.window.ShapeCommunity = {
+    createPost: async (a) => { calls.created.push(a); if (createThrows) throw new Error('boom'); return created; },
+    // The repair channel. Ordering 4 leans on it twice — to reuse a post on a
+    // retry, and to strip the PR claim off one the server refused — so a stub
+    // that swallowed it would make both invisible.
+    update: async (a) => { calls.updated.push(a); if (updateThrows) throw new Error('boom'); return { stored: 'supabase', data: { id: a.postId } }; },
+  };
+  globalThis.window.__bsToast = (msg) => calls.toasts.push(String(msg));
+  const restore = () => {
+    globalThis.window.shapeDb = prev.shapeDb; globalThis.window.ShapeWorkoutShare = prev.ws;
+    globalThis.window.ShapePRWall = prev.pr; globalThis.window.ShapeCommunity = prev.com;
+    globalThis.window.__bsToast = prev.toast;
+  };
+  return { calls, restore };
+}
+
+// Click the sheet's submit and let every awaited stub settle.
+async function submitSheet(seed, env, { postedThrows = false } = {}) {
+  const d = drive(BSWallPostSheet, {
+    seed,
+    onClose: () => { env.calls.closed += 1; },
+    onPosted: () => { env.calls.posted += 1; if (postedThrows) throw new Error('boom'); },
+  });
+  d.click('Post a PR');
+  for (let i = 0; i < 24; i += 1) await Promise.resolve();
+  return d;
+}
+
+// ⚠ A RETRY IS THE SAME MOUNTED SHEET, NOT A SECOND ONE. `submitSheet` mounts
+// afresh, which is a different member sitting down again — and the post id this
+// sheet retains across retries lives in a ref, so driving three mounts measures
+// three first attempts and says nothing about the thing under test.
+async function submitAgain(d) {
+  // ⚠ RE-RENDER FIRST. `click` renders synchronously after the handler, but
+  // `submit` is async — so the tree still carries `busy` and the only button in
+  // it reads "Posting…". Without this the retry cannot find its own control.
+  d.render();
+  d.click('Post a PR');
+  for (let i = 0; i < 24; i += 1) await Promise.resolve();
+  return d;
+}
+
+const SEED = { lift: 'Back squat', value: '245', unit: 'lb', reps: '3' };
+
+test('the post is published first and the ledger advances only behind a durable one', async () => {
+  // ⚠ THE FOURTH ORDERING, AND THE ONE BEFORE IT IS WHY. Announcing first meant
+  // a failed insert left a record the server would never accept again — the
+  // ledger had already moved, and `post_my_pr_to_wall` refuses anything that
+  // does not BEAT the stored best. Nothing here can advance the ledger for a
+  // plate that does not exist, so every failure stays retryable.
+  const env = postSheet({ ledger: [{ liftKey: 'back squat', best: 225, unit: 'lb' }], verdict: { ok: true, prev: 225 } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 1, 'the plate is made first');
+    const made = env.calls.created[0];
+    assert.equal(made.metrics.kind, 'workout');
+    assert.equal(made.metrics.lift, 'Back squat');
+    assert.equal(made.metrics.load, '245 lb', 'the number AND its unit');
+    // ⚠ THE PLATE CLAIMS NOTHING YET. Both record fields are written afterwards,
+    // from the verdict — so a post can never carry a PR the server did not grant.
+    assert.equal('pr' in made.metrics, false, 'no marker before the verdict');
+    assert.equal('delta' in made.metrics, false, 'and no gain');
+    assert.equal(made.skipPRAnnounce, true, 'the sheet announces, not the publisher');
+
+    assert.equal(env.calls.announced.length, 1, 'then the ledger');
+    assert.equal(env.calls.announced[0].postId, 'post-1', 'carrying the post it just made');
+    assert.deepEqual(
+      [env.calls.announced[0].lift, env.calls.announced[0].value, env.calls.announced[0].unit, env.calls.announced[0].reps],
+      ['Back squat', 245, 'lb', 3],
+    );
+    // …and only now is it a record.
+    assert.equal(env.calls.updated.length, 1, 'the verdict stamps the plate');
+    assert.equal(env.calls.updated[0].postId, 'post-1');
+    assert.equal(env.calls.updated[0].metrics.pr, true);
+    assert.equal(env.calls.updated[0].metrics.delta, '+20 lb', "from the server's own prev, not the sheet's read");
+    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)));
+    assert.equal(env.calls.posted, 1);
+  } finally { env.restore(); }
+});
+
+test('a first record is marked a PR even though it has no delta', async () => {
+  // ⚠ `delta` EXISTS ONLY AGAINST A PRIOR BEST, so a member's first accepted
+  // record for a lift carried no PR signal at all and dropped out of the PR tab.
+  const env = postSheet({ ledger: [], verdict: { ok: true, prev: null } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal('pr' in env.calls.created[0].metrics, false, 'the post claims nothing on its own');
+    const stamp = env.calls.updated[0];
+    assert.equal(stamp.metrics.pr, true, 'the verdict marks it a record');
+    assert.equal('delta' in stamp.metrics, false, 'and no gain is invented against a best that never existed');
+  } finally { env.restore(); }
+});
+
+test('a publish that never lands writes nothing at all, and the retry is clean', async () => {
+  // ⚠ THIS IS THE ONE THE PREVIOUS ORDERING GOT WRONG, AND THE TEST THAT USED TO
+  // SIT HERE CODIFIED IT: the record landed, the plate did not, and the retry was
+  // refused as not-a-PR by a row written for a plate nobody could see. Now the
+  // ledger is never asked, so the same numbers work on the next attempt.
+  // ⚠ BOTH SHAPES OF FAILURE: a throw, and the silent `stored: 'local'` that
+  // `createCommunityPost` returns on an insert error without throwing.
+  for (const make of [() => postSheet({ createThrows: true }),
+                      () => postSheet({ created: { stored: 'local', data: { id: 'local-1' } } })]) {
+    const env = make();
+    try {
+      await submitSheet(SEED, env);
+      assert.equal(env.calls.announced.length, 0, 'the ledger was never touched');
+      assert.ok(env.calls.toasts.some((m) => /could not post that record/i.test(m)),
+        'and the message is true, because nothing was written');
+      assert.ok(!env.calls.toasts.some((m) => /on the wall/i.test(m)));
+      assert.equal(env.calls.closed, 0, 'the sheet stays open on their own numbers');
+    } finally { env.restore(); }
+  }
+});
+
+test('a refused record needs no repair, because the post never claimed one', async () => {
+  // ⚠ THE SIMPLIFICATION THE VERDICT-FIRST STAMP BUYS. An earlier cut published
+  // optimistically and took the claim back on a refusal; there is nothing to take
+  // back now, so a race the server refuses simply leaves the ordinary workout the
+  // member did.
+  for (const reason of ['not_a_pr', 'not_public', 'auth']) {
+    const env = postSheet({ verdict: { ok: false, reason } });
+    try {
+      await submitSheet(SEED, env);
+      assert.equal(env.calls.created.length, 1, `${reason}: the post was made`);
+      assert.equal('pr' in env.calls.created[0].metrics, false, `${reason}: claiming nothing`);
+      assert.equal(env.calls.announced.length, 1, `${reason}: the ledger was asked`);
+      assert.equal(env.calls.updated.length, 0, `${reason}: and nothing had to be undone`);
+      assert.equal(env.calls.closed, 0, 'the sheet stays open');
+    } finally { env.restore(); }
+  }
+});
+
+test('a retry re-uses the post it already made — one post, one award', async () => {
+  // ⚠ THE DEFECT ORDERING 2 HAD. Without the retained id a second attempt
+  // inserts a second visible post and attempts a second +5 award for one record.
+  const env = postSheet({ verdict: { ok: false, reason: 'not_a_pr' } });
+  try {
+    const d = await submitSheet(SEED, env);
+    await submitAgain(d);
+    await submitAgain(d);
+    assert.equal(env.calls.created.length, 1, 'exactly one post across three attempts');
+    assert.equal(env.calls.announced.length, 3, 'each attempt still asks the server');
+    assert.ok(env.calls.updated.every((u) => u.postId === 'post-1'), 'every repair targets that one post');
+  } finally { env.restore(); }
+});
+
+test('an announce that fails is not an announce that was refused', async () => {
+  // ⚠ WE DO NOT KNOW WHETHER THE LEDGER MOVED, so repairing the plate could
+  // un-mark a record that WAS accepted. The post is left exactly as it is and
+  // the sheet stays open; the same button re-announces the same post.
+  const env = postSheet({ verdict: null });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 1);
+    assert.equal(env.calls.updated.length, 0, 'the plate is left alone');
+    assert.ok(env.calls.toasts.some((m) => /mark it a record/i.test(m)));
+    assert.ok(!env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and it does not claim the record');
+    assert.equal(env.calls.closed, 0);
+  } finally { env.restore(); }
+});
+
+test('the gain comes from the verdict, never from the read that preceded it', async () => {
+  // ⚠ THE PRE-CHECK'S READ IS FOR REFUSING, NOT FOR STAMPING. A concurrent winner
+  // moves the best between the read and the announce, so a delta derived from the
+  // read would be wrong — here by 40 lb. Only `res.prev` is ever written.
+  const stale = postSheet({ ledger: [{ liftKey: 'back squat', best: 200, unit: 'lb' }], verdict: { ok: true, prev: 240 } });
+  try {
+    await submitSheet(SEED, stale);
+    assert.equal('delta' in stale.calls.created[0].metrics, false, 'the stale read stamps nothing');
+    assert.equal(stale.calls.updated[0].metrics.delta, '+5 lb', 'the server decides the gain');
+  } finally { stale.restore(); }
+
+  // An unreadable ledger neither refuses nor guesses — the verdict supplies it.
+  const blind = postSheet({ ledgerStored: 'local', verdict: { ok: true, prev: 225 } });
+  try {
+    await submitSheet(SEED, blind);
+    assert.equal(blind.calls.announced.length, 1, 'it is not refused — the server decides');
+    assert.equal(blind.calls.updated[0].metrics.delta, '+20 lb', 'and the verdict fills the gain in');
+  } finally { blind.restore(); }
+});
+
+test('a stamp that fails costs the marker, not the record', async () => {
+  // ⚠ THE LEDGER ROW IS WRITTEN BY THEN, so the toast is true and the sheet
+  // closes. What a member loses is the plate saying "New PR" — an UNDER-claim,
+  // which the next attempt restores. The opposite direction would be a post
+  // claiming a record nobody granted.
+  const env = postSheet({ verdict: { ok: true, prev: 225 }, updateThrows: true });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.announced.length, 1, 'the record landed');
+    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and the toast is true');
+    assert.equal(env.calls.posted, 1);
+  } finally { env.restore(); }
+});
+
+test('a number that beats nothing is refused before anything is published', async () => {
+  // Compared in POUNDS: the ledger keeps a unit per row, so a raw comparison
+  // puts a 100 kg pull behind a 200 lb record and refuses a genuine PR.
+  const under = postSheet({ ledger: [{ liftKey: 'back squat', best: 245, unit: 'lb' }] });
+  try {
+    await submitSheet(SEED, under);
+    assert.equal(under.calls.created.length, 0, 'no post');
+    assert.equal(under.calls.announced.length, 0, 'and the server is not troubled');
+    assert.ok(under.calls.toasts.some((m) => /does not beat your best/i.test(m)));
+  } finally { under.restore(); }
+
+  // 100 kg IS a PR over a 200 lb record (220.5 lb) and must not be refused here.
+  const kg = postSheet({ ledger: [{ liftKey: 'back squat', best: 200, unit: 'lb' }], verdict: { ok: true, prev: 90.7 } });
+  try {
+    await submitSheet({ lift: 'Back squat', value: '100', unit: 'kg', reps: '1' }, kg);
+    assert.equal(kg.calls.created.length, 1, 'a cross-unit PR is published');
+    assert.equal(kg.calls.announced.length, 1);
+  } finally { kg.restore(); }
+});
+
+// ── the marker's READ path ──────────────────────────────────────────────────
+//
+// ⚠ THE TESTS ABOVE PROVE THE MARKER IS WRITTEN AND SAY NOTHING ABOUT IT BEING
+// READ. It crosses three files on the way back — `metrics.pr` is surfaced by
+// shapeBackend's row mapper, carried by the client's own mapper, and finally
+// asked for by the PR filter and the plate's pill — and a mutation dropping it
+// at ANY of those three left the whole suite green while a first record went
+// back to falling out of the PR tab. That is the defect the marker exists to
+// close, so the chain is driven end to end rather than asserted at its first
+// link.
+//
+// ⚠ AND THIS SECTION WAS ONCE DELETED BY A REWRITE OF THE SHEET'S OWN TESTS,
+// which is why it sits BELOW them rather than among them: four mutations that
+// had been killed came back alive in one edit, and only the mutation round said
+// so. A guard is as easy to lose to a careless span as to a careless rule.
+
+// The real row→post mapper, lifted with its own dependency chain rather than
+// stubbed: a stub of `communityPostFromRow` is a second opinion about what
+// ships, and this test is about the field surviving the one that does.
+const backendMapper = (() => {
+  const body = [
+    extractFn('function titleCase(value)'),
+    extractFn('function providerLabel(provider)'),
+    extractFn('function decodePolyline('),
+    extractFn('function normalizedGeoPoint('),
+    extractFn('function projectGeoPoints('),
+    extractFn('function routePolylineFrom('),
+    extractFn('function routePointCandidates('),
+    extractFn('function normalizeDisplayRoute('),
+    extractFn('function numericMetric('),
+    extractFn('function formatMetersToMiles('),
+    extractFn('function formatSeconds('),
+    extractFn('function formatPace('),
+    extractFn('function normalizeCommunityStats('),
+    extractFn('function communityPostFromRow(row)'),
+    'return communityPostFromRow;',
+  ].join('\n');
+  // eslint-disable-next-line no-new-func
+  return new Function(body)();
+})();
+
+// One stored row → the activity the feed actually renders.
+const readBack = (metrics) => bsActivityFromPost(backendMapper({
+  id: 'p1', author_id: 'me', author_name: 'Ada', author_role: 'client', privacy: 'public',
+  created_at: '2026-09-11T10:00:00Z', activity_type: 'strength', title: 'Back squat',
+  metrics,
+}));
+
+const LIFT_METRICS = {
+  kind: 'workout', lift: 'Back squat', load: '245 lb',
+  workoutStats: [{ l: 'Load', v: '245 lb' }],
+};
+
+test('a stamped first record is READ as a PR all the way to the feed and the plate', () => {
+  const marked = readBack({ ...LIFT_METRICS, pr: true });
+  // ⚠ `delta` MUST BE EMPTY HERE OR THE TEST PROVES NOTHING. A first record has
+  // no prior best, so `delta` is the one signal that cannot be carrying this —
+  // if it were set, every assertion below would pass with the marker deleted.
+  assert.ok(!marked.delta, 'a first record carries no gain');
+  assert.notEqual(marked.kind, 'pr', "and `kind: 'pr'` is a demo-card concept, never stamped on a real post");
+  assert.equal(marked.pr, true, 'the marker survives both mappers');
+  assert.equal(bsFeedTypeMatch(marked, 'prs'), true, 'so the PR chip finds it');
+  assert.match(cardText(marked, 'wall'), /New PR/i, 'and the plate stamps it a record');
+
+  // The control: the same lift with no marker is an ordinary load. Without it
+  // every assertion above passes on a filter that answers true for everything.
+  const plain = readBack(LIFT_METRICS);
+  assert.equal(plain.pr, false);
+  assert.equal(bsFeedTypeMatch(plain, 'prs'), false, 'an ordinary load is not a PR');
+  assert.doesNotMatch(cardText(plain, 'wall'), /New PR/i);
+
+  // And a post published before the marker existed still reads as a PR off its
+  // own delta — the marker adds a signal, it does not replace one.
+  const legacy = readBack({ ...LIFT_METRICS, delta: '+20 lb' });
+  assert.equal(legacy.pr, false, 'no marker on it');
+  assert.equal(bsFeedTypeMatch(legacy, 'prs'), true, 'and it is still a PR');
+});
+
+// ⚠ AND THE REPAIR MUST ACTUALLY UNDO THE CLAIM, which is a fact about
+// `mergePostPatch` rather than about the sheet: '' and null are its REMOVAL
+// channel, so the patch the refusal sends has to land as an absent key and not
+// as a stored `null` the readers might still count.
+test("a repaired post reads as an ordinary load, not as a PR", () => {
+  const repaired = readBack({ ...LIFT_METRICS, ...mergePostPatch({ pr: true, delta: '+20 lb' }, { pr: null, delta: '' }) });
+  assert.equal(repaired.pr, false, 'the marker is gone');
+  assert.ok(!repaired.delta, 'and so is the gain');
+  assert.equal(bsFeedTypeMatch(repaired, 'prs'), false, 'so the PR chip does not find it');
+  assert.doesNotMatch(cardText(repaired, 'wall'), /New PR/i, 'and the plate stops stamping it');
+});
+
+test('a private profile is refused, and nothing at all is written', async () => {
+  // The exact gate `post_my_pr_to_wall` applies, checked here so the refusal and
+  // the server's agree — and so the "your profile is private" line is never
+  // shown to somebody it is not about.
+  const env = postSheet({ settings: { profileVisibility: 'Private' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0, 'no post — it would be a claim on a wall they are not on');
+    assert.equal(env.calls.announced.length, 0);
+    assert.ok(env.calls.toasts.some((m) => /profile is private/i.test(m)));
+  } finally { env.restore(); }
+});
+
+test('Just friends is refused too, because the wall takes public profiles only', async () => {
+  const env = postSheet({ settings: { profileVisibility: 'Just friends' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0);
+    assert.equal(env.calls.announced.length, 0);
+  } finally { env.restore(); }
+});
+
+test('Share workout data off is refused, and the refusal names the setting that did it', async () => {
+  // ⚠ THIS REVERSES WHAT THIS SUITE ASSERTED ONE ROUND AGO, and the reversal is
+  // the finding. It used to require that the post be written 'private' and the
+  // record still announced — two settings each honoured on its own terms. The
+  // hole is that the WALL IS THE FEED, whose read filters to feed-visible
+  // privacy values, so a 'private' post renders nowhere while the RPC (which
+  // gates on profile visibility alone) accepts the record and the toast says
+  // "On the wall." A plate that cannot exist is the exact claim this sheet was
+  // rebuilt to stop making.
+  const env = postSheet({ settings: { profileVisibility: 'Public', shareWorkoutData: 'Off' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0, 'nothing is published');
+    assert.equal(env.calls.announced.length, 0, 'and the ledger does not advance');
+    // ⚠ AND NOT THE "your profile is private" LINE — their profile is public.
+    assert.ok(env.calls.toasts.some((m) => /sharing workout data is off/i.test(m)));
+    assert.ok(!env.calls.toasts.some((m) => /profile is private/i.test(m)));
+  } finally { env.restore(); }
+});
+
+test('a settings read we cannot trust never publishes, and never accuses', async () => {
+  // null is getUserGoals' can't-know answer, so the audience is unknown rather
+  // than known-private. Nothing is published — but the refusal must not name a
+  // setting nobody read, which is what the first cut of this guard did: it
+  // reported an unreadable document as "sharing workout data is off".
+  const env = postSheet({ settings: null });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0, 'an unknown audience never publishes');
+    assert.equal(env.calls.announced.length, 0);
+    assert.ok(env.calls.toasts.some((m) => /could not post/i.test(m)), 'true, and retryable');
+    assert.ok(!env.calls.toasts.some((m) => /sharing workout data|profile is private/i.test(m)),
+      'and it claims nothing about settings it could not read');
+  } finally { env.restore(); }
+});
+
+test('no store to read is unknown too, and says nothing about their settings', async () => {
+  // ⚠ THE CAPABILITY BAIL IS A SECOND DOOR INTO "UNKNOWN", AND NO FIXTURE
+  // REACHED IT — a mutation returning 'private' from it survived the round.
+  // It is reachable in production: the radio module loads before the role
+  // bundle, and the preview has neither store nor rule. Answering it with a
+  // known-private verdict would tell a member their sharing is off on a read
+  // that never happened.
+  const env = postSheet({ noStore: true });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0, 'nothing is published');
+    assert.equal(env.calls.announced.length, 0);
+    assert.ok(env.calls.toasts.some((m) => /could not post/i.test(m)));
+    assert.ok(!env.calls.toasts.some((m) => /sharing workout data|profile is private/i.test(m)));
+  } finally { env.restore(); }
+});
+
+test('a healthy public member publishes to the feed', async () => {
+  const env = postSheet({ settings: {} });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created[0].privacy, 'public', 'no settings row yet means the On · Public defaults apply');
+  } finally { env.restore(); }
+});
+
+test('a record that lands refreshes the board, not just the strip', async () => {
+  // The Wall's cards are the PARENT's feed; `setNonce` reloads only the
+  // member's own ledger rows. Without a callback reaching the parent the toast
+  // said "On the wall" over a board that did not carry the record yet.
+  const src = readFileSync(SRC, 'utf8');
+  const bareSrc = stripComments(src);
+  assert.match(bareSrc, /function BSWallYourBest\(\{ loggedIn, onLogActivity, onPostedRecord \}\)/);
+  assert.match(bareSrc, /onPosted=\{\(\) => \{ setNonce\(\(n\) => n \+ 1\); onPostedRecord && onPostedRecord\(\); \}\}/);
+  const i = bareSrc.indexOf('<BSWallYourBest ');
+  assert.ok(i > 0, 'the strip is mounted');
+  const tag = bareSrc.slice(i, bareSrc.indexOf('/>', i));
+  assert.match(tag, /onPostedRecord=\{\(\) => setFeedNonce\(\(n\) => n \+ 1\)\}/,
+    'the mount hands it the parent feed nonce');
+});
+
+test("the server's refusal is reported, not overwritten by the post having succeeded", async () => {
+  const env = postSheet({ verdict: { ok: false, reason: 'not_a_pr' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.ok(env.calls.toasts.some((m) => /does not beat your best/i.test(m)));
+    assert.equal(env.calls.posted, 0, 'and the strip is not told a record landed');
+  } finally { env.restore(); }
 });
