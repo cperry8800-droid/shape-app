@@ -24,16 +24,44 @@ function visibleText(html) {
     .replace(/<[^>]+>/g, ' ');
 }
 
-test('the homepage does not claim the station is live', () => {
+/** The Radio section, markup only — so a chip in the nav or anywhere else on the
+ *  page cannot satisfy an assertion about the CARD. */
+function radioSection(html) {
+  const m = /<section[^>]*id="radio"[\s\S]*?<\/section>/.exec(html);
+  return m ? m[0] : '';
+}
+
+test('an ON AIR chip on the homepage is labelled as an example', () => {
+  // ⚠ THE RULE IS NOT "NEVER SAY ON AIR" — IT IS "NEVER CLAIM IT UNLABELLED".
   // /api/radio/now-playing falls through to the mock provider (public.radio_station
-  // does not exist), and /api/radio/station is 401 for anonymous callers and
-  // deliberately hides `configured` — so nothing on a signed-out page can check a
-  // liveness claim. The honest state is not to advertise.
-  const text = visibleText(SRC);
-  assert.equal(/\bON AIR\b/i.test(text), false, 'homepage renders an ON AIR chip');
-  assert.equal(/\bLIVE\b/.test(text), false, 'homepage renders a LIVE badge');
-  // and the equaliser that used to sit under it
-  assert.equal(/@keyframes\s+eq\b/.test(SRC), false, 'the LIVE equaliser animation is back');
+  // does not exist, re-measured against production before this change), and
+  // /api/radio/station is 401 for anonymous callers and deliberately hides
+  // `configured`, so nothing on a signed-out page can check a liveness claim.
+  // The card may still SHOW the chip, because this page's own convention is to
+  // label illustrative content — the same `.exlabel` the marketplace cards and the
+  // phone captures carry. What is forbidden is the chip without the label.
+  const card = radioSection(SRC);
+  assert.ok(card, 'no #radio section found — the scan is broken, not the page');
+
+  if (/\bON\s*AIR\b/i.test(card)) {
+    assert.match(
+      card,
+      /class="exlabel"/,
+      'the Radio card shows ON AIR with no example label — that is an unlabelled ' +
+        'liveness claim, and the station is not broadcasting',
+    );
+    assert.match(
+      visibleText(card),
+      /\bExample\b/i,
+      'the Radio card carries an exlabel element whose text does not say Example',
+    );
+  }
+
+  // The chip is the CARD's alone. The nav is a standing claim with nowhere to put
+  // a label, so ON AIR must not appear outside the Radio section.
+  const outside = visibleText(SRC.replace(radioSection(SRC), ' '));
+  assert.equal(/\bON\s*AIR\b/i.test(outside), false, 'ON AIR appears outside the Radio card');
+  assert.equal(/\bLIVE\b/.test(outside), false, 'a LIVE badge appears outside the Radio card');
 });
 
 test('the shared header does not claim the station is live either', () => {

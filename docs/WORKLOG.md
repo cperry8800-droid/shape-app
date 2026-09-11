@@ -626,11 +626,21 @@ Append new entries at the top, under this note.
   what actually stacks them; the canvas and its painted fallback share one cell so they still
   overlay. *A property that only reads as a stacking rule inside a block container is not a
   stacking rule.*
-- ⚠ **THE STATION IS NOT BROADCASTING, AND NOW NOTHING SAYS IT IS — ON ANY PAGE.** Measured
-  against production rather than inferred: **`public.radio_station` does not exist**, so
-  `/api/radio/now-playing` falls through to the mock provider. The nav's permanent **ON AIR**
-  chip, the **LIVE** badge and the `@keyframes eq` equaliser are gone and the card states that
-  Radio opens with the app. ⚠ **The same claim was ALSO in `pageShell.jsx`'s `RadioWordmark`,
+- ⚠ **THE STATION IS NOT BROADCASTING, SO NOTHING CLAIMS IT IS — AND WHERE IT IS SHOWN, IT IS
+  LABELLED.** Measured against production rather than inferred, and **re-queried before the
+  final commit**: **`public.radio_station` does not exist**, so `/api/radio/now-playing` falls
+  through to the mock provider. The nav's permanent **ON AIR** chip, the **LIVE** badge and the
+  `@keyframes eq` equaliser are gone.
+  ⚠ **THE RADIO CARD DOES CARRY AN ON AIR CHIP, AND THE RULE IS NOT "NEVER SAY IT" BUT "NEVER
+  CLAIM IT UNLABELLED"** (owner: *"just have on air showing on demo mode which is fine. once
+  shape radio is actually live we can address that"*). It sits beside an **`.exlabel`** reading
+  *Example · Radio opens with the app* — **this page's own convention**, the same one the
+  marketplace cards (*"Example profiles until real ones render"*) and the phone captures
+  (*"Example member"*) already use, rather than an exception invented for Radio. The label is
+  what makes the chip allowed, so the guard pins exactly that: **if** the card says ON AIR it
+  must carry an example label, and ON AIR may not appear **outside** the card at all — the nav
+  has nowhere to put a label, and a chip there would be a standing claim. Both mutations die
+  (the label removed; the chip moved to the nav). ⚠ **The same claim was ALSO in `pageShell.jsx`'s `RadioWordmark`,
   which ~70 other pages render** — its own comment called it *"the live signal the old pulsing
   dot only implied"*. Fixing the homepage alone would have left the site contradicting its own
   front page.

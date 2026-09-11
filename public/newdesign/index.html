@@ -288,6 +288,21 @@
   .air .soon{font-family:var(--num);font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
              color:var(--fg-3);border:1px solid var(--line);border-radius:4px;padding:4px 8px;
              font-variation-settings:'ROND' 30}
+  /* The ON AIR chip. ⚠ IT IS ONLY ALLOWED HERE BECAUSE THE CARD CARRIES AN
+     .exlabel SAYING SO — the station is not broadcasting (public.radio_station
+     does not exist, so /api/radio/now-playing answers from the mock provider),
+     and this page's own rule is that illustrative content is labelled, never
+     presented as live. The same chip in the NAV or in pageShell's RadioWordmark
+     would be an unlabelled standing claim on ~70 live pages, which is why it is
+     not in either. Guarded by tests/homepage-climb.test.mjs. */
+  .air .oa{display:inline-flex;align-items:center;gap:5px;font-family:var(--num);font-weight:700;font-size:10px;
+           letter-spacing:.16em;text-transform:uppercase;color:var(--teal-b);
+           border:1px solid rgba(46,224,196,.35);border-radius:4px;padding:4px 8px;line-height:1;
+           font-variation-settings:'ROND' 30;box-shadow:0 0 10px rgba(46,224,196,.15)}
+  .air .oa i{width:5px;height:5px;border-radius:50%;background:#d2693f;box-shadow:0 0 6px #d2693f;
+             flex:0 0 auto;animation:oa-pulse 1.6s ease-in-out infinite}
+  @keyframes oa-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .air .airlbl{margin-top:15px}
   .air .trk{font-family:var(--disp);font-weight:500;font-variation-settings:'wdth' var(--w);font-size:27px;margin-top:18px}
   .air .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-2);
              font-size:12px;color:var(--fg-3)}
@@ -372,6 +387,7 @@
   .no-js .mo .hl{opacity:1}
 
   @media (prefers-reduced-motion: reduce){
+    .air .oa i{animation:none}
     html{scroll-behavior:auto}
     .wire .track{animation:none}
     .wire .lbl i,.appph .hl{animation:none}
@@ -594,9 +610,18 @@
 </section>
 
 <!-- ══ RADIO ══════════════════════════════════════════════════
-     ⚠ NO "LIVE", NO EQUALISER, NO ON AIR. Measured 2026-09-11: public.radio_station
-     does not exist, so the provider is the mock and nothing is broadcasting. The
-     card states what is true — the station opens with the app. -->
+     ⚠ THE ON AIR CHIP IS AN EXAMPLE, AND THE CARD SAYS SO. Measured 2026-09-11 and
+     re-measured before this change: public.radio_station does not exist, so
+     /api/radio/now-playing answers from the mock provider and nothing is
+     broadcasting. The chip shows what the station looks like; the .exlabel beside
+     it carries the true statement (it opens with the app), which is this page's
+     own convention for illustrative content — the same one the marketplace cards
+     and the phone captures already use. ⚠ THAT LABEL IS WHAT MAKES THE CHIP
+     ALLOWED: the nav and pageShell's RadioWordmark have nowhere to put one and
+     ~70 live pages render the latter, so neither carries it. When the station
+     really goes live the honest fix is a narrow public liveness signal — NOT
+     relaxing /api/radio/station's deliberate 401, which exists so an anonymous
+     caller learns nothing about the stream. -->
 <section class="s alt" id="radio">
   <div class="wrap">
     <div class="rd">
@@ -609,10 +634,11 @@
       <div class="air">
         <div class="hd">
           <span class="wm"><svg aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="#eef3f0"/></svg>Shape Radio</span>
-          <span class="soon">Opens with the app</span>
+          <span class="oa"><i></i>On air</span>
         </div>
         <div class="trk">One channel, tuned to your session.</div>
         <div class="meta"><span>Ad-free</span><span>Curated by BPM</span><span>Included with every membership</span></div>
+        <div class="airlbl"><span class="exlabel">Example · Radio opens with the app</span></div>
       </div>
     </div>
   </div>
