@@ -656,6 +656,90 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — Post a PR comes back, the Wall gains a manual activity, and the profile reads as the Wall
+
+- **Three owner asks off the dead-code find in the entry below.** #2036 merged the Wall into
+  the activity feed and deleted the segment's only mount — taking **Your best** and **Post a
+  PR** with it. Owner's ruling: *bring back the full strip*; then *"you should be able to post
+  your own workout or activity if you watch didn't catch it"*, *"there needs to be a manual way
+  to post an activity on the wall which then also goes on your profile feed as well"*, and
+  *"the new wall designs needs to match the profile activity feed as well"*. No migration, no
+  route.
+- ⚠ **THE SUITE PASSED THROUGHOUT, AND THAT IS THE FINDING THE REST OF THIS ENTRY IS ABOUT.**
+  `loadBroadsheet` appends its **own** `export { … }` to the source and compiles it, so it
+  reaches a component whether or not one line of the app renders it. `tests/pr-wall-surface.test.mjs`
+  went on driving `BSWall` for three weeks — including an assertion that a signed-in member is
+  offered **Post a PR**, which in that window no member could see. *A suite that cannot tell a
+  mounted surface from an unmounted one is not reporting on the app; it is reporting on
+  itself.* There is a guard now, and it **derives its corpus from the suite's own import
+  list**, so a component added to the drive set later is covered with nobody remembering the
+  test exists — and it fails rather than passing vacuously when the list is empty. It is
+  narrowed to **components**: `BS_WALL_UNITS` is a constant, nothing renders a constant, and a
+  guard that demanded it would be noise the next reader learns to ignore.
+- **`BSWallYourBest` is the half worth keeping, lifted from the source rather than retyped.**
+  The member's own PR ledger, each best that is **in their logs and not on the wall** flagged
+  with the gap and a **pre-seeded** Post a PR beside it, the three read states kept apart, the
+  figure and its gap converted **together** into the reader's unit, and it shows for a private
+  member too — their records are still theirs. The board half is deleted: the sub-tab already
+  renders those records through the same card.
+- ⚠ **TWO BUTTONS, NOT ONE "POST", BECAUSE THEY ARE TWO DIFFERENT OBJECTS.** A **record** is one
+  number judged against that member's stored best — it goes to the ledger through
+  `post_my_pr_to_wall`, and **the server refuses it unless it beats that best**. An **activity**
+  is a whole session — it goes to the community feed and their profile and claims nothing. A
+  member who ran without the app has no record to declare, they have a session: offering them
+  only the first hands them a control that will reject them. The eyebrow says why both exist —
+  *Trained without the app?* — because everything the watch caught is already there unasked.
+- ⚠ **AND THE PUBLISHER IS THE ONE THE APP ALREADY HAD, NOT A NEW ONE.** `BSLogActivitySheet`
+  publishes a Workout to the public feed **and** the profile, and was **already mounted inside
+  the Chat page** — reachable only through an unlabelled icon in the message composer. So the
+  owner's ask was a discoverability problem wearing a feature's clothes: the Wall passes
+  `onLogActivity` to that same sheet, so a session posted from here and one posted from the
+  composer are the same write. The wiring is **driven, not grepped** — two buttons side by side
+  is exactly where a shared handler hides, and a member reaching for *"my watch missed this
+  run"* would have landed in a form asking for a lift and a one-rep max.
+- **The profile activity feeds render `variant="wall"`** — the member's Terrain profile and the
+  coach profile. Every wall-specific block is already guarded by its own content test, so a
+  plain note post degrades rather than drawing an empty axis; **verified in a browser** on the
+  demo profile, which now carries the record pill, the dot-matrix figure, the wall facts, the
+  stat grid, HR zones and the trace, exactly as the Wall does. The guard **derives** the sites
+  (every `BSActivityCard` handed `profileCtx`), so a third profile feed is covered by
+  construction.
+- ⚠ **ONE DELETION WAS WALKED BACK, AND THE REASON IS WORTH MORE THAN THE CODE.** `bsWallHeader`
+  lost its only production caller with the plate — but `tests/units-weight-canonical.test.mjs`
+  asserts **eight times** through it that a record's FIGURE and its GAIN convert **together**,
+  the invariant that keeps *"+10 lb over last best"* from landing under a kilogram number.
+  Deleting it would have dropped eight real guards to tidy twenty-two lines. It is kept, with
+  its standing written at its definition: no production caller today, and re-pointing those
+  assertions at the two live call sites is a tidy-up, not a fix. **`BSWall`, `BSWallPlate`,
+  `bsWallDemoRows`, `bsWallLifts` and `BS_WALL_DEMO` are gone** — 350 lines — along with four
+  dead helpers in the test file that named a component which no longer exists.
+- **i18n:** two new `feed:wall.*` keys × 13 locales = **26 values**, each built from that
+  catalog's **own** post-verb (`wall.postPR`) and its **own** word for a session
+  (`profile:log.type.workout`) rather than translated fresh — *Workout posten*, *Publier une
+  séance*, *Опубликовать тренировку*, *Đăng buổi tập*. Inserted **in the `wall.*` run's sorted
+  position**, a clean 2-line append per file. ⚠ And the call site's `defaultValue` and the
+  catalog **disagreed on the first run** — the catalog is what renders, so the JSX was the
+  stale copy; the resolution guard caught it.
+- **Verified:** `npm test` **3222/3222** · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **7/7 mutations killed**, each proven to land, sanity green at both ends,
+  tree restored in a `finally` · and the whole thing driven in Chromium: signed out the strip
+  reads *Your best · Sign in to keep your own records here* with **no** post controls; as a
+  member it reads **TRAINED WITHOUT THE APP? · Post an activity ＋ · Post a PR ＋**, with
+  *BENCH PRESS 185 LB not on the wall yet* carrying its own button and *DEADLIFT 245 LB* sitting
+  as a fact — and the activity button **opens the publisher**, not the PR sheet. Zero page
+  errors throughout. `getapp-wall-v1.png` re-shot (`?v=20260911b`); the community and profile
+  captures are byte-unchanged, because the strip lives on the WALL chip alone.
+- ⚠ **THE BROWSER CHECK NEEDED A POST-BOOT PATCH, AND THE FIRST ATTEMPT MEASURED NOTHING.** An
+  init-script stub of `ShapeAuth`/`ShapeCanChat` is overwritten by the app's own bootstrap, so
+  the run reported the signed-out strip and read as *"the controls are missing"*. Patched after
+  boot with a segment round-trip to force the re-read, the member state renders. *An instrument
+  that fakes half a contract measures the half it faked* — this file's own sentence, paid for
+  again.
+- ⚠ **REGISTERED, NOT FIXED:** the composer's own log affordance carries a **hardcoded English**
+  `aria-label="Log activity"` — a real i18n gap in the same feature, left rather than widening
+  this change. And **no on-account pass**: production still holds 0 `pr_wall_posts`, so the
+  restored controls have never written a real record.
+
 ### 2026-09-11 — The site's Wall snapshots re-shot against the merged Wall, and the ascent climbs into the photo
 
 - **Two owner asks, one PR.** *"we need to update all of the snapshots of the chat wall feed
