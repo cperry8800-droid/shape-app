@@ -678,7 +678,19 @@ Append new entries at the top, under this note.
   comparing the axes USED against the axes REQUESTED finds it, which is now
   `tests/homepage-font-axes.test.mjs`, derived from the file so a new axis is covered with
   nobody remembering it exists. **6/6 mutations killed**, each proven to land, sanity green at
-  both ends. ⚠ And its first version was a broken instrument in the way this file keeps
+  both ends.
+  ⚠ **AND ITS AXES ARE KEYED BY FAMILY, NOT UNIONED — CodeRabbit, on `427e667`, and it is
+  the one round of theirs that found something no other layer did.** The first version
+  flattened all three families into one axis map, which **cannot see the regression it was
+  written for**: move `ROND` from Doto to Anybody and the union still contains `ROND`, so
+  every test passes while every Doto figure goes inert again. Proven rather than accepted —
+  applying both edits at once (the axis moved AND the check reverted to the union) leaves the
+  suite **green** on a page whose figures are all inert, and the per-family check kills it.
+  The derived sweep still asks the union question, because deciding which family a given
+  rule applies to means resolving the cascade through `var(--num)`, which a source scan
+  cannot do honestly; the limitation is stated at the site rather than discovered later.
+  **9 mutations, 8 killed and the ninth proven a no-op on correct input.**
+  ⚠ And its first version was a broken instrument in the way this file keeps
   recording: `[\d.]+` is greedy over dots, so `50..150` matched **whole**, parsed as `NaN`,
   and every ranged axis was dropped — the guard failed on a page that was by then correct.
   *A parser that reports a failure is as broken as one that reports a pass.*
