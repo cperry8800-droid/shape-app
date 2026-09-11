@@ -656,6 +656,81 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The site's Wall snapshots re-shot against the merged Wall, and the ascent climbs into the photo
+
+- **Two owner asks, one PR.** *"we need to update all of the snapshots of the chat wall feed
+  on website since we updated it"* and *"i also want this line graph to go higher up on the
+  background photo. show a steeper incline on client profile"*. #2036 merged the Wall into
+  the activity feed this morning; the site's app tour was shot the day before, so three
+  `getapp-*.png` are re-captured from the current build and two copy claims they contradict
+  are corrected. No migration, no route.
+- **The ascent band is TALLER OVER A PHOTO AND THE HEIGHT COMES OUT OF THE PAD ABOVE IT.**
+  The photo is `object-fit: cover` over the whole block, so growing the block to raise the
+  line would have **re-cropped the photo instead of moving the line up it**. `BS_HERO_BLOCK`
+  (278) is split into a band and its padding, so the band goes **150 → 214** while the pad
+  goes **128 → 64** and the block never moves. Measured in Chromium against the same photo:
+  identical crop (`y 342, h 300`), base square on the same pixel (`abs y 256`), and the
+  summit up from **51% → 30%** of the photo's height.
+- ⚠ **THE ROUTE IS SHAPED AS A FRACTION OF ITS OWN RISE, NOT OF THE BAND HEIGHT, or a taller
+  band DISTORTS the climb instead of steepening it.** The knee and the shoulder were literals
+  measured against a 150-tall box (`H - 34`, `H * 0.5`); at 214 they would have flattened the
+  approach to 7% of the rise and dropped the hand-over below half. The two fractions **are
+  those literals re-derived** (`12/102`, `53/102`), so the compact no-cover chart is
+  **byte-identical** — proven by evaluating both the HEAD and the working-tree expressions and
+  diffing the emitted path string, not by reading them. The chord's rise over its run goes
+  **102/296 → 166/296**, which at a 375px phone is **16.9° → 26.3°**.
+- ⚠ **THE WEBSITE MEMBER PROFILE IS DELIBERATELY UNTOUCHED.** `livingDesktop.jsx`'s
+  `TerrainVisual` draws its ridge on a **gradient card with no cover photo**, so "higher up on
+  the background photo" has no referent there — and its viewBox is already far steeper
+  (chord 0.825 against mobile's 0.345 before this change). A sweep confirmed no `newdesign`
+  page renders a cover-photo ascent at all.
+- **Three snapshots re-shot at 600×1387** (375×867 at 1.6, the site's own geometry), from the
+  production `/m/` build in its signed-out preview with the clock pinned to Fri 2026-09-11
+  09:30 New York and `is-native-app` set so no desktop bezel renders: `getapp-wall-v1.png`
+  (Feed · **WALL** chip — the record plate, the drawn figure, stats, zones, trace),
+  `getapp-community-v2.png` (Feed · **COMMUNITY** chip — the members' talk feed) and
+  `getapp-profile-v2.png` (the new ascent). **Only those three get a new `?v`** — the other
+  seven files are unchanged and a needless bump is churn.
+- ⚠ **THE TWO STEPS HAD BECOME ONE SCREEN, WHICH IS WHAT A SNAPSHOT REFRESH ALONE WOULD HAVE
+  HIDDEN.** GetApp's step 9 (COMMUNITY) and step 10 (THE WALL) were shot from two different
+  surfaces; after #2036 the default Chat landing is the Feed segment with the WALL chip lit, so
+  re-shooting both would have produced **the same picture twice**. They are split on the chip
+  now — records on 10, the members' conversation on 9 — and step 9's copy gives up *"cheer a
+  friend's PR"* and *"coach co-signs"*, which are step 10's screen and no longer on its own.
+- ⚠ **AND STEP 10 WAS PROMISING A BUTTON THAT NO LONGER EXISTS.** *"Anything your own logs know
+  that the wall doesn't, the app hands you a button to put up"* described **Post a PR**, which
+  lived in the retired segment: `BSWall` and `BSWallPostSheet` now have **zero call sites and no
+  window export** — confirmed in the running app, not only by grep (`/post a pr|your best/i`
+  matches nothing on any Chat tab). A record set somewhere the app was not watching can no
+  longer be posted by hand. **The sentence is gone and the gap is REGISTERED, not closed** —
+  whether that control returns on the sub-tab is a product call, and deleting a feature's last
+  entry point is not a snapshot refresh.
+- ⚠ **THE WAR ROOM WAS STILL DESCRIBING THE FIVE-SEGMENT DESIGN** — *"a fifth Chat segment
+  (Feed · Wall · Team · Channels · Support) … Your best + Post a PR"* — on the owner-facing
+  go-live board, a day after it stopped being true. Corrected to what shipped, with the dead
+  control named. *A plan written into the records becomes a false claim the moment the plan
+  changes* — this file's own sentence, earned again by the PR that changed the plan.
+- ⚠ **AND ONE OF MY OWN ASSERTIONS WAS ALGEBRA.** The new guard checked that the pad plus the
+  band sums to the block — but the pad **is** `BLOCK - band`, so it could never fail. It pins
+  **278** literally now, written in the test rather than read from the source, because the
+  number being defended is the crop the photo already had. A second assertion survives only
+  against the mutation that matters (pinning `base` to its old absolute y) and that is stated
+  at the site rather than left to look stronger than it is.
+- ⚠ **AND A "BEFORE" STRING I TYPED FROM MEMORY WAS WRONG.** Checking the compact path against a
+  hand-written `204.60000000000002` reported a false difference; re-deriving it from
+  `git show HEAD:` settled it at `204.6`. *A baseline nobody derived is a claim, not a baseline.*
+- **Verified:** `npm test` **3224/3224** (6 new) · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check (74 pages, 0 errors) · **7/7 mutations killed**, each proven to land, sanity
+  green at both ends, tree restored in a `finally` · the emitted mobile bundle confirmed to
+  carry `?214:150`, `12/102` and `278-<pad>` behind a negative control (`paddingTop:128` reads
+  **0**) · a before/after pair rendered from two real builds against the same photo · and both
+  site pages driven in Chromium at **1440 and 390**: all ten images load at 600×1387, the three
+  re-shot ones at `?v=20260911`, zero page errors and zero horizontal overflow. (The 404s on
+  `/_vercel/insights/script.js`, `/api/auth/session` and `/api/me` are the static test server,
+  not the page — all three are unchanged on `main`.)
+- ⚠ **STILL THE SIGNED-OUT PREVIEW, WHICH IS THE STANDING CAVEAT ON EVERY CAPTURE IN THIS SET.**
+  The demo cast and the demo persona appear with the PREVIEW · DEMO DATA banner dismissed; the
+  preview-cast ruling registered on 2026-09-02 is still open and still applies here.
 ### 2026-09-11 — R15's last piece: the stat strips become the four figures this coach reads
 
 - **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,

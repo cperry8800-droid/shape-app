@@ -15377,6 +15377,18 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const heroCover = (customEff && customEff.cover && customEff.cover.image) || null;
   const phaseLine = showCoachBand && (!signedInSelf || hasRealProgram);
   const phaseOnCover = !!heroCover && phaseLine;
+  // ⚠ THE ASCENT BAND AND THE PAD ABOVE IT ARE ONE NUMBER SPLIT IN TWO, and the
+  // split is the whole trick: over a cover photo the band is TALLER and the extra
+  // range is taken out of the dead padding above it, never added to the block. So
+  // the block height — and with it the photo's `cover` crop, the base square, the
+  // base label and the phase eyebrow — lands on exactly the pixels it did before,
+  // while the summit, the route and the figure climb 64px up into the picture and
+  // the chord steepens with them (rise/run 102/296 → 166/296). Raising the band by
+  // growing the block would have re-cropped the photo instead of moving the line.
+  // On paper there is no photo to climb into and no padding to spend, so the
+  // compact chart keeps its own height and is pixel-identical.
+  const BS_HERO_BLOCK = 278;
+  const heroAscentH = heroCover ? 214 : 150;
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
@@ -15479,11 +15491,21 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         <div style={heroCover ? { position: 'relative', marginTop: 14, overflow: 'hidden', borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` } : { padding: '14px 0 2px' }}>
           {heroCover && <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
           {heroCover && <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(11,9,8,0.42) 0%, rgba(11,9,8,0.12) 34%, rgba(11,9,8,0.22) 58%, rgba(11,9,8,0.78) 100%)' }} />}
-          <div style={heroCover ? { position: 'relative', paddingTop: 128, paddingBottom: phaseOnCover ? 0 : 6 } : null}>
+          <div style={heroCover ? { position: 'relative', paddingTop: BS_HERO_BLOCK - heroAscentH, paddingBottom: phaseOnCover ? 0 : 6 } : null}>
           {(() => {
-            const W = 330, H = 150;
+            const W = 330, H = heroAscentH;
             const base = [12, H - 22], peak = [W - 22, 26];
-            const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 34}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
+            // ⚠ THE ROUTE IS SHAPED AS A FRACTION OF ITS OWN RISE, NOT OF H, or a
+            // taller band would DISTORT the climb instead of steepening it: the
+            // knee and the shoulder were literals (`H - 34`, `H * 0.5`) measured
+            // against a 150-tall box, and at 214 they would have flattened the
+            // approach to 7% of the rise and dropped the hand-over below half.
+            // The two fractions ARE those literals re-derived at H = 150
+            // (128 − 102·12/102 = 116 = H − 34; 128 − 102·53/102 = 75 = H/2), so
+            // the compact band is byte-identical and only the cover band moves.
+            const rise = base[1] - peak[1];
+            const KNEE = 12 / 102, SHOULDER = 53 / 102;
+            const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${base[1] - rise * KNEE}, ${W * 0.62} ${base[1] - rise * SHOULDER} T ${peak[0]} ${peak[1]}`;
             // The figure rides the chord, capped clear of the summit flag. At
             // the top of the ladder it climbs to 0.82 so it stands AT the end of
             // the fully-drawn route (0.66 there read as "100% — two-thirds up");
