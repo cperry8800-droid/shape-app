@@ -163,6 +163,9 @@ test('⚠ AND A DESYNCED CHAIN REFUSES RATHER THAN RESYNCING ONTO THE FIRST PLAU
 
 const MAX_PIXELS = Number(constOf('BS_RECIPE_PHOTO_MAX_PIXELS').replace(/_/g, ''));
 const MAX_FILE = Number(constOf('BS_RECIPE_PHOTO_MAX_FILE').replace(/_/g, ''));
+// Evaluated rather than parsed: it is written as an expression, and a test that
+// hardcodes its own copy of a constant stops testing the shipped one.
+const HEADER_BYTES = Number(new Function(`return (${constOf('BS_RECIPE_PHOTO_HEADER_BYTES')});`)());
 
 // Drives the REAL bsRecipePhotoDataUrl against a stubbed browser. `calls`
 // records which decode path was taken, which is the whole question.
@@ -174,7 +177,7 @@ function drivePhoto({ bytes, size = 1_000_000, type = 'image/jpeg', bitmap = tru
     BS_RECIPE_PHOTO_BUDGET: 640000,
     BS_RECIPE_PHOTO_MAX_FILE: MAX_FILE,
     BS_RECIPE_PHOTO_MAX_PIXELS: MAX_PIXELS,
-    BS_RECIPE_PHOTO_HEADER_BYTES: 262144,
+    BS_RECIPE_PHOTO_HEADER_BYTES: HEADER_BYTES,
     BS_RECIPE_PHOTO_DECODE_MS: 20000,
     bsImageHeaderDims,
     setTimeout, clearTimeout,
@@ -234,46 +237,57 @@ test('an ordinary photo still takes the plain path', async () => {
   assert.equal(calls.img, 1);
 });
 
-test('⚠ AN UNMEASURABLE HEADER IS NOT A SMALL ONE — it takes the resizing decoder too', async () => {
-  // Codex, P1 on the fix round. The first cut sent an unmeasurable header to the
-  // full decode, reasoning that refusing what we cannot measure would refuse
-  // images that decode fine. But "unknown" is not "small": a valid JPEG whose
-  // start-of-frame sits past 256 KiB of ICC profile and thumbnails reads as
-  // unmeasurable here and is exactly as capable of being 48 MP. A guard that
-  // fails OPEN on its own uncertainty bounds something other than the hazard —
-  // which is the same defect the byte ceiling had.
+test('⚠ AN IMAGE WHOSE SIZE CANNOT BE READ IS DECLINED — two wrong answers came first', async () => {
+  // Codex, across two rounds. The first cut sent an unmeasurable header to the
+  // FULL DECODE, reasoning that refusing what we cannot measure would refuse
+  // images that decode fine — a guard failing OPEN on its own uncertainty, which
+  // bounds something other than the hazard.
+  //
+  // ⚠ THE SECOND CUT CAPPED ONLY THE WIDTH, WHICH IS WORSE THAN IT SOUNDS: with
+  // the height left to scale proportionally, a 1200×20000 scan comes back as
+  // 1600×26667 — 42 MP, ~171 MB — so the "fix" made a tall image consume MORE
+  // memory than leaving it alone. Naming both axes bounds it and distorts the
+  // page, which is the one thing a transcription cannot survive, and the API has
+  // no fit-inside-a-box mode. So it declines.
   const { url, calls } = await drivePhoto({ bytes: Buffer.from('mystery', 'latin1') });
-  assert.ok(String(url).startsWith('data:image/jpeg;base64,'), 'it still produces an image');
+  assert.equal(url, null, 'unreadable, and said so — the sheet maps this to "couldn\'t use that image"');
   assert.equal(calls.img, 0, 'an unmeasurable header must never reach the full decode');
-  assert.equal(calls.bitmap, 1);
-  // Without dimensions the long edge is unknown, so the WIDTH is capped and the
-  // height is left for the decoder to scale proportionally.
-  assert.equal(calls.resize.resizeWidth, 1600);
-  assert.equal(calls.resize.resizeHeight, undefined, 'naming a height here would distort the image');
+  assert.equal(calls.bitmap, 0, 'nor an unbounded resize');
 });
 
-test('a REAL JPEG whose frame header sits past the read window is still bounded', async () => {
-  // Codex's own example, built rather than argued: ~384 KiB of ICC profile ahead
-  // of the SOF, which is past the header window, so the walk runs out of buffer
-  // and reports unknown. The image behind it is 48 MP.
+test('the width-only resize really would have blown the budget — the arithmetic, not the claim', () => {
+  // The refusal above is only justified if the alternative is genuinely unsafe,
+  // so the number is derived rather than asserted.
+  const [w, h] = [1200, 20000];
+  const outW = 1600;                                     // resizeWidth, no height
+  const outH = Math.round(h * (outW / w));               // the spec scales it proportionally
+  assert.equal(outH, 26667);
+  assert.ok(outW * outH > MAX_PIXELS * 1.5,
+    `a width-only cap yields ${outW * outH} px, past the ${MAX_PIXELS} budget it was meant to enforce`);
+});
+
+test('a REAL JPEG carrying a large chunked ICC profile is still MEASURED, not turned away', () => {
+  // ⚠ THE HEADER WINDOW HAD TO GROW WHEN UNMEASURABLE BECAME A REFUSAL. At
+  // 256 KiB this photo — a perfectly ordinary one with a big colour profile —
+  // fell off the end of the window and would now be declined. The window is 2 MiB.
   //
   // ⚠ IT TAKES SIX SEGMENTS, NOT ONE, AND THE FORMAT IS WHY. A JPEG segment
-  // carries a 16-bit length, so no single marker can exceed 65,535 bytes — my
+  // carries a 16-bit length, so no single marker can exceed 65,535 bytes — the
   // first fixture asked for one 300 KiB APP2 and Buffer refused to write the
   // length. Real encoders chunk a large ICC profile across consecutive APP2
   // markers for exactly that reason, which is also how a start-of-frame comes to
   // sit a third of a megabyte into a perfectly ordinary photo.
   const icc = Array.from({ length: 6 }, () => [0xe2, Buffer.alloc(65_000)]);
   const big = jpeg(8000, 6000, icc);
-  assert.ok(big.length > 256 * 1024, 'the metadata must actually outrun the header window');
-  assert.equal(bsImageHeaderDims(big.subarray(0, 256 * 1024)), null, 'the fixture must read as unmeasurable');
-  const { url, calls } = await drivePhoto({ bytes: big.subarray(0, 256 * 1024), size: 7_000_000 });
-  assert.ok(String(url).startsWith('data:image/jpeg;base64,'));
-  assert.equal(calls.img, 0, 'the 48 MP bitmap must never be materialised');
+  assert.ok(big.length > 256 * 1024, 'the metadata must actually outrun the OLD window');
+  assert.equal(bsImageHeaderDims(big.subarray(0, 256 * 1024)), null, 'and it did fall off that one');
+  assert.deepEqual(bsImageHeaderDims(big.subarray(0, HEADER_BYTES)), { w: 8000, h: 6000 },
+    'the window in force must reach it');
+  assert.ok(HEADER_BYTES >= 1024 * 1024, 'a narrow window turns real photos away');
 });
 
-test('and with no resizing decoder an unmeasurable image is refused, not attempted', async () => {
-  const { url, calls } = await drivePhoto({ bytes: Buffer.from('mystery', 'latin1'), bitmap: false });
+test('and a huge MEASURED image is refused when there is no resizing decoder', async () => {
+  const { url, calls } = await drivePhoto({ bytes: jpeg(8000, 6000), size: 6_000_000, bitmap: false });
   assert.equal(url, 'too-big');
   assert.equal(calls.img, 0);
 });
@@ -297,7 +311,7 @@ test('a resizing decoder that throws is a refusal too, not a full decode', async
     'document', 'FileReader', 'Image', 'createImageBitmap',
     `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`,
   )(
-    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, 262144, 20000, bsImageHeaderDims,
+    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, HEADER_BYTES, 20000, bsImageHeaderDims,
     setTimeout, clearTimeout,
     { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,AAAA' }) },
     class { readAsDataURL() { calls.img += 1; } },
@@ -340,7 +354,7 @@ test('⚠ A DECODE THAT LANDS AFTER THE TIMEOUT STILL RELEASES ITS PIXELS', asyn
     'document', 'FileReader', 'Image', 'createImageBitmap',
     `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`,
   )(
-    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, 262144,
+    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, HEADER_BYTES,
     5,                                              // a 5 ms deadline the decode will miss
     bsImageHeaderDims, setTimeout, clearTimeout,
     { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,AAAA' }) },
@@ -359,4 +373,22 @@ test('⚠ A DECODE THAT LANDS AFTER THE TIMEOUT STILL RELEASES ITS PIXELS', asyn
   resolveBitmap({ width: 1600, height: 1200, close() { closed += 1; } });
   for (let i = 0; i < 6; i += 1) await new Promise((r) => setTimeout(r, 0));
   assert.equal(closed, 1, 'a late bitmap must still be closed');
+});
+
+test('⚠ THE UPSCALE CLAMP IS UNREACHABLE, AND THAT IS DERIVED RATHER THAN ASSUMED', () => {
+  // A mutation dropping `Math.min(1, …)` from the resize scale SURVIVED the
+  // round, and the honest answer is that it is a no-op rather than a gap: that
+  // branch is only reached past the pixel budget, and an image over the budget
+  // cannot have a long edge under the resize target. Left at that it would be a
+  // claim in a comment, so it is checked against the shipped constants — if the
+  // budget is ever lowered below EDGES[0]², an upscale becomes reachable and
+  // this fails, which is exactly when someone needs to know.
+  const edge = Number(new Function(`return (${constOf('BS_RECIPE_PHOTO_EDGES')});`)()[0]);
+  const minShortEdge = MAX_PIXELS / edge;
+  assert.ok(minShortEdge > edge,
+    `an image past ${MAX_PIXELS} px with a long edge of ${edge} would need a short edge of ${minShortEdge}`);
+  assert.equal(MAX_PIXELS > edge * edge, true, 'the budget must exceed a square at the resize target');
+
+  // And the clamp is still there, so the invariant does not rest on the comment.
+  assert.match(SRC, /Math\.min\(1, BS_RECIPE_PHOTO_EDGES\[0\] \/ Math\.max\(measured\.w, measured\.h\)\)/);
 });

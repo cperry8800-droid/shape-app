@@ -735,10 +735,11 @@ Append new entries at the top, under this note.
   error: the error line renders on **both** stages, so a member refused for want of a name,
   stepping Back and coming forward again, carried *"Give it a name first"* over a draft it
   was no longer about. Both fixed, and the second is now pinned by three more mutations.
-- **Verified:** `npm test` **3283/3283** after both Codex rounds · `tsc --noEmit` 0 · JSX parse on the client module ·
+- **Verified:** `npm test` **3285/3285** after three Codex rounds · `tsc --noEmit` 0 · JSX parse on the client module ·
   the newdesign precompile check · the i18n ratchet **9/9 with every column unchanged** and
-  catalog parity **13/13 at 337 keys** · **35/35 mutations killed across four rounds, each
-  proven to land**, sanity green at both ends and the tree restored in a `finally` (the
+  catalog parity **13/13 at 337 keys** · **40/40 mutations killed across five rounds, each
+  proven to land** (one proven a genuine no-op, with the arithmetic behind that driven
+  against the shipped constants rather than argued), sanity green at both ends and the tree restored in a `finally` (the
   one-way door replayed from both of its doors, the Name field removed from the review
   screen, the forward gate reverted to every earlier form, the provenance tag folded back,
   `too_large` re-collapsed into `bad_image`, the return path stripped of its return, its
@@ -816,6 +817,25 @@ Append new entries at the top, under this note.
   same instant. ⚠ Pinned with a **control** that the reader still names an unnamed recipe —
   without it the test passes on a handler that sets no title at all, which would retire the
   feature silently.
+- ⚠ **AND A THIRD CODEX ROUND CAUGHT THE FIX TO THE FIX MAKING THINGS WORSE.** Capping only
+  the WIDTH of an unmeasurable image sounds bounded and is not: with the height left to scale
+  proportionally, a **1200×20000** scan comes back as **1600×26667 — 42 MP, ~171 MB** — so the
+  guard made a tall image consume **more** memory than leaving it alone. I had flagged that
+  branch as the thing worth a second read in my own trigger comment and still shipped it.
+  Naming both axes bounds it and **distorts the page**, which is the one thing a
+  transcription cannot survive, and the API has no fit-inside-a-box mode — so an image whose
+  size cannot be read is now **declined**. ⚠ **Which meant the header window had to grow**:
+  at 256 KiB an ordinary photo carrying a large chunked ICC profile falls off the end and
+  would have been turned away, so it is **2 MiB** — past anything a camera emits, and trivial
+  beside the 640 KB the same function is about to put on the wire. *A refusal is only
+  acceptable when almost nothing real lands on it.*
+- ⚠ **AND THAT ROUND'S SURVIVOR IS A NO-OP, WHICH IS PROVEN RATHER THAN ASSERTED.** Dropping
+  the `Math.min(1, …)` upscale clamp survives, because the branch is only reached past the
+  pixel budget and an image over 25 MP cannot have a long edge under 1600 — its short edge
+  would have to exceed 15,625. Left at that it is a claim in a comment, so the arithmetic is
+  **driven against the shipped constants**: lower the budget below the resize target squared
+  and an upscale becomes reachable and the guard fails, which is exactly when someone needs
+  to know. The clamp stays, labelled belt-and-braces rather than left to read as live.
 - ⚠ **AND ITS MUTATION ROUND CAUGHT TWO GAPS IN MY OWN GUARDS, BOTH THE SAME SHAPE: A RULE
   WITH TWO CALL SITES AND A TEST ON ONE OF THEM.** The stale-closure fix landed on the paste
   reader **and** the photo reader; my mid-flight test drove only the paste one, so reverting

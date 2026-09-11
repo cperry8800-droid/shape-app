@@ -4729,9 +4729,15 @@ const BS_RECIPE_PHOTO_MAX_FILE = 25_000_000;
 // is decoded through `createImageBitmap`'s resize options, which downsample
 // DURING decode so the full bitmap is never materialised.
 const BS_RECIPE_PHOTO_MAX_PIXELS = 25_000_000;
-// Enough of the front of the file to reach a JPEG's SOF marker past its EXIF and
-// thumbnail segments; PNG/GIF/WebP all carry their size in the first 32 bytes.
-const BS_RECIPE_PHOTO_HEADER_BYTES = 256 * 1024;
+// Enough of the front of the file to reach a JPEG's SOF marker past its EXIF,
+// ICC and thumbnail segments; PNG/GIF/WebP all carry their size in the first 32
+// bytes. ⚠ GENEROUS ON PURPOSE, BECAUSE UNMEASURABLE IS NOW A REFUSAL. At
+// 256 KiB a real photo carrying a large chunked ICC profile could fall off the
+// end of the window and be turned away; 2 MiB is past anything a camera or an
+// editor emits, and the read itself is trivial beside the 640 KB this function
+// is about to put on the wire. The cost of widening it is a couple of
+// megabytes; the cost of leaving it narrow is refusing someone's cookbook.
+const BS_RECIPE_PHOTO_HEADER_BYTES = 2 * 1024 * 1024;
 
 // Width and height out of an image's HEADER — no decode, no bitmap, no canvas.
 // Returns null when the format is not one of the four the route accepts or the
@@ -4875,36 +4881,47 @@ function bsRecipePhotoDataUrl(file) {
 
         const measured = dims && dims.w > 0 && dims.h > 0 ? dims : null;
 
-        // Measured, and comfortably inside the budget: decode it the ordinary way.
-        if (measured && measured.w * measured.h <= BS_RECIPE_PHOTO_MAX_PIXELS) { viaImage(); return; }
+        // ⚠ AN IMAGE WE CANNOT MEASURE IS REFUSED, AND IT TOOK TWO WRONG ANSWERS
+        // TO GET HERE. The first sent it to the full decode — a guard failing OPEN
+        // on its own uncertainty, which bounds something other than the hazard.
+        // The second capped only the WIDTH and let the decoder scale the height
+        // proportionally, which sounds bounded and is not: a 1200×20000 scan comes
+        // back as 1600×26667, **42 MP / ~171 MB** — so the "fix" made a tall image
+        // consume MORE memory than leaving it alone. Naming both axes instead
+        // bounds it and distorts the page, which is the one thing a transcription
+        // cannot survive.
+        // There is no fit-inside-a-box mode in the API, so the honest move is to
+        // decline: with the header window at 2 MiB, an image whose size cannot be
+        // read is corrupt or truncated — which would not have decoded anyway — and
+        // the member is told we could not use it rather than being handed a
+        // distorted read or an out-of-memory kill.
+        if (!measured) { finish(null); return; }
 
-        // ⚠ EVERYTHING ELSE GOES THROUGH THE RESIZING DECODER, INCLUDING WHAT WE
-        // COULD NOT MEASURE — and the first cut of this branch got that wrong.
-        // It sent an unmeasurable header to the full decode on the reasoning that
-        // refusing what we cannot measure would refuse formats that decode fine.
-        // But "unknown" is not "small": a perfectly valid JPEG whose start-of-frame
-        // sits past 256 KiB of ICC profile and thumbnails reads as unmeasurable
-        // here, and it is exactly as capable of being 48 MP as one we did measure.
-        // A guard that fails OPEN on its own uncertainty is the same guard the
-        // byte ceiling was — a bound on something other than the hazard.
+        // Measured, and comfortably inside the budget: decode it the ordinary way.
+        if (measured.w * measured.h <= BS_RECIPE_PHOTO_MAX_PIXELS) { viaImage(); return; }
+
+        // Past the budget, so the full bitmap must never exist. createImageBitmap's
+        // resize options downsample DURING decode; without them there is no way to
+        // get these pixels safely, and refusing with advice the member can act on
+        // beats an out-of-memory kill that takes their half-typed sheet with it.
         if (typeof createImageBitmap !== 'function') { finish('too-big'); return; }
-        const opts = { resizeQuality: 'high' };
-        if (measured) {
-          const scale = Math.min(1, BS_RECIPE_PHOTO_EDGES[0] / Math.max(measured.w, measured.h));
-          opts.resizeWidth = Math.max(1, Math.round(measured.w * scale));
-          opts.resizeHeight = Math.max(1, Math.round(measured.h * scale));
-        } else {
-          // Without dimensions there is no way to know WHICH edge is the long one,
-          // so the width is capped and the height follows it — the spec scales the
-          // omitted dimension proportionally. ⚠ The cost is stated rather than
-          // discovered: a small unmeasurable image is UPSCALED to 1600 wide and
-          // then walked back down by the ladder, which costs sharpness on a file
-          // whose header we could not read. A soft transcription of an outlier
-          // beats an out-of-memory kill that takes the member's whole sheet.
-          opts.resizeWidth = BS_RECIPE_PHOTO_EDGES[0];
-        }
+        // BOTH axes, always, from measured dimensions, so the aspect ratio is kept
+        // and the result is bounded on every side.
+        // ⚠ `Math.min(1, …)` IS BELT-AND-BRACES AND IS PROVEN TO BE SO, rather than
+        // left to read as a live guard. This branch is only reached past the pixel
+        // budget, and an image over 25 MP cannot have a long edge under 1600 — the
+        // short edge would have to exceed 15,625 — so the ratio is necessarily
+        // below 1 already. A mutation dropping the clamp correctly SURVIVES; the
+        // arithmetic behind that is driven in recipe-photo-decode rather than
+        // asserted here, so a future change to the budget cannot quietly make an
+        // upscale reachable while this comment still claims it cannot.
+        const scale = Math.min(1, BS_RECIPE_PHOTO_EDGES[0] / Math.max(measured.w, measured.h));
         try {
-          bitmap = await createImageBitmap(file, opts);
+          bitmap = await createImageBitmap(file, {
+            resizeWidth: Math.max(1, Math.round(measured.w * scale)),
+            resizeHeight: Math.max(1, Math.round(measured.h * scale)),
+            resizeQuality: 'high',
+          });
         } catch (e) { finish('too-big'); return; }
         // ⚠ THE TIMEOUT WON THE RACE, AND THE PIXELS STILL ARRIVED. `done` has
         // already resolved and will not run again, so this is the only place
