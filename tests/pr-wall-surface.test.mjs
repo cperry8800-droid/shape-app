@@ -902,8 +902,14 @@ test('the row draws on `postable`, never on `unposted` directly', () => {
   // first paints a teal call-to-action and a button over a record the sheet
   // cannot write. Anchored on the row's own block so this is about that row and
   // not about the whole file.
-  const i = bare.indexOf('.map((m) => (');
-  assert.ok(i > 0, 'the strip still maps its display rows');
+  // ⚠ ANCHORED FROM THE WALL ROW, NOT FROM THE FIRST `.map` IN THE FILE. An
+  // earlier `seed.moves` map matches the same shape, so a bare search swept in
+  // unrelated source and the assertions below were about a block that merely
+  // CONTAINED the row.
+  const wall = bare.indexOf('bsWallDisplayRows(mineEff');
+  assert.ok(wall > 0, 'the Wall row source was not found');
+  const i = bare.indexOf('.map((m) => (', wall);
+  assert.ok(i > wall, 'the Wall row still maps its display rows');
   const block = bare.slice(i, bare.indexOf('{sheet && <BSWallPostSheet', i));
   assert.ok(block.length > 500, 'and the block found is the row, not a fragment');
   assert.equal((block.match(/m\.unposted/g) || []).length, 0, 'the row presentation reads postable only');
@@ -1008,8 +1014,10 @@ test('the post is published first and the ledger advances only behind a durable 
     assert.equal(made.metrics.kind, 'workout');
     assert.equal(made.metrics.lift, 'Back squat');
     assert.equal(made.metrics.load, '245 lb', 'the number AND its unit');
-    assert.equal(made.metrics.pr, true, 'stamped a PR');
-    assert.equal(made.metrics.delta, '+20 lb', 'computed from the prior best this sheet read');
+    // ⚠ THE PLATE CLAIMS NOTHING YET. Both record fields are written afterwards,
+    // from the verdict — so a post can never carry a PR the server did not grant.
+    assert.equal('pr' in made.metrics, false, 'no marker before the verdict');
+    assert.equal('delta' in made.metrics, false, 'and no gain');
     assert.equal(made.skipPRAnnounce, true, 'the sheet announces, not the publisher');
 
     assert.equal(env.calls.announced.length, 1, 'then the ledger');
@@ -1018,7 +1026,11 @@ test('the post is published first and the ledger advances only behind a durable 
       [env.calls.announced[0].lift, env.calls.announced[0].value, env.calls.announced[0].unit, env.calls.announced[0].reps],
       ['Back squat', 245, 'lb', 3],
     );
-    assert.equal(env.calls.updated.length, 0, 'and the stamped gain was already right, so nothing is repaired');
+    // …and only now is it a record.
+    assert.equal(env.calls.updated.length, 1, 'the verdict stamps the plate');
+    assert.equal(env.calls.updated[0].postId, 'post-1');
+    assert.equal(env.calls.updated[0].metrics.pr, true);
+    assert.equal(env.calls.updated[0].metrics.delta, '+20 lb', "from the server's own prev, not the sheet's read");
     assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)));
     assert.equal(env.calls.posted, 1);
   } finally { env.restore(); }
@@ -1030,10 +1042,10 @@ test('a first record is marked a PR even though it has no delta', async () => {
   const env = postSheet({ ledger: [], verdict: { ok: true, prev: null } });
   try {
     await submitSheet(SEED, env);
-    const made = env.calls.created[0];
-    assert.equal(made.metrics.pr, true, 'the marker carries it');
-    assert.equal('delta' in made.metrics, false, 'and no gain is invented against a best that never existed');
-    assert.equal(env.calls.updated.length, 0, 'nothing to repair');
+    assert.equal('pr' in env.calls.created[0].metrics, false, 'the post claims nothing on its own');
+    const stamp = env.calls.updated[0];
+    assert.equal(stamp.metrics.pr, true, 'the verdict marks it a record');
+    assert.equal('delta' in stamp.metrics, false, 'and no gain is invented against a best that never existed');
   } finally { env.restore(); }
 });
 
@@ -1058,22 +1070,19 @@ test('a publish that never lands writes nothing at all, and the retry is clean',
   }
 });
 
-test('a refused record leaves an honest workout post, not one claiming a PR', async () => {
-  // The server is the authority and can refuse a race the pre-check passed. The
-  // post is a real workout the member did — it just is not a new best — so the
-  // record claims come OFF it rather than the post being left to lie or deleted.
+test('a refused record needs no repair, because the post never claimed one', async () => {
+  // ⚠ THE SIMPLIFICATION THE VERDICT-FIRST STAMP BUYS. An earlier cut published
+  // optimistically and took the claim back on a refusal; there is nothing to take
+  // back now, so a race the server refuses simply leaves the ordinary workout the
+  // member did.
   for (const reason of ['not_a_pr', 'not_public', 'auth']) {
     const env = postSheet({ verdict: { ok: false, reason } });
     try {
       await submitSheet(SEED, env);
       assert.equal(env.calls.created.length, 1, `${reason}: the post was made`);
+      assert.equal('pr' in env.calls.created[0].metrics, false, `${reason}: claiming nothing`);
       assert.equal(env.calls.announced.length, 1, `${reason}: the ledger was asked`);
-      assert.equal(env.calls.updated.length, 1, `${reason}: and the plate was repaired`);
-      const fix = env.calls.updated[0];
-      assert.equal(fix.postId, 'post-1');
-      // '' and null are mergePostPatch's removal channel, so both claims come off.
-      assert.equal(fix.metrics.pr, null, `${reason}: the PR marker is removed`);
-      assert.equal(fix.metrics.delta, '', `${reason}: and so is the gain`);
+      assert.equal(env.calls.updated.length, 0, `${reason}: and nothing had to be undone`);
       assert.equal(env.calls.closed, 0, 'the sheet stays open');
     } finally { env.restore(); }
   }
@@ -1108,27 +1117,38 @@ test('an announce that fails is not an announce that was refused', async () => {
   } finally { env.restore(); }
 });
 
-test('the stamped gain is corrected from the verdict when the read was stale or absent', async () => {
-  // ⚠ THE PRE-CHECK'S READ CAN BE STALE, AND THE SERVER'S `prev` IS THE TRUTH.
-  // A concurrent winner moves the best between the read and the announce, so the
-  // delta the plate already carries is wrong until it is repaired.
+test('the gain comes from the verdict, never from the read that preceded it', async () => {
+  // ⚠ THE PRE-CHECK'S READ IS FOR REFUSING, NOT FOR STAMPING. A concurrent winner
+  // moves the best between the read and the announce, so a delta derived from the
+  // read would be wrong — here by 40 lb. Only `res.prev` is ever written.
   const stale = postSheet({ ledger: [{ liftKey: 'back squat', best: 200, unit: 'lb' }], verdict: { ok: true, prev: 240 } });
   try {
     await submitSheet(SEED, stale);
-    assert.equal(stale.calls.created[0].metrics.delta, '+45 lb', 'stamped from the stale read');
-    assert.equal(stale.calls.updated.length, 1, 'and corrected');
-    assert.equal(stale.calls.updated[0].metrics.delta, '+5 lb', 'to the gain the server actually wrote');
+    assert.equal('delta' in stale.calls.created[0].metrics, false, 'the stale read stamps nothing');
+    assert.equal(stale.calls.updated[0].metrics.delta, '+5 lb', 'the server decides the gain');
   } finally { stale.restore(); }
 
-  // An unreadable ledger stamps NO gain rather than a guessed one — and the
-  // verdict then supplies the real one.
+  // An unreadable ledger neither refuses nor guesses — the verdict supplies it.
   const blind = postSheet({ ledgerStored: 'local', verdict: { ok: true, prev: 225 } });
   try {
     await submitSheet(SEED, blind);
-    assert.equal('delta' in blind.calls.created[0].metrics, false, 'no gain is invented from a read we could not make');
-    assert.equal(blind.calls.announced.length, 1, 'and it is not refused either — the server decides');
-    assert.equal(blind.calls.updated[0].metrics.delta, '+20 lb', 'the verdict fills it in');
+    assert.equal(blind.calls.announced.length, 1, 'it is not refused — the server decides');
+    assert.equal(blind.calls.updated[0].metrics.delta, '+20 lb', 'and the verdict fills the gain in');
   } finally { blind.restore(); }
+});
+
+test('a stamp that fails costs the marker, not the record', async () => {
+  // ⚠ THE LEDGER ROW IS WRITTEN BY THEN, so the toast is true and the sheet
+  // closes. What a member loses is the plate saying "New PR" — an UNDER-claim,
+  // which the next attempt restores. The opposite direction would be a post
+  // claiming a record nobody granted.
+  const env = postSheet({ verdict: { ok: true, prev: 225 }, updateThrows: true });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.announced.length, 1, 'the record landed');
+    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and the toast is true');
+    assert.equal(env.calls.posted, 1);
+  } finally { env.restore(); }
 });
 
 test('a number that beats nothing is refused before anything is published', async () => {

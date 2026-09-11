@@ -19429,7 +19429,24 @@ function bsWallSay(tr, reason) {
 //      record that could never be published, by a retry the server itself
 //      refuses as not-a-PR. Invisible, unrecoverable, and *Your best* showed it
 //      as posted.
-//   4. Post, announce, then REPAIR THE POST FROM THE VERDICT — this one.
+//   4. Post as an ordinary workout, announce, then STAMP THE RECORD FROM THE
+//      VERDICT — this one.
+//
+// ⚠ THE MARKER IS WRITTEN ONLY BEHIND AN ACCEPTED RECORD, and that is a
+// reviewer's remedy adopted rather than my own idea. It buys two things. The
+// plate can never claim a PR the server has not granted, so a refusal needs no
+// repair and an unreadable announce leaves the post UNDER-claiming rather than
+// over-claiming. And Shape's own flow stops being a way to write the marker
+// without a verdict.
+// ⚠ WHAT IT DOES NOT BUY IS A TRUST BOUNDARY, AND SAYING SO MATTERS MORE THAN
+// THE FIX. `community_posts.metrics` is client-written jsonb, so a member can
+// still put `pr: true` on their OWN post by hand — exactly as they have always
+// been able to put any `delta` there, which `bsFeedTypeMatch` has read as a PR
+// signal since long before this marker existed. Nothing privileged is reachable
+// that way: the ledger, the +5 award and the leaderboard all sit behind definer
+// RPCs that re-check the caller. Closing it properly means a server-side rule
+// over the whole `metrics` document, not a strip of the newest field — a
+// migration and an owner's call, registered rather than half-done here.
 //
 // ⚠ WHAT MAKES (4) DIFFERENT FROM (2) IS THAT THE POST IS MUTABLE.
 // `updateCommunityPost` merges into `metrics` (it never clobbers, and '' or
@@ -19505,13 +19522,20 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
     // and both PR consumers on a real post read it (`kind: 'pr'` is demo-only),
     // so a genuine first best was filtered out of the PR tab and drawn as an
     // ordinary load.
-    const gain = prior && prior.lb != null
-      ? bsWallGain(num, bsWallToUnit(prior.lb, 'lb', unit))
-      : null;
-    const prMetrics = {
-      kind: 'workout', workoutStats: stats, lift: name, load: loadStr, pr: true,
-      ...(gain != null ? { delta: `+${bsWallNum(gain)} ${unit}` } : {}),
-    };
+    // ⚠ THE PLATE CLAIMS NOTHING UNTIL THE SERVER HAS SAID SO. It is published as
+    // the ordinary workout post it honestly is; `pr` and `delta` are written
+    // afterwards, from the verdict. That is strictly more honest than stamping
+    // them optimistically and repairing on a refusal, and it is simpler: a
+    // refused announce now needs no repair at all, because there was never a
+    // claim to take back. It also means Shape's own flow can only ever write the
+    // marker behind an accepted record — see the note at `bsWallPriorBest` on
+    // what that does and does not buy.
+    //
+    // ⚠ AND THE FAILURE DIRECTION IS DELIBERATE: an announce we cannot read
+    // leaves the post UNDER-claiming (an ordinary workout that was really a
+    // record) rather than over-claiming. The retry corrects it; a member reading
+    // it in between is told less than the truth, never more.
+    const prMetrics = { kind: 'workout', workoutStats: stats, lift: name, load: loadStr };
     let postId = postIdRef.current;
     try {
       if (postId) {
@@ -19547,26 +19571,30 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
     if (!res) { setBusy(false); window.__bsToast?.(tr('feed:wall.postedNoRecord', { defaultValue: 'Posted, but we couldn’t mark it a record — try again.' }), 'info'); return; }
 
     if (!res.ok) {
-      // ⚠ REFUSED, SO THE PLATE MUST STOP CLAIMING A RECORD. It is a real
-      // workout the member did — it just is not a new best — so it is repaired
-      // into the ordinary post it honestly is rather than deleted. '' and null
-      // are `mergePostPatch`'s removal channel, so the two claims come off.
-      try { await window.ShapeCommunity?.update?.({ postId, metrics: { pr: null, delta: '' } }); } catch (e) { /* best-effort */ }
+      // ⚠ NOTHING TO REPAIR. The post never claimed a record, so a refusal
+      // leaves exactly what it already was: the ordinary workout the member did.
       setBusy(false);
       bsWallSay(tr, res.reason || 'error');
       return;
     }
 
-    // ⚠ ACCEPTED — AND THE SERVER'S `prev` IS THE AUTHORITY ON THE GAIN. The
-    // pre-check's read can be stale (or absent), so the stamped delta is
-    // corrected here from the row the RPC actually wrote. `prev_value` is stored
-    // in the unit the row now carries, which is this post's unit, so no
-    // conversion is needed or possible.
+    // ⚠ ACCEPTED — SO NOW IT IS A RECORD, AND THE SERVER'S OWN `prev` IS THE
+    // AUTHORITY ON THE GAIN. `pr: true` is the marker a first record needs:
+    // `delta` exists only against a PRIOR best, and both PR consumers on a real
+    // post read it (`kind: 'pr'` is demo-only), so a genuine first best was
+    // filtered out of the PR tab and drawn as an ordinary load. `prev_value` is
+    // stored in the unit the row now carries — this post's unit — so no
+    // conversion is needed or possible here.
+    // ⚠ AND A FAILED STAMP COSTS THE MARKER, NOT THE RECORD. The ledger row is
+    // written and the toast is true either way; what a member loses is the plate
+    // saying "New PR", which the next attempt restores.
     const trueGain = bsWallGain(num, res.prev);
-    const trueDelta = trueGain != null ? `+${bsWallNum(trueGain)} ${unit}` : '';
-    if (trueDelta !== (gain != null ? `+${bsWallNum(gain)} ${unit}` : '')) {
-      try { await window.ShapeCommunity?.update?.({ postId, metrics: { delta: trueDelta } }); } catch (e) { /* the record stands either way */ }
-    }
+    try {
+      await window.ShapeCommunity?.update?.({
+        postId,
+        metrics: { pr: true, ...(trueGain != null ? { delta: `+${bsWallNum(trueGain)} ${unit}` } : {}) },
+      });
+    } catch (e) { /* the record stands either way */ }
 
     setBusy(false);
     window.__bsToast?.(tr('feed:wall.posted', { defaultValue: 'On the wall.' }), 'ok');
