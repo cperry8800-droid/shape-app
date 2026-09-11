@@ -163,3 +163,60 @@ test('one teal, and it is the app pair', () => {
   // and the guard must be able to see the colours at all
   assert.ok(/#34d6c5/i.test(code), 'comment stripping ate the stylesheet');
 });
+
+// ⚠ THE TWO DEGRADATIONS OWE THE JOURNEY ITS OWN HEIGHT, NOT JUST ITS COPY.
+// The stages open by script, so reduced motion and no-JS both leave the rail
+// static — and .jtrack stayed 320vh with .jpin sticky, so those visitors
+// scrolled ~3.2 viewports past a screen that could not change. Measured in
+// Chromium before the fix and after: 2880px → 686px on both paths, and no-JS
+// went from 0/5 to 5/5 stages showing body text. (Codex, #2045.)
+//
+// These pin the INVARIANT — each degradation releases both the track height and
+// the sticky pin — rather than the spelling of the rule, because either one
+// alone leaves the defect: an un-pinned 320vh track is still three viewports of
+// blank, and a sticky auto-height one still traps the screen.
+function blockAfter(src, marker) {
+  const at = src.indexOf(marker);
+  assert.notEqual(at, -1, `not found: ${marker}`);
+  const open = src.indexOf('{', at);
+  let d = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') d++;
+    else if (src[i] === '}' && --d === 0) return src.slice(at, i + 1);
+  }
+  throw new Error(`unbalanced block for ${marker}`);
+}
+
+for (const [label, marker] of [
+  ['reduced motion', '@media (prefers-reduced-motion: reduce)'],
+  ['no JavaScript', '<noscript><style>'],
+]) {
+  test(`${label} releases the journey's pin and its height`, () => {
+    const block = label === 'no JavaScript'
+      ? SRC.slice(SRC.indexOf(marker), SRC.indexOf('</style></noscript>'))
+      : blockAfter(SRC, marker);
+    assert.ok(block.length > 80, `${label} block looks truncated (${block.length} chars)`);
+    assert.match(block, /\.jtrack\s*\{[^}]*height\s*:\s*auto/,
+      `${label} leaves .jtrack at its scripted height — the visitor scrolls viewports of an unchanging screen`);
+    assert.match(block, /\.jpin\s*\{[^}]*position\s*:\s*static/,
+      `${label} leaves .jpin sticky, so the screen is still trapped`);
+    // and the copy has to be readable, or the released height shows five headings
+    assert.match(block, /\.jn\s*\{[^}]*opacity\s*:\s*1/, `${label} leaves the stages dimmed`);
+    assert.match(block, /\.jn p\s*\{[^}]*max-height\s*:\s*90px/, `${label} leaves the stage bodies collapsed`);
+  });
+}
+
+test('the closed mobile drawer is out of the tab order, not merely invisible', () => {
+  // ⚠ `opacity:0; pointer-events:none` hides a thing from the eye and the
+  // pointer and leaves it FOCUSABLE — eight invisible links in the tab order
+  // and a duplicate menu in the accessibility tree. Measured at 390px: 8
+  // keyboard-reachable before, 0 after. (Codex, #2045.)
+  const closed = /\.ndrawer\{display:block;[\s\S]*?\}/.exec(SRC);
+  assert.ok(closed, 'the mobile drawer rule is gone');
+  assert.match(closed[0], /visibility\s*:\s*hidden/,
+    'the closed drawer is only transparent — its links stay focusable');
+  const open = /\.ndrawer\.open\{[^}]*\}/.exec(SRC);
+  assert.ok(open, 'the open-drawer rule is gone');
+  assert.match(open[0], /visibility\s*:\s*visible/,
+    'the drawer is hidden when closed and never made visible when open');
+});

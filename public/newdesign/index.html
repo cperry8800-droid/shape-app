@@ -313,8 +313,17 @@
     .nburger{display:flex}
     .ndrawer{display:block;position:fixed;inset:66px 0 0;z-index:59;background:rgba(6,9,15,.97);
              backdrop-filter:blur(16px);padding:26px 32px;transform:translateY(-12px);opacity:0;
-             pointer-events:none;transition:opacity .22s,transform .22s;overflow-y:auto}
-    .ndrawer.open{opacity:1;transform:none;pointer-events:auto}
+             pointer-events:none;visibility:hidden;
+             transition:opacity .22s,transform .22s,visibility .22s;overflow-y:auto}
+    /* ⚠ VISIBILITY, NOT JUST OPACITY. `opacity:0; pointer-events:none` hides the
+       drawer from the eye and the pointer and leaves every anchor in the TAB ORDER
+       and the accessibility tree — so keyboard and switch users tab through a
+       sequence of invisible links whenever the menu is closed, and a screen reader
+       meets a second copy of the nav despite aria-expanded="false". `visibility`
+       removes it from both, and it animates discretely: flipping at the END of the
+       fade out and at the START of the fade in, so the transition still reads.
+       (Codex, #2045.) */
+    .ndrawer.open{opacity:1;transform:none;pointer-events:auto;visibility:visible}
     .ndrawer a{display:block;font-family:var(--disp);font-weight:500;font-variation-settings:'wdth' 100;
                font-size:22px;padding:14px 0;border-bottom:1px solid var(--line-2)}
   }
@@ -357,8 +366,30 @@
     .wire .lbl i,.appph .hl{animation:none}
     .jn p{max-height:90px}
     .jn{opacity:1}
+    /* ⚠ OPENING THE STAGES IS HALF OF IT — THE TRACK HAS TO STOP BEING A TRACK.
+       The journey script returns early under reduced motion, so nothing updates;
+       but .jtrack stayed 320vh and .jpin stayed sticky, which left these visitors
+       scrolling roughly two extra viewports past a screen that never changes. The
+       promise of the reduced-motion path is a static stacked list, so the section
+       becomes its own height. (Codex, #2045.) */
+    .jtrack{height:auto}
+    .jpin{position:static;height:auto;overflow:visible}
   }
 </style>
+<noscript><style>
+  /* ⚠ WITHOUT JS THE JOURNEY WAS 320vh OF A PINNED PANEL WITH NO BODY TEXT.
+     The stages open by script (.jn.on), so with none the rail renders five dimmed
+     headings at opacity .34 whose paragraphs are max-height:0 — and the track was
+     still three viewports tall and still sticky, so a visitor scrolled all of it
+     past a screen that could not change. This is the reduced-motion treatment,
+     which is the right one: a static stacked list at its own height. Codex raised
+     the pinning; the missing copy is the half my own no-JS pass did not measure,
+     because it checked the fold and the wire and never the journey. (#2045.) */
+  .jtrack{height:auto}
+  .jpin{position:static;height:auto;overflow:visible}
+  .jn{opacity:1}
+  .jn p{max-height:90px}
+</style></noscript>
 <script>document.documentElement.classList.remove('no-js');</script>
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body>
