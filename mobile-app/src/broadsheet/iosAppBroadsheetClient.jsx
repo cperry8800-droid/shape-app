@@ -4,7 +4,8 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
+import { bsSdSplitUnit, bsSdNeedle } from '../services/sessionLedger.mjs';
+import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
@@ -13447,6 +13448,34 @@ function bsMapActivityPosts(data) {
 // data: the in-app live session's set logs (load × reps per set) or a provider's
 // splits/laps (Strava etc.). Returns null when the post carries neither, so the
 // section is honestly absent rather than faked.
+// A set's seconds in the COACH REVIEW'S OWN SPELLING (`42s` under a minute, `2:05`
+// over it — `formatReviewSeconds`, iosAppBroadsheetPros.jsx), so the member's Session
+// details and the coach's review of the same set cannot print one duration two ways.
+// ⚠ `> 0` IS THE GUARD; `Number.isFinite` IS NOT. `Number(null)`, `Number('')` and
+// `Number([])` are all 0 and all FINITE, so a finiteness check alone turns an absent
+// duration into a confident `0s`. It is also the right answer for a genuine zero: a
+// 0-second rest before set 1 is the absence of a rest, not a measurement of one.
+// (An `if (v == null)` early return here would read as the guard and never fire —
+// `Number(null)` is 0, which this line already refuses.)
+function bsSetSeconds(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const secs = Math.round(n);
+  const min = Math.floor(secs / 60);
+  return min ? `${min}:${String(secs % 60).padStart(2, '0')}` : `${secs}s`;
+}
+// `RPE <n>` when the member actually rated the set, '' when they did not. ⚠ Same trap
+// as above and worse here: the RPE scale starts at 1, so a 0 is never a rating — an
+// unrated set must yield NO TOKEN AT ALL, or `BSSdBars` draws a dial for a number
+// nobody entered, which is the fabrication the honest-data rule exists to stop. One
+// decimal, because the logger accepts halves (8.5) and floating point should not print
+// nine. ⚠ The token goes FIRST in the note: the renderer cuts it out and strips only a
+// LEADING or TRAILING separator, so a token in the middle leaves `42s ·  · rest 2:30`.
+function bsSetRpeToken(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return `RPE ${Math.round(n * 10) / 10}`;
+}
 function bsBuildBreakdown(p) {
   const m = (p && p.rawMetrics) || {};
   const sl = Array.isArray(m.setLogs) ? m.setLogs.filter((s) => s && s.completed !== false) : [];
@@ -13458,8 +13487,32 @@ function bsBuildBreakdown(p) {
       const reps = s.actualReps || s.targetReps || '';
       const val = load && reps ? `${load} × ${reps}` : (load || reps || '—');
       const label = multi ? `${s.moveName} · Set ${s.setNumber}` : `Set ${s.setNumber}`;
-      const note = s.setDurationSeconds ? `${s.setDurationSeconds}s` : '';
-      return [label, String(val), String(note)];
+      // ⚠ THE NOTE COLUMN IS READ TWICE, AND THAT IS WHY THE RPE HAS TO RIDE IN IT.
+      // `BSSdBars` lifts `RPE <n>` out of this string for the dial and renders whatever
+      // is left as the sub-label — which is how the demo rows have always spelled it
+      // ('RPE 9 · PR'). This built `${setDurationSeconds}s` and nothing else, so a set
+      // the member had rated in the live logger reached the page with its rating
+      // dropped: the dial drew on every demo card and on no real set.
+      // Duration and rest keep their places beside it; measured in the browser, the
+      // longest real triple is 16 of the ~18 characters the 76px sub-label holds.
+      const dur = bsSetSeconds(s.setDurationSeconds);
+      const rest = bsSetSeconds(s.restBeforeSeconds);
+      const note = [bsSetRpeToken(s.rpe), dur, rest && `rest ${rest}`].filter(Boolean).join(' · ');
+      // ⚠ A FOURTH ELEMENT, NOT A WIDER TUPLE. `BSSdBars` reads r[0] · r[1] ·
+      // r[2] and the Terrain profile and the Cadence section both build rows by
+      // hand, so changing what the first three mean would reach four surfaces to
+      // serve one. The Instrument Board's table reads this when it is here and
+      // parses the note when it is not — which is how the hand-written demo
+      // posts render the same table as a live session.
+      // The PRESCRIPTION is what the coach wrote and `val` is what was lifted;
+      // the table's PLAN column is the first place on this page the two have
+      // ever been side by side. Absent when nothing was prescribed — an empty
+      // cell is honest, and `targetLoad` with no `targetReps` is still half a
+      // prescription worth showing.
+      const plan = [s.targetLoad, s.targetReps].every((x) => x == null || x === '')
+        ? null
+        : [s.targetLoad, s.targetReps].filter((x) => x != null && x !== '').join(' × ');
+      return [label, String(val), String(note), { rpe: s.rpe, plan, rest: rest || null, dur: dur || null }];
     });
     return { label: multi ? 'Working sets' : `${moves[0] || 'Working'} · sets`, rows };
   }
@@ -17571,7 +17624,6 @@ function BSSdBars({ rows, perf, bestIdx, heat, t, muted, still = false }) {
   const pmax = Math.max(...perf, 1);
   const lastDelay = rows.length * 110 + 260;
   const rpeOf = (sub) => { const m = String(sub || '').match(/rpe\s*([\d.]+)/i); return m ? parseFloat(m[1]) : null; };
-  const rpeColor = (r) => (r >= 9 ? '#e0463c' : r >= 8 ? '#d8b25a' : '#34d6c5');
   return (
     <div ref={ref}>
       {rows.map((r, i) => {
@@ -17602,13 +17654,7 @@ function BSSdBars({ rows, perf, bestIdx, heat, t, muted, still = false }) {
               )}
             </div>
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, minWidth: 58, justifyContent: 'flex-end' }}>
-              {rpe != null && (
-                <svg width="14" height="14" viewBox="0 0 20 20" aria-label={`RPE ${rpe}`}>
-                  <circle cx="10" cy="10" r="7.5" fill="none" stroke={bsTHexA(t.INK, 0.14)} strokeWidth="3" />
-                  <circle cx="10" cy="10" r="7.5" fill="none" stroke={rpeColor(rpe)} strokeWidth="3" strokeLinecap="round" pathLength={100}
-                    strokeDasharray={`${Math.max(4, Math.min(100, (rpe / 10) * 100))} 100`} transform="rotate(-90 10 10)" />
-                </svg>
-              )}
+              {bsIbRpeDial(rpe, t, 14)}
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', opacity: seen ? 1 : 0, transition: `opacity 400ms ease ${i * 110 + 220}ms` }}>{r[1]}</span>
             </div>
           </div>
@@ -17654,80 +17700,198 @@ function BSSdRoute({ route, heat, t }) {
   );
 }
 
-// The two-register summary ledger. Primaries = full-width baseline rows (30px
-// figures; AVG PACE carries the needle band, HR its ghost trace at 0.11);
-// then the ink→heat divider; secondaries = telegram dot-leader lines (15px).
-// Zero boxes — hierarchy is size + rule weight only. The needle renders ONLY
-// from a real pace trace (bsSdNeedle returns null otherwise).
-function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }) {
-  const [ref, seen] = useBSSdInView();
-  const tr = useShapeTr();
+// ── THE INSTRUMENT BOARD ────────────────────────────────────────────────────
+// The front of Session details (review 2026-09-11 §3 — the owner's pick). It
+// replaces the two-register Open Ledger that stood here: the primaries become
+// six instrument tiles you take in at once, and the ledger's dot-leader register
+// survives underneath for everything that does not earn one. Nothing is dropped
+// in the swap — the needle, the ghost trace and the dot leaders all moved rather
+// than retiring — which is why the ledger component itself is deleted instead of
+// left standing beside its replacement.
+
+// One tile: mono label, a 19px tabular figure with its unit, and the session's
+// own data drawn faintly behind it.
+//
+// ⚠ THE GHOST AND THE NEEDLE ARE AT 0.2 OPACITY BEHIND THE NUMBER, NOT BESIDE
+// IT. A tile is ~105px wide on a 375px screen; a chart given its own room there
+// would be four pixels tall and say nothing. Behind the figure it does the one
+// job it can do at that size: say what shape the number came out of.
+function BSIbTile({ label, value, kind, ghostPath, needle, heat, t }) {
+  const u = bsSdSplitUnit(value);
   const reduced = bsSdReduced();
-  const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i;
-  // Units sit in a fixed-width column (widest unit in the register, mono ch)
-  // so every numeral shares one right edge — bare figures reserve the gutter too.
-  const unitCh = (rows) => (rows || []).reduce((m, r) => Math.max(m, bsSdSplitUnit(r[1]).unit.length), 0);
-  const priUnitCh = unitCh(primary), secUnitCh = unitCh(secondary);
-  const unitSpan = (u, size, colCh) => (colCh ? <span style={{ display: 'inline-block', width: `${colCh}ch`, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: size, fontWeight: 700, color: bsTHexA(t.INK, 0.55), marginLeft: 4 }}>{u}</span> : null);
+  const ink = (a) => bsTHexA(t.INK, a);
+  return (
+    <div style={{ position: 'relative', minHeight: 66 }}>
+      {/* the two clipped layers + spine of a BSPlate, at tile scale — the notch
+          is 9px here against the plate's 12 so six of them do not read as a row
+          of dog-ears. */}
+      <div aria-hidden style={{ position: 'absolute', inset: 0, background: ink(0.22), clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)' }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1, background: `linear-gradient(165deg, ${ink(0.06)}, ${t.PAPER2} 70%), ${t.PAPER}`, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }} />
+      <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: kind === 'plain' ? ink(0.3) : heat }} />
+      <div style={{ position: 'relative', padding: '9px 8px 8px 10px' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1 }}>
+          <BSSdCountUp text={u.num} duration={700} delay={140} />
+          {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: ink(0.55), marginLeft: 3, letterSpacing: 0 }}>{u.unit}</span> : null}
+        </div>
+        {kind === 'ghost' && ghostPath && (
+          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 5, bottom: 5, width: 40, height: 18, opacity: 0.2 }}>
+            <path d={ghostPath} fill="none" stroke={heat} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </svg>
+        )}
+        {kind === 'needle' && needle && (
+          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 5, bottom: 5, width: 40, height: 18, opacity: 0.45 }}>
+            <line x1="0" y1="50" x2="100" y2="50" stroke={ink(0.5)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+            <line x1={(reduced ? needle.frac : needle.frac) * 100} y1="16" x2={(reduced ? needle.frac : needle.frac) * 100} y2="84" stroke={heat} strokeWidth="3" vectorEffect="non-scaling-stroke" />
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The six tiles, then every remaining scalar as a dot-leader row.
+//
+// ⚠ THE DOT-LEADER ROWS ARE THE OPEN LEDGER'S SECOND REGISTER, CARRIED OVER
+// UNCHANGED. They were the right answer for "a figure that matters but does not
+// lead" before this redesign and they still are; re-styling them would have been
+// a change nobody asked for wearing the redesign's clothes.
+function BSIbTiles({ tiles, rest, heat, t, ghostFor, paceTrace, isRide }) {
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
+  const tr = useShapeTr();
+  const ink = (a) => bsTHexA(t.INK, a);
+  // The unit column is sized to the widest unit in the register so every numeral
+  // in the dot-leader rows shares one right edge (the ledger's own rule).
+  const restUnitCh = (rest || []).reduce((m, r) => Math.max(m, bsSdSplitUnit(r[1]).unit.length), 0);
   return (
     <div ref={ref}>
-      {primary.map(([k, v], i) => {
-        const u = bsSdSplitUnit(v);
-        const isPace = paceRe.test(String(k));
-        const needle = isPace ? bsSdNeedle(v, paceTrace, isRide ? 'speed' : 'pace') : null;
-        const ghost = (!isPace && hrRe.test(String(k))) ? ghostFor(k) : null;
-        return (
-          <div key={`${k}-${i}`} aria-label={needle ? tr('session:ledger.needleAria', { defaultValue: '{label}: {value} — average between {lo} and {hi}', label: k, value: `${u.num}${u.unit ? ' ' + u.unit : ''}`, lo: needle.lo, hi: needle.hi }) : undefined} style={{ position: 'relative', padding: '11px 0 12px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${i * 90}ms both` }) }}>
-            {ghost && (
-              <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 0, bottom: 8, width: 132, height: 'calc(100% - 16px)', opacity: seen ? 0.11 : 0, transition: 'opacity 700ms ease 650ms' }}>
-                <path d={ghost} fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-              </svg>
-            )}
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '46%' }}>{k}</span>
-              <span style={{ position: 'relative', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                <BSSdCountUp text={u.num} run={seen} duration={800} delay={180 + i * 90} />
-                {unitSpan(u.unit, 10, priUnitCh)}
-              </span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 14 }}>
+        {tiles.map(([k, v], i) => {
+          const needle = /pace|speed/i.test(String(k)) ? bsSdNeedle(v, paceTrace, isRide ? 'speed' : 'pace') : null;
+          const ghostPath = ghostFor(k);
+          const kind = bsIbTileKind(k, { hasNeedle: !!needle, hasGhost: !!ghostPath });
+          return (
+            <div key={`${k}-${i}`} style={reduced ? null : { animation: `bsSdFadeUp 420ms ease ${i * 70}ms both` }}>
+              <BSIbTile label={k} value={v} kind={kind} ghostPath={ghostPath} needle={needle} heat={heat} t={t} />
             </div>
-            {needle && (
-              <div aria-hidden>
-                <div style={{ position: 'relative', height: 15, marginTop: 8 }}>
-                  <svg viewBox="0 0 100 15" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-                    {Array.from({ length: 25 }, (_, ti) => {
-                      const x = (ti / 24) * 100, tall = ti % 5 === 0;
-                      return <line key={ti} x1={x} y1={tall ? 1 : 4} x2={x} y2={tall ? 14 : 11} stroke={bsTHexA(t.INK, tall ? 0.32 : 0.18)} strokeWidth="1" vectorEffect="non-scaling-stroke" />;
-                    })}
-                  </svg>
-                  <span style={{ position: 'absolute', top: 0, bottom: 0, width: 2, background: heat, left: `calc(${(seen || reduced) ? needle.frac * 100 : 0}% - 1px)`, transition: reduced ? 'none' : 'left 700ms cubic-bezier(.3,.7,.2,1) 140ms' }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: bsTHexA(t.INK, 0.45), fontVariantNumeric: 'tabular-nums' }}>
-                  <span>{needle.lo}</span><span>{needle.hi}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {secondary.length > 0 && (
-        <>
-          <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
-          {secondary.map(([k, v], i) => {
+          );
+        })}
+      </div>
+      {needleLegend(tiles, paceTrace, isRide, t, tr)}
+      {rest.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {rest.map(([k, v], i) => {
             const u = bsSdSplitUnit(v);
             return (
-              <div key={`${k}-${i}`} style={{ display: 'flex', alignItems: 'baseline', padding: '7px 0', ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${380 + Math.min(i, 9) * 55}ms both` }) }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>{k}</span>
-                <span aria-hidden style={{ flex: 1, margin: '0 8px', borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-3px)' }} />
+              <div key={`${k}-${i}`} style={{ display: 'flex', alignItems: 'baseline', padding: '6px 0', ...(reduced ? null : { animation: `bsSdFadeUp 440ms ease ${260 + Math.min(i, 9) * 55}ms both` }) }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.45), whiteSpace: 'nowrap' }}>{k}</span>
+                <span aria-hidden style={{ flex: 1, margin: '0 8px', borderBottom: `1.5px dotted ${ink(0.22)}`, transform: 'translateY(-3px)' }} />
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                  <BSSdCountUp text={u.num} run={seen} duration={650} delay={420 + Math.min(i, 9) * 55} />
-                  {unitSpan(u.unit, 8.5, secUnitCh)}
+                  <BSSdCountUp text={u.num} run={seen} duration={650} delay={300 + Math.min(i, 9) * 55} />
+                  {restUnitCh ? <span style={{ display: 'inline-block', width: `${restUnitCh}ch`, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: ink(0.55), marginLeft: 4 }}>{u.unit}</span> : null}
                 </span>
               </div>
             );
           })}
-        </>
+        </div>
       )}
     </div>
+  );
+}
+
+// ⚠ THE NEEDLE'S ENDPOINTS ARE THE HONEST HALF OF IT, so a tile too small to
+// carry them states them once underneath. A tick mark two thirds along says
+// nothing at all until you know the band runs from the session's slowest sample
+// to its fastest — it is a picture of a claim, and this line is the claim.
+function needleLegend(tiles, paceTrace, isRide, t, tr) {
+  const hit = (tiles || []).find(([k, v]) => /pace|speed/i.test(String(k)) && bsSdNeedle(v, paceTrace, isRide ? 'speed' : 'pace'));
+  if (!hit) return null;
+  const n = bsSdNeedle(hit[1], paceTrace, isRide ? 'speed' : 'pace');
+  return (
+    <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 6.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.42), fontVariantNumeric: 'tabular-nums' }}>
+      {tr('session:board.needleBand', { defaultValue: '{label} band · {lo} slowest → {hi} fastest', label: hit[0], lo: n.lo, hi: n.hi })}
+    </div>
+  );
+}
+
+// The glance version of time-in-zone: one stacked bar with its percentages
+// underneath.
+//
+// ⚠ THE LABELLED CELLS IN THE HEART RATE SECTION STAY. This bar and those cells
+// are the same measurement at two depths, which is what a board is: the gauge up
+// top is read in a second and cannot be read precisely, the cells below are read
+// precisely and take a scroll. Deleting either one to avoid "duplication" would
+// cost the page one of the two readings it is built to give.
+function BSIbZoneBar({ zones, heat, t }) {
+  const [ref, seen] = useBSSdInView();
+  const tr = useShapeTr();
+  const segs = bsIbZoneSegments(zones);
+  if (!segs.length) return null;
+  return (
+    <div ref={ref} style={{ marginTop: 14 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{tr('feed:card.hrZones', { defaultValue: 'HR zones' })}</div>
+      <div style={{ display: 'flex', gap: 2, height: 9, borderRadius: 2, overflow: 'hidden', marginTop: 6 }}>
+        {segs.map((s) => (
+          <span key={s.i} aria-hidden style={{ display: 'block', flex: s.flex, background: BS_SD_ZONES[s.i % 5], transformOrigin: 'left', transform: seen ? 'none' : 'scaleX(0)', transition: `transform 640ms cubic-bezier(.3,.6,.2,1) ${90 * s.i}ms` }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 5, fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.5), fontVariantNumeric: 'tabular-nums' }}>
+        {segs.map((s) => <span key={s.i}>{s.label} {s.pct}%</span>)}
+      </div>
+    </div>
+  );
+}
+
+// The set-by-set and split-by-split tables — columns of numbers with the row's
+// bar drawn underneath it, the best row in the session's heat.
+//
+// ⚠ THE TABLE IS A GRID, NOT A `<table>`, FOR ONE REASON: the bar spans every
+// column (`gridColumn: '1 / -1'`), which in a table means a colspan cell in an
+// extra row per set and a second set of borders to suppress. The header cells
+// are still a row of headings a screen reader meets before the data.
+function BSIbTable({ head, rows, heat, t, muted }) {
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
+  const ink = (a) => bsTHexA(t.INK, a);
+  const h = { fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.42), paddingBottom: 6, borderBottom: `1px solid ${ink(0.1)}`, whiteSpace: 'nowrap' };
+  const c = { fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK, padding: '8px 0 3px', whiteSpace: 'nowrap' };
+  return (
+    <div ref={ref} style={{ display: 'grid', gridTemplateColumns: head.map((x) => x.w || 'auto').join(' '), columnGap: 8, alignItems: 'center', fontVariantNumeric: 'tabular-nums' }}>
+      {head.map((x, i) => <div key={`h${i}`} style={{ ...h, textAlign: x.right ? 'right' : 'left' }}>{x.label}</div>)}
+      {rows.map((r, i) => (
+        <React.Fragment key={i}>
+          {r.cells.map((cell, j) => (
+            <div key={j} style={{ ...c, textAlign: head[j] && head[j].right ? 'right' : 'left', ...(cell && cell.dim ? { color: ink(0.5), fontWeight: 500 } : null), ...(r.best && j === 0 ? { color: heat } : null) }}>
+              {cell && cell.node ? cell.node : (cell && cell.text != null ? cell.text : '')}
+            </div>
+          ))}
+          <div aria-hidden style={{ gridColumn: '1 / -1', height: 3, borderRadius: 2, background: ink(0.08), position: 'relative', marginBottom: 4 }}>
+            <span style={{
+              position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2,
+              width: `${(seen || reduced) ? r.width : 0}%`,
+              background: r.best ? heat : ink(0.2),
+              ...(r.best ? { boxShadow: `0 0 8px 1px ${bsTHexA(heat, 0.4)}` } : null),
+              transition: reduced ? 'none' : `width 520ms cubic-bezier(.4,0,.2,1) ${i * 90}ms`,
+            }} />
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+// The RPE dial, shared by the table and `BSSdBars` so one rating cannot be drawn
+// two ways on one page.
+function bsIbRpeDial(rpe, t, size = 13) {
+  if (rpe == null) return null;
+  const color = rpe >= 9 ? '#e0463c' : rpe >= 8 ? '#d8b25a' : '#34d6c5';
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-label={`RPE ${rpe}`}>
+      <circle cx="10" cy="10" r="7.5" fill="none" stroke={bsTHexA(t.INK, 0.14)} strokeWidth="3" />
+      <circle cx="10" cy="10" r="7.5" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" pathLength={100}
+        strokeDasharray={`${Math.max(4, Math.min(100, (rpe / 10) * 100))} 100`} transform="rotate(-90 10 10)" />
+    </svg>
   );
 }
 
@@ -17785,7 +17949,14 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // Two distinct pages: 'stats' (Session details — JUST the workout/activity
   // numbers) and 'comments' (the conversation + composer). Likes are their own
   // sheet (the facepile → "Who reacted"). Never mixed.
-  const isComments = d.focus === 'comments';
+  // The page has two faces and the sticky action bar can turn it: `d.focus` is
+  // where the CALLER opened it, `focusTab` is where the member has gone since.
+  // ⚠ The composer's autofocus deliberately stays a MOUNT effect. Arriving from
+  // the card's comment icon is a reply intent and earns the keyboard; tapping
+  // the count on the bar is "show me the comments", and opening the keyboard
+  // there covers the half of them the member just asked to see.
+  const [focusTab, setFocusTab] = React.useState(null);
+  const isComments = (focusTab || d.focus) === 'comments';
   const composerRef = React.useRef(null);
   const bodyRef = React.useRef(null);
   const [splitsOpen, setSplitsOpen] = React.useState(false); // → the full Splits page
@@ -17904,7 +18075,12 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← {tr('session:action.back', { defaultValue: 'Back' })}</button>
+          {/* ⚠ BACK UNDOES THE LAST STEP, WHICH IS NOT ALWAYS "CLOSE". Once the
+              sticky bar can turn the page to the comments, a Back that always
+              closed would throw away the board a member had scrolled through to
+              get there, with no way back but reopening the post. It closes only
+              when the page is still showing the face it was OPENED on. */}
+          <button onClick={() => { if (focusTab && focusTab !== d.focus) setFocusTab(null); else onClose(); }} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← {tr('session:action.back', { defaultValue: 'Back' })}</button>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? tr('session:detail.comments', { defaultValue: 'Comments' }) : tr('session:detail.tabDetails', { defaultValue: 'Session details' })}</div>
           {!isComments && canShareCard && (
             <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
@@ -17983,12 +18159,13 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           )}
           {/* SUMMARY — only the MAIN stats (the hero number is shown above; this is
               the 2–3 headline figures). Everything else lives in its own section. */}
-          {!isComments && summaryStats.length > 0 && (() => {
-            const { primary, secondary } = bsSdRankStats(summaryStats);
+          {!isComments && (summaryStats.length > 0 || (Array.isArray(d.zones) && d.zones.length > 0)) && (() => {
+            const { tiles, rest } = bsIbTiles(summaryStats);
             return (
               <>
                 {secHead(tr('session:detail.summary', { defaultValue: 'Summary' }))}
-                <BSSdLedger primary={primary} secondary={secondary} heat={heat} t={t} ghostFor={ghostFor} paceTrace={d.paceTrace} isRide={isRideSport} />
+                {tiles.length > 0 && <BSIbTiles tiles={tiles} rest={rest} heat={heat} t={t} ghostFor={ghostFor} paceTrace={d.paceTrace} isRide={isRideSport} />}
+                {Array.isArray(d.zones) && d.zones.length > 0 && <BSIbZoneBar zones={d.zones} heat={heat} t={t} />}
               </>
             );
           })()}
@@ -17999,14 +18176,53 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           <>
             {secHead(paceCfg.label, paceChipStat ? headChip(`${paceCfg.chip} ${paceChipStat[1]}`, true) : null)}
             <BSSdPaceBars data={paceData} t={t} muted={muted} heat={heat} onOpen={hasSplitsPage ? () => setSplitsOpen(true) : undefined} />
-            {hasSplitsPage && (
-              <button onClick={() => setSplitsOpen(true)} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: '11px 0', cursor: 'pointer', textAlign: 'left' }}>
-                <span aria-hidden style={{ width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('session:chart.splitsFullBreakdown', { defaultValue: 'Splits · Full breakdown ›' })}</span>
-              </button>
-            )}
           </>
         )}
+        {/* SPLIT BY SPLIT — the numbers behind the bars above, in the columns the
+            Splits page uses, so a coach reads the session without a page push.
+            ⚠ TRUNCATED, AND IT SAYS SO. Six rows is what fits before the table
+            becomes the page; the link underneath carries the real count, so this
+            can never read as the whole record. */}
+        {!isComments && paceData && paceData.splits.length > 1 && (() => {
+          const st = bsIbSplitTable(paceData.splits);
+          const head = [{ label: tr('session:splits.colSplit', { defaultValue: 'Split' }), w: 'minmax(0, 1fr)' },
+            { label: paceCfg.label, w: 'auto', right: true }];
+          if (st.cols.hr) head.push({ label: tr('session:board.colHr', { defaultValue: 'HR' }), w: 'auto', right: true });
+          if (st.cols.cadence) head.push({ label: tr('session:splits.colCad', { defaultValue: 'Cad' }), w: 'auto', right: true });
+          if (st.cols.elev) head.push({ label: tr('session:splits.colElev', { defaultValue: 'Elev' }), w: 'auto', right: true });
+          const rows = st.shown.map((x, i) => {
+            const cells = [{ node: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ width: 6, height: 6, borderRadius: 1.5, background: BS_SD_ZONES[(x.zone - 1) % 5], flexShrink: 0 }} />{x.label}</span> },
+              { text: x.paceLabel || '—' }];
+            if (st.cols.hr) cells.push({ text: x.hr != null ? String(x.hr) : '—', dim: true });
+            if (st.cols.cadence) cells.push({ text: x.cadence != null ? String(x.cadence) : '—', dim: true });
+            if (st.cols.elev) cells.push({ text: x.elevDelta != null ? `${x.elevDelta > 0 ? '+' : ''}${x.elevDelta}` : '—', dim: true });
+            return { cells, width: Math.max(6, (x.hFrac || 0) * 100), best: i === paceData.bestIdx };
+          });
+          return (
+            <>
+              {secHead(tr('session:board.splitBySplit', { defaultValue: 'Split by split' }))}
+              <BSIbTable head={head} rows={rows} heat={heat} t={t} muted={muted} />
+              {hasSplitsPage && (
+                <button onClick={() => setSplitsOpen(true)} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: '11px 0', cursor: 'pointer', textAlign: 'left' }}>
+                  <span aria-hidden style={{ width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
+                  {/* ⚠ THE LINK SAYS WHAT IS THROUGH IT, AND THAT DEPENDS ON WHETHER
+                      THE TABLE IS TRUNCATED. Measured in a browser on the demo run:
+                      the splitter bucketed 18.2 miles into THREE splits, so the table
+                      showed all three under a link reading "All 3 splits ›" — an
+                      invitation to see what was already on the screen. Truncated, the
+                      count is the point; whole, the Splits page is still worth the tap
+                      for its own columns and full-height bars, and the page's own name
+                      is what to offer. */}
+                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>
+                    {st.truncated
+                      ? tr('session:board.allSplits', { defaultValue: 'All {n} splits ›', n: st.total })
+                      : tr('session:chart.splitsFullBreakdown', { defaultValue: 'Splits · Full breakdown ›' })}
+                  </span>
+                </button>
+              )}
+            </>
+          );
+        })()}
         {/* POWER — watts over distance (rides, when a power meter is present). */}
         {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
           <>
@@ -18030,13 +18246,28 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             moved to the Splits page (opened from the pace chart above). */}
         {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0
           && !/split|mile|lap/i.test(String(d.breakdown.label || '')) && (() => {
-          const rows = d.breakdown.rows;
-          const perf = rows.map((r) => { const m = String(r[1]).match(/[\d.]+/); return m ? +m[0] : 0; });
-          const bestIdx = perf.indexOf(Math.max(...perf));
+          const tbl = bsIbSetTable(d.breakdown.rows);
+          // ⚠ EVERY OPTIONAL COLUMN ASKS THE ROWS WHETHER IT EXISTS. A PLAN
+          // heading over five empty cells says the prescription was not recorded
+          // when the truth is that this session never carried one — and it spends
+          // a fifth of a phone's width saying it.
+          const head = [{ label: tr('session:board.colSet', { defaultValue: 'Set' }), w: 'minmax(0, 1.3fr)' }];
+          if (tbl.cols.plan) head.push({ label: tr('session:board.colPlan', { defaultValue: 'Plan' }), w: 'minmax(0, 1fr)' });
+          head.push({ label: tr('session:board.colLifted', { defaultValue: 'Lifted' }), w: 'auto', right: true });
+          if (tbl.cols.rpe) head.push({ label: tr('session:board.colRpe', { defaultValue: 'RPE' }), w: 'auto' });
+          if (tbl.cols.rest) head.push({ label: tr('session:board.colRest', { defaultValue: 'Rest' }), w: 'auto' });
+          const tblRows = tbl.rows.map((r, i) => {
+            const cells = [{ text: r.note ? `${r.label} · ${r.note}` : r.label }];
+            if (tbl.cols.plan) cells.push({ text: r.plan || '—', dim: true });
+            cells.push({ text: r.value });
+            if (tbl.cols.rpe) cells.push({ node: r.rpe == null ? <span style={{ color: bsTHexA(t.INK, 0.3) }}>—</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{bsIbRpeDial(r.rpe, t)}{r.rpe}</span> });
+            if (tbl.cols.rest) cells.push({ text: r.rest || '—', dim: true });
+            return { cells, width: tbl.widths[i], best: i === tbl.bestIdx };
+          });
           return (
             <>
-              {secHead(d.breakdown.label || tr('session:chart.workingSets', { defaultValue: 'Working sets' }))}
-              <BSSdBars rows={rows} perf={perf} bestIdx={bestIdx} heat={heat} t={t} muted={muted} />
+              {secHead(d.breakdown.label || tr('session:board.setBySet', { defaultValue: 'Set by set' }))}
+              <BSIbTable head={head} rows={tblRows} heat={heat} t={t} muted={muted} />
             </>
           );
         })()}
@@ -18103,6 +18334,37 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           </>
         )}
       </div>
+      {/* ── THE STICKY ACTION BAR — stats page ───────────────────────────────
+          Reactions, the comment count and share, held at the foot of a page that
+          is four screens tall. ⚠ They were reachable only by scrolling to the
+          END of the comments page before this, so on the longest sessions — the
+          ones people most want to say something about — the controls were
+          furthest from the reader. Nothing new is offered here: every action is
+          one this page already had, moved to where a thumb is. */}
+      {!isComments && (
+        <div style={{ flexShrink: 0, borderTop: `1px solid ${hair}`, background: t.PAPER, padding: '9px 14px calc(11px + env(safe-area-inset-bottom,0px))', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {facepile.length > 0 && (
+            <button onClick={onOpenLikers} aria-label={tr('session:detail.whoReacted', { defaultValue: 'Who reacted ›' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, padding: '4px 0', cursor: 'pointer', flexShrink: 0 }}>
+              {facepile.slice(0, 3).map((l, i) => (
+                <span key={l.userId || l.name || i} style={{ marginLeft: i ? -6 : 0, borderRadius: 999, border: `1.5px solid ${t.PAPER}`, display: 'inline-flex' }}>
+                  <BSFacetAvatar size={20} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                </span>
+              ))}
+            </button>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : 'transparent', color: liked ? '#fff' : t.INK, border: `1px solid ${liked ? accent : bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              {bsFeedIcon('react', 11)}<span>{myExpr || d.verb} · {count}</span>
+            </button>
+            <button onClick={() => { setFocusTab('comments'); if (bodyRef.current) bodyRef.current.scrollTop = 0; }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 999, cursor: 'pointer', background: 'transparent', color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              {bsFeedIcon('comment', 11)}<span>{comments.length} ›</span>
+            </button>
+            {canShareCard && (
+              <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ width: 30, height: 30, borderRadius: 999, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, flexShrink: 0 }}>{bsFeedIcon('share', 12)}</button>
+            )}
+          </div>
+        </div>
+      )}
       {/* sticky composer — comments page only */}
       {isComments && (
       <div style={{ flexShrink: 0, borderTop: `1px solid ${hair}`, padding: '10px 14px calc(12px + env(safe-area-inset-bottom,0px))', display: 'grid', gridTemplateColumns: '1fr 62px', gap: 8, alignItems: 'center', background: t.PAPER }}>
@@ -18153,7 +18415,7 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
         <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: gridCols, columnGap: 12, alignItems: 'center' }}>
           <span style={{ ...col, textAlign: 'left' }}>{tr('session:splits.colSplit', { defaultValue: 'Split' })}</span>
           <span style={col}>{tr('session:chart.pace', { defaultValue: 'Pace' })}</span>
-          {anyHr && <span style={col}>HR</span>}
+          {anyHr && <span style={col}>{tr('session:board.colHr', { defaultValue: 'HR' })}</span>}
           {anyCad && <span style={col}>{tr('session:splits.colCad', { defaultValue: 'Cad' })}</span>}
           {anyElev && <span style={col}>{tr('session:splits.colElev', { defaultValue: 'Elev' })}</span>}
           {s.map((x, i) => {
@@ -18349,8 +18611,18 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // bpm, %, spm, kcal, reps and prose alone. This is the single place the card
     // does it, so the 3-up row, the hero, the detail page and the breakdown can
     // never disagree about which unit they are quoting.
+    // ⚠ A BREAKDOWN ROW'S FOURTH ELEMENT IS AN OBJECT, AND `uText` TAKES TEXT.
+    // Passing the Instrument Board's structured columns through the string
+    // converter turned them into "[object Object]" — the meta was destroyed in
+    // silence and the table fell back to parsing the note, losing the
+    // prescription. It is converted FIELD BY FIELD instead: `plan` is a load and
+    // carries a unit, `rest`/`dur` are durations and `rpe` is a rating, so only
+    // the first has anything for the converter to do.
+    const uMeta = (m) => ((m && typeof m === 'object' && !Array.isArray(m))
+      ? { ...m, plan: m.plan == null ? m.plan : t.uText(m.plan) }
+      : t.uText(m));
     const uStats = (rows) => (Array.isArray(rows)
-      ? rows.map((r) => (Array.isArray(r) ? [r[0], t.uText(r[1]), ...r.slice(2).map((c) => t.uText(c))] : r))
+      ? rows.map((r) => (Array.isArray(r) ? [r[0], t.uText(r[1]), ...r.slice(2).map(uMeta)] : r))
       : rows);
     const statsRaw = a.real ? a.statsRow
       : Array.isArray(a.stats) ? a.stats

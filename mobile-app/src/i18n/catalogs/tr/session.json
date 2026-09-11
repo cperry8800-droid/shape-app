@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Triatlon",
   "build.exp.beginner": "Yeni başlayan",
   "build.exp.intermediate": "Orta",
-  "build.exp.advanced": "İleri"
+  "build.exp.advanced": "İleri",
+  "board.colSet": "Set",
+  "board.colPlan": "Plan",
+  "board.colLifted": "Kaldırılan",
+  "board.colRpe": "RPE",
+  "board.colRest": "Dinlenme",
+  "board.colHr": "Nabız",
+  "board.setBySet": "Set set",
+  "board.splitBySplit": "Split split",
+  "board.allSplits": "{n} split'in tümü ›",
+  "board.needleBand": "{label} aralığı · {lo} en yavaş → {hi} en hızlı"
 }

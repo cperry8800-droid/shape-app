@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Triathlon",
   "build.exp.beginner": "Débutant",
   "build.exp.intermediate": "Intermédiaire",
-  "build.exp.advanced": "Avancé"
+  "build.exp.advanced": "Avancé",
+  "board.colSet": "Série",
+  "board.colPlan": "Prévu",
+  "board.colLifted": "Soulevé",
+  "board.colRpe": "RPE",
+  "board.colRest": "Repos",
+  "board.colHr": "FC",
+  "board.setBySet": "Série par série",
+  "board.splitBySplit": "Tronçon par tronçon",
+  "board.allSplits": "Les {n} tronçons ›",
+  "board.needleBand": "Plage {label} · {lo} le plus lent → {hi} le plus rapide"
 }

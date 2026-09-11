@@ -695,6 +695,235 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The Instrument Board: Session details opens as a panel, and the numbers land in tables
+
+- **The owner's pick, built** ([`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md)
+  §3 — *"i like the instrument board"*, then *"yes do what we agreed"*). `BSActivityDetail` — the
+  full-screen page behind **Session details · full activity** on a Wall post — now opens as a board:
+  the record, **six instrument tiles**, the scalars that do not fit them as dot-leader rows, **one
+  zone bar**; then the charts; then **set-by-set and split-by-split tables**; then a **sticky action
+  bar**. It stays its own page with its own masthead and back row, and the Wall post is untouched.
+  Mobile only. **No migration, no route.**
+- **Steps 1, 3 and 4 of the review's build order; step 2 shipped an hour earlier.** The wearable
+  heart-rate paths (§4a), the in-app strap and the morning tiles are steps 5–7 and are **not in
+  this PR** — every tile is gated on its value existing, which is what lets the page ship against
+  today's data and get richer as those land.
+- ⚠ **A TILE, A COLUMN AND A SEGMENT ARE CLAIMS, AND THAT IS ONE RULE WEARING THREE HATS.** A grid
+  padded to six, a **PLAN** heading over five empty cells and a dial drawn for a set nobody rated
+  are the same defect. So: a session with four readable stats gets **four** tiles; every optional
+  column asks the rows whether it exists; an em-dash is never a reading. All three are driven, not
+  eyeballed — a blank tile costs a phone a sixth of its board, and a PLAN column a fifth of its width.
+- **The ranking is `bsSdRankStats`' and not a second opinion.** That function has decided which of a
+  session's scalars lead since the open-ledger spec; a new order here would mean one session had two
+  ideas about which of its numbers matter.
+- ⚠ **THE TWO-REGISTER LEDGER IS DELETED RATHER THAN LEFT BESIDE ITS REPLACEMENT.** `BSSdLedger` had
+  exactly one call site, and the tiles take it. Its needle, its ghost trace and its dot-leader rows
+  all **moved** — nothing retired — so what would have been left standing is a component nothing
+  renders. `bsSdRankStats`' import went with it, since its only consumer is now the rules module.
+- ⚠ **THE NEEDLE STATES ITS ENDPOINTS ONCE, UNDERNEATH.** A tick two-thirds along a band says nothing
+  until you know the band runs from the session's slowest sample to its fastest — it is a picture of
+  a claim, and at ~107px a tile cannot carry the claim as well. The line reads
+  *AVG PACE BAND · 9:08 SLOWEST → 8:20 FASTEST* and appears only when a tile actually draws one.
+- ⚠ **THE LABELLED ZONE CELLS STAY, AND THE DUPLICATION IS THE POINT.** The bar with the tiles is read
+  in a second and cannot be read precisely; the cells in the Heart rate section are read precisely and
+  cost a scroll. Deleting either to avoid "showing zones twice" costs the page one of the two readings
+  a board exists to give. ⚠ And a zone with no time keeps a **0.5 sliver** of the bar: five segments in
+  one order is what makes two sessions comparable, and a collapsed zone makes the bar a different
+  chart each time.
+- ⚠ **THE TABLE IS A GRID AND NOT A `<table>`, FOR ONE REASON.** The row's bar spans every column, which
+  in a table means a colspan cell in an extra row per set and a second set of borders to suppress.
+- ⚠ **AND THE PRESCRIPTION FINALLY HAS A COLUMN, SO THE ROW FINALLY CARRIES IT.** `targetLoad` /
+  `targetReps` have been stamped on every published set since the live logger shipped and were
+  registered as *"needs a column"* an hour ago. The breakdown row gains a **fourth element** rather
+  than a wider tuple: `BSSdBars`, the Terrain profile and the Cadence section all read r[0]·r[1]·r[2],
+  so changing what the first three mean would reach four surfaces to serve one. The table reads the
+  meta when it is there and **parses the note when it is not** — which is how the hand-written demo
+  posts render the same table as a live session.
+- ⚠ **AND THE BROWSER FOUND THAT THE PAGE NEVER RECEIVED IT.** `BSActivityCard` hands the detail page
+  its rows through `uStats`, the unit converter, which maps `t.uText` over every cell past the first —
+  so the structured fourth element arrived as **`"[object Object]"`**: the columns were destroyed in
+  silence and the table fell back to parsing the note. It is converted **field by field** now (`plan`
+  carries a load and is converted; `rest`, `dur` and `rpe` are not text for a unit converter). *A
+  reading pass would not have found this; only the render did* — and the mutation that reinstates it
+  **survived the first round**, because nothing in the suite drove that seam.
+- ⚠ **AND THE LINK UNDER THE SPLIT TABLE CLAIMED A COUNT IT WAS NOT TRUNCATING.** Measured on the demo
+  run: the splitter bucketed 18.2 miles into **three** splits, so the table showed all three under
+  *"All 3 splits ›"* — an invitation to see what was already on the screen. Truncated, the count is the
+  point; whole, the Splits page is still worth the tap for its own columns, and its own name is what
+  to offer.
+- ⚠ **AND BACK HAD BECOME A TRAP THE MOMENT THE BAR COULD TURN THE PAGE.** The comment count switches
+  the page to the comments, and Back closed the whole thing — throwing away the board a member had
+  scrolled through to get there, with no way back but reopening the post. Back closes only when the
+  page is still showing the face it was **opened** on. Found by reading my own diff, which is the only
+  review layer the house has left.
+- **i18n: 10 new `session:board.*` keys × 13 locales**, each authored from that catalog's **own**
+  vocabulary rather than invented — `player.colSet` for SET, `train.plan` for PLAN (fr `Prévu` and vi
+  `Dự kiến`, because their existing word means *schedule*), `train.restChip` for REST, and fr
+  **`Soulevé`** for LIFTED, which is the French lift convention this log already records. The zone
+  bar's label is **`feed:card.hrZones`, which exists in all 13** — a second key for one label is
+  thirteen more values a translator has to keep in step. ⚠ And the Splits page's hardcoded **`HR`**
+  now reads the same new key, so the two tables cannot disagree and that column stops shipping English
+  to twelve locales.
+- **Verified:** `npm test` **3363/3363** (26 new) · `tsc --noEmit` 0 · JSX parse · the rules module
+  imports clean · mobile build 0 with the new strings and their de/ru/vi values confirmed **in the
+  emitted bundle** behind a positive control · **29/29 mutations killed**, each **proven to land**,
+  sanity green at both ends, the tree restored in a `finally` · and the page **driven in Chromium**
+  through the real entry flow at **375 and 430px**, in the desktop frame and in the native full-bleed
+  render, on both a strength record and a run: 5 and 6 tiles at 107px, the needle legend, a five-segment
+  zone bar, the set table with **SET · LIFTED · RPE** and a bar under each row with the PR row in heat,
+  the split table with the full-breakdown link, the sticky bar reading *BEAST · 41 · 6 ›* — **zero
+  horizontal overflow and zero page errors** at every width.
+- ⚠ **AND THE RENDER HARNESS REPORTED THE FEATURE BROKEN THREE TIMES BEFORE IT REPORTED ON THE CODE.**
+  It tapped before the language picker existed; it clicked a **text node's parent** rather than the
+  control, which on a scrolling feed landed on whatever was painted at those coordinates — the paywall
+  on one build and the Eat page on another, so the same instrument "proved" two different regressions
+  that did not exist; and it measured the **desktop phone frame**, which is narrower than a real phone,
+  so a layout check there measures a surface nobody ships. The decisive step was building `main` in a
+  worktree and running the identical script against it: the bounce reproduced there too, which is how
+  the instrument was ruled out rather than the change. *A control is the only thing that separates "I
+  broke it" from "it was already like this."*
+- ⚠ **THE PLAN AND REST COLUMNS ARE PROVEN BY TEST, NOT BY THE BROWSER.** Every demo post in the repo
+  is a hand-written 3-tuple with no structured meta, so the browser run exercised the columns' ABSENCE
+  (correctly — they do not render). The live shape is driven through the shipped builder, the shipped
+  converter and the shipped parser in the suite. **An on-account pass with a real logged session is
+  owed**, and it is the same one this log has been owing since the units wave.
+
+### 2026-09-11 — The RPE a member taps in the live logger finally reaches their own set rows
+
+- **The second of the two defects the session-details review found (§4, defect 2), fixed.** Owner
+  started the task from the review's own suggestion. `setLogs[].rpe` has been stamped on every
+  published session since the live logger shipped (`shapeBackend.js:3193`) and **never reached the
+  page**: the dial drew on every demo card and on no real set. Mobile only; **no migration, no route,
+  no i18n key** — the token is a number and a three-letter word the whole app already spells `RPE`.
+- ⚠ **THE NOTE COLUMN OF A BREAKDOWN ROW IS READ TWICE, AND THAT IS THE WHOLE DEFECT.** `BSSdBars`
+  lifts `RPE <n>` out of `row[2]` with its own regex to draw the dial and renders **whatever is left**
+  as the sub-label — which is exactly how the demo rows have always spelled it (`'RPE 9 · PR'`).
+  `bsBuildBreakdown` wrote `` `${setDurationSeconds}s` `` into that column **and nothing else**, so
+  the rating was not mislaid somewhere downstream; it was never put in the one place the renderer
+  looks. *A column that is parsed is a contract, and only one of its two authors knew.*
+- ⚠ **AND THE TOKEN HAS TO LEAD, WHICH IS A PROPERTY OF THE RENDERER RATHER THAN A STYLE CALL.** The
+  sub-label is built by cutting the token out and stripping **only a LEADING or TRAILING** separator,
+  so a token in the middle renders `42s ·  · rest 2:30` — two separators and a hole. Ordering is the
+  fix, so the **order** is what the guard asserts; the mutation that moves it is killed.
+- **Rest before the set rides along, and it was measured rather than assumed to fit.** The coach's own
+  review screen has shown `SET 42s · REST 90s` per set all along (`iosAppBroadsheetPros.jsx:543`); the
+  member's page showed neither. Replicating `BSSdBars`' exact styles in Chromium (MONO 6.5px / 800 /
+  0.04em / uppercase in a **76px** column), the longest realistic pair — `2:05 · 3:00 rest` — measures
+  **66.8px of 76**, so it does not need the ellipsis. **`SET` was dropped from the prefix**: the label
+  column one line up already says *Set 3*, and keeping it would have put the string at 18 characters,
+  hard against the budget.
+- ⚠ **THE DURATION IS SPELLED THE COACH'S WAY NOW, BECAUSE ONE SET MUST NOT PRINT TWO DURATIONS.** The
+  old expression emitted a bare `125s` where `formatReviewSeconds` — the coach's formatter for **the
+  same set** — emits `2:05`. The guard **lifts both functions and drives them against each other**
+  across 12 values rather than pinning either spelling, so a change to either side fails.
+- ⚠ **`> 0` IS THE GUARD AND `Number.isFinite` IS NOT** — the class this log has now post-mortemed on
+  the Wall's helpers, the demo payout history's `joinedAt: 0` and the booking sheet's `start_minute`.
+  `Number(null)`, `Number('')` and `Number([])` are **all 0 and all finite**, so a finiteness check
+  alone turns an unrated set into a confident **RPE 0 dial** and an absent duration into `0s`. It is
+  also the right answer for a *real* zero: the RPE scale starts at 1, and a 0-second rest before set 1
+  is the absence of a rest rather than a measurement of one. Driven over eight falsy and unparseable
+  values, not reasoned about.
+- ⚠ **AND THE FIRST CUT SHIPPED A DEAD GUARD THAT THE MUTATION ROUND EXPOSED.** Both helpers opened
+  with `if (v == null || v === '') return '';` — which reads as *the* null guard and **can never
+  fire**, because `Number(null)` and `Number('')` are both 0 and the `<= 0` line below already refuses
+  them. The mutation deleting it **survived**, correctly. Deleted rather than tested around, with the
+  reasoning left at the site so the next reader does not re-add it. *Dead code that reads as a guard is
+  worse than no guard* — this file's own sentence, earned again in the fix written after it.
+- **The suite drives the shipped code at both ends and never pins a spelling.** It brace-matches the
+  real `bsBuildBreakdown` and both helpers out of the source, lifts **the renderer's own two reads** of
+  the note column (the dial's parse and the sub-label's strip) rather than restating them, and then
+  **mounts the real `BSSdBars`** on the real builder's real output — the only question that finally
+  matters: *is there a dial on the set the member rated?* Measured: `aria-label` **`RPE 8`** on the
+  rated set, **none** on the unrated one beside it, sub-label `42s · rest 2:30`, and **no `RPE` in the
+  rendered text**, because the token was consumed by the dial rather than printed.
+- **Verified:** `npm test` **3267/3267** (14 new) · `tsc --noEmit` 0 · JSX parse · mobile build 0 with
+  the shipped expression confirmed **in the emitted bundle** — ``[qc(e.rpe),o,s&&`rest ${s}`]`` — behind
+  a positive control · **16/16 mutations killed across two rounds**, each **proven to land**, sanity
+  green at both ends, the tree restored in a `finally` · and the one survivor of the first round proven
+  to be the dead guard above rather than a gap.
+  ⚠ **A grep for `padStart(2,'0')` in the bundle read ZERO and that was the instrument** — the minifier
+  rewrites every quote to a backtick, so the check looked like a miss on code that is plainly there.
+  The trap this file already records, walked into again; the bundle check now reads the minified form.
+- ⚠ **PRESCRIBED-VS-LIFTED IS DELIBERATELY NOT IN THIS CHANGE.** `targetLoad` / `targetReps` are on the
+  same row and the value column is a single `load × reps` string — showing the plan beside it needs a
+  **column**, which is the C build's set-by-set table (review §3, step 3), not a fourth item crammed
+  into an 18-character sub-label. Registered there rather than half-done here.
+- ⚠ **`public/m` IS NOT REPUBLISHED AND THAT IS CORRECT, NOT AN OMISSION.** It is gitignored
+  (`.gitignore:26`) with **zero tracked files**, so the conventions bullet at the head of this file
+  telling you to `cp -r mobile-app/dist public/m` produces nothing committable — the correction the
+  2026-09-10 recipe-import entry already recorded.
+
+### 2026-09-11 — Session details, three ways: a concept board, and two defects in the data path behind the page
+
+- **Records only — a design review with previews, not a build.** Owner: *"thoughts on redesigning the
+  session details page … match the new 'wall' design … see if there are any other metrics we are
+  missing"* → *"3 new design options … keep the same functionality"* → *"i want to see previews"* →
+  *"keep same details that are already there"*. The review is
+  [`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md); the previews are a
+  live concept board — https://claude.ai/code/artifact/084a0ed6-04f8-423d-9f60-5025641c275e — with
+  **A · The Plate Stack** (the Wall record unfolded, a plate per section), **B · The Record Sheet** (one
+  tall plate, the ledger inside, station ticks, a sticky jump index), **C · The Instrument Board** (six
+  tiles up top, tables and a sticky action bar below), each rendered phone-sized for the deadlift PR
+  and the long run from the app's own demo records; plus a **Metrics** gap table and a **Carry-over**
+  checklist proving every existing section and control has a place in all three. **Recommended: B**,
+  the smallest build and the only one that adds navigation to a four-screen page. **No code changed,
+  no migration, no PR.**
+- ⚠ **OWNER'S PICK, SAME DAY: C · THE INSTRUMENT BOARD** (*"i like the instrument board"*), after two
+  clarifications — *"im talking about the sperate page the pops up once you click the sessions
+  details link from the each post on the wall"* and *"it should be its own page"*. That page is
+  `BSActivityDetail`, the full-screen page every option redraws; it stays its own page with its own
+  masthead and back row, and the Wall post is untouched. A **Today · as shipped** tab joined the board
+  so the shipped page sits beside the options. The recommendation was B; the pick is C, and the
+  review's §3 now carries the build order for C. **Not built — the go-ahead is the owner's next call.**
+- ⚠ **OWNER'S HEART-RATE RULING, SAME DAY, AND IT RE-ORDERS THE BUILD.** *"the heart rate strap only
+  record if someone is wearing it … isually the heard rate strap will be synced wither either garmin,
+  whoop, etc then log that onto shape. smart watches need to log the info we see also."* So the wearable
+  is the main path and the in-app Bluetooth strap is the bonus. **Read against each integration's write
+  path, the wearables deliver LESS than the page already draws, not more.** Only **Strava** sends a
+  trace and splits. **WHOOP** sends zone totals and two scalars and **can never send a trace** — its API
+  exposes no samples, so zones-only is the honest ceiling. **Garmin** stores **avg and max HR and
+  nothing else** (`garmin/webhook/route.ts:187`, `:231`): the push payload carries summaries, so a trace
+  needs the activity-details call — the one wearable path with real ingest work behind it. And an
+  **Apple Watch workout arrives with no heart rate at all** — `WorkoutInput` is six fields, the row is
+  written `avg_hr: null, metrics: {}` (`apple-health/sync/route.ts:24`, `:107`).
+- ⚠ **THE APPLE WATCH IS THE HIGHEST-YIELD PATH AND THE SMALLEST ONE, WHICH IS WHY IT GOES FIRST.**
+  `collectHealthKitSnapshots` **already queries every heart-rate sample** over the whole lookback window
+  and throws them at a **day** bucket (`healthkit.js:75`, `:94`); slicing them into each workout's own
+  `startedAt..endedAt` is the entire change. Nothing new is captured, nothing new is authorised, no
+  migration — and it is the provider with the widest install base among members who own a watch at all.
+  ⚠ **Every provider path must emit the app's ONE trace shape and ONE zone shape**
+  (`rawMetrics.hrTrace`, `zoneDurations` — `iosAppBroadsheetClient.jsx:13267`, `:13391`), or a second
+  renderer appears and the two drift. ⚠ **And zones are never derived from a trace without a
+  reference**: `bsBuildZones` draws provider zones only, and a trace-derived split needs a max-HR or
+  LTHR setting the app does not have. That stays under *needs capture*, deliberately out of the build
+  order. **§4a of the review is the provider table; §3's build order now runs front → RPE → tables →
+  action bar → wearable paths → in-app strap → morning tiles.**
+- ⚠ **AN IN-APP SESSION NEVER GETS A HEART-RATE CHART, AND THE SAMPLES ARE ALREADY STORED.** The live
+  session writes every strap sample to `workout_sensor_samples` (`shapeBackend.js:2791`), then
+  publishes a post carrying only `averageHeartRate` / `maxHeartRate` — no `hrTrace`, no zones — so the
+  Heart-rate section of Session details renders only for WHOOP and Strava imports. A Shape session with
+  a strap shows two numbers and no trace. **Registered, not fixed** (a task suggestion was queued).
+- ⚠ **AND LIVE SET ROWS LOSE THEIR RPE ON THE WAY TO THE PAGE.** `setLogs[].rpe` is stamped on the post,
+  but `bsBuildBreakdown` (`iosAppBroadsheetClient.jsx:13231`) writes `setDurationSeconds` into the
+  row's note column, so the RPE dial the demo cards draw never appears on a real set. Same status.
+- **The metrics half, read from the write paths:** prescribed vs lifted, rest before each set, session
+  RPE + feel, start time, points earned, moving vs elapsed, that morning's recovery/HRV/sleep and the
+  nearest weigh-in are all **captured today and never shown**; e1RM, per-exercise subtotals, the
+  negative-split index, aerobic decoupling and estimated zones are **derivable**; FTP, a max-HR
+  setting, weather, gear, a pre-session check, HR recovery, swim laps and bar speed **need capture**.
+  ⚠ Strava's `weighted_average_watts` is typed in the sync route and never stored — one field between
+  the page and normalized power.
+- ⚠ **THE ONE LOOK FOUND A SELECTOR COLLISION, NOT A LAYOUT BUG.** The section-head chip inside a plate
+  rendered full-width above its label; the chip's border class `b` matched the plate's own `.pl .b`
+  layer rule and went `position:absolute; inset:0`. Fixed by scoping the plate layers to direct
+  children and renaming the class — and the same pass caught the neutral context plate being handed an
+  `rgba()` colour through the hex-alpha helper. *A class name is a selector, and a short one is a
+  collision waiting for a second author.*
+- **Verified:** rendered in Chromium at 1280px and 400px, zero page errors, no horizontal overflow; after
+  the fix pass a DOM check confirmed every chip on its label's line, no truncated sub-label and every
+  plate layer painting. Fonts fall back locally (the proxy blocks Google Fonts) and load on the
+  published page.
+
 ### 2026-09-11 — The homepage becomes the climb, and three surfaces stop claiming things nobody measured
 
 - **Owner: *"lets go with the climb"*.** Concept E off
@@ -1605,6 +1834,7 @@ Append new entries at the top, under this note.
 - ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; the on-account
   pass is owed, and it is now the only thing left on the review's P1/P2 roadmap besides the
   booking-timezone ruling.
+
 ### 2026-09-11 — Photo import goes live: vision stops riding the text model's pin, and a security finding that does not survive the repo
 
 - **Owner: *"yes i want the photo import live"*.** The feature merged in #2040; what stood

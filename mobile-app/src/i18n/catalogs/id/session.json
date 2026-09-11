@@ -282,5 +282,15 @@
   "build.disc.triathlon": "Triatlon",
   "build.exp.beginner": "Pemula",
   "build.exp.intermediate": "Menengah",
-  "build.exp.advanced": "Mahir"
+  "build.exp.advanced": "Mahir",
+  "board.colSet": "Set",
+  "board.colPlan": "Rencana",
+  "board.colLifted": "Diangkat",
+  "board.colRpe": "RPE",
+  "board.colRest": "Istirahat",
+  "board.colHr": "Detak",
+  "board.setBySet": "Set demi set",
+  "board.splitBySplit": "Split demi split",
+  "board.allSplits": "Semua {n} split ›",
+  "board.needleBand": "Rentang {label} · {lo} terlambat → {hi} tercepat"
 }
