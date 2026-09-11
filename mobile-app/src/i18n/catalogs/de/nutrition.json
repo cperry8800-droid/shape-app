@@ -321,5 +321,8 @@
   "myRecipe.servings": "Portionen",
   "myRecipe.servingsPlaceholder": "für wie viele",
   "myRecipe.deleteTitle": "Dieses Rezept löschen?",
-  "myRecipe.deleteMessage": "Das ist dein eigenes Rezept — es lässt sich nicht wiederherstellen."
+  "myRecipe.deleteMessage": "Das ist dein eigenes Rezept — es lässt sich nicht wiederherstellen.",
+  "myRecipe.errAccount": "Das angemeldete Konto hat gewechselt. Öffne dieses Rezept erneut.",
+  "myRecipe.errAccountSave": "Das angemeldete Konto hat gewechselt, das wurde also nicht gespeichert. Melde dich wieder an und behalte es.",
+  "myRecipe.errUnreadable": "Konnte deine Rezepte gerade nicht laden. Versuch es nochmal."
 }

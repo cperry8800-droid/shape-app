@@ -321,5 +321,8 @@
   "myRecipe.servings": "Adadi",
   "myRecipe.servingsPlaceholder": "mutane nawa",
   "myRecipe.deleteTitle": "A goge wannan girkin?",
-  "myRecipe.deleteMessage": "Girkinka ne — ba abin da zai iya dawo da shi."
+  "myRecipe.deleteMessage": "Girkinka ne — ba abin da zai iya dawo da shi.",
+  "myRecipe.errAccount": "Asusun da aka shiga ya canza. Sake buɗe wannan girkin.",
+  "myRecipe.errAccountSave": "Asusun da aka shiga ya canza, don haka ba a ajiye wannan ba. Sake shiga ka ajiye shi.",
+  "myRecipe.errUnreadable": "Ba a iya karanta girkinka yanzu ba. Sake gwadawa."
 }

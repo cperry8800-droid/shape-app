@@ -913,18 +913,22 @@ Append new entries at the top, under this note.
   `BSLibraryDetail` left UNCOVERED for PARTIAL: `partStrings` **168 → 193** and `noneStrings`
   **818 → 793** are the **same 25 strings** changing bucket, so nothing on either surface started
   hardcoding. `noneStrings` then **793 → 796** for the three honest states the plated stage owes.
-  **40** new `myRecipe.*` keys × 13 locales (the last two are the Serves field the third review
-  round added), the `en` values extracted **programmatically from the JSX** so they are
-  byte-identical to each call site's `defaultValue`. The ratchet's own columns are unmoved by the
+  **45** new `myRecipe.*` keys × 13 locales (the last five arrive with the review rounds — the Serves
+  field, and the three sentences the account and read-failure states owe), the `en` values extracted
+  **programmatically from the JSX** so they are byte-identical to each call site's `defaultValue`,
+  and each locale's wording **authored from its own existing `myRecipe.*` copy** rather than invented. The ratchet's own columns are unmoved by the
   review rounds — every string they added is keyed.
-- **Verified:** `npm test` **3151/3151** · `tsc --noEmit` 0 · mobile build 0 with every new string
-  confirmed in the emitted bundle behind a positive control · the newdesign precompile check · JSX
-  parse on every edit · **56 mutations killed across eight rounds, each proven to land** — and **four
-  of them were a round paying for itself**: the `hasOwnProperty` survivor above, the hook-order rule
-  whose first version reported zero offenders on a tree that had one, the brace matcher that lifted a
-  47-character signature, and the race test that could not lose a race. The paste split is driven in
-  **11 locales**; the picker's namespace is driven by **mounting the real prep session** with a
-  colliding title and asserting the catalog's own ingredients never reach the board. No migration.
+- **Verified:** `npm test` **3189/3189** · `tsc --noEmit` 0 · mobile build 0 with every new string
+  confirmed in the emitted bundle behind a positive control **and a negative one** · the newdesign
+  precompile check · JSX parse on every edit · **87 mutations killed across ten rounds, each proven
+  to land** — and **six of them were a round paying for itself**: the `hasOwnProperty` survivor
+  above, the hook-order rule whose first version reported zero offenders on a tree that had one, the
+  brace matcher that lifted a 47-character signature, the race test that could not lose a race, and
+  the two owner-binding guards that proved the store and not the caller. The paste split is driven in
+  **11 locales** and over **24 quantity vectors**; the picker's namespace is driven by **mounting the
+  real prep session** with a colliding title and asserting the catalog's own ingredients never reach
+  the board; both account-binding guards are driven by mounting the real sheet and the real detail
+  screen. No migration.
 - ⚠ **AND CODEX RAN TWICE MORE, FOR FIVE FINDINGS THE FIRST ROUND HAD NOT REACHED — one of
   them against the design's own premise.** **Round 2, P1: the parse call was a root-relative
   `fetch('/api/nutrition/recipe-parse')`.** On the NATIVE build that resolves to the WebView's
@@ -982,6 +986,65 @@ Append new entries at the top, under this note.
   handing back a **47-character signature**, after which every assertion against it is
   vacuously true. `grab()` was fixed for exactly this in #2032. A length assertion caught it;
   it skips the parameter list now and the assertion stays.
+- ⚠ **ROUND 4 FOUND THE AI READER PUTTING THE UNIT IN THE WRONG FIELD, WHICH NOTHING WOULD HAVE
+  CAUGHT UNTIL A MEMBER DOUBLED A RECIPE.** The prompt asked for `{n: amount, m: ingredient}` without
+  saying where the unit goes, and a model reading *"1/2 cup flour"* has two defensible answers —
+  `{n: "1/2", m: "cup flour"}` is one of them. It is wrong here for a **measured** reason rather than
+  a stylistic one: **767 of the Shape Kitchen catalog's 903 ingredient amounts carry their unit
+  inside `n`** (108 of its 120 distinct amounts), and `bsScaleQty` reads the unit **from `n`** —
+  driven, `"1/2 cup"` ×2 is `"1 cup"` — so the split version scales the number and strands the unit
+  in the name. ⚠ **An earlier draft of this bullet said 277 of 334, which does not reproduce against
+  any reading of the catalog**; re-derived here from `SHAPE_KITCHEN_RECIPES` rather than carried.
+  *A measurement nobody re-derives is a claim, not a measurement.* The rule says it in as many words now, with the worked example and the *"keep it as written —
+  `1/2 cup`, never `0.5 cup`"* line beside it.
+- ⚠ **AND MY MIXED-FRACTION GUARD WAS WRONG IN BOTH DIRECTIONS, ONE ROUND AFTER THE OTHER.** First it
+  tested *"does the tail start with a digit"* — true of `2% milk`, `70% dark chocolate` and
+  `00 flour`, names whose digits belong to the NAME and whose unit parsed correctly. **Refusing is
+  not free**: with `n` empty the merged mise cannot annotate ×N either, so a doubled batch shows the
+  original amount with nothing saying it was not scaled. Narrowing it to `!p.unit` — the
+  mixed-fraction shape and nothing else — then let every **compound** amount through: `1 lb 2 oz
+  beef` split as `n "1 lb"` / `m "2 oz beef"`, so cooking for two printed **2 lb 2 oz** where the
+  truth is 2 lb 4 oz. What separates them is not a regex: `bsQtyParse` has **no unit vocabulary** —
+  it takes whatever word follows a number — so `5 spice` parses with unit `"spice"` exactly as
+  `2 oz beef` parses with `"oz"`. Re-parsing the tail and requiring a unit **AND** a remainder is the
+  discriminator, because a real compound amount is still followed by an ingredient while a name
+  carrying a number consumes the tail and leaves nothing. Driven over 24 vectors. The residual is
+  **stated rather than discovered**, in the code: a three-token tail (`1 cup 5 spice powder`) is
+  still refused and a bare `1 lb 2 oz` with no ingredient is still split.
+- ⚠ **THE LAST ROUND'S HEADLINE: MY FIX FOR THE ACCOUNT RACE WAS COPY, AND COPY IS NOT A
+  MECHANISM.** A save refused because the account moved under the draft set an error string telling
+  the member not to retry — and left the button armed, the draft intact, and the handler unchanged.
+  **Driven, not argued:** one more tap re-entered `commit`, which resolves the account **at call
+  time**, so it read the NEW account's document, added this member's recipe to it and wrote it with
+  the new account's uid — which the writer's own guard then correctly **accepts**, because by then
+  every layer agrees. Every uid check in the store closes the window *inside* one write and says
+  nothing about the one before it. The write is bound to the account that **composed** the draft
+  now: the sheet and the detail screen each capture it at mount and pass it, and a retry is refused
+  until the member is signed back in as that account — at which point the same tap simply works. *An
+  English sentence was the only thing between the draft and the wrong row.*
+- ⚠ **AND THE TWO GUARDS FOR IT SURVIVED THEIR FIRST MUTATION ROUND, WHICH IS THE POINT OF RUNNING
+  ONE.** Every new test proved the STORE refuses a foreign owner; not one proved the sheet or the
+  detail screen **supplies** one. Dropping the second argument at both call sites left the whole
+  suite green while the retry path went straight back to writing into whoever is signed in now. Both
+  are mounted and driven now — a stale `ShapeAuth` account against a moved `getUser`, asserting that
+  **nothing at all reaches the backend** and that a refused delete does not close the screen. *A
+  bound store the caller does not use is not bound.*
+- ⚠ **THE SAME ROUND RETIRED A REGEX OVER AN ERROR MESSAGE.** The account branch matched `/account/i`
+  on the writer's prose, so *"Your account is over its usage limits"* and *"User account is
+  disabled"* — both genuinely retryable — were reported as a switch and the member steered away from
+  the retry that would have worked; and the writer's wording became part of the store's contract. It
+  is a **flag** now (`accountChanged`), which can be reworded and localized freely. The same fix
+  closes its twin: the mandatory-`expectedUid` guard returned *"No expected account"*, which that
+  sniff also matched — so the **programming error the guard exists to catch** rendered to the member
+  as a plausible runtime state and would have shipped silently. It carries no flag, is loud in the
+  console, and names the argument that was omitted.
+- ⚠ **AND "REOPEN THIS RECIPE" WAS A LIE IN ONE OF THE TWO FLOWS.** The delete path can say it — the
+  recipe is still in the member's document. The save path cannot: nothing was written, the draft in
+  the sheet is the **only copy of what they typed**, and following the instruction destroys it. The
+  save flow has its own line, and the five reasons the store can return are mapped in **one place**
+  rather than in two near-identical nested ternaries — which is how `unreadable` came to be unnamed
+  on **both**, under a comment promising that *"we could not read your recipes"* was a separate
+  sentence from *"sign in"*.
 - ⚠ **NOT SHIPPED, REGISTERED:** the **photo** path (needs a `recipe-imports` bucket — deliberately
   not `meal-notes`, which hands out year-long signed URLs — and is gated on confirming the pinned
   model accepts image input at all; `grep -rn "input_image\|image_url" src/` returns **nothing**, so

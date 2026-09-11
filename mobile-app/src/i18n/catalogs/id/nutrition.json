@@ -321,5 +321,8 @@
   "myRecipe.servings": "Porsi",
   "myRecipe.servingsPlaceholder": "untuk berapa orang",
   "myRecipe.deleteTitle": "Hapus resep ini?",
-  "myRecipe.deleteMessage": "Ini resepmu sendiri — tidak bisa dikembalikan."
+  "myRecipe.deleteMessage": "Ini resepmu sendiri — tidak bisa dikembalikan.",
+  "myRecipe.errAccount": "Akun yang masuk berubah. Buka lagi resep ini.",
+  "myRecipe.errAccountSave": "Akun yang masuk berubah, jadi ini belum tersimpan. Masuk lagi dan simpan.",
+  "myRecipe.errUnreadable": "Belum bisa membaca resepmu. Coba lagi."
 }

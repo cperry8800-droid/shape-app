@@ -321,5 +321,8 @@
   "myRecipe.servings": "Порций",
   "myRecipe.servingsPlaceholder": "на сколько человек",
   "myRecipe.deleteTitle": "Удалить этот рецепт?",
-  "myRecipe.deleteMessage": "Это ваш собственный рецепт — восстановить его будет нельзя."
+  "myRecipe.deleteMessage": "Это ваш собственный рецепт — восстановить его будет нельзя.",
+  "myRecipe.errAccount": "Аккаунт изменился. Откройте рецепт заново.",
+  "myRecipe.errAccountSave": "Аккаунт изменился, поэтому рецепт не сохранён. Войдите снова и сохраните его.",
+  "myRecipe.errUnreadable": "Сейчас не удалось прочитать ваши рецепты. Попробуйте ещё раз."
 }

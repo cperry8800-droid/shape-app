@@ -321,5 +321,8 @@
   "myRecipe.servings": "Serves",
   "myRecipe.servingsPlaceholder": "how many it feeds",
   "myRecipe.deleteTitle": "Delete this recipe?",
-  "myRecipe.deleteMessage": "This is your own recipe — nothing can bring it back."
+  "myRecipe.deleteMessage": "This is your own recipe — nothing can bring it back.",
+  "myRecipe.errAccount": "The signed-in account changed. Reopen this recipe.",
+  "myRecipe.errAccountSave": "The signed-in account changed, so this wasn't saved. Sign back in and keep it.",
+  "myRecipe.errUnreadable": "Couldn't read your recipes just now. Try again."
 }

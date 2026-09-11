@@ -4435,8 +4435,29 @@ window.shapeDb = window.shapeDb || {
     // written into B's row, reporting success. Narrowing the window at the
     // caller cannot close it; only the writer can. (Codex, PR #2033 — the third
     // appearance of this class on that PR, each one a layer deeper.)
-    if (expectedUid != null && String(u.id) !== String(expectedUid)) {
-      return { error: { message: 'Account changed' } };
+    // ⚠ REQUIRED, NOT OPTIONAL. An `expectedUid != null &&` guard makes the
+    // unbound call the DEFAULT — and this primitive is registered as general,
+    // with ~15 other user_goals kinds queued to adopt it. A migration written by
+    // copying a three-argument call would compile, pass every test, and reopen
+    // exactly this race on a coach's notes. There is one caller today, so making
+    // it mandatory costs nothing and cannot be omitted by accident later.
+    //
+    // ⚠ AND THE TWO REFUSALS ARE DIFFERENT THINGS, SO THEY CARRY DIFFERENT
+    // MARKERS. An account switch is a runtime state a member can be told about;
+    // a missing expectedUid is a BUG IN THE CALLER, and the first draft of this
+    // guard returned 'No expected account' — prose a consumer sniffing for
+    // /account/i read as a switch, so the omission it exists to catch rendered
+    // as a plausible runtime message and shipped silently. The switch sets
+    // `accountChanged` (a flag, not a sentence — this message is free to be
+    // reworded or localized without breaking a consumer); the misuse is loud in
+    // the console and deliberately NOT marked, so it falls to the caller's
+    // generic failure rather than lying about whose account it is.
+    if (expectedUid == null) {
+      console.error('[shape] saveUserGoalsIfRev called without expectedUid — refusing the write', kind);
+      return { error: { message: 'saveUserGoalsIfRev requires expectedUid', code: 'missing_expected_uid' } };
+    }
+    if (String(u.id) !== String(expectedUid)) {
+      return { accountChanged: true, error: { message: 'Account changed', code: 'account_changed' } };
     }
     const row = { user_id: u.id, kind, data: data || {} };
     const q = () => supabase.from('user_goals').update({ data: row.data }).eq('user_id', u.id).eq('kind', kind);

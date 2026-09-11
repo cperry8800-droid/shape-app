@@ -329,9 +329,22 @@ export function bsRecipesStore({ db, storage } = {}) {
   // AND RE-APPLIES `mutate` against the newer document — which is why commit
   // takes a function rather than a finished document. An add re-adds onto their
   // recipe; a delete re-deletes from it. (Codex, this PR.)
-  const commit = (mutate) => bsRecipesSerial(async () => {
+  const commit = (mutate, ownerUid) => bsRecipesSerial(async () => {
     const uid0 = await uidNow();
     if (!uid0) return { ok: false, reason: 'signed-out' };
+    // ⚠ THE DRAFT BELONGS TO AN ACCOUNT, AND A RETRY MUST NOT RE-HOME IT.
+    // Every uid check below is resolved AT CALL TIME, so they close the window
+    // *inside* one write and say nothing about the one before it: a save
+    // refused because the account changed leaves the draft on screen, and one
+    // more tap re-enters here, resolves uid0 as the NEW account, reads ITS
+    // document and writes this member's typed recipe into it — the race the CAS
+    // closed, reopened through the retry path. Telling the member not to retry
+    // is not a mechanism; this is. The caller captures the account the draft
+    // was composed under and passes it, so a retry is refused until they are
+    // signed back in as that account — at which point it simply works.
+    if (ownerUid != null && String(uid0) !== String(ownerUid)) {
+      return { ok: false, reason: 'account-changed' };
+    }
 
     let base = null;
     for (let attempt = 0; attempt < BS_RECIPES_CAS_TRIES; attempt += 1) {
@@ -352,6 +365,15 @@ export function bsRecipesStore({ db, storage } = {}) {
         return { ok: false, reason: 'write-failed', doc: base };
       }
       if (res && res.conflict) continue;          // another device wrote — re-read
+      // ⚠ THE WRITER'S ACCOUNT REFUSAL IS NOT A RETRYABLE FAILURE, and it is
+      // read off a FLAG rather than off its message. The first draft sniffed
+      // /account/i on the error text, which made the branch fire for any backend
+      // error whose prose happened to contain the word — "Your account is over
+      // its usage limits", "User account is disabled" — steering a member away
+      // from the retry that would have worked once the condition cleared, and
+      // made the writer's wording part of this module's contract. It keeps the
+      // same name the store's own re-resolve uses, so one state means one thing.
+      if (res && res.accountChanged) return { ok: false, reason: 'account-changed', doc: base };
       if (!res || res.error) return { ok: false, reason: 'write-failed', doc: base };
 
       writeMirror(uid0, next);
@@ -386,8 +408,12 @@ export function bsRecipesStore({ db, storage } = {}) {
       writeMirror(uid0, doc);
       return { ok: true, doc };
     }),
-    save: (item) => commit((doc) => bsRecipesPut(doc, item)),
-    remove: (id) => commit((doc) => bsRecipesDrop(doc, id)),
+    // ownerUid: the account the caller composed this change under. Optional —
+    // a caller that cannot resolve it degrades to today's behaviour (bound at
+    // write time, which still closes the mid-write window) rather than being
+    // unable to save at all.
+    save: (item, ownerUid) => commit((doc) => bsRecipesPut(doc, item), ownerUid),
+    remove: (id, ownerUid) => commit((doc) => bsRecipesDrop(doc, id), ownerUid),
   };
 }
 
@@ -470,14 +496,46 @@ export function bsSplitPaste(text) {
       if (cut <= 0 || cut > l.length || (cut < l.length && !/\s/.test(l[cut - 1]))) return { n: '', m: l };
       const n = String(l.slice(0, cut)).trim();
       const m = (p.rest || p.unit || '').trim();
-      // ⚠ AND A MIXED FRACTION IS REFUSED RATHER THAN HALF-PARSED. bsQtyParse
-      // stops at the whole number, so "1 1/2 cups flour" comes back as n "1" /
-      // m "1/2 cups flour" — an ingredient literally named "1/2 cups flour",
-      // scaled by Prep as one. Mixed fractions are ordinary in recipes, and a
-      // confidently wrong amount is worse than an unsplit line the member can
-      // fix on the review screen. Widening bsQtyParse itself would reach the
-      // whole grocery and mise stack, which is not this change's to move.
-      if (/^\d+\s*\/\s*\d/.test(m) || /^\d/.test(m)) return { n: '', m: l };
+      // ⚠ A LINE CARRYING A SECOND QUANTITY IS REFUSED RATHER THAN HALF-PARSED,
+      // AND THE TEST ASKS bsQtyParse — not a regex over the tail. Two shapes
+      // reach here, and both scale WRONG while looking right at ×1:
+      //   mixed fractions — bsQtyParse stops at the whole number and returns an
+      //     EMPTY unit, so "1 1/2 cups flour" came back as n "1" / m "1/2 cups
+      //     flour", an ingredient literally named that, which Prep scales as one;
+      //   compound amounts — "1 lb 2 oz beef" parses as n "1 lb" / m "2 oz beef",
+      //     so doubling prints "2 lb | 2 oz beef" where the truth is 2 lb 4 oz.
+      // The unicode form matters most: it is what a pasted web recipe contains
+      // AND it reads correctly at ×1, so the member has no reason to fix it on
+      // the review screen and only meets it when a doubled "1 ½ cups" prints as
+      // "2 ½ cups" instead of 3.
+      // ⚠ AND THE TEST MUST NOT BE "m STARTS WITH A DIGIT": that refuses
+      // "1 cup 2% milk", "200 g 70% dark chocolate" and "1 cup 00 flour", whose
+      // digits belong to the NAME and whose unit is real — and refusing is not
+      // free, because with n empty the merged mise cannot annotate ×N either, so
+      // a doubled batch shows the original amount with nothing saying it was not
+      // scaled. `!p.unit` alone is the opposite miss: it is the mixed-fraction
+      // shape and nothing else, so every compound amount above walks through.
+      // Re-parsing the tail separates them on the one thing a regex cannot see.
+      // ⚠ THE TEST IS UNIT **AND** REST, NOT UNIT ALONE, and bsQtyParse is why:
+      // it has NO unit vocabulary — it takes whatever word follows a number —
+      // so "5 spice" parses with unit "spice" exactly as "2 oz beef" parses with
+      // unit "oz". What tells them apart is what is LEFT: a real compound amount
+      // is still followed by an ingredient ("2 oz | beef", "500 g | rice",
+      // "1/2 cups | flour"), while a name carrying a number consumes the whole
+      // tail and leaves nothing ("5 spice", "100 flour"). Measured, unit alone
+      // refused "1 tbsp 5 spice", which is an ingredient, not an amount.
+      // "2% milk" and "70% dark" yield no unit at all (no space before the %),
+      // and "00 flour" does not parse — all three are kept. A vulgar fraction is
+      // checked separately because bsQtyParse returns null for "½ cups flour".
+      // ⚠ The residual, stated rather than discovered: a tail of three or more
+      // tokens opening with a number ("1 cup 5 spice powder") is still refused,
+      // and a tail that is a bare amount with no ingredient at all ("1 lb 2 oz")
+      // is still split. Both are rarer than the cases above and both land on the
+      // review screen, which is where a member fixes what we got wrong.
+      // Widening bsQtyParse itself would reach the whole grocery and mise stack,
+      // which is not this change's to move.
+      const tail = bsQtyParse(m);
+      if ((tail && tail.unit && tail.rest) || /^\p{No}/u.test(m)) return { n: '', m: l };
       // A quantity with nothing after it is not an ingredient row on its own —
       // keep the line verbatim rather than emitting an empty name.
       return m ? { n, m } : { n: '', m: l };

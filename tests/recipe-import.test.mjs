@@ -737,32 +737,165 @@ test('⚠ THE CAS WRITE CARRIES THE INITIATING UID, OR IT CAN LAND IN ANOTHER AC
   assert.equal(seen[0], 'u1', 'the write must name the account that initiated it');
 });
 
-test('a writer that refuses on a changed account is surfaced, not swallowed', async () => {
-  // What the bound writer returns when the account moved under it.
+test('⚠ A WRITER THAT REFUSES ON A CHANGED ACCOUNT IS ITS OWN STATE, NOT A RETRY', async () => {
+  // ⚠ THIS TEST USED TO ASSERT 'write-failed', WHICH PINNED A DEFECT IN PLACE.
+  // Both consumers map everything except 'signed-out' to "try again" — and the
+  // retry captures the NEW account, reads ITS document, and writes this
+  // member's typed recipe into it. The fix for the race would have reopened it
+  // through the retry path. The state has a name now and the UI says it.
   const db = {
     getUser: async () => ({ id: 'u1' }),
     getUserGoals: async () => ({}),
-    saveUserGoalsIfRev: async () => ({ error: { message: 'Account changed' } }),
+    saveUserGoalsIfRev: async () => ({ accountChanged: true, error: { message: 'Account changed' } }),
   };
   const storage = memStorage();
   const res = await bsRecipesStore({ db, storage }).save({ id: 'a', title: 'A' });
   assert.equal(res.ok, false);
-  assert.equal(res.reason, 'write-failed');
-  // ⚠ and the mirror is NOT advanced over a write that went somewhere else.
+  assert.equal(res.reason, 'account-changed');
+  assert.notEqual(res.reason, 'write-failed', 'a retryable failure is the wrong sentence here');
+  // ⚠ and the mirror is NOT advanced over a write that went nowhere.
   assert.equal(storage.getItem(bsRecipesMirrorKey('u1')), null);
 });
 
-test('⚠ A MIXED FRACTION IS KEPT WHOLE RATHER THAN HALF-PARSED', () => {
-  // bsQtyParse stops at the whole number, so "1 1/2 cups flour" came back as
-  // n "1" / m "1/2 cups flour" — an ingredient literally named "1/2 cups
-  // flour", which Prep then scales as one. Mixed fractions are ordinary in
-  // recipes, and a confidently wrong amount is worse than an unsplit line the
-  // member fixes on the review screen.
+test('⚠ THE BRANCH IS A FLAG, NOT A WORD IN THE MESSAGE', async () => {
+  // The first draft matched /account/i on the error text. Measured against the
+  // messages a real backend emits, that fires for conditions which ARE
+  // retryable — and the member is then steered away from the retry that would
+  // have worked once the condition cleared, by a rule that also froze the
+  // writer's wording into this module's contract.
+  const mk = (message) => ({
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async () => ({ error: { message } }),
+  });
+  for (const message of [
+    'Your account is over its usage limits',
+    'User account is disabled',
+    'saveUserGoalsIfRev requires expectedUid',
+  ]) {
+    const res = await bsRecipesStore({ db: mk(message), storage: memStorage() }).save({ id: 'a', title: 'A' });
+    assert.equal(res.reason, 'write-failed', message);
+  }
+  // And the flag alone is enough — with no matching word in the message at all.
+  const flagged = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async () => ({ accountChanged: true, error: { message: 'nope' } }),
+  };
+  const res = await bsRecipesStore({ db: flagged, storage: memStorage() }).save({ id: 'a', title: 'A' });
+  assert.equal(res.reason, 'account-changed');
+});
+
+test('⚠ A RETRY CANNOT RE-HOME THE DRAFT: the write is bound to the account that composed it', async () => {
+  // ⚠ THE SHARPEST FINDING OF THIS PR, and copy was the first attempt at it.
+  // Every uid check inside the store resolves AT CALL TIME, so they close the
+  // window inside one write and say nothing about the one before it: a save
+  // refused for an account change leaves the draft on screen, and one more tap
+  // resolves uid0 as the NEW account, reads ITS document and writes this
+  // member's typed recipe into it — reporting success. Telling the member not
+  // to retry is not a mechanism.
+  let who = 'u2';
+  const written = [];
+  const db = {
+    getUser: async () => ({ id: who }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async (kind, data, rev, uid) => { written.push(uid); return { ok: true }; },
+  };
+  const store = bsRecipesStore({ db, storage: memStorage() });
+  // The account moved while the sheet was open: the retry is refused BY THE
+  // STORE, and nothing at all is sent to the backend.
+  const retry = await store.save({ id: 'a', title: 'A' }, 'u1');
+  assert.equal(retry.ok, false);
+  assert.equal(retry.reason, 'account-changed');
+  assert.equal(written.length, 0, 'nothing may reach the backend for the wrong account');
+  // Signed back in as the owner, the same tap simply works.
+  who = 'u1';
+  const back = await store.save({ id: 'a', title: 'A' }, 'u1');
+  assert.equal(back.ok, true);
+  assert.deepEqual(written, ['u1']);
+  // A caller that cannot resolve an owner degrades to write-time binding rather
+  // than being unable to save at all.
+  who = 'u2';
+  const unbound = await store.save({ id: 'b', title: 'B' });
+  assert.equal(unbound.ok, true);
+  assert.deepEqual(written, ['u1', 'u2']);
+});
+
+test('⚠ A DELETE IS BOUND THE SAME WAY', async () => {
+  // remove() takes the same argument for the same reason — a refused delete
+  // leaves the screen up, and a retry from the wrong account would read that
+  // account's document and (bsRecipesDrop being a no-op for a missing id) write
+  // it back unchanged and report SUCCESS, so the UI drops the pointer while the
+  // body stays behind, orphaned.
+  const written = [];
+  const db = {
+    getUser: async () => ({ id: 'u2' }),
+    getUserGoals: async () => ({ v: 1, rev: 1, items: {} }),
+    saveUserGoalsIfRev: async (kind, data, rev, uid) => { written.push(uid); return { ok: true }; },
+  };
+  const res = await bsRecipesStore({ db, storage: memStorage() }).remove('a', 'u1');
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, 'account-changed');
+  assert.equal(written.length, 0);
+});
+
+test('an ordinary write failure is still a retryable one', async () => {
+  // The account branch must not swallow every error — an RLS refusal or a
+  // timeout IS worth retrying, and saying "the account changed" would be a
+  // different lie.
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async () => ({ error: { message: 'row-level security' } }),
+  };
+  const res = await bsRecipesStore({ db, storage: memStorage() }).save({ id: 'a', title: 'A' });
+  assert.equal(res.reason, 'write-failed');
+});
+
+test('⚠ A MIXED FRACTION IS KEPT WHOLE — IN BOTH SPELLINGS, AND NOTHING ELSE IS', () => {
+  // bsQtyParse stops at the whole number and returns an EMPTY unit, so the row
+  // came back as n "1" / m "1/2 cups flour": an ingredient literally named that,
+  // which Prep then scales as one.
   for (const line of ['1 1/2 cups flour', '2 1/4 tsp salt', '3 1/2 oz chocolate']) {
     assert.deepEqual(bsSplitPaste('Ingredients\n' + line).ingredients, [{ n: '', m: line }], line);
   }
-  // ⚠ And the ordinary cases still split, or this "fix" would be a regression
-  // that stopped parsing quantities at all.
+  // ⚠ THE UNICODE FORM IS THE ONE THAT MATTERS MOST — it is what a pasted web
+  // recipe contains, and it reads correctly at ×1, so the member never fixes it
+  // on the review screen and only finds out when a doubled "1 ½ cups" prints as
+  // "2 ½ cups" instead of 3. An ASCII-only guard misses every one of these.
+  for (const line of ['1 ½ cups flour', '2 ¼ tsp salt', '1 ⅓ cups oats', '2 ¾ lb beef']) {
+    assert.deepEqual(bsSplitPaste('Ingredients\n' + line).ingredients, [{ n: '', m: line }], line);
+  }
+  // ⚠ AND A COMPOUND AMOUNT IS THE SAME DEFECT WITH A UNIT ON THE FRONT.
+  // `!p.unit` alone — the mixed-fraction shape and nothing else — let every one
+  // of these through: "1 lb 2 oz beef" split as n "1 lb" / m "2 oz beef", so
+  // cooking for two printed "2 lb | 2 oz beef" where the truth is 2 lb 4 oz,
+  // with nothing on screen saying it was mis-scaled.
+  for (const line of ['1 lb 2 oz beef', '1 kg 500 g rice', '4 oz 1/2 cup butter', '2 and 1/2 cups flour']) {
+    assert.deepEqual(bsSplitPaste('Ingredients\n' + line).ingredients, [{ n: '', m: line }], line);
+  }
+  // ⚠ AND A NAME THAT MERELY STARTS WITH A DIGIT MUST STILL SPLIT. Refusing on
+  // a leading digit was a REGRESSION — these parsed correctly before the guard
+  // existed, and an unsplit row is worse than it looks: with n empty the merged
+  // mise cannot annotate ×N either, so a doubled batch shows the original
+  // amount with nothing saying it was not scaled.
+  // ⚠ "1 tbsp 5 spice" is the vector that decides unit-AND-rest over unit
+  // alone: bsQtyParse has no unit vocabulary, so "5 spice" parses with unit
+  // "spice" exactly as "2 oz beef" parses with "oz". What separates them is
+  // what is LEFT after the unit — an ingredient, or nothing.
+  const keeps = {
+    '1 cup 2% milk': ['1 cup', '2% milk'],
+    '200 g 70% dark chocolate': ['200 g', '70% dark chocolate'],
+    '3 tbsp 100% maple syrup': ['3 tbsp', '100% maple syrup'],
+    '1 cup 00 flour': ['1 cup', '00 flour'],
+    '1 tbsp 5 spice': ['1 tbsp', '5 spice'],
+    '3 large eggs': ['3 large', 'eggs'],
+    '1 large onion, diced': ['1 large', 'onion, diced'],
+  };
+  for (const [line, [n, m]] of Object.entries(keeps)) {
+    assert.deepEqual(bsSplitPaste('Ingredients\n' + line).ingredients, [{ n, m }], line);
+  }
+  // And the ordinary cases, so the refusal cannot quietly become "stop parsing".
   assert.deepEqual(bsSplitPaste('Ingredients\n1/2 cup milk').ingredients, [{ n: '1/2 cup', m: 'milk' }]);
   assert.deepEqual(bsSplitPaste('Ingredients\n1 cup flour').ingredients, [{ n: '1 cup', m: 'flour' }]);
   assert.deepEqual(bsSplitPaste('Ingredients\n200 g pasta').ingredients, [{ n: '200 g', m: 'pasta' }]);

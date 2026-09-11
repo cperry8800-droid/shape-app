@@ -321,5 +321,8 @@
   "myRecipe.servings": "Порцій",
   "myRecipe.servingsPlaceholder": "на скільки осіб",
   "myRecipe.deleteTitle": "Видалити цей рецепт?",
-  "myRecipe.deleteMessage": "Це ваш власний рецепт — відновити його не вийде."
+  "myRecipe.deleteMessage": "Це ваш власний рецепт — відновити його не вийде.",
+  "myRecipe.errAccount": "Обліковий запис змінився. Відкрийте рецепт знову.",
+  "myRecipe.errAccountSave": "Обліковий запис змінився, тож рецепт не збережено. Увійдіть знову та збережіть його.",
+  "myRecipe.errUnreadable": "Зараз не вдалося прочитати ваші рецепти. Спробуйте ще раз."
 }

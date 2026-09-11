@@ -394,28 +394,119 @@ test('⚠ DELETING A MEMBER RECIPE IS CONFIRMED FIRST, AND THE ORDER IS ASK → 
   assert.ok(handler.indexOf('bsLibWrite(') > bailAt, 'the pointer write must also sit behind the confirm');
 });
 
-test('⚠ A FAILED DELETE IS RENDERED, NOT JUST STORED IN STATE', () => {
-  // The previous round added removeErr and rendered it nowhere, which made that
-  // fix half a fix: instead of a delete that falsely reported success, the
-  // member got a button returning to its idle label while the recipe stayed.
-  const src = readFileSync(SRC, 'utf8');
-  const decl = src.indexOf('const [removeErr, setRemoveErr]');
-  assert.ok(decl > 0, 'removeErr is gone — this guard is reading nothing');
-  // Set in the failure branch AND read in the render, not merely declared.
-  assert.match(src, /setRemoveErr\(/, 'the failure must set it');
-  const reads = src.split('{removeErr}').length - 1;
-  assert.ok(reads >= 1, 'removeErr is never rendered — the member is told nothing');
-  // And it sits inside the member-recipe arm, after the destructive button.
-  // ⚠ Anchored on the button's OWN busy label, not on the delete string — that
-  // also appears in the confirm dialog's confirmLabel, several hundred
-  // characters earlier, which is what the first version of this assertion
-  // measured from and failed on correct code.
-  const btn = src.indexOf("nutrition:myRecipe.deleting");
-  assert.ok(btn > 0, 'the delete button moved — this guard is reading nothing');
-  const at = src.indexOf('{removeErr}');
-  assert.ok(at > btn, 'the error must render after the button it describes');
-  const arm = src.slice(btn, at);
-  assert.ok(!arm.includes('</BSPage>'), 'the error must stay inside the member-recipe arm');
+test('⚠ A FAILED DELETE IS RENDERED — mounted, not grepped', async () => {
+  // The previous round set removeErr and rendered it nowhere, which made that
+  // fix half a fix. ⚠ AND MY GUARD FOR IT WAS A SOURCE SCAN, in a file whose
+  // whole premise is that only a mount can see a render fact: a regression that
+  // wrapped the node in a never-true condition would have kept every
+  // indexOf/includes assertion green while the member was told nothing.
+  const DETAIL = await loadBroadsheet(['BSLibraryDetail']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, confirm: w.bsAskConfirm };
+  const map = new Map([['shape.library', JSON.stringify([{ ...bsRecipePointer(MINE), savedAt: 2 }])]]);
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.bsAskConfirm = async () => true;                      // the member confirms
+    w.shapeDb = {
+      getUser: async () => ({ id: 'u1' }),
+      getUserGoals: async () => ({ v: 1, rev: 1, items: { [MINE.id]: MINE } }),
+      saveUserGoalsIfRev: async () => ({ error: { message: 'row-level security' } }),
+    };
+    let backs = 0;
+    const item = { ...bsRecipePointer(MINE), savedAt: 2 };
+    const doc = { v: 1, rev: 1, items: { [MINE.id]: MINE } };
+    const ed = drive(DETAIL.BSLibraryDetail, { item, onBack: () => { backs += 1; }, myDoc: doc });
+
+    assert.match(ed.text, /Delete this recipe/, 'the delete control must be on screen for a member recipe');
+    assert.doesNotMatch(ed.text, /Couldn't delete just now/, 'no error before anything is attempted');
+
+    ed.click('Delete this recipe');
+    // ⚠ MACROTASKS, NOT MICROTASKS. The handler awaits a confirm, then the
+    // store's serial lane, then two async reads before the write — a fixed
+    // number of Promise.resolve() ticks does not drain that, and the assertion
+    // then reads a button still saying "Deleting…" rather than the state under
+    // test. setTimeout(0) drains the whole microtask queue between turns.
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+
+    // ⚠ THE FAILURE IS ON SCREEN, and the member is still on the recipe.
+    assert.match(ed.text, /Couldn't delete just now/, 'a failed delete must say so');
+    assert.equal(backs, 0, 'a failed delete must not navigate away');
+    assert.match(ed.text, /Delete this recipe/, 'the control returns so they can retry');
+    // And the pointer was not dropped — the body is still there, so dropping the
+    // row would orphan it.
+    assert.match(String(map.get('shape.library')), /myrecipe:/);
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.bsAskConfirm = prev.confirm;
+  }
+});
+
+test('⚠ AN ACCOUNT CHANGE IS NAMED, NOT OFFERED AS A RETRY', async () => {
+  // Telling the member to try again would re-enter the write against whoever is
+  // signed in NOW — the race the CAS closed, reopened through the retry path.
+  const DETAIL = await loadBroadsheet(['BSLibraryDetail']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, confirm: w.bsAskConfirm };
+  const map = new Map([['shape.library', JSON.stringify([{ ...bsRecipePointer(MINE), savedAt: 2 }])]]);
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.bsAskConfirm = async () => true;
+    w.shapeDb = {
+      getUser: async () => ({ id: 'u1' }),
+      getUserGoals: async () => ({ v: 1, rev: 1, items: { [MINE.id]: MINE } }),
+      saveUserGoalsIfRev: async () => ({ accountChanged: true, error: { message: 'Account changed' } }),
+    };
+    const item = { ...bsRecipePointer(MINE), savedAt: 2 };
+    const ed = drive(DETAIL.BSLibraryDetail, { item, onBack() {}, myDoc: { v: 1, rev: 1, items: { [MINE.id]: MINE } } });
+    ed.click('Delete this recipe');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.match(ed.text, /account changed/i, 'the member must be told the account moved');
+    assert.doesNotMatch(ed.text, /Try again/i, 'a retry here writes into the other account');
+
+    // ⚠ AND A NEW ATTEMPT STARTS CLEAN. Without a reset the stale failure stays
+    // on screen through the next confirm — and through a Cancel — describing an
+    // attempt that is no longer happening.
+    w.bsAskConfirm = async () => false;
+    ed.click('Delete this recipe');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.doesNotMatch(ed.text, /account changed/i, 'a new attempt must clear the last failure');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.bsAskConfirm = prev.confirm;
+  }
+});
+
+test('a REFUSED confirm deletes nothing and says nothing', async () => {
+  const DETAIL = await loadBroadsheet(['BSLibraryDetail']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, confirm: w.bsAskConfirm };
+  const map = new Map([['shape.library', JSON.stringify([{ ...bsRecipePointer(MINE), savedAt: 2 }])]]);
+  let writes = 0;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.bsAskConfirm = async () => false;                     // the member backs out
+    w.shapeDb = {
+      getUser: async () => ({ id: 'u1' }),
+      getUserGoals: async () => ({ v: 1, rev: 1, items: { [MINE.id]: MINE } }),
+      saveUserGoalsIfRev: async () => { writes += 1; return { ok: true }; },
+    };
+    let backs = 0;
+    const item = { ...bsRecipePointer(MINE), savedAt: 2 };
+    const doc = { v: 1, rev: 1, items: { [MINE.id]: MINE } };
+    const ed = drive(DETAIL.BSLibraryDetail, { item, onBack: () => { backs += 1; }, myDoc: doc });
+    ed.click('Delete this recipe');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.equal(writes, 0, 'a refused confirm must write nothing');
+    assert.equal(backs, 0);
+    assert.doesNotMatch(ed.text, /Couldn't delete/, 'backing out is not a failure');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.bsAskConfirm = prev.confirm;
+  }
 });
 
 test('⚠ THE WRITER ITSELF HONOURS THE EXPECTED UID — not just the caller passing it', async () => {
@@ -442,38 +533,244 @@ test('⚠ THE WRITER ITSELF HONOURS THE EXPECTED UID — not just the caller pas
   assert.ok(body.length > 600, `lifted ${body.length} chars — that is a signature, not a body`);
 
   // A minimal PostgREST double: update(...).eq().eq().eq()/.is().select() and insert().
+  // ⚠ THE DOUBLE RECORDS ITS PREDICATES. The first version swallowed every
+  // eq()/is() argument and always returned the fixture rows — so deleting
+  // `.eq('data->>rev', …)`, the COMPARE half of compare-and-set and the whole
+  // reason this helper exists, left all three cases green. A double that cannot
+  // observe the thing under test is not a test.
   const make = (signedInAs, rows) => {
-    const calls = { updates: 0, inserts: 0 };
+    const calls = { updates: 0, inserts: 0, eq: [], is: [], errors: [] };
     const chain = {
       update() { calls.updates += 1; return chain; },
-      eq() { return chain; },
-      is() { return chain; },
+      eq(col, val) { calls.eq.push([col, val]); return chain; },
+      is(col, val) { calls.is.push([col, val]); return chain; },
       async select() { return { data: rows, error: null }; },
       async insert() { calls.inserts += 1; return { error: null }; },
     };
     const supabase = { from: () => chain };
     const win = { shapeDb: { getUser: async () => ({ id: signedInAs }) } };
     const fn = new Function('supabase', 'window', 'console', `${body.replace(/^async /, 'return async function ')}`)(
-      supabase, win, { warn() {} },
+      supabase, win, { warn() {}, error: (...a) => calls.errors.push(a.join(' ')) },
     );
     return { fn, calls };
   };
 
-  // Same account → the write goes through.
+  // Same account → the write goes through, AND it compares the revision.
   const okCase = make('u1', [{ kind: 'client_recipes' }]);
   assert.deepEqual(await okCase.fn('client_recipes', { items: {} }, '1', 'u1'), { ok: true });
   assert.equal(okCase.calls.updates, 1);
+  const revPred = okCase.calls.eq.find(([c]) => String(c).includes('rev'));
+  assert.ok(revPred, 'the update must filter on the revision — without it this is not a CAS');
+  assert.equal(revPred[1], '1', 'the filter must carry the token the reader saw');
+  assert.ok(okCase.calls.eq.some(([c]) => c === 'user_id'), 'scoped to the user');
+  assert.ok(okCase.calls.eq.some(([c]) => c === 'kind'), 'scoped to the kind');
+
+  // An absent revision uses IS NULL, never eq('0') — which would match nothing
+  // and the row could never be created.
+  const firstWrite = make('u1', [{ kind: 'client_recipes' }]);
+  assert.deepEqual(await firstWrite.fn('client_recipes', { items: {} }, null, 'u1'), { ok: true });
+  assert.ok(firstWrite.calls.is.some(([c, v]) => String(c).includes('rev') && v === null),
+    'an absent revision must filter IS NULL');
+  assert.equal(firstWrite.calls.eq.some(([c]) => String(c).includes('rev')), false);
+
+  // ⚠ ZERO ROWS MATCHED: with a revision, that is a CONFLICT (someone else
+  // wrote). Nothing is inserted — an insert here would clobber their write.
+  const lost = make('u1', []);
+  assert.deepEqual(await lost.fn('client_recipes', { items: {} }, '1', 'u1'), { conflict: true });
+  assert.equal(lost.calls.inserts, 0);
+
+  // ⚠ ZERO ROWS AND NO REVISION: the row may simply not exist yet, so the
+  // INSERT is the fallback — update-then-insert, never the reverse.
+  const fresh = make('u1', []);
+  assert.deepEqual(await fresh.fn('client_recipes', { items: {} }, null, 'u1'), { ok: true });
+  assert.equal(fresh.calls.updates, 1, 'the update is tried first');
+  assert.equal(fresh.calls.inserts, 1, 'the insert is the fallback');
 
   // ⚠ DIFFERENT account → refused, and NOTHING is written. Without this the
   // member's whole document lands in someone else's row, reporting success.
   const badCase = make('u2', [{ kind: 'client_recipes' }]);
   const refused = await badCase.fn('client_recipes', { items: {} }, '1', 'u1');
   assert.ok(refused.error, 'a changed account must refuse');
-  assert.match(String(refused.error.message), /account/i);
   assert.equal(badCase.calls.updates, 0, 'nothing may be written for the wrong account');
   assert.equal(badCase.calls.inserts, 0);
+  // ⚠ THE REFUSAL IS A FLAG, NOT A SENTENCE. The store's first draft sniffed
+  // /account/i on the message, which fired for any backend error whose prose
+  // contained the word ("Your account is over its usage limits") and made this
+  // wording part of the store's contract. A marker can be read without the
+  // message being frozen — and can be localized or reworded freely.
+  assert.equal(refused.accountChanged, true, 'a changed account must be machine-readable');
 
-  // No expectation given → unchanged behaviour (the helper is general).
-  const openCase = make('u9', [{ kind: 'client_recipes' }]);
-  assert.deepEqual(await openCase.fn('client_recipes', { items: {} }, '1'), { ok: true });
+  // ⚠ AND AN UNBOUND CALL IS REFUSED, not quietly allowed. An optional guard
+  // makes the unbound call the DEFAULT — and this primitive is registered for
+  // ~15 other user_goals kinds, so a migration written by copying a
+  // three-argument call would compile, pass, and reopen the race on a coach's
+  // notes. There is one caller today; making it mandatory costs nothing.
+  const unbound = make('u9', [{ kind: 'client_recipes' }]);
+  const refusedUnbound = await unbound.fn('client_recipes', { items: {} }, '1');
+  assert.ok(refusedUnbound.error, 'a call with no expected account must refuse');
+  assert.equal(unbound.calls.updates, 0);
+  assert.equal(unbound.calls.inserts, 0);
+  // ⚠ AND A MISSING UID IS A BUG IN THE CALLER, NOT AN ACCOUNT SWITCH. The
+  // first draft returned 'No expected account', which a consumer sniffing for
+  // /account/i read as a switch — so the omission this guard exists to catch
+  // rendered to the member as a plausible runtime message and shipped silently.
+  // It carries NO accountChanged marker and IS loud in the console.
+  assert.notEqual(refusedUnbound.accountChanged, true,
+    'a programming error must not masquerade as an account switch');
+  assert.equal(unbound.calls.errors.length, 1, 'the omission must be loud');
+  assert.match(unbound.calls.errors[0], /expectedUid/,
+    'the console line must name the argument that was omitted');
+});
+
+// ── the save flow's own account line ────────────────────────────────────────
+
+test('⚠ A REFUSED SAVE DOES NOT TELL THE MEMBER TO REOPEN A RECIPE THAT WAS NEVER SAVED', async () => {
+  // ⚠ THE DELETE FLOW'S WORDING IS A LIE IN THIS ONE. Nothing was written, so
+  // there is nothing to reopen: the draft in this sheet is the ONLY copy of
+  // what the member typed, and closing the sheet to follow that instruction
+  // destroys it — the unrecoverable-body case that is the whole premise for
+  // storing recipes apart from the pointer array.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.ShapeRecipeImport = null;                       // no model — the structural split
+    w.shapeDb = {
+      getUser: async () => ({ id: 'u1' }),
+      getUserGoals: async () => ({}),
+      saveUserGoalsIfRev: async () => ({ accountChanged: true, error: { message: 'Account changed' } }),
+    };
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const setVal = (idx, v) => {
+      const inputs = ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+      inputs[idx].props.onChange({ target: { value: v } });
+      ed.render();
+    };
+    setVal(0, 'Nana’s lemon chicken');
+    setVal(1, 'Ingredients\n1 cup flour\nMethod\nMix it.');
+    ed.click('Next');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    ed.click('Keep it');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.match(ed.text, /account changed/i, 'the member must be told the account moved');
+    assert.doesNotMatch(ed.text, /Reopen this recipe/i, 'there is nothing to reopen — nothing was saved');
+    assert.doesNotMatch(ed.text, /Try again/i, 'a retry here would target the other account');
+    // ⚠ AND THE DRAFT IS STILL ON SCREEN. It is the only copy — so this reads
+    // the controls' VALUES, not the rendered text: an editable draft lives in
+    // `value` props, and textOf walks children only, so a text match here would
+    // have passed on an empty sheet.
+    const vals = ed.nodes()
+      .filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange)
+      .map((n) => String(n.props.value || ''));
+    assert.ok(vals.some((v) => v.includes('flour')), `the draft must survive a refused save (had ${JSON.stringify(vals)})`);
+    assert.ok(vals.some((v) => v.includes('Mix it')), 'the method must survive too');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('⚠ EVERY REASON THE STORE CAN RETURN HAS A SENTENCE — including the one both handlers had missed', async () => {
+  // The two handlers were each spelling three reasons out inline in
+  // near-identical nested ternaries, which is how 'unreadable' came to be
+  // unnamed on BOTH — under a comment promising that "we could not read your
+  // recipes" was a separate sentence from "sign in".
+  const MAP = await loadBroadsheet(['bsMyRecipeErrText']);
+  const tr = (k, o) => (o && o.defaultValue) || k;
+  const call = (reason) => MAP.bsMyRecipeErrText(tr, reason, 'ACCOUNT-LINE', 'FALLBACK', 'nutrition:myRecipe.errSave');
+  assert.match(call('signed-out'), /Sign in/i);
+  assert.equal(call('account-changed'), 'ACCOUNT-LINE');
+  assert.match(call('unreadable'), /read your recipes/i);
+  assert.notEqual(call('unreadable'), 'FALLBACK', "a failed READ is not a failed write");
+  // 'contended' and 'write-failed' both mean exactly "try again" — nothing was
+  // written and nothing was lost.
+  assert.equal(call('contended'), 'FALLBACK');
+  assert.equal(call('write-failed'), 'FALLBACK');
+  assert.equal(call(undefined), 'FALLBACK', 'an absent reason still gets a sentence');
+  // ⚠ The account line is a PARAMETER because the two flows need different
+  // words — a delete that was refused can be reopened; a save that was refused
+  // has nothing to reopen.
+  assert.notEqual(
+    MAP.bsMyRecipeErrText(tr, 'account-changed', 'A', 'F', 'k'),
+    MAP.bsMyRecipeErrText(tr, 'account-changed', 'B', 'F', 'k'),
+  );
+});
+
+test('⚠ THE SHEET PASSES THE ACCOUNT IT CAPTURED — a bound store the caller does not use is not bound', async () => {
+  // ⚠ MUTATION-FOUND GAP. Every guard in the store proved the STORE refuses a
+  // foreign owner; not one of them proved the sheet supplies one. Dropping the
+  // second argument at this call site left the whole suite green while the
+  // retry path went straight back to writing this member's typed recipe into
+  // whoever is signed in now.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  const sent = [];
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    // Captured at mount: u1. Signed in by the time the member taps: u2.
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.ShapeRecipeImport = null;
+    w.shapeDb = {
+      getUser: async () => ({ id: 'u2' }),
+      getUserGoals: async () => ({}),
+      saveUserGoalsIfRev: async (kind, data, rev, uid) => { sent.push(uid); return { ok: true }; },
+    };
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const setVal = (idx, v) => {
+      const inputs = ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+      inputs[idx].props.onChange({ target: { value: v } });
+      ed.render();
+    };
+    setVal(0, 'Nana’s lemon chicken');
+    setVal(1, 'Ingredients\n1 cup flour\nMethod\nMix it.');
+    ed.click('Next');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    ed.click('Keep it');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.deepEqual(sent, [], "nothing may reach the backend once the account has moved under the draft");
+    assert.match(ed.text, /account changed/i, 'and the member is told why');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('⚠ AND SO DOES THE DETAIL SCREEN — the same wiring, the same gap', async () => {
+  const DETAIL = await loadBroadsheet(['BSLibraryDetail']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, confirm: w.bsAskConfirm };
+  const map = new Map([['shape.library', JSON.stringify([{ ...bsRecipePointer(MINE), savedAt: 2 }])]]);
+  const sent = [];
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.bsAskConfirm = async () => true;
+    w.shapeDb = {
+      getUser: async () => ({ id: 'u2' }),
+      getUserGoals: async () => ({ v: 1, rev: 1, items: { [MINE.id]: MINE } }),
+      saveUserGoalsIfRev: async (kind, data, rev, uid) => { sent.push(uid); return { ok: true }; },
+    };
+    const item = { ...bsRecipePointer(MINE), savedAt: 2 };
+    let backs = 0;
+    const ed = drive(DETAIL.BSLibraryDetail, { item, onBack() { backs += 1; }, myDoc: { v: 1, rev: 1, items: { [MINE.id]: MINE } } });
+    ed.click('Delete this recipe');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.deepEqual(sent, [], 'nothing may reach the backend for the other account');
+    // ⚠ AND THE SCREEN DOES NOT REPORT SUCCESS. Unbound, the retry reads u2's
+    // document, finds no such id, writes it back unchanged and resolves ok —
+    // so the pointer is dropped and onBack() fires while the body stays in u1's
+    // document, orphaned with nothing left pointing at it.
+    assert.equal(backs, 0, 'a refused delete does not close the screen');
+    assert.match(ed.text, /account changed/i);
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.bsAskConfirm = prev.confirm;
+  }
 });

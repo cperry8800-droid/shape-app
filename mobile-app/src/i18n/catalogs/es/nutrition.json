@@ -321,5 +321,8 @@
   "myRecipe.servings": "Raciones",
   "myRecipe.servingsPlaceholder": "para cuántas personas",
   "myRecipe.deleteTitle": "¿Eliminar esta receta?",
-  "myRecipe.deleteMessage": "Es tu propia receta: no se puede recuperar."
+  "myRecipe.deleteMessage": "Es tu propia receta: no se puede recuperar.",
+  "myRecipe.errAccount": "La cuenta cambió. Vuelve a abrir esta receta.",
+  "myRecipe.errAccountSave": "La cuenta cambió, así que esto no se guardó. Vuelve a iniciar sesión y guárdalo.",
+  "myRecipe.errUnreadable": "No se pudieron leer tus recetas ahora. Inténtalo de nuevo."
 }

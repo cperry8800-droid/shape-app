@@ -321,5 +321,8 @@
   "myRecipe.servings": "Kaç kişilik",
   "myRecipe.servingsPlaceholder": "kaç kişiye yeter",
   "myRecipe.deleteTitle": "Bu tarif silinsin mi?",
-  "myRecipe.deleteMessage": "Bu senin kendi tarifin — geri getirilemez."
+  "myRecipe.deleteMessage": "Bu senin kendi tarifin — geri getirilemez.",
+  "myRecipe.errAccount": "Giriş yapılan hesap değişti. Bu tarifi yeniden aç.",
+  "myRecipe.errAccountSave": "Giriş yapılan hesap değişti, bu yüzden kaydedilmedi. Yeniden giriş yap ve sakla.",
+  "myRecipe.errUnreadable": "Tariflerin şu an okunamadı. Tekrar dene."
 }

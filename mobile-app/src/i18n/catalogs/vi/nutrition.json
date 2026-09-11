@@ -321,5 +321,8 @@
   "myRecipe.servings": "Khẩu phần",
   "myRecipe.servingsPlaceholder": "cho bao nhiêu người",
   "myRecipe.deleteTitle": "Xoá công thức này?",
-  "myRecipe.deleteMessage": "Đây là công thức của bạn — không thể khôi phục."
+  "myRecipe.deleteMessage": "Đây là công thức của bạn — không thể khôi phục.",
+  "myRecipe.errAccount": "Tài khoản đã thay đổi. Hãy mở lại công thức này.",
+  "myRecipe.errAccountSave": "Tài khoản đã thay đổi nên chưa lưu được. Hãy đăng nhập lại và lưu nhé.",
+  "myRecipe.errUnreadable": "Chưa đọc được công thức của bạn. Thử lại nhé."
 }

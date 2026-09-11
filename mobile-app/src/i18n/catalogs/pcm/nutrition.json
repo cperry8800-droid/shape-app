@@ -321,5 +321,8 @@
   "myRecipe.servings": "How many people",
   "myRecipe.servingsPlaceholder": "how many people e go feed",
   "myRecipe.deleteTitle": "You wan delete dis recipe?",
-  "myRecipe.deleteMessage": "Na your own recipe — nothing fit bring am back."
+  "myRecipe.deleteMessage": "Na your own recipe — nothing fit bring am back.",
+  "myRecipe.errAccount": "The account wey sign in don change. Open dis recipe again.",
+  "myRecipe.errAccountSave": "The account wey sign in don change, so e no save. Sign in again make you keep am.",
+  "myRecipe.errUnreadable": "E no fit read your recipes just now. Try am again."
 }

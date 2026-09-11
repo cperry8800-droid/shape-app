@@ -1778,6 +1778,23 @@ function useBSMyRecipes() {
   return st;
 }
 
+// The store's five reasons, in ONE mapping. Both handlers were spelling three
+// of them out inline in near-identical nested ternaries, which is how the sixth
+// reason gets threaded through one site and missed in the other — and how
+// 'unreadable' came to be unnamed on both, under a comment promising that "we
+// could not read your recipes" was a separate sentence. The account line is a
+// PARAMETER because the two flows need different words: a delete that was
+// refused can be reopened, a save that was refused has nothing to reopen and
+// the draft on screen is the only copy.
+function bsMyRecipeErrText(tr, reason, accountText, fallbackText, fallbackKey) {
+  if (reason === 'signed-out') return tr('nutrition:myRecipe.errSignedOut', { defaultValue: 'Sign in to keep your recipes.' });
+  if (reason === 'account-changed') return accountText;
+  if (reason === 'unreadable') return tr('nutrition:myRecipe.errUnreadable', { defaultValue: "Couldn't read your recipes just now. Try again." });
+  // 'contended' (every CAS attempt lost the race) and 'write-failed' both mean
+  // exactly "try again" — nothing was written and nothing was lost.
+  return tr(fallbackKey, { defaultValue: fallbackText });
+}
+
 // Paste a recipe in, check what we made of it, keep it.
 //
 // TWO READERS, one screen. /api/nutrition/recipe-parse reads the paste with a
@@ -1796,6 +1813,15 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
   const [draft, setDraft] = useStateBSC(null);
   const [busy, setBusy] = useStateBSC(false);
   const [err, setErr] = useStateBSC(null);
+  // ⚠ THE ACCOUNT THIS DRAFT BELONGS TO, captured when the sheet opened and
+  // passed to the write. Every uid check inside the store is resolved at call
+  // time, so they close the window inside one write and say nothing about the
+  // one before it: without this, a save refused for an account change leaves
+  // the draft on screen and one more tap writes it into whoever is signed in
+  // now. A null here (session not resolved yet) degrades to the store's own
+  // write-time binding rather than blocking the save.
+  const ownerUid = React.useRef(null);
+  if (ownerUid.current == null) ownerUid.current = bsRecipesUidSync();
 
   // Split it STRUCTURALLY — no model. This is the floor: it always works, it
   // works offline, and it is what the review screen shows when the parse route
@@ -1881,15 +1907,23 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
       ...(draft && draft.byAI ? { draftedByAI: true } : {}),
       createdAt: now, updatedAt: now,
     };
-    const res = await bsMyRecipesStore().save(item).catch(() => ({ ok: false, reason: 'write-failed' }));
+    const res = await bsMyRecipesStore().save(item, ownerUid.current).catch(() => ({ ok: false, reason: 'write-failed' }));
     setBusy(false);
     if (!res || !res.ok) {
       // Name the state rather than a generic failure — "sign in" and "we could
       // not read your recipes" are different sentences and only one is the
       // member's to act on.
-      setErr(res && res.reason === 'signed-out'
-        ? tr('nutrition:myRecipe.errSignedOut', { defaultValue: 'Sign in to keep your recipes.' })
-        : tr('nutrition:myRecipe.errSave', { defaultValue: "Couldn't save just now. Try again." }));
+      // ⚠ THE ACCOUNT LINE HERE MUST NOT SAY "REOPEN THIS RECIPE" — the delete
+      // flow's wording, and a lie in this one. Nothing was saved, so there is
+      // nothing to reopen: the draft in this sheet is the only copy of what the
+      // member typed, and closing the sheet to follow that instruction destroys
+      // it. The draft stays; signing back in makes the same tap work, because
+      // the write is bound to ownerUid rather than to a sentence.
+      setErr(bsMyRecipeErrText(
+        tr, res && res.reason,
+        tr('nutrition:myRecipe.errAccountSave', { defaultValue: "The signed-in account changed, so this wasn't saved. Sign back in and keep it." }),
+        "Couldn't save just now. Try again.", 'nutrition:myRecipe.errSave',
+      ));
       return;
     }
     // The pointer rides in the Library so the Catalogue lists it with no change
@@ -2103,6 +2137,11 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
   const [startErr, setStartErr] = useStateBSC('');
   const [removing, setRemoving] = useStateBSC(false);
   const [removeErr, setRemoveErr] = useStateBSC('');
+  // The account this screen is reading `myDoc` under — see the sheet's copy of
+  // this for why a write has to be bound to it rather than to whoever is signed
+  // in when the button is tapped.
+  const ownerUid = React.useRef(null);
+  if (ownerUid.current == null) ownerUid.current = bsRecipesUidSync();
   // ⚠ EVERY HOOK IN THIS COMPONENT IS ABOVE THIS LINE, AND THIS EARLY RETURN MUST
   // STAY BELOW THEM ALL. Cook mode is a full-screen takeover, so it returns
   // early — and on the frame `cooking` flips true every hook after the return
@@ -2208,6 +2247,11 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
             // outcome this screen must not allow. bsAskConfirm fails CLOSED when
             // no host is mounted, so the gate cannot be skipped by a race.
             if (!mineId || removing) return;
+            // A new attempt starts clean — the sibling save flow opens the same
+            // way. Without this a failure stays on screen through the next
+            // confirm (and through a Cancel), describing an attempt that is no
+            // longer happening.
+            setRemoveErr('');
             const okToDelete = await (window.bsAskConfirm ? window.bsAskConfirm({
               title: tr('nutrition:myRecipe.deleteTitle', { defaultValue: 'Delete this recipe?' }),
               name: (mine && mine.title) || item.title,
@@ -2216,12 +2260,18 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
             }) : Promise.resolve(false));
             if (!okToDelete) return;
             setRemoving(true);
-            const res = await bsMyRecipesStore().remove(mineId).catch(() => ({ ok: false, reason: 'write-failed' }));
+            const res = await bsMyRecipesStore().remove(mineId, ownerUid.current).catch(() => ({ ok: false, reason: 'write-failed' }));
             setRemoving(false);
             if (!res || !res.ok) {
-              setRemoveErr(res && res.reason === 'signed-out'
-                ? tr('nutrition:myRecipe.errSignedOut', { defaultValue: 'Sign in to keep your recipes.' })
-                : tr('nutrition:myRecipe.errDelete', { defaultValue: "Couldn't delete just now. Try again." }));
+              // ⚠ AN ACCOUNT CHANGE IS NOT A RETRY — and the store refuses it
+              // now rather than this sentence doing the work. Here "reopen this
+              // recipe" is honest: the recipe still exists in the member's own
+              // document, so there is something to come back to.
+              setRemoveErr(bsMyRecipeErrText(
+                tr, res && res.reason,
+                tr('nutrition:myRecipe.errAccount', { defaultValue: 'The signed-in account changed. Reopen this recipe.' }),
+                "Couldn't delete just now. Try again.", 'nutrition:myRecipe.errDelete',
+              ));
               return;
             }
             try { bsLibWrite(bsLibRead().filter((x) => x.id !== item.id)); } catch (e) {}

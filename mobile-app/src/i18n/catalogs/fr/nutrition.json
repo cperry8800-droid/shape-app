@@ -321,5 +321,8 @@
   "myRecipe.servings": "Portions",
   "myRecipe.servingsPlaceholder": "pour combien de personnes",
   "myRecipe.deleteTitle": "Supprimer cette recette ?",
-  "myRecipe.deleteMessage": "C’est votre propre recette — rien ne pourra la récupérer."
+  "myRecipe.deleteMessage": "C’est votre propre recette — rien ne pourra la récupérer.",
+  "myRecipe.errAccount": "Le compte connecté a changé. Rouvrez cette recette.",
+  "myRecipe.errAccountSave": "Le compte connecté a changé, donc rien n’a été enregistré. Reconnectez-vous et gardez-la.",
+  "myRecipe.errUnreadable": "Lecture de vos recettes impossible pour l’instant. Réessayez."
 }

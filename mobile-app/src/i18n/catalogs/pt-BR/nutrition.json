@@ -321,5 +321,8 @@
   "myRecipe.servings": "Porções",
   "myRecipe.servingsPlaceholder": "para quantas pessoas",
   "myRecipe.deleteTitle": "Excluir esta receita?",
-  "myRecipe.deleteMessage": "Esta é a sua receita — não dá para recuperar."
+  "myRecipe.deleteMessage": "Esta é a sua receita — não dá para recuperar.",
+  "myRecipe.errAccount": "A conta conectada mudou. Abra esta receita de novo.",
+  "myRecipe.errAccountSave": "A conta conectada mudou, então isto não foi salvo. Entre de novo e guarde.",
+  "myRecipe.errUnreadable": "Não deu para ler suas receitas agora. Tente de novo."
 }
