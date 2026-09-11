@@ -25,6 +25,13 @@ function pnum(v: unknown): number {
   return parseFloat(String(v));
 }
 
+// ⚠ THE CAP IS NAMED ONCE AND REPORTED, because a page that offers an "ALL" window is
+// making a claim about it. Both history reads are bounded, so for a member past this many
+// daily rows "ALL" is really "the newest N logged" — and a delta labelled "since start"
+// would be measuring from the SERVER'S CUTOFF while calling it the beginning of their
+// record. The client cannot know that from the payload alone, so the payload says it.
+const HISTORY_CAP = 400;
+
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
@@ -39,14 +46,25 @@ export async function GET(request: Request) {
   // new snapshot column's migration is applied — PostgREST 400s the WHOLE query on
   // an unknown explicit column, and `snapRows ?? []` would then silently empty every
   // series/KPI. (Same migration-safety reason as the weigh-ins query below.)
+  //
+  // ⚠ NEWEST-FIRST CAP, THEN RE-SORTED. This ordered ASCENDING and capped at 400, so a
+  // member with more than ~13 months of daily rows was served their OLDEST 400 days and
+  // never their recent ones — on a page whose whole framing is "eight weeks ago next to
+  // today". The comparison would have taken two points from over a year ago and labelled
+  // the later one today. The sets query below was fixed for exactly this and says so in
+  // its own comment; this one and the weigh-ins below never got it.
+  //
+  // Everything downstream reads these ascending (the sparklines, the 8-weeks-ago
+  // comparison, `latestVal`'s backwards walk), so the page is re-sorted here rather than
+  // at each consumer.
   const { data: snapRows } = await supabase
     .from('daily_health_snapshot')
     .select('*')
     .eq('user_id', user.id)
-    .order('snapshot_date', { ascending: true })
-    .limit(400);
+    .order('snapshot_date', { ascending: false })
+    .limit(HISTORY_CAP);
 
-  const snaps = snapRows ?? [];
+  const snaps = (snapRows ?? []).slice().reverse();
 
   // Per-metric trend series. Each row keeps both the date and the value so
   // the client can render time-aware sparklines without needing alignment.
@@ -71,13 +89,15 @@ export async function GET(request: Request) {
   // fallback for any account that only has device-synced data.
   // select('*') so the route keeps working before the body_fat_pct column
   // migration is applied (PostgREST errors on unknown explicit columns).
+  // ⚠ NEWEST-FIRST CAP, THEN RE-SORTED — same defect as the snapshot query above: a
+  // member past 400 weigh-ins was shown their first 400 and none of this year's.
   const { data: weighRows } = await supabase
     .from('client_weigh_ins')
     .select('*')
     .eq('user_id', user.id)
-    .order('logged_on', { ascending: true })
-    .limit(400);
-  const weighIns = (weighRows ?? []) as Array<Record<string, unknown>>;
+    .order('logged_on', { ascending: false })
+    .limit(HISTORY_CAP);
+  const weighIns = ((weighRows ?? []) as Array<Record<string, unknown>>).slice().reverse();
   const toLb = (w: number, unit: unknown) =>
     Math.round((unit === 'lb' ? w : w * 2.20462) * 10) / 10;
   const weighInWeightSeries = weighIns
@@ -270,6 +290,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
+    // True when EITHER history read came back full, so the client's "ALL" window names
+    // itself honestly. Deliberately not per-metric: a conservative label on an uncapped
+    // series costs a few words, and a confident "since start" on a capped one is a lie.
+    historyCapped: snaps.length >= HISTORY_CAP || weighIns.length >= HISTORY_CAP,
     weightSeries,
     kpis,
     prs,
