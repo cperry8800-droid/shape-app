@@ -149,6 +149,21 @@ changelog whenever something ships.
   2026-08-24; the sweep is still needless churn**.) Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
+- ⛔️ **ONE REVIEW TRIGGER PER PR, AND FRONT-LOAD EVERYTHING INTO IT — A ROUND BILLS BY FILE
+  COUNT.** Owner, 2026-09-11, after I ran two rounds on #2053: *"make sure it goes into this
+  coderabbit review so you don't use more money / Should have done that before running
+  coderabbit"*. CodeRabbit charges **$0.25 per reviewed file** beyond the included allowance
+  (~1 review/hour), so a 35-file diff is ~$9 **per round** — and the second round on that PR
+  re-derived context I already held. Before triggering, put it ALL in the trigger comment: what
+  changed and why, the areas you most want attacked, the evidence you already have, and what is
+  deliberately out of scope so it is not raised as new. **Then do not trigger again** — reply in
+  the existing thread instead. ⚠ **A second round is not free diligence, it is a second bill**,
+  and the fix round's own diff can be covered by the same comment if you write it properly the
+  first time.
+  ⚠ **AND READ THE HEAD A ROUND COVERS BEFORE ACTING ON IT.** #2053's submitted review carried
+  `sourceCommitId = coveredCommitId` = the FIRST head, so three of its six comments described
+  code a later commit had already replaced. Acting on them would have redone finished work — and
+  re-triggering to "get a clean verdict" would have bought a third bill for nothing.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
   ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (THIRD AND FINAL RULING OF THE DAY).
