@@ -695,6 +695,72 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The homepage climb is lifted off the stats, and the route it draws is otherwise untouched
+
+- **Owner, with a screenshot of the fold: *"line graph still off on new design website"* → *"index/home
+  page"* → *"It just needs to be moved up a little so it's not overlapping the stats at bottom"*.** One
+  change: where the route's trailhead sits. Its span, its shape, its summit, the mountain, the colours
+  and the honest-data labelling are all byte-for-byte what shipped. No migration, no route, no i18n key.
+- ⚠ **THE ROUTE STARTED INSIDE THE STATS, AND IT WAS STRUCTURAL RATHER THAN A NEAR MISS.** The trailhead
+  was `H*0.86` — 0.14H above the canvas floor — while `.camps` sits at `bottom:78px` with ~41px of
+  label, so the camps own **78..119px** of that same floor. **0.14H lands inside that band for every
+  canvas height from 558 to 850px**, which is every ordinary desktop window: the route was drawn
+  starting on top of the stats and climbed out through *"0 ads · Shape Radio, included"*. Measured in
+  Chromium by extracting the route from **canvas pixels** and comparing it against live DOM rects, at
+  1657/1440/1280/1024/860: **83/12/52/83/6** sampled columns of route inside that camp's box, clearances
+  of **−12/−1/−15/−20/−1px**, and **1..15px** left over the camp beside it.
+- ⚠ **SO THE FIX IS A MEASUREMENT, NOT A BETTER CONSTANT.** Because the collision is structural, nudging
+  the fraction clears one window and re-opens the next — the trailhead reads the camps' **own top edge**
+  now, which is true at every window and survives a reworded stat, a fourth camp or a font swap. The
+  route only ever RISES, so clearing the camps at the trailhead clears them for the whole climb; the
+  monotonicity that argument rests on is pinned by its own test rather than assumed.
+- ⚠ **A FIRST CUT DID MORE THAN WAS ASKED AND WAS SENT BACK — RECORDED BECAUSE THE REASON GENERALISES.**
+  It also derived the start from a declared 19° pitch, which cleared the stats a second way and roughly
+  doubled the angle (10.6° → 19.3° at the owner's window). It was internally sound and measured — and it
+  **cost the route half its width**, 56% → 23% of the fold at 1657x826, because the only rise available
+  is whatever the mountain leaves between the camps and the summit. The owner's answer was the one-line
+  version above. **The span is now pinned as an invariant** — nothing in `draw()` may derive `x0` from
+  the rise — so the declined change cannot be reintroduced by a later session reading the collision and
+  reaching for the same lever. *A fix that is correct and larger than the ask is still larger than the
+  ask.*
+- ⚠ **THE CAMPS GATE IS AN OVERLAP TEST, NOT A WIDTH — and the first cut asked the wrong number.** It
+  read `W<560`, which is the script's **summit-band** threshold, not the stylesheet's **760px**. Measured
+  in the 560..760 gap between them (600x700, 760x900): the fold read as desktop, took the DOM path,
+  computed a base past the canvas floor and was saved **only by the 0.92H clamp** — the right answer for
+  the wrong reason, which stops being the right answer the day either number moves. Asking the two boxes
+  whether they actually overlap needs no threshold and cannot drift from the CSS.
+- ⚠ **AND MY OWN READ OF THE DIFF FOUND A FLOOR THAT COULD CAUSE THE THING IT GUARDED.** The first cut
+  clamped with `Math.max(H*0.55, …)`, and **on a y axis `max` picks the point LOWER on the screen** — so
+  a camps box tall enough to push the cleared trailhead above 0.55H would have been dragged back DOWN,
+  through the clearance, into the labels. Unreachable today (the three stats measure ~523px against a
+  ≥696px content box wherever they sit over the canvas at all, so they never wrap), but it reads as the
+  floor that keeps the route on the mountain while being the one thing that can undo the clearance. The
+  floor is the canvas top now. **The ceiling needs no such care and the asymmetry is written at the
+  site**: a camps box low enough for 0.92H to bind is one the trailhead was already clearing by more
+  than it needed. **Replayed as its own mutation**, so the suite is proven to reject it rather than
+  merely to be green after the fix.
+- ⚠ **TWO GUARDS OF MINE WERE TOO NARROW, AND ONLY THE MUTATION ROUND SAID SO.** The clearance sweep
+  reads `CAMP_CLEAR` **out of the page**, so setting it to 0 satisfied every *"the trailhead clears the
+  camps"* assertion with a route drawn exactly on their top edge — it carries a floor of its own now
+  (the stroke is 7px wide, so ~4px of halo sits above the centre line). And the span guard read only
+  where `x0` is **first** set, so the mutation that matters — leave the initializer alone, reassign `x0`
+  from the rise on the next statement — walked past it with the suite green. It asks about **every**
+  assignment in `draw()` now. *A guard aimed at the right invariant through the wrong window is still
+  measuring nothing.*
+- ⚠ **THE MOUNTAIN IS DELIBERATELY NOT RETUNED.** Any version of this that wants more rise needs the
+  front ridge's summit to grow — the change this file's own post-mortem four bullets above `SUMMIT_U`
+  records as tried, measured at 0.7 of a percentage point, and reverted.
+- **Verified:** `npm test` **3488/3488** (6 new) · `tsc --noEmit` 0 · the newdesign precompile check
+  (74 pages) · **12/12 mutations killed**, each **proven to land**, sanity green at both ends, the tree
+  restored in a `finally` · every guard **drives the shipped functions lifted out of the page** rather
+  than pinning a spelling, and the collision sweep carries a **positive control** (the retired `H*0.86`
+  rule collided in 293 of the swept heights) so it cannot pass on a fold whose camps the route never
+  came near · and the page **driven in Chromium at twelve viewports from 320x700 to 1920x1080**: **zero
+  collisions, smallest camp clearance 23px anywhere**, zero page errors and zero horizontal overflow at
+  every one, with **390/430/320 byte-identical to before the change** (the phone's canvas is its own
+  band and its camps are a row under it). Reduced motion draws the finished route once and clears the
+  camps; with JS off the fold is still the painted ridge with **no route and no phantom score**.
+
 ### 2026-09-11 — The Instrument Board: Session details opens as a panel, and the numbers land in tables
 
 - **The owner's pick, built** ([`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md)
