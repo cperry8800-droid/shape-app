@@ -322,8 +322,30 @@
   .phcap .lbl-row{display:block;margin-top:9px}
 
   /* ── radio ───────────────────────────────────────────────── */
-  .rd{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:52px;align-items:center}
-  .air{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:24px}
+  /* ⚠ THE PICTURE IS THE ONE THIS BLOCK USED TO CARRY, and the scrim is the one it
+     came with — lifted from the pre-Climb `.radio` rule rather than re-invented,
+     because the two stops are what keep the copy legible over the figures.
+     ⚠ DEEPENED .62/.82 -> .72/.88, WHICH MEASUREMENT FORCED. The old block sat the
+     copy 84px in; this one is tighter, so the text runs over brighter parts of the
+     drawing. Computed against a plate rendered with the ink hidden, the eyebrow
+     cleared AA by 0.02 at 1024px (4.52 against 4.5) — a pass that flips on any
+     small change. At these stops the worst case across 900-1920px is 5.6. The 1.7 MB PNG is NOT what ships: it is re-encoded to a 95 KB JPEG at
+     1800px, which is the same trade this page already made when it replaced a
+     1.7 MB JPEG-named-PNG with 395 KB of real JPEG. Contrast over the scrimmed
+     image is measured, not assumed — see the guard. */
+  .rd{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:52px;align-items:center;
+      background:linear-gradient(rgba(11,14,12,.72),rgba(11,14,12,.88)),
+                 url('/newdesign/radio-figures-v1.jpg') center 30%/cover no-repeat;
+      border:1px solid var(--line);border-radius:12px;padding:56px 60px}
+  /* ⚠ AN <a>, NOT A <div> — the whole card is the link. Nothing inside it is
+     interactive, so wrapping it is valid rather than a nested-control problem, and
+     the explicit aria-label keeps the accessible name "Shape Radio" instead of the
+     whole card read aloud as one link text. tests/homepage-climb.test.mjs walks
+     this element to check the ON AIR chip carries its label, so its matcher reads
+     the tag name rather than assuming a div. */
+  .air{display:block;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:24px;
+       transition:border-color .2s,transform .2s}
+  .air:hover{border-color:rgba(var(--teal-rgb),.34);transform:translateY(-2px)}
   .air .hd{display:flex;align-items:center;justify-content:space-between;gap:14px}
   .air .wm{display:inline-flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:500;
            font-variation-settings:'wdth' 150;font-size:14px;text-transform:uppercase;letter-spacing:.02em}
@@ -391,6 +413,7 @@
   @media (max-width:1100px){
     .mo-grid,.co-grid{grid-template-columns:repeat(2,1fr)}
     .rd,.prc2{grid-template-columns:1fr;gap:34px}
+    .rd{padding:36px 28px}
     .rd .air,.prc2 .appph{max-width:420px}
     .ftg{grid-template-columns:1fr 1fr 1fr}
   }
@@ -418,6 +441,7 @@
   @media (max-width:760px){
     .wrap,.hero .hcopy,.camps,.jpin{padding:0 20px}
     .s{padding:60px 0}
+    .rd{padding:28px 20px}
     /* ⚠ On a phone the terrain is its own BAND under the copy, not a backdrop
        behind it: at this width a ridge behind 100px type is noise, and the
        summit score lands on the word it is meant to sit above.
@@ -704,15 +728,15 @@
         <p style="max-width:46ch;font-size:15px;color:var(--fg-2);margin-top:18px">Ad-free mixes curated by BPM. When your coach attaches a playlist to a workout, it plays right on the card. Free with every membership.</p>
         <div style="margin-top:26px"><a class="btn p" href="/newdesign/Radio.html">Open Shape Radio →</a></div>
       </div>
-      <div class="air">
+      <a class="air" href="/newdesign/Radio.html" aria-label="Shape Radio">
         <div class="hd">
           <span class="wm"><span>Shape</span><svg aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="rgba(238,243,240,.92)"/></svg><span class="r">Radio</span></span>
           <span class="oa"><i></i>On air</span>
         </div>
         <div class="trk">One channel, tuned to your session.</div>
-        <div class="meta"><span>Ad-free</span><span>Curated by BPM</span><span>Included with every membership</span></div>
+        <div class="meta"><span>Ad-free</span><span>Included with every membership</span></div>
         <div class="airlbl"><span class="exlabel">Example · Radio opens with the app</span></div>
-      </div>
+      </a>
     </div>
   </div>
 </section>

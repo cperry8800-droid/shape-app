@@ -40,12 +40,17 @@ function radioSection(html) {
  *  the thing it labels, which means matching the card, which means counting
  *  nested divs rather than reaching for a lazy `[\s\S]*?</div>`. */
 function airCard(html) {
-  const open = /<div[^>]*class="[^"]*\bair\b[^"]*"[^>]*>/.exec(html);
+  // ⚠ READS THE TAG NAME rather than assuming a div. The card became an <a> when
+  // the whole box was made a link to Radio, and a matcher hard-coded to <div>
+  // returns '' for it — which this file's own assertion would report as "no .air
+  // card found", i.e. the guard failing for a reason that is about the guard.
+  const open = /<(\w+)[^>]*class="[^"]*\bair\b[^"]*"[^>]*>/.exec(html);
   if (!open) return '';
+  const el = open[1];
   const start = open.index;
   let i = start + open[0].length;
   let depth = 1;
-  const tag = /<(\/?)div\b[^>]*>/g;
+  const tag = new RegExp(`<(/?)${el}\\b[^>]*>`, 'g');
   tag.lastIndex = i;
   let m;
   while ((m = tag.exec(html))) {
