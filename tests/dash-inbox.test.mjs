@@ -168,8 +168,14 @@ test('the bell does not exist for a signed-out visitor', () => {
   // third time this suite has had to learn that a guard pins the invariant, not the
   // address. What is asserted is that BOTH still happen, wherever they live.
   assert.match(COMP, /if \(!signedIn[^)]*\) return null;/, 'the bell renders for a signed-out visitor');
-  assert.match(grab('useDashInboxFeed'), /if \(!signedIn\) \{ setFeed\(undefined\); return undefined; \}/,
-    'signing out leaves the previous account\'s notifications in the panel');
+  // ⚠ NOT THE WHOLE LINE. This pinned the exact statement, so adding the generation bump
+  // that CANCELS a read still in flight — a strictly stronger version of the same
+  // guarantee — failed the guard for it. Twice now, in this one test. Assert the two
+  // things the sign-out actually owes.
+  const signOut = /if \(!signedIn\) \{([^}]*)\}/.exec(grab('useDashInboxFeed'));
+  assert.ok(signOut, 'the hook no longer branches on signing out');
+  assert.match(signOut[1], /setFeed\(undefined\)/, 'signing out leaves the previous account\'s notifications in the panel');
+  assert.match(signOut[1], /genRef\.current\+\+/, 'a read in flight can still land after the sign-out');
 });
 
 test('the panel has FOUR states and the unreadable one says so', () => {
@@ -278,4 +284,69 @@ test('a desktop bell keeps the plain right-aligned panel it always had', () => {
   assert.equal(PANEL(967, 1440).w, 340);
   // ...and it must NOT be a no-op where there is not.
   assert.ok(PANEL(307, 390).right < 0, 'a phone bell still right-aligns the panel off screen');
+});
+
+// ── THE THREE FINDINGS FROM THE REVIEW ROUND ───────────────────────────────
+// Codex and CodeRabbit each raised all three independently; each is a way the bell
+// made a claim it had not earned.
+
+const ROUTE = readFileSync(new URL('../src/app/api/notifications/route.ts', import.meta.url), 'utf8');
+
+test('the ROUTE distinguishes a failed read from an empty inbox', () => {
+  // ⚠ IT RETURNED HTTP 200 WITH `{ notifications: [], unread: 0 }` ON A QUERY ERROR —
+  // the positive claim "nothing new" made out of a read that never answered. The panel's
+  // whole "couldn't read your notifications" state was therefore UNREACHABLE for the
+  // most likely failure there is, while this suite and the records both claimed it was
+  // handled. Fixing the client alone would have left the lie one layer down.
+  const g = ROUTE.slice(ROUTE.indexOf('export async function GET'), ROUTE.indexOf('export async function POST'));
+  const err = /if \(error\) return NextResponse\.json\(([^;]*)\);/.exec(g);
+  assert.ok(err, 'the GET no longer has an explicit error branch');
+  assert.doesNotMatch(err[1], /notifications:\s*\[\]/, 'a failed read still answers with an empty inbox');
+  assert.match(err[1], /status:\s*5\d\d/, 'a failed read still answers 2xx');
+  // and the client turns a non-OK into the unreadable state rather than parsing it
+  assert.match(grab('useDashInboxFeed'), /r\.ok \? r\.json\(\) : null/);
+});
+
+test('opening the panel re-reads the feed', () => {
+  // ⚠ THE READ RAN ONCE PER HEADER MOUNT. A notification arriving while a member stayed
+  // on one dashboard tab never reached the badge until they reloaded the page — and a
+  // dashboard is a page people leave open all day.
+  const hook = grab('useDashInboxFeed');
+  assert.match(hook, /reload:\s*\(\) => \{ if \(!busy\) load\(true\); \}/, 'the hook exposes no reload, or reloads mid-write');
+  assert.match(grab('DashInbox'), /if \(!v && typeof reload === "function"\) reload\(\)/,
+    'opening the panel does not re-read');
+  // ⚠ AND A FAILED REFRESH MUST NOT DISCARD A GOOD FEED. "possibly a minute old" and
+  // "we have nothing" are different claims.
+  assert.match(hook, /if \(next === null && keepOnFail\) return;/);
+  assert.match(hook, /load\(false\)/, 'the first read keeps a stale feed on failure');
+  // one writer wins: a generation, not a per-call boolean
+  assert.match(hook, /const gen = \+\+genRef\.current;/);
+  assert.match(hook, /if \(gen !== genRef\.current\) return;/);
+  assert.match(hook, /if \(!signedIn\) \{ genRef\.current\+\+;/, 'signing out does not cancel a read in flight');
+});
+
+test('a mark that rides a navigation uses keepalive', () => {
+  // ⚠ OUTSIDE A SHELL THESE LINKS ARE A REAL DOCUMENT NAVIGATION, and a POST started in
+  // the same tick is cancelled on unload — so the row the member had just opened stayed
+  // unread and the badge went on claiming it.
+  const hook = grab('useDashInboxFeed');
+  assert.match(hook, /const mark = \(body, applyLocal, keepalive\) =>/);
+  assert.match(hook, /keepalive: !!keepalive/);
+  assert.match(hook, /markOne: \(id, keepalive\) =>[\s\S]*?\}, keepalive\)/);
+  // the LINK row passes it; the plain "Mark read" button, which navigates nowhere, does not
+  const comp = grab('DashInbox');
+  // ⚠ NEITHER `[^>]*` NOR A LAZY `[\s\S]*?>` CAN DELIMIT A JSX OPENING TAG: both stop at
+  // the `>` of the `=>` inside the first arrow function, so the first TWO spellings of
+  // this assertion failed on correct code (the second matched exactly
+  // `<a key={n.id} href={href} onClick={() =>`). Take the element to a terminator that
+  // is actually unique to it.
+  const at = comp.indexOf('<a key={n.id} href={href}');
+  assert.ok(at > 0, 'the link row changed shape');
+  const end = comp.indexOf('>{inner}</a>', at);
+  assert.ok(end > at, 'the link row no longer renders {inner}');
+  assert.match(comp.slice(at, end), /markOne\(n\.id, true\)/, 'the link row does not keep its write alive');
+  assert.match(comp, /<button onClick=\{\(\) => markOne\(n\.id\)\}/, 'the in-panel Mark read button changed shape');
+  // ⚠ markAll IS NOT keepalive: it is pressed inside an open panel, which navigates
+  // nowhere, and a keepalive request cannot be aborted.
+  assert.doesNotMatch(hook, /markAll:[^\n]*keepalive/);
 });

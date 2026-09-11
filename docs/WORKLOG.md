@@ -556,6 +556,79 @@ Append new entries at the top, under this note.
   locator* returned `2`. It waits for the element now. *A single timed sample is a race
   the harness loses silently and reports as "the feature is absent".*
 
+- ⚠ **THE BELL WAS INVISIBLE ON EVERY PHONE, AND THE REVIEW ROUND AND I FOUND IT AT THE
+  SAME TIME.** It rendered inside `.shape-nav-auth`, which the header hides outright at
+  1200px and below — measured in Chromium as a 33×30 box at 1440 and a **zero-sized** one
+  at 1024 and 390: present in the DOM, `innerText` *"2"*, painting nothing. The drawer,
+  which R19 established is the only nav a phone has, never carried it either. **R20 is
+  about a member seeing on the web what their phone already told them**, so a bell a phone
+  cannot reach is the feature not shipping. Both reviewers raised it independently; my own
+  pass on the diff had already fixed it, and both comments came back marked outdated.
+- **The feed is lifted into `useDashInboxFeed` and the bell renders twice** — the auth
+  cluster and a `.shape-nav-bell` slot beside the burger — sharing **one** fetch and one
+  source of truth. A second component with its own state would spend a second request per
+  page and could disagree with the first after a mark. The CSS is exclusive; measured at
+  **eight widths from 320 to 1440**, exactly one is visible at every one. The header keeps
+  **three** grid children at every width, so the desktop is pixel-identical (bell x=934,
+  nav-auth x=889 w=508, before and after); what moves is the **burger**, from the middle
+  `1fr` column — measured at x=182 on a 1024px screen, just right of the logo — to the
+  right edge.
+- ⚠ **AND THE PANEL WAS CLIPPED ON THE WIDTHS THE FIX MADE REACHABLE.** Right-anchored to
+  a bell whose right edge sits ~83px in from the viewport, a 340px panel starts at
+  **−33px** at 390 and **−51px** at 360. **Left overflow creates no scrollbar**, so
+  `document.scrollWidth` reported nothing and the first third of every row was silently
+  cut off. `maxWidth: calc(100vw - 32px)` cannot fix it: that caps the WIDTH while the
+  RIGHT edge stays pinned to the bell.
+- ⚠ **AND MY FIX FOR THAT SHIPPED A COMMENT CLAIMING IT COULD NOT OVERFLOW "BY
+  CONSTRUCTION", WHICH MY OWN GUARD REFUTED ON ITS FIRST RUN.** `Math.min(0, …)` reads as
+  *"never move it right of where it is"* — correct for a bell set in from the edge, wrong
+  for one hard against it, and at 320px the panel spilled 12px past the right gutter. The
+  honest construction is an **interval**: cap the width at both gutters first, then `right`
+  must satisfy both edges at once, and the interval is non-empty exactly when that cap
+  holds. 65/65 driven combinations now sit inside both gutters. *A because-clause is a
+  claim, and this one was wrong the hour it was written.*
+- ⚠ **THE ROUTE ANSWERED A FAILED READ WITH `200 { notifications: [], unread: 0 }` — the
+  exact defect this feature was built to fix, one layer below where I fixed it.** So the
+  panel's *"couldn't read your notifications"* state was **unreachable for the most likely
+  failure there is**, while this entry and the PR both claimed it was handled. It is a
+  **502** now; the mobile client is bit-for-bit unaffected, because `getJsonOrDefault`
+  already returns its own `{ notifications: [], unread: 0 }` on any non-OK response. *A
+  client that is honest about a lie it is told downstream is still passing the lie on.*
+- ⚠ **AND THE FEED WAS READ ONCE PER HEADER MOUNT**, so a notification arriving while a
+  member stayed on one dashboard tab never reached the badge until they reloaded — and a
+  dashboard is a page people leave open all day. Opening the panel is the moment they ask
+  the question, so that is when it is asked again. Driven: badge **1 → 2** on open with no
+  reload. **A failed *refresh* keeps the reading we already have** (a 502 on re-open leaves
+  both rows on screen) while a failed *first* read is still null — *"possibly a minute
+  old"* and *"we have nothing"* are different claims. A **generation** guards it, not a
+  per-call flag, because the mount read and an on-open refresh can be in flight together.
+- ⚠ **AND A MARK THAT RODE A NAVIGATION WAS CANCELLED ON UNLOAD.** Outside a shell those
+  links are a real document navigation and the POST started in the same tick does not
+  survive it — so the row the member had just opened stayed unread and the badge went on
+  claiming it. `keepalive: true` on link-triggered marks only; **`Mark all` deliberately
+  does not take it**, since it is pressed inside an open panel that navigates nowhere.
+- ⚠ **AND A GUARD OF MINE WAS READING 44 CHARACTERS.** `grab()` counted braces from
+  `function NAME(`, so a **destructured parameter** — `function DashInbox({ signedIn })` —
+  opened and closed the count on its own and it returned the signature. Every assertion
+  made against that string was vacuously true, and a mutation putting a second `fetch`
+  back inside the component **survived**. It skips the parameter list now and **asserts it
+  got a body**. *A guard that reports a pass is a broken instrument until the mutation is
+  proven to have landed* — and this time the mutation landed while the guard read
+  somewhere else entirely.
+- ⚠ **AND FIVE MORE OF MY OWN GUARDS FAILED THE CORRECT FIX**, which is the class this
+  file keeps paying for. Three pinned spellings the refactor moved (`setFeed(undefined)`
+  and `const mark =`, both lifted into the hook, and one exact JSX spelling of the mount —
+  so adding the second render site, *the whole point of the change*, failed a test about
+  module layout). Two more were regexes that **cannot delimit a JSX opening tag**: `[^>]*`
+  and then a lazy `[\s\S]*?>` both stop at the `>` inside `=>`, the second matching
+  exactly `<a key={n.id} href={href} onClick={() =>`. All re-anchored on invariants or on
+  a terminator unique to the element.
+- **Verified:** `npm test` **3052/3052** · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **21/21 mutations killed across two rounds**, sanity green at both
+  ends · the header re-measured in Chromium at **320 · 360 · 390 · 700 · 900 · 1024 ·
+  1200 · 1440** (one visible bell, the panel inside both gutters, no horizontal overflow)
+  · and the five panel states plus the two new ones driven end to end, zero page errors
+  throughout. No migration.
 ### 2026-09-10 — R13's own review round: a zero that was never measured, in five more places
 
 - **CodeRabbit on #2028, and it found exactly the failure mode the PR was opened to fix,

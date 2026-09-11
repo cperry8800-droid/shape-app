@@ -340,27 +340,44 @@ function useDashInboxFeed(signedIn) {
   // undefined = not read yet · null = the read FAILED · an object = read
   const [feed, setFeed] = React.useState(undefined);
   const [busy, setBusy] = React.useState(false);
+  // ⚠ A GENERATION, NOT A PER-CALL FLAG, because the mount read and an on-open refresh
+  // can be in flight together and only the newest of them may write.
+  const genRef = React.useRef(0);
 
-  React.useEffect(() => {
-    if (!signedIn) { setFeed(undefined); return undefined; }
-    let on = true;
-    fetch("/api/notifications", { credentials: "same-origin", cache: "no-store" })
+  const load = React.useCallback((keepOnFail) => {
+    const gen = ++genRef.current;
+    return fetch("/api/notifications", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
-      .then((j) => { if (on) setFeed(dashInboxShape(j)); });
-    return () => { on = false; };
-  }, [signedIn]);
+      .then((j) => {
+        if (gen !== genRef.current) return;
+        const next = dashInboxShape(j);
+        // ⚠ A FAILED *REFRESH* KEEPS THE READING WE ALREADY HAVE; a failed FIRST read is
+        // null. "This list may be a minute old" and "we have nothing at all" are
+        // different claims, and discarding a panel the member is looking at because a
+        // refresh timed out is the worse of the two. A first read has nothing to keep.
+        if (next === null && keepOnFail) return;
+        setFeed(next);
+      });
+  }, []);
+
+  React.useEffect(() => {
+    // The generation bump is what makes signing out cancel a read still in flight —
+    // otherwise the previous account's notifications land in the panel after the reset.
+    if (!signedIn) { genRef.current++; setFeed(undefined); return undefined; }
+    load(false);
+  }, [signedIn, load]);
 
   // ⚠ OPTIMISTIC, WITH A ROLLBACK, and the rollback is the part that matters: a bell
   // that clears itself on a write that failed tells a member they have seen something
   // they have not, and the row is gone from the list to prove it.
-  const mark = (body, applyLocal) => {
+  const mark = (body, applyLocal, keepalive) => {
     if (!feed || busy) return;
     const before = feed;
     setFeed(applyLocal(feed));
     setBusy(true);
     fetch("/api/notifications", {
-      method: "POST", credentials: "same-origin",
+      method: "POST", credentials: "same-origin", keepalive: !!keepalive,
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     })
       .then((r) => { if (!r.ok) setFeed(before); })
@@ -369,11 +386,22 @@ function useDashInboxFeed(signedIn) {
   };
   return {
     feed: feed, busy: busy,
+    // ⚠ REFRESHED WHEN THE PANEL OPENS. The read ran once per header mount, so a
+    // notification arriving while a member stayed on one dashboard tab never reached the
+    // badge until they reloaded — and a dashboard is a page people leave open all day.
+    // Opening the panel is the moment they ask the question, so that is when it is asked
+    // again. Not while a mark is in flight: the reload would land on top of the
+    // optimistic paint and undo it.
+    reload: () => { if (!busy) load(true); },
     markAll: () => mark({ all: true }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 })),
-    markOne: (id) => mark({ id: id }, (f) => {
+    // ⚠ `keepalive` FOR A MARK THAT RIDES A NAVIGATION. Outside a shell these links are a
+    // real document navigation, and a POST started in the same tick is cancelled on
+    // unload — so the row the member had just opened stayed unread and the badge went on
+    // claiming it. `keepalive` decouples the request from the document's lifetime.
+    markOne: (id, keepalive) => mark({ id: id }, (f) => {
       const next = f.rows.map((r) => (r.id === id ? { ...r, read: true } : r));
       return { rows: next, unread: next.filter((r) => !r.read).length };
-    }),
+    }, keepalive),
   };
 }
 
@@ -419,6 +447,7 @@ function DashInbox({ signedIn, role, inbox }) {
   const busy = inbox.busy;
   const markAll = inbox.markAll;
   const markOne = inbox.markOne;
+  const reload = inbox.reload;
   const rows = feed && feed.rows ? feed.rows : [];
   const unread = feed ? feed.unread : 0;
 
@@ -426,7 +455,7 @@ function DashInbox({ signedIn, role, inbox }) {
   return (
     <div ref={boxRef} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((v) => { if (!v && typeof reload === "function") reload(); return !v; })}
         aria-label={unread ? unread + " unread notifications" : "Notifications"}
         aria-expanded={open}
         style={{ position: "relative", background: "transparent", border: 0, padding: "6px 8px", cursor: "pointer",
@@ -478,7 +507,7 @@ function DashInbox({ signedIn, role, inbox }) {
                 const pad = { display: "block", width: "100%", textAlign: "left", background: "transparent", border: 0,
                               borderBottom: "1px solid rgba(242,237,228,0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
                 return href ? (
-                  <a key={n.id} href={href} onClick={() => { if (!n.read) markOne(n.id); }} style={{ ...pad, cursor: "pointer" }}>{inner}</a>
+                  <a key={n.id} href={href} onClick={() => { if (!n.read) markOne(n.id, true); }} style={{ ...pad, cursor: "pointer" }}>{inner}</a>
                 ) : (
                   <div key={n.id} style={pad}>
                     {inner}
