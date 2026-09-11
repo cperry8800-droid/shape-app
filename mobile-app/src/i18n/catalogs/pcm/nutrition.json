@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Dey delete am…",
   "myRecipe.errRead": "We no fit read your own recipes now — dem still dey saved.",
   "myRecipe.servings": "How many people",
-  "myRecipe.servingsPlaceholder": "how many people e go feed"
+  "myRecipe.servingsPlaceholder": "how many people e go feed",
+  "myRecipe.deleteTitle": "You wan delete dis recipe?",
+  "myRecipe.deleteMessage": "Na your own recipe — nothing fit bring am back."
 }

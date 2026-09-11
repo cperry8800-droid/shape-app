@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Siliniyor…",
   "myRecipe.errRead": "Kendi tariflerin şu anda okunamadı — hepsi hâlâ kayıtlı.",
   "myRecipe.servings": "Kaç kişilik",
-  "myRecipe.servingsPlaceholder": "kaç kişiye yeter"
+  "myRecipe.servingsPlaceholder": "kaç kişiye yeter",
+  "myRecipe.deleteTitle": "Bu tarif silinsin mi?",
+  "myRecipe.deleteMessage": "Bu senin kendi tarifin — geri getirilemez."
 }

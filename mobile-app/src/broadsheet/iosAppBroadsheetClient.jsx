@@ -2201,12 +2201,19 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
           <button type="button" disabled={removing} onClick={async () => {
             // A member recipe is removed from the DOCUMENT, not just the pointer
             // — dropping the pointer alone would orphan the body forever.
-            // ⚠ AND THE RESULT IS READ. Signed out, offline, an unreadable row or
-            // an RLS failure all leave the document untouched; closing the screen
-            // on that would report a delete that never happened, and the Library
-            // re-derives from the document so the recipe would simply still be
-            // there. The save path in this file already works this way.
+            // ⚠ AND IT IS CONFIRMED FIRST. This body cannot be reconstructed —
+            // that is the entire premise for storing it apart from the pointer
+            // array — so a single mis-tap destroying it permanently is the one
+            // outcome this screen must not allow. bsAskConfirm fails CLOSED when
+            // no host is mounted, so the gate cannot be skipped by a race.
             if (!mineId || removing) return;
+            const okToDelete = await (window.bsAskConfirm ? window.bsAskConfirm({
+              title: tr('nutrition:myRecipe.deleteTitle', { defaultValue: 'Delete this recipe?' }),
+              name: (mine && mine.title) || item.title,
+              message: tr('nutrition:myRecipe.deleteMessage', { defaultValue: 'This is your own recipe — nothing can bring it back.' }),
+              confirmLabel: tr('nutrition:myRecipe.delete', { defaultValue: 'Delete this recipe' }),
+            }) : Promise.resolve(false));
+            if (!okToDelete) return;
             setRemoving(true);
             const res = await bsMyRecipesStore().remove(mineId).catch(() => ({ ok: false, reason: 'write-failed' }));
             setRemoving(false);

@@ -263,6 +263,50 @@ test('⚠ A REAL PASTE REACHES THE MODEL — the wrapper is unwrapped', async ()
   assert.equal(body.model, true);
 });
 
+test('⚠ THE PROMPT PUTS THE UNIT IN `n`, WHERE THE GRAMMAR AND THE SCALER READ IT', async () => {
+  // Measured on the catalog: 277 of 334 amounts carry their unit inside `n`
+  // ("3/4 cup", "6 oz", "2 cloves"), and bsScaleQty reads the unit back out of
+  // that field — so a unitless `n` scales to a unitless quantity and the mise
+  // loses its units. The first version of this rule read `"1/2 cup" stays
+  // "1/2"`, which was meant as "do not convert the fraction" and taught the
+  // model to DROP THE UNIT instead.
+  let sys = '';
+  const { mod } = await loadRoute({
+    aiResult: modelSays({ title: 'T', ingredients: [{ n: '1', m: 'x' }], steps: ['One.'] }),
+    onCall: (payload) => { sys = payload.input.find((m) => m.role === 'system').content; },
+  });
+  await mod.POST(req({ text: LONG }));
+  assert.match(sys, /unit goes in n/i);
+  assert.match(sys, /"1\/2 cup"/);
+  // ⚠ And it must NOT still instruct the model to reduce that to a bare "1/2".
+  assert.doesNotMatch(sys, /"1\/2 cup" stays "1\/2"/);
+  // The fraction rule itself survives, contrasted against a decimal rather than
+  // against the unit.
+  assert.match(sys, /never "0\.5 cup"/);
+});
+
+test('⚠ AN OVER-LENGTH PASTE IS REFUSED, NEVER TRUNCATED', async () => {
+  // A prefix usually yields a usable draft, so the client accepted it and never
+  // ran its own splitter over the full paste: the recipe's last ingredients and
+  // last steps simply disappeared with nothing saying so.
+  const { mod, calls } = await loadRoute({ aiResult: modelSays({ title: 'T', ingredients: [{ n: '1', m: 'x' }], steps: ['One.'] }) });
+  const huge = 'Ingredients\n1 cup flour\n' + 'x'.repeat(12001);
+  const body = await (await mod.POST(req({ text: huge }))).json();
+  assert.equal(body.draft, null);
+  assert.equal(body.unavailable, true);
+  assert.equal(body.reason, 'too_long');
+  // ⚠ The provider is never called at all — a refusal that still paid for the
+  // call would be the worst of both.
+  assert.equal(calls.ai, 0);
+});
+
+test('a paste just under the bound is still read', async () => {
+  const { mod, calls } = await loadRoute({ aiResult: modelSays({ title: 'T', ingredients: [{ n: '1', m: 'x' }], steps: ['One.'] }) });
+  const body = await (await mod.POST(req({ text: 'x'.repeat(11999) }))).json();
+  assert.equal(body.model, true);
+  assert.equal(calls.ai, 1);
+});
+
 test('the route is registered in the War Room', async () => {
   // RAW_ROUTES is a hand-maintained literal (the src/app/api tree is not traced
   // into the serverless bundle, so /warroom cannot walk it at runtime). It is

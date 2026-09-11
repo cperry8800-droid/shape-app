@@ -322,10 +322,16 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   assert.ok(body.length > 400, `lifted ${body.length} chars — that is a signature, not a body`);
 
   const calls = [];
-  const make = (res) => new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', `${body}; return parseRecipeText;`)(
+  // ⚠ The lifted function closes over BS_RECIPE_PASTE_MAX, so it has to be
+  // supplied — and it is read out of the SOURCE rather than retyped, or the
+  // test would keep passing after the real bound moved.
+  const boundM = backend.match(/const BS_RECIPE_PASTE_MAX = (\d+)/);
+  assert.ok(boundM, 'BS_RECIPE_PASTE_MAX is not declared in shapeBackend.js');
+  const make = (res) => new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX', `${body}; return parseRecipeText;`)(
     'https://api.example.test',
     (extra = {}) => ({ ...extra, Authorization: 'Bearer tok-123' }),
     async (url, opts) => { calls.push({ url, opts }); return res; },
+    Number(boundM[1]),
   );
 
   const ok = await make({ ok: true, json: async () => ({ draft: { title: 'T', ingredients: [{ n: '1', m: 'egg' }], steps: ['One.'] } }) })('x'.repeat(40));
@@ -347,10 +353,43 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   // real answer rather than an error state.
   assert.equal((await make({ ok: false, json: async () => ({}) })('x'.repeat(40))).ok, false);
   assert.equal((await make({ ok: true, json: async () => ({ draft: null, reason: 'no_key' }) })('x'.repeat(40))).reason, 'no_key');
-  const thrower = new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', `${body}; return parseRecipeText;`)(
-    '', () => ({}), async () => { throw new Error('offline'); },
+  const thrower = new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX', `${body}; return parseRecipeText;`)(
+    '', () => ({}), async () => { throw new Error('offline'); }, Number(boundM[1]),
   );
   const off = await thrower('x'.repeat(40));
   assert.equal(off.ok, false);
   assert.equal(off.draft, null);
+
+  // An over-length paste is refused before it is sent — the route refuses it
+  // too, because a client-side bound is a convenience and never the rule.
+  calls.length = 0;
+  const tooLong = await make({ ok: true, json: async () => ({}) })('x'.repeat(Number(boundM[1]) + 1));
+  assert.equal(tooLong.reason, 'too_long');
+  assert.equal(calls.length, 0);
+});
+
+// ── the delete is gated ────────────────────────────────────────────────────
+
+test('⚠ DELETING A MEMBER RECIPE IS CONFIRMED FIRST, AND THE ORDER IS ASK → BAIL → REMOVE', () => {
+  // The body cannot be reconstructed — that is the whole premise for storing it
+  // apart from the pointer array — so a single mis-tap destroying it permanently
+  // is the one outcome this screen must not allow. bsAskConfirm fails CLOSED
+  // when no host is mounted, so the gate cannot be skipped by a race.
+  const src = readFileSync(SRC, 'utf8');
+  const from = src.indexOf('A member recipe is removed from the DOCUMENT');
+  assert.ok(from > 0, 'the delete handler moved — this guard is reading nothing');
+  const to = src.indexOf('bsMyRecipesPing();', from);
+  assert.ok(to > from, 'could not find the end of the delete handler');
+  const handler = src.slice(from, to);
+  assert.ok(handler.length > 400, `lifted ${handler.length} chars — that is not the handler`);
+
+  const askAt = handler.indexOf('bsAskConfirm');
+  const bailAt = handler.indexOf('if (!okToDelete) return;');
+  const removeAt = handler.indexOf('bsMyRecipesStore().remove(');
+  assert.ok(askAt >= 0, 'the delete handler must ask before destroying anything');
+  assert.ok(bailAt > askAt, 'a refusal must return before the remove');
+  assert.ok(removeAt > bailAt, `order is ask(${askAt}) → bail(${bailAt}) → remove(${removeAt})`);
+  // And the pointer write is behind the same gate, or a refused delete would
+  // still drop the row from the Library and orphan the body.
+  assert.ok(handler.indexOf('bsLibWrite(') > bailAt, 'the pointer write must also sit behind the confirm');
 });

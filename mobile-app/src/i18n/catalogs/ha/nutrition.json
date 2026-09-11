@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Ana gogewa…",
   "myRecipe.errRead": "An kasa karanta girke-girkenka yanzu — har yanzu suna ajiye.",
   "myRecipe.servings": "Adadi",
-  "myRecipe.servingsPlaceholder": "mutane nawa"
+  "myRecipe.servingsPlaceholder": "mutane nawa",
+  "myRecipe.deleteTitle": "A goge wannan girkin?",
+  "myRecipe.deleteMessage": "Girkinka ne — ba abin da zai iya dawo da shi."
 }

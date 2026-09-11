@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Wird gelöscht…",
   "myRecipe.errRead": "Deine eigenen Rezepte konnten gerade nicht geladen werden — gespeichert sind sie weiterhin.",
   "myRecipe.servings": "Portionen",
-  "myRecipe.servingsPlaceholder": "für wie viele"
+  "myRecipe.servingsPlaceholder": "für wie viele",
+  "myRecipe.deleteTitle": "Dieses Rezept löschen?",
+  "myRecipe.deleteMessage": "Das ist dein eigenes Rezept — es lässt sich nicht wiederherstellen."
 }

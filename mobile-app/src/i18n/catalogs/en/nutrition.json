@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Deleting…",
   "myRecipe.errRead": "Couldn't read your own recipes just now — they're still saved.",
   "myRecipe.servings": "Serves",
-  "myRecipe.servingsPlaceholder": "how many it feeds"
+  "myRecipe.servingsPlaceholder": "how many it feeds",
+  "myRecipe.deleteTitle": "Delete this recipe?",
+  "myRecipe.deleteMessage": "This is your own recipe — nothing can bring it back."
 }

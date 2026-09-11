@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Suppression…",
   "myRecipe.errRead": "Impossible de lire vos propres recettes pour le moment — elles restent enregistrées.",
   "myRecipe.servings": "Portions",
-  "myRecipe.servingsPlaceholder": "pour combien de personnes"
+  "myRecipe.servingsPlaceholder": "pour combien de personnes",
+  "myRecipe.deleteTitle": "Supprimer cette recette ?",
+  "myRecipe.deleteMessage": "C’est votre propre recette — rien ne pourra la récupérer."
 }

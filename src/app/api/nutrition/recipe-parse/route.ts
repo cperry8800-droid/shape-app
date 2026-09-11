@@ -40,7 +40,15 @@ const SYSTEM = [
   '1. Carry the source\'s OWN words for each step. Do not reword, merge, summarise or add flourish.',
   '2. Never invent a quantity. If an ingredient states no amount, use "" for n.',
   '3. Never invent a step, an ingredient, a serving count or a title.',
-  '4. Emit ingredients as {"n": quantity-as-written, "m": ingredient name}. "1/2 cup" stays "1/2", not 0.5.',
+  // ⚠ THE UNIT BELONGS IN `n`, WITH THE NUMBER. Measured on the catalog, 277 of
+  // 334 amounts are written that way ("3/4 cup", "6 oz", "2 cloves"), and
+  // bsScaleQty reads the unit back out of that field — so a unitless `n` scales
+  // to a unitless quantity and the member's mise loses its units entirely. The
+  // first version of this rule used "1/2 cup" -> "1/2" to mean "do not convert
+  // the fraction", and taught exactly the wrong lesson.
+  '4. Emit ingredients as {"n": amount INCLUDING its unit, "m": the ingredient name}.',
+  '   "1/2 cup flour" is {"n": "1/2 cup", "m": "flour"} — the unit goes in n, never in m.',
+  '   Keep the amount as written: "1/2 cup", never "0.5 cup". An amount with no unit is fine ("2" eggs).',
   '5. Steps are plain strings. Never emit timing, station or passive/hands-off metadata of any kind.',
   '6. If the text is not a recipe, return empty arrays rather than guessing.',
   'Return ONLY JSON: {"title": string, "servings": number|null, "ingredients": [{"n": string, "m": string}], "steps": [string]}',
@@ -101,8 +109,15 @@ export async function POST(request: Request) {
   // structural split. Its 400/413 responses are returned rather than swallowed.
   const parsed = await readJson<{ text?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
-  const text = String(parsed.data?.text ?? '').trim().slice(0, MAX_TEXT);
+  const text = String(parsed.data?.text ?? '').trim();
   if (text.length < 20) return NextResponse.json({ draft: null, unavailable: true, reason: 'too_short' });
+  // ⚠ REFUSED, NOT TRUNCATED. Slicing to MAX_TEXT sent the model a PREFIX, and a
+  // prefix usually yields a usable draft — so the client accepted it and never
+  // ran its own splitter over the full paste. The recipe's last ingredients and
+  // last steps simply disappeared, with nothing on screen saying so. The local
+  // split is line-based and has no length limit, so handing this back is
+  // strictly better than a silent half-read.
+  if (text.length > MAX_TEXT) return NextResponse.json({ draft: null, unavailable: true, reason: 'too_long' });
 
   if (!hasOpenAIKey()) return NextResponse.json({ draft: null, unavailable: true, reason: 'no_key' });
 

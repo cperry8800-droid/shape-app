@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Eliminazione…",
   "myRecipe.errRead": "Non è stato possibile leggere le tue ricette ora — restano salvate.",
   "myRecipe.servings": "Porzioni",
-  "myRecipe.servingsPlaceholder": "per quante persone"
+  "myRecipe.servingsPlaceholder": "per quante persone",
+  "myRecipe.deleteTitle": "Eliminare questa ricetta?",
+  "myRecipe.deleteMessage": "È la tua ricetta — non si può recuperare."
 }

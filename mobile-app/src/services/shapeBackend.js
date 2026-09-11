@@ -4625,9 +4625,15 @@ window.ShapeFoodSearch = { search: searchFoods, barcode: lookupFoodBarcode };
 //
 // Resolves { ok, draft, reason } — it never throws, because the caller's
 // fallback is a real answer rather than an error state.
+const BS_RECIPE_PASTE_MAX = 12000;   // must match MAX_TEXT in the route
 async function parseRecipeText(text, { signal } = {}) {
   const body = String(text || '');
   if (body.trim().length < 20) return { ok: false, draft: null, reason: 'too_short' };
+  // The route refuses an over-length paste rather than truncating it (a prefix
+  // yields a draft that silently loses the tail). Short-circuiting here as well
+  // saves sending a paste that can only be refused; the route still enforces it,
+  // because a client-side bound is a convenience, never the rule.
+  if (body.length > BS_RECIPE_PASTE_MAX) return { ok: false, draft: null, reason: 'too_long' };
   try {
     const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/recipe-parse`, {
       method: 'POST',

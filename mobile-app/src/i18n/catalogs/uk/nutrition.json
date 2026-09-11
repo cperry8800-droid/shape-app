@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Видалення…",
   "myRecipe.errRead": "Зараз не вдалося прочитати ваші рецепти — вони збережені.",
   "myRecipe.servings": "Порцій",
-  "myRecipe.servingsPlaceholder": "на скільки осіб"
+  "myRecipe.servingsPlaceholder": "на скільки осіб",
+  "myRecipe.deleteTitle": "Видалити цей рецепт?",
+  "myRecipe.deleteMessage": "Це ваш власний рецепт — відновити його не вийде."
 }

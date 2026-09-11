@@ -319,5 +319,7 @@
   "myRecipe.deleting": "Menghapus…",
   "myRecipe.errRead": "Resepmu belum bisa dibaca — semuanya masih tersimpan.",
   "myRecipe.servings": "Porsi",
-  "myRecipe.servingsPlaceholder": "untuk berapa orang"
+  "myRecipe.servingsPlaceholder": "untuk berapa orang",
+  "myRecipe.deleteTitle": "Hapus resep ini?",
+  "myRecipe.deleteMessage": "Ini resepmu sendiri — tidak bisa dikembalikan."
 }
