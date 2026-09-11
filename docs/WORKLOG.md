@@ -182,6 +182,13 @@ changelog whenever something ships.
   Codex advises; it does not close the gate — the 2026-08-26 post-mortem below explains
   why naming a reviewer IN the gate has now broken `/console` twice, and that lesson is
   not reopened by this ruling.
+  ⚠ **AND CODERABBIT IS OUT — owner, 2026-09-11: *"dont run coderabbit moving forward"*.**
+  Never trigger it: no `@coderabbitai full review`, no waiting on it, no reading its absence as
+  anything. **This retires the 2026-08-19 authorisation** recorded further down, and everything
+  under it describing how to trigger, re-trigger, pay for or read a CodeRabbit verdict is now
+  HISTORY — kept only for the two rules that were never about CodeRabbit (*a verdict is only
+  about the head it names*, *the absence of a record is never a pass*). The review layers are
+  `/code-review` and the Codex trigger; the merge gate is unchanged.
   ⚠ **AND AS OF 2026-09-11 CODEX IS REFUSING: *"You have reached your Codex usage limits for
   code reviews."*** Measured on #2033, twice — the bot answers that within seconds of an
   `@codex review` comment, on two different heads. **This does not reverse the owner's
