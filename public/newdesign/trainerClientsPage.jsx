@@ -77,8 +77,17 @@ function TrainerClientsPage() {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(242,237,228,0.5)" strokeWidth="2" style={{ flex: "none" }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${clients.length} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", outline: "none", color: INK, fontFamily: sans, fontSize: 14 }} />
             </div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
               {FILTERS.map(([k, l, warn]) => <button key={k} onClick={() => setFlt(k)} style={fltStyle(flt === k, warn)}>{l}</button>)}
+              {/* ⚠ THE EXPORT IS THE WHOLE ROSTER, NOT THE FILTERED VIEW, AND IT SAYS SO.
+                  A file that silently held whichever filter happened to be on is how a
+                  coach hands their accountant three of their clients — the CSV carries a
+                  Status column, so filtering belongs in the spreadsheet. */}
+              <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {source === "live" && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.4)" }}>ALL {clients.length}</span>}
+                <DashExportButton kind="roster" label="your roster" live={source === "live"}
+                  build={() => window.DashExport.rosterCsv(clients, new Date())} />
+              </span>
             </div>
             {loading
               ? <div style={{ padding: "34px 4px", textAlign: "center", color: "rgba(242,237,228,0.55)", fontSize: 13.5 }}>Loading roster…</div>

@@ -620,4 +620,63 @@ function RecentPayouts({ rows }) {
   );
 }
 
-Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashSidebar, Sparkline, Card, SectionTitle, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard });
+// ── CSV EXPORT (review 2026-09-09, R12) ───────────────────────────────────
+// One button for both exports, here rather than on either page, because the
+// download mechanics (Blob · object URL · revoke) are the part that is easy to get
+// subtly wrong and there is no reason to have two of them.
+//
+// ⚠ IT IS DISABLED IN THE SIGNED-OUT PREVIEW, AND THAT IS AN HONEST-DATA CALL RATHER
+// THAN A STYLE ONE. Everything else in the preview is labelled demo by the band above
+// it; a CSV leaves the page and loses every label it had. A file called
+// `roster-2026-09-10.csv` full of Marcus T. and Priya S., opened in a spreadsheet three
+// weeks later, has nothing left on it that says the people are invented — and CSVs have
+// no comment syntax to put it back. The control still renders, so the feature is
+// discoverable, and it says why it is off.
+function DashExportButton({ kind, build, live, label }) {
+  const [err, setErr] = React.useState("");
+  const on = !!live;
+  const go = () => {
+    setErr("");
+    try {
+      const text = build();
+      if (typeof text !== "string" || !text) { setErr("Nothing to export yet."); return; }
+      const E = window.DashExport;
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = E ? E.fileName(kind, new Date()) : kind + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Revoked on the next tick, not immediately: Safari has not started the
+      // download when click() returns, and revoking under it cancels the save.
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    } catch (e) {
+      // ⚠ SAID OUT LOUD RATHER THAN SWALLOWED. A button that does nothing when
+      // tapped is the worst of the three outcomes; a coach who is told the export
+      // failed can try again or say so.
+      setErr("Export failed — nothing was saved.");
+    }
+  };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <button
+        onClick={on ? go : undefined}
+        disabled={!on}
+        title={on ? "Download a CSV of " + (label || kind) : "Export is live-only — this preview's people are invented"}
+        style={{
+          background: "transparent", color: on ? "rgba(242,237,228,0.75)" : "rgba(242,237,228,0.32)",
+          border: "1px solid " + (on ? "rgba(242,237,228,0.18)" : "rgba(242,237,228,0.08)"),
+          padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+          cursor: on ? "pointer" : "not-allowed", minHeight: 30,
+        }}
+      >↓ Export CSV</button>
+      {!on && <span style={{ fontSize: 10.5, color: "rgba(242,237,228,0.4)" }}>live only</span>}
+      {err && <span style={{ fontSize: 10.5, color: "#d8a23a" }}>{err}</span>}
+    </span>
+  );
+}
+
+Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashSidebar, Sparkline, Card, SectionTitle, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });

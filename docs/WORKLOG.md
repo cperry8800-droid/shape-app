@@ -580,6 +580,118 @@ Append new entries at the top, under this note.
   time window (7d · 30d · 90d), pinning clients to Today's pulse, and the drawer's sections
   per lens.
 
+### 2026-09-10 — R12: the roster and the revenue leave as a spreadsheet, and a column called net stops being partly gross
+
+- **R12 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
+  Nothing on the dashboard produced a file. Two CSVs now do: the roster (name · status ·
+  MRR · platform fee · net · origin · joined · tenure · last session) from the Clients
+  pages, and monthly revenue from Business. `public/newdesign/dashExport.js` is a pure,
+  `require()`-able module in the `dashSignals.js` mould, so every rule below is **driven**
+  rather than eyeballed. **The printable statement is deliberately NOT shipped** — the
+  review gates it on payouts being live, and Business still reads *"connects when payouts
+  go live"*.
+- ⚠ **EVERY RULE HERE EXISTS BECAUSE A SPREADSHEET IS READ WITHOUT THE PAGE AROUND IT.**
+  On screen an empty cell sits under a header with a legend beside it; in a file opened
+  three weeks later by someone's accountant it is a number or it is nothing, and there is
+  no tooltip. So an unreadable subscriptions read is an **empty cell, never `0.00`**; a
+  measured zero **is** `0.00`; money is major units with no symbol (a symbol makes the
+  column *text* in every spreadsheet); dates are ISO, the only format that sorts.
+- ⚠ **NET IS ONLY WRITTEN WHEN BOTH HALVES ARE KNOWN.** Treating an absent fee as zero
+  publishes **gross as net** in the one column a coach pastes into their books — and a
+  pre-migration row has no `fee_bps` at all. A BYO client genuinely paying 0% is a
+  different thing and *is* written.
+- ⚠ **AND "TOTAL NET" WAS NET PLUS GROSS IN THE FIRST CUT.** It summed `mrrNetCents +
+  oneTimeCents`: subscription revenue **after** the platform fee plus one-time revenue
+  **before** it. `buildTrajectory` carries `oneTimeNetCents` for exactly this reason and
+  the mistake was mine for not reading it. Gross and net are separate columns on both
+  halves now. *A column called net that is partly gross is a number a coach pays tax on.*
+- ⚠ **AND THE EXPORT WAS READING A FIELD THAT DOES NOT EXIST, WHILE MY FIXTURE INVENTED
+  THE SAME NAME.** The series emits `mrrGrossCents`; the export read `w.mrrCents`, so
+  every MRR cell came out **silently empty** — and the hand-written fixture that "proved"
+  it right had made up the identical field, so the test agreed with the bug. The guard
+  drives the real `buildTrajectory` now and asserts the key set. *A fixture that invents a
+  field tests the test* — the same lesson this file records against the trajectory's
+  `canceled_at` fixtures, paid for again in the consumer.
+- ⚠ **A HEADCOUNT IS THE LAST WEEK OF THE MONTH; JOINS AND DEPARTURES SUM.** The
+  trajectory is ISO-week buckets and an accountant works in months, so the re-bucketing is
+  deliberate — but summing a headcount across four weeks reports **four times the
+  practice**. Two different kinds of number live in one table and only one of them adds.
+- ⚠ **AND `buildTrajectory` RETURNS A FIXED 104-WEEK WINDOW, so a verbatim export gave a
+  coach nearly two years of `0.00` before their first client.** In a spreadsheet that is
+  not an absence, it is the claim that they traded in October 2024 and earned nothing.
+  Leading empty months are dropped from the first month with any activity; **interior**
+  empty months are kept, because those are real. The same rule as the score ledger's
+  zero-fill, arrived at from the other direction. A coach with nothing at all gets a header
+  row and no claims under it.
+- ⚠ **CSV INJECTION IS THE ONE SECURITY BUG AN EXPORT HAS.** Excel, Sheets and
+  LibreOffice all **evaluate** a cell beginning `=` `+` `-` `@` as a formula on open, and a
+  client is free to be called `=Marcus`. Every such cell is prefixed with an apostrophe
+  **inside** the RFC 4180 quotes, and the file carries a UTF-8 **BOM** and **CRLF** —
+  without them Excel on Windows reads the whole file as one line and renders "Zoë" as
+  mojibake, which is what a coach reports as *"the export is broken"*.
+- ⚠ **THE BUTTON IS OFF IN THE SIGNED-OUT PREVIEW, AND THAT IS AN HONEST-DATA CALL.**
+  Everything else in the preview is labelled demo by the band above it; **a CSV leaves the
+  page and loses every label it had**, and CSV has no comment syntax to put one back. A
+  file called `roster-2026-09-10.csv` full of invented people, opened in a spreadsheet
+  three weeks later, has nothing on it that says so. The control still renders, so the
+  feature is discoverable, and it says *live only*. On Business it is also off when the
+  trajectory **could not be read** — a header row with nothing under it reads as "the
+  practice earned nothing" rather than as "we could not read it".
+- ⚠ **AND THE EXPORT IS THE WHOLE ROSTER, NOT THE FILTERED VIEW, WITH THE COUNT BESIDE
+  IT.** A file that silently held whichever filter happened to be on is how a coach hands
+  their accountant three of their clients. The CSV carries a Status column; filtering
+  belongs in the spreadsheet.
+- **The route had to grow two fields.** `coach-roster.ts` computed neither the fee nor the
+  origin, though both are stamped on the `subscriptions` rows it already reads. `feeCents`
+  is summed from each row's **stored** `fee_bps` — never re-derived from the current rate,
+  so a future rate change cannot rewrite what a coach was charged last month, which is the
+  whole reason the pair is stamped. `origin` follows the client's **earliest** row (the
+  acquisition), tracked on its own timestamp so a row with no `created_at` cannot claim it
+  by arriving first. The select moved to `'*'` for the migration-safety reason the
+  analytics route documents: naming the columns **errors the whole query** on a
+  pre-migration DB, and a failed read renders "Not shared" on every row.
+- ⚠ **AN ORIGIN THIS BUILD DOES NOT RECOGNISE IS PASSED THROUGH, NEVER RELABELLED.** A
+  stamped origin is a fact about the record; folding an unknown value into "Marketplace"
+  would make the accounting export lie about what happened.
+- ⚠ **AND A SIBLING GUARD BROKE ON THE CORRECT FIX — AGAIN.** `dash-roster-columns`
+  pinned the **single line** containing `payments: { mrrCents:`, so adding two fields and
+  wrapping the object over four lines **failed a test about something else entirely**.
+  Re-anchored on the block, extended to cover every money leg, and both operators
+  re-proven by mutation. *A guard that pins a layout pins whatever that layout is wrong
+  about.*
+- **Verified:** `npm test` **2883/2883** · `tsc --noEmit` 0 · JSX parse on all five changed
+  modules · `dashExport.js` `require()`s clean in Node · the newdesign precompile check ·
+  **28/28 mutations killed, sanity green at both ends** · and the whole thing driven in
+  Chromium in both states: the preview's control is **present, disabled, says "live only",
+  and a forced click produces zero files**; signed in, a real `roster-2026-09-10.csv`
+  downloads with a BOM, `"'=Bo, R."` neutralised and quoted, `0.00` for the measured zero
+  and **empty cells** for the unreadable client. Zero page errors. No migration.
+- ⚠ **AND THE REVIEW ROUND FOUND A DATABASE ERROR TURNING INTO A FINANCIAL CLAIM.** Both
+  analytics routes build the trajectory with `purchases: purchasesRes.data ?? []` — so an
+  RLS change, a schema drift or a timeout produces a series of honest-looking **zeroes**,
+  and the export wrote `0.00` into a coach's accounting file as the statement that no
+  one-time revenue existed. **The routes already knew**: each logs *"one-time revenue
+  omitted"*. The payload never said so, and a consumer cannot tell *none* from *not read*
+  without being told. `oneTimeUnknown` rides the trajectory now; the one-time columns
+  **and Total net** go empty, and the subscription half is still exported — a coach doing
+  their books should not lose their MRR because one leg was unreadable.
+- ⚠ **AND THE LEADING-MONTH TRIM HAD TO STOP WEIGHING THAT LEG TOO.** With one-time
+  unknown, a month whose only activity was a purchase is indistinguishable from an empty
+  one — so the trim leans on the legs that are known and keeps a month it is unsure of.
+  *A fix that introduces an unknown owes every consumer of that value a decision.*
+- ⚠ **AND THE ORIGIN WAS NON-DETERMINISTIC IN TWO WAYS, ONE OF WHICH CONTRADICTED MY OWN
+  COMMENT.** An `else if (!e.origin && !e.originAt)` arm handed the acquisition to whichever
+  **undated** row PostgREST returned first — the exact opposite of the sentence above it
+  promising that an undated row cannot claim it. And two rows created in the same
+  millisecond resolved to whichever the database happened to return first, a value that
+  can change between two loads of the same page. An undated-only client now has **no**
+  origin (an empty cell, not a guess), and ties break on the row id.
+- ⚠ **AND ONE INVISIBLE CHARACTER GOT INTO THE SOURCE.** The BOM was written as a
+  **literal U+FEFF** in the middle of `dashExport.js` rather than as the escape `"\ufeff"`.
+  It parsed and it worked — and it is exactly the kind of thing an editor or a formatter
+  silently eats, after which every export opens as mojibake with nothing in the diff to
+  explain it. Made explicit, and the mutation that removes it is proven to fail the guard.
+
 ### 2026-09-10 — R13's own review round: a zero that was never measured, in five more places
 
 - **CodeRabbit on #2028, and it found exactly the failure mode the PR was opened to fix,
