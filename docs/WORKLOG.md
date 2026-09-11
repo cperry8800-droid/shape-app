@@ -656,6 +656,47 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — Session details, three ways: a concept board, and two defects in the data path behind the page
+
+- **Records only — a design review with previews, not a build.** Owner: *"thoughts on redesigning the
+  session details page … match the new 'wall' design … see if there are any other metrics we are
+  missing"* → *"3 new design options … keep the same functionality"* → *"i want to see previews"* →
+  *"keep same details that are already there"*. The review is
+  [`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md); the previews are a
+  live concept board — https://claude.ai/code/artifact/084a0ed6-04f8-423d-9f60-5025641c275e — with
+  **A · The Plate Stack** (the Wall record unfolded, a plate per section), **B · The Record Sheet** (one
+  tall plate, the ledger inside, station ticks, a sticky jump index), **C · The Instrument Board** (six
+  tiles up top, tables and a sticky action bar below), each rendered phone-sized for the deadlift PR
+  and the long run from the app's own demo records; plus a **Metrics** gap table and a **Carry-over**
+  checklist proving every existing section and control has a place in all three. **Recommended: B**,
+  the smallest build and the only one that adds navigation to a four-screen page. **No code changed,
+  no migration, no PR.**
+- ⚠ **AN IN-APP SESSION NEVER GETS A HEART-RATE CHART, AND THE SAMPLES ARE ALREADY STORED.** The live
+  session writes every strap sample to `workout_sensor_samples` (`shapeBackend.js:2791`), then
+  publishes a post carrying only `averageHeartRate` / `maxHeartRate` — no `hrTrace`, no zones — so the
+  Heart-rate section of Session details renders only for WHOOP and Strava imports. A Shape session with
+  a strap shows two numbers and no trace. **Registered, not fixed** (a task suggestion was queued).
+- ⚠ **AND LIVE SET ROWS LOSE THEIR RPE ON THE WAY TO THE PAGE.** `setLogs[].rpe` is stamped on the post,
+  but `bsBuildBreakdown` (`iosAppBroadsheetClient.jsx:13231`) writes `setDurationSeconds` into the
+  row's note column, so the RPE dial the demo cards draw never appears on a real set. Same status.
+- **The metrics half, read from the write paths:** prescribed vs lifted, rest before each set, session
+  RPE + feel, start time, points earned, moving vs elapsed, that morning's recovery/HRV/sleep and the
+  nearest weigh-in are all **captured today and never shown**; e1RM, per-exercise subtotals, the
+  negative-split index, aerobic decoupling and estimated zones are **derivable**; FTP, a max-HR
+  setting, weather, gear, a pre-session check, HR recovery, swim laps and bar speed **need capture**.
+  ⚠ Strava's `weighted_average_watts` is typed in the sync route and never stored — one field between
+  the page and normalized power.
+- ⚠ **THE ONE LOOK FOUND A SELECTOR COLLISION, NOT A LAYOUT BUG.** The section-head chip inside a plate
+  rendered full-width above its label; the chip's border class `b` matched the plate's own `.pl .b`
+  layer rule and went `position:absolute; inset:0`. Fixed by scoping the plate layers to direct
+  children and renaming the class — and the same pass caught the neutral context plate being handed an
+  `rgba()` colour through the hex-alpha helper. *A class name is a selector, and a short one is a
+  collision waiting for a second author.*
+- **Verified:** rendered in Chromium at 1280px and 400px, zero page errors, no horizontal overflow; after
+  the fix pass a DOM check confirmed every chip on its label's line, no truncated sub-label and every
+  plate layer painting. Fonts fall back locally (the proxy blocks Google Fonts) and load on the
+  published page.
+
 ### 2026-09-11 — Photo import goes live: vision stops riding the text model's pin, and a security finding that does not survive the repo
 
 - **Owner: *"yes i want the photo import live"*.** The feature merged in #2040; what stood
