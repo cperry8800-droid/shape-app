@@ -2477,6 +2477,12 @@ function communityPostFromRow(row) {
     coach: typeof metrics.coach === 'string' ? metrics.coach : '',
     program: typeof metrics.program === 'string' ? metrics.program : '',
     delta: typeof metrics.delta === 'string' ? metrics.delta : '',
+    // ⚠ THE EXPLICIT PR MARKER. `delta` only exists against a PRIOR best, so a
+    // member's FIRST accepted record for a lift carries none — and every PR
+    // consumer on the card read `delta` alone, so that post dropped out of the
+    // PR tab and drew as an ordinary load. Stamped by the Post-a-PR sheet after
+    // the server accepts, so it reports a verdict rather than an intention.
+    pr: metrics.pr === true,
     // Coach co-sign: stamped by post_coach_cosign when one of the author's own
     // coaches reacts ({name, role}); null until that happens. Drives the card badge.
     cosign: (metrics.cosign && typeof metrics.cosign === 'object' && metrics.cosign.name)
@@ -3630,6 +3636,15 @@ async function resolveAuthorCoachProgram() {
   } catch (e) { return { coach: '', program: '' }; }
 }
 
+// Pounds → kilograms. Declared above every consumer rather than beside the
+// weigh-in helpers where it used to live: `createCommunityPost`'s PR delta is
+// now the first reference in file order, and a module-scope `const` is not
+// hoisted — that read is safe only because nothing calls the function during
+// module evaluation, which is a fact about the call graph and not about this
+// line. One spelling, above everything that reads it, is the version that stays
+// true if somebody later moves a call.
+const LB_TO_KG_BACKEND = 0.45359237;
+
 async function createCommunityPost({
   title,
   status = '',
@@ -3648,6 +3663,8 @@ async function createCommunityPost({
   skipAward = false,   // deliberate share that still must not earn (meal
                        // shares, spec 2026-07-12) — NOT autoShare: auto-post
                        // semantics (dedup windows, tightening) never apply
+  skipPRAnnounce = false, // the CALLER announces the PR itself, because it
+                       // needs the verdict. See the announce block below.
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before posting to the community feed.');
   const cleanPhoto = String(photoUrl || '').trim();
@@ -3684,15 +3701,28 @@ async function createCommunityPost({
   const _unit = (mergedMetrics.load && /kg/i.test(String(mergedMetrics.load))) ? 'kg' : 'lb';
   if (supabase && state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
     try {
+      // ⚠ BOTH SIDES ARE NORMALISED BEFORE THEY ARE COMPARED OR SUBTRACTED, and
+      // the row's own `unit` is what makes that possible — `pr_wall_posts` keeps
+      // a unit PER ROW, so the raw digits are two different quantities. Read
+      // raw, 230 lb after a 100 kg record stamps "+130 lb" on a gain that is
+      // really about 9.5, and 100 kg after 200 lb stamps nothing at all because
+      // 100 is not greater than 200 — and this delta is what the Wall card
+      // PRINTS, so it is a wrong number on the member's own record rather than
+      // a missing one. Pounds is the canonical unit here, matching the RPC and
+      // both lift readers of 2026-09-10; the gain is then expressed in the unit
+      // the post itself carries, or the figure and its unit disagree.
       const { data: prev } = await supabase
-        .from('pr_wall_posts').select('best_value, posted_at')
+        .from('pr_wall_posts').select('best_value, unit, posted_at')
         .eq('user_id', state.user.id).eq('lift_key', _lift.toLowerCase()).maybeSingle();
-      const prevBest = (prev && Number.isFinite(Number(prev.best_value))) ? Number(prev.best_value) : null;
-      if (prevBest != null && _loadNum > prevBest) {
-        const gain = Math.round((_loadNum - prevBest) * 10) / 10;
+      const prevLb = prev ? _liftToLb(prev.best_value, prev.unit || 'lb') : null;
+      const newLb = _liftToLb(_loadNum, _unit);
+      if (prevLb != null && newLb != null && newLb > prevLb) {
+        const gainLb = newLb - prevLb;
+        const gain = Math.round((_unit === 'kg' ? gainLb * LB_TO_KG_BACKEND : gainLb) * 10) / 10;
         let when = '';
         try { const d = prev.posted_at ? new Date(prev.posted_at) : null; if (d && !isNaN(d)) when = ` on ${d.toLocaleDateString([], { month: 'short' })} best`; } catch (e) {}
-        mergedMetrics.delta = `+${gain} ${_unit}${when}`;
+        // A real gain that rounds away at one decimal is not stamped as "+0".
+        if (gain > 0) mergedMetrics.delta = `+${gain} ${_unit}${when}`;
       }
     } catch (e) { /* delta is best-effort */ }
   }
@@ -3748,7 +3778,16 @@ async function createCommunityPost({
   // failed insert would have advanced the ledger for a record that was never
   // posted. The RPC re-gates on public + genuine-best, so it stays safe to
   // over-call. Best-effort: never blocks or fails the post.
-  if (state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
+  //
+  // ⚠ `skipPRAnnounce` IS FOR A CALLER THAT NEEDS THE VERDICT, NOT A WAY TO
+  // OPT OUT OF THE WALL. The RPC answers `not_public` / `not_a_pr`, and this
+  // call throws that answer away — which is right for an ordinary workout post
+  // (nobody asked about a record) and wrong for the Post-a-PR sheet, whose
+  // whole subject is whether the record landed. That caller announces the same
+  // record itself, with the same post id, and reports back what it is told.
+  // Announcing twice would be harmless but would spend a second round trip and
+  // post a second #PR Wall channel message on the winning call.
+  if (!skipPRAnnounce && state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
     try {
       if (window.ShapePRWall && window.ShapePRWall.post) {
         window.ShapePRWall.post({ lift: _lift, value: _loadNum, unit: _unit, postId: data?.id || null });
@@ -6065,7 +6104,6 @@ window.ShapeMarketPlans = { list: listMarketPlans, buy: buyCoachPlan };
 // by ITS OWN `unit` value, so history written in pounds repairs itself without a
 // migration. `.kg` is therefore honestly kilograms, which is what every consumer
 // already assumed it was.
-const LB_TO_KG_BACKEND = 0.45359237;
 // ⚠ A LIFT IS CANONICAL POUNDS, WHICH IS THE OPPOSITE OF BODY WEIGHT. Both
 // migrations of 2026-09-10 normalise `max(load)` to pounds before comparing,
 // because a member who logs some sessions in kilograms and some in pounds had

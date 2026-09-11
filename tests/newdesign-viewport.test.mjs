@@ -137,9 +137,24 @@ test('a redirect stub is classified by what it does, not by its name', () => {
     assert.equal(bodyOf(s).length, 0, f + ' grew a body — re-check whether it is still a stub');
     assert.ok(!/<script>\s*location\.replace\(/.test(headOf(s)), f + ' now matches the first-token arm — the empty-body arm is untested');
   }
-  // index.html must fail BOTH arms, or the site's front page is exempted again
+  // ⚠ index.html WAS the hard case here: a head that redirected only at phone
+  // width, on a page with a full body — so it failed both arms and had to be
+  // classified real. That redirect is GONE (phones get the homepage now), so the
+  // shape is extinct and this no longer pins it. Measured rather than assumed:
+  // every other head-redirecting page in newdesign/ uses the first-token arm.
   const home = read('index.html');
-  assert.ok(headOf(home).includes('location.replace'), 'index.html no longer redirects — this guard is moot');
-  assert.ok(!/<script>\s*location\.replace\(/.test(headOf(home)), 'index.html redirects unconditionally now');
+  assert.ok(!/location\.replace/.test(headOf(home)),
+    'index.html redirects again — phones are being sent off the homepage');
   assert.ok(bodyOf(home).length > 1000, 'index.html has no body — it would classify as a stub');
+  // and if the conditional shape ever comes back ANYWHERE, the classifier must
+  // still call that page real rather than silently exempting it from the sweep
+  // above. Derived, so a new one is covered with nobody remembering this exists;
+  // the set is empty today, which is why index's own two assertions stay.
+  const conditional = pages.filter((f) => {
+    const s = read(f);
+    return /location\.replace/.test(headOf(s))
+      && !/<script>\s*location\.replace\(/.test(headOf(s))
+      && bodyOf(s).length > 1000;
+  });
+  for (const f of conditional) assert.ok(!isStub(read(f)), f + ' redirects conditionally but is policed as a stub');
 });
