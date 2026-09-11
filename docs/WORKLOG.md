@@ -495,6 +495,110 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-10 — Bring your own recipe: the seam connected, and a review round that found the AI route dead in production
+
+- **Built and shipped, not specced.** Owner: *"i just want what we talked about completed and live"* +
+  *"is there no AI involved in creating the cooking tutorials from outside recipes?"* — so the whole
+  feature landed in one PR rather than the PR 1 / PR 2 split the spec proposed, with the AI path in
+  it. A member pastes a recipe, **Shape reads it**, they check and edit every line, and it lands in
+  their Library where **Cook this** walks it in the existing cook mode. Design:
+  [`2026-09-10-third-party-recipe-import-design.md`](superpowers/specs/2026-09-10-third-party-recipe-import-design.md).
+  **No migration** — `user_goals` has no check constraint on `kind`.
+- **THE COOKING TUTORIAL NEEDED NO CHANGES, which is why this was tractable.** `BSCookMode` consumes
+  a normalized `cookable`, never a recipe, and `bsCookableFromRecipe` was already the adapter. All
+  the work is upstream: ingest, review, store. **Bodies live in their own `client_recipes` kind and
+  the Library keeps holding POINTERS** (`myrecipe:<uuid>`) — `bsLibWrite` upserts the whole array
+  **blind with no read-merge**, which is survivable for a pointer whose loss costs a re-save and
+  unrecoverable for a recipe the member typed, since nothing can re-derive it.
+- ⚠ **AN IMPORTED RECIPE CAN NEVER HOST AN INTERLEAVE WINDOW, AND THAT IS HELD ON TWO INDEPENDENT
+  LEGS.** `cookOrchestrator` is explicit — *"no fabricated parallelism … never a merely-parsed
+  duration"* — and the catalog's windows come from `_KITCHEN_STEP_META`, hand-curated per recipe with
+  four guard tests policing the annotation quality. `bsCookableFromMemberRecipe` coerces every step
+  to a plain **string** (so no inline meta survives) **and** never forwards `stepMeta` (because
+  `bsCookableFromRecipe` applies a caller-supplied overlay **onto plain strings** — which is exactly
+  how the catalog's windows attach). **Neither leg covers the other**, and the test drives both. The
+  route's system prompt forbids the metadata and its validator drops it as well.
+- ⚠ **AND `stepMeta: []` IS STILL NOT AN ABSENT KEY, but the reason had to be corrected.**
+  `Array.isArray([])` is true so it *does* become the overlay; it is harmless here **only because**
+  the string coercion leaves plain inline meta for it to fall back to. Writing `[]` would make the
+  invariant depend on two things interacting instead of on one key not being there. *Absent is the
+  version that stays true.*
+- ⚠ **`/code-review` RETURNED FOURTEEN FINDINGS AND THE FIRST ONE WAS THAT THE ENTIRE AI ROUTE WAS
+  DEAD.** `readJson` returns a **wrapper** — `{ok: true, data} | {ok: false, response}` — and the
+  route read `.text` off the wrapper, so `text` was `''` on every request, the `too_short` guard
+  fired for all of them, and `hasOpenAIKey`, `callAI`, the validator and the whole system prompt were
+  unreachable code behind a client that silently fell back to its structural split. **My own test
+  hid it**: it stubbed `readJson` as `async (req) => req.json()`, a shape production never returns.
+  *A fixture that invents a contract tests the fixture* — the suite was green on a route that did
+  nothing. It loads the real `request-utils` now, and its 400/413 refusals are returned rather than
+  swallowed.
+- ⚠ **AND THE PREP PICKER WOULD HAVE COOKED THE CATALOG'S DISH UNDER THE MEMBER'S NAME.** It resolved
+  every library recipe pointer **by exact catalog title**, so a member who types *"One-pan chicken and
+  rice"* — a real Shape Kitchen dish credited to a named nutritionist — picked it from *Your library*
+  and got the **catalog's** method, macros and byline; without a collision their recipe was dropped
+  from the picker entirely. The same exact-title class reaches `bsPrepMatch`, so a member dish now
+  publishes **no title at all** on its prep record (those fields are the matcher's, not display), or
+  prepping the catalog's salmon on Sunday would stamp *Prepped ✓* on their own dish of that name on
+  Tuesday. *An exact-title match is a claim about identity, and a member can type any title.*
+- ⚠ **A RULES-OF-HOOKS VIOLATION I INTRODUCED, WHICH EVERY OTHER GATE COMPILES HAPPILY.**
+  `BSLibraryDetail`'s cook-mode early return sat **above five `useState` calls**, so the frame
+  `cooking` flipped true would render fewer hooks and React throws. Caught by reading the diff, not by
+  the build, `tsc` or the suite. The guard written for it is an AST rule over **every** component in
+  the module — and the first version of that rule **reported zero offenders vacuously**, because an
+  early return is almost never a bare `return`: it is `if (cond) return <X/>`, an IfStatement. It is
+  proven to fire on a fixture and proven to catch the original bug.
+- ⚠ **AND THE PLATED STAGE OWED AN HONEST STATE THAT THE IMPORT IS WHAT MADE REACHABLE.**
+  `BSMealLogged` printed a **46px teal `0`** under **Logged ✓** when macros are unknown, while cook
+  mode's `logIt` had deliberately posted **nothing** (*"absent macros are omitted, never posted as
+  fabricated 0s"*). Member recipes carry no macros by construction. It reads `—` / *No macros on this
+  one* / a **Cooked** stamp now — and the caller **states** what it did rather than having it
+  inferred, because the plan-meal path posts unconditionally and an inferring screen would have
+  denied a log the app had just made.
+- **The rest of the round, each fixed:** the splitter **joined the method into one blob** and
+  re-split it on `[.!?]` before an **ASCII capital**, so a numbered method with no full stops
+  collapsed into ONE step and no non-Latin script ever split — a line is a step now, with the
+  catalog's own `bsSplitMethodProse` as the single-line fallback; **headings are matched in all 13
+  locales**, because a heading the matcher misses is not skipped, it is shown to the member **as an
+  ingredient row** (and the trailing `\b` had to go: it is defined against ASCII `\w` and can never
+  match after `Ингредиенты`); a quantity cut that would land **mid-word** is refused (`bsQtyParse`'s
+  units are English, and *"2 quả trứng"* cut to `n "2 qu"`); a **failed delete reported success** and
+  closed the screen; `hydrate` wrote the cloud document under a uid captured **before** the read,
+  which is the cross-account class the per-uid mirror exists to prevent — the write lane guarded it
+  and the read lane did not; the hook **never retried** and collapsed *can't-know* into *known
+  absent*, making a member's own recipes vanish from their Library with nothing said; the detail
+  screen fired a `client_recipes` round trip for **every** library item; the sheet rendered in place
+  instead of portaling into `#bs-phone-surface`, so on a scrolled Library it opened **above the
+  viewport**; the non-crypto id fallback's suffix was `now % 9973` — a pure function of the timestamp
+  it was appended to, so it carried **zero entropy** and two saves in one millisecond minted the same
+  id, which `bsRecipesPut` replaces by; and the model's `servings` was computed, validated, returned
+  and **dropped**, pinning the prep session's scaling multiplier at 1 forever.
+- ⚠ **ONE FINDING I FOUND BY MUTATION AND IT WAS A GUARD OF MINE THAT COULD NEVER FIRE.** A
+  `hasOwnProperty` check inside a `for (const key of Object.keys(src))` loop is unreachable —
+  `Object.keys` is own-enumerable only. Deleting it exposed the **real** prototype hazard, which is on
+  the WRITE: `items[id] = item` is an **assignment**, so an id of `__proto__` invokes the setter — the
+  recipe silently vanishes **and** the document's prototype is replaced. Unsafe ids are refused at the
+  normalizer. *A guard that cannot fire is decoration; deleting it is how the real one gets found.*
+- **The i18n ratchet moved, and the two numbers reconcile by construction.** `BSClientLibrary` and
+  `BSLibraryDetail` left UNCOVERED for PARTIAL: `partStrings` **168 → 193** and `noneStrings`
+  **818 → 793** are the **same 25 strings** changing bucket, so nothing on either surface started
+  hardcoding. `noneStrings` then **793 → 796** for the three honest states the plated stage owes.
+  38 new `myRecipe.*` keys × 13 locales, the `en` values extracted **programmatically from the JSX**
+  so they are byte-identical to each call site's `defaultValue`.
+- **Verified:** `npm test` **2957/2957** · `tsc --noEmit` 0 · mobile build 0 with every new string
+  confirmed in the emitted bundle behind a positive control · the newdesign precompile check · JSX
+  parse on every edit · **39 mutations killed across five rounds, each proven to land** — and two of
+  them were the round paying for itself: the `hasOwnProperty` survivor above, and the hook-order rule
+  whose first version reported zero offenders on a tree that had one. The paste split is driven in
+  **11 locales**; the picker's namespace is driven by **mounting the real prep session** with a
+  colliding title and asserting the catalog's own ingredients never reach the board. No migration.
+- ⚠ **NOT SHIPPED, REGISTERED:** the **photo** path (needs a `recipe-imports` bucket — deliberately
+  not `meal-notes`, which hands out year-long signed URLs — and is gated on confirming the pinned
+  model accepts image input at all; `grep -rn "input_image\|image_url" src/` returns **nothing**, so
+  no vision call exists in this repo yet); **macros per ingredient** (a guess per row, member-confirmed
+  one at a time, and **partial coverage shows no total**); and the **GDPR export label**, which files
+  a member's typed recipe under `health_screening_and_goals` — the owner's ruling was to fix that in
+  its own PR rather than widen this one.
+
 ### 2026-09-10 — R13's own review round: a zero that was never measured, in five more places
 
 - **CodeRabbit on #2028, and it found exactly the failure mode the PR was opened to fix,
@@ -1387,110 +1491,6 @@ Append new entries at the top, under this note.
   → **reload → the tab comes back lit** → choose the defaults back → `{}`.
 - ⚠ **STILL A SIMULATED LIVE STATE.** The account above is a stubbed `shapeDb` over
   localStorage. An on-account pass is owed.
-### 2026-09-10 — Bring your own recipe: the seam connected, and a review round that found the AI route dead in production
-
-- **Built and shipped, not specced.** Owner: *"i just want what we talked about completed and live"* +
-  *"is there no AI involved in creating the cooking tutorials from outside recipes?"* — so the whole
-  feature landed in one PR rather than the PR 1 / PR 2 split the spec proposed, with the AI path in
-  it. A member pastes a recipe, **Shape reads it**, they check and edit every line, and it lands in
-  their Library where **Cook this** walks it in the existing cook mode. Design:
-  [`2026-09-10-third-party-recipe-import-design.md`](superpowers/specs/2026-09-10-third-party-recipe-import-design.md).
-  **No migration** — `user_goals` has no check constraint on `kind`.
-- **THE COOKING TUTORIAL NEEDED NO CHANGES, which is why this was tractable.** `BSCookMode` consumes
-  a normalized `cookable`, never a recipe, and `bsCookableFromRecipe` was already the adapter. All
-  the work is upstream: ingest, review, store. **Bodies live in their own `client_recipes` kind and
-  the Library keeps holding POINTERS** (`myrecipe:<uuid>`) — `bsLibWrite` upserts the whole array
-  **blind with no read-merge**, which is survivable for a pointer whose loss costs a re-save and
-  unrecoverable for a recipe the member typed, since nothing can re-derive it.
-- ⚠ **AN IMPORTED RECIPE CAN NEVER HOST AN INTERLEAVE WINDOW, AND THAT IS HELD ON TWO INDEPENDENT
-  LEGS.** `cookOrchestrator` is explicit — *"no fabricated parallelism … never a merely-parsed
-  duration"* — and the catalog's windows come from `_KITCHEN_STEP_META`, hand-curated per recipe with
-  four guard tests policing the annotation quality. `bsCookableFromMemberRecipe` coerces every step
-  to a plain **string** (so no inline meta survives) **and** never forwards `stepMeta` (because
-  `bsCookableFromRecipe` applies a caller-supplied overlay **onto plain strings** — which is exactly
-  how the catalog's windows attach). **Neither leg covers the other**, and the test drives both. The
-  route's system prompt forbids the metadata and its validator drops it as well.
-- ⚠ **AND `stepMeta: []` IS STILL NOT AN ABSENT KEY, but the reason had to be corrected.**
-  `Array.isArray([])` is true so it *does* become the overlay; it is harmless here **only because**
-  the string coercion leaves plain inline meta for it to fall back to. Writing `[]` would make the
-  invariant depend on two things interacting instead of on one key not being there. *Absent is the
-  version that stays true.*
-- ⚠ **`/code-review` RETURNED FOURTEEN FINDINGS AND THE FIRST ONE WAS THAT THE ENTIRE AI ROUTE WAS
-  DEAD.** `readJson` returns a **wrapper** — `{ok: true, data} | {ok: false, response}` — and the
-  route read `.text` off the wrapper, so `text` was `''` on every request, the `too_short` guard
-  fired for all of them, and `hasOpenAIKey`, `callAI`, the validator and the whole system prompt were
-  unreachable code behind a client that silently fell back to its structural split. **My own test
-  hid it**: it stubbed `readJson` as `async (req) => req.json()`, a shape production never returns.
-  *A fixture that invents a contract tests the fixture* — the suite was green on a route that did
-  nothing. It loads the real `request-utils` now, and its 400/413 refusals are returned rather than
-  swallowed.
-- ⚠ **AND THE PREP PICKER WOULD HAVE COOKED THE CATALOG'S DISH UNDER THE MEMBER'S NAME.** It resolved
-  every library recipe pointer **by exact catalog title**, so a member who types *"One-pan chicken and
-  rice"* — a real Shape Kitchen dish credited to a named nutritionist — picked it from *Your library*
-  and got the **catalog's** method, macros and byline; without a collision their recipe was dropped
-  from the picker entirely. The same exact-title class reaches `bsPrepMatch`, so a member dish now
-  publishes **no title at all** on its prep record (those fields are the matcher's, not display), or
-  prepping the catalog's salmon on Sunday would stamp *Prepped ✓* on their own dish of that name on
-  Tuesday. *An exact-title match is a claim about identity, and a member can type any title.*
-- ⚠ **A RULES-OF-HOOKS VIOLATION I INTRODUCED, WHICH EVERY OTHER GATE COMPILES HAPPILY.**
-  `BSLibraryDetail`'s cook-mode early return sat **above five `useState` calls**, so the frame
-  `cooking` flipped true would render fewer hooks and React throws. Caught by reading the diff, not by
-  the build, `tsc` or the suite. The guard written for it is an AST rule over **every** component in
-  the module — and the first version of that rule **reported zero offenders vacuously**, because an
-  early return is almost never a bare `return`: it is `if (cond) return <X/>`, an IfStatement. It is
-  proven to fire on a fixture and proven to catch the original bug.
-- ⚠ **AND THE PLATED STAGE OWED AN HONEST STATE THAT THE IMPORT IS WHAT MADE REACHABLE.**
-  `BSMealLogged` printed a **46px teal `0`** under **Logged ✓** when macros are unknown, while cook
-  mode's `logIt` had deliberately posted **nothing** (*"absent macros are omitted, never posted as
-  fabricated 0s"*). Member recipes carry no macros by construction. It reads `—` / *No macros on this
-  one* / a **Cooked** stamp now — and the caller **states** what it did rather than having it
-  inferred, because the plan-meal path posts unconditionally and an inferring screen would have
-  denied a log the app had just made.
-- **The rest of the round, each fixed:** the splitter **joined the method into one blob** and
-  re-split it on `[.!?]` before an **ASCII capital**, so a numbered method with no full stops
-  collapsed into ONE step and no non-Latin script ever split — a line is a step now, with the
-  catalog's own `bsSplitMethodProse` as the single-line fallback; **headings are matched in all 13
-  locales**, because a heading the matcher misses is not skipped, it is shown to the member **as an
-  ingredient row** (and the trailing `\b` had to go: it is defined against ASCII `\w` and can never
-  match after `Ингредиенты`); a quantity cut that would land **mid-word** is refused (`bsQtyParse`'s
-  units are English, and *"2 quả trứng"* cut to `n "2 qu"`); a **failed delete reported success** and
-  closed the screen; `hydrate` wrote the cloud document under a uid captured **before** the read,
-  which is the cross-account class the per-uid mirror exists to prevent — the write lane guarded it
-  and the read lane did not; the hook **never retried** and collapsed *can't-know* into *known
-  absent*, making a member's own recipes vanish from their Library with nothing said; the detail
-  screen fired a `client_recipes` round trip for **every** library item; the sheet rendered in place
-  instead of portaling into `#bs-phone-surface`, so on a scrolled Library it opened **above the
-  viewport**; the non-crypto id fallback's suffix was `now % 9973` — a pure function of the timestamp
-  it was appended to, so it carried **zero entropy** and two saves in one millisecond minted the same
-  id, which `bsRecipesPut` replaces by; and the model's `servings` was computed, validated, returned
-  and **dropped**, pinning the prep session's scaling multiplier at 1 forever.
-- ⚠ **ONE FINDING I FOUND BY MUTATION AND IT WAS A GUARD OF MINE THAT COULD NEVER FIRE.** A
-  `hasOwnProperty` check inside a `for (const key of Object.keys(src))` loop is unreachable —
-  `Object.keys` is own-enumerable only. Deleting it exposed the **real** prototype hazard, which is on
-  the WRITE: `items[id] = item` is an **assignment**, so an id of `__proto__` invokes the setter — the
-  recipe silently vanishes **and** the document's prototype is replaced. Unsafe ids are refused at the
-  normalizer. *A guard that cannot fire is decoration; deleting it is how the real one gets found.*
-- **The i18n ratchet moved, and the two numbers reconcile by construction.** `BSClientLibrary` and
-  `BSLibraryDetail` left UNCOVERED for PARTIAL: `partStrings` **168 → 193** and `noneStrings`
-  **818 → 793** are the **same 25 strings** changing bucket, so nothing on either surface started
-  hardcoding. `noneStrings` then **793 → 796** for the three honest states the plated stage owes.
-  38 new `myRecipe.*` keys × 13 locales, the `en` values extracted **programmatically from the JSX**
-  so they are byte-identical to each call site's `defaultValue`.
-- **Verified:** `npm test` **2957/2957** · `tsc --noEmit` 0 · mobile build 0 with every new string
-  confirmed in the emitted bundle behind a positive control · the newdesign precompile check · JSX
-  parse on every edit · **39 mutations killed across five rounds, each proven to land** — and two of
-  them were the round paying for itself: the `hasOwnProperty` survivor above, and the hook-order rule
-  whose first version reported zero offenders on a tree that had one. The paste split is driven in
-  **11 locales**; the picker's namespace is driven by **mounting the real prep session** with a
-  colliding title and asserting the catalog's own ingredients never reach the board. No migration.
-- ⚠ **NOT SHIPPED, REGISTERED:** the **photo** path (needs a `recipe-imports` bucket — deliberately
-  not `meal-notes`, which hands out year-long signed URLs — and is gated on confirming the pinned
-  model accepts image input at all; `grep -rn "input_image\|image_url" src/` returns **nothing**, so
-  no vision call exists in this repo yet); **macros per ingredient** (a guess per row, member-confirmed
-  one at a time, and **partial coverage shows no total**); and the **GDPR export label**, which files
-  a member's typed recipe under `health_screening_and_goals` — the owner's ruling was to fix that in
-  its own PR rather than widen this one.
-
 ### 2026-09-10 — The recipe-import spec surveyed before a line was written: ten corrections, and the one I had contradicted myself about
 
 - **Records only — an implementation-readiness survey, not a build.** Before starting PR 1 of
