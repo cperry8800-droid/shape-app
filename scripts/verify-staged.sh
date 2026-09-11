@@ -50,6 +50,36 @@ mapfile -t STAGED < <(git diff --cached --name-only --no-renames --diff-filter=A
 mapfile -t DELETED < <(git diff --cached --name-only --no-renames --diff-filter=D)
 [ "${#STAGED[@]}" -eq 0 ] && [ "${#DELETED[@]}" -eq 0 ] && exit 0
 
+# ── Unresolved merge-conflict markers ──────────────────────────────────────────
+# ⚠ RUNS BEFORE THE DOCS-ONLY SHORT-CIRCUIT, AND FOR EVERY FILE TYPE, because a
+# set of these reached `main` inside a records file. A merge resolved two of three
+# conflicted files, `git add -A` staged the third with its markers intact, and
+# every gate below was scoped to CODE — so a table with three rows of markers in
+# it sailed through the hook, through CI and through a squash merge, and was
+# found two PRs later by a later merge conflicting ON the markers.
+#
+# The full three-part set is what is checked, never one line: a bare `=======` is
+# a Markdown setext underline and `>>>>>>>` can be a quoted prompt in a fence.
+# `tests/no-conflict-markers.test.mjs` is the hard gate (this hook is skippable,
+# and the commit that shipped them used SKIP_VERIFY=1); this is the fast mirror.
+conflicted=()
+for f in "${STAGED[@]}"; do
+  [ -f "$f" ] || continue
+  if grep -Iq "^<<<<<<< " "$f" 2>/dev/null \
+     && grep -Iq "^=======$" "$f" 2>/dev/null \
+     && grep -Iq "^>>>>>>> " "$f" 2>/dev/null; then
+    conflicted+=("$f")
+  fi
+done
+if [ "${#conflicted[@]}" -gt 0 ]; then
+  printf '\033[1mverify: unresolved merge conflict markers\033[0m\n'
+  for f in "${conflicted[@]}"; do
+    printf '  %s:%s\n' "$f" "$(grep -n "^<<<<<<< " "$f" | head -1 | cut -d: -f1)"
+  done
+  printf 'Resolve them (or unstage the file) before committing.\n'
+  exit 1
+fi
+
 ts_changed=0
 mobile_changed=0
 code_changed=0

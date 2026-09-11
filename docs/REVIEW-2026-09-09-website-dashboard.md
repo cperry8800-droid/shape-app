@@ -461,13 +461,8 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R14 | Coach office settings (landing tab, units, theme, locale, thresholds, notifications) | P1 | M | partly |
 | R17/R18 | Client: score record, leaderboard, check-in history, readout; fix dead controls | P1 | S–M | routes exist |
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
-<<<<<<< HEAD
 | R12 | CSV export + monthly statement | P2 | M | CSVs SHIPPED 2026-09-10 · statement still gated on payouts |
-| R15/R16 | Widget settings; remembered filters | P2 | M | — |
-=======
-| R12 | CSV export + monthly statement | P2 | M | after payouts |
-| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 (sort belongs to R15 — no such control) |
->>>>>>> origin/main
+| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 (the sort belongs to R15) |
 | R20 | Client booking + notifications inbox on the web | P2 | M | tables exist |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
