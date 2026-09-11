@@ -984,9 +984,13 @@ function useRememberedSet(store, key, max) {
   // outranks the document, so A's session picks would otherwise govern B's screen.
   const acct = store && store.accountId != null ? store.accountId : null;
   const knownRef = React.useRef(null);
+  let acctReset = false;
   if (acct != null && knownRef.current != null && acct !== knownRef.current) {
     setChosen(null);
     askedRef.current = null;
+    // The fold below must sit this render out: `chosen` still holds A's list here, and
+    // folding it into B's document would hand B the very list this block is discarding.
+    acctReset = true;
   }
   if (acct != null) knownRef.current = acct;
 
@@ -1010,6 +1014,36 @@ function useRememberedSet(store, key, max) {
     }
     return out;
   }, [JSON.stringify(raw), cap]);
+
+  // ⚠ A CHOICE MADE BEFORE THE DOCUMENT ARRIVES IS A TOGGLE, NOT A SNAPSHOT, AND THAT
+  // DISTINCTION IS THE WHOLE OF THIS BLOCK. `chosen` outranks the document by design —
+  // a late read must never move a control out from under a hand already on it — but for
+  // a SET that rule LOSES DATA: a coach who hides one section while the read is still in
+  // flight picks from a list that reads EMPTY, and the reconciliation effect then writes
+  // their one-item list over the four they hid last week, silently. So a choice made
+  // before the store settled is FOLDED INTO the document when it arrives rather than
+  // replacing it. A single value has no such hazard, which is why `useRememberedChoice`
+  // keeps the plain snapshot rule.
+  //
+  // ⚠ AND THE FOLD CAN ONLY EVER ADD, which is why there is no removal arm to go with
+  // it: until the store settles its doc is `{}`, so `stored` is [] and the control has
+  // nothing on screen to un-toggle. A removal arm here would be a guard that cannot
+  // fire, and the next reader would trust it.
+  const settled = kind === "ready" || kind === "error";
+  // Whether the CURRENT `chosen` was made BLIND — before the document had arrived. It
+  // stops tracking the moment there is a choice, and resumes when there is none again.
+  const blindRef = React.useRef(!settled);
+  if (acctReset || chosen == null) {
+    blindRef.current = !settled;
+  } else if (blindRef.current && settled) {
+    // ⚠ ASSIGNED BEFORE THE STATE SET, so the re-render React schedules sees the
+    // condition already false and terminates — the shape of the account block above.
+    // And ⚠ `acctReset` above is not decoration: React can batch the auth event and the
+    // document's arrival into ONE render, and without it B's first settled frame would
+    // fold A's session ids into B's document instead of discarding them.
+    blindRef.current = false;
+    setChosen(stored.concat(chosen.filter((x) => stored.indexOf(x) < 0)).slice(-cap));
+  }
 
   const value = chosen != null ? chosen : stored;
 
@@ -1035,7 +1069,7 @@ function useRememberedSet(store, key, max) {
   const storedKey = stored.join("\u0000");
   React.useEffect(() => {
     if (chosen == null) return;
-    if (kind !== "ready" && kind !== "error") return;
+    if (!settled) return;
     if (typeof apply !== "function") return;
     // An EMPTY set is "no preference", which is what an absent key says — the same
     // rule as choosing a default back in useRememberedChoice.

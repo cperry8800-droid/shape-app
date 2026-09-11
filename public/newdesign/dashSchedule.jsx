@@ -433,7 +433,7 @@ function CoachSchedulePage({ role }) {
         </div>
       </DashPage>
 
-      {drawerRow && typeof window.DashClientDrawer === "function" && <DashClientDrawer row={drawerRow} role={role} onClose={() => setDrawerRow(null)} />}
+      {drawerRow && typeof window.DashClientDrawer === "function" && <DashClientDrawer row={drawerRow} role={role} onClose={() => setDrawerRow(null)} prefs={prefs} />}
       {sheetEv && <DscEventSheet ev={sheetEv} colorOf={colorOf} onClose={() => setSheetEv(null)} />}
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "#14110e", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "10px 18px", color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, maxWidth: "90vw" }}>{toast}</div>

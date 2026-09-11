@@ -557,7 +557,7 @@ function dashDrawerSections(view, hidden) {
   return { all: all, shown: all.filter(([key]) => !off.has(key)), hiddenCount: all.filter(([key]) => off.has(key)).length };
 }
 
-function DashClientDrawer({ row, role, onClose }) {
+function DashClientDrawer({ row, role, onClose, prefs }) {
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -568,11 +568,19 @@ function DashClientDrawer({ row, role, onClose }) {
   // one card's gear would be the wrong home for a preference about the drawer itself.
   // Written once here, it works from all four.
   //
-  // ⚠ AND THE STORE OPENS UNCONDITIONALLY RATHER THAN ON A `live` FLAG, because the
-  // drawer has no idea whether the page behind it resolved live. `useRememberedChoices`
-  // already refuses to open until the ACCOUNT is known, which is the check that matters:
-  // a signed-out preview resolves to null and remembers nothing.
-  const prefs = useRememberedChoices(true);
+  // ⚠ AND THE STORE IS THE PAGE'S, PASSED IN — the drawer does NOT open its own, and the
+  // reason is that this component is mounted only while it is open. Its own store would
+  // therefore start a fresh `dashboard_prefs` read on EVERY open: the drawer would paint
+  // all six sections and drop two ~300ms later, every time, and a coach who reached the
+  // ⚙ inside that window could write a list derived from an empty document. The page's
+  // store is hydrated long before any row is clicked. A host that passes none degrades
+  // to session-only — the same shape as the signed-out preview, and `dash-drawer-prefs`
+  // asserts every mount site supplies one, so that path is a safety net and not a plan.
+  //
+  // ⚠ ONE CONSEQUENCE, DELIBERATE: the drawer now inherits its HOST's `live` flag, so a
+  // signed-in coach whose dashboard fell back to demo data remembers nothing here. That
+  // is what the roster filter, the schedule view and the pulse pins already do on that
+  // same page — one page, one answer about whether this session is real.
   const [hiddenSections, toggleSection] = useRememberedSet(prefs, "drawerHidden:" + role, 12);
   const [showSettings, setShowSettings] = React.useState(false);
   // Hooks run before the early return, or a drawer that closes renders fewer of them
@@ -665,7 +673,7 @@ const DashConsultDrawer = DashClientDrawer;
 // `sort`/`sortDir`/`onSort` are optional and default to the triage order, so a caller
 // that does not offer sorting gets exactly the table it had — and the headers render as
 // plain text rather than as buttons that lead nowhere.
-function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort }) {
+function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs }) {
   const [open, setOpen] = React.useState(null);
   const ink50 = DASH_ROSTER_INK50;
 
@@ -783,7 +791,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort })
           </div>
         );
       })}
-      {open && <DashClientDrawer row={open} role={role} onClose={() => setOpen(null)} />}
+      {open && <DashClientDrawer row={open} role={role} onClose={() => setOpen(null)} prefs={prefs} />}
     </div>
     </div>
   );

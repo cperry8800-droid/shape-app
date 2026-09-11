@@ -62,13 +62,27 @@ function makeHost(body) {
       const prev = cells.effect[i];
       const same = prev && prev.deps && deps && prev.deps.length === deps.length
         && deps.every((d, k) => Object.is(d, prev.deps[k]));
-      cells.effect[i] = { deps, pending: same ? null : fn, cleanup: prev ? prev.cleanup : null };
+      // ⚠ AN ALREADY-PENDING EFFECT IS CARRIED FORWARD, not cleared. The body can run
+      // several passes before any effect commits (see `render`), and every pass after the
+      // first sees unchanged deps — so clearing on `same` would let pass 2 cancel the
+      // effect pass 1 scheduled, and a re-hydrate would silently never run.
+      cells.effect[i] = { deps, pending: same ? (prev ? prev.pending : null) : fn, cleanup: prev ? prev.cleanup : null };
     },
   };
   let out = null;
+  // ⚠ A SET DURING THE BODY RE-RUNS THE BODY BEFORE ANY EFFECT COMMITS, which is what
+  // React does and is load-bearing here: two of these hooks adjust state during render
+  // (the account clean-slate, and the set hook's rebase). A host that committed the
+  // discarded render's effects would let a value the component never returned reach the
+  // document — and would then report that as the code's behaviour.
   const render = () => {
-    renders += 1; si = 0; ri = 0; ei = 0;
-    out = body(React);
+    for (let pass = 0; ; pass++) {
+      renders += 1; si = 0; ri = 0; ei = 0;
+      dirty = false;
+      out = body(React);
+      if (!dirty) break;
+      assert.ok(pass < 10, 'the body set state during render on ten passes running — it does not converge');
+    }
     for (const e of cells.effect) {
       if (e && e.pending) { const f = e.pending; e.pending = null; if (typeof e.cleanup === 'function') e.cleanup(); e.cleanup = f() || null; }
     }
@@ -464,4 +478,112 @@ test('the preference document is one named kind, not a new store per control', (
   // post-mortems having three of already
   assert.ok(!/getUserGoals|saveUserGoals|dashDocSerial/.test(CHOICE),
     'the choice hook grew its own write path instead of using useCoachDoc');
+});
+
+// ── the SET hook, and the rebase a set needs and a single value does not ─────
+// One page: a store and one remembered SET off it, driven exactly as the drawer does.
+function driveSet(dbState, opts) {
+  const o = opts || {};
+  const ctl = { live: o.live !== false };
+  const hooks = new Function('React', 'window', AUTH + '\n' + HELPERS + '\n' + STORE + '\n' + CHOICE +
+    '\nreturn { useRememberedChoices, useRememberedSet };');
+  const key = o.key || 'drawerHidden:trainer';
+  const host = makeHost((React) => {
+    const api = hooks(React, { shapeDb: dbState.db });
+    const prefs = api.useRememberedChoices(ctl.live);
+    const [value, toggle, clear] = api.useRememberedSet(prefs, key, o.max || 12);
+    return { kind: prefs.kind, doc: prefs.doc, accountId: prefs.accountId, value, toggle, clear };
+  });
+  return { host, ctl, key };
+}
+
+// Hold the document read open so a choice can be made while it is genuinely in flight.
+function holdRead(db) {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const inner = db.getUserGoals;
+  db.getUserGoals = async () => { await gate; return inner(); };
+  return release;
+}
+
+test('a set toggled before the document arrives keeps what the document turns out to hold', async () => {
+  // ⚠ THE DEFECT THIS PINS IS SILENT DATA LOSS. `chosen` outranks the document by design,
+  // and for a SET that rule derives the coach's new list from an EMPTY base — so hiding
+  // one section during the read would write that one-item list over the two they hid last
+  // week, with nothing on screen saying so.
+  const { db, state } = makeDb({ 'drawerHidden:trainer': ['milestones', 'notes'] });
+  const release = holdRead(db);
+  const { host, key } = driveSet({ db, state });
+  await host.flush(3);
+  assert.equal(host.out.kind, 'loading', 'the read resolved before the choice could be made');
+  assert.deepEqual(host.out.value, [], 'a store that has not resolved cannot claim anything is hidden');
+
+  host.out.toggle('score');          // the coach hides a third section, mid-read
+  release();
+  const out = await host.flush(25);
+
+  assert.deepEqual([...out.value].sort(), ['milestones', 'notes', 'score']);
+  assert.equal(state.saves, 1, 'the rebase settled in one write');
+  assert.deepEqual([...state.written[0].val[key]].sort(), ['milestones', 'notes', 'score']);
+});
+
+test('the rebase settles — it does not flip the choice back off once the write lands', async () => {
+  // A rebase that re-applied itself to its own result would toggle `score` straight back
+  // out the moment the optimistic paint arrived, and then back in, forever.
+  const { db, state } = makeDb({ 'drawerHidden:trainer': ['milestones'] });
+  const release = holdRead(db);
+  const { host } = driveSet({ db, state });
+  await host.flush(3);
+  host.out.toggle('score');
+  release();
+  const out = await host.flush(25);
+  assert.deepEqual([...out.value].sort(), ['milestones', 'score']);
+  assert.equal(state.saves, 1, 'the rebase wrote more than once — it is chasing its own result');
+  assert.ok(host.renders < 40, 'the page re-rendered on every round — a rebase loop');
+});
+
+test('a toggle made AFTER the document arrives behaves exactly as it always did', async () => {
+  const { db, state } = makeDb({ 'drawerHidden:trainer': ['milestones', 'notes'] });
+  const { host, key } = driveSet({ db, state });
+  await host.flush(10);
+  assert.deepEqual([...host.out.value].sort(), ['milestones', 'notes']);
+  host.out.toggle('notes');                      // un-hide one
+  const out = await host.flush(20);
+  assert.deepEqual(out.value, ['milestones']);
+  assert.deepEqual(state.written[0].val[key], ['milestones']);
+});
+
+test("A's mid-read set choice is discarded on a switch, not folded into B's document", async () => {
+  // ⚠ THE ONE RENDER THAT MAKES `acctReset` LOAD-BEARING, built deliberately: React can
+  // batch the auth event and the document's arrival together, so B's very first settled
+  // frame can carry A's session ids. Without the clean-slate guard the fold would run on
+  // that frame — after the block that is busy discarding exactly those ids, so it wins.
+  const { db, state } = makeDb({});
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let first = true;
+  db.getUserGoals = async () => {
+    state.gets += 1;
+    if (first) { first = false; await gate; return { 'drawerHidden:trainer': ['milestones'] }; }
+    return { 'drawerHidden:trainer': ['macros'] };
+  };
+  const { host } = driveSet({ db, state });
+  await host.flush(3);
+  assert.equal(host.out.kind, 'loading', 'setup: the read resolved too early');
+  host.out.toggle('score');
+  await host.flush(2);
+
+  // The switch and the document land TOGETHER, and the drain before the flush is what
+  // makes that true: `flush` renders on entry, so releasing the read and then rendering
+  // immediately would give the auth event its own frame and the fold nothing to land on.
+  state.uid = 'coach-b';
+  state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  release();
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  const out = await host.flush(25);
+
+  assert.equal(out.accountId, 'coach-b', 'setup: the switch did not take');
+  assert.deepEqual(out.value, ['macros'], "B was shown A's sections");
+  const forB = state.written.filter((w) => w.uid === 'coach-b');
+  assert.equal(forB.length, 0, "A's session choice was written into B's row");
 });

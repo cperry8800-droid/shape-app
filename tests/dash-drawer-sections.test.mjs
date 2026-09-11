@@ -88,8 +88,6 @@ test('the drawer stores what is HIDDEN, per account and per role', () => {
   // control, with no way to know it existed.
   assert.match(SRC, /useRememberedSet\(prefs, "drawerHidden:" \+ role, 12\)/);
   assert.doesNotMatch(SRC, /drawerShown/, 'the drawer went back to storing the shown list');
-  // the store opens on the ACCOUNT, which is the check that matters here
-  assert.match(SRC, /useRememberedChoices\(true\)/);
 });
 
 test('the hooks run before the early return', () => {
@@ -99,7 +97,7 @@ test('the hooks run before the early return', () => {
   const body = SRC.slice(at, SRC.indexOf('\n}\n', at));
   const bail = body.indexOf('if (!row) return null;');
   assert.ok(bail > 0, 'the drawer early return moved');
-  for (const h of ['useRememberedChoices(true)', 'useRememberedSet(prefs', 'React.useState(false)']) {
+  for (const h of ['useRememberedSet(prefs', 'React.useState(false)']) {
     const k = body.indexOf(h);
     assert.ok(k > 0, h + ' moved');
     assert.ok(k < bail, h + ' now runs AFTER the early return');
@@ -145,4 +143,41 @@ test('no rgba() colour token anywhere in newdesign takes a hex alpha suffix', ()
   }
   assert.ok(scanned >= 5, 'no rgba constants found — the derivation broke: ' + scanned);
   assert.deepEqual(bad, [], 'an rgba token is given a hex alpha suffix, which voids the whole declaration');
+});
+
+test('the drawer is handed the PAGE\'s store, never its own', () => {
+  // ⚠ THE DRAWER IS MOUNTED ONLY WHILE IT IS OPEN, so a store of its own would start a
+  // fresh `dashboard_prefs` read on every open: all six sections painted and two dropped
+  // ~300ms later, every time, and a ⚙ reached inside that window writing a list derived
+  // from an empty document. The page's store is hydrated long before any row is clicked.
+  assert.doesNotMatch(SRC, /useRememberedChoices\(/, 'DashClientDrawer opened its own preference store again');
+
+  // ⚠ AND THE CORPUS IS DERIVED, so a host added later is covered with nobody
+  // remembering this test exists. Every JSX mount of the drawer, in every newdesign
+  // module, must pass one — a host that forgets degrades to session-only silently.
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const mounts = [];
+  for (const f of readdirSync(dir)) {
+    if (!/\.jsx$/.test(f)) continue;
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    let i = 0;
+    for (;;) {
+      const at = src.indexOf('<DashClientDrawer', i);
+      if (at < 0) break;
+      i = at + 1;
+      // the opening tag ends at the first '>' that is not inside a {…} expression
+      let depth = 0, end = at;
+      for (let k = at; k < src.length; k++) {
+        const c = src[k];
+        if (c === '{') depth++;
+        else if (c === '}') depth--;
+        else if (c === '>' && depth === 0) { end = k; break; }
+      }
+      mounts.push({ file: f, tag: src.slice(at, end + 1) });
+    }
+  }
+  assert.ok(mounts.length >= 3, 'found ' + mounts.length + ' drawer mounts — the sweep stopped seeing them');
+  for (const m of mounts) {
+    assert.match(m.tag, /prefs=\{/, m.file + ' mounts the drawer without a preference store: ' + m.tag);
+  }
 });
