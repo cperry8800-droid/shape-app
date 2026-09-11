@@ -291,6 +291,18 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   where it cannot be known. Replace the "Clients 34" badge with the live count.
 - **R12 (P2, medium) — Export.** CSV of the roster (name · status · MRR · tenure · origin ·
   fee) and of monthly revenue; a printable monthly statement once payouts are live.
+  ⚠ **BOTH CSVs SHIPPED 2026-09-10. THE STATEMENT IS NOT, AND THIS LINE SAYS WHY RATHER
+  THAN LEAVING IT LOOKING FORGOTTEN:** it is gated in this item's own words on payouts
+  being live, and they are not — Business still reads *"connects when payouts go live"*.
+  A statement built now would be a printable page of numbers no processor has settled.
+  ⚠ **AND THE ROSTER CSV NEEDED THE ROUTE EXTENDED, WHICH THE ITEM DOES NOT SAY.**
+  `coach-roster.ts` carried neither `origin` nor the fee — both are stamped on the
+  `subscriptions` rows it already reads, so it now carries `feeCents` (summed from each
+  row's **stored** `fee_bps`, never re-derived from today's rate) and `origin` (from the
+  client's earliest row, which is the acquisition). Its select moved to `'*'` for the same
+  migration-safety reason the analytics route documents: naming the two columns errors the
+  whole query on a pre-migration DB, and by this route's own rule a failed subscriptions
+  read renders "Not shared" on every row.
 - **R13 (P2, small) — Score page honesty.** Zero-state the literals, wire or remove the two
   dead buttons, and add a 12-week points sparkline from `score_ledger`.
 
@@ -449,8 +461,13 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R14 | Coach office settings (landing tab, units, theme, locale, thresholds, notifications) | P1 | M | partly |
 | R17/R18 | Client: score record, leaderboard, check-in history, readout; fix dead controls | P1 | S–M | routes exist |
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
+<<<<<<< HEAD
+| R12 | CSV export + monthly statement | P2 | M | CSVs SHIPPED 2026-09-10 · statement still gated on payouts |
+| R15/R16 | Widget settings; remembered filters | P2 | M | — |
+=======
 | R12 | CSV export + monthly statement | P2 | M | after payouts |
 | R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 (sort belongs to R15 — no such control) |
+>>>>>>> origin/main
 | R20 | Client booking + notifications inbox on the web | P2 | M | tables exist |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |

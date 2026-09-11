@@ -164,7 +164,16 @@ function _dashRecordFromLive(row, ov, notesByClient) {
     // ⚠ `?? null`, NEVER `|| 0`. The roster route sends mrrCents: null when its
     // subscriptions read FAILED; `|| 0` would relabel that as a measured $0/mo
     // on every row. 0 stays 0 — a client on no paid plan is a real answer.
-    payments: { mrrCents: row.mrrCents ?? null, status: "active", lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null },
+    // ⚠ `?? null` ON EVERY MONEY FIELD, NOT `|| 0`. The route sends null when the
+    // subscriptions read FAILED, and the two are indistinguishable on every input
+    // except the one that matters — a coerced zero publishes "this client pays
+    // nothing" as a measurement. `feeCents`/`origin` are the R12 export's columns and
+    // follow the same rule.
+    payments: {
+      mrrCents: row.mrrCents ?? null, status: "active",
+      lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null,
+      feeCents: row.feeCents ?? null, origin: row.origin ?? null,
+    },
   };
 }
 
