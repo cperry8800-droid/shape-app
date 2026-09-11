@@ -220,3 +220,68 @@ test('the closed mobile drawer is out of the tab order, not merely invisible', (
   assert.match(open[0], /visibility\s*:\s*visible/,
     'the drawer is hidden when closed and never made visible when open');
 });
+
+// ⚠ A SHORT VIEWPORT CANNOT HOLD THE PINNED RAIL. .jpin is a fixed
+// calc(100vh - 66px) with overflow:hidden, so on a landscape phone it is ~324px
+// against ~492px of rail — measured at 844x390 and 740x360, THREE OF FIVE stages
+// sat outside the box for the whole pinned scroll, unreachable rather than
+// scrollable. Portrait and desktop measured 0 clipped, before and after.
+// (Codex, #2045.)
+test('a short viewport releases the journey instead of clipping it', () => {
+  const m = /@media\s*\(max-height:\s*(\d+)px\)\s*\{([\s\S]*?)\n  \}/.exec(SRC);
+  assert.ok(m, 'no short-viewport rule — a landscape phone clips the journey rail');
+  const px = Number(m[1]);
+  assert.ok(px >= 560, `the short-viewport breakpoint is ${px}px, below the ~492px rail plus its header`);
+  const block = m[2];
+  assert.match(block, /\.jtrack\s*\{[^}]*height\s*:\s*auto/, 'the track keeps its scripted height on a short viewport');
+  assert.match(block, /\.jpin\s*\{[^}]*position\s*:\s*static/, 'the pin survives on a short viewport');
+  // releasing the pin alone shows five dimmed headings: the stages open by script
+  assert.match(block, /\.jn\s*\{[^}]*opacity\s*:\s*1/, 'the released stages stay dimmed');
+  assert.match(block, /\.jn p\s*\{[^}]*max-height\s*:\s*90px/, 'the released stage bodies stay collapsed');
+});
+
+// ⚠ THE TWO MARKETPLACE COUNTS FAIL INDEPENDENTLY, AND THE GUARD USED TO ASK
+// ONE QUESTION ABOUT BOTH. `count ?? 0` per query against a `!t && !n` guard
+// suppressed the line only when BOTH were zero — so a failed trainers read
+// beside a healthy nutritionists one published "0 trainers · 1 nutritionist":
+// a read that never happened, printed as a count. Driven in Chromium across six
+// states; the two half-failures went from advertising to silent. (Codex, #2045.)
+test('the marketplace wire is silent unless BOTH counts were actually read', () => {
+  const at = SRC.indexOf("fetch('/api/marketplace-stats')");
+  assert.notEqual(at, -1, 'the marketplace count fetch is gone');
+  const block = SRC.slice(at, SRC.indexOf('})();', at));
+  assert.ok(block.length > 200, `the fetch block looks truncated (${block.length} chars)`);
+  // the type check must exist AND run before the falsy-zero check, or an
+  // unreadable null is judged by a test that cannot tell it from a measured 0
+  const typed = block.search(/typeof\s+t\s*!==\s*'number'\s*\|\|\s*typeof\s+n\s*!==\s*'number'/);
+  const zero = block.search(/if\s*\(\s*!t\s*&&\s*!n\s*\)/);
+  assert.notEqual(typed, -1, 'nothing separates an unreadable count from a measured zero');
+  assert.notEqual(zero, -1, 'the measured-zero-on-both rule is gone');
+  assert.ok(typed < zero, 'the zero check runs before the readability check');
+  // and the counts must not be coerced on the way in, which would erase null
+  assert.equal(/var t=d\.trainers\s*\|\|/.test(block), false,
+    'the trainers count is coerced with ||, which turns an unreadable null into 0');
+  assert.equal(/var n=d\.nutritionists\s*\|\|/.test(block), false,
+    'the nutritionists count is coerced with ||, which turns an unreadable null into 0');
+});
+
+test('the marketplace route reports an unreadable count as null, never 0', async () => {
+  const { readFileSync } = await import('node:fs');
+  const raw = readFileSync(new URL('../src/app/api/marketplace-stats/route.ts', import.meta.url), 'utf8');
+  // ⚠ COMMENTS ARE STRIPPED FIRST — the comment above the fix QUOTES the defect
+  // it replaced (`count ?? 0`), so the first version of this failed on the prose
+  // explaining the fix. That is the same trap the teal guard above records, walked
+  // into again three tests later, which is why it is written here too: a guard that
+  // trips on the sentence describing the change pushes the next reader to delete
+  // the explanation.
+  const route = raw
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^\s*\/\/.*$/gm, ' ');
+  assert.ok(/NextResponse\.json/.test(route), 'comment stripping ate the route body');
+  assert.equal(/count\s*\?\?\s*0/.test(route), false,
+    'the route still collapses a failed count to 0 — the consumer cannot tell none from not-read');
+  assert.match(route, /trainers\.error\s*\?\s*null/, 'a failed trainers query is not reported as unreadable');
+  assert.match(route, /nutritionists\.error\s*\?\s*null/, 'a failed nutritionists query is not reported as unreadable');
+  // a partial sum is a smaller claim wearing the same name
+  assert.match(route, /total:\s*bothKnown\s*\?/, 'total is summed even when one half is unknown');
+});

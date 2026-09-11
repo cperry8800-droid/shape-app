@@ -375,6 +375,25 @@
     .jtrack{height:auto}
     .jpin{position:static;height:auto;overflow:visible}
   }
+
+  /* ⚠ A SHORT VIEWPORT CANNOT HOLD THE PINNED RAIL, AND overflow:hidden MEANT
+     THE OVERFLOW WAS UNREACHABLE RATHER THAN SCROLLABLE. .jpin is a fixed
+     calc(100vh - 66px), so on a landscape phone it is ~324px against ~492px of
+     rail: measured in Chromium at 844x390 and 740x360, THREE OF FIVE stages sat
+     outside the box for the whole of the pinned scroll, with no way to reach
+     them. Portrait and desktop are unaffected (0 clipped, measured).
+     The fix is the treatment the other two degradations already take — the
+     section becomes its own height and the copy opens — because a rail that does
+     not fit should stop pretending to be a viewport-sized stage. Releasing the
+     pin alone is NOT enough: the stages open by script off the pinned scroll, so
+     an un-pinned track with the script's own activation would show five dimmed
+     headings. (Codex, #2045.) */
+  @media (max-height:640px){
+    .jtrack{height:auto}
+    .jpin{position:static;height:auto;overflow:visible}
+    .jn{opacity:1}
+    .jn p{max-height:90px}
+  }
 </style>
 <noscript><style>
   /* ⚠ WITHOUT JS THE JOURNEY WAS 320vh OF A PINNED PANEL WITH NO BODY TEXT.
@@ -508,8 +527,8 @@
      ⚠ The cards are EXAMPLES and say so. Measured 2026-09-11: production holds
      1 trainer and 1 nutritionist with an owner_id, so rendering real profiles
      here would render two people. The live count is fetched and rendered only
-     when the route answers with one — `marketplace-stats` reports 0 on a failed
-     read, so a zero is treated as "could not read", never as "none". -->
+     when the route answers with one — `marketplace-stats` reports null for a
+     failed read, and the wire says nothing unless BOTH counts came back. -->
 <section class="s alt" id="market">
   <div class="wrap">
     <div class="sh">
@@ -1041,10 +1060,15 @@
    MEASURED figure is the marketplace count, and it is added only when the route
    answers with one.
 
-   ⚠ `/api/marketplace-stats` reports `0` for a FAILED read (`count ?? 0`), so a
-   zero is treated as "could not read", never as "there are none" — writing
-   "0 coaches" on the homepage because a query timed out is exactly the class of
-   claim this page exists to stop making. */
+   ⚠ `/api/marketplace-stats` reports `null` for a FAILED read, and the two
+   queries fail INDEPENDENTLY. This used to read `count ?? 0` per query against a
+   `!t && !n` guard here, which suppressed the line only when BOTH were zero — so
+   a failed trainers read beside a healthy nutritionists one published
+   "0 trainers · 1 nutritionist": a read that never happened, printed as a count,
+   on the page whose whole framing is that every number is measured or labelled.
+   Either count unreadable now means the wire says nothing. (Codex, #2045.)
+   ⚠ A measured zero on BOTH is still silence, which is the original rule and a
+   different one: there is nothing to advertise, rather than nothing to say. */
 (function(){
   var track=document.getElementById('wire-track'); if(!track) return;
   var LINES=[
@@ -1066,8 +1090,11 @@
   var el=document.getElementById('mk-stats');
   fetch('/api/marketplace-stats').then(function(r){ return r.ok?r.json():null; }).then(function(d){
     if(!d) return;
-    var t=d.trainers||0, n=d.nutritionists||0;
-    if(!t&&!n) return;                    /* unreadable, or genuinely none — say nothing */
+    var t=d.trainers, n=d.nutritionists;
+    /* null/absent is "we could not read it" and is never printed; the check is
+       per count, because the two reads fail independently. */
+    if(typeof t!=='number'||typeof n!=='number') return;
+    if(!t&&!n) return;                    /* measured zero on both — nothing to advertise */
     var tl=t.toLocaleString()+(t===1?' trainer':' trainers');
     var nl=n.toLocaleString()+(n===1?' nutritionist':' nutritionists');
     if(el) el.textContent=tl+' · '+nl+' · browse free before you pay';
