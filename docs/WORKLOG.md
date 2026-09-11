@@ -673,105 +673,94 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
-### 2026-09-11 — The third Codex round: the ordering reversed a third time, a first record that was not a PR, and a gap refused for being in kilograms
+### 2026-09-11 — Four orderings for one record, and the fourth is the one that cannot lose it
 
-- ⚠ **AND THE FOURTH ROUND HAD NO CODEX: IT REFUSED THIS HEAD WITHIN A MINUTE** — *"You have
-  reached your Codex usage limits for code reviews"*, 19:54:37Z, the **spoken** face of the limit
-  rather than the silent one. Owner's ruling on being told: ***"then run coderabbit if codex is
-  not working"***, so CodeRabbit was triggered on `c991899` and **the conventions at the head of
-  this file are corrected at the source** — they had said *"no more coderabbit"* and named Codex
-  the only external reviewer, which would have had the next session ship a head with **no
-  external layer at all**. ⚠ **Two paragraphs below that banner still carried the prohibition**
-  and are marked rather than deleted (one of them says in as many words *"do not trigger
-  CodeRabbit on that basis"* about the basis that is now standing) — this file's own post-mortem
-  is that a reader landing between two rulings finds a prohibition and its replacement three
-  lines apart, and that is exactly what four rulings in one day produces. **The merge gate did
-  not move: CI green on the final head, and not a draft.**
-
-- **Three more findings on `2e8f47d`, all real — 2×P1 + 1×P2 — and two of them were defects the
-  PREVIOUS round's fix had introduced.** Owner, on whether to take the root-cause reorder over a
-  narrower patch: ***"what makes the most sense to achieve what we want. To have the features i said
-  to implement work"***. So the sheet's write order is reversed for the third time, and the reasoning
-  for all three orderings is kept at the call site rather than only the result. No migration, no route.
-- ⚠ **P1 — A REFUSED RECORD LEFT A POST STANDING, AND A RETRY MADE A SECOND ONE.** Post-first fixed
-  the plate (ordering 2, yesterday) and opened three defects at once: `createCommunityPost` publishes
-  before the RPC is asked, so a `not_a_pr` verdict left an **orphan workout post** the member never
-  asked for — carrying its own **+5 award** and a `delta` announcing a PR the server had just
-  refused — and tapping Post again published **another**. The client-side pre-check I added to cover
-  it was a second opinion about a verdict the server was going to give anyway, which is a race with
-  extra steps.
-- ⚠ **THE FIX IS ORDERING 3 — ANNOUNCE FIRST, PUBLISH ONLY ON ACCEPTANCE — AND WHAT MAKES IT
-  POSSIBLE IS THAT THE RPC RETURNS THE `prev` IT WROTE.** That is the whole reason ordering 2 existed:
-  `createCommunityPost` derives *"+X over last best"* by **re-reading the ledger**, so announcing
-  first advanced it past this very number and every hand-posted record landed with no gain. With
-  `res.prev` in hand the delta is computed **here**, from the row the server actually wrote — which is
-  also race-safe in a way a re-read never was, and needs no pre-check at all. Verified at the source
-  rather than assumed: `2026-09-10-pr-wall-prev-race.sql:204` returns `'prev', v_prev_written`, and
-  `src/app/api/community/pr-wall/route.ts:62` passes the RPC's object through untouched.
-- ⚠ **THE COST IS ONE THING NOTHING READS, AND IT WAS CHECKED RATHER THAN WAVED THROUGH.**
-  `pr_wall_posts.post_id` stays null, because the post does not exist when the RPC runs. **No caller
-  of `ShapePRWall.mine()` touches `postId`** — both are in `BSWallYourBest` — and the board read that
-  did take it (`shape_pr_wall`) has had **no mount since #2036** folded the Wall into the feed. *A
-  link nobody follows is a poor reason to keep a design that publishes before it knows.*
-- ⚠ **AND "COULD NOT POST THAT RECORD" BECAME A LIE THE MOMENT THE ORDER FLIPPED.** Past the RPC the
-  record **is** on the wall, so a failed feed insert is not a failed post-a-PR — and that sentence
-  sends the member to retry something the server will now refuse as *not a PR*, **correctly**, because
-  it is their best. It gets its own line (`wall.postedNoFeed`), and the two refusal exits share one
-  ladder (`bsWallSay`) because a second copy is how the two come to disagree.
-- ⚠ **P1 — A FIRST RECORD WAS ACCEPTED BY THE SERVER AND WAS NOT A PR ANYWHERE ON THE SCREEN.**
-  `delta` exists **only against a prior best**, and both PR consumers on a real post read it —
-  `bsFeedTypeMatch(…, 'prs')` and the plate's pill — because `kind: 'pr'` is a **demo-card concept**
-  never stamped on a real post. So a member's first accepted best for a lift dropped out of the PR
-  chip and drew as an ordinary load. An explicit `pr: true` marker now rides the post, stamped
-  **after** the server accepts, so it reports a verdict rather than an intention.
-- ⚠ **AND THE MARKER CROSSES THREE FILES ON THE WAY BACK, WHICH IS WHERE MY OWN GUARDS STOPPED.**
-  Mutation round 3 killed nine and **survived three**, every one of them the same gap: the tests
-  asserted the marker is **written** and nothing drove it being **read**. Dropping it at
-  shapeBackend's row mapper, at the client's own mapper, or at the PR filter left the whole suite
-  green while a first record went straight back to falling out of the PR tab — *the exact defect the
-  marker exists to close*. The chain is driven end to end now, from a stored row through the real
-  `communityPostFromRow` (lifted with its own dependency chain, not stubbed) to `bsFeedTypeMatch` and
-  the rendered plate, with **a control** (the same lift with no marker reads false) and **a legacy
-  case** (a pre-marker post is still a PR off its own delta). 13/13 after. *A guard on the write half
-  of a round trip is a guard on half the rule.*
-- ⚠ **AND MY OWN READ OF THE FIXED TREE FOUND THE SAME LIE ONE SCOPE OUT.** Past the RPC's
-  acceptance the record IS on the wall — and that whole region still sat inside the `try` whose catch
-  reports *"Could not post that record."* The window is narrow (a throwing callback is the only thing
-  in it that can reject) and the shape is the exact one this round exists to remove, so it is closed
-  **by scope rather than by a flag**: the `try` now ends at the RPC call, which is where the two
-  things that can actually reject live. *A flag has to be right about every throw; a scope does not.*
-  And the two callbacks are isolated, because the only outcomes a throwing consumer could add are
-  both bad — that generic sentence over a record that landed, or an **unhandled rejection out of a
-  click handler**, which is what the first version of this actually did and what the test measured.
-- ⚠ **AND MY FIRST MUTATION FOR THAT WAS A NO-OP DRESSED AS A TEST.** It called an **empty** helper
-  where the accepted region should have gone, so it "survived" a change it had never made. Rebuilt by
-  taking the shipped region and genuinely reverting it to the pre-scope structure — **parse-checked
-  before it was run**, so a syntax error could not be mistaken for a kill — it dies to the one test
-  written for it. *A survivor is a finding about the mutation until the mutation is proven to land.*
-- ⚠ **P2 — A GAP WAS REFUSED FOR BEING IN KILOGRAMS, AND THE RULE THAT DID IT WAS MY OWN.** It read
-  *"a lift logged in kg against a ledger row in lb is two different numbers, and subtracting them
-  would invent a gap"* — which **conflates inventing with converting**. A conversion inside one family
-  is exact, and refusing it had a cost the rule did not name: a logged **100 kg** over a posted
-  **200 lb** is the higher, **unposted** best, and the row drew it as a settled fact with the old
-  post's date and no way to put it up. What the old rule was right about is the **family** — a weight
-  and a distance genuinely are not comparable — so that is all that is kept.
-- **Verified on the rebased head:** `npm test` **3355/3355** (3 new here; 3352 before rebasing onto
-  `2b967c4`) · `tsc --noEmit` 0 · JSX parse on the client module and `node
-  --check` on the backend · the newdesign precompile check (74 pages) · **16/16 mutations killed
-  across two rounds**,
-  each proven to land, sanity green at both ends, tree restored in a `finally` · and the whole change
-  confirmed in the emitted bundle **in the minifier's backtick form** — the marker at all five read
-  and write sites (`pr:t.pr===!0` in the backend chunk, `pr:e.pr===!0`, the `prs` filter, the reaction
-  type and the pill in the client chunk), the announce carrying **no** `postId` beside
-  `createCommunityPost`'s own call that still does, the scope (`catch{s=null}if(!s||!s.ok)`), the two
-  isolated callbacks, `skipPRAnnounce:h=!1` still defaulting off, and the family-gated conversion —
-  behind a **negative control** (the retired refuse-to-convert rule
-  reads **0** while the same grep shape finds its replacement). ⚠ A double-quote grep reads 0 on every
-  one of these and looks like a miss; this file records the trap and it cost a minute again.
+- **The Wall's "Post a PR" went through FOUR write orderings in one PR, three of them fixed for a
+  real defect and each producing the next.** Codex found the first two, CodeRabbit the third; the
+  owner's ruling mid-way restored CodeRabbit as the fallback when Codex declines (*"then run
+  coderabbit if codex is not working"*), which is why the last round had a reviewer at all. **No
+  migration** — and the absence of one is a finding, not a shortcut.
+- ⚠ **THE PROBLEM IS TWO STORES AND ONE BUTTON.** A record is a `pr_wall_posts` row written by
+  `post_my_pr_to_wall`; a plate is a `community_posts` row. Since #2036 the Wall **is** the activity
+  feed, so a member needs both — and no ordering of two unsynchronised writes is safe. Every round
+  below is a different answer to *which half may be left behind when the other fails*.
+  1. **Ledger only** (the restored sheet). A ledger row rendered NOTHING; the toast said *"On the
+     wall"* over a plate that existed nowhere.
+  2. **Post, then announce.** Fixed the plate. A refused announce then left an orphan post with its
+     own **+5 award**, and a retry inserted a second one.
+  3. **Announce, then post.** Fixed the orphan post and created a far worse orphan, because
+     `post_my_pr_to_wall` refuses anything that does not **beat** the stored best: once the ledger
+     had moved, a failed insert left a record **the server itself would refuse to publish forever**.
+  4. **Post as an ordinary workout, announce, then stamp the record from the verdict.**
+- ⚠ **(3) IS THE ONE WORTH THE MOST WORDS, BECAUSE IT LOOKED LIKE A FIX AND WAS A REGRESSION.** An
+  orphan POST is visible, ordinary and the member's own to delete; an orphan LEDGER ROW is invisible,
+  unrecoverable, and — driven rather than argued — **`bsWallYourBest` reported it as posted**:
+  with the ledger at 245 and no plate, the row comes back `unposted: false, postable: false` in both
+  the manual-only and the also-logged case. So *Your best* actively told the member their record was
+  on a wall it had never reached. **Trading a visible failure for an invisible one is not a fix.**
+- ⚠ **(4) IS ONLY POSSIBLE BECAUSE THE POST IS MUTABLE, WHICH NOTHING IN THE EARLIER ROUNDS USED.**
+  `updateCommunityPost` merges into `metrics` and treats `''`/`null` as removal — so a retry can
+  **update the post it already made** rather than insert a second one with a second award, and the
+  record fields can be written **after** the verdict instead of optimistically. Nothing can now
+  advance the ledger for a plate that does not exist, so every failure stays retryable forever; what
+  a failure can leave is a community post, which is visible and deletable.
+- ⚠ **AND THE MARKER IS WRITTEN ONLY BEHIND AN ACCEPTED RECORD — a reviewer's remedy adopted, and it
+  made the code SIMPLER.** The post is published as the ordinary workout it honestly is; `pr` and
+  `delta` are stamped from the verdict. A refusal then needs **no repair at all**, because there was
+  never a claim to take back — and an announce we cannot read leaves the post **under**-claiming
+  rather than over-claiming, which is the only honest direction for an unresolvable case.
+- ⚠ **THE GAIN COMES FROM `res.prev`, NEVER FROM THE READ THAT PRECEDED IT.** The client pre-check
+  exists to refuse before anything is published (or "Post a PR" with a number that beats nothing
+  publishes a post nobody asked for); it is **not** a source for the delta, because a concurrent
+  winner between the read and the announce makes a read-derived gain wrong — by 40 lb in the fixture.
+  It compares in **pounds**, since the ledger keeps a unit per row; an unreadable ledger neither
+  refuses nor guesses.
+- ⚠ **`pr: true` EXISTS BECAUSE A FIRST RECORD HAS NO DELTA — Codex's P1, and it crosses three files
+  on the way back.** `delta` is only defined against a PRIOR best, and both PR consumers on a real
+  post read it (`kind: 'pr'` is demo-only), so a member's genuinely-first accepted best was filtered
+  out of the PR chip and drawn as an ordinary load. **My first round of guards proved it was WRITTEN
+  and never that it was READ**: three mutations — dropping it at shapeBackend's row mapper, at the
+  client's mapper, or at the filter — left the whole suite green while the defect returned. The chain
+  is driven end to end now, with a control and a legacy case.
+- ⚠ **AND A LATER REWRITE OF THE SHEET'S TESTS DELETED THAT SECTION, WHICH ONLY THE MUTATION ROUND
+  CAUGHT.** Four previously-killed mutations came back alive in one careless edit span. *A guard is
+  as easy to lose to a bad boundary as to a bad rule* — it sits below the sheet's own tests now, with
+  the reason written above it.
+- ⚠ **A GAP WAS REFUSED FOR BEING IN KILOGRAMS, AND MY OWN RULE IS WHAT DID IT.** It read *"a lift
+  logged in kg against a ledger row in lb is two different numbers, and subtracting them would invent
+  a gap"* — which **conflates inventing with converting**. A conversion inside one family is exact,
+  and refusing it hid the higher, unposted best behind the old post's date with no way to put it up.
+  What the old rule was right about is the **family**, so that is all that survives.
+- ⚠ **THE SECURITY FINDING WAS HALF RIGHT, AND THE REFUTED HALF IS THE PART TO REMEMBER.** CodeRabbit
+  called client-settable `metrics.pr` an authorization bypass (CWE-602). Measured: `metrics.delta` is
+  caller-supplied **on `origin/main`** and `bsFeedTypeMatch` has read it as a PR signal that whole
+  time, so the marker adds **no capability**; and nothing privileged is reachable, because the ledger,
+  the +5 award and the leaderboard are all definer RPCs that re-check the caller. **Registered, not
+  half-fixed:** `community_posts.metrics` is client-written jsonb, so stripping `pr` while leaving
+  `delta` closes nothing — a real fix is one server-side rule over the whole document, which is a
+  migration and the owner's call. *CodeRabbit agreed on both points.*
+- ⚠ **TWO GUARDS WERE DELETED RATHER THAN TESTED AROUND.** A `known` flag on the prior-best read was
+  implied by `lb != null` at every return, so a mutation removing it from **both** call sites
+  survived. And the `stored === 'supabase'` check is recorded as a **proven no-op** — every
+  non-supabase path in `myPRLedger` answers `data: []` — kept only against that function ever growing
+  a local cache, with the reasoning at the site rather than a fixture inventing a shape production
+  cannot produce.
+- **i18n:** `wall.postedNoFeed` → `wall.postedNoRecord` × 13 locales, each recomposed from that
+  catalog's **own** "could not X — try again" pattern (`send.error`) and its own word for a record.
+  The old copy said *"Record saved"*, which ordering 4 makes false. ⚠ The call site's `defaultValue`
+  and the catalog disagreed on the first run — **the catalog is what renders**, so the JSX was the
+  stale copy, and the resolution guard caught it.
+- **Verified on the rebased head:** `npm test` **3394/3394** · `tsc --noEmit` 0 · JSX + JS parse ·
+  the newdesign precompile check · **17/18 mutations killed** across the final round, the survivor
+  proven a no-op above · and the whole change confirmed in the emitted bundle: the creation payload
+  as `{kind:'workout',workoutStats,lift,load}` carrying **no `pr` and no `delta`**, the verdict stamp
+  present, the announce carrying its `postId`, all 13 translations shipped, and **two negative
+  controls reading 0** (the retired `postedNoFeed` key and the retired repair patch).
 - ⚠ **REGISTERED, NOT FIXED:** an endurance record still cannot reach the wall by hand; the composer's
-  own log affordance still carries a hardcoded English `aria-label="Log activity"`; and **no
-  on-account pass** — production still holds 0 `pr_wall_posts`, so not one of these orderings has ever
-  run against real RLS.
+  own log affordance carries a hardcoded English `aria-label="Log activity"`; a server-side rule over
+  `community_posts.metrics` is owed if PR presentation must be authoritative; and **no on-account
+  pass** — production holds **0** `pr_wall_posts`, so not one of these four orderings has ever run
+  against real RLS.
 
 ### 2026-09-11 — The Codex round on the Codex round: four findings, and two of them reversed what I had argued an hour earlier
 
