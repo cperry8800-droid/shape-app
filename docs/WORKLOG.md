@@ -141,7 +141,31 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-10, AND THE ONLY VERSION THAT BINDS.**
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11. READ THIS BEFORE THE 09-10 BLOCK
+  BELOW, WHICH IT NARROWS.** Owner, 2026-09-11: ***"dont run coderabbit moving forward"***.
+  So **CodeRabbit is not to be triggered on any PR** — not as a gate, not as a sweep, not
+  once. And measured the same day on #2033 and #2037, Codex answers an explicit trigger
+  within seconds with *"You have reached your Codex usage limits for code reviews."*
+  **Both external reviewers are therefore out of the loop: one by ruling, one by
+  measurement**, and the owner has separately ruled the `/code-review` skill out too
+  (*"that doesnt work and takes too long"*, with the same verdict on the Workflow tool).
+  ⚠ **WHICH LEAVES EXACTLY ONE LAYER, AND IT IS MINE: an adversarial read of my own diff
+  before pushing** — hand-run, not a skill invocation — hunting the regressions the
+  diff-review bullet below enumerates, plus a mutation round proving each new guard can
+  actually fail. It is not a formality standing in for a reviewer; it is the whole review.
+  ⚠ **THE MERGE GATE IS UNCHANGED, AND THAT IS THE POINT: CI green on the final head AND
+  not a draft.** Because no reviewer is named IN the gate, three reviewers leaving in
+  three weeks cost `/console` nothing this time — which is the 2026-08-26 post-mortem
+  paying off rather than being re-learned. *A rule that names a party who can leave has an
+  expiry date nobody wrote down; a gate that names only CI does not.*
+  ⚠ **AND THIS IS THE THIRD HANDOVER OF THE SAME SENTENCE.** When Codex went out on
+  2026-08-21 this file wrote *"losing Codex loses a real layer, and self-review is what has
+  to cover it"*; CodeRabbit then covered it; now neither does. **The measured yields below
+  are what self-review now has to absorb alone** — Codex found the defects that make a
+  feature *fake*, CodeRabbit found more and wider at a higher false rate. Read those
+  paragraphs as a checklist for my own pass, not as history about tools.
+  ⚠ **THE REVIEWER SYSTEM AS OF 2026-09-10 — NARROWED BY THE 09-11 RULING ABOVE, kept
+  because its merge-gate and one-round-per-PR rulings still bind.**
   Owner, 2026-09-10: *"i just want the tasks completed as we said we were with proper
   reviews for each PR"* + *"trigging a codex review on each PR as well moving forward"*.
   **EVERY PR GETS TWO REVIEW LAYERS: `/code-review` before pushing, and an explicit
