@@ -47,6 +47,42 @@ test('the scroll handler never flips the row directly — every toggle arms the 
   // And it must decline to decide while our own collapse is settling.
   assert.ok(/lockUntil/.test(anchor),
     'the scroll handler must consult the settle deadline before reading a delta');
+  // ⚠ CONSULTING THE DEADLINE IS HALF OF IT. A handler may decline the toggle
+  // and still leave `st.last` on the pre-collapse offset — after which the FIRST
+  // scroll past the deadline carries the compensation delta and flips the row
+  // anyway, which is the vibration with a 420ms delay on it. So the branch is
+  // brace-matched and asserted to re-baseline, not merely to exist.
+  // (CodeRabbit, #2043.)
+  const gate = anchor.indexOf('st.lockUntil');
+  assert.notEqual(gate, -1, 'no settle-deadline comparison in the scroll handler');
+  const bOpen = anchor.indexOf('{', gate);
+  assert.notEqual(bOpen, -1, 'the settle-deadline check has no branch body');
+  let d = 0, branch = '';
+  for (let i = bOpen; i < anchor.length; i++) {
+    if (anchor[i] === '{') d++;
+    else if (anchor[i] === '}' && --d === 0) { branch = anchor.slice(bOpen, i + 1); break; }
+  }
+  assert.ok(branch, 'unbalanced settle-deadline branch');
+  assert.match(branch, /st\.last\s*=/,
+    'the settle branch returns without re-baselining st.last — the first scroll after the deadline still carries our own layout delta');
+
+  // ⚠ THE FRAME CAN OUTLIVE THE SCROLLER. The ref callback nulls `st.sc` on
+  // detach and cannot cancel a frame already scheduled, so the callback must
+  // check before it dereferences — it throws out of a rAF, where no React error
+  // boundary catches it. Asserted as an ORDERING (guard before deref), because
+  // a guard placed after the read is the bug with extra lines. (CodeRabbit, #2043.)
+  const raf = anchor.indexOf('requestAnimationFrame(');
+  assert.notEqual(raf, -1, 'the scroll handler no longer defers to an animation frame');
+  const tail = anchor.slice(raf);
+  const guard = tail.search(/!\s*st\.sc\b|st\.sc\s*&&/);
+  const deref = tail.search(/st\.sc\s*\./);
+  assert.notEqual(deref, -1, 'the frame callback no longer reads the scroller');
+  assert.ok(guard !== -1 && guard < deref,
+    'the animation frame dereferences st.sc without first checking it is still attached');
+  // and the bail must not leave the handler believing a frame is still pending
+  const bail = tail.slice(guard, deref);
+  assert.match(bail, /st\.ticking\s*=\s*false/,
+    'the detached-scroller bail leaves st.ticking true, so no further scroll is ever processed');
 });
 
 test('the toggle arms a FUTURE deadline, so the compensation scroll cannot decide', () => {
@@ -83,10 +119,20 @@ test('switching main tabs reveals the row through the guarded setter', () => {
       else if (SRC[k] === ')') { d--; if (d === 0) { effects.push(SRC.slice(i, k + 1)); break; } }
     }
   }
-  assert.ok(effects.length > 100, `the effect extractor found only ${effects.length} — it is not reading the module`);
   const m = effects.filter((b) => b.includes('bsScroll.current'));
   assert.equal(m.length, 1,
     `expected exactly one effect touching the scroll guard, found ${m.length}`);
+  // ⚠ THIS USED TO ASSERT `effects.length > 100`, WHICH PINNED MODULE SIZE
+  // RATHER THAN THE INSTRUMENT — a legitimate refactor dropping below 100 would
+  // have failed a test about the scroll guard, which is the brittle-guard class
+  // this repo keeps paying for. It is also redundant for vacuity: an extractor
+  // that finds nothing yields m.length 0 and fails one line up. What the count
+  // could NOT catch is the documented failure that actually happened — a matcher
+  // running past its own closing paren and returning one 395KB blob, which
+  // satisfies `m.length === 1` while every assertion below is about unrelated
+  // code. A size bound catches exactly that. (CodeRabbit, #2043.)
+  assert.ok(m[0].length < 4000,
+    `the matched effect is ${m[0].length} chars — the paren matcher ran past its own closing paren`);
   assert.match(m[0], /\}, \[tab[^\]]*\]\)$/, 'the scroll-guard effect is no longer keyed on the tab');
   assert.match(m[0], /bsSetSub\(false\)/, 'the reveal must go through the guarded setter');
   assert.equal(/lockUntil\s*=\s*0/.test(m[0]), false,

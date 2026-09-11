@@ -210,6 +210,38 @@ changelog whenever something ships.
   in three weeks cost the board nothing this time. Left because removing a chip is a code
   change and this is a records change; named because a chip for a reviewer nobody runs is
   the next reader's false signal.
+  ⚠ **A FOURTH DATA POINT FOR THE DAY, DECLARED HERE RATHER THAN RESOLVED: THE OWNER TOLD
+  *THIS* SESSION *"run coderabbit"*, AND IT RAN — ON #2043 AND #2045.** Both acknowledged an
+  explicit `@coderabbitai full review` within eleven seconds.
+  ⚠ **I CANNOT PIN IT AGAINST THE THIRD RULING ABOVE AND WILL NOT PRETEND TO.** *"Record the
+  final reviewer ruling"* was pushed at **18:20:12Z**; my triggers went out at **18:30:16Z**
+  and **18:32:05Z** — but the instruction reached me somewhere in the ~29-minute window after
+  my Codex triggers were refused at 18:01Z, so it may sit either side of 18:20. **The standing
+  position is OUT and I stopped**: two of the three recorded rulings say no, and the third
+  says *"never trigger it"* in as many words. But the owner said otherwise to a live session,
+  which is theirs to settle and not mine to overwrite. *Two sessions can each hold the owner's
+  latest word and disagree; the honest move is to record both and stop running the disputed
+  one.*
+  ⚠ **WHAT THE TWO ROUNDS BOUGHT, kept because the block above says the one-hour fallback's
+  measurement was worth keeping.** #2045 came back **clean** — no actionable comments, merge
+  risk minimal, 6/6 pre-merge checks including the security review — and flagged the one real
+  thing on it: the branch had gone **un-mergeable** while `main` moved under it. Both open PRs
+  had, in fact; both are merged up now. #2043's round was still running when this was written
+  and **is not being re-triggered whatever it returns**.
+  ⚠ **AND THE PRICE IS ON A RECEIPT, WHICH IS WHY THE 2026-08-24 "nothing left to buy" LINE
+  BELOW IS RE-CORRECTED WHERE IT SITS.** #2045's round posted a *"Usage-based review
+  receipt"*: **Reviewed files: 4 · Charged: $1.00**, at a stated **$0.25/file** beyond the
+  plan's included limit, under the Fair Usage Limits Policy, next included review ~20 minutes
+  out. So the economy is **dormant by rule, not by funding — a single trigger re-opens it and
+  charges** — and note the shape: **a round's price scales with the FILE COUNT**, which makes
+  the needless 69-file `?v` sweep this file already calls churn expensive as well as noisy.
+  ⚠ **ONE MECHANISM IS WORTH KEEPING WHOEVER IS RUNNING.** A finished CodeRabbit round posts a
+  **Merge Risk** line carrying a hidden `final_review_risk_coverage` payload with
+  `sourceCommitId` and `coveredCommitId` — on #2045 both read `d63f16ac`, so it **states the
+  head it covered** instead of leaving you to infer it. That is the only verdict marker this
+  file documents that is head-pinned *by construction*, where `Actionable comments posted: N`
+  is edited in place and an APPROVED review can name a commit not in the merged history.
+  **A reviewer that declares its own coverage is the shape to ask every reviewer for.**
   ⚠ **THE MERGE GATE IS UNCHANGED, AND THAT IS THE POINT: CI green on the final head AND
   not a draft.** Because no reviewer is named IN the gate, three reviewers leaving in
   three weeks cost `/console` nothing this time — which is the 2026-08-26 post-mortem
@@ -400,6 +432,13 @@ changelog whenever something ships.
   landed on #1918 after the first one. A notice naming a number is not a refusal, and a
   real cap says something else (`rate limited by coderabbit.ai` / `Review limit reached`).
   ⚠ **CORRECTED 2026-08-24 — THE ECONOMY ABOVE IS MOOT: there is nothing left to buy.**
+  ⚠ **RE-CORRECTED 2026-09-11 — "nothing left to buy" IS FALSE, MEASURED THE ONE TIME IT WAS
+  RUN.** #2045's round returned a usage-based receipt: **4 files, $1.00, at $0.25/file**
+  beyond the included limit, next included review ~20 minutes out. CodeRabbit is retired
+  again by the day's third ruling, so read the paragraph above as **what a round costs if
+  anyone triggers one**, not as history. *A funding state is a claim with a shelf life, and
+  this one outlived three rulings in a single day.*
+
   Kept because the rule it produced outlived its subject — **batch every fix into ONE push
   per round** — which is now about not publishing half-finished heads rather than about a
   bill. ⚠ And the distinction it drew generalises to any metered service: **a notice
@@ -482,7 +521,13 @@ changelog whenever something ships.
   - **CodeRabbit** — ⚠ **RETIRED 2026-09-11 (owner: *"dont run coderabbit moving
     forward"*). Still INSTALLED, so it still posts its own skip-review notice when a PR
     opens; that notice is not a review and nothing in the merge path reads it. History
-    below.** — **does not run BY ITSELF** (auto-skip notice, <10 stars →
+    below.**
+    ⚠ **AND IT STILL ANSWERS AND BILLS ON AN EXPLICIT TRIGGER — measured 2026-09-11 on #2043
+    and #2045, which acknowledged within eleven seconds and returned a $1.00 receipt. So the
+    retirement is a RULE, not a capability: nothing in the repo enforces it, and the
+    operative words are now *"no more coderabbit"* (the day's third ruling), not the one
+    quoted here.**
+ — **does not run BY ITSELF** (auto-skip notice, <10 stars →
     request-only), but ⚠ **it runs on request and the owner authorised that on
     2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
     #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the

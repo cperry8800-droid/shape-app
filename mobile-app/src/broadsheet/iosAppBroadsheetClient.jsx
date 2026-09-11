@@ -19694,6 +19694,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       if (st.ticking) return;
       st.ticking = true;
       requestAnimationFrame(() => {
+        // ⚠ THE SCROLLER CAN BE GONE BY THE TIME THIS FRAME RUNS. The ref
+        // callback nulls `st.sc` on detach (a tab without a sub-row, or leaving
+        // Chat) and cannot cancel a frame already scheduled — so a scroll in
+        // the same frame as the unmount reached `null.scrollTop` and threw. It
+        // throws OUT of a rAF, where no React error boundary can catch it.
+        // Re-attaching resets `ticking`, so the handler was never left wedged;
+        // the bug was the uncaught error alone. (CodeRabbit, #2043.)
+        if (!st.sc) { st.ticking = false; return; }
         const y = st.sc.scrollTop;
         // Our own collapse is still settling: keep the reference current so the
         // first real scroll after it is measured from where the user actually
