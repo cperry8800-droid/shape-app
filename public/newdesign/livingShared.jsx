@@ -589,7 +589,21 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // subscription checkout) + live reviews — the same data the marketplace used.
   const first = d.first || String(d.name || "").split(/\s+/)[0] || "Coach";
   const monthlyPrice = ((d.offerings || []).find((o) => /coaching/i.test(o.kind) || /month/i.test(o.unit || "")) || {}).price || (/nutritionist/i.test(String(d.role || "")) ? "$240" : "$200");
-  const [provider, setProvider] = React.useState(null);
+  // ── The coach's own provider row: ONE source for (id, role) AND capacity ──
+  //
+  // ⚠ THE ROLE-CORRECT ROW, NOT `get_coach_sale_plans_by_user`'s FIRST ROW, which is
+  // what this resolved from before. That RPC derives each row's role from the PLAN's
+  // kind (`meal_plan` → nutritionist, else trainer) ordered newest-first, so `rows[0]`
+  // is "whatever this coach published most recently". For a DUAL-ROLE coach that is
+  // arbitrary relative to the listing the visitor clicked — Subscribe checked out
+  // against the OTHER role's provider row while the offer and STUDIO on this very page
+  // read `providerTable`. And a coach with NO published plans returned no rows at all,
+  // so `provider` stayed null and Subscribe fell through to the chat: the commonest
+  // case there is, a coach who has just joined.
+  //
+  // `null` means "not read yet, or we could not read it" — deliberately NOT "open for
+  // business" and NOT "at capacity". Both of those are claims about the coach.
+  const [prow, setProw] = React.useState(null);   // { id, atCapacity } | null
   const [liveReviews, setLiveReviews] = React.useState(null);
   // Coach-authored monthly offer (spec #1632 §5) — the same provider-row
   // monthly_offer the mobile Listing's WHAT'S INCLUDED sheet reads. The
@@ -613,10 +627,29 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     let on = true;
     // Clear any prior coach's data first, so a same-mount profile swap can't
     // leave the previous coach's offer/studio showing until the new fetch lands.
-    setOffer(null); setStudio([]);
-    cl.from(providerTable).select("monthly_offer, listing_media").eq("owner_id", d.uid).maybeSingle()
+    // ⚠ `capSrv` AND THE TWO ERROR LINES ARE CLEARED HERE FOR THE SAME REASON THE
+    // OFFER AND STUDIO ARE. This block already knew a same-mount profile swap must
+    // not leave the previous coach's data showing — and the server-said-at-capacity
+    // flag is exactly that kind of state, except worse: left standing it would
+    // present the NEXT coach as paused on the strength of a refusal about someone
+    // else, and their storefront would never render at all.
+    setOffer(null); setStudio([]); setProw(null); setCapSrv(false); setBuyErr(""); setWlErr("");
+    cl.from(providerTable).select("id, monthly_offer, listing_media, at_capacity, capacity_resume_at").eq("owner_id", d.uid).maybeSingle()
       .then((r) => {
         if (!on || !r || r.error || !r.data) return;
+        // Capacity rides the request that was already going out — the page has always
+        // read this row for the offer and the STUDIO, so knowing whether the coach is
+        // paused costs no extra round trip.
+        //
+        // ⚠ SPELLED EXACTLY AS `src/lib/capacity.ts` isEffectivelyAtCapacity SPELLS IT:
+        // paused, AND either no resume date or one still in the future. A resume date
+        // that has passed means accepting again even though the column has not been
+        // flipped back yet (the lazy cleanup runs on the coach's next dashboard visit).
+        // An unparseable date is NaN, and `NaN > Date.now()` is false — the server
+        // reads it as accepting too, which is the point of copying the expression
+        // rather than re-deriving one that agrees on the cases somebody thought of.
+        const resume = r.data.capacity_resume_at;
+        setProw({ id: r.data.id, atCapacity: !!r.data.at_capacity && (!resume || new Date(resume).getTime() > Date.now()) });
         if (r.data.monthly_offer) setOffer(r.data.monthly_offer);
         const lib = window.ShapeListingLib;
         if (lib && lib.bsNormalizeListingMedia) {
@@ -630,23 +663,121 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const offerLines = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 8) : [];
   const hasOffer = Boolean(offer && ((offer.blurb && String(offer.blurb).trim()) || offerLines.length));
   React.useEffect(() => {
-    const cl = window.shapeDb && window.shapeDb.client;
-    if (d.uid && cl && cl.rpc) cl.rpc("get_coach_sale_plans_by_user", { p_user_id: d.uid }).then((r) => { const rows = (r && !r.error && r.data) || []; if (rows[0]) setProvider({ id: rows[0].provider_id, role: rows[0].provider_role }); }).catch(() => {});
     const slug = String(d.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     let on = true;
     fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (on && j && Array.isArray(j.reviews) && j.reviews.length) setLiveReviews(j.reviews); }).catch(() => {});
     return () => { on = false; };
   }, [d.uid, d.name]);
   const openChat = () => { try { if (window.__openChat) { window.__openChat({ who: d.name }); return; } const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } catch (e) {} };
+  // ── The waiting list ──────────────────────────────────────────────────────
+  // The app has carried this since #1498 and so do the LEGACY website pages
+  // (`trainer-profile.html` / `nutritionist-profile.html`) — the canonical
+  // newdesign profile, the one the site actually ships, never got it. So on the
+  // surface a real visitor reaches, an at-capacity coach showed a live Subscribe
+  // button that opened a chat.
+  //
+  // No new route and no migration: /api/waitlist/{mine,join,withdraw} are live, and
+  // `resolveRequestClient` takes a same-origin COOKIE session as well as the app's
+  // Bearer token ("mobile (Bearer) + web (cookie) both work", its own comment), so
+  // the site can call them exactly as they are.
+  const [wl, setWl] = React.useState(null);       // { status, position, entryId } | null
+  const [wlErr, setWlErr] = React.useState("");
+  const [buyErr, setBuyErr] = React.useState("");
+  const [signedIn, setSignedIn] = React.useState(null);   // null until resolved
+  const busy = React.useRef(false);
+  // ⚠ THE SERVER'S 409 IS THE AUTHORITY; THE COLUMN READ IS A COURTESY. A row we could
+  // not read is not a coach with room — but it is not a coach at capacity either, so
+  // the storefront renders and the checkout gets to say so. When it refuses, this
+  // flips and the waiting list appears, which is also what rescues a read that went
+  // stale between the page load and the click.
+  const [capSrv, setCapSrv] = React.useState(false);
+  const atCapacity = !!((prow && prow.atCapacity) || capSrv);
+  const provId = (prow && prow.id) || null;
+  React.useEffect(() => {
+    let on = true;
+    const db = window.shapeDb;
+    if (!db || !db.getSession) { setSignedIn(false); return undefined; }
+    db.getSession().then((s) => { if (on) setSignedIn(!!(s && s.access_token)); }).catch(() => { if (on) setSignedIn(false); });
+    return () => { on = false; };
+  }, []);
+  React.useEffect(() => {
+    setWl(null); setWlErr("");
+    // A signed-out visitor is never asked to join — /api/waitlist/* answers 401, and a
+    // Join button that 401s is the dead control one layer down. They get the sign-in
+    // line instead, the legacy page's own behaviour.
+    if (!atCapacity || !provId || signedIn !== true) return undefined;
+    let on = true;
+    fetch("/api/waitlist/mine", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!on || !j || !Array.isArray(j.entries)) return;
+        // ⚠ THE ENTRY ID IS `id` HERE AND `entryId` ON /join — two spellings for one
+        // thing, and reading the wrong one yields undefined, which makes "Leave the
+        // list" permanently dead from the next reload onward. That is not a
+        // hypothetical: it is the live defect on the app's own marketplace listing,
+        // fixed in this same PR. The RPC behind /mine already drops expired invites
+        // (`status = 'waiting' or (status = 'invited' and invite_expires_at > now())`),
+        // so `status === "invited"` needs no second expiry check here.
+        const mine = j.entries.find((e) => e && String(e.providerId) === String(provId) && e.providerRole === listingRole);
+        setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.id } : null);
+      })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [atCapacity, provId, listingRole, signedIn]);
+  const wlJoin = async () => {
+    if (busy.current) return;                       // in-flight lock: a double-tap can't join twice
+    // ⚠ NOT FOLDED INTO THE LOCK ABOVE. `atCapacity` can be true with NO provider id
+    // — the checkout's 409 sets it while an unreadable provider row leaves `provId`
+    // null — and a bare `|| !provId` there makes this button do nothing at all, in
+    // silence, which is the dead control this whole change is about. The render
+    // withholds the button in that state; this says so if it is ever reached anyway.
+    if (!provId) { setWlErr("We couldn\u2019t load the waiting list just now \u2014 reload and try again."); return; }
+    busy.current = true; setWlErr("");
+    try {
+      const res = await fetch("/api/waitlist/join", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerId: provId, providerRole: listingRole }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setWlErr(j.error || "Could not join the waiting list."); return; }
+      setWl({ status: j.status || "waiting", position: j.position, entryId: j.entryId || null });
+    } catch (e) { setWlErr("Could not join the waiting list — check your connection and try again."); }
+    finally { busy.current = false; }
+  };
+  const wlLeave = async () => {
+    if (busy.current) return;
+    // A join whose confirm read failed leaves a status in hand and no id. Saying that
+    // beats a button that silently does nothing — and the next hydrate repairs it.
+    if (!wl || !wl.entryId) { setWlErr("Refreshing your spot — try again in a moment."); return; }
+    busy.current = true; setWlErr("");
+    try {
+      const res = await fetch("/api/waitlist/withdraw", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryId: wl.entryId }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setWlErr(j.error || "Could not update the waiting list."); return; }
+      setWl(null);
+    } catch (e) { setWlErr("Could not update the waiting list — check your connection and try again."); }
+    finally { busy.current = false; }
+  };
+  // ⚠ EVERY FAILURE USED TO OPEN THE CHAT, UNDER A BUTTON THAT SAYS SUBSCRIBE. A null
+  // provider, a network throw, an unparseable body and EVERY non-OK status — 401 not
+  // signed in, 404, the 503 waitlist-lookup retry, "has not completed Stripe
+  // onboarding", and above all the 409 at-capacity refusal — all fell through to
+  // openChat(). So a member pressed a control naming one outcome, got a different one,
+  // and nothing on screen said the subscription had not happened. That is R18's
+  // mislabelled control, the same defect "Book session" carried on the client Team
+  // page, and it costs more trust than a control that leads nowhere.
   const subscribe = async () => {
-    if (provider && provider.id) {
-      try {
-        const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "Subscription", name: "Monthly coaching", price: monthlyPrice, unit: "/ month" }, coach: { provider_id: provider.id, provider_role: provider.role, name: d.name }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
-        const j = await res.json().catch(() => ({}));
-        if (j.url) { window.location.href = j.url; return; }
-      } catch (e) {}
-    }
-    openChat();
+    if (busy.current) return;
+    setBuyErr(""); setWlErr("");
+    if (!provId) { setBuyErr("This coach isn't set up for checkout yet — message " + first + " instead."); return; }
+    busy.current = true;
+    try {
+      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "Subscription", name: "Monthly coaching", price: monthlyPrice, unit: "/ month" }, coach: { provider_id: provId, provider_role: listingRole, name: d.name }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.url) { window.location.href = j.url; return; }
+      // The route's own FLAG, never a sniff of its prose — two different 409s leave
+      // that route and only the sentence told them apart.
+      if (j && j.reason === "at_capacity") { setCapSrv(true); return; }
+      setBuyErr((j && j.error) || "Could not start checkout.");
+    } catch (e) { setBuyErr("Could not start checkout — check your connection and try again."); }
+    finally { busy.current = false; }
   };
   const reviewsAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
   const reviewItems = (liveReviews && liveReviews.length)
@@ -680,7 +811,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       {showCoaching && <React.Fragment>
       {/* Work with {first} — storefront CTA (zero-box; the Subscribe/Book buttons
           stay solid — the ledger bends for money) */}
-      {!owner && (
+      {!owner && !atCapacity && (
         <div style={{ marginTop: 4 }}>
           {stHead(`Work with ${first}`)}
           {/* The standing-offer coupon — the mobile Listing's commerce centerpiece,
@@ -704,6 +835,67 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe</button>
             <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
           </div>
+          {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
+          </div>
+        </div>
+      )}
+      {/* ── At capacity: the waiting list ────────────────────────────────────
+          The app's storefront gate (#1498), in the site's grammar. It REPLACES the
+          coupon rather than sitting beside it: leaving a live Subscribe button under
+          an "isn't taking new clients" notice is the mislabelled control again, and
+          the checkout would refuse it anyway. The INVITED state carries Subscribe
+          because the server's invite gate (`hasActiveWaitlistInvite`) explicitly
+          allows a first-dibs purchase — that is the whole point of the invite, and
+          hiding the coupon at capacity is exactly why the invited state has to carry
+          the subscription path itself. */}
+      {!owner && atCapacity && (
+        <div style={{ marginTop: 4 }}>
+          {stHead(`Work with ${first}`)}
+          <div style={{ border: `1px dashed ${hexA(ink, 0.38)}`, padding: "15px 16px 16px", maxWidth: 520 }}>
+            {wl && wl.status === "invited" ? (
+              <React.Fragment>
+                <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: LV_TEAL }}>✓ You&rsquo;re invited</div>
+                <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{first} has room for you.</div>
+                <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>Book before {first} reopens to everyone.</p>
+                <div style={{ display: "flex", gap: 10, marginTop: 16, maxWidth: 420 }}>
+                  <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe · {monthlyPrice}/mo</button>
+                  <button onClick={wlLeave} style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Decline</button>
+                </div>
+              </React.Fragment>
+            ) : wl ? (
+              <React.Fragment>
+                <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#c0533b" }}>◷ On the waiting list</div>
+                {/* ⚠ A POSITION WE DO NOT HAVE IS NOT POSITION ZERO. `queue_position` is
+                    nullable on the RPC and /join falls back to 0, and `Number(null)` is
+                    0 AND finite — so a plain truthiness or isFinite check prints
+                    "You're #0 in line", a rank nobody holds. A real place in a FIFO
+                    queue starts at 1; anything else says only what we actually know. */}
+                <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{typeof wl.position === "number" && isFinite(wl.position) && wl.position >= 1 ? `You\u2019re #${wl.position} in line.` : "You\u2019re on the list."}</div>
+                <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>{first} will invite you when a spot opens.</p>
+                <button onClick={wlLeave} style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Leave the list</button>
+              </React.Fragment>
+            ) : (
+              <React.Fragment>
+                <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#c0533b" }}>&times; At capacity</div>
+                <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{first} isn&rsquo;t taking new clients right now.</div>
+                <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>Join the waiting list to be first in line when a spot opens.</p>
+                {/* A signed-out visitor gets the sign-in line, never a Join button that
+                    answers 401 — the legacy page's own behaviour, and R18's rule. */}
+                {/* ⚠ THREE STATES, NOT TWO. `atCapacity` can be true with no provider
+                    id behind it (the checkout refused while the row read failed), and
+                    a Join button with nothing to join is a dead control — the exact
+                    thing the coupon's Subscribe was doing. Say so instead. */}
+                {!provId ? (
+                  <div style={{ marginTop: 16, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: hexA(ink, 0.55) }}>We couldn&rsquo;t load the waiting list just now &mdash; reload to try again.</div>
+                ) : signedIn === false ? (
+                  <a href="/newdesign/Login.html" style={{ display: "inline-block", marginTop: 16, padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list &rarr;</a>
+                ) : (
+                  <button onClick={wlJoin} style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Join the waiting list</button>
+                )}
+              </React.Fragment>
+            )}
+            {wlErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{wlErr}</div> : null}
+            {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
           </div>
         </div>
       )}

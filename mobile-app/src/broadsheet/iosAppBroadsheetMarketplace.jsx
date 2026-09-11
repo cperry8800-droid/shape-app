@@ -1943,7 +1943,15 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       try {
         const r = await window.ShapeWaitlist.mine();
         const mine = ((r && r.entries) || []).find((e) => String(e.providerId) === String(capProviderId) && e.providerRole === saleProviderRole);
-        if (on) setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.entryId || null } : null);
+        // ⚠ `/api/waitlist/mine` RETURNS THE ROW AS `id`; ONLY `/join` CALLS IT
+        // `entryId`. Reading `mine.entryId` here yielded undefined on every hydrate, so
+        // `wl.entryId` was null and `wlWithdraw` bailed at its own `if (!wl?.entryId)`
+        // guard — "Refreshing your spot" forever. Joining still worked (the /join
+        // response DOES carry entryId), so the list could be joined in-session and
+        // never left again from the next reload onward. BSSignalCoachProfile reads
+        // `mineEntry.id` and was always right, which is how one member could leave the
+        // list from the profile and not from the listing.
+        if (on) setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.id || null } : null);
       } catch (e) {}
     })();
     return () => { on = false; };

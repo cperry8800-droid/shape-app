@@ -116,7 +116,16 @@ export async function POST(request: Request) {
       );
     }
     if (!invited) {
-      return NextResponse.json({ error: 'Provider is currently at capacity.' }, { status: 409 });
+      // `reason` is a FLAG, not prose. Two different 409s leave this route — this one
+      // and "has not completed Stripe onboarding" — and the only thing separating them
+      // for a caller was the sentence. A website that sniffed /capacity/i would make
+      // the copy part of the contract, which is the defect this repo already
+      // post-mortems (an /account/i sniff matching "Your account is over its usage
+      // limits"). Additive: every existing caller reads `error` and is unaffected.
+      return NextResponse.json(
+        { error: 'Provider is currently at capacity.', reason: 'at_capacity' },
+        { status: 409 }
+      );
     }
   }
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
