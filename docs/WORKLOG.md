@@ -847,6 +847,68 @@ Append new entries at the top, under this note.
 - **Verified on the fixed head:** `npm test` **3462/3462** · `tsc --noEmit` 0 · JSX parse · the mobile
   build · **7/8 mutations killed**, each proven to land, sanity green at both ends, the tree restored
   in a `finally`, with the one survivor proven above to be unreachable rather than uncovered.
+- **AND A SECOND CODERABBIT ROUND ON THE FIXED HEAD, AT THE OWNER'S WORD — THREE FINDINGS, ALL REAL.**
+  Owner: *"run coderabbit"*. Re-triggered on `62e8b931` rather than left alone, because the standing
+  verdict was pinned to `d779c3b3` — the head BEFORE the fixes — so its Merge Risk line was describing
+  code that no longer existed. The re-run re-pinned coverage
+  (`coveredCommitId: 62e8b931`) and moved the risk **🟡 Moderate → 🔵 Low**. ⚠ *That is the whole case for
+  re-running a reviewer after you fix its findings: a verdict is only about the head it names, and a
+  stale one reads as a live objection forever.* It cost nothing — the included slot had returned
+  (*"0 remain after this review"*), where the first round billed **$4.75**.
+- ⚠ **AN `aria-label` ON A BARE `<svg>` IS NOT A NAME YOU CAN RELY ON.** The RPE dial carried
+  `aria-label={`RPE ${rpe}`}` and **no role**, and `<svg>`'s implicit role varies by browser and AT — a
+  name on a generic element may simply be dropped. The dial is the **only** thing carrying the rating in
+  the set table, so a name nothing is obliged to read means the rating is **not published at all**.
+  `role="img"` also makes the two `<circle>` children presentational, which is what they are. The same
+  class as this entry's own `role="table"` fix, one element down — *fixing the container did not fix
+  the thing inside it.*
+- ⚠ **AND THE COUNT IS NOT THE NAME — the reviewer's own patch would have traded one omission for
+  another.** The sticky bar's three controls sat in three states: react carries visible text, share
+  carries an `aria-label`, and the comment button carried **neither** — `bsFeedIcon` marks its icon
+  `aria-hidden`, so the whole accessible name was `{comments.length} ›`, i.e. a screen reader read
+  **"1 ›"**. It was the **lone sibling without a name**, which is the tell that it was an oversight.
+  The suggested fix set the label to `tr('session:detail.comments')` alone — but **`aria-label`
+  REPLACES the text-derived name rather than augmenting it**, so that version names the control and
+  **drops the figure**. Shipped carrying both. Built from the **existing** key, which all 13 locales
+  already have, rather than a fourteenth. *CodeRabbit checked out the commit, confirmed the divergence
+  was right and stored it as a learning.*
+- ⚠ **AND ru/uk PUT A BARE COUNT AGAINST A NOUN THAT HAS TO AGREE WITH IT.** Russian takes **genitive
+  singular** after numbers ending 2–4, so `Все 3 отрезков` is wrong where `Все 5 отрезков` is right;
+  Ukrainian takes nominative plural there. **Reachable rather than theoretical, and the range was
+  pinned rather than assumed:** the cap is 6 and the link renders only when `truncated`, so **n ≥ 7** —
+  correct for 7–20 and wrong from 21. **A marathon in kilometres is 42.2 km, i.e. 43 splits**, which
+  needs `отрезка` and was rendering `отрезков`. The count is parenthesised so the noun agrees with
+  nothing. **The other eleven locales were checked and are correct as written** — Turkish keeps the noun
+  singular after a numeral, the rest need no agreement.
+- ⚠ **THE ICU PLURAL WAS AVAILABLE AND WAS NOT TAKEN, DELIBERATELY.** `i18next-icu` is wired
+  (`i18next.use(ICU)`) and `ru/session.json` already carries a full plural at `player.logSetCtaReps`, so
+  the correct-by-grammar option existed. It loses to the parenthetical on one axis that decides it: **a
+  mis-assigned plural category ships wrong Russian silently**, where a parenthesised count is right for
+  every `n`. *Correct-by-construction beats marginally-more-natural when the failure mode is invisible.*
+- ⚠ **AND THAT ONE CARRIES NO GUARD, WHICH IS STATED RATHER THAN GLOSSED.** The class — a count
+  placeholder adjacent to an inflected noun — is broader than this PR and **predates it** in other ru/uk
+  namespaces (`{n} дн`, `{n} бал`), so a derived sweep would fail on existing keys and is its own
+  change. **Fix what this PR introduced, register what predates it.** The change rests on catalog parity.
+- ⚠ **AND MY OWN NEW GUARD WAS BLIND ON ITS FIRST RUN — caught by its own bail, not by luck.** The dial
+  is built by `BSActivityDetail` and handed to `BSIbTable` as a cell **node**, so it lives in the
+  table's **props**, not in the page's rendered tree: a `nodes()` walk finds nothing. The guard failed
+  its own *"no RPE dial rendered"* assertion rather than passing vacuously, which is the only reason the
+  gap was visible at all. It walks the props now, driving the shipped construction instead of one
+  restated in the test. *A guard-the-guard line is what separates "this passes" from "this was measured".*
+- ⚠ **CODEX NEVER REVIEWED THIS PR, AND THE RECORD SAYS SO RATHER THAN IMPLYING A LAYER RAN.** Owner:
+  *"try codex"*. Triggered on `d1a0114d` and **refused within 7 seconds** — *"You have reached your Codex
+  usage limits for code reviews"* — as it had on the earlier head. That is the spoken-refusal face this
+  file documents, not the silent one. Not hammered with a second trigger seconds later, because the
+  window is measured in minutes-to-hours; the retry rides a scheduled check-in, and **the bot's own
+  refusal comment is the PR's record that the layer was unavailable**. So the review layers here are
+  **CodeRabbit (two rounds, 11 findings, all worked and all threads resolved) plus my own adversarial
+  pass** — which is the house's stated fallback, exercised rather than pretended.
+- **Verified on `d1a0114d`:** `npm test` **3464/3464** · `tsc --noEmit` 0 · JSX parse · the mobile build
+  — the full pre-commit gate · **3/3 mutations killed** (the dial's role dropped · the comment label
+  dropped · the label kept but dropping the count), each proven to land, sanity green at both ends, the
+  tree restored in a `finally` · CodeRabbit's pre-merge checks **6/6**, security review PASS · and the
+  branch **merged with the day's `main`** (#2049 · #2050 · #2051, **zero file overlap**) driven locally at
+  **3482/3482**, so the squash-merge was proven safe rather than assumed.
 
 ### 2026-09-11 — The RPE a member taps in the live logger finally reaches their own set rows
 
