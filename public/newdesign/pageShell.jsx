@@ -41,8 +41,19 @@ function Logo({ variant = "black", size = 28 }) {
 // (near-invisible over the dark mast). The real SHAPE two-triangle mark
 // (logo-triangles-only.svg geometry, inline so there's no image request) sits
 // between SHAPE and RADIO in the brand's own two-tone — bottom-left triangle
-// teal, top-right white, per that asset's own annotation. The ON AIR tag
-// states the live signal the old pulsing dot only implied.
+// teal, top-right white, per that asset's own annotation.
+//
+// ⚠ THE "ON AIR" TAG IS GONE, AND IT WAS A CLAIM NOTHING COULD CHECK. It was
+// permanent — rendered on every page carrying this header — while the station
+// has never broadcast: measured 2026-09-11, public.radio_station does not exist
+// in production, so /api/radio/now-playing falls through to the mock provider
+// and returns a fixed placeholder track. A signed-out page cannot even ask:
+// /api/radio/station is deliberately 401 for anonymous callers and hides
+// `configured` on purpose, so there is no honest way to light this from here.
+// The wordmark still links to Radio; it just no longer says something is
+// playing. When the station is real, lighting this needs a public liveness
+// signal that does not undo that route's anonymous opacity — a decision, not a
+// one-line change. (The homepage was fixed the same way in the Climb rebuild.)
 function RadioWordmark() {
   const cream = "rgba(245,239,225,0.92)";
   return (
@@ -55,10 +66,6 @@ function RadioWordmark() {
           <polygon points="81,14 81,65 44,39" fill={cream} />
         </svg>
         <span style={{ color: TEAL_BRIGHT }}>Radio</span>
-      </span>
-      <span aria-hidden style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: mono, fontSize: 8.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, border: `1px solid ${TEAL_BRIGHT}59`, borderRadius: 3, padding: "3px 5px", lineHeight: 1, boxShadow: `0 0 10px ${TEAL_BRIGHT}26` }}>
-        <span style={{ width: 5, height: 5, borderRadius: "50%", background: RUST, boxShadow: `0 0 6px ${RUST}`, flex: "0 0 auto" }} />
-        ON AIR
       </span>
     </a>
   );
