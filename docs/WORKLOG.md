@@ -607,8 +607,15 @@ Append new entries at the top, under this note.
   guessed model name and no *"downgrade to satisfy a stale model list"* — the trap `ai.ts`'s
   own header warns against, and one I could not have avoided by reasoning, since the pinned
   model post-dates anything I can check. If the pinned model reads images it goes on reading
-  them, byte for byte. What the indirection buys is that a build whose model **cannot** is
-  **one Vercel variable** from working rather than a code change, a review round and a deploy.
+  them, byte for byte. What the indirection buys is that a build whose model **cannot** becomes
+  a **configuration** fix rather than a code change and a review round.
+- ⚠ **IT IS NOT A ZERO-DEPLOY FIX, AND MY FIRST DRAFT SAID IT WAS — Codex's one finding, and it
+  was right.** Vercel snapshots env vars into a deployment at **build** time, so setting
+  `OPENAI_VISION_MODEL` in the dashboard does **not** reach the build already serving traffic; it
+  applies to the next one. The operator sets the variable **and redeploys** (redeploying the
+  existing build is enough — no new commit). The wrong version would have had whoever followed it
+  set the variable, retry, watch it fail identically, and conclude the fix did not work. Corrected
+  in `ai.ts`, the board and here, because it was written in all three.
 - ⚠ **AND THE REFUSAL LOG NAMES THE MODEL, BECAUSE THAT ONE LINE IS THE WHOLE DIAGNOSIS.**
   A capability miss and a photo the provider dislikes reach the member as the *same
   sentence* — deliberately, since guessing between them in member-facing copy would be a

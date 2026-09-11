@@ -40,8 +40,17 @@ export function aiModel(): string {
  * No guessed model name, and no "downgrade to satisfy a stale model list" of the
  * kind this file's header warns against: if the pinned model reads images it
  * goes on reading them. What the indirection buys is that a build whose model
- * cannot is ONE environment variable from working, rather than a code change,
- * a review round and a deploy.
+ * cannot becomes a CONFIGURATION fix rather than a code change and a review
+ * round.
+ *
+ * ⚠ IT IS NOT A ZERO-DEPLOY FIX, AND SAYING SO WOULD COST SOMEONE AN HOUR.
+ * Vercel snapshots environment variables into a deployment at BUILD time, so
+ * setting this in the dashboard does not reach the deployment already serving
+ * traffic — it applies to the next one. The operator sets the variable AND
+ * redeploys (a redeploy of the existing build is enough; no new commit). An
+ * earlier draft of this comment promised "no deploy", which would have had
+ * whoever followed it set the variable, retry, watch it fail identically, and
+ * conclude the fix did not work.
  */
 export function aiVisionModel(): string {
   return process.env.OPENAI_VISION_MODEL || aiModel();
