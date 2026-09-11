@@ -369,6 +369,47 @@ test('a page OPENED on the comments closes on back, rather than stepping to a bo
   assert.equal(closed, 1, 'back on a page opened at the comments did not close it');
 });
 
+test('the RPE dial announces itself as an image, or its name is not read at all', () => {
+  // ⚠ AN `aria-label` ON A BARE <svg> IS NOT A NAME YOU CAN RELY ON. The implicit
+  // role of <svg> varies by browser and AT, and a name on a generic element may be
+  // dropped entirely — so the dial is the one thing carrying the rating in the set
+  // table, and a name nothing is obliged to read means the rating is not published
+  // at all. The same class as the table roles above, one element down.
+  // The dial is built by the PAGE and handed down as a cell node, so it lives in
+  // the table's props rather than in the page's rendered tree — walking the props
+  // is what drives the shipped construction rather than one restated here.
+  const api = page();
+  const tbl = api.nodes().find((n) => n.type === mod.BSIbTable);
+  assert.ok(tbl, 'the set table is not mounted — the fixture stopped driving this');
+  const els = [];
+  const walk = (v) => {
+    if (!v || typeof v !== 'object') return;
+    if (Array.isArray(v)) { v.forEach(walk); return; }
+    if (v.$$typeof && v.props) { els.push(v); walk(v.props.children); }
+  };
+  for (const r of tbl.props.rows) for (const c of (r.cells || [])) walk(c.node);
+  const dials = els.filter((n) => n.type === 'svg' && typeof n.props['aria-label'] === 'string'
+    && /^RPE /.test(n.props['aria-label']));
+  assert.ok(dials.length > 0, 'no RPE dial rendered — the fixture stopped driving this');
+  for (const d of dials) assert.equal(d.props.role, 'img', 'a dial carries a name nothing has to read');
+});
+
+test('the comment control carries a name, not just a number', () => {
+  // ⚠ THE COUNT IS NOT THE NAME. The bar’s three controls sat in three states: the
+  // react button carries visible text, share carries an `aria-label`, and the comment
+  // button carried neither — so a screen reader read “1 ›”, a bare number with nothing
+  // saying which control it is. The name must ALSO keep the count, because an
+  // `aria-label` REPLACES the accessible name rather than adding to it: naming it and
+  // dropping the figure would trade one omission for another.
+  const api = page();
+  const labels = api.nodes()
+    .filter((n) => n.type === 'button' && n.props && typeof n.props['aria-label'] === 'string')
+    .map((n) => n.props['aria-label']);
+  const named = labels.filter((l) => /comment/i.test(l));
+  assert.equal(named.length, 1, 'the comment control has no accessible name');
+  assert.match(named[0], /\b1\b/, 'the name replaced the count instead of carrying it');
+});
+
 test('a session with no zones gets no zone bar, and one with no sets gets no table', () => {
   const noZones = page({ d: { zones: [] } });
   assert.ok(!has(noZones, mod.BSIbZoneBar), 'a zone bar was drawn for a session with no zones');

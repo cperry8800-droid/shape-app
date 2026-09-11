@@ -17920,7 +17920,7 @@ function bsIbRpeDial(rpe, t, size = 13) {
   if (rpe == null) return null;
   const color = rpe >= 9 ? '#e0463c' : rpe >= 8 ? '#d8b25a' : '#34d6c5';
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-label={`RPE ${rpe}`}>
+    <svg width={size} height={size} viewBox="0 0 20 20" role="img" aria-label={`RPE ${rpe}`}>
       <circle cx="10" cy="10" r="7.5" fill="none" stroke={bsTHexA(t.INK, 0.14)} strokeWidth="3" />
       <circle cx="10" cy="10" r="7.5" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" pathLength={100}
         strokeDasharray={`${Math.max(4, Math.min(100, (rpe / 10) * 100))} 100`} transform="rotate(-90 10 10)" />
@@ -18398,7 +18398,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : 'transparent', color: liked ? '#fff' : t.INK, border: `1px solid ${liked ? accent : bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
               {bsFeedIcon('react', 11)}<span>{myExpr || d.verb} · {count}</span>
             </button>
-            <button onClick={() => { setFocusTab('comments'); if (bodyRef.current) bodyRef.current.scrollTop = 0; }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 999, cursor: 'pointer', background: 'transparent', color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            <button onClick={() => { setFocusTab('comments'); if (bodyRef.current) bodyRef.current.scrollTop = 0; }} aria-label={`${tr('session:detail.comments', { defaultValue: 'Comments' })} ${comments.length}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 999, cursor: 'pointer', background: 'transparent', color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
               {bsFeedIcon('comment', 11)}<span>{comments.length} ›</span>
             </button>
             {canShareCard && (

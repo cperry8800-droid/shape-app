@@ -291,6 +291,6 @@
   "board.colHr": "Пульс",
   "board.setBySet": "Подход за подходом",
   "board.splitBySplit": "Отрезок за отрезком",
-  "board.allSplits": "Все {n} отрезков ›",
+  "board.allSplits": "Все отрезки ({n}) ›",
   "board.needleBand": "Диапазон {label} · {lo} медленнейший → {hi} быстрейший"
 }
