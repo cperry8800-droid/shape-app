@@ -113,21 +113,50 @@ function usedAxes(html) {
   return out;
 }
 
-/** The `font-weight` values set on DOTO rules, derived from the page.
+/** The `font-weight` values set on rules that carry AXIS, plus the family that
+ *  axis belongs to — `{ family, weights }`, or null when AXIS is not requested
+ *  by exactly one family.
  *
- *  ⚠ A RULE THAT SETS `ROND` IS A DOTO RULE BY CONSTRUCTION, which is what makes
- *  this honest without resolving the cascade: `ROND` is Doto's axis and no other
- *  family on this page has one, so a rule setting it either targets Doto or is
- *  inert — and inert is precisely what the sibling test forbids. That inference
- *  is stated rather than assumed, because it is the only reason a per-family
- *  weight check is possible here at all. */
-function dotoWeights(html) {
-  const out = new Set();
+ *  ⚠ A RULE THAT SETS A SINGLE-FAMILY AXIS IS A RULE FOR THAT FAMILY, BY
+ *  CONSTRUCTION. That is what makes a per-family weight check honest here
+ *  without resolving the cascade: if exactly one family requests `ROND`, then a
+ *  rule setting `ROND` either targets that family or is inert — and inert is
+ *  precisely what the sibling test forbids. `font-weight` is a plain CSS
+ *  property, so it never appears in the axis sweep at all; this is the only
+ *  bridge from a weight back to the family that has to serve it.
+ *
+ *  ⚠ AND THE PRECONDITION IS ASSERTED, NOT ASSUMED. Returning null when the axis
+ *  is shared is the whole safety of the inference: add `ROND` to a second family
+ *  and this stops claiming to know whose rule it is, rather than quietly
+ *  attributing every ROND rule to the wrong font. */
+function weightsOfFamilyWithUniqueAxis(html, byFamily, axis) {
+  const owners = [...byFamily.entries()].filter(([, axes]) => axes.has(axis)).map(([f]) => f);
+  if (owners.length !== 1) return null;
+  const weights = new Set();
+  const re = new RegExp(`font-variation-settings\\s*:\\s*['"]${axis}['"]`);
   for (const block of html.split('}')) {
-    if (!/font-variation-settings\s*:\s*['"]ROND['"]/.test(block)) continue;
-    for (const m of block.matchAll(/font-weight\s*:\s*(\d{2,3})\b/g)) out.add(Number(m[1]));
+    if (!re.test(block)) continue;
+    for (const m of block.matchAll(/font-weight\s*:\s*(\d{2,3})\b/g)) weights.add(Number(m[1]));
   }
-  return out;
+  return { family: owners[0], weights };
+}
+
+/** Assert a family's own requested `wght` range covers every weight the page
+ *  sets on that family's rules. */
+function assertWeightsFit(byFamily, derived, label) {
+  assert.ok(derived, `${label} must be requested by exactly one family for this check to be sound`);
+  assert.ok(derived.weights.size > 0, `derived zero ${label} weights \u2014 the block scan stopped matching`);
+  const range = byFamily.get(derived.family)?.get('wght');
+  assert.ok(range, `${derived.family} must request a wght axis`);
+  const [lo, hi] = range;
+  for (const w of derived.weights) {
+    assert.ok(
+      w >= lo && w <= hi,
+      `a ${derived.family} rule sets font-weight ${w}, but ${derived.family} is requested at ` +
+        `wght ${lo}..${hi} \u2014 the weight is clamped, so the glyph is not the one the rule asks ` +
+        `for. Weights on that family: ${[...derived.weights].sort((a, b) => a - b).join(', ')}`,
+    );
+  }
 }
 
 test('the homepage requests every variable-font axis it sets', () => {
@@ -202,15 +231,23 @@ test('Doto ships its roundness axis, not just its weight', () => {
   // union, so every Doto figure would clamp to 400 with the suite green. The
   // weights are read off the page rather than named here, so restyling a figure
   // is covered with nobody remembering this test exists.
-  const weights = dotoWeights(SRC);
-  assert.ok(weights.size > 0, 'derived zero Doto weights \u2014 the block scan stopped matching');
-  const [wlo, whi] = doto.get('wght');
-  for (const w of weights) {
-    assert.ok(
-      w >= wlo && w <= whi,
-      `a Doto rule sets font-weight ${w}, but Doto is requested at wght ${wlo}..${whi} \u2014 the ` +
-        `weight is clamped, so the figure is not the one the rule asks for. ` +
-        `Doto weights on the page: ${[...weights].sort((a, b) => a - b).join(', ')}`,
-    );
-  }
+  assertWeightsFit(byFamily, weightsOfFamilyWithUniqueAxis(SRC, byFamily, 'ROND'), 'ROND');
 });
+
+test("Anybody's weight range covers the weights the page sets on it", () => {
+  // The same inference pointed at the other single-family axis, so the class is
+  // closed rather than patched once per round: `wdth` is Anybody's and nobody
+  // else's, so a rule setting it is an Anybody rule, and Anybody's OWN requested
+  // wght range must carry those weights. Without this, narrowing Anybody to
+  // wght@100..400 passes — Doto contributes 100..900 to the union and the Doto
+  // test only ever looks at Doto.
+  const byFamily = requestedAxes(SRC);
+  assertWeightsFit(byFamily, weightsOfFamilyWithUniqueAxis(SRC, byFamily, 'wdth'), 'wdth');
+});
+
+// ⚠ SCHIBSTED GROTESK IS DELIBERATELY NOT CHECKED THIS WAY, and saying so is the
+// point: it requests no axis of its own (ital and wght are shared), so there is
+// no rule on this page that can be attributed to it without resolving the
+// cascade. Its weights are covered only by the union sweep above. Registered
+// rather than faked — a check that guessed which rules were Schibsted's would be
+// a claim this file cannot support.

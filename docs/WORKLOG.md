@@ -660,52 +660,58 @@ Append new entries at the top, under this note.
   76 px. Every display figure on the page is 900 / ROND 100 now; small labels stay 700 / 30,
   where the grid is the point. ⚠ `ctx.font` has **no** `font-variation-settings`, so a canvas
   figure has only the weight lever — which is the one that decides legibility anyway.
-- ⚠ **CORRECTED SAME DAY — THE SENTENCE ABOVE WAS FALSE ON THE SHIPPED PAGE, AND A CODEX
-  ROUND CAUGHT IT.** The specimen was measured against locally-served font files, so the
-  *choice* is right; what the page then did was ask Google Fonts for **`Doto:wght@100..900`**.
-  That service delivers the axes you name and **pins every other one at its default**, so the
-  font arrived with **no `ROND` axis at all** — all sixteen `font-variation-settings:'ROND' N`
-  rules were inert and every figure rendered at Doto's default **ROND 0**, the square-dot form
-  this very bullet says cannot be read. Measured rather than argued: the two URLs serve
+- ⚠ **CORRECTED BEFORE MERGE — THE SENTENCE ABOVE WAS FALSE ON THE SHIPPED PAGE.** The
+  specimen was measured against locally-served font files, so the *choice* is right; what the
+  page then did was ask Google Fonts for **`Doto:wght@100..900`**. That service delivers the
+  axes you name and **pins every other one at its default**, so the font arrived with **no
+  `ROND` axis at all**: all sixteen `font-variation-settings:'ROND' N` rules were inert and
+  every figure rendered at Doto's default **ROND 0** — the square-dot form this very bullet
+  says cannot be read at display size. Measured rather than argued: the two URLs serve
   different files, and dumping each font's `fvar` table gives `wght` alone against
-  `ROND 0..100` + `wght`; instancing the glyphs at each end confirms the axis really moves
-  them (`'5'` first contour `(5,695)`, a square corner, against `(49,695)…(5,669)`, a rounded
-  one). Fixed by requesting `Doto:ROND,wght@0..100,100..900`.
-  ⚠ **NOTHING COULD HAVE REPORTED THIS, WHICH IS THE PART WORTH KEEPING.** An ignored
+  `ROND 0..100` + `wght`; instancing the glyphs at both ends confirms the axis really moves
+  them (glyph `5`, first contour `(5,695)` — a square corner — against `(49,695)…(5,669)`,
+  rounded; same bounding box, different dot shape, which is what a roundness axis does).
+  Fixed by requesting `Doto:ROND,wght@0..100,100..900`.
+  ⚠ **AND NOTHING COULD HAVE REPORTED IT, WHICH IS THE PART WORTH KEEPING.** An ignored
   `font-variation-settings` is not an error in any browser, linter or build — the page
-  renders, it just renders the wrong glyph — and the container's Chromium cannot reach
-  `fonts.gstatic.com`, so the render pass that *did* run had already fallen back. Only
-  comparing the axes USED against the axes REQUESTED finds it, which is now
-  `tests/homepage-font-axes.test.mjs`, derived from the file so a new axis is covered with
-  nobody remembering it exists. **6/6 mutations killed**, each proven to land, sanity green at
-  both ends.
-  ⚠ **AND ITS AXES ARE KEYED BY FAMILY, NOT UNIONED — CodeRabbit, on `427e667`, and it is
-  the one round of theirs that found something no other layer did.** The first version
-  flattened all three families into one axis map, which **cannot see the regression it was
-  written for**: move `ROND` from Doto to Anybody and the union still contains `ROND`, so
-  every test passes while every Doto figure goes inert again. Proven rather than accepted —
-  applying both edits at once (the axis moved AND the check reverted to the union) leaves the
-  suite **green** on a page whose figures are all inert, and the per-family check kills it.
-  The derived sweep still asks the union question, because deciding which family a given
-  rule applies to means resolving the cascade through `var(--num)`, which a source scan
-  cannot do honestly; the limitation is stated at the site rather than discovered later.
-  **9 mutations, 8 killed and the ninth proven a no-op on correct input.**
-  ⚠ **AND THE NEXT ROUND FOUND THE SAME BLIND SPOT ONE LEVEL DOWN — CodeRabbit again, on
-  `128168a`.** Keying by family fixed `ROND`'s *presence* and left its *range* unchecked for
-  `wght`: `doto.has('wght')` passes on `Doto:ROND,wght@100..400` while the derived sweep is
-  satisfied by **Anybody's** `100..900` through the union — so every Doto figure would clamp
-  to 400 with the suite green. The weights are derived from the page now (measured: **700 in
-  12 rules, 900 in 4**) and checked against Doto's own requested range. ⚠ The derivation is
-  only honest because **a rule that sets `ROND` is a Doto rule by construction** — `ROND` is
-  Doto's axis and no other family here has one, so such a rule either targets Doto or is
-  inert, and inert is what the sibling test forbids. That inference is stated at the site,
-  because it is the only reason a per-family weight check is possible without resolving the
-  cascade. **11 mutations, 10 killed**; the eleventh weakens a comparison that every correct
-  input satisfies, and the narrowed-range mutation is its proof.
-  ⚠ And its first version was a broken instrument in the way this file keeps
-  recording: `[\d.]+` is greedy over dots, so `50..150` matched **whole**, parsed as `NaN`,
-  and every ranged axis was dropped — the guard failed on a page that was by then correct.
-  *A parser that reports a failure is as broken as one that reports a pass.*
+  renders, it just renders the wrong glyph — and this container's Chromium cannot reach
+  `fonts.gstatic.com`, so the render pass that *did* run had already fallen back to the
+  metrics fallbacks. The only thing that finds it is comparing the axes **used** against the
+  axes **requested**, which is `tests/homepage-font-axes.test.mjs`, derived from the shipped
+  file so a new axis is covered with nobody remembering the test exists.
+  ⚠ **THE GUARD TOOK THREE ROUNDS TO BECOME HONEST, AND EACH ROUND FOUND THE SAME BLIND SPOT
+  ONE LEVEL NARROWER.** (1) It unioned all three families into one axis map — which **cannot
+  see the regression it was written for**: move `ROND` from Doto to Anybody and the union
+  still contains `ROND`, so every test passes while every Doto figure goes inert again.
+  (2) Keyed by family, `doto.has('wght')` still passed on `Doto:ROND,wght@100..400`, because
+  `font-weight` is a plain CSS property that never enters the axis sweep and **Anybody's**
+  `100..900` satisfies the union — so the figures would clamp to 400 with the suite green.
+  (3) The same gap was then still open for Anybody itself. Both proven rather than accepted:
+  applying the regression **and** the weakened check together leaves the suite **green** on a
+  page whose figures are wrong, and the strict version kills it.
+  ⚠ **WHAT CLOSES THE CLASS IS ONE INFERENCE, AND ITS PRECONDITION IS ASSERTED RATHER THAN
+  ASSUMED.** A rule that sets a **single-family axis is a rule for that family, by
+  construction** — if exactly one family requests `ROND`, a rule setting `ROND` either targets
+  that family or is inert, and inert is what the sibling test forbids. That is the only bridge
+  from a `font-weight` back to the family that must serve it, and it is applied to both
+  single-family axes (`ROND`→Doto, `wdth`→Anybody). The deriver **returns null when the axis
+  is shared**, so adding `ROND` to a second family stops it claiming to know whose rule it is
+  rather than silently attributing every rule to the wrong font. Measured on the shipped page:
+  **font-weight 700 in 12 Doto rules, 900 in 4**, both inside `100..900`.
+  ⚠ **AND THE RESIDUAL IS NAMED RATHER THAN FAKED.** Schibsted Grotesk requests no axis of
+  its own (`ital` and `wght` are shared), so no rule on this page can be attributed to it
+  without resolving the cascade through `var(--body)`; its weights are covered only by the
+  union sweep. Registered at the site — *a check that guessed which rules were Schibsted's
+  would be a claim this file cannot support.* Measured and worth recording: **both axes the
+  page sets via `font-variation-settings` are requested by exactly one family**, so for those
+  the union IS the per-family answer today.
+  ⚠ **AND THE GUARD'S FIRST VERSION WAS A BROKEN INSTRUMENT, in the way this file keeps
+  recording.** `[\d.]+` is greedy over dots, so `50..150` matched **whole**, parsed as `NaN`,
+  and every ranged axis was silently dropped — the guard failed on a page that was by then
+  correct. *A parser that reports a failure is as broken as one that reports a pass.*
+  **Final round: 13 mutations, 12 killed**, each proven to land and restored in a `trap`,
+  sanity green at both ends; the thirteenth weakens a precondition that correct input never
+  exercises, and the shared-axis mutation is its proof.
 - **Structure: 24.4 screens become 7.8 at 1440 px.** The 525vh pinned loop is an auto-playing
   four-card strip of real app captures (**395 KB of JPEG replacing a 1.7 MB JPEG-named-PNG**);
   the journey keeps this page's own five-form point cloud — sphere, two rings, the ECG, the
