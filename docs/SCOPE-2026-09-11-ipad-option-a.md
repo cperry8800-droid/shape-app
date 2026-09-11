@@ -32,7 +32,16 @@ Rendered headless on the native branch (`html.is-native-app` stamped at document
 | iPad A16 portrait — 820pt | `x=0 w=820` | 780px |
 | iPad Pro 13" landscape — 1366pt | `x=0 w=1366` | **1326px** |
 
-One line of body text running 1326px is the whole problem in one number.
+And the tab bar, driven all the way into the signed-out app preview:
+
+| Viewport | tab bar | per-tab cell |
+|---|---|---|
+| 393pt | `x=0 w=393` | 63px |
+| 1024pt | `x=0 w=1024` | 189px |
+| 1366pt | `x=0 w=1366` | **257px** |
+
+A 20px icon adrift in a 257px cell, and one line of body copy running 1326px. That is the whole
+problem in two numbers.
 
 ---
 
@@ -139,8 +148,13 @@ masthead. Keep two branches; edit only the native one.
 
 ## 5. Open questions — owner's call
 
-1. **The cap value.** 430pt (iPhone Pro Max) / 460 / 500. Larger = less letterbox, more stretched
-   type. A visual call, not a technical one.
+1. **The cap value — now near-determined, recommendation 430.** Measured: **12 of the 13
+   `maxWidth: 430` overlays are bottom sheets** (they carry `borderTopLeftRadius`), i.e. they are
+   meant to sit flush to the column's edges. At a 460 or 500 cap every one of them renders with a
+   15-35px gutter down each side — an inset that appears nowhere else in the app. At **430** they
+   are all flush with no sheet changes, and 430 is exactly iPhone 16 Pro Max, so the largest phone
+   stays a provable no-op. Choosing larger is legitimate but is not free: it means re-capping 12
+   sheets in the same PR.
 2. **What the field looks like.** Flat paper · ink-tinted paper (§3's default) · paper + grain
    texture. Grain is available (`bs-paper-grain`) but tiles against the field, not the column.
 3. **Video call full-bleed?** Recommendation: yes, leave it. Flag if you disagree.
@@ -149,8 +163,19 @@ masthead. Keep two branches; edit only the native one.
 
 ## 6. Verification
 
-Gates: `npm test` · `npx tsc --noEmit` · JSX parse on both changed modules · mobile build + **`public/m`
-republish** (CI's "Mobile (build + public/m sync)" fails on a stale `public/m`).
+Gates: `npm test` (228 test files) · `npx tsc --noEmit` · JSX parse on both changed modules · the
+mobile build.
+
+⚠ **CORRECTION — `public/m` does NOT need republishing, and the WORKLOG convention saying it does is
+stale.** `.github/workflows/ci.yml` states it verbatim: *"public/m itself is generated at deploy time
+(scripts/build-m.sh), not committed, so there's no byte-diff against a committed copy anymore."*
+`/public/m` is in `.gitignore`. The Mobile job builds the `/m/` bundle and then runs
+`scripts/mobile-asset-refs.mjs` against the **artifact** — that step exists because the build exits 0
+even when an asset the bundle requests is missing. Option A adds no assets, so it is unaffected, but
+the step is the one that would catch it if a later commit did.
+
+Required checks on `main`: **Web (typecheck + build)** · **Tests (unit + mount)** · **Mobile (build +
+asset refs)** · **Secret scan (gitleaks)**.
 
 Headless renders at **393 · 440 · 820 · 1024 · 1366 · 375** (Split View), asserting: the iPhone widths
 render byte-identically to today; the column is centred and capped at iPad widths; no horizontal
@@ -191,10 +216,68 @@ Low. Presentation-only, one shell component plus one overlay. The failure mode t
 
 **iPad is not "done" after this PR.** It is *deliberate* rather than broken.
 
-## 9. Known gaps in this scope
+## 9. The four remaining dimensions — surveyed
 
-Four of eight planned survey dimensions did not complete: **iOS native** (launch screen at iPad
-aspect ratios, iPad icon sizes in `AppIcon.appiconset`, `UIRequiredDeviceCapabilities: armv7`),
-**portals/overlays** (the 51 `createPortal` sites and whether any can reach its `|| document.body`
-fallback at runtime), **backdrop**, and **tests/CI**. §3's container and escapee findings are verified
-against `origin/main`; the four above are not yet surveyed and may add commits.
+These were the open gaps in the first draft. All four are now closed.
+
+### 9.1 iOS native — **no work required**
+
+| Item | Finding |
+|---|---|
+| App icon | `AppIcon.appiconset/Contents.json` holds a **single 1024×1024 `"idiom": "universal"`** entry — the Xcode 14+ single-size format. Apple derives every iPad size. Nothing to add. |
+| Launch screen | `LaunchScreen.storyboard` uses `contentMode="scaleAspectFill"` with `useSafeAreas="YES"` on a **square 2732×2732** splash. Aspect-fill of a square covers both iPad aspect ratios (cropping top/bottom in landscape, sides in portrait); centred artwork survives both. |
+| `<device id="retina4_7">` | Interface Builder *canvas* metadata in both storyboards. Not a runtime constraint. Ignore. |
+| `UIRequiredDeviceCapabilities: armv7` | Legacy Capacitor template key. arm64 devices satisfy it and it does not gate iPad. Optional cleanup, not a blocker — and not worth bundling into this PR. |
+| `UIRequiresFullScreen` | **Do not add it.** Adding it would opt the app *out* of iPad multitasking. §3's self-disabling cap already makes Split View correct, so opting out buys nothing and removes a capability. |
+
+Verified but **not** verifiable from this container: how the splash actually looks on an iPad
+simulator. Worth one look on a Mac before shipping.
+
+### 9.2 Portals & overlays — **no escapes today; one real change (already commit 3)**
+
+- **59** `createPortal` call sites across the broadsheet modules; **30** use the
+  `|| document.body` fallback.
+- **Zero** portals target anything before trying `#bs-phone-surface` — there is no
+  `createPortal(x, document.body)` anywhere.
+- **Measured, not reasoned about:** driven into the live app at 393 / 1024 / 1366pt,
+  `document.body`'s children are exactly `["root"]` at every size. No portal is escaping to `<body>`
+  today, so Option A inherits no hidden escapees.
+- Only **one** element is `position: fixed` in the running app (the `BSPhone` wrapper). The other
+  five fixed sites are conditional: `BSVideoCall`, the Settings dropdown's backdrop and panel, the
+  crash screen, and a panel in `iosAppBroadsheetMain.jsx:1847`. Commits 3 and 5 cover them.
+- Sheet sizing under the cap is the §5.1 question, not a defect.
+
+### 9.3 Backdrop — **settled, and it is the 2026-09-01 rule again**
+
+- **18 papers, 8 light / 10 dark** (`light, white, manila, steel, bone, sage, rose, mist` are the
+  light ones).
+- `PAPER_BG` equals `PAPER` for flat papers, and for the one `metallic` paper (Steel) it is a
+  gradient stack that **ends in `${PAPER}`** — so it always supplies a colour in the final layer and
+  is safe to append after a tint.
+- The field composes as `linear-gradient(rgba(${t.inkRGB},α), rgba(${t.inkRGB},α)), ${t.PAPER_BG}`.
+- This is not a new rule: `BSPage` at `iosAppBroadsheet.jsx:608` already paints
+  `${t.TEXTURE}, ${t.PAPER_BG}`, and the comment at `:245` spells out the trap. The field is simply
+  the next surface to obey it.
+- The preview branch's bezel and drawn notch are **not** reusable — see §3.
+
+### 9.4 Tests & CI — **the guard model is already in the repo**
+
+`tests/theme-texture-css.test.mjs` is the precedent to copy, and its own header states the rule this
+PR leans on. Its instrument: **brace-match the real function out of the shipped source and evaluate
+it**, because the module is browser JSX that cannot be imported, and because — in its words — *"a
+spelling pin would survive any equivalent rewrite, and what matters is what the function ANSWERS."*
+The §6 guards follow that shape.
+
+Also worth recording: **`playwright` is not a declared dependency** of either package, so the render
+harness (`scripts/qa-sweep.mjs` and anything new) needs an ad-hoc
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright --no-save`, with the browser already at
+`/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+
+---
+
+## 10. Confidence
+
+The container and viewport-escapee findings were produced by independent agents and then verified
+line-by-line against `origin/main` by hand. The four dimensions in §9 were surveyed directly, and the
+portal result is empirical rather than argued. What remains unverified: the splash on a real iPad
+simulator (§9.1), and every visual judgement in §5, which is the owner's call and not a measurement.
