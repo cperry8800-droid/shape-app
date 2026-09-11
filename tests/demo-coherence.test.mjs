@@ -263,3 +263,154 @@ test('the card reaches into ONE module, so one script tag is the whole dependenc
   assert.ok(p.thisMonthCents < p.netCents && p.netCents < p.monthlyCents);
   assert.equal(card.amount, '$' + Math.round(p.thisMonthCents / 100).toLocaleString());
 });
+
+// ── The payouts block on Business (V5's tail) ───────────────────────────────
+// ⚠ IT WAS FOUR UNANCHORED LITERALS AND IT DISAGREED WITH ITS OWN PAGE BY AN ORDER OF
+// MAGNITUDE: a $1,840 balance and $15,740 over four weekly payouts, beside a strip
+// reading $1,820 monthly recurring from the same ten demo clients. Measured, the balance
+// was 9× the derived one and the history 12× the practice. Same defect as the sidebar
+// payout card, one page over, and it survived that fix.
+test('the payout history is derived from who had joined, not picked', () => {
+  const now = new Date();
+  const cs = roster(now);
+  const hist = DS.demoPayoutHistory(cs, now, 4);
+  assert.ok(hist.length >= 1 && hist.length <= 4, 'expected up to four months, got ' + hist.length);
+
+  // Newest first, one row per month, each on a month END.
+  for (let i = 1; i < hist.length; i++) {
+    assert.ok(hist[i].arrivalDate < hist[i - 1].arrivalDate, 'the history is not newest-first');
+  }
+  for (const r of hist) {
+    const d = new Date(r.arrivalDate);
+    const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    assert.equal(new Date(next - 86400000).getDate(), d.getDate(), 'a payout is not on a month end');
+    assert.equal(r.status, 'paid');
+  }
+
+  // ⚠ THE SIZE CHECK IS THE POINT. Every month's payout is the NET of the clients who had
+  // joined by then, so no row may exceed the current month's net — the literals it
+  // replaced were nearly three times it, each.
+  const net = payouts(cs, now).netCents;
+  for (const r of hist) {
+    assert.ok(r.amountCents > 0, 'a zero payout claims a run that paid nothing');
+    assert.ok(r.amountCents <= net, 'a past payout ($' + (r.amountCents / 100).toFixed(0) +
+      ') exceeds the current net ($' + (net / 100).toFixed(0) + ') on a roster that only grew');
+  }
+});
+
+test('a month before anyone joined yields NO row, not a zero', () => {
+  // A $0 payout is the claim that a payout ran and paid nothing, which a processor does
+  // not do. An absent month is the honest shape.
+  const now = new Date();
+  const future = [{ payments: { mrrCents: 18000, joinedAt: new Date(now.getTime() + 400 * 86400000).toISOString().slice(0, 10) } }];
+  assert.deepEqual(DS.demoPayoutHistory(future, now, 4), []);
+  assert.deepEqual(DS.demoPayoutHistory([], now, 4), []);
+  assert.deepEqual(DS.demoPayoutHistory(null, now, 4), []);
+  // a client with no joinedAt cannot date a payout and is left out rather than guessed at
+  assert.deepEqual(DS.demoPayoutHistory([{ payments: { mrrCents: 18000 } }], now, 4), []);
+  // ⚠ AND A FALSY-BUT-PARSEABLE JOIN DATE IS THE ONE THAT MATTERS, because it is the case
+  // the explicit `!pay.joinedAt` check exists for: `new Date(0)` is 1970, a perfectly valid
+  // instant that precedes every month — so without that check the client is counted at
+  // full MRR in EVERY payout, and the date guard below can never catch it (it only rejects
+  // what does not parse). The same `Number(null)` class this log post-mortems on the Wall's
+  // helpers, arriving through a date.
+  assert.deepEqual(DS.demoPayoutHistory([{ payments: { mrrCents: 18000, joinedAt: 0 } }], now, 4), []);
+});
+
+test('Business quotes ONE cadence, and it is the one the sidebar card states', () => {
+  // ⚠ IT SAID "weekly · Fridays" WHILE `demoPayouts` PUTS THE PAYOUT ON THE LAST DAY OF
+  // THE MONTH and every coach tab's sidebar card reads "PAYOUT SEP 30". One preview
+  // cannot have two schedules.
+  const biz = stripComments(BIZ);
+  assert.doesNotMatch(biz, /weeklyAnchor:\s*"friday"/, 'the demo schedule is weekly again');
+  const decl = /schedule: \{ interval: "([a-z]+)"([^}]*)\}/.exec(biz);
+  assert.ok(decl, 'the demo schedule declaration moved');
+  assert.equal(decl[1], 'monthly');
+  // no day anchor: the rows carry their own dates, and an anchor is a claim about a
+  // processor nobody has connected
+  assert.doesNotMatch(decl[2], /Anchor/, 'the demo schedule claims a day anchor');
+
+  // and the literals are gone from the file entirely
+  for (const lit of ['184000', '412500', '386000', '401500', '374000']) {
+    assert.ok(!biz.includes(lit), 'the literal ' + lit + ' is still in dashBusiness.jsx');
+  }
+});
+
+test('the Business payouts block is lazy and day-keyed, like its neighbours', () => {
+  // It reads the roster and `new Date()`, so a module-scope build reads at LOAD while the
+  // outcomes plate reads at RENDER, and a tab left open overnight quotes yesterday.
+  const biz = stripComments(BIZ);
+  assert.match(biz, /let _dbzDemoPayouts = null;/);
+  assert.match(biz, /const key = now\.toDateString\(\);/);
+  assert.match(biz, /if \(_dbzDemoPayouts && _dbzDemoPayouts\.key === key\) return _dbzDemoPayouts\.v;/);
+  // an unreadable engine says nothing rather than inventing a figure
+  assert.match(biz, /balanceCents: null, schedule: null, payouts: \[\]/);
+  assert.match(biz, /const data = live \? stripe : dbzDemoPayouts\(\);/);
+});
+
+// ── One platform-fee rate for the whole preview ────────────────────────────
+// ⚠ THE SWEEP THAT CLOSES THIS CLASS FOUND A BIGGER DEFECT THAN THE ONE IT WAS WRITTEN
+// FOR. Adding the payout history put a SECOND `* 0.85` in dashSignals.js, which is the
+// two-definitions-of-one-number problem this whole block exists to remove — so the rate
+// was named once. Sweeping for the other spellings then turned up `dashBusiness.jsx`
+// netting demo MRR at **0.88**: a 12% fee, on the same page as a payout balance cut at
+// 15%, from the same roster. 15% is what the pricing page publishes, what `coach.jsx`
+// names, and what `coach-trajectory.mjs` falls back to for a row with no stored
+// `fee_bps`. Live money never touched it — the real trajectory cuts each row by its own
+// stored fee — but the preview disagreed with itself, which is the review's V5 finding
+// one plate over from where it was reported.
+//
+// ⚠ THE GUARD DERIVES ITS CORPUS RATHER THAN NAMING THE SITES, so a fifth spelling added
+// later is covered with nobody remembering this test exists — and it ASSERTS IT SCANNED
+// SOMETHING, because a sweep that finds nothing passes vacuously.
+test('the preview applies ONE platform-fee rate, everywhere it applies one', () => {
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => /^dash.*\.(js|jsx)$/.test(f)).sort();
+  assert.ok(files.length >= 8, 'the dashboard module corpus vanished: ' + files.length);
+
+  const rate = DS.PREVIEW_NET_RATE;
+  assert.equal(typeof rate, 'number');
+  assert.ok(rate > 0 && rate < 1, 'the named rate is not a fraction: ' + rate);
+
+  const found = [];
+  for (const f of files) {
+    const lines = stripComments(readFileSync(new URL(f, dir), 'utf8')).split('\n');
+    lines.forEach((ln, i) => {
+      // a money line that multiplies by a bare fraction is applying a rate
+      if (!/Cents/.test(ln)) return;
+      const m = ln.match(/\*\s*(0\.\d+)/);
+      if (m) found.push({ f, line: i + 1, rate: Number(m[1]), src: ln.trim() });
+    });
+  }
+  // Every literal fee rate left in the dashboard must BE the named one. A site that
+  // reads DashSignals.PREVIEW_NET_RATE contributes no literal and needs no exemption.
+  for (const h of found) {
+    assert.equal(h.rate, rate,
+      h.f + ':' + h.line + ' applies ' + h.rate + ' where the preview rate is ' + rate +
+      ' — two fee rates on one preview. ' + h.src);
+  }
+
+  // ⚠ AND dashSignals ITSELF MAY NOT RESPELL IT: it applies the rate twice (the current
+  // month and every past month), which is where the duplicate came from in the first
+  // place. Both must go through the constant.
+  const sig = stripComments(readFileSync(new URL('dashSignals.js', dir), 'utf8'));
+  assert.doesNotMatch(sig, /Cents\s*\*\s*0\.\d+/, 'dashSignals respells the fee rate');
+  assert.ok((sig.match(/PREVIEW_NET_RATE/g) || []).length >= 4,
+    'dashSignals stopped routing both fee applications through the named rate');
+
+  // ⚠ THE FALLBACK IS DRIVEN, NOT MATCHED. dashBusiness can render before dashSignals is
+  // up, so `dbzNetRate` carries its own literal — and a page that renders early must not
+  // quietly net at a different rate than one that does not. A regex over the source pins
+  // a spelling; executing the function pins the behaviour, which is the thing that has to
+  // hold. (The first version of this check matched `return 0.85;` at end of line and found
+  // NOTHING, because the fallback sits inside a `catch {…}` on one line — a guard reporting
+  // on source it cannot see.)
+  assert.equal(fn(BIZ, 'dbzNetRate', { DashSignals: DS })(), rate, 'dbzNetRate ignores the named rate');
+  assert.equal(fn(BIZ, 'dbzNetRate', { DashSignals: undefined })(), rate,
+    'the dbzNetRate fallback disagrees with the named rate');
+  // a rate that is present but not a usable fraction is refused rather than applied
+  for (const bad of [undefined, null, 0, -1, 2, '0.85', NaN]) {
+    assert.equal(fn(BIZ, 'dbzNetRate', { DashSignals: { PREVIEW_NET_RATE: bad } })(), rate,
+      'dbzNetRate accepted ' + String(bad) + ' as a fee rate');
+  }
+});

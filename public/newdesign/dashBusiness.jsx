@@ -37,14 +37,47 @@ function dbzMonthsBetween(a, b) {
 }
 
 // ── Demo datasets — shown ONLY under the demo band ───────────────────────────
-const DBZ_DEMO_PAYOUTS = {
-  balanceCents: 184000,
-  schedule: { interval: "weekly", weeklyAnchor: "friday", delayDays: 2 },
-  payouts: [3, 10, 17, 24].map((d, i) => ({
-    id: "demo-po-" + i, amountCents: [412500, 386000, 401500, 374000][i],
-    status: "paid", arrivalDate: Date.now() - d * 86400000, created: Date.now() - (d + 2) * 86400000,
-  })),
-};
+//
+// ⚠ THE PAYOUTS BLOCK WAS FOUR UNANCHORED LITERALS, AND IT DISAGREED WITH THE PRACTICE
+// ON ITS OWN PAGE BY AN ORDER OF MAGNITUDE (review 2026-09-09, V5's tail). It claimed a
+// $1,840 balance and four weekly payouts of $4,125 / $3,860 / $4,015 / $3,740 — $15,740
+// over 24 days, i.e. roughly $19,700 a month — beside a strip reading **$1,820 monthly
+// recurring** from the same ten demo clients. Measured against the derived figures: the
+// balance was 9× and the history 12×. That is the same tenfold disagreement the sidebar
+// payout card was fixed for, still live one page over.
+//
+// ⚠ AND IT DESCRIBED A DIFFERENT SCHEDULE THAN THE REST OF THE PREVIEW. This said
+// "weekly · Fridays"; `demoPayouts` states the payout lands on the last day of the month
+// and every coach tab's sidebar card says "PAYOUT SEP 30". One preview cannot have two
+// cadences. It is monthly here now, with **no day anchor** — the rows carry their own
+// month-end dates and an anchor would be a claim about a processor nobody has connected.
+//
+// ⚠ LAZY AND DAY-KEYED, the pattern `dbzDemoTrajectory` below already establishes: the
+// derivation reads `new Date()`, so a module-scope build leaves a tab open overnight
+// quoting yesterday's balance, and an IIFE would read the roster at LOAD while the
+// outcomes plate reads it at RENDER — two read times for one number is the disagreement
+// this whole change is about.
+let _dbzDemoPayouts = null;
+function dbzDemoPayouts() {
+  const now = new Date();
+  const key = now.toDateString();
+  if (_dbzDemoPayouts && _dbzDemoPayouts.key === key) return _dbzDemoPayouts.v;
+  let v;
+  try {
+    const clients = DashSignals.buildMockClients(now);
+    const p = DashSignals.demoPayouts(clients, now);
+    v = {
+      balanceCents: p.balanceCents,
+      schedule: { interval: "monthly", delayDays: 7 },   // the holding period demoPayouts models
+      payouts: DashSignals.demoPayoutHistory(clients, now, 4),
+    };
+  } catch (e) {
+    // dashSignals not up on this page — say nothing rather than inventing a figure.
+    v = { balanceCents: null, schedule: null, payouts: [] };
+  }
+  _dbzDemoPayouts = { key, v };
+  return v;
+}
 const DBZ_DEMO_CHURN = [
   { name: "Devon Sharpe", startedAt: new Date(Date.now() - 210 * 86400000).toISOString(), endedAt: new Date(Date.now() - 9 * 86400000).toISOString(), priceCents: 18000, reason: "Budget — coming back in the fall" },
   { name: "Mara Ellison", startedAt: new Date(Date.now() - 460 * 86400000).toISOString(), endedAt: new Date(Date.now() - 31 * 86400000).toISOString(), priceCents: 22000, reason: "Hit her goal — graduated to self-managed" },
@@ -125,7 +158,7 @@ function dbzScheduleLine(s) {
 
 function DbzPayoutsZone({ live, stripe, providerId, role }) {
   const [linking, setLinking] = React.useState(false);
-  const data = live ? stripe : DBZ_DEMO_PAYOUTS;
+  const data = live ? stripe : dbzDemoPayouts();
   const connected = live ? !!(stripe && stripe.connected && stripe.status !== "error") : true;
   const startOnboarding = async () => {
     if (!providerId || linking) return;
@@ -415,6 +448,25 @@ const DBZ_T_INK = "#f2ede4";
 // count is rescaled so the last one equals the roster the rest of the preview shows.
 // Rescaling rather than re-walking is deliberate — the curve is the story, and a
 // re-walk to a smaller target would flatten it.
+// ⚠ THE DEMO TRAJECTORY NETTED MRR AT 0.88 — A 12% FEE THE PRODUCT DOES NOT CHARGE.
+// Found by the guard written for the payouts block below, which is the same finding one
+// plate over: this page showed net MRR cut at 12% beside a payout balance cut at 15%,
+// from the same roster. 15% is the rate the pricing page publishes, the rate
+// `coach.jsx` names, and the rate `coach-trajectory.mjs` falls back to when a
+// subscription row carries no stored `fee_bps` — so 0.88 was not a deliberate variation,
+// it was an outlier no comment ever claimed. Live money is untouched either way: the
+// real trajectory cuts every row by its OWN stored fee and never by a constant.
+//
+// The rate has one definition (`DashSignals.PREVIEW_NET_RATE`) and is read through the
+// guarded pattern `dbzDemoRosterSize` establishes, because this module can render before
+// dashSignals is up. The fallback is pinned to the constant by a guard in
+// tests/demo-coherence.test.mjs, so the two cannot drift apart unnoticed.
+function dbzNetRate() {
+  try {
+    const r = DashSignals.PREVIEW_NET_RATE;
+    return typeof r === "number" && r > 0 && r <= 1 ? r : 0.85;
+  } catch (e) { return 0.85; }   // dashSignals not up yet — the rate it would have returned
+}
 function dbzDemoRosterSize() {
   try {
     const n = DashSignals.buildMockClients(new Date()).length;
@@ -444,11 +496,11 @@ function dbzDemoTrajectory() {
     weeks.push({
       weekOf: new Date(monday.getTime() - i * 7 * 86400000).toISOString().slice(0, 10),
       active, added, ended,
-      mrrGrossCents: gross, mrrNetCents: Math.round(gross * 0.88),
+      mrrGrossCents: gross, mrrNetCents: Math.round(gross * dbzNetRate()),
       oneTimeCents: rnd() < 0.3 ? 9000 * (1 + Math.floor(rnd() * 2)) : 0, oneTimeNetCents: 0,
     });
   }
-  weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * 0.85); });
+  weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * dbzNetRate()); });
   // Land the curve on the roster the rest of the preview shows, keeping its shape.
   const target = dbzDemoRosterSize();
   const peak = weeks[weeks.length - 1].active;
@@ -463,7 +515,7 @@ function dbzDemoTrajectory() {
       prev = w.active;
       const gross = w.active * 18500 + (w.active % 3) * 1500;
       w.mrrGrossCents = gross;
-      w.mrrNetCents = Math.round(gross * 0.88);
+      w.mrrNetCents = Math.round(gross * dbzNetRate());
     });
   }
   const last = weeks[weeks.length - 1];

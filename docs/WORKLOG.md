@@ -141,7 +141,31 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-10, AND THE ONLY VERSION THAT BINDS.**
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11. READ THIS BEFORE THE 09-10 BLOCK
+  BELOW, WHICH IT NARROWS.** Owner, 2026-09-11: ***"dont run coderabbit moving forward"***.
+  So **CodeRabbit is not to be triggered on any PR** — not as a gate, not as a sweep, not
+  once. And measured the same day on #2033 and #2037, Codex answers an explicit trigger
+  within seconds with *"You have reached your Codex usage limits for code reviews."*
+  **Both external reviewers are therefore out of the loop: one by ruling, one by
+  measurement**, and the owner has separately ruled the `/code-review` skill out too
+  (*"that doesnt work and takes too long"*, with the same verdict on the Workflow tool).
+  ⚠ **WHICH LEAVES EXACTLY ONE LAYER, AND IT IS MINE: an adversarial read of my own diff
+  before pushing** — hand-run, not a skill invocation — hunting the regressions the
+  diff-review bullet below enumerates, plus a mutation round proving each new guard can
+  actually fail. It is not a formality standing in for a reviewer; it is the whole review.
+  ⚠ **THE MERGE GATE IS UNCHANGED, AND THAT IS THE POINT: CI green on the final head AND
+  not a draft.** Because no reviewer is named IN the gate, three reviewers leaving in
+  three weeks cost `/console` nothing this time — which is the 2026-08-26 post-mortem
+  paying off rather than being re-learned. *A rule that names a party who can leave has an
+  expiry date nobody wrote down; a gate that names only CI does not.*
+  ⚠ **AND THIS IS THE THIRD HANDOVER OF THE SAME SENTENCE.** When Codex went out on
+  2026-08-21 this file wrote *"losing Codex loses a real layer, and self-review is what has
+  to cover it"*; CodeRabbit then covered it; now neither does. **The measured yields below
+  are what self-review now has to absorb alone** — Codex found the defects that make a
+  feature *fake*, CodeRabbit found more and wider at a higher false rate. Read those
+  paragraphs as a checklist for my own pass, not as history about tools.
+  ⚠ **THE REVIEWER SYSTEM AS OF 2026-09-10 — NARROWED BY THE 09-11 RULING ABOVE, kept
+  because its merge-gate and one-round-per-PR rulings still bind.**
   Owner, 2026-09-10: *"i just want the tasks completed as we said we were with proper
   reviews for each PR"* + *"trigging a codex review on each PR as well moving forward"*.
   **EVERY PR GETS TWO REVIEW LAYERS: `/code-review` before pushing, and an explicit
@@ -504,6 +528,75 @@ several are marked SHIPPED in their own text.
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-09-11 — V5's tail: the Business payouts block was twelve times the practice on its own page
+
+- **The last unanchored literals from [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md)
+  §8.** The sidebar payout card was derived from the demo roster on 2026-09-10; the
+  **payouts panel on Business was not**, and it was the larger lie. No migration.
+- ⚠ **IT DISAGREED WITH THE PRACTICE ON ITS OWN PAGE BY AN ORDER OF MAGNITUDE.** It
+  declared a **$1,840** balance and four weekly payouts of $4,125 / $3,860 / $4,015 /
+  $3,740 — **$15,740 over 24 days**, i.e. roughly **$19,700 a month** — beside a strip
+  reading **$1,820 monthly recurring** from the same ten demo clients. Measured against the
+  derived figures rather than eyeballed: the balance was **9×** and the history **12.7×**.
+  That is the same tenfold disagreement the sidebar card was fixed for, one page over,
+  still live after that fix.
+- ⚠ **AND IT DESCRIBED A DIFFERENT SCHEDULE THAN THE REST OF THE PREVIEW.** This said
+  *"weekly · Fridays"*; `demoPayouts` puts the payout on the **last day of the month** and
+  every coach tab's sidebar card reads *"PAYOUT SEP 30"*. **One preview cannot have two
+  cadences.** It is monthly now, with **no day anchor** — the rows carry their own month-end
+  dates, and an anchor would be a claim about a processor nobody has connected.
+- **The history is DERIVED FROM WHO HAD JOINED BY EACH MONTH**, which is the only way a
+  series of past payouts can exist without inventing one. All ten demo clients carry
+  `joinedAt` (2024-09-11 → 2026-09-06), so *"what did this practice bill in June"* is a fact
+  about the data on the page. Measured after: **$952 → $1,105 → $1,258 → $1,411**, a rising
+  series landing just under the current month's net of **$1,547** — the growth is a real
+  consequence of the join dates rather than a shape that looked plausible.
+- ⚠ **A MONTH WITH NOBODY YET JOINED YIELDS NO ROW, NOT A ZERO.** A $0 payout is the
+  positive claim that a payout ran and paid nothing, which a processor does not do.
+- ⚠ **AND THE ONE SURVIVING MUTATION WAS A REAL DISTINCTION, NOT A NO-OP.** Deleting the
+  explicit `!pay.joinedAt` check survived, because `new Date(undefined)` is NaN and the date
+  guard below catches it — but **`joinedAt: 0` is falsy AND parseable**: `new Date(0)` is
+  1970, a valid instant preceding every month, so the client would be counted at full MRR in
+  **every** payout and the date guard could never see it. The same `Number(null)` class this
+  log post-mortems on the Wall's helpers, arriving through a date. Pinned by that case.
+- **It is lazy and day-keyed**, the pattern `dbzDemoTrajectory` already establishes on this
+  page: the derivation reads `new Date()`, so a module-scope build leaves a tab open
+  overnight quoting yesterday's balance, and an IIFE would read the roster at **load** while
+  the outcomes plate reads it at **render** — two read times for one number is the
+  disagreement the whole change is about. An unreadable engine says **nothing** rather than
+  falling back to a figure.
+- ⚠ **AND THE GUARD WRITTEN TO CLOSE THAT CLASS FOUND A BIGGER ONE: THE SAME PAGE WAS
+  NETTING MRR AT A 12% FEE.** Adding the payout history put a **second** `* 0.85` in
+  `dashSignals.js` — the two-definitions-of-one-number problem this entry is about, in the
+  fix for it — so the rate was named once (`PREVIEW_NET_RATE`). Sweeping for the other
+  spellings then turned up `dbzDemoTrajectory` cutting demo MRR by **0.88**, beside a
+  payout balance cut by 0.85, from the same roster, **on the same page**. Not a deliberate
+  variation: **15% is what the pricing page publishes, what `coach.jsx` names, and what
+  `coach-trajectory.mjs` falls back to** for a subscription row carrying no stored
+  `fee_bps` — the 0.88 had no comment and no source. **Live money never touched it**, since
+  the real trajectory cuts every row by its OWN stored fee and never by a constant.
+- ⚠ **THE GUARD DERIVES ITS CORPUS AND ASSERTS IT SCANNED ONE**, so a fifth spelling added
+  later is covered with nobody remembering the test exists, and a sweep that finds nothing
+  cannot pass vacuously. Proven by mutation across **three files**: moving the named rate
+  alone fails, because `dashToday.jsx` still spells its own and must dissent.
+- ⚠ **AND THE FALLBACK IS DRIVEN, NOT MATCHED — after the first version of that check read
+  nothing.** `dashBusiness.jsx` renders before `dashSignals` is up, so `dbzNetRate` carries
+  its own literal; my regex looked for `return 0.85;` at end of line and the fallback sits
+  inside a one-line `catch`, so it matched **zero** sites and reported the fallback
+  *"moved"*. It **executes** the function now, against a present rate, an absent module and
+  seven unusable values. *A guard that pins a spelling pins whatever that spelling is wrong
+  about* — and this one was wrong about where the spelling was.
+- **Verified:** `npm test` **3212/3212** · `tsc --noEmit` 0 · JSX parse · `dashSignals.js`
+  `require()`s clean · the newdesign precompile check · **22/22 mutations killed across two
+  rounds** (12 on the payouts block, 10 on the fee rate), each proven to land, sanity green
+  at both ends · and the panel driven in Chromium on the
+  signed-out preview: **$206 available · $206 next · $4,726 paid over the last 4**, *"Paid
+  out monthly · 7-day rolling delay"*, and Aug 31 $1,411 / Jul 31 $1,258 / Jun 30 $1,105 /
+  May 31 $952. Zero page errors.
+- ⚠ **AND THE HARNESS STUBBED A CLIENT ACCOUNT ON A TRAINER PAGE**, which threw on
+  `firstName` before the block rendered at all — so the first run reported the panel absent.
+  It serves signed-out now, which is the state the demo payouts are actually for.
 
 ### 2026-09-11 — R15: a ⚙ on every card that has something to configure, and two queries that kept the oldest 400 rows
 

@@ -1523,11 +1523,21 @@
   //   thisMonth   net accrued month-to-date
   //   balance     the settled part: accrued up to the 7-day holding period
   //   lifetime    net × the months since the LONGEST-TENURED client joined
+  // ⚠ THE PREVIEW'S PLATFORM FEE HAS ONE DEFINITION, AND IT HAD TO, because this file
+  // now applies it in TWO places — the current month (`demoPayouts`) and every past
+  // month (`demoPayoutHistory`). Two copies of a rate is the disagreement this whole
+  // block was written to remove, one layer down: change one and the history stops
+  // reconciling with the month beside it, silently, on a page whose entire point is
+  // that its figures agree. `dashToday.jsx` and `dashBusiness.jsx` still spell it
+  // themselves — pre-existing, registered rather than swept, and pinned by a guard in
+  // tests/demo-coherence.test.mjs that fails the day any of the four diverges.
+  var PREVIEW_NET_RATE = 0.85;   // after the 15% platform fee
+
   function demoPayouts(clients, now) {
     const at = now instanceof Date ? now : new Date();
     const rows = Array.isArray(clients) ? clients : [];
     const monthlyCents = rows.reduce((sum, c) => sum + ((c && c.payments && c.payments.mrrCents) || 0), 0);
-    const netCents = Math.round(monthlyCents * 0.85);
+    const netCents = Math.round(monthlyCents * PREVIEW_NET_RATE);
 
     const daysInMonth = new Date(at.getFullYear(), at.getMonth() + 1, 0).getDate();
     const dayOfMonth = at.getDate();
@@ -1560,6 +1570,51 @@
       payoutLabel: payoutOn.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase(),
       payoutShort: payoutOn.toLocaleDateString([], { month: "short", day: "numeric" }),
     };
+  }
+
+  // The demo payout HISTORY (review 2026-09-09, V5 tail).
+  //
+  // ⚠ IT IS DERIVED FROM WHO HAD JOINED BY EACH MONTH, which is the only reason a series
+  // of past payouts can exist at all without inventing one. The demo roster carries
+  // `joinedAt` on every client, so "what did this practice bill in June" is a fact about
+  // the data on the page rather than a number that looked plausible.
+  //
+  // What it replaces was four literals — $4,125 / $3,860 / $4,015 / $3,740 over 24 days —
+  // summing to $15,740 against a roster whose own strip reads $1,820 monthly recurring.
+  // That is roughly TWELVE TIMES the practice, on one screen, which is the same
+  // tenfold-disagreement the sidebar payout card was fixed for and the same preview.
+  //
+  // A month with nobody yet joined yields NO ROW rather than a zero: a $0 payout is a
+  // claim that a payout ran and paid nothing, which a processor does not do.
+  function demoPayoutHistory(clients, now, count) {
+    const at = now instanceof Date ? now : new Date();
+    const rows = Array.isArray(clients) ? clients : [];
+    const n = Math.max(0, Math.min(24, count == null ? 4 : count));
+    const out = [];
+    for (let i = 1; i <= n; i++) {
+      // The last day of the month i months back — the cadence `demoPayouts` already
+      // states with "PAYOUT <date>". The two must not describe different schedules.
+      const end = new Date(at.getFullYear(), at.getMonth() - i + 1, 0);
+      const endMs = end.getTime();
+      let monthlyCents = 0;
+      for (const c of rows) {
+        const pay = c && c.payments;
+        if (!pay || !pay.joinedAt) continue;
+        const j = new Date(String(pay.joinedAt).length === 10 ? pay.joinedAt + "T00:00:00" : pay.joinedAt);
+        const t = j.getTime();
+        if (!isFinite(t) || t > endMs) continue;
+        monthlyCents += pay.mrrCents || 0;
+      }
+      if (monthlyCents <= 0) continue;          // nobody had joined yet — no payout ran
+      out.push({
+        id: "demo-po-" + i,
+        amountCents: Math.round(monthlyCents * PREVIEW_NET_RATE),
+        status: "paid",
+        arrivalDate: endMs,
+        created: endMs - 2 * 86400000,
+      });
+    }
+    return out;                                  // newest first, which is how the panel lists them
   }
 
   // The sidebar's demo payout card, strings and all (review 2026-09-09, V5).
@@ -1611,7 +1666,9 @@
     scoreWeekReading: scoreWeekReading,
     crossoverRead: crossoverRead,
     crossoverCopy: crossoverCopy,
+    PREVIEW_NET_RATE: PREVIEW_NET_RATE,
     demoPayouts: demoPayouts,
+    demoPayoutHistory: demoPayoutHistory,
     demoPayoutCard: demoPayoutCard,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
   };
