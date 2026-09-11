@@ -778,15 +778,75 @@ Append new entries at the top, under this note.
   `BSLibraryDetail` left UNCOVERED for PARTIAL: `partStrings` **168 → 193** and `noneStrings`
   **818 → 793** are the **same 25 strings** changing bucket, so nothing on either surface started
   hardcoding. `noneStrings` then **793 → 796** for the three honest states the plated stage owes.
-  38 new `myRecipe.*` keys × 13 locales, the `en` values extracted **programmatically from the JSX**
-  so they are byte-identical to each call site's `defaultValue`.
-- **Verified:** `npm test` **2957/2957** · `tsc --noEmit` 0 · mobile build 0 with every new string
+  **40** new `myRecipe.*` keys × 13 locales (the last two are the Serves field the third review
+  round added), the `en` values extracted **programmatically from the JSX** so they are
+  byte-identical to each call site's `defaultValue`. The ratchet's own columns are unmoved by the
+  review rounds — every string they added is keyed.
+- **Verified:** `npm test` **3151/3151** · `tsc --noEmit` 0 · mobile build 0 with every new string
   confirmed in the emitted bundle behind a positive control · the newdesign precompile check · JSX
-  parse on every edit · **39 mutations killed across five rounds, each proven to land** — and two of
-  them were the round paying for itself: the `hasOwnProperty` survivor above, and the hook-order rule
-  whose first version reported zero offenders on a tree that had one. The paste split is driven in
+  parse on every edit · **56 mutations killed across eight rounds, each proven to land** — and **four
+  of them were a round paying for itself**: the `hasOwnProperty` survivor above, the hook-order rule
+  whose first version reported zero offenders on a tree that had one, the brace matcher that lifted a
+  47-character signature, and the race test that could not lose a race. The paste split is driven in
   **11 locales**; the picker's namespace is driven by **mounting the real prep session** with a
   colliding title and asserting the catalog's own ingredients never reach the board. No migration.
+- ⚠ **AND CODEX RAN TWICE MORE, FOR FIVE FINDINGS THE FIRST ROUND HAD NOT REACHED — one of
+  them against the design's own premise.** **Round 2, P1: the parse call was a root-relative
+  `fetch('/api/nutrition/recipe-parse')`.** On the NATIVE build that resolves to the WebView's
+  own origin, which is not the backend and carries no session cookie — and because the caller
+  degrades to its offline split, the failure is **silent**: the AI reader would never have run
+  on iOS or Android, on the one path the owner asked for by name. It goes through a
+  `shapeBackend` client now (`apiBaseUrl` + `sessionsAuthHeaders`), copying `searchFoods` and
+  `transcribeVoice` rather than re-deriving them — **`transcribeVoice` carries a comment saying
+  it was fixed for this exact shape in #1805**, so the house had paid for it once already.
+  **Round 2, P2:** the shared title dedupe ran ABOVE the `myrecipe:` branch, so a member recipe
+  was dropped whenever its title matched a program meal or a saved catalog dish — *the same
+  collision case the branch exists for, lost from the other direction*. Members resolve first
+  and dedupe on their own ids.
+- ⚠ **AND ROUND 3'S P1 IS THE ONE THAT LANDED ON THE PREMISE: a whole-document upsert is not
+  safe across DEVICES.** Two phones each read the document, each add a recipe, each write the
+  whole thing back — only the later write survives, and the earlier device's recipe is gone
+  with nothing reporting it. **The serial lane is one JavaScript runtime and cannot see the
+  other device at all.** That is exactly the argument this entry opens with for not reusing
+  `client_library`, holding against my own store. Closed with **compare-and-set and STILL NO
+  MIGRATION**: the revision lives **inside the jsonb document we already own**, and
+  `user_goals` is keyed on `(user_id, kind)` with its own insert and update policies. On a
+  conflict `commit` re-reads and **re-applies the mutation** — which is why it has always taken
+  a function rather than a finished document: an add re-adds onto their recipe, a delete
+  re-deletes from it.
+- ⚠ **THREE DETAILS OF THAT CAS ARE LOAD-BEARING, and each is written at its site.** (1) The
+  **`.select()`** on the update: PostgREST does not treat an UPDATE matching zero rows as an
+  error, so without asking for the affected rows back **a lost race reports success** — the
+  defect `/api/me/age-public` shipped and was fixed for. (2) The CAS token is the **RAW
+  `data->>'rev'` string the read saw**, never a re-derived number, or a document written by
+  some other build could never be written again — `bsRecipesRev` (the counter to bump) and
+  `bsRecipesRevToken` (what Postgres compares) are deliberately two different reads. (3)
+  **Update-then-insert, never the reverse**: `getUserGoals` returns `{}` for an absent row AND
+  for an existing empty one, so inserting first would conflict **forever** on a rev-less row
+  that does exist. A backend without `saveUserGoalsIfRev` still writes unconditionally —
+  locking a member out of saving is worse than the race, and the degradation is stated rather
+  than discovered.
+- **Round 3's other two, both real:** Prep discovered member recipes only through the
+  **device-local** `shape.library` array, whose cloud copy loads when `BSClientLibrary` mounts
+  — so on a fresh install or a second device, opening Prep before ever visiting the Library
+  showed **none of them** while `myDoc` had already hydrated them (candidates come from the
+  document now); and the model's **serving count was persisted without ever being shown**,
+  while Prep uses it as the **denominator** when scaling every ingredient — a misread yield
+  silently rescaled the whole mise, and a value the member cannot see is not one they
+  reviewed. The review screen has a **Serves** field.
+- ⚠ **AND MY FIRST TEST FOR THE RACE WAS A BROKEN INSTRUMENT THAT ITS OWN GUARD CAUGHT.** It
+  drove **two store instances in one runtime** — but `SERIAL` is a **module singleton**, so they
+  shared the lane, their writes serialised, and the conflict counter stayed at **0**. It would
+  have passed with the CAS deleted. The other device is injected where it actually happens now
+  (the cloud row moves between our read and our write) and the test **asserts the conflict
+  occurred**. *A race test that cannot lose a race is not a race test* — and the assertion that
+  caught it was the guard-the-guard line, not the run.
+- ⚠ **THE BRACE MATCHER FOR THE PARSE-CLIENT GUARD WAS WRONG THE SAME WAY, TWO PRs AFTER THE
+  REPO FIXED IT.** It started counting at the first `{` after the function name, which for a
+  **destructured parameter** (`{ signal } = {}`) opens and closes on the parameter list —
+  handing back a **47-character signature**, after which every assertion against it is
+  vacuously true. `grab()` was fixed for exactly this in #2032. A length assertion caught it;
+  it skips the parameter list now and the assertion stays.
 - ⚠ **NOT SHIPPED, REGISTERED:** the **photo** path (needs a `recipe-imports` bucket — deliberately
   not `meal-notes`, which hands out year-long signed URLs — and is gated on confirming the pinned
   model accepts image input at all; `grep -rn "input_image\|image_url" src/` returns **nothing**, so
