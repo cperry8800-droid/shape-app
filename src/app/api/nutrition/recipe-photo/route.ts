@@ -28,7 +28,7 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
-import { callAI, hasOpenAIKey, parseModelJson } from '@/lib/ai';
+import { callAI, hasOpenAIKey, parseModelJson, aiVisionModel } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
 import { RECIPE_SYSTEM_PHOTO, parseImageDataUrl, readModelText, shapeRecipeDraft } from '@/lib/recipe-draft';
 
@@ -67,6 +67,13 @@ export async function POST(request: Request) {
   // are not interchangeable and the wrong one is a 400.
   const res = await callAI(
     {
+      // ⚠ THE VISION PIN, NOT THE TEXT ONE. Left to default, this request would
+      // inherit OPENAI_MODEL — a model chosen for chat and plan generation,
+      // which need not accept images at all. aiVisionModel() defaults to exactly
+      // that model, so this is a no-op until OPENAI_VISION_MODEL is set; what it
+      // buys is that a build whose model cannot read an image is one environment
+      // variable from working rather than a redeploy. See ai.ts.
+      model: aiVisionModel(),
       input: [
         { role: 'system', content: RECIPE_SYSTEM_PHOTO },
         {
@@ -102,9 +109,13 @@ export async function POST(request: Request) {
       ? 'photo_unreadable'
       : res.reason;
     if (reason === 'photo_unreadable') {
+      // ⚠ THE MODEL IS NAMED, because this one line is the whole diagnosis. A
+      // capability miss and a photo the provider dislikes are indistinguishable
+      // to the member, and the difference between them is which model answered.
       console.warn(
-        `[shape-ai] nutrition.recipe-photo provider ${res.status} — if this build's OPENAI_MODEL ` +
-        `has no vision capability, every photo import fails here:`,
+        `[shape-ai] nutrition.recipe-photo provider ${res.status} on model "${aiVisionModel()}" — ` +
+        `if that model has no vision capability then EVERY photo import fails here; ` +
+        `set OPENAI_VISION_MODEL to a model that accepts image input:`,
         String(res.detail ?? '').slice(0, 300),
       );
     }

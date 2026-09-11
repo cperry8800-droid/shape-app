@@ -25,6 +25,28 @@ export function aiModel(): string {
   return process.env.OPENAI_MODEL || DEFAULT_MODEL;
 }
 
+/**
+ * The model for a request carrying an `input_image` part.
+ *
+ * ⚠ VISION IS A SEPARATE CAPABILITY FROM TEXT, SO IT GETS ITS OWN PIN — the same
+ * reason DEFAULT_TRANSCRIBE_MODEL and DEFAULT_TTS_MODEL exist rather than riding
+ * OPENAI_MODEL. A model pinned for chat and plan generation need not accept
+ * images at all, and when it does not the provider answers 4xx, which the photo
+ * route can only report to the member as "we couldn't read your photo" — so the
+ * feature is deployed, reachable, and dead on every single import, with nothing
+ * on screen able to say why.
+ *
+ * ⚠ IT DEFAULTS TO `aiModel()`, SO THIS CHANGES NOTHING UNTIL THE VAR IS SET.
+ * No guessed model name, and no "downgrade to satisfy a stale model list" of the
+ * kind this file's header warns against: if the pinned model reads images it
+ * goes on reading them. What the indirection buys is that a build whose model
+ * cannot is ONE environment variable from working, rather than a code change,
+ * a review round and a deploy.
+ */
+export function aiVisionModel(): string {
+  return process.env.OPENAI_VISION_MODEL || aiModel();
+}
+
 export function hasOpenAIKey(): boolean {
   return !!process.env.OPENAI_API_KEY;
 }
