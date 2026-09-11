@@ -473,9 +473,17 @@ test('there is no second Wall — the retired segment is gone from every path', 
   // And the deep link still arrives somewhere real, rather than being dropped.
   const idx = bare.indexOf('openRequest.wall');
   assert.ok(idx > 0, "the Home deep-link branch was removed — it should RETARGET, not vanish");
-  const branch = bare.slice(idx, idx + 400);
+  const branch = bare.slice(idx, idx + 900);
   assert.match(branch, /setTab\('feed'\)/, 'the wall deep link must land on the feed segment');
   assert.match(branch, /setFilter\('COMMUNITY'\)/, 'and select the activity sub-tab, which is the Wall');
+  // ⚠ AND THE LENS. Codex on #2036: `feedMode` is persisted per device while
+  // BSHomeWallBulletin picks its record from the everyone-scoped
+  // ShapePRWall.list(), so a member who last chose FOLLOWING would land on a
+  // feed that cannot hold the record Home just advertised.
+  assert.match(branch, /setFeedMode\('universal'\)/, 'and reset the lens to the scope the bulletin read from');
+  // setFeedMode, never switchFeedMode: a navigation must not overwrite the
+  // member's own standing choice of lens.
+  assert.ok(!/switchFeedMode/.test(branch), 'the deep link must not persist the lens over the member\'s choice');
 });
 
 // ── the data layer ──────────────────────────────────────────────────────────

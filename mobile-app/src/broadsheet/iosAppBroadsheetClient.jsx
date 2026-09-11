@@ -19582,6 +19582,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (openRequest.wall) {
       setTab('feed');
       setFilter('COMMUNITY');
+      // ⚠ AND THE LENS, OR THE BULLETIN SENDS THEM WHERE ITS RECORD IS NOT.
+      // `BSHomeWallBulletin` picks from `ShapePRWall.list()`, which is the
+      // everyone scope — but `feedMode` is persisted per device, so a member
+      // who last chose FOLLOWING lands on a feed that cannot hold the record
+      // Home just named unless they happen to follow its author.
+      // setFeedMode, NOT switchFeedMode: this is a navigation, not the member
+      // choosing a lens, and a tap on a Home card must not silently overwrite
+      // a standing preference. The control sits lit beside the title, so the
+      // change is visible and one tap undoes it.
+      setFeedMode('universal');
       setOpenChat(null);
       return;
     }
