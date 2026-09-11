@@ -149,6 +149,39 @@ changelog whenever something ships.
   **Both external reviewers are therefore out of the loop: one by ruling, one by
   measurement**, and the owner has separately ruled the `/code-review` skill out too
   (*"that doesnt work and takes too long"*, with the same verdict on the Workflow tool).
+  ⚠ **CORRECTED THE SAME AFTERNOON — THE CODERABBIT HALF STANDS, THE CODEX HALF DOES NOT,
+  AND MEASUREMENT IS THE ONLY THING THAT WAS EVER HOLDING IT UP.** Codex is **rate-limited,
+  not gone.** Read off #2036's own timestamps rather than remembered: declined at
+  **02:08:47Z** and again at **02:08:54Z** with that exact sentence, then **accepted on a
+  retry at 13:39Z the same day** — after which it ran **four rounds on four heads and
+  returned four findings, every one real and every one a regression that PR had
+  introduced** (`6d50fe6` 13:43Z, two · `65555ac` 14:06Z, one · `e49fd22` 14:16Z, one ·
+  `db1d7d9` 14:29Z, **clean**). **So the refusal window was about eleven and a half hours,
+  and *"within seconds"* describes a rate limit rather than a retirement.** Read a decline
+  as *"not right now"* and **retry it later**; the owner's 2026-09-10 ruling to trigger
+  Codex on every PR is untouched and still binds.
+  ⚠ **AND THE NEXT PARAGRAPH IS WHERE THAT COSTS SOMETHING.** *"Which leaves exactly one
+  layer, and it is mine"* is the right instruction for a round in which Codex declines and
+  a **wrong standing description of the stack** — on #2036 my own pre-push pass had already
+  run and passed, and Codex then found four defects in what it had cleared. Kept and marked
+  rather than rewritten, because the instruction it gives is still what to do when the
+  retry also declines. *A reviewer's availability is a claim with a shelf life, and this
+  one's was hours* — which is the rule this same block states three paragraphs down, turned
+  on the paragraph that states it.
+  ⚠ **AND READING A VERDICT OFF THE API HAS ONE TRAP WORTH THE LINE.** A Codex **review**
+  carries the head it judged in its own `commit_id` (`6d50fe6`, `65555ac`, `e49fd22`), but
+  its **inline comments all report the CURRENT head** — every one of the four above reads
+  `db1d7d9`, including findings filed against heads three pushes earlier. So **pin a
+  verdict on the review, never on its comments**, or a stale finding reads as a live one on
+  today's code. CodeRabbit's `APPROVED` on this PR has the mirror problem: it is pinned to
+  `43575f27`, a pre-rebase commit **not in the merged history at all**.
+  ⚠ **REGISTERED, NOT SWEPT: `/console` still renders a `CR` chip, and it will read `none`
+  forever.** `ConsoleClient.tsx` branches on `p.coderabbit` and `flight/route.ts` still
+  computes `coderabbitVerdict`. It is **display, not a gate** — checked rather than assumed:
+  `prAllGreen({ ci, draft })` reads no reviewer at all, which is why three reviewers leaving
+  in three weeks cost the board nothing this time. Left because removing a chip is a code
+  change and this is a records change; named because a chip for a reviewer nobody runs is
+  the next reader's false signal.
   ⚠ **WHICH LEAVES EXACTLY ONE LAYER, AND IT IS MINE: an adversarial read of my own diff
   before pushing** — hand-run, not a skill invocation — hunting the regressions the
   diff-review bullet below enumerates, plus a mutation round proving each new guard can
@@ -262,7 +295,9 @@ changelog whenever something ships.
   loses a real layer, and self-review is what has to cover it.
 
   The layers, in order, for any
-  non-trivial change: **(0) CodeRabbit IDE — pre-push.** The CodeRabbit VS Code
+  non-trivial change: **(0) CodeRabbit IDE — pre-push.** ⚠ **RETIRED 2026-09-11 with the
+  GitHub app — the ruling is *"dont run coderabbit"*, not *"don't run it on GitHub"*, and
+  this is the same engine one step earlier. History from here.** The CodeRabbit VS Code
   extension (`coderabbit.coderabbit-vscode`, installed locally; sign in to its
   sidebar panel once) reviews the LOCAL diff in-editor **before** pushing, so the
   obvious stuff is fixed before a PR exists. It's **opportunistic, not a hard
@@ -270,7 +305,11 @@ changelog whenever something ships.
   one-liners. Same engine as layer 2, just earlier + with less context; there's no
   CLI, so it's editor-triggered (the agent can't invoke it). **(1) `/code-review`**
   — run the skill on the diff before merging (Claude reviews for logic bugs + the
-  regressions listed above); **(2) CodeRabbit GitHub App.** ⚠ **CORRECTED
+  regressions listed above); **(2) CodeRabbit GitHub App.** ⚠ **RETIRED 2026-09-11 — see
+  the ruling at the head of this stack. Everything to the end of layer (2) is HISTORY, and
+  what survives it is not about CodeRabbit: a verdict is only about the head it names, the
+  absence of a record is never a pass, and a notice naming a number is not a refusal.**
+  ⚠ **CORRECTED
   2026-08-18 — this read "the AUTHORITATIVE review · auto-reviews every PR", and
   BOTH halves are now false.** It reviews on request only — its own comment says
   *"Reviews should be triggered manually for repositories with fewer than 10
@@ -400,7 +439,10 @@ changelog whenever something ships.
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
   - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
     reports `neutral`) + Preview Comments.
-  - **CodeRabbit** — **does not run BY ITSELF** (auto-skip notice, <10 stars →
+  - **CodeRabbit** — ⚠ **RETIRED 2026-09-11 (owner: *"dont run coderabbit moving
+    forward"*). Still INSTALLED, so it still posts its own skip-review notice when a PR
+    opens; that notice is not a review and nothing in the merge path reads it. History
+    below.** — **does not run BY ITSELF** (auto-skip notice, <10 stars →
     request-only), but ⚠ **it runs on request and the owner authorised that on
     2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
     #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the
@@ -724,6 +766,79 @@ Append new entries at the top, under this note.
   (disabled · *live only* · **0 inserts**). Zero page errors throughout.
 - ⚠ **STILL NO ON-ACCOUNT PASS.** Every live path here is a stubbed `shapeDb` over an
   in-page object; the insert has never run against real RLS.
+
+### 2026-09-11 — The Wall stops being a second tab and becomes the feed, and four Codex rounds find four regressions
+
+- **Owner: *"Just replace the feed then shape sub section with the wall design / And call it
+  the wall / Not shape"* + *"So leave the feed tab / Shape becomes wall"* + *"Yes don't need 2
+  wall tabs"*.** Chat's five segments become four: the **SHAPE** sub-tab is now **WALL** and
+  renders the activity feed through `BSActivityCard`'s `variant="wall"`; the separate Wall
+  segment built on 2026-09-10 is retired. **Feed, Team and Channels are untouched** — the
+  trainer, nutritionist and community threads all survive, which was the explicit constraint.
+  #2036 -> `34dcb20`. No migration, no route.
+- ⚠ **THE ASK WAS A RENAME AND THE DIFF WAS A MERGE, WHICH IS WHY EVERY DEFECT BELOW IS OF
+  ONE SHAPE.** `variant` is the only thing separating the two renderings, so flipping the
+  sub-tab to `"wall"` sent **every** activity down a path built for **ledger-backed record
+  posts** — a corpus of one kind of card suddenly carrying every kind. Nothing was rewritten
+  and four things quietly stopped being true.
+- ⚠ **A HERO THE DOT MATRIX CANNOT SPELL WAS DRAWN AS ITS DIGITS, SILENTLY.** `bsDotChars`
+  drops any character with no glyph — correct for a stray mark inside a figure the matrix
+  mostly knows, **wrong for a value built out of letters**, because the drop leaves something
+  that still looks like a reading. The demo recovery post's real hero, **`8h 10m`, drew as
+  `8 10`**; `2.4 · MO`, `178 spm` and `38 SWOLF` are the same class. `bsDotRenderable` now
+  asks the matrix whether it can say the value **at all** and anything else is typeset. ⚠
+  **Empty is NOT renderable** — distinct from *"every character is representable"*, which is
+  vacuously true of `''` and would mount a zero-width svg where a figure belongs.
+- ⚠ **THE HOME BULLETIN SENT MEMBERS TO A LENS ITS OWN RECORD NEED NOT BE IN.** The deep link
+  set the tab and the filter and left `feedMode` where it found it, so a member reading under
+  **following** was routed to a scope that may not contain the record just advertised. It
+  resets to `universal` with **`setFeedMode`, never `switchFeedMode`**: this is a navigation,
+  and a tap on a Home card must not silently overwrite a standing preference.
+- ⚠ **AND A REAL PR CARD LOST THE AMOUNT THE MEMBER HAD IMPROVED BY.** The wall variant
+  suppresses the standalone `↑ PR {delta}` line — the ledger-backed board would otherwise
+  state the record twice — and the gain reached the pill only through **`recordNote`, a prop
+  the ledger caller passes and the feed does not**. So the merged feed read *"New PR ·
+  Deadlift"* with no figure. `wallPill` falls back to the post's own `prDelta`; an explicit
+  `recordNote` still outranks it, because the ledger's gain is measured against the stored
+  best rather than stamped at publish. The feed is pinned as the control so the fix cannot
+  quietly move its furniture too.
+- ⚠ **STILL OPEN AND THE OWNER'S CALL, NOT A CODE FIX — Codex's P1.** `BSHomeWallBulletin`
+  advertises a **ledger** record and routes into the **feed**, which cannot contain it: a
+  session PR lands as a bare `pr_wall_posts` row with **no `post_id`**. Closing it means
+  merging the ledger rows plus *Your best* / *Post a PR* into the sub-tab — a feature merge
+  past the rename that was asked for, so it is registered rather than smuggled in.
+  **Unreachable today**: production holds **0** `pr_wall_posts`.
+- ⚠ **FOUR ROUNDS, FOUR FINDINGS, ALL REAL — AND MY OWN PRE-PUSH PASS HAD ALREADY CLEARED
+  THE TREE.** `6d50fe6` (P1 + P2) · `65555ac` (P2) · `e49fd22` (P2) · `db1d7d9` **clean**.
+  Recorded because the reviewer block above had just been written to say self-review is the
+  whole stack: on this PR it was the layer that **missed** four regressions, not the one that
+  caught them. *A review round produces a new diff, and that diff has not been reviewed* —
+  paid for three times here, since each of the three fixes needed its own round.
+- ⚠ **AND THREE OF MY OWN GUARDS WERE BROKEN INSTRUMENTS BEFORE THEY WERE GUARDS.** The
+  render test asserted `.text` contained `8h 10m` — but `BSDotNumber` is handed
+  `title="8h 10m"` either way, so **the tooltip satisfied an assertion about the figure** and
+  the mutation reverting the gate **survived**; it asserts on the element type now. A second
+  double-flattened `d.nodes()` (already flat) and counted one element **seven** times. A
+  third pulled `BSSdCountUp` from a **second `loadBroadsheet` call** — each call re-evaluates
+  the module, so `n.type === X` compared two different function identities, matched nothing,
+  and read as *"the feature is absent"*. And a fixture used `stats` where a **real** activity
+  reads `statsRow`, handing the live path an undefined and then reporting on the crash.
+- ⚠ **ONE CLAIM WAS WITHDRAWN RATHER THAN SHIPPED.** Suppressing the count-up on the wall
+  fallback left two mutations alive because `railSeen` is false in a shallow render — the
+  invariant was **unobservable**, so the change was reverted rather than shipped behind a
+  guard that cannot fail. *An assertion nothing can falsify is decoration.*
+- **Verified:** `npm test` **3213/3213** · JSX parse · three mutation rounds (**5/5 · 3/3 ·
+  3/3**), each proven to land with sanity green at both ends · CI green on `db1d7d9` (Web ·
+  Mobile · Tests · gitleaks · debug APK) · Codex **clean on `db1d7d9`**, head-pinned.
+- ⚠ **NO ON-ACCOUNT PASS — AND RE-MEASURING IT SPLIT THE CLAIM IN TWO.** Production holds
+  **0** `pr_wall_posts`, **0** `workout_set_logs` and **0** `client_weigh_ins`, so the
+  **ledger half** of this surface has never rendered a real record and the P1 above has
+  never been hit. But `community_posts` holds **7**, which the previous entries' blanket
+  *"nothing has ever run against real data"* would have hidden: the sub-tab renders
+  `community_posts`, so a signed-in member **does** see real cards there today, each of them
+  now going through the wall variant for the first time — which is exactly the corpus the
+  three fixes above are about. *A count of zero on one table is not a count of zero on the
+  surface.*
 
 ### 2026-09-11 — V5's tail: the Business payouts block was twelve times the practice on its own page
 
