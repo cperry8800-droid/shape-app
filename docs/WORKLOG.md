@@ -732,12 +732,40 @@ Append new entries at the top, under this note.
   the sub-gutter degenerate case named rather than silently passing. *Extending a sweep to
   the constant that just bit you is not the same as extending it past every constant in the
   function.*
-- **Verified:** `npm test` **3354/3354** on the head merged with `main` · `tsc --noEmit` 0 ·
+- ⚠ **AND A THIRD CODEX ROUND REFUTED THE BECAUSE-CLAUSE I HAD JUST WRITTEN FOR THE
+  HEIGHT FLOOR — which is the round paying for itself, since it is the argument I had asked
+  it to check.** That clause read: *"the panel scrolls vertically, so 80px of it crossing
+  the bottom gutter still reaches every control."* **True only while the scroll BOX is
+  inside the viewport.** Once the floor pushes the box past the bottom, max scroll aligns
+  the content's end with the box's OWN bottom edge — which is off screen — so the last
+  controls can never enter the viewport at all. Measured at vh 100: the box runs 64..144,
+  **36px of it is visible**, and the fourth selector is unreachable at any scroll position.
+  *A floor that outruns the viewport recreates exactly the unreachability it was excused
+  for*, and a wrong because-clause is worse than none.
+- **THE HEIGHT IS DERIVED FROM THE OFFSET NOW, AS ONE EXPRESSION** — the box hangs `offset`
+  from one edge, so `offset + height` has to clear the other gutter, which is the same
+  arithmetic both ways up and equals the old span whenever the gear is on screen.
+- ⚠ **AND THE SEPARATE `room` TERM IS DELETED RATHER THAN TESTED AROUND, BECAUSE THE
+  MUTATION ROUND PROVED IT DEAD — AND WRONG.** Two mutations survived (`room = 10000`, and
+  the 80px floor restored) and neither was a guard gap: the offset-derived height already
+  subsumes both. It is redundant wherever the gear is visible and **wrong where it is
+  not** — with the gear scrolled past the viewport, `above`/`below` measure a span that is
+  partly off screen while the offset has already been floored at the gutter, so the box
+  started **above the viewport top** (measured: vh 100, gear at 120, box top −14). That
+  case was found by the extended sweep, not by a reviewer. Deriving the height from the
+  offset makes it **unrepresentable** instead of guarded against. *Two survivors, both dead
+  code, deleted rather than tested around — the third time in this wave.*
+- ⚠ **AND MY SWEEP HAD NOW BEEN SHORT OF A BITE POINT THREE TIMES: 320 above the cap's 264,
+  240 above the floor's 144, and vh 340 above the height floor's ~190.** Each extension
+  reached the constant that had just bitten and stopped there. It runs from **vw 40 and
+  vh 100** now, and carries a **separate assertion for the property the gutter sweep does
+  not state**: the whole scroll box is on screen, so max scroll reaches the last control.
+- **Verified:** `npm test` **3355/3355** on the head merged with `main` · `tsc --noEmit` 0 ·
   JSX parse on all three changed modules · `dashSignals.js` `require()`s clean · the
-  newdesign precompile check · **21/21 + 17/17 mutations killed** across two rounds — the
-  second including both Codex defects replayed as their own mutations, so the suite is
-  proven to catch them — each proven to land, sanity green at both ends · and the whole
-  cycle driven in Chromium against a simulated live coach: **two
+  newdesign precompile check · **21/21 + 19/19 mutations killed** across two rounds — the
+  second including **all three Codex defects replayed as their own mutations**, so the suite
+  is proven to catch them rather than merely to be green after the fix — each proven to
+  land, sanity green at both ends · and the whole cycle driven in Chromium against a simulated live coach: **two
   strips, two gears, four `<select>` groups of eleven** each carrying a painted chevron
   (`appearance: none` takes the native one with it), picking *Needs eyes* into the second
   slot → the strip follows and the document holds
@@ -745,9 +773,10 @@ Append new entries at the top, under this note.
   moved** — then the swap exchanges two slots, and a **reload brings the arrangement back**.
   The signed-out preview keeps the payout four with **zero gears on Overview**. Zero page
   errors throughout.
-- **And the fixed panel re-driven** in Chromium at **fourteen viewport sizes from 128×420
-  to 1440×1400** (at 128 it sits at 12..116 — both gutters exactly, where before the fix
-  it ran to 132): portaled on every one, every slot inside both gutters, the panel capped and
+- **And the fixed panel re-driven** in Chromium from **360×200 and 128×420 up to
+  1440×1400** — the box **fully on screen and scrolling at every one** (228px of content in
+  a 71px box at vh 200, so max scroll reaches the last control), and at vw 128 sitting at
+  **12..116**, both gutters exactly, where before the fix it ran to 132: portaled on every one, every slot inside both gutters, the panel capped and
   **scrolling** where the screen is too short for it, a pick from the fourth slot still
   landing, the swap reporting **one** write carrying both keys, and the Progress page's
   chips gear still stepping ALL → 90D → 30D → 7D → ALL at **43 → 21 → 9 → 4** segments with

@@ -178,10 +178,14 @@ function dgPanelBox(gear, vw, vh) {
   // than a hypothetical) the panel's right edge landed 16px past the gutter and grew from
   // there. It is capped at both gutters unconditionally now.
   //
-  // ⚠ AND THAT IS WHY THIS FLOOR GOES WHILE THE HEIGHT FLOOR BELOW STAYS: the panel
-  // scrolls VERTICALLY (`overflowY: auto`), so 80px of it crossing the bottom gutter still
-  // reaches every control. It does not scroll horizontally, so a width past the right
-  // gutter puts controls where nothing can reach them. (Codex, #2046.)
+  // ⚠ AND THE HEIGHT BELOW IS CAPPED THE SAME WAY, after a because-clause of mine was
+  // refuted here. It read: "the panel scrolls VERTICALLY, so 80px of it crossing the bottom
+  // gutter still reaches every control." That holds only while the scroll BOX is inside the
+  // viewport. Once the floor pushes the box past the bottom, max scroll aligns the content's
+  // end with the box's own bottom edge — which is off screen — so the last controls can
+  // never enter the viewport at all. Measured at vh 100: the box runs 64..144, only 36px of
+  // it is visible, and the fourth selector is unreachable. A floor that outruns the viewport
+  // recreates exactly the unreachability it was excused for. (Codex, #2046.)
   const w = Math.max(1, Math.min(DG_PANEL_W, vw - DG_GUT * 2));
   const left = Math.max(DG_GUT, Math.min(gear.right - w, vw - DG_GUT - w));
   const below = vh - gear.bottom - 6 - DG_GUT;
@@ -189,10 +193,23 @@ function dgPanelBox(gear, vw, vh) {
   // Flip up only when there is genuinely MORE room up there: a panel that flips with
   // 150px below and 140px above is just as short and now upside down.
   const up = below < DG_PANEL_MIN_H && above > below;
-  const room = Math.max(80, up ? above : below);
-  return up
-    ? { left: left, width: w, up: true, offset: Math.max(DG_GUT, vh - gear.top + 6), maxHeight: room }
-    : { left: left, width: w, up: false, offset: Math.max(DG_GUT, gear.bottom + 6), maxHeight: room };
+  // The room is what there is. A cramped scroll box that can reach every control beats a
+  // taller one whose bottom is off screen — see the note above. The 1 is degeneracy only:
+  // a gear below the viewport would otherwise yield a negative height.
+  const offset = up ? Math.max(DG_GUT, vh - gear.top + 6) : Math.max(DG_GUT, gear.bottom + 6);
+  // ⚠ THE HEIGHT IS DERIVED FROM THE OFFSET THAT WAS ACTUALLY USED, and that is ONE
+  // expression rather than a cap plus a floor. The box hangs `offset` from one edge, so
+  // `offset + height` has to clear the other gutter — which is the same arithmetic in both
+  // orientations, and is exactly `above`/`below` whenever the gear is on screen.
+  //
+  // A separate `room = max(1, up ? above : below)` term used to sit in front of this and is
+  // deleted rather than kept: it is redundant everywhere the gear is visible, and WRONG
+  // where it is not. With the gear scrolled past the viewport (or on the frame before a
+  // scroll reposition lands) `above`/`below` measure a span that is partly off screen while
+  // the offset has already been floored at the gutter, so the box started above the
+  // viewport top — measured at vh 100 with the gear at 120: box top −14. Deriving the
+  // height from the offset makes that unrepresentable instead of guarded against.
+  return { left: left, width: w, up: up, offset: offset, maxHeight: Math.max(1, vh - offset - DG_GUT) };
 }
 
 function DgCardSettings({ groups }) {

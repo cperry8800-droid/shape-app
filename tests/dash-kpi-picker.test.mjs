@@ -344,23 +344,47 @@ test('the panel is capped to the room it has, so it scrolls rather than running 
   // it restated the DOWNWARD arithmetic and then fed it a gear that legitimately flips up.
   // What the panel actually promises is that its own box stays inside both vertical
   // gutters, whichever way it hangs — so that is what is swept.
-  const GUT = 12, FLOOR = 80;
-  for (const vh of [340, 420, 600, 760, 900, 1400]) {
-    for (const top of [0, 20, 120, Math.round(vh / 2), vh - 120, vh - 30]) {
+  //
+  // ⚠ AND THE OLD 80px FLOOR HAD ITS OWN CARVE-OUT HERE, on the argument that a short
+  // scroll box still reaches every control. That is false once the box outruns the
+  // viewport: max scroll aligns the content's end with the box's own bottom edge, so
+  // anything past the screen stays past it. The sweep now reaches vh 100, where the floor
+  // put the box at 64..144 on a 100px screen — and there is no carve-out left, because the
+  // box is capped to the real room and always fits. (Codex, #2046.)
+  const GUT = 12;
+  for (const vh of [100, 140, 200, 240, 340, 420, 600, 760, 900, 1400]) {
+    for (const top of [0, 20, 40, 120, Math.round(vh / 2), vh - 120, vh - 30]) {
       const g = gearAt(900, top);
       const b = dgPanelBox(g, 1200, vh);
       const boxTop = b.up ? vh - b.offset - b.maxHeight : b.offset;
       const boxBottom = b.up ? vh - b.offset : b.offset + b.maxHeight;
-      assert.ok(b.maxHeight >= FLOOR, `no room left to scroll at vh=${vh} top=${top}`);
-      // The floor wins on a viewport too small for anything: 80px of scrollable panel
-      // beats a 30px sliver, and it is the only case allowed to cross a gutter.
-      if (b.maxHeight > FLOOR) {
-        assert.ok(boxTop >= GUT - 0.001, `top gutter crossed at vh=${vh} top=${top}: ${boxTop}`);
-        assert.ok(boxBottom <= vh - GUT + 0.001, `bottom gutter crossed at vh=${vh} top=${top}: ${boxBottom}`);
-        // and it never covers the control that opened it
-        if (b.up) assert.ok(boxBottom <= g.top + 0.001, `the upward panel covers its own gear at vh=${vh} top=${top}`);
-        else assert.ok(boxTop >= g.bottom - 0.001, `the panel covers its own gear at vh=${vh} top=${top}`);
-      }
+      assert.ok(b.maxHeight > 0, `zero-height panel at vh=${vh} top=${top}`);
+      // A viewport with no room on either side of the gear has no layout to be right
+      // about; every real one is above it.
+      if (Math.max(vh - g.bottom - 6 - GUT, g.top - 6 - GUT) <= 0) continue;
+      assert.ok(boxTop >= GUT - 0.001, `top gutter crossed at vh=${vh} top=${top}: ${boxTop}`);
+      assert.ok(boxBottom <= vh - GUT + 0.001, `bottom gutter crossed at vh=${vh} top=${top}: ${boxBottom}`);
+      // and it never covers the control that opened it
+      if (b.up) assert.ok(boxBottom <= g.top + 0.001, `the upward panel covers its own gear at vh=${vh} top=${top}`);
+      else assert.ok(boxTop >= g.bottom - 0.001, `the panel covers its own gear at vh=${vh} top=${top}`);
+    }
+  }
+});
+
+test('the whole scroll box is on screen, so max scroll reaches the last control', () => {
+  // ⚠ THE PROPERTY THE GUTTER SWEEP ABOVE DOES NOT STATE. A box that crosses the bottom
+  // of the VIEWPORT (rather than the gutter) is the unreachable case: scrolling maps
+  // content into off-screen box space, so the last selector can never enter the viewport
+  // however far it is scrolled. This is the assertion the 80px floor failed.
+  for (const vh of [100, 140, 200, 240, 340, 900]) {
+    for (const top of [0, 20, 40, 120, Math.round(vh / 2), vh - 30]) {
+      const g = gearAt(900, top);
+      const b = dgPanelBox(g, 1200, vh);
+      const boxTop = b.up ? vh - b.offset - b.maxHeight : b.offset;
+      const boxBottom = b.up ? vh - b.offset : b.offset + b.maxHeight;
+      if (Math.max(vh - g.bottom - 6 - 12, g.top - 6 - 12) <= 0) continue;
+      assert.ok(boxTop >= 0, `box starts above the viewport at vh=${vh} top=${top}: ${boxTop}`);
+      assert.ok(boxBottom <= vh, `box ends ${boxBottom - vh}px below the viewport at vh=${vh} top=${top}`);
     }
   }
 });
