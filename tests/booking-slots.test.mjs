@@ -8,7 +8,7 @@
 // interesting rules are all arithmetic about instants — the one thing a regex cannot see.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -234,4 +234,26 @@ test('the Team page books with the account, and the preview cannot book at all',
   const btn = t.slice(open, at);
   assert.doesNotMatch(btn, /ctOpenChat/, '"Book session" opens the chat again');
   assert.match(btn, /onBook\(c\)/, '"Book session" no longer opens the booking sheet');
+});
+
+test('every page that loads clientTeam.jsx loads bookingSlots.js first', () => {
+  // ⚠ THE SHEET READS `window.BookingSlots`, AND THESE ARE CLASSIC SCRIPTS — a bare global
+  // exists only if an earlier tag defined it. A host added later without the module would
+  // render the Team page perfectly and throw the moment somebody taps Book session, which
+  // is the window-globals load-order class this repo already post-mortems as React #130.
+  //
+  // The corpus is DERIVED from the pages that actually load the page module, so a new host
+  // is covered with nobody remembering this test exists — and it asserts it FOUND one,
+  // because a sweep over an empty list passes without checking anything.
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const hosts = readdirSync(dir).filter((f) => f.endsWith('.html'))
+    .map((f) => [f, readFileSync(new URL(f, dir), 'utf8')])
+    .filter(([, html]) => /src="clientTeam\.jsx/.test(html));
+  assert.ok(hosts.length >= 1, 'nothing loads clientTeam.jsx — the corpus vanished');
+  for (const [f, html] of hosts) {
+    const mod = html.search(/src="bookingSlots\.js/);
+    const page = html.search(/src="clientTeam\.jsx/);
+    assert.ok(mod >= 0, f + ' loads clientTeam.jsx without bookingSlots.js');
+    assert.ok(mod < page, f + ' loads bookingSlots.js AFTER clientTeam.jsx');
+  }
 });

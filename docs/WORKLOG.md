@@ -604,8 +604,17 @@ Append new entries at the top, under this note.
   Angeles), which is the only shape that separates them. *A guard that thinks it changed
   zone and did not is a guard that tested UTC four times* — this file's own sentence, and
   the fixture is half of what it is about.
-- **Verified:** `npm test` **3229/3229** · `tsc --noEmit` 0 · JSX parse · `bookingSlots.js`
-  `require()`s clean · the newdesign precompile check · **19/19 mutations killed**, each
+- ⚠ **AND ONE GAP IN MY OWN GUARDS, FOUND WHILE CI RAN: NOTHING ASSERTED THE MODULE IS
+  LOADED AT ALL.** The sheet reads `window.BookingSlots` and these are classic scripts, so
+  a bare global exists only if an earlier tag defined it — a host added later without the
+  module renders the Team page perfectly and throws the moment somebody taps **Book
+  session**. That is the window-globals load-order class this file already post-mortems as
+  React #130. The guard derives its corpus from the pages that actually load
+  `clientTeam.jsx`, asserts it **found** one, and checks the ORDER rather than mere
+  presence; both mutations (module removed · module loaded after the page) are proven to
+  fail it.
+- **Verified:** `npm test` **3230/3230** · `tsc --noEmit` 0 · JSX parse · `bookingSlots.js`
+  `require()`s clean · the newdesign precompile check · **21/21 mutations killed**, each
   proven to land, sanity green at both ends, with the one survivor **proven to be a no-op**
   (the unreadable-clock early return is a fast path — deleting it still yields `[]`, because
   `utcDateStr(NaN)` is null and every day is skipped) · and the whole flow driven in
